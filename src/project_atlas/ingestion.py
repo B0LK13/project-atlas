@@ -20,6 +20,8 @@ from atlas_contracts.event_package import (
 )
 from atlas_contracts.identity import safe_relative_component
 from project_atlas.domain.sources import SourceRecord
+from project_atlas.secrets import scan_text
+from project_atlas.semantic_compiler import compile_project_record, render_project_record
 
 CLASS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("architecture", ("architecture", "design")),
@@ -47,6 +49,30 @@ def _atomic(path: Path, content: str) -> None:
     temporary = path.with_name(f".{path.name}.tmp")
     temporary.write_text(content, encoding="utf-8")
     os.replace(temporary, path)
+
+
+def _generated_atomic(path: Path, content: str) -> None:
+    """Write a generated note while preserving its human-owned regions."""
+    start = "<!-- atlas:generated:start -->"
+    end = "<!-- atlas:generated:end -->"
+    if path.is_file():
+        existing = path.read_text(encoding="utf-8")
+        has_marker = start in existing or end in existing
+        if has_marker:
+            if existing.count(start) != 1 or existing.count(end) != 1:
+                raise ValueError(f"malformed generated markers: {path}")
+            start_index = existing.index(start)
+            end_index = existing.index(end)
+            if end_index < start_index:
+                raise ValueError(f"malformed generated markers: {path}")
+            generated_start = content.index(start)
+            generated_end = content.index(end) + len(end)
+            content = (
+                existing[:start_index]
+                + content[generated_start:generated_end]
+                + existing[end_index + len(end):]
+            )
+    _atomic(path, content)
 
 
 class _PreparedRecord(NamedTuple):
@@ -186,6 +212,17 @@ def _previous_event_state(vault: Path) -> dict[str, list[dict[str, Any]]]:
     return previous
 
 
+def _previous_source_state(vault: Path) -> list[dict[str, Any]]:
+    path = vault / "state" / "sources.json"
+    if not path.is_file():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return [item for item in raw.get("sources", []) if isinstance(item, dict)]
+    except (OSError, UnicodeError, json.JSONDecodeError, AttributeError):
+        return []
+
+
 def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     """Ingest eligible manifest records and create provenance-backed notes."""
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -200,7 +237,9 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     event_entries: dict[str, list[dict[str, str]]] = {}
     event_state: dict[str, list[dict[str, Any]]] = {}
     quarantined_events: list[dict[str, Any]] = []
+    security_findings: list[dict[str, str]] = []
     previous_state = _previous_event_state(vault)
+    previous_sources = _previous_source_state(vault)
     event_inventories = _manifest_events(manifest)
     prepared: list[_PreparedRecord] = []
     for source_record in sources:
@@ -213,6 +252,19 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             text = source.read_text(encoding="utf-8")
         except UnicodeError as exc:
             raise ValueError(f"manifest source is not valid UTF-8: {source_record.path}") from exc
+        findings = scan_text(text)
+        if findings:
+            security_findings.extend(
+                {
+                    "source_id": source_record.source_id,
+                    "path": source_record.path,
+                    "pattern": finding.pattern,
+                    "confidence": finding.confidence,
+                    "hint": finding.redacted_hint,
+                }
+                for finding in findings
+            )
+            continue
         supported_suffixes = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".html"}
         suffix = source.suffix.lower() if source.suffix.lower() in supported_suffixes else ".txt"
         destination = _inside(
@@ -387,7 +439,47 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         "inventory_sha256": manifest.get("inventory_sha256"),
         "classifications": classifications,
         "documents_ingested": len(imported),
+        "security_findings": len(security_findings),
+        "duplicates": manifest.get("duplicates", {}),
     }
+    current_sources = [
+        {
+            "schema_version": 1,
+            "source_id": entry["source_id"],
+            "path": entry["path"],
+            "sha256": entry["sha256"],
+            "lifecycle": "verified",
+        }
+        for entry in sorted(imported, key=lambda item: str(item["source_id"]))
+    ]
+    current_ids = {str(item["source_id"]) for item in current_sources}
+    previous_by_id = {str(item.get("source_id")): item for item in previous_sources}
+    current_by_hash = {
+        str(item["sha256"]): str(item["source_id"])
+        for item in current_sources
+        if item.get("sha256")
+    }
+    for item in current_sources:
+        previous = previous_by_id.get(str(item["source_id"]))
+        if previous and previous.get("sha256") != item.get("sha256"):
+            item["lifecycle"] = "modified"
+            item["previous_sha256"] = previous.get("sha256")
+    for previous in previous_sources:
+        source_id = str(previous.get("source_id", ""))
+        if source_id and source_id not in current_ids:
+            restored_id = current_by_hash.get(str(previous.get("sha256")))
+            tombstone = dict(previous)
+            tombstone["lifecycle"] = "restored-elsewhere" if restored_id else "deleted"
+            if restored_id:
+                tombstone["restored_as"] = restored_id
+            current_sources.append(tombstone)
+    _atomic(
+        _inside(vault, vault / "state" / "sources.json"),
+        json.dumps(
+            {"schema_version": 1, "sources": current_sources}, indent=2, sort_keys=True
+        )
+        + "\n",
+    )
     _atomic(
         _inside(vault, vault / "sources" / "manifests" / "source-manifest.json"),
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
@@ -395,6 +487,10 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     _atomic(
         _inside(vault, vault / "generated" / "reports" / "ingestion-report.json"),
         json.dumps(report, indent=2, sort_keys=True) + "\n",
+    )
+    _atomic(
+        _inside(vault, vault / "generated" / "reports" / "secret-findings.json"),
+        json.dumps(security_findings, indent=2, sort_keys=True) + "\n",
     )
     if quarantined_events:
         _atomic(
@@ -412,18 +508,12 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             + "\n",
         )
     for project, entries in sorted(projects.items()):
-        lines = [
-            "---", "type: Project", f"title: {project}",
-            "knowledge_state: evidence-backed", "---", "", f"# {project}",
-            "", "## Sources", "",
-        ]
-        for entry in sorted(entries, key=lambda item: str(item["path"]).lower()):
-            lines.append(
-                f"- [{entry['path']}]({entry['source']}) — "
-                f"`{entry['classification']}` — `{entry['sha256']}`"
-            )
+        project_record = compile_project_record(project, entries, event_entries.get(project, []))
         project_root = _inside(vault, vault / "projects" / project)
-        _atomic(_inside(vault, project_root / "project.md"), "\n".join(lines) + "\n")
+        _generated_atomic(
+            _inside(vault, project_root / "project.md"),
+            render_project_record(project_record, entries),
+        )
         map_lines = [
             f"# Documentation map — {project}", "", "| Source | Classification | SHA-256 |",
             "|---|---|---|",
@@ -467,5 +557,6 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         "documents_ingested": len(imported),
         "events_ingested": len(prepared_events),
         "events_quarantined": len(quarantined_events),
+        "security_findings": len(security_findings),
         "inventory_sha256": manifest.get("inventory_sha256"),
     }

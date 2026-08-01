@@ -26,6 +26,7 @@ def test_all_expected_schemas_available() -> None:
         "concept-record",
         "conflict-record",
         "provenance-reference",
+        "semantic-records",
         "source-record",
         "validation-finding",
     ]
@@ -64,6 +65,11 @@ def test_valid_records_pass() -> None:
         finding_id="f-1", rule_id="r", severity="info", gate="content", message="m"
     )
     validate_record(finding, "validation-finding")
+    validate_record(
+        {"schema_version": 1, "project_id": "p-1", "name": "Project", "generated": True,
+         "sources": [], "coverage": []},
+        "semantic-records",
+    )
 
 
 def test_invalid_record_fails_schema() -> None:

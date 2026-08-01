@@ -10,6 +10,16 @@ from project_atlas.domain.concepts import ConceptRecord
 from project_atlas.domain.conflicts import ConflictingClaim, ConflictRecord, ConflictState
 from project_atlas.domain.findings import ValidationFinding
 from project_atlas.domain.relationships import Relationship, RelationType
+from project_atlas.domain.semantic import (
+    AgentEventReference,
+    CoverageRecord,
+    DecisionRecord,
+    ProjectRecord,
+    SourceAuthority,
+    SourceLifecycleRecord,
+    ValidationEvidence,
+    WorkPackageRecord,
+)
 from project_atlas.domain.sources import RepositoryInfo, SourceRecord
 from project_atlas.domain.vocabulary import (
     ClassificationState,
@@ -24,6 +34,7 @@ from project_atlas.domain.vocabulary import (
 )
 
 __all__ = [
+    "AgentEventReference",
     "Claim",
     "ClassificationState",
     "ConceptRecord",
@@ -31,17 +42,24 @@ __all__ = [
     "ConflictRecord",
     "ConflictState",
     "ConflictingClaim",
+    "CoverageRecord",
+    "DecisionRecord",
     "DocumentLifecycle",
     "KnowledgeState",
     "LifecycleStatus",
     "Maturity",
+    "ProjectRecord",
     "ProvenanceReference",
     "RelationType",
     "Relationship",
     "RepositoryInfo",
     "ReviewState",
     "Severity",
+    "SourceAuthority",
+    "SourceLifecycleRecord",
     "SourceRecord",
+    "ValidationEvidence",
     "ValidationFinding",
     "ValidationGate",
+    "WorkPackageRecord",
 ]

@@ -2,7 +2,7 @@
 
 **Roadmap version:** 1.0
 **Roadmap date:** August 1, 2026
-**Program status:** Atlas Core vertical slice merged; Atlas Control Plane certified; AS-INT-001 certification pending
+**Program status:** Atlas Core vertical slice merged; AS-INT-001 certified; AS-CORE-002 in progress
 **Target state:** Governed, evidence-backed project intelligence system built on an Obsidian-compatible Atlas Vault
 
 ---
@@ -91,8 +91,8 @@ contains derived, source-linked relationship intelligence. The accepted
 decision is recorded in `docs/adr/ADR-002-atlas-two-track-reconciliation.md`.
 
 Atlas Core's controlled `discover → ingest → build-indexes → validate` vertical
-slice is merged and tagged. AS-INT-001 is the current integration package;
-Atlas Core is not yet an MVP.
+slice is merged and tagged. AS-INT-001 is certified. AS-CORE-002 is hardening
+the semantic model and source lifecycle; Atlas Core is not yet an MVP.
 
 ## Certified foundations
 
@@ -114,13 +114,14 @@ Atlas Core is not yet an MVP.
 
 | Work package | Capability | Status |
 |---|---|---|
-| AS-INT-001 | Governed Control Plane event-package ingestion into Atlas Core | **Implementation complete — certification pending** |
+| AS-INT-001 | Governed Control Plane event-package ingestion into Atlas Core | **Certified** |
+| AS-CORE-002 | Semantic domain model and source lifecycle hardening | **Implementation in progress** |
 
 ## Authorized next work
 
 | Work package | Capability                                    | Status                                 |
 | ------------ | --------------------------------------------- | -------------------------------------- |
-| AS-INT-001 | Governed agent-event ingestion contract | **Current package** |
+| AS-CORE-002 | Semantic domain model and source lifecycle hardening | **Current package** |
 | AS-WP-005    | Graphify adapter and relationship projections | **Deferred until Core integration boundary is established** |
 
 ---
