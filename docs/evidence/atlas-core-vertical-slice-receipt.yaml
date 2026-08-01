@@ -1,0 +1,43 @@
+schema_version: 1
+receipt_type: atlas-core-work-package
+work_package_id: atlas-core-vertical-slice
+status: passed
+branch: feat/atlas-core-vertical-slice
+baseline:
+  commit: 672cd4e
+  tag: atlas-reconciliation-baseline-2026-08-01
+implementation_commit: 2cc2091
+scope:
+  commands:
+    - discover
+    - ingest
+    - build-indexes
+    - validate
+  control_plane_modified: false
+  graph_layer_started: false
+fixture:
+  path: atlas-vault-documentation/tests/fixtures/projects/documentation-rich
+  sources_discovered: 13
+  documents_ingested: 13
+  projects: 1
+  markdown_files_validated: 42
+replay:
+  unchanged_manifest: true
+  canonical_hashes_identical: true
+  content_mutations: 0
+provenance:
+  source_sha256_recorded: true
+  imported_source_links: true
+  project_documentation_map: true
+validation:
+  core_tests: 57
+  full_parent_suite: 57
+  mypy: passed
+  ruff: passed
+  compilation: passed
+residual_gaps:
+  - full Core discovery/classification/coverage/conflict backlog remains
+  - agent-event inbox integration is not yet implemented
+  - human-safe regeneration and deletion-state handling remain future work
+sync_state: synchronized
+blockers: []
