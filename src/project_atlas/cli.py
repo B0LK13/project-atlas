@@ -15,8 +15,12 @@ from pathlib import Path
 
 from project_atlas import __version__
 from project_atlas.config import load_config
+from project_atlas.discovery import discover, write_manifest
+from project_atlas.indexes import build_indexes
+from project_atlas.ingestion import ingest
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.scaffold import ScaffoldError, create_scaffold
+from project_atlas.validation import validate
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -49,6 +53,28 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Vault output directory. Must not exist as a file or non-empty directory.",
     )
+
+    discover_parser = subparsers.add_parser(
+        "discover", help="Discover source documents into a manifest (FR-002)."
+    )
+    discover_parser.add_argument("--source", type=Path, required=True)
+    discover_parser.add_argument("--output", type=Path, required=True)
+
+    ingest_parser = subparsers.add_parser(
+        "ingest", help="Ingest a source manifest into an OKF Vault (FR-005-FR-008)."
+    )
+    ingest_parser.add_argument("--manifest", type=Path, required=True)
+    ingest_parser.add_argument("--vault", type=Path, required=True)
+
+    indexes_parser = subparsers.add_parser(
+        "build-indexes", help="Build deterministic Vault indexes (FR-010)."
+    )
+    indexes_parser.add_argument("--vault", type=Path, required=True)
+
+    validate_parser = subparsers.add_parser(
+        "validate", help="Validate Vault structure, provenance links and safety (FR-012)."
+    )
+    validate_parser.add_argument("--vault", type=Path, required=True)
     init_parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -89,6 +115,53 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dry_run:
             for relative, _ in plan.files:
                 print(f"  - {relative}")
+        return EXIT_OK
+
+    if args.command == "discover":
+        try:
+            manifest = discover(
+                args.source,
+                excludes=config.discovery.exclude_globs,
+                max_file_size=config.discovery.max_file_size_bytes,
+            )
+            write_manifest(manifest, args.output)
+        except (OSError, ValueError) as exc:
+            _log.error("discover failed: %s", exc)
+            return EXIT_ERROR
+        print(f"discovered {len(manifest['sources'])} sources")
+        print(f"manifest: {args.output}")
+        return EXIT_OK
+
+    if args.command == "ingest":
+        try:
+            result = ingest(args.manifest, args.vault)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            _log.error("ingest failed: %s", exc)
+            return EXIT_ERROR
+        print(f"ingested {result['documents_ingested']} documents")
+        print(f"projects: {result['projects']}")
+        return EXIT_OK
+
+    if args.command == "build-indexes":
+        try:
+            result = build_indexes(args.vault)
+        except OSError as exc:
+            _log.error("build-indexes failed: %s", exc)
+            return EXIT_ERROR
+        print(f"indexed {result['projects']} projects and {result['sources']} sources")
+        return EXIT_OK
+
+    if args.command == "validate":
+        try:
+            result = validate(args.vault)
+        except (OSError, ValueError) as exc:
+            _log.error("validate failed: %s", exc)
+            return EXIT_ERROR
+        if not result["ok"]:
+            for error in result["errors"]:
+                _log.error("validation: %s", error)
+            return EXIT_ERROR
+        print(f"validated {result['markdown_files']} Markdown files")
         return EXIT_OK
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
