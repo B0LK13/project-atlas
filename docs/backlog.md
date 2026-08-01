@@ -111,3 +111,17 @@
 - [ ] K-005 Expected generated vault
 - [ ] K-006 Contradiction fixtures
 - [ ] K-007 Secret fixtures
+
+## Cross-cutting follow-up — Atlas Core vertical slice
+
+- [ ] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
+  `ProvenanceReference` into formal project projections and richer validated
+  project frontmatter; the current slice intentionally uses a thin
+  `SourceRecord`-backed projection.
+- [ ] CORE-OPS-001 Add explicit read-before-write/hash-before-replace
+  accounting and evidence for filesystem-write suppression on unchanged
+  replay. Keep `content drift` and `canonical content changes` distinct from
+  physical filesystem writes.
+- [ ] CORE-SEC-001 Implement content-based secret detection and redaction for
+  pilot ingestion. Filename-only sensitive-file detection must not be treated
+  as sufficient for real-project ingestion.

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "finding_id": "AT-013",
+  "title": "Manifest-controlled path traversal at atlas ingest boundary",
+  "status": "remediated-pending-independent-replay",
+  "affected_command": "atlas ingest --manifest <manifest> --vault <vault>",
+  "pre_fix": {
+    "command": "./.venv/bin/python -m pytest tests/integration/test_ingestion_security.py::test_public_ingest_rejects_manifest_project_traversal -q",
+    "result": "failed as expected before remediation",
+    "observed_output": "ingested 1 documents",
+    "crafted_field": "likely_project",
+    "crafted_value": "../../../../outside-vault-marker",
+    "escaped_destinations": [
+      "<pytest-temp>/outside-vault-marker/project.md",
+      "<pytest-temp>/outside-vault-marker/documentation-map.md"
+    ],
+    "canonical_mutations": "1 affected Vault plus escaped files"
+  },
+  "crafted_manifest": {
+    "schema_version": 1,
+    "source_root": "<temporary source root>",
+    "sources": [
+      {
+        "source_id": "source-safe",
+        "path": "README.md",
+        "likely_project": "../../../../outside-vault-marker"
+      }
+    ]
+  },
+  "post_fix": {
+    "command": "./.venv/bin/python -m pytest tests/integration/test_ingestion_security.py -q",
+    "result": "8 passed",
+    "rejection": "invalid manifest SourceRecord likely_project value",
+    "canonical_mutations": 0,
+    "outside_destination_created": false,
+    "previous_valid_vault_preserved": true,
+    "variants": [
+      "../outside",
+      "../../../../deeply/nested/outside",
+      "/absolute/outside",
+      "C:\\outside",
+      "\\\\server\\share",
+      "source_id=../../outside-source"
+    ]
+  },
+  "cleanup": {
+    "source": "pytest disposable temporary directories",
+    "action": "retained during evidence capture; no repository or production Vault files were deleted",
+    "remaining_outside_marker": false
+  },
+  "remediation": {
+    "manifest_validation": "SourceRecord model plus bounded top-level manifest contract",
+    "destination_confinement": "resolved candidate must be relative to resolved Vault root",
+    "transaction_policy": "preflight all records before any destination write"
+  }
+}

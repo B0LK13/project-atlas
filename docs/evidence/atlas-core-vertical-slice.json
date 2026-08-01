@@ -21,12 +21,15 @@
   "unchanged_replay": {
     "documents_reingested": 13,
     "canonical_hash_comparison": "identical",
-    "content_mutations": 0,
+    "content_drift": 0,
+    "canonical_content_changes": 0,
+    "filesystem_writes": 0,
+    "filesystem_write_measurement": "compare-before-write and unchanged-file metadata assertions",
     "status": "passed"
   },
   "gates": {
     "core_tests": "passed",
-    "core_test_count": 57,
+    "core_test_count": 65,
     "mypy": "passed",
     "ruff": "passed",
     "compilation": "passed"

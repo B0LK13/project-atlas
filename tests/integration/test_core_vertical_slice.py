@@ -62,10 +62,19 @@ def test_unchanged_replay_has_zero_content_mutations(tmp_path: Path) -> None:
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in vault.rglob("*") if path.is_file()
     }
+    before_mtimes = {
+        path.relative_to(vault).as_posix(): path.stat().st_mtime_ns
+        for path in vault.rglob("*") if path.is_file()
+    }
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     after = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in vault.rglob("*") if path.is_file()
     }
+    after_mtimes = {
+        path.relative_to(vault).as_posix(): path.stat().st_mtime_ns
+        for path in vault.rglob("*") if path.is_file()
+    }
     assert before == after
+    assert before_mtimes == after_mtimes
