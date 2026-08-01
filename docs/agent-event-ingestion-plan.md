@@ -15,6 +15,8 @@ small typed contract and the public Core discovery/ingestion workflow.
    projections.
 6. Controlled valid/pending/malformed/conflicting/traversal fixture coverage.
 7. Deterministic replay and strict Vault validation evidence.
+8. Trusted Vault skill-policy binding so arbitrary well-formed hashes are not
+   accepted as certified governance evidence.
 
 ## Requirements mapping
 
@@ -39,3 +41,7 @@ small typed contract and the public Core discovery/ingestion workflow.
 - strict Vault validation passes;
 - receipt remains `IMPLEMENTATION COMPLETE — CERTIFICATION PENDING` until
   independent review.
+
+Symlinked package directories are isolated as invalid inventory records rather
+than aborting discovery. Event skill hashes are compared to the
+Vault-provisioned `.atlas/agent-event-policy.json` binding.

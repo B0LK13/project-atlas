@@ -40,6 +40,12 @@ component hashes, checks the event/provenance/receipt bindings, requires all
 pipeline stages to be true, and confines every path to the source root and
 Vault root.
 
+Event ingestion also requires `.atlas/vault.json` and
+`.atlas/agent-event-policy.json` in the target Vault. The policy is
+deployment-provisioned from the certified AS-SKILL-001 receipt and contains
+the trusted skill ID, version and SHA-256. A syntactically valid but unknown
+skill hash is quarantined; Core does not trust the package's self-assertion.
+
 The shared typed models live in `src/atlas_contracts/`. JSON schemas under
 `src/atlas_contracts/schemas/` are lockstep-tested with the models. Package
 identity is never inferred from unvalidated path text.
@@ -81,3 +87,7 @@ atlas validate --vault <vault>
 Cross-project identity, Control Plane inbox production changes, semantic
 ConceptRecord construction, content secret scanning, and Graph Layer behavior
 remain separate work packages.
+
+Integration follow-up items cover skill-policy rotation/revocation, raw-package
+retention, removed-package state, receipt revocation, schema migration and the
+bounded multi-project pilot.

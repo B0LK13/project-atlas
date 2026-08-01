@@ -11,6 +11,7 @@ from typing import Any, NamedTuple
 
 from pydantic import ValidationError
 
+from atlas_contracts.agent_event import SkillBinding
 from atlas_contracts.event_package import (
     EventPackage,
     EventPackageInventory,
@@ -135,6 +136,20 @@ def _vault_identity(vault: Path) -> dict[str, Any] | None:
         raise ValueError(f"invalid Vault identity: {exc}") from exc
 
 
+def _trusted_skill(vault: Path) -> SkillBinding | None:
+    """Load the deployment-provisioned certified skill binding."""
+    policy_path = vault / ".atlas" / "agent-event-policy.json"
+    if not policy_path.is_file():
+        return None
+    try:
+        raw = json.loads(policy_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("agent-event policy must be an object")
+        return SkillBinding.model_validate(raw.get("skill"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValidationError, ValueError) as exc:
+        raise ValueError(f"invalid agent-event policy: {exc}") from exc
+
+
 def _event_link(project: str, event_id: str) -> str:
     return f"../../sources/agent-events/{project}/{event_id}/event.md"
 
@@ -178,6 +193,7 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     root = Path(str(manifest["source_root"])).resolve()
     vault = vault.expanduser().resolve()
     expected_vault = _vault_identity(vault)
+    expected_skill = _trusted_skill(vault)
     imported: list[dict[str, Any]] = []
     classifications: dict[str, dict[str, str]] = {}
     projects: dict[str, list[dict[str, Any]]] = {}
@@ -240,9 +256,16 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             event_state.setdefault(state_project, []).append(state_record)
             quarantined_events.append(state_record)
             continue
-        if expected_vault is None:
+        if expected_vault is None or expected_skill is None:
             state_record["status"] = "rejected"
-            state_record["errors"] = ["target Vault identity is unavailable"]
+            state_record["errors"] = [
+                reason
+                for reason, missing in (
+                    ("target Vault identity is unavailable", expected_vault is None),
+                    ("trusted agent-event skill policy is unavailable", expected_skill is None),
+                )
+                if missing
+            ]
             event_state.setdefault(state_project, []).append(state_record)
             quarantined_events.append(state_record)
             continue
@@ -259,6 +282,10 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             if any(actual_vault.get(key) != value for key, value in expected.items()):
                 raise PackageValidationError(
                     "event package Vault identity does not match target Vault"
+                )
+            if package.envelope.skill != expected_skill:
+                raise PackageValidationError(
+                    "event package skill binding does not match trusted skill policy"
                 )
         except (PackageValidationError, OSError, ValueError) as exc:
             state_record["status"] = "rejected"

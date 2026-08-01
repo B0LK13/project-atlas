@@ -112,6 +112,19 @@ def _write_vault_identity(vault: Path, *, vault_id: str = "atlas-main") -> None:
         ),
         encoding="utf-8",
     )
+    (vault / ".atlas" / "agent-event-policy.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "skill": {
+                    "id": "atlas-governed-work",
+                    "version": "1.0.0",
+                    "sha256": "0" * 64,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_public_event_package_workflow_and_projections(tmp_path: Path) -> None:
@@ -299,3 +312,42 @@ def test_missing_vault_identity_keeps_events_out_of_canonical_projection(tmp_pat
     assert "target Vault identity is unavailable" in quarantine.read_text(encoding="utf-8")
     activity = vault / "projects" / "integrated-atlas-project" / "activity.md"
     assert "AE-implementation" not in activity.read_text(encoding="utf-8")
+
+
+def test_skill_hash_mismatch_is_quarantined_against_trusted_policy(tmp_path: Path) -> None:
+    source, vault = _run_fixture(tmp_path)
+    manifest = tmp_path / "manifest.json"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    event_json = (
+        source
+        / ".atlas-inbox"
+        / "agent-events"
+        / "integrated-atlas-project"
+        / "AE-implementation"
+        / "event.json"
+    )
+    payload = json.loads(event_json.read_text(encoding="utf-8"))
+    payload["skill"]["sha256"] = "f" * 64
+    event_json.write_text(json.dumps(payload), encoding="utf-8")
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    _write_vault_identity(vault)
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    quarantine = vault / "quarantine" / "agent-events" / "index.json"
+    assert "skill binding does not match trusted skill policy" in quarantine.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_symlinked_event_package_isolated_during_discovery(tmp_path: Path) -> None:
+    source, _ = _run_fixture(tmp_path)
+    outside = tmp_path / "outside-package"
+    outside.mkdir()
+    symlink = source / ".atlas-inbox" / "agent-events" / "integrated-atlas-project" / "AE-symlink"
+    symlink.symlink_to(outside, target_is_directory=True)
+    manifest = tmp_path / "manifest.json"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    symlink_record = next(
+        item for item in payload["agent_events"] if item["event_id"] == "AE-symlink"
+    )
+    assert symlink_record["status"] == "invalid"

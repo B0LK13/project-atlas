@@ -180,7 +180,15 @@ def inspect_event_package(
                     for key in ("captured", "normalized", "verified", "routed")
                 ):
                     status = "pending"
-        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, AttributeError):
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            TypeError,
+            AttributeError,
+            PackageValidationError,
+            ValueError,
+        ):
             pass
         return EventPackageInventory(
             project_id=project_id,
