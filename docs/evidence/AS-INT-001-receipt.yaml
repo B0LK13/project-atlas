@@ -1,10 +1,12 @@
 schema_version: 1
 receipt_type: atlas-integration-work-package
 work_package_id: AS-INT-001
-status: implementation-complete-certification-pending
-branch: feat/agent-event-ingestion-contract
+status: certified
+branch: main
 base:
-  main_commit: 304f942
+  main_commit: 0daa7c7
+  feature_head: efeb5f9afb8f1f1acb156709e67a226f9264131e
+  merge_commit: 0daa7c7
   milestone_tag: atlas-core-vertical-slice-v1
 contract:
   schema_version: 1
@@ -51,6 +53,7 @@ validation:
   schema_lockstep: passed
   strict_vault_validation: passed
   public_cli_workflow: passed
+  merged_main: passed
 security:
   traversal_rejected: true
   hash_mismatch_quarantined: true
@@ -68,6 +71,7 @@ replay:
   canonical_content_changes: 0
   filesystem_writes: 0
   duplicate_activity_entries: 0
+  merged_main_replay: passed
 projections:
   - projects/<project-id>/activity.md
   - projects/<project-id>/sessions.md
@@ -79,10 +83,31 @@ projections:
   - receipts/agent-events/<project-id>/<event-id>.yaml
   - quarantine/agent-events/index.json
 residual_risks:
-  - independent Agent Two integration review is pending
   - Core does not yet consume live Control Plane inbox output automatically
   - semantic ConceptRecord/Claim construction remains deferred
   - content-based secret scanning remains deferred to CORE-SEC-001
   - cross-project identity and Graph Layer remain out of scope
+historical_defects:
+  - defect: symlinked event-package directory aborted discovery
+    status: fixed
+    fixed_commit: efeb5f9
+    independently_verified: true
+  - defect: syntactically valid untrusted skill hash was accepted
+    status: fixed
+    fixed_commit: efeb5f9
+    independently_verified: true
+independent_verification:
+  reviewer: Agent Two
+  verdict: merge-recommended
+  focused_tests: 12
+  core_tests: 77
+  control_plane_tests: 146
+  mypy_source_files: 124
+  findings:
+    - symlinked package isolated and quarantined without blocking discovery
+    - trusted skill hash accepted
+    - mismatched skill hash rejected
+    - missing trust policy rejected
+  evidence: docs/AS-INT-001-post-merge.md
 sync_state: synchronized
 blockers: []

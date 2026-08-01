@@ -1,0 +1,63 @@
+schema_version: 1
+receipt_type: atlas-integration-certification
+work_package_id: AS-INT-001
+status: certified
+branch: main
+merge:
+  merge_commit: 0daa7c7
+  feature_head: efeb5f9afb8f1f1acb156709e67a226f9264131e
+  base_commit: 304f9424040f3627deb7a987e737d75db434922b
+  core_milestone_tag: atlas-core-vertical-slice-v1
+  evidence_commit: pending
+contract:
+  schema_version: 1
+  package_root: .atlas-inbox/agent-events/<project-id>/<event-id>
+  components:
+    - event.md
+    - event.json
+    - provenance.json
+    - receipt.yaml
+  shared_package: src/atlas_contracts/
+boundaries:
+  atlas_core: canonical-OKF-vault-and-projections
+  atlas_control_plane: governed-agent-events-and-receipts
+  direct_control_plane_imports: false
+validation:
+  focused_contract_and_integration_tests: 12
+  core_suite: 77
+  control_plane_suite: 146
+  mypy_source_files: 124
+  mypy: passed
+  ruff: passed
+  compilation: passed
+  public_cli_workflow: passed
+  strict_vault_validation: passed
+security:
+  symlinked_package_isolated: true
+  trusted_skill_hash_accepted: true
+  mismatched_skill_hash_rejected: true
+  missing_trust_policy_rejected: true
+  wrong_vault_rejected: true
+  conflicting_event_id_rejected: true
+  escaped_writes: 0
+replay:
+  identical_package_idempotent: true
+  content_drift: 0
+  canonical_changes: 0
+  filesystem_writes: 0
+  duplicate_activity_entries: 0
+independent_verification:
+  reviewer: Agent Two
+  verdict: merge-recommended
+  focused_tests: 12
+  core_tests: 77
+  control_plane_tests: 146
+  mypy_source_files: 124
+  historical_defects_retested: true
+residual_risks:
+  - live Control Plane inbox production remains a later integration step
+  - semantic ConceptRecord and Claim construction remains deferred
+  - content-based secret scanning remains CORE-SEC-001
+  - cross-project identity and Graph Layer remain out of scope
+sync_state: synchronized
+blockers: []
