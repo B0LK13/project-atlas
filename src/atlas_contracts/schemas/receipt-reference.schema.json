@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/receipt-reference.schema.json",
+  "type": "object", "additionalProperties": false,
+  "required": ["receipt_id", "status", "event_id"],
+  "properties": {
+    "receipt_id": {"type": "string", "minLength": 1},
+    "status": {"enum": ["valid", "pending", "rejected"]},
+    "event_id": {"type": "string", "minLength": 1}
+  }
+}

@@ -13,6 +13,7 @@ from typing import Any
 
 import yaml
 
+from atlas_contracts.event_package import EventPackageInventory, inspect_event_package
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import ClassificationState
 
@@ -60,6 +61,46 @@ def _excluded(relative: str, path: Path, *, excludes: list[str]) -> str | None:
     return None
 
 
+def _discover_agent_events(root: Path) -> list[dict[str, Any]]:
+    """Inventory Control Plane packages without importing its implementation."""
+    inbox = root / ".atlas-inbox" / "agent-events"
+    if not inbox.is_dir() or inbox.is_symlink():
+        return []
+    inventories: list[EventPackageInventory] = []
+    for project_dir in sorted(inbox.iterdir(), key=lambda path: path.name.lower()):
+        if not project_dir.is_dir():
+            continue
+        for event_dir in sorted(project_dir.iterdir(), key=lambda path: path.name.lower()):
+            if not event_dir.is_dir():
+                continue
+            relative = event_dir.relative_to(root).as_posix()
+            inventories.append(
+                inspect_event_package(root, project_dir.name, event_dir.name, relative)
+            )
+    by_event_id: dict[str, list[EventPackageInventory]] = {}
+    for inventory in inventories:
+        by_event_id.setdefault(inventory.event_id, []).append(inventory)
+    result: list[dict[str, Any]] = []
+    for inventory in inventories:
+        peers = by_event_id[inventory.event_id]
+        if len(peers) > 1:
+            hashes = [peer.component_sha256 for peer in peers]
+            identical = bool(hashes[0]) and all(peer_hash == hashes[0] for peer_hash in hashes)
+            inventory = inventory.model_copy(
+                update={
+                    "status": "valid" if identical else "conflicting",
+                    "errors": [
+                        *inventory.errors,
+                        "identical duplicate event_id in inbox"
+                        if identical
+                        else "conflicting duplicate event_id in inbox",
+                    ],
+                }
+            )
+        result.append(inventory.model_dump(mode="json"))
+    return result
+
+
 def discover(
     root: Path,
     *,
@@ -71,8 +112,11 @@ def discover(
     if not root.is_dir():
         raise ValueError(f"source root is not a directory: {root}")
     records: list[dict[str, Any]] = []
+    event_root = root / ".atlas-inbox" / "agent-events"
     for path in sorted(root.rglob("*"), key=lambda item: item.as_posix().lower()):
         if not path.is_file() or path.is_symlink():
+            continue
+        if event_root.is_dir() and path.is_relative_to(event_root):
             continue
         relative = path.relative_to(root).as_posix()
         reason = _excluded(relative, path, excludes=excludes or [])
@@ -107,6 +151,7 @@ def discover(
         "source_root": str(root),
         "sources": records,
         "duplicates": duplicates,
+        "agent_events": _discover_agent_events(root),
     }
     inventory_hash = hashlib.sha256(
         json.dumps(semantic, sort_keys=True, separators=(",", ":")).encode()

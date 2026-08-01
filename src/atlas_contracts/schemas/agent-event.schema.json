@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/agent-event.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event", "skill", "vault", "provenance", "pipeline", "receipt"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "event": {"$ref": "#/$defs/event"},
+    "skill": {"$ref": "#/$defs/skill"},
+    "vault": {"$ref": "#/$defs/vault"},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "pipeline": {"$ref": "#/$defs/pipeline"},
+    "receipt": {"$ref": "#/$defs/receipt"}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "event": {
+      "type": "object", "additionalProperties": false,
+      "required": ["event_id", "event_type", "project_id", "session_id", "agent_id", "adapter_id", "timestamp", "summary"],
+      "properties": {
+        "event_id": {"type": "string", "pattern": "^AE-[A-Za-z0-9._:-]+$"},
+        "event_type": {"enum": ["session-start", "implementation", "decision", "validation", "blocker", "failure", "recovery", "completion", "receipt"]},
+        "project_id": {"$ref": "#/$defs/id"}, "session_id": {"$ref": "#/$defs/id"},
+        "agent_id": {"$ref": "#/$defs/id"}, "adapter_id": {"$ref": "#/$defs/id"},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "work_package_id": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 4000}
+      }
+    },
+    "skill": {"type": "object", "additionalProperties": false, "required": ["id", "version", "sha256"], "properties": {"id": {"$ref": "#/$defs/id"}, "version": {"type": "string", "minLength": 1}, "sha256": {"$ref": "#/$defs/hash"}}},
+    "vault": {"type": "object", "additionalProperties": false, "required": ["vault_id", "vault_uuid"], "properties": {"schema_version": {"type": "integer"}, "vault_id": {"$ref": "#/$defs/id"}, "vault_uuid": {"type": "string", "minLength": 1}, "name": {"type": ["string", "null"]}}},
+    "provenance": {"type": "object", "additionalProperties": false, "required": ["content_sha256", "normalized_sha256", "source_receipt_id"], "properties": {"content_sha256": {"$ref": "#/$defs/hash"}, "normalized_sha256": {"$ref": "#/$defs/hash"}, "source_receipt_id": {"type": "string", "minLength": 1}}},
+    "pipeline": {"type": "object", "additionalProperties": false, "required": ["captured", "normalized", "verified", "routed"], "properties": {"captured": {"type": "boolean"}, "normalized": {"type": "boolean"}, "verified": {"type": "boolean"}, "routed": {"type": "boolean"}}},
+    "receipt": {"type": "object", "additionalProperties": false, "required": ["receipt_id", "status", "event_id"], "properties": {"receipt_id": {"type": "string", "minLength": 1}, "status": {"enum": ["valid", "pending", "rejected"]}, "event_id": {"type": "string", "minLength": 1}}}
+  }
+}

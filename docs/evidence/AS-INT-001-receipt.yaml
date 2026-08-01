@@ -1,0 +1,88 @@
+schema_version: 1
+receipt_type: atlas-integration-work-package
+work_package_id: AS-INT-001
+status: implementation-complete-certification-pending
+branch: feat/agent-event-ingestion-contract
+base:
+  main_commit: 304f942
+  milestone_tag: atlas-core-vertical-slice-v1
+contract:
+  schema_version: 1
+  package_root: .atlas-inbox/agent-events/<project-id>/<event-id>
+  components:
+    - event.md
+    - event.json
+    - provenance.json
+    - receipt.yaml
+  shared_package: src/atlas_contracts/
+boundaries:
+  atlas_core:
+    owner: canonical-OKF-vault
+    implementation: src/project_atlas/
+  atlas_control_plane:
+    owner: governed-agent-events-and-receipts
+    implementation: atlas-vault-documentation/
+  direct_control_plane_imports: false
+fixture:
+  path: tests/fixtures/integrated-atlas-project
+  valid_events: 5
+  event_types:
+    - session-start
+    - implementation
+    - decision
+    - validation
+    - completion
+  pending_packages: covered
+  malformed_packages: covered
+  traversal_packages: covered
+  conflicting_duplicates: covered
+validation:
+  focused_contract_and_integration_tests: 12
+  core_suite: 77
+  control_plane_suite: 146
+  parent_suite: 77
+  mypy_command: "./.venv/bin/python -m mypy src atlas-vault-documentation"
+  mypy_source_files: 124
+  mypy: passed
+  ruff_command: "./.venv/bin/python -m ruff check ."
+  ruff: passed
+  compilation_command: "./.venv/bin/python -m compileall -q src atlas-vault-documentation"
+  compilation: passed
+  schema_lockstep: passed
+  strict_vault_validation: passed
+  public_cli_workflow: passed
+security:
+  traversal_rejected: true
+  hash_mismatch_quarantined: true
+  wrong_vault_quarantined: true
+  missing_vault_identity_quarantined: true
+  skill_hash_mismatch_quarantined: true
+  symlinked_package_isolated: true
+  malformed_package_quarantined: true
+  pending_unverified_not_projected: true
+  conflicting_duplicate_not_projected: true
+  escaped_writes: 0
+replay:
+  identical_package: passed
+  content_drift: 0
+  canonical_content_changes: 0
+  filesystem_writes: 0
+  duplicate_activity_entries: 0
+projections:
+  - projects/<project-id>/activity.md
+  - projects/<project-id>/sessions.md
+  - projects/<project-id>/validations.md
+  - projects/<project-id>/decisions.md
+  - projects/<project-id>/blockers.md
+  - projects/<project-id>/work-packages.md
+  - state/agent-events/<project-id>.json
+  - receipts/agent-events/<project-id>/<event-id>.yaml
+  - quarantine/agent-events/index.json
+residual_risks:
+  - independent Agent Two integration review is pending
+  - Core does not yet consume live Control Plane inbox output automatically
+  - semantic ConceptRecord/Claim construction remains deferred
+  - content-based secret scanning remains deferred to CORE-SEC-001
+  - cross-project identity and Graph Layer remain out of scope
+sync_state: synchronized
+blockers: []

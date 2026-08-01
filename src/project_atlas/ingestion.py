@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -10,6 +11,14 @@ from typing import Any, NamedTuple
 
 from pydantic import ValidationError
 
+from atlas_contracts.agent_event import SkillBinding
+from atlas_contracts.event_package import (
+    EventPackage,
+    EventPackageInventory,
+    PackageValidationError,
+    load_event_package,
+)
+from atlas_contracts.identity import safe_relative_component
 from project_atlas.domain.sources import SourceRecord
 
 CLASS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -47,10 +56,15 @@ class _PreparedRecord(NamedTuple):
     text: str
 
 
+class _PreparedEvent(NamedTuple):
+    package: EventPackage
+    destination: Path
+
+
 def _inside(root: Path, candidate: Path) -> Path:
     """Resolve a candidate and reject paths escaping ``root``."""
     resolved_root = root.resolve()
-    resolved_candidate = candidate.resolve()
+    resolved_candidate = Path(candidate).resolve()
     try:
         resolved_candidate.relative_to(resolved_root)
     except ValueError as exc:
@@ -73,8 +87,8 @@ def _manifest_records(manifest: object) -> list[SourceRecord]:
     if not isinstance(manifest, dict):
         raise ValueError("manifest root must be an object")
     required = {"schema_version", "source_root", "sources", "duplicates", "inventory_sha256"}
-    allowed = required
-    if set(manifest) != allowed:
+    allowed = required | {"agent_events"}
+    if not required.issubset(manifest) or not set(manifest).issubset(allowed):
         raise ValueError("manifest fields do not match schema version 1")
     if manifest["schema_version"] != 1 or not isinstance(manifest["source_root"], str):
         raise ValueError("manifest schema_version or source_root is invalid")
@@ -95,15 +109,99 @@ def _manifest_records(manifest: object) -> list[SourceRecord]:
     return records
 
 
+def _manifest_events(manifest: object) -> list[EventPackageInventory]:
+    """Validate discovery's event inventory before package loading."""
+    if not isinstance(manifest, dict):
+        raise ValueError("manifest root must be an object")
+    raw_events = manifest.get("agent_events", [])
+    if not isinstance(raw_events, list):
+        raise ValueError("manifest agent_events must be a list")
+    try:
+        return [EventPackageInventory.model_validate(raw) for raw in raw_events]
+    except ValidationError as exc:
+        raise ValueError(f"invalid agent-event inventory: {exc}") from exc
+
+
+def _vault_identity(vault: Path) -> dict[str, Any] | None:
+    """Read the optional logical Vault identity used by event packages."""
+    identity_path = vault / ".atlas" / "vault.json"
+    if not identity_path.is_file():
+        return None
+    try:
+        raw = json.loads(identity_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("Vault identity must be an object")
+        return raw
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ValueError(f"invalid Vault identity: {exc}") from exc
+
+
+def _trusted_skill(vault: Path) -> SkillBinding | None:
+    """Load the deployment-provisioned certified skill binding."""
+    policy_path = vault / ".atlas" / "agent-event-policy.json"
+    if not policy_path.is_file():
+        return None
+    try:
+        raw = json.loads(policy_path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("agent-event policy must be an object")
+        return SkillBinding.model_validate(raw.get("skill"))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValidationError, ValueError) as exc:
+        raise ValueError(f"invalid agent-event policy: {exc}") from exc
+
+
+def _event_link(project: str, event_id: str) -> str:
+    return f"../../sources/agent-events/{project}/{event_id}/event.md"
+
+
+def _event_line(entry: dict[str, str]) -> str:
+    package_link = f"[{entry['event_id']}]({entry['source']})"
+    work_package = entry.get("work_package_id") or "unknown"
+    return (
+        f"- {package_link} — `{entry['event_type']}` — session `{entry['session_id']}` — "
+        f"work package `{work_package}` — {entry['summary']}"
+    )
+
+
+def _file_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _previous_event_state(vault: Path) -> dict[str, list[dict[str, Any]]]:
+    state_root = vault / "state" / "agent-events"
+    previous: dict[str, list[dict[str, Any]]] = {}
+    if not state_root.is_dir():
+        return previous
+    for path in sorted(state_root.glob("*.json")):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and isinstance(raw.get("events"), list):
+                previous[path.stem] = [item for item in raw["events"] if isinstance(item, dict)]
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+    return previous
+
+
 def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     """Ingest eligible manifest records and create provenance-backed notes."""
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     sources = _manifest_records(manifest)
     root = Path(str(manifest["source_root"])).resolve()
     vault = vault.expanduser().resolve()
+    expected_vault = _vault_identity(vault)
+    expected_skill = _trusted_skill(vault)
     imported: list[dict[str, Any]] = []
     classifications: dict[str, dict[str, str]] = {}
     projects: dict[str, list[dict[str, Any]]] = {}
+    event_entries: dict[str, list[dict[str, str]]] = {}
+    event_state: dict[str, list[dict[str, Any]]] = {}
+    quarantined_events: list[dict[str, Any]] = []
+    previous_state = _previous_event_state(vault)
+    event_inventories = _manifest_events(manifest)
     prepared: list[_PreparedRecord] = []
     for source_record in sources:
         if source_record.exclusion_reason or not source_record.sha256:
@@ -128,17 +226,162 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         if not destination.exists():
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
-        entry = {
+        entry: dict[str, str] = {
             "source_id": source_id,
             "path": source_record.path,
             "classification": classification,
             "source": f"../../sources/imported-documents/{destination.name}",
-            "sha256": source_record.sha256,
+            "sha256": source_record.sha256 or "",
         }
         imported.append(entry)
         classifications[source_id] = {"type": classification, "method": method}
         project = source_record.likely_project or "unknown-project"
         projects.setdefault(project, []).append(entry)
+    prepared_events: list[_PreparedEvent] = []
+    seen_event_ids: dict[str, dict[str, str]] = {}
+    for inventory in event_inventories:
+        try:
+            safe_relative_component(inventory.project_id, label="project_id")
+            state_project = inventory.project_id
+        except ValueError:
+            state_project = "__invalid__"
+        state_record: dict[str, Any] = {
+            "project_id": inventory.project_id,
+            "event_id": inventory.event_id,
+            "package_path": inventory.package_path,
+            "status": inventory.status,
+            "errors": inventory.errors,
+        }
+        if inventory.status != "valid":
+            event_state.setdefault(state_project, []).append(state_record)
+            quarantined_events.append(state_record)
+            continue
+        if expected_vault is None or expected_skill is None:
+            state_record["status"] = "rejected"
+            state_record["errors"] = [
+                reason
+                for reason, missing in (
+                    ("target Vault identity is unavailable", expected_vault is None),
+                    ("trusted agent-event skill policy is unavailable", expected_skill is None),
+                )
+                if missing
+            ]
+            event_state.setdefault(state_project, []).append(state_record)
+            quarantined_events.append(state_record)
+            continue
+        try:
+            package = load_event_package(
+                root, inventory.project_id, inventory.event_id, inventory.package_path
+            )
+            actual_vault = package.envelope.vault.model_dump(exclude_none=True)
+            expected = {
+                key: expected_vault[key]
+                for key in ("vault_id", "vault_uuid")
+                if key in expected_vault
+            }
+            if any(actual_vault.get(key) != value for key, value in expected.items()):
+                raise PackageValidationError(
+                    "event package Vault identity does not match target Vault"
+                )
+            if package.envelope.skill != expected_skill:
+                raise PackageValidationError(
+                    "event package skill binding does not match trusted skill policy"
+                )
+        except (PackageValidationError, OSError, ValueError) as exc:
+            state_record["status"] = "rejected"
+            state_record["errors"] = [str(exc)]
+            event_state.setdefault(state_project, []).append(state_record)
+            quarantined_events.append(state_record)
+            continue
+        fingerprint = package.component_sha256
+        prior = seen_event_ids.get(package.event_id)
+        if prior is not None:
+            if prior == fingerprint:
+                state_record["status"] = "identical-replay"
+            else:
+                state_record["status"] = "conflicting-duplicate"
+                state_record["errors"] = ["event_id maps to different package content"]
+                quarantined_events.append(state_record)
+            event_state.setdefault(state_project, []).append(state_record)
+            continue
+        seen_event_ids[package.event_id] = fingerprint
+        destination = _inside(
+            vault,
+            vault / "sources" / "agent-events" / package.project_id / package.event_id,
+        )
+        if destination.is_dir():
+            existing_hashes = {
+                name: _file_hash(destination / name)
+                for name in ("event.md", "event.json", "provenance.json", "receipt.yaml")
+                if (destination / name).is_file()
+            }
+            if existing_hashes and existing_hashes != fingerprint:
+                state_record["status"] = "changed-source"
+                state_record["errors"] = ["event package content changed after prior ingestion"]
+                event_state.setdefault(package.project_id, []).append(state_record)
+                quarantined_events.append(state_record)
+                continue
+        prepared_events.append(_PreparedEvent(package, destination))
+        event = package.envelope.event
+        entry = {
+            "event_id": package.event_id,
+            "event_type": event.event_type.value,
+            "session_id": event.session_id,
+            "work_package_id": event.work_package_id or "",
+            "summary": event.summary,
+            "timestamp": event.timestamp.isoformat(),
+            "source": _event_link(package.project_id, package.event_id),
+            "receipt_id": package.receipt.receipt_id,
+        }
+        event_entries.setdefault(package.project_id, []).append(entry)
+        event_state.setdefault(package.project_id, []).append(
+            {
+                "event_id": package.event_id,
+                "package_path": package.package_path,
+                "status": "accepted",
+                "component_sha256": package.component_sha256,
+                "receipt_id": package.receipt.receipt_id,
+            }
+        )
+        projects.setdefault(package.project_id, [])
+    current_event_ids = {
+        record["event_id"]
+        for records in event_state.values()
+        for record in records
+        if record.get("status") in {"accepted", "identical-replay"}
+    }
+    for project, records in previous_state.items():
+        for record in records:
+            event_id = record.get("event_id")
+            if (
+                record.get("status") == "accepted"
+                and isinstance(event_id, str)
+                and event_id not in current_event_ids
+            ):
+                event_state.setdefault(project, []).append(
+                    {
+                        "event_id": event_id,
+                        "status": "source-missing",
+                        "previous": record,
+                    }
+                )
+    for prepared_event in prepared_events:
+        package = prepared_event.package
+        package_root = prepared_event.destination
+        package_root.mkdir(parents=True, exist_ok=True)
+        source_package = _inside(root, root / package.package_path)
+        for name in sorted(("event.md", "event.json", "provenance.json", "receipt.yaml")):
+            destination = _inside(vault, package_root / name)
+            if not destination.exists():
+                shutil.copyfile(source_package / name, destination)
+        receipt_destination = _inside(
+            vault,
+            vault / "receipts" / "agent-events" / package.project_id / f"{package.event_id}.yaml",
+        )
+        _atomic(
+            receipt_destination,
+            (source_package / "receipt.yaml").read_text(encoding="utf-8"),
+        )
     report = {
         "schema_version": 1,
         "inventory_sha256": manifest.get("inventory_sha256"),
@@ -153,6 +396,21 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         _inside(vault, vault / "generated" / "reports" / "ingestion-report.json"),
         json.dumps(report, indent=2, sort_keys=True) + "\n",
     )
+    if quarantined_events:
+        _atomic(
+            _inside(vault, vault / "quarantine" / "agent-events" / "index.json"),
+            json.dumps(quarantined_events, indent=2, sort_keys=True) + "\n",
+        )
+    for project, records in sorted(event_state.items()):
+        _atomic(
+            _inside(vault, vault / "state" / "agent-events" / f"{project}.json"),
+            json.dumps(
+                {"schema_version": 1, "project_id": project, "events": records},
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+        )
     for project, entries in sorted(projects.items()):
         lines = [
             "---", "type: Project", f"title: {project}",
@@ -179,9 +437,35 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             _inside(vault, project_root / "documentation-map.md"),
             "\n".join(map_lines) + "\n",
         )
+        project_events = sorted(
+            event_entries.get(project, []), key=lambda item: (item["timestamp"], item["event_id"])
+        )
+        event_projections = {
+            "activity": project_events,
+            "sessions": project_events,
+            "validations": [e for e in project_events if e["event_type"] == "validation"],
+            "decisions": [e for e in project_events if e["event_type"] == "decision"],
+            "blockers": [
+                e for e in project_events if e["event_type"] in {"blocker", "failure"}
+            ],
+            "work-packages": [e for e in project_events if e["work_package_id"]],
+        }
+        for name, selected in event_projections.items():
+            title = name.replace("-", " ").title()
+            lines = [f"# {title} — {project}", ""]
+            if selected:
+                lines.extend(_event_line(entry) for entry in selected)
+            else:
+                lines.append("_No verified agent events in this category._")
+            _atomic(
+                _inside(vault, project_root / f"{name}.md"),
+                "\n".join(lines) + "\n",
+            )
     return {
         "ok": True,
         "projects": len(projects),
         "documents_ingested": len(imported),
+        "events_ingested": len(prepared_events),
+        "events_quarantined": len(quarantined_events),
         "inventory_sha256": manifest.get("inventory_sha256"),
     }

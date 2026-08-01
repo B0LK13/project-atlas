@@ -129,6 +129,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error("discover failed: %s", exc)
             return EXIT_ERROR
         print(f"discovered {len(manifest['sources'])} sources")
+        print(f"agent event packages: {len(manifest.get('agent_events', []))}")
         print(f"manifest: {args.output}")
         return EXIT_OK
 
@@ -140,6 +141,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_ERROR
         print(f"ingested {result['documents_ingested']} documents")
         print(f"projects: {result['projects']}")
+        print(f"agent events: {result.get('events_ingested', 0)}")
+        print(f"quarantined events: {result.get('events_quarantined', 0)}")
         return EXIT_OK
 
     if args.command == "build-indexes":
