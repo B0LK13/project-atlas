@@ -8,7 +8,8 @@ merge:
   feature_head: efeb5f9afb8f1f1acb156709e67a226f9264131e
   base_commit: 304f9424040f3627deb7a987e737d75db434922b
   core_milestone_tag: atlas-core-vertical-slice-v1
-  evidence_commit: pending
+  evidence_commit: bc481ad
+  certification_tag: atlas-agent-event-integration-v1
 contract:
   schema_version: 1
   package_root: .atlas-inbox/agent-events/<project-id>/<event-id>
