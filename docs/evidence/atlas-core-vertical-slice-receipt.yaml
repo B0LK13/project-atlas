@@ -1,12 +1,21 @@
 schema_version: 1
 receipt_type: atlas-core-work-package
 work_package_id: atlas-core-vertical-slice
-status: remediation-pending-independent-replay
+status: passed
 branch: feat/atlas-core-vertical-slice
 baseline:
   commit: 672cd4e
   tag: atlas-reconciliation-baseline-2026-08-01
 implementation_commit: 2cc2091
+remediation_commit: d523220
+independent_verification:
+  status: passed
+  verifier: Agent Two
+  checklist_items: 10
+  adversarial_variants: confirmed
+  pre_fix_reproduction: confirmed
+  isolated_worktree: confirmed
+  merge_recommendation: recommended
 scope:
   commands:
     - discover
@@ -30,7 +39,7 @@ replay:
   terminology_corrected: true
 security:
   finding: AT-013
-  status: remediated-pending-independent-replay
+  status: remediated-and-independently-verified
   evidence: docs/evidence/atlas-core-ingestion-traversal.json
 provenance:
   source_sha256_recorded: true

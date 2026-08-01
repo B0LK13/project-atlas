@@ -2,7 +2,7 @@
   "schema_version": 1,
   "finding_id": "AT-013",
   "title": "Manifest-controlled path traversal at atlas ingest boundary",
-  "status": "remediated-pending-independent-replay",
+  "status": "remediated-and-independently-verified",
   "affected_command": "atlas ingest --manifest <manifest> --vault <vault>",
   "pre_fix": {
     "command": "./.venv/bin/python -m pytest tests/integration/test_ingestion_security.py::test_public_ingest_rejects_manifest_project_traversal -q",
@@ -52,5 +52,19 @@
     "manifest_validation": "SourceRecord model plus bounded top-level manifest contract",
     "destination_confinement": "resolved candidate must be relative to resolved Vault root",
     "transaction_policy": "preflight all records before any destination write"
+  },
+  "independent_verification": {
+    "status": "passed",
+    "verifier": "Agent Two",
+    "checklist_items": 10,
+    "isolated_worktree_commit": "d523220",
+    "additional_adversarial_inputs": [
+      "bare ..",
+      "safe/../../../outside",
+      "//server/share/outside",
+      "safe\\u0000../../outside"
+    ],
+    "full_suite": "65 passed",
+    "merge_recommendation": "recommended"
   }
 }
