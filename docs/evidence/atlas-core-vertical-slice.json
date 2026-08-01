@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_package": "atlas-core-vertical-slice",
+  "branch": "feat/atlas-core-vertical-slice",
+  "baseline_commit": "672cd4e",
+  "fixture": "atlas-vault-documentation/tests/fixtures/projects/documentation-rich",
+  "commands": [
+    "atlas discover --source atlas-vault-documentation/tests/fixtures/projects/documentation-rich --output <temp>/manifest.json",
+    "atlas init --output <temp>/vault",
+    "atlas ingest --manifest <temp>/manifest.json --vault <temp>/vault",
+    "atlas build-indexes --vault <temp>/vault",
+    "atlas validate --vault <temp>/vault"
+  ],
+  "first_run": {
+    "sources_discovered": 13,
+    "documents_ingested": 13,
+    "projects": 1,
+    "markdown_files_validated": 42,
+    "status": "passed"
+  },
+  "unchanged_replay": {
+    "documents_reingested": 13,
+    "canonical_hash_comparison": "identical",
+    "content_drift": 0,
+    "canonical_content_changes": 0,
+    "filesystem_writes": 0,
+    "filesystem_write_measurement": "compare-before-write and unchanged-file metadata assertions",
+    "status": "passed"
+  },
+  "gates": {
+    "core_tests": "passed",
+    "core_test_count": 65,
+    "mypy": "passed",
+    "ruff": "passed",
+    "compilation": "passed"
+  },
+  "scope": {
+    "control_plane_files_modified": false,
+    "broad_real_project_ingestion": false,
+    "graph_layer_started": false
+  }
+}

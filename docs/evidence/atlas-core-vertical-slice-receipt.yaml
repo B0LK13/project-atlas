@@ -1,0 +1,61 @@
+schema_version: 1
+receipt_type: atlas-core-work-package
+work_package_id: atlas-core-vertical-slice
+status: passed
+branch: feat/atlas-core-vertical-slice
+baseline:
+  commit: 672cd4e
+  tag: atlas-reconciliation-baseline-2026-08-01
+implementation_commit: 2cc2091
+remediation_commit: d523220
+independent_verification:
+  status: passed
+  verifier: Agent Two
+  checklist_items: 10
+  adversarial_variants: confirmed
+  pre_fix_reproduction: confirmed
+  isolated_worktree: confirmed
+  merge_recommendation: recommended
+scope:
+  commands:
+    - discover
+    - ingest
+    - build-indexes
+    - validate
+  control_plane_modified: false
+  graph_layer_started: false
+fixture:
+  path: atlas-vault-documentation/tests/fixtures/projects/documentation-rich
+  sources_discovered: 13
+  documents_ingested: 13
+  projects: 1
+  markdown_files_validated: 42
+replay:
+  unchanged_manifest: true
+  canonical_hashes_identical: true
+  content_drift: 0
+  canonical_content_changes: 0
+  filesystem_writes: 0
+  terminology_corrected: true
+security:
+  finding: AT-013
+  status: remediated-and-independently-verified
+  evidence: docs/evidence/atlas-core-ingestion-traversal.json
+provenance:
+  source_sha256_recorded: true
+  imported_source_links: true
+  project_documentation_map: true
+validation:
+  core_tests: 65
+  full_parent_suite: 65
+  mypy: passed
+  ruff: passed
+  compilation: passed
+residual_gaps:
+  - full Core discovery/classification/coverage/conflict backlog remains
+  - agent-event inbox integration is not yet implemented
+  - human-safe regeneration and deletion-state handling remain future work
+  - content-based secret detection is deferred to CORE-SEC-001
+  - formal ConceptRecord/Claim/ProvenanceReference projection is deferred to CORE-MODEL-001
+sync_state: synchronized
+blockers: []
