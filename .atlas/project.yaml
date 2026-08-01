@@ -1,0 +1,17 @@
+schema_version: 1
+project:
+  id: project-atlas
+  name: Project Atlas
+documentation:
+  skill_id: atlas-governed-work
+  minimum_skill_version: 1.0.0
+  readiness_registry: atlas-vault-documentation/config/agent-readiness.yaml
+  skill_certification: atlas-vault-documentation/AS-SKILL-001-CERTIFICATION-RECEIPT.yaml
+  require_receipt: true
+  strict: true
+vault:
+  required_vault_id: atlas-main
+events:
+  require_start: true
+  require_validation: true
+  require_completion: true

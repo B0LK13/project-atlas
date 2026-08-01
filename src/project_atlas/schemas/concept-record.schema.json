@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/concept-record.schema.json",
+  "title": "ConceptRecord",
+  "description": "Atomic OKF concept note (FR-006). Vocabularies follow docs/plan.md sections 5-7.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["concept_id", "type", "title"],
+  "properties": {
+    "concept_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Project", "Project Status", "Component", "Architecture", "Capability",
+        "Decision", "Requirement", "Work Package", "Milestone", "Validation",
+        "Deployment", "Environment", "Risk", "Issue", "Runbook", "Standard",
+        "Reference", "Repository", "Agent Instruction", "Dataset", "Metric",
+        "Release", "Finding", "Index"
+      ]
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "description": { "type": ["string", "null"] },
+    "aliases": { "type": "array", "items": { "type": "string" } },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "status": {
+      "type": "string",
+      "enum": [
+        "proposed", "planned", "active", "blocked", "validation", "operational",
+        "maintenance", "paused", "deprecated", "superseded", "archived", "unknown"
+      ]
+    },
+    "phase": { "type": ["string", "null"] },
+    "maturity": {
+      "type": ["string", "null"],
+      "enum": ["concept", "prototype", "mvp", "beta", "production-candidate", "production", "hardened", null]
+    },
+    "knowledge_state": {
+      "type": "string",
+      "enum": ["verified-canonical", "evidence-backed", "imported-source", "inferred", "historical"]
+    },
+    "review_state": {
+      "type": "string",
+      "enum": ["unreviewed", "pending-human-review", "verified", "rejected"]
+    },
+    "started": { "type": ["string", "null"], "format": "date" },
+    "stale_after": { "type": ["string", "null"], "format": "date" },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "provenance-reference.schema.json" }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "target"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "depends_on", "provides", "related_project", "part_of",
+              "deployed_to", "validates", "supersedes", "references"
+            ]
+          },
+          "target": { "type": "string", "minLength": 1 },
+          "note": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "generated_by": { "type": ["string", "null"] }
+  }
+}

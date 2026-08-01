@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/provenance-reference.schema.json",
+  "title": "ProvenanceReference",
+  "description": "Pointer from generated knowledge back to source evidence (FR-007).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "resource"],
+  "properties": {
+    "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "resource": { "type": "string", "minLength": 1 },
+    "title": { "type": ["string", "null"] },
+    "author": { "type": ["string", "null"] },
+    "last_modified": { "type": ["string", "null"], "format": "date" },
+    "locator": { "type": ["string", "null"] }
+  }
+}

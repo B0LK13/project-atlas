@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["adapter_id","agent_type"],"properties":{"adapter_id":{"type":"string"},"agent_type":{"type":"string"},"receipt_required":{"type":"boolean"}}}

@@ -1,0 +1,50 @@
+{
+  "commands": {
+    "managed_launch": "/mnt/d/project-atlas-vault/.venv/bin/python /mnt/d/project-atlas-vault/atlas-vault-documentation/scripts/atlas_agent.py run --project-root <fixture> --vault-root <vault> --agent generic --task-id AS-CTRL-001-CERT-N -- <child>",
+    "repository_gate_missing_receipt": "/mnt/d/project-atlas-vault/.venv/bin/python /mnt/d/project-atlas-vault/atlas-vault-documentation/scripts/atlas_agent.py repository-gate --project-id project-atlas --changed-file src/example.py --json",
+    "repository_gate_protected_path": "/mnt/d/project-atlas-vault/.venv/bin/python /mnt/d/project-atlas-vault/atlas-vault-documentation/scripts/atlas_agent.py repository-gate --project-id project-atlas --changed-file projects/project-atlas/events/AE.md --json"
+  },
+  "managed_launch": {
+    "environment_injection": true,
+    "exit_codes": [
+      0,
+      0
+    ],
+    "pipeline_complete": true,
+    "processes": 2,
+    "receipts": [
+      "ASR-9101bf0cdbc3518f",
+      "ASR-a7fba82326578fb4"
+    ],
+    "session_start_event_ids": [
+      [
+        "AE-20260801T181405Z-project-atlas-4ee89be8"
+      ],
+      [
+        "AE-20260801T181406Z-project-atlas-202cf3fd"
+      ]
+    ],
+    "sessions": [
+      "AS-20260801T181405Z-ctrl-cert-agent-1-project-atlas-7ae37693",
+      "AS-20260801T181405Z-ctrl-cert-agent-2-project-atlas-3f64094c"
+    ],
+    "skill_hashes": [
+      "2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123"
+    ],
+    "stderr": [
+      "",
+      ""
+    ],
+    "unique_events": true,
+    "unique_sessions": true
+  },
+  "repository_enforcement": {
+    "missing_receipt_exit": 4,
+    "missing_receipt_rejected": true,
+    "protected_path_exit": 4,
+    "protected_path_rejected": true
+  },
+  "scenario": "AS-CTRL-001 managed launcher and shared Vault",
+  "schema_version": 1,
+  "status": "passed"
+}

@@ -1,0 +1,8 @@
+---
+description: Require immediate Project Atlas documentation for all meaningful agent work
+alwaysApply: true
+---
+
+Load and obey the `atlas-vault-documentation` skill for meaningful project work.
+
+Do not defer documentation until the final response. Capture raw evidence before the next major step, normalize with mda-cli, route updates into Atlas, validate them, and return an `ATLAS-DOC-RECEIPT`.

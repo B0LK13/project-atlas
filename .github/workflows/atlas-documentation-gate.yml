@@ -1,0 +1,32 @@
+name: atlas-documentation-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      receipt:
+        description: Path to the validated Atlas session receipt
+        required: true
+        type: string
+      changed_files:
+        description: Space-separated meaningful changed paths
+        required: true
+        type: string
+
+jobs:
+  documentation-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run Atlas repository receipt gate
+        env:
+          ATLAS_RECEIPT: ${{ inputs.receipt }}
+          ATLAS_CHANGED_FILES: ${{ inputs.changed_files }}
+        run: |
+          python atlas-vault-documentation/scripts/atlas_agent.py repository-gate \
+            --project-id project-atlas \
+            --receipt "$ATLAS_RECEIPT" \
+            $(for path in $ATLAS_CHANGED_FILES; do printf '%s ' --changed-file "$path"; done) \
+            --json

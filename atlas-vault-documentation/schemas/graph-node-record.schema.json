@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["schema_version","record_type","node_id","project_id","identity","authority"],"properties":{"record_type":{"const":"graph-node"},"node_id":{"type":"string"},"project_id":{"type":"string"},"identity":{"type":"object"},"authority":{"type":"object"}}}

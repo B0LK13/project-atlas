@@ -1,0 +1,55 @@
+version: 1
+
+atlas:
+  vault: /absolute/path/to/atlas-vault
+  # Optional fallback destinations; CLI flags and ATLAS_* environment
+  # variables override these (see references/JSON-OUTPUT-CONTRACT.md).
+  # spool: /absolute/path/to/repository        # capture fallback root
+  # spool_root: /absolute/path/to/repository   # check scan root
+  project_id: PRJ-EXAMPLE
+  project_slug: example-project
+
+agent:
+  id: codex
+  session_id: auto
+  work_package: unknown
+  # repository: org/example
+  # branch: main
+  # commit: unknown
+
+capture:
+  immediate: true
+  raw_path: sources/agent-events/{year}/{month}/{day}
+  spool_path: .atlas-spool
+  atomic_writes: true
+  redact_secrets: true
+
+normalization:
+  enabled: true
+  command: mda
+  skill_id: atlas-vault-documentation
+  skill_dir: null
+  # provider: local-llm
+  # timeout: 120
+  # retries: 0
+  # output_mode: sibling        # sibling | directory
+  # output_directory: null      # required for directory mode
+  # verify: true
+  # fail_on_warning: false      # reserved
+  # keep_raw: true              # always on: raw evidence is immutable
+  # record_command: true
+  immutable_raw_events: true
+  allow_in_place: false
+
+routing:
+  normalized_event_path: projects/{project_slug}/events/{year}/{month}
+  update_project_log: true
+  require_work_package_update: true
+  require_conditional_concepts: true
+
+validation:
+  fail_completion_on_unsynced_spool: true
+  fail_completion_on_missing_receipt: true
+  broken_links: error
+  missing_provenance: error
+  secret_detection: error

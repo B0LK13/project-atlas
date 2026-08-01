@@ -1,0 +1,171 @@
+{
+  "all_passed": true,
+  "probes": [
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-wrong-vault-id",
+      "passed": true,
+      "probe_id": "NG-wrong-vault-id",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-wrong-vault-uuid",
+      "passed": true,
+      "probe_id": "NG-wrong-vault-uuid",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-receipt-skill-mismatch",
+      "passed": true,
+      "probe_id": "NG-receipt-skill-mismatch",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-stale-rehearsal",
+      "passed": true,
+      "probe_id": "NG-stale-rehearsal",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-corrupted-spool",
+      "passed": true,
+      "probe_id": "NG-corrupted-spool",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-missing-acknowledgement",
+      "passed": true,
+      "probe_id": "NG-missing-acknowledgement",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-wrong-session-acknowledgement",
+      "passed": true,
+      "probe_id": "NG-wrong-session-acknowledgement",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-conflicting-acknowledgement",
+      "passed": true,
+      "probe_id": "NG-conflicting-acknowledgement",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-missing-validation-completion",
+      "passed": true,
+      "probe_id": "NG-missing-validation-completion",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-uncertified-adapter",
+      "passed": true,
+      "probe_id": "NG-uncertified-adapter",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-revoked-adapter",
+      "passed": true,
+      "probe_id": "NG-revoked-adapter",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-missing-skill",
+      "passed": true,
+      "probe_id": "NG-missing-skill",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-malformed-manifest",
+      "passed": true,
+      "probe_id": "NG-malformed-manifest",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-bad-skill-hash",
+      "passed": true,
+      "probe_id": "NG-bad-skill-hash",
+      "receipt_issued": false
+    },
+    {
+      "actual": "rejected",
+      "actual_exit_code": 1,
+      "canonical_mutations": 0,
+      "command": "certification harness command surface",
+      "expected": "rejected",
+      "name": "NG-unsupported-skill-version",
+      "passed": true,
+      "probe_id": "NG-unsupported-skill-version",
+      "receipt_issued": false
+    }
+  ],
+  "schema_version": 1
+}

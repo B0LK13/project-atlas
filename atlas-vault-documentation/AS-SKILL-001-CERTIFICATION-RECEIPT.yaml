@@ -1,0 +1,47 @@
+schema_version: 1
+receipt_type: atlas-skill-certification
+work_package_id: AS-SKILL-001
+status: certified
+skill:
+  id: atlas-governed-work
+  version: 1.0.0
+  sha256: 2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123
+  manifest_valid: true
+  references_valid: true
+rehearsal:
+  rehearsal_id: ARH-0bdf96fdd71f870e
+  receipt_id: ASR-0bdf96fdd71f870e
+  receipt_sha256: 4a832e6dd29912b7a10d5694ea67a86766f3d65d521b84dcf3d0c02cdac0d36c
+  adapter_id: generic-cli-v1
+  lifecycle: passed
+  postflight: passed
+  captured: 4
+  normalized: 4
+  verified: 4
+  routed: 4
+readiness:
+  promotion_method: validated-rehearsal-receipt
+  governed_work_ready: true
+  readiness_record: config/agent-readiness.yaml
+  promotion_idempotency: passed
+offline:
+  spooled_events: 4
+  synchronized_events: 4
+  duplicate_events: 0
+  remaining_spool: 0
+  exact_once: true
+negative_controls:
+  probes: 15
+  all_rejected_as_expected: true
+validation:
+  focused_tests: 10
+  subproject_tests: 143
+  parent_tests: 54
+  mypy: passed
+  ruff: passed
+  compilation: passed
+  skill_validation: passed
+  adapter_verification: passed
+  strict_vault_validation: passed
+sync_state: synchronized
+blockers: []

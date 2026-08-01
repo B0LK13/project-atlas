@@ -1,0 +1,10 @@
+## Project Atlas documentation mandate
+
+For every meaningful plan, implementation, test, diagnosis, decision, deployment, blocker, or handoff, load and follow the `atlas-vault-documentation` skill.
+
+1. Capture a raw Atlas event immediately, before the next major work step.
+2. Normalize it with mda-cli when available.
+3. Update the affected project log and concept notes.
+4. Preserve source evidence and protected human sections.
+5. End each task with an accurate `ATLAS-DOC-RECEIPT`.
+6. Do not claim clean completion while required events remain unsynchronized.

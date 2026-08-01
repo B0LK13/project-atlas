@@ -1,0 +1,69 @@
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Build and packaging output
+build/
+dist/
+*.whl
+*.tar.gz
+.tox/
+.nox/
+
+# Temporary and generated Vault output
+.tmp/
+tmp/
+temp/
+*.tmp
+*.bak
+atlas-vault-documentation/.tmp/
+atlas-vault-documentation/.generated-agent-instructions/
+atlas-vault-documentation/.atlas/sessions/
+atlas-vault-documentation/.atlas/receipts/
+atlas-vault-documentation/.atlas/spool/
+atlas-vault-documentation/**/.atlas-normalization.lock
+
+# Local agent/editor/tool state
+.agents/
+.codex/
+.claude/
+.codebase-memory/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files and credential-bearing material
+.env
+.env.*
+!.env.example
+**/credentials*.json
+**/secrets.*
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/id_rsa
+**/id_ed25519
+
+# The following are deliberately synthetic security fixtures used by tests.
+!atlas-vault-documentation/tests/fixtures/project-atlas/credentials.json
+!atlas-vault-documentation/tests/fixtures/projects/mixed-formats/.env
+!atlas-vault-documentation/tests/fixtures/projects/mixed-formats/credentials.json
+!atlas-vault-documentation/tests/fixtures/projects/mixed-formats/secrets.pem
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini

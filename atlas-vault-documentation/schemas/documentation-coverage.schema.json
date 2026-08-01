@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","title":"Documentation coverage","type":"object","required":["schema_version","categories","counts"],"properties":{"schema_version":{"const":1},"categories":{"type":"object"},"counts":{"type":"object"}}}

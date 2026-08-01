@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/conflict-record.schema.json",
+  "title": "ConflictRecord",
+  "description": "Explicit record of incompatible claims about one field (FR-008). Cross-field rule enforced by the Pydantic model: resolution is required iff state is 'resolved'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["conflict_id", "subject", "field", "claims", "state"],
+  "properties": {
+    "conflict_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "subject": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "field": { "type": "string", "minLength": 1 },
+    "claims": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "claim"],
+        "properties": {
+          "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          "claim": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "state": { "type": "string", "enum": ["unresolved", "resolved"] },
+    "resolution": { "type": ["string", "null"] }
+  }
+}

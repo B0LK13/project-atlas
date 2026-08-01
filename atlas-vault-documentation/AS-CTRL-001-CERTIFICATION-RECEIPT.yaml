@@ -1,0 +1,79 @@
+schema_version: 1
+receipt_type: atlas-control-plane-certification
+work_package_id: AS-CTRL-001
+status: certified
+
+skill_dependency:
+  work_package: AS-SKILL-001
+  status: certified
+  skill_id: atlas-governed-work
+  version: 1.0.0
+  sha256: 2d8eb525631e27800ffac120b5a79ac712fad58489879d96a3ad535cf8da4123
+  certification_receipt: AS-SKILL-001-CERTIFICATION-RECEIPT.yaml
+
+managed_launcher:
+  online_session: passed
+  automatic_session_start: passed
+  environment_injection: passed
+  postflight_enforcement: passed
+
+sessions:
+  online:
+    count: 2
+    completed: 2
+  offline:
+    count: 1
+    synchronized: 1
+    pending_spool: 0
+  multi_agent:
+    count: 2
+    completed: 2
+    routing_conflicts: 0
+
+repository_enforcement:
+  bootstrap_shims: passed
+  adapter_drift: passed
+  missing_receipt_rejected: true
+  stale_receipt_rejected: true
+  wrong_project_receipt_rejected: true
+  protected_path_write_rejected: true
+
+negative_controls:
+  session_start_failure_rejected: true
+  missing_validation_rejected: true
+  missing_completion_rejected: true
+  wrong_session_receipt_rejected: true
+  conflicting_event_rejected: true
+  child_context_override_rejected: true
+
+validation:
+  focused_tests: 12
+  subproject_tests: 146
+  parent_tests: 54
+  mypy: passed
+  ruff: passed
+  compilation: passed
+  skill_certification_dependency: passed
+  adapter_readiness: passed
+  strict_documentation: passed
+  strict_routes: passed
+  strict_sessions: passed
+  strict_vault: passed
+
+concurrency_reconciliation:
+  historical_failure_preserved: true
+  root_cause: shared-state-ordering-race
+  final_lock_boundary: capture-through-normalize-through-route
+  focused_repetitions: 10
+  focused_repetitions_passed: 10
+  full_control_plane_tests: 146
+  full_control_plane_status: passed
+  evidence: evidence/AS-CTRL-001-concurrency-reconciliation.json
+
+evidence:
+  managed_launch: evidence/AS-CTRL-001-managed-launch.json
+  skill_certification: AS-SKILL-001-CERTIFICATION-RECEIPT.yaml
+  skill_negative_gates: evidence/AS-SKILL-001-negative-gates.json
+
+sync_state: synchronized
+blockers: []

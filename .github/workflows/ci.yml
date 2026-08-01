@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Ruff
+        run: python -m ruff check .
+
+      - name: Mypy
+        run: python -m mypy src
+
+      - name: Pytest
+        run: python -m pytest
+
+      - name: CLI smoke (AT-001 scaffold contract)
+        run: |
+          atlas --help
+          atlas version
+          atlas init --output .tmp/atlas-vault --dry-run
+          atlas init --output .tmp/atlas-vault
+          test -f .tmp/atlas-vault/index.md
+          test -f .tmp/atlas-vault/00-system/vault-charter.md

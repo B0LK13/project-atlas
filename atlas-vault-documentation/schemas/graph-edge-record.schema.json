@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["schema_version","record_type","relationship_id","project_id","relationship_type","provenance"],"properties":{"record_type":{"const":"relationship"},"relationship_id":{"type":"string"},"project_id":{"type":"string"},"relationship_type":{"type":"string"},"provenance":{"type":"object"}}}

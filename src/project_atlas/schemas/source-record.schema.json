@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/source-record.schema.json",
+  "title": "SourceRecord",
+  "description": "Manifest entry for one discovered source document (FR-002). Cross-field rule enforced by the Pydantic model, not this schema: exclusion_reason is required iff classification_state is 'excluded'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_id", "path", "media_type", "size_bytes", "classification_state"],
+  "properties": {
+    "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "path": { "type": "string", "minLength": 1 },
+    "media_type": { "type": "string", "minLength": 1 },
+    "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "size_bytes": { "type": "integer", "minimum": 0 },
+    "modified_at": { "type": ["string", "null"], "format": "date-time" },
+    "repository": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["name", "root"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "root": { "type": "string", "minLength": 1 },
+        "remote": { "type": ["string", "null"] }
+      }
+    },
+    "likely_project": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "classification_state": {
+      "type": "string",
+      "enum": ["unclassified", "classified", "excluded", "unknown"]
+    },
+    "exclusion_reason": { "type": ["string", "null"] }
+  }
+}

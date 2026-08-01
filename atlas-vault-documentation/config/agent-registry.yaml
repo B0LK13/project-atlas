@@ -1,0 +1,14 @@
+schema_version: 1
+agents:
+  - adapter_id: generic-cli-v1
+    agent_type: cli-agent
+    bootstrap: environment
+    receipt_required: true
+  - adapter_id: ide-agent-v1
+    agent_type: ide-agent
+    bootstrap: repository-instructions
+    receipt_required: true
+  - adapter_id: remote-agent-v1
+    agent_type: remote-agent
+    bootstrap: spool-capable
+    receipt_required: true

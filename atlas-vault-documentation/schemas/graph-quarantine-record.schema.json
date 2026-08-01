@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","required":["schema_version","project_id","status","category","provenance"],"properties":{"status":{"const":"quarantined"},"category":{"type":"string"},"provenance":{"type":"object"}}}

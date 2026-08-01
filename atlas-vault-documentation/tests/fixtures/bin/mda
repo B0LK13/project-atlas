@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""Deterministic mda-cli mock for offline tests.
+
+Behavior is scripted through the MDA_MOCK_MODE environment variable so
+tests can exercise every success and failure category without network,
+providers, or a real mda-cli installation. Supports the CLI surface the
+orchestrator uses: --skill, --skill-dir, --output-folder, --version,
+and one positional raw-event path.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+MODE = os.environ.get("MDA_MOCK_MODE", "ok")
+
+
+def parse_args(argv: list[str]) -> dict:
+    result = {"output_folder": None, "raw": None}
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg in ("--skill", "--skill-dir", "--output-folder"):
+            key = arg.lstrip("-").replace("-", "_")
+            result[key] = argv[index + 1]
+            index += 2
+        elif arg == "--version":
+            result["version"] = True
+            index += 1
+        elif arg == "--in-place":
+            print("mda-mock: refusing --in-place on raw evidence", file=sys.stderr)
+            raise SystemExit(9)
+        else:
+            result["raw"] = arg
+            index += 1
+    return result
+
+
+def event_id_of(raw: Path) -> str:
+    match = re.search(
+        r'^event_id: "([^"]+)"', raw.read_text(encoding="utf-8"), re.M
+    )
+    return match.group(1) if match else "unknown"
+
+
+def raw_field(raw: Path, name: str, default: str) -> str:
+    match = re.search(
+        rf'^{name}: "([^"]*)"', raw.read_text(encoding="utf-8"), re.M
+    )
+    return match.group(1) if match else default
+
+
+def raw_summary(raw: Path) -> str:
+    match = re.search(r"^# (.+)$", raw.read_text(encoding="utf-8"), re.M)
+    return match.group(1) if match else "Mock normalization"
+
+
+def normalized_document(event_id: str, summary: str, kind: str = "implementation",
+                        work_package: str = "unknown", occurred: str = "2026-08-01T10:00:00Z") -> str:
+    return f"""---
+type: Agent Work Event
+title: "{summary}"
+id: "agent-event:{event_id}"
+project_id: "PRJ-ATLAS"
+project_slug: "project-atlas"
+event_kind: "{kind}"
+status: "completed"
+occurred_at: "{occurred}"
+agent: "kimi-code"
+session_id: "unknown"
+work_package: "{work_package}"
+repository: "unknown"
+branch: "unknown"
+commit: "unknown"
+review_state: generated
+knowledge_state: evidence-backed
+sync_state: synchronized
+normalization:
+  tool: mda-cli
+  skill: atlas-vault-documentation
+sources:
+  - id: "source:agent-event:{event_id}"
+    resource: "raw event path"
+relationships:
+  affects: []
+  validates: []
+  blocks: []
+tags:
+  - agent-work
+  - {kind}
+---
+
+# {summary}
+
+## Outcome
+
+{summary}
+
+## Scope and changes
+
+- None recorded.
+
+## Evidence
+
+- **Command:** `python -m pytest tests`
+  - **Observed result:** `60 passed`
+
+## Validation
+
+- 60 passed.
+
+## Decisions and rationale
+
+- None recorded.
+
+## Risks, blockers, and uncertainty
+
+- None recorded.
+
+## Next actions
+
+- None recorded.
+
+## Atlas routing
+
+- Pending: projects/project-atlas/log.md
+"""
+
+
+def output_path(args: dict, raw: Path) -> Path:
+    name = raw.name[: -len(".md")] + ".normalized.md"
+    if args.get("output_folder"):
+        return Path(args["output_folder"]) / name
+    return raw.parent / name
+
+
+def main() -> int:
+    args = parse_args(sys.argv[1:])
+    if args.get("version"):
+        print("mda 0.2.9-mock")
+        return 0
+
+    if MODE == "sleep":
+        time.sleep(30)
+        return 0
+    if MODE == "exit-nonzero":
+        print("provider unavailable: simulated outage", file=sys.stderr)
+        return 1
+
+    raw = Path(args["raw"])
+    event_id = event_id_of(raw)
+    kind = raw_field(raw, "event_kind", "implementation")
+    work_package = raw_field(raw, "work_package", "unknown")
+    occurred = raw_field(raw, "occurred_at", "2026-08-01T10:00:00Z")
+    summary = raw_summary(raw)
+    target = output_path(args, raw)
+
+    if MODE == "missing-output":
+        return 0
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    if MODE == "bad-frontmatter":
+        target.write_text("# no frontmatter here\n", encoding="utf-8")
+    elif MODE == "wrong-type":
+        doc = normalized_document(event_id, "Wrong type").replace(
+            "type: Agent Work Event", "type: Document"
+        )
+        target.write_text(doc, encoding="utf-8")
+    elif MODE == "no-source":
+        doc = normalized_document(event_id, "No source").replace(
+            f'sources:\n  - id: "source:agent-event:{event_id}"', "sources: []"
+        )
+        target.write_text(doc, encoding="utf-8")
+    elif MODE == "secret-leak":
+        doc = normalized_document(event_id, "Secret leak")
+        doc += "\nAKIAIOSFODNN7EXAMPLE\n"
+        target.write_text(doc, encoding="utf-8")
+        print("AKIAIOSFODNN7EXAMPLE leaked to stderr", file=sys.stderr)
+    elif MODE == "extra-file":
+        target.write_text(normalized_document(event_id, "Extra file"), encoding="utf-8")
+        (target.parent / "unexpected.md").write_text("surprise\n", encoding="utf-8")
+    elif MODE == "fenced":
+        doc = "````markdown\n" + normalized_document(event_id, "Fenced") + "\n````\n"
+        target.write_text(doc, encoding="utf-8")
+    else:  # ok
+        target.write_text(
+            normalized_document(event_id, summary, kind, work_package, occurred),
+            encoding="utf-8",
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
