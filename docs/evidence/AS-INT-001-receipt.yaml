@@ -37,10 +37,10 @@ fixture:
   traversal_packages: covered
   conflicting_duplicates: covered
 validation:
-  focused_contract_and_integration_tests: 9
-  core_suite: 74
+  focused_contract_and_integration_tests: 10
+  core_suite: 75
   control_plane_suite: 146
-  parent_suite: 74
+  parent_suite: 75
   mypy_command: "./.venv/bin/python -m mypy src atlas-vault-documentation"
   mypy_source_files: 124
   mypy: passed
@@ -55,6 +55,7 @@ security:
   traversal_rejected: true
   hash_mismatch_quarantined: true
   wrong_vault_quarantined: true
+  missing_vault_identity_quarantined: true
   malformed_package_quarantined: true
   pending_unverified_not_projected: true
   conflicting_duplicate_not_projected: true

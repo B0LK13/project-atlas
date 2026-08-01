@@ -287,3 +287,15 @@ def test_handcrafted_event_inventory_project_traversal_cannot_escape_vault(
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
     assert not (tmp_path / "outside-event-state").exists()
     assert (vault / "quarantine" / "agent-events" / "index.json").is_file()
+
+
+def test_missing_vault_identity_keeps_events_out_of_canonical_projection(tmp_path: Path) -> None:
+    source, vault = _run_fixture(tmp_path)
+    manifest = tmp_path / "manifest.json"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    quarantine = vault / "quarantine" / "agent-events" / "index.json"
+    assert "target Vault identity is unavailable" in quarantine.read_text(encoding="utf-8")
+    activity = vault / "projects" / "integrated-atlas-project" / "activity.md"
+    assert "AE-implementation" not in activity.read_text(encoding="utf-8")

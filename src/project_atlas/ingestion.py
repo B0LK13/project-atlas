@@ -185,6 +185,7 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     event_state: dict[str, list[dict[str, Any]]] = {}
     quarantined_events: list[dict[str, Any]] = []
     previous_state = _previous_event_state(vault)
+    event_inventories = _manifest_events(manifest)
     prepared: list[_PreparedRecord] = []
     for source_record in sources:
         if source_record.exclusion_reason or not source_record.sha256:
@@ -222,7 +223,7 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         projects.setdefault(project, []).append(entry)
     prepared_events: list[_PreparedEvent] = []
     seen_event_ids: dict[str, dict[str, str]] = {}
-    for inventory in _manifest_events(manifest):
+    for inventory in event_inventories:
         try:
             safe_relative_component(inventory.project_id, label="project_id")
             state_project = inventory.project_id
@@ -239,21 +240,26 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             event_state.setdefault(state_project, []).append(state_record)
             quarantined_events.append(state_record)
             continue
+        if expected_vault is None:
+            state_record["status"] = "rejected"
+            state_record["errors"] = ["target Vault identity is unavailable"]
+            event_state.setdefault(state_project, []).append(state_record)
+            quarantined_events.append(state_record)
+            continue
         try:
             package = load_event_package(
                 root, inventory.project_id, inventory.event_id, inventory.package_path
             )
-            if expected_vault is not None:
-                actual_vault = package.envelope.vault.model_dump(exclude_none=True)
-                expected = {
-                    key: expected_vault[key]
-                    for key in ("vault_id", "vault_uuid")
-                    if key in expected_vault
-                }
-                if any(actual_vault.get(key) != value for key, value in expected.items()):
-                    raise PackageValidationError(
-                        "event package Vault identity does not match target Vault"
-                    )
+            actual_vault = package.envelope.vault.model_dump(exclude_none=True)
+            expected = {
+                key: expected_vault[key]
+                for key in ("vault_id", "vault_uuid")
+                if key in expected_vault
+            }
+            if any(actual_vault.get(key) != value for key, value in expected.items()):
+                raise PackageValidationError(
+                    "event package Vault identity does not match target Vault"
+                )
         except (PackageValidationError, OSError, ValueError) as exc:
             state_record["status"] = "rejected"
             state_record["errors"] = [str(exc)]
