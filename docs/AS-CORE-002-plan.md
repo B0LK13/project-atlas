@@ -1,7 +1,7 @@
 # AS-CORE-002 — Semantic Domain Model and Source Lifecycle Plan
 
 **Branch:** `feat/atlas-core-semantic-lifecycle`  
-**Status:** implementation in progress
+**Status:** implementation complete — certification pending independent review
 
 ## Requirement mapping
 
@@ -27,3 +27,11 @@ or invent missing project facts. Unknown semantic fields remain explicit.
 3. Public CLI fixture workflow and unchanged replay.
 4. Core, Control Plane and repository suites plus Ruff, mypy and compilation.
 
+## Review remediation checkpoint
+
+Agent Two identified two blockers in commit `575ce3b`: the semantic schema did
+not constrain nested arrays, and persisted source state was not revalidated.
+Commit `bb2a713` closes both defects and adds a preflight that prevents a
+malformed generated marker in one project from causing partial writes to
+another project. The package remains certification-pending until independent
+replay of these fixes.
