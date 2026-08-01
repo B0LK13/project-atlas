@@ -19,6 +19,7 @@ from atlas_contracts.event_package import (
     load_event_package,
 )
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.secrets import scan_text
 from project_atlas.semantic_compiler import compile_project_record, render_project_record
@@ -73,6 +74,23 @@ def _generated_atomic(path: Path, content: str) -> None:
                 + existing[end_index + len(end):]
             )
     _atomic(path, content)
+
+
+def _validate_existing_markers(vault: Path, project_ids: set[str]) -> None:
+    """Preflight all affected project notes before any transaction writes."""
+    start = "<!-- atlas:generated:start -->"
+    end = "<!-- atlas:generated:end -->"
+    for project in sorted(project_ids):
+        path = _inside(vault, vault / "projects" / project / "project.md")
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        if (start in text or end in text) and (
+            text.count(start) != 1
+            or text.count(end) != 1
+            or text.index(end) < text.index(start)
+        ):
+            raise ValueError(f"malformed generated markers: {path}")
 
 
 class _PreparedRecord(NamedTuple):
@@ -218,9 +236,17 @@ def _previous_source_state(vault: Path) -> list[dict[str, Any]]:
         return []
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-        return [item for item in raw.get("sources", []) if isinstance(item, dict)]
-    except (OSError, UnicodeError, json.JSONDecodeError, AttributeError):
-        return []
+        if not isinstance(raw, dict) or raw.get("schema_version") != 1:
+            raise ValueError("source lifecycle state schema_version is unsupported")
+        values = raw.get("sources")
+        if not isinstance(values, list):
+            raise ValueError("source lifecycle state sources must be a list")
+        return [
+            SourceLifecycleRecord.model_validate(item).model_dump(mode="json")
+            for item in values
+        ]
+    except (OSError, UnicodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+        raise ValueError(f"invalid source lifecycle state: {exc}") from exc
 
 
 def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
@@ -396,6 +422,7 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             }
         )
         projects.setdefault(package.project_id, [])
+    _validate_existing_markers(vault, set(projects))
     current_event_ids = {
         record["event_id"]
         for records in event_state.values()

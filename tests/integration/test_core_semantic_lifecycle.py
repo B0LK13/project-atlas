@@ -78,3 +78,42 @@ def test_unchanged_ingestion_has_zero_filesystem_writes(tmp_path: Path) -> None:
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
     after = {path: (path.read_bytes(), os.stat(path).st_mtime_ns) for path in tracked}
     assert after == before
+
+
+def test_corrupt_source_state_fails_closed_before_ingestion_writes(tmp_path: Path) -> None:
+    _source, manifest, vault = _workflow(tmp_path)
+    state_path = vault / "state" / "sources.json"
+    state_path.write_text(
+        json.dumps({"schema_version": 999, "sources": [{"source_id": "source-bad"}]}),
+        encoding="utf-8",
+    )
+    project = vault / "projects" / "semantic-fixture" / "project.md"
+    before = project.read_bytes()
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
+    assert project.read_bytes() == before
+
+
+def test_malformed_marker_in_one_project_aborts_before_other_project_writes(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "multi-source"
+    nested = source / "nested"
+    nested.mkdir(parents=True)
+    (source / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: project-a\n", encoding="utf-8"
+    )
+    (nested / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: project-b\n", encoding="utf-8"
+    )
+    (source / "README.md").write_text("# A\n", encoding="utf-8")
+    (nested / "README.md").write_text("# B\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    vault = tmp_path / "vault"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    target = vault / "projects" / "project-b" / "project.md"
+    target.write_text("<!-- atlas:generated:start -->\n", encoding="utf-8")
+    imported_before = sorted((vault / "sources" / "imported-documents").iterdir())
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
+    assert sorted((vault / "sources" / "imported-documents").iterdir()) == imported_before

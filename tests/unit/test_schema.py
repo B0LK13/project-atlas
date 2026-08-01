@@ -8,6 +8,7 @@ from project_atlas.domain import (
     Claim,
     ConceptRecord,
     ConflictRecord,
+    ProjectRecord,
     ProvenanceReference,
     SourceRecord,
     ValidationFinding,
@@ -65,16 +66,46 @@ def test_valid_records_pass() -> None:
         finding_id="f-1", rule_id="r", severity="info", gate="content", message="m"
     )
     validate_record(finding, "validation-finding")
-    validate_record(
-        {"schema_version": 1, "project_id": "p-1", "name": "Project", "generated": True,
-         "sources": [], "coverage": []},
-        "semantic-records",
-    )
+    validate_record(ProjectRecord(project_id="p-1", name="Project"), "semantic-records")
 
 
 def test_invalid_record_fails_schema() -> None:
     with pytest.raises(SchemaValidationError):
         validate_record({"source_id": "x"}, "source-record")
+
+
+def test_semantic_schema_rejects_invalid_nested_records() -> None:
+    with pytest.raises(SchemaValidationError):
+        validate_record(
+            {
+                "schema_version": 1,
+                "project_id": "p-1",
+                "name": "Project",
+                "generated": True,
+                "sources": [
+                    {
+                        "schema_version": 1,
+                        "source_id": "../escape",
+                        "path": "README.md",
+                        "sha256": None,
+                        "lifecycle": "verified",
+                        "first_seen": None,
+                        "last_seen": None,
+                        "previous_sha256": None,
+                        "renamed_from": None,
+                    }
+                ],
+                "authority": [],
+                "coverage": [],
+                "concepts": [],
+                "claims": [],
+                "agent_events": [],
+                "validations": [],
+                "decisions": [],
+                "relationships": [],
+            },
+            "semantic-records",
+        )
 
 
 def test_cross_file_ref_resolves() -> None:

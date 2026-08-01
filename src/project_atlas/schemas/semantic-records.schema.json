@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://project-atlas.local/schemas/semantic-records.schema.json",
-  "title": "AS-CORE-002 semantic records",
+  "title": "AS-CORE-002 ProjectRecord",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "project_id", "name", "generated", "sources", "coverage"],
+  "required": ["schema_version", "project_id", "name", "generated", "sources", "authority", "coverage", "concepts", "claims", "agent_events", "validations", "decisions", "relationships"],
   "properties": {
     "schema_version": { "const": 1 },
     "project_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
@@ -12,14 +12,52 @@
     "portfolio": { "type": ["string", "null"] },
     "lifecycle": { "type": "string" },
     "generated": { "type": "boolean" },
-    "sources": { "type": "array" },
-    "authority": { "type": "array" },
-    "coverage": { "type": "array" },
-    "concepts": { "type": "array" },
-    "claims": { "type": "array" },
-    "agent_events": { "type": "array" },
-    "validations": { "type": "array" },
-    "decisions": { "type": "array" },
-    "relationships": { "type": "array" }
+    "sources": { "type": "array", "items": { "$ref": "#/$defs/source-lifecycle" } },
+    "authority": { "type": "array", "items": { "$ref": "#/$defs/source-authority" } },
+    "coverage": { "type": "array", "items": { "$ref": "#/$defs/coverage" } },
+    "concepts": { "type": "array", "items": { "$ref": "concept-record.schema.json" } },
+    "claims": { "type": "array", "items": { "$ref": "claim.schema.json" } },
+    "agent_events": { "type": "array", "items": { "$ref": "#/$defs/agent-event" } },
+    "validations": { "type": "array", "items": { "$ref": "#/$defs/validation" } },
+    "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
+    "relationships": { "type": "array", "items": { "$ref": "#/$defs/relationship" } }
+  },
+  "$defs": {
+    "version": { "type": "object", "required": ["schema_version"], "properties": { "schema_version": { "const": 1 } } },
+    "source-lifecycle": {
+      "allOf": [{ "$ref": "#/$defs/version" }],
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "source_id", "path", "sha256", "lifecycle", "first_seen", "last_seen", "previous_sha256", "renamed_from"],
+      "properties": {
+        "schema_version": { "const": 1 }, "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "path": { "type": "string", "minLength": 1 },
+        "sha256": { "type": ["string", "null"] }, "lifecycle": { "type": "string", "enum": ["draft", "review-required", "verified", "canonical", "superseded", "historical"] },
+        "first_seen": { "type": ["string", "null"], "format": "date-time" }, "last_seen": { "type": ["string", "null"], "format": "date-time" },
+        "previous_sha256": { "type": ["string", "null"] }, "renamed_from": { "type": ["string", "null"] }
+      }
+    },
+    "source-authority": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "level", "reason"],
+      "properties": { "schema_version": { "const": 1 }, "level": { "type": "string", "enum": ["verified-canonical", "evidence-backed", "imported-source", "inferred", "historical"] }, "reason": { "type": "string", "minLength": 1 } }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "category", "state", "source_ids"],
+      "properties": { "schema_version": { "const": 1 }, "category": { "type": "string", "minLength": 1 }, "state": { "type": "string", "enum": ["absent", "partial", "present", "stale", "conflicting"] }, "source_ids": { "type": "array", "items": { "type": "string" } } }
+    },
+    "agent-event": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "event_id", "event_type", "session_id", "receipt_id", "source_package"],
+      "properties": { "schema_version": { "const": 1 }, "event_id": { "type": "string", "pattern": "^AE-[A-Za-z0-9][A-Za-z0-9._-]*$" }, "event_type": { "type": "string", "minLength": 1 }, "session_id": { "type": "string", "minLength": 1 }, "receipt_id": { "type": "string", "minLength": 1 }, "source_package": { "type": "string", "minLength": 1 } }
+    },
+    "validation": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "validation_id", "summary", "status", "provenance"],
+      "properties": { "schema_version": { "const": 1 }, "validation_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "summary": { "type": "string", "minLength": 1 }, "status": { "type": "string", "minLength": 1 }, "provenance": { "type": "array", "items": { "$ref": "provenance-reference.schema.json" } } }
+    },
+    "decision": {
+      "type": "object", "additionalProperties": false, "required": ["schema_version", "decision_id", "title", "status", "claims", "provenance"],
+      "properties": { "schema_version": { "const": 1 }, "decision_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "title": { "type": "string", "minLength": 1 }, "status": { "type": "string", "minLength": 1 }, "claims": { "type": "array", "items": { "$ref": "claim.schema.json" } }, "provenance": { "type": "array", "items": { "$ref": "provenance-reference.schema.json" } } }
+    },
+    "relationship": {
+      "type": "object", "additionalProperties": false, "required": ["type", "target", "note"],
+      "properties": { "type": { "type": "string", "enum": ["depends_on", "provides", "related_project", "part_of", "deployed_to", "validates", "supersedes", "references"] }, "target": { "type": "string", "minLength": 1 }, "note": { "type": ["string", "null"] } }
+    }
   }
 }
