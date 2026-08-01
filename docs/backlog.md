@@ -125,3 +125,13 @@
 - [ ] CORE-SEC-001 Implement content-based secret detection and redaction for
   pilot ingestion. Filename-only sensitive-file detection must not be treated
   as sufficient for real-project ingestion.
+
+## AS-INT-001 — Governed agent-event ingestion
+
+- [x] INT-001 Define versioned shared event/provenance/receipt contracts
+- [x] INT-002 Discover and classify Control Plane event packages
+- [x] INT-003 Revalidate packages at Core ingestion boundary
+- [x] INT-004 Generate project activity and session projections
+- [x] INT-005 Quarantine invalid, pending and conflicting packages
+- [x] INT-006 Prove deterministic replay and strict public CLI workflow
+- [ ] INT-007 Independent integration certification

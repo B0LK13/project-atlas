@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/event-package.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project_id", "event_id", "package_path", "envelope", "receipt", "component_sha256"],
+  "properties": {
+    "project_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "event_id": {"type": "string", "minLength": 1},
+    "package_path": {"type": "string", "minLength": 1},
+    "envelope": {"type": "object"},
+    "receipt": {"type": "object"},
+    "component_sha256": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+  }
+}

@@ -30,6 +30,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 project_atlas = ["schemas/*.json", "py.typed"]
+atlas_contracts = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -26,3 +26,12 @@ root. The rejected transaction preserves the previous valid Vault byte-for-byte.
 The controlled slice does not yet perform content-based secret detection.
 Filename-only sensitive-file detection remains explicit but is not sufficient
 for the real-project pilot. See backlog item `CORE-SEC-001`.
+
+## AS-INT-001 integration controls
+
+The event-package boundary applies the AT-013 root-confinement posture to
+project IDs, event IDs, package components, Vault destinations and receipt
+paths. Hash mismatches, wrong Vault identity, pending/unverified pipeline state,
+malformed packages and conflicting event IDs are quarantined before canonical
+activity projections. Independent certification of the integration package is
+still required.

@@ -2,7 +2,7 @@
 
 **Roadmap version:** 1.0
 **Roadmap date:** August 1, 2026
-**Program status:** Atlas Core foundation implemented; Atlas Control Plane certified; Core vertical slice pending
+**Program status:** Atlas Core vertical slice merged; Atlas Control Plane certified; AS-INT-001 certification pending
 **Target state:** Governed, evidence-backed project intelligence system built on an Obsidian-compatible Atlas Vault
 
 ---
@@ -90,8 +90,9 @@ evidence, receipts, and synchronization state. The future **Atlas Graph Layer**
 contains derived, source-linked relationship intelligence. The accepted
 decision is recorded in `docs/adr/ADR-002-atlas-two-track-reconciliation.md`.
 
-Atlas Core is not yet an MVP: its required `discover → ingest → build-indexes →
-validate` vertical slice remains the next primary implementation path.
+Atlas Core's controlled `discover → ingest → build-indexes → validate` vertical
+slice is merged and tagged. AS-INT-001 is the current integration package;
+Atlas Core is not yet an MVP.
 
 ## Certified foundations
 
@@ -109,11 +110,17 @@ validate` vertical slice remains the next primary implementation path.
 | ------------ | ------------------------------------------------------------- | --------------------------------------------------- |
 | AS-CTRL-001  | Universal agent bootstrap and Atlas documentation enforcement | **Certified** |
 
+## Integration stream
+
+| Work package | Capability | Status |
+|---|---|---|
+| AS-INT-001 | Governed Control Plane event-package ingestion into Atlas Core | **Implementation complete — certification pending** |
+
 ## Authorized next work
 
 | Work package | Capability                                    | Status                                 |
 | ------------ | --------------------------------------------- | -------------------------------------- |
-| Atlas Core vertical slice | `discover → ingest → build-indexes → validate` | **Next primary implementation** |
+| AS-INT-001 | Governed agent-event ingestion contract | **Current package** |
 | AS-WP-005    | Graphify adapter and relationship projections | **Deferred until Core integration boundary is established** |
 
 ---
