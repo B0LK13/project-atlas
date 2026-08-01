@@ -10,6 +10,8 @@ merge:
   core_milestone_tag: atlas-core-vertical-slice-v1
   evidence_commit: bc481ad
   certification_tag: atlas-agent-event-integration-v1
+  independent_verification_commit: 5ddb0ab
+  final_certification_tag: atlas-agent-event-integration-certification-v1
 contract:
   schema_version: 1
   package_root: .atlas-inbox/agent-events/<project-id>/<event-id>
@@ -49,7 +51,9 @@ replay:
   duplicate_activity_entries: 0
 independent_verification:
   reviewer: Agent Two
-  verdict: merge-recommended
+  verdict: post-merge-verified
+  pinned_commit: 5ddb0ab
+  pinned_tag: atlas-agent-event-integration-v1
   focused_tests: 12
   core_tests: 77
   control_plane_tests: 146

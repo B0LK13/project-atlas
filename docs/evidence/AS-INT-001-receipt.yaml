@@ -98,7 +98,8 @@ historical_defects:
     independently_verified: true
 independent_verification:
   reviewer: Agent Two
-  verdict: merge-recommended
+  verdict: post-merge-verified
+  pinned_commit: 5ddb0ab
   focused_tests: 12
   core_tests: 77
   control_plane_tests: 146

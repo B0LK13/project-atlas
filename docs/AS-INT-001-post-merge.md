@@ -3,6 +3,7 @@
 **Status:** AS-INT-001 CERTIFIED  
 **Merge commit:** `0daa7c7` (`merge: integrate governed agent-event ingestion`)  
 **Feature head:** `efeb5f9`  
+**Independent verification pinned commit:** `5ddb0ab`
 **Validated branch:** `main`  
 **Core milestone:** `atlas-core-vertical-slice-v1`
 
@@ -34,8 +35,9 @@ skill-mismatch and symlinked packages remain explicit quarantine evidence.
 
 ## Independent verification
 
-Agent Two independently reproduced the implementation evidence and reported
-`AS-INT-001 MERGE RECOMMENDED`. The exact independent results were 12 focused
+Agent Two independently reproduced the implementation evidence against the
+pinned merged-main evidence commit `5ddb0ab` and reported
+`POST-MERGE VERIFIED`. The exact independent results were 12 focused
 tests, 77 Core tests, 146 Control Plane tests, 124 mypy source files, clean
 Ruff and compilation. Fresh adversarial probes confirmed:
 
@@ -99,5 +101,5 @@ integration follow-up work.
 The post-merge receipt is
 `docs/evidence/AS-INT-001-post-merge-receipt.yaml`. The updated work-package
 receipt is `docs/evidence/AS-INT-001-receipt.yaml`. The final annotated tag
-`atlas-agent-event-integration-v1` is created only after the evidence commit
-containing these records is validated.
+`atlas-agent-event-integration-v1` remains unchanged; this documentation-only
+finalization is additionally tagged `atlas-agent-event-integration-certification-v1`.
