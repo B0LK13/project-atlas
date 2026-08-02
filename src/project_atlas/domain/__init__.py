@@ -20,6 +20,7 @@ from project_atlas.domain.semantic import (
     ValidationEvidence,
     WorkPackageRecord,
 )
+from project_atlas.domain.source_registry import PathHistoryEntry, SourceLineageRecord
 from project_atlas.domain.sources import RepositoryInfo, SourceRecord
 from project_atlas.domain.vocabulary import (
     ClassificationState,
@@ -49,6 +50,7 @@ __all__ = [
     "KnowledgeState",
     "LifecycleStatus",
     "Maturity",
+    "PathHistoryEntry",
     "ProjectRecord",
     "ProvenanceReference",
     "RelationType",
@@ -59,6 +61,7 @@ __all__ = [
     "SourceAuthority",
     "SourceChangeState",
     "SourceLifecycleRecord",
+    "SourceLineageRecord",
     "SourceRecord",
     "ValidationEvidence",
     "ValidationFinding",

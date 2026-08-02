@@ -29,7 +29,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["schema_version", "source_id", "path", "sha256", "document_lifecycle", "source_change_state", "first_seen", "last_seen", "previous_sha256", "renamed_from", "restored_as", "compatibility_repaired", "compatibility_repair_reason"],
       "properties": {
-        "schema_version": { "const": 1 }, "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "path": { "type": "string", "minLength": 1 },
+        "schema_version": { "const": 1 }, "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "source_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" }, "project_uuid": { "type": ["string", "null"], "format": "uuid" }, "lineage_generation": { "type": ["integer", "null"], "minimum": 1 }, "path": { "type": "string", "minLength": 1 },
         "sha256": { "type": ["string", "null"] }, "document_lifecycle": { "type": "string", "enum": ["draft", "review-required", "verified", "canonical", "superseded", "historical"] }, "source_change_state": { "type": "string", "enum": ["new", "unchanged", "modified", "deleted", "restored", "restored-elsewhere", "renamed"] },
         "first_seen": { "type": ["string", "null"], "format": "date-time" }, "last_seen": { "type": ["string", "null"], "format": "date-time" },
         "previous_sha256": { "type": ["string", "null"] }, "renamed_from": { "type": ["string", "null"] }, "restored_as": { "type": ["string", "null"] }, "compatibility_repaired": { "type": "boolean" }, "compatibility_repair_reason": { "type": ["string", "null"] }

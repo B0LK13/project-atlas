@@ -22,6 +22,7 @@ _SCHEMA_PACKAGE = "project_atlas.schemas"
 #: Maps record kind to its schema file name.
 SCHEMA_FILES: dict[str, str] = {
     "source-record": "source-record.schema.json",
+    "source-registry": "source-registry.schema.json",
     "concept-record": "concept-record.schema.json",
     "claim": "claim.schema.json",
     "provenance-reference": "provenance-reference.schema.json",

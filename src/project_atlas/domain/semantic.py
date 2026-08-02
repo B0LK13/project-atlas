@@ -24,6 +24,9 @@ class VersionedRecord(BaseModel):
 
 class SourceLifecycleRecord(VersionedRecord):
     source_id: str = Field(pattern=ID_PATTERN)
+    source_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")
+    project_uuid: str | None = None
+    lineage_generation: int | None = Field(default=None, ge=1)
     path: str = Field(min_length=1)
     sha256: str | None = None
     document_lifecycle: DocumentLifecycle = DocumentLifecycle.VERIFIED

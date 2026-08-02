@@ -29,6 +29,7 @@ def test_all_expected_schemas_available() -> None:
         "provenance-reference",
         "semantic-records",
         "source-record",
+        "source-registry",
         "validation-finding",
     ]
 

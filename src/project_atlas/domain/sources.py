@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from project_atlas.domain.claims import ID_PATTERN
 from project_atlas.domain.vocabulary import ClassificationState
+from project_atlas.source_identity import validate_project_uuid
 
 SHA256_PATTERN = r"^[0-9a-f]{64}$"
 
@@ -33,6 +34,8 @@ class SourceRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source_id: str = Field(pattern=ID_PATTERN)
+    source_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")
+    project_uuid: str | None = None
     path: str = Field(min_length=1, description="Source path or URI as approved for ingestion")
     media_type: str = Field(min_length=1)
     sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
@@ -50,4 +53,10 @@ class SourceRecord(BaseModel):
                 raise ValueError("excluded sources must record an exclusion_reason")
         elif self.exclusion_reason is not None:
             raise ValueError("exclusion_reason is only valid for excluded sources")
+        return self
+
+    @model_validator(mode="after")
+    def _project_uuid_is_uuidv4(self) -> SourceRecord:
+        if self.project_uuid is not None:
+            validate_project_uuid(self.project_uuid)
         return self

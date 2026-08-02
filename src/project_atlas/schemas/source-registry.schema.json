@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/source-registry.schema.json",
+  "title": "AS-ID-001 Source Lineage Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "source_id", "source_lineage_id", "lineage_generation", "canonical_project_id", "first_seen_path", "current_path", "path_history", "first_content_sha256", "current_content_sha256", "first_seen_sequence", "document_lifecycle", "source_change_state"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "source_lineage_id": { "type": "string", "pattern": "^sline-[A-Za-z0-9]+$" },
+    "lineage_generation": { "type": "integer", "minimum": 1 },
+    "canonical_project_id": { "type": "string", "format": "uuid" },
+    "first_seen_path": { "type": "string", "minLength": 1 },
+    "current_path": { "type": "string", "minLength": 1 },
+    "path_history": { "type": "array", "items": { "$ref": "#/$defs/path-history" } },
+    "first_content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "current_content_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "first_seen_sequence": { "type": "integer", "minimum": 1 },
+    "document_lifecycle": { "type": "string", "enum": ["draft", "review-required", "verified", "canonical", "superseded", "historical"] },
+    "source_change_state": { "type": "string", "enum": ["new", "unchanged", "modified", "deleted", "restored", "restored-elsewhere", "renamed"] },
+    "renamed_from": { "type": ["string", "null"] },
+    "restored_as": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
+    "supersedes_lineage": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
+    "superseded_by_lineage": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" }
+  },
+  "$defs": {
+    "path-history": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "from_sequence"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "from_sequence": { "type": "integer", "minimum": 1 },
+        "to_sequence": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    }
+  }
+}
