@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -43,17 +42,8 @@ def _classify(path: str, text: str) -> tuple[str, str]:
     return "unknown", "no-deterministic-signal"
 
 
-def _atomic(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.is_file() and path.read_text(encoding="utf-8") == content:
-        return
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(content, encoding="utf-8")
-    os.replace(temporary, path)
-
-
-def _generated_atomic(path: Path, content: str) -> None:
-    """Write a generated note while preserving its human-owned regions."""
+def _generated_content(path: Path, content: str) -> str:
+    """Render a generated note while preserving its human-owned regions."""
     start = "<!-- atlas:generated:start -->"
     end = "<!-- atlas:generated:end -->"
     if path.is_file():
@@ -73,7 +63,22 @@ def _generated_atomic(path: Path, content: str) -> None:
                 + content[generated_start:generated_end]
                 + existing[end_index + len(end):]
             )
-    _atomic(path, content)
+    return content
+
+
+def _promote(plan: dict[Path, bytes]) -> None:
+    """Promote a fully validated canonical write plan."""
+    for path in sorted(plan):
+        _atomic_bytes(path, plan[path])
+
+
+def _atomic_bytes(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file() and path.read_bytes() == content:
+        return
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_bytes(content)
+    os.replace(temporary, path)
 
 
 def _validate_existing_markers(vault: Path, project_ids: set[str]) -> None:
@@ -264,6 +269,7 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     event_state: dict[str, list[dict[str, Any]]] = {}
     quarantined_events: list[dict[str, Any]] = []
     security_findings: list[dict[str, str]] = []
+    write_plan: dict[Path, bytes] = {}
     previous_state = _previous_event_state(vault)
     previous_sources = _previous_source_state(vault)
     event_inventories = _manifest_events(manifest)
@@ -301,9 +307,6 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     for source_record, source, destination, text in prepared:
         classification, method = _classify(source_record.path, text)
         source_id = source_record.source_id
-        if not destination.exists():
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, destination)
         entry: dict[str, str] = {
             "source_id": source_id,
             "path": source_record.path,
@@ -315,6 +318,8 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         classifications[source_id] = {"type": classification, "method": method}
         project = source_record.likely_project or "unknown-project"
         projects.setdefault(project, []).append(entry)
+        if not destination.exists():
+            write_plan[destination] = source.read_bytes()
     prepared_events: list[_PreparedEvent] = []
     seen_event_ids: dict[str, dict[str, str]] = {}
     for inventory in event_inventories:
@@ -447,20 +452,16 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     for prepared_event in prepared_events:
         package = prepared_event.package
         package_root = prepared_event.destination
-        package_root.mkdir(parents=True, exist_ok=True)
         source_package = _inside(root, root / package.package_path)
         for name in sorted(("event.md", "event.json", "provenance.json", "receipt.yaml")):
             destination = _inside(vault, package_root / name)
             if not destination.exists():
-                shutil.copyfile(source_package / name, destination)
+                write_plan[destination] = (source_package / name).read_bytes()
         receipt_destination = _inside(
             vault,
             vault / "receipts" / "agent-events" / package.project_id / f"{package.event_id}.yaml",
         )
-        _atomic(
-            receipt_destination,
-            (source_package / "receipt.yaml").read_text(encoding="utf-8"),
-        )
+        write_plan[receipt_destination] = (source_package / "receipt.yaml").read_bytes()
     report = {
         "schema_version": 1,
         "inventory_sha256": manifest.get("inventory_sha256"),
@@ -500,47 +501,41 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             if restored_id:
                 tombstone["restored_as"] = restored_id
             current_sources.append(tombstone)
-    _atomic(
-        _inside(vault, vault / "state" / "sources.json"),
+    write_plan[_inside(vault, vault / "state" / "sources.json")] = (
         json.dumps(
             {"schema_version": 1, "sources": current_sources}, indent=2, sort_keys=True
         )
-        + "\n",
-    )
-    _atomic(
-        _inside(vault, vault / "sources" / "manifests" / "source-manifest.json"),
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-    )
-    _atomic(
-        _inside(vault, vault / "generated" / "reports" / "ingestion-report.json"),
-        json.dumps(report, indent=2, sort_keys=True) + "\n",
-    )
-    _atomic(
-        _inside(vault, vault / "generated" / "reports" / "secret-findings.json"),
-        json.dumps(security_findings, indent=2, sort_keys=True) + "\n",
-    )
+        + "\n"
+    ).encode()
+    write_plan[_inside(vault, vault / "sources" / "manifests" / "source-manifest.json")] = (
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+    ).encode()
+    write_plan[_inside(vault, vault / "generated" / "reports" / "ingestion-report.json")] = (
+        json.dumps(report, indent=2, sort_keys=True) + "\n"
+    ).encode()
+    write_plan[_inside(vault, vault / "generated" / "reports" / "secret-findings.json")] = (
+        json.dumps(security_findings, indent=2, sort_keys=True) + "\n"
+    ).encode()
     if quarantined_events:
-        _atomic(
-            _inside(vault, vault / "quarantine" / "agent-events" / "index.json"),
-            json.dumps(quarantined_events, indent=2, sort_keys=True) + "\n",
-        )
+        write_plan[_inside(vault, vault / "quarantine" / "agent-events" / "index.json")] = (
+            json.dumps(quarantined_events, indent=2, sort_keys=True) + "\n"
+        ).encode()
     for project, records in sorted(event_state.items()):
-        _atomic(
-            _inside(vault, vault / "state" / "agent-events" / f"{project}.json"),
+        write_plan[_inside(vault, vault / "state" / "agent-events" / f"{project}.json")] = (
             json.dumps(
                 {"schema_version": 1, "project_id": project, "events": records},
                 indent=2,
                 sort_keys=True,
             )
-            + "\n",
-        )
+            + "\n"
+        ).encode()
     for project, entries in sorted(projects.items()):
         project_record = compile_project_record(project, entries, event_entries.get(project, []))
         project_root = _inside(vault, vault / "projects" / project)
-        _generated_atomic(
-            _inside(vault, project_root / "project.md"),
-            render_project_record(project_record, entries),
-        )
+        project_path = _inside(vault, project_root / "project.md")
+        write_plan[project_path] = _generated_content(
+            project_path, render_project_record(project_record, entries)
+        ).encode()
         map_lines = [
             f"# Documentation map — {project}", "", "| Source | Classification | SHA-256 |",
             "|---|---|---|",
@@ -550,10 +545,9 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
                 f"| [{entry['path']}]({entry['source']}) | "
                 f"{entry['classification']} | `{entry['sha256']}` |"
             )
-        _atomic(
-            _inside(vault, project_root / "documentation-map.md"),
-            "\n".join(map_lines) + "\n",
-        )
+        write_plan[_inside(vault, project_root / "documentation-map.md")] = (
+            "\n".join(map_lines) + "\n"
+        ).encode()
         project_events = sorted(
             event_entries.get(project, []), key=lambda item: (item["timestamp"], item["event_id"])
         )
@@ -574,10 +568,10 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
                 lines.extend(_event_line(entry) for entry in selected)
             else:
                 lines.append("_No verified agent events in this category._")
-            _atomic(
-                _inside(vault, project_root / f"{name}.md"),
-                "\n".join(lines) + "\n",
-            )
+            write_plan[_inside(vault, project_root / f"{name}.md")] = (
+                "\n".join(lines) + "\n"
+            ).encode()
+    _promote(write_plan)
     return {
         "ok": True,
         "projects": len(projects),

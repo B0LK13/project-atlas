@@ -117,3 +117,70 @@ def test_malformed_marker_in_one_project_aborts_before_other_project_writes(
     imported_before = sorted((vault / "sources" / "imported-documents").iterdir())
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
     assert sorted((vault / "sources" / "imported-documents").iterdir()) == imported_before
+
+
+def test_cross_project_preflight_preserves_vault_until_marker_is_fixed(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "multi-source"
+    first = source / "aaa"
+    second = source / "zzz"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    (first / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: aaa-first\n", encoding="utf-8"
+    )
+    (second / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: zzz-second\n", encoding="utf-8"
+    )
+    (first / "README.md").write_text("# First\n", encoding="utf-8")
+    (second / "README.md").write_text("# Second\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    vault = tmp_path / "vault"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+
+    (first / "NOTES.md").write_text("# Newly added\n", encoding="utf-8")
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    malformed = vault / "projects" / "zzz-second" / "project.md"
+    malformed.write_text("<!-- atlas:generated:start -->\n", encoding="utf-8")
+    before = {
+        path.relative_to(vault): path.read_bytes()
+        for path in vault.rglob("*")
+        if path.is_file()
+    }
+
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
+    after = {
+        path.relative_to(vault): path.read_bytes()
+        for path in vault.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+
+    malformed.write_text(
+        malformed.read_text(encoding="utf-8")
+        + "<!-- atlas:generated:end -->\n",
+        encoding="utf-8",
+    )
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    notes_record = next(
+        item
+        for item in json.loads(manifest.read_text())["sources"]
+        if item["path"] == "aaa/NOTES.md"
+    )
+    imported = vault / "sources" / "imported-documents" / f"{notes_record['source_id']}.md"
+    assert imported.read_text(encoding="utf-8") == "# Newly added\n"
+    assert (
+        len(
+            list(
+                (vault / "sources" / "imported-documents").glob(
+                    f"{notes_record['source_id']}.*"
+                )
+            )
+        )
+        == 1
+    )
+    state = json.loads((vault / "state" / "sources.json").read_text(encoding="utf-8"))
+    assert sum(item["path"] == "aaa/NOTES.md" for item in state["sources"]) == 1
