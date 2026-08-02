@@ -10,7 +10,7 @@
     "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "source_lineage_id": { "type": "string", "pattern": "^sline-[A-Za-z0-9]+$" },
     "lineage_generation": { "type": "integer", "minimum": 1 },
-    "canonical_project_id": { "type": "string", "format": "uuid" },
+    "canonical_project_id": { "type": "string", "format": "uuid", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
     "first_seen_path": { "type": "string", "minLength": 1 },
     "current_path": { "type": "string", "minLength": 1 },
     "path_history": { "type": "array", "items": { "$ref": "#/$defs/path-history" } },

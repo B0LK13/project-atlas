@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from pathlib import Path
 
 import pytest
 
@@ -62,3 +63,26 @@ def test_source_registry_v2_is_strict_and_schema_locked() -> None:
     validate_record(record, "source-registry")
     with pytest.raises(ValueError):
         SourceLineageRecord.model_validate({**record.model_dump(), "schema_version": 1})
+    with pytest.raises(ValueError):
+        validate_record(
+            {**record.model_dump(), "canonical_project_id": str(uuid.uuid1())},
+            "source-registry",
+        )
+
+
+def test_project_identity_lock_is_single_winner_and_releases(tmp_path: Path) -> None:
+    from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
+
+    lock_path = tmp_path / ".atlas" / "identity.lock"
+    first = ProjectIdentityLock(lock_path, wait_seconds=0.01, poll_seconds=0.001)
+    second = ProjectIdentityLock(lock_path, wait_seconds=0.01, poll_seconds=0.001)
+    first.acquire()
+    try:
+        with pytest.raises(IdentityLockError):
+            second.acquire()
+        assert lock_path.is_file()
+    finally:
+        first.release()
+    second.acquire()
+    second.release()
+    assert not lock_path.exists()

@@ -2,9 +2,12 @@
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
+from project_atlas.discovery import discover, write_manifest
+from project_atlas.ingestion import ingest
 
 
 def _snapshot(vault: Path) -> dict[str, bytes]:
@@ -220,6 +223,77 @@ def test_unknown_legacy_lifecycle_rejected_without_mutation(tmp_path: Path) -> N
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
     assert _snapshot(vault) == after_corruption
     assert before != after_corruption
+
+
+def test_project_uuid_genesis_is_injected_once_and_replay_is_zero_write(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    marker = source / ".atlas-project.yaml"
+    marker.write_text("schema_version: 1\nproject:\n  id: genesis-fixture\n", encoding="utf-8")
+    (source / "README.md").write_bytes(b"raw\x00bytes\n")
+    manifest = tmp_path / "manifest.json"
+    write_manifest(discover(source), manifest)
+    vault = tmp_path / "vault"
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    expected = "00000000-0000-4000-8000-000000000011"
+    calls = 0
+
+    def provider() -> str:
+        nonlocal calls
+        calls += 1
+        return expected
+
+    assert ingest(manifest, vault, uuid_provider=provider)["ok"] is True
+    assert calls == 1
+    assert f"project_uuid: {expected}" in marker.read_text(encoding="utf-8")
+    allocation_receipts = list((vault / "receipts/source-lineage").glob("project-*.json"))
+    assert len(allocation_receipts) == 1
+    before = _snapshot(vault)
+    assert ingest(manifest, vault, uuid_provider=lambda: (_ for _ in ()).throw(AssertionError()))[
+        "ok"
+    ] is True
+    assert _snapshot(vault) == before
+
+
+def test_concurrent_project_initializers_have_one_uuid_receipt(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    marker = source / ".atlas-project.yaml"
+    marker.write_text("schema_version: 1\nproject:\n  id: concurrent-fixture\n", encoding="utf-8")
+    (source / "README.md").write_text("# concurrent\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    write_manifest(discover(source), manifest)
+    vault = tmp_path / "vault"
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    candidates = iter(
+        [
+            "00000000-0000-4000-8000-000000000021",
+            "00000000-0000-4000-8000-000000000022",
+        ]
+    )
+
+    def provider() -> str:
+        return next(candidates)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(
+            pool.map(
+                lambda _index: ingest(manifest, vault, uuid_provider=provider),
+                range(2),
+            )
+        )
+    assert all(result["ok"] for result in results)
+    marker_uuid = next(
+        line.split(":", 1)[1].strip()
+        for line in marker.read_text(encoding="utf-8").splitlines()
+        if line.startswith("project_uuid:")
+    )
+    assert marker_uuid in {
+        "00000000-0000-4000-8000-000000000021",
+        "00000000-0000-4000-8000-000000000022",
+    }
+    assert len(list((vault / "receipts/source-lineage").glob("project-*.json"))) == 1
+    assert not list((vault / ".atlas/identity-locks").glob("*.lock"))
 
 
 def test_malformed_marker_in_one_project_aborts_before_other_project_writes(
