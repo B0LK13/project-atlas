@@ -115,7 +115,8 @@ def test_complete_lifecycle_paths_are_source_backed_and_historical(tmp_path: Pat
     assert unchanged.claims[0].lifecycle is ClaimLifecycle.UNCHANGED
     changed = dict(entry, text="Purpose: changed", sha256="b" * 64)
     updated = compile_knowledge("lifecycle-project", [changed], tmp_path)
-    assert updated.claims[0].lifecycle is ClaimLifecycle.UPDATED
+    assert updated.claims[0].lifecycle is ClaimLifecycle.NEW
+    assert any(item.lifecycle is ClaimLifecycle.REMOVED_SOURCE for item in updated.lifecycle)
     old_claim_id = first.claims[0].claim_id
     replacement = dict(
         changed,

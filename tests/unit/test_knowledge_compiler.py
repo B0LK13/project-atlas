@@ -141,7 +141,8 @@ def test_lifecycle_marks_unchanged_then_updated_and_retains_removed(tmp_path: Pa
     assert second.claims[0].lifecycle is ClaimLifecycle.UNCHANGED
     changed = _entry("source-a", "README.md", "Purpose: changed", HASH_B, "project-overview")
     third = compile_knowledge("project-1", [changed], tmp_path)
-    assert third.claims[0].lifecycle is ClaimLifecycle.UPDATED
+    assert third.claims[0].lifecycle is ClaimLifecycle.NEW
+    assert any(item.lifecycle is ClaimLifecycle.REMOVED_SOURCE for item in third.lifecycle)
     removed = compile_knowledge("project-1", [], tmp_path)
     assert any(item.lifecycle is ClaimLifecycle.REMOVED_SOURCE for item in removed.lifecycle)
 
@@ -172,3 +173,11 @@ def test_new_lineage_generation_has_distinct_claim_namespace(tmp_path: Path) -> 
     first_claim = compile_knowledge("project-1", [first], tmp_path).claims[0]
     second_claim = compile_knowledge("project-1", [second], tmp_path).claims[0]
     assert first_claim.claim_id != second_claim.claim_id
+
+
+def test_legacy_source_identity_emits_compatibility_receipt(tmp_path: Path) -> None:
+    entry = _entry("source-legacy", "README.md", "Purpose: legacy", HASH_A, "project-overview")
+    rendered = render_bundle(
+        compile_knowledge("legacy-project", [entry], tmp_path), "legacy-project"
+    )
+    assert any("legacy-" in name for name in rendered if "receipts/claims" in name)

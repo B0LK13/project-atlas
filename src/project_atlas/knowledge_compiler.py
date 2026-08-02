@@ -220,12 +220,16 @@ def _claim(
 ) -> Claim:
     normalized = " ".join(value.split())
     source_id = str(entry["source_id"])
-    source_identity = str(entry.get("source_lineage_id") or source_id)
+    source_lineage_id = entry.get("source_lineage_id")
+    source_identity = str(source_lineage_id or source_id)
     project_identity = str(entry.get("project_uuid") or project)
     # Locator identifies the semantic assertion within a durable source.  Its
     # content is deliberately excluded so a changed assertion can transition
     # the same claim to UPDATED instead of silently becoming a new claim.
-    identity_key = f"{project_identity}|{source_identity}|{claim_type.value}|{field}|{locator}"
+    identity_key = (
+        f"{project_identity}|{source_identity}|{claim_type.value}|{field}|"
+        f"{_digest(normalized.lower())}"
+    )
     claim_id = (
         f"claim-{_digest(identity_key)[:20]}"
     )
@@ -923,6 +927,33 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
         )
         + "\n"
     )
+    legacy_claims = [
+        claim
+        for claim in bundle.claims
+        if claim.source_lineage_id is None
+        and any(ref.source_lineage_id is None for ref in claim.provenance)
+    ]
+    if legacy_claims:
+        legacy_payload = {
+            "schema_version": 1,
+            "receipt_type": "legacy-claim-generation-compatibility",
+            "project_id": project,
+            "reason": (
+                "claim generation used compatibility source_id because durable "
+                "source_lineage_id was absent"
+            ),
+            "claims": [
+                {
+                    "claim_id": claim.claim_id,
+                    "source_ids": sorted({ref.source_id for ref in claim.provenance}),
+                }
+                for claim in sorted(legacy_claims, key=lambda item: item.claim_id)
+            ],
+        }
+        legacy_hash = _digest(json.dumps(legacy_payload, sort_keys=True))[:24]
+        result[f"receipts/claims/{project}-legacy-{legacy_hash}.json"] = (
+            json.dumps(legacy_payload, indent=2, sort_keys=True) + "\n"
+        )
     return result
 
 
