@@ -205,12 +205,24 @@ def validate_output_path(path: Path) -> Path:
         raise ScaffoldError(f"refusing to use home directory as vault: {resolved}")
     if resolved.is_file():
         raise ScaffoldError(f"output path exists and is not a directory: {resolved}")
-    if resolved.is_dir() and any(resolved.iterdir()):
+    if resolved.is_dir() and any(resolved.iterdir()) and not _is_atlas_vault(resolved):
         raise ScaffoldError(
             f"output directory is not empty: {resolved} "
             "(overwriting existing content is not supported)"
         )
     return resolved
+
+
+def _is_atlas_vault(path: Path) -> bool:
+    """Recognize an existing Atlas scaffold for idempotent ``init``."""
+    readme = path / "README.md"
+    return (
+        readme.is_file()
+        and (path / "index.md").is_file()
+        and (path / "projects").is_dir()
+        and (path / "sources").is_dir()
+        and "Project Atlas Vault" in readme.read_text(encoding="utf-8")
+    )
 
 
 def _write_atomic(path: Path, content: str) -> None:
@@ -236,6 +248,13 @@ def create_scaffold(output: Path, *, dry_run: bool = False) -> ScaffoldPlan:
         _log.info(
             "dry run: no files written",
             extra={"context": {"root": str(resolved), "files": len(plan.files)}},
+        )
+        return plan
+
+    if _is_atlas_vault(resolved):
+        _log.info(
+            "vault scaffold already exists; init is a no-op",
+            extra={"context": {"root": str(resolved)}},
         )
         return plan
 

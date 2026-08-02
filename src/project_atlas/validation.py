@@ -131,6 +131,20 @@ def _validate_knowledge_state(vault: Path, errors: list[str]) -> None:
             TypeError,
         ) as exc:
             errors.append(f"invalid concept state {path.relative_to(vault)}: {exc}")
+    for path in _json_files(vault, "state", "authority"):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            for authority in raw.get("authorities", []):
+                validate_record(authority, "authority-record")
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            SchemaValidationError,
+            AttributeError,
+            TypeError,
+        ) as exc:
+            errors.append(f"invalid authority state {path.relative_to(vault)}: {exc}")
     for path in _json_files(vault, "review", "conflicts"):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
@@ -175,11 +189,85 @@ def _validate_knowledge_state(vault: Path, errors: list[str]) -> None:
             TypeError,
         ) as exc:
             errors.append(f"invalid lifecycle state {path.relative_to(vault)}: {exc}")
+    _validate_indexes(vault, errors)
 
 
 def _json_files(vault: Path, *parts: str) -> list[Path]:
     directory = vault.joinpath(*parts)
     return sorted(directory.glob("*.json")) if directory.is_dir() else []
+
+
+def _validate_indexes(vault: Path, errors: list[str]) -> None:
+    """Check that derived index IDs agree with canonical machine state."""
+    index_root = vault / "indexes"
+    if not index_root.is_dir():
+        return
+    state_ids: dict[str, set[str]] = {
+        "claims": set(),
+        "concepts": set(),
+        "conflicts": set(),
+        "authority": set(),
+        "sources": set(),
+    }
+    for path in _json_files(vault, "state", "claims"):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        state_ids["claims"].update(
+            str(item["claim_id"])
+            for item in raw.get("claims", [])
+            if isinstance(item, dict) and item.get("claim_id")
+        )
+    for path in _json_files(vault, "state", "concepts"):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        state_ids["concepts"].update(
+            str(item["concept_id"])
+            for item in raw.get("concepts", [])
+            if isinstance(item, dict) and item.get("concept_id")
+        )
+    for path in _json_files(vault, "review", "conflicts"):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        state_ids["conflicts"].update(
+            str(item["conflict_id"])
+            for item in raw.get("entries", [])
+            if isinstance(item, dict) and item.get("conflict_id")
+        )
+    for path in _json_files(vault, "state", "authority"):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        state_ids["authority"].update(
+            str(item["authority_id"])
+            for item in raw.get("authorities", [])
+            if isinstance(item, dict) and item.get("authority_id")
+        )
+    source_path = vault / "state" / "sources.json"
+    if source_path.is_file():
+        raw = json.loads(source_path.read_text(encoding="utf-8"))
+        state_ids["sources"].update(
+            str(item["source_lineage_id"])
+            for item in raw.get("sources", [])
+            if isinstance(item, dict) and item.get("source_lineage_id")
+        )
+    for kind in ("claims", "concepts", "conflicts", "authority", "sources"):
+        path = index_root / f"{kind}.json"
+        if not path.is_file():
+            errors.append(f"missing canonical index: indexes/{kind}.json")
+            continue
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            indexed = raw.get("ids", [])
+            if sorted(indexed) != sorted(state_ids[kind]):
+                errors.append(f"index/state mismatch: indexes/{kind}.json")
+        except (OSError, UnicodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+            errors.append(f"invalid canonical index indexes/{kind}.json: {exc}")
+    provenance_path = index_root / "provenance.json"
+    if not provenance_path.is_file():
+        errors.append("missing canonical index: indexes/provenance.json")
+    else:
+        try:
+            provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+            for key in ("by_source_lineage_id", "by_receipt_id"):
+                if not isinstance(provenance.get(key), dict):
+                    errors.append(f"invalid canonical index indexes/provenance.json: {key}")
+        except (OSError, UnicodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
+            errors.append(f"invalid canonical index indexes/provenance.json: {exc}")
 
 
 def _validate_provenance(

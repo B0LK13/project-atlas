@@ -1177,6 +1177,11 @@ def _ingest(
             write_plan[_inside(vault, project_root / f"{name}.md")] = (
                 "\n".join(lines) + "\n"
             ).encode()
+    # Derived indexes are part of the same staged transaction.  The overlay
+    # lets index generation see canonical state that is not promoted yet.
+    from project_atlas.indexes import canonical_index_payloads
+
+    write_plan.update(canonical_index_payloads(vault, write_plan))
     _assert_marker_compare_and_swap(marker_preconditions)
     _promote(write_plan)
     _verify_identity_post_state(

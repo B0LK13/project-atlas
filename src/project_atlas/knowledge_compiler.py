@@ -888,6 +888,7 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
     claims = [claim.model_dump(mode="json") for claim in bundle.claims]
     concepts = [concept.model_dump(mode="json") for concept in bundle.concepts]
     conflicts = [conflict.model_dump(mode="json") for conflict in bundle.conflicts]
+    authorities = [authority.model_dump(mode="json") for authority in bundle.authorities]
     reviews = [review.model_dump(mode="json") for review in bundle.reviews]
     lifecycle = [item.model_dump(mode="json") for item in bundle.lifecycle]
     state = {"schema_version": 1, "project_id": project, "claims": claims}
@@ -906,6 +907,12 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
     result = {
         f"state/claims/{project}.json": json.dumps(state, indent=2, sort_keys=True) + "\n",
         f"state/concepts/{project}.json": json.dumps(concept_state, indent=2, sort_keys=True)
+        + "\n",
+        f"state/authority/{project}.json": json.dumps(
+            {"schema_version": 1, "project_id": project, "authorities": authorities},
+            indent=2,
+            sort_keys=True,
+        )
         + "\n",
         f"state/claim-lifecycle/{project}.json": json.dumps(
             {"schema_version": 1, "project_id": project, "claims": lifecycle},

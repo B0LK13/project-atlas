@@ -107,3 +107,12 @@ def test_allows_empty_existing_directory(tmp_path: Path) -> None:
     plan = create_scaffold(root)
     assert (root / "index.md").is_file()
     assert plan.root == root.resolve()
+
+
+def test_init_is_idempotent_for_existing_atlas_vault(tmp_path: Path) -> None:
+    root = tmp_path / "vault"
+    create_scaffold(root)
+    marker = root / "README.md"
+    before = marker.read_bytes(), marker.stat().st_mtime_ns
+    create_scaffold(root)
+    assert (marker.read_bytes(), marker.stat().st_mtime_ns) == before

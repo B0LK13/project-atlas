@@ -43,9 +43,16 @@ def test_init_creates_scaffold(tmp_path: Path) -> None:
     assert (root / "templates" / "project.md").is_file()
 
 
-def test_init_rejects_non_empty_directory(tmp_path: Path) -> None:
+def test_init_is_idempotent_for_existing_atlas_vault(tmp_path: Path) -> None:
     root = tmp_path / "vault"
     assert main(["init", "--output", str(root)]) == EXIT_OK
+    assert main(["init", "--output", str(root)]) == EXIT_OK
+
+
+def test_init_rejects_arbitrary_non_empty_directory(tmp_path: Path) -> None:
+    root = tmp_path / "vault"
+    root.mkdir()
+    (root / "existing.md").write_text("keep me", encoding="utf-8")
     assert main(["init", "--output", str(root)]) == EXIT_ERROR
 
 
