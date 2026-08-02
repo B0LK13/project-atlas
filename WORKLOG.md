@@ -602,7 +602,7 @@ the implementation commit remains frozen.
 **Status:** implementation complete — governor review required
 **Base:** `313712ee28083693ae39470b2d7148dc74617322`
 **Architecture:** `ae98fba`
-**Implementation:** `3a04cf1`
+**Implementation:** `1beea96`
 **Evidence:** `docs/evidence/AS-ID-001-receipt.yaml`
 
 Added UUIDv4 project genesis, Core-local single-winner synchronization, source
