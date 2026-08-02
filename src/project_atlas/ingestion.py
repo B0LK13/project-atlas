@@ -784,17 +784,17 @@ def _ingest(
     registry_records: list[dict[str, Any]] = []
     lineage_migration_receipts: list[dict[str, Any]] = []
     for project, entries in sorted(projects.items()):
-        project_uuid = project_identity.get(project)
-        if project_uuid is None or not entries:
+        registry_project_uuid = project_identity.get(project)
+        if registry_project_uuid is None or not entries:
             continue
         if registry_version == 1:
-            prior_for_project = migrate_v1_records(previous_sources, project_uuid)
+            prior_for_project = migrate_v1_records(previous_sources, registry_project_uuid)
             for migrated in prior_for_project:
                 lineage_migration_receipts.append(
                     {
                         "schema_version": 1,
                         "receipt_type": "source-lineage-migration",
-                        "project_uuid": project_uuid,
+                        "project_uuid": registry_project_uuid,
                         "source_ids": [str(migrated["source_id"])],
                         "source_lineage_id": migrated["source_lineage_id"],
                         "lineage_generation": migrated["lineage_generation"],
@@ -807,9 +807,11 @@ def _ingest(
             prior_for_project = [
                 item
                 for item in previous_registry
-                if item.get("canonical_project_id") == project_uuid
+                if item.get("canonical_project_id") == registry_project_uuid
             ]
-        registry_records.extend(build_project_registry(project_uuid, entries, prior_for_project))
+        registry_records.extend(
+            build_project_registry(registry_project_uuid, entries, prior_for_project)
+        )
     retained_projects = {
         str(item.get("canonical_project_id"))
         for item in registry_records
