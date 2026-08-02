@@ -101,6 +101,85 @@ class KnowledgeState(StrEnum):
     HISTORICAL = "historical"
 
 
+class AuthorityLevel(StrEnum):
+    """Deterministic evidence authority used by AS-CORE-003."""
+
+    PRIMARY = "primary"
+    MAINTAINED = "maintained"
+    VALIDATED_EXECUTION = "validated-execution"
+    GENERATED = "generated"
+    INFERRED = "inferred"
+    PENDING = "pending"
+    CONFLICTING = "conflicting"
+    REJECTED = "rejected"
+
+
+class ClaimLifecycle(StrEnum):
+    """Lifecycle states retained for source-backed claims."""
+
+    NEW = "new"
+    UNCHANGED = "unchanged"
+    UPDATED = "updated"
+    SUPERSEDED = "superseded"
+    CONTRADICTED = "contradicted"
+    STALE = "stale"
+    REMOVED_SOURCE = "removed-source"
+    RESTORED = "restored"
+    REJECTED = "rejected"
+
+
+class ClaimType(StrEnum):
+    """Bounded deterministic claim classes for the first knowledge slice."""
+
+    PROJECT_PURPOSE = "project-purpose"
+    ARCHITECTURE = "architecture-statement"
+    SETUP_REQUIREMENT = "setup-requirement"
+    RUNTIME_DEPENDENCY = "runtime-dependency"
+    DEPLOYMENT_TARGET = "deployment-target"
+    TEST_RESULT = "test-validation-result"
+    ROADMAP_STATUS = "roadmap-status"
+    WORK_PACKAGE_STATUS = "work-package-status"
+    DECISION = "decision"
+    RISK = "risk-blocker"
+    OPERATIONAL_INSTRUCTION = "operational-instruction"
+
+
+class ReviewCategory(StrEnum):
+    """Closed categories for governed review queue entries."""
+
+    PENDING_CLAIM = "pending-claim"
+    LOW_CONFIDENCE = "low-confidence"
+    STALE_OR_SUPERSEDED = "stale-or-superseded"
+    CONFLICT = "conflict"
+    SUPERSEDED = "superseded"
+    STALE = "stale"
+    REJECTED = "rejected"
+
+
+class ReviewEntryStatus(StrEnum):
+    """Closed processing states for review queue entries."""
+
+    PENDING = "pending"
+    IN_REVIEW = "in-review"
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+
+
+class ConflictType(StrEnum):
+    """Closed material conflict classifications."""
+
+    MATERIALLY_INCOMPATIBLE = "materially-incompatible"
+
+
+class ConfidenceState(StrEnum):
+    """Objective confidence state; not a subjective trust score."""
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"
+
+
 class ReviewState(StrEnum):
     """Human review state for generated knowledge."""
 

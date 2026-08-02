@@ -5,17 +5,20 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.domain.claims import ID_PATTERN, Claim, ProvenanceReference
 from project_atlas.domain.concepts import ConceptRecord
 from project_atlas.domain.vocabulary import (
+    AuthorityLevel,
+    ClaimLifecycle,
     DocumentLifecycle,
     KnowledgeState,
     LifecycleStatus,
+    ReviewCategory,
+    ReviewEntryStatus,
     SourceChangeState,
 )
-from project_atlas.source_identity import validate_project_uuid
 
 
 class VersionedRecord(BaseModel):
@@ -25,8 +28,8 @@ class VersionedRecord(BaseModel):
 
 class SourceLifecycleRecord(VersionedRecord):
     source_id: str = Field(pattern=ID_PATTERN)
-    source_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")
     project_uuid: str | None = None
+    source_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")
     lineage_generation: int | None = Field(default=None, ge=1)
     path: str = Field(min_length=1)
     sha256: str | None = None
@@ -40,11 +43,6 @@ class SourceLifecycleRecord(VersionedRecord):
     compatibility_repaired: bool = False
     compatibility_repair_reason: str | None = None
 
-    @field_validator("project_uuid")
-    @classmethod
-    def _project_uuid_is_uuidv4(cls, value: str | None) -> str | None:
-        return validate_project_uuid(value) if value is not None else None
-
     @property
     def lifecycle(self) -> DocumentLifecycle:
         """Compatibility accessor for callers that read semantic lifecycle."""
@@ -54,6 +52,70 @@ class SourceLifecycleRecord(VersionedRecord):
 class SourceAuthority(VersionedRecord):
     level: KnowledgeState = KnowledgeState.IMPORTED_SOURCE
     reason: str = Field(min_length=1)
+
+
+class AuthorityRecord(VersionedRecord):
+    """Authority classification attached to one source-backed item."""
+
+    authority_id: str = Field(pattern=ID_PATTERN)
+    project_id: str = Field(pattern=ID_PATTERN)
+    subject_id: str = Field(pattern=ID_PATTERN)
+    level: AuthorityLevel
+    precedence: int = Field(ge=0)
+    reason: str = Field(min_length=1)
+    source_ids: list[str] = Field(default_factory=list)
+    source_lineage_ids: list[str] = Field(default_factory=list)
+
+
+class ClaimLifecycleTransition(BaseModel):
+    """Immutable, source- or policy-backed lifecycle transition evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    previous_state: ClaimLifecycle
+    new_state: ClaimLifecycle
+    reason: str = Field(min_length=1)
+    reference_ids: list[str] = Field(default_factory=list)
+    transition_at: datetime | None = None
+    previous_content_sha256: str | None = Field(
+        default=None, pattern=r"^[a-fA-F0-9]{64}$"
+    )
+    new_content_sha256: str | None = Field(default=None, pattern=r"^[a-fA-F0-9]{64}$")
+    related_conflict_id: str | None = Field(default=None, pattern=ID_PATTERN)
+    superseded_by_claim_id: str | None = Field(default=None, pattern=ID_PATTERN)
+
+
+class ClaimLifecycleRecord(VersionedRecord):
+    """Persisted claim state, including history across source changes."""
+
+    claim_id: str = Field(pattern=ID_PATTERN)
+    project_id: str = Field(pattern=ID_PATTERN)
+    lifecycle: ClaimLifecycle
+    content_sha256: str = Field(pattern=r"^[a-fA-F0-9]{64}$")
+    source_ids: list[str] = Field(default_factory=list)
+    source_lineage_ids: list[str] = Field(default_factory=list)
+    previous_content_sha256: str | None = Field(default=None, pattern=r"^[a-fA-F0-9]{64}$")
+    previous_source_ids: list[str] = Field(default_factory=list)
+    predecessor_claim_id: str | None = Field(default=None, pattern=ID_PATTERN)
+    superseded_by_claim_id: str | None = Field(default=None, pattern=ID_PATTERN)
+    created_at: datetime | None = None
+    last_observed_at: datetime | None = None
+    observation_count: int = Field(default=1, ge=1)
+    transitions: list[ClaimLifecycleTransition] = Field(default_factory=list)
+    rejection_reason: str | None = None
+
+
+class ReviewEntry(VersionedRecord):
+    """Deterministic queue entry requiring human or follow-up processing."""
+
+    review_id: str = Field(pattern=ID_PATTERN)
+    project_id: str = Field(pattern=ID_PATTERN)
+    category: ReviewCategory
+    subject_id: str = Field(pattern=ID_PATTERN)
+    reason: str = Field(min_length=1)
+    source_ids: list[str] = Field(default_factory=list)
+    source_lineage_ids: list[str] = Field(default_factory=list)
+    status: ReviewEntryStatus = ReviewEntryStatus.PENDING
 
 
 class ValidationEvidence(VersionedRecord):
@@ -105,6 +167,8 @@ class ProjectRecord(VersionedRecord):
     coverage: list[CoverageRecord] = Field(default_factory=list)
     concepts: list[ConceptRecord] = Field(default_factory=list)
     claims: list[Claim] = Field(default_factory=list)
+    authorities: list[AuthorityRecord] = Field(default_factory=list)
+    reviews: list[ReviewEntry] = Field(default_factory=list)
     agent_events: list[AgentEventReference] = Field(default_factory=list)
     validations: list[ValidationEvidence] = Field(default_factory=list)
     decisions: list[DecisionRecord] = Field(default_factory=list)

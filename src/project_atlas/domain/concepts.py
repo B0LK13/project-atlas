@@ -8,6 +8,7 @@ package; this model only defines the validated data shape.
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -27,7 +28,9 @@ class ConceptRecord(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    schema_version: Literal[1] = 1
     concept_id: str = Field(pattern=ID_PATTERN)
+    project_id: str | None = Field(default=None, pattern=ID_PATTERN)
     type: ConceptType
     title: str = Field(min_length=1)
     description: str | None = None

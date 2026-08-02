@@ -24,6 +24,7 @@ from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.source_registry import SourceLineageRecord
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import DocumentLifecycle, SourceChangeState
+from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
 from project_atlas.lineage import (
     build_project_registry,
     migrate_v1_records_with_receipts,
@@ -597,6 +598,7 @@ def _ingest(
             "classification": classification,
             "source": f"../../sources/imported-documents/{destination.name}",
             "sha256": source_record.sha256 or "",
+            "text": text,
         }
         if source_record.lineage_resolution is not None:
             entry["lineage_resolution"] = source_record.lineage_resolution.model_dump(mode="json")
@@ -604,8 +606,16 @@ def _ingest(
         classifications[source_id] = {"type": classification, "method": method}
         project = source_record.likely_project or "unknown-project"
         projects.setdefault(project, []).append(entry)
-        if not destination.exists():
-            write_plan[destination] = source.read_bytes()
+        source_bytes = source.read_bytes()
+        manifest_hash = hashlib.sha256(source_bytes).hexdigest()
+        # A project-UUID allocation may update the marker after discovery.  Do
+        # not copy that stale-manifest mutation as a source observation; the
+        # next discovery will carry the authoritative hash.
+        source_matches_manifest = manifest_hash == str(source_record.sha256)
+        if (source_matches_manifest or source_record.path != ".atlas-project.yaml") and (
+            not destination.exists() or destination.read_bytes() != source_bytes
+        ):
+            write_plan[destination] = source_bytes
     prepared_events: list[_PreparedEvent] = []
     seen_event_ids: dict[str, dict[str, str]] = {}
     for inventory in event_inventories:
@@ -701,6 +711,7 @@ def _ingest(
             "timestamp": event.timestamp.isoformat(),
             "source": _event_link(package.project_id, package.event_id),
             "receipt_id": package.receipt.receipt_id,
+            "component_sha256": package.component_sha256,
         }
         event_entries.setdefault(package.project_id, []).append(entry)
         event_state.setdefault(package.project_id, []).append(
@@ -941,6 +952,33 @@ def _ingest(
         }
         for item in registry_records
     ]
+    # Bind semantic extraction to the durable registry identity before any
+    # claim-bearing records are compiled.  The compatibility source_id remains
+    # descriptive, but source_lineage_id is the authoritative namespace.
+    registry_by_source_id: dict[str, dict[str, Any]] = {}
+    for item in registry_records:
+        source_id = str(item.get("source_id", ""))
+        if not source_id or not item.get("source_lineage_id"):
+            continue
+        prior = registry_by_source_id.get(source_id)
+        if prior is None or (
+            str(item.get("source_change_state")) not in {"deleted", "historical"}
+            and str(prior.get("source_change_state")) in {"deleted", "historical"}
+        ) or (
+            str(item.get("source_change_state")) not in {"deleted", "historical"}
+            and str(prior.get("source_change_state")) not in {"deleted", "historical"}
+            and int(item.get("lineage_generation", 0)) > int(prior.get("lineage_generation", 0))
+        ):
+            registry_by_source_id[source_id] = item
+    for project_entries in projects.values():
+        for entry in project_entries:
+            lineage_record: dict[str, Any] | None = registry_by_source_id.get(
+                str(entry.get("source_id"))
+            )
+            if lineage_record is not None:
+                entry["source_lineage_id"] = str(lineage_record["source_lineage_id"])
+                entry["project_uuid"] = str(lineage_record["canonical_project_id"])
+                entry["lineage_generation"] = int(lineage_record["lineage_generation"])
     generation_receipts: list[dict[str, Any]] = []
     restoration_receipts: list[dict[str, Any]] = []
     previous_by_lineage = {
@@ -1064,6 +1102,17 @@ def _ingest(
             + "\n"
         ).encode()
     for project, entries in sorted(projects.items()):
+        knowledge = compile_knowledge(
+            project,
+            entries,
+            vault,
+            event_entries.get(project, []),
+        )
+        for relative, content in render_bundle(knowledge, project).items():
+            destination = _inside(vault, vault / relative)
+            write_plan[destination] = _generated_content(
+                destination, content
+            ).encode()
         project_record = compile_project_record(project, entries, event_entries.get(project, []))
         project_root = _inside(vault, vault / "projects" / project)
         project_path = _inside(vault, project_root / "project.md")

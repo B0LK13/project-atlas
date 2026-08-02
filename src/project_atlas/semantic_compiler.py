@@ -6,10 +6,14 @@ import json
 from collections.abc import Iterable
 from typing import Any, Literal
 
+from project_atlas.domain.claims import Claim
+from project_atlas.domain.concepts import ConceptRecord
 from project_atlas.domain.semantic import (
     AgentEventReference,
+    AuthorityRecord,
     CoverageRecord,
     ProjectRecord,
+    ReviewEntry,
     SourceAuthority,
     SourceLifecycleRecord,
 )
@@ -57,10 +61,18 @@ def compile_project_record(
     project_id: str,
     entries: list[dict[str, Any]],
     event_entries: list[dict[str, Any]],
+    *,
+    concepts: list[ConceptRecord] | None = None,
+    claims: list[Claim] | None = None,
+    authorities: list[AuthorityRecord] | None = None,
+    reviews: list[ReviewEntry] | None = None,
 ) -> ProjectRecord:
     sources = [
         SourceLifecycleRecord(
             source_id=str(entry["source_id"]),
+            project_uuid=entry.get("project_uuid"),
+            source_lineage_id=entry.get("source_lineage_id") or None,
+            lineage_generation=entry.get("lineage_generation"),
             path=str(entry["path"]),
             sha256=entry.get("sha256"),
             document_lifecycle=DocumentLifecycle.VERIFIED,
@@ -92,6 +104,10 @@ def compile_project_record(
             SourceAuthority(level=KnowledgeState.IMPORTED_SOURCE, reason="discovered source")
         ],
         coverage=coverage_for(entries),
+        concepts=concepts or [],
+        claims=claims or [],
+        authorities=authorities or [],
+        reviews=reviews or [],
         agent_events=events,
         relationships=[],
     )

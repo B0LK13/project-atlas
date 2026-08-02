@@ -1,0 +1,74 @@
+schema_version: 1
+package: AS-CORE-003
+status: implementation-complete-governor-review-required
+certified_base_commit: e5b9aa8b700afe828cb424503ced84abf37c71ea
+implementation_commit: 55f6aec
+evidence_commit: SELF
+branch: integrate/as-core-003-durable-lineage
+historical_references:
+  original_as_core_003_head: 04a62fe
+  adapted_implementation: 49e9a91
+  adapted_evidence: c120c03
+  note: selective semantic reuse only; prior evidence was not reused
+identity:
+  authoritative_source_field: source_lineage_id
+  compatibility_source_field: source_id
+  claim_id_inputs:
+    - project_uuid_or_project_identity
+    - source_lineage_id
+    - claim_type
+    - field
+    - sha256_normalized_value
+  mutable_path_is_authoritative: false
+  new_lineage_claim_transfer: prohibited_by_default
+authority:
+  precedence:
+    - primary
+    - validated-execution
+    - maintained
+    - generated
+    - inferred
+  lower_authority_evidence_preserved: true
+conflicts:
+  identity_inputs_include_lineage: true
+  unresolved_conflicts_preserved: true
+  replay_duplicates: 0
+transaction:
+  compiler_direct_canonical_writes: 0
+  promotion_boundaries: 1
+  preflight_before_promotion: true
+validation:
+  focused_commands:
+    - command: .venv/bin/python -m pytest tests/unit/test_knowledge_compiler.py tests/integration/test_core_claims_authority_conflicts.py -q
+      result: 15 passed
+    - command: .venv/bin/python -m pytest tests/integration/test_core_semantic_lifecycle.py tests/integration/test_agent_event_ingestion.py -q
+      result: 32 passed
+  core_command: .venv/bin/python -m pytest tests --tb=no
+  core_result: 135 passed
+  control_plane_command: .venv/bin/python -m pytest atlas-vault-documentation/tests -q
+  control_plane_result: 146 passed
+  mypy_command: .venv/bin/mypy src
+  mypy_result: clean, 32 source files
+  ruff_command: .venv/bin/ruff check src tests
+  ruff_result: clean
+  compilation_command: .venv/bin/python -m compileall -q src
+  compilation_result: clean
+  public_workflow: covered by Core integration and semantic lifecycle workflows
+  strict_validation: covered by Core lifecycle and schema tests
+  replay: unchanged claim and source replay tests pass with zero semantic duplicates
+  rollback: multi-project lifecycle failure test passes with zero mutations
+test_accounting:
+  certified_baseline_core: 117
+  current_core: 135
+  net_new_collected: 18
+  undercounted_test: tests/unit/test_domain_models.py::test_rejects_unknown_conflict_type
+  removed: 0
+  renamed: 0
+  deselected: 0
+  focused_overlap_note: focused selections overlap the full Core collection and are not additive
+control_plane:
+  diff: zero
+  as_id_001_semantics_modified: false
+  as_core_003_files_in_control_plane: false
+architecture:
+  governor_review: pending

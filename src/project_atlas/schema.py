@@ -27,6 +27,9 @@ SCHEMA_FILES: dict[str, str] = {
     "claim": "claim.schema.json",
     "provenance-reference": "provenance-reference.schema.json",
     "conflict-record": "conflict-record.schema.json",
+    "authority-record": "authority-record.schema.json",
+    "claim-lifecycle": "claim-lifecycle.schema.json",
+    "review-entry": "review-entry.schema.json",
     "validation-finding": "validation-finding.schema.json",
     "semantic-records": "semantic-records.schema.json",
 }
