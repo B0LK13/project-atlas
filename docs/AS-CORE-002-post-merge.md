@@ -34,7 +34,7 @@ All commands below were run from merged `main` at `50509a2`:
 | Full repository suite | `./.venv/bin/python -m pytest -q` — **88 passed** |
 | Documentation/control-plane suite | `./.venv/bin/python -m pytest atlas-vault-documentation/tests -q` — passed |
 | AS-CORE-002 focused suite | schema, semantic model, lifecycle, security and transaction tests — **25 passed** |
-| Mypy | `./.venv/bin/python -m mypy src atlas-vault-documentation` — no issues in 127 source files |
+| Mypy | `./.venv/bin/python -m mypy src atlas-vault-documentation` — no issues in 28 source files |
 | Ruff | `./.venv/bin/python -m ruff check .` — passed |
 | Compilation | `./.venv/bin/python -m compileall -q src atlas-vault-documentation` — passed |
 | Public CLI workflow | `init → discover → ingest → build-indexes → validate` — passed |
@@ -43,6 +43,14 @@ All commands below were run from merged `main` at `50509a2`:
 
 The prior AS-CORE-002 receipt reported 87 for the full repository suite; the
 exact post-merge result is 88 passed and is the corrected undercount.
+
+### Evidence reconciliation
+
+The original receipt overstated the number of source files checked by mypy.
+Mypy itself genuinely passed. The corrected count is 28 source files, and
+this documentation correction does not alter functional certification.
+Agent Two's independent verification was performed against pinned merge
+commit `50509a2` and returned `POST-MERGE VERIFIED`.
 
 ## 4. Independent behavior checks
 
