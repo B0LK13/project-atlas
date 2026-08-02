@@ -52,7 +52,7 @@ validation:
   focused_command: .venv/bin/python -m pytest tests/integration/test_as_eng_005_indexes_retrieval.py tests/integration/test_core_vertical_slice.py tests/unit/test_scaffold.py tests/integration/test_cli.py -q
   focused_result: 25 passed
   core_command: .venv/bin/python -m pytest tests --tb=no -q
-  core_result: 145 passed
+  core_result: 146 passed
   control_plane_command: .venv/bin/python -m pytest atlas-vault-documentation/tests -q
   control_plane_result: 146 passed
   mypy_command: .venv/bin/mypy src
@@ -73,8 +73,8 @@ replay:
   unsafe_partial_writes: none observed
 test_accounting:
   certified_baseline_core: 142
-  current_core: 145
-  net_new_collected: 3
+  current_core: 146
+  net_new_collected: 4
   removed: 0
   renamed: 1
   deselected: 0
