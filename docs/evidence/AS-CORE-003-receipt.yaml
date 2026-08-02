@@ -1,6 +1,6 @@
 schema_version: 1
 package: AS-CORE-003
-status: remediation-complete-independent-recertification-required
+status: implementation-complete
 certified_base_commit: e5b9aa8b700afe828cb424503ced84abf37c71ea
 implementation_commit: 55f6aec
 evidence_commit: SELF
@@ -77,4 +77,4 @@ control_plane:
   as_id_001_semantics_modified: false
   as_core_003_files_in_control_plane: false
 architecture:
-  governor_review: reopened-pending-remediation-rereview
+  governor_review: re-approved

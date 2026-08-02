@@ -649,3 +649,14 @@ Fixed the governed lifecycle replay edge so an equivalent observation after
 stability and restored rename claim identity. Core remains `135 passed`; mypy,
 Ruff, and compilation remain clean. AS-CORE-003 certification is reopened
 pending Agent Two recertification and Agent Three architecture re-approval.
+
+## AS-CORE-003 architecture re-approval
+
+**Status:** implementation complete — architecture re-approved
+**Implementation:** `3d8412f764652ed67126ab09fd56521209cf9edf`
+**Evidence:** `073a4744f2a05c49a882b3881b14a74a454d446a`
+
+Agent Three re-approved the bounded restored-claim replay remediation. The
+transition table and promotion boundary remain unchanged; equivalent replay
+now transitions `RESTORED -> UNCHANGED`. Final release/merge control remains
+with the project owner.
