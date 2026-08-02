@@ -51,7 +51,7 @@ class SourceLineageRecord(BaseModel):
     document_lifecycle: DocumentLifecycle
     source_change_state: SourceChangeState
     renamed_from: str | None = None
-    restored_as: str | None = Field(default=None, pattern=LINEAGE_ID_PATTERN)
+    restored_as: str | None = Field(default=None, min_length=1)
     supersedes_lineage: str | None = Field(default=None, pattern=LINEAGE_ID_PATTERN)
     superseded_by_lineage: str | None = Field(default=None, pattern=LINEAGE_ID_PATTERN)
     # Deprecated v1 mirror fields remain explicit during the compatibility window.
@@ -73,6 +73,13 @@ class SourceLineageRecord(BaseModel):
         if canonicalize_project_path(value) != value:
             raise ValueError("source registry paths must be canonical project-relative paths")
         return value
+
+    @field_validator("restored_as")
+    @classmethod
+    def _restoration_reference(cls, value: str | None) -> str | None:
+        if value is None or value.startswith("sline-"):
+            return value
+        return canonicalize_project_path(value)
 
     @model_validator(mode="after")
     def _lineage_id_matches_formula(self) -> SourceLineageRecord:

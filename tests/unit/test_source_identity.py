@@ -151,7 +151,13 @@ def test_migration_builds_chain_receipt_and_is_order_independent() -> None:
     assert len(migrated) == 1
     validate_record(migrated[0], "source-registry")
     assert receipts[0]["chain_members"] == ["source-old", "source-moved"]
-    assert receipts[0]["ordering_key"] == ["2026-01-01T00:00:00Z", "README.md", "a" * 64]
+    assert receipts[0]["ordering_key"] == {
+        "first_seen": "2026-01-01T00:00:00Z",
+        "canonical_origin_path": "README.md",
+        "first_content_sha256": "a" * 64,
+    }
+    assert receipts[0]["continuity_chain"] == ["source-old", "source-moved"]
+    assert receipts[0]["evidence_edges"][0]["relationship"] == "renamed_from"
 
 
 def test_migration_rejects_cycles_and_missing_history() -> None:
@@ -260,3 +266,85 @@ def test_registry_lineage_collision_fails_closed() -> None:
             [{"source_id": "source-one", "path": "one.md", "sha256": "a" * 64}],
             [record, record],
         )
+
+
+def test_retired_slot_explicit_new_generation_populates_relationships() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000091"
+    initial = build_project_registry(
+        project_uuid, [{"source_id": "old", "path": "slot.md", "sha256": "a" * 64}], []
+    )
+    deleted = build_project_registry(project_uuid, [], initial)
+    old_id = initial[0]["source_lineage_id"]
+    resolution = {
+        "outcome": "create_new_generation",
+        "authority": "curator_approved",
+        "candidate_lineage_ids": [old_id],
+        "reason": "curator classified the reoccupation as a new source",
+    }
+    result = build_project_registry(
+        project_uuid,
+        [
+            {
+                "source_id": "new",
+                "path": "slot.md",
+                "sha256": "a" * 64,
+                "lineage_resolution": resolution,
+            }
+        ],
+        deleted,
+    )
+    created = next(item for item in result if item["source_id"] == "new")
+    prior = next(item for item in result if item["source_id"] == "old")
+    assert created["lineage_generation"] == 2
+    assert created["supersedes_lineage"] == old_id
+    assert prior["superseded_by_lineage"] == created["source_lineage_id"]
+
+
+def test_resolution_contract_rejects_invalid_selection_and_replays_finding() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000092"
+    initial = build_project_registry(
+        project_uuid, [{"source_id": "old", "path": "slot.md", "sha256": "a" * 64}], []
+    )
+    deleted = build_project_registry(project_uuid, [], initial)
+    invalid = {
+        "outcome": "create_new_generation",
+        "authority": "system_proven",
+        "candidate_lineage_ids": [initial[0]["source_lineage_id"]],
+        "selected_lineage_id": initial[0]["source_lineage_id"],
+        "reason": "invalid selection",
+    }
+    with pytest.raises(ValueError, match="invalid lineage resolution"):
+        build_project_registry(
+            project_uuid,
+            [
+                {
+                    "source_id": "new",
+                    "path": "slot.md",
+                    "sha256": "b" * 64,
+                    "lineage_resolution": invalid,
+                }
+            ],
+            deleted,
+        )
+    unresolved = {
+        "outcome": "unresolved",
+        "authority": "system_proven",
+        "candidate_lineage_ids": [initial[0]["source_lineage_id"]],
+        "reason": "insufficient continuity evidence",
+    }
+    args = [
+        {
+            "source_id": "new",
+            "path": "slot.md",
+            "sha256": "b" * 64,
+            "lineage_resolution": unresolved,
+        }
+    ]
+    with pytest.raises(UnresolvedIdentityError) as first:
+        build_project_registry(project_uuid, args, deleted)
+    with pytest.raises(UnresolvedIdentityError) as second:
+        build_project_registry(project_uuid, args, deleted)
+    assert first.value.finding == second.value.finding
+    assert first.value.finding["finding_type"] == "unresolved-source-identity"
+    assert first.value.finding["observed_content_sha256"] == "b" * 64
+    assert first.value.finding["resolution_required"] is True

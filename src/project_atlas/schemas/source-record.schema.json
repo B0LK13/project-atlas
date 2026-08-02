@@ -9,6 +9,7 @@
   "properties": {
     "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "source_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
+    "lineage_resolution": { "anyOf": [{ "$ref": "#/$defs/lineage-resolution" }, { "type": "null" }] },
     "project_uuid": { "type": ["string", "null"], "format": "uuid", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
     "path": { "type": "string", "minLength": 1 },
     "media_type": { "type": "string", "minLength": 1 },
@@ -31,5 +32,19 @@
       "enum": ["unclassified", "classified", "excluded", "unknown"]
     },
     "exclusion_reason": { "type": ["string", "null"] }
+  },
+  "$defs": {
+    "lineage-resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "authority", "candidate_lineage_ids", "reason"],
+      "properties": {
+        "outcome": { "enum": ["continue_existing", "create_new_generation", "unresolved"] },
+        "authority": { "enum": ["system_proven", "curator_approved"] },
+        "candidate_lineage_ids": { "type": "array", "items": { "type": "string", "pattern": "^sline-[A-Za-z0-9]+$" } },
+        "selected_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
   }
 }

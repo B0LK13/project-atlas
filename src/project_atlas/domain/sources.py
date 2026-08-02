@@ -8,6 +8,7 @@ streaming SHA-256 (implemented in the discovery work package).
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -28,6 +29,35 @@ class RepositoryInfo(BaseModel):
     remote: str | None = None
 
 
+class LineageResolution(BaseModel):
+    """Explicit evidence-scoped decision for an ambiguous source slot."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: Literal["continue_existing", "create_new_generation", "unresolved"]
+    authority: Literal["system_proven", "curator_approved"]
+    candidate_lineage_ids: list[str] = Field(default_factory=list)
+    selected_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")
+    reason: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _consistent_selection(self) -> LineageResolution:
+        if len(self.candidate_lineage_ids) != len(set(self.candidate_lineage_ids)):
+            raise ValueError("lineage resolution candidates must be unique")
+        if (
+            self.selected_lineage_id is not None
+            and self.selected_lineage_id not in self.candidate_lineage_ids
+        ):
+            raise ValueError("selected lineage must be one of the candidates")
+        if self.outcome == "continue_existing" and self.selected_lineage_id is None:
+            raise ValueError("continue_existing requires selected_lineage_id")
+        if self.outcome == "create_new_generation" and self.selected_lineage_id is not None:
+            raise ValueError("create_new_generation cannot select an existing lineage")
+        if self.outcome == "unresolved" and self.selected_lineage_id is not None:
+            raise ValueError("unresolved cannot select a lineage")
+        return self
+
+
 class SourceRecord(BaseModel):
     """Manifest entry for a single discovered source document (FR-002)."""
 
@@ -35,6 +65,7 @@ class SourceRecord(BaseModel):
 
     source_id: str = Field(pattern=ID_PATTERN)
     source_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")
+    lineage_resolution: LineageResolution | None = None
     project_uuid: str | None = None
     path: str = Field(min_length=1, description="Source path or URI as approved for ingestion")
     media_type: str = Field(min_length=1)

@@ -21,7 +21,7 @@ from project_atlas.domain.semantic import (
     WorkPackageRecord,
 )
 from project_atlas.domain.source_registry import PathHistoryEntry, SourceLineageRecord
-from project_atlas.domain.sources import RepositoryInfo, SourceRecord
+from project_atlas.domain.sources import LineageResolution, RepositoryInfo, SourceRecord
 from project_atlas.domain.vocabulary import (
     ClassificationState,
     ConceptType,
@@ -49,6 +49,7 @@ __all__ = [
     "DocumentLifecycle",
     "KnowledgeState",
     "LifecycleStatus",
+    "LineageResolution",
     "Maturity",
     "PathHistoryEntry",
     "ProjectRecord",

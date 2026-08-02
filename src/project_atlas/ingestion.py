@@ -590,7 +590,7 @@ def _ingest(
     for source_record, source, destination, text in prepared:
         classification, method = _classify(source_record.path, text)
         source_id = source_record.source_id
-        entry: dict[str, str] = {
+        entry: dict[str, Any] = {
             "source_id": source_id,
             "source_lineage_id": source_record.source_lineage_id or "",
             "path": source_record.path,
@@ -598,6 +598,8 @@ def _ingest(
             "source": f"../../sources/imported-documents/{destination.name}",
             "sha256": source_record.sha256 or "",
         }
+        if source_record.lineage_resolution is not None:
+            entry["lineage_resolution"] = source_record.lineage_resolution.model_dump(mode="json")
         imported.append(entry)
         classifications[source_id] = {"type": classification, "method": method}
         project = source_record.likely_project or "unknown-project"

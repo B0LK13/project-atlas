@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from project_atlas.domain.source_registry import PathHistoryEntry, SourceLineageRecord
+from project_atlas.domain.sources import LineageResolution
 from project_atlas.domain.vocabulary import DocumentLifecycle, SourceChangeState
 from project_atlas.source_identity import canonicalize_project_path, lineage_id
 
@@ -21,6 +22,7 @@ class UnresolvedIdentityError(ValueError):
         *,
         project_uuid: str,
         path: str,
+        content_sha256: str | None = None,
         reason: str,
         candidate_ids: Iterable[str] = (),
     ) -> None:
@@ -28,7 +30,8 @@ class UnresolvedIdentityError(ValueError):
         candidates = sorted(set(str(value) for value in candidate_ids))
         identity = {
             "project_uuid": project_uuid,
-            "path": canonical_path,
+            "observed_path": canonical_path,
+            "observed_content_sha256": content_sha256,
             "reason": reason,
             "candidate_lineage_ids": candidates,
         }
@@ -37,11 +40,15 @@ class UnresolvedIdentityError(ValueError):
         ).hexdigest()[:20]
         self.finding = {
             "schema_version": 1,
-            "finding_type": "unresolved-identity",
+            "finding_type": "unresolved-source-identity",
             "finding_id": finding_id,
             **identity,
+            "resolution_required": True,
         }
-        super().__init__(json.dumps(self.finding, sort_keys=True, separators=(",", ":")))
+        super().__init__(
+            json.dumps(self.finding, sort_keys=True, separators=(",", ":"))
+            + " (unresolved-identity)"
+        )
 
 
 @dataclass(frozen=True)
@@ -234,8 +241,39 @@ def migrate_v1_records_with_receipts(
                 "lineage_generation": generation,
                 "origin_path": origin_path,
                 "origin_sha256": str(chain.origin["sha256"]),
-                "ordering_key": list(chain.ordering_key),
+                "ordering_key": {
+                    "first_seen": chain.ordering_key[0],
+                    "canonical_origin_path": chain.ordering_key[1],
+                    "first_content_sha256": chain.ordering_key[2],
+                },
                 "chain_members": [str(member["source_id"]) for member in chain.members],
+                "continuity_chain": [str(member["source_id"]) for member in chain.members],
+                "evidence_edges": [
+                    {
+                        "from": str(chain.members[index]["source_id"]),
+                        "to": str(chain.members[index + 1]["source_id"]),
+                        "relationship": (
+                            "renamed_from"
+                            if str(chain.members[index + 1].get("renamed_from", ""))
+                            in {
+                                str(chain.members[index]["source_id"]),
+                                canonicalize_project_path(str(chain.members[index]["path"])),
+                            }
+                            else "restored_as"
+                            if str(chain.members[index].get("restored_as", ""))
+                            in {
+                                str(chain.members[index + 1]["source_id"]),
+                                canonicalize_project_path(str(chain.members[index + 1]["path"])),
+                            }
+                            else "approved_transition"
+                        ),
+                        "evidence_reference": (
+                            f"v1:{chain.members[index]['source_id']}->"
+                            f"{chain.members[index + 1]['source_id']}"
+                        ),
+                    }
+                    for index in range(len(chain.members) - 1)
+                ],
                 "schema_transition": "1-to-2",
             }
         )
@@ -270,6 +308,7 @@ def build_project_registry(
             raise ValueError(f"duplicate source_id in source registry: {record.source_id}")
         by_source_id[record.source_id] = record
     used_lineages: set[str] = set()
+    superseded_by: dict[str, str] = {}
     current: list[SourceLineageRecord] = []
     next_sequence = max((record.first_seen_sequence for record in prior), default=0) + 1
 
@@ -299,6 +338,27 @@ def build_project_registry(
         path = canonicalize_project_path(str(entry["path"]))
         digest = str(entry["sha256"])
         explicit = _entry_lineage(entry)
+        raw_resolution = entry.get("lineage_resolution")
+        try:
+            resolution = (
+                LineageResolution.model_validate(raw_resolution)
+                if raw_resolution is not None
+                else None
+            )
+        except ValueError as exc:
+            raise ValueError(f"invalid lineage resolution for {source_id}: {exc}") from exc
+        if resolution is not None:
+            known_ids = {record.source_lineage_id for record in prior}
+            if set(resolution.candidate_lineage_ids) - known_ids:
+                raise ValueError("lineage resolution contains unknown or cross-project candidates")
+            if resolution.outcome == "unresolved":
+                raise UnresolvedIdentityError(
+                    project_uuid=project_uuid,
+                    path=path,
+                    content_sha256=digest,
+                    reason=resolution.reason,
+                    candidate_ids=resolution.candidate_lineage_ids,
+                )
         source_record = by_source_id.get(source_id)
         if source_record is not None and source_record.source_lineage_id in used_lineages:
             source_record = None
@@ -307,6 +367,7 @@ def build_project_registry(
                 raise UnresolvedIdentityError(
                     project_uuid=project_uuid,
                     path=path,
+                    content_sha256=digest,
                     reason="source_id and explicit lineage evidence disagree",
                     candidate_ids=[source_record.source_lineage_id, explicit],
                 )
@@ -317,6 +378,7 @@ def build_project_registry(
                     raise UnresolvedIdentityError(
                         project_uuid=project_uuid,
                         path=path,
+                        content_sha256=digest,
                         reason="changed-content restoration lacks explicit continuity evidence",
                         candidate_ids=[source_record.source_lineage_id],
                     )
@@ -343,6 +405,11 @@ def build_project_registry(
                         "source_change_state": state,
                         "path": path,
                         "sha256": digest,
+                        "restored_as": (
+                            path
+                            if state is SourceChangeState.RESTORED
+                            else source_record.restored_as
+                        ),
                     }
                 )
             )
@@ -369,10 +436,66 @@ def build_project_registry(
             not in {SourceChangeState.DELETED, SourceChangeState.RESTORED_ELSEWHERE}
             and record.current_content_sha256 == digest
         ]
+        if resolution is not None and resolution.outcome == "continue_existing":
+            selected = resolution.selected_lineage_id
+            if selected is None or resolution.candidate_lineage_ids != [selected]:
+                raise ValueError("continue_existing requires exactly one selected candidate")
+            selected_records = [
+                record for record in prior
+                if record.source_lineage_id == selected
+                and record.source_lineage_id not in used_lineages
+            ]
+            if len(selected_records) != 1 or selected_records[0] not in path_candidates:
+                raise UnresolvedIdentityError(
+                    project_uuid=project_uuid,
+                    path=path,
+                    content_sha256=digest,
+                    reason="selected lineage is not uniquely compatible with the observed slot",
+                    candidate_ids=resolution.candidate_lineage_ids,
+                )
+            candidates = selected_records
+            path_candidates = selected_records
+        if resolution is not None and resolution.outcome == "create_new_generation":
+            if not path_candidates:
+                raise ValueError("create_new_generation requires a retained historical slot")
+            candidate_ids = {record.source_lineage_id for record in path_candidates}
+            if set(resolution.candidate_lineage_ids) != candidate_ids:
+                raise ValueError(
+                    "create_new_generation candidates must describe the complete retired slot"
+                )
+            prior_slot = max(path_candidates, key=lambda record: record.lineage_generation)
+            generation = max(
+                (record.lineage_generation for record in prior if record.first_seen_path == path),
+                default=0,
+            ) + 1
+            new_lineage = lineage_id(project_uuid, path, digest, generation)
+            superseded_by[prior_slot.source_lineage_id] = new_lineage
+            new_record = SourceLineageRecord(
+                source_id=source_id,
+                source_lineage_id=new_lineage,
+                lineage_generation=generation,
+                canonical_project_id=project_uuid,
+                first_seen_path=path,
+                current_path=path,
+                path_history=[PathHistoryEntry(path=path, from_sequence=next_sequence)],
+                first_content_sha256=digest,
+                current_content_sha256=digest,
+                first_seen_sequence=next_sequence,
+                document_lifecycle=DocumentLifecycle.VERIFIED,
+                source_change_state=SourceChangeState.NEW,
+                supersedes_lineage=prior_slot.source_lineage_id,
+                path=path,
+                sha256=digest,
+            )
+            current.append(new_record)
+            used_lineages.add(new_lineage)
+            next_sequence += 1
+            continue
         if not explicit and active_same_hash and candidates:
             raise UnresolvedIdentityError(
                 project_uuid=project_uuid,
                 path=path,
+                content_sha256=digest,
                 reason="copy-versus-restoration has competing active and retired evidence",
                 candidate_ids=[
                     record.source_lineage_id
@@ -383,6 +506,7 @@ def build_project_registry(
             raise UnresolvedIdentityError(
                 project_uuid=project_uuid,
                 path=path,
+                content_sha256=digest,
                 reason=(
                     "multiple compatible retired lineages"
                     if len(candidates) > 1
@@ -418,6 +542,7 @@ def build_project_registry(
                         "current_content_sha256": digest,
                         "path": path,
                         "sha256": digest,
+                        "restored_as": path,
                     }
                 )
             )
@@ -428,6 +553,7 @@ def build_project_registry(
                 raise UnresolvedIdentityError(
                     project_uuid=project_uuid,
                     path=path,
+                    content_sha256=digest,
                     reason="multiple active lineages match a move or copy",
                     candidate_ids=[record.source_lineage_id for record in active_same_hash],
                 )
@@ -486,6 +612,9 @@ def build_project_registry(
                 update={
                     "document_lifecycle": DocumentLifecycle.HISTORICAL,
                     "source_change_state": SourceChangeState.DELETED,
+                    "superseded_by_lineage": superseded_by.get(
+                        record.source_lineage_id, record.superseded_by_lineage
+                    ),
                 }
             )
         )
