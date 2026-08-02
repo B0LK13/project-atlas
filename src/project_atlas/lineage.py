@@ -127,7 +127,9 @@ def build_project_registry(
                         "current_path": path,
                         "path_history": history,
                         "renamed_from": (
-                            record.current_path if record.current_path != path else record.renamed_from
+                            record.current_path
+                            if record.current_path != path
+                            else record.renamed_from
                         ),
                         "source_change_state": (
                             SourceChangeState.RESTORED
@@ -178,4 +180,7 @@ def build_project_registry(
                 }
             )
         )
-    return [record.model_dump(mode="json") for record in sorted(current, key=lambda item: item.source_lineage_id)]
+    return [
+        record.model_dump(mode="json")
+        for record in sorted(current, key=lambda item: item.source_lineage_id)
+    ]

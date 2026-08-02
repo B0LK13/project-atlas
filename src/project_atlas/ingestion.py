@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import yaml
-
 from pydantic import ValidationError
 
 from atlas_contracts.agent_event import SkillBinding
@@ -24,9 +23,9 @@ from atlas_contracts.identity import safe_relative_component
 from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import DocumentLifecycle
+from project_atlas.lineage import build_project_registry, migrate_v1_records
 from project_atlas.secrets import scan_text
 from project_atlas.semantic_compiler import compile_project_record, render_project_record
-from project_atlas.lineage import build_project_registry, migrate_v1_records
 from project_atlas.source_identity import (
     ProjectIdentityLock,
     ProjectUuidProvider,
