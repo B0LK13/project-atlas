@@ -302,11 +302,18 @@ def build_project_registry(
     lineage_ids = [record.source_lineage_id for record in prior]
     if len(lineage_ids) != len(set(lineage_ids)):
         raise ValueError("lineage-ID collision in source registry")
-    by_source_id: dict[str, SourceLineageRecord] = {}
+    by_source_id: dict[str, list[SourceLineageRecord]] = {}
     for record in prior:
-        if record.source_id in by_source_id:
-            raise ValueError(f"duplicate source_id in source registry: {record.source_id}")
-        by_source_id[record.source_id] = record
+        by_source_id.setdefault(record.source_id, []).append(record)
+    for source_id, records in by_source_id.items():
+        active = [
+            record
+            for record in records
+            if record.source_change_state
+            not in {SourceChangeState.DELETED, SourceChangeState.RESTORED_ELSEWHERE}
+        ]
+        if len(active) > 1:
+            raise ValueError(f"duplicate active source_id in source registry: {source_id}")
     used_lineages: set[str] = set()
     superseded_by: dict[str, str] = {}
     current: list[SourceLineageRecord] = []
@@ -359,7 +366,33 @@ def build_project_registry(
                     reason=resolution.reason,
                     candidate_ids=resolution.candidate_lineage_ids,
                 )
-        source_record = by_source_id.get(source_id)
+        source_records = [
+            record
+            for record in by_source_id.get(source_id, [])
+            if record.source_lineage_id not in used_lineages
+        ]
+        source_record = next(
+            (
+                record
+                for record in source_records
+                if record.source_change_state
+                not in {SourceChangeState.DELETED, SourceChangeState.RESTORED_ELSEWHERE}
+            ),
+            source_records[0] if len(source_records) == 1 else None,
+        )
+        if (
+            source_record is not None
+            and source_record.source_change_state
+            in {SourceChangeState.DELETED, SourceChangeState.RESTORED_ELSEWHERE}
+            and resolution is not None
+            and resolution.outcome
+            in {"continue_existing", "create_new_generation"}
+        ):
+            # A compatibility source_id is path-derived.  Historical records
+            # therefore must enter the same explicit resolution path as a new
+            # compatibility ID; otherwise same-path reoccupation is rejected
+            # before the decision can be evaluated.
+            source_record = None
         if source_record is not None and source_record.source_lineage_id in used_lineages:
             source_record = None
         if source_record is not None:

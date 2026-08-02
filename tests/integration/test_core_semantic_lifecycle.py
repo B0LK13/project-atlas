@@ -316,6 +316,112 @@ def test_same_run_file_directory_move_preserves_lineage(tmp_path: Path) -> None:
     assert moved["source_change_state"] == "renamed"
 
 
+@pytest.mark.parametrize("replacement", [b"# Architecture\n", b"# Changed architecture\n"])
+def test_public_same_path_explicit_new_generation_uses_resolution(
+    tmp_path: Path, replacement: bytes
+) -> None:
+    source, initial_manifest, vault = _workflow(tmp_path)
+    initial_payload = json.loads(initial_manifest.read_text(encoding="utf-8"))
+    original = next(
+        item for item in initial_payload["sources"] if item["path"] == "ARCHITECTURE.md"
+    )
+    (source / "ARCHITECTURE.md").unlink()
+    deleted_manifest = tmp_path / "deleted-slot.json"
+    assert main(["discover", "--source", str(source), "--output", str(deleted_manifest)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    deleted_state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+    old = next(
+        item for item in deleted_state["sources"] if item["source_id"] == original["source_id"]
+    )
+    (source / "ARCHITECTURE.md").write_bytes(replacement)
+    recreated_manifest = tmp_path / "recreated-slot.json"
+    assert (
+        main(["discover", "--source", str(source), "--output", str(recreated_manifest)])
+        == EXIT_OK
+    )
+    recreated_payload = json.loads(recreated_manifest.read_text(encoding="utf-8"))
+    recreated = next(
+        item for item in recreated_payload["sources"] if item["path"] == "ARCHITECTURE.md"
+    )
+    assert recreated["source_id"] == old["source_id"]
+    recreated["lineage_resolution"] = {
+        "outcome": "create_new_generation",
+        "authority": "curator_approved",
+        "candidate_lineage_ids": [old["source_lineage_id"]],
+        "reason": "explicit same-path new logical source",
+    }
+    recreated_manifest.write_text(json.dumps(recreated_payload), encoding="utf-8")
+    assert main(["ingest", "--manifest", str(recreated_manifest), "--vault", str(vault)]) == EXIT_OK
+    state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+    current = next(
+        item
+        for item in state["sources"]
+        if item["current_path"] == "ARCHITECTURE.md"
+        and item["source_lineage_id"] != old["source_lineage_id"]
+    )
+    prior = next(
+        item for item in state["sources"] if item["source_lineage_id"] == old["source_lineage_id"]
+    )
+    assert current["lineage_generation"] == 2
+    assert current["source_lineage_id"] != old["source_lineage_id"]
+    assert current["supersedes_lineage"] == old["source_lineage_id"]
+    assert prior["superseded_by_lineage"] == current["source_lineage_id"]
+    assert len(list((vault / "receipts/source-lineage").glob("generation-*.json"))) == 1
+    assert main(["validate", "--vault", str(vault)]) == EXIT_OK
+    before = _snapshot(vault)
+    assert main(["ingest", "--manifest", str(recreated_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert _snapshot(vault) == before
+
+
+def test_public_same_path_explicit_new_generation_uses_highest_retired_generation(
+    tmp_path: Path,
+) -> None:
+    source, initial_manifest, vault = _workflow(tmp_path)
+    initial_payload = json.loads(initial_manifest.read_text(encoding="utf-8"))
+    original = next(
+        item for item in initial_payload["sources"] if item["path"] == "ARCHITECTURE.md"
+    )
+    (source / "ARCHITECTURE.md").unlink()
+    first_deleted = tmp_path / "first-deleted.json"
+    assert main(["discover", "--source", str(source), "--output", str(first_deleted)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(first_deleted), "--vault", str(vault)]) == EXIT_OK
+    for content, index in ((b"# Second generation\n", 2), (b"# Third generation\n", 3)):
+        (source / "ARCHITECTURE.md").write_bytes(content)
+        manifest = tmp_path / f"generation-{index}.json"
+        assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        prior_state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+        retired = [
+            item
+            for item in prior_state["sources"]
+            if item["source_id"] == original["source_id"]
+            or item.get("supersedes_lineage")
+        ]
+        for item in payload["sources"]:
+            if item["path"] == "ARCHITECTURE.md":
+                item["lineage_resolution"] = {
+                    "outcome": "create_new_generation",
+                    "authority": "curator_approved",
+                    "candidate_lineage_ids": [item["source_lineage_id"] for item in retired],
+                    "reason": "explicit successive same-path generation",
+                }
+        manifest.write_text(json.dumps(payload), encoding="utf-8")
+        assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+        state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+        assert max(item["lineage_generation"] for item in state["sources"]) == index
+        if index == 2:
+            (source / "ARCHITECTURE.md").unlink()
+            retire_manifest = tmp_path / "retire-second.json"
+            assert (
+                main(["discover", "--source", str(source), "--output", str(retire_manifest)])
+                == EXIT_OK
+            )
+            assert (
+                main(["ingest", "--manifest", str(retire_manifest), "--vault", str(vault)])
+                == EXIT_OK
+            )
+
+
 def test_independent_projects_receive_distinct_project_uuids(tmp_path: Path) -> None:
     source = tmp_path / "projects"
     first = source / "first"

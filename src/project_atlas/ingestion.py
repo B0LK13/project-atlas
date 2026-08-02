@@ -23,7 +23,7 @@ from atlas_contracts.identity import safe_relative_component
 from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.source_registry import SourceLineageRecord
 from project_atlas.domain.sources import SourceRecord
-from project_atlas.domain.vocabulary import DocumentLifecycle
+from project_atlas.domain.vocabulary import DocumentLifecycle, SourceChangeState
 from project_atlas.lineage import (
     build_project_registry,
     migrate_v1_records_with_receipts,
@@ -941,6 +941,56 @@ def _ingest(
         }
         for item in registry_records
     ]
+    generation_receipts: list[dict[str, Any]] = []
+    restoration_receipts: list[dict[str, Any]] = []
+    previous_by_lineage = {
+        str(item.get("source_lineage_id")): item for item in previous_registry
+    }
+    for item in registry_records:
+        if (
+            item.get("supersedes_lineage")
+            and str(item.get("source_lineage_id")) not in previous_by_lineage
+        ):
+            generation_receipts.append(
+                {
+                    "schema_version": 1,
+                    "receipt_type": "source-lineage-generation-allocation",
+                    "project_uuid": item.get("canonical_project_id"),
+                    "source_lineage_id": item.get("source_lineage_id"),
+                    "lineage_generation": item.get("lineage_generation"),
+                    "supersedes_lineage": item.get("supersedes_lineage"),
+                    "current_path": item.get("current_path"),
+                    "current_content_sha256": item.get("current_content_sha256"),
+                }
+            )
+        if item.get("source_change_state") not in {
+            SourceChangeState.RESTORED.value,
+            SourceChangeState.RESTORED_ELSEWHERE.value,
+        }:
+            continue
+        prior = previous_by_lineage.get(str(item.get("source_lineage_id")))
+        if prior is not None and (
+            prior.get("current_path") == item.get("current_path")
+            and prior.get("current_content_sha256") == item.get("current_content_sha256")
+            and prior.get("source_change_state")
+            in {SourceChangeState.RESTORED.value, SourceChangeState.RESTORED_ELSEWHERE.value}
+        ):
+            continue
+        restoration_receipts.append(
+            {
+                "schema_version": 1,
+                "receipt_type": "source-lineage-restoration",
+                "project_uuid": item.get("canonical_project_id"),
+                "source_lineage_id": item.get("source_lineage_id"),
+                "lineage_generation": item.get("lineage_generation"),
+                "source_change_state": item.get("source_change_state"),
+                "restored_as": item.get("restored_as"),
+                "previous_path": prior.get("current_path") if prior else None,
+                "current_path": item.get("current_path"),
+                "previous_content_sha256": prior.get("current_content_sha256") if prior else None,
+                "current_content_sha256": item.get("current_content_sha256"),
+            }
+        )
     write_plan[_inside(vault, vault / "state" / "sources.json")] = (
         json.dumps({"schema_version": 2, "sources": registry_records}, indent=2, sort_keys=True)
         + "\n"
@@ -968,6 +1018,25 @@ def _ingest(
             / "receipts"
             / "source-lineage"
             / f"migration-{receipt['source_lineage_id']}.json",
+        )
+        write_plan[destination] = (
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+        ).encode()
+    for receipt in (*generation_receipts, *restoration_receipts):
+        receipt_hash = hashlib.sha256(
+            json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()[:24]
+        prefix = (
+            "generation"
+            if receipt["receipt_type"] == "source-lineage-generation-allocation"
+            else "restoration"
+        )
+        destination = _inside(
+            vault,
+            vault
+            / "receipts"
+            / "source-lineage"
+            / f"{prefix}-{receipt['source_lineage_id']}-{receipt_hash}.json",
         )
         write_plan[destination] = (
             json.dumps(receipt, indent=2, sort_keys=True) + "\n"
