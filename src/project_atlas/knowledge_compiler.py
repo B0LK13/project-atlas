@@ -940,7 +940,9 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
             "project_id": project,
             "reason": (
                 "claim generation used compatibility source_id because durable "
-                "source_lineage_id was absent"
+                "source_lineage_id was absent; this covers unmigrated legacy "
+                "sources and agent-event-derived claims, which never carry "
+                "source_lineage_id by design"
             ),
             "claims": [
                 {
