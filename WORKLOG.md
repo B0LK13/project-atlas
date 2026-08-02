@@ -580,7 +580,7 @@ certification.
 
 ## AS-CORE-002 source-lifecycle erratum
 
-**Status:** certification reopened — remediation in progress
+**Status:** recertified — merge eligible, evidence amendment recorded
 **Hotfix branch:** `fix/source-lifecycle-replay`
 **Evidence:** `docs/AS-CORE-002-source-lifecycle-erratum.md` and
 `docs/evidence/AS-CORE-002-source-lifecycle-recertification.yaml`
@@ -593,5 +593,6 @@ migration, strict-validation and rollback coverage. Agent Two verification is
 required before recertification.
 
 Implementation commit: `2cb0d8b`. Local evidence is complete; the hotfix is
-paused for Agent Two's independent pinned-commit review and must not be merged
-or recertified before that review.
+independently recertified by Agent Two as merge eligible. This evidence-only
+amendment corrects the repository-suite labeling and stale remediation status;
+the implementation commit remains frozen.

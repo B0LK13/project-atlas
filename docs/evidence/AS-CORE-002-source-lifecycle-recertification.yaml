@@ -1,23 +1,31 @@
 schema_version: 1
 package: AS-CORE-002
-status: remediation-in-progress
+status: recertified-merge-eligible
 original_certification: docs/AS-CORE-002-post-merge.md
 original_main_commit: 46c739c69799ad698f25cfb02e4087c1c51cd641
 hotfix_branch: fix/source-lifecycle-replay
 hotfix_commit: 2cb0d8b
+original_evidence_commit: 8c848b1
+amendment_commit: HEAD
+amendment_reason: >-
+  Agent Two identified that the receipt labeled the combined Core plus Control
+  Plane total as the repository suite and retained pre-verification remediation
+  status. The configured root pytest command runs the 92-test Core suite;
+  Control Plane tests run separately for a combined evidence total of 238.
 defect: source-change observations were written into DocumentLifecycle
 correction: separate document_lifecycle and source_change_state
 compatibility_repair:
   known_values: [modified, deleted, restored-elsewhere]
   unknown_values: rejected
   receipt_directory: receipts/source-lifecycle/
-required_independent_review: true
-deferred_certification: true
+required_independent_review: completed
+deferred_certification: false
 validation:
   source_lifecycle_focused: 21
   core_suite: 92
   control_plane_suite: 146
-  full_repository_suite: 238
+  full_repository_suite: 92
+  combined_core_control_plane_total: 238
   mypy_source_files: 28
   mypy: passed
   ruff: passed
@@ -25,3 +33,10 @@ validation:
   public_cli_workflow: passed
   strict_vault_validation: passed
   unchanged_replay: passed_zero_writes
+commands:
+  core_repository: ./.venv/bin/python -m pytest -q
+  control_plane: ./.venv/bin/python -m pytest atlas-vault-documentation/tests -q
+  strict_validation: ./.venv/bin/atlas validate --vault <workflow-vault>
+evidence_amendment: >-
+  This amendment corrects receipt metadata and test-scope labeling only; the
+  frozen implementation commit 2cb0d8b is unchanged.
