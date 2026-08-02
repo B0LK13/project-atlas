@@ -44,7 +44,7 @@ class SourceLineageRecord(BaseModel):
     canonical_project_id: str
     first_seen_path: str = Field(min_length=1)
     current_path: str = Field(min_length=1)
-    path_history: list[PathHistoryEntry] = Field(default_factory=list)
+    path_history: list[PathHistoryEntry] = Field(min_length=1)
     first_content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     current_content_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     first_seen_sequence: int = Field(ge=1)

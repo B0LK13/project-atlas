@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from project_atlas.domain import SourceLineageRecord
+from project_atlas.domain import PathHistoryEntry, SourceLineageRecord
+from project_atlas.lineage import build_project_registry
 from project_atlas.schema import validate_record
 from project_atlas.source_identity import (
     canonicalize_project_path,
@@ -54,6 +55,7 @@ def test_source_registry_v2_is_strict_and_schema_locked() -> None:
         canonical_project_id=project_uuid,
         first_seen_path="README.md",
         current_path="README.md",
+        path_history=[PathHistoryEntry(path="README.md", from_sequence=1)],
         first_content_sha256="a" * 64,
         current_content_sha256="a" * 64,
         first_seen_sequence=1,
@@ -86,3 +88,28 @@ def test_project_identity_lock_is_single_winner_and_releases(tmp_path: Path) -> 
     second.acquire()
     second.release()
     assert not lock_path.exists()
+
+
+def test_copy_gets_distinct_lineage_and_ambiguous_restore_fails_closed() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000041"
+    first = {
+        "source_id": "source-first",
+        "path": "README.md",
+        "sha256": "a" * 64,
+    }
+    initial = build_project_registry(project_uuid, [first], [])
+    copied = build_project_registry(
+        project_uuid,
+        [first, {"source_id": "source-copy", "path": "COPY.md", "sha256": "a" * 64}],
+        initial,
+    )
+    identities = {item["source_lineage_id"] for item in copied}
+    assert len(identities) == 2
+    tombstoned = build_project_registry(project_uuid, [], copied)
+    assert all(item["source_change_state"] == "deleted" for item in tombstoned)
+    with pytest.raises(ValueError, match="unresolved source identity"):
+        build_project_registry(
+            project_uuid,
+            [{"source_id": "source-new", "path": "README.md", "sha256": "a" * 64}],
+            tombstoned,
+        )
