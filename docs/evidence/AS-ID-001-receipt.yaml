@@ -2,7 +2,7 @@ package: AS-ID-001
 title: Durable Source Lineage Identity
 certified_base_commit: 313712ee28083693ae39470b2d7148dc74617322
 architecture_contract_commit: ae98fba
-implementation_commit: 1beea96
+implementation_commit: 058a954
 evidence_commit: SELF
 status: implementation-complete-governor-review-required
 uuid_genesis:
