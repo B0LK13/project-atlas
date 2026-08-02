@@ -205,6 +205,48 @@ def test_case_rename_and_retired_path_change_are_distinct_outcomes() -> None:
     assert first_error.value.finding == second_error.value.finding
 
 
+def test_identical_retired_path_reoccupation_restores_unique_lineage() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000075"
+    initial = build_project_registry(
+        project_uuid,
+        [{"source_id": "source-old", "path": "slot.md", "sha256": "a" * 64}],
+        [],
+    )
+    deleted = build_project_registry(project_uuid, [], initial)
+    restored = build_project_registry(
+        project_uuid,
+        [{"source_id": "source-restored", "path": "slot.md", "sha256": "a" * 64}],
+        deleted,
+    )
+    assert restored[0]["source_lineage_id"] == initial[0]["source_lineage_id"]
+    assert restored[0]["source_change_state"] == "restored"
+
+
+def test_multiple_retired_generations_at_one_slot_fail_closed() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000076"
+    first = build_project_registry(
+        project_uuid,
+        [{"source_id": "source-old", "path": "slot.md", "sha256": "a" * 64}],
+        [],
+    )[0]
+    second = SourceLineageRecord(
+        **{
+            **first,
+            "source_id": "source-second",
+            "source_lineage_id": lineage_id(project_uuid, "slot.md", "a" * 64, 2),
+            "lineage_generation": 2,
+            "source_change_state": "deleted",
+            "document_lifecycle": "historical",
+        }
+    ).model_dump(mode="json")
+    with pytest.raises(UnresolvedIdentityError):
+        build_project_registry(
+            project_uuid,
+            [{"source_id": "source-new", "path": "slot.md", "sha256": "a" * 64}],
+            [first, second],
+        )
+
+
 def test_registry_lineage_collision_fails_closed() -> None:
     project_uuid = "00000000-0000-4000-8000-000000000081"
     record = build_project_registry(
