@@ -543,11 +543,12 @@ def _apply_lifecycle(
                 state = ClaimLifecycle.UNCHANGED
                 reason = "equivalent normalized content and matching provenance"
             elif previous_hash == content_hash:
-                state = (
-                    ClaimLifecycle.RESTORED
-                    if prior_state is ClaimLifecycle.REMOVED_SOURCE
-                    else prior_state
-                )
+                if prior_state is ClaimLifecycle.REMOVED_SOURCE:
+                    state = ClaimLifecycle.RESTORED
+                elif prior_state is ClaimLifecycle.RESTORED:
+                    state = ClaimLifecycle.UNCHANGED
+                else:
+                    state = prior_state
                 reason = "equivalent observation retained existing lifecycle"
             else:
                 state = ClaimLifecycle.UPDATED

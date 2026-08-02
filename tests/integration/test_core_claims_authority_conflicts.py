@@ -128,6 +128,81 @@ def test_complete_lifecycle_paths_are_source_backed_and_historical(tmp_path: Pat
     records = {item.claim_id: item for item in superseded.lifecycle}
     assert records[old_claim_id].lifecycle is ClaimLifecycle.SUPERSEDED
     assert records[old_claim_id].superseded_by_claim_id == superseded.claims[0].claim_id
+    _assert_restored_claim_replay_transitions_to_unchanged(tmp_path)
+
+
+def _assert_restored_claim_replay_transitions_to_unchanged(tmp_path: Path) -> None:
+    entry = {
+        "source_id": "source-restored",
+        "source_lineage_id": "sline-restored0000000001",
+        "path": "docs/README.md",
+        "classification": "project-overview",
+        "source": "sources/imported-documents/source-restored.md",
+        "sha256": "a" * 64,
+        "text": "Purpose: restored project",
+    }
+    first = compile_knowledge("restore-project", [entry], tmp_path)
+    for relative, content in render_bundle(first, "restore-project").items():
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    removed = compile_knowledge("restore-project", [], tmp_path)
+    for relative, content in render_bundle(removed, "restore-project").items():
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    restored = compile_knowledge(
+        "restore-project", [dict(entry, path="archive/README.md")], tmp_path
+    )
+    assert restored.claims[0].lifecycle is ClaimLifecycle.RESTORED
+    restored_rendered = render_bundle(restored, "restore-project")
+    for relative, content in restored_rendered.items():
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    replay = compile_knowledge(
+        "restore-project", [dict(entry, path="archive/README.md")], tmp_path
+    )
+    assert replay.claims[0].lifecycle is ClaimLifecycle.UNCHANGED
+    assert any(
+        transition.previous_state is ClaimLifecycle.RESTORED
+        and transition.new_state is ClaimLifecycle.UNCHANGED
+        for record in replay.lifecycle
+        for transition in record.transitions
+    )
+    replay_rendered = render_bundle(replay, "restore-project")
+    replay_again = compile_knowledge(
+        "restore-project", [dict(entry, path="archive/README.md")], tmp_path
+    )
+    assert render_bundle(replay_again, "restore-project") == replay_rendered
+    _assert_restored_claim_rename_preserves_identity(tmp_path)
+
+
+def _assert_restored_claim_rename_preserves_identity(tmp_path: Path) -> None:
+    entry = {
+        "source_id": "source-move",
+        "source_lineage_id": "sline-move0000000000001",
+        "path": "docs/README.md",
+        "classification": "project-overview",
+        "source": "sources/imported-documents/source-move.md",
+        "sha256": "a" * 64,
+        "text": "Purpose: moved project",
+    }
+    first = compile_knowledge("move-project", [entry], tmp_path)
+    for relative, content in render_bundle(first, "move-project").items():
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    removed = compile_knowledge("move-project", [], tmp_path)
+    for relative, content in render_bundle(removed, "move-project").items():
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    moved = compile_knowledge(
+        "move-project", [dict(entry, path="archive/README.md")], tmp_path
+    )
+    assert moved.claims[0].claim_id == first.claims[0].claim_id
+    assert moved.claims[0].lifecycle is ClaimLifecycle.RESTORED
 
 
 def test_conflict_stale_restore_and_rejection_paths(tmp_path: Path) -> None:
