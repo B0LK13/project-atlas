@@ -577,3 +577,21 @@ Deferred items remain richer Claim and Concept population,
 schema/Pydantic coercion edge cases, generated-marker convention
 reconciliation, state-migration tooling, and real-project pilot
 certification.
+
+## AS-CORE-002 source-lifecycle erratum
+
+**Status:** certification reopened — remediation in progress
+**Hotfix branch:** `fix/source-lifecycle-replay`
+**Evidence:** `docs/AS-CORE-002-source-lifecycle-erratum.md` and
+`docs/evidence/AS-CORE-002-source-lifecycle-recertification.yaml`
+
+Independent review reproduced a P0 defect where source-change observations
+were written into the semantic `DocumentLifecycle` field. The hotfix separates
+document lifecycle from source-change state, repairs only known legacy values,
+rejects unknown corruption, and adds deletion/no-op, restore, rename,
+migration, strict-validation and rollback coverage. Agent Two verification is
+required before recertification.
+
+Implementation commit: `2cb0d8b`. Local evidence is complete; the hotfix is
+paused for Agent Two's independent pinned-commit review and must not be merged
+or recertified before that review.

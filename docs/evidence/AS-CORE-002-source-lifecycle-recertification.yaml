@@ -1,0 +1,27 @@
+schema_version: 1
+package: AS-CORE-002
+status: remediation-in-progress
+original_certification: docs/AS-CORE-002-post-merge.md
+original_main_commit: 46c739c69799ad698f25cfb02e4087c1c51cd641
+hotfix_branch: fix/source-lifecycle-replay
+hotfix_commit: 2cb0d8b
+defect: source-change observations were written into DocumentLifecycle
+correction: separate document_lifecycle and source_change_state
+compatibility_repair:
+  known_values: [modified, deleted, restored-elsewhere]
+  unknown_values: rejected
+  receipt_directory: receipts/source-lifecycle/
+required_independent_review: true
+deferred_certification: true
+validation:
+  source_lifecycle_focused: 21
+  core_suite: 92
+  control_plane_suite: 146
+  full_repository_suite: 238
+  mypy_source_files: 28
+  mypy: passed
+  ruff: passed
+  compilation: passed
+  public_cli_workflow: passed
+  strict_vault_validation: passed
+  unchanged_replay: passed_zero_writes

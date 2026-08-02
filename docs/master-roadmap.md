@@ -2,7 +2,7 @@
 
 **Roadmap version:** 1.0
 **Roadmap date:** August 1, 2026
-**Program status:** Atlas Core vertical slice merged; AS-INT-001 and AS-CORE-002 certified
+**Program status:** Atlas Core vertical slice merged; AS-INT-001 certified; AS-CORE-002 certification reopened for source-lifecycle remediation
 **Target state:** Governed, evidence-backed project intelligence system built on an Obsidian-compatible Atlas Vault
 
 ---
@@ -115,7 +115,7 @@ Core is not yet an MVP.
 | Work package | Capability | Status |
 |---|---|---|
 | AS-INT-001 | Governed Control Plane event-package ingestion into Atlas Core | **Certified** |
-| AS-CORE-002 | Semantic domain model and source lifecycle hardening | **Certified** |
+| AS-CORE-002 | Semantic domain model and source lifecycle hardening | **Certification reopened — remediation in progress** |
 
 ## Authorized next work
 
