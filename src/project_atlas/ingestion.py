@@ -782,12 +782,27 @@ def _ingest(
                 tombstone["restored_as"] = restored_id
             current_sources.append(tombstone)
     registry_records: list[dict[str, Any]] = []
+    lineage_migration_receipts: list[dict[str, Any]] = []
     for project, entries in sorted(projects.items()):
         project_uuid = project_identity.get(project)
         if project_uuid is None or not entries:
             continue
         if registry_version == 1:
             prior_for_project = migrate_v1_records(previous_sources, project_uuid)
+            for migrated in prior_for_project:
+                lineage_migration_receipts.append(
+                    {
+                        "schema_version": 1,
+                        "receipt_type": "source-lineage-migration",
+                        "project_uuid": project_uuid,
+                        "source_ids": [str(migrated["source_id"])],
+                        "source_lineage_id": migrated["source_lineage_id"],
+                        "lineage_generation": migrated["lineage_generation"],
+                        "origin_path": migrated["first_seen_path"],
+                        "origin_sha256": migrated["first_content_sha256"],
+                        "schema_transition": "1-to-2",
+                    }
+                )
         else:
             prior_for_project = [
                 item
@@ -843,6 +858,17 @@ def _ingest(
                 vault / "receipts" / "source-lifecycle" / f"repair-{repair_hash}.json",
             )
         ] = (json.dumps(repair_payload, indent=2, sort_keys=True) + "\n").encode()
+    for receipt in lineage_migration_receipts:
+        destination = _inside(
+            vault,
+            vault
+            / "receipts"
+            / "source-lineage"
+            / f"migration-{receipt['source_lineage_id']}.json",
+        )
+        write_plan[destination] = (
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+        ).encode()
     write_plan[_inside(vault, vault / "sources" / "manifests" / "source-manifest.json")] = (
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     ).encode()

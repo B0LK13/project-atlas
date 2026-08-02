@@ -210,6 +210,8 @@ def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(
     receipts = list((vault / "receipts/source-lifecycle").glob("repair-*.json"))
     assert len(receipts) == 1
     assert "compatibility-repair" in receipts[0].read_text()
+    migration_receipts = list((vault / "receipts/source-lineage").glob("migration-*.json"))
+    assert len(migration_receipts) == len(repaired["sources"])
 
 
 def test_unknown_legacy_lifecycle_rejected_without_mutation(tmp_path: Path) -> None:
