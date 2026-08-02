@@ -611,3 +611,18 @@ v1 migration receipts, duplicate-project detection, strict lineage validation,
 and lifecycle replay/rollback fixtures. The full Core and Control Plane suites,
 static checks, compilation, and public workflow tests pass. AS-CORE-003 remains
 frozen pending this package's independent review.
+
+## AS-ID-001 governor remediation
+
+**Status:** implementation complete — independent review required
+**Blocked candidate:** `907363a`
+**Implementation:** `455dace`
+**Evidence:** `docs/evidence/AS-ID-001-governor-remediation-receipt.yaml`
+
+Remediated bounded architecture findings for continuity-chain migration,
+evidence-scoped candidate uniqueness, deterministic unresolved findings, formal
+registry schema validity, post-promotion verification, and real public
+multi-process genesis. The Core suite is now 112 passed versus 103 on the
+blocked candidate; the Control Plane remains zero-diff and 146 passed. The
+referenced governor report file was unavailable in this checkout; its absence
+and the directive-based defect register are disclosed in the receipt.

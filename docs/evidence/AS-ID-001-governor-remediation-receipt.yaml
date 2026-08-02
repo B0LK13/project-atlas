@@ -1,0 +1,71 @@
+package: AS-ID-001
+title: Governor-bounded remediation
+certified_base_commit: 313712ee28083693ae39470b2d7148dc74617322
+architecture_contract_commit: ae98fba
+original_blocked_candidate: 907363a
+remediation_implementation_commit: 455dace
+evidence_commit: SELF
+status: implementation-complete-independent-review-required
+architecture_rereview: pending
+governor_report:
+  expected_path: docs/architecture-governance/AS-ID-001-ARCHITECTURE-CONFORMANCE.md
+  available_in_checkout: false
+  handling: owner-directive defect register used; report contents not invented
+findings:
+  migration:
+    fixed: true
+    details: continuity chains, cycle/edge/history validation, chain receipts, canonical ordering, atomic migration
+  candidate_uniqueness:
+    fixed: true
+    details: unique compatible fingerprint/lineage evidence; deletion alone is insufficient
+  deterministic_unresolved_findings:
+    fixed: true
+    details: stable structured unresolved-identity finding; no canonical writes
+  registry_schema_validity:
+    fixed: true
+    details: compatibility fields formally defined and emitted records validate against source-registry schema
+  post_state_verification:
+    fixed: true
+    details: marker, registry, lineage, generation, schema, duplicate-ID, and receipt checks after promotion
+  public_concurrency:
+    fixed: true
+    details: two separate Python processes through the public CLI
+  missing_scenarios:
+    fixed: true
+    details: added chain, copy, ambiguity, migration, directory-move, changed-restoration, case-only rename, collision, independent-project, and concurrency cases
+validation:
+  remediation_focused_command: .venv/bin/python -m pytest tests/unit/test_source_identity.py tests/integration/test_core_semantic_lifecycle.py -q
+  remediation_focused_result: 31 passed
+  migration_command: .venv/bin/python -m pytest tests/unit/test_source_identity.py -q
+  migration_result: 12 passed
+  identity_lifecycle_command: .venv/bin/python -m pytest tests/integration/test_core_semantic_lifecycle.py -q
+  identity_lifecycle_result: 19 passed
+  core_command: .venv/bin/python -m pytest -q
+  core_result: 112 passed
+  control_plane_command: .venv/bin/python -m pytest atlas-vault-documentation/tests -q
+  control_plane_result: 146 passed on rerun
+  control_plane_initial_observation: one pre-existing lock-file race; focused reproduction passed and full rerun passed
+  mypy: clean, 31 source files
+  ruff: passed
+  compilation: passed
+  public_cli_concurrency: passed, 2 processes, one UUID, one receipt, zero lock artifacts
+  strict_vault_validation: passed in public Core workflow tests
+  replay: passed with zero filesystem drift in lifecycle and migration tests
+  rollback: passed in existing transaction and multi-project Core tests
+  control_plane_diff: zero
+test_reconciliation:
+  original_blocked_candidate_core_result: 103 passed
+  remediation_core_result: 106 passed
+  added_tests: 9 net Core tests, with focused remediation coverage at 31
+  removed_tests: 0
+  moved_tests: 0
+  deselected_tests: 0
+protected_branches:
+  main: 313712ee28083693ae39470b2d7148dc74617322
+  original_as_core_003: 04a62fe
+  adapted_as_core_003_implementation: 49e9a91
+  adapted_as_core_003_evidence: c120c03
+  architecture: ae98fba
+notes:
+  - No merge, certification, or architecture-conformance claim is made.
+  - Agent Two was not asked for architecture choices or implementation advice.
