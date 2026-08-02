@@ -1,0 +1,70 @@
+schema_version: 1
+package: AS-SPEC-004
+status: implementation-complete-governor-review-required
+certified_base_commit: 098c5e7ea030d4c52e742e71f45ac10639c66513
+implementation_commit: 9dd7ce5e4a8d85a224cc00530bf0f21c867f949b
+evidence_commit: SELF
+branch: feat/as-spec-004-okf-v02-conformance
+okf_version_target: "0.2"
+normative_sources:
+  - docs/plan.md
+  - AGENTS.md
+  - src/project_atlas/domain/vocabulary.py
+  - src/project_atlas/domain/concepts.py
+  - src/project_atlas/schemas/concept-record.schema.json
+schema_files_changed:
+  - src/project_atlas/schemas/concept-record.schema.json
+golden_file_paths:
+  - tests/fixtures/okf/project-one-concepts.md
+implementation_files_changed:
+  - src/project_atlas/domain/concepts.py
+  - src/project_atlas/domain/__init__.py
+  - src/project_atlas/knowledge_compiler.py
+  - src/project_atlas/okf_renderer.py
+  - src/project_atlas/validation.py
+test_files_changed:
+  - tests/unit/test_okf_conformance.py
+validation:
+  focused_okf_command: .venv/bin/python -m pytest tests/unit/test_okf_conformance.py -q
+  focused_okf_result: 5 passed
+  core_command: .venv/bin/python -m pytest tests --tb=no
+  core_result: 140 passed
+  control_plane_command: .venv/bin/python -m pytest atlas-vault-documentation/tests --tb=no
+  control_plane_result: 146 passed
+  mypy_command: .venv/bin/mypy src
+  mypy_result: clean, 33 source files
+  ruff_command: .venv/bin/ruff check src tests
+  ruff_result: clean
+  compilation_command: .venv/bin/python -m compileall -q src
+  compilation_result: clean
+  public_workflow:
+    command: init, discover, ingest, build-indexes, validate against tests/fixtures/integrated-atlas-project
+    result: passed; validated 44 Markdown files
+  strict_vault_validation: passed
+  replay: OKF concept rendering is byte-identical on unchanged replay
+  human_region_preservation: protected generated markers preserve surrounding human content
+test_accounting:
+  certified_baseline_core: 135
+  current_core: 140
+  net_new_collected: 5
+  removed: 0
+  renamed: 0
+  deselected: 0
+  added_tests:
+    - tests/unit/test_okf_conformance.py::test_okf_concept_note_has_mandatory_fields_and_valid_schema
+    - tests/unit/test_okf_conformance.py::test_okf_concept_note_matches_golden_file
+    - tests/unit/test_okf_conformance.py::test_unknown_source_concept_type_becomes_generic_reference
+    - tests/unit/test_okf_conformance.py::test_concept_render_replay_is_byte_identical
+    - tests/unit/test_okf_conformance.py::test_generated_region_can_be_regenerated_around_human_content
+  focused_overlap_note: focused OKF tests are included in the full Core collection and are not additive
+control_plane:
+  result: 146 passed
+  diff: zero
+architecture:
+  governor_review: pending
+  certified_foundation_unchanged: true
+  identity_lifecycle_and_promotion_boundaries_modified: false
+notes:
+  - Unknown requested concept types are represented as generic Reference concepts.
+  - No subjective trust score is emitted.
+  - Concept notes use deterministic YAML frontmatter and the established generated-region markers.

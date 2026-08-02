@@ -660,3 +660,15 @@ Agent Three re-approved the bounded restored-claim replay remediation. The
 transition table and promotion boundary remain unchanged; equivalent replay
 now transitions `RESTORED -> UNCHANGED`. Final release/merge control remains
 with the project owner.
+
+## AS-SPEC-004 OKF v0.2 conformance
+
+**Status:** implementation complete — governor review required
+**Base:** `098c5e7ea030d4c52e742e71f45ac10639c66513`
+
+Added deterministic OKF v0.2 YAML frontmatter for generated concept notes,
+validated Atlas extensions and resources, generic handling for unknown concept
+types, golden-file coverage, protected-region preservation, and unchanged
+replay checks. Core passed `140` tests (135 baseline plus 5 new tests), the
+Control Plane passed `146`, mypy passed for `33` source files, Ruff passed, and
+compilation passed. Architecture governor review remains pending.
