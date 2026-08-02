@@ -1,7 +1,7 @@
 # AS-CORE-002 — Semantic Domain Model and Source Lifecycle Plan
 
 **Branch:** `feat/atlas-core-semantic-lifecycle`  
-**Status:** implementation complete — certification pending independent review
+**Status:** certified after post-merge verification
 
 ## Requirement mapping
 
@@ -33,5 +33,11 @@ Agent Two identified two blockers in commit `575ce3b`: the semantic schema did
 not constrain nested arrays, and persisted source state was not revalidated.
 Commit `bb2a713` closes both defects and adds a preflight that prevents a
 malformed generated marker in one project from causing partial writes to
-another project. The package remains certification-pending until independent
-replay of these fixes.
+another project. Commit `f970e72` extends that preflight to an in-memory
+write plan covering imported sources, event-package copies, project pages,
+documentation maps, state, reports and projections. Agent Two independently
+replayed the corrected failure and recommended merge.
+
+Post-merge evidence is recorded in
+[`AS-CORE-002-post-merge.md`](AS-CORE-002-post-merge.md) and
+[`AS-CORE-002-post-merge-receipt.yaml`](evidence/AS-CORE-002-post-merge-receipt.yaml).

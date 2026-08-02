@@ -36,5 +36,7 @@ Commit `bb2a713`:
 | Ruff | passed |
 | Mypy | no issues in 28 source files |
 
-Status remains `AS-CORE-002 IMPLEMENTATION COMPLETE — CERTIFICATION PENDING`
-until Agent Two independently verifies `bb2a713`.
+Agent Two independently verified the remediation and recommended merge.
+Post-merge validation is recorded in
+[`AS-CORE-002-post-merge.md`](AS-CORE-002-post-merge.md). The corrected full
+repository count is 88 passed; the earlier receipt's 87 was an undercount.

@@ -557,3 +557,23 @@ Certified. Added the canonical operational skill package, minimal generated
 bootstrap shims, skill acknowledgement, capability check, real event pipeline
 integration, readiness registry, and lifecycle evidence. See
 `atlas-vault-documentation/AS-SKILL-001-CERTIFICATION.md`.
+
+## AS-CORE-002 — Semantic Domain Model and Source Lifecycle Hardening
+
+**Status:** certified
+**Merged:** 2026-08-02
+**Merge commit:** `50509a2`
+**Evidence:** `docs/AS-CORE-002-post-merge.md` and
+`docs/evidence/AS-CORE-002-post-merge-receipt.yaml`
+
+The semantic implementation, strict nested schemas, lifecycle-state
+validation, secret exclusion, human-safe regeneration and two-phase ingestion
+write plan are merged into `main`. The full repository suite passed **88
+tests**; the earlier receipt's 87 was corrected as an undercount. Agent Two's
+independent replay confirmed zero mutations for the cross-project malformed
+marker failure and recommended merge.
+
+Deferred items remain richer Claim and Concept population,
+schema/Pydantic coercion edge cases, generated-marker convention
+reconciliation, state-migration tooling, and real-project pilot
+certification.
