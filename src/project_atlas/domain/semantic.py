@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from project_atlas.domain.claims import ID_PATTERN, Claim, ProvenanceReference
 from project_atlas.domain.concepts import ConceptRecord
@@ -15,6 +15,7 @@ from project_atlas.domain.vocabulary import (
     LifecycleStatus,
     SourceChangeState,
 )
+from project_atlas.source_identity import validate_project_uuid
 
 
 class VersionedRecord(BaseModel):
@@ -38,6 +39,11 @@ class SourceLifecycleRecord(VersionedRecord):
     restored_as: str | None = None
     compatibility_repaired: bool = False
     compatibility_repair_reason: str | None = None
+
+    @field_validator("project_uuid")
+    @classmethod
+    def _project_uuid_is_uuidv4(cls, value: str | None) -> str | None:
+        return validate_project_uuid(value) if value is not None else None
 
     @property
     def lifecycle(self) -> DocumentLifecycle:
