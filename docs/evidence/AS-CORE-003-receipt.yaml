@@ -1,10 +1,12 @@
 schema_version: 1
 package: AS-CORE-003
-status: implementation-complete-governor-review-required
+status: implementation-complete
 certified_base_commit: e5b9aa8b700afe828cb424503ced84abf37c71ea
 implementation_commit: 55f6aec
 evidence_commit: SELF
 branch: integrate/as-core-003-durable-lineage
+merge_commit: a3fdb711dd0b3b1b00b8984482dcb4c1d63e3998
+merged_to_main_at: 2026-08-02T21:31:05+02:00
 historical_references:
   original_as_core_003_head: 04a62fe
   adapted_implementation: 49e9a91
@@ -71,4 +73,4 @@ control_plane:
   as_id_001_semantics_modified: false
   as_core_003_files_in_control_plane: false
 architecture:
-  governor_review: pending
+  governor_review: approved

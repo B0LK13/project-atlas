@@ -626,3 +626,13 @@ multi-process genesis. The Core suite is now 112 passed versus 103 on the
 blocked candidate; the Control Plane remains zero-diff and 146 passed. The
 referenced governor report file was unavailable in this checkout; its absence
 and the directive-based defect register are disclosed in the receipt.
+
+## AS-CORE-003 durable-lineage integration merge
+
+**Status:** merged to `main` — governance approved
+**Merge commit:** `a3fdb711dd0b3b1b00b8984482dcb4c1d63e3998`
+
+The AS-CORE-003 durable-lineage integration was merged with governance
+authorization. Post-merge validation passed: Core `135 passed`, mypy clean for
+32 source files, Ruff clean, and compilation clean. The Control Plane remained
+unchanged.
