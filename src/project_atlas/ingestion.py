@@ -20,6 +20,7 @@ from atlas_contracts.event_package import (
 from atlas_contracts.identity import safe_relative_component
 from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.sources import SourceRecord
+from project_atlas.domain.vocabulary import DocumentLifecycle
 from project_atlas.secrets import scan_text
 from project_atlas.semantic_compiler import compile_project_record, render_project_record
 
@@ -235,10 +236,59 @@ def _previous_event_state(vault: Path) -> dict[str, list[dict[str, Any]]]:
     return previous
 
 
-def _previous_source_state(vault: Path) -> list[dict[str, Any]]:
+_LEGACY_SOURCE_CHANGE_VALUES = {
+    "new",
+    "unchanged",
+    "modified",
+    "deleted",
+    "restored",
+    "restored-elsewhere",
+    "renamed",
+}
+
+
+def _repair_source_state_item(
+    item: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, str] | None]:
+    candidate = dict(item)
+    legacy = candidate.pop("lifecycle", None)
+    if legacy is None:
+        return candidate, None
+    if legacy in _LEGACY_SOURCE_CHANGE_VALUES:
+        candidate["document_lifecycle"] = (
+            "historical" if legacy in {"deleted", "restored-elsewhere"} else "verified"
+        )
+        candidate["source_change_state"] = legacy
+        candidate["compatibility_repaired"] = True
+        candidate["compatibility_repair_reason"] = (
+            f"legacy lifecycle value {legacy!r} moved to source_change_state"
+        )
+        return candidate, {
+            "source_id": str(candidate.get("source_id", "")),
+            "legacy_value": legacy,
+            "source_change_state": legacy,
+        }
+    if legacy in {value.value for value in DocumentLifecycle}:
+        candidate["document_lifecycle"] = legacy
+        candidate.setdefault("source_change_state", "unchanged")
+        candidate["compatibility_repaired"] = True
+        candidate["compatibility_repair_reason"] = (
+            "legacy semantic lifecycle field renamed to document_lifecycle"
+        )
+        return candidate, {
+            "source_id": str(candidate.get("source_id", "")),
+            "legacy_value": legacy,
+            "source_change_state": "unchanged",
+        }
+    raise ValueError(f"unknown legacy source lifecycle value: {legacy!r}")
+
+
+def _previous_source_state(
+    vault: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     path = vault / "state" / "sources.json"
     if not path.is_file():
-        return []
+        return [], []
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(raw, dict) or raw.get("schema_version") != 1:
@@ -246,10 +296,16 @@ def _previous_source_state(vault: Path) -> list[dict[str, Any]]:
         values = raw.get("sources")
         if not isinstance(values, list):
             raise ValueError("source lifecycle state sources must be a list")
-        return [
-            SourceLifecycleRecord.model_validate(item).model_dump(mode="json")
-            for item in values
-        ]
+        records: list[dict[str, Any]] = []
+        repairs: list[dict[str, str]] = []
+        for item in values:
+            if not isinstance(item, dict):
+                raise ValueError("source lifecycle records must be objects")
+            repaired, repair = _repair_source_state_item(item)
+            records.append(SourceLifecycleRecord.model_validate(repaired).model_dump(mode="json"))
+            if repair:
+                repairs.append(repair)
+        return records, repairs
     except (OSError, UnicodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
         raise ValueError(f"invalid source lifecycle state: {exc}") from exc
 
@@ -271,7 +327,7 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     security_findings: list[dict[str, str]] = []
     write_plan: dict[Path, bytes] = {}
     previous_state = _previous_event_state(vault)
-    previous_sources = _previous_source_state(vault)
+    previous_sources, source_state_repairs = _previous_source_state(vault)
     event_inventories = _manifest_events(manifest)
     prepared: list[_PreparedRecord] = []
     for source_record in sources:
@@ -470,18 +526,54 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         "security_findings": len(security_findings),
         "duplicates": manifest.get("duplicates", {}),
     }
-    current_sources = [
-        {
-            "schema_version": 1,
-            "source_id": entry["source_id"],
-            "path": entry["path"],
-            "sha256": entry["sha256"],
-            "lifecycle": "verified",
-        }
-        for entry in sorted(imported, key=lambda item: str(item["source_id"]))
-    ]
-    current_ids = {str(item["source_id"]) for item in current_sources}
+    current_sources: list[dict[str, Any]] = []
     previous_by_id = {str(item.get("source_id")): item for item in previous_sources}
+    previous_by_hash = {
+        str(item.get("sha256")): item
+        for item in previous_sources
+        if item.get("sha256")
+    }
+    for entry in sorted(imported, key=lambda item: str(item["source_id"])):
+        source_id = str(entry["source_id"])
+        previous = previous_by_id.get(source_id)
+        change_state = "new"
+        renamed_from = None
+        if previous:
+            if previous.get("source_change_state") == "deleted":
+                change_state = "restored"
+            elif previous.get("sha256") != entry["sha256"]:
+                change_state = "modified"
+            else:
+                change_state = "unchanged"
+        else:
+            same_hash = previous_by_hash.get(str(entry["sha256"]))
+            if same_hash:
+                change_state = "renamed"
+                renamed_from = str(same_hash.get("path"))
+        current_sources.append(
+            {
+                "schema_version": 1,
+                "source_id": source_id,
+                "path": entry["path"],
+                "sha256": entry["sha256"],
+                "document_lifecycle": "verified",
+                "source_change_state": change_state,
+                "first_seen": previous.get("first_seen") if previous else None,
+                "last_seen": entry.get("observed_at") or None,
+                "previous_sha256": (
+                    previous.get("sha256")
+                    if previous and previous.get("sha256") != entry["sha256"]
+                    else None
+                ),
+                "renamed_from": renamed_from,
+                "restored_as": None,
+                "compatibility_repaired": bool(previous and previous.get("compatibility_repaired")),
+                "compatibility_repair_reason": (
+                    previous.get("compatibility_repair_reason") if previous else None
+                ),
+            }
+        )
+    current_ids = {str(item["source_id"]) for item in current_sources}
     current_by_hash = {
         str(item["sha256"]): str(item["source_id"])
         for item in current_sources
@@ -489,15 +581,24 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     }
     for item in current_sources:
         previous = previous_by_id.get(str(item["source_id"]))
-        if previous and previous.get("sha256") != item.get("sha256"):
-            item["lifecycle"] = "modified"
+        if (
+            previous
+            and previous.get("sha256") != item.get("sha256")
+            and item.get("source_change_state") not in {"restored", "renamed"}
+        ):
+            item["source_change_state"] = "modified"
             item["previous_sha256"] = previous.get("sha256")
     for previous in previous_sources:
         source_id = str(previous.get("source_id", ""))
         if source_id and source_id not in current_ids:
             restored_id = current_by_hash.get(str(previous.get("sha256")))
             tombstone = dict(previous)
-            tombstone["lifecycle"] = "restored-elsewhere" if restored_id else "deleted"
+            tombstone["document_lifecycle"] = "historical"
+            tombstone["source_change_state"] = (
+                "restored-elsewhere" if restored_id else "deleted"
+            )
+            tombstone["compatibility_repaired"] = False
+            tombstone["compatibility_repair_reason"] = None
             if restored_id:
                 tombstone["restored_as"] = restored_id
             current_sources.append(tombstone)
@@ -507,6 +608,22 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         )
         + "\n"
     ).encode()
+    if source_state_repairs:
+        repair_payload = {
+            "schema_version": 1,
+            "receipt_type": "source-lifecycle-compatibility-repair",
+            "repairs": source_state_repairs,
+            "reason": "known legacy lifecycle values were separated from document lifecycle",
+        }
+        repair_hash = hashlib.sha256(
+            json.dumps(repair_payload, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:24]
+        write_plan[
+            _inside(
+                vault,
+                vault / "receipts" / "source-lifecycle" / f"repair-{repair_hash}.json",
+            )
+        ] = (json.dumps(repair_payload, indent=2, sort_keys=True) + "\n").encode()
     write_plan[_inside(vault, vault / "sources" / "manifests" / "source-manifest.json")] = (
         json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     ).encode()

@@ -67,6 +67,18 @@ class DocumentLifecycle(StrEnum):
     HISTORICAL = "historical"
 
 
+class SourceChangeState(StrEnum):
+    """Observation state for a discovered source file, not document meaning."""
+
+    NEW = "new"
+    UNCHANGED = "unchanged"
+    MODIFIED = "modified"
+    DELETED = "deleted"
+    RESTORED = "restored"
+    RESTORED_ELSEWHERE = "restored-elsewhere"
+    RENAMED = "renamed"
+
+
 class Maturity(StrEnum):
     """Implementation maturity vocabulary (`docs/plan.md` section 7)."""
 

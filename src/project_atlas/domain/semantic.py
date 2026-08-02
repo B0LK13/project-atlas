@@ -9,7 +9,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.domain.claims import ID_PATTERN, Claim, ProvenanceReference
 from project_atlas.domain.concepts import ConceptRecord
-from project_atlas.domain.vocabulary import DocumentLifecycle, KnowledgeState, LifecycleStatus
+from project_atlas.domain.vocabulary import (
+    DocumentLifecycle,
+    KnowledgeState,
+    LifecycleStatus,
+    SourceChangeState,
+)
 
 
 class VersionedRecord(BaseModel):
@@ -21,11 +26,20 @@ class SourceLifecycleRecord(VersionedRecord):
     source_id: str = Field(pattern=ID_PATTERN)
     path: str = Field(min_length=1)
     sha256: str | None = None
-    lifecycle: DocumentLifecycle = DocumentLifecycle.VERIFIED
+    document_lifecycle: DocumentLifecycle = DocumentLifecycle.VERIFIED
+    source_change_state: SourceChangeState = SourceChangeState.UNCHANGED
     first_seen: datetime | None = None
     last_seen: datetime | None = None
     previous_sha256: str | None = None
     renamed_from: str | None = None
+    restored_as: str | None = None
+    compatibility_repaired: bool = False
+    compatibility_repair_reason: str | None = None
+
+    @property
+    def lifecycle(self) -> DocumentLifecycle:
+        """Compatibility accessor for callers that read semantic lifecycle."""
+        return self.document_lifecycle
 
 
 class SourceAuthority(VersionedRecord):

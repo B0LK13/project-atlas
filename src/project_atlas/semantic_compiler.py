@@ -13,7 +13,12 @@ from project_atlas.domain.semantic import (
     SourceAuthority,
     SourceLifecycleRecord,
 )
-from project_atlas.domain.vocabulary import DocumentLifecycle, KnowledgeState, LifecycleStatus
+from project_atlas.domain.vocabulary import (
+    DocumentLifecycle,
+    KnowledgeState,
+    LifecycleStatus,
+    SourceChangeState,
+)
 
 COVERAGE_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("overview", ("project-overview",)),
@@ -58,7 +63,8 @@ def compile_project_record(
             source_id=str(entry["source_id"]),
             path=str(entry["path"]),
             sha256=entry.get("sha256"),
-            lifecycle=DocumentLifecycle.VERIFIED,
+            document_lifecycle=DocumentLifecycle.VERIFIED,
+            source_change_state=SourceChangeState.UNCHANGED,
             first_seen=None,
             last_seen=None,
         )

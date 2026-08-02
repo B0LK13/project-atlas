@@ -30,6 +30,7 @@ from project_atlas.domain.vocabulary import (
     Maturity,
     ReviewState,
     Severity,
+    SourceChangeState,
     ValidationGate,
 )
 
@@ -56,6 +57,7 @@ __all__ = [
     "ReviewState",
     "Severity",
     "SourceAuthority",
+    "SourceChangeState",
     "SourceLifecycleRecord",
     "SourceRecord",
     "ValidationEvidence",

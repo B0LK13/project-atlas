@@ -4,7 +4,15 @@ import json
 import os
 from pathlib import Path
 
-from project_atlas.cli import EXIT_OK, main
+from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
+
+
+def _snapshot(vault: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(vault).as_posix(): path.read_bytes()
+        for path in vault.rglob("*")
+        if path.is_file()
+    }
 
 
 def _workflow(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -53,7 +61,7 @@ def test_removed_source_is_retained_as_lifecycle_state(tmp_path: Path) -> None:
     assert main(["discover", "--source", str(source), "--output", str(next_manifest)]) == EXIT_OK
     assert main(["ingest", "--manifest", str(next_manifest), "--vault", str(vault)]) == EXIT_OK
     state = json.loads((vault / "state" / "sources.json").read_text(encoding="utf-8"))
-    assert any(item["lifecycle"] == "deleted" for item in state["sources"])
+    assert any(item["source_change_state"] == "deleted" for item in state["sources"])
 
 
 def test_malformed_generated_markers_fail_closed(tmp_path: Path) -> None:
@@ -74,6 +82,7 @@ def test_unchanged_ingestion_has_zero_filesystem_writes(tmp_path: Path) -> None:
         vault / "state" / "sources.json",
         vault / "generated" / "reports" / "ingestion-report.json",
     ]
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
     before = {path: (path.read_bytes(), os.stat(path).st_mtime_ns) for path in tracked}
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
     after = {path: (path.read_bytes(), os.stat(path).st_mtime_ns) for path in tracked}
@@ -91,6 +100,119 @@ def test_corrupt_source_state_fails_closed_before_ingestion_writes(tmp_path: Pat
     before = project.read_bytes()
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
     assert project.read_bytes() == before
+
+
+def test_deleted_source_then_immediate_noop_remains_valid_and_zero_write(
+    tmp_path: Path,
+) -> None:
+    source, _manifest, vault = _workflow(tmp_path)
+    (source / "ARCHITECTURE.md").unlink()
+    deleted_manifest = tmp_path / "deleted.json"
+    assert main(["discover", "--source", str(source), "--output", str(deleted_manifest)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    state = json.loads((vault / "state/sources.json").read_text())
+    assert any(item["source_change_state"] == "deleted" for item in state["sources"])
+    before = _snapshot(vault)
+    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert _snapshot(vault) == before
+    assert main(["validate", "--vault", str(vault)]) == EXIT_OK
+
+
+def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) -> None:
+    source, _manifest, vault = _workflow(tmp_path)
+    (source / "README.md").write_text("# Changed\n", encoding="utf-8")
+    modified_manifest = tmp_path / "modified.json"
+    assert (
+        main(["discover", "--source", str(source), "--output", str(modified_manifest)])
+        == EXIT_OK
+    )
+    assert main(["ingest", "--manifest", str(modified_manifest), "--vault", str(vault)]) == EXIT_OK
+    modified_state = json.loads((vault / "state/sources.json").read_text())
+    assert any(item["source_change_state"] == "modified" for item in modified_state["sources"])
+    assert main(["ingest", "--manifest", str(modified_manifest), "--vault", str(vault)]) == EXIT_OK
+    stable = _snapshot(vault)
+    assert main(["ingest", "--manifest", str(modified_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert _snapshot(vault) == stable
+
+    (source / "ARCHITECTURE.md").unlink()
+    deleted_manifest = tmp_path / "deleted-for-restore.json"
+    assert (
+        main(["discover", "--source", str(source), "--output", str(deleted_manifest)])
+        == EXIT_OK
+    )
+    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    (source / "ARCHITECTURE.md").write_text("# Restored with changed content\n", encoding="utf-8")
+    restored_manifest = tmp_path / "restored.json"
+    assert (
+        main(["discover", "--source", str(source), "--output", str(restored_manifest)])
+        == EXIT_OK
+    )
+    assert main(["ingest", "--manifest", str(restored_manifest), "--vault", str(vault)]) == EXIT_OK
+    restored_state = json.loads((vault / "state/sources.json").read_text())
+    assert any(item["source_change_state"] == "restored" for item in restored_state["sources"])
+
+    (source / "ARCHITECTURE.md").unlink()
+    rename_deleted = tmp_path / "rename-deleted.json"
+    assert (
+        main(["discover", "--source", str(source), "--output", str(rename_deleted)])
+        == EXIT_OK
+    )
+    assert (
+        main(["ingest", "--manifest", str(rename_deleted), "--vault", str(vault)])
+        == EXIT_OK
+    )
+    (source / "ARCHITECTURE-renamed.md").write_text(
+        "# Restored with changed content\n", encoding="utf-8"
+    )
+    renamed_manifest = tmp_path / "renamed.json"
+    assert (
+        main(["discover", "--source", str(source), "--output", str(renamed_manifest)])
+        == EXIT_OK
+    )
+    assert main(["ingest", "--manifest", str(renamed_manifest), "--vault", str(vault)]) == EXIT_OK
+    renamed_state = json.loads((vault / "state/sources.json").read_text())
+    assert any(item["source_change_state"] == "renamed" for item in renamed_state["sources"])
+    assert any(
+        item["source_change_state"] == "restored-elsewhere"
+        for item in renamed_state["sources"]
+    )
+
+
+def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(
+    tmp_path: Path,
+) -> None:
+    _source, manifest, vault = _workflow(tmp_path)
+    state_path = vault / "state/sources.json"
+    state = json.loads(state_path.read_text())
+    legacy = []
+    for item in state["sources"]:
+        item = dict(item)
+        legacy_value = "modified" if not legacy else "deleted"
+        item.pop("document_lifecycle", None)
+        item.pop("source_change_state", None)
+        item["lifecycle"] = legacy_value
+        legacy.append(item)
+    state_path.write_text(json.dumps({"schema_version": 1, "sources": legacy}), encoding="utf-8")
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    repaired = json.loads(state_path.read_text())
+    assert all("lifecycle" not in item for item in repaired["sources"])
+    assert all(item["compatibility_repaired"] for item in repaired["sources"])
+    receipts = list((vault / "receipts/source-lifecycle").glob("repair-*.json"))
+    assert len(receipts) == 1
+    assert "compatibility-repair" in receipts[0].read_text()
+
+
+def test_unknown_legacy_lifecycle_rejected_without_mutation(tmp_path: Path) -> None:
+    _source, manifest, vault = _workflow(tmp_path)
+    state_path = vault / "state/sources.json"
+    state = json.loads(state_path.read_text())
+    state["sources"][0]["lifecycle"] = "invented-state"
+    before = _snapshot(vault)
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    after_corruption = _snapshot(vault)
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert _snapshot(vault) == after_corruption
+    assert before != after_corruption
 
 
 def test_malformed_marker_in_one_project_aborts_before_other_project_writes(

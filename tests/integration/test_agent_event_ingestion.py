@@ -229,6 +229,8 @@ def test_repeated_identical_package_replay_is_idempotent(tmp_path: Path) -> None
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     before = {
         path.relative_to(vault).as_posix(): (path.read_bytes(), path.stat().st_mtime_ns)
         for path in vault.rglob("*")
