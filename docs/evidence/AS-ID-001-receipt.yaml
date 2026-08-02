@@ -41,7 +41,7 @@ ambiguity:
   allocation: none
 validation:
   focused_as_id_001_and_lifecycle: 20 passed
-  core_suite: 101 collected and passed
+  core_suite: 103 collected and passed
   control_plane_suite: 146 collected and passed
   mypy: clean, 31 source files
   ruff: passed
