@@ -4,7 +4,7 @@
   "title": "AS-CORE-002 ProjectRecord",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "project_id", "name", "generated", "sources", "authority", "coverage", "concepts", "claims", "agent_events", "validations", "decisions", "relationships"],
+  "required": ["schema_version", "project_id", "name", "generated", "sources", "authority", "coverage", "concepts", "claims", "authorities", "reviews", "agent_events", "validations", "decisions", "relationships"],
   "properties": {
     "schema_version": { "const": 1 },
     "project_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
@@ -17,6 +17,8 @@
     "coverage": { "type": "array", "items": { "$ref": "#/$defs/coverage" } },
     "concepts": { "type": "array", "items": { "$ref": "concept-record.schema.json" } },
     "claims": { "type": "array", "items": { "$ref": "claim.schema.json" } },
+    "authorities": { "type": "array", "items": { "$ref": "authority-record.schema.json" } },
+    "reviews": { "type": "array", "items": { "$ref": "review-entry.schema.json" } },
     "agent_events": { "type": "array", "items": { "$ref": "#/$defs/agent-event" } },
     "validations": { "type": "array", "items": { "$ref": "#/$defs/validation" } },
     "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
@@ -29,7 +31,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["schema_version", "source_id", "path", "sha256", "document_lifecycle", "source_change_state", "first_seen", "last_seen", "previous_sha256", "renamed_from", "restored_as", "compatibility_repaired", "compatibility_repair_reason"],
       "properties": {
-        "schema_version": { "const": 1 }, "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "source_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" }, "project_uuid": { "type": ["string", "null"], "format": "uuid", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" }, "lineage_generation": { "type": ["integer", "null"], "minimum": 1 }, "path": { "type": "string", "minLength": 1 },
+        "schema_version": { "const": 1 }, "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }, "project_uuid": { "type": ["string", "null"] }, "source_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" }, "lineage_generation": { "type": ["integer", "null"], "minimum": 1 }, "path": { "type": "string", "minLength": 1 },
         "sha256": { "type": ["string", "null"] }, "document_lifecycle": { "type": "string", "enum": ["draft", "review-required", "verified", "canonical", "superseded", "historical"] }, "source_change_state": { "type": "string", "enum": ["new", "unchanged", "modified", "deleted", "restored", "restored-elsewhere", "renamed"] },
         "first_seen": { "type": ["string", "null"], "format": "date-time" }, "last_seen": { "type": ["string", "null"], "format": "date-time" },
         "previous_sha256": { "type": ["string", "null"] }, "renamed_from": { "type": ["string", "null"] }, "restored_as": { "type": ["string", "null"] }, "compatibility_repaired": { "type": "boolean" }, "compatibility_repair_reason": { "type": ["string", "null"] }

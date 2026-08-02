@@ -23,10 +23,13 @@ from project_atlas.schema import (
 
 def test_all_expected_schemas_available() -> None:
     assert available_schemas() == [
+        "authority-record",
         "claim",
+        "claim-lifecycle",
         "concept-record",
         "conflict-record",
         "provenance-reference",
+        "review-entry",
         "semantic-records",
         "source-record",
         "source-registry",
@@ -73,6 +76,50 @@ def test_valid_records_pass() -> None:
 def test_invalid_record_fails_schema() -> None:
     with pytest.raises(SchemaValidationError):
         validate_record({"source_id": "x"}, "source-record")
+
+
+def test_schema_rejects_unknown_semantic_vocabularies() -> None:
+    with pytest.raises(SchemaValidationError):
+        validate_record(
+            {
+                "claim_id": "clm-1",
+                "subject": "c-1",
+                "claim_type": "future-claim-type",
+                "field": "status",
+                "value": "active",
+                "provenance": [{"source_id": "src-1", "resource": "sources/x.md"}],
+                "verification": "unreviewed",
+            },
+            "claim",
+        )
+    with pytest.raises(SchemaValidationError):
+        validate_record(
+            {
+                "schema_version": 1,
+                "review_id": "review-1",
+                "project_id": "p-1",
+                "category": "future-review-category",
+                "subject_id": "clm-1",
+                "reason": "test",
+                "source_ids": [],
+                "status": "pending",
+            },
+            "review-entry",
+        )
+    with pytest.raises(SchemaValidationError):
+        validate_record(
+            {
+                "conflict_id": "conf-1",
+                "subject": "c-1",
+                "field": "status",
+                "claims": [
+                    {"source_id": "s-1", "claim": "a"},
+                    {"source_id": "s-2", "claim": "b"},
+                ],
+                "conflict_type": "future-conflict-type",
+            },
+            "conflict-record",
+        )
 
 
 def test_semantic_schema_rejects_invalid_nested_records() -> None:

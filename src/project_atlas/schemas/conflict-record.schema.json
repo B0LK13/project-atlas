@@ -7,7 +7,9 @@
   "additionalProperties": false,
   "required": ["conflict_id", "subject", "field", "claims", "state"],
   "properties": {
+    "schema_version": { "const": 1 },
     "conflict_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "project_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "subject": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "field": { "type": "string", "minLength": 1 },
     "claims": {
@@ -18,12 +20,17 @@
         "additionalProperties": false,
         "required": ["source_id", "claim"],
         "properties": {
-          "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "source_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
           "claim": { "type": "string", "minLength": 1 }
         }
       }
     },
     "state": { "type": "string", "enum": ["unresolved", "resolved"] },
-    "resolution": { "type": ["string", "null"] }
+    "resolution": { "type": ["string", "null"] },
+    "claim_ids": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" } },
+    "source_lineage_ids": { "type": "array", "items": { "type": "string", "pattern": "^sline-[A-Za-z0-9]+$" } },
+    "conflict_type": { "type": "string", "enum": ["materially-incompatible"] },
+    "provenance": { "type": "array", "items": { "$ref": "provenance-reference.schema.json" } }
   }
 }

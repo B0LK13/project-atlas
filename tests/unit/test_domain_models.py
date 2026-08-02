@@ -139,6 +139,17 @@ class TestConceptRecord:
 
 
 class TestConflictRecord:
+    def test_rejects_unknown_conflict_type(self) -> None:
+        with pytest.raises(ValidationError):
+            ConflictRecord(
+                conflict_id="conf-1", subject="PRJ-NEBULA", field="redis_version",
+                claims=[
+                    {"source_id": "s-1", "claim": "Redis 7"},
+                    {"source_id": "s-2", "claim": "Redis 8"},
+                ],
+                conflict_type="future-conflict-type",
+            )
+
     def test_requires_two_claims(self) -> None:
         with pytest.raises(ValidationError):
             ConflictRecord(

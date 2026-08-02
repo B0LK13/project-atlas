@@ -7,7 +7,9 @@
   "additionalProperties": false,
   "required": ["concept_id", "type", "title"],
   "properties": {
+    "schema_version": { "const": 1 },
     "concept_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "project_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "type": {
       "type": "string",
       "enum": [

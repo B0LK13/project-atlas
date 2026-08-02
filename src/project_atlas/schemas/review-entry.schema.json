@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/review-entry.schema.json",
+  "title": "ReviewEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_id", "project_id", "category", "subject_id", "reason", "source_ids", "status"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "review_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "project_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "category": { "type": "string", "enum": ["pending-claim", "low-confidence", "stale-or-superseded", "conflict", "superseded", "stale", "rejected"] },
+    "subject_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "reason": { "type": "string", "minLength": 1 },
+    "source_ids": { "type": "array", "items": { "type": "string" } },
+    "source_lineage_ids": { "type": "array", "items": { "type": "string", "pattern": "^sline-[A-Za-z0-9]+$" } },
+    "status": { "type": "string", "enum": ["pending", "in-review", "resolved", "rejected"] }
+  }
+}

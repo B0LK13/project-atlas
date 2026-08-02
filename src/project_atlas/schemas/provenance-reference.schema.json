@@ -7,8 +7,13 @@
   "additionalProperties": false,
   "required": ["source_id", "resource"],
   "properties": {
+    "schema_version": { "const": 1 },
     "source_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "source_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
+    "project_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "resource": { "type": "string", "minLength": 1 },
+    "sha256": { "type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$" },
+    "receipt_id": { "type": ["string", "null"], "minLength": 1 },
     "title": { "type": ["string", "null"] },
     "author": { "type": ["string", "null"] },
     "last_modified": { "type": ["string", "null"], "format": "date" },
