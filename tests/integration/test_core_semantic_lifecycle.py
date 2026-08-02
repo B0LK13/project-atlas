@@ -214,6 +214,12 @@ def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(
     assert "compatibility-repair" in receipts[0].read_text()
     migration_receipts = list((vault / "receipts/source-lineage").glob("migration-*.json"))
     assert len(migration_receipts) == len(repaired["sources"])
+    before_replay = _snapshot(vault)
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert _snapshot(vault) == before_replay
+    assert len(list((vault / "receipts/source-lineage").glob("migration-*.json"))) == len(
+        repaired["sources"]
+    )
 
 
 def test_unknown_legacy_lifecycle_rejected_without_mutation(tmp_path: Path) -> None:
@@ -227,6 +233,44 @@ def test_unknown_legacy_lifecycle_rejected_without_mutation(tmp_path: Path) -> N
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
     assert _snapshot(vault) == after_corruption
     assert before != after_corruption
+
+
+def test_failed_genesis_leaves_marker_and_allocation_receipt_absent(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    marker = source / ".atlas-project.yaml"
+    marker.write_text("schema_version: 1\nproject:\n  id: failed-genesis\n", encoding="utf-8")
+    (source / "README.md").write_text("# failed\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    write_manifest(discover(source), manifest)
+    vault = tmp_path / "vault"
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    project = vault / "projects" / "failed-genesis" / "project.md"
+    project.parent.mkdir(parents=True, exist_ok=True)
+    project.write_text("<!-- atlas:generated:start -->\n", encoding="utf-8")
+    original_marker = marker.read_bytes()
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert marker.read_bytes() == original_marker
+    assert not list((vault / "receipts/source-lineage").glob("project-*.json"))
+
+
+def test_project_directory_move_preserves_persisted_uuid(tmp_path: Path) -> None:
+    source, _manifest, vault = _workflow(tmp_path)
+    marker = source / ".atlas-project.yaml"
+    first_uuid = next(
+        line.split(":", 1)[1].strip()
+        for line in marker.read_text(encoding="utf-8").splitlines()
+        if line.startswith("project_uuid:")
+    )
+    moved = tmp_path / "moved-source"
+    source.rename(moved)
+    moved_manifest = tmp_path / "moved.json"
+    assert main(["discover", "--source", str(moved), "--output", str(moved_manifest)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(moved_manifest), "--vault", str(vault)]) == EXIT_OK
+    moved_marker = moved / ".atlas-project.yaml"
+    assert f"project_uuid: {first_uuid}" in moved_marker.read_text(encoding="utf-8")
+    registry = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+    assert {item["canonical_project_id"] for item in registry["sources"]} == {first_uuid}
 
 
 def test_project_uuid_genesis_is_injected_once_and_replay_is_zero_write(tmp_path: Path) -> None:

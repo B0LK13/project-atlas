@@ -451,6 +451,24 @@ def _read_registry_records(vault: Path) -> list[dict[str, Any]]:
     return records
 
 
+def _read_registry_compatibility(vault: Path) -> dict[str, tuple[bool, str | None]]:
+    path = vault / "state" / "sources.json"
+    if not path.is_file():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    values = raw.get("sources") if isinstance(raw, dict) else None
+    if not isinstance(values, list):
+        return {}
+    return {
+        str(item["source_id"]): (
+            bool(item.get("compatibility_repaired")),
+            item.get("compatibility_repair_reason"),
+        )
+        for item in values
+        if isinstance(item, dict) and item.get("source_id")
+    }
+
+
 def _ingest(
     manifest_path: Path,
     vault: Path,
@@ -475,6 +493,7 @@ def _ingest(
     previous_state = _previous_event_state(vault)
     registry_version = _read_registry_version(vault)
     previous_registry = _read_registry_records(vault) if registry_version == 2 else []
+    previous_compatibility = _read_registry_compatibility(vault)
     previous_sources, source_state_repairs = _previous_source_state(vault)
     event_inventories = _manifest_events(manifest)
     prepared: list[_PreparedRecord] = []
@@ -849,15 +868,18 @@ def _ingest(
             **item,
             "path": item.get("current_path"),
             "sha256": item.get("current_content_sha256"),
-            "compatibility_repaired": str(item.get("source_id"))
-            in {str(repair.get("source_id")) for repair in source_state_repairs},
+            "compatibility_repaired": (
+                str(item.get("source_id"))
+                in {str(repair.get("source_id")) for repair in source_state_repairs}
+                or previous_compatibility.get(str(item.get("source_id")), (False, None))[0]
+            ),
             "compatibility_repair_reason": next(
                 (
                     str(repair.get("legacy_value"))
                     for repair in source_state_repairs
                     if str(repair.get("source_id")) == str(item.get("source_id"))
                 ),
-                None,
+                previous_compatibility.get(str(item.get("source_id")), (False, None))[1],
             ),
         }
         for item in registry_records
