@@ -296,6 +296,51 @@ def test_project_directory_move_preserves_persisted_uuid(tmp_path: Path) -> None
     assert {item["canonical_project_id"] for item in registry["sources"]} == {first_uuid}
 
 
+def test_same_run_file_directory_move_preserves_lineage(tmp_path: Path) -> None:
+    source, _manifest, vault = _workflow(tmp_path)
+    before = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+    original = next(
+        item["source_lineage_id"]
+        for item in before["sources"]
+        if item["current_path"] == "README.md"
+    )
+    moved_dir = source / "docs"
+    moved_dir.mkdir()
+    (source / "README.md").rename(moved_dir / "README.md")
+    moved_manifest = tmp_path / "file-move.json"
+    assert main(["discover", "--source", str(source), "--output", str(moved_manifest)]) == EXIT_OK
+    assert main(["ingest", "--manifest", str(moved_manifest), "--vault", str(vault)]) == EXIT_OK
+    after = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+    moved = next(item for item in after["sources"] if item["current_path"] == "docs/README.md")
+    assert moved["source_lineage_id"] == original
+    assert moved["source_change_state"] == "renamed"
+
+
+def test_independent_projects_receive_distinct_project_uuids(tmp_path: Path) -> None:
+    source = tmp_path / "projects"
+    first = source / "first"
+    second = source / "second"
+    first.mkdir(parents=True)
+    second.mkdir()
+    for directory, project in ((first, "first-independent"), (second, "second-independent")):
+        (directory / ".atlas-project.yaml").write_text(
+            f"schema_version: 1\nproject:\n  id: {project}\n", encoding="utf-8"
+        )
+        (directory / "README.md").write_text("# identical\n", encoding="utf-8")
+    manifest = tmp_path / "independent.json"
+    write_manifest(discover(source), manifest)
+    vault = tmp_path / "vault"
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    assert ingest(manifest, vault)["ok"] is True
+    uuids = {
+        line.split(":", 1)[1].strip()
+        for directory in (first, second)
+        for line in (directory / ".atlas-project.yaml").read_text(encoding="utf-8").splitlines()
+        if line.startswith("project_uuid:")
+    }
+    assert len(uuids) == 2
+
+
 def test_project_uuid_genesis_is_injected_once_and_replay_is_zero_write(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()

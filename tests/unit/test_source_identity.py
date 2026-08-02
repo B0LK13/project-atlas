@@ -10,6 +10,7 @@ import pytest
 
 from project_atlas.domain import PathHistoryEntry, SourceLineageRecord
 from project_atlas.lineage import (
+    UnresolvedIdentityError,
     build_project_registry,
     migrate_v1_records_with_receipts,
 )
@@ -171,4 +172,49 @@ def test_migration_rejects_cycles_and_missing_history() -> None:
         migrate_v1_records_with_receipts(
             [{**common, "source_id": "source-a", "path": "A.md", "renamed_from": "missing.md"}],
             "00000000-0000-4000-8000-000000000061",
+        )
+
+
+def test_case_rename_and_retired_path_change_are_distinct_outcomes() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000071"
+    first = build_project_registry(
+        project_uuid,
+        [{"source_id": "source-readme", "path": "README.md", "sha256": "a" * 64}],
+        [],
+    )
+    renamed = build_project_registry(
+        project_uuid,
+        [{"source_id": "source-readme-new", "path": "readme.md", "sha256": "a" * 64}],
+        first,
+    )
+    assert renamed[0]["source_change_state"] == "renamed"
+    assert renamed[0]["source_lineage_id"] == first[0]["source_lineage_id"]
+    deleted = build_project_registry(project_uuid, [], first)
+    with pytest.raises(UnresolvedIdentityError) as first_error:
+        build_project_registry(
+            project_uuid,
+            [{"source_id": "source-new", "path": "README.md", "sha256": "b" * 64}],
+            deleted,
+        )
+    with pytest.raises(UnresolvedIdentityError) as second_error:
+        build_project_registry(
+            project_uuid,
+            [{"source_id": "source-new", "path": "README.md", "sha256": "b" * 64}],
+            deleted,
+        )
+    assert first_error.value.finding == second_error.value.finding
+
+
+def test_registry_lineage_collision_fails_closed() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000081"
+    record = build_project_registry(
+        project_uuid,
+        [{"source_id": "source-one", "path": "one.md", "sha256": "a" * 64}],
+        [],
+    )[0]
+    with pytest.raises(ValueError, match="collision"):
+        build_project_registry(
+            project_uuid,
+            [{"source_id": "source-one", "path": "one.md", "sha256": "a" * 64}],
+            [record, record],
         )
