@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
+
+from pydantic import ValidationError
+
+from project_atlas.domain.source_registry import SourceLineageRecord
+from project_atlas.schema import validate_record
 
 LINK = re.compile(r"\]\(([^)]+)\)")
 
@@ -29,4 +35,38 @@ def validate(vault: Path) -> dict[str, Any]:
             else:
                 if not candidate.is_file():
                     errors.append(f"broken link: {markdown.relative_to(vault)} -> {target}")
+    registry = vault / "state" / "sources.json"
+    if registry.is_file():
+        try:
+            raw = json.loads(registry.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict) or raw.get("schema_version") != 2:
+                raise ValueError("source registry schema_version must be 2")
+            values = raw.get("sources")
+            if not isinstance(values, list):
+                raise ValueError("source registry sources must be a list")
+            for value in values:
+                if not isinstance(value, dict):
+                    raise ValueError("source registry records must be objects")
+                record = {
+                    key: item
+                    for key, item in value.items()
+                    if key
+                    not in {
+                        "path",
+                        "sha256",
+                        "compatibility_repaired",
+                        "compatibility_repair_reason",
+                    }
+                }
+                validated = SourceLineageRecord.model_validate(record)
+                validate_record(validated, "source-registry")
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            TypeError,
+            ValueError,
+            ValidationError,
+        ) as exc:
+            errors.append(f"invalid source registry: {exc}")
     return {"ok": not errors, "errors": errors, "markdown_files": len(list(vault.rglob("*.md")))}
