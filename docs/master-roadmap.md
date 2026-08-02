@@ -1183,3 +1183,11 @@ The completed Atlas platform should answer, reliably and with evidence:
 * Can the project’s history be reconstructed from receipts and source evidence?
 
 Project Atlas succeeds when it becomes the trusted reconstruction layer for the entire project estate—not merely another place where documents are stored.
+
+## AS-ID-001 — Durable Source Lineage Identity
+
+Implementation is complete pending governor review. The certified baseline is
+kept unchanged while the candidate adds UUIDv4 project genesis, registry v2,
+source-lineage continuity, raw-byte fingerprints, atomic migration receipts,
+and fail-closed ambiguity handling. AS-CORE-003 remains a separate frozen
+package until this identity contract is reviewed and merged.

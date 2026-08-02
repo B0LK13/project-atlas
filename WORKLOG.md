@@ -596,3 +596,18 @@ Implementation commit: `2cb0d8b`. Local evidence is complete; the hotfix is
 independently recertified by Agent Two as merge eligible. This evidence-only
 amendment corrects the repository-suite labeling and stale remediation status;
 the implementation commit remains frozen.
+
+## AS-ID-001 — Durable Source Lineage Identity
+
+**Status:** implementation complete — governor review required
+**Base:** `313712ee28083693ae39470b2d7148dc74617322`
+**Architecture:** `ae98fba`
+**Implementation:** `3a04cf1`
+**Evidence:** `docs/evidence/AS-ID-001-receipt.yaml`
+
+Added UUIDv4 project genesis, Core-local single-winner synchronization, source
+registry v2, durable lineage derivation, canonical paths, raw-byte fingerprints,
+v1 migration receipts, duplicate-project detection, strict lineage validation,
+and lifecycle replay/rollback fixtures. The full Core and Control Plane suites,
+static checks, compilation, and public workflow tests pass. AS-CORE-003 remains
+frozen pending this package's independent review.

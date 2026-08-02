@@ -155,3 +155,14 @@
 - [ ] CORE2-008 Add duplicate-source conflict projections and authority review queue
 - [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
 - [ ] CORE2-010 Run controlled pilot lifecycle certification
+
+## AS-ID-001 — Durable Source Lineage Identity
+
+- [x] ID-001 Add UUIDv4 project genesis with injected test providers
+- [x] ID-002 Add Core-local project identity synchronization
+- [x] ID-003 Add source registry v2 and durable lineage derivation
+- [x] ID-004 Add canonical path and raw-byte fingerprint contracts
+- [x] ID-005 Add atomic v1-to-v2 migration receipts
+- [x] ID-006 Add duplicate-identity and ambiguity fail-closed checks
+- [x] ID-007 Add replay, rollback, concurrency, and schema validation tests
+- [ ] ID-008 Governor review and independent certification
