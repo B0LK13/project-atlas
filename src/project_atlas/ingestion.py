@@ -372,6 +372,28 @@ def _find_project_marker(root: Path, relative_path: str, project: str) -> Path:
     raise ValueError(f"project marker not found for project: {project}")
 
 
+def _project_context(root: Path, relative_path: str, project: str) -> dict[str, str]:
+    """Read optional concept metadata from the authoritative project marker."""
+    try:
+        marker = _find_project_marker(root, relative_path, project)
+    except ValueError as exc:
+        if str(exc).startswith("project marker not found for project:"):
+            return {}
+        raise
+    try:
+        raw = yaml.safe_load(marker.read_text(encoding="utf-8")) or {}
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ValueError(f"invalid project marker: {marker}") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"project marker must be an object: {marker}")
+    concept_type = raw.get("concept_type")
+    if concept_type is None:
+        return {}
+    if not isinstance(concept_type, str) or not concept_type.strip():
+        raise ValueError(f"project marker concept_type must be a non-empty string: {marker}")
+    return {"concept_type": concept_type}
+
+
 def _prepare_project_identity(
     root: Path,
     vault: Path,
@@ -591,6 +613,7 @@ def _ingest(
     for source_record, source, destination, text in prepared:
         classification, method = _classify(source_record.path, text)
         source_id = source_record.source_id
+        project = source_record.likely_project or "unknown-project"
         entry: dict[str, Any] = {
             "source_id": source_id,
             "source_lineage_id": source_record.source_lineage_id or "",
@@ -600,11 +623,11 @@ def _ingest(
             "sha256": source_record.sha256 or "",
             "text": text,
         }
+        entry.update(_project_context(root, source_record.path, project))
         if source_record.lineage_resolution is not None:
             entry["lineage_resolution"] = source_record.lineage_resolution.model_dump(mode="json")
         imported.append(entry)
         classifications[source_id] = {"type": classification, "method": method}
-        project = source_record.likely_project or "unknown-project"
         projects.setdefault(project, []).append(entry)
         source_bytes = source.read_bytes()
         manifest_hash = hashlib.sha256(source_bytes).hexdigest()

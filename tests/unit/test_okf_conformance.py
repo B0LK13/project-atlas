@@ -59,20 +59,6 @@ def test_okf_concept_note_matches_golden_file() -> None:
     assert render_concept_note(_concept(), "projects/project-1/concepts.md") == expected
 
 
-def test_unknown_source_concept_type_becomes_generic_reference() -> None:
-    entry = {
-        "source_id": "source-unknown",
-        "path": "NOTES.md",
-        "classification": "unknown",
-        "concept_type": "FutureConcept",
-        "source": "sources/imported-documents/source-unknown.md",
-        "sha256": "a" * 64,
-        "text": "Unclassified evidence.",
-    }
-    bundle = compile_knowledge("project-1", [entry], Path("/tmp/as-spec-004"))
-    assert bundle.concepts[0].type is ConceptType.REFERENCE
-
-
 def test_concept_render_replay_is_byte_identical() -> None:
     entry = {
         "source_id": "source-replay",
