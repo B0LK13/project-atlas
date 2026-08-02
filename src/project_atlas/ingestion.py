@@ -5,8 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, NamedTuple
+
+import yaml
 
 from pydantic import ValidationError
 
@@ -23,6 +26,13 @@ from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import DocumentLifecycle
 from project_atlas.secrets import scan_text
 from project_atlas.semantic_compiler import compile_project_record, render_project_record
+from project_atlas.lineage import build_project_registry, migrate_v1_records
+from project_atlas.source_identity import (
+    ProjectIdentityLock,
+    ProjectUuidProvider,
+    production_project_uuid,
+    validate_project_uuid,
+)
 
 CLASS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("architecture", ("architecture", "design")),
@@ -291,7 +301,7 @@ def _previous_source_state(
         return [], []
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(raw, dict) or raw.get("schema_version") != 1:
+        if not isinstance(raw, dict) or raw.get("schema_version") not in {1, 2}:
             raise ValueError("source lifecycle state schema_version is unsupported")
         values = raw.get("sources")
         if not isinstance(values, list):
@@ -301,6 +311,32 @@ def _previous_source_state(
         for item in values:
             if not isinstance(item, dict):
                 raise ValueError("source lifecycle records must be objects")
+            if raw.get("schema_version") == 2:
+                record = {
+                    "schema_version": 1,
+                    "source_id": item.get("source_id"),
+                    "path": item.get("current_path"),
+                    "sha256": item.get("current_content_sha256"),
+                    "document_lifecycle": item.get("document_lifecycle", "verified"),
+                    "source_change_state": item.get("source_change_state", "unchanged"),
+                    "renamed_from": item.get("renamed_from"),
+                    "restored_as": item.get("restored_as"),
+                    "compatibility_repaired": False,
+                    "compatibility_repair_reason": None,
+                }
+                records.append(record)
+                continue
+            if "current_path" in item or "current_content_sha256" in item:
+                item = {
+                    "source_id": item.get("source_id"),
+                    "path": item.get("current_path"),
+                    "sha256": item.get("current_content_sha256"),
+                    "document_lifecycle": item.get("document_lifecycle", "verified"),
+                    "source_change_state": item.get("source_change_state", "unchanged"),
+                    "lifecycle": item.get("lifecycle"),
+                    "compatibility_repaired": item.get("compatibility_repaired", False),
+                    "compatibility_repair_reason": item.get("compatibility_repair_reason"),
+                }
             repaired, repair = _repair_source_state_item(item)
             records.append(SourceLifecycleRecord.model_validate(repaired).model_dump(mode="json"))
             if repair:
@@ -310,7 +346,115 @@ def _previous_source_state(
         raise ValueError(f"invalid source lifecycle state: {exc}") from exc
 
 
-def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
+def _find_project_marker(root: Path, relative_path: str, project: str) -> Path:
+    current = _source_path(root, relative_path).parent
+    while True:
+        for marker in (current / ".atlas-project.yaml", current / ".atlas" / "project.yaml"):
+            if marker.is_file() and not marker.is_symlink():
+                try:
+                    raw = yaml.safe_load(marker.read_text(encoding="utf-8")) or {}
+                except (OSError, UnicodeError, yaml.YAMLError) as exc:
+                    raise ValueError(f"invalid project marker: {marker}") from exc
+                marker_project = raw.get("project", {}).get("id") if isinstance(raw, dict) else None
+                if marker_project == project:
+                    return marker
+        if current == root or current.parent == current:
+            break
+        current = current.parent
+    raise ValueError(f"project marker not found for project: {project}")
+
+
+def _prepare_project_identity(
+    root: Path,
+    vault: Path,
+    project: str,
+    relative_path: str,
+    uuid_provider: ProjectUuidProvider,
+    write_plan: dict[Path, bytes],
+) -> tuple[str, Path, bytes, bool]:
+    """Prepare an immutable project UUID marker mutation inside the plan."""
+    marker = _find_project_marker(root, relative_path, project)
+    original = marker.read_bytes()
+    try:
+        data = yaml.safe_load(original.decode("utf-8")) or {}
+    except (UnicodeError, yaml.YAMLError) as exc:
+        raise ValueError(f"invalid project marker: {marker}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"project marker must be an object: {marker}")
+    raw_uuid = data.get("project_uuid")
+    allocated = raw_uuid is None
+    if allocated:
+        project_uuid = validate_project_uuid(uuid_provider())
+        data["project_uuid"] = project_uuid
+        updated = yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode("utf-8")
+        write_plan[marker] = updated
+        receipt = vault / "receipts" / "source-lineage" / f"project-{project}-allocation.json"
+        if receipt.is_file():
+            raise ValueError(f"project UUID allocation receipt already exists: {receipt}")
+        write_plan[receipt] = (
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "receipt_type": "project-identity-allocation",
+                    "project": project,
+                    "project_uuid": project_uuid,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode("utf-8")
+    else:
+        project_uuid = validate_project_uuid(str(raw_uuid))
+    return project_uuid, marker, original, allocated
+
+
+def _assert_marker_compare_and_swap(preconditions: dict[Path, bytes]) -> None:
+    for path, expected in preconditions.items():
+        if not path.is_file() or path.read_bytes() != expected:
+            raise ValueError(f"project marker changed during identity transaction: {path}")
+
+
+def _read_registry_version(vault: Path) -> int:
+    path = vault / "state" / "sources.json"
+    if not path.is_file():
+        return 0
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"invalid source registry: {path}") from exc
+    if not isinstance(raw, dict) or not isinstance(raw.get("schema_version"), int):
+        raise ValueError(f"invalid source registry: {path}")
+    return int(raw["schema_version"])
+
+
+def _read_registry_records(vault: Path) -> list[dict[str, Any]]:
+    path = vault / "state" / "sources.json"
+    if not path.is_file():
+        return []
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    values = raw.get("sources") if isinstance(raw, dict) else None
+    if not isinstance(values, list):
+        raise ValueError(f"invalid source registry: {path}")
+    records: list[dict[str, Any]] = []
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        record = dict(item)
+        record.pop("path", None)
+        record.pop("sha256", None)
+        record.pop("compatibility_repaired", None)
+        record.pop("compatibility_repair_reason", None)
+        records.append(record)
+    return records
+
+
+def _ingest(
+    manifest_path: Path,
+    vault: Path,
+    *,
+    uuid_provider: ProjectUuidProvider = production_project_uuid,
+) -> dict[str, Any]:
     """Ingest eligible manifest records and create provenance-backed notes."""
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     sources = _manifest_records(manifest)
@@ -327,6 +471,8 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
     security_findings: list[dict[str, str]] = []
     write_plan: dict[Path, bytes] = {}
     previous_state = _previous_event_state(vault)
+    registry_version = _read_registry_version(vault)
+    previous_registry = _read_registry_records(vault) if registry_version == 2 else []
     previous_sources, source_state_repairs = _previous_source_state(vault)
     event_inventories = _manifest_events(manifest)
     prepared: list[_PreparedRecord] = []
@@ -483,6 +629,32 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             }
         )
         projects.setdefault(package.project_id, [])
+    project_identity: dict[str, str] = {}
+    marker_preconditions: dict[Path, bytes] = {}
+    for project, entries in sorted(projects.items()):
+        if not entries or project == "unknown-project":
+            continue
+        project_uuid, marker, original_marker, _allocated = _prepare_project_identity(
+            root, vault, project, str(entries[0]["path"]), uuid_provider, write_plan
+        )
+        project_identity[project] = project_uuid
+        marker_preconditions[marker] = original_marker
+    by_uuid: dict[str, list[str]] = {}
+    for project, project_uuid in project_identity.items():
+        by_uuid.setdefault(project_uuid, []).append(project)
+    duplicate_uuids = {
+        project_uuid: owners
+        for project_uuid, owners in by_uuid.items()
+        if len(owners) > 1
+    }
+    if duplicate_uuids:
+        raise ValueError(
+            "duplicate active project_uuid values: "
+            + ", ".join(
+                f"{project_uuid} ({', '.join(sorted(owners))})"
+                for project_uuid, owners in sorted(duplicate_uuids.items())
+            )
+        )
     _validate_existing_markers(vault, set(projects))
     current_event_ids = {
         record["event_id"]
@@ -602,10 +774,50 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             if restored_id:
                 tombstone["restored_as"] = restored_id
             current_sources.append(tombstone)
+    registry_records: list[dict[str, Any]] = []
+    for project, entries in sorted(projects.items()):
+        project_uuid = project_identity.get(project)
+        if project_uuid is None or not entries:
+            continue
+        if registry_version == 1:
+            prior_for_project = migrate_v1_records(previous_sources, project_uuid)
+        else:
+            prior_for_project = [
+                item
+                for item in previous_registry
+                if item.get("canonical_project_id") == project_uuid
+            ]
+        registry_records.extend(build_project_registry(project_uuid, entries, prior_for_project))
+    retained_projects = {
+        str(item.get("canonical_project_id"))
+        for item in registry_records
+        if item.get("canonical_project_id")
+    }
+    registry_records.extend(
+        item
+        for item in previous_registry
+        if str(item.get("canonical_project_id")) not in retained_projects
+    )
+    registry_records = [
+        {
+            **item,
+            "path": item.get("current_path"),
+            "sha256": item.get("current_content_sha256"),
+            "compatibility_repaired": str(item.get("source_id"))
+            in {str(repair.get("source_id")) for repair in source_state_repairs},
+            "compatibility_repair_reason": next(
+                (
+                    str(repair.get("legacy_value"))
+                    for repair in source_state_repairs
+                    if str(repair.get("source_id")) == str(item.get("source_id"))
+                ),
+                None,
+            ),
+        }
+        for item in registry_records
+    ]
     write_plan[_inside(vault, vault / "state" / "sources.json")] = (
-        json.dumps(
-            {"schema_version": 1, "sources": current_sources}, indent=2, sort_keys=True
-        )
+        json.dumps({"schema_version": 2, "sources": registry_records}, indent=2, sort_keys=True)
         + "\n"
     ).encode()
     if source_state_repairs:
@@ -688,6 +900,7 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
             write_plan[_inside(vault, project_root / f"{name}.md")] = (
                 "\n".join(lines) + "\n"
             ).encode()
+    _assert_marker_compare_and_swap(marker_preconditions)
     _promote(write_plan)
     return {
         "ok": True,
@@ -698,3 +911,29 @@ def ingest(manifest_path: Path, vault: Path) -> dict[str, Any]:
         "security_findings": len(security_findings),
         "inventory_sha256": manifest.get("inventory_sha256"),
     }
+
+
+def ingest(
+    manifest_path: Path,
+    vault: Path,
+    *,
+    uuid_provider: ProjectUuidProvider = production_project_uuid,
+) -> dict[str, Any]:
+    """Run ingestion under Core-local project identity guards."""
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    sources = _manifest_records(manifest)
+    projects = sorted(
+        {
+            str(record.likely_project)
+            for record in sources
+            if record.likely_project and record.likely_project != "unknown-project"
+        }
+    )
+    vault = vault.expanduser().resolve()
+    with ExitStack() as stack:
+        for project in projects:
+            lock_key = hashlib.sha256(project.encode("utf-8")).hexdigest()[:20]
+            stack.enter_context(
+                ProjectIdentityLock(vault / ".atlas" / "identity-locks" / f"{lock_key}.lock")
+            )
+        return _ingest(manifest_path, vault, uuid_provider=uuid_provider)

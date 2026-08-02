@@ -172,10 +172,17 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
     assert main(["ingest", "--manifest", str(renamed_manifest), "--vault", str(vault)]) == EXIT_OK
     renamed_state = json.loads((vault / "state/sources.json").read_text())
     assert any(item["source_change_state"] == "renamed" for item in renamed_state["sources"])
-    assert any(
-        item["source_change_state"] == "restored-elsewhere"
-        for item in renamed_state["sources"]
+    renamed = next(
+        item for item in renamed_state["sources"] if item["source_change_state"] == "renamed"
     )
+    assert renamed["source_lineage_id"]
+    assert {entry["path"] for entry in renamed["path_history"]} >= {
+        "ARCHITECTURE.md",
+        "ARCHITECTURE-renamed.md",
+    }
+    assert len(
+        {item["source_lineage_id"] for item in renamed_state["sources"]}
+    ) == len(renamed_state["sources"])
 
 
 def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(

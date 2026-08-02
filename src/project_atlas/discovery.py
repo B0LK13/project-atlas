@@ -16,6 +16,7 @@ import yaml
 from atlas_contracts.event_package import EventPackageInventory, inspect_event_package
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import ClassificationState
+from project_atlas.source_identity import canonicalize_project_path, validate_project_uuid
 
 SUPPORTED_EXTENSIONS = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".html"}
 SENSITIVE_NAMES = {".env", "credentials.json", "secrets.pem", "id_rsa", "id_ed25519"}
@@ -33,17 +34,26 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _project_id(path: Path, root: Path) -> str | None:
+def _project_context(path: Path, root: Path) -> tuple[str | None, str | None]:
     current = path.parent
     while True:
         for marker in (current / ".atlas-project.yaml", current / ".atlas" / "project.yaml"):
             if marker.is_file():
                 data = yaml.safe_load(marker.read_text(encoding="utf-8")) or {}
                 value = data.get("project", {}).get("id") if isinstance(data, dict) else None
-                return str(value) if isinstance(value, str) and value else None
+                raw_uuid = data.get("project_uuid") if isinstance(data, dict) else None
+                project_uuid = None
+                if raw_uuid is not None:
+                    project_uuid = validate_project_uuid(str(raw_uuid))
+                return (str(value) if isinstance(value, str) and value else None, project_uuid)
         if current == root or current.parent == current:
-            return None
+            return None, None
         current = current.parent
+
+
+def _project_id(path: Path, root: Path) -> str | None:
+    """Return the compatibility display/project scope identifier."""
+    return _project_context(path, root)[0]
 
 
 def _excluded(relative: str, path: Path, *, excludes: list[str]) -> str | None:
@@ -123,17 +133,21 @@ def discover(
         stat = path.stat()
         if reason is None and stat.st_size > max_file_size:
             reason = "oversized"
-        source_id = "source-" + hashlib.sha256(relative.encode("utf-8")).hexdigest()[:16]
+        canonical_relative = canonicalize_project_path(relative)
+        source_id = "source-" + hashlib.sha256(canonical_relative.encode("utf-8")).hexdigest()[:16]
         digest = None if reason == "sensitive-metadata-only" else _sha256(path)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
+        project_id, project_uuid = _project_context(path, root)
         source_record = SourceRecord(
             source_id=source_id,
+            project_uuid=project_uuid,
+            source_lineage_id=None,
             path=relative,
             media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
             sha256=digest,
             size_bytes=stat.st_size,
             modified_at=modified,
-            likely_project=_project_id(path, root),
+            likely_project=project_id,
             classification_state=(
                 ClassificationState.EXCLUDED if reason else ClassificationState.UNCLASSIFIED
             ),
