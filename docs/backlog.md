@@ -141,3 +141,17 @@
 - [ ] INT-011 Define receipt revocation and invalidation semantics
 - [ ] INT-012 Define schema migration and compatibility tooling
 - [ ] INT-013 Run the bounded multi-project integration pilot
+
+## AS-CORE-002 — Semantic domain model and source lifecycle hardening
+
+- [x] CORE2-001 Add strict versioned Project, source lifecycle, authority,
+  coverage, validation, decision, work-package and agent-event reference models
+- [x] CORE2-002 Add semantic record schema and schema validation coverage
+- [x] CORE2-003 Compile deterministic rich project metadata and coverage
+- [x] CORE2-004 Preserve human regions and fail closed on malformed markers
+- [x] CORE2-005 Add content-based secret findings with metadata-only output
+- [x] CORE2-006 Persist source lifecycle state and deletion tombstones
+- [ ] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
+- [ ] CORE2-008 Add duplicate-source conflict projections and authority review queue
+- [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
+- [ ] CORE2-010 Run controlled pilot lifecycle certification
