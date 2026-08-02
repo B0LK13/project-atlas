@@ -2,7 +2,7 @@ schema_version: 1
 package: AS-SPEC-004
 status: implementation-complete-governor-review-required
 certified_base_commit: 098c5e7ea030d4c52e742e71f45ac10639c66513
-implementation_commit: 9dd7ce5e4a8d85a224cc00530bf0f21c867f949b
+implementation_commit: 9dd7ce5668658d4bae0e33d0c0fee9d0d765a6ab
 evidence_commit: SELF
 branch: feat/as-spec-004-okf-v02-conformance
 okf_version_target: "0.2"
