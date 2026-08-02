@@ -2,6 +2,8 @@
 
 import json
 import os
+import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -146,12 +148,23 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
         == EXIT_OK
     )
     assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    deleted_state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+    architecture_lineage = next(
+        item["source_lineage_id"]
+        for item in deleted_state["sources"]
+        if item["current_path"] == "ARCHITECTURE.md"
+    )
     (source / "ARCHITECTURE.md").write_text("# Restored with changed content\n", encoding="utf-8")
     restored_manifest = tmp_path / "restored.json"
     assert (
         main(["discover", "--source", str(source), "--output", str(restored_manifest)])
         == EXIT_OK
     )
+    restored_payload = json.loads(restored_manifest.read_text(encoding="utf-8"))
+    for item in restored_payload["sources"]:
+        if item["path"] == "ARCHITECTURE.md":
+            item["source_lineage_id"] = architecture_lineage
+    restored_manifest.write_text(json.dumps(restored_payload), encoding="utf-8")
     assert main(["ingest", "--manifest", str(restored_manifest), "--vault", str(vault)]) == EXIT_OK
     restored_state = json.loads((vault / "state/sources.json").read_text())
     assert any(item["source_change_state"] == "restored" for item in restored_state["sources"])
@@ -174,11 +187,21 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
         main(["discover", "--source", str(source), "--output", str(renamed_manifest)])
         == EXIT_OK
     )
+    renamed_payload = json.loads(renamed_manifest.read_text(encoding="utf-8"))
+    for item in renamed_payload["sources"]:
+        if item["path"] == "ARCHITECTURE-renamed.md":
+            item["source_lineage_id"] = architecture_lineage
+    renamed_manifest.write_text(json.dumps(renamed_payload), encoding="utf-8")
     assert main(["ingest", "--manifest", str(renamed_manifest), "--vault", str(vault)]) == EXIT_OK
     renamed_state = json.loads((vault / "state/sources.json").read_text())
-    assert any(item["source_change_state"] == "renamed" for item in renamed_state["sources"])
+    assert any(
+        item["source_change_state"] == "restored-elsewhere"
+        for item in renamed_state["sources"]
+    )
     renamed = next(
-        item for item in renamed_state["sources"] if item["source_change_state"] == "renamed"
+        item
+        for item in renamed_state["sources"]
+        if item["source_change_state"] == "restored-elsewhere"
     )
     assert renamed["source_lineage_id"]
     assert {entry["path"] for entry in renamed["path_history"]} >= {
@@ -340,6 +363,46 @@ def test_concurrent_project_initializers_have_one_uuid_receipt(tmp_path: Path) -
         "00000000-0000-4000-8000-000000000021",
         "00000000-0000-4000-8000-000000000022",
     }
+    assert len(list((vault / "receipts/source-lineage").glob("project-*.json"))) == 1
+    assert not list((vault / ".atlas/identity-locks").glob("*.lock"))
+
+
+def test_public_multiprocess_initializers_have_one_committed_uuid(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: process-fixture\n", encoding="utf-8"
+    )
+    (source / "README.md").write_text("# process\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    write_manifest(discover(source), manifest)
+    vault = tmp_path / "vault"
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    command = [
+        sys.executable,
+        "-m",
+        "project_atlas.cli",
+        "ingest",
+        "--manifest",
+        str(manifest),
+        "--vault",
+        str(vault),
+    ]
+    processes = [
+        subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for _ in range(2)
+    ]
+    results = [process.communicate(timeout=30) for process in processes]
+    assert [process.returncode for process in processes] == [EXIT_OK, EXIT_OK]
+    assert all(stdout for stdout, _stderr in results)
+    marker = source / ".atlas-project.yaml"
+    committed_uuid = next(
+        line.split(":", 1)[1].strip()
+        for line in marker.read_text(encoding="utf-8").splitlines()
+        if line.startswith("project_uuid:")
+    )
+    state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
+    assert {item["canonical_project_id"] for item in state["sources"]} == {committed_uuid}
     assert len(list((vault / "receipts/source-lineage").glob("project-*.json"))) == 1
     assert not list((vault / ".atlas/identity-locks").glob("*.lock"))
 

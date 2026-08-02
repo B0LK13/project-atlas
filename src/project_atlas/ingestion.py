@@ -21,9 +21,14 @@ from atlas_contracts.event_package import (
 )
 from atlas_contracts.identity import safe_relative_component
 from project_atlas.domain.semantic import SourceLifecycleRecord
+from project_atlas.domain.source_registry import SourceLineageRecord
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import DocumentLifecycle
-from project_atlas.lineage import build_project_registry, migrate_v1_records
+from project_atlas.lineage import (
+    build_project_registry,
+    migrate_v1_records_with_receipts,
+)
+from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
 from project_atlas.semantic_compiler import compile_project_record, render_project_record
 from project_atlas.source_identity import (
@@ -417,6 +422,61 @@ def _assert_marker_compare_and_swap(preconditions: dict[Path, bytes]) -> None:
             raise ValueError(f"project marker changed during identity transaction: {path}")
 
 
+def _verify_identity_post_state(
+    vault: Path,
+    project_identity: dict[str, str],
+    markers: dict[str, Path],
+    allocated_projects: set[str],
+) -> None:
+    """Verify promoted identity state while the project lock is still held."""
+    registry_path = vault / "state" / "sources.json"
+    try:
+        raw = json.loads(registry_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError("post-promotion source registry cannot be reread") from exc
+    if not isinstance(raw, dict) or raw.get("schema_version") != 2:
+        raise ValueError("post-promotion source registry schema mismatch")
+    values = raw.get("sources")
+    if not isinstance(values, list):
+        raise ValueError("post-promotion source registry records are invalid")
+    parsed: list[SourceLineageRecord] = []
+    for value in values:
+        if not isinstance(value, dict):
+            raise ValueError("post-promotion source registry record is invalid")
+        record = SourceLineageRecord.model_validate(value)
+        validate_record(record, "source-registry")
+        parsed.append(record)
+    lineage_ids = [record.source_lineage_id for record in parsed]
+    if len(lineage_ids) != len(set(lineage_ids)):
+        raise ValueError("post-promotion source registry has conflicting lineage IDs")
+    for project, project_uuid in project_identity.items():
+        marker = markers[project]
+        try:
+            marker_data = yaml.safe_load(marker.read_text(encoding="utf-8")) or {}
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise ValueError(f"post-promotion project marker cannot be reread: {marker}") from exc
+        if not isinstance(marker_data, dict) or validate_project_uuid(
+            str(marker_data.get("project_uuid"))
+        ) != project_uuid:
+            raise ValueError(f"post-promotion project UUID mismatch: {project}")
+        project_records = [
+            record for record in parsed if record.canonical_project_id == project_uuid
+        ]
+        if not project_records:
+            raise ValueError(f"post-promotion registry has no records for project: {project}")
+        allocation_receipts = list(
+            (vault / "receipts" / "source-lineage").glob(
+                f"project-{project}-allocation.json"
+            )
+        )
+        if project in allocated_projects and len(allocation_receipts) != 1:
+            raise ValueError(f"post-promotion allocation receipt count mismatch: {project}")
+        if allocation_receipts:
+            receipt = json.loads(allocation_receipts[0].read_text(encoding="utf-8"))
+            if receipt.get("project_uuid") != project_uuid:
+                raise ValueError(f"post-promotion allocation receipt identity mismatch: {project}")
+
+
 def _read_registry_version(vault: Path) -> int:
     path = vault / "state" / "sources.json"
     if not path.is_file():
@@ -532,6 +592,7 @@ def _ingest(
         source_id = source_record.source_id
         entry: dict[str, str] = {
             "source_id": source_id,
+            "source_lineage_id": source_record.source_lineage_id or "",
             "path": source_record.path,
             "classification": classification,
             "source": f"../../sources/imported-documents/{destination.name}",
@@ -652,6 +713,8 @@ def _ingest(
         projects.setdefault(package.project_id, [])
     project_identity: dict[str, str] = {}
     marker_preconditions: dict[Path, bytes] = {}
+    identity_markers: dict[str, Path] = {}
+    allocated_projects: set[str] = set()
     for project, entries in sorted(projects.items()):
         if not entries or project == "unknown-project":
             continue
@@ -668,6 +731,9 @@ def _ingest(
             continue
         project_identity[project] = project_uuid
         marker_preconditions[marker] = original_marker
+        identity_markers[project] = marker
+        if _allocated:
+            allocated_projects.add(project)
     by_uuid: dict[str, list[str]] = {}
     for project, project_uuid in project_identity.items():
         by_uuid.setdefault(project_uuid, []).append(project)
@@ -829,21 +895,10 @@ def _ingest(
         if registry_project_uuid is None or not entries:
             continue
         if registry_version == 1:
-            prior_for_project = migrate_v1_records(previous_sources, registry_project_uuid)
-            for migrated in prior_for_project:
-                lineage_migration_receipts.append(
-                    {
-                        "schema_version": 1,
-                        "receipt_type": "source-lineage-migration",
-                        "project_uuid": registry_project_uuid,
-                        "source_ids": [str(migrated["source_id"])],
-                        "source_lineage_id": migrated["source_lineage_id"],
-                        "lineage_generation": migrated["lineage_generation"],
-                        "origin_path": migrated["first_seen_path"],
-                        "origin_sha256": migrated["first_content_sha256"],
-                        "schema_transition": "1-to-2",
-                    }
-                )
+            prior_for_project, migration_receipts = migrate_v1_records_with_receipts(
+                previous_sources, registry_project_uuid
+            )
+            lineage_migration_receipts.extend(migration_receipts)
         else:
             prior_for_project = [
                 item
@@ -981,6 +1036,9 @@ def _ingest(
             ).encode()
     _assert_marker_compare_and_swap(marker_preconditions)
     _promote(write_plan)
+    _verify_identity_post_state(
+        vault, project_identity, identity_markers, allocated_projects
+    )
     return {
         "ok": True,
         "projects": len(projects),

@@ -9,7 +9,10 @@ from pathlib import Path
 import pytest
 
 from project_atlas.domain import PathHistoryEntry, SourceLineageRecord
-from project_atlas.lineage import build_project_registry
+from project_atlas.lineage import (
+    build_project_registry,
+    migrate_v1_records_with_receipts,
+)
 from project_atlas.schema import validate_record
 from project_atlas.source_identity import (
     canonicalize_project_path,
@@ -107,9 +110,65 @@ def test_copy_gets_distinct_lineage_and_ambiguous_restore_fails_closed() -> None
     assert len(identities) == 2
     tombstoned = build_project_registry(project_uuid, [], copied)
     assert all(item["source_change_state"] == "deleted" for item in tombstoned)
-    with pytest.raises(ValueError, match="unresolved source identity"):
+    with pytest.raises(ValueError, match="unresolved-identity"):
         build_project_registry(
             project_uuid,
             [{"source_id": "source-new", "path": "README.md", "sha256": "a" * 64}],
             tombstoned,
+        )
+
+
+def test_migration_builds_chain_receipt_and_is_order_independent() -> None:
+    project_uuid = "00000000-0000-4000-8000-000000000051"
+    first = {
+        "source_id": "source-old",
+        "path": "README.md",
+        "sha256": "a" * 64,
+        "first_seen": "2026-01-01T00:00:00Z",
+        "last_seen": "2026-01-01T00:00:00Z",
+        "document_lifecycle": "verified",
+        "source_change_state": "renamed",
+    }
+    moved = {
+        "source_id": "source-moved",
+        "path": "docs/README.md",
+        "sha256": "a" * 64,
+        "first_seen": "2026-01-02T00:00:00Z",
+        "last_seen": "2026-01-03T00:00:00Z",
+        "renamed_from": "README.md",
+        "document_lifecycle": "verified",
+        "source_change_state": "unchanged",
+    }
+    migrated, receipts = migrate_v1_records_with_receipts(
+        [moved, first], project_uuid
+    )
+    migrated_again, receipts_again = migrate_v1_records_with_receipts(
+        [first, moved], project_uuid
+    )
+    assert migrated == migrated_again
+    assert receipts == receipts_again
+    assert len(migrated) == 1
+    validate_record(migrated[0], "source-registry")
+    assert receipts[0]["chain_members"] == ["source-old", "source-moved"]
+    assert receipts[0]["ordering_key"] == ["2026-01-01T00:00:00Z", "README.md", "a" * 64]
+
+
+def test_migration_rejects_cycles_and_missing_history() -> None:
+    common = {
+        "sha256": "a" * 64,
+        "document_lifecycle": "verified",
+        "source_change_state": "renamed",
+    }
+    with pytest.raises(ValueError, match="cycle"):
+        migrate_v1_records_with_receipts(
+            [
+                {**common, "source_id": "source-a", "path": "A.md", "renamed_from": "B.md"},
+                {**common, "source_id": "source-b", "path": "B.md", "renamed_from": "A.md"},
+            ],
+            "00000000-0000-4000-8000-000000000061",
+        )
+    with pytest.raises(ValueError, match="incomplete"):
+        migrate_v1_records_with_receipts(
+            [{**common, "source_id": "source-a", "path": "A.md", "renamed_from": "missing.md"}],
+            "00000000-0000-4000-8000-000000000061",
         )

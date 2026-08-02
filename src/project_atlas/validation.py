@@ -47,18 +47,7 @@ def validate(vault: Path) -> dict[str, Any]:
             for value in values:
                 if not isinstance(value, dict):
                     raise ValueError("source registry records must be objects")
-                record = {
-                    key: item
-                    for key, item in value.items()
-                    if key
-                    not in {
-                        "path",
-                        "sha256",
-                        "compatibility_repaired",
-                        "compatibility_repair_reason",
-                    }
-                }
-                validated = SourceLineageRecord.model_validate(record)
+                validated = SourceLineageRecord.model_validate(value)
                 validate_record(validated, "source-registry")
         except (
             OSError,

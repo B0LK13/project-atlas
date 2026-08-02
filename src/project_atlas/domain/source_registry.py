@@ -54,6 +54,11 @@ class SourceLineageRecord(BaseModel):
     restored_as: str | None = Field(default=None, pattern=LINEAGE_ID_PATTERN)
     supersedes_lineage: str | None = Field(default=None, pattern=LINEAGE_ID_PATTERN)
     superseded_by_lineage: str | None = Field(default=None, pattern=LINEAGE_ID_PATTERN)
+    # Deprecated v1 mirror fields remain explicit during the compatibility window.
+    path: str | None = None
+    sha256: str | None = None
+    compatibility_repaired: bool = False
+    compatibility_repair_reason: str | None = None
 
     @field_validator("canonical_project_id")
     @classmethod
@@ -79,4 +84,8 @@ class SourceLineageRecord(BaseModel):
         )
         if self.source_lineage_id != expected:
             raise ValueError("source_lineage_id does not match the canonical lineage formula")
+        if self.path is not None and self.path != self.current_path:
+            raise ValueError("deprecated path mirror must equal current_path")
+        if self.sha256 is not None and self.sha256 != self.current_content_sha256:
+            raise ValueError("deprecated sha256 mirror must equal current_content_sha256")
         return self

@@ -22,7 +22,11 @@
     "renamed_from": { "type": ["string", "null"] },
     "restored_as": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
     "supersedes_lineage": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
-    "superseded_by_lineage": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" }
+    "superseded_by_lineage": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
+    "path": { "type": ["string", "null"], "minLength": 1 },
+    "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "compatibility_repaired": { "type": "boolean" },
+    "compatibility_repair_reason": { "type": ["string", "null"] }
   },
   "$defs": {
     "path-history": {
