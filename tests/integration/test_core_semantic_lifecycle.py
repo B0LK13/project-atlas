@@ -5,6 +5,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.ingestion import ingest
@@ -296,6 +298,29 @@ def test_concurrent_project_initializers_have_one_uuid_receipt(tmp_path: Path) -
     }
     assert len(list((vault / "receipts/source-lineage").glob("project-*.json"))) == 1
     assert not list((vault / ".atlas/identity-locks").glob("*.lock"))
+
+
+def test_duplicate_active_project_uuid_fails_before_promotion(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    first = source / "first"
+    second = source / "second"
+    first.mkdir(parents=True)
+    second.mkdir()
+    shared_uuid = "00000000-0000-4000-8000-000000000031"
+    for directory, project in ((first, "first-project"), (second, "second-project")):
+        (directory / ".atlas-project.yaml").write_text(
+            f"schema_version: 1\nproject:\n  id: {project}\nproject_uuid: {shared_uuid}\n",
+            encoding="utf-8",
+        )
+        (directory / "README.md").write_text(f"# {project}\n", encoding="utf-8")
+    manifest = tmp_path / "manifest.json"
+    write_manifest(discover(source), manifest)
+    vault = tmp_path / "vault"
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+    before = _snapshot(vault)
+    with pytest.raises(ValueError, match="duplicate active project_uuid"):
+        ingest(manifest, vault)
+    assert _snapshot(vault) == before
 
 
 def test_malformed_marker_in_one_project_aborts_before_other_project_writes(

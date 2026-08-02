@@ -662,6 +662,25 @@ def _ingest(
                 for project_uuid, owners in sorted(duplicate_uuids.items())
             )
         )
+    previous_by_source_id = {
+        str(item.get("source_id")): str(item.get("canonical_project_id"))
+        for item in previous_registry
+        if item.get("source_id") and item.get("canonical_project_id")
+    }
+    for project, entries in sorted(projects.items()):
+        resolved_uuid = project_identity.get(project)
+        if resolved_uuid is None:
+            continue
+        source_ids = {str(entry["source_id"]) for entry in entries}
+        prior_uuids = {
+            previous_by_source_id[source_id]
+            for source_id in source_ids
+            if source_id in previous_by_source_id
+        }
+        if prior_uuids and prior_uuids != {resolved_uuid}:
+            raise ValueError(
+                f"project_uuid changed for existing source records in project: {project}"
+            )
     _validate_existing_markers(vault, set(projects))
     current_event_ids = {
         record["event_id"]
