@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from project_atlas.schema import SchemaValidationError, validate_record
 
 LINK = re.compile(r"\]\(([^)]+)\)")
@@ -32,8 +34,47 @@ def validate(vault: Path) -> dict[str, Any]:
             else:
                 if not candidate.is_file():
                     errors.append(f"broken link: {markdown.relative_to(vault)} -> {target}")
+        if markdown.match("projects/*/concepts.md"):
+            _validate_okf_concept_note(vault, markdown, errors)
     _validate_knowledge_state(vault, errors)
     return {"ok": not errors, "errors": errors, "markdown_files": len(list(vault.rglob("*.md")))}
+
+
+def _validate_okf_concept_note(vault: Path, path: Path, errors: list[str]) -> None:
+    """Validate OKF frontmatter resources and the concept record contract."""
+    relative = path.relative_to(vault)
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        errors.append(f"OKF concept note lacks frontmatter: {relative}")
+        return
+    try:
+        _, raw_frontmatter, _ = text.split("---", 2)
+        frontmatter = yaml.safe_load(raw_frontmatter)
+        if not isinstance(frontmatter, dict):
+            raise ValueError("frontmatter must be an object")
+        validate_record(frontmatter, "concept-record")
+    except (ValueError, yaml.YAMLError, SchemaValidationError) as exc:
+        errors.append(f"invalid OKF concept note {relative}: {exc}")
+        return
+    resource = frontmatter.get("resource")
+    if isinstance(resource, str):
+        _validate_vault_resource(vault, resource, errors, relative)
+    for source in frontmatter.get("sources", []):
+        if isinstance(source, dict):
+            _validate_vault_resource(vault, str(source.get("resource", "")), errors, relative)
+
+
+def _validate_vault_resource(
+    vault: Path, resource: str, errors: list[str], owner: Path
+) -> None:
+    candidate = (vault / resource).resolve()
+    try:
+        candidate.relative_to(vault.resolve())
+    except ValueError:
+        errors.append(f"OKF resource escapes Vault: {owner} -> {resource}")
+    else:
+        if not candidate.is_file():
+            errors.append(f"OKF resource target missing: {owner} -> {resource}")
 
 
 def _validate_knowledge_state(vault: Path, errors: list[str]) -> None:

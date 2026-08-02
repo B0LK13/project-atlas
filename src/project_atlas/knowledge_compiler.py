@@ -20,17 +20,22 @@ from project_atlas.domain import (
     ClaimLifecycleRecord,
     ClaimLifecycleTransition,
     ClaimType,
+    ConceptLifecycle,
     ConceptRecord,
     ConceptType,
     ConfidenceState,
     ConflictingClaim,
     ConflictRecord,
+    GeneratedMetadata,
     KnowledgeState,
+    LifecycleStatus,
     ProvenanceReference,
     ReviewCategory,
     ReviewEntry,
     ReviewState,
+    VerificationMetadata,
 )
+from project_atlas.okf_renderer import render_concept_note
 from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
 
@@ -343,18 +348,33 @@ def _event_claim(project: str, entry: dict[str, Any]) -> Claim:
 
 def _concept(project: str, claims: list[Claim], entries: list[dict[str, Any]]) -> ConceptRecord:
     sources = [_provenance(project, entry) for entry in entries]
+    requested_type = next(
+        (str(entry["concept_type"]) for entry in entries if entry.get("concept_type")),
+        "Project",
+    )
+    try:
+        concept_type = ConceptType(requested_type)
+    except ValueError:
+        # Unknown source classifications remain valid evidence and are emitted
+        # as a generic Reference concept rather than rejected.
+        concept_type = ConceptType.REFERENCE
     return ConceptRecord(
         project_id=project,
         concept_id=project,
-        type=ConceptType.PROJECT,
+        type=concept_type,
         title=project,
         description="Deterministically compiled project concept.",
+        resource=f"projects/{project}/concepts.md",
+        tags=[_slug(project)],
+        lifecycle=ConceptLifecycle(status=LifecycleStatus.UNKNOWN),
         knowledge_state=KnowledgeState.EVIDENCE_BACKED
         if claims
         else KnowledgeState.IMPORTED_SOURCE,
         review_state=ReviewState.PENDING_HUMAN_REVIEW if claims else ReviewState.UNREVIEWED,
         sources=sources,
         generated_by="project-atlas:as-core-003",
+        generated=GeneratedMetadata(by="agent:project-atlas"),
+        verified=VerificationMetadata(),
     )
 
 
@@ -976,12 +996,12 @@ def _render_claims(project: str, claims: tuple[Claim, ...]) -> str:
 
 
 def _render_concepts(project: str, concepts: tuple[ConceptRecord, ...]) -> str:
-    lines = [f"# Concepts — {project}", ""]
-    lines.extend(
-        f"- `{concept.concept_id}` — {concept.title} ({concept.knowledge_state})"
+    if not concepts:
+        return f"# Concepts — {project}\n\n_No concepts._\n"
+    return "\n".join(
+        render_concept_note(concept, f"projects/{project}/concepts.md").rstrip()
         for concept in concepts
-    )
-    return "\n".join(lines) + "\n"
+    ) + "\n"
 
 
 def _render_conflicts(project: str, conflicts: tuple[ConflictRecord, ...]) -> str:
