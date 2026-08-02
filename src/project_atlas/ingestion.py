@@ -354,7 +354,10 @@ def _find_project_marker(root: Path, relative_path: str, project: str) -> Path:
                     raw = yaml.safe_load(marker.read_text(encoding="utf-8")) or {}
                 except (OSError, UnicodeError, yaml.YAMLError) as exc:
                     raise ValueError(f"invalid project marker: {marker}") from exc
-                marker_project = raw.get("project", {}).get("id") if isinstance(raw, dict) else None
+                project_data = raw.get("project") if isinstance(raw, dict) else None
+                marker_project = (
+                    project_data.get("id") if isinstance(project_data, dict) else None
+                )
                 if marker_project == project:
                     return marker
         if current == root or current.parent == current:

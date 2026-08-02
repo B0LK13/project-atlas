@@ -40,7 +40,8 @@ def _project_context(path: Path, root: Path) -> tuple[str | None, str | None]:
         for marker in (current / ".atlas-project.yaml", current / ".atlas" / "project.yaml"):
             if marker.is_file():
                 data = yaml.safe_load(marker.read_text(encoding="utf-8")) or {}
-                value = data.get("project", {}).get("id") if isinstance(data, dict) else None
+                project_data = data.get("project") if isinstance(data, dict) else None
+                value = project_data.get("id") if isinstance(project_data, dict) else None
                 raw_uuid = data.get("project_uuid") if isinstance(data, dict) else None
                 project_uuid = None
                 if raw_uuid is not None:
