@@ -1,6 +1,6 @@
 schema_version: 1
 package: AS-SPEC-004
-status: remediation-complete-independent-certification-required
+status: implementation-complete
 certified_base_commit: 098c5e7ea030d4c52e742e71f45ac10639c66513
 implementation_commit: 1297b1525413e39b16567610eade60bc28fa21a9
 evidence_commit: SELF
@@ -65,7 +65,7 @@ control_plane:
   result: 146 passed
   diff: zero
 architecture:
-  governor_review: pending-remediation-rereview
+  governor_review: re-approved
   certified_foundation_unchanged: true
   identity_lifecycle_and_promotion_boundaries_modified: false
 notes:

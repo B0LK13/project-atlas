@@ -685,3 +685,15 @@ workflow coverage now proves unknown types render as `Reference`, absent types
 retain `Project`, and known types such as `Architecture` are preserved. Core
 passed `142` tests; Control Plane passed `146`; mypy, Ruff, and compilation
 remained clean. AS-SPEC-004 certification and governance rereview are reopened.
+
+## AS-SPEC-004 architecture re-approval
+
+**Status:** implementation complete — architecture re-approved
+**Implementation:** `1297b1525413e39b16567610eade60bc28fa21a9`
+**Evidence:** `2f5c718c84e96871d1e3b9ef91f0840df52f2975`
+
+Agent Three re-approved the public `concept_type` wiring remediation. The
+marker remains the authoritative project-level concept-type source, unknown
+values continue through the existing generic `Reference` fallback, and the
+single promotion boundary and certified identity/lifecycle paths remain
+unchanged. Final merge control remains with the project owner.
