@@ -636,3 +636,16 @@ The AS-CORE-003 durable-lineage integration was merged with governance
 authorization. Post-merge validation passed: Core `135 passed`, mypy clean for
 32 source files, Ruff clean, and compilation clean. The Control Plane remained
 unchanged.
+
+## AS-CORE-003 restored-claim replay remediation
+
+**Status:** remediation complete — independent recertification required
+**Base:** `21e533aa691b1d538fcd818f678a4ac27ef62254`
+**Implementation:** `3d8412f`
+
+Fixed the governed lifecycle replay edge so an equivalent observation after
+`RESTORED` transitions to `UNCHANGED` instead of attempting the invalid
+`RESTORED -> RESTORED` transition. Regression coverage verifies restored replay
+stability and restored rename claim identity. Core remains `135 passed`; mypy,
+Ruff, and compilation remain clean. AS-CORE-003 certification is reopened
+pending Agent Two recertification and Agent Three architecture re-approval.

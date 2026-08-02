@@ -1,9 +1,11 @@
 schema_version: 1
 package: AS-CORE-003
-status: implementation-complete
+status: remediation-complete-independent-recertification-required
 certified_base_commit: e5b9aa8b700afe828cb424503ced84abf37c71ea
 implementation_commit: 55f6aec
 evidence_commit: SELF
+remediation_implementation_commit: 3d8412f
+previous_certified_mainline: 21e533aa691b1d538fcd818f678a4ac27ef62254
 branch: integrate/as-core-003-durable-lineage
 merge_commit: a3fdb711dd0b3b1b00b8984482dcb4c1d63e3998
 merged_to_main_at: 2026-08-02T21:31:05+02:00
@@ -59,6 +61,8 @@ validation:
   strict_validation: covered by Core lifecycle and schema tests
   replay: unchanged claim and source replay tests pass with zero semantic duplicates
   rollback: multi-project lifecycle failure test passes with zero mutations
+  restored_replay: restored claims transition to unchanged on equivalent replay; repeated replay is byte-stable
+  restored_rename: restored claim identity remains stable across renamed-path observation
 test_accounting:
   certified_baseline_core: 117
   current_core: 135
@@ -73,4 +77,4 @@ control_plane:
   as_id_001_semantics_modified: false
   as_core_003_files_in_control_plane: false
 architecture:
-  governor_review: approved
+  governor_review: reopened-pending-remediation-rereview
