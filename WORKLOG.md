@@ -672,3 +672,16 @@ types, golden-file coverage, protected-region preservation, and unchanged
 replay checks. Core passed `140` tests (135 baseline plus 5 new tests), the
 Control Plane passed `146`, mypy passed for `33` source files, Ruff passed, and
 compilation passed. Architecture governor review remains pending.
+
+## AS-SPEC-004 public concept-type wiring remediation
+
+**Status:** remediation complete — independent certification required
+**Previous implementation:** `9dd7ce5668658d4bae0e33d0c0fee9d0d765a6ab`
+**Remediation implementation:** `1297b1525413e39b16567610eade60bc28fa21a9`
+
+Wired the optional top-level `concept_type` from the authoritative project
+marker through public ingestion into the existing generic fallback. Public
+workflow coverage now proves unknown types render as `Reference`, absent types
+retain `Project`, and known types such as `Architecture` are preserved. Core
+passed `142` tests; Control Plane passed `146`; mypy, Ruff, and compilation
+remained clean. AS-SPEC-004 certification and governance rereview are reopened.
