@@ -1,0 +1,94 @@
+schema_version: 1
+package: AS-ENG-005
+status: implementation-complete-independent-certification-required
+branch: feat/as-eng-005-ingestion-retrieval
+certified_base_commit: d2231d0e8659b9559c0e70bd9f9e58e80042f56b
+implementation_commit: d084491b28b5dd43e3e59900c5dab716466d4c7f
+evidence_commit: SELF
+scope:
+  description: deterministic incremental ingestion, canonical indexes, and read-only semantic retrieval
+  certified_subsystem_semantics_modified: false
+  single_promote_boundary: true
+  direct_canonical_writes_from_compiler: false
+implementation_files_changed:
+  - src/project_atlas/indexes.py
+  - src/project_atlas/ingestion.py
+  - src/project_atlas/knowledge_compiler.py
+  - src/project_atlas/retrieval.py
+  - src/project_atlas/scaffold.py
+  - src/project_atlas/validation.py
+test_files_changed:
+  - tests/integration/test_as_eng_005_indexes_retrieval.py
+  - tests/integration/test_cli.py
+  - tests/unit/test_scaffold.py
+indexes:
+  canonical_files:
+    - indexes/sources.json
+    - indexes/claims.json
+    - indexes/concepts.json
+    - indexes/conflicts.json
+    - indexes/authority.json
+    - indexes/provenance.json
+  derived_from: state and review canonical records
+  validation: index IDs and provenance mappings checked against canonical state
+retrieval:
+  module: src/project_atlas/retrieval.py
+  interface: VaultRetriever.lookup and VaultRetriever.search
+  modes: exact and prefix
+  supported_kinds:
+    - source
+    - claim
+    - concept
+    - conflict
+    - authority
+    - provenance
+  read_only: true
+incremental_behavior:
+  unchanged_sources: stabilized replay produces zero canonical writes and zero duplicate receipts
+  changed_sources: existing ingestion lifecycle and lineage processing remain authoritative
+  identity: source_lineage_id and project_uuid remain authoritative
+  initialization: atlas init is idempotent for an existing Atlas scaffold
+validation:
+  focused_command: .venv/bin/python -m pytest tests/integration/test_as_eng_005_indexes_retrieval.py tests/integration/test_core_vertical_slice.py tests/unit/test_scaffold.py tests/integration/test_cli.py -q
+  focused_result: 25 passed
+  core_command: .venv/bin/python -m pytest tests --tb=no -q
+  core_result: 145 passed
+  control_plane_command: .venv/bin/python -m pytest atlas-vault-documentation/tests -q
+  control_plane_result: 146 passed
+  mypy_command: .venv/bin/mypy src
+  mypy_result: clean, 34 source files
+  ruff_command: .venv/bin/ruff check src tests
+  ruff_result: clean
+  compilation_command: .venv/bin/python -m compileall -q src
+  compilation_result: clean
+  strict_vault_validation: passed; canonical index drift is rejected
+public_workflow:
+  command: init, discover, ingest, build-indexes, validate on an isolated integrated-atlas-project fixture
+  result: passed; validated 44 Markdown files
+  init_replay: no-op
+replay:
+  settling_observation: first unchanged observation transitions lifecycle state from new to unchanged
+  stabilized_command: repeated ingest and build-indexes after the settling observation
+  result: byte-identical canonical Vault snapshot
+  unsafe_partial_writes: none observed
+test_accounting:
+  certified_baseline_core: 142
+  current_core: 145
+  net_new_collected: 3
+  removed: 0
+  renamed: 1
+  deselected: 0
+  added_tests:
+    - tests/integration/test_as_eng_005_indexes_retrieval.py::test_indexes_cover_canonical_state_and_retrieval_is_read_only
+    - tests/integration/test_as_eng_005_indexes_retrieval.py::test_validate_rejects_index_state_drift
+    - tests/unit/test_scaffold.py::test_init_is_idempotent_for_existing_atlas_vault
+    - tests/integration/test_cli.py::test_init_rejects_arbitrary_non_empty_directory
+  renamed_tests:
+    - tests/integration/test_cli.py::test_init_rejects_non_empty_directory -> tests/integration/test_cli.py::test_init_is_idempotent_for_existing_atlas_vault
+  overlap_note: focused tests are included in the full Core collection and are not additive
+control_plane:
+  result: 146 passed
+  diff: zero
+architecture:
+  note: no AS-ID-001, AS-CORE-002, AS-CORE-003, or AS-SPEC-004 certified semantics were modified
+  governance_review: pending

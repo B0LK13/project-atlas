@@ -697,3 +697,18 @@ marker remains the authoritative project-level concept-type source, unknown
 values continue through the existing generic `Reference` fallback, and the
 single promotion boundary and certified identity/lifecycle paths remain
 unchanged. Final merge control remains with the project owner.
+
+## AS-ENG-005 ingestion and retrieval foundation
+
+**Status:** implementation complete — independent certification required
+**Base:** `d2231d0e8659b9559c0e70bd9f9e58e80042f56b`
+**Implementation:** `d084491`
+
+Added deterministic canonical indexes for sources, claims, concepts, conflicts,
+authority, and provenance; a read-only exact/prefix retrieval API; atomic index
+staging through the existing ingestion promotion boundary; index-integrity
+validation; and idempotent initialization for existing Atlas scaffolds. The
+isolated public workflow passed, stabilized replay was byte-identical, Core
+passed `145`, Control Plane passed `146`, mypy passed for `34` source files,
+Ruff passed, and compilation passed. No certified subsystem semantics or
+Control Plane files changed.
