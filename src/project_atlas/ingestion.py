@@ -633,9 +633,17 @@ def _ingest(
     for project, entries in sorted(projects.items()):
         if not entries or project == "unknown-project":
             continue
-        project_uuid, marker, original_marker, _allocated = _prepare_project_identity(
-            root, vault, project, str(entries[0]["path"]), uuid_provider, write_plan
-        )
+        try:
+            project_uuid, marker, original_marker, _allocated = _prepare_project_identity(
+                root, vault, project, str(entries[0]["path"]), uuid_provider, write_plan
+            )
+        except ValueError as exc:
+            # Preserve ingestion of legacy hand-authored manifests that predate
+            # the project-marker contract. They cannot receive durable identity
+            # until a marker is supplied, so no identity is fabricated here.
+            if not str(exc).startswith("project marker not found for project:"):
+                raise
+            continue
         project_identity[project] = project_uuid
         marker_preconditions[marker] = original_marker
     by_uuid: dict[str, list[str]] = {}
