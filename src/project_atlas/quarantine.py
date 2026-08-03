@@ -191,25 +191,37 @@ def _normalize_detector_input(text: str) -> str:
 
     1. NFKD compatibility decomposition so accented letters are represented
        as their base character plus combining marks.
-    2. Remove Unicode format-control characters (category ``Cf``) and
-       combining marks (category ``Mn``), including
-       zero-width spaces/joiners, soft hyphens, and directional isolates that
-       can be used to evade regex word-boundary or token matching, as well as
-       diacritical marks that can split keyword matching from its Latin form.
-    3. Apply the narrow explicit confusable-character mapping so that
-       visually identical Cyrillic homoglyphs are treated as their Latin
+    2. Remove format-control characters (category ``Cf``) and combining marks
+       (category ``Mn``), including zero-width spaces/joiners, soft hyphens,
+       directional isolates, and diacritical marks that can be used to evade
+       regex word-boundary or token matching.
+    3. Handle C0/C1 control characters (category ``Cc``):
+
+       - Keep tab, line feed, and carriage return as ASCII whitespace so that
+         normal line boundaries still delimit words.
+       - Remove every other control character (including vertical tab, form
+         feed, null, backspace, bell, escape, and other C0/C1 controls) so
+         that control characters injected mid-keyword collapse back into the
+         keyword.
+    4. Apply the narrow explicit confusable-character mapping so that
+       visually identical Cyrillic/Greek homoglyphs are treated as their Latin
        look-alikes during pattern matching.
 
     The original source bytes are never modified; this normalization is used
     only inside the detector.
     """
     normalized = unicodedata.normalize("NFKD", text)
-    without_format_controls = "".join(
-        ch
-        for ch in normalized
-        if unicodedata.category(ch) not in {"Cf", "Mn"}
-    )
-    mapped = "".join(_CONFUSABLE.get(ch, ch) for ch in without_format_controls)
+    stripped: list[str] = []
+    for ch in normalized:
+        category = unicodedata.category(ch)
+        if category in {"Cf", "Mn"}:
+            continue
+        if category == "Cc":
+            if ch in {"\t", "\n", "\r"}:
+                stripped.append(" ")
+            continue
+        stripped.append(ch)
+    mapped = "".join(_CONFUSABLE.get(ch, ch) for ch in stripped)
     return mapped
 
 
@@ -219,11 +231,11 @@ def scan_text(text: str) -> list[InjectionFinding]:
     Findings are deterministic and ordered by rule name to keep reports
     stable across runs. The matched content is never returned.
     """
-    text = _normalize_detector_input(text)
+    normalized = _normalize_detector_input(text)
     findings: list[InjectionFinding] = []
     seen: set[str] = set()
     for rule, confidence, hint, pattern in _PATTERNS:
-        if pattern.search(text) and rule not in seen:
+        if pattern.search(normalized) and rule not in seen:
             findings.append(
                 InjectionFinding(
                     rule=rule,
