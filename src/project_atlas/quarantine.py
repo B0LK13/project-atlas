@@ -203,7 +203,12 @@ def _normalize_detector_input(text: str) -> str:
          feed, null, backspace, bell, escape, and other C0/C1 controls) so
          that control characters injected mid-keyword collapse back into the
          keyword.
-    4. Apply the narrow explicit confusable-character mapping so that
+    4. Normalize every Unicode separator (general category ``Z``: Zs, Zl, Zp)
+       to a single ASCII space. All Z-category characters are separators by
+       definition, so there is no legitimate reason to preserve distinctions
+       between them for keyword matching. This prevents mid-keyword injection
+       via em space, no-break space, line separator, paragraph separator, etc.
+    5. Apply the narrow explicit confusable-character mapping so that
        visually identical Cyrillic/Greek homoglyphs are treated as their Latin
        look-alikes during pattern matching.
 
@@ -219,6 +224,9 @@ def _normalize_detector_input(text: str) -> str:
         if category == "Cc":
             if ch in {"\t", "\n", "\r"}:
                 stripped.append(" ")
+            continue
+        if category.startswith("Z"):
+            stripped.append(" ")
             continue
         stripped.append(ch)
     mapped = "".join(_CONFUSABLE.get(ch, ch) for ch in stripped)

@@ -59,6 +59,9 @@ def _fixture_evasion_project(root: Path) -> Path:
         "diacritic-o-reproduction.md",
         "vertical-tab-reproduction.md",
         "form-feed-reproduction.md",
+        "em-space-reproduction.md",
+        "no-break-space-reproduction.md",
+        "line-separator-reproduction.md",
     ):
         (source / name).write_bytes(
             Path(f"tests/fixtures/adversarial-project/{name}").read_bytes()
@@ -300,6 +303,9 @@ def test_unicode_evasion_sources_are_quarantined(tmp_path: Path) -> None:
         "diacritic-o-reproduction.md",
         "vertical-tab-reproduction.md",
         "form-feed-reproduction.md",
+        "em-space-reproduction.md",
+        "no-break-space-reproduction.md",
+        "line-separator-reproduction.md",
     ):
         assert any(name in path for path in quarantined_paths), f"{name} must be quarantined"
     ingestion = json.loads(
@@ -326,6 +332,9 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "diacritic" not in ref["source_id"]
             assert "vertical-tab" not in ref["source_id"]
             assert "form-feed" not in ref["source_id"]
+            assert "em-space" not in ref["source_id"]
+            assert "no-break-space" not in ref["source_id"]
+            assert "line-separator" not in ref["source_id"]
     indexes_dir = vault / "generated" / "indexes"
     if indexes_dir.exists():
         for path in indexes_dir.rglob("*.json"):
@@ -341,6 +350,9 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "\u00f6" not in text
             assert "\x0b" not in text
             assert "\x0c" not in text
+            assert "\u2003" not in text
+            assert "\u00a0" not in text
+            assert "\u2028" not in text
 
 
 def test_adversarial_project_identifier_fails_discover_closed(tmp_path: Path) -> None:
