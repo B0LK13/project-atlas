@@ -54,8 +54,9 @@ serialization_review:
     disposition: superseded
     active_owner: false
   owner_decision:
-    selected_option: 2
+    selected_option: 1
     decision_record: docs/architecture-governance/VERIFY-AS-RET-SEQUENCING-DECISION.md
+    decision_commit: SELF
   current_as_ret_ownership: confirmed
   unresolved_external_owner: false
   note: >-

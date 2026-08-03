@@ -757,3 +757,12 @@ the later governance-approved AS-CORE-003 integration merged at
 Historical commits and evidence remain immutable. The verify branch is not an
 active work package, does not own `src/project_atlas/ingestion.py`, and must
 not be merged or cherry-picked into AS-RET-001.
+
+## VERIFY/AS-RET sequencing decision consistency correction
+
+Corrected the governance decision record for sequencing consistency: verify
+supersession remains the disposition, `selected_option` is now `1`, and options
+`2` and `3` are explicitly rejected in
+`docs/architecture-governance/VERIFY-AS-RET-SEQUENCING-DECISION.md`. Updated
+`docs/evidence/AS-RET-001-receipt.yaml` serialization review to reference the
+corrected owner-decision option and commit (`decision_commit: SELF`).

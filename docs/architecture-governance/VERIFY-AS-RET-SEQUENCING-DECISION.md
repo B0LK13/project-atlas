@@ -2,7 +2,7 @@
 
 status: decided
 decision_owner: project-owner
-selected_option: 2
+selected_option: 1
 decision: formally-close-verify-as-superseded
 
 main_base: d2231d0e8659b9559c0e70bd9f9e58e80042f56b
@@ -57,7 +57,14 @@ substantially overlapping AS-CORE-003 functionality, not a small continuation:
 
 ## Option Disposition
 
-### Option 1 rejected
+### Option 1 selected
+
+The verify branch is formally closed as superseded by the later
+governance-approved AS-CORE-003 integration. It remains immutable historical
+evidence, is not an active work package, has no serialization ownership over
+`src/project_atlas/ingestion.py`, and is not merge-authorized.
+
+### Option 2 rejected
 
 Leaving the branch silently abandoned would preserve ambiguity and create a
 recurring risk that later agents interpret it as active or mergeable.
