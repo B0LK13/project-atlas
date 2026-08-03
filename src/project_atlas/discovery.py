@@ -16,6 +16,7 @@ import yaml
 from atlas_contracts.event_package import EventPackageInventory, inspect_event_package
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import ClassificationState
+from project_atlas.quarantine import scan_identifier
 from project_atlas.source_identity import canonicalize_project_path, validate_project_uuid
 
 SUPPORTED_EXTENSIONS = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".html"}
@@ -46,7 +47,15 @@ def _project_context(path: Path, root: Path) -> tuple[str | None, str | None]:
                 project_uuid = None
                 if raw_uuid is not None:
                     project_uuid = validate_project_uuid(str(raw_uuid))
-                return (str(value) if isinstance(value, str) and value else None, project_uuid)
+                if isinstance(value, str) and value:
+                    findings = scan_identifier(value)
+                    if findings:
+                        raise ValueError(
+                            f"adversarial project identifier in {marker.relative_to(root)}: "
+                            f"{findings[0].rule} ({findings[0].redacted_hint})"
+                        )
+                    return str(value), project_uuid
+                return None, project_uuid
         if current == root or current.parent == current:
             return None, None
         current = current.parent

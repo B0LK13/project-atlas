@@ -143,3 +143,16 @@ def scan_text(text: str) -> list[InjectionFinding]:
             )
             seen.add(rule)
     return sorted(findings, key=lambda finding: finding.rule)
+
+
+def scan_identifier(value: str) -> list[InjectionFinding]:
+    """Scan a structural identifier for adversarial-instruction content.
+
+    Project IDs, directory names, and citation keys often join words with
+    hyphens, underscores, or slashes rather than spaces. This helper
+    normalizes those separators before applying the same pattern set as
+    ``scan_text`` so that ``ignore-previous-instructions`` is treated the same
+    as ``ignore previous instructions``.
+    """
+    normalized = value.replace("-", " ").replace("_", " ").replace("/", " ")
+    return scan_text(normalized)
