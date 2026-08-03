@@ -10,7 +10,28 @@ never containing the matched payload.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
+
+# Narrow explicit confusable-character mapping for visual homoglyphs that
+# evade simple Latin-only keyword matching (e.g., Cyrillic look-alikes). This is
+# intentionally conservative: only demonstrated near-identical letters are
+# mapped, not every Unicode homoglyph.
+_CONFUSABLE: dict[str, str] = {
+    # Cyrillic small letters that visually match Latin counterparts.
+    "\u0430": "a",  # CYRILLIC SMALL LETTER A
+    "\u0435": "e",  # CYRILLIC SMALL LETTER IE
+    "\u0456": "i",  # CYRILLIC SMALL LETTER BYELORUSSIAN-UKRAINIAN I
+    "\u0458": "j",  # CYRILLIC SMALL LETTER JE
+    "\u043e": "o",  # CYRILLIC SMALL LETTER O
+    "\u0440": "p",  # CYRILLIC SMALL LETTER ER
+    "\u0441": "c",  # CYRILLIC SMALL LETTER ES
+    "\u0442": "t",  # CYRILLIC SMALL LETTER TE
+    "\u0445": "x",  # CYRILLIC SMALL LETTER HA
+    "\u044b": "y",  # CYRILLIC SMALL LETTER YERU
+    "\u0475": "y",  # CYRILLIC SMALL LETTER IZHITSA
+    "\u04cf": "\u0049",  # CYRILLIC SMALL LETTER PALOCHKA -> Latin capital I
+}
 
 
 @dataclass(frozen=True)
@@ -123,12 +144,38 @@ _PATTERNS: tuple[tuple[str, str, str, re.Pattern[str]], ...] = (
 )
 
 
+def _normalize_detector_input(text: str) -> str:
+    """Prepare raw Unicode text for deterministic adversarial-instruction scanning.
+
+    Steps, in order:
+
+    1. NFKC compatibility decomposition/recomposition so that visually
+       equivalent compatibility characters collapse to canonical forms.
+    2. Remove Unicode format-control characters (category ``Cf``), including
+       zero-width spaces/joiners, soft hyphens, and directional isolates that
+       can be used to evade regex word-boundary or token matching.
+    3. Apply the narrow explicit confusable-character mapping so that
+       visually identical Cyrillic homoglyphs are treated as their Latin
+       look-alikes during pattern matching.
+
+    The original source bytes are never modified; this normalization is used
+    only inside the detector.
+    """
+    normalized = unicodedata.normalize("NFKC", text)
+    without_format_controls = "".join(
+        ch for ch in normalized if unicodedata.category(ch) != "Cf"
+    )
+    mapped = "".join(_CONFUSABLE.get(ch, ch) for ch in without_format_controls)
+    return mapped
+
+
 def scan_text(text: str) -> list[InjectionFinding]:
     """Return metadata-only adversarial-instruction findings for ``text``.
 
     Findings are deterministic and ordered by rule name to keep reports
     stable across runs. The matched content is never returned.
     """
+    text = _normalize_detector_input(text)
     findings: list[InjectionFinding] = []
     seen: set[str] = set()
     for rule, confidence, hint, pattern in _PATTERNS:

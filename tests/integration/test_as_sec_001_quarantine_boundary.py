@@ -35,6 +35,29 @@ def _fixture_adversarial_project(root: Path) -> Path:
     return source
 
 
+def _fixture_evasion_project(root: Path) -> Path:
+    source = root / "evasion-project"
+    source.mkdir()
+    marker = Path("tests/fixtures/adversarial-project/.atlas-project.yaml")
+    marker_text = marker.read_text(encoding="utf-8")
+    marker_text = marker_text.replace(
+        "id: adversarial-project", f"id: {source.name}"
+    ).replace("name: Adversarial Test Project", f"name: {source.name}")
+    (source / ".atlas-project.yaml").write_text(marker_text, encoding="utf-8")
+    (source / "README.md").write_text(
+        "# Evasion project\n\nPurpose: test Unicode evasion vectors.\n", encoding="utf-8"
+    )
+    for name in (
+        "zero-width-insertion.md",
+        "soft-hyphen-insertion.md",
+        "cyrillic-homoglyph.md",
+    ):
+        (source / name).write_bytes(
+            Path(f"tests/fixtures/adversarial-project/{name}").read_bytes()
+        )
+    return source
+
+
 def _run_core_pipeline(source: Path, tmp_path: Path) -> Path:
     manifest = tmp_path / "manifest.json"
     vault = tmp_path / "vault"
@@ -246,6 +269,49 @@ def test_source_identity_preserved_for_quarantined_source(tmp_path: Path) -> Non
                 str(item.get("source_lineage_id")) == str(lineage_id)
                 for item in registry["sources"]
             ), f"lineage {lineage_id} must exist in source registry"
+
+
+def test_unicode_evasion_sources_are_quarantined(tmp_path: Path) -> None:
+    source = _fixture_evasion_project(tmp_path)
+    vault = _run_core_pipeline(source, tmp_path)
+    report = json.loads(
+        (vault / "generated" / "reports" / "injection-findings.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    quarantined_paths = {f["path"] for f in report["findings"]}
+    for name in (
+        "zero-width-insertion.md",
+        "soft-hyphen-insertion.md",
+        "cyrillic-homoglyph.md",
+    ):
+        assert any(name in path for path in quarantined_paths), f"{name} must be quarantined"
+    ingestion = json.loads(
+        (vault / "generated" / "reports" / "ingestion-report.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert ingestion["documents_ingested"] == 2
+
+
+def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path) -> None:
+    source = _fixture_evasion_project(tmp_path)
+    vault = _run_core_pipeline(source, tmp_path)
+    claims = json.loads(
+        (vault / "state" / "claims" / f"{source.name}.json").read_text(encoding="utf-8")
+    )
+    for claim in claims["claims"]:
+        for ref in claim.get("provenance", []):
+            assert "zero-width" not in ref["source_id"]
+            assert "soft-hyphen" not in ref["source_id"]
+            assert "cyrillic" not in ref["source_id"]
+    indexes_dir = vault / "generated" / "indexes"
+    if indexes_dir.exists():
+        for path in indexes_dir.rglob("*.json"):
+            text = path.read_text(encoding="utf-8")
+            assert "\u200d" not in text
+            assert "\u00ad" not in text
+            assert "\u0456" not in text
 
 
 def test_adversarial_project_identifier_fails_discover_closed(tmp_path: Path) -> None:
