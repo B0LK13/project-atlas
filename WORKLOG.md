@@ -1681,3 +1681,69 @@ itself, not any single omission, is the recurring source.
 
 No merge performed. Bounded remediation directive issued for GOV-006 (see
 governor response for full `NEXT_AGENT_DIRECTIVE`).
+
+## AS-SEC-001-GOV-006 — Remediation: Z-category separator evasion in detector input
+
+**Status:** remediated — architecture rereview required
+**Base commit:** `b87d91132dffc7c23f74fe91b1bbdd0552d6e692`
+**Branch:** `fix/as-sec-001-gov-006-separator-evasion`
+**Worktree:** `/mnt/d/project-atlas-as-sec-001-gov006`
+
+**Blocking finding (AS-SEC-001-GOV-006):** `_normalize_detector_input` in
+`src/project_atlas/quarantine.py` did not normalize Unicode separator categories
+Zs, Zl, and Zp to ASCII space. Non-ASCII separators such as em space,
+no-break space, line separator, and paragraph separator injected between
+instruction keywords bypassed the regex-only detector.
+
+**Remediation applied:**
+
+- Extended `_normalize_detector_input` to map every character whose Unicode
+  general category starts with ``Z`` (Zs, Zl, Zp) to a single ASCII space.
+  All Z-category characters are separators by definition, so no special-
+  casing is required; this is simpler than the Cc handling.
+- Kept existing NFKD normalization, Cf/Mn stripping, Cc handling, and explicit
+  Cyrillic/Greek confusable mapping unchanged.
+- Original source bytes remain unmodified; normalization is only used inside
+  the detector; findings remain metadata-only and never expose matched
+  payload text.
+- Added adversarial fixtures:
+  - `tests/fixtures/adversarial-project/em-space-reproduction.md`
+  - `tests/fixtures/adversarial-project/no-break-space-reproduction.md`
+  - `tests/fixtures/adversarial-project/line-separator-reproduction.md`
+- Added unit and integration tests covering the exact GOV-006 reproductions,
+  plus a benign non-ASCII-separator false-positive control.
+- Updated `docs/evidence/AS-SEC-001-receipt.yaml`: moved GOV-006 from
+  `active_blocking_finding` to `closed_findings`, updated test accounting
+  and validation gates, recorded that the owner has NOT yet been consulted on
+  the repeated blacklist-vs-whitelist architectural question, and added an
+  explicit note that the governor's UTS #39 / whitelist observations are
+  surfaced for future owner/governor decision rather than silently
+  continuing the category-enumeration strategy.
+
+**Scope preserved:** No changes to `secrets.py`, agent-event quarantine,
+`ID_PATTERN`, source identity, lifecycle, claim identity, conflict identity,
+`okf_renderer.py`, `semantic_compiler.py`, `validation.py`, `lineage.py`, or
+the single promotion boundary. No LLM, embedding, network, or sandbox dependency
+introduced.
+
+**Validation gates:**
+
+- `ruff check src tests` — clean
+- `mypy src` — clean, 35 source files
+- `pytest tests` — 200 passed, 0 failed
+- `pytest atlas-vault-documentation/tests` — 146 passed, 0 failed
+- `compileall -q src` — clean
+- Control Plane isolation diff (`atlas-vault-documentation/`,
+  `AGENT-BOOTSTRAP.md`, `.atlas/`) — empty
+- Unchanged replay byte-identity — verified by existing tests
+- Non-adversarial golden fixtures — unchanged
+
+**Evidence updated:** `docs/evidence/AS-SEC-001-receipt.yaml`.
+
+**No merge performed.** Package is frozen pending Architecture Governor
+targeted rereview of the GOV-006 remediation. Because this is the sixth
+consecutive root cause across five remediation rounds using the same
+incremental category-extension approach, the next rereview should perform a
+fresh fuzzing pass and should also make an explicit decision with the project
+owner on whether to continue the blacklist-style strategy or switch to a
+whitelist-style normalization.
