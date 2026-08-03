@@ -6,7 +6,7 @@ certified_base_commit: 7e720bda1a9efe3950a7943968024805fdfd2f6f
 implementation_commit: 179ea3f85aca51b34be2ef7b9a64a361e5522c2b
 governance_record_commit: e60277fa19e43675de3521272e3e9d9615934817
 remediation_commit: e0b26b26df00350855fb3ada9c7751dfd3d97375
-evidence_commit: TBD
+evidence_commit: eaa6de891a71fbd29d31693610155430e5abd07c
 
 adr:
   path: docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md
