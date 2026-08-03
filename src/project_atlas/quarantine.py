@@ -189,11 +189,13 @@ def _normalize_detector_input(text: str) -> str:
 
     Steps, in order:
 
-    1. NFKC compatibility decomposition/recomposition so that visually
-       equivalent compatibility characters collapse to canonical forms.
-    2. Remove Unicode format-control characters (category ``Cf``), including
+    1. NFKD compatibility decomposition so accented letters are represented
+       as their base character plus combining marks.
+    2. Remove Unicode format-control characters (category ``Cf``) and
+       combining marks (category ``Mn``), including
        zero-width spaces/joiners, soft hyphens, and directional isolates that
-       can be used to evade regex word-boundary or token matching.
+       can be used to evade regex word-boundary or token matching, as well as
+       diacritical marks that can split keyword matching from its Latin form.
     3. Apply the narrow explicit confusable-character mapping so that
        visually identical Cyrillic homoglyphs are treated as their Latin
        look-alikes during pattern matching.
@@ -201,9 +203,11 @@ def _normalize_detector_input(text: str) -> str:
     The original source bytes are never modified; this normalization is used
     only inside the detector.
     """
-    normalized = unicodedata.normalize("NFKC", text)
+    normalized = unicodedata.normalize("NFKD", text)
     without_format_controls = "".join(
-        ch for ch in normalized if unicodedata.category(ch) != "Cf"
+        ch
+        for ch in normalized
+        if unicodedata.category(ch) not in {"Cf", "Mn"}
     )
     mapped = "".join(_CONFUSABLE.get(ch, ch) for ch in without_format_controls)
     return mapped

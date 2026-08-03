@@ -54,6 +54,9 @@ def _fixture_evasion_project(root: Path) -> Path:
         "greek-iota-reproduction.md",
         "uppercase-cyrillic-reproduction.md",
         "greek-omicron-reproduction.md",
+        "diacritic-e-reproduction.md",
+        "diacritic-i-reproduction.md",
+        "diacritic-o-reproduction.md",
     ):
         (source / name).write_bytes(
             Path(f"tests/fixtures/adversarial-project/{name}").read_bytes()
@@ -290,6 +293,9 @@ def test_unicode_evasion_sources_are_quarantined(tmp_path: Path) -> None:
         "greek-iota-reproduction.md",
         "uppercase-cyrillic-reproduction.md",
         "greek-omicron-reproduction.md",
+        "diacritic-e-reproduction.md",
+        "diacritic-i-reproduction.md",
+        "diacritic-o-reproduction.md",
     ):
         assert any(name in path for path in quarantined_paths), f"{name} must be quarantined"
     ingestion = json.loads(
@@ -323,6 +329,9 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "\u0399" not in text
             assert "\u0410" not in text
             assert "\u03bf" not in text
+            assert "\u0113" not in text
+            assert "\u012b" not in text
+            assert "\u00f6" not in text
 
 
 def test_adversarial_project_identifier_fails_discover_closed(tmp_path: Path) -> None:
