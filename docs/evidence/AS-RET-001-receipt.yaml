@@ -1,0 +1,114 @@
+schema_version: 1
+work_package: AS-RET-001
+title: Lexical Retrieval Index
+status: implementation-complete-governor-rereview-required
+branch: fix/as-ret-001-lexical-index-governance
+certified_base_commit: d2231d0e8659b9559c0e70bd9f9e58e80042f56b
+historical_implementation_commit: d084491b28b5dd43e3e59900c5dab716466d4c7f
+historical_evidence_commit: 11941f1160f9a1614b98f5c46dd74c44eb66cac3
+corrected_historical_evidence_commit: 0da869a49729c61c7a24a1127d5c3de545f5eb95
+remediation_implementation_commit: 4a40b3816bb24edd0d07271f6dd9c39dc1608a57
+evidence_commit: SELF
+reclassification:
+  historical_package: AS-ENG-005
+  active_package: AS-RET-001
+  historical_title_note: >-
+    The historical implementation commit was titled "semantic retrieval foundation".
+    Its actual behavior is deterministic lexical exact/prefix retrieval. The title does
+    not authorize semantic, vector, embedding, or approximate-nearest-neighbor work.
+  semantic_capability: none
+  vector_capability: none
+generated_outputs:
+  canonical_state: state/
+  lexical_indexes:
+    - generated/indexes/sources.json
+    - generated/indexes/claims.json
+    - generated/indexes/concepts.json
+    - generated/indexes/conflicts.json
+    - generated/indexes/authority.json
+    - generated/indexes/provenance.json
+  navigation:
+    - generated/navigation/projects.md
+    - generated/navigation/portfolio.md
+    - generated/navigation/sources.md
+  source_of_truth: state and review canonical records
+  indexes_are_authoritative: false
+  rebuild_from_scratch: true
+  obsolete_index_policy: fail closed with regeneration instruction if vault/indexes exists
+retrieval:
+  module: src/project_atlas/retrieval.py
+  behavior: read-only deterministic lexical exact and prefix lookup
+  supported_kinds:
+    - source
+    - claim
+    - concept
+    - conflict
+    - authority
+    - provenance
+  writes: none
+serialization_audit:
+  target: src/project_atlas/ingestion.py
+  result: ingestion.py serialization ownership confirmed for AS-RET-001
+  audit_scope: all registered worktrees, working tree, staged tree, and committed deltas
+  active_conflict: none
+  historical_overlaps: frozen review and architecture worktrees only; no active in-flight owner
+  primary_worktree_note: main had a pre-existing AGENTS.md modification unrelated to ingestion.py
+validation:
+  focused_command: >-
+    PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 /mnt/d/project-atlas-vault/.venv/bin/python
+    -m pytest -p no:cacheprovider tests/integration/test_as_ret_001_lexical_indexes.py
+    tests/integration/test_core_vertical_slice.py tests/integration/test_cli.py
+    tests/unit/test_scaffold.py -q
+  focused_result: 28 passed
+  core_command: >-
+    PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 /mnt/d/project-atlas-vault/.venv/bin/python
+    -m pytest -p no:cacheprovider tests --tb=no -q
+  core_result: 149 passed
+  control_plane_command: >-
+    PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 /mnt/d/project-atlas-vault/.venv/bin/python
+    -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=no -q
+  control_plane_result: 146 passed
+  mypy_command: MYPY_CACHE_DIR=/tmp/as-ret-mypy PYTHONPATH=src /mnt/d/project-atlas-vault/.venv/bin/mypy src
+  mypy_result: clean, 34 source files
+  ruff_command: RUFF_CACHE_DIR=/tmp/as-ret-ruff PYTHONPATH=src /mnt/d/project-atlas-vault/.venv/bin/ruff check src tests
+  ruff_result: clean
+  compilation_command: >-
+    PYTHONPATH=src PYTHONPYCACHEPREFIX=/tmp/as-ret-pycache
+    /mnt/d/project-atlas-vault/.venv/bin/python -m compileall -q src
+  compilation_result: clean
+  strict_vault_validation: passed
+  control_plane_diff: zero
+public_workflow:
+  result: passed through public init, discover, ingest, build-indexes, validate coverage
+  generated_path: no output under vault/indexes; all lexical artifacts under generated/
+  init_safety: recognized Atlas Vault is a no-op; unrelated non-empty directory is rejected
+replay:
+  result: generated/indexes and generated/navigation rebuild byte-identical from canonical state
+  retrieval_side_effects: none
+drift_rejection:
+  result: dangling IDs and invalid generated index state are rejected by atlas validate
+scope_invariants:
+  single_promote_boundary: preserved
+  direct_compiler_writes: false
+  certified_identity_lifecycle_semantics_modified: false
+  control_plane_modified: false
+test_accounting:
+  certified_baseline_core: 146
+  current_core: 149
+  net_new_collected: 3
+  removed: 0
+  renamed: 2
+  deselected: 0
+  added_tests:
+    - tests/integration/test_as_ret_001_lexical_indexes.py::test_rebuild_from_canonical_state_is_byte_identical
+    - tests/integration/test_as_ret_001_lexical_indexes.py::test_obsolete_index_directory_fails_closed
+    - tests/integration/test_as_ret_001_lexical_indexes.py::test_active_retrieval_scope_is_lexical_only
+  renamed_tests:
+    - tests/integration/test_as_eng_005_indexes_retrieval.py::test_indexes_cover_canonical_state_and_retrieval_is_read_only -> tests/integration/test_as_ret_001_lexical_indexes.py::test_indexes_cover_canonical_state_and_retrieval_is_read_only
+    - tests/integration/test_as_eng_005_indexes_retrieval.py::test_validate_rejects_index_state_drift -> tests/integration/test_as_ret_001_lexical_indexes.py::test_validate_rejects_index_state_drift
+  overlap_note: focused tests are included in the full Core collection and are not additive
+architecture_boundaries:
+  lexical_only: true
+  semantic_vector_work: excluded
+  external_services: excluded
+  graph_traversal: excluded

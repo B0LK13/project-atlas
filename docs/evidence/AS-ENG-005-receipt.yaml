@@ -1,12 +1,13 @@
 schema_version: 1
 package: AS-ENG-005
-status: implementation-complete-independent-certification-required
+status: superseded-by-AS-RET-001
+superseded_by: docs/evidence/AS-RET-001-receipt.yaml
 branch: feat/as-eng-005-ingestion-retrieval
 certified_base_commit: d2231d0e8659b9559c0e70bd9f9e58e80042f56b
 implementation_commit: d084491b28b5dd43e3e59900c5dab716466d4c7f
 evidence_commit: SELF
 scope:
-  description: deterministic incremental ingestion, canonical indexes, and read-only semantic retrieval
+  description: historical AS-ENG-005 record; active governance is AS-RET-001 lexical retrieval
   certified_subsystem_semantics_modified: false
   single_promote_boundary: true
   direct_canonical_writes_from_compiler: false

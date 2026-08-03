@@ -712,3 +712,29 @@ isolated public workflow passed, stabilized replay was byte-identical, Core
 passed `145`, Control Plane passed `146`, mypy passed for `34` source files,
 Ruff passed, and compilation passed. No certified subsystem semantics or
 Control Plane files changed.
+
+## AS-RET-001 lexical retrieval index reclassification and remediation
+
+**Status:** remediation complete — governor rereview required
+**Base:** `d2231d0e8659b9559c0e70bd9f9e58e80042f56b`
+**Historical implementation:** `d084491b28b5dd43e3e59900c5dab716466d4c7f`
+**Historical corrected evidence:** `0da869a49729c61c7a24a1127d5c3de545f5eb95`
+**Remediation implementation:** `4a40b3816bb24edd0d07271f6dd9c39dc1608a57`
+
+Reclassified the prior lexical exact/prefix index and retrieval work from the
+undocumented AS-ENG-005 label to governed AS-RET-001. The historical commit
+title said “semantic retrieval foundation”; its implementation contains no
+semantic, vector, embedding, ANN, or similarity capability.
+
+Moved all retrieval and navigation projections from `vault/indexes/` to
+`vault/generated/indexes/` and `vault/generated/navigation/`. Canonical state
+remains under `state/`; generated indexes are disposable and rebuilt from
+canonical state. An obsolete `vault/indexes/` directory now fails closed with
+a regeneration instruction. Retrieval remains read-only and the existing
+single promotion boundary is unchanged.
+
+The worktree serialization audit found no active in-flight owner of
+`src/project_atlas/ingestion.py`; overlapping committed deltas belonged only
+to frozen historical review or architecture worktrees. Core passed `149`,
+Control Plane `146`, mypy was clean for `34` source files, Ruff passed, and
+compilation passed.
