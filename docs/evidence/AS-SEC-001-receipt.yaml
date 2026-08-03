@@ -4,7 +4,7 @@ status: implementation-complete-architecture-rereview-required
 
 certified_base_commit: 7e720bda1a9efe3950a7943968024805fdfd2f6f
 implementation_commit: 179ea3f85aca51b34be2ef7b9a64a361e5522c2b
-evidence_commit: TBD
+evidence_commit: 8006e38b3f2e48e807cd6552e6f08d9a18d2e0d0
 
 adr:
   path: docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md
