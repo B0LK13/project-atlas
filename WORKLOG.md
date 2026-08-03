@@ -2224,3 +2224,95 @@ AS-MAINT-001 evidence `4ff107db32fffcd4252f7eb438fc301715266a55`,
 AS-MAINT-001 merge `ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1`,
 certification carry-forward `2e910ea0db5cb9e967c1b6dc5925d9048d82d0b2`,
 AS-SEC-001 merge `29437d72e1ef37ff71a8f148b79e2ffc965718c8`.
+
+## Post-AS-SEC-001 roadmap selection
+
+**Final security release main:** `7f8b2c89ab684af31d98172eb9358ac85799e93d`
+(clean, verified). Completed-package hashes: AS-MAINT-001 merge
+`ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1`; AS-SEC-001 certified
+candidate `0a3ee8f65735ee72f5e3dc65b02dfa7e90bb987d`, carry-forward
+evidence `2e910ea0db5cb9e967c1b6dc5925d9048d82d0b2`, merge
+`29437d72e1ef37ff71a8f148b79e2ffc965718c8`.
+
+**Closure reconciliation:** `docs/master-roadmap.md`'s certified-work
+table already marks AS-SEC-001 and AS-MAINT-001 as merged and
+post-merge validated with correct merge hashes (updated in the previous
+entry); no stale "in progress"/"blocked"/"awaiting certification"/
+"awaiting merge" language for either package remains anywhere in
+`docs/master-roadmap.md`. `docs/backlog.md` does not track AS-SEC-001 or
+AS-MAINT-001 as checklist items (they are security/maintenance packages
+tracked via their own receipts, not Epic-based feature items), so no
+backlog checkbox change was needed or made. No planning file required
+correction beyond what the prior entry already recorded.
+
+**Candidate next phases considered**, evaluated against the live
+`docs/backlog.md`, `docs/prp.md` (§7 MVP boundary, §8 success metrics,
+§10 final acceptance), and `docs/master-roadmap.md`:
+
+- **AS-V2-OPS-001 ("Operational Hardening and Live Corpus Readiness")**
+  as suggested in the incoming directive: does not appear anywhere in
+  `docs/master-roadmap.md`, `docs/implementation-roadmap.md`,
+  `docs/backlog.md`, `docs/plan.md`, or `docs/prp.md`. There is no live
+  epic, work-package ID, or backlog item for "operational hardening" or
+  "DevDrive"/"live corpus" readiness. Rejected: not a live-roadmap
+  package, and authorizing it now would mean inventing a new work
+  package rather than following the live roadmap as directed.
+- **"AS-INT-001 — Portfolio Intelligence Foundation"** as suggested in
+  the incoming directive: `AS-INT-001` is already a certified,
+  merged, closed work package ("Governed agent-event ingestion" /
+  "Governed Control Plane event-package ingestion into Atlas Core",
+  `docs/backlog.md` lines 129-143, `docs/master-roadmap.md` certified
+  table). Reusing this ID for a new, unrelated "Portfolio Intelligence"
+  package would collide with certified history. Rejected as named;
+  the underlying idea (Epic I) is real but needs a non-colliding
+  identifier if the owner wants to assign one.
+- **Release closure (v1/MVP completion)**: `docs/prp.md` §7 defines the
+  MVP boundary as including "three pilot fixtures" and §8's success
+  metrics require "all pilot projects produce a project overview,
+  source index, gap report, and status confidence state." Checking the
+  live backlog: **Epic K — Pilot onboarding is 0/7 complete**
+  (K-001 through K-007, all unchecked: Nebula/Black Agency OS/Dark
+  Factory fixture corpora, expected manifests, expected generated
+  vault, contradiction fixtures, secret fixtures) and **Epic I —
+  Portfolio intelligence is 2/8 complete** (I-001 project index and
+  I-006 conflict review queue done; I-002 portfolio overview, I-003
+  maturity matrix, I-004 documentation gap report, I-005 stale
+  knowledge report, I-007 dependency report, I-008 capability report
+  remain unchecked). `docs/master-roadmap.md` line 96 itself states
+  "Atlas Core is not yet an MVP." **v1/MVP closure is therefore
+  incomplete.**
+
+**Selection (per the recommended decision order — rule 1, v1 closure
+incomplete takes priority over any new v2/portfolio epic):**
+authorize completion of the remaining v1/MVP backlog — Epic I
+(portfolio intelligence: I-002, I-003, I-004, I-005, I-007, I-008) and
+Epic K (pilot onboarding: K-001 through K-007) — as release-closure
+work, not a new post-security feature phase. No new work-package ID is
+assigned here; the owner should assign one (avoiding the `AS-INT-001`
+collision) at architecture-entry time if a single umbrella package is
+wanted, or run Epic I and Epic K as separate architecture-entry gates.
+
+**Architecture-entry requirement:** an Architecture Governor gate is
+still required before implementation begins, covering: which Epic
+I/K items are in scope for this pass, the three pilot project sources
+(Nebula, Black Agency OS, Dark Factory) and their provenance, expected
+manifest/vault golden fixtures, portfolio overview/gap-report/maturity-
+matrix generated-output schemas, determinism and idempotency
+requirements consistent with existing Core conventions, and explicit
+non-goals (no live/uncontrolled corpus ingestion, no DevDrive access
+of any kind — that topic is not part of this selection).
+
+**No roadmap or backlog file required correction**; this entry is
+recorded for traceability only. No documentation-only commit was
+needed beyond this WORKLOG entry.
+
+**NEXT AGENT: PROJECT OWNER / ARCHITECTURE GOVERNANCE**
+**NEXT PHASE: V1/MVP CLOSURE ARCHITECTURE ENTRY (EPIC I PORTFOLIO
+INTELLIGENCE + EPIC K PILOT ONBOARDING)**
+**NEXT DIRECTIVE: ASSIGN A NON-COLLIDING WORK-PACKAGE ID AND DEFINE THE
+ARCHITECTURE-ENTRY GATE FOR THE REMAINING EPIC I/K BACKLOG ITEMS**
+
+Status: **ROADMAP-RECONCILIATION-REQUIRED** is not applicable (no
+disagreement found); status is **RELEASE-CLOSURE-AUTHORIZED** for the
+v1/MVP backlog completion described above. No implementation was
+started under this entry.
