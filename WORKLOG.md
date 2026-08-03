@@ -1159,3 +1159,41 @@ project-identifier/title pathway.
 certification. Bounded remediation directive issued to the Implementation
 Agent (see governor response for full `NEXT_AGENT_DIRECTIVE`); do not route
 to Agent Two until this is fixed and re-reviewed.
+
+## AS-SEC-001-GOV-001 architecture rereview — PASSED
+
+**Status:** implementation-complete-rereview-passed
+**Reviewed commit:** `e0b26b26df00350855fb3ada9c7751dfd3d97375`
+
+Architecture Governor re-reviewed the bounded GOV-001 remediation only (not a
+full re-review). All 7 checked items pass:
+
+- Diff scope confirmed minimal: only `discovery.py`, `quarantine.py`, one
+  fixture, and test files changed; `okf_renderer.py`, `semantic_compiler.py`,
+  `secrets.py`, `validation.py`, and `ID_PATTERN` untouched.
+- `quarantine.scan_identifier()` normalizes hyphen/underscore/slash
+  separators and reuses the existing pattern set — no new detection
+  semantics, no new dependency.
+- `discovery.py:_project_context` now scans `project.id` and raises
+  `ValueError` on a match, which the CLI surfaces as an operational error.
+- Independently re-ran the exact GOV-001 attack string by hand, outside
+  pytest, in an isolated scratch project: `atlas discover` now exits `1`
+  with `adversarial project identifier ... instruction-override`; no
+  `manifest.json` is written, so nothing downstream ever executes.
+- False-positive check: an ordinary hyphenated id
+  (`my-ordinary-project-2026`) still discovers successfully.
+- Fresh full-suite run: Core `177 passed, 0 failed`; Control Plane
+  `146 passed, 0 failed`; mypy clean (35 files); ruff clean — matches the
+  receipt exactly.
+
+**Evidence-integrity note (non-blocking):** the incoming directive's claimed
+full HEAD hash (`a2ada90d2de6a4e7b3c5d8f7e1a2b9c8d3e4f5a6`) does not exist;
+only its 7-char prefix (`a2ada90`) was real. Verified actual HEAD via
+`git rev-parse`: `a2ada906ae5a8b1da2d4529eaa0ccb0e36ada056`. The commit itself
+was unambiguous from the prefix, so this did not block the rereview, but a
+fabricated "full" hash is exactly what the handoff contract's own commit-
+precision rule exists to prevent.
+
+**Disposition:** AS-SEC-001-GOV-001 closed. Routed to Agent Two — Independent
+Security Certifier — for adversarial certification (full directive in the
+governor's response).
