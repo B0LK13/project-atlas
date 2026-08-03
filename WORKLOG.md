@@ -1117,6 +1117,7 @@ conflict identity. No LLM, network, or sandbox dependency introduced.
 **No merge performed.** Package is frozen pending Architecture Governor
 rereview of the AS-SEC-001-GOV-001 remediation.
 
+
 ## AS-SEC-001 architecture rereview — BLOCKED
 
 **Status:** architecture-rereview-blocked-remediation-required
@@ -1197,3 +1198,68 @@ precision rule exists to prevent.
 **Disposition:** AS-SEC-001-GOV-001 closed. Routed to Agent Two — Independent
 Security Certifier — for adversarial certification (full directive in the
 governor's response).
+
+## AS-SEC-001-GOV-002 — Remediation: Unicode detector evasion
+
+**Status:** remediated — architecture rereview required
+**Candidate commit:** `4287113fc432821af84b1b33e3a5d57bbb9d7462`
+**Branch:** `fix/as-sec-001-gov-002-detector-evasion`
+
+**Blocking finding (AS-SEC-001-GOV-002):** The adversarial-instruction
+analyzer in `src/project_atlas/quarantine.py` was vulnerable to Unicode
+bypasses: format-control characters (zero-width joiners, soft hyphens,
+directional isolates) and visually identical Cyrillic homoglyphs could be
+inserted into instruction-shaped text without triggering the regex-only
+pattern set.
+
+**Remediation applied:**
+
+- Added `_normalize_detector_input(text: str)` in `quarantine.py`. It:
+  1. Applies Unicode NFKC compatibility normalization.
+  2. Removes every character with `unicodedata.category(ch) == "Cf"`
+     (format controls), covering zero-width spaces/joiners, soft
+     hyphens, and directional isolates.
+  3. Applies a narrow, explicit confusable-character mapping for
+     demonstrated Cyrillic homoglyphs (e.g., Cyrillic а/е/і/о/р/с/т/х/у
+     look-alikes mapped to their Latin equivalents) before pattern
+     matching.
+- Wired the normalization into both `scan_text()` and `scan_identifier()`
+  so the existing document-content and structural-identifier pathways are
+  both protected.
+- The original source bytes in `vault/sources/imported-documents/` are
+  never rewritten; normalization is used only inside the detector. No
+  matched payload is exposed in findings, logs, or generated output.
+- Added adversarial fixtures:
+  - `tests/fixtures/adversarial-project/zero-width-insertion.md`
+  - `tests/fixtures/adversarial-project/soft-hyphen-insertion.md`
+  - `tests/fixtures/adversarial-project/cyrillic-homoglyph.md`
+- Added unit and integration tests covering detection of each evasion
+  vector and proving quarantined Unicode-evasive content does not reach
+  claims, concepts, or lexical indexes.
+- Added an explicit out-of-scope note to
+  `docs/evidence/AS-SEC-001-receipt.yaml`: non-English instruction phrasing
+  and unrestricted synonym substitution remain outside the regex-only
+  detector's scope.
+
+**Scope preserved:** No changes to `secrets.py`, agent-event quarantine,
+`ID_PATTERN`, source identity, lifecycle, claim identity, conflict
+identity, `okf_renderer.py`, `semantic_compiler.py`, or the single
+promotion boundary. No LLM, embedding, network, or sandbox dependency was
+introduced.
+
+**Validation gates:**
+
+- `ruff check src tests` — clean
+- `mypy src` — clean, 35 source files
+- `pytest tests` — 183 passed, 0 failed
+- `pytest atlas-vault-documentation/tests` — 146 passed, 0 failed
+- `compileall -q src` — clean
+- Control Plane isolation diff (`atlas-vault-documentation/`,
+  `AGENT-BOOTSTRAP.md`, `.atlas/`) — empty
+- Unchanged replay byte-identity — verified by existing test
+- Non-adversarial golden fixtures — unchanged
+
+**Evidence updated:** `docs/evidence/AS-SEC-001-receipt.yaml`.
+
+**No merge performed.** Package is frozen pending Agent Two independent
+adversarial certification and Agent Three targeted architecture rereview.
