@@ -62,10 +62,16 @@ def _fixture_evasion_project(root: Path) -> Path:
         "em-space-reproduction.md",
         "no-break-space-reproduction.md",
         "line-separator-reproduction.md",
+        "tab-mid-keyword-reproduction.md",
+        "line-feed-mid-keyword-reproduction.md",
+        "carriage-return-mid-keyword-reproduction.md",
     ):
         (source / name).write_bytes(
             Path(f"tests/fixtures/adversarial-project/{name}").read_bytes()
         )
+    (source / "benign-multiline-control.md").write_bytes(
+        Path("tests/fixtures/adversarial-project/benign-multiline-control.md").read_bytes()
+    )
     return source
 
 
@@ -306,14 +312,20 @@ def test_unicode_evasion_sources_are_quarantined(tmp_path: Path) -> None:
         "em-space-reproduction.md",
         "no-break-space-reproduction.md",
         "line-separator-reproduction.md",
+        "tab-mid-keyword-reproduction.md",
+        "line-feed-mid-keyword-reproduction.md",
+        "carriage-return-mid-keyword-reproduction.md",
     ):
         assert any(name in path for path in quarantined_paths), f"{name} must be quarantined"
+    assert not any(
+        "benign-multiline-control.md" in path for path in quarantined_paths
+    ), "benign multiline control must not be quarantined"
     ingestion = json.loads(
         (vault / "generated" / "reports" / "ingestion-report.json").read_text(
             encoding="utf-8"
         )
     )
-    assert ingestion["documents_ingested"] == 2
+    assert ingestion["documents_ingested"] == 3
 
 
 def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path) -> None:
@@ -335,6 +347,13 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "em-space" not in ref["source_id"]
             assert "no-break-space" not in ref["source_id"]
             assert "line-separator" not in ref["source_id"]
+            assert "mid-keyword" not in ref["source_id"]
+    concepts = json.loads(
+        (vault / "state" / "concepts" / f"{source.name}.json").read_text(encoding="utf-8")
+    )
+    for concept in concepts.get("concepts", []):
+        for ref in concept.get("sources", []):
+            assert "mid-keyword" not in ref["source_id"]
     indexes_dir = vault / "generated" / "indexes"
     if indexes_dir.exists():
         for path in indexes_dir.rglob("*.json"):
@@ -346,6 +365,9 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "\u0410" not in text
             assert "\u03bf" not in text
             assert "\u0113" not in text
+            assert "Tab mid-keyword reproduction" not in text
+            assert "Line feed mid-keyword reproduction" not in text
+            assert "Carriage return mid-keyword reproduction" not in text
             assert "\u012b" not in text
             assert "\u00f6" not in text
             assert "\x0b" not in text

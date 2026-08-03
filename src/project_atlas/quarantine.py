@@ -184,8 +184,11 @@ _PATTERNS: tuple[tuple[str, str, str, re.Pattern[str]], ...] = (
 )
 
 
+_TAB_LF_CR_RUN = re.compile(r"[\t\n\r]+")
+
+
 def _normalize_detector_input(text: str) -> str:
-    """Prepare raw Unicode text for deterministic adversarial-instruction scanning.
+    """Strip/replace everything except tab, line feed, and carriage return.
 
     Steps, in order:
 
@@ -195,14 +198,13 @@ def _normalize_detector_input(text: str) -> str:
        (category ``Mn``), including zero-width spaces/joiners, soft hyphens,
        directional isolates, and diacritical marks that can be used to evade
        regex word-boundary or token matching.
-    3. Handle C0/C1 control characters (category ``Cc``):
-
-       - Keep tab, line feed, and carriage return as ASCII whitespace so that
-         normal line boundaries still delimit words.
-       - Remove every other control character (including vertical tab, form
-         feed, null, backspace, bell, escape, and other C0/C1 controls) so
-         that control characters injected mid-keyword collapse back into the
-         keyword.
+    3. Remove every C0/C1 control character other than tab, line feed, and
+       carriage return (vertical tab, form feed, null, backspace, bell,
+       escape, and the rest), so control characters injected mid-keyword
+       collapse back into the keyword. Tab/line feed/carriage return
+       themselves are deliberately left untouched here — ``scan_text``
+       resolves them afterward, since how to treat them depends on whether
+       they appear alone or as part of a run (see ``scan_text``).
     4. Normalize every Unicode separator (general category ``Z``: Zs, Zl, Zp)
        to a single ASCII space. All Z-category characters are separators by
        definition, so there is no legitimate reason to preserve distinctions
@@ -216,43 +218,77 @@ def _normalize_detector_input(text: str) -> str:
     only inside the detector.
     """
     normalized = unicodedata.normalize("NFKD", text)
-    stripped: list[str] = []
+    kept: list[str] = []
     for ch in normalized:
         category = unicodedata.category(ch)
         if category in {"Cf", "Mn"}:
             continue
-        if category == "Cc":
-            if ch in {"\t", "\n", "\r"}:
-                stripped.append(" ")
+        if category == "Cc" and ch not in {"\t", "\n", "\r"}:
             continue
         if category.startswith("Z"):
-            stripped.append(" ")
+            kept.append(" ")
             continue
-        stripped.append(ch)
-    mapped = "".join(_CONFUSABLE.get(ch, ch) for ch in stripped)
-    return mapped
+        kept.append(ch)
+    return "".join(_CONFUSABLE.get(ch, ch) for ch in kept)
 
 
 def scan_text(text: str) -> list[InjectionFinding]:
     """Return metadata-only adversarial-instruction findings for ``text``.
 
+    Tab, line feed, and carriage return are ambiguous: the same character can
+    be a legitimate word boundary ("Ignore<TAB>previous<TAB>instructions",
+    three real words) or an evasive insertion splitting one keyword in half
+    ("Ign<TAB>ore", one word). Neither "always treat as whitespace" nor
+    "always remove" alone satisfies both cases: the first misses the
+    split-keyword evasion; the second can glue an unrelated preceding or
+    following word directly onto a keyword and defeat its ``\\b`` boundary
+    (e.g. a heading ending in a bare word, immediately followed by a
+    paragraph that starts with "Ignore"). Removing *every* occurrence
+    document-wide is too broad; per-character local context alone cannot
+    tell "mid-word" from "between words" (both look like letter-control-
+    letter).
+
+    The run length is the deterministic signal used instead: a run of two or
+    more consecutive tab/line-feed/carriage-return characters is a strong,
+    unambiguous signal of an intentional paragraph or section break (e.g. a
+    blank line) and always collapses to a single space, in both variants
+    below. A lone, isolated single occurrence is the ambiguous case — it
+    could be ordinary single-newline line wrapping, or a one-character
+    mid-keyword injection — so it is tested both ways:
+
+    - Variant A: every run (including isolated single occurrences) becomes
+      one ASCII space, preserving ordinary line/tab-separated word
+      boundaries (this is what catches a legitimate multi-word instruction
+      that happens to use tab/newline as its separator).
+    - Variant B: runs of two or more still collapse to one space, but an
+      isolated single occurrence is removed entirely, reuniting a keyword
+      split by exactly one stray control character without touching any
+      genuine paragraph break elsewhere in the text.
+
+    The detector reports the union of findings from both variants.
     Findings are deterministic and ordered by rule name to keep reports
     stable across runs. The matched content is never returned.
     """
-    normalized = _normalize_detector_input(text)
+    prepared = _normalize_detector_input(text)
+    variant_a = _TAB_LF_CR_RUN.sub(" ", prepared)
+    variant_b = _TAB_LF_CR_RUN.sub(
+        lambda match: " " if len(match.group(0)) > 1 else "", prepared
+    )
+
     findings: list[InjectionFinding] = []
     seen: set[str] = set()
-    for rule, confidence, hint, pattern in _PATTERNS:
-        if pattern.search(normalized) and rule not in seen:
-            findings.append(
-                InjectionFinding(
-                    rule=rule,
-                    pattern=rule,
-                    confidence=confidence,
-                    redacted_hint=hint,
+    for normalized in (variant_a, variant_b):
+        for rule, confidence, hint, pattern in _PATTERNS:
+            if pattern.search(normalized) and rule not in seen:
+                findings.append(
+                    InjectionFinding(
+                        rule=rule,
+                        pattern=rule,
+                        confidence=confidence,
+                        redacted_hint=hint,
+                    )
                 )
-            )
-            seen.add(rule)
+                seen.add(rule)
     return sorted(findings, key=lambda finding: finding.rule)
 
 
