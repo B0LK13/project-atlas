@@ -214,6 +214,20 @@ architecture:
   governor_review: pending-gov-007-rereview
   reviewed_commit: 9ee547ad3cfb8159c592e6751622d2c3f374beeb
   previous_reviewed_candidate: 190008ffc7f8ba42bd3950a4f554fbb5e36459f4
+  gov_007_rereview:
+    status: blocked-residual-gov-006-gap
+    reviewed_head: d8c6c1b869351c3aadc26addfbe68650a1e56581
+    result: >-
+      GOV-007 tab/line-feed/carriage-return remediation verified. GOV-008
+      U+0085 is already covered by the existing Cc handler. Certification
+      remains blocked by the explicitly tracked Z-category mid-keyword gap.
+    fresh_fuzz: >-
+      All 19 Z, 65 Cc, 1,985 Mn, and mapped confusable cases were exercised;
+      only the documented Z mid-keyword residual remains as a strict xfail.
+    owner_decision: >-
+      The owner selected bounded deterministic handling over whitelist
+      normalization for GOV-007; explicit authorization is still required
+      before extending that decision to the GOV-006 residual.
   yaml_structure_integrity_note: >-
     This receipt has now had duplicate top-level keys within the single
     architecture: mapping reintroduced and repaired twice (GOV-005/006

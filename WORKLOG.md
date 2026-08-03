@@ -1893,3 +1893,20 @@ process pattern.
 **No merge performed.** Package is frozen pending Agent Three's targeted
 architecture rereview of this GOV-007 remediation (see the completion
 report's `NEXT_AGENT_DIRECTIVE` for the full handoff).
+
+## AS-SEC-001-GOV-007 architecture rereview — STILL BLOCKED
+
+Reviewed HEAD: `d8c6c1b869351c3aadc26addfbe68650a1e56581`.
+
+GOV-007 is verified: tab, line-feed, and carriage-return mid-keyword
+remediation passes the deterministic matrix, and U+0085 is covered by the
+existing Cc handler. Core independently reports `218 passed, 1 xfailed`,
+Control Plane `146 passed`, mypy is clean for 35 files, Ruff is clean, and
+compilation succeeds from an extracted immutable Git archive because the
+review worktree is read-only.
+
+The review remains blocked by the documented GOV-006 residual: Z-category
+characters still bypass detection when inserted mid-keyword. The owner chose
+bounded deterministic handling for GOV-007, but has not explicitly authorized
+extending that decision to this residual. No certification or merge is
+authorized.
