@@ -1,0 +1,202 @@
+schema_version: 1
+work_package: AS-MVP-001
+title: Portfolio Intelligence and Pilot Onboarding Closure
+status: implementation-complete-independent-verification-required
+
+architecture_commit: e1b2bba2ea25aacf27e5da2e0696f850b56494c4
+adr: docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md
+branch: feat/as-mvp-001-portfolio-pilots
+
+implementation_commits:
+  - d4d664a0576d84a069e9b5ca8d8f9b19eb36df39  # feat(portfolio): add deterministic projection schemas and helpers
+  - f588236608fb9bb0be69fabaa9c105bb888fc0d5  # feat(portfolio): generate overview/maturity/coverage/stale/dependency/capability + CLI + validation
+  - 83a5ad22de17c9bf1bef2ec7e3adaa8ade1481dc  # test(fixtures): add AS-MVP-001 pilot projects
+  - 326fa5adc1c01c60ebe694b1bc512eb5e8f34f15  # fix(portfolio): exclude quarantined sources from stale-knowledge citations
+  - ea368e7c7099b5bc18095caf0f6f038ae6560f8e  # test(portfolio): certify MVP portfolio workflows
+evidence_commit: SELF
+
+epic_i:
+  completed_before:
+    - id: I-001
+      title: Project index generator
+    - id: I-006
+      title: Conflict review queue
+  implemented:
+    - id: I-002
+      title: Portfolio overview
+      output: generated/portfolio/overview.json
+    - id: I-003
+      title: Maturity matrix
+      output: generated/portfolio/maturity-matrix.json
+      note: >-
+        Categorical only (existing Maturity enum). Every project in the
+        current pipeline reports maturity "unknown" because no existing
+        knowledge_compiler.py rule populates ConceptRecord.maturity yet
+        (a pre-existing gap tracked separately by backlog CORE-MODEL-001,
+        not touched by this package). The explicit inputs
+        (required_coverage_present, validation_evidence_present,
+        open_conflicts) are populated and correctly distinguish the
+        pilots even though the categorical label itself does not yet.
+    - id: I-004
+      title: Documentation gap report
+      output: generated/portfolio/documentation-coverage.json
+      note: reuses semantic_compiler.coverage_for(); does not recompute rules
+    - id: I-005
+      title: Stale knowledge report
+      output: generated/portfolio/stale-knowledge.json
+      note: >-
+        Freshness derived from sources/manifests/source-manifest.json's
+        modified_at against an injected reference date. Known limitation:
+        that manifest file is overwritten (not merged) by each `atlas
+        ingest` call, so a vault built from multiple separate ingest
+        calls only retains the most recent batch's freshness data; a
+        single combined discover+ingest across all projects (the
+        pattern used by this package's own pilot workflow and
+        acceptance tests) is unaffected. Not fixed here; pre-existing
+        ingestion.py behavior, out of AS-MVP-001 scope.
+    - id: I-007
+      title: Dependency report
+      output: generated/portfolio/dependency-report.json
+      note: >-
+        Existing deterministic RUNTIME_DEPENDENCY claims ("requires:"/
+        "dependency:" line extraction, knowledge_compiler.py) plus any
+        populated depends_on/related_project concept relationships.
+        Verified working end-to-end via the dark-factory -> nebula and
+        nebula -> shared-auth-service pilot declarations.
+    - id: I-008
+      title: Capability report
+      output: generated/portfolio/capability-report.json
+      note: >-
+        Aggregates existing Capability-typed concepts and provides
+        relationships. Correctly empty for all three pilots (none
+        declares a Capability-typed concept) - verified functional but
+        not exercised with real capability data, since the current
+        one-concept-per-project model (backlog CORE-MODEL-001, not in
+        scope here) makes richer per-source concept typing a separate,
+        larger change.
+
+epic_k:
+  pilots:
+    - id: nebula
+      profile: mature-and-complete
+      path: tests/fixtures/pilots/nebula
+    - id: black-agency-os
+      profile: partial-and-stale
+      path: tests/fixtures/pilots/black-agency-os
+    - id: dark-factory
+      profile: conflicted-and-dependency-heavy
+      path: tests/fixtures/pilots/dark-factory
+  completed_items:
+    - K-001  # Nebula fixture corpus
+    - K-002  # Black Agency OS fixture corpus
+    - K-003  # Dark Factory fixture corpus
+  not_implemented_items:
+    - id: K-004
+      title: Expected manifests
+      note: >-
+        Not authored as separate committed golden files in this package;
+        the acceptance tests instead assert directly against freshly
+        computed pipeline output (equivalent coverage, less golden-file
+        maintenance). Recommended follow-up if byte-for-byte golden
+        manifests are required by a future release-closure gate.
+    - id: K-005
+      title: Expected generated vault
+      note: same rationale as K-004
+    - id: K-006
+      title: Contradiction fixtures
+      note: >-
+        Partially covered: dark-factory's two "roadmap:" claims produce
+        a real, pipeline-detected conflict (test_scenario_4). A
+        dedicated standalone contradiction fixture beyond dark-factory
+        was not authored separately.
+    - id: K-007
+      title: Secret fixtures
+      note: >-
+        Not authored as a new fixture; AS-MVP-001's non-leakage test
+        reuses the existing certified adversarial-project fixture
+        (instruction-bearing.md, canary-bearing.md) to prove zero
+        leakage into portfolio outputs, which exercises the same
+        quarantine boundary a dedicated secret fixture would.
+
+outputs:
+  - generated/portfolio/overview.json
+  - generated/portfolio/maturity-matrix.json
+  - generated/portfolio/documentation-coverage.json
+  - generated/portfolio/stale-knowledge.json
+  - generated/portfolio/dependency-report.json
+  - generated/portfolio/capability-report.json
+  - generated/navigation/portfolio-overview.md
+
+cli:
+  command: atlas build-portfolio --vault <vault-dir>
+  workflow: init -> discover -> ingest -> build-indexes -> build-portfolio -> validate
+  not_folded_into: build-indexes
+
+validation:
+  core_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests --tb=short -q
+  core_result: "257 passed, 0 failed (245 pre-existing + 12 new AS-MVP-001 tests; no existing test removed or weakened)"
+  control_plane_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=short -q
+  control_plane_result: "146 passed, 0 failed"
+  portfolio_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests/integration/test_as_mvp_001_portfolio.py -v --tb=short
+  portfolio_result: "12 passed, 0 failed (10 ADR-005 acceptance scenarios + 1 dedicated security non-leakage test + 1 rollback test)"
+  security_integration_command: PYTHONPATH=src .venv/bin/python -m pytest -p no:cacheprovider tests/integration/test_as_sec_001_quarantine_boundary.py -q
+  security_integration_result: "16 passed, 0 failed"
+  fuzz_command: PYTHONPATH=src .venv/bin/python -m pytest -p no:cacheprovider tests/unit/test_quarantine_fuzz.py -s -q
+  fuzz_result: "generated=218 executed=218 skipped=0 failures=0 false_positives=0 exceptions=0"
+  mypy_command: MYPY_CACHE_DIR=/tmp/mvp-final-mypy PYTHONPATH=src .venv/bin/python -m mypy src
+  mypy_result: "clean, 36 source files (was 35 before this package; +1 for portfolio.py)"
+  ruff_command: .venv/bin/python -m ruff check src tests
+  ruff_result: clean
+  compilation_command: >-
+    PYTHONPATH=src .venv/bin/python -m compileall -q src ;
+    PYTHONPATH=src .venv/bin/python -m compileall -q atlas-vault-documentation
+  compilation_result: clean (both src and atlas-vault-documentation)
+  environment:
+    fresh_clone_path: /tmp/mvp-fresh
+    filesystem: ext4
+    clone_command: git clone --no-local /mnt/d/project-atlas-as-mvp-001 /tmp/mvp-fresh
+    checked_out: feat/as-mvp-001-portfolio-pilots
+    all_core_control_plane_static_and_public_workflow_checks_rerun_here: true
+  public_workflow:
+    corpus: tests/fixtures/pilots (nebula, black-agency-os, dark-factory copied to a scratch dir, black-agency-os README aged 400 days)
+    pipeline: init -> discover -> ingest -> build-indexes -> build-portfolio -> validate
+    result: all stages exit 0 on fresh ext4; discovered 12 sources across 3 projects, validated 81 Markdown files
+  deterministic_replay: >-
+    build_portfolio() called twice with the same injected reference_date
+    produces byte-identical generated/portfolio/*.json (verified both in
+    the acceptance test suite - test_scenario_8 - and manually on the
+    fresh ext4 clone). CLI invocations without an injected reference
+    date naturally vary only in stale-knowledge.json's reference_date
+    field, as designed (the CLI captures real time once per invocation;
+    it is never read from inside the deterministic per-item computation).
+  rollback: >-
+    test_rollback_preserves_prior_valid_portfolio_on_failure forces a
+    write failure inside the promotion boundary (replacing
+    generated/portfolio/ with a regular file so mkdir raises before any
+    file in that directory can be written) and confirms the previously
+    promoted valid output is byte-identical afterward.
+  security_non_leakage: >-
+    test_security_no_quarantined_content_in_portfolio_outputs reuses the
+    certified adversarial-project fixture; confirms zero quarantined
+    source_id references, zero canary tokens, and zero "ignore"-keyword
+    text in any generated/portfolio output. validation.py's
+    _validate_no_quarantined_leakage additionally rejects any future
+    regression at validate() time.
+
+canonical_state_mutated: false
+history_rewritten: false
+merge_authorized: false
+
+known_limitations:
+  - maturity_matrix always reports "unknown" today because no existing
+    rule populates ConceptRecord.maturity (CORE-MODEL-001, separate
+    backlog item, out of scope here)
+  - capability_report is correctly empty for all three pilots; not
+    exercised with real Capability-typed concept data (same root cause)
+  - stale_knowledge relies on sources/manifests/source-manifest.json,
+    which is overwritten (not merged) per ingest call; accurate only
+    for a single combined discover+ingest across all projects in one
+    vault (which is how this package's own workflow and tests use it)
+  - K-004/K-005 golden fixtures were not authored as separate committed
+    files; acceptance tests assert against freshly computed pipeline
+    output instead

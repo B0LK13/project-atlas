@@ -84,19 +84,22 @@
 
 ## Epic I — Portfolio intelligence
 
-_Remaining items (I-002 through I-005, I-007, I-008) are scoped under
-**AS-MVP-001** (architecture entry passed; see
-`docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md`). Not
-marked complete until implemented and independently verified._
+_Remaining items (I-002 through I-005, I-007, I-008) are implemented
+under **AS-MVP-001** on `feat/as-mvp-001-portfolio-pilots`
+(implementation complete, acceptance-tested, awaiting independent
+verification and owner merge; see
+`docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and
+`docs/evidence/AS-MVP-001-receipt.yaml`). Left unchecked until
+independent verification passes and the branch is merged to `main`._
 
 - [x] I-001 Project index generator
-- [ ] I-002 Portfolio overview
-- [ ] I-003 Maturity matrix
-- [ ] I-004 Documentation gap report
-- [ ] I-005 Stale knowledge report
+- [ ] I-002 Portfolio overview — implemented, acceptance-tested (AS-MVP-001)
+- [ ] I-003 Maturity matrix — implemented, acceptance-tested (AS-MVP-001)
+- [ ] I-004 Documentation gap report — implemented, acceptance-tested (AS-MVP-001)
+- [ ] I-005 Stale knowledge report — implemented, acceptance-tested (AS-MVP-001)
 - [x] I-006 Conflict review queue
-- [ ] I-007 Dependency report
-- [ ] I-008 Capability report
+- [ ] I-007 Dependency report — implemented, acceptance-tested (AS-MVP-001)
+- [ ] I-008 Capability report — implemented, acceptance-tested (AS-MVP-001)
 
 ## Epic J — Incremental operation
 
@@ -109,13 +112,18 @@ marked complete until implemented and independently verified._
 
 ## Epic K — Pilot onboarding
 
-_All items are scoped under **AS-MVP-001** (architecture entry passed;
-see `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md`).
-Not marked complete until implemented and independently verified._
+_Items are implemented under **AS-MVP-001** on
+`feat/as-mvp-001-portfolio-pilots` (see
+`docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and
+`docs/evidence/AS-MVP-001-receipt.yaml`). K-001/K-002/K-003 fixtures
+are implemented and acceptance-tested; K-004/K-005/K-006/K-007 are
+only partially covered (see the receipt's `known_limitations` and
+`epic_k.not_implemented_items`). Left unchecked until independent
+verification passes and the branch is merged to `main`._
 
-- [ ] K-001 Nebula fixture corpus
-- [ ] K-002 Black Agency OS fixture corpus
-- [ ] K-003 Dark Factory fixture corpus
+- [ ] K-001 Nebula fixture corpus — implemented, acceptance-tested (AS-MVP-001)
+- [ ] K-002 Black Agency OS fixture corpus — implemented, acceptance-tested (AS-MVP-001)
+- [ ] K-003 Dark Factory fixture corpus — implemented, acceptance-tested (AS-MVP-001)
 - [ ] K-004 Expected manifests
 - [ ] K-005 Expected generated vault
 - [ ] K-006 Contradiction fixtures

@@ -128,7 +128,7 @@ an MVP.
 
 | Work package | Capability                                    | Status                                 |
 | ------------ | --------------------------------------------- | -------------------------------------- |
-| AS-MVP-001 | Portfolio intelligence and pilot onboarding closure (Epic I remainder + Epic K) | **Architecture entry passed — implementation authorized** (see `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and `docs/evidence/AS-MVP-001-architecture-entry.yaml`) |
+| AS-MVP-001 | Portfolio intelligence and pilot onboarding closure (Epic I remainder + Epic K) | **Implementation complete, acceptance-tested — independent verification and owner merge required** (branch `feat/as-mvp-001-portfolio-pilots`; see `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and `docs/evidence/AS-MVP-001-receipt.yaml`) |
 | AS-MAINT-002 | Control Plane push/PR CI coverage | **Not yet authorized** (recommended follow-up recorded in the AS-MAINT-001 receipt; `atlas-vault-documentation/tests` currently has no automatic CI coverage) |
 | AS-WP-005    | Graphify adapter and relationship projections | **Deferred until Core integration boundary is established** |
 

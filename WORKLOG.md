@@ -2405,3 +2405,123 @@ only `docs/adr/`, `docs/evidence/`, `docs/master-roadmap.md`,
 **NEXT AGENT: AGENT ONE — IMPLEMENTATION**
 **NEXT PHASE: AS-MVP-001 PORTFOLIO INTELLIGENCE AND PILOT ONBOARDING**
 **NEXT DIRECTIVE: BUILD FROM COMMIT `4ae420989e44de322f4789a59114f461c452ecc8` FOLLOWING ADR-005'S IMPLEMENTATION SEQUENCING**
+
+## AS-MVP-001 implementation (frozen, pending independent verification)
+
+**Status:** AS-MVP-001 IMPLEMENTATION COMPLETE AND FROZEN — INDEPENDENT
+VERIFICATION REQUIRED
+**Architecture commit:** `e1b2bba2ea25aacf27e5da2e0696f850b56494c4`
+**Branch:** `feat/as-mvp-001-portfolio-pilots` (worktree
+`/mnt/d/project-atlas-as-mvp-001`)
+**Implementation commits:** `d4d664a0576d84a069e9b5ca8d8f9b19eb36df39`,
+`f588236608fb9bb0be69fabaa9c105bb888fc0d5`,
+`83a5ad22de17c9bf1bef2ec7e3adaa8ade1481dc`,
+`326fa5adc1c01c60ebe694b1bc512eb5e8f34f15`,
+`ea368e7c7099b5bc18095caf0f6f038ae6560f8e`
+**Receipt:** `docs/evidence/AS-MVP-001-receipt.yaml`
+
+**Workstream A (portfolio intelligence):** `src/project_atlas/portfolio.py`
+implements all six remaining Epic I generators as pure, read-only
+projections over existing canonical/generated state - no new canonical
+record type:
+
+- I-002 overview, I-004 documentation coverage: reuse
+  `semantic_compiler.coverage_for()` verbatim, aggregated portfolio-wide.
+- I-003 maturity matrix: categorical only (existing `Maturity` enum);
+  every project in the current pipeline reports `"unknown"` because no
+  existing rule populates `ConceptRecord.maturity` yet (pre-existing gap,
+  tracked separately as backlog `CORE-MODEL-001`, not touched here); the
+  explicit inputs (required-coverage-present, validation-evidence-present,
+  open-conflicts) do correctly distinguish the pilots.
+- I-005 stale knowledge: freshness from
+  `sources/manifests/source-manifest.json`'s `modified_at` against an
+  injected reference date (never the wall clock inside the generator);
+  quarantined sources are excluded from individual citations (aggregate
+  count only). Known limitation: that manifest file is overwritten, not
+  merged, per `atlas ingest` call - accurate for a single combined
+  discover+ingest across all projects (this package's own workflow),
+  not for a vault built from several separate ingest calls.
+- I-007 dependency report, I-008 capability report: aggregate the
+  existing deterministic `RUNTIME_DEPENDENCY` claims
+  (`knowledge_compiler.py`'s "requires:"/"dependency:" line extraction)
+  and any populated `Relationship`/`ConceptType.CAPABILITY` data; nothing
+  is inferred from prose.
+
+New `atlas build-portfolio` CLI command (not folded into the certified
+`build-indexes`). `atlas validate` extended with `_validate_portfolio`
+(drift rejection, mirroring the existing `build-indexes` convention) and
+`_validate_no_quarantined_leakage` (rejects any portfolio output citing a
+quarantined `source_id`).
+
+**Workstream B (pilot onboarding):** three repository-native fixtures
+under `tests/fixtures/pilots/` - `nebula` (mature/complete),
+`black-agency-os` (partial/stale), `dark-factory`
+(conflicted/dependency-heavy, with a real pipeline-detected "roadmap"
+conflict and a cross-project `depends_on` declaration on `nebula`).
+Fixture content was audited against `ingestion.py`'s `CLASS_RULES` to
+avoid accidental cross-classification (e.g. the word "acceptance" in
+prose matching the "validation" rule before the intended rule was
+reached).
+
+**Tests:** `tests/integration/test_as_mvp_001_portfolio.py` - 12 tests:
+the 10 ADR-005 acceptance scenarios (all pilots visible; mature pilot
+not falsely reported; partial pilot's gaps are accurate; conflicted
+pilot's conflict is stable across rebuilds; dependencies are
+deterministic, ordered, and cite provenance; an empty vault produces
+valid empty reports; a corrupted project is isolated and `validate()`
+fails closed; two settled builds with a fixed reference date are
+byte-identical; an isolated change to one pilot leaves the other two
+pilots' outputs byte-identical; `validate()` detects and rejects
+portfolio drift), plus a dedicated AS-SEC-001 non-leakage test (reusing
+the certified adversarial-project fixture) and a rollback test that
+forces a write failure inside the promotion boundary and confirms the
+previously promoted valid output is unchanged.
+
+**Regression** (also independently re-run on a fresh ext4 clone,
+`/tmp/mvp-fresh`, `git clone --no-local`, no manual chmod):
+
+- Core: **257 passed, 0 failed** (245 pre-existing + 12 new; no existing
+  test removed or weakened)
+- Control Plane: **146 passed, 0 failed**
+- Security integration (`test_as_sec_001_quarantine_boundary.py`):
+  **16 passed**
+- Fuzz (`test_quarantine_fuzz.py`): generated=218 executed=218 skipped=0
+  failures=0 false_positives=0 exceptions=0
+- mypy: clean, **36 source files** (was 35; +1 for `portfolio.py`)
+- ruff: clean
+- compileall (`src` and `atlas-vault-documentation`): clean
+- Public workflow (`init -> discover -> ingest -> build-indexes ->
+  build-portfolio -> validate`) against all three pilots: all stages
+  exit 0 on fresh ext4; discovered 12 sources across 3 projects,
+  validated 81 Markdown files
+
+**Known limitations** (recorded honestly in the receipt, not fixed in
+this package): `maturity_matrix` always reports `"unknown"` today
+(no producer of `ConceptRecord.maturity` exists yet - `CORE-MODEL-001`);
+`capability_report` is correctly empty for all three pilots (none
+declares a Capability-typed concept, same root cause);
+`sources/manifests/source-manifest.json`'s overwrite-not-merge behavior
+limits `stale_knowledge` to single-combined-ingest vaults; Epic K-004/
+K-005 golden fixtures were not authored as separate committed files
+(acceptance tests assert against freshly computed pipeline output
+instead), and K-006/K-007 are only partially covered by dark-factory's
+real conflict and by reusing the existing adversarial-project fixture
+for the security non-leakage test rather than new dedicated fixtures.
+
+`docs/backlog.md`'s Epic I and Epic K items are annotated
+"implemented, acceptance-tested (AS-MVP-001)" but left **unchecked**
+pending independent verification and merge, per this package's
+completion criteria. `docs/master-roadmap.md`'s AS-MVP-001 row updated
+to reflect the same state.
+
+**IMPLEMENTATION AUTHORIZED: YES**
+**MERGE AUTHORIZED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FABRICATED ATTESTATIONS CREATED: NO**
+
+**AS-MVP-001 IMPLEMENTATION COMPLETE AND FROZEN — INDEPENDENT
+VERIFICATION REQUIRED**
+
+**NEXT AGENT: AGENT TWO — AS-MVP-001 INDEPENDENT VERIFICATION**
+**NEXT PHASE: INDEPENDENT VERIFICATION OF ARCHITECTURE COMPLIANCE, CANONICAL-STATE INTEGRITY, DETERMINISM, SECURITY NON-LEAKAGE, AND REGRESSION SUITES**
+**NEXT DIRECTIVE: VERIFY FROM A FRESH EXT4 CLONE OF `feat/as-mvp-001-portfolio-pilots`; MERGE REMAINS UNAUTHORIZED PENDING OWNER REVIEW**
