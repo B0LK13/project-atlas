@@ -29,6 +29,7 @@ from project_atlas.lineage import (
     build_project_registry,
     migrate_v1_records_with_receipts,
 )
+from project_atlas.quarantine import scan_text as scan_injection
 from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
 from project_atlas.semantic_compiler import compile_project_record, render_project_record
@@ -572,6 +573,7 @@ def _ingest(
     event_state: dict[str, list[dict[str, Any]]] = {}
     quarantined_events: list[dict[str, Any]] = []
     security_findings: list[dict[str, str]] = []
+    injection_findings: list[dict[str, Any]] = []
     write_plan: dict[Path, bytes] = {}
     previous_state = _previous_event_state(vault)
     registry_version = _read_registry_version(vault)
@@ -590,8 +592,8 @@ def _ingest(
             text = source.read_text(encoding="utf-8")
         except UnicodeError as exc:
             raise ValueError(f"manifest source is not valid UTF-8: {source_record.path}") from exc
-        findings = scan_text(text)
-        if findings:
+        secret_findings = scan_text(text)
+        if secret_findings:
             security_findings.extend(
                 {
                     "source_id": source_record.source_id,
@@ -600,7 +602,23 @@ def _ingest(
                     "confidence": finding.confidence,
                     "hint": finding.redacted_hint,
                 }
-                for finding in findings
+                for finding in secret_findings
+            )
+            continue
+        injection_findings_list = scan_injection(text)
+        if injection_findings_list:
+            injection_findings.extend(
+                {
+                    "source_id": source_record.source_id,
+                    "path": source_record.path,
+                    "source_lineage_id": None,
+                    "project_uuid": None,
+                    "rule": finding.rule,
+                    "confidence": finding.confidence,
+                    "hint": finding.redacted_hint,
+                    "disposition": "quarantined",
+                }
+                for finding in injection_findings_list
             )
             continue
         supported_suffixes = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".html"}
@@ -846,6 +864,7 @@ def _ingest(
         "classifications": classifications,
         "documents_ingested": len(imported),
         "security_findings": len(security_findings),
+        "injection_findings": len(injection_findings),
         "duplicates": manifest.get("duplicates", {}),
     }
     current_sources: list[dict[str, Any]] = []
@@ -1002,6 +1021,22 @@ def _ingest(
                 entry["source_lineage_id"] = str(lineage_record["source_lineage_id"])
                 entry["project_uuid"] = str(lineage_record["canonical_project_id"])
                 entry["lineage_generation"] = int(lineage_record["lineage_generation"])
+    previous_registry_by_source_id = {
+        str(item.get("source_id", "")): item
+        for item in previous_registry
+        if item.get("source_id")
+    }
+    for finding in injection_findings:
+        source_id = str(finding.get("source_id", ""))
+        lineage_record = registry_by_source_id.get(source_id)
+        if lineage_record is not None:
+            finding["source_lineage_id"] = str(lineage_record["source_lineage_id"])
+            finding["project_uuid"] = str(lineage_record["canonical_project_id"])
+            continue
+        prior_record = previous_registry_by_source_id.get(source_id)
+        if prior_record is not None:
+            finding["source_lineage_id"] = str(prior_record.get("source_lineage_id", "")) or None
+            finding["project_uuid"] = str(prior_record.get("canonical_project_id", "")) or None
     generation_receipts: list[dict[str, Any]] = []
     restoration_receipts: list[dict[str, Any]] = []
     previous_by_lineage = {
@@ -1110,6 +1145,14 @@ def _ingest(
     ).encode()
     write_plan[_inside(vault, vault / "generated" / "reports" / "secret-findings.json")] = (
         json.dumps(security_findings, indent=2, sort_keys=True) + "\n"
+    ).encode()
+    write_plan[_inside(vault, vault / "generated" / "reports" / "injection-findings.json")] = (
+        json.dumps(
+            {"schema_version": 1, "findings": injection_findings},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
     ).encode()
     if quarantined_events:
         write_plan[_inside(vault, vault / "quarantine" / "agent-events" / "index.json")] = (

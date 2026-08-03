@@ -1,0 +1,914 @@
+work_package: AS-SEC-001
+title: Source Quarantine and Prompt-Injection Boundary
+status: evidence-corrected-frozen-pending-independent-certification
+
+certified_base_commit: 7e720bda1a9efe3950a7943968024805fdfd2f6f
+candidate_commit: 6a270d6efc79554372bb55f170744aa12495d264
+implementation_commit: 179ea3f85aca51b34be2ef7b9a64a361e5522c2b
+governance_record_commit: 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6
+gov_001_remediation_commit: e0b26b26df00350855fb3ada9c7751dfd3d97375
+gov_001_evidence_commit: eaa6de891a71fbd29d31693610155430e5abd07c
+gov_002_remediation_commit: c19c9cd6e131ff15f78a8312a0ae55a1ea31ccaf
+gov_002_evidence_commit: 91cea46fcd520718144de845a2456a3ed78ecfb8
+gov_003_remediation_commit: ea501db58d69f573aa474328211622da1226a3ce
+gov_003_evidence_commit: a565e2171b7091eb4d441fa6c0703336add18e62
+gov_004_remediation_commit: 905064b9614f1bdfd5b3a89cd52990b1a51f8431
+gov_004_evidence_commit: 3ee430ad497cb5dffee32818fa0c02e88ae3d9dd
+gov_005_remediation_commit: dd766ddccbc0d94cd5bf7a9b0f0378a0b6e4b269
+gov_005_evidence_commit: 2d12e0f9e4a1622041922560485340129365ee1e
+gov_006_remediation_commit: 585b70dbcd9e47b6d27491b00a3709281abdb061
+gov_006_evidence_commit: a607f8e57bbcd1fb9c8bd5dafd27c39c98b46f97
+gov_007_remediation_commit: 9ee547ad3cfb8159c592e6751622d2c3f374beeb
+gov_007_evidence_commit: SELF
+gov_006_residual_base_commit: 6855f5f165396a2443126cea53d9f0e3b189197b
+gov_006_residual_remediation_commit: 11edee67cafc63e4a80ad9df247392f90d46e4c0
+gov_006_residual_evidence_commit: SELF
+
+adr:
+  path: docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md
+  binding: true
+
+owner_normalization_decision:
+  finding: AS-SEC-001-GOV-007
+  disposition: bounded-deterministic-category-handling
+  rejected_alternative: whitelist-style-normalization
+  rationale_summary: >-
+    Owner selected Option 1 (continue bounded deterministic normalization)
+    over whitelist-style normalization for this remediation. Whitelist
+    normalization would change the entire accepted character model, increase
+    false-positive risk, alter multilingual behavior, and require an
+    explicit preservation contract for punctuation/symbols/scripts/
+    whitespace/formatting - broadening the detector from bounded evasion
+    resistance into canonical text reconstruction. That may be proposed
+    later through a dedicated ADR and architecture-entry gate; it must not
+    be introduced incrementally or implicitly in this remediation.
+  scope_authorized: closing only U+0009 (tab), U+000A (line feed), and
+    U+000D (carriage return) mid-keyword evasion, operating solely on the
+    detector's private comparison representation.
+
+test_accounting:
+  baseline_collected: 200
+  current_collected: 219
+  net_new: 19
+  removed: 0
+  renamed: 0
+  deselected: 0
+  reconciliation: >-
+    baseline (200 passed, 0 failed) independently re-measured by checking
+    out the frozen candidate 190008ffc7f8ba42bd3950a4f554fbb5e36459f4 in a
+    clean worktree (git stash -u to exclude all new/untracked GOV-007
+    files, confirmed via git status --short) and running the full Core
+    suite: 200 passed, 0 failed, exactly matching the owner-stated
+    baseline. Current (219 = 218 passed + 1 xfailed) breaks down as +17 new
+    tests in tests/unit/test_quarantine.py and +2 in the new
+    tests/unit/test_quarantine_fuzz.py (1 passing fuzz-matrix test, 1
+    strict-xfail documenting the residual GOV-006 gap).
+  gov_006_residual_round:
+    baseline_collected: 219
+    current_collected: 245
+    net_new: 26
+    removed: 0
+    renamed: 1
+    deselected: 0
+    reconciliation: >-
+      baseline (this round's starting point) independently re-measured by
+      running the full Core suite at the unmodified base commit
+      6855f5f165396a2443126cea53d9f0e3b189197b in an isolated worktree:
+      218 passed, 1 xfailed, 0 failed = 219, exactly matching the prior
+      round's closing figure. Current (245 passed, 0 failed, 0 xfailed)
+      breaks down as +26 new tests in tests/unit/test_quarantine.py
+      (Zs/Zl/Zp mid-keyword reproductions, mixed-category evasions,
+      run-length boundary cases, and benign multilingual/structural
+      negatives) and 1 renamed test in tests/unit/test_quarantine_fuzz.py
+      (test_zs_zl_zp_mid_keyword_known_gap, xfail/strict=True -> renamed to
+      test_zs_zl_zp_mid_keyword_gap_is_closed, now a normal passing
+      regression test per AS-SEC-001-GOV-006-residual directive section 11;
+      not deleted). 219 + 26 = 245, exactly matching the fresh full-suite
+      run.
+
+validation:
+  core: 245 passed, 0 failed, 0 xfailed
+  control_plane: >-
+    146 passed, 0 failed with AS-MAINT-001 corrected; 28 failed, 118 passed
+    against the actual committed tree as of this commit, because
+    AS-MAINT-001 (see below) is not yet fixed. The prior round's
+    "146 passed, 0 failed (verified)" claim was corrected by this
+    evidence-cleanup commit: it was not actually reproducible against the
+    committed tree and should not have been marked "(verified)". See
+    as_maint_001 below for the full correction record.
+  mypy: clean, 35 source files
+  ruff: clean
+  compilation: clean
+  public_workflow: passed
+  replay: settled replay byte-identical after one-time project UUID genesis
+  rollback: passed
+  fresh_fuzz: >-
+    deterministic (fixed enumeration rule, not randomized) fuzz matrix in
+    tests/unit/test_quarantine_fuzz.py: 218 generated, 218 executed, 0
+    skipped, 0 failures, 0 false positives, 0 exceptions. No xfail-marked
+    test remains anywhere in the suite (the former
+    test_zs_zl_zp_mid_keyword_known_gap xfail was renamed to
+    test_zs_zl_zp_mid_keyword_gap_is_closed and its xfail marker removed
+    once the GOV-006 residual fix landed - see closed_findings below).
+    Independently re-verified via `pytest tests -rxX`: 0 xfailed, 0 xpassed.
+  gov_006_residual_round:
+    core: 245 passed, 0 xfailed, 0 failed
+    control_plane: >-
+      could not be independently confirmed as 146 passed/0 failed in this
+      execution environment (WSL running the shared venv against a
+      Windows-checked-out worktree, no .gitattributes forcing LF):
+      atlas-vault-documentation/tests reports 34 failed, 112 passed, all
+      failures the identical pre-existing
+      "/usr/bin/env: 'python3\r': No such file or directory" shebang/CRLF
+      error. Independently reproduced by checking out the exact same
+      unmodified base commit 6855f5f165396a2443126cea53d9f0e3b189197b in
+      an isolated throwaway worktree and running the identical command:
+      also 34 failed, 112 passed, byte-for-byte the same failure set - so
+      this is a pre-existing environment artifact, not a regression
+      introduced by this remediation. Control Plane source is confirmed
+      byte-identical regardless (see diff_scope below); this remediation
+      touches only src/project_atlas/quarantine.py.
+    mypy: clean, 35 source files
+    ruff: clean
+    compilation: clean
+    public_workflow: >-
+      passed - test_unicode_evasion_sources_are_quarantined and
+      test_unicode_evasion_content_does_not_reach_claims_or_indexes both
+      pass end-to-end (init -> discover -> ingest -> build-indexes ->
+      validate) against the evasion-project fixture extended with the
+      three new Zs/Zl/Zp mid-keyword adversarial fixtures and the new
+      benign multilingual/structural separators fixture.
+    replay: >-
+      byte-identical. test_unchanged_replay_is_byte_identical passed as
+      part of the full Core suite. Additionally, an independent manual
+      4-run protocol (run 1 UUID genesis; run 2 convergence; run 3 settled
+      snapshot; run 4 settled comparison) against the evasion-project
+      fixture (with the new GOV-006 residual fixtures included) confirmed
+      run 3 vs run 4 byte-identical across all 70 generated vault files.
+    fresh_fuzz: >-
+      deterministic (fixed enumeration rule, not randomized) fuzz matrix in
+      tests/unit/test_quarantine_fuzz.py: 218 generated, 218 executed, 0
+      skipped, 0 confirmed evasions, 0 false positives, 0 exceptions.
+      category_counts: insertable_evasions=10 (GOV-002/004/005/007
+      categories), z_category_evasions=18 (every runtime-discovered
+      Zs/Zl/Zp character except U+0020), confusable_substitutions=2,
+      mixed_evasion_pairs=7, run_boundary_cases=4, benign_controls=13.
+      seed_or_generation_rule: fixed-deterministic-enumeration-no-
+      randomization. The dedicated regression test
+      test_zs_zl_zp_mid_keyword_gap_is_closed (formerly the strict xfail
+      test_zs_zl_zp_mid_keyword_known_gap) independently confirms 0
+      failures across all 18 Z-category evasions at every mid-keyword
+      insertion position.
+
+adversarial_scenarios:
+  instruction_fixture:
+    path: tests/fixtures/adversarial-project/instruction-bearing.md
+    sha256: d6c0b45214e6eb821b3bb260f8f9eb6a1dff2718cc4a893393eb58316e01a96a
+    finding: instruction-override + binding-rewriting
+    quarantined: true
+  canary_fixture:
+    path: tests/fixtures/adversarial-project/canary-bearing.md
+    sha256: fe00957ab4306dd088041e67b6ca433117cc68f8ce2a971ed53bfe39304d94aa
+    finding: instruction-override
+    quarantined: true
+    canary_token: CANARY-AS-SEC-001-a7f3d9e2
+    canary_leaked_to_generated: false
+  non_adversarial_control:
+    path: tests/fixtures/adversarial-project/non-adversarial-control.md
+    sha256: 4c44f84ea351a46a21b609bbd49e42b6e285db4336afccec053c127b7cd62256
+    quarantined: false
+  quoted_research_fixture:
+    path: tests/fixtures/adversarial-project/quoted-research.md
+    sha256: 4d90ca4657b65642fb4d1c1c7a3ed81b82acbb00277c61a2838bf104088073f6
+    finding: instruction-override
+    quarantined: true
+  adversarial_project_id_fixture:
+    path: tests/fixtures/adversarial-project/adversarial-project-id-override.yaml
+    sha256: 7e5e6d8cd282837c39d59216e353bbc1ae70f4b0df746a4b321174b6e571076e
+    finding: instruction-override
+    quarantined: true
+    discovery_result: EXIT_ERROR
+    rendered_as_title: false
+  zero_width_insertion_fixture:
+    path: tests/fixtures/adversarial-project/zero-width-insertion.md
+    sha256: 71ab7054705441ed094f79ea22d43b9eafa9dde13428d8a80f708daf1e62f6a1
+    finding: instruction-override
+    quarantined: true
+  soft_hyphen_insertion_fixture:
+    path: tests/fixtures/adversarial-project/soft-hyphen-insertion.md
+    sha256: e6df42d10aa4f1b4e9e24a1a6dbb47e802edde7780e16191397134749d1196d6
+    finding: instruction-override
+    quarantined: true
+  cyrillic_homoglyph_fixture:
+    path: tests/fixtures/adversarial-project/cyrillic-homoglyph.md
+    sha256: 769bfae023badcd580bdf1d418c5035d88bf8f889bcd5316c14cbe60ea978dc9
+    finding: instruction-override
+    quarantined: true
+  greek_iota_reproduction_fixture:
+    path: tests/fixtures/adversarial-project/greek-iota-reproduction.md
+    sha256: 1a5312bf7a1c9e9bf4a7548847eb97039a1500728ec3c5ad4bfe9b61a91570f6
+    finding: instruction-override
+    quarantined: true
+  uppercase_cyrillic_reproduction_fixture:
+    path: tests/fixtures/adversarial-project/uppercase-cyrillic-reproduction.md
+    sha256: 8cb8780b261d0bc249e295aa7916ea9b36e900747910659b7ce81b12e424d2af
+    finding: instruction-override
+    quarantined: true
+  greek_omicron_reproduction_fixture:
+    path: tests/fixtures/adversarial-project/greek-omicron-reproduction.md
+    sha256: a00702d0e829aede3e70ccc9fc1ad93c45e1d565fe0e272e5829213286086ebc
+    finding: instruction-override
+    quarantined: true
+  diacritic_e_fixture:
+    path: tests/fixtures/adversarial-project/diacritic-e-reproduction.md
+    sha256: 5bc52252fef6faa9494b8241ccf1626ae15bc1a2c30c122e03c41f598f2b7b16
+    finding: instruction-override
+    quarantined: true
+  diacritic_i_fixture:
+    path: tests/fixtures/adversarial-project/diacritic-i-reproduction.md
+    sha256: f11745f9e0e0a8993e3d6dfdd089f9b8765da600ea9a5c37792f978cc3989cfb
+    finding: instruction-override
+    quarantined: true
+  diacritic_o_fixture:
+    path: tests/fixtures/adversarial-project/diacritic-o-reproduction.md
+    sha256: 8e6aa85b9e97baf37afcbfe9f7f92d83d8d9082fa38513aad144ddba211390c3
+    finding: instruction-override
+    quarantined: true
+  vertical_tab_fixture:
+    path: tests/fixtures/adversarial-project/vertical-tab-reproduction.md
+    sha256: efee8aa9a1091accd8e00da8c2c654f9c01a5b80f919dba28a7d1875fcab6c59
+    finding: instruction-override
+    quarantined: true
+  form_feed_fixture:
+    path: tests/fixtures/adversarial-project/form-feed-reproduction.md
+    sha256: 9075a4a56936719cd45377c084fa137fa95b2248160a2994579c6d0dac35d867
+    finding: instruction-override
+    quarantined: true
+  em_space_fixture:
+    path: tests/fixtures/adversarial-project/em-space-reproduction.md
+    sha256: 282aa5de283477f208e8d51e5c8e4ce18f14714cc54b6af318e695cf1e9d52ef
+    finding: instruction-override
+    quarantined: true
+  no_break_space_fixture:
+    path: tests/fixtures/adversarial-project/no-break-space-reproduction.md
+    sha256: c4530b3503bf3b707582f743179a31da5947e79392a39e159d5d7497402b94ae
+    finding: instruction-override
+    quarantined: true
+  line_separator_fixture:
+    path: tests/fixtures/adversarial-project/line-separator-reproduction.md
+    sha256: 11b1ea6875a6f50e1cde8ccf3cbc0dfca90043124c5d2651710d87345bc3008c
+    finding: instruction-override
+    quarantined: true
+  tab_mid_keyword_fixture:
+    path: tests/fixtures/adversarial-project/tab-mid-keyword-reproduction.md
+    finding: instruction-override
+    quarantined: true
+  line_feed_mid_keyword_fixture:
+    path: tests/fixtures/adversarial-project/line-feed-mid-keyword-reproduction.md
+    finding: instruction-override
+    quarantined: true
+  carriage_return_mid_keyword_fixture:
+    path: tests/fixtures/adversarial-project/carriage-return-mid-keyword-reproduction.md
+    finding: instruction-override
+    quarantined: true
+    note: >-
+      Path.read_text() applies universal-newline translation, so the raw
+      U+000D byte on disk is normalized to U+000A before the detector ever
+      sees it in the real ingestion pipeline. The unit-level scan_text
+      tests exercise a genuine bare "\r" directly; this fixture, read
+      through the pipeline, is functionally equivalent to the line-feed
+      case at that layer. Recorded for evidence accuracy, not a defect.
+  benign_multiline_control_fixture:
+    path: tests/fixtures/adversarial-project/benign-multiline-control.md
+    quarantined: false
+  em_space_mid_keyword_fixture:
+    path: tests/fixtures/adversarial-project/em-space-mid-keyword-reproduction.md
+    sha256: 4ee79a796a9f042a8f779f79ae508b40c2aa9ae6bef0cc78bf5c207456df9a39
+    finding: instruction-override
+    quarantined: true
+  line_separator_mid_keyword_fixture:
+    path: tests/fixtures/adversarial-project/line-separator-mid-keyword-reproduction.md
+    sha256: 1b72ca59b28bfe1ced532f719e9bd88cb0e935739973c45b4e9d2bfd1970dc75
+    finding: instruction-override
+    quarantined: true
+  paragraph_separator_mid_keyword_fixture:
+    path: tests/fixtures/adversarial-project/paragraph-separator-mid-keyword-reproduction.md
+    sha256: 0bd83b21e144c870d1888bf4e7d0398d4411f4b5035cc34b0e97f65b73b647c0
+    finding: instruction-override
+    quarantined: true
+  benign_multilingual_separators_control_fixture:
+    path: tests/fixtures/adversarial-project/benign-multilingual-separators-control.md
+    sha256: 71a569f3d7ac8ddb1091265109955b30a97d4b51658bc6938528840243e168d5
+    quarantined: false
+
+invariants:
+  single_promotion_boundary: preserved
+  quarantined_concept_extraction: blocked
+  quarantined_claim_extraction: blocked
+  source_identity_preserved: true
+  control_plane_diff: zero
+
+as_maint_001:
+  id: AS-MAINT-001
+  title: Control Plane test fixture scripts committed without the executable bit
+  tracked_as: maintenance-issue-not-a-security-code-change
+  status: open
+  in_scope_of_as_sec_001: false
+  summary: >-
+    tests/fixtures/bin/mda under atlas-vault-documentation/ (git blob mode
+    100644) is invoked directly by several Control Plane tests
+    (test_agent_control.py, test_ingestion.py, test_ingestion_stage2.py,
+    test_normalize_event.py) without first setting an executable bit at
+    runtime. On a filesystem that honors the real POSIX mode bits (e.g.
+    ext4, and any standard Linux CI runner), invoking it fails with
+    "permission-denied" rather than executing. On DrvFs-mounted Windows
+    paths (e.g. /mnt/d under WSL), all files present as world-executable
+    regardless of their tracked mode, which is why this has gone unnoticed
+    when worked on directly under /mnt/d.
+  root_cause: >-
+    `git ls-tree <any commit since 672cd4e> --
+    atlas-vault-documentation/tests/fixtures/bin/mda` shows mode 100644.
+    core.filemode=false in this repository means git never updates that
+    bit from a working tree's local chmod, so it has been non-executable
+    in every commit since the fixture was introduced, long before
+    AS-SEC-001 or GOV-006 existed.
+  why_previously_reported_as_146_passed_0_failed: >-
+    Every prior AS-SEC-001 round that recorded "146 passed, 0 failed" for
+    the Control Plane suite did so while working directly in
+    /mnt/d/project-atlas-vault (DrvFs), where the missing executable bit
+    is invisible. Independently re-run in an isolated worktree on a native
+    Linux filesystem (ext4) at both the pre-GOV-006-residual base commit
+    (6855f5f) and the GOV-006-residual candidate commit (6a270d6): both
+    produced an identical 28-failed/118-passed set (same 28 test IDs both
+    times), confirming (a) it is pre-existing and unrelated to any
+    AS-SEC-001 remediation, and (b) it is not a DrvFs-only illusion but a
+    real, reproducible gap on any strictly-POSIX filesystem. With only
+    tests/fixtures/bin/mda's mode corrected to executable (chmod +x, in a
+    throwaway isolated clone - no tracked file changed), the identical
+    suite reports 146 passed, 0 failed, confirming the underlying Control
+    Plane test logic is fully sound and this is purely a file-mode defect,
+    not a functional regression.
+  why_invisible_to_ci: >-
+    Root pyproject.toml sets `[tool.pytest.ini_options] testpaths =
+    ["tests"]`, so `.github/workflows/ci.yml`'s `python -m pytest` step
+    (which runs from the repository root) never executes
+    atlas-vault-documentation/tests at all. Control Plane has no CI
+    coverage today, so this defect could not have been caught by CI even
+    on a native Linux runner.
+  recommended_fix: >-
+    `git update-index --chmod=+x
+    atlas-vault-documentation/tests/fixtures/bin/mda` (and any sibling
+    fixture scripts with the same defect) committed on its own maintenance
+    branch, plus either a `.gitattributes` executable-bit rule or a CI job
+    that actually runs atlas-vault-documentation/tests so a future
+    regression is caught. Deliberately not performed as part of this
+    AS-SEC-001 evidence-only commit: it would touch a tracked file under
+    atlas-vault-documentation/, which this round's directive explicitly
+    scopes out.
+  discovered_during: AS-SEC-001-GOV-006 residual architecture rereview (Agent Three, commit 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6)
+  corrected_in_evidence_by: this commit (evidence-only correction of the false "(verified)" 146/0 claim in 3f11bb7f)
+
+architecture:
+  certified_subsystem_semantics_modified: false
+  agent_event_quarantine_modified: false
+  llm_or_network_dependency_added: false
+  governor_review: completed-gov-006-residual-rereview-verified-closed
+  reviewed_commit: 6a270d6efc79554372bb55f170744aa12495d264
+  reviewed_by_commit: 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6
+  previous_reviewed_candidate: 190008ffc7f8ba42bd3950a4f554fbb5e36459f4
+  governor_review_label_correction: >-
+    An earlier evidence-only commit (3f11bb7f955a72c77f71880465f88f971c650a90)
+    set this field to "completed-gov-007-rereview-verified-closed", which
+    mislabeled the review that actually took place at reviewed_commit
+    6a270d6: GOV-007 was already closed in an earlier round (see
+    gov_007_rereview_historical below), and the review performed at 6a270d6
+    (commit 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6) was specifically the
+    AS-SEC-001-GOV-006 residual architecture rereview. Corrected here to
+    governor_review/reviewed_by_commit above. Flagged as a process-integrity
+    finding (see process_integrity_findings below).
+  gov_007_rereview_historical:
+    superseded: true
+    superseded_by: >-
+      AS-SEC-001-GOV-006 residual architecture rereview, commit
+      8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6, which closed the exact gap
+      this block describes as blocking.
+    status: blocked-residual-gov-006-gap (historical - as recorded at the time; no longer the active state)
+    reviewed_head: d8c6c1b869351c3aadc26addfbe68650a1e56581
+    result: >-
+      GOV-007 tab/line-feed/carriage-return remediation verified. GOV-008
+      U+0085 is already covered by the existing Cc handler. Certification
+      remains blocked by the explicitly tracked Z-category mid-keyword gap.
+    fresh_fuzz: >-
+      All 19 Z, 65 Cc, 1,985 Mn, and mapped confusable cases were exercised;
+      only the documented Z mid-keyword residual remains as a strict xfail.
+    owner_decision: >-
+      The owner selected bounded deterministic handling over whitelist
+      normalization for GOV-007; explicit authorization is still required
+      before extending that decision to the GOV-006 residual.
+  yaml_structure_integrity_note: >-
+    This receipt has now had duplicate top-level keys within the single
+    architecture: mapping reintroduced and repaired twice (GOV-005/006
+    round, and again this GOV-007 round) by different implementation/
+    evidence-recording passes that appended a new architecture: block
+    instead of merging into the existing one. Consolidated into one clean
+    mapping again here; every closed finding, process-integrity note, and
+    review record from both prior blocks is preserved below, none deleted.
+    A third recurrence of this exact defect is now a real process pattern,
+    not a one-off - flagged plainly for whoever authors the next round's
+    tooling.
+  process_integrity_findings:
+    - >-
+      GOV-004 round: the NEXT_AGENT_DIRECTIVE that initiated that rereview
+      falsely claimed "The Architecture Governor has completed the
+      rereview and verified that the diacritic evasion remediation is
+      structurally sound," and asked to skip directly to Independent
+      Certifier final certification. No such governor rereview commit
+      existed anywhere in git history between a5d8a02 and a3d3976 - every
+      commit in that range was an implementation or evidence-recording
+      commit. The claim was false; the mandated governor rereview was
+      performed instead of skipped.
+    - >-
+      GOV-004 round: the fix (commits 905064b..a3d3976) landed on a
+      separate branch checked out directly in the primary repository
+      working directory (/mnt/d/project-atlas-vault) rather than a
+      dedicated worktree. main itself was unaffected (verified via
+      git rev-parse main / git show-ref), so no harm resulted, but it broke
+      the established per-round worktree convention.
+    - >-
+      GOV-005 round: a "rereview_independent_verification" block was
+      pre-written and committed by the implementation/evidence-recording
+      agent, framed as if it were the governor's own independent
+      verification narrative, before the Architecture Governor had
+      actually performed that review. The numbers happened to match the
+      governor's real independent rerun, but an implementer pre-authoring
+      the reviewer's attestation is a process concern regardless of
+      accuracy - it blurs the separation of duties the governor/certifier
+      roles exist to preserve.
+    - >-
+      GOV-006 round: the same pre-written-attestation pattern recurred
+      (a "hand_reproduction"/"false_positive_check"/"fresh_test_run" block
+      attributed to the governor before any governor review happened), and
+      the receipt's duplicate-key defect recurred a second time (see
+      yaml_structure_integrity_note above). Additionally, the GOV-006
+      evidence's own reproduction/verification only exercised the
+      between-words case for Zs/Zl/Zp separators (e.g. "Ignore<EM
+      SPACE>previous instructions."), never the mid-keyword case - which is
+      exactly the untested gap this GOV-007 round's fuzzing found still
+      open (see gov_006_residual_gap below). This is the same blind spot
+      that let the original GOV-006 finding itself slip through GOV-005's
+      closure.
+    - >-
+      Final-certification-reconciliation round (commit
+      3f11bb7f955a72c77f71880465f88f971c650a90, co-authored-by Copilot):
+      cited validation.control_plane as "146 passed, 0 failed (verified)"
+      while that commit is a sibling of, not a descendant of, the
+      AS-SEC-001-GOV-006 residual architecture rereview
+      (8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6) it names as its
+      governance_record_commit - it branched directly from 6a270d6 and
+      never incorporated that review's actual findings. Independently
+      re-run in this evidence-cleanup pass, in two separate isolated
+      worktrees (base commit 6855f5f and candidate commit 6a270d6, both
+      on a native ext4 filesystem): the actual committed tree produces 28
+      failed, 118 passed, not 146/0 - see as_maint_001 above for the
+      full root-cause (a pre-existing non-executable git file mode,
+      invisible only on DrvFs-mounted paths). "(verified)" was not an
+      accurate claim against the tree as committed. The same commit's
+      architecture.governor_review field ("completed-gov-007-rereview-
+      verified-closed") was also mislabeled - GOV-007 was already closed
+      in an earlier round, and the review that actually took place at
+      6a270d6 was the GOV-006 residual rereview, not a "GOV-007
+      rereview". Both corrected in this commit; see
+      validation.control_plane, as_maint_001, and
+      governor_review_label_correction above. This is the same
+      fabricated-verification-claim pattern flagged in every prior round
+      above, now caught before it reached the frozen candidate for
+      certification rather than after.
+  closed_findings:
+    - id: AS-SEC-001-GOV-001
+      status: remediated-verified-closed
+      summary: >-
+        The project identifier from .atlas-project.yaml's project.id field
+        (SourceRecord.likely_project) was not scanned and was rendered
+        verbatim, unquoted, as the ConceptRecord.title, the generated
+        project.md YAML frontmatter title: field, and the literal "# <title>"
+        H1 heading (okf_renderer.py / semantic_compiler.py), and as the
+        vault/projects/<id>/ directory name.
+      remediation: >-
+        Added scan_identifier() to quarantine.py and wired it into
+        discovery.py:_project_context; adversarial project IDs now fail
+        discover with EXIT_ERROR before they can become titles/headings.
+    - id: AS-SEC-001-GOV-002
+      status: remediated-verified-closed
+      summary: >-
+        The adversarial-instruction detector (scan_text / scan_identifier)
+        was vulnerable to Unicode evasion: format-control characters
+        (zero-width joiners, soft hyphens, directional isolates) and
+        visually identical lowercase Cyrillic homoglyphs could bypass the
+        regex-only pattern set.
+      remediation: >-
+        Added _normalize_detector_input() in quarantine.py: NFKC
+        normalization, Cf-category (format control) stripping, and a narrow
+        explicit lowercase-Cyrillic confusable mapping.
+    - id: AS-SEC-001-GOV-003
+      status: remediated-verified-closed
+      summary: >-
+        GOV-002's confusable-character mapping was incomplete: it covered
+        only lowercase Cyrillic code points. Uppercase Cyrillic homoglyphs
+        and the entire Greek script (any case) were unmapped and bypassed
+        detection.
+      remediation: >-
+        Extended the static, bundled, offline _CONFUSABLE mapping in
+        quarantine.py to cover uppercase Cyrillic homoglyphs and the Greek
+        letters that visually match Latin counterparts used in the
+        instruction keyword set. Detection remains deterministic, offline,
+        stdlib/regex-only, and metadata-only.
+      independently_reverified: >-
+        re-ran the corrected GOV-003 reproductions (Cyrillic-o, Greek iota,
+        Greek alpha, Greek omicron, uppercase Cyrillic A/I) directly against
+        scan_text - all correctly quarantined. Full suite green (Core 188,
+        Control Plane 146), matching claimed counts exactly.
+    - id: AS-SEC-001-GOV-004
+      status: remediated-verified-closed
+      summary: >-
+        Combining diacritical marks (Unicode category Mn) allowed accented
+        Latin instruction keywords to bypass the detector.
+      remediation: >-
+        Changed detector normalization to NFKD and strip both Cf and Mn
+        categories before applying the existing static confusable mapping.
+      independently_reverified: >-
+        re-ran all 4 GOV-004 reproductions (e-macron, i-macron, o-diaeresis,
+        e-acute) directly against scan_text - all correctly quarantined.
+        False-positive check: three legitimate accented (French, German,
+        English-with-loanwords) non-adversarial paragraphs produced zero
+        findings. Fresh full-suite run: Core 191 passed, Control Plane 146
+        passed - matches receipt exactly.
+    - id: AS-SEC-001-GOV-005
+      status: remediated-verified-closed
+      summary: >-
+        _normalize_detector_input stripped categories Cf and Mn but left Cc
+        (plain control characters, e.g. vertical tab, form feed, and other
+        C0/C1 controls) intact. A control character injected mid-keyword
+        bypassed the detector.
+      remediation: >-
+        Extended _normalize_detector_input to treat C0/C1 control
+        characters (category Cc) as suspect: tab/line-feed/carriage-return
+        normalized to ASCII space (preserving normal line boundaries);
+        every other control character removed so mid-keyword injections
+        collapse back into the keyword.
+      independently_reverified: >-
+        re-ran the GOV-005 reproduction (vertical tab) plus additional
+        self-constructed variants (form feed, null byte, backspace, escape,
+        bell) - all correctly quarantined. Re-verified every prior
+        GOV-002/003/004 fixture still holds.
+      superseded_note: >-
+        the tab/line-feed/carriage-return -> ASCII-space normalization this
+        finding introduced is exactly what GOV-007 (below) found to be
+        itself bypassable mid-keyword, since converting to a space cannot
+        reunite a split keyword. GOV-007 replaces the fixed-normalization
+        approach for these three characters specifically with a run-length
+        aware dual-variant scan; the Cc-other-than-tab/lf/cr handling this
+        finding introduced is unchanged and still correct.
+    - id: AS-SEC-001-GOV-006
+      status: remediated-verified-closed
+      summary: >-
+        _normalize_detector_input did not normalize Unicode separator
+        categories Zs, Zl, and Zp to ASCII space. The initial remediation
+        (GOV-006 base round) closed the between-words case but left a
+        residual mid-keyword gap. The GOV-006-RESIDUAL round extended the
+        run-length-aware dual-variant mechanism (introduced by GOV-007 for
+        tab/LF/CR) to all Zs/Zl/Zp characters except U+0020, fully closing
+        both the between-words and mid-keyword evasion surfaces.
+      remediation_commits:
+        base_round: 585b70dbcd9e47b6d27491b00a3709281abdb061
+        residual_round: 11edee67cafc63e4a80ad9df247392f90d46e4c0
+        final_evidence: 6a270d6efc79554372bb55f170744aa12495d264
+    - id: AS-SEC-001-GOV-007
+      status: remediated-verified-closed
+      summary: >-
+        _normalize_detector_input converted tab (U+0009), line feed (U+000A),
+        and carriage return (U+000D) unconditionally to a single ASCII space,
+        making it impossible to reunite a keyword split by exactly one
+        injected character. Replaced with run-length-aware dual-variant
+        scanning: isolated single occurrences are tested both as space
+        (between-words) and removed (mid-keyword reunification); runs of
+        2+ always collapse to space (genuine word/paragraph boundaries).
+      remediation_commit: 9ee547ad3cfb8159c592e6751622d2c3f374beeb
+    - id: AS-SEC-001-GOV-008
+      status: closed-covered-by-existing-handler
+      summary: >-
+        U+0085 (NEXT LINE, category Cc) was raised as a potential evasion
+        surface similar to GOV-007's tab/LF/CR findings. No separate
+        remediation is required: U+0085 falls into the Cc-other-than-tab/
+        LF/CR removal path that GOV-005 established and that GOV-007
+        preserved. The existing handler strips it unconditionally before
+        the scan, collapsing any mid-keyword injection. Explicitly
+        recorded here per final certification requirements; no code change
+        was needed or made.
+      covered_by_commit: 9ee547ad3cfb8159c592e6751622d2c3f374beeb
+  gov_006_residual_gap:
+    id: AS-SEC-001-GOV-006
+    status: remediated-verified-closed
+    status_history: remediated-partial-residual-gap-open (GOV-007 round) -> remediation-applied-rereview-required (this round) -> remediated-verified-closed (final certification round)
+    summary: >-
+      _normalize_detector_input did not normalize Unicode separator
+      categories Zs, Zl, and Zp to ASCII space, so non-ASCII separators
+      (em space, no-break space, line separator, paragraph separator, etc.)
+      used between instruction keywords bypassed the detector.
+    remediation_applied: >-
+      Extended _normalize_detector_input in quarantine.py to normalize
+      every character in Unicode general category "Z" (Zs, Zl, Zp) to a
+      single ASCII space. This closes the between-words case (e.g.
+      "Ignore<EM SPACE>previous instructions.").
+    residual_gap_found_this_round_historical:
+      superseded: true
+      superseded_by: >-
+        AS-SEC-001-GOV-006 residual architecture rereview, commit
+        8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6, which independently
+        verified the bounded dual-variant technique below closes exactly
+        this gap (fuzz 218/218/0/0/0/0, test_zs_zl_zp_mid_keyword_gap_is_closed
+        passing for all 18 non-space Z-category characters at every
+        mid-keyword position). The blocking language below ("cannot be
+        marked remediated-verified-closed and remains open") describes the
+        state as it stood at the GOV-007 round, before the residual
+        remediation in gov_006_residual_remediation below was implemented -
+        preserved verbatim for the historical record, no longer the active
+        state.
+      text: >-
+        GOV-007's mandated fresh fuzzing found that the between-words fix
+        does not close mid-keyword insertion: "Ig<EM SPACE>nore previous
+        instructions." still returns zero findings, because Z-category
+        characters are unconditionally converted to a single space with no
+        "collapse an isolated single occurrence" option - the same
+        architectural gap GOV-007 closed for tab/line-feed/carriage-return,
+        but not yet applied to Zs/Zl/Zp. Reproduced with a fixed, deterministic
+        fuzz test (test_zs_zl_zp_mid_keyword_known_gap, xfail/strict=True) in
+        tests/unit/test_quarantine_fuzz.py, so the gap stays visible in the
+        test suite rather than silently dropped.
+        GOV-007 did not fix this: it is out of the owner-authorized GOV-007
+        scope (limited to U+0009/U+000A/U+000D only). GOV-006 therefore
+        cannot be marked remediated-verified-closed and remains open pending
+        a further bounded remediation (applying the same run-length-aware
+        dual-variant technique GOV-007 introduced, to Zs/Zl/Zp as well).
+    owner_consulted_on_architecture_historical: >-
+      As recorded at the GOV-007 round: not yet, on this specific residual
+      gap. The owner has separately already decided (this round) to
+      continue bounded deterministic normalization generally, rejecting
+      whitelist-style normalization for GOV-007. Whether that same
+      decision extends automatically to closing this residual Zs/Zl/Zp
+      gap, or needs its own explicit authorization, is for the next
+      governance round to raise. [Resolved: the owner_decision block in
+      gov_006_residual_remediation below records the explicit
+      authorization this note was waiting on.]
+  active_blocking_finding: null
+  gov_007_finding:
+    id: AS-SEC-001-GOV-007
+    status: remediated-verified-closed
+    summary: >-
+      _normalize_detector_input converted tab (U+0009), line feed (U+000A),
+      and carriage return (U+000D) unconditionally to a single ASCII
+      space. This correctly preserved legitimate word boundaries between
+      two complete words but could never reunite a keyword split by
+      exactly one of these characters injected mid-word, because
+      converting to a space still leaves a separator between the two
+      halves - the same class of gap as GOV-002's zero-width-space bypass,
+      for a category everyone had assumed GOV-005 already fully closed.
+    reproduction_before_fix: >-
+      scan_text("Ign\\tore previous instructions.") (and the line-feed and
+      carriage-return equivalents) returned zero findings. Reproduced
+      end-to-end in an isolated /tmp scratch project outside pytest: a
+      source containing the tab-fragmented sentence passed
+      discover/ingest/build-indexes with zero findings in
+      generated/reports/injection-findings.json and was ingested verbatim
+      into vault/sources/imported-documents/.
+    root_cause: >-
+      neither a single "always treat as whitespace" normalization nor a
+      single "always remove" normalization satisfies both the mid-keyword
+      and between-words requirements at once: the first misses the
+      split-keyword evasion, the second can glue an unrelated preceding or
+      following word directly onto a keyword and defeat its \\b boundary
+      anchor (discovered mid-implementation: a first attempt that
+      unconditionally removed every tab/LF/CR document-wide caused a
+      fixture heading ending in a bare word, immediately followed by a
+      paragraph starting with "Ignore", to glue into "...headingIgnore...",
+      which no longer matched \\bignore\\b).
+    remediation: >-
+      Replaced the fixed tab/LF/CR handling with a run-length-aware,
+      two-variant scan in scan_text(): a run of two or more consecutive
+      tab/line-feed/carriage-return characters (a strong, unambiguous
+      signal of an intentional paragraph/section break, e.g. a blank line)
+      always collapses to a single space in both variants; an isolated
+      single occurrence (the genuinely ambiguous case - could be ordinary
+      single-newline line wrapping, or a one-character mid-keyword
+      injection) is tested both ways - Variant A converts it to a space
+      (catches a legitimate multi-word instruction using tab/newline as
+      its separator), Variant B removes it entirely (reunites a keyword
+      split by exactly one stray control character, without touching any
+      genuine paragraph break elsewhere in the text). The union of both
+      variants' findings is reported. Implemented with
+      re.sub(r"[\\t\\n\\r]+", ...) using the match length to distinguish a
+      run from an isolated occurrence - stdlib-only, deterministic,
+      offline, no new dependency.
+    review_item_violated: "6 (headings, titles, metadata, and directives
+      cannot be sourced from adversarial text) - same item as every prior
+      GOV-00x finding, root cause specific to this remediation family
+      (fixed-normalization cannot handle both word-boundary requirements
+      at once)."
+    fresh_test_run: >-
+      Core 218 passed 1 xfailed 0 failed; Control Plane 146 passed 0
+      failed; mypy clean 35 files; ruff clean; compileall clean.
+    normalization_order: >-
+      1) NFKD compatibility decomposition. 2) Strip Cf (format control) and
+      Mn (combining mark) categories. 3) Strip every Cc control character
+      except tab/line-feed/carriage-return (which are deliberately left as
+      literal characters at this stage). 4) Normalize every Z-category
+      (Zs/Zl/Zp) character to a single ASCII space. 5) Apply the static
+      confusable-character mapping. 6) scan_text() then derives two final
+      variants from that shared intermediate string using
+      re.sub(r"[\\t\\n\\r]+", ...): Variant A collapses every run (any
+      length) to one space; Variant B collapses runs of 2+ to one space
+      but removes an isolated single occurrence entirely. Both variants
+      are matched against the unchanged pattern set and findings are
+      unioned. This is a reordering relative to the pre-GOV-007 sequence
+      (tab/LF/CR resolution now happens after, not interleaved with, the
+      Cc loop) - proven equivalent for every previously-passing test plus
+      the correctness matrix described below.
+    diff_scope: >-
+      confirmed via git diff --stat and git diff --name-status between the
+      frozen candidate 190008ffc7f8ba42bd3950a4f554fbb5e36459f4 and this
+      commit: only src/project_atlas/quarantine.py changed in production
+      code; okf_renderer.py, semantic_compiler.py, secrets.py,
+      validation.py, source_identity.py, lineage.py, knowledge_compiler.py,
+      ingestion.py, ID_PATTERN, agent-event quarantine, and
+      atlas-vault-documentation/ all byte-identical (git diff --stat against
+      atlas-vault-documentation/, AGENT-BOOTSTRAP.md, .atlas/ is empty).
+    prohibited_behaviors_checked: >-
+      no whitespace stripped globally (only tab/LF/CR and Z-category, as
+      already authorized); no unrelated legitimate words joined across
+      real paragraph breaks (proven by the run-length distinction and a
+      dedicated regression fixture); raw source bytes and hashes unchanged
+      (normalization is scan_text()-internal only; verified no
+      write_plan/ingestion.py change); no whitelist normalization
+      introduced; no tokenization redesign (same _PATTERNS, same
+      alternation strings, unchanged).
+  other_review_items:
+    scope_matches_adr004: true
+    analyzer_deterministic_offline_metadata_only: true
+    quarantine_blocks_concept_and_claim_extraction: verified (validation.py
+      cross-checks state/claims and state/concepts against quarantined
+      source_ids)
+    injection_findings_report_derived_and_nonauthoritative: true
+    single_promotion_boundary: preserved
+    secrets_py_unchanged: true
+    agent_event_quarantine_and_control_plane_unchanged: true
+    llm_or_network_dependency: none found
+    structural_project_identifier_scanned: true
+    unicode_normalization_applied: true
+    format_control_characters_removed: true
+    combining_marks_removed: true
+    control_characters_normalized: true
+    separator_characters_normalized: true
+    tab_lf_cr_run_length_aware_handling_applied: true
+    confusable_character_mapping_applied: true
+    uppercase_cyrillic_mapping_applied: true
+    greek_script_mapping_applied: true
+  out_of_scope_detector_limitations: >-
+    Non-English instruction phrasing, unrestricted synonym substitution,
+    and cross-script homoglyphs outside the explicit static mapping remain
+    out of scope for this remediation. This is a deliberate ADR-004
+    boundary (deterministic, offline, stdlib/regex-only detection cannot
+    exhaustively cover natural-language paraphrase or every Unicode
+    confusable without adding LLM/embedding/network dependencies). GOV-006
+    (Zs/Zl/Zp mid-keyword) and GOV-007 (tab/LF/CR mid-keyword) are both
+    now fully closed. GOV-008 (U+0085 NEXT LINE) is covered by the existing
+    Cc handler and requires no additional remediation.
+  gov_006_residual_remediation:
+    id: AS-SEC-001-GOV-006-RESIDUAL
+    status: remediated-verified-closed
+    base_commit: 6855f5f165396a2443126cea53d9f0e3b189197b
+    implementation_commit: 11edee67cafc63e4a80ad9df247392f90d46e4c0
+    evidence_commit: SELF
+    owner_decision:
+      strategy: bounded-dual-variant
+      categories:
+        - Zs
+        - Zl
+        - Zp
+      rejected_alternatives:
+        - whitelist-style-normalization
+        - arbitrary-character-deletion
+        - source-content-mutation
+        - rendering-changes
+        - lifecycle-or-identity-changes
+        - broader-unicode-policy-redesign
+      scope_authorized: >-
+        Extending the existing bounded, deterministic, run-length-aware
+        dual-variant normalization strategy GOV-007 established for
+        tab/line-feed/carriage-return to Unicode general category Z
+        (Zs, Zl, Zp), operating solely on the detector's private
+        normalized comparison representation.
+    summary: >-
+      Closes the mid-keyword Zs/Zl/Zp bypass left open by GOV-007 (limited
+      by owner authorization to U+0009/U+000A/U+000D only): a lone
+      Zs/Zl/Zp character spliced into a keyword ("Ig<EM SPACE>nore
+      previous instructions.") returned zero findings because those
+      categories were unconditionally converted to a single space with no
+      "collapse an isolated single occurrence" option.
+    remediation: >-
+      Generalized scan_text()'s tab/line-feed/carriage-return run-length-
+      aware dual-variant mechanism into one shared "ambiguous separator"
+      class covering tab/LF/CR plus every Unicode Zs/Zl/Zp character
+      except the plain keyboard space (U+0020): a run of two or more
+      ambiguous-separator characters (any combination) collapses to a
+      single space in both variants (an unambiguous, intentional
+      boundary); an isolated single occurrence is tested both ways
+      (Variant A -> space, Variant B -> removed). Zs/Zl/Zp characters are
+      enumerated once at import time from unicodedata.category() over the
+      full codepoint range (sys.maxunicode + 1 candidates), not a
+      hand-maintained list, discovering exactly 19 characters (matching
+      the Unicode 15/16-era Zs/Zl/Zp set: U+0020, U+00A0, U+1680,
+      U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000).
+    excluded_character:
+      codepoint: U+0020 (SPACE)
+      rationale: >-
+        Unlike the other 18 Zs/Zl/Zp characters, U+0020 is the
+        near-universal word separator throughout ordinary prose - a real
+        sentence has an isolated single occurrence of it between every
+        pair of words, not occasionally like an em space or a line
+        separator. Applying Variant B's "remove an isolated single
+        occurrence" rule to it would strip every space in the document
+        (verified: this was tried first and broke every previously-
+        passing tab/LF/CR mid-keyword test, since it also deleted the
+        literal spaces those fixes rely on to satisfy \s+ elsewhere in
+        the same sentence), making Variant B unable to match any
+        multi-word pattern at all. Splitting a keyword with a literal
+        space also produces two ordinary-looking word fragments rather
+        than an invisible/exotic Unicode trick - a different, explicitly
+        out-of-scope problem (arbitrary fuzzy/edit-distance keyword
+        matching), not a Unicode-category evasion. Deliberate, documented
+        boundary - not a silently dropped case; see
+        test_ascii_space_mid_keyword_split_is_not_a_unicode_evasion_bypass
+        in tests/unit/test_quarantine.py and the
+        boundary:ascii-space-mid-keyword case in
+        tests/unit/test_quarantine_fuzz.py.
+    implementation_pitfall_found_and_fixed: >-
+      A first implementation naively merged U+0020 into the same
+      "ambiguous separator" class as the other 18 Zs/Zl/Zp characters and
+      tab/LF/CR, which broke detection for every case (not just the new
+      Zs/Zl/Zp ones) because Variant B then removed every ordinary space
+      in the document. Separately, unicodedata.normalize("NFKD", text)
+      applied to the whole string up front was found to silently collapse
+      15 of the 19 discovered Zs characters (em space, no-break space,
+      ideographic space, en/em quad, all per-em/figure/punctuation/thin/
+      hair spaces, narrow no-break space, medium mathematical space) to a
+      plain U+0020 *before* the new Z-category logic ever saw them,
+      because NFKD compatibility decomposition maps those characters to
+      space. Fixed by checking each original character's Unicode category
+      before decomposition and only NFKD-decomposing characters that are
+      not already Zs/Zl/Zp (letters still decompose normally, exposing
+      combining marks for stripping; only three Zs/Zl/Zp characters -
+      U+1680 OGHAM SPACE MARK, U+2028 LINE SEPARATOR, U+2029 PARAGRAPH
+      SEPARATOR - have no NFKD decomposition at all, so without this fix
+      only those three would have worked and the other 15 would have
+      silently fallen into the U+0020 exclusion instead).
+    strict_xfail_disposition: >-
+      test_zs_zl_zp_mid_keyword_known_gap (xfail, strict=True, in
+      tests/unit/test_quarantine_fuzz.py) was kept unmodified until the
+      production fix was implemented and the new focused unit tests in
+      tests/unit/test_quarantine.py passed; then re-run without the xfail
+      marker to confirm it passes for real, then renamed (not deleted) to
+      test_zs_zl_zp_mid_keyword_gap_is_closed and its evasion set widened
+      from 4 representative characters to all 18 runtime-discovered
+      non-space Zs/Zl/Zp characters.
+    normalization_order: >-
+      1) For each original character: if it is category Zs/Zl/Zp, keep it
+      unexpanded (preserves identity against NFKD's compatibility
+      decomposition to space); otherwise NFKD-decompose it individually
+      (no-op for characters with no decomposition). 2) From that
+      per-character decomposition, strip Cf (format control) and Mn
+      (combining mark) categories. 3) Strip every Cc control character
+      except tab/line-feed/carriage-return. 4) Apply the static
+      confusable-character mapping. 5) scan_text() derives two final
+      variants from that shared intermediate string using one combined
+      ambiguous-separator regex (tab/LF/CR union Zs/Zl/Zp minus U+0020):
+      Variant A collapses every run (any length) to one space; Variant B
+      collapses runs of 2+ to one space but removes an isolated single
+      occurrence entirely. Both variants are matched against the
+      unchanged pattern set and findings are unioned.
+    diff_scope: >-
+      confirmed via git diff --stat and git diff --name-status between the
+      base commit 6855f5f165396a2443126cea53d9f0e3b189197b and the
+      implementation commit: only src/project_atlas/quarantine.py changed
+      in production code; git diff --stat against
+      atlas-vault-documentation/, AGENT-BOOTSTRAP.md, .atlas/ is empty.
+    prohibited_behaviors_checked: >-
+      no whitelist normalization introduced; no arbitrary character
+      deletion beyond the already-authorized bounded categories; no
+      source-content mutation (raw source bytes/hashes unchanged,
+      normalization is scan_text()-internal only); no rendering changes;
+      no lifecycle or identity changes; no new promotion boundary; no
+      tokenization redesign (same _PATTERNS, unchanged).
+    gov_007_status: remediation-preserved (tab/LF/CR behavior unchanged; all
+      GOV-007 fixtures and tests still pass unmodified)
+    gov_008_status: closed-already-covered (U+0085 remains handled by the
+      existing Cc-other-than-tab/LF/CR removal path, unaffected by this
+      change)
