@@ -1910,3 +1910,163 @@ characters still bypass detection when inserted mid-keyword. The owner chose
 bounded deterministic handling for GOV-007, but has not explicitly authorized
 extending that decision to this residual. No certification or merge is
 authorized.
+
+## AS-SEC-001-GOV-006 residual — Z-category mid-keyword remediation
+
+**Status:** remediation-applied-rereview-required
+**Owner decision recorded:** Owner selected Option 1 - extend the bounded,
+deterministic, run-length-aware dual-variant normalization strategy GOV-007
+established for tab/line-feed/carriage-return to Unicode general category Z
+(Zs, Zl, Zp), operating solely on the detector's private normalized
+comparison representation. Whitelist-style normalization, arbitrary
+character deletion, source-content mutation, rendering changes, lifecycle/
+identity changes, and broader Unicode policy redesign were all explicitly
+not authorized.
+**Base commit:** `6855f5f165396a2443126cea53d9f0e3b189197b` (GOV-007
+architecture rereview evidence; certified mainline `7e720bda1a9efe3950a7943968024805fdfd2f6f` unchanged; frozen GOV-007
+candidate `d8c6c1b869351c3aadc26addfbe68650a1e56581` unchanged)
+**Branch:** `fix/as-sec-001-gov-006-z-category-residual`
+**Worktree:** `D:\project-atlas-as-sec-001-gov-006-residual`
+**Implementation commit:** `11edee67cafc63e4a80ad9df247392f90d46e4c0`
+
+**Blocking finding closed (AS-SEC-001-GOV-006 residual):** a lone Zs/Zl/Zp
+character spliced into a keyword (`Ig<EM SPACE>nore previous instructions.`)
+returned zero findings, because those categories were unconditionally
+converted to a single space with no "collapse an isolated single
+occurrence" option - the same architectural gap GOV-007 closed for
+tab/line-feed/carriage-return, not yet applied to Zs/Zl/Zp.
+
+**Remediation applied:**
+
+- Generalized `scan_text()`'s tab/line-feed/carriage-return run-length-aware
+  dual-variant mechanism into one shared "ambiguous separator" class
+  covering tab/LF/CR plus every Unicode Zs/Zl/Zp character except the plain
+  keyboard space (U+0020): a run of two or more ambiguous-separator
+  characters (any combination) collapses to a single space in both
+  variants; an isolated single occurrence is tested both ways (Variant A ->
+  space, Variant B -> removed).
+- Zs/Zl/Zp characters are enumerated once at import time from
+  `unicodedata.category()` over the full codepoint range
+  (`sys.maxunicode + 1` candidates, ~0.2s one-time cost), not a
+  hand-maintained list - discovers exactly 19 characters: U+0020, U+00A0,
+  U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000.
+- **U+0020 (plain space) deliberately excluded** from the removable set.
+  Unlike the other 18 characters, it is the near-universal word separator
+  in ordinary prose - a real sentence has an isolated single occurrence of
+  it between every pair of words. A first implementation attempt merged it
+  into the same removable class, which broke *every* mid-keyword test
+  (including the previously-passing GOV-007 tab/LF/CR ones), because
+  Variant B then removed every literal space in the document, not just the
+  injected one, leaving no `\s+` for any multi-word pattern to match.
+  Documented, not silently dropped - see
+  `test_ascii_space_mid_keyword_split_is_not_a_unicode_evasion_bypass` and
+  the `boundary:ascii-space-mid-keyword` fuzz case.
+- **NFKD ordering pitfall found and fixed:** applying
+  `unicodedata.normalize("NFKD", text)` to the whole string up front (the
+  pre-existing step 1) was found to silently collapse 15 of the 19
+  discovered Zs characters (em space, no-break space, ideographic space,
+  en/em quad, per-em/figure/punctuation/thin/hair spaces, narrow no-break
+  space, medium mathematical space) to a plain U+0020 *before* the new
+  Z-category logic ever saw them - NFKD compatibility decomposition maps
+  those characters to space. Fixed by checking each original character's
+  Unicode category first and only NFKD-decomposing characters that are not
+  already Zs/Zl/Zp (letters still decompose normally, exposing combining
+  marks for stripping). Only 3 of the 19 characters (OGHAM SPACE MARK,
+  LINE SEPARATOR, PARAGRAPH SEPARATOR) have no NFKD decomposition at all,
+  so without this fix the other 15 would have silently fallen into the
+  U+0020 exclusion instead of being detected.
+- Kept the existing NFKD decomposition (per-character now), Cf/Mn
+  stripping, Cc-other-than-tab/LF/CR removal, and confusable mapping
+  unchanged in behavior for every non-Z-category character.
+- Added 26 new unit tests to `tests/unit/test_quarantine.py`: mid-keyword
+  reproductions for representative Zs/Zl/Zp characters at multiple
+  positions, mixed-category evasions (Z + Mn, Z + Cf, Z + confusable, Z +
+  tab/CR), run-length boundary cases (2+ character runs preserve the
+  boundary rather than being reunited - the approved model, not a bypass),
+  the ASCII-space scope-boundary test, and 6 benign multilingual/structural
+  negatives (French narrow no-break space, CJK ideographic space,
+  paragraph/line-separator documents, em-space typography, wide-spaced
+  Markdown table).
+- Expanded `tests/unit/test_quarantine_fuzz.py`: the fuzz matrix now
+  enumerates all 18 non-space runtime-discovered Zs/Zl/Zp characters
+  (`_Z_CATEGORY_CHARACTERS`, not a hand-maintained list), adds 7
+  mixed-evasion pairs, 4 run-length boundary cases, and 5 new benign
+  multilingual/structural controls. The former strict xfail
+  `test_zs_zl_zp_mid_keyword_known_gap` was renamed (not deleted) to
+  `test_zs_zl_zp_mid_keyword_gap_is_closed` and its xfail marker removed
+  only after the production fix was implemented and independently
+  confirmed passing.
+- Added adversarial fixtures
+  (`em-space-mid-keyword-reproduction.md`,
+  `line-separator-mid-keyword-reproduction.md`,
+  `paragraph-separator-mid-keyword-reproduction.md`) and one benign fixture
+  (`benign-multilingual-separators-control.md`), wired into the
+  `_fixture_evasion_project` public-workflow scenario in
+  `tests/integration/test_as_sec_001_quarantine_boundary.py`.
+
+**Scope preserved:** No changes to `secrets.py`, agent-event quarantine,
+`ID_PATTERN`, source identity, lifecycle, claim identity, conflict identity,
+`okf_renderer.py`, `semantic_compiler.py`, `validation.py`, `lineage.py`,
+`ingestion.py`, or the single promotion boundary. No LLM, embedding,
+network, or sandbox dependency introduced. `git diff --name-status` against
+the base commit under `src/project_atlas` shows only
+`M src/project_atlas/quarantine.py`.
+
+**Exact validation counts:**
+
+- `pytest tests` (Core) — `245 passed, 0 xfailed, 0 failed` (baseline for
+  this round, independently re-measured at the unmodified base commit in an
+  isolated worktree: `218 passed, 1 xfailed, 0 failed` = 219; net +26 new
+  tests, 1 renamed, 0 removed; 219 + 26 = 245)
+- `pytest atlas-vault-documentation/tests` (Control Plane) — could not be
+  independently confirmed as `146 passed, 0 failed` in this execution
+  environment: reports `34 failed, 112 passed`, every failure the identical
+  pre-existing `/usr/bin/env: 'python3\r': No such file or directory`
+  shebang/CRLF error (WSL executing scripts from a Windows checkout with no
+  `.gitattributes` forcing LF). Independently reproduced by checking out
+  the exact same unmodified base commit in an isolated throwaway worktree
+  and running the identical command: also `34 failed, 112 passed`,
+  byte-for-byte the same failure set - confirmed pre-existing environment
+  artifact, not a regression. Control Plane source is confirmed
+  byte-identical regardless (see diff below).
+- `mypy src` — clean, 35 source files
+- `ruff check src tests` — clean
+- `python -m compileall -q src` — clean
+- Control Plane / protected-boundary diff (`atlas-vault-documentation/`,
+  `AGENT-BOOTSTRAP.md`, `.atlas/`) against the base commit — empty
+- Production-file diff under `src/project_atlas` against the base commit —
+  `M src/project_atlas/quarantine.py` only
+- Public workflow: `test_unicode_evasion_sources_are_quarantined` and
+  `test_unicode_evasion_content_does_not_reach_claims_or_indexes` both pass
+  end-to-end against the evasion-project fixture extended with the 3 new
+  adversarial fixtures and 1 new benign fixture
+- Stabilized replay: `test_unchanged_replay_is_byte_identical` passed as
+  part of the Core suite; an independent manual 4-run protocol (genesis,
+  convergence, settled snapshot, settled comparison) against the extended
+  evasion-project fixture confirmed run 3 vs run 4 byte-identical across
+  all 70 generated vault files
+- Fresh fuzz: `tests/unit/test_quarantine_fuzz.py::test_quarantine_fuzz_matrix`
+  - 218 generated, 218 executed, 0 skipped, 0 confirmed evasions, 0 false
+  positives, 0 exceptions. `test_zs_zl_zp_mid_keyword_gap_is_closed`
+  independently confirms 0 failures across all 18 Z-category evasions at
+  every mid-keyword insertion position.
+
+**Remaining risks:**
+
+- The Control Plane suite could not be independently re-verified as
+  `146 passed, 0 failed` in this execution environment due to the
+  pre-existing WSL/CRLF shebang artifact described above; a reviewer
+  running natively on Linux or with `.gitattributes` forcing LF should
+  re-confirm the `146 passed, 0 failed` baseline directly.
+- The out-of-scope ASCII-space mid-keyword case (splitting a keyword with a
+  literal space) remains undetectable by design - this is a deliberate,
+  documented architecture boundary, not a residual gap, but the next
+  architecture rereview should explicitly confirm this boundary is
+  acceptable rather than assume it.
+
+**CERTIFICATION ISSUED: NO**
+**MERGE AUTHORIZED: NO**
+
+**No merge performed.** Package is frozen pending Agent Three's targeted
+architecture rereview of this GOV-006 residual remediation (see the
+completion report's `NEXT_AGENT_DIRECTIVE` for the full handoff).
