@@ -766,3 +766,32 @@ supersession remains the disposition, `selected_option` is now `1`, and options
 `docs/architecture-governance/VERIFY-AS-RET-SEQUENCING-DECISION.md`. Updated
 `docs/evidence/AS-RET-001-receipt.yaml` serialization review to reference the
 corrected owner-decision option and commit (`decision_commit: SELF`).
+
+## AS-RET-001 architecture re-approval
+
+**Status:** implementation complete — architecture re-approved
+**Implementation:** `4a40b3816bb24edd0d07271f6dd9c39dc1608a57`
+**Evidence:** `f1925abe521c3439b7bf5159f504c992ce47246b`
+
+Architecture Governor performed a targeted rereview following the
+verify/AS-RET sequencing decision consistency correction
+(`ca2aa9c5afb66bcfbb532848084fc42fb3b4181d`) and re-approved the AS-RET-001
+lexical retrieval index candidate. Independent findings:
+
+- The remediation implementation commit (`4a40b381...`) makes no changes to
+  `src/project_atlas/ingestion.py`. The only ingestion.py delta present on
+  the branch relative to the certified base integrates derived index writes
+  into the existing staged `write_plan` ahead of the single `_promote(
+  write_plan)` call — the single promotion boundary is preserved, and there
+  is no direct/out-of-band compiler write.
+- A patch-id comparison against `verify/atlas-core-vertical-slice` found no
+  shared commits; the branch does not incorporate or depend on verify work,
+  confirming the decision record's non-contamination claim.
+- The corrected decision record and `docs/evidence/AS-RET-001-receipt.yaml`
+  now agree: `selected_option: 1`, options 2 and 3 explicitly rejected,
+  `decision_commit: SELF` resolves to the correction commit.
+- Control Plane diff against the certified base remains zero.
+
+Independent re-run (not taken from the receipt): Core `149 passed`, Control
+Plane `146 passed`, mypy clean for `34` source files, Ruff clean. Counts match
+the receipt exactly. Final merge control remains with the project owner.

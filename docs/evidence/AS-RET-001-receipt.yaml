@@ -1,7 +1,7 @@
 schema_version: 1
 work_package: AS-RET-001
 title: Lexical Retrieval Index
-status: implementation-complete-governor-rereview-required
+status: implementation-complete
 branch: fix/as-ret-001-lexical-index-governance
 certified_base_commit: d2231d0e8659b9559c0e70bd9f9e58e80042f56b
 historical_implementation_commit: d084491b28b5dd43e3e59900c5dab716466d4c7f
@@ -121,3 +121,19 @@ architecture_boundaries:
   semantic_vector_work: excluded
   external_services: excluded
   graph_traversal: excluded
+architecture:
+  governor_review: re-approved
+  reviewed_commit: 4a40b3816bb24edd0d07271f6dd9c39dc1608a57
+  sequencing_correction_reviewed: ca2aa9c5afb66bcfbb532848084fc42fb3b4181d
+  ingestion_py_touched_by_remediation_commit: false
+  ingestion_py_change_on_branch: derived index writes folded into existing
+    staged write_plan ahead of the single _promote call
+  single_promote_boundary_preserved: true
+  verify_branch_patch_id_overlap: none
+  control_plane_diff: zero
+  certified_identity_lifecycle_semantics_modified: false
+  independent_rerun:
+    core_result: 149 passed
+    control_plane_result: 146 passed
+    mypy_result: clean, 34 source files
+    ruff_result: clean
