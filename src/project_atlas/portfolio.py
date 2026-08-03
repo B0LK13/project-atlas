@@ -264,7 +264,10 @@ def maturity_matrix(vault: Path, coverage_payload: dict[str, Any]) -> dict[str, 
         )
         categories = coverage_payload["projects"].get(project_id, {}).get("categories", [])
         required_present = all(
-            any(item["category"] == required and item["state"] == "present" for item in categories)
+            any(
+                item["category"] == required and item["state"] in ("present", "partial")
+                for item in categories
+            )
             for required in _REQUIRED_COVERAGE_CATEGORIES
         )
         validation_present = any(
