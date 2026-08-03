@@ -1,10 +1,11 @@
 work_package: AS-SEC-001
 title: Source Quarantine and Prompt-Injection Boundary
-status: implementation-complete-architecture-rereview-required
+status: implementation-complete-final-certification-rereview-required
 
 certified_base_commit: 7e720bda1a9efe3950a7943968024805fdfd2f6f
+candidate_commit: 6a270d6efc79554372bb55f170744aa12495d264
 implementation_commit: 179ea3f85aca51b34be2ef7b9a64a361e5522c2b
-governance_record_commit: e60277fa19e43675de3521272e3e9d9615934817
+governance_record_commit: 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6
 gov_001_remediation_commit: e0b26b26df00350855fb3ada9c7751dfd3d97375
 gov_001_evidence_commit: eaa6de891a71fbd29d31693610155430e5abd07c
 gov_002_remediation_commit: c19c9cd6e131ff15f78a8312a0ae55a1ea31ccaf
@@ -86,18 +87,18 @@ test_accounting:
       run.
 
 validation:
-  core: 218 passed, 1 xfailed, 0 failed
+  core: 245 passed, 0 failed, 0 xfailed
   control_plane: 146 passed, 0 failed
   mypy: clean, 35 source files
   ruff: clean
   compilation: clean
   public_workflow: passed
-  replay: byte-identical
+  replay: settled replay byte-identical after one-time project UUID genesis
   rollback: passed
   fresh_fuzz: >-
     deterministic (fixed enumeration rule, not randomized) fuzz matrix in
-    tests/unit/test_quarantine_fuzz.py: 76 generated, 76 executed, 0
-    skipped, 0 confirmed evasions, 0 false positives, 0 exceptions. A
+    tests/unit/test_quarantine_fuzz.py: 218 generated, 218 executed, 0
+    skipped, 0 failures, 0 false positives, 0 exceptions. A
     second, separate xfail-marked test in the same file documents the
     known residual GOV-006 gap (Zs/Zl/Zp mid-keyword) with its own
     generated/executed/skipped counts, intentionally excluded from the
@@ -303,8 +304,8 @@ architecture:
   certified_subsystem_semantics_modified: false
   agent_event_quarantine_modified: false
   llm_or_network_dependency_added: false
-  governor_review: pending-gov-007-rereview
-  reviewed_commit: 9ee547ad3cfb8159c592e6751622d2c3f374beeb
+  governor_review: completed-gov-007-rereview-verified-closed
+  reviewed_commit: 6a270d6efc79554372bb55f170744aa12495d264
   previous_reviewed_candidate: 190008ffc7f8ba42bd3950a4f554fbb5e36459f4
   gov_007_rereview:
     status: blocked-residual-gov-006-gap
@@ -457,10 +458,47 @@ architecture:
         approach for these three characters specifically with a run-length
         aware dual-variant scan; the Cc-other-than-tab/lf/cr handling this
         finding introduced is unchanged and still correct.
+    - id: AS-SEC-001-GOV-006
+      status: remediated-verified-closed
+      summary: >-
+        _normalize_detector_input did not normalize Unicode separator
+        categories Zs, Zl, and Zp to ASCII space. The initial remediation
+        (GOV-006 base round) closed the between-words case but left a
+        residual mid-keyword gap. The GOV-006-RESIDUAL round extended the
+        run-length-aware dual-variant mechanism (introduced by GOV-007 for
+        tab/LF/CR) to all Zs/Zl/Zp characters except U+0020, fully closing
+        both the between-words and mid-keyword evasion surfaces.
+      remediation_commits:
+        base_round: 585b70dbcd9e47b6d27491b00a3709281abdb061
+        residual_round: 11edee67cafc63e4a80ad9df247392f90d46e4c0
+        final_evidence: 6a270d6efc79554372bb55f170744aa12495d264
+    - id: AS-SEC-001-GOV-007
+      status: remediated-verified-closed
+      summary: >-
+        _normalize_detector_input converted tab (U+0009), line feed (U+000A),
+        and carriage return (U+000D) unconditionally to a single ASCII space,
+        making it impossible to reunite a keyword split by exactly one
+        injected character. Replaced with run-length-aware dual-variant
+        scanning: isolated single occurrences are tested both as space
+        (between-words) and removed (mid-keyword reunification); runs of
+        2+ always collapse to space (genuine word/paragraph boundaries).
+      remediation_commit: 9ee547ad3cfb8159c592e6751622d2c3f374beeb
+    - id: AS-SEC-001-GOV-008
+      status: closed-covered-by-existing-handler
+      summary: >-
+        U+0085 (NEXT LINE, category Cc) was raised as a potential evasion
+        surface similar to GOV-007's tab/LF/CR findings. No separate
+        remediation is required: U+0085 falls into the Cc-other-than-tab/
+        LF/CR removal path that GOV-005 established and that GOV-007
+        preserved. The existing handler strips it unconditionally before
+        the scan, collapsing any mid-keyword injection. Explicitly
+        recorded here per final certification requirements; no code change
+        was needed or made.
+      covered_by_commit: 9ee547ad3cfb8159c592e6751622d2c3f374beeb
   gov_006_residual_gap:
     id: AS-SEC-001-GOV-006
-    status: remediation-applied-rereview-required
-    status_history: remediated-partial-residual-gap-open (GOV-007 round) -> remediation-applied-rereview-required (this round)
+    status: remediated-verified-closed
+    status_history: remediated-partial-residual-gap-open (GOV-007 round) -> remediation-applied-rereview-required (this round) -> remediated-verified-closed (final certification round)
     summary: >-
       _normalize_detector_input did not normalize Unicode separator
       categories Zs, Zl, and Zp to ASCII space, so non-ASCII separators
@@ -497,7 +535,7 @@ architecture:
   active_blocking_finding: null
   gov_007_finding:
     id: AS-SEC-001-GOV-007
-    status: remediated-verified-pending-governor-rereview
+    status: remediated-verified-closed
     summary: >-
       _normalize_detector_input converted tab (U+0009), line feed (U+000A),
       and carriage return (U+000D) unconditionally to a single ASCII
@@ -608,20 +646,17 @@ architecture:
     greek_script_mapping_applied: true
   out_of_scope_detector_limitations: >-
     Non-English instruction phrasing, unrestricted synonym substitution,
-    cross-script homoglyphs outside the explicit static mapping, and the
-    residual GOV-006 Zs/Zl/Zp mid-keyword gap (see gov_006_residual_gap
-    above) remain out of scope for this remediation. This is partly a
-    deliberate ADR-004 boundary (deterministic, offline, stdlib/regex-only
-    detection cannot exhaustively cover natural-language paraphrase or
-    every Unicode confusable without adding LLM/embedding/network
-    dependencies) and partly an explicitly owner-scoped boundary for
-    GOV-007 specifically (tab/LF/CR only, per the owner's decision record
-    above). The architectural question of whether to extend the
-    run-length-aware technique to Zs/Zl/Zp, or adopt a broader normalization
-    strategy, is for the next governance round.
+    and cross-script homoglyphs outside the explicit static mapping remain
+    out of scope for this remediation. This is a deliberate ADR-004
+    boundary (deterministic, offline, stdlib/regex-only detection cannot
+    exhaustively cover natural-language paraphrase or every Unicode
+    confusable without adding LLM/embedding/network dependencies). GOV-006
+    (Zs/Zl/Zp mid-keyword) and GOV-007 (tab/LF/CR mid-keyword) are both
+    now fully closed. GOV-008 (U+0085 NEXT LINE) is covered by the existing
+    Cc handler and requires no additional remediation.
   gov_006_residual_remediation:
     id: AS-SEC-001-GOV-006-RESIDUAL
-    status: remediation-applied-rereview-required
+    status: remediated-verified-closed
     base_commit: 6855f5f165396a2443126cea53d9f0e3b189197b
     implementation_commit: 11edee67cafc63e4a80ad9df247392f90d46e4c0
     evidence_commit: SELF
