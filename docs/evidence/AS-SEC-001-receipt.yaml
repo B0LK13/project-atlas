@@ -12,7 +12,7 @@ gov_002_evidence_commit: 91cea46fcd520718144de845a2456a3ed78ecfb8
 gov_003_remediation_commit: ea501db58d69f573aa474328211622da1226a3ce
 gov_003_evidence_commit: a565e2171b7091eb4d441fa6c0703336add18e62
 gov_004_remediation_commit: 905064b9614f1bdfd5b3a89cd52990b1a51f8431
-gov_004_evidence_commit: SELF
+gov_004_evidence_commit: 3ee430ad497cb5dffee32818fa0c02e88ae3d9dd
 
 adr:
   path: docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md
