@@ -1473,6 +1473,7 @@ Validation:
 - `ruff check src tests` — clean
 - `compileall -q src` — clean
 - Public discover → init → ingest → build-indexes → validate reproduction — passed; accented instruction quarantined and benign accented control ingested
+- Fresh deterministic fuzz pass — 487 diacritic, format-control, and confusable variants; 0 failures
 
 No merge performed. Package is frozen pending Agent Three targeted GOV-004
 architecture rereview and Agent Two independent certification.

@@ -35,6 +35,7 @@ validation:
   public_workflow: passed
   replay: byte-identical
   rollback: passed
+  fresh_fuzz: 487 deterministic diacritic, format-control, and confusable variants; 0 failures
 
 adversarial_scenarios:
   instruction_fixture:
