@@ -1,6 +1,6 @@
 work_package: AS-SEC-001
 title: Source Quarantine and Prompt-Injection Boundary
-status: implementation-complete-final-certification-rereview-required
+status: evidence-corrected-frozen-pending-independent-certification
 
 certified_base_commit: 7e720bda1a9efe3950a7943968024805fdfd2f6f
 candidate_commit: 6a270d6efc79554372bb55f170744aa12495d264
@@ -88,7 +88,14 @@ test_accounting:
 
 validation:
   core: 245 passed, 0 failed, 0 xfailed
-  control_plane: 146 passed, 0 failed
+  control_plane: >-
+    146 passed, 0 failed with AS-MAINT-001 corrected; 28 failed, 118 passed
+    against the actual committed tree as of this commit, because
+    AS-MAINT-001 (see below) is not yet fixed. The prior round's
+    "146 passed, 0 failed (verified)" claim was corrected by this
+    evidence-cleanup commit: it was not actually reproducible against the
+    committed tree and should not have been marked "(verified)". See
+    as_maint_001 below for the full correction record.
   mypy: clean, 35 source files
   ruff: clean
   compilation: clean
@@ -98,11 +105,12 @@ validation:
   fresh_fuzz: >-
     deterministic (fixed enumeration rule, not randomized) fuzz matrix in
     tests/unit/test_quarantine_fuzz.py: 218 generated, 218 executed, 0
-    skipped, 0 failures, 0 false positives, 0 exceptions. A
-    second, separate xfail-marked test in the same file documents the
-    known residual GOV-006 gap (Zs/Zl/Zp mid-keyword) with its own
-    generated/executed/skipped counts, intentionally excluded from the
-    must-pass matrix.
+    skipped, 0 failures, 0 false positives, 0 exceptions. No xfail-marked
+    test remains anywhere in the suite (the former
+    test_zs_zl_zp_mid_keyword_known_gap xfail was renamed to
+    test_zs_zl_zp_mid_keyword_gap_is_closed and its xfail marker removed
+    once the GOV-006 residual fix landed - see closed_findings below).
+    Independently re-verified via `pytest tests -rxX`: 0 xfailed, 0 xpassed.
   gov_006_residual_round:
     core: 245 passed, 0 xfailed, 0 failed
     control_plane: >-
@@ -300,15 +308,91 @@ invariants:
   source_identity_preserved: true
   control_plane_diff: zero
 
+as_maint_001:
+  id: AS-MAINT-001
+  title: Control Plane test fixture scripts committed without the executable bit
+  tracked_as: maintenance-issue-not-a-security-code-change
+  status: open
+  in_scope_of_as_sec_001: false
+  summary: >-
+    tests/fixtures/bin/mda under atlas-vault-documentation/ (git blob mode
+    100644) is invoked directly by several Control Plane tests
+    (test_agent_control.py, test_ingestion.py, test_ingestion_stage2.py,
+    test_normalize_event.py) without first setting an executable bit at
+    runtime. On a filesystem that honors the real POSIX mode bits (e.g.
+    ext4, and any standard Linux CI runner), invoking it fails with
+    "permission-denied" rather than executing. On DrvFs-mounted Windows
+    paths (e.g. /mnt/d under WSL), all files present as world-executable
+    regardless of their tracked mode, which is why this has gone unnoticed
+    when worked on directly under /mnt/d.
+  root_cause: >-
+    `git ls-tree <any commit since 672cd4e> --
+    atlas-vault-documentation/tests/fixtures/bin/mda` shows mode 100644.
+    core.filemode=false in this repository means git never updates that
+    bit from a working tree's local chmod, so it has been non-executable
+    in every commit since the fixture was introduced, long before
+    AS-SEC-001 or GOV-006 existed.
+  why_previously_reported_as_146_passed_0_failed: >-
+    Every prior AS-SEC-001 round that recorded "146 passed, 0 failed" for
+    the Control Plane suite did so while working directly in
+    /mnt/d/project-atlas-vault (DrvFs), where the missing executable bit
+    is invisible. Independently re-run in an isolated worktree on a native
+    Linux filesystem (ext4) at both the pre-GOV-006-residual base commit
+    (6855f5f) and the GOV-006-residual candidate commit (6a270d6): both
+    produced an identical 28-failed/118-passed set (same 28 test IDs both
+    times), confirming (a) it is pre-existing and unrelated to any
+    AS-SEC-001 remediation, and (b) it is not a DrvFs-only illusion but a
+    real, reproducible gap on any strictly-POSIX filesystem. With only
+    tests/fixtures/bin/mda's mode corrected to executable (chmod +x, in a
+    throwaway isolated clone - no tracked file changed), the identical
+    suite reports 146 passed, 0 failed, confirming the underlying Control
+    Plane test logic is fully sound and this is purely a file-mode defect,
+    not a functional regression.
+  why_invisible_to_ci: >-
+    Root pyproject.toml sets `[tool.pytest.ini_options] testpaths =
+    ["tests"]`, so `.github/workflows/ci.yml`'s `python -m pytest` step
+    (which runs from the repository root) never executes
+    atlas-vault-documentation/tests at all. Control Plane has no CI
+    coverage today, so this defect could not have been caught by CI even
+    on a native Linux runner.
+  recommended_fix: >-
+    `git update-index --chmod=+x
+    atlas-vault-documentation/tests/fixtures/bin/mda` (and any sibling
+    fixture scripts with the same defect) committed on its own maintenance
+    branch, plus either a `.gitattributes` executable-bit rule or a CI job
+    that actually runs atlas-vault-documentation/tests so a future
+    regression is caught. Deliberately not performed as part of this
+    AS-SEC-001 evidence-only commit: it would touch a tracked file under
+    atlas-vault-documentation/, which this round's directive explicitly
+    scopes out.
+  discovered_during: AS-SEC-001-GOV-006 residual architecture rereview (Agent Three, commit 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6)
+  corrected_in_evidence_by: this commit (evidence-only correction of the false "(verified)" 146/0 claim in 3f11bb7f)
+
 architecture:
   certified_subsystem_semantics_modified: false
   agent_event_quarantine_modified: false
   llm_or_network_dependency_added: false
-  governor_review: completed-gov-007-rereview-verified-closed
+  governor_review: completed-gov-006-residual-rereview-verified-closed
   reviewed_commit: 6a270d6efc79554372bb55f170744aa12495d264
+  reviewed_by_commit: 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6
   previous_reviewed_candidate: 190008ffc7f8ba42bd3950a4f554fbb5e36459f4
-  gov_007_rereview:
-    status: blocked-residual-gov-006-gap
+  governor_review_label_correction: >-
+    An earlier evidence-only commit (3f11bb7f955a72c77f71880465f88f971c650a90)
+    set this field to "completed-gov-007-rereview-verified-closed", which
+    mislabeled the review that actually took place at reviewed_commit
+    6a270d6: GOV-007 was already closed in an earlier round (see
+    gov_007_rereview_historical below), and the review performed at 6a270d6
+    (commit 8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6) was specifically the
+    AS-SEC-001-GOV-006 residual architecture rereview. Corrected here to
+    governor_review/reviewed_by_commit above. Flagged as a process-integrity
+    finding (see process_integrity_findings below).
+  gov_007_rereview_historical:
+    superseded: true
+    superseded_by: >-
+      AS-SEC-001-GOV-006 residual architecture rereview, commit
+      8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6, which closed the exact gap
+      this block describes as blocking.
+    status: blocked-residual-gov-006-gap (historical - as recorded at the time; no longer the active state)
     reviewed_head: d8c6c1b869351c3aadc26addfbe68650a1e56581
     result: >-
       GOV-007 tab/line-feed/carriage-return remediation verified. GOV-008
@@ -373,6 +457,32 @@ architecture:
       open (see gov_006_residual_gap below). This is the same blind spot
       that let the original GOV-006 finding itself slip through GOV-005's
       closure.
+    - >-
+      Final-certification-reconciliation round (commit
+      3f11bb7f955a72c77f71880465f88f971c650a90, co-authored-by Copilot):
+      cited validation.control_plane as "146 passed, 0 failed (verified)"
+      while that commit is a sibling of, not a descendant of, the
+      AS-SEC-001-GOV-006 residual architecture rereview
+      (8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6) it names as its
+      governance_record_commit - it branched directly from 6a270d6 and
+      never incorporated that review's actual findings. Independently
+      re-run in this evidence-cleanup pass, in two separate isolated
+      worktrees (base commit 6855f5f and candidate commit 6a270d6, both
+      on a native ext4 filesystem): the actual committed tree produces 28
+      failed, 118 passed, not 146/0 - see as_maint_001 above for the
+      full root-cause (a pre-existing non-executable git file mode,
+      invisible only on DrvFs-mounted paths). "(verified)" was not an
+      accurate claim against the tree as committed. The same commit's
+      architecture.governor_review field ("completed-gov-007-rereview-
+      verified-closed") was also mislabeled - GOV-007 was already closed
+      in an earlier round, and the review that actually took place at
+      6a270d6 was the GOV-006 residual rereview, not a "GOV-007
+      rereview". Both corrected in this commit; see
+      validation.control_plane, as_maint_001, and
+      governor_review_label_correction above. This is the same
+      fabricated-verification-claim pattern flagged in every prior round
+      above, now caught before it reached the frozen candidate for
+      certification rather than after.
   closed_findings:
     - id: AS-SEC-001-GOV-001
       status: remediated-verified-closed
@@ -509,29 +619,46 @@ architecture:
       every character in Unicode general category "Z" (Zs, Zl, Zp) to a
       single ASCII space. This closes the between-words case (e.g.
       "Ignore<EM SPACE>previous instructions.").
-    residual_gap_found_this_round: >-
-      GOV-007's mandated fresh fuzzing found that the between-words fix
-      does not close mid-keyword insertion: "Ig<EM SPACE>nore previous
-      instructions." still returns zero findings, because Z-category
-      characters are unconditionally converted to a single space with no
-      "collapse an isolated single occurrence" option - the same
-      architectural gap GOV-007 closed for tab/line-feed/carriage-return,
-      but not yet applied to Zs/Zl/Zp. Reproduced with a fixed, deterministic
-      fuzz test (test_zs_zl_zp_mid_keyword_known_gap, xfail/strict=True) in
-      tests/unit/test_quarantine_fuzz.py, so the gap stays visible in the
-      test suite rather than silently dropped.
-      GOV-007 did not fix this: it is out of the owner-authorized GOV-007
-      scope (limited to U+0009/U+000A/U+000D only). GOV-006 therefore
-      cannot be marked remediated-verified-closed and remains open pending
-      a further bounded remediation (applying the same run-length-aware
-      dual-variant technique GOV-007 introduced, to Zs/Zl/Zp as well).
-    owner_consulted_on_architecture: >-
-      Not yet, on this specific residual gap. The owner has separately
-      already decided (this round) to continue bounded deterministic
-      normalization generally, rejecting whitelist-style normalization for
-      GOV-007. Whether that same decision extends automatically to closing
-      this residual Zs/Zl/Zp gap, or needs its own explicit authorization,
-      is for the next governance round to raise.
+    residual_gap_found_this_round_historical:
+      superseded: true
+      superseded_by: >-
+        AS-SEC-001-GOV-006 residual architecture rereview, commit
+        8a9b2a74cb29651403bb9dbfbb42c5a86ba5c1b6, which independently
+        verified the bounded dual-variant technique below closes exactly
+        this gap (fuzz 218/218/0/0/0/0, test_zs_zl_zp_mid_keyword_gap_is_closed
+        passing for all 18 non-space Z-category characters at every
+        mid-keyword position). The blocking language below ("cannot be
+        marked remediated-verified-closed and remains open") describes the
+        state as it stood at the GOV-007 round, before the residual
+        remediation in gov_006_residual_remediation below was implemented -
+        preserved verbatim for the historical record, no longer the active
+        state.
+      text: >-
+        GOV-007's mandated fresh fuzzing found that the between-words fix
+        does not close mid-keyword insertion: "Ig<EM SPACE>nore previous
+        instructions." still returns zero findings, because Z-category
+        characters are unconditionally converted to a single space with no
+        "collapse an isolated single occurrence" option - the same
+        architectural gap GOV-007 closed for tab/line-feed/carriage-return,
+        but not yet applied to Zs/Zl/Zp. Reproduced with a fixed, deterministic
+        fuzz test (test_zs_zl_zp_mid_keyword_known_gap, xfail/strict=True) in
+        tests/unit/test_quarantine_fuzz.py, so the gap stays visible in the
+        test suite rather than silently dropped.
+        GOV-007 did not fix this: it is out of the owner-authorized GOV-007
+        scope (limited to U+0009/U+000A/U+000D only). GOV-006 therefore
+        cannot be marked remediated-verified-closed and remains open pending
+        a further bounded remediation (applying the same run-length-aware
+        dual-variant technique GOV-007 introduced, to Zs/Zl/Zp as well).
+    owner_consulted_on_architecture_historical: >-
+      As recorded at the GOV-007 round: not yet, on this specific residual
+      gap. The owner has separately already decided (this round) to
+      continue bounded deterministic normalization generally, rejecting
+      whitelist-style normalization for GOV-007. Whether that same
+      decision extends automatically to closing this residual Zs/Zl/Zp
+      gap, or needs its own explicit authorization, is for the next
+      governance round to raise. [Resolved: the owner_decision block in
+      gov_006_residual_remediation below records the explicit
+      authorization this note was waiting on.]
   active_blocking_finding: null
   gov_007_finding:
     id: AS-SEC-001-GOV-007
