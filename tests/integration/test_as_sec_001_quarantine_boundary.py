@@ -65,13 +65,21 @@ def _fixture_evasion_project(root: Path) -> Path:
         "tab-mid-keyword-reproduction.md",
         "line-feed-mid-keyword-reproduction.md",
         "carriage-return-mid-keyword-reproduction.md",
+        # AS-SEC-001-GOV-006 residual: Z-category mid-keyword reproductions.
+        "em-space-mid-keyword-reproduction.md",
+        "line-separator-mid-keyword-reproduction.md",
+        "paragraph-separator-mid-keyword-reproduction.md",
     ):
         (source / name).write_bytes(
             Path(f"tests/fixtures/adversarial-project/{name}").read_bytes()
         )
-    (source / "benign-multiline-control.md").write_bytes(
-        Path("tests/fixtures/adversarial-project/benign-multiline-control.md").read_bytes()
-    )
+    for name in (
+        "benign-multiline-control.md",
+        "benign-multilingual-separators-control.md",
+    ):
+        (source / name).write_bytes(
+            Path(f"tests/fixtures/adversarial-project/{name}").read_bytes()
+        )
     return source
 
 
@@ -315,17 +323,25 @@ def test_unicode_evasion_sources_are_quarantined(tmp_path: Path) -> None:
         "tab-mid-keyword-reproduction.md",
         "line-feed-mid-keyword-reproduction.md",
         "carriage-return-mid-keyword-reproduction.md",
+        # AS-SEC-001-GOV-006 residual: Z-category mid-keyword reproductions.
+        "em-space-mid-keyword-reproduction.md",
+        "line-separator-mid-keyword-reproduction.md",
+        "paragraph-separator-mid-keyword-reproduction.md",
     ):
         assert any(name in path for path in quarantined_paths), f"{name} must be quarantined"
-    assert not any(
-        "benign-multiline-control.md" in path for path in quarantined_paths
-    ), "benign multiline control must not be quarantined"
+    for name in (
+        "benign-multiline-control.md",
+        "benign-multilingual-separators-control.md",
+    ):
+        assert not any(
+            name in path for path in quarantined_paths
+        ), f"{name} must not be quarantined"
     ingestion = json.loads(
         (vault / "generated" / "reports" / "ingestion-report.json").read_text(
             encoding="utf-8"
         )
     )
-    assert ingestion["documents_ingested"] == 3
+    assert ingestion["documents_ingested"] == 4
 
 
 def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path) -> None:
@@ -368,6 +384,9 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "Tab mid-keyword reproduction" not in text
             assert "Line feed mid-keyword reproduction" not in text
             assert "Carriage return mid-keyword reproduction" not in text
+            assert "Em space mid-keyword reproduction" not in text
+            assert "Line separator mid-keyword reproduction" not in text
+            assert "Paragraph separator mid-keyword reproduction" not in text
             assert "\u012b" not in text
             assert "\u00f6" not in text
             assert "\x0b" not in text
@@ -375,6 +394,7 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "\u2003" not in text
             assert "\u00a0" not in text
             assert "\u2028" not in text
+            assert "\u2029" not in text
 
 
 def test_adversarial_project_identifier_fails_discover_closed(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ never containing the matched payload.
 from __future__ import annotations
 
 import re
+import sys
 import unicodedata
 from dataclasses import dataclass
 
@@ -184,32 +185,102 @@ _PATTERNS: tuple[tuple[str, str, str, re.Pattern[str]], ...] = (
 )
 
 
-_TAB_LF_CR_RUN = re.compile(r"[\t\n\r]+")
+def _z_category_characters() -> frozenset[str]:
+    """Return every Unicode Zs/Zl/Zp character known to the running interpreter.
+
+    AS-SEC-001-GOV-006 residual remediation: computed once from
+    ``unicodedata.category`` against the full codepoint range rather than a
+    hand-maintained literal list, so this automatically tracks whatever
+    Unicode version the running Python interpreter ships with instead of
+    silently going stale as new separator characters are added upstream.
+    """
+    return frozenset(
+        chr(codepoint)
+        for codepoint in range(sys.maxunicode + 1)
+        if unicodedata.category(chr(codepoint)) in {"Zs", "Zl", "Zp"}
+    )
+
+
+_Z_CATEGORY_CHARACTERS: frozenset[str] = _z_category_characters()
+
+# The plain keyboard space (U+0020, category Zs) is deliberately excluded
+# from the ambiguous-separator run/variant mechanism below. It is category
+# Zs like the other 18 characters, but unlike them it is the single,
+# near-universal word separator throughout ordinary prose: a real sentence
+# has an isolated single occurrence of it between *every* pair of words, not
+# occasionally like an em space or a line separator. Variant B's "remove an
+# isolated single occurrence" rule cannot distinguish the one occurrence an
+# attacker spliced into a keyword from the dozens of legitimate occurrences
+# elsewhere in the same text (per-character local context alone cannot tell
+# them apart, by design - see ``scan_text``), so applying it to U+0020 would
+# strip every space in the document and make Variant B unable to match any
+# multi-word pattern at all, including ones with no adversarial intent.
+# Splitting a keyword with a literal space also yields two ordinary-looking
+# word fragments rather than an invisible/exotic Unicode trick, so closing
+# that specific case is a different problem (arbitrary fuzzy/edit-distance
+# keyword matching) explicitly out of ADR-004's bounded, deterministic scope
+# - not a Unicode-category evasion this remediation is meant to close. This
+# boundary is deliberate and documented, not a silently dropped case: see
+# ``test_ascii_space_mid_keyword_split_is_not_a_unicode_evasion_bypass`` and
+# the AS-SEC-001-GOV-006 residual evidence.
+_REMOVABLE_Z_CATEGORY_CHARACTERS: frozenset[str] = _Z_CATEGORY_CHARACTERS - {" "}
+
+# Characters whose *run length* is ambiguous for keyword-boundary purposes:
+# tab/line-feed/carriage-return (AS-SEC-001-GOV-007) plus every Unicode
+# separator other than plain space (Zs/Zl/Zp minus U+0020 — AS-SEC-001-
+# GOV-006 residual). All of them share the same structural property: a lone
+# occurrence is, in isolation, indistinguishable between "ordinary word/line
+# separator" and "single character mid-keyword evasion", while a run of two
+# or more of them is an unambiguous, intentional boundary (a blank line, a
+# deliberately wide inter-word gap, a paragraph break, ...). ``scan_text``
+# below applies one shared, bounded, run-length-aware dual-variant scan to
+# this whole set rather than a second parallel normalization pipeline.
+_AMBIGUOUS_SEPARATOR_CHARACTERS: frozenset[str] = (
+    frozenset({"\t", "\n", "\r"}) | _REMOVABLE_Z_CATEGORY_CHARACTERS
+)
+
+_AMBIGUOUS_SEPARATOR_RUN = re.compile(
+    "(?:"
+    + "|".join(re.escape(ch) for ch in sorted(_AMBIGUOUS_SEPARATOR_CHARACTERS))
+    + ")+"
+)
 
 
 def _normalize_detector_input(text: str) -> str:
-    """Strip/replace everything except tab, line feed, and carriage return.
+    """Strip format/combining marks and non-boundary control characters.
 
     Steps, in order:
 
-    1. NFKD compatibility decomposition so accented letters are represented
-       as their base character plus combining marks.
-    2. Remove format-control characters (category ``Cf``) and combining marks
-       (category ``Mn``), including zero-width spaces/joiners, soft hyphens,
-       directional isolates, and diacritical marks that can be used to evade
-       regex word-boundary or token matching.
-    3. Remove every C0/C1 control character other than tab, line feed, and
+    1. For every character in the *original* text, check its Unicode
+       category first. A character already in category Zs, Zl, or Zp is
+       kept as-is, unexpanded — NFKD compatibility decomposition maps most
+       Zs characters (em space, no-break space, ideographic space, and
+       every other fixed-width space variant except U+1680 OGHAM SPACE
+       MARK) to a plain ASCII space, which would silently destroy the
+       separator's original identity before the bounded ambiguous-separator
+       handling in ``scan_text`` ever gets a chance to see it (three
+       Zs/Zl/Zp characters — OGHAM SPACE MARK, LINE SEPARATOR, PARAGRAPH
+       SEPARATOR — have no NFKD decomposition at all, so this also keeps
+       every Z-category character's treatment uniform instead of splitting
+       it by an accident of which ones happen to decompose).
+    2. Every other character is NFKD-decomposed individually so accented
+       letters are represented as their base character plus combining
+       marks; this is a no-op for characters with no decomposition (e.g.
+       control characters).
+    3. From that per-character decomposition, remove format-control
+       characters (category ``Cf``) and combining marks (category ``Mn``),
+       including zero-width spaces/joiners, soft hyphens, directional
+       isolates, and diacritical marks that can be used to evade regex
+       word-boundary or token matching.
+    4. Remove every C0/C1 control character other than tab, line feed, and
        carriage return (vertical tab, form feed, null, backspace, bell,
        escape, and the rest), so control characters injected mid-keyword
-       collapse back into the keyword. Tab/line feed/carriage return
-       themselves are deliberately left untouched here — ``scan_text``
-       resolves them afterward, since how to treat them depends on whether
-       they appear alone or as part of a run (see ``scan_text``).
-    4. Normalize every Unicode separator (general category ``Z``: Zs, Zl, Zp)
-       to a single ASCII space. All Z-category characters are separators by
-       definition, so there is no legitimate reason to preserve distinctions
-       between them for keyword matching. This prevents mid-keyword injection
-       via em space, no-break space, line separator, paragraph separator, etc.
+       collapse back into the keyword. Tab/line feed/carriage return and
+       every Unicode separator (category ``Z``: Zs, Zl, Zp) are deliberately
+       left untouched here — ``scan_text`` resolves all of them afterward as
+       one shared, bounded, ambiguous-separator class, since how to treat
+       any of them depends on whether they appear alone or as part of a run
+       (see ``scan_text``).
     5. Apply the narrow explicit confusable-character mapping so that
        visually identical Cyrillic/Greek homoglyphs are treated as their Latin
        look-alikes during pattern matching.
@@ -217,61 +288,65 @@ def _normalize_detector_input(text: str) -> str:
     The original source bytes are never modified; this normalization is used
     only inside the detector.
     """
-    normalized = unicodedata.normalize("NFKD", text)
     kept: list[str] = []
-    for ch in normalized:
-        category = unicodedata.category(ch)
-        if category in {"Cf", "Mn"}:
+    for ch in text:
+        if unicodedata.category(ch) in {"Zs", "Zl", "Zp"}:
+            kept.append(ch)
             continue
-        if category == "Cc" and ch not in {"\t", "\n", "\r"}:
-            continue
-        if category.startswith("Z"):
-            kept.append(" ")
-            continue
-        kept.append(ch)
+        for decomposed in unicodedata.normalize("NFKD", ch):
+            category = unicodedata.category(decomposed)
+            if category in {"Cf", "Mn"}:
+                continue
+            if category == "Cc" and decomposed not in {"\t", "\n", "\r"}:
+                continue
+            kept.append(decomposed)
     return "".join(_CONFUSABLE.get(ch, ch) for ch in kept)
 
 
 def scan_text(text: str) -> list[InjectionFinding]:
     """Return metadata-only adversarial-instruction findings for ``text``.
 
-    Tab, line feed, and carriage return are ambiguous: the same character can
-    be a legitimate word boundary ("Ignore<TAB>previous<TAB>instructions",
-    three real words) or an evasive insertion splitting one keyword in half
-    ("Ign<TAB>ore", one word). Neither "always treat as whitespace" nor
+    Tab, line feed, carriage return, and every Unicode separator (category
+    ``Z``: Zs, Zl, Zp) are ambiguous: the same character can be a legitimate
+    word boundary ("Ignore<EM SPACE>previous<EM SPACE>instructions", three
+    real words) or an evasive insertion splitting one keyword in half
+    ("Ign<EM SPACE>ore", one word). Neither "always treat as whitespace" nor
     "always remove" alone satisfies both cases: the first misses the
     split-keyword evasion; the second can glue an unrelated preceding or
     following word directly onto a keyword and defeat its ``\\b`` boundary
     (e.g. a heading ending in a bare word, immediately followed by a
     paragraph that starts with "Ignore"). Removing *every* occurrence
     document-wide is too broad; per-character local context alone cannot
-    tell "mid-word" from "between words" (both look like letter-control-
+    tell "mid-word" from "between words" (both look like letter-separator-
     letter).
 
     The run length is the deterministic signal used instead: a run of two or
-    more consecutive tab/line-feed/carriage-return characters is a strong,
-    unambiguous signal of an intentional paragraph or section break (e.g. a
-    blank line) and always collapses to a single space, in both variants
-    below. A lone, isolated single occurrence is the ambiguous case — it
-    could be ordinary single-newline line wrapping, or a one-character
-    mid-keyword injection — so it is tested both ways:
+    more consecutive characters from the combined ambiguous-separator set
+    (tab/line-feed/carriage-return and/or Zs/Zl/Zp, in any combination) is a
+    strong, unambiguous signal of an intentional paragraph/section break or
+    a deliberately wide inter-word gap, and always collapses to a single
+    space, in both variants below. A lone, isolated single occurrence is the
+    ambiguous case — it could be ordinary single-character word spacing, or
+    a one-character mid-keyword injection — so it is tested both ways:
 
     - Variant A: every run (including isolated single occurrences) becomes
-      one ASCII space, preserving ordinary line/tab-separated word
+      one ASCII space, preserving ordinary word/line/tab-separated
       boundaries (this is what catches a legitimate multi-word instruction
-      that happens to use tab/newline as its separator).
+      that happens to use tab/newline/Z-category separators as its
+      separator).
     - Variant B: runs of two or more still collapse to one space, but an
       isolated single occurrence is removed entirely, reuniting a keyword
-      split by exactly one stray control character without touching any
-      genuine paragraph break elsewhere in the text.
+      split by exactly one stray ambiguous-separator character without
+      touching any genuine paragraph break or wide gap elsewhere in the
+      text.
 
     The detector reports the union of findings from both variants.
     Findings are deterministic and ordered by rule name to keep reports
     stable across runs. The matched content is never returned.
     """
     prepared = _normalize_detector_input(text)
-    variant_a = _TAB_LF_CR_RUN.sub(" ", prepared)
-    variant_b = _TAB_LF_CR_RUN.sub(
+    variant_a = _AMBIGUOUS_SEPARATOR_RUN.sub(" ", prepared)
+    variant_b = _AMBIGUOUS_SEPARATOR_RUN.sub(
         lambda match: " " if len(match.group(0)) > 1 else "", prepared
     )
 
