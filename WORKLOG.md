@@ -1452,3 +1452,27 @@ so should be unaffected, but this must be tested, not assumed).
 
 No merge performed. Bounded remediation directive issued for GOV-004 (see
 governor response for full `NEXT_AGENT_DIRECTIVE`).
+
+## AS-SEC-001-GOV-004 remediation — implementation complete, rereview required
+
+**Base:** `a5d8a024e1809b8bd58a67632f9be9182f3fce8c`
+**Implementation:** `905064b9614f1bdfd5b3a89cd52990b1a51f8431`
+**Status:** implementation-complete-rereview-required
+
+Closed the combining-mark evasion by changing detector input normalization
+from NFKC to NFKD and stripping Unicode categories `Cf` and `Mn` before the
+existing static confusable mapping. Added e-, i-, and o-diacritic fixtures,
+mixed diacritic/homoglyph coverage, and a benign accented-text control.
+
+Validation:
+
+- `pytest tests/unit/test_quarantine.py tests/integration/test_as_sec_001_quarantine_boundary.py -q` — 42 passed
+- `pytest tests --tb=no` — 191 passed, 0 failed
+- `pytest atlas-vault-documentation/tests --tb=no` — 146 passed, 0 failed
+- `mypy src` — clean, 35 source files
+- `ruff check src tests` — clean
+- `compileall -q src` — clean
+- Public discover → init → ingest → build-indexes → validate reproduction — passed; accented instruction quarantined and benign accented control ingested
+
+No merge performed. Package is frozen pending Agent Three targeted GOV-004
+architecture rereview and Agent Two independent certification.
