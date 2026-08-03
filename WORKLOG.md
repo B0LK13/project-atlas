@@ -738,3 +738,22 @@ The worktree serialization audit found no active in-flight owner of
 to frozen historical review or architecture worktrees. Core passed `149`,
 Control Plane `146`, mypy was clean for `34` source files, Ruff passed, and
 compilation passed.
+
+## VERIFY branch supersession closure for AS-RET-001 sequencing
+
+**Status:** owner decision recorded — verify branch formally superseded
+**Decision record:** `docs/architecture-governance/VERIFY-AS-RET-SEQUENCING-DECISION.md`
+**Main base:** `d2231d0e8659b9559c0e70bd9f9e58e80042f56b`
+**Verify head:** `04a62feb5de32c4f917ca405f2d46bfe8f56d1e4`
+**Superseding merge:** `a3fdb711dd0b3b1b00b8984482dcb4c1d63e3998`
+**AS-RET candidate:** implementation `4a40b3816bb24edd0d07271f6dd9c39dc1608a57`,
+evidence `f1925abe521c3439b7bf5159f504c992ce47246b`
+
+`verify/atlas-core-vertical-slice` is formally closed as superseded. The branch
+contains an earlier incomplete AS-CORE-003 implementation and was superseded by
+the later governance-approved AS-CORE-003 integration merged at
+`a3fdb711dd0b3b1b00b8984482dcb4c1d63e3998`.
+
+Historical commits and evidence remain immutable. The verify branch is not an
+active work package, does not own `src/project_atlas/ingestion.py`, and must
+not be merged or cherry-picked into AS-RET-001.

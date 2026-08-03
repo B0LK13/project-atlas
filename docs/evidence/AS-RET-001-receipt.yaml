@@ -46,13 +46,21 @@ retrieval:
     - authority
     - provenance
   writes: none
-serialization_audit:
-  target: src/project_atlas/ingestion.py
-  result: ingestion.py serialization ownership confirmed for AS-RET-001
-  audit_scope: all registered worktrees, working tree, staged tree, and committed deltas
-  active_conflict: none
-  historical_overlaps: frozen review and architecture worktrees only; no active in-flight owner
-  primary_worktree_note: main had a pre-existing AGENTS.md modification unrelated to ingestion.py
+serialization_review:
+  sensitive_path: src/project_atlas/ingestion.py
+  historical_verify_branch:
+    name: verify/atlas-core-vertical-slice
+    head: 04a62feb5de32c4f917ca405f2d46bfe8f56d1e4
+    disposition: superseded
+    active_owner: false
+  owner_decision:
+    selected_option: 2
+    decision_record: docs/architecture-governance/VERIFY-AS-RET-SEQUENCING-DECISION.md
+  current_as_ret_ownership: confirmed
+  unresolved_external_owner: false
+  note: >-
+    The AS-RET-001 candidate does not incorporate or depend on commits from
+    verify/atlas-core-vertical-slice.
 validation:
   focused_command: >-
     PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 /mnt/d/project-atlas-vault/.venv/bin/python
