@@ -126,7 +126,7 @@ an MVP.
 
 | Work package | Capability                                    | Status                                 |
 | ------------ | --------------------------------------------- | -------------------------------------- |
-| AS-SEC-001 | Source quarantine / prompt-injection boundary contract | **Queued — architecture entry gate pending** |
+| AS-SEC-001 | Source quarantine / prompt-injection boundary contract | **Entry gate authorized — implementation assignment pending** (see `docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md`) |
 | AS-WP-005    | Graphify adapter and relationship projections | **Deferred until Core integration boundary is established** |
 
 ---

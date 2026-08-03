@@ -911,3 +911,41 @@ under `vault/indexes`.
 - `pytest tests` — 149 passed, 0 failed
 - Zero code drift: only `CLAUDE.md`, `AGENTS.md`, `docs/master-roadmap.md`,
   `docs/backlog.md`, and `WORKLOG.md` were modified.
+
+## AS-SEC-001 entry gate authorization
+
+**Status:** as-sec-001-entry-authorized
+**Base commit:** `76011faf76ee8bb8d5ec6f44b84ef2caf3b73362`
+**Decision record:** `docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md`
+
+Architecture Governor authorized the AS-SEC-001 entry gate: source quarantine
+and prompt-injection boundary contract for Atlas Core's ingestion path.
+Verified before authorizing:
+
+- Certified `main` invariants intact: AS-RET-001's lexical index, the single
+  promotion boundary (`ingestion.py`'s single `_promote(write_plan)` call),
+  Control Plane isolation, and durable identity/lifecycle semantics are all
+  unaffected by any change made in this entry-gate step (no `src/`, `tests/`,
+  or `schemas/` file was touched).
+- No in-flight branch conflicts with the docs surface touched by AS-DOC-001
+  or this entry gate — the repository's other branches are all frozen
+  historical evidence, not active work.
+- Concretely confirmed the gap this package closes: `secrets.py` only
+  detects credential-shaped content, not instruction-shaped adversarial
+  content; source text is copied verbatim into `vault/sources/imported-
+  documents/` and also feeds classification/claim-extraction with no
+  injection-aware quarantine or quoting-boundary contract.
+
+ADR-004 defines the contract: a second, independent quarantine pattern class
+for adversarial-instruction content (metadata-only findings, mirroring
+`SecretFinding`'s discipline); a rendering/quoting boundary requiring all
+carried-through source text to appear only inside fences/blockquotes in
+generated Markdown, never as bare prose, headings, or titles; and an
+adversarial fixture corpus. No LLM classification, no runtime sandboxing, no
+changes to the existing secret-scan or agent-event quarantine mechanisms.
+
+`docs/master-roadmap.md`'s Authorized-next-work table was updated to reflect
+entry-gate authorization. No implementation, certification, or merge was
+performed by the Architecture Governor; the full `NEXT_AGENT_DIRECTIVE` for
+the AS-SEC-001 implementation agent is recorded in this entry alongside the
+governor's response.
