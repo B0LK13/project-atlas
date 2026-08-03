@@ -949,3 +949,66 @@ entry-gate authorization. No implementation, certification, or merge was
 performed by the Architecture Governor; the full `NEXT_AGENT_DIRECTIVE` for
 the AS-SEC-001 implementation agent is recorded in this entry alongside the
 governor's response.
+
+## AS-MAINT-001 — Control Plane test fixture executable-bit portability
+
+**Status:** implemented-evidence-recorded-pending-owner-merge
+**Base commit:** `7e720bda1a9efe3950a7943968024805fdfd2f6f`
+**Implementation commit:** `cf858185af9ea0aa18e550130f1fafab1e2e74b4`
+**Receipt:** `docs/evidence/AS-MAINT-001-receipt.yaml`
+
+`atlas-vault-documentation/tests/fixtures/bin/mda` is invoked directly by
+several Control Plane tests and by `ATLAS_MDA_COMMAND`-driven tooling, but
+was tracked at git mode `100644`. Because this repository has
+`core.filemode=false`, the mode has never picked up a local `chmod`, so on
+any filesystem that honors real POSIX mode bits (ext4, and any standard
+Linux CI runner) invoking it fails with `permission-denied` instead of
+executing. On DrvFS-mounted Windows paths (e.g. `/mnt/d` under WSL) all
+files present as world-executable regardless of tracked mode, which is why
+this went unnoticed while working directly under `/mnt/d/project-atlas-vault`.
+
+This was independently identified and disclosed inside the AS-SEC-001
+receipt's `as_maint_001:` block (status `open`, `in_scope_of_as_sec_001:
+false`) as a pre-existing, out-of-scope defect. This package fixes it as a
+standalone, present-tense maintenance change.
+
+**Fix:** `git update-index --chmod=+x
+atlas-vault-documentation/tests/fixtures/bin/mda`. Mode-only change
+(`100644` -> `100755`); 0 insertions, 0 deletions; file content byte-
+identical (sha256
+`c124cb66fd0464230e731bba2a156769ab640b1142044f66d4ace32c5218e26e`
+before and after).
+
+**Sibling fixture audit:** every tracked file in the repository was checked
+for a non-`100644` git mode (none found) and every shebang-bearing script
+under `atlas-vault-documentation/scripts/` was confirmed to always be
+invoked as `[sys.executable, "<script>.py", ...]` rather than as a bare
+executable, so `mda` is the only file affected.
+
+**Independent verification**, fresh disposable clone (`git clone --no-local
+/mnt/d/project-atlas-as-maint-001 /tmp/as-maint-001-fresh`), checked out at
+the implementation commit, no manual `chmod`:
+
+- Filesystem: ext4 (`df -T .`)
+- Git tree mode: `100755`; filesystem mode: `755 -rwxr-xr-x`
+- Content sha256 unchanged: `c124cb66...218e26e`
+- `pytest atlas-vault-documentation/tests` — **146 passed, 0 failed**
+- `pytest tests` (Core) — **149 passed, 0 failed**
+- `mypy src` — clean, 34 source files
+- `ruff check src tests` — clean
+- `compileall src` and `compileall atlas-vault-documentation` — clean
+
+**Diff scope:** `git diff --name-status` between the certified base and the
+implementation commit shows only
+`atlas-vault-documentation/tests/fixtures/bin/mda` (mode-only). No `src/`,
+`tests/`, AS-SEC-001 implementation, or AS-SEC-001 receipt file touched.
+
+**CI observation (not part of this fix):** `atlas-vault-documentation/tests`
+has no automatic CI coverage today — root `pyproject.toml` scopes
+`testpaths = ["tests"]`, so `.github/workflows/ci.yml` never runs the
+Control Plane suite on push or pull request, and no separate workflow does
+either. Recommended follow-up, tracked separately and not implemented here:
+**AS-MAINT-002 — Control Plane Push/PR CI Coverage**.
+
+Not yet merged to `main`; `merge_authorized: false` in the receipt pending
+owner review.
