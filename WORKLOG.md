@@ -795,3 +795,41 @@ lexical retrieval index candidate. Independent findings:
 Independent re-run (not taken from the receipt): Core `149 passed`, Control
 Plane `146 passed`, mypy clean for `34` source files, Ruff clean. Counts match
 the receipt exactly. Final merge control remains with the project owner.
+
+## AS-RET-001 independent certification
+
+**Status:** certified — merge eligible
+**Certified commit:** `4a40b3816bb24edd0d07271f6dd9c39dc1608a57`
+**Architecture re-approval reviewed:** `0ab23858dcaa98f870a2cc917a7c5ae2371b7c5a`
+
+Independent Certifier ran the AS-RET-001 certification without modifying any
+implementation file. Findings:
+
+- Read `tests/integration/test_as_ret_001_lexical_indexes.py` in full and
+  confirmed each of the 3 added tests and 2 renamed tests genuinely exercises
+  the claim it is named for (canonical-state index coverage / read-only
+  retrieval, index drift rejection, byte-identical replay, obsolete-directory
+  fail-closed, lexical-only static scope check).
+- Fresh static checks: mypy clean for `34` source files; Ruff clean;
+  `compileall` clean.
+- Fresh full-suite run (not copied from the receipt): Core `149 passed, 0
+  failed`; Control Plane `146 passed, 0 failed`. Counts match the receipt and
+  the architecture governor's independent re-run exactly.
+- Hand-ran the public workflow outside the pytest harness in an isolated
+  scratch project: `discover` → `init` → `ingest` → `build-indexes` →
+  `validate` all exited `0`; `vault/indexes` was absent; `vault/generated/
+  indexes` and `vault/generated/navigation` were populated as specified.
+- Independently reproduced replay byte-identity: SHA-256 of the full
+  `generated/` tree was identical before and after deleting
+  `generated/indexes` and `generated/navigation` and rerunning
+  `build-indexes`.
+- Independently reproduced drift rejection: corrupting `claims.json`'s `ids`
+  field caused `validate` to exit `1` with an `index/state mismatch` error.
+- Independently reproduced the obsolete-index fail-closed path: a
+  pre-existing `vault/indexes/` directory caused `build-indexes` to exit `1`
+  with an explicit regeneration instruction, and left the directory's
+  contents untouched.
+
+No implementation file was modified, the verify-branch sequencing decision
+was not reopened, and no merge was performed. Final merge authorization
+remains with the project owner / merge gate.

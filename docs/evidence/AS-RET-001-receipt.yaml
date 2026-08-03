@@ -1,7 +1,7 @@
 schema_version: 1
 work_package: AS-RET-001
 title: Lexical Retrieval Index
-status: implementation-complete
+status: certified-merge-eligible
 branch: fix/as-ret-001-lexical-index-governance
 certified_base_commit: d2231d0e8659b9559c0e70bd9f9e58e80042f56b
 historical_implementation_commit: d084491b28b5dd43e3e59900c5dab716466d4c7f
@@ -137,3 +137,37 @@ architecture:
     control_plane_result: 146 passed
     mypy_result: clean, 34 source files
     ruff_result: clean
+independent_certification:
+  certifier_role: independent-certifier
+  certified_commit: 4a40b3816bb24edd0d07271f6dd9c39dc1608a57
+  architecture_re_approval_reviewed: 0ab23858dcaa98f870a2cc917a7c5ae2371b7c5a
+  test_provenance_check: >-
+    read tests/integration/test_as_ret_001_lexical_indexes.py in full;
+    confirmed each of the 3 added tests and 2 renamed tests independently
+    exercises the claim it is named for (index location/read-only retrieval,
+    drift rejection, byte-identical replay, obsolete-directory fail-closed,
+    lexical-only static scope check)
+  fresh_static_checks:
+    mypy: clean, 34 source files
+    ruff: clean
+    compileall: clean
+  fresh_test_run:
+    core_result: 149 passed, 0 failed (exit 0)
+    control_plane_result: 146 passed, 0 failed (exit 0)
+  manual_production_scenarios:
+    method: hand-run atlas CLI in an isolated /tmp scratch project, outside
+      the pytest harness
+    public_workflow: discover, init, ingest, build-indexes, validate all
+      exit 0; vault/indexes absent; generated/indexes and
+      generated/navigation populated as specified
+    replay_byte_identity: sha256 of full generated/ tree identical before
+      and after deleting generated/indexes and generated/navigation and
+      rerunning build-indexes
+    drift_rejection: corrupting claims.json ids causes validate to exit 1
+      with index/state mismatch error
+    obsolete_index_fail_closed: pre-existing vault/indexes/ causes
+      build-indexes to exit 1 with a regeneration instruction; marker file
+      left untouched
+  result: certified — merge eligible
+  scope_respected: no implementation files modified; verify-branch
+    sequencing decision not reopened; no merge performed
