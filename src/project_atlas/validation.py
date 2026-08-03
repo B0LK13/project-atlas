@@ -190,6 +190,59 @@ def _validate_knowledge_state(vault: Path, errors: list[str]) -> None:
         ) as exc:
             errors.append(f"invalid lifecycle state {path.relative_to(vault)}: {exc}")
     _validate_indexes(vault, errors)
+    _validate_injection_findings(vault, errors)
+
+
+def _validate_injection_findings(vault: Path, errors: list[str]) -> None:
+    """Check AS-SEC-001 quarantine report integrity."""
+    path = vault / "generated" / "reports" / "injection-findings.json"
+    if not path.is_file():
+        return
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or raw.get("schema_version") != 1:
+            raise ValueError("invalid injection-findings schema_version")
+        findings = raw.get("findings")
+        if not isinstance(findings, list):
+            raise ValueError("findings must be a list")
+        quarantined_ids: set[str] = set()
+        for finding in findings:
+            if not isinstance(finding, dict):
+                raise ValueError("finding must be an object")
+            for key in ("source_id", "path", "rule", "confidence", "disposition"):
+                if key not in finding:
+                    raise ValueError(f"missing injection finding field: {key}")
+            if finding["disposition"] != "quarantined":
+                raise ValueError(
+                    f"injection finding disposition must be 'quarantined': {finding['source_id']}"
+                )
+            if "text" in finding:
+                raise ValueError(
+                    f"injection finding must not carry matched text: {finding['source_id']}"
+                )
+            quarantined_ids.add(str(finding["source_id"]))
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        errors.append(f"invalid injection findings report: {exc}")
+        return
+    # Verify no quarantined source was projected into trusted Layer B/C state.
+    for path in _json_files(vault, "state", "claims"):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for claim in raw.get("claims", []):
+            for ref in claim.get("provenance", []):
+                if str(ref.get("source_id", "")) in quarantined_ids:
+                    errors.append(
+                        f"quarantined source {ref.get('source_id')} appears in claims: "
+                        f"{path.relative_to(vault)}"
+                    )
+    for path in _json_files(vault, "state", "concepts"):
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        for concept in raw.get("concepts", []):
+            for ref in concept.get("sources", []):
+                if str(ref.get("source_id", "")) in quarantined_ids:
+                    errors.append(
+                        f"quarantined source {ref.get('source_id')} appears in concepts: "
+                        f"{path.relative_to(vault)}"
+                    )
 
 
 def _json_files(vault: Path, *parts: str) -> list[Path]:

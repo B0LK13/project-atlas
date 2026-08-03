@@ -184,6 +184,50 @@ def _slug(value: str) -> str:
     return result or "unknown"
 
 
+def _quote_source_text(text: str) -> str:
+    """Render untrusted source text as visibly inert Markdown.
+
+    Inline literals are wrapped in code spans. Multi-line excerpts are placed
+    inside a fenced code block labelled as a source excerpt. This prevents
+    source instructions from being rendered as headings, titles, bare prose, or
+    executable-looking directives in generated content.
+    """
+    lines = text.splitlines()
+    if len(lines) > 1:
+        # Find a fence backtick count that does not appear in the content.
+        max_consecutive = 0
+        for line in lines:
+            run = 0
+            for ch in line:
+                if ch == "`":
+                    run += 1
+                    max_consecutive = max(max_consecutive, run)
+                else:
+                    run = 0
+        fence = "`" * max(3, max_consecutive + 1)
+        return f"{fence}source-excerpt\n{text.rstrip()}\n{fence}"
+    # Inline literal. Choose delimiter length that does not collide with
+    # internal backticks.
+    inline = text.strip()
+    if not inline:
+        return "`_empty_`"
+    max_run = 0
+    run = 0
+    for ch in inline:
+        if ch == "`":
+            run += 1
+            max_run = max(max_run, run)
+        else:
+            run = 0
+    delimiter = "`" * (max_run + 1) if max_run else "`"
+    # If the inline literal starts or ends with a backtick (or with spaces),
+    # CommonMark requires padding so the delimiters are not swallowed.
+    pad = inline.startswith(("`", " ")) or inline.endswith(("`", " "))
+    if pad:
+        return f"{delimiter} {inline} {delimiter}"
+    return f"{delimiter}{inline}{delimiter}"
+
+
 def _digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -995,7 +1039,7 @@ def _render_claims(project: str, claims: tuple[Claim, ...]) -> str:
         "",
     ]
     lines.extend(
-        f"- `{claim.claim_id}` **{claim.claim_type}**: {claim.value} "
+        f"- `{claim.claim_id}` **{claim.claim_type}**: {_quote_source_text(claim.value)} "
         f"_(source: {claim.provenance[0].source_id})_"
         for claim in claims
     )
@@ -1026,7 +1070,8 @@ def _render_type(project: str, claims: tuple[Claim, ...], claim_type: ClaimType,
     selected = [claim for claim in claims if claim.claim_type == claim_type]
     lines = [f"# {title} — {project}", ""]
     lines.extend(
-        f"- {claim.value} _(source: {claim.provenance[0].source_id})_" for claim in selected
+        f"- {_quote_source_text(claim.value)} _(source: {claim.provenance[0].source_id})_"
+        for claim in selected
     )
     if not selected:
         lines.append("_No verified entries._")
