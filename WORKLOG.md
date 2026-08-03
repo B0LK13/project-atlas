@@ -739,6 +739,21 @@ to frozen historical review or architecture worktrees. Core passed `149`,
 Control Plane `146`, mypy was clean for `34` source files, Ruff passed, and
 compilation passed.
 
+## AS-RET-001 merge and post-merge validation
+
+**Status:** merged — governance approved
+**Previous main:** `d2231d0e8659b9559c0e70bd9f9e58e80042f56b`
+**Merge commit:** `ae00c5ab2a842527547b40b509a7d0af1fa0dbc0`
+**Method:** fast-forward
+
+The certified AS-RET-001 candidate is now on `main`. Post-merge Ruff, mypy,
+Core (`149 passed`), Control Plane (`146 passed`), and compilation passed. The
+CI scaffold smoke passed; the direct public workflow
+`init → discover → ingest → build-indexes → validate` passed; and stabilized
+replay was byte-identical by SHA-256 snapshot. The unrelated pre-existing
+`AGENTS.md` working-tree modification was preserved and excluded from the
+merge. The superseded verify branch remains untouched.
+
 ## VERIFY branch supersession closure for AS-RET-001 sequencing
 
 **Status:** owner decision recorded — verify branch formally superseded

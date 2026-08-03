@@ -1,0 +1,50 @@
+schema_version: 1
+work_package: AS-RET-001
+title: Lexical Retrieval Index
+status: merged-and-post-merge-validated
+certified_base_commit: d2231d0e8659b9559c0e70bd9f9e58e80042f56b
+implementation_commit: 4a40b3816bb24edd0d07271f6dd9c39dc1608a57
+architecture_review_commit: 0ab23858dcaa98f870a2cc917a7c5ae2371b7c5a
+independent_certification_commit: ae00c5ab2a842527547b40b509a7d0af1fa0dbc0
+merge_commit: ae00c5ab2a842527547b40b509a7d0af1fa0dbc0
+merged_to_main_at: 2026-08-03T11:55:41+02:00
+merge_method: fast-forward
+validation:
+  ruff_command: PYTHONPATH=src .venv/bin/ruff check src tests
+  ruff_result: clean
+  mypy_command: PYTHONPATH=src .venv/bin/mypy src
+  mypy_result: clean, 34 source files
+  core_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider tests --tb=no -q
+  core_result: 149 passed
+  control_plane_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=no -q
+  control_plane_result: 146 passed
+  compilation_command: PYTHONPATH=src PYTHONPYCACHEPREFIX=/tmp/as-ret-postmerge-pycache .venv/bin/python -m compileall -q src
+  compilation_result: clean
+  cli_smoke:
+    commands:
+      - atlas --help
+      - atlas version
+      - atlas init --output /tmp/as-ret-postmerge-vault --dry-run
+      - atlas init --output /tmp/as-ret-postmerge-vault
+    result: passed; vault index.md and 00-system/vault-charter.md present
+  public_workflow:
+    commands: init, discover, ingest, build-indexes, validate
+    result: passed; all exit 0
+  replay:
+    result: stabilized replay byte-identical by SHA-256 snapshot
+    generated_indexes: generated/indexes/
+  control_plane_diff: zero
+  single_promotion_boundary: preserved
+  obsolete_index_policy: preserved; vault/indexes fails closed
+  index_drift_validation: preserved
+  retrieval_read_only: preserved
+scope:
+  verify_branch_touched: false
+  agents_file_included: false
+  certified_receipt_modified: false
+  protected_identity_lifecycle_semantics_modified: false
+worktree:
+  branch: main
+  head: ae00c5ab2a842527547b40b509a7d0af1fa0dbc0
+  status: pre-existing AGENTS.md modification retained and excluded from merge
+  merge_in_progress: false
