@@ -51,6 +51,9 @@ def _fixture_evasion_project(root: Path) -> Path:
         "zero-width-insertion.md",
         "soft-hyphen-insertion.md",
         "cyrillic-homoglyph.md",
+        "greek-iota-reproduction.md",
+        "uppercase-cyrillic-reproduction.md",
+        "greek-omicron-reproduction.md",
     ):
         (source / name).write_bytes(
             Path(f"tests/fixtures/adversarial-project/{name}").read_bytes()
@@ -284,6 +287,9 @@ def test_unicode_evasion_sources_are_quarantined(tmp_path: Path) -> None:
         "zero-width-insertion.md",
         "soft-hyphen-insertion.md",
         "cyrillic-homoglyph.md",
+        "greek-iota-reproduction.md",
+        "uppercase-cyrillic-reproduction.md",
+        "greek-omicron-reproduction.md",
     ):
         assert any(name in path for path in quarantined_paths), f"{name} must be quarantined"
     ingestion = json.loads(
@@ -305,6 +311,8 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "zero-width" not in ref["source_id"]
             assert "soft-hyphen" not in ref["source_id"]
             assert "cyrillic" not in ref["source_id"]
+            assert "greek" not in ref["source_id"]
+            assert "uppercase-cyrillic" not in ref["source_id"]
     indexes_dir = vault / "generated" / "indexes"
     if indexes_dir.exists():
         for path in indexes_dir.rglob("*.json"):
@@ -312,6 +320,9 @@ def test_unicode_evasion_content_does_not_reach_claims_or_indexes(tmp_path: Path
             assert "\u200d" not in text
             assert "\u00ad" not in text
             assert "\u0456" not in text
+            assert "\u0399" not in text
+            assert "\u0410" not in text
+            assert "\u03bf" not in text
 
 
 def test_adversarial_project_identifier_fails_discover_closed(tmp_path: Path) -> None:

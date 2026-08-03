@@ -13,10 +13,11 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-# Narrow explicit confusable-character mapping for visual homoglyphs that
-# evade simple Latin-only keyword matching (e.g., Cyrillic look-alikes). This is
-# intentionally conservative: only demonstrated near-identical letters are
-# mapped, not every Unicode homoglyph.
+# Explicit confusable-character mapping for visual homoglyphs that evade
+# simple Latin-only keyword matching. The list is intentionally bounded to
+# characters that are visually identical (or near-identical) to Latin letters
+# used in the adversarial-instruction keyword set. It is a static, bundled,
+# offline table — no network fetch or ML similarity scoring.
 _CONFUSABLE: dict[str, str] = {
     # Cyrillic small letters that visually match Latin counterparts.
     "\u0430": "a",  # CYRILLIC SMALL LETTER A
@@ -30,7 +31,46 @@ _CONFUSABLE: dict[str, str] = {
     "\u0445": "x",  # CYRILLIC SMALL LETTER HA
     "\u044b": "y",  # CYRILLIC SMALL LETTER YERU
     "\u0475": "y",  # CYRILLIC SMALL LETTER IZHITSA
-    "\u04cf": "\u0049",  # CYRILLIC SMALL LETTER PALOCHKA -> Latin capital I
+    "\u04cf": "I",  # CYRILLIC SMALL LETTER PALOCHKA -> Latin capital I
+    # Cyrillic capital letters that visually match Latin counterparts.
+    "\u0410": "A",  # CYRILLIC CAPITAL LETTER A
+    "\u0415": "E",  # CYRILLIC CAPITAL LETTER IE
+    "\u0406": "I",  # CYRILLIC CAPITAL LETTER BYELORUSSIAN-UKRAINIAN I
+    "\u0408": "J",  # CYRILLIC CAPITAL LETTER JE
+    "\u041e": "O",  # CYRILLIC CAPITAL LETTER O
+    "\u0420": "P",  # CYRILLIC CAPITAL LETTER ER
+    "\u0421": "C",  # CYRILLIC CAPITAL LETTER ES
+    "\u0422": "T",  # CYRILLIC CAPITAL LETTER TE
+    "\u0425": "X",  # CYRILLIC CAPITAL LETTER HA
+    "\u042b": "Y",  # CYRILLIC CAPITAL LETTER YERU
+    "\u0474": "Y",  # CYRILLIC CAPITAL LETTER IZHITSA
+    # Greek letters that visually match Latin counterparts.
+    "\u0391": "A",  # GREEK CAPITAL LETTER ALPHA
+    "\u0392": "B",  # GREEK CAPITAL LETTER BETA
+    "\u0395": "E",  # GREEK CAPITAL LETTER EPSILON
+    "\u0397": "H",  # GREEK CAPITAL LETTER ETA
+    "\u0399": "I",  # GREEK CAPITAL LETTER IOTA
+    "\u039a": "K",  # GREEK CAPITAL LETTER KAPPA
+    "\u039c": "M",  # GREEK CAPITAL LETTER MU
+    "\u039d": "N",  # GREEK CAPITAL LETTER NU
+    "\u039f": "O",  # GREEK CAPITAL LETTER OMICRON
+    "\u03a1": "P",  # GREEK CAPITAL LETTER RHO
+    "\u03a4": "T",  # GREEK CAPITAL LETTER TAU
+    "\u03a7": "X",  # GREEK CAPITAL LETTER CHI
+    "\u0396": "Z",  # GREEK CAPITAL LETTER ZETA
+    "\u03b1": "a",  # GREEK SMALL LETTER ALPHA
+    "\u03b2": "b",  # GREEK SMALL LETTER BETA
+    "\u03b5": "e",  # GREEK SMALL LETTER EPSILON
+    "\u03b7": "h",  # GREEK SMALL LETTER ETA
+    "\u03b9": "i",  # GREEK SMALL LETTER IOTA
+    "\u03ba": "k",  # GREEK SMALL LETTER KAPPA
+    "\u03bc": "m",  # GREEK SMALL LETTER MU
+    "\u03bd": "n",  # GREEK SMALL LETTER NU
+    "\u03bf": "o",  # GREEK SMALL LETTER OMICRON
+    "\u03c1": "p",  # GREEK SMALL LETTER RHO
+    "\u03c4": "t",  # GREEK SMALL LETTER TAU
+    "\u03c7": "x",  # GREEK SMALL LETTER CHI
+    "\u03b6": "z",  # GREEK SMALL LETTER ZETA
 }
 
 
