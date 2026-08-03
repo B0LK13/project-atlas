@@ -949,3 +949,100 @@ entry-gate authorization. No implementation, certification, or merge was
 performed by the Architecture Governor; the full `NEXT_AGENT_DIRECTIVE` for
 the AS-SEC-001 implementation agent is recorded in this entry alongside the
 governor's response.
+
+## AS-SEC-001 — Source quarantine and prompt-injection boundary
+
+**Status:** implementation complete — architecture rereview required
+**Branch:** `feat/as-sec-001-injection-boundary`
+**Base commit:** `7e720bda1a9efe3950a7943968024805fdfd2f6f`
+**ADR:** `docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md`
+
+Implemented the AS-SEC-001 boundary package on the authorized entry gate.
+
+**Scope delivered:**
+
+- Added `src/project_atlas/quarantine.py`: deterministic, offline,
+  regex-only adversarial-instruction analyzer. Returns metadata-only
+  `InjectionFinding` records (rule, confidence, redacted hint); never the
+  matched payload text. Covers instruction override, authority grant,
+  binding-rewriting, agent-directive mimicry, role override, jailbreak cues,
+  system-role override, new-rules declarations, and obligation-to-ignore.
+- Wired the analyzer into `src/project_atlas/ingestion.py` immediately
+  after the existing `secrets.scan_text` quarantine and before any source
+  can be classified or copied into the prepared ingestion set. Quarantined
+  sources are excluded from concept/claim extraction and written to
+  `generated/reports/injection-findings.json` with source_id, path,
+  source_lineage_id/project_uuid enrichment when available, rule,
+  confidence, and disposition (`quarantined`).
+- Hardened the rendering boundary in
+  `src/project_atlas/knowledge_compiler.py`: claim values are now rendered
+  as inline code literals or fenced `source-excerpt` blocks, never as bare
+  prose, headings, or titles. Audited
+  `src/project_atlas/semantic_compiler.py` and
+  `src/project_atlas/okf_renderer.py`; neither carries raw source text into
+  generated Markdown (descriptions are static, source lists use paths and
+  hashes).
+- Added validation in `src/project_atlas/validation.py`: the injection
+  findings report is schema-checked, disposition is enforced as
+  `quarantined`, payload text is forbidden, and no quarantined source_id
+  may appear in Layer B/C claims or concepts.
+- Added adversarial fixture corpus under
+  `tests/fixtures/adversarial-project/`:
+  `instruction-bearing.md`, `canary-bearing.md`,
+  `non-adversarial-control.md`, `quoted-research.md`, plus a normal
+  `README.md`.
+- Added `tests/unit/test_quarantine.py` (10 tests) and
+  `tests/integration/test_as_sec_001_quarantine_boundary.py` (12 tests)
+  covering analyzer structure, ordering, instruction/canary/jailbreak
+  detection, non-adversarial regression, quarantine exclusion from
+  concepts/claims/indexes, report integrity, source identity, replay
+  byte-identity, transactional rollback, and quoted/fenced rendering.
+
+**Out of scope observed:** no LLM, embedding, network, sandbox, or Control
+Plane changes. No second promotion boundary. No source-identity, lifecycle,
+claim-ID, or conflict-ID redesign.
+
+**Public adversarial scenario:**
+
+```bash
+atlas init --output /tmp/as-sec-001-scenario/vault
+atlas discover --source /tmp/as-sec-001-scenario/source \
+  --output /tmp/as-sec-001-scenario/manifest.json
+atlas ingest --manifest /tmp/as-sec-001-scenario/manifest.json \
+  --vault /tmp/as-sec-001-scenario/vault
+atlas build-indexes --vault /tmp/as-sec-001-scenario/vault
+atlas validate --vault /tmp/as-sec-001-scenario/vault
+```
+
+Observed: 6 sources discovered, 3 ingested, 3 quarantined (instruction-bearing,
+canary-bearing, quoted-research), 1 project and 3 sources indexed, 47
+Markdown files validated, exit 0. The canary token `CANARY-AS-SEC-001-
+a7f3d9e2` was not present anywhere under `vault/generated/`.
+
+**Validation gates:**
+
+- `ruff check src tests` — clean
+- `mypy src` — clean, 35 source files
+- `pytest tests` — 171 passed, 0 failed
+- `pytest atlas-vault-documentation/tests` — 146 passed, 0 failed
+- `compileall -q src` — clean
+- Isolation diff against certified base for `atlas-vault-documentation/`,
+  `AGENT-BOOTSTRAP.md`, `.atlas/` — empty
+
+**Known limitations / residual risks:**
+
+- Detection is pattern-based and conservative; novel adversarial paraphrases
+  not covered by the explicit rule set may pass until the rule set is
+  extended. This is the same maintenance posture as `secrets.py`.
+- Quarantined sources receive durable identity only if they were previously
+  ingested (previous registry lookup); brand-new adversarial sources have
+  `source_lineage_id: null` in the first report. They are still traceable by
+  `source_id` and path.
+- The rendering boundary only affects generated Markdown projections. Layer
+  A raw source copies remain byte-identical evidence files and are not
+  additionally annotated with an untrusted marker in this package.
+
+**Evidence:** `docs/evidence/AS-SEC-001-receipt.yaml`.
+
+**No merge performed.** Package is frozen pending Architecture Governor
+rereview and then Agent Two independent adversarial certification.

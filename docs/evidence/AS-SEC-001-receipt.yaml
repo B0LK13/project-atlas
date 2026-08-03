@@ -1,0 +1,64 @@
+work_package: AS-SEC-001
+title: Source Quarantine and Prompt-Injection Boundary
+status: implementation-complete-architecture-rereview-required
+
+certified_base_commit: 7e720bda1a9efe3950a7943968024805fdfd2f6f
+implementation_commit: 179ea3f85aca51b34be2ef7b9a64a361e5522c2b
+evidence_commit: TBD
+
+adr:
+  path: docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md
+  binding: true
+
+test_accounting:
+  baseline_collected: 149
+  current_collected: 171
+  net_new: 22
+  removed: 0
+  renamed: 0
+  deselected: 0
+
+validation:
+  core: 171 passed, 0 failed
+  control_plane: 146 passed, 0 failed
+  mypy: clean, 35 source files
+  ruff: clean
+  compilation: clean
+  public_workflow: passed
+  replay: byte-identical
+  rollback: passed
+
+adversarial_scenarios:
+  instruction_fixture:
+    path: tests/fixtures/adversarial-project/instruction-bearing.md
+    sha256: d6c0b45214e6eb821b3bb260f8f9eb6a1dff2718cc4a893393eb58316e01a96a
+    finding: instruction-override + binding-rewriting
+    quarantined: true
+  canary_fixture:
+    path: tests/fixtures/adversarial-project/canary-bearing.md
+    sha256: fe00957ab4306dd088041e67b6ca433117cc68f8ce2a971ed53bfe39304d94aa
+    finding: instruction-override
+    quarantined: true
+    canary_token: CANARY-AS-SEC-001-a7f3d9e2
+    canary_leaked_to_generated: false
+  non_adversarial_control:
+    path: tests/fixtures/adversarial-project/non-adversarial-control.md
+    sha256: 4c44f84ea351a46a21b609bbd49e42b6e285db4336afccec053c127b7cd62256
+    quarantined: false
+  quoted_research_fixture:
+    path: tests/fixtures/adversarial-project/quoted-research.md
+    sha256: 4d90ca4657b65642fb4d1c1c7a3ed81b82acbb00277c61a2838bf104088073f6
+    finding: instruction-override
+    quarantined: true
+
+invariants:
+  single_promotion_boundary: preserved
+  quarantined_concept_extraction: blocked
+  quarantined_claim_extraction: blocked
+  source_identity_preserved: true
+  control_plane_diff: zero
+
+architecture:
+  certified_subsystem_semantics_modified: false
+  agent_event_quarantine_modified: false
+  llm_or_network_dependency_added: false
