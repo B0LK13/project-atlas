@@ -19,6 +19,7 @@ from project_atlas.discovery import discover, write_manifest
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.logging import configure_logging, get_logger
+from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
 
@@ -70,6 +71,12 @@ def build_parser() -> argparse.ArgumentParser:
         "build-indexes", help="Build deterministic lexical indexes under generated/ (FR-010)."
     )
     indexes_parser.add_argument("--vault", type=Path, required=True)
+
+    portfolio_parser = subparsers.add_parser(
+        "build-portfolio",
+        help="Build derived portfolio intelligence reports under generated/portfolio/ (AS-MVP-001)",
+    )
+    portfolio_parser.add_argument("--vault", type=Path, required=True)
 
     validate_parser = subparsers.add_parser(
         "validate", help="Validate Vault structure, provenance links and safety (FR-012)."
@@ -152,6 +159,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error("build-indexes failed: %s", exc)
             return EXIT_ERROR
         print(f"indexed {result['projects']} projects and {result['sources']} sources")
+        return EXIT_OK
+
+    if args.command == "build-portfolio":
+        try:
+            result = build_portfolio(args.vault)
+        except (OSError, ValueError) as exc:
+            _log.error("build-portfolio failed: %s", exc)
+            return EXIT_ERROR
+        print(f"portfolio built for {result['projects']} projects")
+        print(f"outputs: {', '.join(result['outputs'])}")
         return EXIT_OK
 
     if args.command == "validate":

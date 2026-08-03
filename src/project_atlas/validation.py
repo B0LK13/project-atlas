@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from project_atlas.portfolio import build_portfolio_payloads
 from project_atlas.schema import SchemaValidationError, validate_record
 
 LINK = re.compile(r"\]\(([^)]+)\)")
@@ -37,6 +39,7 @@ def validate(vault: Path) -> dict[str, Any]:
         if markdown.match("projects/*/concepts.md"):
             _validate_okf_concept_note(vault, markdown, errors)
     _validate_knowledge_state(vault, errors)
+    _validate_portfolio(vault, errors)
     return {"ok": not errors, "errors": errors, "markdown_files": len(list(vault.rglob("*.md")))}
 
 
@@ -243,6 +246,78 @@ def _validate_injection_findings(vault: Path, errors: list[str]) -> None:
                         f"quarantined source {ref.get('source_id')} appears in concepts: "
                         f"{path.relative_to(vault)}"
                     )
+
+
+def _validate_portfolio(vault: Path, errors: list[str]) -> None:
+    """Reject drift between generated/portfolio/*.json and canonical state
+    (AS-MVP-001), mirroring the build-indexes drift-rejection convention."""
+    portfolio_root = vault / "generated" / "portfolio"
+    if not portfolio_root.is_dir():
+        return
+    stale_path = portfolio_root / "stale-knowledge.json"
+    reference_date = datetime.now(UTC)
+    if stale_path.is_file():
+        try:
+            raw = json.loads(stale_path.read_text(encoding="utf-8"))
+            candidate = raw.get("reference_date")
+            if isinstance(candidate, str):
+                reference_date = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError):
+            errors.append(
+                "invalid generated/portfolio/stale-knowledge.json: unparsable reference_date"
+            )
+            return
+    try:
+        expected = build_portfolio_payloads(vault, reference_date=reference_date)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        errors.append(f"unable to recompute portfolio for drift check: {exc}")
+        return
+    quarantined_ids = set()
+    injection_path = vault / "generated" / "reports" / "injection-findings.json"
+    if injection_path.is_file():
+        raw = _json_or_default(injection_path)
+        quarantined_ids = {
+            str(finding.get("source_id"))
+            for finding in raw.get("findings", [])
+            if isinstance(finding, dict)
+        }
+    for name, expected_payload in sorted(expected.items()):
+        path = portfolio_root / name
+        if not path.is_file():
+            errors.append(f"missing generated portfolio output: generated/portfolio/{name}")
+            continue
+        try:
+            actual_payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            errors.append(f"invalid generated portfolio output generated/portfolio/{name}: {exc}")
+            continue
+        if actual_payload != expected_payload:
+            errors.append(f"portfolio drift detected: generated/portfolio/{name}")
+        _validate_no_quarantined_leakage(name, actual_payload, quarantined_ids, errors)
+
+
+def _validate_no_quarantined_leakage(
+    name: str, payload: Any, quarantined_ids: set[str], errors: list[str]
+) -> None:
+    """AS-SEC-001 boundary: no quarantined source_id may appear as a cited
+    provenance reference inside any portfolio output (safe aggregate counts
+    are permitted; individual references to quarantined sources are not)."""
+    if not quarantined_ids:
+        return
+    serialized = json.dumps(payload)
+    for source_id in quarantined_ids:
+        if f'"{source_id}"' in serialized:
+            errors.append(
+                f"quarantined source {source_id} referenced in generated/portfolio/{name}"
+            )
+
+
+def _json_or_default(path: Path) -> dict[str, Any]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return raw if isinstance(raw, dict) else {}
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}
 
 
 def _json_files(vault: Path, *parts: str) -> list[Path]:
