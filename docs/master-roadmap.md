@@ -2,7 +2,7 @@
 
 **Roadmap version:** 1.0
 **Roadmap date:** August 1, 2026
-**Program status:** Atlas Core vertical slice merged; AS-INT-001 certified; AS-CORE-002 certification reopened for source-lifecycle remediation
+**Program status:** Atlas Core vertical slice merged and certified through AS-RET-001; AS-CORE-002, AS-CORE-003, AS-ID-001, AS-SPEC-004, AS-INT-001, and AS-RET-001 are certified.
 **Target state:** Governed, evidence-backed project intelligence system built on an Obsidian-compatible Atlas Vault
 
 ---
@@ -91,8 +91,9 @@ contains derived, source-linked relationship intelligence. The accepted
 decision is recorded in `docs/adr/ADR-002-atlas-two-track-reconciliation.md`.
 
 Atlas Core's controlled `discover → ingest → build-indexes → validate` vertical
-slice is merged and tagged. AS-INT-001 and AS-CORE-002 are certified. Atlas
-Core is not yet an MVP.
+slice is merged and certified. AS-CORE-002, AS-CORE-003, AS-ID-001,
+AS-SPEC-004, AS-INT-001, and AS-RET-001 are certified. Atlas Core is not yet
+an MVP.
 
 ## Certified foundations
 
@@ -115,13 +116,17 @@ Core is not yet an MVP.
 | Work package | Capability | Status |
 |---|---|---|
 | AS-INT-001 | Governed Control Plane event-package ingestion into Atlas Core | **Certified** |
-| AS-CORE-002 | Semantic domain model and source lifecycle hardening | **Certification reopened — remediation in progress** |
+| AS-CORE-002 | Semantic domain model and source lifecycle hardening | **Certified** |
+| AS-CORE-003 | Claims, authority, conflicts, reviews and lifecycle | **Certified** |
+| AS-ID-001 | Durable source-lineage identity and v1→v2 migration | **Certified** |
+| AS-SPEC-004 | OKF v0.2 concept conformance | **Certified** |
+| AS-RET-001 | Lexical retrieval index | **Certified** |
 
 ## Authorized next work
 
 | Work package | Capability                                    | Status                                 |
 | ------------ | --------------------------------------------- | -------------------------------------- |
-| AS-CORE-002 | Semantic domain model and source lifecycle hardening | **Certified; deferred follow-up remains** |
+| AS-SEC-001 | Source quarantine / prompt-injection boundary contract | **Queued — architecture entry gate pending** |
 | AS-WP-005    | Graphify adapter and relationship projections | **Deferred until Core integration boundary is established** |
 
 ---
@@ -1184,10 +1189,36 @@ The completed Atlas platform should answer, reliably and with evidence:
 
 Project Atlas succeeds when it becomes the trusted reconstruction layer for the entire project estate—not merely another place where documents are stored.
 
+## AS-CORE-003 — Claims, Authority, Conflicts, Reviews and Lifecycle
+
+**Status:** Certified and merged.
+
+Adds deterministic claim extraction, authority-level precedence, conflict
+detection, review-queue generation, and safe claim-lifecycle transitions to
+the Atlas Core vertical slice.
+
+## AS-SPEC-004 — OKF v0.2 Concept Conformance
+
+**Status:** Certified and merged.
+
+Defines and enforces the OKF v0.2 concept-record contract across generated
+concept notes, validation, and provenance references.
+
+## AS-RET-001 — Lexical Retrieval Index
+
+**Status:** Certified and merged.
+
+Reclassification of the earlier AS-ENG-005 retrieval work. The implementation
+is deterministic lexical exact/prefix retrieval only; no semantic, vector,
+embedding, or approximate-nearest-neighbor behavior is included. Indexes are
+read-only, live under `generated/indexes/`, and are rebuilt from canonical
+state.
+
 ## AS-ID-001 — Durable Source Lineage Identity
 
-Implementation is complete pending governor review. The certified baseline is
-kept unchanged while the candidate adds UUIDv4 project genesis, registry v2,
+**Status:** Certified and merged.
+
+The certified implementation adds UUIDv4 project genesis, registry v2,
 source-lineage continuity, raw-byte fingerprints, atomic migration receipts,
-and fail-closed ambiguity handling. AS-CORE-003 remains a separate frozen
-package until this identity contract is reviewed and merged.
+and fail-closed ambiguity handling. It was merged before AS-CORE-003 and the
+vertical slice now depends on the durable identity contract.

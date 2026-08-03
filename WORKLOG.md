@@ -848,3 +848,66 @@ implementation file. Findings:
 No implementation file was modified, the verify-branch sequencing decision
 was not reopened, and no merge was performed. Final merge authorization
 remains with the project owner / merge gate.
+
+## AS-DOC-001 — Program documentation reconciliation
+
+**Status:** completed
+**Base commit:** `da1bd7dbb2629e9e49a0f4bfeaac37c15eac807c`
+**Scope:** docs-only; no code, schema, or test changes
+
+Reconciled program documentation with the certified `main` baseline after the
+AS-RET-001 fast-forward merge.
+
+**Changes made:**
+
+- `CLAUDE.md` — removed the outdated "Only WP-001 is implemented" framing;
+  documented the full `discover`/`ingest`/`build-indexes`/`validate` CLI;
+  updated the architecture module list to include `discovery.py`,
+  `ingestion.py`, `indexes.py`, `validation.py`, `retrieval.py`,
+  `knowledge_compiler.py`, `semantic_compiler.py`, `lineage.py`,
+  `source_identity.py`, `okf_renderer.py`, `secrets.py`; added
+  `src/atlas_contracts/` to the package description.
+- `AGENTS.md` — rewrote project overview and current-repository-state
+  sections; added Code organization tables for Core, shared contracts, and
+  the control-plane sibling deliverable; updated build/test/acceptance
+  commands; expanded design conventions, testing strategy, security
+  considerations, and agent notes to match the current certified state.
+- `docs/master-roadmap.md` — corrected program status and current-state
+  paragraphs; updated the Integration stream and Authorized next-work
+  tables; marked AS-CORE-002, AS-CORE-003, AS-ID-001, AS-SPEC-004,
+  AS-INT-001, and AS-RET-001 as Certified; queued AS-SEC-001 as the next
+  work package; added concise certified-work-package sections at the end
+  for AS-CORE-003, AS-SPEC-004, AS-RET-001, and updated the AS-ID-001
+  summary.
+- `docs/backlog.md` — verified 49 previously-unchecked items against the
+  delivered code and tests, then marked them complete; left 30 items
+  unchecked because they are genuinely not yet implemented or are
+  explicitly deferred follow-up work. Notable unchecked items include
+  parser-registry abstraction (D-006), classification-method audit field
+  (E-006), freshness/orphan/severity-exit-code validators (H-006, H-007,
+  H-010), portfolio reports beyond indexes and conflict queue (I-002, I-003,
+  I-005, I-007, I-008), impact graph (J-005), pilot fixture corpora
+  (K-001..K-007), and deferred CORE2/INT follow-up items.
+
+**Source-of-truth pipeline run (outside pytest harness):**
+
+```bash
+atlas init --output /tmp/as-doc-001-pipeline/vault
+atlas discover --source tests/fixtures/integrated-atlas-project --output /tmp/as-doc-001-pipeline/manifest.json
+atlas ingest --manifest /tmp/as-doc-001-pipeline/manifest.json --vault /tmp/as-doc-001-pipeline/vault
+atlas build-indexes --vault /tmp/as-doc-001-pipeline/vault
+atlas validate --vault /tmp/as-doc-001-pipeline/vault
+```
+
+Observed output: 3 sources discovered, 3 documents ingested, 1 project and 3
+sources indexed, 47 Markdown files validated; generated indexes under
+`generated/indexes/`, navigation under `generated/navigation/`; no output
+under `vault/indexes`.
+
+**Validation gates:**
+
+- `ruff check src tests` — clean
+- `mypy src` — clean, 34 source files
+- `pytest tests` — 149 passed, 0 failed
+- Zero code drift: only `CLAUDE.md`, `AGENTS.md`, `docs/master-roadmap.md`,
+  `docs/backlog.md`, and `WORKLOG.md` were modified.

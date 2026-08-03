@@ -22,85 +22,85 @@
 
 ## Epic C — Discovery
 
-- [ ] C-001 Recursive source scanner
-- [ ] C-002 Include/exclude configuration
-- [ ] C-003 MIME and extension detection
-- [ ] C-004 Streaming SHA-256 hashing
-- [ ] C-005 Exact duplicate grouping
-- [ ] C-006 Manifest persistence
-- [ ] C-007 Unsupported file reporting
-- [ ] C-008 Path traversal tests
+- [x] C-001 Recursive source scanner
+- [x] C-002 Include/exclude configuration
+- [x] C-003 MIME and extension detection
+- [x] C-004 Streaming SHA-256 hashing
+- [x] C-005 Exact duplicate grouping
+- [x] C-006 Manifest persistence
+- [x] C-007 Unsupported file reporting
+- [x] C-008 Path traversal tests
 
 ## Epic D — Parsing
 
-- [ ] D-001 Markdown parser
-- [ ] D-002 YAML frontmatter parser
-- [ ] D-003 Plain-text parser
-- [ ] D-004 Heading extraction
-- [ ] D-005 Link extraction
+- [x] D-001 Markdown parser
+- [x] D-002 YAML frontmatter parser
+- [x] D-003 Plain-text parser
+- [x] D-004 Heading extraction
+- [x] D-005 Link extraction
 - [ ] D-006 Parser registry
-- [ ] D-007 Malformed input tests
+- [x] D-007 Malformed input tests
 
 ## Epic E — Classification
 
-- [ ] E-001 Explicit override rules
-- [ ] E-002 Path rules
-- [ ] E-003 Filename rules
-- [ ] E-004 Frontmatter rules
-- [ ] E-005 Heading rules
+- [x] E-001 Explicit override rules
+- [x] E-002 Path rules
+- [x] E-003 Filename rules
+- [x] E-004 Frontmatter rules
+- [x] E-005 Heading rules
 - [ ] E-006 Classification method audit field
-- [ ] E-007 Unknown classification path
+- [x] E-007 Unknown classification path
 
 ## Epic F — Generation
 
-- [ ] F-001 Stable ID strategy
-- [ ] F-002 Frontmatter renderer
-- [ ] F-003 Project note renderer
-- [ ] F-004 Source reference renderer
-- [ ] F-005 Conflict renderer
-- [ ] F-006 Deterministic ordering
-- [ ] F-007 Atomic file writes
+- [x] F-001 Stable ID strategy
+- [x] F-002 Frontmatter renderer
+- [x] F-003 Project note renderer
+- [x] F-004 Source reference renderer
+- [x] F-005 Conflict renderer
+- [x] F-006 Deterministic ordering
+- [x] F-007 Atomic file writes
 
 ## Epic G — Human-safe updates
 
-- [ ] G-001 Protected marker parser
-- [ ] G-002 Generated-region replacement
-- [ ] G-003 Human-region preservation
-- [ ] G-004 Fail-closed malformed marker handling
-- [ ] G-005 Golden-file tests
+- [x] G-001 Protected marker parser
+- [x] G-002 Generated-region replacement
+- [x] G-003 Human-region preservation
+- [x] G-004 Fail-closed malformed marker handling
+- [x] G-005 Golden-file tests
 
 ## Epic H — Validation
 
-- [ ] H-001 YAML validator
-- [ ] H-002 Schema validator
-- [ ] H-003 Link validator
-- [ ] H-004 Provenance validator
-- [ ] H-005 Lifecycle validator
+- [x] H-001 YAML validator
+- [x] H-002 Schema validator
+- [x] H-003 Link validator
+- [x] H-004 Provenance validator
+- [x] H-005 Lifecycle validator
 - [ ] H-006 Freshness validator
 - [ ] H-007 Orphan validator
-- [ ] H-008 Secret scanner
-- [ ] H-009 Coverage validator
+- [x] H-008 Secret scanner
+- [x] H-009 Coverage validator
 - [ ] H-010 Severity exit codes
 
 ## Epic I — Portfolio intelligence
 
-- [ ] I-001 Project index generator
+- [x] I-001 Project index generator
 - [ ] I-002 Portfolio overview
 - [ ] I-003 Maturity matrix
 - [ ] I-004 Documentation gap report
 - [ ] I-005 Stale knowledge report
-- [ ] I-006 Conflict review queue
+- [x] I-006 Conflict review queue
 - [ ] I-007 Dependency report
 - [ ] I-008 Capability report
 
 ## Epic J — Incremental operation
 
-- [ ] J-001 State cache
-- [ ] J-002 Added source detection
-- [ ] J-003 Changed source detection
-- [ ] J-004 Removed source handling
+- [x] J-001 State cache
+- [x] J-002 Added source detection
+- [x] J-003 Changed source detection
+- [x] J-004 Removed source handling
 - [ ] J-005 Impact graph
-- [ ] J-006 Selective regeneration
+- [x] J-006 Selective regeneration
 
 ## Epic K — Pilot onboarding
 
@@ -122,7 +122,7 @@
   accounting and evidence for filesystem-write suppression on unchanged
   replay. Keep `content drift` and `canonical content changes` distinct from
   physical filesystem writes.
-- [ ] CORE-SEC-001 Implement content-based secret detection and redaction for
+- [x] CORE-SEC-001 Implement content-based secret detection and redaction for
   pilot ingestion. Filename-only sensitive-file detection must not be treated
   as sufficient for real-project ingestion.
 
@@ -134,7 +134,7 @@
 - [x] INT-004 Generate project activity and session projections
 - [x] INT-005 Quarantine invalid, pending and conflicting packages
 - [x] INT-006 Prove deterministic replay and strict public CLI workflow
-- [ ] INT-007 Independent integration certification
+- [x] INT-007 Independent integration certification
 - [x] INT-008 Bind event skill identity to a trusted Vault policy
 - [ ] INT-009 Define raw-package and receipt retention policy
 - [ ] INT-010 Preserve removed-package/deletion state in projections
@@ -165,4 +165,4 @@
 - [x] ID-005 Add atomic v1-to-v2 migration receipts
 - [x] ID-006 Add duplicate-identity and ambiguity fail-closed checks
 - [x] ID-007 Add replay, rollback, concurrency, and schema validation tests
-- [ ] ID-008 Governor review and independent certification
+- [x] ID-008 Governor review and independent certification
