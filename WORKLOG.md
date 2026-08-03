@@ -2316,3 +2316,92 @@ Status: **ROADMAP-RECONCILIATION-REQUIRED** is not applicable (no
 disagreement found); status is **RELEASE-CLOSURE-AUTHORIZED** for the
 v1/MVP backlog completion described above. No implementation was
 started under this entry.
+
+## AS-MVP-001 architecture entry gate
+
+**Status:** AS-MVP-001 ARCHITECTURE ENTRY PASSED — IMPLEMENTATION AUTHORIZED
+**Base commit:** `4ae420989e44de322f4789a59114f461c452ecc8`
+**ADR:** `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md`
+**Evidence:** `docs/evidence/AS-MVP-001-architecture-entry.yaml`
+
+Reconciled Epic I and Epic K against actual repository state (not
+assumed): **Epic I is 2/8 complete** — I-001 (project index generator,
+`build_indexes()` in `src/project_atlas/indexes.py` writing
+`generated/navigation/{projects,portfolio}.md`) and I-006 (conflict
+review queue, `_conflict_index()` -> `generated/indexes/conflicts.json`)
+are real and complete. The remaining six items (I-002 portfolio
+overview, I-003 maturity matrix, I-004 documentation gap report, I-005
+stale knowledge report, I-007 dependency report, I-008 capability
+report) are not implemented, but every one of them already has a
+canonical per-project or per-concept domain model to project from
+(`CoverageRecord` in `semantic_compiler.py`, the `Maturity` enum in
+`domain/vocabulary.py`, `Relationship`/`RelationType` in
+`domain/relationships.py`, `ConceptType.CAPABILITY`) — none require a
+new canonical record type, only portfolio-wide aggregation. **Epic K is
+0/7 complete** — no pilot fixtures, expected manifests, or expected
+generated vaults exist anywhere under `tests/fixtures/`.
+
+Assigned work-package ID **AS-MVP-001** (does not reuse or redefine
+any certified ID: not `AS-INT-001`, `AS-CORE-002`, `AS-CORE-003`,
+`AS-ID-001`, `AS-SPEC-004`, `AS-RET-001`, `AS-SEC-001`, or
+`AS-MAINT-001`). Split into two internal workstreams (not separately
+certified): AS-MVP-001A (portfolio intelligence completion, I-002/003/
+004/005/007/008) and AS-MVP-001B (three pilot fixtures + expected
+goldens + contradiction/secret fixtures, K-001 through K-007).
+
+**Architecture decisions** (full detail in ADR-005):
+
+- Canonical-state boundary: portfolio intelligence is derived,
+  regenerable, read-only toward canonical records; writes only to a new
+  `generated/portfolio/` root through the existing `_promote(write_plan)`
+  boundary; never touches `state/`, `projects/`, `sources/`,
+  `receipts/`, or existing `generated/indexes/*.json`.
+- Generated outputs: `generated/portfolio/{overview,maturity-matrix,
+  documentation-coverage,stale-knowledge,dependency-report,
+  capability-report}.json` plus `generated/navigation/
+  portfolio-overview.md`; `conflicts.json` (I-006) is reused by
+  reference, not duplicated.
+- CLI: new explicit `atlas build-portfolio` subcommand (not folded into
+  the certified `build-indexes`), plus a drift-rejection extension to
+  `atlas validate`.
+- Maturity: categorical only (existing `Maturity` enum), no numeric
+  score — consistent with the "no subjective trust scores" principle.
+- Dependencies/capabilities: aggregated only from explicitly declared
+  `Relationship`/`ConceptType.CAPABILITY` data; nothing inferred from
+  prose; ambiguous evidence reported as `unknown`, never guessed.
+- Security: reads only existing metadata-only fields of
+  `injection-findings.json`/`secret-findings.json` (counts/dispositions,
+  never matched text); never reads quarantined content from
+  `sources/imported-documents/` (quarantined sources are never written
+  there); no new detector logic; AS-SEC-001 is not reopened.
+- Determinism: `sort_keys=True` JSON, sorted ordering, no wall-clock
+  timestamps in deterministic bodies, injected reference date for
+  freshness calculations.
+- Pilots: three repository-native fixtures under
+  `tests/fixtures/pilots/` — `nebula` (mature/complete), `black-agency-os`
+  (partial/stale), `dark-factory` (conflicted/dependency-heavy) — no
+  live or personal documentation.
+- 10 acceptance scenarios defined in ADR-005 closing PRP §8's success
+  metrics for the portfolio/pilot scope.
+- Explicitly out of scope: DevDrive/live ingestion, semantic/vector
+  retrieval, embeddings, LLM scoring, graph database adoption,
+  multi-Vault federation, remote connectors, dashboard UI, autonomous
+  remediation, portfolio write-back into canonical state, new security
+  detector behavior, AS-SEC-001 reopening.
+
+`docs/master-roadmap.md`'s "Authorized next work" table and
+`docs/backlog.md`'s Epic I/K sections were annotated with the AS-MVP-001
+architecture-entry reference (no backlog checkbox marked complete).
+
+No implementation change was made in this phase (verified via
+`git diff --name-status 4ae420989e44de322f4789a59114f461c452ecc8 HEAD`:
+only `docs/adr/`, `docs/evidence/`, `docs/master-roadmap.md`,
+`docs/backlog.md`, and `WORKLOG.md` changed; nothing under `src/`,
+`tests/`, or `atlas-vault-documentation/`).
+
+**IMPLEMENTATION AUTHORIZED: YES**
+**MERGE AUTHORIZED: NO**
+
+**NEXT AGENT: AGENT ONE — IMPLEMENTATION**
+**NEXT PHASE: AS-MVP-001 PORTFOLIO INTELLIGENCE AND PILOT ONBOARDING**
+**NEXT DIRECTIVE: BUILD FROM COMMIT `4ae420989e44de322f4789a59114f461c452ecc8` FOLLOWING ADR-005'S IMPLEMENTATION SEQUENCING**

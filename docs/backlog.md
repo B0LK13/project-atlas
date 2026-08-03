@@ -84,6 +84,11 @@
 
 ## Epic I — Portfolio intelligence
 
+_Remaining items (I-002 through I-005, I-007, I-008) are scoped under
+**AS-MVP-001** (architecture entry passed; see
+`docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md`). Not
+marked complete until implemented and independently verified._
+
 - [x] I-001 Project index generator
 - [ ] I-002 Portfolio overview
 - [ ] I-003 Maturity matrix
@@ -103,6 +108,10 @@
 - [x] J-006 Selective regeneration
 
 ## Epic K — Pilot onboarding
+
+_All items are scoped under **AS-MVP-001** (architecture entry passed;
+see `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md`).
+Not marked complete until implemented and independently verified._
 
 - [ ] K-001 Nebula fixture corpus
 - [ ] K-002 Black Agency OS fixture corpus

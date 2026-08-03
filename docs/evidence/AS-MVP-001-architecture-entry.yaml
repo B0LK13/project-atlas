@@ -1,0 +1,172 @@
+schema_version: 1
+work_package: AS-MVP-001
+title: Portfolio Intelligence and Pilot Onboarding Closure
+status: architecture-review-passed
+
+base_commit: 4ae420989e44de322f4789a59114f461c452ecc8
+adr: docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md
+
+roadmap:
+  epic_i:
+    completed:
+      - id: I-001
+        title: Project index generator
+        evidence: "build_indexes() in src/project_atlas/indexes.py writes generated/navigation/projects.md and portfolio.md"
+      - id: I-006
+        title: Conflict review queue
+        evidence: "_conflict_index() -> generated/indexes/conflicts.json in src/project_atlas/indexes.py"
+    remaining:
+      - id: I-002
+        title: Portfolio overview
+        classification: not-implemented
+      - id: I-003
+        title: Maturity matrix
+        classification: not-implemented
+      - id: I-004
+        title: Documentation gap report
+        classification: not-implemented
+        note: "per-project CoverageRecord already computed by coverage_for() in semantic_compiler.py; only the portfolio-wide rollup is missing"
+      - id: I-005
+        title: Stale knowledge report
+        classification: not-implemented
+        note: "CoverageRecord.state already types a 'stale' value; nothing currently produces or aggregates it"
+      - id: I-007
+        title: Dependency report
+        classification: not-implemented
+        note: "Relationship/RelationType (depends_on, related_project) already modeled on ConceptRecord.relationships"
+      - id: I-008
+        title: Capability report
+        classification: not-implemented
+        note: "ConceptType.CAPABILITY and RelationType.PROVIDES already modeled"
+  epic_k:
+    completed: []
+    remaining:
+      - id: K-001
+        title: Nebula fixture corpus
+      - id: K-002
+        title: Black Agency OS fixture corpus
+      - id: K-003
+        title: Dark Factory fixture corpus
+      - id: K-004
+        title: Expected manifests
+      - id: K-005
+        title: Expected generated vault
+      - id: K-006
+        title: Contradiction fixtures
+      - id: K-007
+        title: Secret fixtures
+
+architecture:
+  canonical_boundary: >-
+    Portfolio intelligence is strictly derived, regenerable, read-only
+    toward canonical records, non-authoritative. Reads only state/claims,
+    state/concepts, projects/*/project.md (coverage, maturity,
+    relationships fields), the existing generated/indexes/conflicts.json,
+    and metadata-only fields of injection-findings.json/
+    secret-findings.json. Writes only to a new generated/portfolio/ root
+    via the existing _promote(write_plan) boundary. Never writes to
+    state/, projects/, sources/, receipts/, or existing
+    generated/indexes/*.json.
+  generated_outputs:
+    - generated/portfolio/overview.json
+    - generated/portfolio/maturity-matrix.json
+    - generated/portfolio/documentation-coverage.json
+    - generated/portfolio/stale-knowledge.json
+    - generated/portfolio/dependency-report.json
+    - generated/portfolio/capability-report.json
+    - generated/navigation/portfolio-overview.md
+  cli_integration: >-
+    New explicit `atlas build-portfolio --vault <vault-dir>` subcommand,
+    following the build-indexes pattern; not folded into build-indexes
+    to avoid widening the certified AS-RET-001 contract. atlas validate
+    extended with drift rejection for stale generated/portfolio/*.json,
+    mirroring the existing build-indexes drift-rejection convention.
+  pilot_count: 3
+  pilot_profiles:
+    - nebula: mature and complete
+    - black-agency-os: partial and stale
+    - dark-factory: conflicted and dependency-heavy
+  determinism: >-
+    schema_version + sort_keys=True JSON, sorted project/category
+    ordering, no wall-clock timestamps in deterministic bodies (freshness
+    reference date is an injected parameter, not datetime.now() called
+    inside the generator), no random IDs, no filesystem-enumeration-order
+    dependence. Two consecutive build-portfolio runs against unchanged
+    state must be byte-identical (acceptance scenario 8); changing one
+    pilot changes only that pilot's entries and dependent aggregates
+    (acceptance scenario 9).
+  maturity_model: >-
+    Categorical only, reusing the existing Maturity StrEnum
+    (domain/vocabulary.py). No numeric/weighted score. Every matrix entry
+    cites its explicit inputs (documentation_coverage_summary,
+    open_conflicts, validation_evidence_present), each itself a direct
+    read of another generated or canonical value - no opaque score.
+  dependency_capability_model: >-
+    Aggregates only explicitly declared ConceptRecord.relationships
+    (depends_on, related_project, provides) and ConceptType.CAPABILITY
+    concepts. No relationship is inferred from prose; ambiguous or absent
+    evidence is omitted, never guessed ("unknown" preferred to inference).
+  security_boundary: >-
+    Reads only existing metadata-only fields of injection-findings.json
+    and secret-findings.json (source_id, disposition, rule, confidence -
+    never matched text). Quarantined sources are never read from
+    sources/imported-documents/ (they are never written there by
+    AS-SEC-001). No new detector logic; quarantine.py/secrets.py
+    contracts are not reopened or modified.
+  implementation_sequence:
+    - "AS-MVP-001A step 1: documentation-coverage.json + overview.json"
+    - "AS-MVP-001A step 2: maturity-matrix.json"
+    - "AS-MVP-001A step 3: stale-knowledge.json (freshness threshold + injected reference date)"
+    - "AS-MVP-001A step 4: dependency-report.json + capability-report.json"
+    - "AS-MVP-001A step 5: atlas build-portfolio CLI + validate drift rejection"
+    - "AS-MVP-001B step 1: nebula fixture + expected golden files"
+    - "AS-MVP-001B step 2: black-agency-os + dark-factory fixtures + expected golden files"
+    - "AS-MVP-001B step 3: contradiction (K-006) + secret (K-007) fixtures"
+    - "AS-MVP-001B step 4: 10 acceptance-scenario integration tests"
+    - "independent certification and owner merge"
+
+acceptance_scenarios:
+  - "1. all pilots visible in overview/maturity-matrix/documentation-coverage"
+  - "2. mature pilot (nebula) not falsely reported missing/stale"
+  - "3. partial pilot (black-agency-os) receives accurate missing/partial/stale findings"
+  - "4. conflicted pilot (dark-factory) appears in review queue with stable references"
+  - "5. declared dependencies appear in deterministic order with provenance"
+  - "6. empty vault produces valid empty reports, no crash"
+  - "7. invalid project reported safely, does not corrupt other outputs"
+  - "8. deterministic rebuild: two settled runs byte-identical"
+  - "9. incremental change: only expected project/portfolio outputs update"
+  - "10. validate fails closed on generated/portfolio drift"
+
+out_of_scope:
+  - unrestricted DevDrive ingestion
+  - live personal-document ingestion
+  - semantic/vector retrieval
+  - embeddings
+  - LLM scoring
+  - graph database adoption
+  - multi-Vault federation
+  - remote connectors
+  - dashboard UI
+  - autonomous remediation
+  - portfolio write-back into canonical state
+  - new security detector behavior
+  - AS-SEC-001 reopening
+
+review_scope_check:
+  command: git diff --name-status 4ae420989e44de322f4789a59114f461c452ecc8 HEAD
+  expected_paths:
+    - docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md
+    - docs/evidence/AS-MVP-001-architecture-entry.yaml
+    - docs/master-roadmap.md
+    - docs/backlog.md
+    - WORKLOG.md
+  no_change_under:
+    - src/
+    - tests/
+    - atlas-vault-documentation/
+
+no_certified_package_id_reused: true
+no_implementation_change_made: true
+
+implementation_authorized: true
+merge_authorized: false
