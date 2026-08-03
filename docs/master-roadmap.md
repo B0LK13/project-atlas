@@ -121,12 +121,14 @@ an MVP.
 | AS-ID-001 | Durable source-lineage identity and v1→v2 migration | **Certified** |
 | AS-SPEC-004 | OKF v0.2 concept conformance | **Certified** |
 | AS-RET-001 | Lexical retrieval index | **Certified** |
+| AS-SEC-001 | Source quarantine / prompt-injection boundary contract | **Merged and post-merge validated** (merge commit `29437d72e1ef37ff71a8f148b79e2ffc965718c8`; see `docs/evidence/AS-SEC-001-post-merge-validation.yaml`) |
+| AS-MAINT-001 | Control Plane test fixture executable-bit portability | **Merged and post-merge validated** (merge commit `ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1`; see `docs/evidence/AS-MAINT-001-receipt.yaml`) |
 
 ## Authorized next work
 
 | Work package | Capability                                    | Status                                 |
 | ------------ | --------------------------------------------- | -------------------------------------- |
-| AS-SEC-001 | Source quarantine / prompt-injection boundary contract | **Entry gate authorized — implementation assignment pending** (see `docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md`) |
+| AS-MAINT-002 | Control Plane push/PR CI coverage | **Not yet authorized** (recommended follow-up recorded in the AS-MAINT-001 receipt; `atlas-vault-documentation/tests` currently has no automatic CI coverage) |
 | AS-WP-005    | Graphify adapter and relationship projections | **Deferred until Core integration boundary is established** |
 
 ---

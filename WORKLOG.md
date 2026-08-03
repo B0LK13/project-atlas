@@ -2132,3 +2132,95 @@ either. Recommended follow-up, tracked separately and not implemented here:
 
 Not yet merged to `main`; `merge_authorized: false` in the receipt pending
 owner review.
+
+## AS-MAINT-001 merge and AS-SEC-001 release integration
+
+**Status:** AS-MAINT-001 merged and post-merge validated; AS-SEC-001 merged
+and post-merge validated.
+
+**AS-MAINT-001:** merged into `main` with `git merge --no-ff
+4ff107db32fffcd4252f7eb438fc301715266a55`, producing merge commit
+`ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1` (no conflicts, history not
+rewritten). Fresh ext4 post-merge checkout, no manual `chmod`: fixture
+mode `100755`; Control Plane 146 passed/0 failed; Core 149 passed/0
+failed; mypy clean (34 source files); ruff clean; compileall clean.
+
+**AS-SEC-001 certification carry-forward:** recorded in
+`docs/evidence/AS-SEC-001-certification-carry-forward.yaml` (commit
+`2e910ea0db5cb9e967c1b6dc5925d9048d82d0b2`). Ancestry verified: the
+merge-base of new `main` (`ef62bd145...`) and the certified candidate
+(`0a3ee8f657...`) is exactly the original certified base
+(`7e720bda1a9...`). The only intervening mainline change was
+AS-MAINT-001 (mode-only, zero overlap with AS-SEC-001 production,
+tests, or fixtures). A preview merge in a disposable worktree
+(`review/as-sec-001-integration-preview`, then aborted) showed a
+conflict in `WORKLOG.md` only. Full recertification was judged not
+required; focused post-merge validation was.
+
+**AS-SEC-001 merge:** `git merge --no-ff
+0a3ee8f65735ee72f5e3dc65b02dfa7e90bb987d`, producing merge commit
+`29437d72e1ef37ff71a8f148b79e2ffc965718c8`. `WORKLOG.md` was the only
+conflicting path; resolved by concatenating both histories in
+chronological order (AS-SEC-001 implementation history first, then the
+AS-MAINT-001 fix that followed it), with no hash or result altered and
+no fabricated bridging text. History was not squashed, rebased, or
+rewritten; every AS-SEC-001 GOV-001 through GOV-008 commit remains
+reachable from `main`.
+
+**Post-merge validation**, fresh ext4 clone (`/tmp/as-sec-001-post-merge`,
+detached at the merge commit, no manual `chmod`), recorded in full in
+`docs/evidence/AS-SEC-001-post-merge-validation.yaml`:
+
+- Fixture mode: Git `100755`, filesystem `755 rwxr-xr-x`
+- Core: **245 passed, 0 failed, 0 skipped, 0 xfailed**
+- Control Plane: **146 passed, 0 failed** — replaces the previously
+  disclosed inherited red state (28 failed/118 passed) now that
+  AS-MAINT-001 is merged
+- mypy: clean, **35 source files**
+- ruff: clean
+- compileall (`src` and `atlas-vault-documentation`): clean
+- Security integration suite
+  (`tests/integration/test_as_sec_001_quarantine_boundary.py`): **16 passed**
+- Fuzz matrix (`tests/unit/test_quarantine_fuzz.py`): generated=218
+  executed=218 skipped=0 failures=0 false_positives=0 exceptions=0
+- Public workflow: ran `init → discover → ingest → build-indexes →
+  validate` against `tests/fixtures/adversarial-project` (26
+  adversarial/benign fixtures). 23 sources quarantined, 0 of which
+  appear in the concepts index, claims index, or imported-documents;
+  4 benign documents (`README.md`, `non-adversarial-control.md`,
+  `benign-multiline-control.md`,
+  `benign-multilingual-separators-control.md`) ingested normally; no
+  adversarial text found anywhere in generated output.
+- Settled replay: four-run protocol (genesis, convergence, settled,
+  settled comparison) compared via full-tree SHA-256 with no filename
+  filtering — run 2 vs run 3 and run 3 vs run 4 byte-identical.
+- Rollback / promotion boundary: reran and confirmed passing —
+  `test_transaction_rollback_on_corrupted_quarantine_report_reference`,
+  `test_unchanged_replay_is_byte_identical`,
+  `test_malformed_generated_markers_fail_closed`,
+  `test_duplicate_active_project_uuid_fails_before_promotion`,
+  `test_malformed_marker_in_one_project_aborts_before_other_project_writes`,
+  `test_cross_project_preflight_preserves_vault_until_marker_is_fixed`,
+  `test_project_uuid_genesis_is_injected_once_and_replay_is_zero_write`
+  (7 passed, 0 failed).
+- Protected boundary: `git diff --name-status` between the original
+  certified base and the AS-SEC-001 merge commit, filtered to
+  `atlas-vault-documentation/`, `AGENT-BOOTSTRAP.md`, and `.atlas/`,
+  shows only the authorized `mda` mode change; AS-SEC-001 did not alter
+  Control Plane logic.
+
+`docs/master-roadmap.md`'s certified-work and authorized-next-work
+tables were updated: AS-SEC-001 and AS-MAINT-001 now show
+merged-and-post-merge-validated with their merge hashes; AS-MAINT-002
+(Control Plane push/PR CI coverage) is recorded as the next
+not-yet-authorized follow-up.
+
+**CERTIFICATION ISSUED: YES**
+**MERGE AUTHORIZED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+
+Final hashes: implementation `cf858185af9ea0aa18e550130f1fafab1e2e74b4`,
+AS-MAINT-001 evidence `4ff107db32fffcd4252f7eb438fc301715266a55`,
+AS-MAINT-001 merge `ef62bd1455ccbcad6e55211bd3d98aa4f7f669f1`,
+certification carry-forward `2e910ea0db5cb9e967c1b6dc5925d9048d82d0b2`,
+AS-SEC-001 merge `29437d72e1ef37ff71a8f148b79e2ffc965718c8`.
