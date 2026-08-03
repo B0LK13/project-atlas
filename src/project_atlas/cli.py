@@ -67,7 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     ingest_parser.add_argument("--vault", type=Path, required=True)
 
     indexes_parser = subparsers.add_parser(
-        "build-indexes", help="Build deterministic Vault indexes (FR-010)."
+        "build-indexes", help="Build deterministic lexical indexes under generated/ (FR-010)."
     )
     indexes_parser.add_argument("--vault", type=Path, required=True)
 
@@ -148,7 +148,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "build-indexes":
         try:
             result = build_indexes(args.vault)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             _log.error("build-indexes failed: %s", exc)
             return EXIT_ERROR
         print(f"indexed {result['projects']} projects and {result['sources']} sources")

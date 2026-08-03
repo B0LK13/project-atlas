@@ -198,8 +198,14 @@ def _json_files(vault: Path, *parts: str) -> list[Path]:
 
 
 def _validate_indexes(vault: Path, errors: list[str]) -> None:
-    """Check that derived index IDs agree with canonical machine state."""
-    index_root = vault / "indexes"
+    """Check generated lexical indexes against canonical machine state."""
+    legacy_root = vault / "indexes"
+    if legacy_root.exists():
+        errors.append(
+            "obsolete generated index directory: indexes; remove it and rebuild "
+            "under generated/indexes"
+        )
+    index_root = vault / "generated" / "indexes"
     if not index_root.is_dir():
         return
     state_ids: dict[str, set[str]] = {
@@ -248,26 +254,32 @@ def _validate_indexes(vault: Path, errors: list[str]) -> None:
     for kind in ("claims", "concepts", "conflicts", "authority", "sources"):
         path = index_root / f"{kind}.json"
         if not path.is_file():
-            errors.append(f"missing canonical index: indexes/{kind}.json")
+            errors.append(f"missing generated lexical index: generated/indexes/{kind}.json")
             continue
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
             indexed = raw.get("ids", [])
             if sorted(indexed) != sorted(state_ids[kind]):
-                errors.append(f"index/state mismatch: indexes/{kind}.json")
+                errors.append(f"index/state mismatch: generated/indexes/{kind}.json")
         except (OSError, UnicodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
-            errors.append(f"invalid canonical index indexes/{kind}.json: {exc}")
+            errors.append(f"invalid generated lexical index generated/indexes/{kind}.json: {exc}")
     provenance_path = index_root / "provenance.json"
     if not provenance_path.is_file():
-        errors.append("missing canonical index: indexes/provenance.json")
+        errors.append("missing generated lexical index: generated/indexes/provenance.json")
     else:
         try:
             provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
             for key in ("by_source_lineage_id", "by_receipt_id"):
                 if not isinstance(provenance.get(key), dict):
-                    errors.append(f"invalid canonical index indexes/provenance.json: {key}")
+                    errors.append(
+                        "invalid generated lexical index "
+                        f"generated/indexes/provenance.json: {key}"
+                    )
         except (OSError, UnicodeError, json.JSONDecodeError, AttributeError, TypeError) as exc:
-            errors.append(f"invalid canonical index indexes/provenance.json: {exc}")
+            errors.append(
+                "invalid generated lexical index "
+                f"generated/indexes/provenance.json: {exc}"
+            )
 
 
 def _validate_provenance(

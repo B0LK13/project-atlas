@@ -1,4 +1,4 @@
-"""Deterministic canonical indexes for the Atlas Vault (AS-ENG-005)."""
+"""Deterministic lexical indexes for the Atlas Vault (AS-RET-001)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,18 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.ingestion import _promote
+
+GENERATED_INDEX_ROOT = "generated/indexes"
+LEGACY_INDEX_ROOT = "indexes"
+
+
+def _ensure_no_legacy_indexes(vault: Path) -> None:
+    legacy = vault / LEGACY_INDEX_ROOT
+    if legacy.exists():
+        raise ValueError(
+            f"obsolete generated index directory: {legacy}; remove it before rebuilding "
+            f"{GENERATED_INDEX_ROOT}"
+        )
 
 
 def _json(path: Path, default: Any, overlay: dict[Path, bytes] | None = None) -> Any:
@@ -210,7 +222,9 @@ def _source_index(vault: Path, overlay: dict[Path, bytes] | None = None) -> dict
 
 def _write_plan(vault: Path, plan: dict[str, Any]) -> dict[Path, bytes]:
     return {
-        vault / "indexes" / name: (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
+        vault / GENERATED_INDEX_ROOT / name: (
+            json.dumps(value, indent=2, sort_keys=True) + "\n"
+        ).encode()
         for name, value in sorted(plan.items())
     }
 
@@ -218,7 +232,8 @@ def _write_plan(vault: Path, plan: dict[str, Any]) -> dict[Path, bytes]:
 def canonical_index_payloads(
     vault: Path, overlay: dict[Path, bytes] | None = None
 ) -> dict[Path, bytes]:
-    """Return canonical index writes computed from disk plus staged state."""
+    """Return generated lexical-index writes from disk plus staged state."""
+    _ensure_no_legacy_indexes(vault)
     plan: dict[str, Any] = {
         "sources.json": _source_index(vault, overlay),
         "claims.json": _claim_index(vault, overlay),
@@ -232,7 +247,7 @@ def canonical_index_payloads(
 
 
 def build_indexes(vault: Path) -> dict[str, int | bool]:
-    """Build navigation and canonical indexes through the Core promotion boundary."""
+    """Build generated navigation and lexical indexes through Core promotion."""
     vault = vault.expanduser().resolve()
     projects_root = vault / "projects"
     projects = (
@@ -242,7 +257,9 @@ def build_indexes(vault: Path) -> dict[str, int | bool]:
     )
     project_lines = ["# Projects", ""]
     for project in projects:
-        project_lines.append(f"- [{project.name}]({project.name}/project.md)")
+        project_lines.append(
+            f"- [{project.name}](../../projects/{project.name}/project.md)"
+        )
     portfolio_lines = ["# Portfolio", "", "Generated from canonical project projections.", ""]
     for project in projects:
         portfolio_lines.append(f"- [{project.name}](../projects/{project.name}/project.md)")
@@ -254,9 +271,18 @@ def build_indexes(vault: Path) -> dict[str, int | bool]:
     writes = canonical_index_payloads(vault)
     writes.update(
         {
-            vault / "projects" / "index.md": ("\n".join(project_lines) + "\n").encode(),
-            vault / "01-portfolio" / "index.md": ("\n".join(portfolio_lines) + "\n").encode(),
-            vault / "sources" / "index.md": ("\n".join(source_lines) + "\n").encode(),
+            vault / "generated" / "navigation" / "projects.md": (
+                "\n".join(project_lines) + "\n"
+            ).encode(),
+            vault / "generated" / "navigation" / "portfolio.md": (
+                "\n".join(portfolio_lines).replace("../projects/", "../../projects/") + "\n"
+            ).encode(),
+            vault / "generated" / "navigation" / "sources.md": (
+                "\n".join(source_lines).replace(
+                    "imported-documents/", "../../sources/imported-documents/"
+                )
+                + "\n"
+            ).encode(),
         }
     )
     _promote(writes)

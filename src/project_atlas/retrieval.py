@@ -1,4 +1,4 @@
-"""Read-only exact and prefix retrieval over canonical Vault indexes."""
+"""Read-only exact and prefix retrieval over generated lexical indexes."""
 
 from __future__ import annotations
 
@@ -86,9 +86,14 @@ class VaultRetriever:
             "conflict": "conflicts",
             "authority": "authority",
         }[kind]
-        path = self.vault / "indexes" / f"{index_name}.json"
+        legacy = self.vault / "indexes"
+        if legacy.exists():
+            raise ValueError(
+                f"obsolete generated index directory: {legacy}; rebuild under generated/indexes"
+            )
+        path = self.vault / "generated" / "indexes" / f"{index_name}.json"
         if not path.is_file():
-            raise ValueError(f"canonical index is missing: {path}")
+            raise ValueError(f"generated lexical index is missing: {path}")
         raw = json.loads(path.read_text(encoding="utf-8"))
         result: dict[str, list[str]] = {}
         for field in self._INDEX_KEYS[kind]:
