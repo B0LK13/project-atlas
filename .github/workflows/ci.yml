@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      # cache: pip retained under contents: read (no broader permission).
+      # Verified against a real successful run
+      # (https://github.com/B0LK13/project-atlas/actions/runs/30905727068/job/91980229911):
+      # "GITHUB_TOKEN Permissions" logged only Contents: read / Metadata: read,
+      # and the cache step logged "Cache hit" + "Cache restored successfully"
+      # with no permission warning or error. No broader permission is
+      # justified by this evidence.
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
