@@ -43,7 +43,10 @@ GitHub settings activation defined by ADR-006.
 - Certified baseline `a7a6ebc41ea884f7ce4ec2d70da89e6a44097381`.
 - Existing `.github/workflows/ci.yml` and `atlas-documentation-gate.yml`.
 - Existing Python project and Control Plane test commands.
-- Owner-approved private security contact.
+- Project Owner security-reporting disposition: external private intake is
+  currently deferred; sensitive reports must not use ordinary GitHub issues;
+  any future external channel requires separate owner provisioning and
+  verification.
 - GitHub administrator access for settings capture and later activation.
 
 ## Required artifacts
@@ -99,9 +102,15 @@ Target settings:
 
 ### Phase 1 — Governance documents
 
-Create the required policy documents, insert the owner-approved private
-security contact, and cross-link ADR-006. Validate required headings, links,
-secrets, and duplicate YAML where applicable.
+Create the required policy documents and cross-link ADR-006. `SECURITY.md`
+must reflect the approved interim state: external private vulnerability
+intake is not currently operational; sensitive details must not be posted in
+ordinary GitHub issues; authorized collaborators should use an already-
+established private channel; external disclosure remains deferred; no
+response-time guarantee is offered; and a future channel requires separate
+Project Owner approval, provisioning, and verification. Do not add a
+placeholder address, invented alias, or personal contact data. Validate
+required headings, links, secrets, and duplicate YAML where applicable.
 
 ### Phase 2 — Ownership and templates
 
@@ -151,7 +160,11 @@ decides publication/integration. Architecture approval is not merge authority.
 4. CI commands are exact repository-backed commands or clearly marked new commands.
 5. Every workflow has least privilege, timeout, concurrency, action-pin, and fork-safety review.
 6. Dependabot covers only pip and GitHub Actions with noise controls.
-7. SECURITY.md does not claim unavailable GitHub features and contains an owner-approved private channel.
+7. SECURITY.md accurately records the current reporting limitation, does not
+   claim unavailable GitHub features, does not publish an invented or
+   unverified contact, keeps sensitive reports out of ordinary issues, and
+   defers external private intake until the Project Owner provisions and
+   verifies a dedicated channel.
 8. Signing is prospective and does not rewrite history.
 9. Release and backup procedures distinguish package closure, merge, publication, tag, release, and deployment.
 10. Settings are captured before activation and required checks are added only after successful runs.
@@ -219,9 +232,11 @@ the prior rule, record the incident, and reopen the activation gate.
 
 Implement only the phased artifacts and settings changes authorized by the
 Owner. Start from the exact certified baseline or the next explicitly frozen
-AS-GH-001 architecture tip. Preserve certified subsystems. Stop for missing
-owner security contact, unavailable GitHub capability, workflow permission
-risk, or concurrent ownership of the same workflow/settings files.
+AS-GH-001 architecture tip. Preserve certified subsystems. Stop if the
+approved security-reporting limitation is contradicted, an unavailable
+GitHub capability is represented as active, workflow permission risk is
+introduced, or concurrent ownership of the same workflow/settings files is
+detected.
 
 ## Agent Two handoff
 
