@@ -36,7 +36,7 @@ atlas_contracts = ["schemas/*.json"]
 testpaths = ["tests"]
 addopts = "-q"
 markers = [
-    "integration: end-to-end CLI tests",
+    "integration: end-to-end and cross-component tests",
 ]
 
 [tool.ruff]

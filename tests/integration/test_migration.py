@@ -2,10 +2,12 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.migrations.claim_v2_migration import migrate_v2
 
-
+pytestmark = pytest.mark.integration
 def test_migrate_v2_cli_smoke(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()

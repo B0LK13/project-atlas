@@ -6,9 +6,11 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_OK, main
 
-
+pytestmark = pytest.mark.integration
 def _fixture(root: Path) -> Path:
     source = root / "source"
     (source / "docs").mkdir(parents=True)

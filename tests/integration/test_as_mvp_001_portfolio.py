@@ -15,9 +15,12 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.portfolio import build_portfolio
 
+pytestmark = pytest.mark.integration
 PILOTS = Path("tests/fixtures/pilots")
 STALE_AGE_DAYS = 400
 

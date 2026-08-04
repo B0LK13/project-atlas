@@ -13,7 +13,7 @@ from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.ingestion import ingest
 
-
+pytestmark = pytest.mark.integration
 def _snapshot(vault: Path) -> dict[str, bytes]:
     return {
         path.relative_to(vault).as_posix(): path.read_bytes()

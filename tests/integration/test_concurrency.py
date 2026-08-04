@@ -10,7 +10,7 @@ import pytest
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.ingestion import _assert_state_compare_and_swap, ingest
 
-
+pytestmark = pytest.mark.integration
 def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 

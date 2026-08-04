@@ -6,11 +6,13 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.domain import ClaimLifecycle
 from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
 
-
+pytestmark = pytest.mark.integration
 def _snapshot(vault: Path) -> dict[str, bytes]:
     return {
         path.relative_to(vault).as_posix(): path.read_bytes()

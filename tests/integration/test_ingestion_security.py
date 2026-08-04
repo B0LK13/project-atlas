@@ -10,7 +10,7 @@ import pytest
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 
-
+pytestmark = pytest.mark.integration
 def _crafted_manifest(
     tmp_path: Path,
     *,

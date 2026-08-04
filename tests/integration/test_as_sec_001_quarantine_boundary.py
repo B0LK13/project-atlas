@@ -6,9 +6,12 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
 
+pytestmark = pytest.mark.integration
 CANARY_TOKEN = "CANARY-AS-SEC-001-a7f3d9e2"
 
 

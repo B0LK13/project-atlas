@@ -6,10 +6,12 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.retrieval import VaultRetriever
 
-
+pytestmark = pytest.mark.integration
 def _workflow(tmp_path: Path) -> tuple[Path, Path]:
     source = tmp_path / "source"
     source.mkdir()

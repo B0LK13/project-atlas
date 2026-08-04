@@ -43,9 +43,12 @@ from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.portfolio import build_portfolio
 
+pytestmark = pytest.mark.integration
 PILOTS = Path("tests/fixtures/pilots")
 EXPECTED = Path("tests/fixtures/expected")
 K007_FIXTURE = Path("tests/fixtures/k007-canary-secrets")
