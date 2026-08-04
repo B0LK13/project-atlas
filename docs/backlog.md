@@ -113,21 +113,23 @@ independent verification passes and the branch is merged to `main`._
 ## Epic K — Pilot onboarding
 
 _Items are implemented under **AS-MVP-001** on
-`feat/as-mvp-001-portfolio-pilots` (see
+`fix/as-mvp-001-r1-relation-edge-tests` (originally
+`feat/as-mvp-001-portfolio-pilots`; see
 `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and
-`docs/evidence/AS-MVP-001-receipt.yaml`). K-001/K-002/K-003 fixtures
-are implemented and acceptance-tested; K-004/K-005/K-006/K-007 are
-only partially covered (see the receipt's `known_limitations` and
-`epic_k.not_implemented_items`). Left unchecked until independent
-verification passes and the branch is merged to `main`._
+`docs/evidence/AS-MVP-001-receipt.yaml`). All of K-001 through K-007 are
+now implemented and acceptance-tested (AS-MVP-001-R1 release-closure
+remediation: golden manifest/output fixtures for K-004/K-005, an
+itemized contradiction checklist for K-006, and a dedicated
+credential-shaped canary fixture for K-007). Left unchecked until final
+independent verification passes and the branch is merged to `main`._
 
 - [ ] K-001 Nebula fixture corpus — implemented, acceptance-tested (AS-MVP-001)
 - [ ] K-002 Black Agency OS fixture corpus — implemented, acceptance-tested (AS-MVP-001)
 - [ ] K-003 Dark Factory fixture corpus — implemented, acceptance-tested (AS-MVP-001)
-- [ ] K-004 Expected manifests
-- [ ] K-005 Expected generated vault
-- [ ] K-006 Contradiction fixtures
-- [ ] K-007 Secret fixtures
+- [ ] K-004 Expected manifests — implemented, acceptance-tested (AS-MVP-001-R1)
+- [ ] K-005 Expected generated vault — implemented, acceptance-tested (AS-MVP-001-R1)
+- [ ] K-006 Contradiction fixtures — implemented, acceptance-tested (AS-MVP-001-R1)
+- [ ] K-007 Secret fixtures — implemented, acceptance-tested (AS-MVP-001-R1)
 
 ## Cross-cutting follow-up — Atlas Core vertical slice
 
