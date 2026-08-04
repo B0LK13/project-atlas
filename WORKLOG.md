@@ -2844,3 +2844,73 @@ FOCUSED INDEPENDENT REVERIFICATION REQUIRED**
 **NEXT AGENT: AGENT TWO — FOCUSED EVIDENCE REVERIFICATION**
 **NEXT PHASE: VERIFY THE EVIDENCE-ONLY CORRECTION AND CLOSE THE R1 BLOCKER**
 **NEXT DIRECTIVE: PIN THE NEW FULL EVIDENCE-CORRECTION HASH**
+
+## AS-MVP-001 final receipt reconciliation
+
+Evidence-only correction, direct descendant of `d9e1865` (Prototype B
+correction), same branch/worktree
+(`fix/as-mvp-001-r1-relation-edge-tests`,
+`/mnt/d/project-atlas-as-mvp-001-r1`). Agent Two flagged that
+`docs/evidence/AS-MVP-001-receipt.yaml` presented two contradictory
+Epic K statements simultaneously: `epic_k.not_implemented_items`
+(K-004 through K-007 absent/partial, from the original `da04bd3`
+implementation-freeze evidence) alongside `release_closure_remediation`
+(K-004 through K-007 implemented, from the later remediation). Both
+were individually true for their own point in time, but presented
+together with no chronology marker they read as an unresolved
+self-contradiction.
+
+Corrected `epic_k.not_implemented_items` -> renamed to
+`not_implemented_items_at_implementation_freeze`, tagged with its
+`baseline_candidate` (`da04bd3...`), its `superseded_by` tip
+(`6e56fbe...`), and `current_status_authoritative: false` -- the
+historical content itself is unchanged, only its status as *current*
+is retracted. Added one new, single authoritative
+`current_epic_k_status` mapping (K-004 through K-007, each
+`status: implemented`, each citing the actual committed fixture path(s),
+test name(s), and commit hash from the release-closure remediation).
+Updated the matching stale bullet in `known_limitations` (previously
+"K-004/K-005 golden fixtures were not authored") to mark it resolved
+and point at `current_epic_k_status`. The three still-genuinely-open
+limitations (maturity always "unknown", capability_report empty for all
+three pilots, and the multi-batch manifest overwrite behavior) are
+preserved verbatim, with a clarifying note that they remain accurate
+and were not addressed by release-closure remediation. The `_promote()`
+cross-file-atomicity disclosure and the corrected Prototype B record
+(`d9e1865`) are both preserved unchanged. Updated the top-level
+`status:` field to reflect implementation-complete +
+release-closure-remediation-complete + final-independent-verification
+still required (equivalent boolean/enum values noted inline, since the
+receipt's existing schema uses one `status:` string rather than
+separate boolean keys).
+
+Independently re-grepped every `K-004`/`K-005`/`K-006`/`K-007`/
+`not_implemented`/`golden`/`secret fixture`/`contradiction fixture`
+reference in the corrected file: no stale statement appears as current
+status, the historical baseline is labeled with its candidate hash, and
+there is exactly one authoritative current-state mapping.
+
+No production code, tests, fixtures, architecture, backlog, roadmap, or
+certified-subsystem file changed -- `git diff --name-status` against
+`d9e1865` shows only `docs/evidence/AS-MVP-001-receipt.yaml` and this
+WORKLOG entry. Technical validation results (Core 275, Control Plane
+146, AS-SEC-001 16, fuzz 218/218, mypy 36 files clean, ruff clean) from
+the independently verified `6e56fbe` candidate remain unchanged and are
+not re-asserted as freshly rerun here.
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: NO**
+**ROADMAP MODIFIED: NO**
+**MERGE TO MAIN AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FABRICATED ATTESTATIONS CREATED: NO**
+
+**AS-MVP-001 FINAL RECEIPT RECONCILIATION COMPLETE AND FROZEN —
+FOCUSED INDEPENDENT EVIDENCE REVERIFICATION REQUIRED**
+
+**NEXT AGENT: AGENT TWO — FINAL RECEIPT REVERIFICATION**
+**NEXT PHASE: VERIFY THE EVIDENCE-ONLY EPIC K RECONCILIATION**
+**NEXT DIRECTIVE: PIN THE NEW FULL RECEIPT-RECONCILIATION HASH AND COMPARE IT TO d9e1865**

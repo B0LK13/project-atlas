@@ -1,7 +1,11 @@
 schema_version: 1
 work_package: AS-MVP-001
 title: Portfolio Intelligence and Pilot Onboarding Closure
-status: implementation-complete-independent-verification-required
+status: implementation-complete-release-closure-remediation-complete-final-independent-verification-required
+# Equivalent to: implementation_complete: true,
+# release_closure_remediation_complete: true,
+# final_independent_verification: blocked_pending_evidence_reverification.
+# merge_authorized remains false throughout (see below).
 
 architecture_commit: e1b2bba2ea25aacf27e5da2e0696f850b56494c4
 adr: docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md
@@ -90,33 +94,45 @@ epic_k:
     - K-001  # Nebula fixture corpus
     - K-002  # Black Agency OS fixture corpus
     - K-003  # Dark Factory fixture corpus
-  not_implemented_items:
-    - id: K-004
-      title: Expected manifests
-      note: >-
-        Not authored as separate committed golden files in this package;
-        the acceptance tests instead assert directly against freshly
-        computed pipeline output (equivalent coverage, less golden-file
-        maintenance). Recommended follow-up if byte-for-byte golden
-        manifests are required by a future release-closure gate.
-    - id: K-005
-      title: Expected generated vault
-      note: same rationale as K-004
-    - id: K-006
-      title: Contradiction fixtures
-      note: >-
-        Partially covered: dark-factory's two "roadmap:" claims produce
-        a real, pipeline-detected conflict (test_scenario_4). A
-        dedicated standalone contradiction fixture beyond dark-factory
-        was not authored separately.
-    - id: K-007
-      title: Secret fixtures
-      note: >-
-        Not authored as a new fixture; AS-MVP-001's non-leakage test
-        reuses the existing certified adversarial-project fixture
-        (instruction-bearing.md, canary-bearing.md) to prove zero
-        leakage into portfolio outputs, which exercises the same
-        quarantine boundary a dedicated secret fixture would.
+  # HISTORICAL BASELINE ONLY -- status of K-004 through K-007 at the
+  # original implementation-freeze candidate (architecture_commit /
+  # base_commit da04bd3156e87d2cd7acf15ed8d43f4529a02d20), retained
+  # verbatim as verification context. This is NOT current status; it was
+  # superseded by the release-closure remediation ending at evidence tip
+  # 6e56fbe13732dc7e9519129c8672770f6c70c980. See
+  # `current_epic_k_status` below for the one authoritative current-state
+  # mapping.
+  not_implemented_items_at_implementation_freeze:
+    baseline_candidate: da04bd3156e87d2cd7acf15ed8d43f4529a02d20
+    superseded_by: 6e56fbe13732dc7e9519129c8672770f6c70c980
+    current_status_authoritative: false
+    items:
+      - id: K-004
+        title: Expected manifests
+        note: >-
+          Not authored as separate committed golden files in this package;
+          the acceptance tests instead assert directly against freshly
+          computed pipeline output (equivalent coverage, less golden-file
+          maintenance). Recommended follow-up if byte-for-byte golden
+          manifests are required by a future release-closure gate.
+      - id: K-005
+        title: Expected generated vault
+        note: same rationale as K-004
+      - id: K-006
+        title: Contradiction fixtures
+        note: >-
+          Partially covered: dark-factory's two "roadmap:" claims produce
+          a real, pipeline-detected conflict (test_scenario_4). A
+          dedicated standalone contradiction fixture beyond dark-factory
+          was not authored separately.
+      - id: K-007
+        title: Secret fixtures
+        note: >-
+          Not authored as a new fixture; AS-MVP-001's non-leakage test
+          reuses the existing certified adversarial-project fixture
+          (instruction-bearing.md, canary-bearing.md) to prove zero
+          leakage into portfolio outputs, which exercises the same
+          quarantine boundary a dedicated secret fixture would.
 
 outputs:
   - generated/portfolio/overview.json
@@ -190,16 +206,84 @@ merge_authorized: false
 known_limitations:
   - maturity_matrix always reports "unknown" today because no existing
     rule populates ConceptRecord.maturity (CORE-MODEL-001, separate
-    backlog item, out of scope here)
+    backlog item, out of scope here) -- still accurate as of the current
+    evidence tip; not addressed by release-closure remediation.
   - capability_report is correctly empty for all three pilots; not
     exercised with real Capability-typed concept data (same root cause)
-  - stale_knowledge relies on sources/manifests/source-manifest.json,
-    which is overwritten (not merged) per ingest call; accurate only
-    for a single combined discover+ingest across all projects in one
-    vault (which is how this package's own workflow and tests use it)
-  - K-004/K-005 golden fixtures were not authored as separate committed
-    files; acceptance tests assert against freshly computed pipeline
-    output instead
+    -- still accurate as of the current evidence tip.
+  - >-
+    stale_knowledge relies on sources/manifests/source-manifest.json,
+    which is overwritten (not merged) by a later, narrower `atlas
+    ingest` batch; accurate only for a single combined discover+ingest
+    across all projects in one vault (which is how this package's own
+    workflow and tests use it). This ingestion.py behavior itself was
+    NOT fixed by release-closure remediation (out of AS-MVP-001-R1's
+    allowed paths; owner-accepted as a non-MVP workflow limitation --
+    see `release_closure_remediation.multi_batch_manifest_disposition`
+    below). The only in-scope change was a portfolio.py mitigation:
+    overview.json now reports "unknown" (never a fabricated 0) for a
+    project whose sources fell out of a truncated manifest.
+  - >-
+    _promote() (ingestion.py, shared with other certified packages)
+    writes each destination file atomically on its own (temp file +
+    os.replace) but provides no cross-file transaction: a failure
+    isolated to one specific file partway through a multi-file write
+    plan can leave a mix of newly-written and stale files. Not fixed
+    here (out of allowed paths); see
+    `release_closure_remediation.rollback_test_strengthening` below for
+    the precise scope of what was, and was not, proven.
+  - >-
+    RESOLVED by release-closure remediation (no longer a current
+    limitation): the K-004/K-005 golden-fixture gap described here at
+    the original da04bd3 implementation freeze was closed by the
+    release-closure remediation ending at evidence tip
+    6e56fbe13732dc7e9519129c8672770f6c70c980. See
+    `current_epic_k_status` below for the current, authoritative K-004
+    through K-007 status and its concrete fixture/test evidence.
+
+# Current, authoritative Epic K status. This is the ONLY current-state
+# mapping for K-004 through K-007 in this receipt; `epic_k`'s
+# `not_implemented_items_at_implementation_freeze` above is historical
+# baseline context only (current_status_authoritative: false) and does
+# not contradict this section.
+current_epic_k_status:
+  as_of_candidate: 6e56fbe13732dc7e9519129c8672770f6c70c980
+  K-004:
+    status: implemented
+    evidence:
+      fixture: tests/fixtures/expected/manifests/pilots-manifest.json
+      test: tests/integration/test_as_mvp_001_release_closure.py::test_k004_discovery_manifest_matches_golden_fixture
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
+  K-005:
+    status: implemented
+    evidence:
+      fixtures:
+        - tests/fixtures/expected/portfolio/overview.json
+        - tests/fixtures/expected/portfolio/maturity-matrix.json
+        - tests/fixtures/expected/portfolio/documentation-coverage.json
+        - tests/fixtures/expected/portfolio/stale-knowledge.json
+        - tests/fixtures/expected/portfolio/dependency-report.json
+        - tests/fixtures/expected/portfolio/capability-report.json
+        - tests/fixtures/expected/portfolio/portfolio-overview.md
+      tests:
+        - tests/integration/test_as_mvp_001_release_closure.py::test_k005_portfolio_outputs_match_golden_fixtures
+        - tests/integration/test_as_mvp_001_release_closure.py::test_k005_settled_rebuild_is_byte_identical_to_golden_state
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
+  K-006:
+    status: implemented
+    evidence:
+      approach: >-
+        Per ADR-005's own explicit design ("reuse the dark-factory
+        project for conflicts"); no second conflict model or redundant
+        fourth contradiction project was introduced.
+      test: tests/integration/test_as_mvp_001_release_closure.py::test_k006_contradiction_handling_full_checklist
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
+  K-007:
+    status: implemented
+    evidence:
+      fixture_project: tests/fixtures/k007-canary-secrets/
+      test: tests/integration/test_as_mvp_001_release_closure.py::test_k007_dedicated_secret_fixture_never_leaks
+      commit: fe033655d02b244ed19c9d4c59afd1040c5654c9
 
 remediation:
   id: AS-MVP-001-R1
