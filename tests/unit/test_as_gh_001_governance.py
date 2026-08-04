@@ -204,14 +204,38 @@ def test_every_third_party_action_is_pinned_to_a_full_commit_sha() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_every_workflow_declares_explicit_least_privilege_permissions() -> None:
+_APPROVED_PERMISSIONS_MAP = {"contents": "read"}
+
+
+def _assert_exact_approved_permissions(path: Path, scope: str, permissions: Any) -> None:
+    """Every governed workflow/job in this repository is approved for
+    exactly ``{"contents": "read"}`` -- no additional permission keys,
+    no write permission of any kind, no ``id-token: write``, and no
+    implicit broad grant such as the string form ``"read-all"`` (which
+    grants read on every scope, not just contents, and is therefore
+    NOT least privilege). Any workflow that genuinely needs a broader
+    or different permission map must get its own explicitly-approved
+    entry here, evidenced by a real necessity finding -- this test does
+    not, and cannot, validate live GitHub branch-protection settings."""
+    assert isinstance(permissions, dict), (
+        f"{path} ({scope}): permissions must be an explicit mapping, not {permissions!r} "
+        "(the string forms 'read-all'/'write-all' grant every scope and are never approved)"
+    )
+    assert permissions == _APPROVED_PERMISSIONS_MAP, (
+        f"{path} ({scope}): permissions must be exactly {_APPROVED_PERMISSIONS_MAP!r}, "
+        f"found {permissions!r} -- no additional keys, no write permission, and no "
+        "id-token permission are approved for this repository's governed workflows"
+    )
+
+
+def test_every_workflow_declares_exact_approved_permission_map() -> None:
     for path in _workflow_files():
         config = _load_yaml_no_duplicates(path)
         assert "permissions" in config, f"{path}: missing a top-level 'permissions' block"
-        permissions = config["permissions"]
-        assert permissions == {"contents": "read"} or permissions == "read-all" or (
-            isinstance(permissions, dict) and permissions.get("contents") == "read"
-        ), f"{path}: permissions must be read-only unless explicitly justified: {permissions!r}"
+        _assert_exact_approved_permissions(path, "workflow-level", config["permissions"])
+        for job_id, job in config.get("jobs", {}).items():
+            if "permissions" in job:
+                _assert_exact_approved_permissions(path, f"job {job_id!r}", job["permissions"])
 
 
 def test_no_workflow_uses_pull_request_target() -> None:
