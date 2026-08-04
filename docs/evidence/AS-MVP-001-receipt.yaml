@@ -200,3 +200,121 @@ known_limitations:
   - K-004/K-005 golden fixtures were not authored as separate committed
     files; acceptance tests assert against freshly computed pipeline
     output instead
+
+remediation:
+  id: AS-MVP-001-R1
+  title: Relationship and capability edge-case hardening
+  base_commit: da04bd3156e87d2cd7acf15ed8d43f4529a02d20
+  branch: fix/as-mvp-001-r1-relation-edge-tests
+  source:
+    prototype_b_reviewed: false
+    prototype_b_commits_available: false
+    prototype_b_note: >-
+      The two Prototype B commit hashes referenced in the R1 directive
+      (8e8687ee5eaaf891be5c5fd422ee0400a6ca9a3b,
+      9161d0b0310a803019fa5e4cf8d9e4a0ffe3013f) do not exist anywhere in
+      this repository, any local worktree, or the reflog. Per explicit
+      authorization, R1 proceeded directly from ADR-005 and the
+      authoritative da04bd3... implementation without Prototype B input;
+      no Prototype B implementation or API was reviewed, reused, or
+      reconstructed.
+    prototype_commits_merged: false
+  edge_cases:
+    circular_dependencies:
+      status: already-passing
+      test: test_circular_dependency_does_not_crash_and_is_deterministic
+      note: >-
+        dependency_report() is a pure, non-recursive aggregation over
+        each project's own declared relationships; A->B / B->A entries
+        are reported independently per project with no traversal, so a
+        cycle cannot cause recursion failure or corruption. Verified.
+    self_references:
+      status: already-passing
+      test: test_self_reference_is_reported_explicitly_and_deterministically
+      note: >-
+        ADR-005 defines no distinct self-reference policy. A->A is
+        surfaced as-is (target equals the declaring concept's own id),
+        citing the concept, deterministically. No silent drop, no
+        fabricated "valid dependency" relabeling beyond what any other
+        declared relationship already receives.
+    duplicate_relationships:
+      status: production-fix-required
+      test: test_duplicate_identical_relationship_is_not_reported_twice
+      fix: >-
+        Added _dedupe_entries() in portfolio.py; dependency_report() and
+        capability_report() now drop byte-for-byte-identical entries
+        (same concept_id/target/type, or same claim_id) before sorting.
+        Distinct entries -- e.g. two claims with different claim_id
+        asserting the same target -- are never merged.
+    invalid_targets:
+      status: already-passing
+      test: test_dependency_on_missing_target_project_is_reported_not_fabricated
+      note: >-
+        Relationship.target is documented (domain/relationships.py) as
+        "a vault-relative path or concept ID", not guaranteed to resolve
+        to an existing project. portfolio.py never asserts or implies
+        target resolvability; a target with no matching project is
+        carried through as an opaque, cited string with no crash and no
+        implied validity.
+    shuffled_input:
+      status: production-fix-required
+      test: >-
+        test_dependency_report_is_order_independent_under_tied_sort_keys,
+        test_capability_report_provides_is_order_independent_under_tied_sort_keys
+      fix: >-
+        dependency_report()'s and capability_report()'s sort keys added
+        concept_id (and relationship_type for dependencies) as explicit
+        tiebreakers, so entries that tie on (target, claim_id) no longer
+        depend on Python's stable-sort input order when the underlying
+        concepts list order changes (e.g. two different concepts
+        declaring a relationship to the same target).
+    shared_capability_providers:
+      status: already-passing-unsupported-cross-project-semantics
+      test: test_shared_capability_provider_across_projects_is_independent_per_project
+      note: >-
+        The canonical model has no dedicated "shared provider" record;
+        two projects independently declaring "provides" to the same
+        target string are reported correctly and independently in their
+        own project's capability-report.json entry. No cross-project
+        merge or inference from target-string equality was added or
+        attempted (ADR-005 explicitly rejects prose/name-based
+        inference); this remains out of scope pending a canonical model
+        extension, not implemented here.
+    capability_deduplication:
+      status: production-fix-required
+      test: test_duplicate_capability_concepts_are_not_reported_twice
+      fix: same _dedupe_entries() fix as duplicate_relationships, applied to
+        capability_report()'s capabilities and provides lists.
+  production_changes_required: true
+  production_files_changed:
+    - src/project_atlas/portfolio.py
+  tests_added:
+    file: tests/unit/test_as_mvp_001_relationship_edges.py
+    count: 11
+  validation:
+    focused_edge_tests: "11 passed, 0 failed"
+    portfolio_integration: "12 passed, 0 failed (unchanged from pre-R1 baseline)"
+    core: "268 passed, 0 failed (257 pre-R1 + 11 new AS-MVP-001-R1 tests)"
+    control_plane: "146 passed, 0 failed"
+    as_sec_001_regression: "16 passed, 0 failed"
+    fuzz: "generated=218 executed=218 skipped=0 failures=0 false_positives=0 exceptions=0"
+    mypy: "clean, 36 source files"
+    ruff: clean
+    compilation: clean (src and atlas-vault-documentation)
+    public_workflow: >-
+      Exercised via tests/integration/test_as_mvp_001_portfolio.py's
+      _run_pipeline() (init -> discover -> ingest -> build-indexes ->
+      build-portfolio -> validate) against all three pilots; unchanged
+      pilot expectations, all 12 scenarios pass.
+    determinism: >-
+      test_scenario_8_deterministic_settled_rebuild (two build_portfolio()
+      calls, same reference_date, byte-identical output) continues to
+      pass; the new order-independence tests additionally prove
+      dependency-report.json/capability-report.json are byte-identical
+      across shuffled concept-list input orderings, not just repeated
+      runs of the same input order.
+  prototype_b_merged: false
+  adr_005_reopened: false
+  historical_commits_rewritten: false
+  fabricated_attestations_created: false
+  merge_to_main_authorized: false

@@ -2525,3 +2525,103 @@ VERIFICATION REQUIRED**
 **NEXT AGENT: AGENT TWO — AS-MVP-001 INDEPENDENT VERIFICATION**
 **NEXT PHASE: INDEPENDENT VERIFICATION OF ARCHITECTURE COMPLIANCE, CANONICAL-STATE INTEGRITY, DETERMINISM, SECURITY NON-LEAKAGE, AND REGRESSION SUITES**
 **NEXT DIRECTIVE: VERIFY FROM A FRESH EXT4 CLONE OF `feat/as-mvp-001-portfolio-pilots`; MERGE REMAINS UNAUTHORIZED PENDING OWNER REVIEW**
+
+## AS-MVP-001-R1 — Relationship and capability edge-case hardening
+
+Bounded remediation inside the AS-MVP-001 release candidate, branched
+from the frozen `da04bd3156e87d2cd7acf15ed8d43f4529a02d20` implementation
+tip (worktree `/mnt/d/project-atlas-as-mvp-001-r1`, branch
+`fix/as-mvp-001-r1-relation-edge-tests`). Scope: review and port only the
+*useful* edge cases raised by an external "Prototype B" review into
+Agent One's ADR-005-compliant `portfolio.py`, test-first, with
+production changes only where a required test genuinely failed.
+
+**Prototype B was not available.** The two commit hashes cited in the
+R1 directive (`8e8687ee...`, `9161d0b0...`) do not resolve in this
+repository, any of the ~30 other `/mnt/d/project-atlas-*` worktrees, or
+the reflog. Per explicit authorization, R1 proceeded directly from
+ADR-005 and the authoritative implementation, without reconstructing or
+inferring a Prototype B API. No Prototype B implementation or interface
+was reused; `src/project_atlas/portfolio.py` remains the sole
+authoritative portfolio module (no competing package structure was
+introduced).
+
+Added `tests/unit/test_as_mvp_001_relationship_edges.py` (11 tests)
+exercising `dependency_report()` and `capability_report()` directly over
+hand-built `state/concepts/*.json` / `state/claims/*.json` fixtures — the
+same on-disk shape `knowledge_compiler.py` already writes — covering:
+circular dependencies (A->B->A), self-reference (A->A), duplicate
+identical relationships, duplicate relations with distinct provenance
+(different claim_id), a dependency on a target with no matching project,
+shuffled relationship/concept input order, two projects independently
+declaring a `provides` relationship to the same target string, duplicate
+capability concepts, shuffled capability input order, and empty
+relationship/capability collections.
+
+Run against the unmodified baseline first (test-first): 4 of the 10
+edge-case behaviors already passed with no code change needed (circular
+dependencies, self-reference, invalid targets, and shared cross-project
+capability providers — the last of which has no canonical "shared
+provider" model to test against, so the test only proves the two
+projects are reported correctly and independently, without inventing
+cross-project inference). 4 behaviors required a production fix:
+duplicate identical relationships/capabilities were reported twice
+instead of once, and `dependency_report()`/`capability_report()`'s sort
+keys tied on `(target, claim_id)` alone, so two distinct concepts
+declaring a relationship to the same target could silently reorder
+relative to each other if the underlying concepts list order changed —
+a real (if narrow) determinism gap, not merely a hypothetical one.
+
+**Production fix** (`src/project_atlas/portfolio.py`, both functions):
+added `_dedupe_entries()` (drops byte-for-byte-identical entries,
+never merges entries that differ by any field such as `claim_id`), and
+extended both functions' sort keys with `concept_id` (and
+`relationship_type` for dependencies) as explicit deterministic
+tiebreakers.
+
+**Regression** (worktree `/mnt/d/project-atlas-as-mvp-001-r1`):
+
+- New focused edge tests: **11 passed, 0 failed**
+- Portfolio integration (`test_as_mvp_001_portfolio.py`): **12 passed,
+  0 failed** — unchanged from the pre-R1 baseline; none of the 10
+  ADR-005 acceptance scenarios, the security non-leakage test, or the
+  rollback test were affected by the dedup/tiebreak fix.
+- Core: **268 passed, 0 failed** (257 pre-R1 + 11 new)
+- Control Plane: **146 passed, 0 failed**
+- Security integration (`test_as_sec_001_quarantine_boundary.py`):
+  **16 passed**
+- Fuzz (`test_quarantine_fuzz.py`): generated=218 executed=218
+  skipped=0 failures=0 false_positives=0 exceptions=0
+- mypy: clean, 36 source files
+- ruff: clean
+- compileall (`src` and `atlas-vault-documentation`): clean
+- Public workflow (`init -> discover -> ingest -> build-indexes ->
+  build-portfolio -> validate`) against all three pilots: exercised via
+  the portfolio integration suite's `_run_pipeline()`; unchanged pilot
+  expectations, all scenarios pass.
+- Determinism: `test_scenario_8_deterministic_settled_rebuild` (two
+  settled `build_portfolio()` runs, byte-identical) continues to pass;
+  the new order-independence tests additionally prove
+  `dependency-report.json`/`capability-report.json` are byte-identical
+  across *shuffled* concept-list input orderings, not only across
+  repeated runs of the same input order.
+
+Full detail recorded in `docs/evidence/AS-MVP-001-receipt.yaml`'s new
+`remediation:` (`AS-MVP-001-R1`) section, including per-edge-case
+disposition (already-passing vs. production-fix-required vs.
+unsupported-cross-project-semantics).
+
+**PROTOTYPE B COMMITS MERGED: NO**
+**ADR-005 REOPENED: NO**
+**MERGE TO MAIN AUTHORIZED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FABRICATED ATTESTATIONS CREATED: NO**
+
+**AS-MVP-001-R1 REMEDIATION COMPLETE AND FROZEN — FULL INDEPENDENT
+VERIFICATION REQUIRED**
+
+**NEXT AGENT: AGENT TWO — FULL INDEPENDENT VERIFICATION**
+**NEXT PHASE: VERIFY AS-MVP-001 INCLUDING R1 EDGE-CASE HARDENING**
+**NEXT DIRECTIVE: USE THE NEW R1 EVIDENCE TIP ON
+`fix/as-mvp-001-r1-relation-edge-tests`, WORKTREE
+`/mnt/d/project-atlas-as-mvp-001-r1`**
