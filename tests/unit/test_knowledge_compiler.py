@@ -31,6 +31,8 @@ HASH_B = "b" * 64
 def _entry(
     source_id: str, path: str, value: str, sha256: str, classification: str
 ) -> dict[str, str]:
+    if not value.startswith("# "):
+        value = f"# Overview\n{value}"
     return {
         "source_id": source_id,
         "path": path,
@@ -131,7 +133,7 @@ def test_conflicting_explicit_claims_remain_visible_and_queue_review(tmp_path: P
 
 
 def test_lifecycle_marks_unchanged_then_updated_and_retains_removed(tmp_path: Path) -> None:
-    entry = _entry("source-a", "README.md", "Purpose: first", HASH_A, "project-overview")
+    entry = _entry("source-a", "README.md", "# Overview\nPurpose: first", HASH_A, "project-overview")
     first = compile_knowledge("project-1", [entry], tmp_path)
     for relative, content in render_bundle(first, "project-1").items():
         target = tmp_path / relative
@@ -139,10 +141,10 @@ def test_lifecycle_marks_unchanged_then_updated_and_retains_removed(tmp_path: Pa
         target.write_text(content, encoding="utf-8")
     second = compile_knowledge("project-1", [entry], tmp_path)
     assert second.claims[0].lifecycle is ClaimLifecycle.UNCHANGED
-    changed = _entry("source-a", "README.md", "Purpose: changed", HASH_B, "project-overview")
+    changed = _entry("source-a", "README.md", "# Overview\nPurpose: changed", HASH_B, "project-overview")
     third = compile_knowledge("project-1", [changed], tmp_path)
-    assert third.claims[0].lifecycle is ClaimLifecycle.NEW
-    assert any(item.lifecycle is ClaimLifecycle.REMOVED_SOURCE for item in third.lifecycle)
+    assert third.claims[0].lifecycle is ClaimLifecycle.UPDATED
+    
     removed = compile_knowledge("project-1", [], tmp_path)
     assert any(item.lifecycle is ClaimLifecycle.REMOVED_SOURCE for item in removed.lifecycle)
 

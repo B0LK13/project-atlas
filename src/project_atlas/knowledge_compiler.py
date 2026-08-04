@@ -339,8 +339,10 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
                         locator = f"heading:{heading_id_match.group(1).strip()}"
                     else:
                         locator = f"heading:{_slug(current_heading)}"
+                elif str(entry.get("path")).endswith(".atlas-project.yaml"):
+                    locator = "schema:project-manifest"
                 else:
-                    raise ValueError("Locator normalization failed: No stable locator found. Explicit ID required.")
+                    raise ValueError(f"Locator normalization failed: No stable locator found. Explicit ID required. path={entry.get('path')} class={entry.get('classification')} line={line}")
 
                 claims.append(
                     _claim(project, entry, claim_type, field, claim_value, locator)
@@ -368,8 +370,10 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
                         locator = f"heading:{heading_id_match.group(1).strip()}"
                     else:
                         locator = f"heading:{_slug(current_heading)}"
+                elif str(entry.get("path")).endswith(".atlas-project.yaml"):
+                    locator = "schema:project-manifest"
                 else:
-                    raise ValueError("Locator normalization failed: No stable locator found. Explicit ID required.")
+                    raise ValueError(f"Locator normalization failed: No stable locator found. Explicit ID required. path={entry.get('path')} class={entry.get('classification')} line={line}")
                     
                 claims.append(
                     _claim(

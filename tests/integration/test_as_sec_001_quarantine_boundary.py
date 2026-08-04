@@ -251,7 +251,7 @@ def test_claim_values_are_rendered_as_quoted_literals(tmp_path: Path) -> None:
         "classification": "project-overview",
         "source": "sources/imported-documents/source-quote.md",
         "sha256": "0" * 64,
-        "text": "Purpose: render safely.",
+        "text": "# Overview\nPurpose: render safely.",
     }
     rendered = render_bundle(compile_knowledge("quote-project", [entry], tmp_path), "quote-project")
     claims_md = rendered["projects/quote-project/claims.md"]

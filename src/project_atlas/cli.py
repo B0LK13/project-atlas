@@ -91,12 +91,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate_parser.add_argument("--vault", type=Path, required=True)
 
-    migrate_parser = subparsers.add_parser(
-        "migrate-v2", help="Migrate claims to v2 semantic-locator identity (AS-CORE-003)."
-    )
-    migrate_parser.add_argument("--vault", type=Path, required=True)
-    migrate_parser.add_argument("--project-id", type=str, required=True)
-
     init_parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -210,20 +204,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _log.error("validation: %s", error)
             return EXIT_ERROR
         print(f"validated {result['markdown_files']} Markdown files")
-        return EXIT_OK
-
-    if args.command == "migrate-v2":
-        try:
-            from project_atlas.migrations.claim_v2_migration import migrate_v2
-            result = migrate_v2(args.vault, args.project_id)
-        except (OSError, ValueError, RuntimeError) as exc:
-            _log.error("migrate-v2 failed: %s", exc)
-            return EXIT_ERROR
-        print(f"migration status: {result['status']}")
-        if "migrated_claims" in result:
-            print(f"migrated claims: {result['migrated_claims']}")
-        if "receipt" in result:
-            print(f"receipt: {result['receipt']}")
         return EXIT_OK
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces

@@ -209,7 +209,7 @@ def test_scenario_9_incremental_change_is_bounded(tmp_path: Path) -> None:
     }
     # Add a new architecture document to black-agency-os only.
     (source / "black-agency-os" / "ARCHITECTURE.md").write_text(
-        "Black Agency OS now has one architecture note.\n", encoding="utf-8"
+        "# Overview\nBlack Agency OS now has one architecture note.\n", encoding="utf-8"
     )
     vault2 = _run_pipeline(source, tmp_path / "second")
     build_portfolio(vault2, reference_date=reference)
