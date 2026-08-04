@@ -1,0 +1,14 @@
+# CODEOWNERS
+#
+# Ownership and routing metadata only. This repository currently has
+# exactly one collaborator (B0LK13), so CODEOWNERS is NOT used as an
+# independently satisfiable approval requirement here: "Require review
+# from Code Owners" is intentionally left OFF in branch protection
+# (docs/adr/ADR-006-github-repository-governance-baseline.md), because
+# turning it on with a single eligible reviewer who cannot approve their
+# own pull request would recreate the documented merge lockout. This file
+# provides routing/ownership visibility only, not an enforced gate, until
+# a second trusted collaborator exists and that setting is deliberately
+# reconsidered.
+
+* @B0LK13
