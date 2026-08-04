@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=6.0",
     "ruff>=0.5",
     "mypy>=1.10",
     "types-PyYAML>=6.0",
@@ -34,7 +35,7 @@ atlas_contracts = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --cov=project_atlas --cov-report=term-missing --cov-report=xml --no-cov-on-fail"
 markers = [
     "integration: end-to-end and cross-component tests",
 ]

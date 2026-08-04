@@ -40,8 +40,13 @@ jobs:
       - name: Mypy
         run: python -m mypy src
 
-      - name: Pytest
+      - name: Pytest with coverage
         run: python -m pytest
+
+      - name: Coverage report available
+        run: |
+          test -f coverage.xml && echo "coverage.xml generated"
+          echo "Coverage threshold: none (baseline only)"
 
       - name: CLI smoke (AT-001 scaffold contract)
         run: |
