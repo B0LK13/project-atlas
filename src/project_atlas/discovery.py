@@ -17,9 +17,14 @@ from atlas_contracts.event_package import EventPackageInventory, inspect_event_p
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import ClassificationState
 from project_atlas.quarantine import scan_identifier
-from project_atlas.source_identity import canonicalize_project_path, validate_project_uuid
+from project_atlas.source_identity import (
+    TEXT_SOURCE_EXTENSIONS,
+    canonical_source_sha256,
+    canonicalize_project_path,
+    validate_project_uuid,
+)
 
-SUPPORTED_EXTENSIONS = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".html"}
+SUPPORTED_EXTENSIONS = TEXT_SOURCE_EXTENSIONS
 SENSITIVE_NAMES = {".env", "credentials.json", "secrets.pem", "id_rsa", "id_ed25519"}
 DEFAULT_EXCLUDES = {
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
@@ -28,11 +33,8 @@ DEFAULT_EXCLUDES = {
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    """Return the streaming canonical SHA-256 of a source file."""
+    return canonical_source_sha256(path)
 
 
 def _project_context(path: Path, root: Path) -> tuple[str | None, str | None]:

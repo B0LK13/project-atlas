@@ -13,7 +13,7 @@
       "path": "black-agency-os/.atlas-project.yaml",
       "project_uuid": "d7d87859-33bb-4184-bd31-b21a5eca4ba6",
       "repository": null,
-      "sha256": "e3e32a4de47c0c99f87e99bab491a96f4b1c175a76f3c5754f7c5b7d62ed2a2a",
+      "sha256": "efb7a8c13270be08c97cd9bea7106d82c324b10c7744f242727097ac67c020be",
       "size_bytes": 129,
       "source_id": "source-f957a8696c944439",
       "source_lineage_id": null
@@ -43,7 +43,7 @@
       "path": "dark-factory/.atlas-project.yaml",
       "project_uuid": "9dd2dfe1-a757-4a58-962b-02c900c31891",
       "repository": null,
-      "sha256": "e9037c849bf8f57fde6c1f8abf6448dff043d422d3c5b27362f1e8028d860f7d",
+      "sha256": "bb69446584fb5e0cb8126711c140eab54c202457416d92e94ee0eca1383d8fad",
       "size_bytes": 123,
       "source_id": "source-6c2c2750b90ec80e",
       "source_lineage_id": null
@@ -103,7 +103,7 @@
       "path": "nebula/.atlas-project.yaml",
       "project_uuid": "dde3eba3-3655-45da-b3aa-45c5cddcc28e",
       "repository": null,
-      "sha256": "b59b9f6da8dfd472073af0f6acd67f128d4909f6377a9f1544ed4392eea608b5",
+      "sha256": "9008ef1dc48c1b38761c8041657c5e99cfbc31f3cbba98c93f8a01e7dd13ae0f",
       "size_bytes": 111,
       "source_id": "source-cba361415ae9c90e",
       "source_lineage_id": null

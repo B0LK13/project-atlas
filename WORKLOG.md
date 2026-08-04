@@ -3031,3 +3031,68 @@ FOCUSED INDEPENDENT REVERIFICATION REQUIRED**
 **FINAL CERTIFICATION ISSUED: NO**
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FABRICATED ATTESTATIONS CREATED: NO**
+
+---
+
+## AS-CORE-003 — Claim Identity v2 candidate V2-003 stabilization
+
+**Date:** 2026-08-04
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+**Iteration base:** `d356b7ad1bbc06e08279fe5a57915cdc9ea2f841`
+
+Repository reconstruction confirmed that candidate V2-002 was still the branch
+tip while an inherited, uncommitted V2-003 remediation existed in the primary
+worktree. No Git lock, merge, rebase, cherry-pick, or bisect state was active.
+The inherited changes were preserved and treated as the sole active work package.
+
+The first declared baseline could not collect tests because `pytest-cov` and
+`types-PyYAML` were absent from the active Python 3.13 environment. After
+installing the repository-declared `.[dev]` dependencies, the inherited code
+produced 34 integration failures. The cause was a split hash contract:
+discovery normalized CRLF to LF while ingestion compared the same source using
+a raw-byte hash. On Windows this withheld the `.atlas-project.yaml` evidence
+projection and broke provenance across the real pipeline.
+
+Stabilization introduced one streaming canonical source-hash implementation in
+`project_atlas.source_identity`, including correct handling when a CRLF pair is
+split across one-megabyte chunks. Discovery, ingestion, and validation now use
+that same boundary; binary content remains byte-exact. The in-memory `read_bytes`
+implementation was removed to preserve NFR-005.
+
+The Claim Identity v2 rule-parity change was also tightened. The compiler and
+migration now consume the same `extract_claims` implementation. The prior parity
+test had called that same helper twice and therefore did not prove integration;
+the replacement compares actual compiler claims against actual migration
+candidates, including IDs, types, fields, and locators. The OCC regression now
+also proves external-state preservation, no partial or temporary promotion,
+lock release, and byte-identical replay after a clean retry converges.
+
+Final local candidate gates passed on Windows / Python 3.13.14:
+
+- `python -m ruff check .` — clean.
+- `python -m mypy src` — 39 source files clean.
+- `python -m pytest -p no:cacheprovider --tb=no` — 307 passed, 1 skipped, 91% coverage.
+- `python -m pytest -p no:cacheprovider -m integration --tb=no` — 106 passed, 1 skipped, 201 deselected, 88% coverage.
+- `python -m compileall -q src tests` — clean.
+- CI-equivalent `atlas --help`, `atlas version`, dry-run scaffold, real scaffold,
+  and required-file checks — all exit 0.
+
+All 14 integration modules were inspected. Every module uses a real temporary
+filesystem; 11 exercise a multi-component Atlas pipeline, three exercise
+functional CLI, Git-history, or migration boundaries, and only the OCC module
+uses a single transaction-seam mock. The integration marker is therefore
+meaningful rather than directory-only labeling.
+
+Historical candidates V2-001 and V2-002 and their receipts remain unchanged.
+V2-003 requires an immutable new tag, isolated technical review, remote CI, and
+Project Owner merge authorization.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: YES**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**

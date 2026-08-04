@@ -36,6 +36,7 @@ from project_atlas.semantic_compiler import compile_project_record, render_proje
 from project_atlas.source_identity import (
     ProjectIdentityLock,
     ProjectUuidProvider,
+    canonical_source_sha256,
     production_project_uuid,
     validate_project_uuid,
 )
@@ -652,7 +653,7 @@ def _ingest(
         classifications[source_id] = {"type": classification, "method": method}
         projects.setdefault(project, []).append(entry)
         source_bytes = source.read_bytes()
-        manifest_hash = hashlib.sha256(source_bytes).hexdigest()
+        manifest_hash = canonical_source_sha256(source)
         # A project-UUID allocation may update the marker after discovery.  Do
         # not copy that stale-manifest mutation as a source observation; the
         # next discovery will carry the authoritative hash.

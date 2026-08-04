@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -12,6 +11,15 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from project_atlas.claim_identity import (
+    UnresolvedLocatorError,
+    _digest,
+    _slug,
+    canonical_identity_key,
+    claim_id_from_key,
+    extract_claims,
+    resolve_locator,
+)
 from project_atlas.domain import (
     AuthorityLevel,
     AuthorityRecord,
@@ -39,52 +47,6 @@ from project_atlas.okf_renderer import render_concept_note
 from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
 
-_TOKEN = re.compile(r"[^a-z0-9]+")
-_LINE_RULES: tuple[tuple[ClaimType, str, re.Pattern[str]], ...] = (
-    (
-        ClaimType.PROJECT_PURPOSE,
-        "purpose",
-        re.compile(r"^(?:project\s+)?purpose\s*:\s*(.+)$", re.I),
-    ),
-    (
-        ClaimType.RUNTIME_DEPENDENCY,
-        "runtime",
-        re.compile(r"^(?:requires|runtime|dependency)\s*:\s*(.+)$", re.I),
-    ),
-    (
-        ClaimType.DEPLOYMENT_TARGET,
-        "deployment",
-        re.compile(
-            r"^(?:deployment(?:\s+target)?|deploy(?:ed|ment)?\s+target|target)\s*:\s*(.+)$", re.I
-        ),
-    ),
-    (
-        ClaimType.SETUP_REQUIREMENT,
-        "setup",
-        re.compile(r"^(?:setup|install(?:ation)?|requirement)\s*:\s*(.+)$", re.I),
-    ),
-    (
-        ClaimType.TEST_RESULT,
-        "validation",
-        re.compile(r"^(?:test|validation|acceptance)\s*(?:result|status)?\s*:\s*(.+)$", re.I),
-    ),
-    (ClaimType.ROADMAP_STATUS, "roadmap", re.compile(r"^(?:roadmap|status)\s*:\s*(.+)$", re.I)),
-    (
-        ClaimType.WORK_PACKAGE_STATUS,
-        "work-package",
-        re.compile(r"^(?:work[- ]package)\s*:\s*(.+)$", re.I),
-    ),
-    (ClaimType.DECISION, "decision", re.compile(r"^(?:decision)\s*:\s*(.+)$", re.I)),
-    (ClaimType.RISK, "risk", re.compile(r"^(?:risk|blocker)\s*:\s*(.+)$", re.I)),
-    (
-        ClaimType.OPERATIONAL_INSTRUCTION,
-        "operations",
-        re.compile(r"^(?:run|operate|command|instruction)\s*:\s*(.+)$", re.I),
-    ),
-)
-_SUPERSESSION_RULE = re.compile(
-    r"^(?:supersedes|replaces)\s*:\s*([A-Za-z0-9][A-Za-z0-9._-]*)$", re.I
-)
 _ALLOWED_LIFECYCLE_TRANSITIONS: dict[ClaimLifecycle, frozenset[ClaimLifecycle]] = {
     ClaimLifecycle.NEW: frozenset(
         {ClaimLifecycle.UNCHANGED, ClaimLifecycle.UPDATED, ClaimLifecycle.CONTRADICTED,
@@ -180,11 +142,6 @@ class KnowledgeBundle:
     preconditions: dict[str, bytes | None]
 
 
-def _slug(value: str) -> str:
-    result = _TOKEN.sub("-", value.lower()).strip("-")
-    return result or "unknown"
-
-
 def _quote_source_text(text: str) -> str:
     """Render untrusted source text as visibly inert Markdown.
 
@@ -229,10 +186,6 @@ def _quote_source_text(text: str) -> str:
     return f"{delimiter}{inline}{delimiter}"
 
 
-def _digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
 def _authority(path: str, classification: str) -> tuple[AuthorityLevel, int, str]:
     if path == ".atlas-project.yaml":
         return AuthorityLevel.PRIMARY, 100, "explicit project manifest"
@@ -273,11 +226,11 @@ def _claim(
     source_lineage_id = entry.get("source_lineage_id")
     source_identity = str(source_lineage_id or source_id)
     project_identity = str(entry.get("project_uuid") or project)
-    
-    identity_key = (
-        f"v2|{project_identity}|{source_identity}|{claim_type.value}|{field}|{locator}"
+
+    identity_key = canonical_identity_key(
+        project_identity, source_identity, claim_type.value, field, locator
     )
-    claim_id = f"claim-{_digest(identity_key)[:20]}"
+    claim_id = claim_id_from_key(identity_key)
     level, _precedence, _reason = _authority(str(entry["path"]), str(entry["classification"]))
     return Claim(
         claim_id=claim_id,
@@ -304,77 +257,56 @@ def _claim(
 
 def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
     text = str(entry.get("text", ""))
-    claims: list[Claim] = []
-    predecessor_id: str | None = None
     schema_key = entry.get("schema_key")
-    current_heading = None
+    is_project_manifest = str(entry.get("path", "")).endswith(".atlas-project.yaml")
+    try:
+        candidates = extract_claims(
+            text,
+            schema_key=str(schema_key) if schema_key else None,
+            is_project_manifest=is_project_manifest,
+            reject_unresolved=True,
+        )
+    except UnresolvedLocatorError as exc:
+        raise ValueError(
+            "Locator normalization failed: No stable locator found. "
+            f"Explicit ID required. path={entry.get('path')} "
+            f"class={entry.get('classification')} line={exc.line}"
+        ) from exc
 
-    for _number, raw_line in enumerate(text.splitlines(), start=1):
-        line = raw_line.strip().lstrip("- ").strip()
-        supersession = _SUPERSESSION_RULE.match(line)
-        if supersession:
-            predecessor_id = supersession.group(1)
-            continue
+    claims: list[Claim] = []
+    for candidate in candidates:
+        claim = _claim(
+            project,
+            entry,
+            ClaimType(str(candidate["claim_type"])),
+            str(candidate["field"]),
+            str(candidate["value"]),
+            str(candidate["locator"]),
+        )
+        predecessor_id = candidate.get("predecessor_id")
+        if predecessor_id:
+            claim = claim.model_copy(update={"predecessor_claim_id": str(predecessor_id)})
+        claims.append(claim)
 
-        if raw_line.startswith("#"):
-            current_heading = raw_line.lstrip("#").strip()
-            continue
-
-        for claim_type, field, pattern in _LINE_RULES:
-            match = pattern.match(line)
-            if match:
-                claim_value = match.group(1)
-                explicit_match = re.search(r'\{#([^}]+)\}', line)
-
-                if explicit_match:
-                    locator = f"id:{explicit_match.group(1).strip()}"
-                    claim_value = claim_value.replace(explicit_match.group(0), "").strip()
-                elif schema_key:
-                    locator = f"schema:{schema_key}"
-                elif current_heading:
-                    heading_id_match = re.search(r'\{#([^}]+)\}', current_heading)
-                    if heading_id_match:
-                        locator = f"heading:{heading_id_match.group(1).strip()}"
-                    else:
-                        locator = f"heading:{_slug(current_heading)}"
-                elif str(entry.get("path")).endswith(".atlas-project.yaml"):
-                    locator = "schema:project-manifest"
-                else:
-                    raise ValueError(
-                        "Locator normalization failed: No stable locator found. "
-                        f"Explicit ID required. path={entry.get('path')} "
-                        f"class={entry.get('classification')} line={line}"
-                    )
-
-                claims.append(
-                    _claim(project, entry, claim_type, field, claim_value, locator)
-                )
-                break
-    if predecessor_id and claims:
-        claims = [
-            claim.model_copy(update={"predecessor_claim_id": predecessor_id})
-            for claim in claims
-        ]
     if str(entry.get("classification")) == "architecture" and not claims:
+        current_heading: str | None = None
+        for raw_line in text.splitlines():
+            if raw_line.startswith("#"):
+                current_heading = raw_line.lstrip("#").strip()
         for _number, raw_line in enumerate(text.splitlines(), start=1):
             line = raw_line.strip()
             if line and not line.startswith("#"):
-                # fallback for architecture classification without lines
-                explicit_match = re.search(r'\{#([^}]+)\}', line)
+                # Fallback for architecture classification without explicit claim lines.
+                explicit_match = re.search(r"\{#([^}]+)\}", line)
                 if explicit_match:
-                    locator = f"id:{explicit_match.group(1).strip()}"
                     line = line.replace(explicit_match.group(0), "").strip()
-                elif schema_key:
-                    locator = f"schema:{schema_key}"
-                elif current_heading:
-                    heading_id_match = re.search(r'\{#([^}]+)\}', current_heading)
-                    if heading_id_match:
-                        locator = f"heading:{heading_id_match.group(1).strip()}"
-                    else:
-                        locator = f"heading:{_slug(current_heading)}"
-                elif str(entry.get("path")).endswith(".atlas-project.yaml"):
-                    locator = "schema:project-manifest"
-                else:
+                locator = resolve_locator(
+                    raw_line,
+                    current_heading,
+                    schema_key=schema_key,
+                    is_project_manifest=is_project_manifest,
+                )
+                if locator is None:
                     raise ValueError(
                         "Locator normalization failed: No stable locator found. "
                         f"Explicit ID required. path={entry.get('path')} "
@@ -382,9 +314,7 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
                     )
 
                 claims.append(
-                    _claim(
-                        project, entry, ClaimType.ARCHITECTURE, "architecture", line, locator
-                    )
+                    _claim(project, entry, ClaimType.ARCHITECTURE, "architecture", line, locator)
                 )
                 break
     return claims
@@ -407,10 +337,10 @@ def _event_claim(project: str, entry: dict[str, Any]) -> Claim:
     source_identity = str(source_lineage_id or source_id)
 
     event_locator = f"event:{event_id}"
-    identity_key = (
-        f"v2|{project}|{source_identity}|{claim_type.value}|{event_type}|{event_locator}"
+    identity_key = canonical_identity_key(
+        project, source_identity, claim_type.value, event_type, event_locator
     )
-    claim_id = f"claim-{_digest(identity_key)[:20]}"
+    claim_id = claim_id_from_key(identity_key)
     
     raw_event_hash = entry.get("sha256") or entry.get("component_sha256")
     if isinstance(raw_event_hash, dict):

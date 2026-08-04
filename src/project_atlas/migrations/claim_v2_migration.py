@@ -8,64 +8,22 @@ audit receipt. Ambiguous mappings are recorded, never silently resolved.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import re
 import subprocess
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from project_atlas.domain.vocabulary import ClaimType
+from project_atlas.claim_identity import (
+    _digest,
+    canonical_identity_key,
+    claim_id_from_key,
+    extract_claims,
+)
 from project_atlas.schema import validate_record
 from project_atlas.source_identity import ProjectIdentityLock
-
-_TOKEN = re.compile(r"[^a-z0-9]+")
-
-_PURPOSE_RE = re.compile(r"^(?:project\s+)?purpose\s*:\s*(.+)$", re.I)
-_RUNTIME_RE = re.compile(r"^(?:requires|runtime|dependency)\s*:\s*(.+)$", re.I)
-_DEPLOY_RE = re.compile(
-    r"^(?:deployment(?:\s+target)?|deploy(?:ed|ment)?\s+target|target)"
-    r"\s*:\s*(.+)$",
-    re.I,
-)
-_SETUP_RE = re.compile(r"^(?:setup|install(?:ation)?|requirement)\s*:\s*(.+)$", re.I)
-_TEST_RE = re.compile(
-    r"^(?:test|validation|acceptance)\s*(?:result|status)?\s*:\s*(.+)$", re.I
-)
-_ROADMAP_RE = re.compile(r"^(?:roadmap|status)\s*:\s*(.+)$", re.I)
-_WORK_PKG_RE = re.compile(r"^(?:work[- ]package)\s*:\s*(.+)$", re.I)
-_DECISION_RE = re.compile(r"^(?:decision)\s*:\s*(.+)$", re.I)
-_RISK_RE = re.compile(r"^(?:risk|blocker)\s*:\s*(.+)$", re.I)
-_OPS_RE = re.compile(r"^(?:run|operate|command|instruction)\s*:\s*(.+)$", re.I)
-
-_LINE_RULES: tuple[tuple[ClaimType, str, re.Pattern[str]], ...] = (
-    (ClaimType.PROJECT_PURPOSE, "purpose", _PURPOSE_RE),
-    (ClaimType.RUNTIME_DEPENDENCY, "runtime", _RUNTIME_RE),
-    (ClaimType.DEPLOYMENT_TARGET, "deployment", _DEPLOY_RE),
-    (ClaimType.SETUP_REQUIREMENT, "setup", _SETUP_RE),
-    (ClaimType.TEST_RESULT, "validation", _TEST_RE),
-    (ClaimType.ROADMAP_STATUS, "roadmap", _ROADMAP_RE),
-    (ClaimType.WORK_PACKAGE_STATUS, "work-package", _WORK_PKG_RE),
-    (ClaimType.DECISION, "decision", _DECISION_RE),
-    (ClaimType.RISK, "risk", _RISK_RE),
-    (ClaimType.OPERATIONAL_INSTRUCTION, "operations", _OPS_RE),
-)
-
-_SUPERSESSION_RULE = re.compile(
-    r"^(?:supersedes|replaces)\s*:\s*([A-Za-z0-9][A-Za-z0-9._-]*)$", re.I
-)
-
-
-def _digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _slug(value: str) -> str:
-    result = _TOKEN.sub("-", value.lower()).strip("-")
-    return result or "unknown"
 
 
 def _run_git(args: list[str], cwd: Path) -> str:
@@ -94,12 +52,10 @@ def _v2_claim_id(
     normalized_field: str,
     stable_semantic_locator: str,
 ) -> str:
-    identity_version = "v2"
-    key = (
-        f"{identity_version}|{project_identity}|{source_lineage_id}|{claim_type}|"
-        f"{normalized_field}|{stable_semantic_locator}"
+    identity_key = canonical_identity_key(
+        project_identity, source_lineage_id, claim_type, normalized_field, stable_semantic_locator
     )
-    return f"claim-{_digest(key)[:20]}"
+    return claim_id_from_key(identity_key)
 
 
 @dataclass(frozen=True)
@@ -115,65 +71,37 @@ class _Candidate:
     source_path: str
 
 
-def _resolve_locator(line: str, current_heading: str | None) -> str | None:
-    explicit_match = re.search(r"\{#([^}]+)\}", line)
-    if explicit_match:
-        return f"id:{explicit_match.group(1).strip()}"
-    if current_heading:
-        heading_id_match = re.search(r"\{#([^}]+)\}", current_heading)
-        if heading_id_match:
-            return f"heading:{heading_id_match.group(1).strip()}"
-        return f"heading:{_slug(current_heading)}"
-    return None
-
-
 def _extract_candidates(
     project_id: str, path_to_lineage: dict[str, str], commit: str, file_path: str, content: str
 ) -> list[_Candidate]:
     candidates: list[_Candidate] = []
     source_id = Path(file_path).stem
     source_lineage_id = path_to_lineage.get(file_path) or source_id
-    current_heading: str | None = None
 
-    for raw_line in content.splitlines():
-        line = raw_line.strip().lstrip("- ").strip()
-        if _SUPERSESSION_RULE.match(line):
-            continue
-        if raw_line.startswith("#"):
-            current_heading = raw_line.lstrip("#").strip()
-            continue
-
-        for claim_type, field, pattern in _LINE_RULES:
-            match = pattern.match(line)
-            if not match:
-                continue
-            claim_value = match.group(1)
-            explicit_match = re.search(r"\{#([^}]+)\}", line)
-            if explicit_match:
-                claim_value = claim_value.replace(explicit_match.group(0), "").strip()
-
-            locator = _resolve_locator(line, current_heading)
-            if locator is None:
-                continue
-
-            v1_id = _v1_claim_id(project_id, source_id, claim_type.value, field, claim_value)
-            v2_id = _v2_claim_id(
-                project_id, source_lineage_id, claim_type.value, field, locator
+    for claim in extract_claims(content):
+        v1_id = _v1_claim_id(
+            project_id, source_id, claim["claim_type"], claim["field"], claim["value"]
+        )
+        v2_id = _v2_claim_id(
+            project_id,
+            source_lineage_id,
+            claim["claim_type"],
+            claim["field"],
+            claim["locator"],
+        )
+        candidates.append(
+            _Candidate(
+                v1_claim_id=v1_id,
+                v2_claim_id=v2_id,
+                project_identity=project_id,
+                source_lineage_id=source_lineage_id,
+                claim_type=claim["claim_type"],
+                field=claim["field"],
+                stable_semantic_locator=claim["locator"],
+                source_commit=commit,
+                source_path=file_path,
             )
-            candidates.append(
-                _Candidate(
-                    v1_claim_id=v1_id,
-                    v2_claim_id=v2_id,
-                    project_identity=project_id,
-                    source_lineage_id=source_lineage_id,
-                    claim_type=claim_type.value,
-                    field=field,
-                    stable_semantic_locator=locator,
-                    source_commit=commit,
-                    source_path=file_path,
-                )
-            )
-            break
+        )
     return candidates
 
 
@@ -277,33 +205,37 @@ def migrate_v2(vault_root: Path, project_id: str) -> dict[str, Any]:
 
         aliases: list[dict[str, Any]] = []
         ambiguous: list[dict[str, Any]] = []
-        seen: dict[tuple[str, str], _Candidate] = {}
+
+        # Group candidates by v1 claim id. A v1 identity that resolves to exactly
+        # one v2 identity is a clean alias. Multiple distinct v2 identities make
+        # the whole group ambiguous; none of those records may appear as
+        # "resolved" aliases.
+        by_v1: dict[str, list[_Candidate]] = {}
         for candidate in all_candidates:
-            key = (candidate.v1_claim_id, candidate.v2_claim_id)
-            if key in seen:
-                continue
-            prior = next(
-                (
-                    c
-                    for c in all_candidates
-                    if c.v1_claim_id == candidate.v1_claim_id
-                    and c.v2_claim_id != candidate.v2_claim_id
-                ),
-                None,
-            )
-            if prior is not None and (prior.v1_claim_id, prior.v2_claim_id) not in seen:
+            by_v1.setdefault(candidate.v1_claim_id, []).append(candidate)
+
+        for v1_id, group in by_v1.items():
+            distinct_v2 = {c.v2_claim_id for c in group}
+            if len(distinct_v2) > 1:
+                seen: set[tuple[str, str]] = set()
+                ambiguous_records: list[dict[str, Any]] = []
+                for candidate in group:
+                    key = (candidate.v2_claim_id, candidate.source_commit)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    ambiguous_records.append(_candidate_to_record(candidate))
                 ambiguous.append(
                     {
-                        "v1_claim_id": candidate.v1_claim_id,
+                        "v1_claim_id": v1_id,
                         "reason": "single v1 identity maps to multiple v2 identities",
-                        "records": [
-                            _candidate_to_record(candidate),
-                            _candidate_to_record(prior),
-                        ],
+                        "records": ambiguous_records,
                     }
                 )
-            seen[key] = candidate
-            aliases.append(_candidate_to_record(candidate))
+            else:
+                # One canonical v2 identity: emit a single resolved alias.
+                representative = group[0]
+                aliases.append(_candidate_to_record(representative))
 
         migrated_at = datetime.now(UTC).isoformat()
         alias_payload = {
@@ -358,4 +290,3 @@ def migrate_v2(vault_root: Path, project_id: str) -> dict[str, Any]:
             "ambiguous_count": len(ambiguous),
             "receipt": str(receipt_path),
         }
-

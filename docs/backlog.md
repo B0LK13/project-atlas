@@ -192,7 +192,7 @@ independent verification passes and the branch is merged to `main`._
 
 ## AS-CORE-003 — Claim Identity v2 remediation
 
-_Status: implemented and acceptance-tested; pending final independent review, certification and merge on `remediation/as-core-003-claim-identity-v2` (see `docs/evidence/AS-CORE-003-v2-remediation-receipt.yaml`)._
+_Status: implemented and acceptance-tested on `remediation/as-core-003-claim-identity-v2`; V2-002 hygiene baseline applied; V2-003 candidate closes F-001, F-002, rule-table parity, source-lineage normalization, and ADR-007. Pending final isolated review, certification and Project Owner merge authorization._
 
 - [x] CORE3-001 Finalize Claim Identity v2 formula using raw stable semantic locator
 - [x] CORE3-002 Use `event:{event_id}` locator for agent-event-derived claims
@@ -204,6 +204,11 @@ _Status: implemented and acceptance-tested; pending final independent review, ce
 - [x] CORE3-008 Regenerate dependency-report.json golden fixture after identity-formula change
 - [x] CORE3-009 Add concurrency, migration, historical-completeness and alias-schema tests
 - [x] CORE3-010 Mark all `tests/integration/*.py` modules with `pytest.mark.integration`
-- [ ] CORE3-011 Finalize ADR-00? for Claim Identity v2
-- [ ] CORE3-012 Complete independent review and certification
-- [ ] CORE3-013 Merge to `main`
+- [x] CORE3-011 Add canonical JSON-array identity serialization to close F-001
+- [x] CORE3-012 Enforce mutually-exclusive resolved/ambiguous alias collections to close F-002
+- [x] CORE3-013 Extract shared `project_atlas.claim_identity` rules module for compiler/migration parity
+- [x] CORE3-014 Normalize CRLF to LF before hashing text sources (cross-platform identity stability)
+- [x] CORE3-015 Author ADR-007 for Claim Identity v2 canonicalization
+- [x] CORE3-016 Regenerate K-004/K-005 golden fixtures for canonical identity and source-lineage changes
+- [ ] CORE3-017 Complete independent review and certification
+- [ ] CORE3-018 Merge to `main`

@@ -109,3 +109,8 @@ def test_migrate_v2_records_ambiguous_locator_mappings(tmp_path: Path) -> None:
     assert len(alias_map["ambiguous"]) == 1
     expected_reason = "single v1 identity maps to multiple v2 identities"
     assert alias_map["ambiguous"][0]["reason"] == expected_reason
+
+    # F-002 invariant: ambiguous records must never be treated as resolved aliases.
+    ambiguous_v1 = {item["v1_claim_id"] for item in alias_map["ambiguous"]}
+    resolved_v1 = {item["v1_claim_id"] for item in alias_map["aliases"]}
+    assert ambiguous_v1.isdisjoint(resolved_v1)

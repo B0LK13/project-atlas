@@ -65,21 +65,57 @@ def test_ingestion_occ_rollback(tmp_path: Path) -> None:
         lifecycle_path.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
-                    "claims": [
-                        {
-                            "claim_id": "concurrent",
-                            "lifecycle": "active",
-                            "content_sha256": "0" * 64,
-                        }
-                    ],
+                        "schema_version": 1,
+                        "claims": [
+                            {
+                                "claim_id": "concurrent",
+                                "project_id": "occ-fixture",
+                                "lifecycle": "new",
+                                "content_sha256": "0" * 64,
+                            }
+                        ],
                 }
             ),
             encoding="utf-8",
         )
         original_assert(preconditions)
 
+    lock_files = set((vault / ".atlas").glob("*.lock"))
+
     with patch(
         "project_atlas.ingestion._assert_state_compare_and_swap", side_effect=side_effect
     ), pytest.raises(ValueError, match="state changed during transaction"):
         ingest(manifest_path, vault)
+
+    # Zero-write proof: no partial canonical promotion occurred.
+    claims_dir = vault / "state" / "claims"
+    assert not any(path.name.startswith("occ-fixture") for path in claims_dir.glob("*.json"))
+
+    # Externally injected race state is preserved, not overwritten.
+    lifecycle_after = json.loads(lifecycle_path.read_text(encoding="utf-8"))
+    assert [c["claim_id"] for c in lifecycle_after["claims"]] == ["concurrent"]
+
+    # No temporary artifact was promoted to canonical state.
+    assert not (vault / "state" / "claim-lifecycle" / "occ-fixture.json.tmp").exists()
+
+    # Project identity lock is released after abort.
+    remaining_locks = set((vault / ".atlas").glob("*.lock"))
+    assert remaining_locks == lock_files
+
+    # A clean retry converges, and replaying that retry is byte-identical.
+    ingest(manifest_path, vault)
+    second_retry = ingest(manifest_path, vault)
+    second_snapshot = {
+        path.relative_to(vault).as_posix(): path.read_bytes()
+        for path in sorted(vault.rglob("*"))
+        if path.is_file()
+    }
+    third_retry = ingest(manifest_path, vault)
+    third_snapshot = {
+        path.relative_to(vault).as_posix(): path.read_bytes()
+        for path in sorted(vault.rglob("*"))
+        if path.is_file()
+    }
+    assert second_retry == third_retry
+    assert second_snapshot == third_snapshot
+    assert not list(vault.rglob("*.tmp"))
