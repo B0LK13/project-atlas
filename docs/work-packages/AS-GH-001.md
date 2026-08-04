@@ -13,6 +13,29 @@
 - **Repository:** `B0LK13/project-atlas`
 - **ADR:** `docs/adr/ADR-006-github-repository-governance-baseline.md`
 
+## Implementation status
+
+- Architecture: certified (`7e730042e646346773519cc0e5ffe60610f86f0b`),
+  integrated into `main` (`42410e968cd3eb392afd66181d64ed3c25e36833`).
+- Repository implementation (this phase): a bounded first slice is
+  complete on branch `implementation/as-gh-001-governance-baseline` —
+  `SECURITY.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`,
+  `.github/pull_request_template.md`, `.github/dependabot.yml`,
+  hardened `.github/workflows/ci.yml` and
+  `.github/workflows/atlas-documentation-gate.yml` (permissions,
+  SHA-pinned actions, timeouts), and a new governance validation suite
+  (`tests/unit/test_as_gh_001_governance.py`). See
+  `docs/evidence/AS-GH-001-receipt.yaml` for exact commands and results.
+- Not yet in this phase: `GOVERNANCE.md`, `README.md`, `VERSIONING.md`,
+  `RELEASING.md`, `SUPPORT.md`/`CODE_OF_CONDUCT.md` decision, and the
+  `.github/ISSUE_TEMPLATE/*` set — these remain part of the certified
+  architecture's full artifact list but were outside this phase's
+  explicitly authorized scope.
+- Implementation verification: pending (Agent Two).
+- Platform (GitHub settings) activation beyond the already-completed
+  approval-count bootstrap transition: pending.
+- Live governance validation and final package closure: pending.
+
 ## Problem statement
 
 GitHub is the public review and publication surface, but repository policies,
