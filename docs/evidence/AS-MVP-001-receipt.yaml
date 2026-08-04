@@ -202,6 +202,14 @@ validation:
 canonical_state_mutated: false
 history_rewritten: false
 merge_authorized: false
+final_certification_issued: false
+# Project Owner disposition (see release_closure_remediation.owner_disposition
+# below for the accepted platform-limitation exceptions this depends on):
+# AS-MVP-001 TECHNICALLY CERTIFIED -- FINAL EVIDENCE GATE PENDING.
+# final_certification_issued flips to true only after Agent Two's focused
+# receipt reverification of this exact evidence-only correction passes;
+# merge_authorized flips to true only after that reverification, per a
+# fast-forward-only merge from fix/as-mvp-001-r1-relation-edge-tests.
 
 known_limitations:
   - maturity_matrix always reports "unknown" today because no existing
@@ -633,3 +641,39 @@ release_closure_remediation:
   mvp_closure_claimed: false
   historical_commits_rewritten: false
   fabricated_attestations_created: false
+
+  # Project Owner / AS-MVP-001 Release Governance disposition, recorded
+  # verbatim from the owner's review of the independently verified
+  # 6e56fbe candidate and the d9e1865 Prototype B correction. These two
+  # accepted exceptions are what "final_certification_issued" (top level)
+  # and "merge_authorized" depend on once the receipt itself passes its
+  # own focused reverification.
+  owner_disposition:
+    reviewed_candidate: 6e56fbe13732dc7e9519129c8672770f6c70c980
+    reviewed_evidence_correction: d9e1865f6b331b212cf37c4924390d451706b42f
+    technical_certification_accepted: true
+    promotion_atomicity_exception:
+      status: accepted_for_as_mvp_001
+      wording: >-
+        AS-MVP-001 uses the repository's existing per-file atomic
+        promotion mechanism. Cross-file transactional rollback is not
+        provided or certified. This inherited platform limitation is
+        accepted for the AS-MVP-001 release and should be tracked
+        separately as platform hardening.
+      does_not_certify: _promote() as transactionally atomic across a write plan
+      does_not_prohibit: a future platform package strengthening publication semantics
+    multi_batch_manifest_limitation:
+      status: accepted_as_non_mvp_shared_ingestion_limitation
+      tracked_as: unresolved technical debt (shared ingestion.py, outside AS-MVP-001's authorized production scope)
+    remaining_release_blocker_at_time_of_review: >-
+      Stale Epic K current-state mappings in this receipt (K-004 through
+      K-007 shown as absent/incomplete alongside a separate section
+      showing them implemented, with no explicit chronology/authority
+      marker). Addressed by this same commit's epic_k.not_implemented_items_at_implementation_freeze
+      (historical, pinned to da04bd3..., superseded_by 6e56fbe...,
+      current_status_authoritative: false) and current_epic_k_status
+      (the one authoritative current-state mapping) above.
+    final_merge_authorization: withheld_pending_receipt_reconciliation
+    merge_method_when_authorized: fast_forward_only
+    merge_source: fix/as-mvp-001-r1-relation-edge-tests
+    merge_target: main

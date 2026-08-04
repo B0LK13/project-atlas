@@ -2914,3 +2914,51 @@ FOCUSED INDEPENDENT EVIDENCE REVERIFICATION REQUIRED**
 **NEXT AGENT: AGENT TWO — FINAL RECEIPT REVERIFICATION**
 **NEXT PHASE: VERIFY THE EVIDENCE-ONLY EPIC K RECONCILIATION**
 **NEXT DIRECTIVE: PIN THE NEW FULL RECEIPT-RECONCILIATION HASH AND COMPARE IT TO d9e1865**
+
+## AS-MVP-001 owner disposition recorded in receipt
+
+Evidence-only follow-up, direct descendant of `342c9d1` (which itself
+descends from `d9e1865`), same branch/worktree. The Project Owner's
+AS-MVP-001 release-governance review accepted the technical
+certification of `6e56fbe` and the `d9e1865` Prototype B correction,
+and made two explicit exceptions: the per-file (not cross-file)
+promotion-atomicity limitation is accepted for this release, and the
+multi-batch `source-manifest.json` overwrite behavior is accepted as
+non-MVP shared-ingestion technical debt. Final merge authorization was
+withheld specifically pending confirmation that the Epic K
+current-state reconciliation (already completed at `342c9d1`) was
+complete and internally consistent.
+
+Re-audited `342c9d1`'s receipt against every requirement in the
+owner's directive and found one genuine gap: `final_certification_issued`
+(explicitly required by the owner alongside `merge_authorized`) did not
+exist anywhere in the receipt. Added `final_certification_issued: false`
+at the top level, and a `release_closure_remediation.owner_disposition`
+block recording the owner's review verbatim (reviewed candidate/
+correction hashes, the two accepted exceptions with their exact
+required wording, the remaining-blocker description, and the
+fast-forward-only merge parameters for when authorization is
+eventually granted). Re-confirmed, unchanged: the Epic K historical/
+current split from `342c9d1`, the Prototype B correction, the
+multi-batch and `_promote()` disclosures, and `merge_authorized: false`
+at every existing location.
+
+No production code, tests, fixtures, architecture, backlog, or roadmap
+changed.
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: NO**
+**ROADMAP MODIFIED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FABRICATED ATTESTATIONS CREATED: NO**
+
+**AS-MVP-001 FINAL RECEIPT RECONCILIATION COMPLETE AND FROZEN —
+FOCUSED INDEPENDENT REVERIFICATION REQUIRED**
+
+**NEXT AGENT: AGENT TWO — FINAL RECEIPT REVERIFICATION**
+**NEXT PHASE: VERIFY THE EVIDENCE-ONLY EPIC K RECONCILIATION AND OWNER-DISPOSITION RECORD**
+**NEXT DIRECTIVE: PIN THE NEW FULL HASH AND COMPARE IT TO d9e1865 AND 342c9d1**
