@@ -272,12 +272,10 @@ def _claim(
     source_lineage_id = entry.get("source_lineage_id")
     source_identity = str(source_lineage_id or source_id)
     project_identity = str(entry.get("project_uuid") or project)
-    # Locator identifies the semantic assertion within a durable source.  Its
-    # content is deliberately excluded so a changed assertion can transition
-    # the same claim to UPDATED instead of silently becoming a new claim.
+    
     identity_key = (
-        f"{project_identity}|{source_identity}|{claim_type.value}|{field}|"
-        f"{_digest(normalized.lower())}"
+        f"v2|{project_identity}|{source_identity}|{claim_type.value}|{field}|"
+        f"{_digest(locator)}"
     )
     claim_id = (
         f"claim-{_digest(identity_key)[:20]}"
@@ -301,7 +299,7 @@ def _claim(
         if level in {AuthorityLevel.PRIMARY, AuthorityLevel.MAINTAINED}
         else ConfidenceState.MEDIUM,
         lifecycle=ClaimLifecycle.NEW,
-        extraction_method=f"explicit-line:{locator}",
+        extraction_method=f"semantic-locator:{locator}",
         verification=ReviewState.UNREVIEWED,
     )
 
@@ -310,17 +308,42 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
     text = str(entry.get("text", ""))
     claims: list[Claim] = []
     predecessor_id: str | None = None
+    schema_key = entry.get("schema_key")
+    current_heading = None
+
     for number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.strip().lstrip("- ").strip()
         supersession = _SUPERSESSION_RULE.match(line)
         if supersession:
             predecessor_id = supersession.group(1)
             continue
+        
+        if raw_line.startswith("#"):
+            current_heading = raw_line.lstrip("#").strip()
+            continue
+
         for claim_type, field, pattern in _LINE_RULES:
             match = pattern.match(line)
             if match:
+                claim_value = match.group(1)
+                explicit_match = re.search(r'\{#([^}]+)\}', line)
+                
+                if explicit_match:
+                    locator = f"id:{explicit_match.group(1).strip()}"
+                    claim_value = claim_value.replace(explicit_match.group(0), "").strip()
+                elif schema_key:
+                    locator = f"schema:{schema_key}"
+                elif current_heading:
+                    heading_id_match = re.search(r'\{#([^}]+)\}', current_heading)
+                    if heading_id_match:
+                        locator = f"heading:{heading_id_match.group(1).strip()}"
+                    else:
+                        locator = f"heading:{_slug(current_heading)}"
+                else:
+                    raise ValueError("Locator normalization failed: No stable locator found. Explicit ID required.")
+
                 claims.append(
-                    _claim(project, entry, claim_type, field, match.group(1), str(number))
+                    _claim(project, entry, claim_type, field, claim_value, locator)
                 )
                 break
     if predecessor_id and claims:
@@ -332,9 +355,25 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
         for number, raw_line in enumerate(text.splitlines(), start=1):
             line = raw_line.strip()
             if line and not line.startswith("#"):
+                # fallback for architecture classification without lines
+                explicit_match = re.search(r'\{#([^}]+)\}', line)
+                if explicit_match:
+                    locator = f"id:{explicit_match.group(1).strip()}"
+                    line = line.replace(explicit_match.group(0), "").strip()
+                elif schema_key:
+                    locator = f"schema:{schema_key}"
+                elif current_heading:
+                    heading_id_match = re.search(r'\{#([^}]+)\}', current_heading)
+                    if heading_id_match:
+                        locator = f"heading:{heading_id_match.group(1).strip()}"
+                    else:
+                        locator = f"heading:{_slug(current_heading)}"
+                else:
+                    raise ValueError("Locator normalization failed: No stable locator found. Explicit ID required.")
+                    
                 claims.append(
                     _claim(
-                        project, entry, ClaimType.ARCHITECTURE, "architecture", line, str(number)
+                        project, entry, ClaimType.ARCHITECTURE, "architecture", line, locator
                     )
                 )
                 break
@@ -353,7 +392,15 @@ def _event_claim(project: str, entry: dict[str, Any]) -> Claim:
     if scan_text(value):
         raise ValueError(f"secret-bearing agent event cannot become a claim: {entry['event_id']}")
     source_id = str(entry["event_id"])
-    claim_id = f"claim-{_digest(f'{project}|event|{source_id}')[:20]}"
+    source_lineage_id = entry.get("source_lineage_id")
+    source_identity = str(source_lineage_id or source_id)
+    
+    identity_key = (
+        f"v2|{project}|{source_identity}|{claim_type.value}|{event_type}|"
+        f"{_digest(f'event:{event_type}')}"
+    )
+    claim_id = f"claim-{_digest(identity_key)[:20]}"
+    
     raw_event_hash = entry.get("sha256") or entry.get("component_sha256")
     if isinstance(raw_event_hash, dict):
         event_hash = _digest(json.dumps(raw_event_hash, sort_keys=True, separators=(",", ":")))
@@ -807,8 +854,8 @@ def compile_knowledge(
     by_id: dict[str, Claim] = {}
     for claim in claims:
         prior = by_id.get(claim.claim_id)
-        if prior is not None and prior.normalized_text != claim.normalized_text:
-            raise ValueError(f"conflicting duplicate claim id: {claim.claim_id}")
+        if prior is not None:
+            raise ValueError(f"ambiguous identity boundary: duplicate explicit IDs or colliding semantic anchors for {claim.claim_id}")
         by_id[claim.claim_id] = claim
     preliminary_conflicts = _conflicts(project, claims)
     conflict_ids = {

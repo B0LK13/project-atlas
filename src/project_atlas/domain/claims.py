@@ -55,7 +55,7 @@ class Claim(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     claim_id: str = Field(pattern=ID_PATTERN)
     project_id: str | None = Field(default=None, pattern=ID_PATTERN)
     source_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")

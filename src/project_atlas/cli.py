@@ -19,6 +19,7 @@ from project_atlas.discovery import discover, write_manifest
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.logging import configure_logging, get_logger
+from project_atlas.migrations.claim_v2_migration import migrate_v2
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
@@ -78,10 +79,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     portfolio_parser.add_argument("--vault", type=Path, required=True)
 
+    migrate_parser = subparsers.add_parser(
+        "migrate-v2",
+        help="Migrate claims to Identity v2 and generate an alias map (AS-CORE-003)",
+    )
+    migrate_parser.add_argument("--vault", type=Path, required=True)
+    migrate_parser.add_argument("--project", type=str, required=True)
+
     validate_parser = subparsers.add_parser(
         "validate", help="Validate Vault structure, provenance links and safety (FR-012)."
     )
     validate_parser.add_argument("--vault", type=Path, required=True)
+
+    migrate_parser = subparsers.add_parser(
+        "migrate-v2", help="Migrate claims to v2 semantic-locator identity (AS-CORE-003)."
+    )
+    migrate_parser.add_argument("--vault", type=Path, required=True)
+    migrate_parser.add_argument("--project-id", type=str, required=True)
+
     init_parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -171,6 +186,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"outputs: {', '.join(result['outputs'])}")
         return EXIT_OK
 
+    if args.command == "migrate-v2":
+        try:
+            result = migrate_v2(args.vault, args.project)
+        except RuntimeError as exc:
+            _log.error("migration failed: %s", exc)
+            return EXIT_ERROR
+        print(f"status: {result['status']}")
+        if "migrated_claims" in result:
+            print(f"migrated claims: {result['migrated_claims']}")
+        if "receipt" in result:
+            print(f"receipt: {result['receipt']}")
+        return EXIT_OK
+
     if args.command == "validate":
         try:
             result = validate(args.vault)
@@ -182,6 +210,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _log.error("validation: %s", error)
             return EXIT_ERROR
         print(f"validated {result['markdown_files']} Markdown files")
+        return EXIT_OK
+
+    if args.command == "migrate-v2":
+        try:
+            from project_atlas.migrations.claim_v2_migration import migrate_v2
+            result = migrate_v2(args.vault, args.project_id)
+        except (OSError, ValueError, RuntimeError) as exc:
+            _log.error("migrate-v2 failed: %s", exc)
+            return EXIT_ERROR
+        print(f"migration status: {result['status']}")
+        if "migrated_claims" in result:
+            print(f"migrated claims: {result['migrated_claims']}")
+        if "receipt" in result:
+            print(f"receipt: {result['receipt']}")
         return EXIT_OK
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces

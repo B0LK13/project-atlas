@@ -57,7 +57,7 @@ def test_claim_contract_contains_required_evidence_fields() -> None:
             )
         ],
         authority=AuthorityLevel.PRIMARY,
-        extraction_method="explicit-line:1",
+        extraction_method="semantic-locator:heading:test-heading",
     )
     assert claim.normalized_text == "A governed project"
     assert claim.source_hashes == [HASH_A]
