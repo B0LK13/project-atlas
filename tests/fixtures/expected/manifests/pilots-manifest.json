@@ -28,8 +28,8 @@
       "path": "black-agency-os/README.md",
       "project_uuid": "d7d87859-33bb-4184-bd31-b21a5eca4ba6",
       "repository": null,
-      "sha256": "5812b8b0c74fd028b0931f531354730f3a8d46f637eddc7fa6e40d65beac402a",
-      "size_bytes": 400,
+      "sha256": "86fa3d113e9da40b3969bde2bbd320f2c67bb9cae0f674f7a4e1aaa828e18b9d",
+      "size_bytes": 390,
       "source_id": "source-2f21be84650ee544",
       "source_lineage_id": null
     },
@@ -58,8 +58,8 @@
       "path": "dark-factory/DEPENDENCIES.md",
       "project_uuid": "9dd2dfe1-a757-4a58-962b-02c900c31891",
       "repository": null,
-      "sha256": "64e213920e62bcc215529799697f4d69ea8bd847e74b49b65e586386347a3d4e",
-      "size_bytes": 161,
+      "sha256": "bf5cc628a86bcae21bb7ad6ac469480b1ee4caebac3ae0b57c503d48dfc87108",
+      "size_bytes": 156,
       "source_id": "source-9d5242805e847081",
       "source_lineage_id": null
     },
@@ -73,8 +73,8 @@
       "path": "dark-factory/ROADMAP-A.md",
       "project_uuid": "9dd2dfe1-a757-4a58-962b-02c900c31891",
       "repository": null,
-      "sha256": "41d4905645e2a0d3117522f41efc8ce28154e4905db7df851091c421e77c4f60",
-      "size_bytes": 178,
+      "sha256": "6befa4a457542cb2df827727e77b3ca62fd3652581898ab840f83aee068b2c25",
+      "size_bytes": 172,
       "source_id": "source-72cc54b5bbb51100",
       "source_lineage_id": null
     },
@@ -88,8 +88,8 @@
       "path": "dark-factory/ROADMAP-B.md",
       "project_uuid": "9dd2dfe1-a757-4a58-962b-02c900c31891",
       "repository": null,
-      "sha256": "14b45145534249a7d25b7fd2863a9a072ce2dc1affc90e114e741fac8ac9b1ab",
-      "size_bytes": 182,
+      "sha256": "a468e9a9a2f6feb476b6780319ab6665cb2b1fe89586072381ce881dfcb1cf43",
+      "size_bytes": 176,
       "source_id": "source-ae9735601b961a96",
       "source_lineage_id": null
     },
@@ -118,8 +118,8 @@
       "path": "nebula/ARCHITECTURE.md",
       "project_uuid": "dde3eba3-3655-45da-b3aa-45c5cddcc28e",
       "repository": null,
-      "sha256": "3eeadb5260dd7a3f00b8751706123a702e8994e798bf03be986992de062b5c4e",
-      "size_bytes": 214,
+      "sha256": "28a5a36e3b790d46b836668ed91c78c96e9c16793c4adeb50cce638dfb7e2aec",
+      "size_bytes": 209,
       "source_id": "source-c016b662c159a54e",
       "source_lineage_id": null
     },
@@ -133,8 +133,8 @@
       "path": "nebula/DEPENDENCIES.md",
       "project_uuid": "dde3eba3-3655-45da-b3aa-45c5cddcc28e",
       "repository": null,
-      "sha256": "d2e9a5517b41e83697fc91d352b4a3dca7d9f6470349bb246e62e5f76cfdb5f2",
-      "size_bytes": 145,
+      "sha256": "31f63531e5e0c95eb0f6636abc158d48806dd6767a4b0539d76ab45dc22fa1a8",
+      "size_bytes": 140,
       "source_id": "source-9503426f3e30ddc2",
       "source_lineage_id": null
     },
@@ -148,8 +148,8 @@
       "path": "nebula/README.md",
       "project_uuid": "dde3eba3-3655-45da-b3aa-45c5cddcc28e",
       "repository": null,
-      "sha256": "3233379b0162c593d07e02e5b7f8bab3debd75f112bf55a22ad2ff8094b1ee0e",
-      "size_bytes": 367,
+      "sha256": "5ecf8b310f69a2f7bc36b4bf904e6ce280684af794db72a6944c924de19e2120",
+      "size_bytes": 358,
       "source_id": "source-9846e67d77f21fe4",
       "source_lineage_id": null
     },
@@ -163,8 +163,8 @@
       "path": "nebula/SECURITY.md",
       "project_uuid": "dde3eba3-3655-45da-b3aa-45c5cddcc28e",
       "repository": null,
-      "sha256": "d354f046c3d63024aeac12fe885f24c092e66af0696f2cd2dbf1eda2d23d08aa",
-      "size_bytes": 221,
+      "sha256": "08e0eb38a41f6a2b132bd465577764109e08e74ac748f798ff85b9b249d21cd3",
+      "size_bytes": 216,
       "source_id": "source-91edccfd96cd3ed9",
       "source_lineage_id": null
     },
@@ -178,8 +178,8 @@
       "path": "nebula/VALIDATION.md",
       "project_uuid": "dde3eba3-3655-45da-b3aa-45c5cddcc28e",
       "repository": null,
-      "sha256": "23a8a8077f927ca0ac130f8246e1c912a6792e0f32b5aa1e22d119ea159b8acc",
-      "size_bytes": 145,
+      "sha256": "bf8d97f2e70c39226a4935f5a196f09623140a6a92beb85de2a9d86b58291cec",
+      "size_bytes": 139,
       "source_id": "source-ac7bb322452ca74f",
       "source_lineage_id": null
     }
