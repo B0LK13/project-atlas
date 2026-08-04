@@ -208,16 +208,37 @@ remediation:
   branch: fix/as-mvp-001-r1-relation-edge-tests
   source:
     prototype_b_reviewed: false
-    prototype_b_commits_available: false
-    prototype_b_note: >-
-      The two Prototype B commit hashes referenced in the R1 directive
-      (8e8687ee5eaaf891be5c5fd422ee0400a6ca9a3b,
-      9161d0b0310a803019fa5e4cf8d9e4a0ffe3013f) do not exist anywhere in
-      this repository, any local worktree, or the reflog. Per explicit
-      authorization, R1 proceeded directly from ADR-005 and the
-      authoritative da04bd3... implementation without Prototype B input;
-      no Prototype B implementation or API was reviewed, reused, or
-      reconstructed.
+    prototype_b_commits_available_during_r1_implementation: false
+    prototype_b:
+      commits:
+        dependency_projection: 8e8687ee5eaaf891be5c5fd422ee0400a6ca9a3b
+        capability_projection: 9161d0b0310a803019fa5e4cf8d9e4a0ffe3013f
+      preservation:
+        bundle_path: .session-preservation/as-mvp-001-b/as-mvp-001-b-9161d0b.bundle
+        bundle_sha256: c4505dc23c37556505bdc54b6f4a2b5451455661ed38e03a8b3f67bad456b1e7
+        bundle_verified: true
+        bundle_tracked_by_git: false
+      implementation_disposition:
+        reviewed_during_r1_implementation: false
+        reused: false
+        cherry_picked: false
+        merged: false
+      clarification: >-
+        Correction (post-verification, evidence-only): the two Prototype B
+        commit hashes referenced in the R1 directive were not found in the
+        active repository object database or any inspected worktree/reflog
+        during R1 implementation -- that part of the original prototype_b_note
+        was itself inaccurate as a claim of nonexistence. They were
+        subsequently located and independently verified (git bundle verify,
+        git cat-file, git show) as recoverable from the preserved Prototype B
+        git bundle at the path above. R1 was, and remains, implemented
+        directly from ADR-005 and the authoritative da04bd3... implementation;
+        no Prototype B implementation or API was reviewed, reused,
+        cherry-picked, merged, or reconstructed at any point, including after
+        this bundle was located. The Prototype B API was also structurally
+        incompatible with the authoritative implementation's vault-facing
+        surface (see the AS-MVP-001-R1 directive's own architecture-boundary
+        findings), independent of its (re)discovered availability.
     prototype_commits_merged: false
   edge_cases:
     circular_dependencies:
@@ -336,9 +357,14 @@ release_closure_remediation:
     The relationship/capability edge-case tests above were derived from
     ADR-005 and independent reconciliation notes against the
     authoritative da04bd3... implementation, not from inspecting any
-    Prototype B source (which was, and remains, unavailable in this
-    environment). No wording in this receipt claims external prototype
-    code was reviewed.
+    Prototype B source. Superseded by the more precise correction below
+    (source.prototype_b): Prototype B was not available in the active
+    repository object database or inspected worktrees/reflog at the time
+    this was originally written, but was subsequently located and
+    verified in a preserved git bundle; it was still never reviewed,
+    reused, cherry-picked, or merged into this implementation at any
+    point. No wording in this receipt claims external prototype code was
+    reviewed.
   k004_expected_manifests:
     status: implemented
     fixture: tests/fixtures/expected/manifests/pilots-manifest.json

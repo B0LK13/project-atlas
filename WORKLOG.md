@@ -2782,3 +2782,65 @@ INDEPENDENT VERIFICATION REQUIRED**
 **NEXT AGENT: AGENT TWO — FINAL AS-MVP-001 INDEPENDENT VERIFICATION**
 **NEXT PHASE: VERIFY REMEDIATED EVIDENCE TIP AND ALL EPIC I/K CLOSURE CRITERIA**
 **NEXT DIRECTIVE: PIN THE REAL NEW EVIDENCE HASH AND REPRODUCE ALL CLOSURE CLAIMS**
+
+## AS-MVP-001-R1 evidence accuracy correction
+
+Evidence-only correction on the same branch/worktree
+(`fix/as-mvp-001-r1-relation-edge-tests`,
+`/mnt/d/project-atlas-as-mvp-001-r1`). Agent Two's focused
+reverification located the two Prototype B commits
+(`8e8687ee5eaaf891be5c5fd422ee0400a6ca9a3b`,
+`9161d0b0310a803019fa5e4cf8d9e4a0ffe3013f`) as recoverable from a
+preserved git bundle at
+`.session-preservation/as-mvp-001-b/as-mvp-001-b-9161d0b.bundle` in the
+main vault checkout (untracked by git; SHA-256
+`c4505dc23c37556505bdc54b6f4a2b5451455661ed38e03a8b3f67bad456b1e7`,
+independently reproduced here). `git bundle verify`, `git cat-file -t`,
+and `git show` on both hashes in a disposable clone of the bundle
+confirm both are real commits with a coherent parent chain rooted in
+this repository's own mainline history.
+
+`docs/evidence/AS-MVP-001-receipt.yaml`'s original `remediation.source`
+claim that these commits "do not exist anywhere in this repository, any
+local worktree, or the reflog" was itself inaccurate -- they were not
+visible in the active object database or inspected worktrees/reflog at
+R1 implementation time, but that is a locatability gap, not
+nonexistence. Corrected to record the actual hashes, the bundle's path/
+hash/verification status, and an explicit `implementation_disposition`
+block. The previously-true statements are preserved and restated
+precisely: Prototype B was not reviewed during R1 implementation, not
+reused, not cherry-picked, and not merged, at any point -- including
+after the bundle was located during this correction. R1's production
+fix remains independently derived from ADR-005 and the authoritative
+`da04bd3...` implementation. A second, consistent reference to
+Prototype B's availability inside the later
+`release_closure_remediation.wording_correction` field was corrected
+for the same reason, so the receipt no longer contains two different
+claims about the same fact.
+
+No production code, tests, fixtures, architecture, schemas, or
+validation behavior changed. This commit's own diff (against its
+immediate parent, the previously-frozen AS-MVP-001 release-closure
+evidence tip `6e56fbe`) touches only `docs/evidence/AS-MVP-001-receipt.yaml`
+and this WORKLOG entry. (`054c42c...HEAD` also includes the separately
+reported and already-verified K-004/K-005/K-006/K-007 release-closure
+delta from the prior WORKLOG section above; this correction adds
+nothing beyond the evidence-only changes described here.) The
+Prototype B bundle itself was not moved, deleted, or merged into this
+branch's history.
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**PROTOTYPE B MERGED: NO**
+**PROTOTYPE B REUSED: NO**
+**MERGE TO MAIN AUTHORIZED: NO**
+**AS-MVP-001 FINAL MVP CLOSURE CERTIFIED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FABRICATED ATTESTATIONS CREATED: NO**
+
+**AS-MVP-001-R1 EVIDENCE ACCURACY CORRECTION COMPLETE AND FROZEN —
+FOCUSED INDEPENDENT REVERIFICATION REQUIRED**
+
+**NEXT AGENT: AGENT TWO — FOCUSED EVIDENCE REVERIFICATION**
+**NEXT PHASE: VERIFY THE EVIDENCE-ONLY CORRECTION AND CLOSE THE R1 BLOCKER**
+**NEXT DIRECTIVE: PIN THE NEW FULL EVIDENCE-CORRECTION HASH**
