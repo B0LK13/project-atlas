@@ -1,0 +1,171 @@
+schema_version: 1
+work_package: AS-GH-001
+title: GitHub Repository Governance Baseline
+status: repository-implementation-complete-independent-verification-pending
+
+certified_baseline: a7a6ebc41ea884f7ce4ec2d70da89e6a44097381
+certified_architecture_source: 7e730042e646346773519cc0e5ffe60610f86f0b
+implementation_base: 42410e968cd3eb392afd66181d64ed3c25e36833
+implementation_branch: implementation/as-gh-001-governance-baseline
+adr: docs/adr/ADR-006-github-repository-governance-baseline.md
+work_package_doc: docs/work-packages/AS-GH-001.md
+
+scope:
+  authorized_paths:
+    - SECURITY.md
+    - CONTRIBUTING.md
+    - .github/CODEOWNERS
+    - .github/pull_request_template.md
+    - .github/dependabot.yml
+    - .github/workflows/ci.yml
+    - .github/workflows/atlas-documentation-gate.yml
+    - tests/unit/test_as_gh_001_governance.py
+    - docs/evidence/AS-GH-001-receipt.yaml
+    - docs/work-packages/AS-GH-001.md
+    - docs/backlog.md
+    - docs/master-roadmap.md
+  out_of_scope_confirmed_untouched:
+    - src/project_atlas/
+    - src/
+    - tests/fixtures/
+    - docs/evidence/AS-*.yaml (existing files, none modified)
+    - docs/adr/ADR-00[1-6]*.md (none modified)
+  production_behavior_modified: false
+  live_github_settings_modified_during_this_phase: false
+
+deliverables:
+  security_policy:
+    file: SECURITY.md
+    status: implemented
+    external_private_intake: not_currently_operational
+    invented_or_personal_contact_published: false
+  contribution_policy:
+    file: CONTRIBUTING.md
+    status: implemented
+    documents_live_approval_count: 0
+  pull_request_template:
+    file: .github/pull_request_template.md
+    status: implemented
+  codeowners:
+    file: .github/CODEOWNERS
+    status: implemented
+    used_as_approval_gate: false
+    note: >-
+      Single-collaborator repository; require_code_owner_reviews is not
+      enabled and this file is documented as routing/ownership metadata
+      only, to avoid recreating the review-approval lockout.
+  dependabot:
+    file: .github/dependabot.yml
+    ecosystems:
+      - pip
+      - github-actions
+    status: implemented
+  workflow_hardening:
+    files:
+      - .github/workflows/ci.yml
+      - .github/workflows/atlas-documentation-gate.yml
+    changes:
+      - "added top-level permissions: {contents: read} to both workflows"
+      - >-
+        pinned actions/checkout and actions/setup-python to full commit
+        SHAs (resolved live from the actions/checkout and
+        actions/setup-python repositories' v4/v5 tags via
+        gh api repos/OWNER/REPO/git/refs/tags/TAG; not invented)
+    resolved_action_pins:
+      - action: actions/checkout
+        pinned_sha: 11d5960a326750d5838078e36cf38b85af677262
+        tag: v4
+      - action: actions/setup-python
+        pinned_sha: a26af69be951a213d495a4c3e4e4022e16d87065
+        tag: v5
+      - added `timeout-minutes` to both jobs
+      - added `concurrency` cancellation to ci.yml (push/pull_request-triggered)
+      - atlas-documentation-gate.yml left workflow_dispatch-only, unchanged trigger
+    ci_quality_job_name_preserved: true
+    pull_request_target_used: false
+  governance_validation:
+    file: tests/unit/test_as_gh_001_governance.py
+    test_count: 13
+    covers:
+      - SECURITY.md content and absence of invented contact
+      - CONTRIBUTING.md approval-count-0 documentation
+      - PR template required sections
+      - CODEOWNERS syntax
+      - Dependabot ecosystem scope
+      - workflow/dependabot YAML parse + duplicate-key detection
+      - docs/evidence/*.yaml duplicate-key detection
+      - action SHA pinning (every uses: line, full 40-hex-char SHA)
+      - workflow permissions least-privilege
+      - absence of pull_request_target
+      - preservation of the `quality` job name
+      - atlas-documentation-gate.yml remains workflow_dispatch-only
+
+validation:
+  ruff_command: python -m ruff check .
+  ruff_result: clean
+  mypy_command: python -m mypy src
+  mypy_result: "clean, 36 source files (unchanged; no src/ file added or modified)"
+  pytest_command: PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider tests --tb=short -q
+  pytest_result: "288 passed, 0 failed (275 pre-existing + 13 new AS-GH-001 governance tests; collect-only cross-checked at 288)"
+  compileall_command: python -m compileall -q src atlas-vault-documentation
+  compileall_result: clean
+  control_plane_command: PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider atlas-vault-documentation/tests --tb=short -q
+  control_plane_result: "146 passed, 0 failed (unchanged from baseline)"
+  documentation_gate_command: python atlas-vault-documentation/scripts/atlas_agent.py repository-gate --help
+  documentation_gate_result: >-
+    Confirmed real and invocable (exit 0, prints usage). A full
+    invocation requires a governed-session receipt (--receipt) that does
+    not apply to this direct-implementation PR; not fabricated as run.
+  yaml_and_duplicate_key_command: >-
+    python -c "import yaml, glob; [yaml.safe_load(open(p)) for p in
+    glob.glob('.github/**/*.yml', recursive=True) +
+    glob.glob('docs/evidence/*.yaml')]"
+  yaml_and_duplicate_key_result: "24 files parsed, no error, no duplicate key (also covered by tests/unit/test_as_gh_001_governance.py)"
+
+required_check_observation:
+  expected_project_owned_check: quality
+  note: >-
+    The exact check name reported by GitHub on this specific
+    implementation branch's own PR is observed only once that PR runs
+    through real GitHub Actions; not fabricated here. Prior independent
+    verification (AS-GH-001 architecture/post-integration certification
+    rounds) already confirmed the live, real check-run name on this
+    repository is `quality` (not `ci / quality`), via the GitHub Checks
+    API on the certified architecture commit.
+  atlas_documentation_gate_status: workflow_dispatch-only, not required, not automatic
+
+security_contact: not_provisioned_deferred
+required_approving_reviews_live: 0
+signed_commit_enforcement: deferred
+github_settings_changed_during_implementation: false
+
+known_limitations:
+  - README.md, GOVERNANCE.md, VERSIONING.md, RELEASING.md,
+    CODE_OF_CONDUCT.md, SUPPORT.md, and .github/ISSUE_TEMPLATE/* are part
+    of ADR-006's full artifact list but were not in this implementation
+    phase's explicitly authorized scope; not implemented here, not
+    claimed complete.
+  - actionlint or an equivalent workflow-syntax linter was not added;
+    the governance test suite's own YAML-parse + regex-based checks
+    (action pin format, permissions block, trigger set) cover the
+    concrete risks this phase targets without adding a new third-party
+    dependency.
+  - The exact GitHub check name for this specific PR/branch is expected,
+    not yet freshly re-observed on this exact diff, until the PR
+    actually runs.
+  - CODEOWNERS review enforcement, required-check branch-protection
+    activation, and restoring required approving reviews to 1 all
+    remain separate, later, independently-verified phases per ADR-006's
+    own phase sequencing; none is claimed here.
+
+rollback: >-
+  Every change in this package is additive or narrowly scoped to the
+  files listed in `scope.authorized_paths`. Revert via a normal PR from
+  the previous exact tip (this implementation branch's parent,
+  42410e968cd3eb392afd66181d64ed3c25e36833); no force-push or history
+  rewrite is required or used.
+
+merge_authorized: false
+implementation_merge_authorized: false
+historical_commits_rewritten: false
+fabricated_attestations_created: false
