@@ -169,3 +169,112 @@ merge_authorized: false
 implementation_merge_authorized: false
 historical_commits_rewritten: false
 fabricated_attestations_created: false
+
+# Bounded remediation, applied additively on top of pre-remediation tip
+# 7c52e4635d091a1fe2896159bad5b0c991cecec2 in response to four PR #2
+# review threads. No existing commit was amended, rebased, or squashed.
+remediation:
+  pre_remediation_tip: 7c52e4635d091a1fe2896159bad5b0c991cecec2
+  threads_addressed:
+    - thread: "ci.yml cache/permissions finding (thread 1)"
+      finding: >-
+        Reviewer asked whether pip-cache restore/save required broader
+        workflow permissions than contents:read.
+      disposition: cache_worked_without_additional_permission
+      evidence: >-
+        Inspected the real, already-successful "quality" run
+        (https://github.com/B0LK13/project-atlas/actions/runs/30905727068/job/91980229911).
+        Its "GITHUB_TOKEN Permissions" log group shows only "Contents:
+        read" / "Metadata: read"; the setup-python cache step logs
+        "Cache hit for: ..." and "Cache restored successfully" with no
+        permission warning or error anywhere in the job log. Per the
+        owner's rule ("cache worked without additional permission:
+        retain current permissions and document evidence"), cache:
+        pip and the existing contents:read permission are retained
+        unchanged; a documenting comment citing this exact run was
+        added directly above the cache: pip line in ci.yml. No
+        permission was broadened.
+    - thread: "final head-SHA refresh instruction (thread 2)"
+      finding: >-
+        PR template's head-SHA field had no instruction to refresh it
+        before requesting certification.
+      disposition: remediated
+      evidence: >-
+        Added an inline comment under "Source branch tip" in
+        .github/pull_request_template.md instructing authors to
+        refresh the value after the final push and before requesting
+        independent certification, and explicitly not to update it
+        continuously during active development.
+    - thread: "certification and owner-authorization fields (thread 3)"
+      finding: >-
+        PR template had no field for independent-certification state,
+        owner-authorization state, or migration/operational impact.
+      disposition: remediated
+      evidence: >-
+        Added a "Migration or operational impact" section (none /
+        described below) and a "Governance state" section
+        (Independent certification: pending/passed/blocked; Project
+        Owner integration authorization: not granted/granted) to
+        .github/pull_request_template.md, each pointing back to the
+        linked receipt for detailed evidence rather than embedding it
+        in the PR body.
+    - thread: "exact workflow-permission-map validation (thread 4)"
+      finding: >-
+        test_every_workflow_declares_explicit_least_privilege_permissions
+        accepted the string form "read-all" as least-privilege, which
+        is incorrect: "read-all" grants read on every permission
+        scope, not just contents, and is not the approved exact map.
+      disposition: remediated
+      evidence: >-
+        Replaced that test with
+        test_every_workflow_declares_exact_approved_permission_map in
+        tests/unit/test_as_gh_001_governance.py. The new test requires
+        every workflow-level AND job-level permissions block (when
+        present) to equal exactly {"contents": "read"}; it explicitly
+        rejects "read-all"/"write-all" string forms, any additional
+        permission key, any write permission, and any id-token
+        permission. This test validates static repository file
+        content only; it does not and cannot verify live GitHub
+        branch-protection or Actions run-time behavior.
+  files_changed:
+    - .github/workflows/ci.yml
+    - .github/pull_request_template.md
+    - tests/unit/test_as_gh_001_governance.py
+    - docs/evidence/AS-GH-001-receipt.yaml
+  files_not_changed_in_remediation:
+    - SECURITY.md
+    - CONTRIBUTING.md
+    - .github/CODEOWNERS
+    - .github/dependabot.yml
+    - .github/workflows/atlas-documentation-gate.yml
+  review_threads_resolved_by_this_remediation: 0
+  note: >-
+    All four review threads remain open/unresolved on GitHub; resolving
+    them is a separate Project-Owner-authorized action, not performed
+    here. Threads 5-9 (the additional P2-severity SECURITY.md scope,
+    migration-field, YAML-extension, and Phase-4-status-inversion
+    comments) were not in this remediation's authorized scope
+    (limited to threads 1-4 per the owner's disposition) and remain
+    open for a later, separately authorized remediation round.
+  validation_after_remediation:
+    focused_governance_tests_command: python -m pytest tests/unit/test_as_gh_001_governance.py -v
+    focused_governance_tests_result: "13 passed, 0 failed"
+    full_pytest_command: >-
+      PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider tests --tb=short
+    full_pytest_result: "288 passed, 0 failed (unchanged total; one test renamed, none added or removed)"
+    ruff_command: python -m ruff check .
+    ruff_result: clean
+    mypy_command: python -m mypy src
+    mypy_result: "clean, 36 source files"
+    compileall_command: python -m compileall -q src atlas-vault-documentation
+    compileall_result: clean
+    yaml_duplicate_key_command: >-
+      python -c "import yaml, glob; ... duplicate-key-sensitive loader over
+      .github/**/*.yml and docs/evidence/*.yaml"
+    yaml_duplicate_key_result: "25 files parsed, 0 duplicate keys, 0 errors"
+  live_github_settings_modified: false
+  origin_main_modified: false
+  pr2_merged: false
+  auto_merge_enabled: false
+  force_push_used: false
+  history_rewritten: false
