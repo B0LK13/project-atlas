@@ -10,6 +10,9 @@
 
 - Exact base commit: `<full SHA>`
 - Source branch tip (at time of opening): `<full SHA>`
+  <!-- Refresh this value after the final push and before requesting
+       independent certification. There is no need to update it
+       continuously during active development. -->
 
 ## Changed paths
 
@@ -24,6 +27,13 @@
 ## Documentation impact
 
 <!-- Which docs were updated? If none were needed, say why. -->
+
+## Migration or operational impact
+
+- Migration or operational impact: `none` / `described below`
+<!-- If not "none": describe any schema, receipt, generated-vault, or
+     canonical-state migration this PR requires or triggers, and how
+     it is applied/rolled back. -->
 
 ## GitHub settings impact
 
@@ -59,6 +69,13 @@
 ## Known limitations
 
 <!-- Anything intentionally deferred or out of scope for this PR. -->
+
+## Governance state
+
+- Independent certification: `pending` / `passed` / `blocked`
+- Project Owner integration authorization: `not granted` / `granted`
+<!-- Keep detailed evidence in the linked receipt (see "Evidence
+     location" above) rather than embedding lengthy material here. -->
 
 ## Reviewer checklist
 
