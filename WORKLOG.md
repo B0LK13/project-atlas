@@ -2962,3 +2962,72 @@ FOCUSED INDEPENDENT REVERIFICATION REQUIRED**
 **NEXT AGENT: AGENT TWO — FINAL RECEIPT REVERIFICATION**
 **NEXT PHASE: VERIFY THE EVIDENCE-ONLY EPIC K RECONCILIATION AND OWNER-DISPOSITION RECORD**
 **NEXT DIRECTIVE: PIN THE NEW FULL HASH AND COMPARE IT TO d9e1865 AND 342c9d1**
+
+---
+
+## AS-CORE-003 — Claim Identity v2 remediation (Windsurf takeover)
+
+**Status:** implementation complete — independent verification required
+**Base:** inherited working tree from prior agent session
+**Scope:** finalize Claim Identity v2, stable semantic locators, migration alias map, and ingestion OCC rollback detection.
+
+### Plan
+
+1. Reconstruct repository state, establish exclusive writer ownership, and classify inherited changes.
+2. Read governing architecture documents (`AGENTS.md`, `docs/plan.md`, `docs/prp.md`, `docs/adr/ADR-005-claim-identity-v2.md`).
+3. Complete `_assert_state_compare_and_swap` precondition handling for absent state files and restore project identity locks around ingestion.
+4. Align `knowledge_compiler.py` v2 claim identity formula with the migration formula: include raw stable semantic locator in the identity key, and use durable `event_id` as the locator for agent-event claims.
+5. Rewrite `claim_v2_migration.py` to be self-contained, schema-validated, atomic, idempotent, and ambiguity-aware; stop importing private knowledge-compiler internals.
+6. Add `claim-alias.schema.json` and register it in `schema.py`.
+7. Rewrite `test_concurrency.py` to use a valid manifest and real source so claim-lifecycle preconditions are populated and the injected mutation is detected.
+8. Update migration and historical-completeness tests for the structured alias-map schema.
+9. Regenerate the `dependency-report.json` golden fixture after the accepted identity-formula contract change.
+10. Add ambiguity-detection and CLI smoke tests for migration.
+11. Exclude inherited `AS-PLAN-001-corrections.md` and `AS-PLAN-001-final-contract.md` from the candidate: preserve verified external copies, record exclusion, and remove repository copies.
+12. Run full quality gates and CLI smoke tests.
+
+### Results
+
+- `pytest tests` — 149 passed, 1 skipped.
+- `ruff check src tests` — clean.
+- `mypy src` — clean (38 source files).
+- `python -m project_atlas.cli --help` and `version` — operational.
+- `atlas init --output .tmp\smoke-vault --dry-run` — operational.
+
+### Changed files
+
+- `src/project_atlas/ingestion.py` — OCC compare-and-swap handles `None` expected bytes as file-absence requirement; restored project identity locks.
+- `src/project_atlas/knowledge_compiler.py` — v2 identity uses raw semantic locator; event claims use `event:{event_id}` locator; style fixes.
+- `src/project_atlas/migrations/claim_v2_migration.py` — self-contained migration with schema validation, atomic writes, idempotency, ambiguity records.
+- `src/project_atlas/schema.py` — registered `claim-alias` schema.
+- `src/project_atlas/schemas/claim-alias.schema.json` — new.
+- `tests/fixtures/expected/portfolio/dependency-report.json` — regenerated for new v2 IDs.
+- `tests/integration/test_concurrency.py` — rewritten OCC rollback test.
+- `tests/integration/test_historical_completeness.py` — structured alias-map assertions.
+- `tests/integration/test_migration.py` — structured alias-map, CLI smoke, ambiguity tests.
+- `tests/integration/test_core_claims_authority_conflicts.py` — style fix.
+- `tests/integration/test_core_semantic_lifecycle.py` — inherited coverage retained.
+- `tests/unit/test_knowledge_compiler.py` — style fix.
+- `tests/unit/test_schema.py` — `claim-alias` in expected schemas.
+
+### Excluded inherited artifacts
+
+- `AS-PLAN-001-corrections.md` and `AS-PLAN-001-final-contract.md` classified as external planning artifacts outside AS-CORE-003.
+- Verified external copies preserved at `D:\project-atlas-orphans\AS-PLAN-001`.
+- Repository copies removed.
+- Exclusion record: `.session-preservation/AS-PLAN-001-exclusion-record.yaml`.
+
+### Remaining risks
+
+- The v2 identity formula change invalidates previously certified claim IDs in any golden fixture not regenerated here. Only `dependency-report.json` was observed to change; other outputs remain byte-identical against regenerated fixtures.
+- Concurrent migration relies on `ProjectIdentityLock`; lock staleness defaults (300s) may need tuning for CI.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: YES**
+**BACKLOG MODIFIED: NO**
+**ROADMAP MODIFIED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FABRICATED ATTESTATIONS CREATED: NO**

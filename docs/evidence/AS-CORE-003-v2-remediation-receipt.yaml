@@ -1,0 +1,69 @@
+schema_version: 1
+package: AS-CORE-003
+status: implementation-complete-pending-certification
+receipt_type: v2-identity-remediation
+work_package: AS-CORE-003
+author: Windsurf
+role: Implementation Agent
+directive_id: inherited-takeover
+base_state: inherited-working-tree-from-prior-agent-session
+summary: >-
+  Finalized Claim Identity v2 semantics in knowledge_compiler.py,
+  restored ingestion OCC rollback detection, rewrote the v1-to-v2
+  migration as a self-contained, schema-validated, atomic, idempotent,
+  ambiguity-aware module, and added/updated tests and fixtures.
+identity:
+  formula: "v2|{project_identity}|{source_lineage_id}|{claim_type}|{field}|{stable_semantic_locator}"
+  locator_priority:
+    - explicit id:{id}
+    - schema:{schema_key}
+    - heading:{heading_slug_or_id}
+    - schema:project-manifest for .atlas-project.yaml
+    - fail closed
+  event_locator: "event:{event_id}"
+  digest: sha256
+  truncate_to: 20 hex chars prefixed with "claim-"
+changes:
+  - file: src/project_atlas/ingestion.py
+    note: OCC compare-and-swap handles None expected bytes as file-absence requirement; restored project identity locks.
+  - file: src/project_atlas/knowledge_compiler.py
+    note: v2 identity key includes raw stable semantic locator; event claims use event_id locator.
+  - file: src/project_atlas/migrations/claim_v2_migration.py
+    note: Self-contained migration with schema validation, atomic writes, idempotency, ambiguity records.
+  - file: src/project_atlas/schema.py
+    note: Registered claim-alias schema.
+  - file: src/project_atlas/schemas/claim-alias.schema.json
+    note: New canonical schema for alias-map documents.
+  - file: tests/fixtures/expected/portfolio/dependency-report.json
+    note: Regenerated after accepted identity-formula contract change.
+  - file: tests/integration/test_concurrency.py
+    note: Rewritten OCC rollback test using valid manifest and populated lifecycle precondition.
+  - file: tests/integration/test_historical_completeness.py
+    note: Updated to read structured alias records.
+  - file: tests/integration/test_migration.py
+    note: Structured alias-map assertions, CLI smoke, ambiguity detection.
+  - file: tests/unit/test_schema.py
+    note: claim-alias included in expected schema list.
+excluded_artifacts:
+  - path: AS-PLAN-001-corrections.md
+    classification: EXTERNAL PLANNING ARTIFACT / OUTSIDE AS-CORE-003
+    reason: inherited out-of-scope planning proposal; not accepted governance contract
+  - path: AS-PLAN-001-final-contract.md
+    classification: EXTERNAL PLANNING ARTIFACT / OUTSIDE AS-CORE-003
+    reason: inherited out-of-scope planning proposal; not accepted governance contract
+validation:
+  pytest_command: "python -m pytest tests -q"
+  pytest_result: "149 passed, 1 skipped"
+  ruff_command: "python -m ruff check src tests"
+  ruff_result: clean
+  mypy_command: "python -m mypy src"
+  mypy_result: "Success: no issues found in 38 source files"
+  cli_smoke:
+    - "python -m project_atlas.cli --help"
+    - "python -m project_atlas.cli version"
+    - "python -m project_atlas.cli init --output .tmp\\smoke-vault --dry-run"
+certification:
+  merge_authorized: false
+  final_certification_issued: false
+  historical_commits_rewritten: false
+  fabricated_attestations_created: false

@@ -177,6 +177,7 @@ class KnowledgeBundle:
     lifecycle: tuple[ClaimLifecycleRecord, ...]
     status: dict[str, int]
     writes: dict[str, str]
+    preconditions: dict[str, bytes | None]
 
 
 def _slug(value: str) -> str:
@@ -274,12 +275,9 @@ def _claim(
     project_identity = str(entry.get("project_uuid") or project)
     
     identity_key = (
-        f"v2|{project_identity}|{source_identity}|{claim_type.value}|{field}|"
-        f"{_digest(locator)}"
+        f"v2|{project_identity}|{source_identity}|{claim_type.value}|{field}|{locator}"
     )
-    claim_id = (
-        f"claim-{_digest(identity_key)[:20]}"
-    )
+    claim_id = f"claim-{_digest(identity_key)[:20]}"
     level, _precedence, _reason = _authority(str(entry["path"]), str(entry["classification"]))
     return Claim(
         claim_id=claim_id,
@@ -311,13 +309,13 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
     schema_key = entry.get("schema_key")
     current_heading = None
 
-    for number, raw_line in enumerate(text.splitlines(), start=1):
+    for _number, raw_line in enumerate(text.splitlines(), start=1):
         line = raw_line.strip().lstrip("- ").strip()
         supersession = _SUPERSESSION_RULE.match(line)
         if supersession:
             predecessor_id = supersession.group(1)
             continue
-        
+
         if raw_line.startswith("#"):
             current_heading = raw_line.lstrip("#").strip()
             continue
@@ -327,7 +325,7 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
             if match:
                 claim_value = match.group(1)
                 explicit_match = re.search(r'\{#([^}]+)\}', line)
-                
+
                 if explicit_match:
                     locator = f"id:{explicit_match.group(1).strip()}"
                     claim_value = claim_value.replace(explicit_match.group(0), "").strip()
@@ -342,7 +340,11 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
                 elif str(entry.get("path")).endswith(".atlas-project.yaml"):
                     locator = "schema:project-manifest"
                 else:
-                    raise ValueError(f"Locator normalization failed: No stable locator found. Explicit ID required. path={entry.get('path')} class={entry.get('classification')} line={line}")
+                    raise ValueError(
+                        "Locator normalization failed: No stable locator found. "
+                        f"Explicit ID required. path={entry.get('path')} "
+                        f"class={entry.get('classification')} line={line}"
+                    )
 
                 claims.append(
                     _claim(project, entry, claim_type, field, claim_value, locator)
@@ -354,7 +356,7 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
             for claim in claims
         ]
     if str(entry.get("classification")) == "architecture" and not claims:
-        for number, raw_line in enumerate(text.splitlines(), start=1):
+        for _number, raw_line in enumerate(text.splitlines(), start=1):
             line = raw_line.strip()
             if line and not line.startswith("#"):
                 # fallback for architecture classification without lines
@@ -373,8 +375,12 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
                 elif str(entry.get("path")).endswith(".atlas-project.yaml"):
                     locator = "schema:project-manifest"
                 else:
-                    raise ValueError(f"Locator normalization failed: No stable locator found. Explicit ID required. path={entry.get('path')} class={entry.get('classification')} line={line}")
-                    
+                    raise ValueError(
+                        "Locator normalization failed: No stable locator found. "
+                        f"Explicit ID required. path={entry.get('path')} "
+                        f"class={entry.get('classification')} line={line}"
+                    )
+
                 claims.append(
                     _claim(
                         project, entry, ClaimType.ARCHITECTURE, "architecture", line, locator
@@ -395,13 +401,14 @@ def _event_claim(project: str, entry: dict[str, Any]) -> Claim:
     value = " ".join(str(entry["summary"]).split())
     if scan_text(value):
         raise ValueError(f"secret-bearing agent event cannot become a claim: {entry['event_id']}")
-    source_id = str(entry["event_id"])
+    event_id = str(entry["event_id"])
+    source_id = event_id
     source_lineage_id = entry.get("source_lineage_id")
     source_identity = str(source_lineage_id or source_id)
-    
+
+    event_locator = f"event:{event_id}"
     identity_key = (
-        f"v2|{project}|{source_identity}|{claim_type.value}|{event_type}|"
-        f"{_digest(f'event:{event_type}')}"
+        f"v2|{project}|{source_identity}|{claim_type.value}|{event_type}|{event_locator}"
     )
     claim_id = f"claim-{_digest(identity_key)[:20]}"
     
@@ -594,12 +601,14 @@ def _apply_lifecycle(
     vault: Path,
     conflict_ids: dict[str, str] | None = None,
     observed_at: str | None = None,
-) -> tuple[list[Claim], list[ClaimLifecycleRecord]]:
+) -> tuple[list[Claim], list[ClaimLifecycleRecord], bytes | None]:
     state_path = vault / "state" / "claim-lifecycle" / f"{project}.json"
     previous: dict[str, dict[str, Any]] = {}
+    original_bytes = None
     if state_path.is_file():
+        original_bytes = state_path.read_bytes()
         try:
-            raw = json.loads(state_path.read_text(encoding="utf-8"))
+            raw = json.loads(original_bytes.decode("utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             raise ValueError(f"invalid claim lifecycle state: {state_path}") from exc
         if (
@@ -805,7 +814,7 @@ def _apply_lifecycle(
                     transitions=list(prior.get("transitions", [])),
                 )
             )
-    return output, lifecycle
+    return output, lifecycle, original_bytes
 
 
 def _lifecycle_policy(vault: Path) -> dict[str, Any]:
@@ -859,7 +868,10 @@ def compile_knowledge(
     for claim in claims:
         prior = by_id.get(claim.claim_id)
         if prior is not None:
-            raise ValueError(f"ambiguous identity boundary: duplicate explicit IDs or colliding semantic anchors for {claim.claim_id}")
+            raise ValueError(
+                "ambiguous identity boundary: duplicate explicit IDs or "
+                f"colliding semantic anchors for {claim.claim_id}"
+            )
         by_id[claim.claim_id] = claim
     preliminary_conflicts = _conflicts(project, claims)
     conflict_ids = {
@@ -873,9 +885,11 @@ def compile_knowledge(
         if (value := item.get("observed_at") or item.get("timestamp"))
     ]
     observed_at = max(observed_values) if observed_values else None
-    claims, lifecycle = _apply_lifecycle(
+    claims, lifecycle, original_lifecycle_bytes = _apply_lifecycle(
         project, claims, vault, conflict_ids=conflict_ids, observed_at=observed_at
     )
+    preconditions: dict[str, bytes | None] = {}
+    preconditions[f"state/claim-lifecycle/{project}.json"] = original_lifecycle_bytes
     conflicts = _conflicts(project, claims)
     reviews = _review(project, claims, conflicts)
     reviews.extend(
@@ -959,6 +973,7 @@ def compile_knowledge(
         lifecycle=tuple(lifecycle),
         status=status,
         writes={},
+        preconditions=preconditions,
     )
 
 

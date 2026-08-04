@@ -25,6 +25,7 @@ def test_all_expected_schemas_available() -> None:
     assert available_schemas() == [
         "authority-record",
         "claim",
+        "claim-alias",
         "claim-lifecycle",
         "concept-record",
         "conflict-record",

@@ -215,7 +215,8 @@ def test_conflict_stale_restore_and_rejection_paths(tmp_path: Path) -> None:
         "text": "# Overview\nDeployment: port 8000",
         "observed_at": "2020-01-01T00:00:00+00:00",
     }
-    conflict = dict(base, source_id="source-b", sha256="b" * 64, text="# Overview\nDeployment: port 9000")
+    conflict_text = "# Overview\nDeployment: port 9000"
+    conflict = dict(base, source_id="source-b", sha256="b" * 64, text=conflict_text)
     first = compile_knowledge("state-project", [base, conflict], tmp_path)
     assert {claim.lifecycle for claim in first.claims} == {ClaimLifecycle.CONTRADICTED}
     for relative, content in render_bundle(first, "state-project").items():

@@ -440,10 +440,14 @@ def _prepare_project_identity(
     return project_uuid, marker, original, allocated
 
 
-def _assert_marker_compare_and_swap(preconditions: dict[Path, bytes]) -> None:
+def _assert_state_compare_and_swap(preconditions: dict[Path, bytes | None]) -> None:
     for path, expected in preconditions.items():
+        if expected is None:
+            if path.is_file():
+                raise ValueError(f"state changed during transaction: {path}")
+            continue
         if not path.is_file() or path.read_bytes() != expected:
-            raise ValueError(f"project marker changed during identity transaction: {path}")
+            raise ValueError(f"state changed during transaction: {path}")
 
 
 def _verify_identity_post_state(
@@ -766,7 +770,7 @@ def _ingest(
         )
         projects.setdefault(package.project_id, [])
     project_identity: dict[str, str] = {}
-    marker_preconditions: dict[Path, bytes] = {}
+    marker_preconditions: dict[Path, bytes | None] = {}
     identity_markers: dict[str, Path] = {}
     allocated_projects: set[str] = set()
     for project, entries in sorted(projects.items()):
@@ -1174,6 +1178,8 @@ def _ingest(
             vault,
             event_entries.get(project, []),
         )
+        for relative_path, expected_bytes in knowledge.preconditions.items():
+            marker_preconditions[_inside(vault, vault / relative_path)] = expected_bytes
         for relative, content in render_bundle(knowledge, project).items():
             destination = _inside(vault, vault / relative)
             write_plan[destination] = _generated_content(
@@ -1225,7 +1231,7 @@ def _ingest(
     from project_atlas.indexes import canonical_index_payloads
 
     write_plan.update(canonical_index_payloads(vault, write_plan))
-    _assert_marker_compare_and_swap(marker_preconditions)
+    _assert_state_compare_and_swap(marker_preconditions)
     _promote(write_plan)
     _verify_identity_post_state(
         vault, project_identity, identity_markers, allocated_projects
