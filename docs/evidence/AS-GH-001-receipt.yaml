@@ -170,6 +170,38 @@ implementation_merge_authorized: false
 historical_commits_rewritten: false
 fabricated_attestations_created: false
 
+# Complete remediation provenance, recorded explicitly rather than
+# relying on a bare "SELF" self-reference. Every hash below is a real,
+# resolvable commit; none was amended, rebased, squashed, or force-pushed.
+remediation_provenance:
+  pre_remediation_tip: 7c52e4635d091a1fe2896159bad5b0c991cecec2
+  implementation_remediation_tip: 4d628baf90b8b23b22dd17ab04278d3a565ffccb
+  remediation_lineage:
+    - commit: 6ae47d11c755738a10b1ba9bc66dbda047b0aa51
+      parent: 7c52e4635d091a1fe2896159bad5b0c991cecec2
+      subject: "fix(governance): address PR template and workflow review findings"
+    - commit: 97e9b0022d0fe39a6aa1000bb538dd699f9ef2b1
+      parent: 6ae47d11c755738a10b1ba9bc66dbda047b0aa51
+      subject: "test(governance): enforce exact workflow permission maps"
+    - commit: 4d628baf90b8b23b22dd17ab04278d3a565ffccb
+      parent: 97e9b0022d0fe39a6aa1000bb538dd699f9ef2b1
+      subject: "docs(evidence): record AS-GH-001 remediation validation"
+  evidence_correction_commit: SELF
+  evidence_correction_parent: 4d628baf90b8b23b22dd17ab04278d3a565ffccb
+  evidence_correction_subject: "docs(evidence): complete AS-GH-001 remediation provenance"
+  final_candidate_tip: SELF
+  final_candidate_tip_note: >-
+    This commit's own hash (not yet knowable while authoring this file)
+    is both evidence_correction_commit and final_candidate_tip. Resolve
+    it with `git rev-parse HEAD` immediately after this commit, or from
+    the corresponding completion report / WORKLOG.md entry; it is
+    recorded as "SELF" here only because it is genuinely self-referential,
+    not because the rest of this section's provenance is incomplete --
+    every other commit above is an explicit, independently resolvable
+    full hash.
+  authorized_changed_path_this_commit: docs/evidence/AS-GH-001-receipt.yaml
+  other_files_changed_this_commit: none
+
 # Bounded remediation, applied additively on top of pre-remediation tip
 # 7c52e4635d091a1fe2896159bad5b0c991cecec2 in response to four PR #2
 # review threads. No existing commit was amended, rebased, or squashed.
