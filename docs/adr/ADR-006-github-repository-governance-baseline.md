@@ -50,7 +50,7 @@ local `main` == remote `main`, confirmed via `git fetch origin main` +
 | Governance docs | `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SUPPORT.md`, `GOVERNANCE.md`, `VERSIONING.md`, `RELEASING.md` do not exist. |
 | Versioning | `pyproject.toml` declares `version = "0.1.0"`; nothing else in the repository references or bumps it. No git tags exist (`git tag` is empty). |
 | Commit signing | `git log --show-signature` on the last 20 commits shows no GPG/SSH signatures; the certified AS-MVP-001 history is entirely unsigned. |
-| Branch protection / GitHub settings | Reported by the Project Owner as configured (private repo, linear history required, force-push disabled, branch deletion disabled, PR + 1 approval required, admin enforcement, rebase-merge only) but **not independently verified by this architecture review** — no GitHub API/UI access was used to confirm these settings. GitHub Advanced Security (secret scanning, push protection, private vulnerability reporting) is reported unavailable under the current plan for a private repo. |
+| Branch protection / GitHub settings | Agent Four's read-only platform report records classic branch protection, no active ruleset, PR + 1 approval, administrator enforcement, rebase-only merging, no required checks, and the other settings reconciled authoritatively in §24. This architecture commit does not itself modify or independently re-query GitHub settings. |
 | Evidence preservation | `.session-preservation/as-mvp-001-b/` (containing `as-mvp-001-b-9161d0b.bundle` and a `patches/` directory) exists on disk, is untracked, and is **not currently excluded by `.gitignore`** — nothing today prevents an incautious `git add -A` from accidentally tracking and pushing it. This is a real, actionable gap this ADR must close. |
 | `.gitignore` | Covers Python/build artifacts, `.tmp/`, and local agent/editor state (`.agents/`, `.codex/`, `.claude/`) but not `.session-preservation/`. |
 | `pyproject.toml` | `ruff` scope is `include = ["src/**/*.py", "tests/**/*.py"]` (explicitly excludes `atlas-vault-documentation/`, per that sibling deliverable's own tooling); `mypy` targets `packages = ["project_atlas"]`, `strict = true`. These are the real, authoritative lint/type commands — matched verbatim in `ci.yml`. |
@@ -230,7 +230,7 @@ GitHub reports after the workflow has run at least once. Concretely,
 for the existing and proposed jobs above (workflow file `ci.yml`,
 `name: ci`, single job `quality`):
 
-- Required check name: `ci / quality`
+- Required check name: `quality`
 
 If Phase 3 splits `quality` into multiple jobs (e.g. `quality` and a
 new `control-plane` job) for parallelism, each job's required-check
@@ -253,12 +253,11 @@ pending Phase 6 independent verification (§17):
 - Every change lands via pull request, minimum 1 approval, stale
   approvals dismissed on new pushes, conversation resolution required.
 - Linear history required; **rebase merge only** — merge commits and
-  squash merges disabled. This matches the fast-forward-only discipline
-  already used for every AS-MVP-001 merge; rebase-merge on GitHub
-  preserves individual commits (unlike squash) while still producing a
-  linear `main`, which best matches this project's existing
-  per-commit-scoped evidence trail (test commit / fix commit / evidence
-  commit, each independently reviewable).
+  squash merges disabled. GitHub rebase merging produces new commit IDs;
+  it does not preserve the exact reviewed candidate hash. Therefore the
+  final post-rebase `main` tip, not the pre-merge PR tip, must receive the
+  final independent verification and owner authorization recorded by the
+  release gate.
 - Force-push and branch deletion disabled on `main`.
 - Feature/work-package branches follow the existing repository
   convention observed throughout AS-MVP-001:
@@ -290,7 +289,7 @@ executed by hand, mapped onto GitHub PRs:
    test results, security impact, documentation impact, rollback
    considerations, known limitations, reviewer certification, owner
    authorization, prohibited history operations acknowledgement).
-6. Wait for the `ci / quality` required check and at least one
+6. Wait for the `quality` required check and at least one
    approval; resolve all review conversations.
 7. Merge via **rebase merge** only (§9). Do not use the GitHub UI's
    "Squash and merge" or "Create a merge commit" options — they are
@@ -432,7 +431,7 @@ updates:
 `RELEASING.md`:
 
 - **Tag format:** `v<MAJOR>.<MINOR>.<PATCH>` (e.g. `v0.2.0`), applied
-  only to a commit on `main` that has an all-green `ci / quality`
+  only to a commit on `main` that has an all-green `quality`
   required-check run recorded against that exact commit SHA.
 - **Release-branch policy:** none maintained pre-1.0; all releases are
   tagged directly on `main`. Revisit if/when a maintenance-branch model
@@ -677,7 +676,7 @@ verifier) discipline:
 1. Agent One implements each phase in its own PR (or a small number of
    tightly-related PRs per phase), referencing this ADR and
    `docs/work-packages/AS-GH-001.md`.
-2. Each PR's own CI run (`ci / quality` plus any Phase-3-added jobs)
+2. Each PR's own CI run (`quality` plus any Phase-3-added jobs)
    must pass before merge — this is the *first* real proof a given
    job/check exists and works, satisfying §8's naming-contract
    precondition for later phases.
@@ -718,15 +717,15 @@ verifier) discipline:
 
 ## 21. Known limitations
 
-- This architecture review did **not** independently verify GitHub's
-  actual branch-protection or security settings via API/UI access; all
-  of §9's and §Current-state assessment's settings claims are recorded
-  as **Project-Owner-reported, pending Phase 6 independent
-  verification** — they must not be treated as certified until then.
+- Agent Four's read-only platform report is the current factual input for
+  the settings listed in §24. Agent Two must still independently verify the
+  exact settings during Phase 6 before treating them as certified, and this
+  architecture amendment did not change any setting.
 - GitHub Advanced Security (secret scanning, push protection, private
-  vulnerability reporting) is unavailable under the current plan; the
-  compensating `SECURITY.md` disclosure path (§11) is a workaround, not
-  a substitute with equivalent automated coverage.
+  vulnerability reporting) and CodeQL default setup are unavailable under
+  the current plan; the compensating `SECURITY.md` disclosure path (§11),
+  local scanning, and future repository-owned CI checks are workarounds,
+  not substitutes with equivalent hosted coverage.
 - Commit signing is not required for any existing or near-term commit;
   the entire certified history through `a7a6ebc...` remains unsigned
   permanently.
@@ -771,3 +770,94 @@ AS-GH-001 closure requires Agent Two's explicit
 "AS-GH-001 INDEPENDENT VERIFICATION PASSED" disposition referencing
 the exact final commit SHA and, for every settings-affecting phase, the
 specific GitHub API/UI evidence consulted.
+
+## 24. Platform reconciliation amendment (Agent Four, 2026-08-04)
+
+This section is authoritative for the verified GitHub platform facts and
+supersedes any earlier candidate wording that conflicts with it. It does
+not claim that GitHub settings were changed by this architecture package.
+
+### Verified current state
+
+- Classic branch protection is active on `main`; no repository ruleset and
+  no organization ruleset applies.
+- Merge commits and squash merging are disabled; rebase merging is enabled.
+- Pull requests and one approving review are required, stale approvals are
+  dismissed, conversation resolution is required, and administrator
+  enforcement is enabled. The only collaborator is `B0LK13`, so the
+  current configuration is operationally unable to provide an independent
+  GitHub approval for the repository owner. This is a release-blocking
+  configuration condition, not an assumption that Agent Two or Agent Four
+  has GitHub approval rights.
+- No required status checks are currently configured. The project-owned
+  check is `quality`; `update-pip-graph` is a GitHub-managed dependency
+  graph check and is not a Project Atlas quality gate.
+- `atlas-documentation-gate.yml` is `workflow_dispatch`-only and has no
+  current automatic PR/push check run. It remains manual; an automatic
+  governance check requires a later implementation decision.
+- Tracked workflows are `ci.yml` and `atlas-documentation-gate.yml`.
+  `dynamic/dependabot/update-graph` is GitHub-managed and must not be
+  recreated or edited as a repository file.
+- Tracked action references currently use floating major versions
+  (`actions/checkout@v4` and `actions/setup-python@v5`). The target policy
+  is immutable SHA pinning, or an explicitly documented governed-version
+  policy if authentic upstream SHAs cannot yet be adopted. No SHA may be
+  invented.
+- Actions are enabled, all actions are currently allowed, the default
+  `GITHUB_TOKEN` permission is read, and the token cannot approve PRs.
+- Forking is enabled and cannot be disabled in the reported personal-account
+  configuration. GitHub secret scanning, push protection, private
+  vulnerability reporting, and CodeQL default setup are unavailable.
+- Projects are enabled. The real dependency ecosystems are only `pip` and
+  GitHub Actions.
+- The existing history contains 135 unsigned commits and signed-commit
+  enforcement is disabled.
+
+### Binding governance decisions
+
+1. **Merge model: certified PR rebase (Model A).** The current platform
+   configuration requires a PR and enables rebase merging. A GitHub rebase
+   merge creates a new commit ID even when it preserves individual commits;
+   it is therefore not an exact-hash merge. Agent Two must certify the
+   post-rebase result, and the owner must record both the reviewed PR tip
+   and the resulting `main` tip before closure. A local fast-forward is not
+   the normal route while the current PR/admin rules remain active.
+2. **Approval lockout resolution.** No implementation agent may be told to
+   merge while one approving review and one collaborator remain configured.
+   The owner must first add a separately authorized GitHub reviewer, or
+   execute and verify a governed transition to a review rule that the
+   repository can actually satisfy. External independent certification is
+   not a GitHub approving review.
+3. **Required-check activation.** Run the implementation workflow on a
+   published candidate, capture the exact successful check name `quality`,
+   independently verify it, and only then add that exact name to classic
+   branch protection. Do not require `update-pip-graph`, and do not require
+   the manual documentation gate. Recheck that the repository remains
+   mergeable after activation.
+4. **Rulesets.** No ruleset is current. A future ruleset is permissible
+   only as an explicitly additive migration with conflict analysis,
+   retention/removal of classic protection decided first, and independent
+   verification; it is not an implementation assumption.
+5. **Action supply chain.** Agent One must either pin every action to an
+   authentic upstream commit SHA with a release-tag comment and reviewed
+   ownership check, or document the governed major-version policy and its
+   review/update controls. Existing floating references are current state,
+   not evidence of compliance with SHA pinning.
+6. **Security and forks.** Until unavailable hosted controls change, use
+   local and CI secret detection, manual pre-publication review, and the
+   private disclosure route defined by `SECURITY.md`. Workflows use
+   `contents: read` by default, never use `pull_request_target` for
+   untrusted code execution, do not expose secrets to fork PRs, and use
+   only synthetic fixtures in security checks. No personal contact address
+   is to be added without owner authorization.
+7. **Signing.** Signing adoption is prospective. Run a dry-run with the
+   owner, ordinary contributors, GitHub-generated commits, and Dependabot
+   before considering signed-commit enforcement. Existing unsigned history
+   is never rewritten, and enforcement remains disabled until the recovery
+   path is independently proven.
+
+The platform facts above are split deliberately: repository-derived facts
+come from tracked files and commands; current GitHub settings are Agent
+Four's read-only platform report; recommendations are the binding decisions
+for later implementation. No GitHub setting, workflow, or repository file
+was changed by this amendment.

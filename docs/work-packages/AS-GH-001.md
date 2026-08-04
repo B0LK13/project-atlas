@@ -79,14 +79,17 @@ Summarized:
 - Every required document exists with its specified sections.
 - `CODEOWNERS`, PR template, and issue templates all parse correctly.
 - Every workflow/evidence YAML file parses with zero duplicate keys.
-- Every workflow action reference is pinned; no untrusted-fork secret
+- Every workflow action reference is pinned, or the implementation records
+  an explicitly approved governed-version policy; no untrusted-fork secret
   exposure; least-privilege permissions.
 - Every required branch-protection check maps to a real, previously
   successful job (never a placeholder).
 - Dependabot ecosystems exactly match what's actually present
   (`pip`, `github-actions`).
-- No existing certified history is rewritten; `main` remains a strict,
-  fast-forward-only descendant of `a7a6ebc41ea884f7ce4ec2d70da89e6a44097381`.
+- No existing certified history is rewritten. GitHub rebase merging may
+  create new post-rebase commit IDs, so the resulting `main` tip must be
+  independently verified before owner closure; the reviewed candidate hash
+  is never represented as the post-rebase hash.
 - `.session-preservation/` never becomes tracked.
 - No secret is introduced.
 - Local and remote `main` remain aligned after every phase.
@@ -95,20 +98,74 @@ Summarized:
 
 ## Known limitations (carried from ADR-006 §21)
 
-- GitHub branch-protection/security settings reported by the Project
-  Owner as already configured were **not independently verified** by
-  this architecture review; they must be independently confirmed in
-  Phase 6 before being treated as certified.
+- Agent Four's read-only platform report is the current factual input for
+  Phase 6: classic branch protection is active, no repository or
+  organization ruleset applies, required checks are currently empty, and
+  the repository has one collaborator (`B0LK13`). Phase 6 must still
+  capture fresh settings evidence before activation and must resolve the
+  one-approval/one-collaborator administrative lockout before instructing
+  an implementation agent to merge.
 - GitHub Advanced Security (secret scanning, push protection, private
   vulnerability reporting) is unavailable under the current plan;
   `SECURITY.md`'s disclosure path is a compensating workaround, not an
   equivalent automated control.
-- Whether `atlas-vault-documentation/` needs its own Dependabot entry
-  was not conclusively determined; must be verified with real
-  directory inspection before Phase 4.
+- Dependabot scope is limited to the verified `pip` and `github-actions`
+  ecosystems. The GitHub-managed `update-pip-graph` check is not a
+  Project Atlas quality gate. `atlas-documentation-gate.yml` remains
+  manual (`workflow_dispatch` only) unless a later implementation phase
+  explicitly adds an automatic trigger or a separate governance check.
 - No secondary/offsite backup beyond GitHub + local clone +
   `.session-preservation/` bundles is mandated; recorded only as an
   open recommendation.
+
+## Platform reconciliation amendment (Agent Four, 2026-08-04)
+
+This section is authoritative for the verified platform facts and
+supersedes conflicting wording above. It is architecture-only; no GitHub
+setting or implementation file is changed by this amendment.
+
+- The current protection mechanism is classic branch protection. No
+  repository or organization ruleset is active.
+- GitHub currently requires a PR and one approving review, with
+  administrator enforcement, while only `B0LK13` is a collaborator. This
+  is an operational lockout risk: independent certification does not count
+  as a GitHub approval. Before any merge instruction, the owner must add a
+  separately authorized reviewer or complete a governed, verified review
+  rule transition that the repository can satisfy.
+- GitHub rebase merging is the selected normal PR model because merge and
+  squash are disabled. It creates new commit IDs, so post-rebase exact-tip
+  verification and owner authorization are mandatory; the reviewed branch
+  hash must not be presented as the resulting `main` hash.
+- No required checks are active. The only project-owned candidate is the
+  real `quality` check. `update-pip-graph` is GitHub-managed and is not a
+  project quality gate. Activation is staged: successful workflow run,
+  exact-name capture, independent verification, then branch-protection
+  update and lockout check.
+- `atlas-documentation-gate.yml` remains manual (`workflow_dispatch` only)
+  and is not an automatic PR/push gate. Any automatic governance check is a
+  separate later implementation decision.
+- Current tracked actions use `actions/checkout@v4` and
+  `actions/setup-python@v5`; implementation must adopt authentic SHA
+  pinning or an explicitly governed-version policy, never invented hashes.
+- Actions are enabled with all actions allowed and read-default tokens.
+  Forking is enabled and cannot be disabled in the reported account setup;
+  workflows must therefore avoid `pull_request_target`, secrets on fork PRs,
+  and write permissions.
+- Hosted secret scanning, push protection, private vulnerability reporting,
+  and CodeQL default setup are unavailable. Compensating local/CI scans and
+  private disclosure guidance are required, without publishing owner
+  contact data without authorization.
+- The only verified Dependabot ecosystems are `pip` and `github-actions`.
+  Projects are enabled. Existing history has 135 unsigned commits; signing
+  adoption is prospective and cannot rewrite history.
+
+### Phase 6 gate correction
+
+Phase 6 is not complete merely because the settings are reported. Agent
+Four's platform report is factual input; Agent Two must verify the exact
+settings and the owner must resolve the approval lockout before the package
+can be considered merge-operable. The documentation gate and
+`update-pip-graph` must not be added to required Project Atlas checks.
 
 ## Handoff
 
