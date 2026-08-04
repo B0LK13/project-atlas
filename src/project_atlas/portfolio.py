@@ -96,24 +96,36 @@ def _sources_state(vault: Path) -> dict[str, dict[str, Any]]:
     }
 
 
+def _quarantine_findings(vault: Path, name: str) -> list[dict[str, Any]]:
+    """Return the raw finding dicts from a ``generated/reports/*.json``
+    quarantine report, tolerating the two distinct on-disk shapes those
+    reports actually use: ``injection-findings.json`` is
+    ``{"schema_version": 1, "findings": [...]}`` (ingestion.py);
+    ``secret-findings.json`` is a bare top-level array (ingestion.py).
+    Reading only one shape previously caused secret-findings quarantine
+    entries to be silently skipped here (AS-MVP-001 release-closure
+    remediation)."""
+    raw = _json(vault / "generated" / "reports" / name, [])
+    if isinstance(raw, dict):
+        raw = raw.get("findings", [])
+    return [item for item in raw if isinstance(item, dict)] if isinstance(raw, list) else []
+
+
 def _quarantined_source_ids(vault: Path) -> dict[str, dict[str, Any]]:
     """Metadata-only quarantine findings, keyed by source_id.
 
     Never reads matched text; only the existing safe fields
-    (rule, confidence, disposition) that ``injection-findings.json`` and
+    (rule/pattern, confidence) that ``injection-findings.json`` and
     ``secret-findings.json`` already restrict themselves to (AS-SEC-001).
     """
     result: dict[str, dict[str, Any]] = {}
     for name in ("injection-findings.json", "secret-findings.json"):
-        raw = _json(vault / "generated" / "reports" / name, {})
-        for finding in raw.get("findings", []) if isinstance(raw, dict) else []:
-            if not isinstance(finding, dict):
-                continue
+        for finding in _quarantine_findings(vault, name):
             source_id = str(finding.get("source_id", ""))
             if not source_id:
                 continue
             result.setdefault(source_id, {"rules": [], "report": name})
-            rule = finding.get("rule")
+            rule = finding.get("rule") or finding.get("pattern")
             if rule and rule not in result[source_id]["rules"]:
                 result[source_id]["rules"].append(rule)
     return result
@@ -234,9 +246,16 @@ def overview(vault: Path, coverage_payload: dict[str, Any]) -> dict[str, Any]:
                 "coverage_categories_present": present,
                 "coverage_categories_total": len(categories),
                 "open_conflicts": len(conflicts_by_project.get(project_id, [])),
-                "quarantined_sources": quarantined_count
-                if manifest_sources
-                else "unknown",
+                # "unknown" (not a fabricated 0) whenever this project has no
+                # entries of its own in sources/manifests/source-manifest.json
+                # -- either because the vault has no manifest at all, or
+                # because a later, narrower `atlas ingest` call overwrote the
+                # combined manifest (known pre-existing ingestion.py
+                # limitation, AS-MVP-001 release-closure remediation) and no
+                # longer carries this project's sources. A project present
+                # in the manifest with zero matching quarantine findings is
+                # reported as a real 0, never confused with "no evidence".
+                "quarantined_sources": quarantined_count if project_manifest_ids else "unknown",
             }
         )
     return {
