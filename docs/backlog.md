@@ -192,7 +192,7 @@ independent verification passes and the branch is merged to `main`._
 
 ## AS-CORE-003 — Claim Identity v2 remediation
 
-_Status: V2-003 was preserved and rejected by independent review. V2-004 remediates historical identity reconstruction, atomic migration bundling, path safety, project isolation, semantic replay validation, and cross-file promotion rollback. Local gates pass; a fresh isolated review, remote CI, certification, and Project Owner merge authorization remain pending._
+_Status: V2-003 was preserved and rejected by independent review. V2-004 implemented and validated the remediation but was superseded before review because its immutable tag annotation recorded an invalid tree string. V2-005 preserves that tag and rebinds the unchanged tested code plus the additive correction record to exact commit/tree evidence. Fresh isolated review, remote CI, certification, and Project Owner merge authorization remain pending._
 
 - [x] CORE3-001 Finalize Claim Identity v2 formula using raw stable semantic locator
 - [x] CORE3-002 Use `event:{event_id}` locator for agent-event-derived claims
@@ -217,5 +217,6 @@ _Status: V2-003 was preserved and rejected by independent review. V2-004 remedia
 - [x] CORE3-021 Commit alias state and its receipt as one validated atomic bundle
 - [x] CORE3-022 Reject incomplete, cross-project, or resolved/ambiguous replay state
 - [x] CORE3-023 Add tested cross-file promotion rollback and artifact cleanup
-- [ ] CORE3-024 Complete a fresh independent V2-004 review and certification
-- [ ] CORE3-025 Merge to `main`
+- [x] CORE3-024 Preserve the malformed V2-004 annotation and supersede it without moving the tag
+- [ ] CORE3-025 Complete a fresh independent V2-005 review and certification
+- [ ] CORE3-026 Merge to `main`

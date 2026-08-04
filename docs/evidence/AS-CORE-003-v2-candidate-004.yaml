@@ -1,6 +1,6 @@
 schema_version: 1
 package: AS-CORE-003
-status: local-validation-complete-pending-isolated-review
+status: superseded-before-isolated-review
 receipt_type: v2-identity-candidate-evidence
 work_package: AS-CORE-003
 directive_id: D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
@@ -106,7 +106,9 @@ limitations:
   - The approved local spool remains pending synchronization with the shared Atlas Vault.
   - Fresh isolated review, remote CI, PR-head verification, and Project Owner merge authorization remain pending.
 certification:
-  isolated_technical_review: pending
+  isolated_technical_review: not-run
+  tag_annotation_valid: false
+  superseded_by: candidate/CAND-AS-CORE-003-V2-005
   final_certification_issued: false
   merge_authorized: false
   historical_commits_rewritten: false

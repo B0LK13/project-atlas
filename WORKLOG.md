@@ -3156,3 +3156,13 @@ review, remote CI/PR-head verification, and Project Owner merge authorization.
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
 **FINAL CERTIFICATION ISSUED: NO**
+
+### V2-004 tag annotation supersession
+
+The V2-004 annotated tag correctly peels to tested commit
+`d658649390740b6e74afc27e36e1f647f7f41ba8`, but PowerShell interpreted the
+unquoted `HEAD^{tree}` expression while the annotation message was composed.
+The message therefore contains an invalid tree claim. The immutable tag was
+neither moved nor deleted. V2-005 supersedes it additively, preserves the exact
+failure evidence, and carries no production-code or test change after the
+fully validated V2-004 implementation commit.
