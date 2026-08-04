@@ -340,6 +340,24 @@ def stale_knowledge(
     }
 
 
+def _dedupe_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop exact-duplicate entries (identical dict content), keeping the
+    first occurrence. Entries that differ in any field -- e.g. distinct
+    ``claim_id``/provenance for the same target, or distinct
+    ``concept_id`` -- are never merged; only byte-for-byte-equivalent
+    entries (the same canonical relationship/capability represented more
+    than once) are collapsed (AS-MVP-001-R1)."""
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for entry in entries:
+        key = json.dumps(entry, sort_keys=True)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(entry)
+    return result
+
+
 def dependency_report(vault: Path) -> dict[str, Any]:
     """I-007: declared runtime-dependency claims only (deterministic
     ``requires:``/``dependency:`` line extraction already performed by
@@ -387,8 +405,15 @@ def dependency_report(vault: Path) -> dict[str, Any]:
                         }
                     )
         if entries:
+            entries = _dedupe_entries(entries)
             projects[project_id] = sorted(
-                entries, key=lambda item: (item.get("target") or "", item.get("claim_id") or "")
+                entries,
+                key=lambda item: (
+                    item.get("target") or "",
+                    item.get("claim_id") or "",
+                    item.get("concept_id") or "",
+                    item.get("relationship_type") or "",
+                ),
             )
     return {"schema_version": 1, "projects": projects}
 
@@ -420,9 +445,14 @@ def capability_report(vault: Path) -> dict[str, Any]:
             if isinstance(relationship, dict) and relationship.get("type") == "provides"
         ]
         if capabilities or provides:
+            capabilities = _dedupe_entries(capabilities)
+            provides = _dedupe_entries(provides)
             projects[project_id] = {
                 "capabilities": sorted(capabilities, key=lambda item: str(item["concept_id"])),
-                "provides": sorted(provides, key=lambda item: str(item["target"])),
+                "provides": sorted(
+                    provides,
+                    key=lambda item: (str(item["target"]), str(item["concept_id"])),
+                ),
             }
     return {"schema_version": 1, "projects": projects}
 
