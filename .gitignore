@@ -67,3 +67,6 @@ atlas-vault-documentation/**/.atlas-normalization.lock
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Windsurf plans and session state
+.windsurf/
