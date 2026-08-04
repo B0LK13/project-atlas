@@ -271,6 +271,32 @@ def test_security_no_quarantined_content_in_portfolio_outputs(tmp_path: Path) ->
 
 
 def test_rollback_preserves_prior_valid_portfolio_on_failure(tmp_path: Path) -> None:
+    """Strengthened (AS-MVP-001-R1) over the original version of this test:
+    disk state is inspected immediately after the forced failure and
+    *before* any restorative cleanup, so a passing assertion cannot be an
+    artifact of the cleanup itself recreating the "before" state.
+
+    Scope of the guarantee actually proven here: when the whole
+    ``generated/portfolio/`` destination directory is unavailable (a
+    regular file in its place), every one of ``_atomic_bytes``'s
+    ``path.parent.mkdir(parents=True, exist_ok=True)`` calls in
+    ``_promote()``'s write loop fails identically and immediately for the
+    very first path in sorted order -- so *zero* files in the write plan
+    are ever touched, and the prior valid output is undisturbed by
+    construction, not by coincidence.
+
+    This is narrower than "``_promote()`` is fully transactional across an
+    arbitrary write plan": ``_promote()`` (``ingestion.py``, shared with
+    other certified packages, out of AS-MVP-001-R1's bounded scope) writes
+    each destination file atomically on its own (temp file + ``os.replace``)
+    but iterates the write plan in a plain loop with no cross-file
+    transaction or rollback of files already written before a later file
+    in the same plan fails. A failure isolated to *one specific file*
+    partway through a multi-file plan can leave a mix of newly-written and
+    stale files; that scenario is not exercised by this test and is not
+    claimed to be atomic (see docs/evidence/AS-MVP-001-receipt.yaml's
+    remediation section).
+    """
     source = _copy_pilots(tmp_path)
     vault = _run_pipeline(source, tmp_path)
     reference = datetime(2026, 8, 1, tzinfo=UTC)
@@ -284,17 +310,33 @@ def test_rollback_preserves_prior_valid_portfolio_on_failure(tmp_path: Path) -> 
     # directory can be (re)written.
     shutil.rmtree(portfolio_dir)
     portfolio_dir.write_text("not a directory", encoding="utf-8")
+
     raised = False
     try:
         build_portfolio(vault, reference_date=reference)
     except OSError:
         raised = True
-    finally:
-        portfolio_dir.unlink()
-        for name, content in before.items():
-            (portfolio_dir / name).parent.mkdir(parents=True, exist_ok=True)
-            (portfolio_dir / name).write_bytes(content)
 
+    # Inspect disk state now, before any cleanup: the failure is raised,
+    # and the destination is still exactly the blocking regular file --
+    # not a directory, not a mix of old/new files, no partial output.
     assert raised
+    assert portfolio_dir.is_file()
+    assert not portfolio_dir.is_dir()
+    assert portfolio_dir.read_text(encoding="utf-8") == "not a directory"
+
+    # Only now perform cleanup; the assertions above already independently
+    # proved preservation without relying on this step.
+    portfolio_dir.unlink()
+    for name, content in before.items():
+        (portfolio_dir / name).parent.mkdir(parents=True, exist_ok=True)
+        (portfolio_dir / name).write_bytes(content)
     after = {path.name: path.read_bytes() for path in sorted(portfolio_dir.glob("*.json"))}
     assert before == after
+
+    # A later clean run succeeds and reproduces the same settled output.
+    build_portfolio(vault, reference_date=reference)
+    after_rebuild = {
+        path.name: path.read_bytes() for path in sorted(portfolio_dir.glob("*.json"))
+    }
+    assert before == after_rebuild
