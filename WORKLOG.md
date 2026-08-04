@@ -2962,3 +2962,108 @@ FOCUSED INDEPENDENT REVERIFICATION REQUIRED**
 **NEXT AGENT: AGENT TWO — FINAL RECEIPT REVERIFICATION**
 **NEXT PHASE: VERIFY THE EVIDENCE-ONLY EPIC K RECONCILIATION AND OWNER-DISPOSITION RECORD**
 **NEXT DIRECTIVE: PIN THE NEW FULL HASH AND COMPARE IT TO d9e1865 AND 342c9d1**
+
+## AS-GH-001 — Repository governance baseline, implementation Phase 1/2/3(partial)/4
+
+Branch `feat/as-gh-001-governance-baseline-phase1`, created from the
+actual authoritative `origin/main` tip
+(`42410e968cd3eb392afd66181d64ed3c25e36833`) — **not** from this
+operator's own earlier, independently-authored, never-pushed local
+architecture commit (`a8b2cb2b3c5ae2bd66fc59a6e616eb720f14b542`), which
+was superseded by a different, more detailed AS-GH-001 architecture
+(`docs/adr/ADR-006-github-repository-governance-baseline.md`,
+`docs/work-packages/AS-GH-001.md`) pushed directly to `origin/main`
+between this operator's prior turns. That local commit is not part of
+this branch's ancestry and was not merged, cherry-picked, or otherwise
+incorporated.
+
+Implemented, per the actual authoritative ADR-006/AS-GH-001.md:
+
+- `SECURITY.md`: supported versions, scope, an honest "private
+  vulnerability intake is not currently operational" disclosure with
+  no invented contact address, response expectations without an
+  unsupported SLA promise, and the existing compensating controls
+  (secrets.py/quarantine.py/ADR-004) already in this repository.
+- `CONTRIBUTING.md`: the actual internal contribution workflow (no
+  public external contribution path today), the explicit decision not
+  to add a `CODE_OF_CONDUCT.md`, a reference (not duplication) of
+  `AGENT-BOOTSTRAP.md`'s governed-agent session lifecycle, and a folded
+  support/scope section.
+- `.github/CODEOWNERS`: single collaborator (`@B0LK13`) for every path.
+- `.github/pull_request_template.md`: package ID, exact base/
+  implementation/evidence hashes, changed paths, command results,
+  security/documentation impact, rollback considerations, known
+  limitations, certification checkboxes, and a prohibited-history-
+  operations acknowledgement.
+- `.github/dependabot.yml`: `pip` and `github-actions` only (the only
+  two ecosystems actually present in this repository), weekly, grouped
+  minor/patch updates, 5-PR cap each, `dependencies` label, `B0LK13`
+  reviewer.
+- `.github/workflows/ci.yml` and `.github/workflows/atlas-documentation-gate.yml`:
+  `actions/checkout` and `actions/setup-python` pinned to immutable
+  commit SHAs (verified via `git ls-remote` against the real upstream
+  tags, `v4.4.0`/`v5.6.0`), `contents: read` least-privilege permissions
+  at workflow and job level, `timeout-minutes`, and concurrency
+  cancellation. No existing job's commands changed.
+- `scripts/validate_governance.py`: a new, standalone governance
+  validation script — duplicate-key-sensitive YAML parsing across every
+  workflow/Dependabot/issue-template/evidence YAML file, required-
+  section presence checks for `SECURITY.md`/`CONTRIBUTING.md`, and an
+  action-pin verification (every `uses:` reference must be a 40-character
+  commit SHA). Not yet wired into a CI job, per ADR-006's "no required
+  check before a successful real run" rule — this PR's own CI run is
+  the first real run of the *existing* jobs against these new files;
+  the script itself is intentionally not yet a required check.
+- `docs/evidence/AS-GH-001-receipt.yaml`: records exact scope
+  implemented per phase (1/2 partial, 3 partial, 4 complete),
+  deferred-to-later-phase items, validation commands/results, and
+  known limitations, following this repository's existing receipt
+  convention (`implementation_commit`/`evidence_commit: SELF`).
+- Bounded updates to `docs/backlog.md` (Epic L, L-001) and
+  `docs/master-roadmap.md` (AS-GH-001 row) reflecting this
+  implementation's actual scope — no other backlog/roadmap content
+  changed.
+
+**Explicitly not done in this PR** (deferred to later phases per
+ADR-006/AS-GH-001.md, listed here so nothing is silently claimed
+complete): `GOVERNANCE.md`, a standalone `SUPPORT.md`, a standalone
+`CODE_OF_CONDUCT.md`-omission file, all six issue templates, wiring
+`scripts/validate_governance.py` into CI, the Control Plane/compile/
+determinism CI jobs, `VERSIONING.md`/`RELEASING.md`/
+`BACKUP-AND-RECOVERY.md`, `docs/policies/*.md`, any GitHub settings
+change, and Phase 6/7 (settings activation, independent certification,
+closure).
+
+**Validation:**
+
+- `python scripts/validate_governance.py`: PASSED — 25 YAML targets
+  checked, 2 documents checked, 0 duplicate keys, 0 missing required
+  sections, 0 unpinned action references.
+- `python -m pytest`: **275 passed, 0 failed** (unchanged from the
+  certified `a7a6ebc...`/`origin/main` baseline — no test added,
+  removed, or modified by this PR).
+- `python -m ruff check .`: clean.
+- `python -m mypy src`: clean, 36 source files.
+
+No production source, test, fixture, existing ADR, existing evidence
+receipt, existing GitHub workflow *command*, or GitHub setting was
+changed. `main` is not pushed to directly; this work lives entirely on
+`feat/as-gh-001-governance-baseline-phase1`, to be opened as a PR
+against `main` and left unmerged pending independent verification and
+explicit Owner authorization.
+
+**PR MERGED: NO**
+**AUTO-MERGE ENABLED: NO**
+**LIVE GITHUB SETTINGS CHANGED: NO**
+**PUSHED DIRECTLY TO MAIN: NO**
+**FORCE PUSH USED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**UNRELATED PRODUCT FUNCTIONALITY MODIFIED: NO**
+**SECURITY CONTACT INVENTED: NO**
+
+**AS-GH-001 REPOSITORY GOVERNANCE IMPLEMENTATION COMPLETE
+— READY FOR INDEPENDENT IMPLEMENTATION CERTIFICATION**
+
+**NEXT AGENT: AGENT TWO — AS-GH-001 INDEPENDENT IMPLEMENTATION VERIFICATION**
+**NEXT PHASE: VERIFY THE PHASE 1/2/3(PARTIAL)/4 IMPLEMENTATION AGAINST ADR-006/AS-GH-001.md**
+**NEXT DIRECTIVE: PIN THE EXACT IMPLEMENTATION COMMIT AND PR NUMBER; DO NOT MERGE OR CHANGE SETTINGS**

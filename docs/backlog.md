@@ -135,7 +135,7 @@ independent verification passes and the branch is merged to `main`._
 
 ## Epic L — Repository governance
 
-- [ ] L-001 AS-GH-001 GitHub repository governance baseline — architecture defined; implementation, settings activation, independent verification, and owner integration remain pending (`docs/adr/ADR-006-github-repository-governance-baseline.md`, `docs/work-packages/AS-GH-001.md`).
+- [ ] L-001 AS-GH-001 GitHub repository governance baseline — architecture defined; Phase 1/2/4 partially implemented and Phase 3 (action pinning, permission hardening, governance validation script) implemented on `feat/as-gh-001-governance-baseline-phase1` (`docs/evidence/AS-GH-001-receipt.yaml`); settings activation, remaining Phase 1/2/5 artifacts, independent verification, and owner integration remain pending (`docs/adr/ADR-006-github-repository-governance-baseline.md`, `docs/work-packages/AS-GH-001.md`).
 
 - [ ] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
   `ProvenanceReference` into formal project projections and richer validated

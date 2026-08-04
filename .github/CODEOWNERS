@@ -1,0 +1,12 @@
+# CODEOWNERS
+#
+# The repository currently has one collaborator. This file exists to
+# make ownership explicit and reviewable, and to be ready for a second
+# reviewer to be added without further structural change (see
+# docs/adr/ADR-006-github-repository-governance-baseline.md's
+# "Restore required approving reviews to 1" bootstrap-exit criteria).
+#
+# Every path in this repository is currently owned by the sole
+# collaborator.
+
+* @B0LK13

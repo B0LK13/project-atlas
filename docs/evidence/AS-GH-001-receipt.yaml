@@ -1,0 +1,113 @@
+schema_version: 1
+package: AS-GH-001
+title: GitHub Repository Governance Baseline
+status: implementation-phase-1-2-4-partial-3-complete-independent-verification-required
+
+architecture_commit: 42410e968cd3eb392afd66181d64ed3c25e36833
+adr: docs/adr/ADR-006-github-repository-governance-baseline.md
+work_package: docs/work-packages/AS-GH-001.md
+branch: feat/as-gh-001-governance-baseline-phase1
+base_commit: 42410e968cd3eb392afd66181d64ed3c25e36833
+
+# The architecture (ADR-006 / AS-GH-001.md) actually authoritative for
+# this implementation is the version committed directly to origin/main
+# (d95f106 -> b9f908e -> 42410e9), not the earlier, independently
+# authored local-only architecture commit produced during this same
+# repository's own AS-GH-001 architecture-entry-gate review
+# (a8b2cb2b3c5ae2bd66fc59a6e616eb720f14b542, never pushed). That local
+# commit is superseded and was not merged, cherry-picked, or otherwise
+# incorporated here; it remains local-only history on this operator's
+# checkout of "main" and is not part of this branch's ancestry.
+superseded_local_architecture_commit:
+  hash: a8b2cb2b3c5ae2bd66fc59a6e616eb720f14b542
+  status: superseded_never_pushed_never_merged
+
+implementation_commit: SELF
+evidence_commit: SELF
+
+scope_implemented:
+  phase_1_governance_documents:
+    status: partial
+    added:
+      - SECURITY.md
+      - CONTRIBUTING.md
+    deferred_to_later_phase:
+      - GOVERNANCE.md
+      - SUPPORT.md (folded a short section into CONTRIBUTING.md instead; a
+        standalone SUPPORT.md was not created this phase)
+      - CODE_OF_CONDUCT.md (omission decision recorded in CONTRIBUTING.md,
+        per ADR-006; a separate standalone omission-decision file was not
+        created)
+  phase_2_ownership_and_templates:
+    status: partial
+    added:
+      - .github/CODEOWNERS
+      - .github/pull_request_template.md
+    deferred_to_later_phase:
+      - .github/ISSUE_TEMPLATE/bug_report.yml
+      - .github/ISSUE_TEMPLATE/feature_request.yml
+      - .github/ISSUE_TEMPLATE/architecture_proposal.yml
+      - .github/ISSUE_TEMPLATE/governance_gap.yml
+      - .github/ISSUE_TEMPLATE/technical_debt.yml
+      - .github/ISSUE_TEMPLATE/config.yml
+  phase_3_ci_baseline:
+    status: partial
+    added:
+      - "GitHub Actions pinned to immutable commit SHAs in ci.yml and atlas-documentation-gate.yml (actions/checkout@11d5960a326750d5838078e36cf38b85af677262 = v4.4.0, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 = v5.6.0)"
+      - "least-privilege permissions (contents: read at workflow and job level) added to both workflows"
+      - "timeout-minutes and concurrency/cancel-in-progress added to both workflows"
+      - "scripts/validate_governance.py: standalone governance validation script (duplicate-key-sensitive YAML parsing for every workflow/Dependabot/issue-template/evidence YAML file, required-section presence check for SECURITY.md/CONTRIBUTING.md, action-pin verification)"
+    deferred_to_later_phase:
+      - wiring scripts/validate_governance.py into a new CI job (kept as a
+        standalone, locally/CI-callable script this phase, consistent with
+        ADR-006's "no required check before a successful real run" --
+        this PR's own CI run is the first real run)
+      - control-plane, compile, and determinism CI jobs (ADR-006 CI
+        architecture table's remaining new jobs)
+  phase_4_dependency_automation:
+    status: complete
+    added:
+      - .github/dependabot.yml (pip + github-actions only, weekly, grouped
+        minor/patch updates, 5-PR cap each, dependencies label, B0LK13
+        reviewer)
+  phase_5_release_signing_backup: not_started
+  phase_6_settings_activation: not_started
+  phase_7_independent_certification_and_closure: not_started
+
+validation:
+  governance_script_command: python scripts/validate_governance.py
+  governance_script_result: >-
+    PASSED: 24 YAML target(s) checked, 2 document(s) checked, action pins
+    verified (0 duplicate keys, 0 missing required sections, 0 unpinned
+    action references)
+  pytest_command: python -m pytest
+  ruff_command: python -m ruff check .
+  mypy_command: python -m mypy src
+  note: >-
+    Full pytest/ruff/mypy results recorded in WORKLOG.md at implementation
+    time; this receipt is not amended after that entry is written -- see
+    WORKLOG.md for the actual counts observed on this branch.
+
+known_limitations:
+  - GOVERNANCE.md, SUPPORT.md (standalone), CODE_OF_CONDUCT.md
+    (standalone omission file), the full issue-template set, VERSIONING.md,
+    RELEASING.md, BACKUP-AND-RECOVERY.md, docs/policies/commit-signing.md,
+    and docs/policies/branch-and-merge-policy.md are not yet created;
+    tracked as remaining Phase 1/2/5 scope in docs/work-packages/AS-GH-001.md.
+  - scripts/validate_governance.py is not yet wired into an automatic CI
+    job; it is runnable locally and from a future CI step once added.
+  - Control-plane tests, compile validation, and determinism checks are not
+    yet part of ci.yml; ADR-006's CI architecture table records them as
+    separate implementation deliverables, not yet built.
+  - No GitHub settings were changed as part of this implementation
+    (explicitly out of scope for Agent One per the assigning directive).
+  - "This receipt is committed in the same commit as the implementation it describes (implementation_commit and evidence_commit are both SELF, matching this repository's existing receipt convention); cross-check WORKLOG.md for the actual resulting commit hash after commit."
+
+canonical_state_mutated: false
+production_source_or_test_behavior_changed: false
+history_rewritten: false
+merge_authorized: false
+final_certification_issued: false
+settings_changed: false
+pr_merged: false
+auto_merge_enabled: false

@@ -102,6 +102,12 @@ Target settings:
 
 ### Phase 1 — Governance documents
 
+**Status: partial.** `SECURITY.md` and `CONTRIBUTING.md` implemented on
+`feat/as-gh-001-governance-baseline-phase1`
+(`docs/evidence/AS-GH-001-receipt.yaml`). `GOVERNANCE.md`, a standalone
+`SUPPORT.md`, and a standalone `CODE_OF_CONDUCT.md`-omission file are
+not yet created.
+
 Create the required policy documents and cross-link ADR-006. `SECURITY.md`
 must reflect the approved interim state: external private vulnerability
 intake is not currently operational; sensitive details must not be posted in
@@ -114,6 +120,12 @@ required headings, links, secrets, and duplicate YAML where applicable.
 
 ### Phase 2 — Ownership and templates
 
+**Status: partial.** `.github/CODEOWNERS` and
+`.github/pull_request_template.md` implemented. All issue templates
+(`bug_report.yml`, `feature_request.yml`, `architecture_proposal.yml`,
+`governance_gap.yml`, `technical_debt.yml`, `config.yml`) remain not
+yet created.
+
 Add CODEOWNERS and templates requiring package ID, exact base/head, scope,
 changed paths, commands/results, security/documentation/migration impact,
 limitations, evidence, verifier state, owner authorization, and prohibited
@@ -122,12 +134,27 @@ issues.
 
 ### Phase 3 — CI baseline
 
+**Status: partial.** Existing quality commands preserved unchanged.
+Immutable SHA action pinning, `contents: read` least-privilege
+permissions, `timeout-minutes`, and concurrency cancellation added to
+both existing workflows. `scripts/validate_governance.py` implements
+the governance-document/YAML/duplicate-key/action-pin checks as a
+standalone, locally- and CI-callable script, not yet wired into a
+required CI job (per the "no required check before a successful real
+run" rule). Control Plane, compilation, and determinism CI jobs remain
+not yet added.
+
 Preserve the existing quality commands. Add Control Plane, compilation, and
 governance-document checks only as implemented commands. Add determinism only
 after a bounded fixed-fixture check exists. Use `contents: read`, Python 3.12,
 timeouts, concurrency cancellation, and immutable action pinning.
 
 ### Phase 4 — Dependency automation
+
+**Status: complete.** `.github/dependabot.yml` implemented for `pip`
+and `github-actions` only, weekly, grouped minor/patch updates, 5-PR
+cap each, `dependencies` label, `B0LK13` reviewer. Auto-merge not
+enabled.
 
 Add weekly Dependabot updates for pip and GitHub Actions, grouped non-security
 updates, security updates separately, labels, reviewer routing, and a five-PR
