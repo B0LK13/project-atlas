@@ -1,0 +1,27 @@
+{
+  "project_count": 3,
+  "projects": [
+    {
+      "coverage_categories_present": 1,
+      "coverage_categories_total": 11,
+      "open_conflicts": 0,
+      "project_id": "black-agency-os",
+      "quarantined_sources": 0
+    },
+    {
+      "coverage_categories_present": 2,
+      "coverage_categories_total": 11,
+      "open_conflicts": 1,
+      "project_id": "dark-factory",
+      "quarantined_sources": 0
+    },
+    {
+      "coverage_categories_present": 2,
+      "coverage_categories_total": 11,
+      "open_conflicts": 0,
+      "project_id": "nebula",
+      "quarantined_sources": 0
+    }
+  ],
+  "schema_version": 1
+}

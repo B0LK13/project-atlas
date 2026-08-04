@@ -1,0 +1,5 @@
+schema_version: 1
+project:
+  id: canary-secrets
+  name: Canary Secrets
+project_uuid: 917a6094-90d8-471b-9aae-8a51225c2414
