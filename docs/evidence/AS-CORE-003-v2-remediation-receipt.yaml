@@ -5,8 +5,20 @@ receipt_type: v2-identity-remediation
 work_package: AS-CORE-003
 author: Windsurf
 role: Implementation Agent
-directive_id: inherited-takeover
+directive_id: D-AS-CORE-003-WINDSURF-FREEZE-001
 base_state: inherited-working-tree-from-prior-agent-session
+implementation_complete: "YES"
+independent_codex_review: "PENDING"
+independent_certification: "PENDING"
+candidate:
+  branch: remediation/as-core-003-claim-identity-v2
+  commit: 42f3912a7bfb25324d3b1d3f5c096213b7e375e2
+  tree: 961a8373e5f58548b2d351eca84d2d99a78153f1
+  base: 4e2b4369e88978d5e743b47ae58c3129beed0f0f
+  merge_base_with_origin_main: c12ac61665bef5c692b338add5b4936e845e12e5
+  local_branch_tip: 42f3912a7bfb25324d3b1d3f5c096213b7e375e2
+  remote_branch_tip: 42f3912a7bfb25324d3b1d3f5c096213b7e375e2
+  local_remote_match: "YES"
 summary: >-
   Finalized Claim Identity v2 semantics in knowledge_compiler.py,
   restored ingestion OCC rollback detection, rewrote the v1-to-v2
@@ -52,16 +64,51 @@ excluded_artifacts:
     classification: EXTERNAL PLANNING ARTIFACT / OUTSIDE AS-CORE-003
     reason: inherited out-of-scope planning proposal; not accepted governance contract
 validation:
-  pytest_command: "python -m pytest tests -q"
-  pytest_result: "149 passed, 1 skipped"
-  ruff_command: "python -m ruff check src tests"
-  ruff_result: clean
+  environment:
+    python_version: "3.12"
+    platform: "Windows"
+    install_command: "python -m pip install -e \".[dev]\""
+  pytest_all_command: "python -m pytest -p no:cacheprovider --tb=no"
+  pytest_all_exit_code: 0
+  pytest_all_passed: 293
+  pytest_all_skipped: 1
+  pytest_all_failed: 0
+  pytest_all_errors: 0
+  pytest_integration_command: "python -m pytest -p no:cacheprovider -m integration --tb=no"
+  pytest_integration_exit_code: 0
+  pytest_integration_passed: 8
+  pytest_integration_skipped: 1
+  pytest_integration_deselected: 285
+  pytest_integration_failed: 0
+  pytest_integration_errors: 0
+  ruff_command: "python -m ruff check ."
+  ruff_exit_code: 0
+  ruff_result: "All checks passed!"
   mypy_command: "python -m mypy src"
+  mypy_exit_code: 0
   mypy_result: "Success: no issues found in 38 source files"
-  cli_smoke:
-    - "python -m project_atlas.cli --help"
-    - "python -m project_atlas.cli version"
-    - "python -m project_atlas.cli init --output .tmp\\smoke-vault --dry-run"
+  compileall_command: "python -m compileall -q src tests"
+  compileall_exit_code: 0
+  compileall_result: clean
+  cli_smoke_commands:
+    - command: "atlas --help"
+      exit_code: 0
+    - command: "atlas version"
+      exit_code: 0
+    - command: "atlas init --output .tmp\\atlas-vault --dry-run"
+      exit_code: 0
+    - command: "atlas init --output .tmp\\atlas-vault"
+      exit_code: 0
+  cli_smoke_verification:
+    - path: ".tmp/atlas-vault/index.md"
+      exists: true
+    - path: ".tmp/atlas-vault/00-system/vault-charter.md"
+      exists: true
+known_limitations:
+  - v2 identity formula invalidates previously certified claim IDs in any golden fixture not regenerated here; only dependency-report.json was observed to change.
+  - concurrent migration relies on ProjectIdentityLock staleness defaults (300s), which may need CI tuning.
+  - implementation was authored on Windows with CRLF autocrlf normalization; byte counts in the working tree may differ from checkout on other platforms.
+changed_path_inventory_hash: c0f2ccad62c50dd56ecd28b12c6c82a8ad59fadcbafbe26a59a22c07685faf76
 certification:
   merge_authorized: false
   final_certification_issued: false
