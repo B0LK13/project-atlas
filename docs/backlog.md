@@ -192,7 +192,7 @@ independent verification passes and the branch is merged to `main`._
 
 ## AS-CORE-003 — Claim Identity v2 remediation
 
-_Status: implemented and acceptance-tested on `remediation/as-core-003-claim-identity-v2`; V2-002 hygiene baseline applied; V2-003 candidate closes F-001, F-002, rule-table parity, source-lineage normalization, and ADR-007. Pending final isolated review, certification and Project Owner merge authorization._
+_Status: V2-003 was preserved and rejected by independent review. V2-004 remediates historical identity reconstruction, atomic migration bundling, path safety, project isolation, semantic replay validation, and cross-file promotion rollback. Local gates pass; a fresh isolated review, remote CI, certification, and Project Owner merge authorization remain pending._
 
 - [x] CORE3-001 Finalize Claim Identity v2 formula using raw stable semantic locator
 - [x] CORE3-002 Use `event:{event_id}` locator for agent-event-derived claims
@@ -210,5 +210,12 @@ _Status: implemented and acceptance-tested on `remediation/as-core-003-claim-ide
 - [x] CORE3-014 Normalize CRLF to LF before hashing text sources (cross-platform identity stability)
 - [x] CORE3-015 Author ADR-007 for Claim Identity v2 canonicalization
 - [x] CORE3-016 Regenerate K-004/K-005 golden fixtures for canonical identity and source-lineage changes
-- [ ] CORE3-017 Complete independent review and certification
-- [ ] CORE3-018 Merge to `main`
+- [x] CORE3-017 Preserve the V2-003 independent-review failure and exact findings
+- [x] CORE3-018 Reconstruct real v1 identities from ingested source/lineage/project evidence
+- [x] CORE3-019 Scan all supported text evidence and share architecture fallback semantics
+- [x] CORE3-020 Isolate migration state per safe project component
+- [x] CORE3-021 Commit alias state and its receipt as one validated atomic bundle
+- [x] CORE3-022 Reject incomplete, cross-project, or resolved/ambiguous replay state
+- [x] CORE3-023 Add tested cross-file promotion rollback and artifact cleanup
+- [ ] CORE3-024 Complete a fresh independent V2-004 review and certification
+- [ ] CORE3-025 Merge to `main`

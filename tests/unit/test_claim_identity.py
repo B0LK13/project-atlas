@@ -11,7 +11,12 @@ from project_atlas.claim_identity import (
     v2_claim_id,
 )
 from project_atlas.knowledge_compiler import _extract
-from project_atlas.migrations.claim_v2_migration import _extract_candidates, _v2_claim_id
+from project_atlas.migrations.claim_v2_migration import (
+    _extract_candidates,
+    _SourceMetadata,
+    _v1_claim_id,
+    _v2_claim_id,
+)
 
 
 def test_canonical_identity_key_avoids_delimiter_collision() -> None:
@@ -85,6 +90,7 @@ def test_extract_claims_agrees_between_compiler_and_migration() -> None:
         {
             "source_id": "source",
             "source_lineage_id": "sline-test",
+            "project_uuid": "project-uuid",
             "path": "source.md",
             "classification": "project-overview",
             "source": "../../sources/imported-documents/source.md",
@@ -93,7 +99,19 @@ def test_extract_claims_agrees_between_compiler_and_migration() -> None:
         },
     )
     migration_claims = _extract_candidates(
-        "project", {"source.md": "sline-test"}, "commit", "source.md", text
+        "project",
+        {
+            "source.md": _SourceMetadata(
+                source_id="source",
+                source_lineage_id="sline-test",
+                project_identity="project-uuid",
+                original_path="source.md",
+                classification="project-overview",
+            )
+        },
+        "commit",
+        "source.md",
+        text,
     )
     assert len(compiler_claims) == len(migration_claims) == 3
     for a, b in zip(compiler_claims, migration_claims, strict=False):
@@ -109,3 +127,44 @@ def test_extract_claims_explicit_id_takes_precedence() -> None:
     assert len(claims) == 1
     assert claims[0]["locator"] == "id:explicit-purpose"
     assert claims[0]["value"] == "test"
+    assert claims[0]["legacy_value"] == "test {#explicit-purpose}"
+
+
+def test_migration_reconstructs_v1_anchor_value_and_architecture_fallback() -> None:
+    metadata = _SourceMetadata(
+        source_id="source-architecture",
+        source_lineage_id="sline-architecture",
+        project_identity="project-uuid",
+        original_path="docs/ARCHITECTURE.md",
+        classification="architecture",
+    )
+    text = "# Runtime\n\nEvent-driven services {#runtime-design}\n"
+    compiler = _extract(
+        "project",
+        {
+            "source_id": metadata.source_id,
+            "source_lineage_id": metadata.source_lineage_id,
+            "project_uuid": metadata.project_identity,
+            "path": metadata.original_path,
+            "classification": metadata.classification,
+            "source": "../../sources/imported-documents/source-architecture.md",
+            "sha256": "a" * 64,
+            "text": text,
+        },
+    )
+    migration = _extract_candidates(
+        "project",
+        {metadata.source_id: metadata},
+        "commit",
+        "sources/imported-documents/source-architecture.md",
+        text,
+    )
+    assert len(compiler) == len(migration) == 1
+    assert compiler[0].claim_id == migration[0].v2_claim_id
+    assert migration[0].v1_claim_id == _v1_claim_id(
+        metadata.project_identity,
+        metadata.source_lineage_id,
+        "architecture-statement",
+        "architecture",
+        "Event-driven services {#runtime-design}",
+    )

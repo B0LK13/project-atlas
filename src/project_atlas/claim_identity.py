@@ -67,6 +67,7 @@ _LINE_RULES: tuple[tuple[ClaimType, str, re.Pattern[str]], ...] = (
 _SUPERSESSION_RULE = re.compile(
     r"^(?:supersedes|replaces)\s*:\s*([A-Za-z0-9][A-Za-z0-9._-]*)$", re.I
 )
+_EXPLICIT_ID = re.compile(r"\{#([A-Za-z0-9][A-Za-z0-9._-]*)\}")
 
 
 class UnresolvedLocatorError(ValueError):
@@ -139,7 +140,7 @@ def resolve_locator(
     5. Heading slug: `heading:<slug>`.
     6. Unresolved: return ``None``.
     """
-    explicit_match = re.search(r"\{#([^}]+)\}", line)
+    explicit_match = _EXPLICIT_ID.search(line)
     if explicit_match:
         return f"id:{explicit_match.group(1).strip()}"
     if schema_key:
@@ -147,7 +148,7 @@ def resolve_locator(
     if is_project_manifest:
         return "schema:project-manifest"
     if current_heading:
-        heading_id_match = re.search(r"\{#([^}]+)\}", current_heading)
+        heading_id_match = _EXPLICIT_ID.search(current_heading)
         if heading_id_match:
             return f"heading:{heading_id_match.group(1).strip()}"
         return f"heading:{_slug(current_heading)}"
@@ -164,13 +165,15 @@ def extract_claims(
     *,
     schema_key: str | None = None,
     is_project_manifest: bool = False,
+    classification: str | None = None,
     reject_unresolved: bool = False,
 ) -> list[dict[str, Any]]:
     """Extract raw claim records from source text using shared rules.
 
-    Each record contains: claim_type (str), field (str), value (str),
-    locator (str), predecessor_id (str|None). This is used by the compiler
-    and the migration so both agree on what a claim is and where it lives.
+    Each record contains the normalized current value, the unmodified
+    ``legacy_value`` used by the v1 compiler, and the durable v2 locator.
+    This is used by the compiler and migration so both agree on the complete
+    candidate set while the migration can still reconstruct historical IDs.
     """
     claims: list[dict[str, Any]] = []
     predecessor_id: str | None = None
@@ -192,7 +195,8 @@ def extract_claims(
             if not match:
                 continue
             claim_value = match.group(1)
-            explicit_match = re.search(r"\{#([^}]+)\}", line)
+            legacy_value = normalize_claim_value(match.group(1))
+            explicit_match = _EXPLICIT_ID.search(line)
             if explicit_match:
                 claim_value = claim_value.replace(explicit_match.group(0), "").strip()
 
@@ -212,6 +216,40 @@ def extract_claims(
                     "claim_type": claim_type.value,
                     "field": field,
                     "value": normalize_claim_value(claim_value),
+                    "legacy_value": legacy_value,
+                    "locator": locator,
+                    "predecessor_id": predecessor_id,
+                }
+            )
+            break
+
+    if classification == "architecture" and not claims:
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            locator = resolve_locator(
+                raw_line,
+                current_heading,
+                schema_key=schema_key,
+                is_project_manifest=is_project_manifest,
+            )
+            if locator is None:
+                if reject_unresolved:
+                    raise UnresolvedLocatorError(line)
+                break
+            explicit_match = _EXPLICIT_ID.search(line)
+            value = (
+                line.replace(explicit_match.group(0), "").strip()
+                if explicit_match
+                else line
+            )
+            claims.append(
+                {
+                    "claim_type": ClaimType.ARCHITECTURE.value,
+                    "field": "architecture",
+                    "value": normalize_claim_value(value),
+                    "legacy_value": normalize_claim_value(line),
                     "locator": locator,
                     "predecessor_id": predecessor_id,
                 }

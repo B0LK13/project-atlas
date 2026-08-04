@@ -274,31 +274,11 @@ def test_security_no_quarantined_content_in_portfolio_outputs(tmp_path: Path) ->
 
 
 def test_rollback_preserves_prior_valid_portfolio_on_failure(tmp_path: Path) -> None:
-    """Strengthened (AS-MVP-001-R1) over the original version of this test:
-    disk state is inspected immediately after the forced failure and
-    *before* any restorative cleanup, so a passing assertion cannot be an
-    artifact of the cleanup itself recreating the "before" state.
+    """A pre-staging path failure preserves the prior portfolio snapshot.
 
-    Scope of the guarantee actually proven here: when the whole
-    ``generated/portfolio/`` destination directory is unavailable (a
-    regular file in its place), every one of ``_atomic_bytes``'s
-    ``path.parent.mkdir(parents=True, exist_ok=True)`` calls in
-    ``_promote()``'s write loop fails identically and immediately for the
-    very first path in sorted order -- so *zero* files in the write plan
-    are ever touched, and the prior valid output is undisturbed by
-    construction, not by coincidence.
-
-    This is narrower than "``_promote()`` is fully transactional across an
-    arbitrary write plan": ``_promote()`` (``ingestion.py``, shared with
-    other certified packages, out of AS-MVP-001-R1's bounded scope) writes
-    each destination file atomically on its own (temp file + ``os.replace``)
-    but iterates the write plan in a plain loop with no cross-file
-    transaction or rollback of files already written before a later file
-    in the same plan fails. A failure isolated to *one specific file*
-    partway through a multi-file plan can leave a mix of newly-written and
-    stale files; that scenario is not exercised by this test and is not
-    claimed to be atomic (see docs/evidence/AS-MVP-001-receipt.yaml's
-    remediation section).
+    The shared promotion layer now also has a separate mid-promotion rollback
+    test in ``test_concurrency.py``; this scenario retains the earlier
+    destination-boundary regression coverage.
     """
     source = _copy_pilots(tmp_path)
     vault = _run_pipeline(source, tmp_path)
@@ -307,10 +287,8 @@ def test_rollback_preserves_prior_valid_portfolio_on_failure(tmp_path: Path) -> 
     portfolio_dir = vault / "generated" / "portfolio"
     before = {path.name: path.read_bytes() for path in sorted(portfolio_dir.glob("*.json"))}
 
-    # Force a write failure inside the promotion boundary: replace the
-    # portfolio output directory with a regular file so _atomic_bytes'
-    # mkdir(parents=True, exist_ok=True) raises before any file in that
-    # directory can be (re)written.
+    # Replace the output directory with a file so staging fails before any
+    # canonical path can be promoted.
     shutil.rmtree(portfolio_dir)
     portfolio_dir.write_text("not a directory", encoding="utf-8")
 

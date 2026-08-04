@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from contextlib import ExitStack
+import uuid
+from contextlib import ExitStack, suppress
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -84,19 +85,95 @@ def _generated_content(path: Path, content: str) -> str:
     return content
 
 
+class _PromotionEntry(NamedTuple):
+    path: Path
+    staged: Path
+    backup: Path
+    had_original: bool
+
+
+def _replace_path(source: Path, destination: Path) -> None:
+    """Small seam for atomic-promotion fault injection tests."""
+    os.replace(source, destination)
+
+
+def _remove_empty_directories(directories: set[Path]) -> None:
+    for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
+        with suppress(OSError):
+            directory.rmdir()
+
+
 def _promote(plan: dict[Path, bytes]) -> None:
-    """Promote a fully validated canonical write plan."""
-    for path in sorted(plan):
-        _atomic_bytes(path, plan[path])
+    """Promote a validated write plan with cross-file rollback.
 
+    Every changed file is staged before canonical state is touched. Existing
+    files are moved to transaction-scoped backups during promotion. Any
+    mid-promotion failure restores every prior target and removes all staging
+    artifacts before the error escapes.
+    """
+    transaction = uuid.uuid4().hex
+    entries: list[_PromotionEntry] = []
+    created_directories: set[Path] = set()
+    try:
+        for path in sorted(plan):
+            parent = path.parent
+            while not parent.exists():
+                created_directories.add(parent)
+                parent = parent.parent
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists() and not path.is_file():
+                raise IsADirectoryError(f"canonical write target is not a file: {path}")
+            if path.is_file() and path.read_bytes() == plan[path]:
+                continue
+            staged = path.with_name(f".{path.name}.{transaction}.atlas-stage")
+            backup = path.with_name(f".{path.name}.{transaction}.atlas-backup")
+            staged.write_bytes(plan[path])
+            entries.append(
+                _PromotionEntry(
+                    path=path,
+                    staged=staged,
+                    backup=backup,
+                    had_original=path.exists(),
+                )
+            )
+    except BaseException:
+        for entry in entries:
+            entry.staged.unlink(missing_ok=True)
+            entry.backup.unlink(missing_ok=True)
+        _remove_empty_directories(created_directories)
+        raise
 
-def _atomic_bytes(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.is_file() and path.read_bytes() == content:
-        return
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_bytes(content)
-    os.replace(temporary, path)
+    touched: list[_PromotionEntry] = []
+    try:
+        for entry in entries:
+            if entry.had_original:
+                _replace_path(entry.path, entry.backup)
+            touched.append(entry)
+            _replace_path(entry.staged, entry.path)
+    except BaseException as promotion_error:
+        rollback_errors: list[BaseException] = []
+        for entry in reversed(touched):
+            try:
+                if entry.had_original:
+                    _replace_path(entry.backup, entry.path)
+                else:
+                    entry.path.unlink(missing_ok=True)
+            except BaseException as exc:  # pragma: no cover - catastrophic filesystem loss
+                rollback_errors.append(exc)
+        if rollback_errors:
+            raise RuntimeError(
+                "canonical promotion failed and rollback was incomplete; "
+                "transaction artifacts were preserved for recovery"
+            ) from promotion_error
+        for entry in entries:
+            entry.staged.unlink(missing_ok=True)
+            entry.backup.unlink(missing_ok=True)
+        _remove_empty_directories(created_directories)
+        raise
+
+    for entry in entries:
+        entry.staged.unlink(missing_ok=True)
+        entry.backup.unlink(missing_ok=True)
 
 
 def _validate_existing_markers(vault: Path, project_ids: set[str]) -> None:

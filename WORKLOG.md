@@ -2905,6 +2905,7 @@ not re-asserted as freshly rerun here.
 **ROADMAP MODIFIED: NO**
 **MERGE TO MAIN AUTHORIZED: NO**
 **FINAL CERTIFICATION ISSUED: NO**
+
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FABRICATED ATTESTATIONS CREATED: NO**
 
@@ -3091,6 +3092,65 @@ Project Owner merge authorization.
 **PRODUCTION CODE MODIFIED: YES**
 **TESTS MODIFIED: YES**
 **FIXTURES MODIFIED: YES**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**
+
+---
+
+## AS-CORE-003 — V2-003 independent review failure and V2-004 remediation
+
+**Date:** 2026-08-04
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+
+The immutable V2-003 candidate (`ca4975fe4355ac68533ad9aaa1fab57db07846eb`,
+tree `5b881a737f87d11ed708bcbd93d01364d7d1367c`) passed every declared gate but
+failed a fresh isolated full-delta review. The tag was not moved. The review
+found that migration history did not reconstruct the real merge-base compiler
+identities, alias state could become canonical without its receipt, the project
+argument was unsafe in paths, global alias state was incompatible with
+project-scoped locking, the OCC test never entered promotion, and replay did
+not reject resolved/ambiguous overlap. The full review disposition is preserved
+in `docs/evidence/AS-CORE-003-v2-candidate-003-review.yaml`.
+
+V2-004 resolves the findings additively. Historical evidence now resolves the
+ingested `source_id` through the source registry and current source manifest to
+the exact canonical project UUID and `source_lineage_id`. The shared extractor
+retains the original v1 value (including anchors), scans all seven supported
+text suffixes, owns the architecture fallback used by both compiler and
+migration, and fails closed on a recognized claim without a stable locator.
+
+Migration state is now project-isolated under a validated safe component. The
+alias map and matching receipt are staged and validated in one directory and
+made canonical with one atomic rename. Idempotent replay validates project
+ownership, receipt/state hash, audit counts, and resolved/ambiguous
+exclusivity. A receipt-write fault leaves no canonical alias state; a missing
+receipt on replay is rejected.
+
+The shared write-plan promoter now stages the complete plan, keeps
+transaction-scoped backups, and restores the exact prior snapshot on a forced
+second-file promotion failure. The regression proves a real first promotion,
+complete rollback, artifact cleanup, lock release, clean retry, and
+byte-identical replay.
+
+Local gates on Windows / Python 3.13.14:
+
+- focused remediation suite: 25 passed;
+- full suite: 315 passed, 1 skipped, 91% coverage;
+- integration suite: 113 passed, 1 skipped, 202 deselected, 89% coverage;
+- Ruff, mypy (39 source files), and compileall: clean;
+- CLI help, version, dry-run scaffold, and real scaffold: exit 0; scaffold is
+  31 directories and 29 files.
+
+V2-004 still requires an immutable annotated tag, a new isolated full-delta
+review, remote CI/PR-head verification, and Project Owner merge authorization.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: NO**
 **BACKLOG MODIFIED: YES**
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FORCE PUSH USED: NO**

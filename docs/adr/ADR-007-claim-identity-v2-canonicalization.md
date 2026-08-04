@@ -65,13 +65,43 @@ the migration to reconstruct v2 identities that the compiler would never emit.
    for source identity and provenance hash checks. Binary files are hashed
    as-is.
 
+5. **Exact historical reconstruction.** Historical evidence is resolved by
+   its ingested `source_id`, then bound to the source registry's
+   `source_lineage_id` and canonical project UUID. The shared extractor emits
+   both the cleaned v2 value and the unmodified `legacy_value` required to
+   reproduce the merge-base v1 digest, including explicit anchors. Historical
+   scanning covers every supported text suffix and uses the same architecture
+   fallback and unresolved-locator failure as the live compiler.
+
+6. **Project-isolated atomic migration bundles.** Each project receives a
+   path-validated bundle under `state/claim-alias-maps/<project>/` containing
+   both `claim-alias-map.json` and `migration-receipt.json`. Both files are
+   staged in one directory, validated together, and exposed with one atomic
+   directory rename. Replay validates project ownership, state hash, receipt
+   fields, audit counts, and resolved/ambiguous exclusivity.
+
+7. **Cross-file promotion rollback.** The shared canonical write-plan promoter
+   stages every changed file before touching canonical state, retains
+   transaction-scoped backups, and restores the complete pre-transaction
+   snapshot after any mid-promotion failure.
+
 ## Consequences
 
 - F-001 is closed: no real-world component can make two different identity
   tuples collide.
 - F-002 is closed: ambiguous mappings are excluded from the resolved alias set.
 - Rule-table parity is enforced at import time; the compiler and migration share
-  the same extraction and identity logic.
+  the same complete extraction and identity logic, including architecture
+  fallback behavior.
+- Historical v1 aliases are derived from the same canonical project and source
+  identities used by the merge-base compiler; unsupported or unresolved
+  evidence fails closed instead of disappearing from the migration.
+- Separate projects no longer contend for a global alias map, and unsafe
+  project values cannot influence filesystem paths.
+- An alias map cannot become canonical without its matching receipt, and an
+  existing incomplete or semantically overlapping bundle is rejected.
+- Ingestion, index, and portfolio write plans have a tested cross-file rollback
+  boundary rather than file-at-a-time atomicity only.
 - Re-running the pipeline on a Windows checkout produces the same source
   lineage ids as on a Linux/macOS checkout.
 - Existing claim ids change because the canonical key and source hashes are

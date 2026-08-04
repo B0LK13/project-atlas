@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -18,7 +17,6 @@ from project_atlas.claim_identity import (
     canonical_identity_key,
     claim_id_from_key,
     extract_claims,
-    resolve_locator,
 )
 from project_atlas.domain import (
     AuthorityLevel,
@@ -264,6 +262,7 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
             text,
             schema_key=str(schema_key) if schema_key else None,
             is_project_manifest=is_project_manifest,
+            classification=str(entry.get("classification", "")),
             reject_unresolved=True,
         )
     except UnresolvedLocatorError as exc:
@@ -288,35 +287,6 @@ def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
             claim = claim.model_copy(update={"predecessor_claim_id": str(predecessor_id)})
         claims.append(claim)
 
-    if str(entry.get("classification")) == "architecture" and not claims:
-        current_heading: str | None = None
-        for raw_line in text.splitlines():
-            if raw_line.startswith("#"):
-                current_heading = raw_line.lstrip("#").strip()
-        for _number, raw_line in enumerate(text.splitlines(), start=1):
-            line = raw_line.strip()
-            if line and not line.startswith("#"):
-                # Fallback for architecture classification without explicit claim lines.
-                explicit_match = re.search(r"\{#([^}]+)\}", line)
-                if explicit_match:
-                    line = line.replace(explicit_match.group(0), "").strip()
-                locator = resolve_locator(
-                    raw_line,
-                    current_heading,
-                    schema_key=schema_key,
-                    is_project_manifest=is_project_manifest,
-                )
-                if locator is None:
-                    raise ValueError(
-                        "Locator normalization failed: No stable locator found. "
-                        f"Explicit ID required. path={entry.get('path')} "
-                        f"class={entry.get('classification')} line={line}"
-                    )
-
-                claims.append(
-                    _claim(project, entry, ClaimType.ARCHITECTURE, "architecture", line, locator)
-                )
-                break
     return claims
 
 

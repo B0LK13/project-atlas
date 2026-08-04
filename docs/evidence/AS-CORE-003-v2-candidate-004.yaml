@@ -1,0 +1,114 @@
+schema_version: 1
+package: AS-CORE-003
+status: local-validation-complete-pending-isolated-review
+receipt_type: v2-identity-candidate-evidence
+work_package: AS-CORE-003
+directive_id: D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+author: Codex
+role: Remediation Agent
+recorded_at: "2026-08-04T23:39:00+02:00"
+candidate:
+  branch: remediation/as-core-003-claim-identity-v2
+  tag: candidate/CAND-AS-CORE-003-V2-004
+  binding_method: >-
+    The immutable annotated Git tag is authoritative for the exact candidate
+    commit and tree; this tracked receipt does not use circular SELF fields.
+  iteration_base: ca4975fe4355ac68533ad9aaa1fab57db07846eb
+  merge_base_with_origin_main: c12ac61665bef5c692b338add5b4936e845e12e5
+  supersedes:
+    - candidate/CAND-AS-CORE-003-V2-003
+  supersession_reason: >-
+    Independent review found incomplete historical identity reconstruction,
+    non-atomic alias/receipt promotion, project path traversal, global alias
+    state, unproven mid-promotion rollback, and weak replay semantics.
+scope:
+  changed_path_count: 15
+  changed_path_inventory_sha256: 31859927f0c25612a2813fa391412913c90ee8e0ce9100b110a4ec74dd33648a
+  fixtures_modified: false
+  historical_candidates_modified: false
+remediation:
+  historical_identity:
+    ingested_source_id_resolution: implemented
+    canonical_project_uuid_resolution: implemented
+    source_lineage_resolution: implemented
+    legacy_anchor_value_preserved: true
+    supported_text_suffixes_scanned: 7
+    compiler_migration_architecture_parity: true
+    unresolved_claim_behavior: fail-closed
+  migration_transaction:
+    state_scope: per-project
+    project_component_validation: fail-closed
+    alias_and_receipt_atomic_bundle: true
+    replay_validates_project_state_hash_counts_and_receipt: true
+    resolved_ambiguous_overlap_rejected: true
+  canonical_promotion:
+    all_files_staged_before_promotion: true
+    transaction_scoped_backups: true
+    mid-promotion_fault_injection: passed
+    complete_snapshot_rollback: passed
+    staging_and_backup_cleanup: passed
+    deterministic_clean_retry: passed
+validation:
+  environment:
+    os: Microsoft Windows NT 10.0.28000.0
+    shell: PowerShell 7.5.8
+    python: 3.13.14
+    repository: D:/project-atlas-vault
+  focused:
+    command: >-
+      python -m pytest tests/unit/test_claim_identity.py
+      tests/integration/test_migration.py
+      tests/integration/test_historical_completeness.py
+      tests/integration/test_concurrency.py -q
+    passed: 25
+    failed: 0
+  ruff:
+    command: python -m ruff check .
+    exit_code: 0
+    result: All checks passed
+  mypy:
+    command: python -m mypy src
+    exit_code: 0
+    result: Success, no issues in 39 source files
+  pytest_full:
+    command: python -m pytest -q
+    exit_code: 0
+    passed: 315
+    skipped: 1
+    failed: 0
+    coverage_percent: 91
+  pytest_integration:
+    command: python -m pytest -m integration -q
+    exit_code: 0
+    passed: 113
+    skipped: 1
+    deselected: 202
+    failed: 0
+    coverage_percent: 89
+  compileall:
+    command: python -m compileall -q src tests
+    exit_code: 0
+  cli_smoke:
+    commands:
+      - python -m project_atlas.cli --help
+      - python -m project_atlas.cli version
+      - python -m project_atlas.cli init --output .tmp/atlas-vault-v2-004 --dry-run
+      - python -m project_atlas.cli init --output .tmp/atlas-vault-v2-004
+    exit_codes: [0, 0, 0, 0]
+    scaffold_directories: 31
+    scaffold_files: 29
+review_scope:
+  full_pr_delta_required: true
+  exact_tag_commit_tree_required: true
+  prior_review_reuse_permitted: false
+limitations:
+  - Local validation was executed on Windows and Python 3.13; remote CI must reproduce the declared matrix.
+  - The approved local spool remains pending synchronization with the shared Atlas Vault.
+  - Fresh isolated review, remote CI, PR-head verification, and Project Owner merge authorization remain pending.
+certification:
+  isolated_technical_review: pending
+  final_certification_issued: false
+  merge_authorized: false
+  historical_commits_rewritten: false
+  force_push_used: false
+  fabricated_attestations_created: false

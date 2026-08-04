@@ -183,7 +183,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "migrate-v2":
         try:
             result = migrate_v2(args.vault, args.project)
-        except RuntimeError as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             _log.error("migration failed: %s", exc)
             return EXIT_ERROR
         print(f"status: {result['status']}")
