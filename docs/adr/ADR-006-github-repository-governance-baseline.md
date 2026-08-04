@@ -62,7 +62,7 @@ certification or local canonical integration.
 | Implementation Agent | Changes only authorized branch/files | Cannot issue independent certification or architecture approval |
 | Independent Verifier | Reproduces validation and checks evidence | Must not implement the candidate under review |
 | Merge Operator | Executes the owner-authorized exact integration | Must verify the authorized head and base immediately before merge |
-| Repository Administrator | Manages GitHub settings, access, and recovery | Cannot bypass package gates without a recorded emergency exception |
+| Repository Administrator | Manages GitHub settings, access, and recovery | Cannot bypass the current protected-branch rule; any future exception requires a separately verified settings transition and owner record |
 
 Evidence must identify each role by role and actor identity where available.
 One person may hold more than one role across packages, but not both
@@ -103,9 +103,11 @@ commits and squash merging remain disabled. A GitHub PR may be mandatory for
 review/publication, but the final integration must use the exact authorized
 candidate without squash, amend, cherry-pick, or rebase.
 
-An emergency administrator merge is an exception, not a normal fallback. It
-requires a contemporaneous owner decision, exact before/after hashes, reason,
-reviewer, and post-merge revalidation.
+An administrator bypass is not available under the current branch rule and
+must not be treated as an emergency fallback. Any future exception path
+would require an explicitly verified settings transition, contemporaneous
+owner decision, exact before/after hashes, reason, reviewer, and post-merge
+revalidation.
 
 ### Pull requests
 
@@ -133,13 +135,15 @@ technical debt, documentation defect, and release blocker. Public issues must
 contain no credentials, exploit secrets, private source text, or vulnerability
 details that would enable abuse.
 
-Private vulnerability reporting is unavailable on the reported current plan.
-Implementation must therefore configure a private owner-approved reporting
-address or private operational channel before publishing `SECURITY.md`; no
-placeholder address may be presented as active. Security reports must not be
-filed in public GitHub issues. The security owner records receipt, triage,
-containment, and disclosure decisions outside the public repository, with only
-sanitized evidence committed when safe.
+Private vulnerability reporting is unavailable on the current plan. The
+repository is private, has no external collaborators, and no external
+vulnerability intake is currently operational. `SECURITY.md` may therefore
+proceed without publishing a personal address, invented alias, or
+unverified channel. It must state that sensitive details must not be posted
+in ordinary GitHub issues and that authorized collaborators should use an
+already-established private channel. External intake is deferred until the
+Owner provisions and verifies a dedicated alias, organization mechanism, or
+other private service; no response-time or service-level promise is made.
 
 ### CI architecture
 
@@ -248,13 +252,15 @@ superseded receipt.
 
 ### GitHub settings strategy
 
-The owner-reported baseline is: private repository, `main` default, linear
-history, force pushes disabled, deletion disabled, conversation resolution
-required, administrator enforcement enabled, one approval, stale approvals
-dismissed, merge commits disabled, squash disabled, rebase enabled, and
-Dependabot alerts/security updates enabled. API verification was unavailable
-in this pass; implementation must capture the actual values before changing
-anything.
+The independently reported current baseline is: private repository, `main`
+default, classic branch protection, no repository or organization ruleset,
+linear history, force pushes disabled, deletion disabled, conversation
+resolution required, administrator enforcement enabled, one approval, stale
+approvals dismissed, merge commits disabled, squash disabled, rebase enabled,
+no required checks, and Dependabot alerts/security updates enabled. The only
+collaborator is `B0LK13`; self-approval is unavailable and administrator
+bypass is unavailable under the current rule. Agent Two and Agent Four are
+not assumed to have GitHub collaborator access.
 
 Recommended target: preserve all protective settings, disable rebase merging,
 require the staged real CI checks, retain administrator enforcement, and
@@ -313,7 +319,8 @@ must rely on compensating security controls until plan capabilities change.
 
 ## Implementation phases
 
-1. Governance documents: policies and explicit private security contact.
+1. Governance documents: policies and an honest deferred private-security
+   intake limitation; no unverified contact address.
 2. Ownership/templates: CODEOWNERS, PR template, issue forms/configuration.
 3. CI baseline: preserve existing quality job; add validated governance, Control Plane, and compile checks.
 4. Dependency automation: pip and GitHub Actions only, with grouping and caps.
@@ -333,14 +340,114 @@ no unrelated paths. The work-package document contains the executable matrix.
 
 Before settings activation, revert the governance implementation commit or
 remove the unrequired files through a reviewed PR. If settings cause lockout,
-use a second administrator to restore the documented prior settings, then
-record the event and re-run the activation gate. Never reset or rewrite
-certified history.
+the authorized Repository Administrator must restore the documented prior
+settings through the supported settings interface, then record the event and
+re-run the activation gate. This is not a branch-protection bypass and does
+not assume a second administrator exists. Never reset or rewrite certified
+history.
 
 ## Open questions
 
-- Which owner-approved private security reporting address/channel should be published?
+- When will the Owner provision and verify a dedicated private security reporting channel?
 - Which GitHub plan and organization policies are actually active?
 - Which immutable SHAs will be selected for the two existing actions?
 - Is the owner willing to require signing after the adoption period?
 - Which approved secondary storage will hold encrypted bundles and settings snapshots?
+
+## Final bounded remediation — bootstrap lockout and integration
+
+This section is authoritative for the AS-GH-001 bootstrap transition and
+supersedes conflicting earlier wording in this ADR. It records an
+architecture decision only; it does not change GitHub settings.
+
+### Verified lockout state
+
+The current GitHub state is:
+
+- collaborators: `B0LK13` only;
+- required approving reviews: `1`;
+- pull-request author self-approval: unavailable;
+- administrator enforcement: enabled;
+- administrator bypass: unavailable under the current rule;
+- pull request required: enabled.
+
+This is an active merge lockout. A pull request authored by the sole
+collaborator cannot receive the required independent GitHub approval. Agent
+Two and Agent Four are independent verification roles, not assumed GitHub
+collaborators or approvers.
+
+### Authorized bootstrap transition
+
+For the AS-GH-001 bootstrap window only, the Repository Administrator may,
+with explicit Project Owner authorization, temporarily reduce required
+approving reviews from `1` to `0`. The following protections remain enabled:
+
+- pull requests required;
+- administrator enforcement;
+- conversation resolution;
+- linear history;
+- force pushes disabled;
+- branch deletion disabled;
+- signed commits not required yet;
+- required checks added only after successful real runs.
+
+The window covers AS-GH-001 architecture integration, governance-document
+integration, workflow bootstrap, repository-settings activation, and final
+certification/closure. The transition is not an approval, review, or
+certification; it does not permit direct pushes. Evidence must record the
+previous and resulting counts, exact timestamp, acting administrator, owner
+authorization, unchanged protections, verification result, reason, and
+restoration criteria.
+
+Restore required approving reviews to `1` only after:
+
+1. a second trusted collaborator is explicitly added;
+2. that collaborator has review permission;
+3. governance records the person's independent role;
+4. a disposable test PR proves that person can approve without bypass;
+5. the Project Owner authorizes restoration;
+6. Agent Two or Agent Four independently verifies the resulting rule; and
+7. the repository remains mergeable.
+
+If no second trusted reviewer exists, the count must remain `0`; the known
+lockout must not be recreated for appearance's sake.
+
+### Bootstrap integration sequence
+
+During the bootstrap window:
+
+1. Publish the exact candidate branch.
+2. Open a pull request against `main`.
+3. Run and verify all currently applicable checks.
+4. Obtain independent Agent Two verification outside GitHub approval.
+5. Obtain exact-hash Project Owner authorization.
+6. Integrate using the GitHub-supported method actually enabled and proven
+   by a controlled test.
+7. Fetch authoritative `main` and record its resulting hash.
+8. Compare the resulting tree with the certified candidate tree.
+9. Confirm no unexpected content, commit-order or parentage anomaly, and
+   successful protections/checks.
+10. Issue post-integration equivalence certification.
+
+If GitHub rebase merging remains enabled, its generated `main` commits are
+expected to have different hashes. Evidence must distinguish `CERTIFIED
+SOURCE TIP` from `RESULTING MAIN TIP`; the latter is the release-integrated
+identity. GitHub rebase merging must never be described as equivalent to
+`git merge --ff-only`. Disabling rebase merging may be a future target, but
+no merge mechanism is operationally declared until protected-main, PR,
+linear-history, administrator-enforcement, and exact-hash behavior are
+proven together.
+
+### Signing and security-contact limitations
+
+Signed-commit enforcement remains disabled and existing unsigned history is
+never rewritten. Before enforcement, test ordinary commits, GitHub-generated
+rebase commits, Dependabot commits, and GitHub-verified bot commits for
+actual signature behavior and recovery compatibility.
+
+No private security address or service is currently claimed. Sensitive
+vulnerability details must not be placed in public issues. Authorized
+collaborators should use an already-established private channel. External
+intake remains deferred until the Owner provisions and verifies a dedicated
+channel; its exact address or service must be verified before repository
+publication.
