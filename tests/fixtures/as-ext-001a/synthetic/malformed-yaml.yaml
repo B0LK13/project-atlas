@@ -1,0 +1,5 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+validation: {pytest_all: passed
+  ruff: clean
+status: [certified

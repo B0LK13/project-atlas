@@ -1,0 +1,8 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+status: certified
+validation_runs:
+  - runner: ubuntu-latest
+    outcome: passed
+  - runner: windows-latest
+    outcome: passed
