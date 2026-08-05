@@ -3343,3 +3343,70 @@ on the v2 identity tuple (2 files: VERIFY document, `docs/plan.md`).
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
+
+## AS-EXT-001A — implementation through Level 0 self-host evidence
+
+Commits on `feat/as-ext-001a-structured-evidence` (base `6d87475`):
+
+- `89ccbc6` fixtures: frozen real F-01…F-08 + authored synthetic cases with
+  P0-C provenance (EXT1A-002)
+- `c7b5f7a` compilation outcome state machine (§7.8) (EXT1A-003)
+- `180c97c` frozen Pydantic v2 parser-output contract (§7.2) (EXT1A-004)
+- `2b314c9` specific-first classification precedence (§7.1) (EXT1A-005)
+- `97bd2a5` safe bounded YAML + `yamlpath:` locators (§7.4, §8) (EXT1A-006,
+  EXT1A-012)
+- `8ad33a1` evidence receipt profiles with field classification (§7.5)
+  (EXT1A-007, EXT1A-020)
+- `181180e` registered VERIFY structured profile (§7.6) (EXT1A-008)
+- `6169032` heading-locator collision remediation (§7.7) (EXT1A-009)
+- `b256c63` structured diagnostic model (§7.9) (EXT1A-010)
+- `145ba09` locator refinement + alias handling via existing v2 mechanism
+  (§7.10) (EXT1A-011, EXT1A-025)
+- `8af6140` per-source compilation orchestration with failure isolation
+  (§7.3, §7.8, §7.9) (EXT1A-021, EXT1A-022, EXT1A-024, EXT1A-026)
+- `aeb09f6` validate: exempt Layer A imported evidence from link resolution
+  (three-layer vault model; generated layers keep 100 percent resolution)
+
+Security bounds (§8, EXT1A-012) are enforced and tested in
+`tests/unit/test_yaml_structured.py` (23 tests: safe loading only,
+duplicate keys, alias amplification, object construction, encoding,
+control characters, all six resource limits, NFC, order/indentation
+independence, reserved characters, stable-key and provisional sequence
+addressing) plus path-traversal validators on ParserOutput and Diagnostic —
+no separate bounds commit was needed.
+
+Self-host evidence (EXP-ATLAS-SELFHOST-AS-EXT-001A-001, receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt.yaml`): full RAW 70-file
+P0 corpus (14,269 lines / 641,925 bytes), staged copy under worktree
+`.tmp/as-ext-001a-selfhost/` from the read-only P0 staging area.
+
+Before (P0 baseline EXP-ATLAS-SELFHOST-BASELINE-001): batch aborted closed
+at ingest on the first bad file; per-file isolation 39 OK / 31 FAIL (29
+locator failures, 2 ambiguous-identity collisions); 15 claims across OK
+files; ≈1.05 claims per 1,000 lines.
+
+After: full pipeline init → discover → ingest → build-indexes → validate
+all exit 0 (total ≈9.5 s). 65 sources compiled (64 COMPLETE_CANDIDATE, 1
+PARTIAL_CANDIDATE: `docs/prp.md` architecture-fallback claim withheld,
+staging-only) + 5 pre-existing security quarantines (1 secret pattern, 4
+injection findings; NFR-004/AS-SEC-001 behavior unchanged) = 70 accounted.
+0 FAILED, 0 whole-batch abort. 91 canonical claims (state/claims cross-
+checked against generated claims index: 91 == 91), 1 withheld, 35
+diagnostics (29 unknown-structured-field, 5 unknown-receipt-profile, 1
+unresolved-locator), 5 conflicts preserved. 6.38 claims per 1,000 lines.
+Determinism: two independent full-corpus vaults byte-identical (132 files);
+settled re-ingest replay mutates zero bytes (133 files).
+
+Gates after final commit (worktree venv, Windows 11, Python 3.13.14):
+`ruff check .` clean; `mypy src` clean (48 files); `compileall -q src tests`
+clean; `pytest --tb=no` 446 passed + 1 skipped (coverage TOTAL 92%);
+`pytest -m integration` 116 passed + 1 skipped.
+
+**PRODUCTION CODE MODIFIED: YES (new modules + surgical wiring; Claim
+Identity v2 algorithm unchanged)**
+**TESTS MODIFIED: YES (two `_extract` call sites updated for tuple return)**
+**FIXTURES MODIFIED: NO (frozen at 89ccbc6)**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**

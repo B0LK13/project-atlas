@@ -220,6 +220,17 @@ Before: 70 files / 14,269 lines / 641,925 bytes; 39 independently successful;
 lines. After-values are recorded with the self-host evidence commit; rising
 claim count alone is not evidence of usefulness.
 
+After (EXP-ATLAS-SELFHOST-AS-EXT-001A-001, receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt.yaml`): 70 files /
+14,269 lines / 641,925 bytes; full pipeline exit 0 end-to-end (≈9.5 s);
+65 sources compiled — 64 COMPLETE_CANDIDATE, 1 PARTIAL_CANDIDATE
+(`docs/prp.md`, 1 withheld architecture-fallback claim, staging-only),
+0 FAILED — plus 5 pre-existing security quarantines (70 accounted);
+91 canonical claims cross-checked between canonical state and the generated
+claims index (91 == 91); 1 claim withheld; 35 diagnostics; 5 conflicts
+preserved; 6.38 claims per 1,000 lines; deterministic repeat byte-identical
+(two independent vaults, 132 files) and zero-mutation settled replay.
+
 ## Hard escalation conditions (directive §21)
 
 Stop and report BLOCKED if: safe implementation requires changing Claim
