@@ -192,7 +192,7 @@ independent verification passes and the branch is merged to `main`._
 
 ## AS-CORE-003 — Claim Identity v2 remediation
 
-_Status: V2-003 was preserved and rejected by independent review. V2-004 implemented and validated the remediation but was superseded before review because its immutable tag annotation recorded an invalid tree string. V2-005 passed a fresh isolated review with three non-blocking findings on 2026-08-05, but its PR head failed ubuntu CI on platform-dependent `media_type` detection and K-004 fixture newline translation. V2-006 fixes both determinism defects additively, passed an isolated review addendum, and is green on Windows and Linux gates. Remote CI verification and Project Owner merge authorization remain pending._
+_Status: MERGED AND CLOSED on 2026-08-05 via PR #5 platform merge commit `6d874751d3ed9cb05433a8d50ab372a997418d84` (candidate V2-006, tree identical to the green PR head). V2-003 was preserved and rejected by independent review. V2-004 was superseded before review because its immutable tag annotation recorded an invalid tree string. V2-005 passed a fresh isolated review with three non-blocking findings but failed ubuntu CI on platform-dependent `media_type` detection and K-004 fixture newline translation. V2-006 fixed both determinism defects additively, passed an isolated review addendum, and was green on local and remote gates. Non-blocking findings are routed to the parser roadmap as follow-ups. Post-merge receipt: `docs/evidence/AS-CORE-003-post-merge-receipt.yaml`._
 
 - [x] CORE3-001 Finalize Claim Identity v2 formula using raw stable semantic locator
 - [x] CORE3-002 Use `event:{event_id}` locator for agent-event-derived claims
@@ -220,4 +220,4 @@ _Status: V2-003 was preserved and rejected by independent review. V2-004 impleme
 - [x] CORE3-024 Preserve the malformed V2-004 annotation and supersede it without moving the tag
 - [x] CORE3-025 Complete a fresh independent V2-005 review and certification
 - [x] CORE3-027 Remediate ubuntu CI platform determinism (media types, K-004 fixture) and cut V2-006
-- [ ] CORE3-026 Merge to `main`
+- [x] CORE3-026 Merge to `main`

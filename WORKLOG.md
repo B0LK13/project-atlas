@@ -3300,3 +3300,32 @@ ubuntu failure is closed on the runner that originally failed. This closes
 the `local-validation-complete-pending-remote-ci` limitation recorded in
 `docs/evidence/AS-CORE-003-v2-candidate-006.yaml`; only Project Owner merge
 authorization remains.
+
+### AS-CORE-003 merged and closed
+
+PR #5 was merged to `main` by Project Owner authorization on
+2026-08-05T08:31:55Z via platform merge commit
+`6d874751d3ed9cb05433a8d50ab372a997418d84` (parents
+`c12ac61665bef5c692b338add5b4936e845e12e5` +
+`b37d4724ee8a7bb65c1cbee0f355dac2a0745a49`, tree
+`717fdacfba39b229b360b22fabc4e0699a1bc09f`). The merged tree is
+byte-identical to the PR head tree, so the green remote CI on the PR head
+(run id 30983488256, all three quality jobs) carries to the merge commit;
+the push-triggered run on `main` is not separately queryable through the
+available API surface. Candidate V2-006
+(`54e7745a8f2cdf84f0ae74c369c79cdc6c628e12`) and the PR head are both
+reachable from `origin/main`; the immutable tag was not moved. The two
+non-blocking V2-005 review findings (architecture fallback heading locator,
+`migrated_at` reproducibility note) were dispositioned on the PR and routed
+to the parser roadmap as follow-ups, together with the zero-history vault
+migration note. AS-CORE-003 is CLOSED; post-merge receipt:
+`docs/evidence/AS-CORE-003-post-merge-receipt.yaml`.
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO (this entry records an already-authorized merge)**
+**FINAL CERTIFICATION ISSUED: NO (closure record only)**

@@ -1,0 +1,70 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+work_package_id: AS-CORE-003
+status: certified
+branch: main
+merge_commit: 6d874751d3ed9cb05433a8d50ab372a997418d84
+candidate: V2-006
+candidate_commit: 54e7745a8f2cdf84f0ae74c369c79cdc6c628e12
+pull_request: 5
+merge:
+  actor: B0LK13
+  merged_at: "2026-08-05T08:31:55Z"
+  method: platform-merge-commit
+  parents:
+    - c12ac61665bef5c692b338add5b4936e845e12e5
+    - b37d4724ee8a7bb65c1cbee0f355dac2a0745a49
+  tree: 717fdacfba39b229b360b22fabc4e0699a1bc09f
+  tree_identical_to_pr_head: true
+  squashed: false
+  tag_moved: false
+review_lineage:
+  v2_003: preserved-and-rejected-by-independent-review
+  v2_004: superseded-before-review-malformed-tag-annotation
+  v2_005: passed-isolated-review-three-non-blocking-findings
+  v2_006: passed-review-addendum-and-all-gates
+validation:
+  local_windows_python_3_13_14:
+    ruff: passed
+    mypy: "passed: 39 source files"
+    unit_tests: "315 passed + 1 skipped"
+    integration_tests: "113 passed + 1 skipped"
+    cli_smoke: passed
+  local_wsl_python_3_12_3:
+    ruff: passed
+    mypy: "passed: 39 source files"
+    unit_tests: 316 passed
+    integration_tests: 114 passed
+    cli_smoke: passed
+  remote_ci_pr_head:
+    run_id: 30983488256
+    jobs:
+      "quality (ubuntu-latest, 3.12, full)": success
+      "quality (ubuntu-latest, 3.13, compat)": success
+      "quality (windows-latest, 3.12, windows)": success
+    note: >-
+      The merged tree is byte-identical to the PR head tree, so the green
+      PR head CI carries to the merge commit. The push-triggered run on
+      main is not separately queryable through the available API surface.
+non_blocking_follow_ups:
+  - id: V2-005-N1
+    topic: architecture fallback heading locator
+    disposition: dispositioned-on-pr-resolved
+    routed_to: parser-roadmap (AS-EXT scope)
+  - id: V2-005-N2
+    topic: migrated_at reproducibility note
+    disposition: dispositioned-on-pr-resolved
+    routed_to: parser-roadmap (AS-EXT scope)
+  - id: zero-history-vault-migration
+    topic: migration receipt behavior on vaults with no v1 history
+    disposition: documented-follow-up
+    routed_to: parser-roadmap (AS-EXT scope)
+evidence:
+  - docs/evidence/AS-CORE-003-v2-candidate-006.yaml
+  - docs/evidence/AS-CORE-003-v2-candidate-006-review-addendum.yaml
+control_plane:
+  unrelated_changes_introduced: false
+  historical_commits_rewritten: false
+  force_push_used: false
+sync_state: synchronized
+blockers: []
