@@ -235,6 +235,20 @@ claims index (91 == 91); 1 claim withheld; 35 diagnostics; 5 conflicts
 preserved; 6.38 claims per 1,000 lines; deterministic repeat byte-identical
 (two independent vaults, 132 files) and zero-mutation settled replay.
 
+Remediation (adversarial review, receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2.yaml`, commit 33bc65a):
+the experiment was re-run after fixing one blocking executable violation
+(intra-source yamlpath locator collisions escaping per-source isolation) and
+five concerns. Every §12 after-value above reconciles exactly on the
+remediated re-run (64 COMPLETE / 1 PARTIAL / 0 FAILED + 5 quarantined; 91
+claims; 35 diagnostics; 5 conflicts; 6.38 claims per 1,000 lines; two vaults
+byte-identical; settled replay byte-stable). Wording corrections recorded in
+the V2 receipt: quarantine accounting is 6 injection findings across 4 files
+plus 1 secret finding in 1 file (= 5 quarantined files), and settled replay
+means the first replay mutates via lifecycle re-observation while the third
+and subsequent ingests are byte-stable. All 65 compilation outcomes now also
+persist their classification records.
+
 ## Hard escalation conditions (directive §21)
 
 Stop and report BLOCKED if: safe implementation requires changing Claim

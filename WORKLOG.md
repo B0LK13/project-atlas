@@ -3410,3 +3410,69 @@ Identity v2 algorithm unchanged)**
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
+
+## AS-EXT-001A — adversarial remediation and candidate re-freeze (V2)
+
+Adversarial review of the frozen Level 0 candidate returned FAIL: one
+blocking executable violation plus five concerns. All six remediated
+additively in commit 33bc65a; candidate re-frozen with a full gate battery
+and a complete re-run of the RAW self-host experiment. Evidence: receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2.yaml` (supersedes the
+V1 receipt, which is preserved untouched).
+
+Blocking violation — intra-source yamlpath locator collisions escaped
+per-source failure isolation and aborted the whole batch. Fixed by
+`_withhold_locator_collisions` in `evidence_compiler.py`, mirroring §7.7
+disambiguation semantics on yamlpath records: identical-value groups keep
+the first statement; different-value collisions withhold all members with
+DUPLICATE_LOCATOR diagnostics and mark the source PARTIAL_CANDIDATE.
+Regression repros: A (`status: {café(NFC): alpha, café(NFD): beta}`) and B
+(`status: [{id: same, x: alpha}, {id: same, x: beta}]`) now compile the
+source PARTIAL with the colliding candidates withheld, no exception escapes,
+and a good sibling source still promotes through `compile_knowledge`. The
+compiler-level duplicate-ID raise remains as an unreachable fail-closed
+guard.
+
+Concerns remediated: (A) parser resource-bound defaults made reachable —
+`max_nodes` 4,096 / `max_node_references` 8,192, with reachability and
+alias-free reachability tests; (B) `yaml.compose` RecursionError mapped to a
+structured ResourceLimitError (verified at depths 500/2000/5000); (3)
+PROMOTION_FAILED is now reachable: promotion failures record the promotable
+candidates as PROMOTION_FAILED via governed transition edges and write a
+schema-validated report to `quarantine/promotion-failures/index.json`
+(best-effort; never masks the original error; cleared by the next
+successful ingest); canonical rollback coverage unchanged; (4) wording
+corrections — quarantine accounting is 6 injection findings across 4 files
+plus 1 secret finding in 1 file (= 5 quarantined files; the earlier "4
+injection findings" phrase counted files, not findings), and settled replay
+means the first replay mutates via lifecycle NEW→UNCHANGED re-observation
+(132 → 133 vault files) while the third and subsequent ingests are
+byte-stable; (5) spec §7.5 now states explicitly that unknown-profile
+receipts still contribute canonical claims from recognized root keys as
+COMPLETE_CANDIDATE with a warning diagnostic; (6) classification records
+are persisted per candidate into `state/compilation-outcomes/`.
+
+Self-host re-run (EXP-ATLAS-SELFHOST-AS-EXT-001A-001, remediation-v2, same
+staged RAW 70-file corpus): full pipeline exit 0 end-to-end (≈8.2 s).
+Reconciliation vs the frozen V1 numbers is exact: 65 compiled (64
+COMPLETE_CANDIDATE, 1 PARTIAL_CANDIDATE `docs/prp.md`, 1 withheld) + 5
+security quarantines; 0 FAILED; 91 canonical claims == 91 claims-index ids;
+35 diagnostics (29 unknown-structured-field, 5 unknown-receipt-profile, 1
+unresolved-locator); 5 conflicts; 6.38 claims per 1,000 lines; two
+independent vaults byte-identical (132 files); first replay mutates
+(132 → 133), settled replay zero-mutation. All 65 outcomes persist
+classification records.
+
+Gates at re-freeze (worktree venv, Windows 11, Python 3.13.14):
+`ruff check .` clean; `mypy src` clean (48 files);
+`compileall -q src tests` clean; `pytest` 454 passed + 1 skipped (coverage
+TOTAL 92%); `pytest -m integration` 117 passed + 1 skipped; CLI smoke
+`atlas --help` exit 0, `atlas version` project-atlas 0.1.0.
+
+**PRODUCTION CODE MODIFIED: YES (evidence compiler, parser bounds, ingestion promotion-failure path, outcome persistence; Claim Identity v2 unchanged)**
+**TESTS MODIFIED: YES (new regression/integration tests; concurrency rollback test excludes diagnostic quarantine report)**
+**FIXTURES MODIFIED: NO (frozen at 89ccbc6)**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
