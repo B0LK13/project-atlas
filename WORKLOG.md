@@ -3223,3 +3223,70 @@ Project Owner merge authorization.
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
 **FINAL CERTIFICATION ISSUED: YES**
+
+---
+
+## AS-CORE-003 — V2-006: ubuntu CI failure remediation and candidate resequence
+
+**Date:** 2026-08-05
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+
+Remote CI on the V2-005 PR head (PR #5) failed on both ubuntu jobs while
+Windows succeeded. The failure was reproduced locally under WSL Ubuntu /
+Python 3.12.3: `test_k004_discovery_manifest_matches_golden_fixture` compared
+a discovery manifest against the K-004 golden and differed on exactly the
+three project-marker entries.
+
+Two root causes, both platform dependencies violating NFR-001 determinism:
+
+1. `discovery.py` derived `media_type` from `mimetypes.guess_type()`, which
+   consults the host OS mime database. Linux maps `.yaml` to
+   `application/yaml`; Windows has no mapping and fell back to
+   `application/octet-stream`.
+2. The K-004 fixture writer appended the fixed `project_uuid` line using
+   text-mode `Path.write_text()`, whose default newline translation writes
+   CRLF on Windows, changing marker `size_bytes` by five bytes per marker.
+
+Fix (additive, commit `54e7745a8f2cdf84f0ae74c369c79cdc6c628e12`): a static
+suffix-to-media-type map replaces `mimetypes`; the fixture writer pins
+`newline="\n"`; the K-004 golden manifest was regenerated through the real
+CLI path. Canonical source sha256 values in the golden are unchanged,
+confirming the CRLF-normalizing hash already did its job; the golden delta is
+limited to `media_type` and `size_bytes` of the three markers.
+
+Candidate lifecycle per directive §13: V2-005 (tag, isolated review, and
+certification evidence) is preserved untouched. V2-006 supersedes it with
+annotated tag bound to commit
+`54e7745a8f2cdf84f0ae74c369c79cdc6c628e12` / tree
+`48d5ccfe92dc4e79989e993b63a627d327124264`, created in Git Bash with
+pre-resolved hashes and `tag.gpgsign=false` (prospective signing disabled
+per §27). The V2-006 scope also carries the owner's additive `README.md`
+commit (`da7b3a8`, author `wesley@bolk.dev`, signature not verifiable with
+the local keyring), which landed on the branch between V2-005 and V2-006 and
+is preserved per directive.
+
+An isolated review addendum (same fresh review worktree, detached at the new
+tag, no fixes) reviewed the exact increment and passed. Gates on the V2-006
+head:
+
+- Windows / Python 3.13.14: ruff clean, mypy 39 files clean, compileall
+  clean, 315 passed + 1 skipped, integration 113 passed + 1 skipped + 202
+  deselected, CLI smoke exit 0.
+- WSL Ubuntu / Python 3.12.3: ruff clean, mypy 39 files clean, compileall
+  clean, 316 passed, integration 114 passed + 202 deselected, CLI smoke
+  exit 0.
+
+Evidence: `docs/evidence/AS-CORE-003-v2-candidate-006.yaml` and
+`docs/evidence/AS-CORE-003-v2-candidate-006-review-addendum.yaml`.
+Remaining: remote CI verification on the V2-006 PR head and Project Owner
+merge authorization.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: YES**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: YES**
