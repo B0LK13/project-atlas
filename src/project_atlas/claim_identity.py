@@ -197,7 +197,7 @@ def _disambiguate_collisions(
         if len({str(member["value"]) for member in members}) == 1:
             drop.update(indexes[1:])
             continue
-        if locator.startswith("heading:"):
+        if isinstance(locator, str) and locator.startswith("heading:"):
             paths = [tuple(member.get("heading_path") or ()) for member in members]
             if len(set(paths)) > 1 and all(paths):
                 for member, path in zip(members, paths, strict=True):
@@ -286,6 +286,21 @@ def extract_claims(
             if locator is None:
                 if reject_unresolved:
                     raise UnresolvedLocatorError(line)
+                if withhold_unresolvable:
+                    # AS-EXT-001A §7.8: lines without a stable locator become
+                    # visible withheld records instead of silent skips.
+                    claims.append(
+                        {
+                            "claim_type": claim_type.value,
+                            "field": field,
+                            "value": normalize_claim_value(claim_value),
+                            "legacy_value": legacy_value,
+                            "locator": None,
+                            "predecessor_id": predecessor_id,
+                            "heading_path": heading_path(),
+                            "withheld": True,
+                        }
+                    )
                 break
 
             claims.append(
@@ -315,6 +330,20 @@ def extract_claims(
             if locator is None:
                 if reject_unresolved:
                     raise UnresolvedLocatorError(line)
+                if withhold_unresolvable:
+                    # AS-EXT-001A §7.8: visible withheld record, no silent skip.
+                    claims.append(
+                        {
+                            "claim_type": ClaimType.ARCHITECTURE.value,
+                            "field": "architecture",
+                            "value": normalize_claim_value(line),
+                            "legacy_value": normalize_claim_value(line),
+                            "locator": None,
+                            "predecessor_id": predecessor_id,
+                            "heading_path": heading_path(),
+                            "withheld": True,
+                        }
+                    )
                 break
             explicit_match = _EXPLICIT_ID.search(line)
             value = (

@@ -85,7 +85,7 @@ def test_extract_claims_agrees_between_compiler_and_migration() -> None:
         "requires: nebula {#dep1}\n\n"
         "roadmap: active\n"
     )
-    compiler_claims = _extract(
+    compiler_claims, _extraction = _extract(
         "project",
         {
             "source_id": "source",
@@ -139,7 +139,7 @@ def test_migration_reconstructs_v1_anchor_value_and_architecture_fallback() -> N
         classification="architecture",
     )
     text = "# Runtime\n\nEvent-driven services {#runtime-design}\n"
-    compiler = _extract(
+    compiler, _extraction = _extract(
         "project",
         {
             "source_id": metadata.source_id,
