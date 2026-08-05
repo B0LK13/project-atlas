@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from project_atlas.cli import EXIT_OK, main
+from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 
 pytestmark = pytest.mark.integration
 
@@ -25,6 +25,12 @@ def _fixture(root: Path) -> Path:
     )
     (source / "README.md").write_text(
         "# Fixture Atlas\n\nPurpose: governed project\n", encoding="utf-8"
+    )
+    # Layer A raw evidence with source-relative links that cannot resolve in
+    # the Vault layout (mirrors the RAW corpus plan.md link family).
+    (source / "docs" / "plan.md").write_text(
+        "# Plan\n\nSee [project](./project.md) and [status](./status.md).\n",
+        encoding="utf-8",
     )
     (source / "docs" / "evidence" / "receipt.yaml").write_bytes(
         (FIXTURES / "real" / "evidence-flat-as-core-002-post-merge-receipt.yaml").read_bytes()
@@ -77,6 +83,18 @@ def test_mixed_corpus_completes_without_batch_abort(tmp_path: Path) -> None:
     )
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
+
+
+def test_validate_skips_layer_a_links_but_checks_generated(tmp_path: Path) -> None:
+    """Imported raw evidence links are source-relative and exempt; generated
+    layer links must still resolve (three-layer vault model, AS-EXT-001A)."""
+    vault = _ingest(_fixture(tmp_path), tmp_path)
+    assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
+    # docs/plan.md carries links that only resolve in the source repository.
+    assert main(["validate", "--vault", str(vault)]) == EXIT_OK
+    broken = vault / "projects" / "fixture-atlas" / "broken.md"
+    broken.write_text("# Broken\n\n[missing](./no-such-file.md)\n", encoding="utf-8")
+    assert main(["validate", "--vault", str(vault)]) == EXIT_ERROR
 
 
 def test_mixed_corpus_replay_is_byte_identical(tmp_path: Path) -> None:

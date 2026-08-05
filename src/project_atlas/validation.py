@@ -25,6 +25,12 @@ def validate(vault: Path) -> dict[str, Any]:
     for markdown in sorted(vault.rglob("*.md")):
         if ".tmp" in markdown.parts:
             continue
+        relative = markdown.relative_to(vault)
+        if relative.parts[0] == "sources":
+            # Layer A imported evidence is raw, immutable source content: its
+            # links are relative to the source repository, not the Vault, so
+            # link resolution applies to generated layers only (AS-EXT-001A).
+            continue
         text = markdown.read_text(encoding="utf-8")
         for target in LINK.findall(text):
             if target.startswith(("http://", "https://", "#")):
