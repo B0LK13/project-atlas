@@ -3476,3 +3476,58 @@ TOTAL 92%); `pytest -m integration` 117 passed + 1 skipped; CLI smoke
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
+
+## AS-EXT-001A — no-silent-drop remediation and candidate re-freeze (V2 amendment)
+
+Copilot review on PR #7 (remote CI all green) found one narrow defect against
+the no-silent-drop contract: in `claim_identity._disambiguate_collisions`,
+collision grouping used `str(claim["locator"])`, so every withheld
+unresolved-locator record (`locator is None`) shared the grouping key
+`"None"` and the identical-value dedupe pass dropped repeated occurrences
+without any diagnostic or counter entry.
+
+Fix (commit 27cd8e8, minimal and additive): locator=None records are
+ungroupable for the dedupe pass — the record index is included in the
+grouping key — so every unresolved-locator line survives and is diagnosed
+individually. Identical-value dedupe semantics for real locators are
+unchanged; Claim Identity v2 untouched.
+
+Repro evidence: two identical unresolved-locator lines
+(`- decision: same unresolved value` × 2) — before: 1 surviving record and
+1 diagnostic (1 occurrence silently dropped); after: 2 surviving records,
+2 UNRESOLVED_LOCATOR diagnostics, source PARTIAL_CANDIDATE. Regression
+tests: `test_identical_unresolved_locator_lines_all_survive_no_silent_drop`
+(extractor level) and
+`test_identical_unresolved_lines_each_diagnosed_no_silent_drop` (compiler
+diagnostics level).
+
+Self-host re-run (EXP-ATLAS-SELFHOST-AS-EXT-001A-001, remediation-v3, same
+staged RAW 70-file corpus): full pipeline exit 0 (≈7.9 s). Reconciliation
+vs the V2 receipt is EXACT — 64 COMPLETE / 1 PARTIAL (`docs/prp.md`, 1
+withheld) / 0 FAILED + 5 quarantines (6 injection findings across 4 files +
+1 secret finding in 1 file); 91 canonical claims == 91 index ids; 35
+diagnostics (29 unknown-structured-field, 5 unknown-receipt-profile, 1
+unresolved-locator); 5 conflicts; 6.38 claims per 1,000 lines; two
+independent vaults byte-identical (132 files); first replay mutates
+(132 → 133), settled replay zero-mutation; 65/65 classification records.
+Diagnostics count UNCHANGED: the corpus's single withheld
+unresolved-locator record has no identical sibling occurrence, so the
+defect's silent-drop path is not triggered by this corpus.
+
+Evidence: additive amendment receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2-amendment.yaml`
+(amends V2; V1/V2 receipts preserved untouched).
+
+Gates at re-freeze (worktree venv, Windows 11, Python 3.13.14):
+`ruff check .` clean; `mypy src` clean (48 files);
+`compileall -q src tests` clean; `pytest` 456 passed + 1 skipped (coverage
+TOTAL 92%); `pytest -m integration` 117 passed + 1 skipped; CLI smoke
+`atlas --help` exit 0, `atlas version` project-atlas 0.1.0.
+
+**PRODUCTION CODE MODIFIED: YES (claim_identity collision grouping only; Claim Identity v2 algorithm unchanged)**
+**TESTS MODIFIED: YES (two new regression tests)**
+**FIXTURES MODIFIED: NO (frozen at 89ccbc6)**
+**BACKLOG MODIFIED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**

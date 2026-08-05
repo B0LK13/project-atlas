@@ -1,0 +1,89 @@
+schema_version: 1
+receipt_type: atlas-integration-work-package
+work_package_id: AS-EXT-001A
+status: level-0-achieved-remediated
+branch: feat/as-ext-001a-structured-evidence
+base_commit: 6d874751d3ed9cb05433a8d50ab372a997418d84
+experiment_id: EXP-ATLAS-SELFHOST-AS-EXT-001A-001
+rerun: remediation-v3-no-silent-drop
+amends: docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2.yaml
+amendment_note: >-
+  Additive amendment to the V2 re-freeze. V1 and V2 receipts are preserved
+  untouched. Records one narrow defect found in Copilot review of PR #7, its
+  fix, and a full re-run that reconciles exactly with the V2 numbers.
+copilot_review_defect:
+  source: Copilot review on PR #7 (remote CI all green)
+  contract_violated: no-silent-drop (§7.8, §7.9)
+  location: src/project_atlas/claim_identity.py, _disambiguate_collisions
+  description: >-
+    Collision grouping used str(claim["locator"]) as the grouping key.
+    Withheld unresolved-locator records have locator None, so every such
+    record shared the grouping key "None"; the identical-value dedupe pass
+    then dropped repeated unresolved-locator occurrences without any
+    diagnostic or counter entry.
+  severity: narrow; latent only for sources with 2+ identical unresolved-locator lines
+fix:
+  commit: 27cd8e8
+  change: >-
+    locator=None records are ungroupable for the dedupe pass — the record
+    index is included in the grouping key — so every unresolved-locator line
+    survives and is diagnosed individually. Identical-value dedupe semantics
+    for real locators are unchanged.
+  regression_tests:
+    - test_identical_unresolved_locator_lines_all_survive_no_silent_drop
+    - test_identical_unresolved_lines_each_diagnosed_no_silent_drop
+repro_evidence:
+  fixture: "- decision: same unresolved value\n- decision: same unresolved value\n"
+  before: "1 surviving record, 1 diagnostic (1 occurrence silently dropped)"
+  after: "2 surviving records, 2 UNRESOLVED_LOCATOR diagnostics, source PARTIAL_CANDIDATE"
+self_host_rerun:
+  corpus_files: 70
+  corpus_lines: 14269
+  corpus_bytes: 641925
+  pipeline:
+    init: {exit: 0, seconds: 0.966}
+    discover: {exit: 0, seconds: 1.045}
+    ingest: {exit: 0, seconds: 3.173}
+    build_indexes: {exit: 0, seconds: 1.055}
+    validate: {exit: 0, seconds: 1.683}
+    total_seconds: 7.922
+  outcomes:
+    complete_candidate: 64
+    partial_candidate: 1
+    failed: 0
+    security_quarantined: 5
+  partial_detail: {source_path: docs/prp.md, withheld_claims: 1}
+  claims:
+    canonical_state: 91
+    index_crosscheck: 91
+    withheld: 1
+    yield_per_1000_lines: 6.38
+  diagnostics:
+    total: 35
+    unknown_structured_field: 29
+    unknown_receipt_profile: 5
+    unresolved_locator: 1
+  conflicts_preserved: 5
+  classification_records_persisted: 65
+  determinism:
+    two_independent_vaults_byte_identical: true
+    vault_file_count: 132
+    first_replay_mutates: true
+    settled_replay_zero_mutation: true
+diagnostics_count_explanation: >-
+  Diagnostics total is UNCHANGED vs the V2 receipt (35 = 29 + 5 + 1). The
+  corpus's only withheld unresolved-locator record (docs/prp.md) has no
+  identical sibling occurrence, so the defect's silent-drop path is not
+  triggered by this corpus; the re-run reconciles exactly and no corrected
+  count is required.
+validation:
+  ruff: passed
+  mypy: "passed: 48 source files"
+  compileall: passed
+  full_pytest: "456 passed, 1 skipped (coverage TOTAL 92%)"
+  integration_pytest: "117 passed, 1 skipped"
+  cli_smoke: "atlas --help exit 0; atlas version project-atlas 0.1.0"
+  corpus_pipeline: "5 steps, all exit 0 (7.922 s)"
+  determinism: "two independent vaults byte-identical (132 files); settled replay stable"
+level_0_status: ACHIEVED
+merge_authorized: false
