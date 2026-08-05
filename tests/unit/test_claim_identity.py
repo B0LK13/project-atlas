@@ -130,6 +130,18 @@ def test_extract_claims_explicit_id_takes_precedence() -> None:
     assert claims[0]["legacy_value"] == "test {#explicit-purpose}"
 
 
+def test_identical_unresolved_locator_lines_all_survive_no_silent_drop() -> None:
+    """AS-EXT-001A remediation (no-silent-drop contract): locator=None records
+    are ungroupable for the §7.7 dedupe pass. Identical unresolved-locator
+    occurrences must each survive so the caller diagnoses every line."""
+    text = "- decision: same unresolved value\n- decision: same unresolved value\n"
+    claims = extract_claims(text, withhold_unresolvable=True)
+    assert len(claims) == 2
+    assert all(claim["locator"] is None for claim in claims)
+    assert all(claim["withheld"] for claim in claims)
+    assert [claim["value"] for claim in claims] == ["same unresolved value"] * 2
+
+
 def test_migration_reconstructs_v1_anchor_value_and_architecture_fallback() -> None:
     metadata = _SourceMetadata(
         source_id="source-architecture",

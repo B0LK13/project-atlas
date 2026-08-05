@@ -183,11 +183,26 @@ def _disambiguate_collisions(
 
     Only documents that would previously have aborted reach steps 2-4, so
     locators of already-promoted claims are byte-identical.
+
+    Withheld unresolved-locator records (``locator is None``, §7.8) are
+    ungroupable for the dedupe pass: ``str(None)`` would group every such
+    record under one key and step 1 would drop identical occurrences without
+    a diagnostic, violating the no-silent-drop contract. Each occurrence
+    keeps its record index in the grouping key so it survives and is
+    diagnosed individually by the caller.
     """
+
+    def group_key(index: int, claim: dict[str, Any]) -> tuple[str, str, str]:
+        locator = claim["locator"]
+        return (
+            str(claim["claim_type"]),
+            str(claim["field"]),
+            str(locator) if locator is not None else f"<unresolved-locator:{index}>",
+        )
+
     groups: dict[tuple[str, str, str], list[int]] = {}
     for index, claim in enumerate(claims):
-        key = (str(claim["claim_type"]), str(claim["field"]), str(claim["locator"]))
-        groups.setdefault(key, []).append(index)
+        groups.setdefault(group_key(index, claim), []).append(index)
 
     drop: set[int] = set()
     for (_claim_type, _field, locator), indexes in groups.items():
@@ -210,8 +225,7 @@ def _disambiguate_collisions(
     for index, claim in enumerate(claims):
         if index in drop:
             continue
-        key = (str(claim["claim_type"]), str(claim["field"]), str(claim["locator"]))
-        remaining.setdefault(key, []).append(index)
+        remaining.setdefault(group_key(index, claim), []).append(index)
     for indexes in remaining.values():
         if len(indexes) < 2 or len(
             {str(claims[index]["value"]) for index in indexes}

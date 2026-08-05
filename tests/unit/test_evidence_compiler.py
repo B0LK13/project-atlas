@@ -147,6 +147,23 @@ def test_unresolvable_line_withheld_not_silent() -> None:
     assert extraction.candidate.diagnostics  # partial requires diagnostics
 
 
+def test_identical_unresolved_lines_each_diagnosed_no_silent_drop() -> None:
+    """AS-EXT-001A remediation: two identical unresolved-locator lines must
+    yield two withheld records and two UNRESOLVED_LOCATOR diagnostics — the
+    §7.7 dedupe pass must not collapse locator=None records."""
+    entry = _entry("docs/notes.md", "status: certified\nstatus: certified\n")
+    extraction = extract_source("project", entry)
+    assert extraction.candidate.outcome is CompilationOutcome.PARTIAL_CANDIDATE
+    assert extraction.candidate.claims_withheld == 2
+    assert extraction.candidate.claims_extracted == 0
+    unresolved = [
+        diagnostic
+        for diagnostic in extraction.diagnostics
+        if diagnostic.code is DiagnosticCode.UNRESOLVED_LOCATOR
+    ]
+    assert len(unresolved) == 2
+
+
 def test_duplicate_explicit_ids_withheld_as_partial() -> None:
     text = "## A\n\nstatus: certified {#dup}\n\n## B\n\nstatus: superseded {#dup}\n"
     entry = _entry("docs/dup.md", text)
