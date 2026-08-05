@@ -32,8 +32,7 @@ as_ret_disposition:
   implementation_changes_authorized: false
   merge_authorized: false
 
-[...excerpt boundary...]
-
+# [...excerpt boundary: source lines 34-57 omitted...]
 ## Option Disposition
 
 ### Option 1 selected
