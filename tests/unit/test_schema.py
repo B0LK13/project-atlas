@@ -29,6 +29,7 @@ def test_all_expected_schemas_available() -> None:
         "claim-lifecycle",
         "concept-record",
         "conflict-record",
+        "parser-output",
         "provenance-reference",
         "review-entry",
         "semantic-records",

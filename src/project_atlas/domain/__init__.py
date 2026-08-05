@@ -15,6 +15,13 @@ from project_atlas.domain.concepts import (
 )
 from project_atlas.domain.conflicts import ConflictingClaim, ConflictRecord, ConflictState
 from project_atlas.domain.findings import ValidationFinding
+from project_atlas.domain.parser_output import (
+    AmbiguityStatus,
+    LocatorConfidence,
+    LocatorKind,
+    ParserOutput,
+    SourceSpan,
+)
 from project_atlas.domain.relationships import Relationship, RelationType
 from project_atlas.domain.semantic import (
     AgentEventReference,
@@ -54,6 +61,7 @@ from project_atlas.domain.vocabulary import (
 
 __all__ = [
     "AgentEventReference",
+    "AmbiguityStatus",
     "AuthorityLevel",
     "AuthorityRecord",
     "Claim",
@@ -77,7 +85,10 @@ __all__ = [
     "GeneratedMetadata",
     "KnowledgeState",
     "LifecycleStatus",
+    "LocatorConfidence",
+    "LocatorKind",
     "Maturity",
+    "ParserOutput",
     "PathHistoryEntry",
     "ProjectRecord",
     "ProvenanceReference",
@@ -94,6 +105,7 @@ __all__ = [
     "SourceLifecycleRecord",
     "SourceLineageRecord",
     "SourceRecord",
+    "SourceSpan",
     "ValidationEvidence",
     "ValidationFinding",
     "ValidationGate",
