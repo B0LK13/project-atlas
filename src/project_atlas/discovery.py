@@ -5,7 +5,6 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
-import mimetypes
 import os
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -30,6 +29,24 @@ DEFAULT_EXCLUDES = {
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
     ".mypy_cache", ".ruff_cache", "dist", "build", ".tmp",
 }
+
+# AS-CORE-003: static media-type map. mimetypes.guess_type() depends on the
+# host OS mime database (Linux maps .yaml, Windows does not), which made
+# manifest media_type platform-dependent and broke NFR-001 determinism.
+_MEDIA_TYPES: dict[str, str] = {
+    ".html": "text/html",
+    ".json": "application/json",
+    ".md": "text/markdown",
+    ".toml": "application/toml",
+    ".txt": "text/plain",
+    ".yaml": "application/yaml",
+    ".yml": "application/yaml",
+}
+
+
+def _media_type(path: Path) -> str:
+    """Return the deterministic media type for a discovered source file."""
+    return _MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
 
 
 def _sha256(path: Path) -> str:
@@ -155,7 +172,7 @@ def discover(
             project_uuid=project_uuid,
             source_lineage_id=None,
             path=relative,
-            media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            media_type=_media_type(path),
             sha256=digest,
             size_bytes=stat.st_size,
             modified_at=modified,

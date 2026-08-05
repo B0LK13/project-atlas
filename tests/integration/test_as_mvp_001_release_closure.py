@@ -95,7 +95,11 @@ def _frozen_pilots(tmp_path: Path) -> Path:
         marker = root / project / ".atlas-project.yaml"
         text = marker.read_text(encoding="utf-8")
         assert "project_uuid" not in text, f"{marker} already declares a project_uuid"
-        marker.write_text(text + f"project_uuid: {project_uuid}\n", encoding="utf-8")
+        # newline="\n" pins LF bytes on every platform; the default text-mode
+        # translation writes CRLF on Windows and changed size_bytes there.
+        marker.write_text(
+            text + f"project_uuid: {project_uuid}\n", encoding="utf-8", newline="\n"
+        )
     for path in root.rglob("*"):
         if path.is_file():
             os.utime(path, (_FRESH_MTIME, _FRESH_MTIME))
