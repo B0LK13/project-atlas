@@ -3290,3 +3290,13 @@ merge authorization.
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
 **FINAL CERTIFICATION ISSUED: YES**
+
+### V2-006 remote CI verification
+
+PR #5 head `7eba3b3548f2a066fe2880bb28da7b5a53c6e86a`: all three quality
+jobs succeeded remotely — ubuntu-latest 3.12 (full), ubuntu-latest 3.13
+(compat), and windows-latest 3.12 (windows), run id 30983182651. The V2-005
+ubuntu failure is closed on the runner that originally failed. This closes
+the `local-validation-complete-pending-remote-ci` limitation recorded in
+`docs/evidence/AS-CORE-003-v2-candidate-006.yaml`; only Project Owner merge
+authorization remains.
