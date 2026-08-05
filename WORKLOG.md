@@ -3166,3 +3166,60 @@ The message therefore contains an invalid tree claim. The immutable tag was
 neither moved nor deleted. V2-005 supersedes it additively, preserves the exact
 failure evidence, and carries no production-code or test change after the
 fully validated V2-004 implementation commit.
+
+---
+
+## AS-CORE-003 — V2-005 isolated technical review: PASS WITH NON-BLOCKING FINDINGS
+
+**Date:** 2026-08-05
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+
+A fresh agent session with no prior implementation context performed the
+required isolated technical review of candidate V2-005 (annotated tag object
+`03cfffff3ab7c26af2bd79a56accc5e9b228235f`, commit
+`de0af6dad212200b00a5c380cb8b593dd5fec34c`, tree
+`9d213ffdd077190a29fe45c490446dc9a5b2f53a`) in the pre-existing clean detached
+review worktree `D:/project-atlas-review-as-core-003-v2-005`. The tag
+annotation's tree claim was verified against the real commit tree; the review
+worktree was byte-identical to the tag and remained clean after review. No
+fixes were made inside the review session.
+
+The full PR delta from merge-base `c12ac61665bef5c692b338add5b4936e845e12e5`
+(53 files, +3065/−239) was reviewed file by file. All six V2-003 review
+findings were retested against the code and are resolved. All gates were
+independently reproduced on Windows / Python 3.13.14:
+
+- `python -m ruff check .` — clean (ruff 0.16.1).
+- `python -m mypy src` — 39 source files clean (mypy 2.3.0).
+- `python -m pytest -p no:cacheprovider --tb=no` — 315 passed, 1 skipped, 91% coverage.
+- `python -m pytest -p no:cacheprovider -m integration --tb=no` — 113 passed, 1 skipped, 202 deselected.
+- `python -m compileall -q src tests` — clean.
+- CI-equivalent CLI smoke — all exit 0; scaffold is 31 directories and 29 files.
+
+Integration semantics were re-inspected: 14 modules, all marker-bearing, all
+on real temporary filesystems, two modules with limited mock seams. The
+integration marker remains meaningful.
+
+Three non-blocking findings (V2-005-N1..N3) are recorded in
+`docs/evidence/AS-CORE-003-v2-candidate-005-review.yaml`: architecture
+fallback locator uses the document's final heading (deterministic,
+parity-safe; proper heading-scoped locators belong to Phase P1 parser work),
+migration `audit.migrated_at` prevents from-scratch bit-reproducibility
+(idempotent replay and receipt state hash prevent divergence), and a vault
+without Git history migrates successfully with zero claims (documented
+limitation).
+
+Disposition: candidate accepted; final certification issued as
+certified-for-merge-pending-owner-authorization. Remaining: push branch and
+candidate tags, open PR, verify remote CI on the final PR head, and obtain
+Project Owner merge authorization.
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: YES**
