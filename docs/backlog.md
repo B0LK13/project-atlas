@@ -221,3 +221,28 @@ _Status: V2-003 was preserved and rejected by independent review. V2-004 impleme
 - [x] CORE3-025 Complete a fresh independent V2-005 review and certification
 - [x] CORE3-027 Remediate ubuntu CI platform determinism (media types, K-004 fixture) and cut V2-006
 - [ ] CORE3-026 Merge to `main`
+
+## AS-EXT-001A — Structured evidence parsers, locator refinement, and compilation-status reporting
+
+_Status: created. Directive D-PROJECT-ATLAS-KIMI-AS-EXT-001A-001; base `6d874751d3ed9cb05433a8d50ab372a997418d84`; addresses measured P0 failures (batch abort on first of 29 flat-YAML locator failures, 2 heading-locator collisions, 15 verified claims, 0 explicit anchors). Package contract: `docs/work-packages/AS-EXT-001A.md`._
+
+- [x] EXT1A-001 Create AS-EXT-001A package specification and confirm implementation baseline gates
+- [ ] EXT1A-002 Materialize frozen fixtures (real F-01…F-08 with provenance + authored synthetic cases, directive §9)
+- [ ] EXT1A-003 Implement compilation outcome state machine (§7.8: COMPLETE_CANDIDATE / PARTIAL_CANDIDATE / FAILED / PROMOTION_FAILED / COMPLETE)
+- [ ] EXT1A-004 Implement frozen Pydantic v2 parser-output contract (§7.2; no final claim identity in parser output)
+- [ ] EXT1A-005 Implement specific-first classification precedence (§7.1; keywords must not override structural classification)
+- [ ] EXT1A-006 Implement safe YAML parsing and `yamlpath:` locators (§7.4; NFC normalization, duplicate-key diagnostics)
+- [ ] EXT1A-007 Implement evidence receipt profiles (§7.5; concept mapping + profile adapters + unknown-field preservation)
+- [ ] EXT1A-008 Implement registered VERIFY structured profile (§7.6; zero collision, zero abort)
+- [ ] EXT1A-009 Remediate heading-locator collisions (§7.7; both official collision fixtures)
+- [ ] EXT1A-010 Implement structured diagnostic model (§7.9; no silent drop)
+- [ ] EXT1A-011 Implement locator-refinement alias handling via existing v2 mechanism (§7.10; one-to-one only)
+- [ ] EXT1A-012 Enforce security bounds (§8; safe loading, duplicate keys, bounded nesting/aliases/nodes/size)
+- [ ] EXT1A-013 Record self-host evidence: RAW corpus Level 0 + product metrics (§12/§13)
+- [ ] EXT1A-020 All 31 real receipts structurally parse with a support/profile status (§10 MUST)
+- [ ] EXT1A-021 One bad source does not prevent extraction from independent good sources (§10 MUST)
+- [ ] EXT1A-022 PARTIAL candidate never alters canonical state; COMPLETE alone may promote; promotion failure rolls back (§10 MUST)
+- [ ] EXT1A-023 Deterministic repeat produces byte-identical candidate output (§10 MUST)
+- [ ] EXT1A-024 Claim Identity v2 tests remain green; compiler and migration remain consistent (§10 MUST)
+- [ ] EXT1A-025 Aliases promoted only for provable one-to-one mappings; one-to-many remain ambiguous (§10 MUST)
+- [ ] EXT1A-026 Source/parser provenance on every emitted claim; claim counts from canonical JSON cross-checked (§10 MUST)

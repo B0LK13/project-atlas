@@ -3300,3 +3300,46 @@ ubuntu failure is closed on the runner that originally failed. This closes
 the `local-validation-complete-pending-remote-ci` limitation recorded in
 `docs/evidence/AS-CORE-003-v2-candidate-006.yaml`; only Project Owner merge
 authorization remains.
+
+## AS-EXT-001A — package creation and implementation baseline
+
+Directive D-PROJECT-ATLAS-KIMI-AS-EXT-001A-001 (parent
+D-PROJECT-ATLAS-KIMI-SWARM-PARALLEL-INTAKE-001). Branch
+`feat/as-ext-001a-structured-evidence` from base
+`6d874751d3ed9cb05433a8d50ab372a997418d84` in worktree
+`D:\atlas-worktrees\atlas-as-ext-001a` (single writing owner).
+
+Package contract created: `docs/work-packages/AS-EXT-001A.md` (measured P0
+failure statement, verified root cause, directive §7 scope / §11 out-of-scope,
+frozen design decisions with Pydantic v2 selection rationale, §8 security
+bounds policy, §10/§13 acceptance criteria, §21 escalation conditions, §14
+commit plan). Bounded backlog section `AS-EXT-001A` added to
+`docs/backlog.md`.
+
+Implementation baseline gates on the untouched base (Windows 11, Python
+3.13.14, venv interpreter):
+
+- `python -m ruff check .` — All checks passed.
+- `python -m mypy src` — Success: no issues found in 39 source files.
+- `python -m compileall -q src tests` — clean.
+- `python -m pytest -p no:cacheprovider --tb=no` — 315 passed, 1 skipped
+  in 95.90 s (coverage: TOTAL 3708 statements, 330 missed, 91%).
+- `python -m pytest -p no:cacheprovider -m integration --tb=no` —
+  113 passed, 1 skipped, 202 deselected in 98.48 s.
+
+Root cause verified against executable behavior (see package spec):
+`resolve_locator` supports only explicit `{#id}` anchors, a compiler
+`schema_key`, the project-manifest marker, or the nearest Markdown heading —
+flat evidence YAML has none, so extraction with `reject_unresolved=True`
+raises and ingestion fails closed (29 files). The heading locator keeps only
+the nearest heading slug without ancestor path or structural scoping, so
+repeated same-field statements under an identically-slugged heading collide
+on the v2 identity tuple (2 files: VERIFY document, `docs/plan.md`).
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
