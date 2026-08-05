@@ -39,7 +39,7 @@ def _fixture_entry(rel: str, path: str | None = None) -> dict[str, str]:
 
 def test_all_repo_receipts_complete_without_failure() -> None:
     receipts = sorted(REPO_RECEIPTS.glob("*.yaml"))
-    assert len(receipts) == 31
+    assert len(receipts) >= 31  # the frozen P0 receipt corpus (31) plus later receipts
     outcomes = []
     for receipt in receipts:
         path = f"docs/evidence/{receipt.name}"

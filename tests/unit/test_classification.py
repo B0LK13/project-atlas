@@ -114,7 +114,8 @@ def test_repo_evidence_corpus_classifies_structurally() -> None:
     architecture/markdown solely due to content (§10 MUST)."""
     evidence_dir = REPO_ROOT / "docs" / "evidence"
     receipts = sorted(evidence_dir.glob("*.yaml"))
-    assert len(receipts) == 31, f"P0 corpus expectation: {len(receipts)} receipts"
+    # 31 frozen P0 receipts plus later work-package receipts (e.g. AS-EXT-001A).
+    assert len(receipts) >= 31, f"P0 corpus expectation: {len(receipts)} receipts"
     for receipt in receipts:
         rel = receipt.relative_to(REPO_ROOT).as_posix()
         record = classify_source(rel, receipt.read_text(encoding="utf-8"))

@@ -29,7 +29,8 @@ def _fields_by_locator(assessment):  # type: ignore[no-untyped-def]
 def test_all_31_real_receipts_parse_and_get_status() -> None:
     """§10 MUST: all 31 receipts structurally parse; every one gets a status."""
     receipts = sorted((REPO_ROOT / "docs" / "evidence").glob("*.yaml"))
-    assert len(receipts) == 31
+    # 31 frozen P0 receipts plus later work-package receipts (e.g. AS-EXT-001A).
+    assert len(receipts) >= 31
     for receipt in receipts:
         assessment = assess_receipt_bytes(receipt.read_bytes())
         assert assessment.status in ALL_STATUSES, receipt.name
