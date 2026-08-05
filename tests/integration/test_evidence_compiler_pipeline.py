@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import project_atlas.ingestion as ingestion_module
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 
 pytestmark = pytest.mark.integration
@@ -118,3 +119,66 @@ def test_mixed_corpus_replay_is_byte_identical(tmp_path: Path) -> None:
     assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert snapshot() == before
+
+
+def test_promotion_failure_yields_promotion_failed_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """§7.8: a failed canonical promotion records PROMOTION_FAILED outcomes
+    in quarantine, leaves canonical state unchanged (rollback authoritative),
+    and the next successful promotion clears the stale report."""
+    source = _fixture(tmp_path)
+    manifest = tmp_path / "manifest.json"
+    vault = tmp_path / "vault"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    assert main(["init", "--output", str(vault)]) == EXIT_OK
+
+    def snapshot() -> dict[str, str]:
+        return {
+            path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in vault.rglob("*")
+            if path.is_file()
+        }
+
+    canonical_before = snapshot()
+    calls = {"count": 0}
+    original_replace = ingestion_module._replace_path
+
+    def faulty_replace(source_path: Path, destination: Path) -> None:
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise OSError("injected promotion fault")
+        original_replace(source_path, destination)
+
+    monkeypatch.setattr(ingestion_module, "_replace_path", faulty_replace)
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    monkeypatch.setattr(ingestion_module, "_replace_path", original_replace)
+
+    # Canonical state is byte-identical to the pre-ingest snapshot (the
+    # quarantine report itself is diagnostic evidence, not canonical state).
+    canonical_after = {
+        relative: digest
+        for relative, digest in snapshot().items()
+        if not relative.startswith("quarantine/")
+    }
+    assert canonical_after == canonical_before
+    report_path = vault / "quarantine" / "promotion-failures" / "index.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["receipt_type"] == "promotion-failure"
+    assert report["diagnostics"][0]["code"] == "promotion-failure"
+    assert report["diagnostics"][0]["continued"] is False
+    outcomes = [
+        candidate["outcome"]
+        for project in report["projects"]
+        for candidate in project["candidates"]
+    ]
+    assert outcomes
+    # Promotable candidates transition to PROMOTION_FAILED; the previously
+    # FAILED source keeps its candidate outcome (nothing to promote).
+    assert set(outcomes) == {"PROMOTION_FAILED", "FAILED"}
+    assert outcomes.count("PROMOTION_FAILED") == 5
+
+    # Recovery: the next successful promotion clears the stale report.
+    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert not report_path.exists()
+    assert main(["validate", "--vault", str(vault)]) == EXIT_OK

@@ -106,6 +106,91 @@ def _line_locator_kind(locator: str) -> LocatorKind:
     return LocatorKind.HEADING
 
 
+def _classification_pairs(
+    classification: ClassificationRecord,
+) -> tuple[tuple[str, str], ...]:
+    """Durable §7.1 classification record for per-source persistence."""
+    return (
+        ("source_kind", classification.source_kind),
+        ("document_profile", classification.document_profile),
+        ("classification_rule", classification.classification_rule),
+        ("classification_confidence", classification.classification_confidence),
+        ("parser_id", classification.parser_id),
+    )
+
+
+def _withhold_locator_collisions(
+    pairs: list[tuple[ExtractedRecord, ParserOutput]],
+    *,
+    project: str,
+    path: str,
+    parser_id: str,
+    profile: str,
+) -> tuple[
+    list[tuple[ExtractedRecord, ParserOutput]], list[str], list[Diagnostic]
+]:
+    """Intra-source locator-collision guard for structured parsers (§7.7/§7.8).
+
+    Mirrors the ``_disambiguate_collisions`` line-path semantics on the
+    yamlpath path: identical-value duplicates are the same statement
+    repeated (keep the first deterministically); collisions with different
+    values (NFC-collapsed mapping keys, repeated stable sequence keys) have
+    no smallest stable remedy, so every member is withheld with a structured
+    diagnostic and the source degrades to PARTIAL_CANDIDATE instead of
+    escaping per-source isolation at the compiler's duplicate-identity
+    guard.
+    """
+    groups: dict[tuple[str, str, str], list[int]] = {}
+    for index, (record, _output) in enumerate(pairs):
+        groups.setdefault(
+            (record.claim_type, record.field, record.locator), []
+        ).append(index)
+    drop: set[int] = set()
+    withhold: set[int] = set()
+    for (_claim_type, _field, _locator), indexes in groups.items():
+        if len(indexes) < 2:
+            continue
+        values = {pairs[index][0].value for index in indexes}
+        if len(values) == 1:
+            drop.update(indexes[1:])
+        else:
+            withhold.update(indexes)
+    kept = [
+        pair
+        for index, pair in enumerate(pairs)
+        if index not in drop and index not in withhold
+    ]
+    messages: list[str] = []
+    diagnostics: list[Diagnostic] = []
+    for index in sorted(withhold):
+        record = pairs[index][0]
+        reason = (
+            f"claim withheld: locator collision at '{record.locator}' "
+            f"for field '{record.field}'"
+        )
+        messages.append(reason)
+        diagnostics.append(
+            Diagnostic(
+                code=DiagnosticCode.DUPLICATE_LOCATOR,
+                severity=Severity.WARNING,
+                source_path=path,
+                parser=parser_id,
+                profile=profile,
+                subject=project,
+                field=record.field,
+                locator=record.locator,
+                reason=reason,
+                remediation=(
+                    "disambiguate the colliding keys (distinct key paths or "
+                    "stable sequence IDs), then re-ingest"
+                ),
+                continued=True,
+                canonical_impact=CanonicalImpact.STAGING_ONLY,
+            )
+        )
+    return kept, messages, diagnostics
+
+
 def _extract_lines(
     project: str,
     path: str,
@@ -209,6 +294,7 @@ def _extract_lines(
             claims_extracted=len(records),
             claims_withheld=len(diagnostics),
             diagnostics=tuple(messages),
+            classification=_classification_pairs(classification),
         ),
         records=tuple(records),
         diagnostics=tuple(diagnostics),
@@ -237,6 +323,7 @@ def _extract_receipt(
                 source_path=path,
                 outcome=CompilationOutcome.FAILED,
                 diagnostics=(f"{reason}: {exc}",),
+                classification=_classification_pairs(classification),
             ),
             diagnostics=(
                 Diagnostic(
@@ -259,6 +346,7 @@ def _extract_receipt(
                 source_path=path,
                 outcome=CompilationOutcome.FAILED,
                 diagnostics=(reason,),
+                classification=_classification_pairs(classification),
             ),
             diagnostics=(
                 Diagnostic(
@@ -274,8 +362,6 @@ def _extract_receipt(
             ),
         )
 
-    records: list[ExtractedRecord] = []
-    parser_outputs: list[ParserOutput] = []
     diagnostics: list[Diagnostic] = []
     messages: list[str] = []
     if assessment.status is ReceiptSupportStatus.UNKNOWN_PROFILE:
@@ -316,6 +402,7 @@ def _extract_receipt(
             )
         )
 
+    pairs: list[tuple[ExtractedRecord, ParserOutput]] = []
     for leaf_path, value in iter_leaf_paths(tree):
         key_path = tuple(str(element) for element in leaf_path)
         concept, field_class = classify_root_key(key_path[0])
@@ -331,42 +418,60 @@ def _extract_receipt(
             if any(isinstance(element, int) for element in leaf_path)
             else LocatorConfidence.STABLE
         )
-        records.append(
-            ExtractedRecord(
-                claim_type=claim_type.value,
-                field=claim_field,
-                value=normalized,
-                locator=locator,
-                parser_id="evidence-yaml",
-                extraction_method=f"evidence-yaml:{locator}",
+        pairs.append(
+            (
+                ExtractedRecord(
+                    claim_type=claim_type.value,
+                    field=claim_field,
+                    value=normalized,
+                    locator=locator,
+                    parser_id="evidence-yaml",
+                    extraction_method=f"evidence-yaml:{locator}",
+                ),
+                ParserOutput(
+                    parser_id="evidence-yaml",
+                    parser_version=PARSER_VERSION,
+                    source_kind=classification.source_kind,
+                    document_profile=classification.document_profile,
+                    claim_type=claim_type,
+                    subject=project,
+                    normalized_field=claim_field,
+                    raw_value="" if value is None else str(value),
+                    normalized_value=normalized,
+                    stable_semantic_locator=locator,
+                    locator_kind=LocatorKind.YAMLPATH,
+                    locator_confidence=confidence,
+                    source_path=path,
+                    structural_context=key_path[:-1],
+                    authority_hint=AuthorityLevel.MAINTAINED,
+                    ambiguity_status=AmbiguityStatus.UNAMBIGUOUS,
+                ),
             )
         )
-        parser_outputs.append(
-            ParserOutput(
-                parser_id="evidence-yaml",
-                parser_version=PARSER_VERSION,
-                source_kind=classification.source_kind,
-                document_profile=classification.document_profile,
-                claim_type=claim_type,
-                subject=project,
-                normalized_field=claim_field,
-                raw_value="" if value is None else str(value),
-                normalized_value=normalized,
-                stable_semantic_locator=locator,
-                locator_kind=LocatorKind.YAMLPATH,
-                locator_confidence=confidence,
-                source_path=path,
-                structural_context=key_path[:-1],
-                authority_hint=AuthorityLevel.MAINTAINED,
-                ambiguity_status=AmbiguityStatus.UNAMBIGUOUS,
-            )
-        )
+    pairs, collision_messages, collision_diagnostics = _withhold_locator_collisions(
+        pairs,
+        project=project,
+        path=path,
+        parser_id="evidence-yaml",
+        profile=classification.document_profile,
+    )
+    messages.extend(collision_messages)
+    diagnostics.extend(collision_diagnostics)
+    records = [record for record, _output in pairs]
+    parser_outputs = [output for _record, output in pairs]
+    outcome = (
+        CompilationOutcome.PARTIAL_CANDIDATE
+        if collision_diagnostics
+        else CompilationOutcome.COMPLETE_CANDIDATE
+    )
     return SourceExtraction(
         candidate=CompilationCandidate(
             source_path=path,
-            outcome=CompilationOutcome.COMPLETE_CANDIDATE,
+            outcome=outcome,
             claims_extracted=len(records),
+            claims_withheld=len(collision_diagnostics),
             diagnostics=tuple(messages),
+            classification=_classification_pairs(classification),
         ),
         records=tuple(records),
         diagnostics=tuple(diagnostics),
@@ -401,6 +506,7 @@ def _extract_verify(
                 source_path=path,
                 outcome=CompilationOutcome.FAILED,
                 diagnostics=tuple(result.diagnostics),
+                classification=_classification_pairs(classification),
             ),
             diagnostics=failure_diagnostics,
         )
@@ -424,27 +530,47 @@ def _extract_verify(
                 canonical_impact=CanonicalImpact.NONE,
             )
         )
-    records = tuple(
-        ExtractedRecord(
-            claim_type=output.claim_type.value,
-            field=output.normalized_field,
-            value=output.normalized_value,
-            locator=output.stable_semantic_locator,
-            parser_id="verify-profile",
-            extraction_method=f"verify-profile:{output.stable_semantic_locator}",
+    pairs: list[tuple[ExtractedRecord, ParserOutput]] = [
+        (
+            ExtractedRecord(
+                claim_type=output.claim_type.value,
+                field=output.normalized_field,
+                value=output.normalized_value,
+                locator=output.stable_semantic_locator,
+                parser_id="verify-profile",
+                extraction_method=f"verify-profile:{output.stable_semantic_locator}",
+            ),
+            output,
         )
         for output in result.records
+    ]
+    pairs, collision_messages, collision_diagnostics = _withhold_locator_collisions(
+        pairs,
+        project=project,
+        path=path,
+        parser_id="verify-profile",
+        profile=classification.document_profile,
+    )
+    messages.extend(collision_messages)
+    diagnostics.extend(collision_diagnostics)
+    records = tuple(record for record, _output in pairs)
+    outcome = (
+        CompilationOutcome.PARTIAL_CANDIDATE
+        if collision_diagnostics
+        else CompilationOutcome.COMPLETE_CANDIDATE
     )
     return SourceExtraction(
         candidate=CompilationCandidate(
             source_path=path,
-            outcome=CompilationOutcome.COMPLETE_CANDIDATE,
+            outcome=outcome,
             claims_extracted=len(records),
+            claims_withheld=len(collision_diagnostics),
             diagnostics=tuple(messages),
+            classification=_classification_pairs(classification),
         ),
         records=records,
         diagnostics=tuple(diagnostics),
-        parser_outputs=tuple(result.records),
+        parser_outputs=tuple(output for _record, output in pairs),
     )
 
 
@@ -458,6 +584,7 @@ def _unsupported(
             source_path=path,
             outcome=CompilationOutcome.FAILED,
             diagnostics=(reason,),
+            classification=_classification_pairs(classification),
         ),
         diagnostics=(
             Diagnostic(
@@ -500,6 +627,7 @@ def extract_source(project: str, entry: dict[str, Any]) -> SourceExtraction:
                 source_path=path,
                 outcome=CompilationOutcome.FAILED,
                 diagnostics=(reason,),
+                classification=_classification_pairs(classification),
             ),
             diagnostics=(
                 Diagnostic(

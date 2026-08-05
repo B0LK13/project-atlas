@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from project_atlas.compilation import CompilationOutcome
 from project_atlas.domain import CanonicalImpact, DiagnosticCode
 from project_atlas.evidence_compiler import extract_source
@@ -224,3 +226,95 @@ def test_extraction_deterministic_replay() -> None:
     first = extract_source("project", entry)
     second = extract_source("project", entry)
     assert first == second
+
+
+# --- intra-source locator collisions: withheld, never batch-abort (§7.7/§7.8)
+
+# Adversarial repro A: keys distinct pre-normalization, NFC-collapsed
+# locators identical (café U+00E9 vs café U+0065+U+0301).
+REPRO_A_NFC_COLLISION = (
+    "schema_version: 1\n"
+    "receipt_type: atlas-core-work-package\n"
+    "status:\n"
+    "  caf\u00e9: alpha\n"
+    "  cafe\u0301: beta\n"
+)
+
+# Adversarial repro B: repeated stable sequence keys yield identical
+# yamlpath locators with different values.
+REPRO_B_SEQUENCE_KEY_COLLISION = (
+    "schema_version: 1\n"
+    "receipt_type: atlas-core-work-package\n"
+    "status:\n"
+    "  - id: same\n"
+    "    x: alpha\n"
+    "  - id: same\n"
+    "    x: beta\n"
+)
+
+
+def _collision_entry(text: str) -> dict[str, str]:
+    return _entry("docs/evidence/colliding.yaml", text)
+
+
+def test_repro_a_nfc_collided_locators_withheld_not_abort() -> None:
+    extraction = extract_source("project", _collision_entry(REPRO_A_NFC_COLLISION))
+    assert extraction.candidate.outcome is CompilationOutcome.PARTIAL_CANDIDATE
+    assert extraction.candidate.claims_withheld == 2
+    assert extraction.candidate.claims_extracted == 0
+    assert extraction.records == ()
+    assert all(
+        diagnostic.code is DiagnosticCode.DUPLICATE_LOCATOR
+        for diagnostic in extraction.diagnostics
+    )
+    assert all(diagnostic.continued for diagnostic in extraction.diagnostics)
+
+
+def test_repro_b_repeated_stable_sequence_keys_withheld_not_abort() -> None:
+    extraction = extract_source("project", _collision_entry(REPRO_B_SEQUENCE_KEY_COLLISION))
+    assert extraction.candidate.outcome is CompilationOutcome.PARTIAL_CANDIDATE
+    assert extraction.candidate.claims_withheld == 2
+    # The identical-value `id` leaf dedupes to one statement (§7.7 step 1);
+    # only the different-value `x` leaves are withheld.
+    assert len(extraction.records) == 1
+    assert extraction.records[0].locator == "yamlpath:status[id=same].id"
+    withheld = [
+        diagnostic
+        for diagnostic in extraction.diagnostics
+        if diagnostic.code is DiagnosticCode.DUPLICATE_LOCATOR
+    ]
+    assert len(withheld) == 2
+    assert all(diagnostic.continued for diagnostic in withheld)
+
+
+def test_identical_value_collision_keeps_first_statement() -> None:
+    """Same locator + same value is one repeated statement, not a collision."""
+    text = (
+        "schema_version: 1\nreceipt_type: atlas-core-work-package\n"
+        "status:\n  caf\u00e9: alpha\n  cafe\u0301: alpha\n"
+    )
+    extraction = extract_source("project", _collision_entry(text))
+    assert extraction.candidate.outcome is CompilationOutcome.COMPLETE_CANDIDATE
+    assert extraction.candidate.claims_extracted == 1
+    assert extraction.records[0].value == "alpha"
+
+
+@pytest.mark.parametrize("collision_text", [REPRO_A_NFC_COLLISION, REPRO_B_SEQUENCE_KEY_COLLISION])
+def test_colliding_source_never_blocks_good_sibling(
+    tmp_path: Path, collision_text: str
+) -> None:
+    """§10 MUST: one bad source does not prevent extraction from independent
+    good sources — the colliding source degrades to PARTIAL, the good source
+    still promotes, and no exception escapes per-source isolation."""
+    good = _entry("docs/README.md", "# Overview\nPurpose: governed project\n")
+    colliding = _collision_entry(collision_text)
+    bundle = compile_knowledge("project", [good, colliding], tmp_path)
+    assert len(bundle.claims) == 1
+    assert bundle.claims[0].field == "purpose"
+    by_path = {candidate.source_path: candidate for candidate in bundle.candidates}
+    assert by_path["docs/README.md"].outcome is CompilationOutcome.COMPLETE_CANDIDATE
+    assert by_path["docs/evidence/colliding.yaml"].outcome is (
+        CompilationOutcome.PARTIAL_CANDIDATE
+    )
+    assert bundle.status["sources_partial"] == 1
+    assert bundle.status["claims_withheld"] == 2

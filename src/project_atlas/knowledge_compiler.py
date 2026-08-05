@@ -770,6 +770,10 @@ def compile_knowledge(
     for claim in claims:
         prior = by_id.get(claim.claim_id)
         if prior is not None:
+            # Fail-closed guard (AS-CORE-003). Unreachable from per-source
+            # extraction since AS-EXT-001A: intra-source locator collisions
+            # are withheld upstream (§7.7), and cross-source claim ids are
+            # namespaced by durable source identity.
             raise ValueError(
                 "ambiguous identity boundary: duplicate explicit IDs or "
                 f"colliding semantic anchors for {claim.claim_id}"
@@ -981,6 +985,7 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
                         "claims_extracted": candidate.claims_extracted,
                         "claims_withheld": candidate.claims_withheld,
                         "diagnostics": sorted(candidate.diagnostics),
+                        "classification": dict(candidate.classification),
                     }
                     for candidate in sorted(
                         bundle.candidates, key=lambda item: item.source_path

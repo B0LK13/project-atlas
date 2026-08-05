@@ -13,9 +13,16 @@ sequence 13 items. Defaults carry roughly an order of magnitude of headroom
 so legitimate receipts never trip them while bombs and runaway inputs do:
 
 - file size: 1 MiB (~20x corpus max)
-- depth: 32 (~6x corpus max)
-- nodes: 8,192 (~11x corpus max)
-- node references (alias expansion): 4,096 (corpus uses no aliases)
+- depth: 32 (~6x corpus max). Depth counts node-visit levels — a mapping's
+  keys and values each descend one level — so the constant 32 allows ~30-31
+  user-visible mapping levels.
+- nodes: 4,096 distinct nodes (~6x corpus max). Distinct nodes can never
+  exceed expanded references (every distinct node is referenced at least
+  once), so this bound is only reachable when it is tighter than the
+  reference bound; 4,096 < 8,192 keeps both bounds meaningful.
+- node references (alias expansion): 8,192 expanded references (corpus uses
+  no aliases). An alias-free document hits the distinct-node bound first; an
+  alias-amplified document hits this reference bound first.
 - scalar: 64 KiB (~43x corpus max)
 - sequence: 1,024 items (~79x corpus max)
 
@@ -52,8 +59,8 @@ class YamlSecurityLimits:
 
     max_file_bytes: int = 1_048_576
     max_depth: int = 32
-    max_nodes: int = 8_192
-    max_node_references: int = 4_096
+    max_nodes: int = 4_096
+    max_node_references: int = 8_192
     max_scalar_bytes: int = 65_536
     max_sequence_items: int = 1_024
 
@@ -196,6 +203,13 @@ def load_safe_yaml(data: bytes | str, limits: YamlSecurityLimits = DEFAULT_YAML_
         root = yaml.compose(text, Loader=yaml.SafeLoader)
     except yaml.YAMLError as exc:
         raise MalformedYamlError(f"YAML parse failure: {exc}") from exc
+    except RecursionError as exc:
+        # Pathological nesting exhausts the parser's C-level recursion before
+        # the depth bound can run; surface it through the same structured
+        # security-error contract (§8), never as a raw RecursionError.
+        raise ResourceLimitError(
+            "max_depth", "nesting exceeds the parser recursion bound"
+        ) from exc
     if root is None:
         return None
     _walk_node_graph(root, limits)

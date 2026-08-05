@@ -25,6 +25,18 @@ Guarantees encoded here (§7.8):
   ingestion/OCC compare-and-swap contract and its tested rollback
   (AS-CORE-003, CORE3-023) remain authoritative — this module never performs
   promotion itself.
+
+Promotion-phase mapping (§7.8, as wired in `project_atlas.ingestion`):
+
+- ``state/compilation-outcomes/`` records the candidate phase, so a
+  successfully promoted source persists as ``COMPLETE_CANDIDATE`` there;
+  ``COMPLETE`` names the successful promotion phase itself and is implied
+  by the promoted canonical transaction rather than duplicated into the
+  candidate record.
+- When the canonical transaction fails, promotable candidates are recorded
+  as ``PROMOTION_FAILED`` in `quarantine/promotion-failures/index.json`
+  (via the governed COMPLETE_CANDIDATE → PROMOTING → PROMOTION_FAILED
+  edges) and a stale report is cleared on the next successful promotion.
 """
 
 from __future__ import annotations
@@ -133,7 +145,8 @@ class CompilationCandidate:
     ``diagnostics`` carries structured, human-actionable entries; the full
     structured diagnostic model lands with directive §7.9 and reuses these
     fields. Counters reconcile extracted versus withheld claims so nothing
-    drops silently.
+    drops silently. ``classification`` durably persists the §7.1
+    classification record (sorted key/value pairs) per source.
     """
 
     source_path: str
@@ -141,6 +154,7 @@ class CompilationCandidate:
     claims_extracted: int = 0
     claims_withheld: int = 0
     diagnostics: tuple[str, ...] = field(default_factory=tuple)
+    classification: tuple[tuple[str, str], ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if self.claims_extracted < 0 or self.claims_withheld < 0:

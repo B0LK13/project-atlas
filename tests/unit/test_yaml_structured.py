@@ -109,7 +109,25 @@ def test_sequence_limit_enforced() -> None:
 
 def test_limits_actually_enforced_not_documented_only() -> None:
     assert DEFAULT_YAML_LIMITS.max_depth == 32
-    assert DEFAULT_YAML_LIMITS.max_node_references == 4_096
+    assert DEFAULT_YAML_LIMITS.max_nodes == 4_096
+    assert DEFAULT_YAML_LIMITS.max_node_references == 8_192
+    # Distinct nodes never exceed expanded references, so the node bound must
+    # be tighter than the reference bound or it would be unreachable.
+    assert DEFAULT_YAML_LIMITS.max_nodes < DEFAULT_YAML_LIMITS.max_node_references
+
+
+def test_default_node_bound_reachable_without_aliases() -> None:
+    """An alias-free document trips max_nodes before max_node_references."""
+    doc = "\n".join(f"key{i}: value{i}" for i in range(2_050)) + "\n"
+    with pytest.raises(ResourceLimitError, match="max_nodes"):
+        load_safe_yaml(doc.encode())
+
+
+def test_parser_recursion_exhaustion_is_structured_error() -> None:
+    """Pathological nesting surfaces as resource-limit, not RecursionError."""
+    bomb = b"[" * 500 + b"]" * 500
+    with pytest.raises(ResourceLimitError, match="max_depth"):
+        load_safe_yaml(bomb)
 
 
 # --- yamlpath locators (§7.4) -----------------------------------------------

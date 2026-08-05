@@ -21,6 +21,17 @@ from atlas_contracts.event_package import (
     load_event_package,
 )
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.compilation import (
+    CompilationCandidate,
+    CompilationOutcome,
+    validate_compilation_transition,
+)
+from project_atlas.domain import (
+    CanonicalImpact,
+    Diagnostic,
+    DiagnosticCode,
+    Severity,
+)
 from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.source_registry import SourceLineageRecord
 from project_atlas.domain.sources import SourceRecord
@@ -101,6 +112,84 @@ def _remove_empty_directories(directories: set[Path]) -> None:
     for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
         with suppress(OSError):
             directory.rmdir()
+
+
+def _promotion_failure_report_path(vault: Path) -> Path:
+    return _inside(vault, vault / "quarantine" / "promotion-failures" / "index.json")
+
+
+def _quarantine_promotion_failure(
+    vault: Path,
+    project_candidates: dict[str, tuple[CompilationCandidate, ...]],
+    error: BaseException,
+) -> None:
+    """Record §7.8 PROMOTION_FAILED outcomes when canonical promotion fails.
+
+    Canonical state is untouched — the cross-file rollback inside `_promote`
+    stays authoritative. This quarantine report is diagnostic evidence only
+    and is best-effort: a reporting failure never masks the promotion error.
+    Promotable candidates transition through the governed §7.8 edges
+    COMPLETE_CANDIDATE -> PROMOTING -> PROMOTION_FAILED.
+    """
+    try:
+        projects: list[dict[str, Any]] = []
+        for project, candidates in sorted(project_candidates.items()):
+            recorded: list[dict[str, Any]] = []
+            for candidate in candidates:
+                outcome = candidate.outcome
+                if candidate.promotable:
+                    validate_compilation_transition(
+                        CompilationOutcome.COMPLETE_CANDIDATE, CompilationOutcome.PROMOTING
+                    )
+                    validate_compilation_transition(
+                        CompilationOutcome.PROMOTING, CompilationOutcome.PROMOTION_FAILED
+                    )
+                    outcome = CompilationOutcome.PROMOTION_FAILED
+                recorded.append(
+                    {
+                        "source_path": candidate.source_path,
+                        "outcome": outcome.value,
+                        "claims_extracted": candidate.claims_extracted,
+                        "claims_withheld": candidate.claims_withheld,
+                        "diagnostics": sorted(candidate.diagnostics),
+                    }
+                )
+            projects.append({"project_id": project, "candidates": recorded})
+        diagnostic = Diagnostic(
+            code=DiagnosticCode.PROMOTION_FAILURE,
+            severity=Severity.ERROR,
+            parser="canonical-promotion",
+            reason=(
+                f"canonical promotion failed and rolled back: "
+                f"{type(error).__name__}: {error}"
+            ),
+            remediation=(
+                "resolve the promotion fault and re-run ingestion; canonical "
+                "state is unchanged"
+            ),
+            continued=False,
+            canonical_impact=CanonicalImpact.BLOCKED,
+        )
+        validate_record(diagnostic, "diagnostic")
+        payload = {
+            "schema_version": 1,
+            "receipt_type": "promotion-failure",
+            "projects": projects,
+            "diagnostics": [diagnostic.model_dump(mode="json")],
+        }
+        path = _promotion_failure_report_path(vault)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError:
+        pass  # never mask the promotion failure itself
+
+
+def _clear_promotion_failure_report(vault: Path) -> None:
+    """Remove a stale promotion-failure quarantine report after success."""
+    path = _promotion_failure_report_path(vault)
+    if path.is_file():
+        path.unlink()
+        _remove_empty_directories({path.parent})
 
 
 def _promote(plan: dict[Path, bytes]) -> None:
@@ -1249,6 +1338,7 @@ def _ingest(
             )
             + "\n"
         ).encode()
+    project_candidates: dict[str, tuple[CompilationCandidate, ...]] = {}
     for project, entries in sorted(projects.items()):
         knowledge = compile_knowledge(
             project,
@@ -1256,6 +1346,7 @@ def _ingest(
             vault,
             event_entries.get(project, []),
         )
+        project_candidates[project] = knowledge.candidates
         for relative_path, expected_bytes in knowledge.preconditions.items():
             marker_preconditions[_inside(vault, vault / relative_path)] = expected_bytes
         for relative, content in render_bundle(knowledge, project).items():
@@ -1310,7 +1401,14 @@ def _ingest(
 
     write_plan.update(canonical_index_payloads(vault, write_plan))
     _assert_state_compare_and_swap(marker_preconditions)
-    _promote(write_plan)
+    try:
+        _promote(write_plan)
+    except Exception as exc:
+        # §7.8: promotable candidates reach PROMOTION_FAILED; canonical state
+        # is untouched (the rollback inside `_promote` stays authoritative).
+        _quarantine_promotion_failure(vault, project_candidates, exc)
+        raise
+    _clear_promotion_failure_report(vault)
     _verify_identity_post_state(
         vault, project_identity, identity_markers, allocated_projects
     )

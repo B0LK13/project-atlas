@@ -188,7 +188,13 @@ def test_ingestion_mid_promotion_failure_rolls_back_every_file(tmp_path: Path) -
     ), pytest.raises(OSError, match="injected mid-promotion failure"):
         ingest(manifest_path, vault)
 
-    after_failure = _snapshot(vault)
+    # The promotion-failure quarantine report is diagnostic evidence, not
+    # canonical state; exclude it from the rollback comparison (AS-EXT-001A).
+    after_failure = {
+        key: value
+        for key, value in _snapshot(vault).items()
+        if not key.startswith("quarantine/")
+    }
     assert injected and staged_promotions >= 2
     assert after_failure == before
     assert not list(vault.rglob("*.atlas-stage"))

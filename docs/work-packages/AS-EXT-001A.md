@@ -87,7 +87,11 @@ Official P0 self-host baseline (EXP-ATLAS-SELFHOST-BASELINE-001, target
    UNKNOWN STRUCTURED METADATA / DIAGNOSTIC ONLY. Unknown fields remain
    visible. No receipt ever falls back to generic Markdown or line-regex
    parsing. Every receipt receives recognized / partially-recognized /
-   unknown-profile / invalid status.
+   unknown-profile / invalid status. An unknown-profile receipt still
+   contributes canonical claims extracted from recognized root keys: those
+   candidates compile as COMPLETE_CANDIDATE and promote normally, accompanied
+   by an `unknown-receipt-profile` warning diagnostic; only unrecognized
+   fields are preserved as UNKNOWN STRUCTURED METADATA.
 6. **7.6 VERIFY structured profile** — registered structural profile producing
    distinct subjects and locators for `status`, `decision`,
    `verify_disposition.status`, `as_ret_disposition.status`, with zero
