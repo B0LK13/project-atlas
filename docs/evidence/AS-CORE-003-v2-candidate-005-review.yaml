@@ -1,0 +1,108 @@
+schema_version: 1
+package: AS-CORE-003
+receipt_type: isolated-technical-review
+directive_id: D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+reviewer: Kimi (fresh session, no prior implementation context)
+recorded_at: "2026-08-05T08:40:00+02:00"
+candidate:
+  tag: candidate/CAND-AS-CORE-003-V2-005
+  tag_object: 03cfffff3ab7c26af2bd79a56accc5e9b228235f
+  commit: de0af6dad212200b00a5c380cb8b593dd5fec34c
+  tree: 9d213ffdd077190a29fe45c490446dc9a5b2f53a
+  tested_code_commit: d658649390740b6e74afc27e36e1f647f7f41ba8
+  merge_base: c12ac61665bef5c692b338add5b4936e845e12e5
+review:
+  result: pass-with-non-blocking-findings
+  environment: Windows 11, Git Bash, Python 3.13.14 (user install), fresh venv
+  review_worktree: D:/project-atlas-review-as-core-003-v2-005 (detached at tag commit)
+  tag_annotation_tree_verified: true
+  worktree_differs_from_tag: false
+  full_delta_reviewed: true
+  prior_review_reused: false
+  tracked_worktree_clean_after_review: true
+  fixes_made_in_review_session: false
+gates_reproduced:
+  ruff: "passed (ruff 0.16.1)"
+  mypy: "passed, 39 source files (mypy 2.3.0)"
+  compileall: passed
+  pytest_full: 315-passed-1-skipped-91-percent-coverage
+  pytest_integration: 113-passed-1-skipped-202-deselected
+  cli_smoke: "atlas --help, version, init --dry-run, init (31 dirs / 29 files): all exit 0"
+integration_semantics:
+  modules: 14
+  all_modules_marked: true
+  real_temporary_filesystem: 14-of-14
+  mock_usage: "2 modules with limited seams (test_concurrency: 1, test_migration: 2)"
+  marker_meaningful: true
+v2_003_findings_retest:
+  - id: V2-003-R1
+    status: resolved
+    evidence: >-
+      Migration resolves ingested source_id through the source registry and
+      current manifest to canonical project UUID and source_lineage_id;
+      shared extractor retains unmodified legacy_value including anchors,
+      covers all seven text suffixes, shares the architecture fallback, and
+      fails closed on unresolved locators. Merge-base v1 formula compared
+      verbatim against _v1_claim_id: identical construction.
+  - id: V2-003-R2
+    status: resolved
+    evidence: >-
+      Alias map and receipt are staged in one temp directory, cross-validated,
+      and made canonical by a single os.replace; a missing or mismatched
+      receipt on replay is rejected (_load_existing_bundle fails closed).
+  - id: V2-003-R3
+    status: resolved
+    evidence: >-
+      project_id passes atlas_contracts.identity.safe_relative_component and
+      every state path is re-checked with _inside(vault_root, ...).
+  - id: V2-003-R4
+    status: resolved
+    evidence: >-
+      Per-project bundle under state/claim-alias-maps/<project>/ with a
+      per-project lock keyed by the safe component digest; projects are
+      isolated (test_projects_have_isolated_alias_bundles_and_history).
+  - id: V2-003-R5
+    status: resolved
+    evidence: >-
+      test_ingestion_mid_promotion_failure_rolls_back_every_file injects a
+      fault at the second staged replace, proves a real first promotion,
+      complete snapshot rollback, artifact cleanup, lock release, clean
+      retry, and byte-identical replay.
+  - id: V2-003-R6
+    status: resolved
+    evidence: >-
+      _validate_alias_payload rejects resolved/ambiguous overlap on write and
+      on replay (test_existing_alias_map_rejects_resolved_ambiguous_overlap).
+non_blocking_findings:
+  - id: V2-005-N1
+    severity: low
+    summary: >-
+      extract_claims architecture fallback resolves its locator against the
+      first pass's final heading rather than the nearest preceding heading.
+      Behavior is deterministic and identical for compiler and migration, so
+      identity parity holds, but a trailing-heading edit can re-identify an
+      unchanged architecture claim. Recommend proper heading-scoped locators
+      in the Phase P1 parser-framework package.
+  - id: V2-005-N2
+    severity: low
+    summary: >-
+      Migration audit.migrated_at is a wall-clock timestamp, so an alias
+      payload is not reproducible bit-for-bit from scratch. Idempotent replay
+      short-circuits before recomputation and the receipt binds the state
+      hash, so no divergence can result.
+  - id: V2-005-N3
+    severity: low
+    summary: >-
+      _scan_historical_sources returns empty history for a vault without Git
+      history, producing a successful zero-claim migration. Acceptable for
+      the current contract; worth documenting when parser-framework work
+      defines compilation outcome semantics.
+disposition:
+  candidate_accepted: true
+  tag_moved: false
+  historical_evidence_preserved: true
+  final_certification: certified-for-merge-pending-owner-authorization
+  remaining:
+    - push branch and candidate tags to origin
+    - open PR and verify remote CI on the final PR head
+    - Project Owner merge authorization

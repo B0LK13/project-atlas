@@ -58,8 +58,8 @@
       "path": "dark-factory/DEPENDENCIES.md",
       "project_uuid": "9dd2dfe1-a757-4a58-962b-02c900c31891",
       "repository": null,
-      "sha256": "1ca54a6daea775e5bc0998cea1bc9ac1655fcb537c103682df09f2d817ca689e",
-      "size_bytes": 145,
+      "sha256": "bf5cc628a86bcae21bb7ad6ac469480b1ee4caebac3ae0b57c503d48dfc87108",
+      "size_bytes": 156,
       "source_id": "source-9d5242805e847081",
       "source_lineage_id": null
     },
@@ -73,8 +73,8 @@
       "path": "dark-factory/ROADMAP-A.md",
       "project_uuid": "9dd2dfe1-a757-4a58-962b-02c900c31891",
       "repository": null,
-      "sha256": "65b58e0d2e0e3b9387867f004ee1c5c22937899ffcd7b5f21b1c3e0275018cd9",
-      "size_bytes": 161,
+      "sha256": "6befa4a457542cb2df827727e77b3ca62fd3652581898ab840f83aee068b2c25",
+      "size_bytes": 172,
       "source_id": "source-72cc54b5bbb51100",
       "source_lineage_id": null
     },
@@ -88,8 +88,8 @@
       "path": "dark-factory/ROADMAP-B.md",
       "project_uuid": "9dd2dfe1-a757-4a58-962b-02c900c31891",
       "repository": null,
-      "sha256": "98fc9187f2edb032be5b084cd376cff00e557e4204ef75245d788d6b2d6e0115",
-      "size_bytes": 165,
+      "sha256": "a468e9a9a2f6feb476b6780319ab6665cb2b1fe89586072381ce881dfcb1cf43",
+      "size_bytes": 176,
       "source_id": "source-ae9735601b961a96",
       "source_lineage_id": null
     },
@@ -133,8 +133,8 @@
       "path": "nebula/DEPENDENCIES.md",
       "project_uuid": "dde3eba3-3655-45da-b3aa-45c5cddcc28e",
       "repository": null,
-      "sha256": "d09cf0e80e04eea232bd719da787b51f5eac765bc4201d5f6d4acf0801f74233",
-      "size_bytes": 129,
+      "sha256": "31f63531e5e0c95eb0f6636abc158d48806dd6767a4b0539d76ab45dc22fa1a8",
+      "size_bytes": 140,
       "source_id": "source-9503426f3e30ddc2",
       "source_lineage_id": null
     },

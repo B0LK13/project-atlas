@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from project_atlas.discovery import _sha256 as discovery_sha256
 from project_atlas.domain import PathHistoryEntry, SourceLineageRecord
 from project_atlas.lineage import (
     UnresolvedIdentityError,
@@ -16,6 +17,7 @@ from project_atlas.lineage import (
 )
 from project_atlas.schema import validate_record
 from project_atlas.source_identity import (
+    canonical_source_sha256,
     canonicalize_project_path,
     lineage_id,
     validate_project_uuid,
@@ -39,6 +41,36 @@ def test_canonical_path_is_host_independent_and_nfc_normalized() -> None:
         canonicalize_project_path("/absolute.md")
     with pytest.raises(ValueError):
         canonicalize_project_path("C:/absolute.md")
+
+
+def test_discovery_sha256_normalizes_text_line_endings(tmp_path: Path) -> None:
+    """AS-ID-001: CRLF vs LF must not change canonical source identity."""
+    lf_file = tmp_path / "doc.md"
+    crlf_file = tmp_path / "doc_crlf.md"
+    lf_file.write_bytes(b"# Heading\nline one\nline two\n")
+    crlf_file.write_bytes(b"# Heading\r\nline one\r\nline two\r\n")
+    assert discovery_sha256(lf_file) == discovery_sha256(crlf_file)
+
+
+def test_discovery_sha256_preserves_binary_bytes(tmp_path: Path) -> None:
+    """Binary files are hashed as-is; no line-ending normalization applies."""
+    binary = tmp_path / "data.bin"
+    binary.write_bytes(b"\r\n\r\n")
+    assert discovery_sha256(binary) == hashlib.sha256(b"\r\n\r\n").hexdigest()
+
+
+def test_canonical_source_hash_normalizes_crlf_split_across_chunk_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """NFR-005: streaming normalization handles a CRLF split between chunks."""
+    from project_atlas import source_identity
+
+    monkeypatch.setattr(source_identity, "_HASH_CHUNK_SIZE", 4)
+    crlf_file = tmp_path / "split.md"
+    lf_file = tmp_path / "canonical.md"
+    crlf_file.write_bytes(b"abc\r\ndef\r\n")
+    lf_file.write_bytes(b"abc\ndef\n")
+    assert canonical_source_sha256(crlf_file) == canonical_source_sha256(lf_file)
 
 
 def test_lineage_id_uses_amended_formula() -> None:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import json
-import mimetypes
 import os
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -17,22 +16,42 @@ from atlas_contracts.event_package import EventPackageInventory, inspect_event_p
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import ClassificationState
 from project_atlas.quarantine import scan_identifier
-from project_atlas.source_identity import canonicalize_project_path, validate_project_uuid
+from project_atlas.source_identity import (
+    TEXT_SOURCE_EXTENSIONS,
+    canonical_source_sha256,
+    canonicalize_project_path,
+    validate_project_uuid,
+)
 
-SUPPORTED_EXTENSIONS = {".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".html"}
+SUPPORTED_EXTENSIONS = TEXT_SOURCE_EXTENSIONS
 SENSITIVE_NAMES = {".env", "credentials.json", "secrets.pem", "id_rsa", "id_ed25519"}
 DEFAULT_EXCLUDES = {
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
     ".mypy_cache", ".ruff_cache", "dist", "build", ".tmp",
 }
 
+# AS-CORE-003: static media-type map. mimetypes.guess_type() depends on the
+# host OS mime database (Linux maps .yaml, Windows does not), which made
+# manifest media_type platform-dependent and broke NFR-001 determinism.
+_MEDIA_TYPES: dict[str, str] = {
+    ".html": "text/html",
+    ".json": "application/json",
+    ".md": "text/markdown",
+    ".toml": "application/toml",
+    ".txt": "text/plain",
+    ".yaml": "application/yaml",
+    ".yml": "application/yaml",
+}
+
+
+def _media_type(path: Path) -> str:
+    """Return the deterministic media type for a discovered source file."""
+    return _MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
+
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    """Return the streaming canonical SHA-256 of a source file."""
+    return canonical_source_sha256(path)
 
 
 def _project_context(path: Path, root: Path) -> tuple[str | None, str | None]:
@@ -153,7 +172,7 @@ def discover(
             project_uuid=project_uuid,
             source_lineage_id=None,
             path=relative,
-            media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            media_type=_media_type(path),
             sha256=digest,
             size_bytes=stat.st_size,
             modified_at=modified,

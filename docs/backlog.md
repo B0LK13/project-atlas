@@ -93,13 +93,13 @@ verification and owner merge; see
 independent verification passes and the branch is merged to `main`._
 
 - [x] I-001 Project index generator
-- [ ] I-002 Portfolio overview — implemented, acceptance-tested (AS-MVP-001)
-- [ ] I-003 Maturity matrix — implemented, acceptance-tested (AS-MVP-001)
-- [ ] I-004 Documentation gap report — implemented, acceptance-tested (AS-MVP-001)
-- [ ] I-005 Stale knowledge report — implemented, acceptance-tested (AS-MVP-001)
+- [x] I-002 Portfolio overview — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] I-003 Maturity matrix — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] I-004 Documentation gap report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] I-005 Stale knowledge report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
 - [x] I-006 Conflict review queue
-- [ ] I-007 Dependency report — implemented, acceptance-tested (AS-MVP-001)
-- [ ] I-008 Capability report — implemented, acceptance-tested (AS-MVP-001)
+- [x] I-007 Dependency report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] I-008 Capability report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
 
 ## Epic J — Incremental operation
 
@@ -123,13 +123,13 @@ itemized contradiction checklist for K-006, and a dedicated
 credential-shaped canary fixture for K-007). Left unchecked until final
 independent verification passes and the branch is merged to `main`._
 
-- [ ] K-001 Nebula fixture corpus — implemented, acceptance-tested (AS-MVP-001)
-- [ ] K-002 Black Agency OS fixture corpus — implemented, acceptance-tested (AS-MVP-001)
-- [ ] K-003 Dark Factory fixture corpus — implemented, acceptance-tested (AS-MVP-001)
-- [ ] K-004 Expected manifests — implemented, acceptance-tested (AS-MVP-001-R1)
-- [ ] K-005 Expected generated vault — implemented, acceptance-tested (AS-MVP-001-R1)
-- [ ] K-006 Contradiction fixtures — implemented, acceptance-tested (AS-MVP-001-R1)
-- [ ] K-007 Secret fixtures — implemented, acceptance-tested (AS-MVP-001-R1)
+- [x] K-001 Nebula fixture corpus — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] K-002 Black Agency OS fixture corpus — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] K-003 Dark Factory fixture corpus — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] K-004 Expected manifests — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
+- [x] K-005 Expected generated vault — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
+- [x] K-006 Contradiction fixtures — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
+- [x] K-007 Secret fixtures — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
 
 ## Cross-cutting follow-up — Atlas Core vertical slice
 
@@ -189,3 +189,35 @@ independent verification passes and the branch is merged to `main`._
 - [x] ID-006 Add duplicate-identity and ambiguity fail-closed checks
 - [x] ID-007 Add replay, rollback, concurrency, and schema validation tests
 - [x] ID-008 Governor review and independent certification
+
+## AS-CORE-003 — Claim Identity v2 remediation
+
+_Status: V2-003 was preserved and rejected by independent review. V2-004 implemented and validated the remediation but was superseded before review because its immutable tag annotation recorded an invalid tree string. V2-005 passed a fresh isolated review with three non-blocking findings on 2026-08-05, but its PR head failed ubuntu CI on platform-dependent `media_type` detection and K-004 fixture newline translation. V2-006 fixes both determinism defects additively, passed an isolated review addendum, and is green on Windows and Linux gates. Remote CI verification and Project Owner merge authorization remain pending._
+
+- [x] CORE3-001 Finalize Claim Identity v2 formula using raw stable semantic locator
+- [x] CORE3-002 Use `event:{event_id}` locator for agent-event-derived claims
+- [x] CORE3-003 Restore ingestion project identity locks
+- [x] CORE3-004 Fix OCC compare-and-swap `None` precondition handling
+- [x] CORE3-005 Rewrite v1-to-v2 migration as self-contained, schema-validated, atomic, idempotent module
+- [x] CORE3-006 Record ambiguous v1-to-v2 mappings instead of guessing
+- [x] CORE3-007 Add `claim-alias` schema and register it
+- [x] CORE3-008 Regenerate dependency-report.json golden fixture after identity-formula change
+- [x] CORE3-009 Add concurrency, migration, historical-completeness and alias-schema tests
+- [x] CORE3-010 Mark all `tests/integration/*.py` modules with `pytest.mark.integration`
+- [x] CORE3-011 Add canonical JSON-array identity serialization to close F-001
+- [x] CORE3-012 Enforce mutually-exclusive resolved/ambiguous alias collections to close F-002
+- [x] CORE3-013 Extract shared `project_atlas.claim_identity` rules module for compiler/migration parity
+- [x] CORE3-014 Normalize CRLF to LF before hashing text sources (cross-platform identity stability)
+- [x] CORE3-015 Author ADR-007 for Claim Identity v2 canonicalization
+- [x] CORE3-016 Regenerate K-004/K-005 golden fixtures for canonical identity and source-lineage changes
+- [x] CORE3-017 Preserve the V2-003 independent-review failure and exact findings
+- [x] CORE3-018 Reconstruct real v1 identities from ingested source/lineage/project evidence
+- [x] CORE3-019 Scan all supported text evidence and share architecture fallback semantics
+- [x] CORE3-020 Isolate migration state per safe project component
+- [x] CORE3-021 Commit alias state and its receipt as one validated atomic bundle
+- [x] CORE3-022 Reject incomplete, cross-project, or resolved/ambiguous replay state
+- [x] CORE3-023 Add tested cross-file promotion rollback and artifact cleanup
+- [x] CORE3-024 Preserve the malformed V2-004 annotation and supersede it without moving the tag
+- [x] CORE3-025 Complete a fresh independent V2-005 review and certification
+- [x] CORE3-027 Remediate ubuntu CI platform determinism (media types, K-004 fixture) and cut V2-006
+- [ ] CORE3-026 Merge to `main`

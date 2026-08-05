@@ -8,7 +8,7 @@ This integration reuses the bounded Claims, Concept, Provenance, Authority,
 Review, Conflict, and lifecycle models from the preserved AS-CORE-003 work and
 connects them to the AS-ID-001 source registry. Canonical claim identity is
 based on project identity, `source_lineage_id`, claim type, field, and semantic
-locator. Mutable paths and compatibility `source_id` values are descriptive
+locator. (See [Claim Identity v2 Amendment](AS-CORE-003-claim-identity-amendment.md) for updated v2 semantic locator definitions). Mutable paths and compatibility `source_id` values are descriptive
 only.
 
 The existing Core write plan remains the sole promotion boundary. Knowledge

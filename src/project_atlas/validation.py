@@ -12,6 +12,7 @@ import yaml
 
 from project_atlas.portfolio import build_portfolio_payloads
 from project_atlas.schema import SchemaValidationError, validate_record
+from project_atlas.source_identity import canonical_source_sha256
 
 LINK = re.compile(r"\]\(([^)]+)\)")
 
@@ -447,10 +448,5 @@ def _validate_provenance(
 
 
 def _sha256(path: Path) -> str:
-    import hashlib
-
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    """Return the same canonical source hash used during discovery."""
+    return canonical_source_sha256(path)

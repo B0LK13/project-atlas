@@ -14,6 +14,10 @@ from pathlib import Path, PurePosixPath
 
 LINEAGE_NAMESPACE = "atlas/source-lineage/v1"
 _DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
+TEXT_SOURCE_EXTENSIONS = frozenset(
+    {".html", ".json", ".md", ".toml", ".txt", ".yaml", ".yml"}
+)
+_HASH_CHUNK_SIZE = 1024 * 1024
 
 
 def validate_project_uuid(value: str) -> str:
@@ -56,8 +60,35 @@ def sha256_file(path: Path) -> str:
     """Stream a source file's original bytes into SHA-256."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+        for chunk in iter(lambda: handle.read(_HASH_CHUNK_SIZE), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def canonical_source_sha256(path: Path) -> str:
+    """Stream the canonical source bytes into SHA-256.
+
+    AS-ID-001: supported text sources normalize CRLF to LF so checkout policy
+    cannot change durable identity. Unsupported or binary sources retain their
+    exact byte identity. A trailing CR is carried between chunks so a CRLF pair
+    split at the streaming boundary is normalized correctly.
+    """
+    if path.suffix.lower() not in TEXT_SOURCE_EXTENSIONS:
+        return sha256_file(path)
+
+    digest = hashlib.sha256()
+    pending_cr = False
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(_HASH_CHUNK_SIZE), b""):
+            if pending_cr:
+                chunk = b"\r" + chunk
+                pending_cr = False
+            if chunk.endswith(b"\r"):
+                chunk = chunk[:-1]
+                pending_cr = True
+            digest.update(chunk.replace(b"\r\n", b"\n"))
+    if pending_cr:
+        digest.update(b"\r")
     return digest.hexdigest()
 
 

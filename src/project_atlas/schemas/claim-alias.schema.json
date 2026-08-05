@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "claim-alias",
+  "title": "Claim Identity v2 Alias Map",
+  "description": "Durable v1-to-v2 claim identity alias records produced by the AS-CORE-003 migration.",
+  "type": "object",
+  "required": ["schema_version", "project_id", "aliases", "ambiguous", "audit"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/aliasRecord"
+      }
+    },
+    "ambiguous": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ambiguousRecord"
+      }
+    },
+    "audit": {
+      "type": "object",
+      "required": ["migrated_at", "source_commits_scanned", "input_claims", "output_aliases"],
+      "additionalProperties": false,
+      "properties": {
+        "migrated_at": {
+          "type": "string"
+        },
+        "source_commits_scanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_claims": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_aliases": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "aliasRecord": {
+      "type": "object",
+      "required": [
+        "v1_claim_id",
+        "v2_claim_id",
+        "project_identity",
+        "source_lineage_id",
+        "claim_type",
+        "field",
+        "stable_semantic_locator",
+        "source_commit",
+        "source_path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "v1_claim_id": {
+          "type": "string",
+          "pattern": "^claim-[A-Za-z0-9]+$"
+        },
+        "v2_claim_id": {
+          "type": "string",
+          "pattern": "^claim-[A-Za-z0-9]+$"
+        },
+        "project_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_lineage_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "claim_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stable_semantic_locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_commit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "ambiguousRecord": {
+      "type": "object",
+      "required": ["v1_claim_id", "reason", "records"],
+      "additionalProperties": false,
+      "properties": {
+        "v1_claim_id": {
+          "type": "string",
+          "pattern": "^claim-[A-Za-z0-9]+$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/aliasRecord"
+          }
+        }
+      }
+    }
+  }
+}

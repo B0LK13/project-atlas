@@ -2905,6 +2905,7 @@ not re-asserted as freshly rerun here.
 **ROADMAP MODIFIED: NO**
 **MERGE TO MAIN AUTHORIZED: NO**
 **FINAL CERTIFICATION ISSUED: NO**
+
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FABRICATED ATTESTATIONS CREATED: NO**
 
@@ -2962,3 +2963,340 @@ FOCUSED INDEPENDENT REVERIFICATION REQUIRED**
 **NEXT AGENT: AGENT TWO — FINAL RECEIPT REVERIFICATION**
 **NEXT PHASE: VERIFY THE EVIDENCE-ONLY EPIC K RECONCILIATION AND OWNER-DISPOSITION RECORD**
 **NEXT DIRECTIVE: PIN THE NEW FULL HASH AND COMPARE IT TO d9e1865 AND 342c9d1**
+
+---
+
+## AS-CORE-003 — Claim Identity v2 remediation (Windsurf takeover)
+
+**Status:** implementation complete — independent verification required
+**Base:** inherited working tree from prior agent session
+**Scope:** finalize Claim Identity v2, stable semantic locators, migration alias map, and ingestion OCC rollback detection.
+
+### Plan
+
+1. Reconstruct repository state, establish exclusive writer ownership, and classify inherited changes.
+2. Read governing architecture documents (`AGENTS.md`, `docs/plan.md`, `docs/prp.md`, `docs/adr/ADR-005-claim-identity-v2.md`).
+3. Complete `_assert_state_compare_and_swap` precondition handling for absent state files and restore project identity locks around ingestion.
+4. Align `knowledge_compiler.py` v2 claim identity formula with the migration formula: include raw stable semantic locator in the identity key, and use durable `event_id` as the locator for agent-event claims.
+5. Rewrite `claim_v2_migration.py` to be self-contained, schema-validated, atomic, idempotent, and ambiguity-aware; stop importing private knowledge-compiler internals.
+6. Add `claim-alias.schema.json` and register it in `schema.py`.
+7. Rewrite `test_concurrency.py` to use a valid manifest and real source so claim-lifecycle preconditions are populated and the injected mutation is detected.
+8. Update migration and historical-completeness tests for the structured alias-map schema.
+9. Regenerate the `dependency-report.json` golden fixture after the accepted identity-formula contract change.
+10. Add ambiguity-detection and CLI smoke tests for migration.
+11. Exclude inherited `AS-PLAN-001-corrections.md` and `AS-PLAN-001-final-contract.md` from the candidate: preserve verified external copies, record exclusion, and remove repository copies.
+12. Run full quality gates and CLI smoke tests.
+
+### Results
+
+- `pytest tests` — 149 passed, 1 skipped.
+- `ruff check src tests` — clean.
+- `mypy src` — clean (38 source files).
+- `python -m project_atlas.cli --help` and `version` — operational.
+- `atlas init --output .tmp\smoke-vault --dry-run` — operational.
+
+### Changed files
+
+- `src/project_atlas/ingestion.py` — OCC compare-and-swap handles `None` expected bytes as file-absence requirement; restored project identity locks.
+- `src/project_atlas/knowledge_compiler.py` — v2 identity uses raw semantic locator; event claims use `event:{event_id}` locator; style fixes.
+- `src/project_atlas/migrations/claim_v2_migration.py` — self-contained migration with schema validation, atomic writes, idempotency, ambiguity records.
+- `src/project_atlas/schema.py` — registered `claim-alias` schema.
+- `src/project_atlas/schemas/claim-alias.schema.json` — new.
+- `tests/fixtures/expected/portfolio/dependency-report.json` — regenerated for new v2 IDs.
+- `tests/integration/test_concurrency.py` — rewritten OCC rollback test.
+- `tests/integration/test_historical_completeness.py` — structured alias-map assertions.
+- `tests/integration/test_migration.py` — structured alias-map, CLI smoke, ambiguity tests.
+- `tests/integration/test_core_claims_authority_conflicts.py` — style fix.
+- `tests/integration/test_core_semantic_lifecycle.py` — inherited coverage retained.
+- `tests/unit/test_knowledge_compiler.py` — style fix.
+- `tests/unit/test_schema.py` — `claim-alias` in expected schemas.
+
+### Excluded inherited artifacts
+
+- `AS-PLAN-001-corrections.md` and `AS-PLAN-001-final-contract.md` classified as external planning artifacts outside AS-CORE-003.
+- Verified external copies preserved at `D:\project-atlas-orphans\AS-PLAN-001`.
+- Repository copies removed.
+- Exclusion record: `.session-preservation/AS-PLAN-001-exclusion-record.yaml`.
+
+### Remaining risks
+
+- The v2 identity formula change invalidates previously certified claim IDs in any golden fixture not regenerated here. Only `dependency-report.json` was observed to change; other outputs remain byte-identical against regenerated fixtures.
+- Concurrent migration relies on `ProjectIdentityLock`; lock staleness defaults (300s) may need tuning for CI.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: YES**
+**BACKLOG MODIFIED: NO**
+**ROADMAP MODIFIED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FABRICATED ATTESTATIONS CREATED: NO**
+
+---
+
+## AS-CORE-003 — Claim Identity v2 candidate V2-003 stabilization
+
+**Date:** 2026-08-04
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+**Iteration base:** `d356b7ad1bbc06e08279fe5a57915cdc9ea2f841`
+
+Repository reconstruction confirmed that candidate V2-002 was still the branch
+tip while an inherited, uncommitted V2-003 remediation existed in the primary
+worktree. No Git lock, merge, rebase, cherry-pick, or bisect state was active.
+The inherited changes were preserved and treated as the sole active work package.
+
+The first declared baseline could not collect tests because `pytest-cov` and
+`types-PyYAML` were absent from the active Python 3.13 environment. After
+installing the repository-declared `.[dev]` dependencies, the inherited code
+produced 34 integration failures. The cause was a split hash contract:
+discovery normalized CRLF to LF while ingestion compared the same source using
+a raw-byte hash. On Windows this withheld the `.atlas-project.yaml` evidence
+projection and broke provenance across the real pipeline.
+
+Stabilization introduced one streaming canonical source-hash implementation in
+`project_atlas.source_identity`, including correct handling when a CRLF pair is
+split across one-megabyte chunks. Discovery, ingestion, and validation now use
+that same boundary; binary content remains byte-exact. The in-memory `read_bytes`
+implementation was removed to preserve NFR-005.
+
+The Claim Identity v2 rule-parity change was also tightened. The compiler and
+migration now consume the same `extract_claims` implementation. The prior parity
+test had called that same helper twice and therefore did not prove integration;
+the replacement compares actual compiler claims against actual migration
+candidates, including IDs, types, fields, and locators. The OCC regression now
+also proves external-state preservation, no partial or temporary promotion,
+lock release, and byte-identical replay after a clean retry converges.
+
+Final local candidate gates passed on Windows / Python 3.13.14:
+
+- `python -m ruff check .` — clean.
+- `python -m mypy src` — 39 source files clean.
+- `python -m pytest -p no:cacheprovider --tb=no` — 307 passed, 1 skipped, 91% coverage.
+- `python -m pytest -p no:cacheprovider -m integration --tb=no` — 106 passed, 1 skipped, 201 deselected, 88% coverage.
+- `python -m compileall -q src tests` — clean.
+- CI-equivalent `atlas --help`, `atlas version`, dry-run scaffold, real scaffold,
+  and required-file checks — all exit 0.
+
+All 14 integration modules were inspected. Every module uses a real temporary
+filesystem; 11 exercise a multi-component Atlas pipeline, three exercise
+functional CLI, Git-history, or migration boundaries, and only the OCC module
+uses a single transaction-seam mock. The integration marker is therefore
+meaningful rather than directory-only labeling.
+
+Historical candidates V2-001 and V2-002 and their receipts remain unchanged.
+V2-003 requires an immutable new tag, isolated technical review, remote CI, and
+Project Owner merge authorization.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: YES**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**
+
+---
+
+## AS-CORE-003 — V2-003 independent review failure and V2-004 remediation
+
+**Date:** 2026-08-04
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+
+The immutable V2-003 candidate (`ca4975fe4355ac68533ad9aaa1fab57db07846eb`,
+tree `5b881a737f87d11ed708bcbd93d01364d7d1367c`) passed every declared gate but
+failed a fresh isolated full-delta review. The tag was not moved. The review
+found that migration history did not reconstruct the real merge-base compiler
+identities, alias state could become canonical without its receipt, the project
+argument was unsafe in paths, global alias state was incompatible with
+project-scoped locking, the OCC test never entered promotion, and replay did
+not reject resolved/ambiguous overlap. The full review disposition is preserved
+in `docs/evidence/AS-CORE-003-v2-candidate-003-review.yaml`.
+
+V2-004 resolves the findings additively. Historical evidence now resolves the
+ingested `source_id` through the source registry and current source manifest to
+the exact canonical project UUID and `source_lineage_id`. The shared extractor
+retains the original v1 value (including anchors), scans all seven supported
+text suffixes, owns the architecture fallback used by both compiler and
+migration, and fails closed on a recognized claim without a stable locator.
+
+Migration state is now project-isolated under a validated safe component. The
+alias map and matching receipt are staged and validated in one directory and
+made canonical with one atomic rename. Idempotent replay validates project
+ownership, receipt/state hash, audit counts, and resolved/ambiguous
+exclusivity. A receipt-write fault leaves no canonical alias state; a missing
+receipt on replay is rejected.
+
+The shared write-plan promoter now stages the complete plan, keeps
+transaction-scoped backups, and restores the exact prior snapshot on a forced
+second-file promotion failure. The regression proves a real first promotion,
+complete rollback, artifact cleanup, lock release, clean retry, and
+byte-identical replay.
+
+Local gates on Windows / Python 3.13.14:
+
+- focused remediation suite: 25 passed;
+- full suite: 315 passed, 1 skipped, 91% coverage;
+- integration suite: 113 passed, 1 skipped, 202 deselected, 89% coverage;
+- Ruff, mypy (39 source files), and compileall: clean;
+- CLI help, version, dry-run scaffold, and real scaffold: exit 0; scaffold is
+  31 directories and 29 files.
+
+V2-004 still requires an immutable annotated tag, a new isolated full-delta
+review, remote CI/PR-head verification, and Project Owner merge authorization.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: NO**
+
+### V2-004 tag annotation supersession
+
+The V2-004 annotated tag correctly peels to tested commit
+`d658649390740b6e74afc27e36e1f647f7f41ba8`, but PowerShell interpreted the
+unquoted `HEAD^{tree}` expression while the annotation message was composed.
+The message therefore contains an invalid tree claim. The immutable tag was
+neither moved nor deleted. V2-005 supersedes it additively, preserves the exact
+failure evidence, and carries no production-code or test change after the
+fully validated V2-004 implementation commit.
+
+---
+
+## AS-CORE-003 — V2-005 isolated technical review: PASS WITH NON-BLOCKING FINDINGS
+
+**Date:** 2026-08-05
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+
+A fresh agent session with no prior implementation context performed the
+required isolated technical review of candidate V2-005 (annotated tag object
+`03cfffff3ab7c26af2bd79a56accc5e9b228235f`, commit
+`de0af6dad212200b00a5c380cb8b593dd5fec34c`, tree
+`9d213ffdd077190a29fe45c490446dc9a5b2f53a`) in the pre-existing clean detached
+review worktree `D:/project-atlas-review-as-core-003-v2-005`. The tag
+annotation's tree claim was verified against the real commit tree; the review
+worktree was byte-identical to the tag and remained clean after review. No
+fixes were made inside the review session.
+
+The full PR delta from merge-base `c12ac61665bef5c692b338add5b4936e845e12e5`
+(53 files, +3065/−239) was reviewed file by file. All six V2-003 review
+findings were retested against the code and are resolved. All gates were
+independently reproduced on Windows / Python 3.13.14:
+
+- `python -m ruff check .` — clean (ruff 0.16.1).
+- `python -m mypy src` — 39 source files clean (mypy 2.3.0).
+- `python -m pytest -p no:cacheprovider --tb=no` — 315 passed, 1 skipped, 91% coverage.
+- `python -m pytest -p no:cacheprovider -m integration --tb=no` — 113 passed, 1 skipped, 202 deselected.
+- `python -m compileall -q src tests` — clean.
+- CI-equivalent CLI smoke — all exit 0; scaffold is 31 directories and 29 files.
+
+Integration semantics were re-inspected: 14 modules, all marker-bearing, all
+on real temporary filesystems, two modules with limited mock seams. The
+integration marker remains meaningful.
+
+Three non-blocking findings (V2-005-N1..N3) are recorded in
+`docs/evidence/AS-CORE-003-v2-candidate-005-review.yaml`: architecture
+fallback locator uses the document's final heading (deterministic,
+parity-safe; proper heading-scoped locators belong to Phase P1 parser work),
+migration `audit.migrated_at` prevents from-scratch bit-reproducibility
+(idempotent replay and receipt state hash prevent divergence), and a vault
+without Git history migrates successfully with zero claims (documented
+limitation).
+
+Disposition: candidate accepted; final certification issued as
+certified-for-merge-pending-owner-authorization. Remaining: push branch and
+candidate tags, open PR, verify remote CI on the final PR head, and obtain
+Project Owner merge authorization.
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: YES**
+
+---
+
+## AS-CORE-003 — V2-006: ubuntu CI failure remediation and candidate resequence
+
+**Date:** 2026-08-05
+**Directive:** D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+**Branch:** `remediation/as-core-003-claim-identity-v2`
+
+Remote CI on the V2-005 PR head (PR #5) failed on both ubuntu jobs while
+Windows succeeded. The failure was reproduced locally under WSL Ubuntu /
+Python 3.12.3: `test_k004_discovery_manifest_matches_golden_fixture` compared
+a discovery manifest against the K-004 golden and differed on exactly the
+three project-marker entries.
+
+Two root causes, both platform dependencies violating NFR-001 determinism:
+
+1. `discovery.py` derived `media_type` from `mimetypes.guess_type()`, which
+   consults the host OS mime database. Linux maps `.yaml` to
+   `application/yaml`; Windows has no mapping and fell back to
+   `application/octet-stream`.
+2. The K-004 fixture writer appended the fixed `project_uuid` line using
+   text-mode `Path.write_text()`, whose default newline translation writes
+   CRLF on Windows, changing marker `size_bytes` by five bytes per marker.
+
+Fix (additive, commit `54e7745a8f2cdf84f0ae74c369c79cdc6c628e12`): a static
+suffix-to-media-type map replaces `mimetypes`; the fixture writer pins
+`newline="\n"`; the K-004 golden manifest was regenerated through the real
+CLI path. Canonical source sha256 values in the golden are unchanged,
+confirming the CRLF-normalizing hash already did its job; the golden delta is
+limited to `media_type` and `size_bytes` of the three markers.
+
+Candidate lifecycle per directive §13: V2-005 (tag, isolated review, and
+certification evidence) is preserved untouched. V2-006 supersedes it with
+annotated tag bound to commit
+`54e7745a8f2cdf84f0ae74c369c79cdc6c628e12` / tree
+`48d5ccfe92dc4e79989e993b63a627d327124264`, created in Git Bash with
+pre-resolved hashes and `tag.gpgsign=false` (prospective signing disabled
+per §27). The V2-006 scope also carries the owner's additive `README.md`
+commit (`da7b3a8`, author `wesley@bolk.dev`, signature not verifiable with
+the local keyring), which landed on the branch between V2-005 and V2-006 and
+is preserved per directive.
+
+An isolated review addendum (same fresh review worktree, detached at the new
+tag, no fixes) reviewed the exact increment and passed. Gates on the V2-006
+head:
+
+- Windows / Python 3.13.14: ruff clean, mypy 39 files clean, compileall
+  clean, 315 passed + 1 skipped, integration 113 passed + 1 skipped + 202
+  deselected, CLI smoke exit 0.
+- WSL Ubuntu / Python 3.12.3: ruff clean, mypy 39 files clean, compileall
+  clean, 316 passed, integration 114 passed + 202 deselected, CLI smoke
+  exit 0.
+
+Evidence: `docs/evidence/AS-CORE-003-v2-candidate-006.yaml` and
+`docs/evidence/AS-CORE-003-v2-candidate-006-review-addendum.yaml`.
+Remaining: remote CI verification on the V2-006 PR head and Project Owner
+merge authorization.
+
+**PRODUCTION CODE MODIFIED: YES**
+**TESTS MODIFIED: YES**
+**FIXTURES MODIFIED: YES**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+**FINAL CERTIFICATION ISSUED: YES**
+
+### V2-006 remote CI verification
+
+PR #5 head `7eba3b3548f2a066fe2880bb28da7b5a53c6e86a`: all three quality
+jobs succeeded remotely — ubuntu-latest 3.12 (full), ubuntu-latest 3.13
+(compat), and windows-latest 3.12 (windows), run id 30983182651. The V2-005
+ubuntu failure is closed on the runner that originally failed. This closes
+the `local-validation-complete-pending-remote-ci` limitation recorded in
+`docs/evidence/AS-CORE-003-v2-candidate-006.yaml`; only Project Owner merge
+authorization remains.

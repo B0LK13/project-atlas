@@ -1,0 +1,82 @@
+schema_version: 1
+package: AS-CORE-003
+status: local-validation-complete-pending-remote-ci
+receipt_type: v2-identity-candidate-evidence
+work_package: AS-CORE-003
+directive_id: D-PROJECT-ATLAS-UNIVERSAL-AGENT-BOOTSTRAP-001
+author: Kimi
+role: Remediation and Review Agent
+recorded_at: "2026-08-05T09:55:00+02:00"
+candidate:
+  branch: remediation/as-core-003-claim-identity-v2
+  tag: candidate/CAND-AS-CORE-003-V2-006
+  binding_method: immutable annotated Git tag with separately resolved commit and tree
+  tested_code_commit: 54e7745a8f2cdf84f0ae74c369c79cdc6c628e12
+  tested_code_tree: 48d5ccfe92dc4e79989e993b63a627d327124264
+  merge_base_with_origin_main: c12ac61665bef5c692b338add5b4936e845e12e5
+  supersedes:
+    - candidate/CAND-AS-CORE-003-V2-005
+  supersession_reason: >-
+    Remote CI on the V2-005 PR head failed on both ubuntu jobs: the K-004
+    golden-manifest comparison was platform-dependent. Two root causes were
+    fixed additively: (1) discovery derived media_type from
+    mimetypes.guess_type(), which depends on the host OS mime database
+    (Linux maps .yaml to application/yaml, Windows falls back to
+    application/octet-stream); (2) the K-004 fixture writer used text-mode
+    newline translation, producing CRLF markers and different size_bytes on
+    Windows. V2-005, its isolated review, and its certification evidence are
+    preserved unchanged.
+scope:
+  production_delta_since_v2_005:
+    - src/project_atlas/discovery.py (static media-type map replaces mimetypes)
+  test_delta_since_v2_005:
+    - tests/integration/test_as_mvp_001_release_closure.py (LF-pinned fixture writer)
+  fixture_delta_since_v2_005:
+    - tests/fixtures/expected/manifests/pilots-manifest.json (three marker entries)
+  additive_docs_since_v2_005:
+    - docs/evidence/AS-CORE-003-v2-candidate-005-review.yaml (36a21a7)
+    - WORKLOG.md, docs/backlog.md (36a21a7)
+    - README.md (da7b3a8, authored by the project owner between V2-005 and
+      V2-006; signature not verifiable with the local keyring, author
+      wesley@bolk.dev; preserved per directive)
+  invariants:
+    canonical_source_hashes_unchanged: true
+    golden_delta_limited_to_marker_media_type_and_size: true
+remediation_evidence:
+  prior_candidate: docs/evidence/AS-CORE-003-v2-candidate-005.yaml
+  prior_review: docs/evidence/AS-CORE-003-v2-candidate-005-review.yaml
+  ci_failure: "PR #5 quality (ubuntu-latest, 3.12, full) and (ubuntu-latest, 3.13, compat) failed; windows succeeded"
+  reproduction: "WSL Ubuntu, Python 3.12.3: test_k004_discovery_manifest_matches_golden_fixture failed identically"
+  gates_windows_python_3_13_14:
+    ruff: passed
+    mypy: 39-source-files-passed
+    compileall: passed
+    full_tests: 315-passed-1-skipped
+    integration_tests: 113-passed-1-skipped-202-deselected
+    cli_smoke: passed
+  gates_linux_python_3_12_3:
+    ruff: passed
+    mypy: 39-source-files-passed
+    compileall: passed
+    full_tests: 316-passed
+    integration_tests: 114-passed-202-deselected
+    cli_smoke: passed
+review_scope:
+  exact_tag_commit_tree_required: true
+  full_pr_delta_from_merge_base_required: false
+  incremental_delta_review_sufficient: true
+  rationale: >-
+    The full merge-base delta was reviewed at V2-005
+    (docs/evidence/AS-CORE-003-v2-candidate-005-review.yaml). The V2-006
+    increment is three files plus one additive owner README; the addendum
+    reviews that increment exactly.
+limitations:
+  - Remote CI and PR-head verification remain pending for the V2-006 head.
+  - Project Owner merge authorization remains pending.
+certification:
+  isolated_technical_review: addendum-passed
+  final_certification_issued: true
+  merge_authorized: false
+  historical_commits_rewritten: false
+  force_push_used: false
+  prior_tag_moved_or_deleted: false

@@ -1,0 +1,16 @@
+id: evidence/AS-CORE-003-claim-identity-amendment-plan
+type: architecture-amendment-receipt
+timestamp: "2026-08-04T18:15:00+02:00"
+references:
+  - id: docs/AS-CORE-003-claim-identity-amendment.md
+    hash: pending
+  - id: docs/AS-CORE-003-plan.md
+  - id: docs/evidence/AS-CORE-003-receipt.yaml
+status: Planned
+author: Agent Three
+role: Architecture Governor
+work_package: AS-CORE-003-A
+directive_id: D-AS-CORE-003-A3-006
+content: |
+  Architecture amendment authored for Claim Identity v2.
+  Historical evidence receipts remain immutable and are referenced by this plan.

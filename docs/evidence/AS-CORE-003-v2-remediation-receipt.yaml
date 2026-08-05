@@ -1,0 +1,116 @@
+schema_version: 1
+package: AS-CORE-003
+status: implementation-complete-pending-certification
+receipt_type: v2-identity-remediation
+work_package: AS-CORE-003
+author: Windsurf
+role: Implementation Agent
+directive_id: D-AS-CORE-003-WINDSURF-FREEZE-001
+base_state: inherited-working-tree-from-prior-agent-session
+implementation_complete: "YES"
+independent_codex_review: "PENDING"
+independent_certification: "PENDING"
+candidate:
+  branch: remediation/as-core-003-claim-identity-v2
+  commit: 42f3912a7bfb25324d3b1d3f5c096213b7e375e2
+  tree: 961a8373e5f58548b2d351eca84d2d99a78153f1
+  base: 4e2b4369e88978d5e743b47ae58c3129beed0f0f
+  merge_base_with_origin_main: c12ac61665bef5c692b338add5b4936e845e12e5
+  local_branch_tip: 42f3912a7bfb25324d3b1d3f5c096213b7e375e2
+  remote_branch_tip: 42f3912a7bfb25324d3b1d3f5c096213b7e375e2
+  local_remote_match: "YES"
+summary: >-
+  Finalized Claim Identity v2 semantics in knowledge_compiler.py,
+  restored ingestion OCC rollback detection, rewrote the v1-to-v2
+  migration as a self-contained, schema-validated, atomic, idempotent,
+  ambiguity-aware module, and added/updated tests and fixtures.
+identity:
+  formula: "v2|{project_identity}|{source_lineage_id}|{claim_type}|{field}|{stable_semantic_locator}"
+  locator_priority:
+    - explicit id:{id}
+    - schema:{schema_key}
+    - heading:{heading_slug_or_id}
+    - schema:project-manifest for .atlas-project.yaml
+    - fail closed
+  event_locator: "event:{event_id}"
+  digest: sha256
+  truncate_to: 20 hex chars prefixed with "claim-"
+changes:
+  - file: src/project_atlas/ingestion.py
+    note: OCC compare-and-swap handles None expected bytes as file-absence requirement; restored project identity locks.
+  - file: src/project_atlas/knowledge_compiler.py
+    note: v2 identity key includes raw stable semantic locator; event claims use event_id locator.
+  - file: src/project_atlas/migrations/claim_v2_migration.py
+    note: Self-contained migration with schema validation, atomic writes, idempotency, ambiguity records.
+  - file: src/project_atlas/schema.py
+    note: Registered claim-alias schema.
+  - file: src/project_atlas/schemas/claim-alias.schema.json
+    note: New canonical schema for alias-map documents.
+  - file: tests/fixtures/expected/portfolio/dependency-report.json
+    note: Regenerated after accepted identity-formula contract change.
+  - file: tests/integration/test_concurrency.py
+    note: Rewritten OCC rollback test using valid manifest and populated lifecycle precondition.
+  - file: tests/integration/test_historical_completeness.py
+    note: Updated to read structured alias records.
+  - file: tests/integration/test_migration.py
+    note: Structured alias-map assertions, CLI smoke, ambiguity detection.
+  - file: tests/unit/test_schema.py
+    note: claim-alias included in expected schema list.
+excluded_artifacts:
+  - path: AS-PLAN-001-corrections.md
+    classification: EXTERNAL PLANNING ARTIFACT / OUTSIDE AS-CORE-003
+    reason: inherited out-of-scope planning proposal; not accepted governance contract
+  - path: AS-PLAN-001-final-contract.md
+    classification: EXTERNAL PLANNING ARTIFACT / OUTSIDE AS-CORE-003
+    reason: inherited out-of-scope planning proposal; not accepted governance contract
+validation:
+  environment:
+    python_version: "3.12"
+    platform: "Windows"
+    install_command: "python -m pip install -e \".[dev]\""
+  pytest_all_command: "python -m pytest -p no:cacheprovider --tb=no"
+  pytest_all_exit_code: 0
+  pytest_all_passed: 293
+  pytest_all_skipped: 1
+  pytest_all_failed: 0
+  pytest_all_errors: 0
+  pytest_integration_command: "python -m pytest -p no:cacheprovider -m integration --tb=no"
+  pytest_integration_exit_code: 0
+  pytest_integration_passed: 8
+  pytest_integration_skipped: 1
+  pytest_integration_deselected: 285
+  pytest_integration_failed: 0
+  pytest_integration_errors: 0
+  ruff_command: "python -m ruff check ."
+  ruff_exit_code: 0
+  ruff_result: "All checks passed!"
+  mypy_command: "python -m mypy src"
+  mypy_exit_code: 0
+  mypy_result: "Success: no issues found in 38 source files"
+  compileall_command: "python -m compileall -q src tests"
+  compileall_exit_code: 0
+  compileall_result: clean
+  cli_smoke_commands:
+    - command: "atlas --help"
+      exit_code: 0
+    - command: "atlas version"
+      exit_code: 0
+    - command: "atlas init --output .tmp\\atlas-vault --dry-run"
+      exit_code: 0
+    - command: "atlas init --output .tmp\\atlas-vault"
+      exit_code: 0
+  cli_smoke_verification:
+    - path: ".tmp/atlas-vault/index.md"
+      exists: true
+    - path: ".tmp/atlas-vault/00-system/vault-charter.md"
+      exists: true
+known_limitations:
+  - v2 identity formula invalidates previously certified claim IDs in any golden fixture not regenerated here; only dependency-report.json was observed to change.
+  - concurrent migration relies on ProjectIdentityLock staleness defaults (300s), which may need CI tuning.
+  - implementation was authored on Windows with CRLF autocrlf normalization; byte counts in the working tree may differ from checkout on other platforms.
+changed_path_inventory_hash: c0f2ccad62c50dd56ecd28b12c6c82a8ad59fadcbafbe26a59a22c07685faf76
+certification:
+  merge_authorized: false
+  final_certification_issued: false
+  historical_commits_rewritten: false
+  fabricated_attestations_created: false

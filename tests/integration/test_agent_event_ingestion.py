@@ -6,11 +6,12 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 
 from project_atlas.cli import EXIT_OK, main
 
-
+pytestmark = pytest.mark.integration
 def _hash(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 

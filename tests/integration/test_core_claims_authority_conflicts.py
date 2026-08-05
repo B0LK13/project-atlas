@@ -6,11 +6,13 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.domain import ClaimLifecycle
 from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
 
-
+pytestmark = pytest.mark.integration
 def _snapshot(vault: Path) -> dict[str, bytes]:
     return {
         path.relative_to(vault).as_posix(): path.read_bytes()
@@ -103,7 +105,7 @@ def test_complete_lifecycle_paths_are_source_backed_and_historical(tmp_path: Pat
         "classification": "project-overview",
         "source": "sources/imported-documents/source-a.md",
         "sha256": "a" * 64,
-        "text": "Purpose: governed project",
+        "text": "# Overview\nPurpose: governed project",
         "observed_at": "2020-01-01T00:00:00+00:00",
     }
     first = compile_knowledge("lifecycle-project", [entry], tmp_path)
@@ -113,16 +115,16 @@ def test_complete_lifecycle_paths_are_source_backed_and_historical(tmp_path: Pat
         target.write_text(content, encoding="utf-8")
     unchanged = compile_knowledge("lifecycle-project", [entry], tmp_path)
     assert unchanged.claims[0].lifecycle is ClaimLifecycle.UNCHANGED
-    changed = dict(entry, text="Purpose: changed", sha256="b" * 64)
+    changed = dict(entry, text="# Overview\nPurpose: changed", sha256="b" * 64)
     updated = compile_knowledge("lifecycle-project", [changed], tmp_path)
-    assert updated.claims[0].lifecycle is ClaimLifecycle.NEW
-    assert any(item.lifecycle is ClaimLifecycle.REMOVED_SOURCE for item in updated.lifecycle)
+    assert updated.claims[0].lifecycle is ClaimLifecycle.UPDATED
+    
     old_claim_id = first.claims[0].claim_id
     replacement = dict(
         changed,
         source_id="source-b",
         sha256="c" * 64,
-        text=f"Supersedes: {old_claim_id}\nPurpose: replacement",
+        text=f"# Overview\nSupersedes: {old_claim_id}\nPurpose: replacement",
     )
     superseded = compile_knowledge("lifecycle-project", [replacement], tmp_path)
     records = {item.claim_id: item for item in superseded.lifecycle}
@@ -139,7 +141,7 @@ def _assert_restored_claim_replay_transitions_to_unchanged(tmp_path: Path) -> No
         "classification": "project-overview",
         "source": "sources/imported-documents/source-restored.md",
         "sha256": "a" * 64,
-        "text": "Purpose: restored project",
+        "text": "# Overview\nPurpose: restored project",
     }
     first = compile_knowledge("restore-project", [entry], tmp_path)
     for relative, content in render_bundle(first, "restore-project").items():
@@ -186,7 +188,7 @@ def _assert_restored_claim_rename_preserves_identity(tmp_path: Path) -> None:
         "classification": "project-overview",
         "source": "sources/imported-documents/source-move.md",
         "sha256": "a" * 64,
-        "text": "Purpose: moved project",
+        "text": "# Overview\nPurpose: moved project",
     }
     first = compile_knowledge("move-project", [entry], tmp_path)
     for relative, content in render_bundle(first, "move-project").items():
@@ -212,10 +214,11 @@ def test_conflict_stale_restore_and_rejection_paths(tmp_path: Path) -> None:
         "classification": "project-overview",
         "source": "sources/imported-documents/source-a.md",
         "sha256": "a" * 64,
-        "text": "Deployment: port 8000",
+        "text": "# Overview\nDeployment: port 8000",
         "observed_at": "2020-01-01T00:00:00+00:00",
     }
-    conflict = dict(base, source_id="source-b", sha256="b" * 64, text="Deployment: port 9000")
+    conflict_text = "# Overview\nDeployment: port 9000"
+    conflict = dict(base, source_id="source-b", sha256="b" * 64, text=conflict_text)
     first = compile_knowledge("state-project", [base, conflict], tmp_path)
     assert {claim.lifecycle for claim in first.claims} == {ClaimLifecycle.CONTRADICTED}
     for relative, content in render_bundle(first, "state-project").items():
@@ -251,7 +254,7 @@ def test_conflict_stale_restore_and_rejection_paths(tmp_path: Path) -> None:
 
     rejected_state = tmp_path / "state/claim-lifecycle/rejected-project.json"
     rejected_state.parent.mkdir(parents=True, exist_ok=True)
-    rejected_entry = dict(base, source_id="bad-source", text="Purpose: rejected")
+    rejected_entry = dict(base, source_id="bad-source", text="# Overview\nPurpose: rejected")
     rejected_seed = compile_knowledge("rejected-project", [rejected_entry], tmp_path)
     rejected_claim_id = rejected_seed.claims[0].claim_id
     rejected_state.write_text(

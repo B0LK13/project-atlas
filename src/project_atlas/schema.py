@@ -32,6 +32,7 @@ SCHEMA_FILES: dict[str, str] = {
     "review-entry": "review-entry.schema.json",
     "validation-finding": "validation-finding.schema.json",
     "semantic-records": "semantic-records.schema.json",
+    "claim-alias": "claim-alias.schema.json",
 }
 
 

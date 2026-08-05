@@ -66,7 +66,7 @@ def test_concept_render_replay_is_byte_identical() -> None:
         "classification": "project-overview",
         "source": "sources/imported-documents/source-replay.md",
         "sha256": "b" * 64,
-        "text": "Purpose: deterministic output.",
+        "text": "# Overview\nPurpose: deterministic output.",
     }
     first = render_bundle(
         compile_knowledge("project-1", [entry], Path("/tmp/as-spec-004-replay")),
@@ -86,7 +86,7 @@ def test_generated_region_can_be_regenerated_around_human_content(tmp_path: Path
         "classification": "project-overview",
         "source": "sources/imported-documents/source-human.md",
         "sha256": "c" * 64,
-        "text": "Purpose: preserve humans.",
+        "text": "# Overview\nPurpose: preserve humans.",
     }
     generated = render_bundle(
         compile_knowledge("project-1", [entry], tmp_path), "project-1"

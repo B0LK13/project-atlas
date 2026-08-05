@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from project_atlas.cli import EXIT_OK, main
 
-
+pytestmark = pytest.mark.integration
 def _run_workflow(source: Path, tmp_path: Path) -> dict[str, object]:
     manifest = tmp_path / "manifest.json"
     vault = tmp_path / "vault"

@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from contextlib import ExitStack
+import uuid
+from contextlib import ExitStack, suppress
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -36,6 +37,7 @@ from project_atlas.semantic_compiler import compile_project_record, render_proje
 from project_atlas.source_identity import (
     ProjectIdentityLock,
     ProjectUuidProvider,
+    canonical_source_sha256,
     production_project_uuid,
     validate_project_uuid,
 )
@@ -83,19 +85,95 @@ def _generated_content(path: Path, content: str) -> str:
     return content
 
 
+class _PromotionEntry(NamedTuple):
+    path: Path
+    staged: Path
+    backup: Path
+    had_original: bool
+
+
+def _replace_path(source: Path, destination: Path) -> None:
+    """Small seam for atomic-promotion fault injection tests."""
+    os.replace(source, destination)
+
+
+def _remove_empty_directories(directories: set[Path]) -> None:
+    for directory in sorted(directories, key=lambda item: len(item.parts), reverse=True):
+        with suppress(OSError):
+            directory.rmdir()
+
+
 def _promote(plan: dict[Path, bytes]) -> None:
-    """Promote a fully validated canonical write plan."""
-    for path in sorted(plan):
-        _atomic_bytes(path, plan[path])
+    """Promote a validated write plan with cross-file rollback.
 
+    Every changed file is staged before canonical state is touched. Existing
+    files are moved to transaction-scoped backups during promotion. Any
+    mid-promotion failure restores every prior target and removes all staging
+    artifacts before the error escapes.
+    """
+    transaction = uuid.uuid4().hex
+    entries: list[_PromotionEntry] = []
+    created_directories: set[Path] = set()
+    try:
+        for path in sorted(plan):
+            parent = path.parent
+            while not parent.exists():
+                created_directories.add(parent)
+                parent = parent.parent
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists() and not path.is_file():
+                raise IsADirectoryError(f"canonical write target is not a file: {path}")
+            if path.is_file() and path.read_bytes() == plan[path]:
+                continue
+            staged = path.with_name(f".{path.name}.{transaction}.atlas-stage")
+            backup = path.with_name(f".{path.name}.{transaction}.atlas-backup")
+            staged.write_bytes(plan[path])
+            entries.append(
+                _PromotionEntry(
+                    path=path,
+                    staged=staged,
+                    backup=backup,
+                    had_original=path.exists(),
+                )
+            )
+    except BaseException:
+        for entry in entries:
+            entry.staged.unlink(missing_ok=True)
+            entry.backup.unlink(missing_ok=True)
+        _remove_empty_directories(created_directories)
+        raise
 
-def _atomic_bytes(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.is_file() and path.read_bytes() == content:
-        return
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_bytes(content)
-    os.replace(temporary, path)
+    touched: list[_PromotionEntry] = []
+    try:
+        for entry in entries:
+            if entry.had_original:
+                _replace_path(entry.path, entry.backup)
+            touched.append(entry)
+            _replace_path(entry.staged, entry.path)
+    except BaseException as promotion_error:
+        rollback_errors: list[BaseException] = []
+        for entry in reversed(touched):
+            try:
+                if entry.had_original:
+                    _replace_path(entry.backup, entry.path)
+                else:
+                    entry.path.unlink(missing_ok=True)
+            except BaseException as exc:  # pragma: no cover - catastrophic filesystem loss
+                rollback_errors.append(exc)
+        if rollback_errors:
+            raise RuntimeError(
+                "canonical promotion failed and rollback was incomplete; "
+                "transaction artifacts were preserved for recovery"
+            ) from promotion_error
+        for entry in entries:
+            entry.staged.unlink(missing_ok=True)
+            entry.backup.unlink(missing_ok=True)
+        _remove_empty_directories(created_directories)
+        raise
+
+    for entry in entries:
+        entry.staged.unlink(missing_ok=True)
+        entry.backup.unlink(missing_ok=True)
 
 
 def _validate_existing_markers(vault: Path, project_ids: set[str]) -> None:
@@ -440,10 +518,14 @@ def _prepare_project_identity(
     return project_uuid, marker, original, allocated
 
 
-def _assert_marker_compare_and_swap(preconditions: dict[Path, bytes]) -> None:
+def _assert_state_compare_and_swap(preconditions: dict[Path, bytes | None]) -> None:
     for path, expected in preconditions.items():
+        if expected is None:
+            if path.is_file():
+                raise ValueError(f"state changed during transaction: {path}")
+            continue
         if not path.is_file() or path.read_bytes() != expected:
-            raise ValueError(f"project marker changed during identity transaction: {path}")
+            raise ValueError(f"state changed during transaction: {path}")
 
 
 def _verify_identity_post_state(
@@ -648,7 +730,7 @@ def _ingest(
         classifications[source_id] = {"type": classification, "method": method}
         projects.setdefault(project, []).append(entry)
         source_bytes = source.read_bytes()
-        manifest_hash = hashlib.sha256(source_bytes).hexdigest()
+        manifest_hash = canonical_source_sha256(source)
         # A project-UUID allocation may update the marker after discovery.  Do
         # not copy that stale-manifest mutation as a source observation; the
         # next discovery will carry the authoritative hash.
@@ -766,7 +848,7 @@ def _ingest(
         )
         projects.setdefault(package.project_id, [])
     project_identity: dict[str, str] = {}
-    marker_preconditions: dict[Path, bytes] = {}
+    marker_preconditions: dict[Path, bytes | None] = {}
     identity_markers: dict[str, Path] = {}
     allocated_projects: set[str] = set()
     for project, entries in sorted(projects.items()):
@@ -1174,6 +1256,8 @@ def _ingest(
             vault,
             event_entries.get(project, []),
         )
+        for relative_path, expected_bytes in knowledge.preconditions.items():
+            marker_preconditions[_inside(vault, vault / relative_path)] = expected_bytes
         for relative, content in render_bundle(knowledge, project).items():
             destination = _inside(vault, vault / relative)
             write_plan[destination] = _generated_content(
@@ -1225,7 +1309,7 @@ def _ingest(
     from project_atlas.indexes import canonical_index_payloads
 
     write_plan.update(canonical_index_payloads(vault, write_plan))
-    _assert_marker_compare_and_swap(marker_preconditions)
+    _assert_state_compare_and_swap(marker_preconditions)
     _promote(write_plan)
     _verify_identity_post_state(
         vault, project_identity, identity_markers, allocated_projects
