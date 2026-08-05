@@ -14,6 +14,7 @@ from project_atlas.domain.concepts import (
     VerificationMetadata,
 )
 from project_atlas.domain.conflicts import ConflictingClaim, ConflictRecord, ConflictState
+from project_atlas.domain.diagnostics import CanonicalImpact, Diagnostic, DiagnosticCode
 from project_atlas.domain.findings import ValidationFinding
 from project_atlas.domain.parser_output import (
     AmbiguityStatus,
@@ -64,6 +65,7 @@ __all__ = [
     "AmbiguityStatus",
     "AuthorityLevel",
     "AuthorityRecord",
+    "CanonicalImpact",
     "Claim",
     "ClaimLifecycle",
     "ClaimLifecycleRecord",
@@ -81,6 +83,8 @@ __all__ = [
     "ConflictingClaim",
     "CoverageRecord",
     "DecisionRecord",
+    "Diagnostic",
+    "DiagnosticCode",
     "DocumentLifecycle",
     "GeneratedMetadata",
     "KnowledgeState",

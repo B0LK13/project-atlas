@@ -34,6 +34,7 @@ SCHEMA_FILES: dict[str, str] = {
     "semantic-records": "semantic-records.schema.json",
     "claim-alias": "claim-alias.schema.json",
     "parser-output": "parser-output.schema.json",
+    "diagnostic": "diagnostic.schema.json",
 }
 
 
