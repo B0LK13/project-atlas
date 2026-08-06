@@ -1,0 +1,144 @@
+schema_version: 1
+work_package: AS-EXT-001A
+title: Structured Evidence Parsers, Locator Refinement, and Compilation-Status Reporting
+status: merged-and-post-merge-validated
+directive: D-PROJECT-ATLAS-KIMI-AS-EXT-001A-MERGE-001
+pull_request: 7
+certified_base_commit: 6d874751d3ed9cb05433a8d50ab372a997418d84
+final_pr_head: 9cc699854c8edb30b003f9fcfe68d9dc0ad1050c
+merge_commit: 7bf974623071ac946ed542fffc84f134887eeae7
+merge_tree: 79035b642b09f099a717c74a0b4ceb22ba81014f
+merged_to_main_at: 2026-08-06T05:47:22Z
+merge_method: github-platform-merge-commit
+merge_parents:
+  - 6d874751d3ed9cb05433a8d50ab372a997418d84
+  - 9cc699854c8edb30b003f9fcfe68d9dc0ad1050c
+graph_verification:
+  origin_main_after_merge: 7bf974623071ac946ed542fffc84f134887eeae7
+  merge_is_origin_main: true
+  merge_tree_equals_pr_head_tree: true
+  pr_head_tree: 79035b642b09f099a717c74a0b4ceb22ba81014f
+  pr_head_reachable_from_origin_main: true
+  v1_candidate_reachable: beaa73299b1711c8a69eddd37ec359166f3b77f7
+  remediation_commits_reachable:
+    - 33bc65a
+    - 27cd8e8
+    - 7cf3b68
+    - 9cc6998
+  delta_commits_base_to_pr_head: 19
+  delta_commits_note: >-
+    Corrects the 17-commit count stated in the pre-merge section-23 report;
+    the verified git log 6d87475..9cc6998 contains 19 commits.
+  tags_unchanged: true
+  tags_recorded: 13
+  evidence: post-merge graph verification log (D:\atlas-selfhost\post-merge-7bf9746\graph-verification.txt)
+ci_runs:
+  pre_merge_run: 31037006457
+  pre_merge_result: green
+post_merge_test_counts:
+  environment: >-
+    Dedicated post-merge validation worktree at the merge commit
+    (detached 7bf97462), own .venv, Windows 11, Python 3.13.
+  ruff: exit 0 (clean)
+  mypy: exit 0 (clean)
+  compileall: exit 0 (clean)
+  pytest_full: >-
+    456 passed + 1 skipped on the identical tree pre-merge and in remote CI
+    (run 31037006457). The first local post-merge run reported 10 FAILED
+    (2 in tests/integration/test_historical_completeness.py, 8 in
+    tests/integration/test_migration.py) caused by the local runner's PATH
+    lacking git; re-run of both files with git on PATH: all passed, exit 0.
+    Environment discrepancy, not a code defect.
+  pytest_integration_pre_merge: 117 passed + 1 skipped
+  cli_smoke:
+    commands:
+      - atlas --help
+      - atlas version
+      - atlas init --output <tmp> --dry-run
+      - atlas init --output <tmp>
+    result: all exit 0
+  control_plane: unchanged by this merge (merge tree identical to reviewed tree)
+post_merge_raw_metrics:
+  corpus:
+    files: 70
+    lines: 14269
+    bytes: 641925
+  pipeline:
+    steps: [init, discover, ingest, build-indexes, validate]
+    result: 5/5 exit 0
+  compilation_outcomes:
+    complete_candidate: 64
+    partial_candidate: 1
+    failed: 0
+    quarantined_pre_compile: 5
+    partial_detail: >-
+      docs/prp.md — 1 withheld claim, unresolved-locator field
+      'architecture', staging-only; canonical state untouched.
+  diagnostics:
+    total: 35
+    unknown_structured_field: 29
+    unknown_receipt_profile: 5
+    unresolved_locator: 1
+  classification_records: 65/65 persisted per candidate
+  claims:
+    state_claims: 91
+    index_claims: 91
+    state_equals_index: true
+  claim_yield_per_1000_lines: 6.38
+  conflicts: 5
+  security:
+    injection_findings: 6
+    secret_findings: 1
+    quarantined_files: 5
+  determinism:
+    two_independent_vaults_byte_identical: true
+    vault_files: 132
+    first_replay_mutates: true
+    files_after_first_replay: 133
+    settled_replay_zero_mutation: true
+level_0_disposition: PASS
+level_1_disposition: PARTIAL
+real_conflict_preservation: NOT YET EXERCISED
+known_limitations:
+  - >-
+    YAML '<<:' merge keys are rejected through duplicate-key handling;
+    continue-or-support decision deferred (F-AS-EXT-001A-01).
+  - >-
+    Block-scoped subjects collapse to project scope in canonical claims;
+    locators preserve structural distinctness (F-AS-EXT-001A-02).
+  - >-
+    Legacy manifest classification coexists with new ingestion-report
+    classification; single authoritative read model deferred
+    (F-AS-EXT-001A-03).
+  - >-
+    Five conflicts are preserved, but full real-data conflict semantics have
+    not yet been exercised; required before Level 2 or trustworthy
+    current-state resolution claims (F-AS-EXT-001A-04).
+  - >-
+    One source (docs/prp.md) compiles PARTIAL with one withheld claim
+    pending locator resolution; canonical promotion remains COMPLETE-only.
+follow_up_items:
+  - id: F-AS-EXT-001A-01
+    title: YAML merge-key compatibility
+    disposition: NON-BLOCKING FOLLOW-UP
+  - id: F-AS-EXT-001A-02
+    title: Block-scoped canonical subject model
+    disposition: NON-BLOCKING FOLLOW-UP
+  - id: F-AS-EXT-001A-03
+    title: Legacy manifest classification convergence
+    disposition: NON-BLOCKING FOLLOW-UP
+  - id: F-AS-EXT-001A-04
+    title: Real conflict-preservation experiment
+    disposition: REQUIRED BEFORE CLAIMING LEVEL 2 OR TRUSTWORTHY CURRENT-STATE RESOLUTION
+scope:
+  pr_6_included: false
+  earlier_evidence_rewritten: false
+  historical_commits_rewritten: false
+  force_push_used: false
+  tag_moves: false
+  direct_push_to_main: false
+worktree_retention:
+  implementation_worktree: retained (D:\atlas-worktrees\atlas-as-ext-001a)
+  review_worktree: retained
+  post_merge_validation_worktree: retained (D:\atlas-worktrees\atlas-post-merge-validation)
+  evidence_outputs: retained (D:\atlas-selfhost\post-merge-7bf9746)

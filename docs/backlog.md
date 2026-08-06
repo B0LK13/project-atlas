@@ -224,7 +224,7 @@ _Status: V2-003 was preserved and rejected by independent review. V2-004 impleme
 
 ## AS-EXT-001A — Structured evidence parsers, locator refinement, and compilation-status reporting
 
-_Status: implementation complete through Level 0 self-host evidence. Directive D-PROJECT-ATLAS-KIMI-AS-EXT-001A-001; base `6d874751d3ed9cb05433a8d50ab372a997418d84`; addresses measured P0 failures (batch abort on first of 29 flat-YAML locator failures, 2 heading-locator collisions, 15 verified claims, 0 explicit anchors). Package contract: `docs/work-packages/AS-EXT-001A.md`. Self-host receipt: `docs/evidence/AS-EXT-001A-level0-selfhost-receipt.yaml`. Adversarial remediation complete (blocking locator-collision isolation fix + five concerns, commit 33bc65a); candidate re-frozen V2 with reconciled re-run — receipt `docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2.yaml` (supersedes V1, preserved)._
+_Status: MERGED to `main` at `7bf974623071ac946ed542fffc84f134887eeae7` (PR #7, platform merge commit, 2026-08-06) and post-merge validated. Directive D-PROJECT-ATLAS-KIMI-AS-EXT-001A-001; merge directive D-PROJECT-ATLAS-KIMI-AS-EXT-001A-MERGE-001; base `6d874751d3ed9cb05433a8d50ab372a997418d84`; addresses measured P0 failures (batch abort on first of 29 flat-YAML locator failures, 2 heading-locator collisions, 15 verified claims, 0 explicit anchors). Package contract: `docs/work-packages/AS-EXT-001A.md`. Self-host receipt: `docs/evidence/AS-EXT-001A-level0-selfhost-receipt.yaml`. Adversarial remediation complete (blocking locator-collision isolation fix + five concerns, commit 33bc65a); candidate re-frozen V2 with reconciled re-run — receipt `docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2.yaml` (supersedes V1, preserved). Post-merge closure receipt: `docs/evidence/AS-EXT-001A-post-merge-receipt.yaml`._
 
 - [x] EXT1A-001 Create AS-EXT-001A package specification and confirm implementation baseline gates
 - [x] EXT1A-002 Materialize frozen fixtures (real F-01…F-08 with provenance + authored synthetic cases, directive §9)
@@ -246,3 +246,10 @@ _Status: implementation complete through Level 0 self-host evidence. Directive D
 - [x] EXT1A-024 Claim Identity v2 tests remain green; compiler and migration remain consistent (§10 MUST)
 - [x] EXT1A-025 Aliases promoted only for provable one-to-one mappings; one-to-many remain ambiguous (§10 MUST)
 - [x] EXT1A-026 Source/parser provenance on every emitted claim; claim counts from canonical JSON cross-checked (§10 MUST)
+
+### AS-EXT-001A follow-up backlog candidates (recorded at merge closure; not implemented under the merge directive)
+
+- [ ] F-AS-EXT-001A-01 YAML merge-key compatibility — `<<:` merge keys are currently rejected through duplicate-key handling. NON-BLOCKING FOLLOW-UP. Future decision: continue explicit rejection, or support merge-key semantics with bounded alias expansion and deterministic duplicate resolution.
+- [ ] F-AS-EXT-001A-02 Block-scoped canonical subject model — block-scoped subjects currently collapse to project scope in canonical claims; locators preserve structural distinctness. NON-BLOCKING FOLLOW-UP. Future analysis: determine whether subject granularity should be expanded without changing Claim Identity v2 unnecessarily.
+- [ ] F-AS-EXT-001A-03 Legacy manifest classification convergence — legacy manifest classification currently coexists with new ingestion-report classification. NON-BLOCKING FOLLOW-UP. Future analysis: define one authoritative classification read model and a deprecation path without rewriting historical artifacts.
+- [ ] F-AS-EXT-001A-04 Real conflict-preservation experiment — five conflicts are preserved, but full real-data conflict semantics have not yet been exercised. REQUIRED BEFORE CLAIMING LEVEL 2 OR TRUSTWORTHY CURRENT-STATE RESOLUTION.

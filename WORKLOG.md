@@ -3531,3 +3531,56 @@ TOTAL 92%); `pytest -m integration` 117 passed + 1 skipped; CLI smoke
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
+
+## AS-EXT-001A merge and post-merge validation
+
+**Status:** merged and post-merge validated — closure evidence recorded
+**Directive:** D-PROJECT-ATLAS-KIMI-AS-EXT-001A-MERGE-001
+**PR:** #7
+**Base:** `6d874751d3ed9cb05433a8d50ab372a997418d84`
+**Final PR head:** `9cc699854c8edb30b003f9fcfe68d9dc0ad1050c`
+**Merge commit:** `7bf974623071ac946ed542fffc84f134887eeae7` (GitHub platform
+merge commit, 2026-08-06T05:47:22Z)
+**Merge tree:** `79035b642b09f099a717c74a0b4ceb22ba81014f` (identical to the
+reviewed PR-head tree)
+
+Pre-merge verification matched the authorization exactly: head, base ==
+merge-base, threads resolved, CI run 31037006457 green. Post-merge graph
+verification: `origin/main` == merge commit; parents exactly
+`6d874751...` + `9cc69985...`; merge tree == PR-head tree; PR head, V1
+candidate `beaa732...`, and all four remediation commits reachable; delta
+`6d87475..9cc6998` = **19 commits** (corrects the 17 stated in the pre-merge
+section-23 report); 13 tags recorded, unmoved.
+
+Post-merge gates in a dedicated validation worktree at the merge commit
+(own `.venv`, Python 3.13): `ruff check .` exit 0; `mypy src` exit 0;
+`compileall -q src tests` exit 0; CLI smoke all exit 0. The first local
+full-pytest run reported 10 FAILED (2 in
+`tests/integration/test_historical_completeness.py`, 8 in
+`tests/integration/test_migration.py`) because the local runner's PATH
+lacked git; re-running both files with git on PATH passed (exit 0). The
+identical tree passed 456 + 1 skipped pre-merge and in remote CI, so this
+is a documented environment discrepancy, not a code defect.
+
+Post-merge RAW self-host (fresh 70-file corpus copy, 14,269 lines, 641,925
+bytes): pipeline 5/5 exit 0; 64 COMPLETE_CANDIDATE + 1 PARTIAL_CANDIDATE
+(`docs/prp.md`, 1 withheld, unresolved-locator 'architecture', staging-only)
++ 0 FAILED + 5 quarantined pre-compile (6 injection findings + 1 secret
+finding); 35 diagnostics (29 unknown-structured-field, 5
+unknown-receipt-profile, 1 unresolved-locator); 91 canonical claims == 91
+index ids; 6.38 claims per 1,000 lines; 5 conflicts; 65/65 classification
+records; two independent vaults byte-identical (132 files); first replay
+mutates (132 → 133), settled replay zero-mutation. Reconciles exactly with
+the frozen V2 receipt.
+
+Dispositions: LEVEL 0 PASS; LEVEL 1 PARTIAL; REAL CONFLICT PRESERVATION NOT
+YET EXERCISED. Follow-up backlog candidates recorded in `docs/backlog.md`:
+F-AS-EXT-001A-01 (YAML merge-key compatibility), F-AS-EXT-001A-02
+(block-scoped canonical subject model), F-AS-EXT-001A-03 (legacy manifest
+classification convergence), F-AS-EXT-001A-04 (real conflict-preservation
+experiment — required before Level 2 claims). Evidence:
+`docs/evidence/AS-EXT-001A-post-merge-receipt.yaml`.
+
+PR #6 remains open and unmerged and was not touched by this closure. Per
+directive §9, the implementation worktree, review workspace, post-merge
+validation worktree, and all evidence outputs are retained.
