@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/diagnostic.schema.json",
+  "title": "Diagnostic",
+  "description": "Structured compilation diagnostic (AS-EXT-001A, directive section 7.9). No silent drop: withheld sources and claims reconcile with diagnostics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["code", "severity", "reason", "continued", "canonical_impact"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "code": {
+      "type": "string",
+      "enum": [
+        "unresolved-locator",
+        "duplicate-locator",
+        "ambiguous-identity",
+        "duplicate-yaml-key",
+        "unknown-receipt-profile",
+        "unknown-structured-field",
+        "invalid-receipt",
+        "unsupported-source-kind",
+        "classification-ambiguity",
+        "parser-failure",
+        "alias-ambiguity",
+        "promotion-failure"
+      ]
+    },
+    "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+    "source_path": { "type": ["string", "null"], "minLength": 1 },
+    "source_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_line", "end_line"],
+      "properties": {
+        "start_line": { "type": ["integer", "null"], "minimum": 1 },
+        "end_line": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    },
+    "parser": { "type": ["string", "null"], "minLength": 1 },
+    "profile": { "type": ["string", "null"], "minLength": 1 },
+    "subject": { "type": ["string", "null"], "minLength": 1 },
+    "field": { "type": ["string", "null"], "minLength": 1 },
+    "locator": { "type": ["string", "null"], "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "remediation": { "type": ["string", "null"], "minLength": 1 },
+    "continued": { "type": "boolean" },
+    "canonical_impact": {
+      "type": "string",
+      "enum": ["none", "staging-only", "blocked"]
+    }
+  }
+}

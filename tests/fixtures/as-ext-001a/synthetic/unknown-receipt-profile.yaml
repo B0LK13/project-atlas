@@ -1,0 +1,7 @@
+schema_version: 1
+receipt_type: interstellar-governance-attestation
+council: outer-rim
+resolution: ratified
+quorum:
+  present: 7
+  required: 5

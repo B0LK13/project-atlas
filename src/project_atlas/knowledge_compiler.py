@@ -11,13 +11,12 @@ from typing import Any
 from pydantic import ValidationError
 
 from project_atlas.claim_identity import (
-    UnresolvedLocatorError,
     _digest,
     _slug,
     canonical_identity_key,
     claim_id_from_key,
-    extract_claims,
 )
+from project_atlas.compilation import CompilationCandidate, CompilationOutcome
 from project_atlas.domain import (
     AuthorityLevel,
     AuthorityRecord,
@@ -32,6 +31,7 @@ from project_atlas.domain import (
     ConfidenceState,
     ConflictingClaim,
     ConflictRecord,
+    Diagnostic,
     GeneratedMetadata,
     KnowledgeState,
     LifecycleStatus,
@@ -41,6 +41,7 @@ from project_atlas.domain import (
     ReviewState,
     VerificationMetadata,
 )
+from project_atlas.evidence_compiler import SourceExtraction, extract_source
 from project_atlas.okf_renderer import render_concept_note
 from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
@@ -138,6 +139,9 @@ class KnowledgeBundle:
     status: dict[str, int]
     writes: dict[str, str]
     preconditions: dict[str, bytes | None]
+    # AS-EXT-001A: per-source outcomes and structured diagnostics (§7.8/§7.9).
+    candidates: tuple[CompilationCandidate, ...] = ()
+    diagnostics: tuple[Diagnostic, ...] = ()
 
 
 def _quote_source_text(text: str) -> str:
@@ -253,41 +257,32 @@ def _claim(
     )
 
 
-def _extract(project: str, entry: dict[str, Any]) -> list[Claim]:
-    text = str(entry.get("text", ""))
-    schema_key = entry.get("schema_key")
-    is_project_manifest = str(entry.get("path", "")).endswith(".atlas-project.yaml")
-    try:
-        candidates = extract_claims(
-            text,
-            schema_key=str(schema_key) if schema_key else None,
-            is_project_manifest=is_project_manifest,
-            classification=str(entry.get("classification", "")),
-            reject_unresolved=True,
-        )
-    except UnresolvedLocatorError as exc:
-        raise ValueError(
-            "Locator normalization failed: No stable locator found. "
-            f"Explicit ID required. path={entry.get('path')} "
-            f"class={entry.get('classification')} line={exc.line}"
-        ) from exc
+def _extract(project: str, entry: dict[str, Any]) -> tuple[list[Claim], SourceExtraction]:
+    """Extract claims for one source with per-source failure isolation.
 
+    AS-EXT-001A (§7.8): extraction never aborts the batch. Parser failures
+    become FAILED/PARTIAL candidates with structured diagnostics; only
+    COMPLETE_CANDIDATE sources contribute canonical claims, preserving
+    all-or-nothing promotion per source. Claim Identity v2 derivation via
+    ``_claim`` is unchanged.
+    """
+    extraction = extract_source(project, entry)
     claims: list[Claim] = []
-    for candidate in candidates:
-        claim = _claim(
-            project,
-            entry,
-            ClaimType(str(candidate["claim_type"])),
-            str(candidate["field"]),
-            str(candidate["value"]),
-            str(candidate["locator"]),
-        )
-        predecessor_id = candidate.get("predecessor_id")
-        if predecessor_id:
-            claim = claim.model_copy(update={"predecessor_claim_id": str(predecessor_id)})
-        claims.append(claim)
-
-    return claims
+    if extraction.candidate.promotable:
+        for record in extraction.records:
+            claim = _claim(
+                project,
+                entry,
+                ClaimType(record.claim_type),
+                record.field,
+                record.value,
+                record.locator,
+            )
+            updates: dict[str, Any] = {"extraction_method": record.extraction_method}
+            if record.predecessor_id:
+                updates["predecessor_claim_id"] = record.predecessor_id
+            claims.append(claim.model_copy(update=updates))
+    return claims, extraction
 
 
 def _event_claim(project: str, entry: dict[str, Any]) -> Claim:
@@ -762,12 +757,23 @@ def compile_knowledge(
     vault: Path,
     event_entries: list[dict[str, Any]] | None = None,
 ) -> KnowledgeBundle:
-    claims = [claim for entry in entries for claim in _extract(project, entry)]
+    claims: list[Claim] = []
+    candidates: list[CompilationCandidate] = []
+    diagnostics: list[Diagnostic] = []
+    for entry in entries:
+        extracted, extraction = _extract(project, entry)
+        claims.extend(extracted)
+        candidates.append(extraction.candidate)
+        diagnostics.extend(extraction.diagnostics)
     claims.extend(_event_claim(project, entry) for entry in (event_entries or []))
     by_id: dict[str, Claim] = {}
     for claim in claims:
         prior = by_id.get(claim.claim_id)
         if prior is not None:
+            # Fail-closed guard (AS-CORE-003). Unreachable from per-source
+            # extraction since AS-EXT-001A: intra-source locator collisions
+            # are withheld upstream (§7.7), and cross-source claim ids are
+            # namespaced by durable source identity.
             raise ValueError(
                 "ambiguous identity boundary: duplicate explicit IDs or "
                 f"colliding semantic anchors for {claim.claim_id}"
@@ -863,6 +869,19 @@ def compile_knowledge(
         "claims_missing_provenance": sum(not claim.provenance for claim in claims),
         "claims_awaiting_review": len(reviews),
         "authority_coverage": len(authorities),
+        "sources_complete": sum(
+            candidate.outcome is CompilationOutcome.COMPLETE_CANDIDATE
+            for candidate in candidates
+        ),
+        "sources_partial": sum(
+            candidate.outcome is CompilationOutcome.PARTIAL_CANDIDATE
+            for candidate in candidates
+        ),
+        "sources_failed": sum(
+            candidate.outcome is CompilationOutcome.FAILED for candidate in candidates
+        ),
+        "claims_withheld": sum(candidate.claims_withheld for candidate in candidates),
+        "diagnostics": len(diagnostics),
     }
     return KnowledgeBundle(
         claims=tuple(claims),
@@ -874,6 +893,8 @@ def compile_knowledge(
         status=status,
         writes={},
         preconditions=preconditions,
+        candidates=tuple(candidates),
+        diagnostics=tuple(diagnostics),
     )
 
 
@@ -895,6 +916,8 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
             ClaimLifecycleRecord: "claim-lifecycle",
         }[type(record)]
         validate_record(record, kind)
+    for diagnostic in bundle.diagnostics:
+        validate_record(diagnostic, "diagnostic")
     claims = [claim.model_dump(mode="json") for claim in bundle.claims]
     concepts = [concept.model_dump(mode="json") for concept in bundle.concepts]
     conflicts = [conflict.model_dump(mode="json") for conflict in bundle.conflicts]
@@ -926,6 +949,49 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
         + "\n",
         f"state/claim-lifecycle/{project}.json": json.dumps(
             {"schema_version": 1, "project_id": project, "claims": lifecycle},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        f"state/diagnostics/{project}.json": json.dumps(
+            {
+                "schema_version": 1,
+                "project_id": project,
+                "diagnostics": [
+                    diagnostic.model_dump(mode="json")
+                    for diagnostic in sorted(
+                        bundle.diagnostics,
+                        key=lambda item: (
+                            str(item.source_path),
+                            item.code.value,
+                            str(item.locator),
+                            item.reason,
+                        ),
+                    )
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        f"state/compilation-outcomes/{project}.json": json.dumps(
+            {
+                "schema_version": 1,
+                "project_id": project,
+                "candidates": [
+                    {
+                        "source_path": candidate.source_path,
+                        "outcome": candidate.outcome.value,
+                        "claims_extracted": candidate.claims_extracted,
+                        "claims_withheld": candidate.claims_withheld,
+                        "diagnostics": sorted(candidate.diagnostics),
+                        "classification": dict(candidate.classification),
+                    }
+                    for candidate in sorted(
+                        bundle.candidates, key=lambda item: item.source_path
+                    )
+                ],
+            },
             indent=2,
             sort_keys=True,
         )

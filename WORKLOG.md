@@ -3300,3 +3300,234 @@ ubuntu failure is closed on the runner that originally failed. This closes
 the `local-validation-complete-pending-remote-ci` limitation recorded in
 `docs/evidence/AS-CORE-003-v2-candidate-006.yaml`; only Project Owner merge
 authorization remains.
+
+## AS-EXT-001A — package creation and implementation baseline
+
+Directive D-PROJECT-ATLAS-KIMI-AS-EXT-001A-001 (parent
+D-PROJECT-ATLAS-KIMI-SWARM-PARALLEL-INTAKE-001). Branch
+`feat/as-ext-001a-structured-evidence` from base
+`6d874751d3ed9cb05433a8d50ab372a997418d84` in worktree
+`D:\atlas-worktrees\atlas-as-ext-001a` (single writing owner).
+
+Package contract created: `docs/work-packages/AS-EXT-001A.md` (measured P0
+failure statement, verified root cause, directive §7 scope / §11 out-of-scope,
+frozen design decisions with Pydantic v2 selection rationale, §8 security
+bounds policy, §10/§13 acceptance criteria, §21 escalation conditions, §14
+commit plan). Bounded backlog section `AS-EXT-001A` added to
+`docs/backlog.md`.
+
+Implementation baseline gates on the untouched base (Windows 11, Python
+3.13.14, venv interpreter):
+
+- `python -m ruff check .` — All checks passed.
+- `python -m mypy src` — Success: no issues found in 39 source files.
+- `python -m compileall -q src tests` — clean.
+- `python -m pytest -p no:cacheprovider --tb=no` — 315 passed, 1 skipped
+  in 95.90 s (coverage: TOTAL 3708 statements, 330 missed, 91%).
+- `python -m pytest -p no:cacheprovider -m integration --tb=no` —
+  113 passed, 1 skipped, 202 deselected in 98.48 s.
+
+Root cause verified against executable behavior (see package spec):
+`resolve_locator` supports only explicit `{#id}` anchors, a compiler
+`schema_key`, the project-manifest marker, or the nearest Markdown heading —
+flat evidence YAML has none, so extraction with `reject_unresolved=True`
+raises and ingestion fails closed (29 files). The heading locator keeps only
+the nearest heading slug without ancestor path or structural scoping, so
+repeated same-field statements under an identically-slugged heading collide
+on the v2 identity tuple (2 files: VERIFY document, `docs/plan.md`).
+
+**PRODUCTION CODE MODIFIED: NO**
+**TESTS MODIFIED: NO**
+**FIXTURES MODIFIED: NO**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+
+## AS-EXT-001A — implementation through Level 0 self-host evidence
+
+Commits on `feat/as-ext-001a-structured-evidence` (base `6d87475`):
+
+- `89ccbc6` fixtures: frozen real F-01…F-08 + authored synthetic cases with
+  P0-C provenance (EXT1A-002)
+- `c7b5f7a` compilation outcome state machine (§7.8) (EXT1A-003)
+- `180c97c` frozen Pydantic v2 parser-output contract (§7.2) (EXT1A-004)
+- `2b314c9` specific-first classification precedence (§7.1) (EXT1A-005)
+- `97bd2a5` safe bounded YAML + `yamlpath:` locators (§7.4, §8) (EXT1A-006,
+  EXT1A-012)
+- `8ad33a1` evidence receipt profiles with field classification (§7.5)
+  (EXT1A-007, EXT1A-020)
+- `181180e` registered VERIFY structured profile (§7.6) (EXT1A-008)
+- `6169032` heading-locator collision remediation (§7.7) (EXT1A-009)
+- `b256c63` structured diagnostic model (§7.9) (EXT1A-010)
+- `145ba09` locator refinement + alias handling via existing v2 mechanism
+  (§7.10) (EXT1A-011, EXT1A-025)
+- `8af6140` per-source compilation orchestration with failure isolation
+  (§7.3, §7.8, §7.9) (EXT1A-021, EXT1A-022, EXT1A-024, EXT1A-026)
+- `aeb09f6` validate: exempt Layer A imported evidence from link resolution
+  (three-layer vault model; generated layers keep 100 percent resolution)
+
+Security bounds (§8, EXT1A-012) are enforced and tested in
+`tests/unit/test_yaml_structured.py` (23 tests: safe loading only,
+duplicate keys, alias amplification, object construction, encoding,
+control characters, all six resource limits, NFC, order/indentation
+independence, reserved characters, stable-key and provisional sequence
+addressing) plus path-traversal validators on ParserOutput and Diagnostic —
+no separate bounds commit was needed.
+
+Self-host evidence (EXP-ATLAS-SELFHOST-AS-EXT-001A-001, receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt.yaml`): full RAW 70-file
+P0 corpus (14,269 lines / 641,925 bytes), staged copy under worktree
+`.tmp/as-ext-001a-selfhost/` from the read-only P0 staging area.
+
+Before (P0 baseline EXP-ATLAS-SELFHOST-BASELINE-001): batch aborted closed
+at ingest on the first bad file; per-file isolation 39 OK / 31 FAIL (29
+locator failures, 2 ambiguous-identity collisions); 15 claims across OK
+files; ≈1.05 claims per 1,000 lines.
+
+After: full pipeline init → discover → ingest → build-indexes → validate
+all exit 0 (total ≈9.5 s). 65 sources compiled (64 COMPLETE_CANDIDATE, 1
+PARTIAL_CANDIDATE: `docs/prp.md` architecture-fallback claim withheld,
+staging-only) + 5 pre-existing security quarantines (1 secret pattern, 4
+injection findings; NFR-004/AS-SEC-001 behavior unchanged) = 70 accounted.
+0 FAILED, 0 whole-batch abort. 91 canonical claims (state/claims cross-
+checked against generated claims index: 91 == 91), 1 withheld, 35
+diagnostics (29 unknown-structured-field, 5 unknown-receipt-profile, 1
+unresolved-locator), 5 conflicts preserved. 6.38 claims per 1,000 lines.
+Determinism: two independent full-corpus vaults byte-identical (132 files);
+settled re-ingest replay mutates zero bytes (133 files).
+
+Gates after final commit (worktree venv, Windows 11, Python 3.13.14):
+`ruff check .` clean; `mypy src` clean (48 files); `compileall -q src tests`
+clean; `pytest --tb=no` 446 passed + 1 skipped (coverage TOTAL 92%);
+`pytest -m integration` 116 passed + 1 skipped.
+
+**PRODUCTION CODE MODIFIED: YES (new modules + surgical wiring; Claim
+Identity v2 algorithm unchanged)**
+**TESTS MODIFIED: YES (two `_extract` call sites updated for tuple return)**
+**FIXTURES MODIFIED: NO (frozen at 89ccbc6)**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+
+## AS-EXT-001A — adversarial remediation and candidate re-freeze (V2)
+
+Adversarial review of the frozen Level 0 candidate returned FAIL: one
+blocking executable violation plus five concerns. All six remediated
+additively in commit 33bc65a; candidate re-frozen with a full gate battery
+and a complete re-run of the RAW self-host experiment. Evidence: receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2.yaml` (supersedes the
+V1 receipt, which is preserved untouched).
+
+Blocking violation — intra-source yamlpath locator collisions escaped
+per-source failure isolation and aborted the whole batch. Fixed by
+`_withhold_locator_collisions` in `evidence_compiler.py`, mirroring §7.7
+disambiguation semantics on yamlpath records: identical-value groups keep
+the first statement; different-value collisions withhold all members with
+DUPLICATE_LOCATOR diagnostics and mark the source PARTIAL_CANDIDATE.
+Regression repros: A (`status: {café(NFC): alpha, café(NFD): beta}`) and B
+(`status: [{id: same, x: alpha}, {id: same, x: beta}]`) now compile the
+source PARTIAL with the colliding candidates withheld, no exception escapes,
+and a good sibling source still promotes through `compile_knowledge`. The
+compiler-level duplicate-ID raise remains as an unreachable fail-closed
+guard.
+
+Concerns remediated: (A) parser resource-bound defaults made reachable —
+`max_nodes` 4,096 / `max_node_references` 8,192, with reachability and
+alias-free reachability tests; (B) `yaml.compose` RecursionError mapped to a
+structured ResourceLimitError (verified at depths 500/2000/5000); (3)
+PROMOTION_FAILED is now reachable: promotion failures record the promotable
+candidates as PROMOTION_FAILED via governed transition edges and write a
+schema-validated report to `quarantine/promotion-failures/index.json`
+(best-effort; never masks the original error; cleared by the next
+successful ingest); canonical rollback coverage unchanged; (4) wording
+corrections — quarantine accounting is 6 injection findings across 4 files
+plus 1 secret finding in 1 file (= 5 quarantined files; the earlier "4
+injection findings" phrase counted files, not findings), and settled replay
+means the first replay mutates via lifecycle NEW→UNCHANGED re-observation
+(132 → 133 vault files) while the third and subsequent ingests are
+byte-stable; (5) spec §7.5 now states explicitly that unknown-profile
+receipts still contribute canonical claims from recognized root keys as
+COMPLETE_CANDIDATE with a warning diagnostic; (6) classification records
+are persisted per candidate into `state/compilation-outcomes/`.
+
+Self-host re-run (EXP-ATLAS-SELFHOST-AS-EXT-001A-001, remediation-v2, same
+staged RAW 70-file corpus): full pipeline exit 0 end-to-end (≈8.2 s).
+Reconciliation vs the frozen V1 numbers is exact: 65 compiled (64
+COMPLETE_CANDIDATE, 1 PARTIAL_CANDIDATE `docs/prp.md`, 1 withheld) + 5
+security quarantines; 0 FAILED; 91 canonical claims == 91 claims-index ids;
+35 diagnostics (29 unknown-structured-field, 5 unknown-receipt-profile, 1
+unresolved-locator); 5 conflicts; 6.38 claims per 1,000 lines; two
+independent vaults byte-identical (132 files); first replay mutates
+(132 → 133), settled replay zero-mutation. All 65 outcomes persist
+classification records.
+
+Gates at re-freeze (worktree venv, Windows 11, Python 3.13.14):
+`ruff check .` clean; `mypy src` clean (48 files);
+`compileall -q src tests` clean; `pytest` 454 passed + 1 skipped (coverage
+TOTAL 92%); `pytest -m integration` 117 passed + 1 skipped; CLI smoke
+`atlas --help` exit 0, `atlas version` project-atlas 0.1.0.
+
+**PRODUCTION CODE MODIFIED: YES (evidence compiler, parser bounds, ingestion promotion-failure path, outcome persistence; Claim Identity v2 unchanged)**
+**TESTS MODIFIED: YES (new regression/integration tests; concurrency rollback test excludes diagnostic quarantine report)**
+**FIXTURES MODIFIED: NO (frozen at 89ccbc6)**
+**BACKLOG MODIFIED: YES**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**
+
+## AS-EXT-001A — no-silent-drop remediation and candidate re-freeze (V2 amendment)
+
+Copilot review on PR #7 (remote CI all green) found one narrow defect against
+the no-silent-drop contract: in `claim_identity._disambiguate_collisions`,
+collision grouping used `str(claim["locator"])`, so every withheld
+unresolved-locator record (`locator is None`) shared the grouping key
+`"None"` and the identical-value dedupe pass dropped repeated occurrences
+without any diagnostic or counter entry.
+
+Fix (commit 27cd8e8, minimal and additive): locator=None records are
+ungroupable for the dedupe pass — the record index is included in the
+grouping key — so every unresolved-locator line survives and is diagnosed
+individually. Identical-value dedupe semantics for real locators are
+unchanged; Claim Identity v2 untouched.
+
+Repro evidence: two identical unresolved-locator lines
+(`- decision: same unresolved value` × 2) — before: 1 surviving record and
+1 diagnostic (1 occurrence silently dropped); after: 2 surviving records,
+2 UNRESOLVED_LOCATOR diagnostics, source PARTIAL_CANDIDATE. Regression
+tests: `test_identical_unresolved_locator_lines_all_survive_no_silent_drop`
+(extractor level) and
+`test_identical_unresolved_lines_each_diagnosed_no_silent_drop` (compiler
+diagnostics level).
+
+Self-host re-run (EXP-ATLAS-SELFHOST-AS-EXT-001A-001, remediation-v3, same
+staged RAW 70-file corpus): full pipeline exit 0 (≈7.9 s). Reconciliation
+vs the V2 receipt is EXACT — 64 COMPLETE / 1 PARTIAL (`docs/prp.md`, 1
+withheld) / 0 FAILED + 5 quarantines (6 injection findings across 4 files +
+1 secret finding in 1 file); 91 canonical claims == 91 index ids; 35
+diagnostics (29 unknown-structured-field, 5 unknown-receipt-profile, 1
+unresolved-locator); 5 conflicts; 6.38 claims per 1,000 lines; two
+independent vaults byte-identical (132 files); first replay mutates
+(132 → 133), settled replay zero-mutation; 65/65 classification records.
+Diagnostics count UNCHANGED: the corpus's single withheld
+unresolved-locator record has no identical sibling occurrence, so the
+defect's silent-drop path is not triggered by this corpus.
+
+Evidence: additive amendment receipt
+`docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2-amendment.yaml`
+(amends V2; V1/V2 receipts preserved untouched).
+
+Gates at re-freeze (worktree venv, Windows 11, Python 3.13.14):
+`ruff check .` clean; `mypy src` clean (48 files);
+`compileall -q src tests` clean; `pytest` 456 passed + 1 skipped (coverage
+TOTAL 92%); `pytest -m integration` 117 passed + 1 skipped; CLI smoke
+`atlas --help` exit 0, `atlas version` project-atlas 0.1.0.
+
+**PRODUCTION CODE MODIFIED: YES (claim_identity collision grouping only; Claim Identity v2 algorithm unchanged)**
+**TESTS MODIFIED: YES (two new regression tests)**
+**FIXTURES MODIFIED: NO (frozen at 89ccbc6)**
+**BACKLOG MODIFIED: NO**
+**HISTORICAL COMMITS REWRITTEN: NO**
+**FORCE PUSH USED: NO**
+**MERGE AUTHORIZED: NO**

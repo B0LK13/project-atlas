@@ -1,0 +1,5 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+café_status: certified
+validation:
+  café_pytest: passed

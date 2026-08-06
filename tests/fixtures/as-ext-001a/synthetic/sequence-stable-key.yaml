@@ -1,0 +1,8 @@
+schema_version: 1
+receipt_type: atlas-core-certification
+status: certified
+candidates:
+  - candidate_id: V2-005
+    status: superseded
+  - candidate_id: V2-006
+    status: certified

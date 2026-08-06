@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/parser-output.schema.json",
+  "title": "ParserOutput",
+  "description": "Immutable parser output record (AS-EXT-001A, directive section 7.2). Never carries final claim identity; Claim Identity v2 remains the sole identity contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "parser_id",
+    "parser_version",
+    "source_kind",
+    "document_profile",
+    "claim_type",
+    "subject",
+    "normalized_field",
+    "raw_value",
+    "normalized_value",
+    "stable_semantic_locator",
+    "locator_kind",
+    "locator_confidence",
+    "source_path",
+    "source_span",
+    "structural_context",
+    "authority_hint",
+    "ambiguity_status"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "parser_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "parser_version": { "type": "string", "minLength": 1 },
+    "source_kind": { "type": "string", "minLength": 1 },
+    "document_profile": { "type": "string", "minLength": 1 },
+    "claim_type": {
+      "type": "string",
+      "enum": [
+        "project-purpose",
+        "architecture-statement",
+        "setup-requirement",
+        "runtime-dependency",
+        "deployment-target",
+        "test-validation-result",
+        "roadmap-status",
+        "work-package-status",
+        "decision",
+        "risk-blocker",
+        "operational-instruction"
+      ]
+    },
+    "subject": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "normalized_field": { "type": "string", "minLength": 1 },
+    "raw_value": { "type": "string" },
+    "normalized_value": { "type": "string" },
+    "stable_semantic_locator": { "type": "string", "minLength": 1 },
+    "locator_kind": {
+      "type": "string",
+      "enum": [
+        "explicit-id",
+        "schema-key",
+        "project-manifest",
+        "heading",
+        "heading-path",
+        "yamlpath",
+        "block-scoped-key",
+        "structural-key"
+      ]
+    },
+    "locator_confidence": { "type": "string", "enum": ["stable", "provisional"] },
+    "source_path": { "type": "string", "minLength": 1 },
+    "source_span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_line", "end_line"],
+      "properties": {
+        "start_line": { "type": ["integer", "null"], "minimum": 1 },
+        "end_line": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    },
+    "structural_context": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "authority_hint": {
+      "type": "string",
+      "enum": [
+        "primary",
+        "validated-execution",
+        "maintained",
+        "generated",
+        "inferred",
+        "pending",
+        "conflicting",
+        "rejected"
+      ]
+    },
+    "ambiguity_status": {
+      "type": "string",
+      "enum": ["unambiguous", "ambiguous", "withheld"]
+    }
+  }
+}

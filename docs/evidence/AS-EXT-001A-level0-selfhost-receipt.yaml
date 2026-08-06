@@ -1,0 +1,117 @@
+schema_version: 1
+receipt_type: atlas-integration-work-package
+work_package_id: AS-EXT-001A
+status: level-0-achieved
+branch: feat/as-ext-001a-structured-evidence
+base_commit: 6d874751d3ed9cb05433a8d50ab372a997418d84
+experiment_id: EXP-ATLAS-SELFHOST-AS-EXT-001A-001
+baseline_experiment_id: EXP-ATLAS-SELFHOST-BASELINE-001
+package_contract: docs/work-packages/AS-EXT-001A.md
+scope:
+  summary: >-
+    Structured evidence parsers, locator refinement, compilation-status
+    reporting, and per-source failure isolation for the measured P0
+    failures: 29 flat-YAML locator aborts, 2 heading-locator collisions,
+    whole-batch abort on first bad file.
+  claim_identity_v2_algorithm_changed: false
+commits:
+  - 89ccbc6
+  - c7b5f7a
+  - 180c97c
+  - 2b314c9
+  - 97bd2a5
+  - 8ad33a1
+  - 181180e
+  - 6169032
+  - b256c63
+  - 145ba09
+  - 8af6140
+  - aeb09f6
+self_host_experiment:
+  corpus_files: 70
+  corpus_lines: 14269
+  corpus_bytes: 641925
+  corpus_source: D:\atlas-selfhost\baseline-6d87475\corpus (read-only P0 staging)
+  staged_copy: .tmp/as-ext-001a-selfhost/corpus (worktree-local, gitignored)
+  pipeline:
+    init: {exit: 0, seconds: 1.199}
+    discover: {exit: 0, seconds: 1.369}
+    ingest: {exit: 0, seconds: 3.782}
+    build_indexes: {exit: 0, seconds: 1.098}
+    validate: {exit: 0, seconds: 2.065}
+    total_seconds: 9.513
+  outcomes:
+    complete_candidate: 64
+    partial_candidate: 1
+    failed: 0
+    security_quarantined: 5
+    security_quarantine_note: >-
+      Pre-existing fail-closed security quarantine (NFR-004, AS-SEC-001):
+      1 secret-pattern finding, 4 injection findings. 70 = 65 compiled + 5
+      quarantined.
+  partial_detail:
+    source_path: docs/prp.md
+    withheld_claims: 1
+    reason: architecture-fallback claim without a stable locator; staging-only
+  claims:
+    canonical_state: 91
+    index_crosscheck: 91
+    index_matches_state: true
+    withheld: 1
+    missing_provenance: 0
+    yield_per_1000_lines: 6.38
+  diagnostics:
+    total: 35
+    unknown_structured_field: 29
+    unknown_receipt_profile: 5
+    unresolved_locator: 1
+  conflicts_preserved: 5
+  determinism:
+    two_independent_vaults_byte_identical: true
+    vault_file_count: 132
+    settled_replay_zero_mutation: true
+baseline_comparison:
+  before:
+    batch: aborted closed at ingest on first bad file
+    per_file_ok: 39
+    per_file_fail: 31
+    locator_failures: 29
+    ambiguous_identity_failures: 2
+    claims_total: 15
+    yield_per_1000_lines: 1.05
+  after:
+    batch: completed exit 0 on all five pipeline steps
+    per_file_fail: 0
+    claims_total: 91
+    yield_per_1000_lines: 6.38
+level_0_status: ACHIEVED
+level_0_definition: >-
+  Directive section 13: the full RAW 70-file corpus completes without an
+  unhandled abort.
+conflict_preservation_validation: NOT YET EXERCISED beyond preserved counts
+known_limitations:
+  - >-
+    Corpus has no .atlas-project.yaml marker, so all sources compiled under
+    the legacy unknown-project compatibility path (no source_lineage_id
+    allocation); identity-locked project ingestion was not exercised by this
+    corpus.
+  - >-
+    Receipt claim subjects are project-scoped; cross-receipt same-field
+    differences surface as conflicts by design and are preserved, not
+    suppressed (5 observed).
+  - >-
+    18 COMPLETE sources yield zero claims (line-rule coverage boundary);
+    zero-claim files are visible in state/compilation-outcomes.
+  - >-
+    validate previously failed closed on source-relative links inside Layer
+    A imported evidence; exempted in aeb09f6 per the three-layer vault
+    model. Generated layers keep 100 percent link resolution.
+validation:
+  ruff: passed
+  mypy: "passed: 48 source files"
+  compileall: passed
+  full_pytest: "446 passed, 1 skipped (coverage TOTAL 92%)"
+  integration_pytest: "116 passed, 1 skipped"
+  corpus_pipeline: "5 steps, all exit 0"
+  determinism: "two independent vaults byte-identical; zero-mutation replay"
+merge_authorized: false

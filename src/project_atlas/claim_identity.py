@@ -160,6 +160,84 @@ def normalize_claim_value(value: str) -> str:
     return " ".join(value.split())
 
 
+def _disambiguate_collisions(
+    claims: list[dict[str, Any]], *, withhold_unresolvable: bool
+) -> list[dict[str, Any]]:
+    """Apply the smallest stable collision resolution (AS-EXT-001A, §7.7).
+
+    Groups claims by their identity-relevant tuple ``(claim_type, field,
+    locator)`` — the tuple the Claim Identity v2 key is derived from:
+
+    1. identical-value groups are the same statement repeated: keep the first
+       occurrence deterministically;
+    2. heading-derived collisions with different ancestor paths are resolved
+       with the full heading path (``headingpath:<ancestor>/<slug>``);
+    3. heading-derived collisions with identical paths (repeated sibling
+       statements, duplicated foreign H1s) are resolved with a deterministic
+       document-order ordinal suffix ``~n``;
+    4. anything still colliding (for example duplicate explicit IDs) is
+       marked ``withheld`` when ``withhold_unresolvable`` is set, so the
+       caller can emit a diagnostic and a PARTIAL candidate instead of
+       aborting; otherwise records pass through unchanged and the existing
+       fail-closed compiler behavior applies.
+
+    Only documents that would previously have aborted reach steps 2-4, so
+    locators of already-promoted claims are byte-identical.
+
+    Withheld unresolved-locator records (``locator is None``, §7.8) are
+    ungroupable for the dedupe pass: ``str(None)`` would group every such
+    record under one key and step 1 would drop identical occurrences without
+    a diagnostic, violating the no-silent-drop contract. Each occurrence
+    keeps its record index in the grouping key so it survives and is
+    diagnosed individually by the caller.
+    """
+
+    def group_key(index: int, claim: dict[str, Any]) -> tuple[str, str, str]:
+        locator = claim["locator"]
+        return (
+            str(claim["claim_type"]),
+            str(claim["field"]),
+            str(locator) if locator is not None else f"<unresolved-locator:{index}>",
+        )
+
+    groups: dict[tuple[str, str, str], list[int]] = {}
+    for index, claim in enumerate(claims):
+        groups.setdefault(group_key(index, claim), []).append(index)
+
+    drop: set[int] = set()
+    for (_claim_type, _field, locator), indexes in groups.items():
+        if len(indexes) < 2:
+            continue
+        members = [claims[index] for index in indexes]
+        if len({str(member["value"]) for member in members}) == 1:
+            drop.update(indexes[1:])
+            continue
+        if isinstance(locator, str) and locator.startswith("heading:"):
+            paths = [tuple(member.get("heading_path") or ()) for member in members]
+            if len(set(paths)) > 1 and all(paths):
+                for member, path in zip(members, paths, strict=True):
+                    member["locator"] = "headingpath:" + "/".join(path)
+            else:
+                for ordinal, member in enumerate(members, start=1):
+                    member["locator"] = f"{locator}~{ordinal}"
+
+    remaining: dict[tuple[str, str, str], list[int]] = {}
+    for index, claim in enumerate(claims):
+        if index in drop:
+            continue
+        remaining.setdefault(group_key(index, claim), []).append(index)
+    for indexes in remaining.values():
+        if len(indexes) < 2 or len(
+            {str(claims[index]["value"]) for index in indexes}
+        ) == 1:
+            continue
+        for index in indexes:
+            if withhold_unresolvable:
+                claims[index]["withheld"] = True
+
+    return [claim for index, claim in enumerate(claims) if index not in drop]
+
+
 def extract_claims(
     text: str,
     *,
@@ -167,6 +245,7 @@ def extract_claims(
     is_project_manifest: bool = False,
     classification: str | None = None,
     reject_unresolved: bool = False,
+    withhold_unresolvable: bool = False,
 ) -> list[dict[str, Any]]:
     """Extract raw claim records from source text using shared rules.
 
@@ -174,10 +253,18 @@ def extract_claims(
     ``legacy_value`` used by the v1 compiler, and the durable v2 locator.
     This is used by the compiler and migration so both agree on the complete
     candidate set while the migration can still reconstruct historical IDs.
+
+    ``withhold_unresolvable`` (AS-EXT-001A, §7.7) marks claims that still
+    collide after the smallest stable resolution instead of letting them
+    abort compilation; the default preserves legacy fail-closed behavior.
     """
     claims: list[dict[str, Any]] = []
     predecessor_id: str | None = None
     current_heading: str | None = None
+    heading_stack: list[tuple[int, str]] = []
+
+    def heading_path() -> tuple[str, ...]:
+        return tuple(slug for _level, slug in heading_stack)
 
     for raw_line in text.splitlines():
         line = raw_line.strip().lstrip("- ").strip()
@@ -187,7 +274,11 @@ def extract_claims(
             continue
 
         if raw_line.startswith("#"):
+            level = len(raw_line) - len(raw_line.lstrip("#"))
             current_heading = raw_line.lstrip("#").strip()
+            while heading_stack and heading_stack[-1][0] >= level:
+                heading_stack.pop()
+            heading_stack.append((level, _slug(current_heading)))
             continue
 
         for claim_type, field, pattern in _LINE_RULES:
@@ -209,6 +300,21 @@ def extract_claims(
             if locator is None:
                 if reject_unresolved:
                     raise UnresolvedLocatorError(line)
+                if withhold_unresolvable:
+                    # AS-EXT-001A §7.8: lines without a stable locator become
+                    # visible withheld records instead of silent skips.
+                    claims.append(
+                        {
+                            "claim_type": claim_type.value,
+                            "field": field,
+                            "value": normalize_claim_value(claim_value),
+                            "legacy_value": legacy_value,
+                            "locator": None,
+                            "predecessor_id": predecessor_id,
+                            "heading_path": heading_path(),
+                            "withheld": True,
+                        }
+                    )
                 break
 
             claims.append(
@@ -219,6 +325,7 @@ def extract_claims(
                     "legacy_value": legacy_value,
                     "locator": locator,
                     "predecessor_id": predecessor_id,
+                    "heading_path": heading_path(),
                 }
             )
             break
@@ -237,6 +344,20 @@ def extract_claims(
             if locator is None:
                 if reject_unresolved:
                     raise UnresolvedLocatorError(line)
+                if withhold_unresolvable:
+                    # AS-EXT-001A §7.8: visible withheld record, no silent skip.
+                    claims.append(
+                        {
+                            "claim_type": ClaimType.ARCHITECTURE.value,
+                            "field": "architecture",
+                            "value": normalize_claim_value(line),
+                            "legacy_value": normalize_claim_value(line),
+                            "locator": None,
+                            "predecessor_id": predecessor_id,
+                            "heading_path": heading_path(),
+                            "withheld": True,
+                        }
+                    )
                 break
             explicit_match = _EXPLICIT_ID.search(line)
             value = (
@@ -252,8 +373,9 @@ def extract_claims(
                     "legacy_value": normalize_claim_value(line),
                     "locator": locator,
                     "predecessor_id": predecessor_id,
+                    "heading_path": heading_path(),
                 }
             )
             break
 
-    return claims
+    return _disambiguate_collisions(claims, withhold_unresolvable=withhold_unresolvable)
