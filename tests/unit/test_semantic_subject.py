@@ -38,7 +38,12 @@ def test_serialize_round_trip_work_package() -> None:
 @pytest.mark.parametrize(
     ("factory", "kind", "key", "serialized"),
     [
-        (SemanticSubject.project, SemanticSubjectKind.PROJECT, "project-atlas", "project:project-atlas"),
+        (
+            SemanticSubject.project,
+            SemanticSubjectKind.PROJECT,
+            "project-atlas",
+            "project:project-atlas",
+        ),
         (SemanticSubject.adr, SemanticSubjectKind.ADR, "ADR-007", "adr:ADR-007"),
         (
             SemanticSubject.document,

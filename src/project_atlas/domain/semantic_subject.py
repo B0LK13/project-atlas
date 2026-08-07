@@ -173,7 +173,7 @@ class SemanticSubject(BaseModel):
         return cls(kind=SemanticSubjectKind.EVIDENCE_ENTITY, key=evidence_id)
 
 
-def is_semantic_subject_serialized(value: str) -> bool:
+def is_semantic_subject_serialized(value: object) -> bool:
     """Return True if ``value`` is a valid canonical semantic subject string."""
     if not isinstance(value, str):
         return False

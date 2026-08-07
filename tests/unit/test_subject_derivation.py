@@ -5,12 +5,12 @@ from __future__ import annotations
 import unicodedata
 
 from project_atlas.classification import ClassificationRecord, classify_source
+from project_atlas.domain import SemanticSubject, SemanticSubjectKind
 from project_atlas.evidence_compiler import extract_source
 from project_atlas.subject_derivation import (
     derive_semantic_subject,
     detect_duplicate_semantic_subjects,
 )
-from project_atlas.domain import SemanticSubject, SemanticSubjectKind
 
 
 def _cls(path: str, text: str = "") -> ClassificationRecord:

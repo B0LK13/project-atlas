@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-from project_atlas.domain import SemanticSubject, SemanticSubjectKind
 from project_atlas.domain.claims import ID_PATTERN, Claim, ProvenanceReference
 from project_atlas.domain.vocabulary import ClaimType
 from project_atlas.knowledge_compiler import _conflicts, compile_knowledge

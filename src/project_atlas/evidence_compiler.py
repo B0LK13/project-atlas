@@ -298,7 +298,7 @@ def _extract_lines(
         dimension = refine_status_dimension(
             field=str(raw["field"]),
             subject=subject,
-            structural_path=heading_path + (str(raw["field"]),),
+            structural_path=(*heading_path, str(raw["field"])),
             profile=classification.document_profile,
             semantic_concept=str(raw["field"]),
         )

@@ -27,11 +27,15 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     (source / ".atlas-project.yaml").write_text(
         "schema_version: 1\nproject:\n  id: claims-fixture\n", encoding="utf-8"
     )
+    shared = (
+        "semantic_subject: deployment-target\n"
+        "semantic_kind: doc\n"
+    )
     (source / "ARCHITECTURE.md").write_text(
-        "# Architecture\n\nDeployment: port 8000\n", encoding="utf-8"
+        f"# Architecture\n\n{shared}Deployment: port 8000\n", encoding="utf-8"
     )
     (source / "OPERATIONS.md").write_text(
-        "# Operations\n\nDeployment: port 9000\n", encoding="utf-8"
+        f"# Operations\n\n{shared}Deployment: port 9000\n", encoding="utf-8"
     )
     manifest = tmp_path / "manifest.json"
     vault = tmp_path / "vault"
@@ -214,10 +218,20 @@ def test_conflict_stale_restore_and_rejection_paths(tmp_path: Path) -> None:
         "classification": "project-overview",
         "source": "sources/imported-documents/source-a.md",
         "sha256": "a" * 64,
-        "text": "# Overview\nDeployment: port 8000",
+        "text": (
+            "# Overview\n"
+            "semantic_subject: deployment-target\n"
+            "semantic_kind: doc\n"
+            "Deployment: port 8000"
+        ),
         "observed_at": "2020-01-01T00:00:00+00:00",
     }
-    conflict_text = "# Overview\nDeployment: port 9000"
+    conflict_text = (
+        "# Overview\n"
+        "semantic_subject: deployment-target\n"
+        "semantic_kind: doc\n"
+        "Deployment: port 9000"
+    )
     conflict = dict(base, source_id="source-b", sha256="b" * 64, text=conflict_text)
     first = compile_knowledge("state-project", [base, conflict], tmp_path)
     assert {claim.lifecycle for claim in first.claims} == {ClaimLifecycle.CONTRADICTED}

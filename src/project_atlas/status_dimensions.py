@@ -15,7 +15,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from project_atlas.domain import SemanticSubject, SemanticSubjectKind, is_semantic_subject_serialized
+from project_atlas.domain import (
+    SemanticSubject,
+    SemanticSubjectKind,
+    is_semantic_subject_serialized,
+)
 
 
 @dataclass(frozen=True)

@@ -71,6 +71,9 @@ from project_atlas.domain.vocabulary import (
 )
 
 __all__ = [
+    "SEMANTIC_SUBJECT_PATTERN",
+    "SUBJECT_KEY_MAX_LENGTH",
+    "SUBJECT_KEY_PATTERN",
     "AgentEventReference",
     "AmbiguityStatus",
     "AuthorityLevel",
@@ -113,16 +116,11 @@ __all__ = [
     "ReviewEntry",
     "ReviewEntryStatus",
     "ReviewState",
-    "SEMANTIC_SUBJECT_PATTERN",
-    "SUBJECT_KEY_MAX_LENGTH",
-    "SUBJECT_KEY_PATTERN",
     "SemanticSubject",
     "SemanticSubjectError",
     "SemanticSubjectKind",
     "Severity",
     "SourceAuthority",
-    "is_semantic_subject_serialized",
-    "normalize_subject_key",
     "SourceChangeState",
     "SourceLifecycleRecord",
     "SourceLineageRecord",
@@ -133,4 +131,6 @@ __all__ = [
     "ValidationGate",
     "VerificationMetadata",
     "WorkPackageRecord",
+    "is_semantic_subject_serialized",
+    "normalize_subject_key",
 ]
