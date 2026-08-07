@@ -9,9 +9,9 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from project_atlas.domain.claims import ID_PATTERN, ProvenanceReference
+from project_atlas.domain.claims import ID_PATTERN, ProvenanceReference, validate_claim_subject
 from project_atlas.domain.vocabulary import ConflictType
 
 
@@ -38,7 +38,10 @@ class ConflictRecord(BaseModel):
     schema_version: Literal[1] = 1
     conflict_id: str = Field(pattern=ID_PATTERN)
     project_id: str | None = Field(default=None, pattern=ID_PATTERN)
-    subject: str = Field(pattern=ID_PATTERN, description="Concept ID the conflict is about")
+    subject: str = Field(
+        min_length=1,
+        description="Semantic subject the conflict is about",
+    )
     field: str = Field(min_length=1, description="Field with incompatible claims")
     claims: list[ConflictingClaim] = Field(min_length=2)
     claim_ids: list[str] = Field(default_factory=list)
@@ -47,6 +50,11 @@ class ConflictRecord(BaseModel):
     provenance: list[ProvenanceReference] = Field(default_factory=list)
     state: ConflictState = ConflictState.UNRESOLVED
     resolution: str | None = None
+
+    @field_validator("subject")
+    @classmethod
+    def _validate_subject(cls, value: str) -> str:
+        return validate_claim_subject(value)
 
     @model_validator(mode="after")
     def _resolution_consistency(self) -> ConflictRecord:

@@ -6,11 +6,13 @@ must therefore carry at least one :class:`ProvenanceReference`.
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from project_atlas.domain.semantic_subject import is_semantic_subject_serialized
 from project_atlas.domain.vocabulary import (
     AuthorityLevel,
     ClaimLifecycle,
@@ -20,6 +22,23 @@ from project_atlas.domain.vocabulary import (
 )
 
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
+
+_ID_RE = re.compile(ID_PATTERN)
+
+
+def validate_claim_subject(value: str) -> str:
+    """Accept legacy concept IDs or AS-CORE-004 semantic subject serialization.
+
+    Does **not** widen :data:`ID_PATTERN` — semantic subjects use a dedicated
+    grammar checked by :func:`is_semantic_subject_serialized`.
+    """
+    if not isinstance(value, str) or not value:
+        raise ValueError("subject must be a non-empty string")
+    if _ID_RE.fullmatch(value) or is_semantic_subject_serialized(value):
+        return value
+    raise ValueError(
+        "subject must match ID_PATTERN or semantic subject serialization <kind>:<key>"
+    )
 
 
 class ProvenanceReference(BaseModel):
@@ -59,7 +78,10 @@ class Claim(BaseModel):
     claim_id: str = Field(pattern=ID_PATTERN)
     project_id: str | None = Field(default=None, pattern=ID_PATTERN)
     source_lineage_id: str | None = Field(default=None, pattern=r"^sline-[A-Za-z0-9]+$")
-    subject: str = Field(pattern=ID_PATTERN, description="Concept ID the claim is about")
+    subject: str = Field(
+        min_length=1,
+        description="Semantic subject (legacy concept ID or kind:key serialization)",
+    )
     claim_type: ClaimType = ClaimType.PROJECT_PURPOSE
     field: str = Field(min_length=1, description="Concept field the claim asserts, e.g. status")
     value: str = Field(min_length=1)
@@ -72,6 +94,11 @@ class Claim(BaseModel):
     extraction_method: str = Field(default="manual", min_length=1)
     verification: ReviewState = ReviewState.UNREVIEWED
     predecessor_claim_id: str | None = Field(default=None, pattern=ID_PATTERN)
+
+    @field_validator("subject")
+    @classmethod
+    def _validate_subject(cls, value: str) -> str:
+        return validate_claim_subject(value)
 
     def model_post_init(self, __context: object) -> None:
         if self.normalized_text is None:

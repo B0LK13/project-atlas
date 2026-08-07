@@ -35,9 +35,15 @@ def test_expected_claims_with_distinct_subjects_and_locators() -> None:
         by_locator["yamlpath:as_ret_disposition.status"].normalized_value
         == "may-proceed-to-governance-rereview"
     )
-    # Distinct subjects: block-scoped, never one shared bucket (§7.6).
-    assert by_locator["yamlpath:verify_disposition.status"].subject == "verify_disposition"
-    assert by_locator["yamlpath:as_ret_disposition.status"].subject == "as_ret_disposition"
+    # Distinct subjects: block-scoped review subjects, never one shared bucket (§7.6).
+    assert (
+        by_locator["yamlpath:verify_disposition.status"].subject
+        == "review:verify-disposition"
+    )
+    assert (
+        by_locator["yamlpath:as_ret_disposition.status"].subject
+        == "review:as-ret-disposition"
+    )
 
 
 def test_zero_collision() -> None:

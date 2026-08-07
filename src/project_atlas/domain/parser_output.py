@@ -22,9 +22,9 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from project_atlas.domain.claims import ID_PATTERN
+from project_atlas.domain.claims import ID_PATTERN, validate_claim_subject
 from project_atlas.domain.vocabulary import AuthorityLevel, ClaimType
 
 
@@ -91,7 +91,7 @@ class ParserOutput(BaseModel):
     source_kind: str = Field(min_length=1)
     document_profile: str = Field(min_length=1)
     claim_type: ClaimType
-    subject: str = Field(pattern=ID_PATTERN)
+    subject: str = Field(min_length=1)
     normalized_field: str = Field(min_length=1)
     raw_value: str
     normalized_value: str
@@ -106,6 +106,11 @@ class ParserOutput(BaseModel):
     )
     authority_hint: AuthorityLevel = AuthorityLevel.INFERRED
     ambiguity_status: AmbiguityStatus = AmbiguityStatus.UNAMBIGUOUS
+
+    @field_validator("subject")
+    @classmethod
+    def _validate_subject(cls, value: str) -> str:
+        return validate_claim_subject(value)
 
     @model_validator(mode="after")
     def _safe_source_path(self) -> ParserOutput:

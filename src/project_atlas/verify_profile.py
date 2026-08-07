@@ -29,6 +29,7 @@ from project_atlas.domain import (
     LocatorConfidence,
     LocatorKind,
     ParserOutput,
+    SemanticSubject,
     SourceSpan,
 )
 from project_atlas.yaml_structured import (
@@ -43,20 +44,21 @@ PARSER_VERSION = "1.0.0"
 
 _HEADING = re.compile(r"^#{1,6}\s")
 
-#: Claim fields of the VERIFY profile: path -> (claim_type, field, subject).
-#: Subjects are block-scoped so repeated sibling keys can never collide (§7.6).
+#: Claim fields of the VERIFY profile: path -> (claim_type, field, block_subject).
+#: Block subjects remain distinct so repeated sibling keys never collide (§7.6).
+#: AS-CORE-004 serializes them as ``review:<block>`` semantic subjects.
 _CLAIM_FIELDS: dict[tuple[str, ...], tuple[ClaimType, str, str]] = {
     ("status",): (ClaimType.ROADMAP_STATUS, "status", "verify"),
     ("decision",): (ClaimType.DECISION, "decision", "verify"),
     ("verify_disposition", "status"): (
         ClaimType.ROADMAP_STATUS,
         "status",
-        "verify_disposition",
+        "verify-disposition",
     ),
     ("as_ret_disposition", "status"): (
         ClaimType.ROADMAP_STATUS,
         "status",
-        "as_ret_disposition",
+        "as-ret-disposition",
     ),
 }
 
@@ -132,7 +134,8 @@ def parse_verify_document(text: str, *, source_path: str) -> VerifyProfileResult
             # unknown-field preservation applied to the profile as well).
             metadata.append(locator)
             continue
-        claim_type, field, subject = claim
+        claim_type, field, block_subject = claim
+        subject = SemanticSubject.review(block_subject).serialize()
         span = SourceSpan()
         if len(key_path) == 1:
             top_line = next(

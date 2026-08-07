@@ -46,6 +46,7 @@ from project_atlas.evidence_profiles import (
     assess_receipt,
     classify_root_key,
 )
+from project_atlas.subject_derivation import derive_semantic_subject
 from project_atlas.verify_profile import parse_verify_document
 from project_atlas.yaml_structured import (
     DuplicateKeyError,
@@ -71,7 +72,8 @@ class ExtractedRecord:
     """One extracted statement at the parser/compiler boundary (§7.2).
 
     Carries everything the knowledge compiler needs for Claim Identity v2
-    derivation; never carries a claim id.
+    derivation; never carries a claim id. AS-CORE-004: each record may carry
+    its own semantic subject serialization (``kind:key``).
     """
 
     claim_type: str
@@ -80,6 +82,7 @@ class ExtractedRecord:
     locator: str
     parser_id: str
     extraction_method: str
+    subject: str | None = None
     withheld: bool = False
     predecessor_id: str | None = None
 
@@ -199,6 +202,14 @@ def _extract_lines(
     classification: ClassificationRecord,
 ) -> SourceExtraction:
     """Line-rule extraction for Markdown-like sources with withholding (§7.7/§7.8)."""
+    source_id = str(entry.get("source_id") or "")
+    subject_result = derive_semantic_subject(
+        project=project,
+        source_id=source_id,
+        path=path,
+        text=text,
+        classification=classification,
+    )
     schema_key = entry.get("schema_key")
     raw_records = extract_claims(
         text,
@@ -212,6 +223,41 @@ def _extract_lines(
     parser_outputs: list[ParserOutput] = []
     diagnostics: list[Diagnostic] = []
     messages: list[str] = []
+    if not subject_result.resolved:
+        reason = subject_result.reason or "ambiguous semantic subject"
+        messages.append(reason)
+        diagnostics.append(
+            Diagnostic(
+                code=DiagnosticCode.AMBIGUOUS_IDENTITY,
+                severity=Severity.WARNING,
+                source_path=path,
+                parser=classification.parser_id,
+                profile=classification.document_profile,
+                subject=None,
+                reason=reason,
+                remediation=(
+                    "add an explicit semantic subject id or a stable "
+                    "profile-specific identifier, then re-ingest"
+                ),
+                continued=True,
+                canonical_impact=CanonicalImpact.STAGING_ONLY,
+            )
+        )
+        return SourceExtraction(
+            candidate=CompilationCandidate(
+                source_path=path,
+                outcome=CompilationOutcome.PARTIAL_CANDIDATE,
+                claims_extracted=0,
+                claims_withheld=max(len(raw_records), 1),
+                diagnostics=tuple(messages),
+                classification=_classification_pairs(classification),
+            ),
+            records=(),
+            diagnostics=tuple(diagnostics),
+            parser_outputs=(),
+        )
+    subject = subject_result.serialized()
+    assert subject is not None
     for raw in raw_records:
         locator = raw["locator"]
         withheld = bool(raw.get("withheld")) or locator is None
@@ -234,7 +280,7 @@ def _extract_lines(
                     source_path=path,
                     parser=classification.parser_id,
                     profile=classification.document_profile,
-                    subject=project,
+                    subject=subject,
                     field=str(raw["field"]),
                     locator=str(locator) if locator else None,
                     reason=reason,
@@ -257,6 +303,7 @@ def _extract_lines(
                 # Legacy method string preserved: compiler/migration consistency
                 # for line-derived claims is an existing contract (AS-CORE-003).
                 extraction_method=f"semantic-locator:{locator}",
+                subject=subject,
                 predecessor_id=(
                     str(raw["predecessor_id"]) if raw.get("predecessor_id") else None
                 ),
@@ -269,7 +316,7 @@ def _extract_lines(
                 source_kind=classification.source_kind,
                 document_profile=classification.document_profile,
                 claim_type=ClaimType(str(raw["claim_type"])),
-                subject=project,
+                subject=subject,
                 normalized_field=str(raw["field"]),
                 raw_value=str(raw["legacy_value"]),
                 normalized_value=str(raw["value"]),
@@ -307,6 +354,8 @@ def _extract_receipt(
     path: str,
     text: str,
     classification: ClassificationRecord,
+    *,
+    source_id: str,
 ) -> SourceExtraction:
     """Bounded safe-YAML receipt extraction with profile assessment (§7.4/§7.5)."""
     try:
@@ -402,6 +451,50 @@ def _extract_receipt(
             )
         )
 
+    receipt_tree = tree if isinstance(tree, dict) else None
+    subject_result = derive_semantic_subject(
+        project=project,
+        source_id=source_id,
+        path=path,
+        text=text,
+        classification=classification,
+        receipt_tree=receipt_tree,
+    )
+    if not subject_result.resolved:
+        reason = subject_result.reason or "ambiguous semantic subject"
+        messages.append(reason)
+        diagnostics.append(
+            Diagnostic(
+                code=DiagnosticCode.AMBIGUOUS_IDENTITY,
+                severity=Severity.WARNING,
+                source_path=path,
+                parser="evidence-yaml",
+                profile=classification.document_profile,
+                reason=reason,
+                remediation=(
+                    "add a stable work-package id or durable source identity, "
+                    "then re-ingest"
+                ),
+                continued=True,
+                canonical_impact=CanonicalImpact.STAGING_ONLY,
+            )
+        )
+        return SourceExtraction(
+            candidate=CompilationCandidate(
+                source_path=path,
+                outcome=CompilationOutcome.PARTIAL_CANDIDATE,
+                claims_extracted=0,
+                claims_withheld=1,
+                diagnostics=tuple(messages),
+                classification=_classification_pairs(classification),
+            ),
+            records=(),
+            diagnostics=tuple(diagnostics),
+            parser_outputs=(),
+        )
+    subject = subject_result.serialized()
+    assert subject is not None
+
     pairs: list[tuple[ExtractedRecord, ParserOutput]] = []
     for leaf_path, value in iter_leaf_paths(tree):
         key_path = tuple(str(element) for element in leaf_path)
@@ -427,6 +520,7 @@ def _extract_receipt(
                     locator=locator,
                     parser_id="evidence-yaml",
                     extraction_method=f"evidence-yaml:{locator}",
+                    subject=subject,
                 ),
                 ParserOutput(
                     parser_id="evidence-yaml",
@@ -434,7 +528,7 @@ def _extract_receipt(
                     source_kind=classification.source_kind,
                     document_profile=classification.document_profile,
                     claim_type=claim_type,
-                    subject=project,
+                    subject=subject,
                     normalized_field=claim_field,
                     raw_value="" if value is None else str(value),
                     normalized_value=normalized,
@@ -484,8 +578,12 @@ def _extract_verify(
     path: str,
     text: str,
     classification: ClassificationRecord,
+    *,
+    source_id: str,
 ) -> SourceExtraction:
     """Registered VERIFY structured-document extraction (§7.6)."""
+    # VERIFY subjects come from block-scoped profile output (review:<block>).
+    _ = source_id
     result = parse_verify_document(text, source_path=path)
     if not result.records:
         failure_diagnostics = tuple(
@@ -539,6 +637,7 @@ def _extract_verify(
                 locator=output.stable_semantic_locator,
                 parser_id="verify-profile",
                 extraction_method=f"verify-profile:{output.stable_semantic_locator}",
+                subject=output.subject,
             ),
             output,
         )
@@ -611,12 +710,17 @@ def extract_source(project: str, entry: dict[str, Any]) -> SourceExtraction:
     """
     path = str(entry.get("path", ""))
     text = str(entry.get("text", ""))
+    source_id = str(entry.get("source_id") or "")
     classification = classify_source(path, text)
     try:
         if classification.parser_id == "evidence-yaml":
-            return _extract_receipt(project, path, text, classification)
+            return _extract_receipt(
+                project, path, text, classification, source_id=source_id
+            )
         if classification.parser_id == "verify-profile":
-            return _extract_verify(project, path, text, classification)
+            return _extract_verify(
+                project, path, text, classification, source_id=source_id
+            )
         if classification.parser_id == "none":
             return _unsupported(path, classification)
         return _extract_lines(project, path, text, entry, classification)
