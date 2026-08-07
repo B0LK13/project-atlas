@@ -32,6 +32,7 @@ from project_atlas.domain import (
     SemanticSubject,
     SourceSpan,
 )
+from project_atlas.status_dimensions import refine_status_dimension
 from project_atlas.yaml_structured import (
     YamlSecurityError,
     iter_leaf_paths,
@@ -44,9 +45,9 @@ PARSER_VERSION = "1.0.0"
 
 _HEADING = re.compile(r"^#{1,6}\s")
 
-#: Claim fields of the VERIFY profile: path -> (claim_type, field, block_subject).
+#: Claim fields of the VERIFY profile: path -> (claim_type, raw_field, block_subject).
 #: Block subjects remain distinct so repeated sibling keys never collide (§7.6).
-#: AS-CORE-004 serializes them as ``review:<block>`` semantic subjects.
+#: AS-CORE-004 serializes them as ``review:<block>`` and refines status dimensions.
 _CLAIM_FIELDS: dict[tuple[str, ...], tuple[ClaimType, str, str]] = {
     ("status",): (ClaimType.ROADMAP_STATUS, "status", "verify"),
     ("decision",): (ClaimType.DECISION, "decision", "verify"),
@@ -134,8 +135,15 @@ def parse_verify_document(text: str, *, source_path: str) -> VerifyProfileResult
             # unknown-field preservation applied to the profile as well).
             metadata.append(locator)
             continue
-        claim_type, field, block_subject = claim
+        claim_type, raw_field, block_subject = claim
         subject = SemanticSubject.review(block_subject).serialize()
+        dimension = refine_status_dimension(
+            field=raw_field,
+            subject=subject,
+            structural_path=key_path,
+            profile="verify-structured",
+        )
+        field = dimension.field
         span = SourceSpan()
         if len(key_path) == 1:
             top_line = next(

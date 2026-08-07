@@ -46,6 +46,7 @@ from project_atlas.evidence_profiles import (
     assess_receipt,
     classify_root_key,
 )
+from project_atlas.status_dimensions import refine_status_dimension
 from project_atlas.subject_derivation import derive_semantic_subject
 from project_atlas.verify_profile import parse_verify_document
 from project_atlas.yaml_structured import (
@@ -293,10 +294,39 @@ def _extract_lines(
                 )
             )
             continue
+        heading_path = tuple(str(part) for part in raw.get("heading_path") or ())
+        dimension = refine_status_dimension(
+            field=str(raw["field"]),
+            subject=subject,
+            structural_path=heading_path + (str(raw["field"]),),
+            profile=classification.document_profile,
+            semantic_concept=str(raw["field"]),
+        )
+        if dimension.ambiguous and str(raw["field"]) == "status":
+            reason = dimension.reason or "ambiguous status dimension"
+            messages.append(reason)
+            diagnostics.append(
+                Diagnostic(
+                    code=DiagnosticCode.AMBIGUOUS_IDENTITY,
+                    severity=Severity.WARNING,
+                    source_path=path,
+                    parser=classification.parser_id,
+                    profile=classification.document_profile,
+                    subject=subject,
+                    field=str(raw["field"]),
+                    locator=str(locator),
+                    reason=reason,
+                    remediation="provide structural context for the status field",
+                    continued=True,
+                    canonical_impact=CanonicalImpact.STAGING_ONLY,
+                )
+            )
+            continue
+        claim_field = dimension.field
         records.append(
             ExtractedRecord(
                 claim_type=str(raw["claim_type"]),
-                field=str(raw["field"]),
+                field=claim_field,
                 value=str(raw["value"]),
                 locator=str(locator),
                 parser_id=classification.parser_id,
@@ -317,14 +347,14 @@ def _extract_lines(
                 document_profile=classification.document_profile,
                 claim_type=ClaimType(str(raw["claim_type"])),
                 subject=subject,
-                normalized_field=str(raw["field"]),
+                normalized_field=claim_field,
                 raw_value=str(raw["legacy_value"]),
                 normalized_value=str(raw["value"]),
                 stable_semantic_locator=str(locator),
                 locator_kind=_line_locator_kind(str(locator)),
                 locator_confidence=LocatorConfidence.STABLE,
                 source_path=path,
-                structural_context=tuple(str(part) for part in raw.get("heading_path") or ()),
+                structural_context=heading_path,
                 authority_hint=AuthorityLevel.INFERRED,
                 ambiguity_status=AmbiguityStatus.UNAMBIGUOUS,
             )
@@ -511,6 +541,34 @@ def _extract_receipt(
             if any(isinstance(element, int) for element in leaf_path)
             else LocatorConfidence.STABLE
         )
+        dimension = refine_status_dimension(
+            field=claim_field,
+            subject=subject,
+            structural_path=key_path,
+            profile=classification.document_profile,
+            semantic_concept=concept,
+        )
+        if dimension.ambiguous and claim_field == "status":
+            reason = dimension.reason or "ambiguous status dimension"
+            messages.append(reason)
+            diagnostics.append(
+                Diagnostic(
+                    code=DiagnosticCode.AMBIGUOUS_IDENTITY,
+                    severity=Severity.WARNING,
+                    source_path=path,
+                    parser="evidence-yaml",
+                    profile=classification.document_profile,
+                    subject=subject,
+                    field=claim_field,
+                    locator=locator,
+                    reason=reason,
+                    remediation="provide structural context for the status field",
+                    continued=True,
+                    canonical_impact=CanonicalImpact.STAGING_ONLY,
+                )
+            )
+            continue
+        claim_field = dimension.field
         pairs.append(
             (
                 ExtractedRecord(
