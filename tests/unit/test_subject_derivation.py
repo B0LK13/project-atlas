@@ -126,9 +126,11 @@ def test_missing_stable_id_fails_closed() -> None:
 def test_duplicate_stable_ids_fail_closed_without_path_winner() -> None:
     collisions = detect_duplicate_semantic_subjects(
         [
-            ("source-b", "docs/work-packages/b.md", "wp:AS-EXT-001A"),
-            ("source-a", "docs/work-packages/a.md", "wp:AS-EXT-001A"),
+            ("source-b", "docs/work-packages/AS-EXT-001A.md", "wp:AS-EXT-001A"),
+            ("source-a", "docs/work-packages/AS-EXT-001A-copy.md", "wp:AS-EXT-001A"),
             ("source-c", "docs/other.md", "doc:source-c"),
+            # Receipts may reference the same WP without being definitional owners.
+            ("source-r", "docs/evidence/r.yaml", "wp:AS-EXT-001A"),
         ]
     )
     assert len(collisions) == 1

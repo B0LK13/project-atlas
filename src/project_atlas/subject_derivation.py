@@ -224,18 +224,20 @@ def derive_semantic_subject(
 def detect_duplicate_semantic_subjects(
     assignments: list[tuple[str, str, str]],
 ) -> list[tuple[str, str, tuple[str, ...]]]:
-    """Fail closed on illegitimate duplicate stable subject IDs.
+    """Fail closed on illegitimate duplicate *definitional* subject IDs.
 
     ``assignments`` entries are ``(source_id, path, serialized_subject)``.
-    Returns list of ``(serialized_subject, kind_key, source_ids)`` collisions
-    where the same non-project semantic subject is defined by multiple sources.
+
+    Multiple sources may *reference* the same subject (e.g. receipts about one
+    work package). Collisions are only reported for definitional owners —
+    ADR / work-package documents whose path declares the stable id.
 
     Ordering of inputs must not affect which collision is reported — never
     pick a winner by path sort, mtime, or parser order.
     """
     by_subject: dict[str, set[str]] = {}
-    for source_id, _path, serialized in assignments:
-        if serialized.startswith("project:"):
+    for source_id, path, serialized in assignments:
+        if not _is_definitional_owner(path, serialized):
             continue
         by_subject.setdefault(serialized, set()).add(source_id)
     collisions: list[tuple[str, str, tuple[str, ...]]] = []
@@ -243,3 +245,19 @@ def detect_duplicate_semantic_subjects(
         if len(sources) > 1:
             collisions.append((serialized, serialized, tuple(sorted(sources))))
     return collisions
+
+
+def _is_definitional_owner(path: str, serialized: str) -> bool:
+    """Return True when the source path is the defining home of the subject."""
+    normalized = path.replace("\\", "/")
+    if serialized.startswith("wp:"):
+        key = serialized.split(":", 1)[1]
+        if "/work-packages/" not in f"/{normalized}":
+            return False
+        return _work_package_id_from_path(normalized) == key
+    if serialized.startswith("adr:"):
+        key = serialized.split(":", 1)[1]
+        if "/adr/" not in f"/{normalized}":
+            return False
+        return _adr_id(normalized, "") == key
+    return False
