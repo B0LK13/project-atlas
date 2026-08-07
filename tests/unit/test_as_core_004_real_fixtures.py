@@ -1,7 +1,6 @@
 """AS-CORE-004: nine real false-conflict fixtures + conflict recalculation (S1/S6).
 
-Research fixtures (read-only inputs):
-D:/project-atlas-orphans/antigravity-post-as-ext/subject-scope/real-fixtures/
+Vendored research fixtures live under tests/fixtures/as-core-004/.
 """
 
 from __future__ import annotations
@@ -17,12 +16,9 @@ from project_atlas.domain.claims import ID_PATTERN, Claim, ProvenanceReference
 from project_atlas.domain.vocabulary import ClaimType
 from project_atlas.knowledge_compiler import _conflicts, compile_knowledge
 
-INVENTORY_PATH = Path(
-    r"D:/project-atlas-orphans/antigravity-post-as-ext/conflict-experiment/real/CONFLICT-INVENTORY.json"
-)
-FIXTURE_DIR = Path(
-    r"D:/project-atlas-orphans/antigravity-post-as-ext/subject-scope/real-fixtures"
-)
+_FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "as-core-004"
+INVENTORY_PATH = _FIXTURE_ROOT / "CONFLICT-INVENTORY.json"
+FIXTURE_DIR = _FIXTURE_ROOT / "real-fixtures"
 
 NINE_FALSE_CONFLICT_IDS: tuple[str, ...] = (
     "conflict-ee101ef66159eb9a35c4",
