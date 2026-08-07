@@ -2,7 +2,9 @@
 
 **BASE**: `7bf974623071ac946ed542fffc84f134887eeae7`  
 **CORPUS**: `D:\atlas-selfhost\post-merge-7bf9746\corpus` (70 files / 641,925 bytes)  
-**VAULT RUN**: `.tmp/as-core-004-selfhost/` (gitignored)
+**VAULT RUN**: `.tmp/as-core-004-selfhost/` (gitignored)  
+**RE-VERIFIED FROM IMPLEMENTATION HEAD**: `9ef79a4d4c168f525abe2a3dd550002d2fd10921`  
+(`.tmp/as-core-004-final-remediation/`; dual-vault + settled replay)
 
 ## Pipeline
 
