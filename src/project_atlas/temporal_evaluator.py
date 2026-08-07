@@ -108,6 +108,29 @@ def _graph_reachable(start: str, successors: dict[str, set[str]]) -> set[str]:
     return seen
 
 
+def _unbound_candidate_refs(
+    with_ord: list[ClaimTemporalContext],
+    in_group_ordinals: set[int],
+) -> tuple[str, ...]:
+    """Parseable supersedes/superseded_by tokens that do not bind in-group.
+
+    A syntactic token is not a supersession edge. Binding failure is dangling.
+    """
+    unbound: list[str] = []
+    for ctx in with_ord:
+        for token in ctx.facts.supersedes_tokens:
+            num = _candidate_num(token)
+            if num is not None and num not in in_group_ordinals:
+                unbound.append(f"supersedes:{token}")
+        sb = ctx.facts.superseded_by_token
+        if sb:
+            num = _candidate_num(sb)
+            if num is not None and num not in in_group_ordinals:
+                unbound.append(f"superseded_by:{sb}")
+    # Deterministic unique order
+    return tuple(sorted(set(unbound)))
+
+
 def _build_record(
     *,
     project_id: str | None,
@@ -305,88 +328,34 @@ def _try_candidate_supersession(
     if len({c.value for c in with_ord}) <= 1:
         return None
 
-    if not edges and len(with_ord) >= 2:
-        # Require at least one supersedes token somewhere; do not rank by ordinal alone.
-        if not any(c.facts.supersedes_tokens or c.facts.superseded_by_token for c in with_ord):
-            return None
-        # Soft chain: max ordinal current only if every lower has supersedes evidence path
-        ordered = sorted(with_ord, key=lambda c: c.facts.candidate_ordinal or -1)
-        current = ordered[-1]
-        if not current.facts.supersedes_tokens and not any(
-            _candidate_num(c.facts.superseded_by_token) == current.facts.candidate_ordinal
-            for c in ordered[:-1]
-        ):
-            return None
-        historical = ordered[:-1]
-        relations = [
-            TemporalRelation(
-                kind=TemporalRelationKind.SUPERSEDES,
-                from_claim_id=current.claim_id,
-                to_claim_id=h.claim_id,
-                evidence_kind=TemporalEvidenceKind.SOURCE_VERSION,
-                rationale="candidate supersession chain",
-            )
-            for h in historical
-        ]
-        # Include non-candidate claims (e.g. Planned) as historical only if
-        # document_timestamp precedes current candidate timestamp.
-        extras = [c for c in ctxs if c.facts.candidate_ordinal is None]
-        for extra in extras:
-            planned_like = (
-                extra.facts.status_value or ""
-            ).lower() == "planned" or "amendment-plan" in extra.facts.path
-            timed = (
-                extra.facts.document_timestamp
-                and current.facts.document_timestamp
-                and extra.facts.document_timestamp <= current.facts.document_timestamp
-            )
-            non_candidate_residual = (
-                extra.subject.startswith("wp:")
-                and extra.subject == current.subject
-                and extra.field == current.field
-            )
-            if planned_like or timed or non_candidate_residual:
-                historical.append(extra)
-                relations.append(
-                    TemporalRelation(
-                        kind=TemporalRelationKind.SUPERSEDES,
-                        from_claim_id=current.claim_id,
-                        to_claim_id=extra.claim_id,
-                        evidence_kind=TemporalEvidenceKind.DOCUMENT_DECLARED,
-                        rationale="planned/earlier residual vs candidate tip",
-                    )
-                )
-            else:
-                return _fail(
-                    ctxs,
-                    project_id=project_id,
-                    compilation_id=compilation_id,
-                    status=TemporalStatus.UNRESOLVED,
-                    basis=ResolutionBasis.UNRESOLVED_AMBIGUOUS,
-                    rationale=(
-                        "candidate chain tip found but residual claims lack "
-                        "comparable temporal evidence"
-                    ),
-                )
-        if not _same_authority_or_unaffected([current, *historical]):
+    in_group_ordinals = set(by_ord)
+    unbound_refs = _unbound_candidate_refs(with_ord, in_group_ordinals)
+
+    if not edges:
+        # Soft ordinal ranking is prohibited. A parseable token that does not
+        # bind in-group is dangling — not positive supersession evidence.
+        if unbound_refs:
             return _fail(
                 ctxs,
                 project_id=project_id,
                 compilation_id=compilation_id,
-                status=TemporalStatus.AUTHORITY_PENDING,
-                basis=ResolutionBasis.AUTHORITY_PENDING,
-                rationale="candidate supersession blocked by authority inequality",
+                status=TemporalStatus.UNRESOLVED,
+                basis=ResolutionBasis.DANGLING,
+                rationale=(
+                    "supersession reference(s) do not bind to any in-group "
+                    f"candidate: {', '.join(unbound_refs)}; fail closed "
+                    "(token presence is not a supersession edge)"
+                ),
             )
-        return _resolve_success(
-            ctxs,
-            project_id=project_id,
-            compilation_id=compilation_id,
-            current=current,
-            historical=historical,
-            basis=ResolutionBasis.SUPERSEDES,
-            rationale="explicit candidate supersession chain",
-            relations=relations,
-        )
+        # No bound edges and no dangling parseable refs → no candidate evidence.
+        return None
+
+    # Bound edges exist. Out-of-group parseable tokens (e.g. V2-001 referenced
+    # from V2-003 while only V2-003..V2-006 participate in this conflict) do
+    # not authorize ordinal fallback; tip selection uses only successfully
+    # bound in-group edges. Those unbound refs are irrelevant to terminal
+    # detection once a unique tip is proven by the bound graph alone.
+    # If bound edges do not yield a unique tip, fail closed below (branching).
 
     # Graph tip: nodes with edges, no outgoing? "from supersedes to" means from=later
     successors: dict[str, set[str]] = defaultdict(set)

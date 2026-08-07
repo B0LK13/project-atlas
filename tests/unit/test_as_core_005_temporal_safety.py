@@ -25,8 +25,7 @@ def _ctx(
         value=value,
         source_id=source_id,
         authority=authority,
-        facts=facts
-        or SourceTemporalFacts(source_id=source_id, path=f"docs/{source_id}.yaml"),
+        facts=facts or SourceTemporalFacts(source_id=source_id, path=f"docs/{source_id}.yaml"),
         path=f"docs/{source_id}.yaml",
     )
 
@@ -297,7 +296,12 @@ def test_branching_successors_fail_closed() -> None:
     assert result.disposition.resolution_basis is ResolutionBasis.BRANCHING
 
 
-def test_dangling_reference_unresolved() -> None:
+def test_dangling_supersedes_fail_closed() -> None:
+    """Verifier reproduction: unbound supersedes token must not tip current.
+
+    On 251f9b79496e03bf38a8a7fcebd37b2b9ec0ab9f this incorrectly returned
+    current/supersedes via soft ordinal ranking. After remediation: dangling.
+    """
     a = _ctx(
         "claim-a",
         value="v1",
@@ -321,14 +325,162 @@ def test_dangling_reference_unresolved() -> None:
         ),
     )
     result = evaluate_group([a, b], project_id="project-atlas", compilation_id="c1")
-    # Soft adjacent chain may still resolve 4->3; dangling mention alone should not
-    # invent a tip against missing evidence. Accept unresolved OR resolve only via
-    # adjacent supersedes_tokens presence with ordinal-1.
-    if result.disposition.temporal_status is TemporalStatus.CURRENT:
-        assert result.disposition.current_claim_id == "claim-b"
-        assert "claim-a" in result.disposition.historical_claim_ids
-    else:
-        assert result.disposition.current_claim_id is None
+    assert result.disposition.temporal_status is TemporalStatus.UNRESOLVED
+    assert result.disposition.current_claim_id is None
+    assert result.disposition.resolution_basis is ResolutionBasis.DANGLING
+    assert result.conflict_reclassified is False
+    assert "V2-099" in result.disposition.rationale
+    assert "supersedes:" in result.disposition.rationale
+
+
+def test_dangling_superseded_by_fail_closed() -> None:
+    a = _ctx(
+        "claim-a",
+        value="v1",
+        facts=SourceTemporalFacts(
+            source_id="source-a",
+            path="docs/evidence/AS-CORE-003-v2-candidate-003.yaml",
+            candidate_ordinal=3,
+            superseded_by_token="V2-099",
+            status_value="v1",
+        ),
+    )
+    b = _ctx(
+        "claim-b",
+        value="v2",
+        source_id="source-b",
+        facts=SourceTemporalFacts(
+            source_id="source-b",
+            path="docs/evidence/AS-CORE-003-v2-candidate-004.yaml",
+            candidate_ordinal=4,
+            status_value="v2",
+        ),
+    )
+    result = evaluate_group([a, b], project_id="project-atlas", compilation_id="c1")
+    assert result.disposition.temporal_status is TemporalStatus.UNRESOLVED
+    assert result.disposition.current_claim_id is None
+    assert result.disposition.resolution_basis is ResolutionBasis.DANGLING
+    assert "superseded_by:" in result.disposition.rationale
+    assert "V2-099" in result.disposition.rationale
+
+
+def test_no_temporal_evidence_remains_unresolved() -> None:
+    a = _ctx(
+        "claim-a",
+        value="v1",
+        facts=SourceTemporalFacts(
+            source_id="source-a",
+            path="docs/evidence/AS-CORE-003-v2-candidate-003.yaml",
+            candidate_ordinal=3,
+            status_value="v1",
+        ),
+    )
+    b = _ctx(
+        "claim-b",
+        value="v2",
+        source_id="source-b",
+        facts=SourceTemporalFacts(
+            source_id="source-b",
+            path="docs/evidence/AS-CORE-003-v2-candidate-004.yaml",
+            candidate_ordinal=4,
+            status_value="v2",
+        ),
+    )
+    result = evaluate_group([a, b], project_id="project-atlas", compilation_id="c1")
+    assert result.disposition.temporal_status is TemporalStatus.UNRESOLVED
+    assert result.disposition.current_claim_id is None
+    assert result.disposition.resolution_basis is ResolutionBasis.UNRESOLVED_AMBIGUOUS
+
+
+def test_valid_chain_plus_material_dangling_tip_fail_closed() -> None:
+    """Bound edge 4→3 plus unbound tip 5 (V2-099 only) → no unique tip."""
+    c3 = _ctx(
+        "claim-c3",
+        value="v3",
+        source_id="s3",
+        facts=SourceTemporalFacts(
+            source_id="s3",
+            path="docs/evidence/AS-CORE-003-v2-candidate-003.yaml",
+            candidate_ordinal=3,
+            status_value="v3",
+        ),
+    )
+    c4 = _ctx(
+        "claim-c4",
+        value="v4",
+        source_id="s4",
+        facts=SourceTemporalFacts(
+            source_id="s4",
+            path="docs/evidence/AS-CORE-003-v2-candidate-004.yaml",
+            candidate_ordinal=4,
+            supersedes_tokens=("V2-003",),
+            status_value="v4",
+        ),
+    )
+    c5 = _ctx(
+        "claim-c5",
+        value="v5",
+        source_id="s5",
+        facts=SourceTemporalFacts(
+            source_id="s5",
+            path="docs/evidence/AS-CORE-003-v2-candidate-005.yaml",
+            candidate_ordinal=5,
+            supersedes_tokens=("V2-099",),
+            status_value="v5",
+        ),
+    )
+    result = evaluate_group([c3, c4, c5], project_id="project-atlas", compilation_id="c1")
+    assert result.disposition.temporal_status is TemporalStatus.UNRESOLVED
+    assert result.disposition.current_claim_id is None
+    assert result.disposition.resolution_basis in {
+        ResolutionBasis.BRANCHING,
+        ResolutionBasis.DANGLING,
+        ResolutionBasis.UNRESOLVED_AMBIGUOUS,
+    }
+
+
+def test_bound_chain_with_out_of_group_historical_token_still_resolves() -> None:
+    """Out-of-group token (V2-001) is irrelevant once bound in-group tip is unique."""
+    c3 = _ctx(
+        "claim-c3",
+        value="v3",
+        source_id="s3",
+        facts=SourceTemporalFacts(
+            source_id="s3",
+            path="docs/evidence/AS-CORE-003-v2-candidate-003.yaml",
+            candidate_ordinal=3,
+            supersedes_tokens=("V2-001",),  # not in this conflict group
+            status_value="v3",
+        ),
+    )
+    c4 = _ctx(
+        "claim-c4",
+        value="v4",
+        source_id="s4",
+        facts=SourceTemporalFacts(
+            source_id="s4",
+            path="docs/evidence/AS-CORE-003-v2-candidate-004.yaml",
+            candidate_ordinal=4,
+            supersedes_tokens=("V2-003",),
+            status_value="v4",
+        ),
+    )
+    c5 = _ctx(
+        "claim-c5",
+        value="v5",
+        source_id="s5",
+        facts=SourceTemporalFacts(
+            source_id="s5",
+            path="docs/evidence/AS-CORE-003-v2-candidate-005.yaml",
+            candidate_ordinal=5,
+            supersedes_tokens=("V2-004",),
+            status_value="v5",
+        ),
+    )
+    result = evaluate_group([c3, c4, c5], project_id="project-atlas", compilation_id="c1")
+    assert result.disposition.temporal_status is TemporalStatus.CURRENT
+    assert result.disposition.current_claim_id == "claim-c5"
+    assert set(result.disposition.historical_claim_ids) == {"claim-c3", "claim-c4"}
 
 
 def test_same_source_multi_value_unresolved() -> None:
