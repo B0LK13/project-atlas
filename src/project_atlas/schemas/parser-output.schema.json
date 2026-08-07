@@ -46,7 +46,15 @@
         "operational-instruction"
       ]
     },
-    "subject": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Legacy concept ID or AS-CORE-004 semantic subject serialization (<kind>:<key>).",
+      "anyOf": [
+        { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+        { "pattern": "^(?:project|wp|adr|doc|review|experiment|roadmap-item|evidence):[A-Za-z0-9][A-Za-z0-9._-]*$" }
+      ]
+    },
     "normalized_field": { "type": "string", "minLength": 1 },
     "raw_value": { "type": "string" },
     "normalized_value": { "type": "string" },

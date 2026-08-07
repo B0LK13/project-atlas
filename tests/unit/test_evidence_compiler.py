@@ -63,8 +63,10 @@ def test_receipt_claims_use_yamlpath_locators() -> None:
     assert extraction.records
     assert all(record.locator.startswith("yamlpath:") for record in extraction.records)
     assert all(record.parser_id == "evidence-yaml" for record in extraction.records)
-    assert {record.field for record in extraction.records} >= {"status"}
-    statuses = [record for record in extraction.records if record.field == "status"]
+    assert {record.field for record in extraction.records} >= {"package_status"}
+    statuses = [
+        record for record in extraction.records if record.field == "package_status"
+    ]
     assert statuses and statuses[0].extraction_method.startswith("evidence-yaml:yamlpath:")
 
 

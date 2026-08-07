@@ -33,6 +33,7 @@ class DiagnosticCode(StrEnum):
     PARSER_FAILURE = "parser-failure"
     ALIAS_AMBIGUITY = "alias-ambiguity"
     PROMOTION_FAILURE = "promotion-failure"
+    SEMANTIC_REFINEMENT_SPLIT = "semantic-refinement-split"
 
 
 class CanonicalImpact(StrEnum):

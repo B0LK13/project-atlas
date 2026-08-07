@@ -50,6 +50,7 @@ def test_all_directive_codes_constructible() -> None:
         "parser-failure",
         "alias-ambiguity",
         "promotion-failure",
+        "semantic-refinement-split",
     }
     assert {code.value for code in DiagnosticCode} == expected
     for code in DiagnosticCode:

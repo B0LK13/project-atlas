@@ -38,6 +38,16 @@ from project_atlas.domain.semantic import (
     ValidationEvidence,
     WorkPackageRecord,
 )
+from project_atlas.domain.semantic_subject import (
+    SEMANTIC_SUBJECT_PATTERN,
+    SUBJECT_KEY_MAX_LENGTH,
+    SUBJECT_KEY_PATTERN,
+    SemanticSubject,
+    SemanticSubjectError,
+    SemanticSubjectKind,
+    is_semantic_subject_serialized,
+    normalize_subject_key,
+)
 from project_atlas.domain.source_registry import PathHistoryEntry, SourceLineageRecord
 from project_atlas.domain.sources import RepositoryInfo, SourceRecord
 from project_atlas.domain.vocabulary import (
@@ -61,6 +71,9 @@ from project_atlas.domain.vocabulary import (
 )
 
 __all__ = [
+    "SEMANTIC_SUBJECT_PATTERN",
+    "SUBJECT_KEY_MAX_LENGTH",
+    "SUBJECT_KEY_PATTERN",
     "AgentEventReference",
     "AmbiguityStatus",
     "AuthorityLevel",
@@ -103,6 +116,9 @@ __all__ = [
     "ReviewEntry",
     "ReviewEntryStatus",
     "ReviewState",
+    "SemanticSubject",
+    "SemanticSubjectError",
+    "SemanticSubjectKind",
     "Severity",
     "SourceAuthority",
     "SourceChangeState",
@@ -115,4 +131,6 @@ __all__ = [
     "ValidationGate",
     "VerificationMetadata",
     "WorkPackageRecord",
+    "is_semantic_subject_serialized",
+    "normalize_subject_key",
 ]

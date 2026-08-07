@@ -22,7 +22,8 @@
         "classification-ambiguity",
         "parser-failure",
         "alias-ambiguity",
-        "promotion-failure"
+        "promotion-failure",
+        "semantic-refinement-split"
       ]
     },
     "severity": { "type": "string", "enum": ["error", "warning", "info"] },

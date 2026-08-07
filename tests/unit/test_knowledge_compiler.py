@@ -116,13 +116,31 @@ def test_authority_downgrade_requires_explicit_review() -> None:
 
 
 def test_conflicting_explicit_claims_remain_visible_and_queue_review(tmp_path: Path) -> None:
+    # AS-CORE-004: true conflicts require the same semantic subject + field.
+    shared = (
+        "semantic_subject: deployment-target\n"
+        "semantic_kind: doc\n"
+    )
     entries = [
-        _entry("source-a", "ARCHITECTURE.md", "Deployment: port 8000", HASH_A, "architecture"),
-        _entry("source-b", "OPERATIONS.md", "Deployment: port 9000", HASH_B, "operations"),
+        _entry(
+            "source-a",
+            "ARCHITECTURE.md",
+            shared + "Deployment: port 8000",
+            HASH_A,
+            "architecture",
+        ),
+        _entry(
+            "source-b",
+            "OPERATIONS.md",
+            shared + "Deployment: port 9000",
+            HASH_B,
+            "operations",
+        ),
     ]
     bundle = compile_knowledge("project-1", entries, tmp_path)
     assert len(bundle.conflicts) == 1
     assert bundle.conflicts[0].state.value == "unresolved"
+    assert bundle.conflicts[0].subject == "doc:deployment-target"
     assert {item.source_id for item in bundle.conflicts[0].claims} == {"source-a", "source-b"}
     assert any(item.category == "conflict" for item in bundle.reviews)
     assert all(claim.provenance for claim in bundle.claims)

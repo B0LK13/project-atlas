@@ -20,6 +20,7 @@ from project_atlas.compilation import CompilationCandidate, CompilationOutcome
 from project_atlas.domain import (
     AuthorityLevel,
     AuthorityRecord,
+    CanonicalImpact,
     Claim,
     ClaimLifecycle,
     ClaimLifecycleRecord,
@@ -32,6 +33,7 @@ from project_atlas.domain import (
     ConflictingClaim,
     ConflictRecord,
     Diagnostic,
+    DiagnosticCode,
     GeneratedMetadata,
     KnowledgeState,
     LifecycleStatus,
@@ -39,12 +41,14 @@ from project_atlas.domain import (
     ReviewCategory,
     ReviewEntry,
     ReviewState,
+    Severity,
     VerificationMetadata,
 )
 from project_atlas.evidence_compiler import SourceExtraction, extract_source
 from project_atlas.okf_renderer import render_concept_note
 from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
+from project_atlas.subject_derivation import detect_duplicate_semantic_subjects
 
 _ALLOWED_LIFECYCLE_TRANSITIONS: dict[ClaimLifecycle, frozenset[ClaimLifecycle]] = {
     ClaimLifecycle.NEW: frozenset(
@@ -222,12 +226,20 @@ def _claim(
     field: str,
     value: str,
     locator: str,
+    *,
+    subject: str | None = None,
 ) -> Claim:
     normalized = " ".join(value.split())
     source_id = str(entry["source_id"])
     source_lineage_id = entry.get("source_lineage_id")
     source_identity = str(source_lineage_id or source_id)
     project_identity = str(entry.get("project_uuid") or project)
+    # AS-CORE-004: never silently fall back to project when subject is missing.
+    if not subject:
+        raise ValueError(
+            f"refusing claim promotion without semantic subject "
+            f"(source={source_id}, field={field}, locator={locator})"
+        )
 
     identity_key = canonical_identity_key(
         project_identity, source_identity, claim_type.value, field, locator
@@ -240,7 +252,7 @@ def _claim(
         source_lineage_id=(
             str(entry["source_lineage_id"]) if entry.get("source_lineage_id") else None
         ),
-        subject=project,
+        subject=subject,
         claim_type=claim_type,
         field=field,
         value=normalized,
@@ -270,6 +282,9 @@ def _extract(project: str, entry: dict[str, Any]) -> tuple[list[Claim], SourceEx
     claims: list[Claim] = []
     if extraction.candidate.promotable:
         for record in extraction.records:
+            if not record.subject:
+                # Fail closed: incomplete subject derivation never promotes.
+                continue
             claim = _claim(
                 project,
                 entry,
@@ -277,6 +292,7 @@ def _extract(project: str, entry: dict[str, Any]) -> tuple[list[Claim], SourceEx
                 record.field,
                 record.value,
                 record.locator,
+                subject=record.subject,
             )
             updates: dict[str, Any] = {"extraction_method": record.extraction_method}
             if record.predecessor_id:
@@ -328,7 +344,7 @@ def _event_claim(project: str, entry: dict[str, Any]) -> Claim:
         source_lineage_id=(
             str(entry["source_lineage_id"]) if entry.get("source_lineage_id") else None
         ),
-        subject=project,
+        subject=f"project:{project}",
         claim_type=claim_type,
         field=event_type,
         value=value,
@@ -388,7 +404,7 @@ def _conflicts(project: str, claims: list[Claim]) -> list[ConflictRecord]:
         }
         if len(distinct) < 2:
             continue
-        field = key.split("|", 1)[1]
+        subject, field = key.split("|", 1)
         lineage_key = "|".join(
             sorted({claim.source_lineage_id or claim.provenance[0].source_id for claim in values})
         )
@@ -398,7 +414,7 @@ def _conflicts(project: str, claims: list[Claim]) -> list[ConflictRecord]:
             ConflictRecord(
                 project_id=project,
                 conflict_id=conflict_id,
-                subject=project,
+                subject=subject,
                 field=field,
                 claims=[
                     ConflictingClaim(
@@ -760,11 +776,70 @@ def compile_knowledge(
     claims: list[Claim] = []
     candidates: list[CompilationCandidate] = []
     diagnostics: list[Diagnostic] = []
+    subject_assignments: list[tuple[str, str, str]] = []
     for entry in entries:
         extracted, extraction = _extract(project, entry)
         claims.extend(extracted)
         candidates.append(extraction.candidate)
         diagnostics.extend(extraction.diagnostics)
+        source_id = str(entry.get("source_id") or "")
+        path = str(entry.get("path") or "")
+        for record in extraction.records:
+            if record.subject:
+                subject_assignments.append((source_id, path, record.subject))
+    for collision in detect_duplicate_semantic_subjects(subject_assignments):
+        # Illegitimate duplicate stable semantic IDs: fail closed for that
+        # ambiguous subject. Withhold ALL claims whose subject depends on the
+        # ambiguous identity (definitional owners and third-party references),
+        # and account for every withheld claim/source in the diagnostic.
+        serialized = collision.serialized
+        withheld = [claim for claim in claims if claim.subject == serialized]
+        withheld_ids = tuple(sorted({claim.claim_id for claim in withheld}))
+        affected_source_ids = tuple(
+            sorted(
+                {
+                    ref.source_id
+                    for claim in withheld
+                    for ref in claim.provenance
+                    if ref.source_id
+                }
+            )
+        )
+        paths_text = ", ".join(collision.definitional_source_paths) or "(paths unavailable)"
+        ids_text = ", ".join(collision.definitional_source_ids)
+        withheld_ids_text = ", ".join(withheld_ids) if withheld_ids else "(none)"
+        affected_text = ", ".join(affected_source_ids) if affected_source_ids else "(none)"
+        diagnostics.append(
+            Diagnostic(
+                code=DiagnosticCode.AMBIGUOUS_IDENTITY,
+                severity=Severity.ERROR,
+                subject=serialized,
+                reason=(
+                    f"semantic subject {serialized} is ambiguous: duplicate "
+                    f"definitional source_ids [{ids_text}] at paths "
+                    f"[{paths_text}]; ALL claims depending on this subject "
+                    f"are withheld from canonical state until ambiguity is "
+                    f"resolved "
+                    f"(total_claims_withheld={len(withheld)}, "
+                    f"unique_claim_ids_withheld={len(withheld_ids)} "
+                    f"[{withheld_ids_text}], "
+                    f"affected_source_ids=[{affected_text}], "
+                    f"canonical_impact=staging-only)"
+                ),
+                remediation=(
+                    "resolve the duplicate stable semantic identifier so the "
+                    "subject is unique; remove or rename one definitional "
+                    "owner. Atlas does not pick a winner by path or parse "
+                    "order. Independent unambiguous subjects continue. "
+                    "Third-party receipts/reviews that reference the "
+                    "ambiguous subject remain withheld because the referent "
+                    "cannot be uniquely resolved."
+                ),
+                continued=True,
+                canonical_impact=CanonicalImpact.STAGING_ONLY,
+            )
+        )
+        claims = [claim for claim in claims if claim.subject != serialized]
     claims.extend(_event_claim(project, entry) for entry in (event_entries or []))
     by_id: dict[str, Claim] = {}
     for claim in claims:

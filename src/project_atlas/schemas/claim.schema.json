@@ -11,7 +11,15 @@
     "claim_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "project_id": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "source_lineage_id": { "type": ["string", "null"], "pattern": "^sline-[A-Za-z0-9]+$" },
-    "subject": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Legacy concept ID or AS-CORE-004 semantic subject serialization (<kind>:<key>). Does not widen global ID_PATTERN.",
+      "anyOf": [
+        { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+        { "pattern": "^(?:project|wp|adr|doc|review|experiment|roadmap-item|evidence):[A-Za-z0-9][A-Za-z0-9._-]*$" }
+      ]
+    },
     "claim_type": { "type": "string", "enum": ["project-purpose", "architecture-statement", "setup-requirement", "runtime-dependency", "deployment-target", "test-validation-result", "roadmap-status", "work-package-status", "decision", "risk-blocker", "operational-instruction"] },
     "field": { "type": "string", "minLength": 1 },
     "value": { "type": "string", "minLength": 1 },
