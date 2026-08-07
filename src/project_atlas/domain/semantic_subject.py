@@ -20,8 +20,9 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 #: Maximum length of a semantic subject key (corpus-bounded; security ceiling).
 SUBJECT_KEY_MAX_LENGTH: Final[int] = 128
 
-#: Documented ASCII key form for schemas/docs. The runtime validator also
-#: accepts Unicode letters after NFC (see :func:`normalize_subject_key`).
+#: Authoritative ASCII key grammar (runtime + JSON Schema must agree).
+#: Semantic keys are NFC-normalized before this bounded ASCII validation.
+#: Display names and source text may remain Unicode; stable IDs may not.
 SUBJECT_KEY_PATTERN: Final[str] = r"^[0-9A-Za-z][0-9A-Za-z._-]*$"
 
 #: Kind token alternation used in serialization / docs.
@@ -29,13 +30,16 @@ _KIND_TOKEN_ALT: Final[str] = (
     "project|wp|adr|doc|review|experiment|roadmap-item|evidence"
 )
 
-#: Documented ASCII-oriented serialization pattern for schemas / docs.
+#: Authoritative serialization pattern for schemas / docs / runtime.
 SEMANTIC_SUBJECT_PATTERN: Final[str] = (
     rf"^(?:{_KIND_TOKEN_ALT}):[0-9A-Za-z][0-9A-Za-z._-]*$"
 )
 
 #: Control characters (C0 + DEL + C1) — rejected in keys.
 _CONTROL_RE: Final[re.Pattern[str]] = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+#: Compiled authoritative key grammar.
+_SUBJECT_KEY_RE: Final[re.Pattern[str]] = re.compile(SUBJECT_KEY_PATTERN)
 
 
 class SemanticSubjectKind(StrEnum):
@@ -63,14 +67,22 @@ class SemanticSubjectError(ValueError):
 def normalize_subject_key(raw: str) -> str:
     """Normalize a subject key under the AS-CORE-004 contract.
 
-    - Unicode NFC normalization
-    - Reject empty / whitespace-only / leading-trailing whitespace
-    - Reject control characters
-    - Reject path separators and kind separators inside the key
-    - Enforce length and charset
+    Stable semantic identifier keys are ASCII after NFC normalization.
+    Steps (fail closed):
+
+    1. require string
+    2. reject leading/trailing whitespace
+    3. reject empty
+    4. reject control characters
+    5. reject path separators
+    6. reject ``:``
+    7. NFC-normalize
+    8. enforce max length 128
+    9. enforce :data:`SUBJECT_KEY_PATTERN` (ASCII)
 
     Does not case-fold: ``AS-EXT-001A`` and ``as-ext-001a`` remain distinct
-    unless a profile explicitly normalizes.
+    unless a profile explicitly normalizes. Does not accept non-ASCII letters
+    via ``str.isalnum()`` — runtime must match JSON Schema admissibility.
     """
     if not isinstance(raw, str):
         raise SemanticSubjectError("subject key must be a string")
@@ -89,15 +101,10 @@ def normalize_subject_key(raw: str) -> str:
         raise SemanticSubjectError(
             f"subject key exceeds max length {SUBJECT_KEY_MAX_LENGTH}"
         )
-    if not raw[0].isalnum():
+    if _SUBJECT_KEY_RE.fullmatch(raw) is None:
         raise SemanticSubjectError(
-            "subject key must start with an alphanumeric character"
-        )
-    for index, char in enumerate(raw):
-        if char.isalnum() or (index > 0 and char in "._-"):
-            continue
-        raise SemanticSubjectError(
-            "subject key may contain letters, digits, and interior . _ - only"
+            "subject key must match ASCII SUBJECT_KEY_PATTERN "
+            f"{SUBJECT_KEY_PATTERN}"
         )
     return raw
 

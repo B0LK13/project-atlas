@@ -33,7 +33,7 @@ _ADR_ID = re.compile(r"(ADR-\d+)", re.I)
 _WP_ID = re.compile(r"\b(AS-[A-Z]+-\d+[A-Z]?)\b")
 
 #: Explicit semantic id markers in markdown / yaml text.
-#: Key charset validated by :func:`normalize_subject_key` (Unicode letters ok).
+#: Key charset validated by :func:`normalize_subject_key` (ASCII after NFC).
 _EXPLICIT_SUBJECT = re.compile(
     r"(?im)^(?:semantic[_-]?subject|subject[_-]?id|stable[_-]?id)\s*:\s*"
     r"(\S+)\s*$"
@@ -221,9 +221,18 @@ def derive_semantic_subject(
     )
 
 
+@dataclass(frozen=True)
+class DuplicateSemanticSubject:
+    """One ambiguous semantic subject caused by duplicate definitional owners."""
+
+    serialized: str
+    definitional_source_ids: tuple[str, ...]
+    definitional_source_paths: tuple[str, ...]
+
+
 def detect_duplicate_semantic_subjects(
     assignments: list[tuple[str, str, str]],
-) -> list[tuple[str, str, tuple[str, ...]]]:
+) -> list[DuplicateSemanticSubject]:
     """Fail closed on illegitimate duplicate *definitional* subject IDs.
 
     ``assignments`` entries are ``(source_id, path, serialized_subject)``.
@@ -236,14 +245,24 @@ def detect_duplicate_semantic_subjects(
     pick a winner by path sort, mtime, or parser order.
     """
     by_subject: dict[str, set[str]] = {}
+    paths_by_subject: dict[str, set[str]] = {}
     for source_id, path, serialized in assignments:
         if not _is_definitional_owner(path, serialized):
             continue
         by_subject.setdefault(serialized, set()).add(source_id)
-    collisions: list[tuple[str, str, tuple[str, ...]]] = []
+        paths_by_subject.setdefault(serialized, set()).add(path.replace("\\", "/"))
+    collisions: list[DuplicateSemanticSubject] = []
     for serialized, sources in sorted(by_subject.items()):
         if len(sources) > 1:
-            collisions.append((serialized, serialized, tuple(sorted(sources))))
+            collisions.append(
+                DuplicateSemanticSubject(
+                    serialized=serialized,
+                    definitional_source_ids=tuple(sorted(sources)),
+                    definitional_source_paths=tuple(
+                        sorted(paths_by_subject.get(serialized, set()))
+                    ),
+                )
+            )
     return collisions
 
 

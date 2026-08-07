@@ -83,16 +83,34 @@ def test_kind_factories_and_serialization(
     assert SemanticSubject.parse(serialized) == subject
 
 
-def test_nfc_equivalence() -> None:
-    # U+00E9 (é) vs e + combining acute
+def test_ascii_stable_key_passes() -> None:
+    assert normalize_subject_key("AS-EXT-001A") == "AS-EXT-001A"
+    assert normalize_subject_key("source-fcb48476ce167a33") == "source-fcb48476ce167a33"
+    subject = SemanticSubject.work_package("AS-CORE-004")
+    assert subject.serialize() == "wp:AS-CORE-004"
+
+
+def test_nfc_then_bounded_ascii_validation() -> None:
+    """Semantic keys are NFC-normalized before bounded ASCII validation."""
+    ascii_key = "AS-EXT-001A"
+    assert unicodedata.normalize("NFC", ascii_key) == ascii_key
+    assert normalize_subject_key(ascii_key) == ascii_key
+
+    # Non-ASCII letter (U+00E9) rejected after NFC.
     composed = "cafe\u00e9-id"
+    with pytest.raises(SemanticSubjectError, match="SUBJECT_KEY_PATTERN"):
+        normalize_subject_key(composed)
+
+    # Combining sequence rejected after deterministic NFC (still non-ASCII).
     decomposed = "cafe\u0065\u0301-id"
-    assert composed != decomposed
     assert unicodedata.normalize("NFC", decomposed) == composed
-    a = SemanticSubject(kind=SemanticSubjectKind.DOCUMENT, key=composed)
-    b = SemanticSubject(kind=SemanticSubjectKind.DOCUMENT, key=decomposed)
-    assert a.key == b.key == composed
-    assert a.serialize() == b.serialize()
+    with pytest.raises(SemanticSubjectError, match="SUBJECT_KEY_PATTERN"):
+        normalize_subject_key(decomposed)
+
+    # Confusable outside ASCII grammar (Cyrillic 'а' U+0430).
+    confusable = "AS-EXT-00\u04301A"
+    with pytest.raises(SemanticSubjectError, match="SUBJECT_KEY_PATTERN"):
+        normalize_subject_key(confusable)
 
 
 def test_reject_whitespace_and_controls() -> None:
@@ -120,9 +138,9 @@ def test_reject_empty_oversized_and_bad_charset() -> None:
         normalize_subject_key("")
     with pytest.raises(SemanticSubjectError, match="max length"):
         normalize_subject_key("a" * (SUBJECT_KEY_MAX_LENGTH + 1))
-    with pytest.raises(SemanticSubjectError, match="letters, digits"):
+    with pytest.raises(SemanticSubjectError, match="SUBJECT_KEY_PATTERN"):
         normalize_subject_key("bad key with spaces")
-    with pytest.raises(SemanticSubjectError, match="start with an alphanumeric"):
+    with pytest.raises(SemanticSubjectError, match="SUBJECT_KEY_PATTERN"):
         normalize_subject_key("-leading-dash")
 
 

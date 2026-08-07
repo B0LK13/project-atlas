@@ -134,34 +134,34 @@ def test_duplicate_stable_ids_fail_closed_without_path_winner() -> None:
         ]
     )
     assert len(collisions) == 1
-    serialized, _key, sources = collisions[0]
-    assert serialized == "wp:AS-EXT-001A"
-    assert sources == ("source-a", "source-b")
+    assert collisions[0].serialized == "wp:AS-EXT-001A"
+    assert collisions[0].definitional_source_ids == ("source-a", "source-b")
+    assert collisions[0].definitional_source_paths == (
+        "docs/work-packages/AS-EXT-001A-copy.md",
+        "docs/work-packages/AS-EXT-001A.md",
+    )
 
 
-def test_unicode_nfc_in_explicit_subject() -> None:
+def test_non_ascii_explicit_subject_rejected() -> None:
+    """Stable keys: NFC then bounded ASCII — non-ASCII letters fail closed."""
     composed = "cafe\u00e9-id"
     decomposed = "cafe\u0065\u0301-id"
     assert composed != decomposed
-    text_a = f"semantic_subject: {decomposed}\nsemantic_kind: doc\n"
-    text_b = f"semantic_subject: {composed}\nsemantic_kind: doc\n"
-    a = derive_semantic_subject(
-        project="p",
-        source_id="s1",
-        path="docs/a.md",
-        text=text_a,
-        classification=_cls("docs/a.md", text_a),
-    )
-    b = derive_semantic_subject(
-        project="p",
-        source_id="s2",
-        path="docs/b.md",
-        text=text_b,
-        classification=_cls("docs/b.md", text_b),
-    )
-    assert a.serialized() == b.serialized()
-    assert a.subject is not None
-    assert a.subject.key == unicodedata.normalize("NFC", composed)
+    assert unicodedata.normalize("NFC", decomposed) == composed
+    for key in (composed, decomposed):
+        text = f"semantic_subject: {key}\nsemantic_kind: doc\n"
+        result = derive_semantic_subject(
+            project="p",
+            source_id="s1",
+            path="docs/a.md",
+            text=text,
+            classification=_cls("docs/a.md", text),
+        )
+        assert not result.resolved
+        assert result.ambiguous
+        assert result.subject is None
+        assert result.reason is not None
+        assert "invalid semantic subject key" in result.reason
 
 
 def test_receipt_derives_work_package_not_receipt_subject() -> None:
