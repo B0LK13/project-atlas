@@ -1,6 +1,7 @@
 # AS-CORE-004 Independent Reviews (Candidate)
 
-**CANDIDATE HEAD**: recorded at freeze  
+**CANDIDATE HEAD**: `1a93a27b53642ae101ea3635d37270197221bc5b`  
+**CANDIDATE TREE**: `339ac0acbb02542a53c62585e105ba89ae32cf94`  
 **BASE**: `7bf974623071ac946ed542fffc84f134887eeae7`
 
 ## Technical review
