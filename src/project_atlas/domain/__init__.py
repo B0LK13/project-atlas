@@ -50,6 +50,14 @@ from project_atlas.domain.semantic_subject import (
 )
 from project_atlas.domain.source_registry import PathHistoryEntry, SourceLineageRecord
 from project_atlas.domain.sources import RepositoryInfo, SourceRecord
+from project_atlas.domain.temporal import (
+    CurrentStateRecord,
+    ResolutionBasis,
+    TemporalEvidenceKind,
+    TemporalRelation,
+    TemporalRelationKind,
+    TemporalStatus,
+)
 from project_atlas.domain.vocabulary import (
     AuthorityLevel,
     ClaimLifecycle,
@@ -95,6 +103,7 @@ __all__ = [
     "ConflictType",
     "ConflictingClaim",
     "CoverageRecord",
+    "CurrentStateRecord",
     "DecisionRecord",
     "Diagnostic",
     "DiagnosticCode",
@@ -112,6 +121,7 @@ __all__ = [
     "RelationType",
     "Relationship",
     "RepositoryInfo",
+    "ResolutionBasis",
     "ReviewCategory",
     "ReviewEntry",
     "ReviewEntryStatus",
@@ -126,6 +136,10 @@ __all__ = [
     "SourceLineageRecord",
     "SourceRecord",
     "SourceSpan",
+    "TemporalEvidenceKind",
+    "TemporalRelation",
+    "TemporalRelationKind",
+    "TemporalStatus",
     "ValidationEvidence",
     "ValidationFinding",
     "ValidationGate",

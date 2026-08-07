@@ -1,0 +1,61 @@
+package: AS-ID-001
+title: Durable Source Lineage Identity
+certified_base_commit: 313712ee28083693ae39470b2d7148dc74617322
+architecture_contract_commit: ae98fba
+implementation_commit: 058a954
+evidence_commit: SELF
+status: implementation-complete-governor-review-required
+uuid_genesis:
+  format: UUIDv4
+  production_provider: cryptographically-strong uuid.uuid4
+  test_provider: injected deterministic callable
+  persistence: project marker, atomic with registry state
+  replay: zero writes after successful allocation
+  concurrency: project-scoped Core lock, single accepted UUID and receipt
+lineage:
+  namespace: atlas/source-lineage/v1
+  formula: sline- + sha256(namespace|project_uuid|canonical_first_seen_path|first_content_sha256|lineage_generation)[:20]
+  registry: state/sources.json
+  schema_version: 2
+  compatibility_source_id: retained path-derived source_id during deprecation window
+path_contract:
+  relative_only: true
+  separators: /
+  unicode: NFC
+  case: sensitive
+  reject_dot_segments: true
+  reject_symlinks: true
+fingerprint:
+  algorithm: SHA-256
+  input: original source bytes
+  streaming: true
+migration:
+  source_schema: 1
+  target_schema: 2
+  ordering: first_seen, canonical_origin_path, first_content_sha256
+  receipts: one source-lineage-migration receipt per migrated lineage
+  atomic: true
+ambiguity:
+  result: unresolved identity
+  canonical_writes: 0
+  allocation: none
+validation:
+  focused_as_id_001_and_lifecycle: 20 passed
+  core_suite: 103 collected and passed
+  control_plane_suite: 146 collected and passed
+  mypy: clean, 31 source files
+  ruff: passed
+  compilation: passed
+  control_plane_diff: zero
+  public_workflow: covered by Core integration workflow tests
+  strict_vault_validation: covered by Core integration workflow tests
+protected_branches:
+  main: 313712ee28083693ae39470b2d7148dc74617322
+  original_as_core_003: 04a62fe
+  adapted_as_core_003_implementation: 49e9a91
+  adapted_as_core_003_evidence: c120c03
+  architecture: ae98fba
+notes:
+  - AS-CORE-003 remains frozen and outside this package.
+  - Control Plane files are unchanged.
+  - Certification and merge eligibility are not claimed; governor review remains required.

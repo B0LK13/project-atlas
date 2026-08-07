@@ -44,11 +44,14 @@ from project_atlas.domain import (
     Severity,
     VerificationMetadata,
 )
+from project_atlas.domain.temporal import CurrentStateRecord, TemporalRelation
 from project_atlas.evidence_compiler import SourceExtraction, extract_source
 from project_atlas.okf_renderer import render_concept_note
 from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
 from project_atlas.subject_derivation import detect_duplicate_semantic_subjects
+from project_atlas.temporal_evaluator import evaluate_conflicts
+from project_atlas.temporal_evidence import extract_source_temporal_facts
 
 _ALLOWED_LIFECYCLE_TRANSITIONS: dict[ClaimLifecycle, frozenset[ClaimLifecycle]] = {
     ClaimLifecycle.NEW: frozenset(
@@ -146,6 +149,10 @@ class KnowledgeBundle:
     # AS-EXT-001A: per-source outcomes and structured diagnostics (§7.8/§7.9).
     candidates: tuple[CompilationCandidate, ...] = ()
     diagnostics: tuple[Diagnostic, ...] = ()
+    # AS-CORE-005: derived temporal current-state projection (claims immutable).
+    current_states: tuple[CurrentStateRecord, ...] = ()
+    temporal_relations: tuple[TemporalRelation, ...] = ()
+    compilation_id: str = ""
 
 
 def _quote_source_text(text: str) -> str:
@@ -502,6 +509,7 @@ def _review(
             ],
         )
         for conflict in conflicts
+        if conflict.state.value == "unresolved"
     )
     return sorted(entries, key=lambda item: item.review_id)
 
@@ -871,7 +879,25 @@ def compile_knowledge(
     )
     preconditions: dict[str, bytes | None] = {}
     preconditions[f"state/claim-lifecycle/{project}.json"] = original_lifecycle_bytes
-    conflicts = _conflicts(project, claims)
+    preliminary_conflicts = _conflicts(project, claims)
+    facts_by_source = {
+        str(entry.get("source_id") or ""): extract_source_temporal_facts(
+            source_id=str(entry.get("source_id") or ""),
+            path=str(entry.get("path") or ""),
+            text=str(entry.get("text") or ""),
+        )
+        for entry in entries
+        if entry.get("source_id")
+    }
+    claim_fingerprint = "|".join(sorted(c.claim_id for c in claims))
+    compilation_id = f"compile-{_digest(project + '|' + claim_fingerprint)[:20]}"
+    current_states, temporal_relations, conflicts = evaluate_conflicts(
+        claims,
+        preliminary_conflicts,
+        facts_by_source,
+        project_id=project,
+        compilation_id=compilation_id,
+    )
     reviews = _review(project, claims, conflicts)
     reviews.extend(
         ReviewEntry(
@@ -939,7 +965,15 @@ def compile_knowledge(
         "verified_claims": sum(claim.confidence is ConfidenceState.HIGH for claim in claims),
         "maintained_claims": sum(claim.authority is AuthorityLevel.MAINTAINED for claim in claims),
         "inferred_claims": sum(claim.authority is AuthorityLevel.INFERRED for claim in claims),
-        "unresolved_conflicts": len(conflicts),
+        "unresolved_conflicts": sum(
+            conflict.state.value == "unresolved" for conflict in conflicts
+        ),
+        "temporally_resolved_conflicts": sum(
+            conflict.state.value == "resolved"
+            and isinstance(conflict.resolution, str)
+            and conflict.resolution.startswith("historical-transition")
+            for conflict in conflicts
+        ),
         "stale_claims": sum(claim.lifecycle is ClaimLifecycle.STALE for claim in claims),
         "claims_missing_provenance": sum(not claim.provenance for claim in claims),
         "claims_awaiting_review": len(reviews),
@@ -957,6 +991,7 @@ def compile_knowledge(
         ),
         "claims_withheld": sum(candidate.claims_withheld for candidate in candidates),
         "diagnostics": len(diagnostics),
+        "current_state_projections": len(current_states),
     }
     return KnowledgeBundle(
         claims=tuple(claims),
@@ -970,6 +1005,9 @@ def compile_knowledge(
         preconditions=preconditions,
         candidates=tuple(candidates),
         diagnostics=tuple(diagnostics),
+        current_states=current_states,
+        temporal_relations=temporal_relations,
+        compilation_id=compilation_id,
     )
 
 
@@ -1024,6 +1062,22 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
         + "\n",
         f"state/claim-lifecycle/{project}.json": json.dumps(
             {"schema_version": 1, "project_id": project, "claims": lifecycle},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        f"state/current-state/{project}.json": json.dumps(
+            {
+                "schema_version": 1,
+                "project_id": project,
+                "compilation_id": bundle.compilation_id,
+                "current_states": [
+                    item.model_dump(mode="json") for item in bundle.current_states
+                ],
+                "temporal_relations": [
+                    item.model_dump(mode="json") for item in bundle.temporal_relations
+                ],
+            },
             indent=2,
             sort_keys=True,
         )
