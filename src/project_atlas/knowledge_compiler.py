@@ -787,20 +787,53 @@ def compile_knowledge(
         for record in extraction.records:
             if record.subject:
                 subject_assignments.append((source_id, path, record.subject))
-    for serialized, _key, source_ids in detect_duplicate_semantic_subjects(subject_assignments):
+    for collision in detect_duplicate_semantic_subjects(subject_assignments):
         # Illegitimate duplicate stable semantic IDs: fail closed for that
-        # relationship; withhold affected claims; continue independent sources.
+        # ambiguous subject. Withhold ALL claims whose subject depends on the
+        # ambiguous identity (definitional owners and third-party references),
+        # and account for every withheld claim/source in the diagnostic.
+        serialized = collision.serialized
+        withheld = [claim for claim in claims if claim.subject == serialized]
+        withheld_ids = tuple(sorted({claim.claim_id for claim in withheld}))
+        affected_source_ids = tuple(
+            sorted(
+                {
+                    ref.source_id
+                    for claim in withheld
+                    for ref in claim.provenance
+                    if ref.source_id
+                }
+            )
+        )
+        paths_text = ", ".join(collision.definitional_source_paths) or "(paths unavailable)"
+        ids_text = ", ".join(collision.definitional_source_ids)
+        withheld_ids_text = ", ".join(withheld_ids) if withheld_ids else "(none)"
+        affected_text = ", ".join(affected_source_ids) if affected_source_ids else "(none)"
         diagnostics.append(
             Diagnostic(
                 code=DiagnosticCode.AMBIGUOUS_IDENTITY,
                 severity=Severity.ERROR,
+                subject=serialized,
                 reason=(
-                    f"duplicate semantic subject {serialized} defined by "
-                    f"sources {', '.join(source_ids)}"
+                    f"semantic subject {serialized} is ambiguous: duplicate "
+                    f"definitional source_ids [{ids_text}] at paths "
+                    f"[{paths_text}]; ALL claims depending on this subject "
+                    f"are withheld from canonical state until ambiguity is "
+                    f"resolved "
+                    f"(total_claims_withheld={len(withheld)}, "
+                    f"unique_claim_ids_withheld={len(withheld_ids)} "
+                    f"[{withheld_ids_text}], "
+                    f"affected_source_ids=[{affected_text}], "
+                    f"canonical_impact=staging-only)"
                 ),
                 remediation=(
-                    "remove or rename the duplicate stable semantic identifier; "
-                    "Atlas will not pick a winner by path or parse order"
+                    "resolve the duplicate stable semantic identifier so the "
+                    "subject is unique; remove or rename one definitional "
+                    "owner. Atlas does not pick a winner by path or parse "
+                    "order. Independent unambiguous subjects continue. "
+                    "Third-party receipts/reviews that reference the "
+                    "ambiguous subject remain withheld because the referent "
+                    "cannot be uniquely resolved."
                 ),
                 continued=True,
                 canonical_impact=CanonicalImpact.STAGING_ONLY,
