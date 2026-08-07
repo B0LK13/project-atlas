@@ -107,7 +107,7 @@ def test_nfc_then_bounded_ascii_validation() -> None:
     with pytest.raises(SemanticSubjectError, match="SUBJECT_KEY_PATTERN"):
         normalize_subject_key(decomposed)
 
-    # Confusable outside ASCII grammar (Cyrillic 'а' U+0430).
+    # Confusable outside ASCII grammar (Cyrillic small letter a, U+0430).
     confusable = "AS-EXT-00\u04301A"
     with pytest.raises(SemanticSubjectError, match="SUBJECT_KEY_PATTERN"):
         normalize_subject_key(confusable)
