@@ -27,8 +27,8 @@ def _identity(claim_id: str, field: str = "package_status") -> RefinedClaimIdent
 
 def test_provable_one_to_one_alias() -> None:
     transition = classify_semantic_transition(
-        "claim-old",
-        ["claim-new"],
+        "claim-old1",
+        ["claim-new1"],
         old_subject="project-atlas",
         new_subjects=["wp:AS-EXT-001A"],
         old_field="status",
@@ -39,24 +39,24 @@ def test_provable_one_to_one_alias() -> None:
         "project-atlas",
         [
             LocatorMigration(
-                old_claim_id="claim-old",
+                old_claim_id="claim-old1",
                 old_locator="yamlpath:status",
-                new=(_identity("claim-new"),),
+                new=(_identity("claim-new1"),),
             )
         ],
         migrated_at="2026-08-07T00:00:00Z",
         source_commits_scanned=1,
     )
     assert len(payload["aliases"]) == 1
-    assert payload["aliases"][0]["v1_claim_id"] == "claim-old"
-    assert payload["aliases"][0]["v2_claim_id"] == "claim-new"
+    assert payload["aliases"][0]["v1_claim_id"] == "claim-old1"
+    assert payload["aliases"][0]["v2_claim_id"] == "claim-new1"
     assert diagnostics == ()
 
 
 def test_one_to_many_split_no_auto_alias() -> None:
     transition = classify_semantic_transition(
-        "claim-old-status",
-        ["claim-wp-a", "claim-wp-b", "claim-adr"],
+        "claim-oldstatus",
+        ["claim-wpa", "claim-wpb", "claim-adr"],
         old_subject="project-atlas",
         new_subjects=["wp:A", "wp:B", "adr:ADR-007"],
         old_field="status",
@@ -69,11 +69,11 @@ def test_one_to_many_split_no_auto_alias() -> None:
         "project-atlas",
         [
             LocatorMigration(
-                old_claim_id="claim-old-status",
+                old_claim_id="claim-oldstatus",
                 old_locator="heading:status",
                 new=(
-                    _identity("claim-wp-a"),
-                    _identity("claim-wp-b"),
+                    _identity("claim-wpa"),
+                    _identity("claim-wpb"),
                     _identity("claim-adr", field="decision_status"),
                 ),
             )
@@ -88,8 +88,8 @@ def test_one_to_many_split_no_auto_alias() -> None:
 
 def test_subject_only_refinement_unaffected_identity() -> None:
     transition = classify_semantic_transition(
-        "claim-same",
-        ["claim-same"],
+        "claim-same1",
+        ["claim-same1"],
         old_subject="project-atlas",
         new_subjects=["doc:source-fcb48476ce167a33"],
         old_field="architecture",
@@ -100,7 +100,7 @@ def test_subject_only_refinement_unaffected_identity() -> None:
 
 def test_unprovable_mapping_is_discontinuity() -> None:
     transition = classify_semantic_transition(
-        "claim-old",
+        "claim-old2",
         [],
         old_subject="project-atlas",
         old_field="status",
