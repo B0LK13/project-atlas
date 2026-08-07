@@ -10,6 +10,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from project_atlas.authority_evaluator import SourceArtifact, evaluate_authority
+from project_atlas.authority_registry import registry_version
 from project_atlas.claim_identity import (
     _digest,
     _slug,
@@ -44,6 +46,7 @@ from project_atlas.domain import (
     Severity,
     VerificationMetadata,
 )
+from project_atlas.domain.authority_semantics import AuthoritativeStateRecord
 from project_atlas.domain.temporal import CurrentStateRecord, TemporalRelation
 from project_atlas.evidence_compiler import SourceExtraction, extract_source
 from project_atlas.okf_renderer import render_concept_note
@@ -152,6 +155,8 @@ class KnowledgeBundle:
     # AS-CORE-005: derived temporal current-state projection (claims immutable).
     current_states: tuple[CurrentStateRecord, ...] = ()
     temporal_relations: tuple[TemporalRelation, ...] = ()
+    # AS-CORE-006: derived authoritative-state projection (claims/temporal immutable).
+    authoritative_states: tuple[AuthoritativeStateRecord, ...] = ()
     compilation_id: str = ""
 
 
@@ -898,6 +903,22 @@ def compile_knowledge(
         project_id=project,
         compilation_id=compilation_id,
     )
+    artifacts_by_source = {
+        str(entry.get("source_id") or ""): SourceArtifact(
+            source_id=str(entry.get("source_id") or ""),
+            path=str(entry.get("path") or ""),
+            text=str(entry.get("text") or ""),
+        )
+        for entry in entries
+        if entry.get("source_id")
+    }
+    authoritative_states, conflicts = evaluate_authority(
+        claims,
+        current_states,
+        artifacts_by_source,
+        conflicts,
+        compilation_id=compilation_id,
+    )
     reviews = _review(project, claims, conflicts)
     reviews.extend(
         ReviewEntry(
@@ -992,6 +1013,13 @@ def compile_knowledge(
         "claims_withheld": sum(candidate.claims_withheld for candidate in candidates),
         "diagnostics": len(diagnostics),
         "current_state_projections": len(current_states),
+        "authoritative_state_projections": len(authoritative_states),
+        "authority_resolved_conflicts": sum(
+            conflict.state.value == "resolved"
+            and isinstance(conflict.resolution, str)
+            and conflict.resolution.startswith("authority-resolution")
+            for conflict in conflicts
+        ),
     }
     return KnowledgeBundle(
         claims=tuple(claims),
@@ -1007,6 +1035,7 @@ def compile_knowledge(
         diagnostics=tuple(diagnostics),
         current_states=current_states,
         temporal_relations=temporal_relations,
+        authoritative_states=authoritative_states,
         compilation_id=compilation_id,
     )
 
@@ -1076,6 +1105,21 @@ def render_bundle(bundle: KnowledgeBundle, project: str) -> dict[str, str]:
                 ],
                 "temporal_relations": [
                     item.model_dump(mode="json") for item in bundle.temporal_relations
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        f"state/authoritative-state/{project}.json": json.dumps(
+            {
+                "schema_version": 1,
+                "project_id": project,
+                "compilation_id": bundle.compilation_id,
+                "authority_registry_version": registry_version(),
+                "authoritative_states": [
+                    item.model_dump(mode="json")
+                    for item in bundle.authoritative_states
                 ],
             },
             indent=2,

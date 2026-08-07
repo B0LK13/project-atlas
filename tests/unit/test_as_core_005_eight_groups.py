@@ -124,13 +124,21 @@ def test_eight_group_temporal_matrix(tmp_path: Path) -> None:
     assert current_val == "implementation-complete-targeted-rereview-required"
     assert _conflict(bundle, "wp:AS-ID-001", "package_status").state is ConflictState.RESOLVED
 
-    # 6) AS-ID-001 title — mandatory latest-wins rejection
+    # 6) AS-ID-001 title — temporal latest-wins rejection preserved (AS-CORE-005).
+    # AS-CORE-006 may authority-resolve the conflict additively; temporal
+    # disposition must remain authority_pending with no temporal current.
     d = _disp(bundle, "wp:AS-ID-001", "title")
     assert d.temporal_status is TemporalStatus.AUTHORITY_PENDING
     assert d.current_claim_id is None
     assert d.resolution_basis is ResolutionBasis.TITLE_COLLAPSE
     assert "newest observation does not imply current truth" in d.rationale
-    assert _conflict(bundle, "wp:AS-ID-001", "title").state is ConflictState.UNRESOLVED
+    title_conflict = _conflict(bundle, "wp:AS-ID-001", "title")
+    if title_conflict.state is ConflictState.RESOLVED:
+        assert title_conflict.resolution is not None
+        assert title_conflict.resolution.startswith("authority-resolution;")
+        assert "temporal_basis=preserved" in title_conflict.resolution
+    else:
+        assert title_conflict.state is ConflictState.UNRESOLVED
 
     # 7) AS-RET-001
     d = _disp(bundle, "wp:AS-RET-001", "package_status")

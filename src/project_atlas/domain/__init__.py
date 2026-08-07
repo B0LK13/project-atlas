@@ -5,6 +5,13 @@ Import the record types from here rather than the individual modules:
     from project_atlas.domain import SourceRecord, ConceptRecord, Claim, ...
 """
 
+from project_atlas.domain.authority_semantics import (
+    ArtifactRole,
+    AuthoritativeStateRecord,
+    AuthorityDisposition,
+    AuthorityDomainId,
+    AuthorityEvidence,
+)
 from project_atlas.domain.claims import Claim, ProvenanceReference
 from project_atlas.domain.concepts import (
     ConceptLifecycle,
@@ -84,6 +91,11 @@ __all__ = [
     "SUBJECT_KEY_PATTERN",
     "AgentEventReference",
     "AmbiguityStatus",
+    "ArtifactRole",
+    "AuthoritativeStateRecord",
+    "AuthorityDisposition",
+    "AuthorityDomainId",
+    "AuthorityEvidence",
     "AuthorityLevel",
     "AuthorityRecord",
     "CanonicalImpact",
