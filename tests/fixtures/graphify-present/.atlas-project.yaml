@@ -1,0 +1,7 @@
+schema_version: 1
+project:
+  id: graphify-present
+  name: Graphify Present
+authority:
+  primary:
+    - "ARCHITECTURE.md"

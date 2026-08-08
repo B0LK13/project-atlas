@@ -9,6 +9,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -16,6 +17,11 @@ from pathlib import Path
 from project_atlas import __version__
 from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
+from project_atlas.graph_acceptance import (
+    GraphAcceptanceError,
+    accept_graphify_artifacts,
+    inspect_acceptance,
+)
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.knowledge_query import (
@@ -97,6 +103,22 @@ def build_parser() -> argparse.ArgumentParser:
         "validate", help="Validate Vault structure, provenance links and safety (FR-012)."
     )
     validate_parser.add_argument("--vault", type=Path, required=True)
+
+    accept_graph_parser = subparsers.add_parser(
+        "accept-graph",
+        help=(
+            "Accept inventory-backed Graphify artifacts as derived-only "
+            "(AS-GRAPH-001; no authority/claims/relationship store writes)."
+        ),
+    )
+    accept_graph_parser.add_argument("--source", type=Path, required=True)
+    accept_graph_parser.add_argument("--manifest", type=Path, required=True)
+    accept_graph_parser.add_argument(
+        "--strict",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail closed on first rejection (default: true).",
+    )
 
     query_parser = subparsers.add_parser(
         "query",
@@ -259,6 +281,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _log.error("validation: %s", error)
             return EXIT_ERROR
         print(f"validated {result['markdown_files']} Markdown files")
+        return EXIT_OK
+
+    if args.command == "accept-graph":
+        try:
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise GraphAcceptanceError("manifest-not-object")
+            receipt = accept_graphify_artifacts(
+                project_root=args.source,
+                manifest=manifest,
+                config=config,
+                strict=args.strict,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("accept-graph failed: %s", exc)
+            return EXIT_ERROR
+        summary = inspect_acceptance(receipt)
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        print(f"accepted: {receipt.accepted_count}")
+        print(f"rejected: {receipt.rejected_count}")
+        print(f"nodes: {receipt.node_count}")
+        print(f"edges: {receipt.edge_count}")
+        print(f"semantic: {receipt.semantic_status}")
+        print("authority: derived")
         return EXIT_OK
 
     if args.command == "query":

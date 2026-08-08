@@ -50,6 +50,19 @@ class LoggingConfig(BaseModel):
     format: Literal["console", "json"] = "console"
 
 
+class GraphifyConfig(BaseModel):
+    """Graphify acceptance settings (AS-GRAPH-001).
+
+    ``semantic_ingestion`` defaults to False. Enabling it before AS-GRAPH-003
+    fails closed with ``semantic_ingestion_unsupported``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    semantic_ingestion: bool = False
+
+
 class AtlasConfig(BaseModel):
     """Top-level Project Atlas configuration."""
 
@@ -57,6 +70,7 @@ class AtlasConfig(BaseModel):
 
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    graphify: GraphifyConfig = Field(default_factory=GraphifyConfig)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

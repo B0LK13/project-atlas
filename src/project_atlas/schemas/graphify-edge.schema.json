@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graphify-edge.schema.json",
+  "title": "Graphify Edge",
+  "description": "AS-GRAPH-001 Graphify edge record. Canonical relationship stores are out of scope (AS-GRAPH-003+).",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1 },
+    "from": { "type": "string", "minLength": 1 },
+    "target": { "type": "string", "minLength": 1 },
+    "to": { "type": "string", "minLength": 1 },
+    "confidence": { "type": "string" },
+    "source_documents": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "allOf": [
+    {
+      "anyOf": [
+        { "required": ["source"] },
+        { "required": ["from"] }
+      ]
+    },
+    {
+      "anyOf": [
+        { "required": ["target"] },
+        { "required": ["to"] }
+      ]
+    }
+  ]
+}

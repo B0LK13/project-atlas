@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graphify-node.schema.json",
+  "title": "Graphify Node",
+  "description": "AS-GRAPH-001 Graphify node record. Entity resolution is out of scope (AS-GRAPH-002).",
+  "type": "object",
+  "additionalProperties": true,
+  "anyOf": [
+    { "required": ["id"] },
+    { "required": ["node_id"] }
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "node_id": { "type": "string", "minLength": 1 },
+    "type": { "type": "string", "minLength": 1 },
+    "label": { "type": "string" },
+    "source_documents": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

@@ -36,6 +36,7 @@ from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.source_registry import SourceLineageRecord
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import DocumentLifecycle, SourceChangeState
+from project_atlas.graph_acceptance import classify_graphify_document
 from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
 from project_atlas.lineage import (
     build_project_registry,
@@ -65,6 +66,11 @@ CLASS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 def _classify(path: str, text: str) -> tuple[str, str]:
+    # AS-GRAPH-001: Graphify artifact basenames classify as derived graphify-output
+    # before keyword rules so architecture/design tokens cannot elevate them.
+    graphify_type = classify_graphify_document(path)
+    if graphify_type is not None:
+        return graphify_type, "deterministic-graphify-basename"
     haystack = f"{path}\n{text[:4000]}".lower()
     for label, signals in CLASS_RULES:
         if any(signal in haystack for signal in signals):

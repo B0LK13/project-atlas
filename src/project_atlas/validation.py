@@ -49,7 +49,34 @@ def validate(vault: Path) -> dict[str, Any]:
             _validate_okf_concept_note(vault, markdown, errors)
     _validate_knowledge_state(vault, errors)
     _validate_portfolio(vault, errors)
+    _validate_graph_acceptance(vault, errors)
     return {"ok": not errors, "errors": errors, "markdown_files": len(list(vault.rglob("*.md")))}
+
+
+def _validate_graph_acceptance(vault: Path, errors: list[str]) -> None:
+    """Optional AS-GRAPH-001 checks when acceptance receipts exist (legacy no-op)."""
+    root = vault / "generated" / "graph" / "acceptance"
+    if not root.is_dir():
+        return
+    for path in sorted(root.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("receipt must be an object")
+            validate_record(payload, "graph-acceptance-receipt")
+            authority = payload.get("authority", {})
+            if not isinstance(authority, dict) or authority.get("level") != "derived":
+                errors.append(
+                    f"graph acceptance authority must be derived: {path.relative_to(vault)}"
+                )
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            ValueError,
+            SchemaValidationError,
+        ) as exc:
+            errors.append(f"invalid graph acceptance receipt {path.relative_to(vault)}: {exc}")
 
 
 def _validate_okf_concept_note(vault: Path, path: Path, errors: list[str]) -> None:

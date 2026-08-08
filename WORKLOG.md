@@ -3586,3 +3586,36 @@ edits, no Atlas production semantics change.
 ### Results
 Entry gate: READY SMALL; no blocking ADR; implementation on feature branch.
 **MERGE AUTHORIZED: NO** — stop for IV / Governor.
+
+## AS-GRAPH-001 — Graph Artifact Acceptance (implementation)
+
+**Directive:** D-PROJECT-ATLAS-PARALLEL-WAVE-002 / LANE E  
+**Base:** `origin/main` @ `895979f95c523cad205b8e3341dc135cd4dfec19`  
+**Tree:** `fe755b68b42ef12506b782186be142879a8fa4d7`  
+**Branch:** `feat/as-graph-001-artifact-acceptance`  
+**Worktree:** `D:\atlas-worktrees\parallel-wave-002\graph-entry`  
+**Prior contract:** `D:\project-atlas-orphans\as-wp-005-entry\` (GRAPH IMPLEMENTATION CONTRACT READY — DECOMPOSED)  
+**Evidence:** `D:\project-atlas-orphans\as-graph-001\`
+
+### Plan
+Implement first Graph Layer package AS-GRAPH-001 only (SMALL–MEDIUM,
+dependency-complete). Schemas + acceptance library + derived classification
++ `graphify.semantic_ingestion` default false + thin `atlas accept-graph`
+CLI. Library-only persistence (no relationship/claims/temporal/authority
+writes). Stop at IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED.
+Do not implement AS-GRAPH-002…005. Do not merge.
+
+### Scope
+- `src/project_atlas/graph_acceptance.py`
+- `src/project_atlas/schemas/graphify-*.schema.json` + acceptance receipt
+- `config.GraphifyConfig`, ingest basename classification, validate hook
+- `docs/AS-GRAPH-001-graph-artifact-acceptance.md`
+- `tests/unit/test_as_graph_001_artifact_acceptance.py` + fixtures
+- `WORKLOG.md` — this entry
+
+### Results
+Focused AS-GRAPH-001 + schema tests: 21 passed. ruff/mypy on touched surface: PASS.
+Invariant: GRAPH ≠ AUTHORITY; provenance/hash binding required; no fuzzy LLM merge.
+**PRODUCTION CODE MODIFIED: YES (additive Graph acceptance only)**  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**
