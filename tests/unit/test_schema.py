@@ -30,6 +30,7 @@ def test_all_expected_schemas_available() -> None:
         "concept-record",
         "conflict-record",
         "diagnostic",
+        "knowledge-answer",
         "parser-output",
         "provenance-reference",
         "review-entry",
