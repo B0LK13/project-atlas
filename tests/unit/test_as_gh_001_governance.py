@@ -287,3 +287,225 @@ def test_atlas_documentation_gate_remains_workflow_dispatch_only() -> None:
         "atlas-documentation-gate.yml must remain workflow_dispatch-only, "
         f"found triggers: {set(triggers)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# AS-GH-001 artifact-closure additions (repository files only)
+# ---------------------------------------------------------------------------
+
+_REQUIRED_GOVERNANCE_DOCS = (
+    "GOVERNANCE.md",
+    "VERSIONING.md",
+    "RELEASING.md",
+    "SUPPORT.md",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+)
+
+_REQUIRED_ISSUE_TEMPLATES = (
+    "bug_report.yml",
+    "feature_request.yml",
+    "documentation.yml",
+    "architecture_proposal.yml",
+    "governance_gap.yml",
+    "technical_debt.yml",
+    "config.yml",
+)
+
+_PLACEHOLDER_CONTACT_PATTERNS = (
+    re.compile(r"\bTODO@\S+", re.IGNORECASE),
+    re.compile(r"\bFIXME@\S+", re.IGNORECASE),
+    re.compile(r"\bexample\.com\b", re.IGNORECASE),
+    re.compile(r"\bchangeme\b", re.IGNORECASE),
+    re.compile(r"\breplace[_\s-]?me\b", re.IGNORECASE),
+    re.compile(r"\byour[_\s-]?email\b", re.IGNORECASE),
+    re.compile(r"\bsecurity@example\b", re.IGNORECASE),
+    re.compile(r"\binsert[_\s-]?contact\b", re.IGNORECASE),
+)
+
+_EMAIL_SHAPE = re.compile(r"[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}")
+
+_SECRET_SOLICIT_PATTERNS = (
+    # Affirmative asks only — warnings like "do not include secrets" are allowed.
+    re.compile(
+        r"\b(please\s+)?(paste|provide|attach|upload|enter|type)\s+your\s+"
+        r"(api[_ -]?key|token|password|secret|credential|private[_ -]?key)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(api[_ -]?key|password|private[_ -]?key|access[_ -]?token)\s*:\s*$",
+        re.I | re.M,
+    ),
+)
+
+
+def _governance_doc_paths() -> list[Path]:
+    return [REPO_ROOT / name for name in _REQUIRED_GOVERNANCE_DOCS]
+
+
+def _issue_template_paths() -> list[Path]:
+    base = REPO_ROOT / ".github" / "ISSUE_TEMPLATE"
+    return [base / name for name in _REQUIRED_ISSUE_TEMPLATES]
+
+
+def test_required_governance_artifacts_exist() -> None:
+    missing = [str(path.name) for path in _governance_doc_paths() if not path.is_file()]
+    assert not missing, f"missing required governance docs: {missing}"
+
+
+def test_required_issue_templates_exist() -> None:
+    missing = [path.name for path in _issue_template_paths() if not path.is_file()]
+    assert not missing, f"missing required issue templates: {missing}"
+
+
+def test_issue_template_yaml_parses_without_duplicate_keys() -> None:
+    for path in _issue_template_paths():
+        try:
+            _load_yaml_no_duplicates(path)
+        except ValueError as exc:
+            raise AssertionError(f"duplicate key in {path}: {exc}") from exc
+
+
+def test_governance_docs_have_no_placeholder_or_invented_email_contacts() -> None:
+    """Closure artifacts must not invent contacts; email shapes are disallowed
+    except the literal domain string inside Contributor Covenant attribution
+    URLs is not an email. Any ``user@host`` form is rejected in these docs."""
+    for path in [*_governance_doc_paths(), REPO_ROOT / "README.md"]:
+        text = path.read_text(encoding="utf-8")
+        for pattern in _PLACEHOLDER_CONTACT_PATTERNS:
+            assert not pattern.search(text), (
+                f"{path.name}: placeholder contact pattern {pattern.pattern!r}"
+            )
+        assert not _EMAIL_SHAPE.search(text), (
+            f"{path.name}: must not publish email-shaped contacts "
+            "(use SECURITY.md private-channel language instead)"
+        )
+
+
+def test_issue_templates_do_not_solicit_secrets() -> None:
+    for path in _issue_template_paths():
+        text = path.read_text(encoding="utf-8")
+        for pattern in _SECRET_SOLICIT_PATTERNS:
+            assert not pattern.search(text), (
+                f"{path.name}: must not solicit secrets ({pattern.pattern!r})"
+            )
+        lowered = text.lower()
+        # Positive steer: templates should warn against secrets / point security away.
+        if path.name != "config.yml":
+            assert "secret" in lowered or "credential" in lowered, (
+                f"{path.name}: expected an explicit no-secrets / credentials warning"
+            )
+
+
+def test_issue_templates_route_security_to_security_md() -> None:
+    config = _load_yaml_no_duplicates(REPO_ROOT / ".github" / "ISSUE_TEMPLATE" / "config.yml")
+    assert config.get("blank_issues_enabled") is False
+    links = config.get("contact_links") or []
+    assert links, "config.yml must provide contact_links including SECURITY.md routing"
+    joined = " ".join(
+        f"{link.get('name', '')} {link.get('url', '')} {link.get('about', '')}" for link in links
+    ).lower()
+    assert "security.md" in joined
+    assert "not currently operational" in joined or "vulnerability" in joined
+
+    for path in _issue_template_paths():
+        if path.name == "config.yml":
+            continue
+        text = path.read_text(encoding="utf-8").lower()
+        assert "security.md" in text, f"{path.name}: must reference SECURITY.md"
+
+
+def test_readme_links_required_governance_artifacts() -> None:
+    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    for name in (
+        "GOVERNANCE.md",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+        "SUPPORT.md",
+        "CODE_OF_CONDUCT.md",
+        "VERSIONING.md",
+        "RELEASING.md",
+    ):
+        assert name in text, f"README.md must navigate to {name}"
+
+
+def test_governance_md_documents_lifecycle_and_separation_of_duties() -> None:
+    text = (REPO_ROOT / "GOVERNANCE.md").read_text(encoding="utf-8").lower()
+    for term in (
+        "project owner",
+        "implementation",
+        "independent verifier",
+        "certif",
+        "merge",
+        "baseline",
+        "stop",
+        "emergency",
+        "deferred",
+    ):
+        assert term in text, f"GOVERNANCE.md missing lifecycle/governance term: {term!r}"
+    assert "must not both" in text or ("must not" in text and "implement" in text)
+
+
+def test_releasing_md_requires_exact_identity_and_forbids_certified_squash() -> None:
+    text = (REPO_ROOT / "RELEASING.md").read_text(encoding="utf-8").lower()
+    for term in ("implement", "certif", "owner", "merge", "post-merge", "baseline", "sha"):
+        assert term in text, f"RELEASING.md missing release-identity term: {term!r}"
+    assert "squash" in text
+    assert "exact" in text
+
+
+def test_versioning_md_is_honest_pre_1_0_without_fake_automation() -> None:
+    raw = (REPO_ROOT / "VERSIONING.md").read_text(encoding="utf-8")
+    text = raw.lower()
+    assert "pre-1.0" in text
+    assert "0.1.0" in raw
+    assert "pyproject.toml" in text
+    assert "semver" in text or "semantic versioning" in text
+    assert "automat" in text  # documents absence / non-claim of automation
+    assert "do not invent" in text or "does not exist" in text
+
+
+def test_support_and_conduct_document_limitations_without_invented_intake() -> None:
+    support = (REPO_ROOT / "SUPPORT.md").read_text(encoding="utf-8").lower()
+    conduct = (REPO_ROOT / "CODE_OF_CONDUCT.md").read_text(encoding="utf-8").lower()
+    support_limit = "sla" in support or "guaranteed" in support or "response time" in support
+    assert "no" in support and support_limit
+    assert "security.md" in support
+    conduct_limit = "email" in conduct or "portal" in conduct or "moderator" in conduct
+    assert "no" in conduct and conduct_limit
+    assert "limitation" in conduct or "not" in conduct
+
+
+def test_closure_docs_do_not_claim_live_settings_activated() -> None:
+    """Static docs may describe deferred activation; they must not assert that
+    required checks / approval restoration / CODEOWNERS enforcement are live."""
+    forbidden_claims = (
+        re.compile(r"required approving reviews?\s+(are|is)\s+1\b", re.I),
+        re.compile(r"require_code_owner_reviews\s*=\s*true", re.I),
+        re.compile(
+            r"\blive\b.{0,40}\b(required checks?|branch protection)"
+            r".{0,40}\b(active|enabled|enforced)\b",
+            re.I,
+        ),
+        re.compile(
+            r"\b(required checks?|branch protection)\b.{0,40}"
+            r"\b(are|is)\s+now\s+(active|enabled|enforced)\b",
+            re.I,
+        ),
+    )
+    paths = [
+        *_governance_doc_paths(),
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "CONTRIBUTING.md",
+    ]
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for pattern in forbidden_claims:
+            assert not pattern.search(text), (
+                f"{path.name}: false or premature live-settings claim matched {pattern.pattern!r}"
+            )
+    # Positive: GOVERNANCE must still say settings activation is deferred.
+    gov = (REPO_ROOT / "GOVERNANCE.md").read_text(encoding="utf-8").lower()
+    assert "deferred" in gov
+

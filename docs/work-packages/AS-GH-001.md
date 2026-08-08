@@ -17,24 +17,23 @@
 
 - Architecture: certified (`7e730042e646346773519cc0e5ffe60610f86f0b`),
   integrated into `main` (`42410e968cd3eb392afd66181d64ed3c25e36833`).
-- Repository implementation (this phase): a bounded first slice is
-  complete on branch `implementation/as-gh-001-governance-baseline` —
-  `SECURITY.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`,
-  `.github/pull_request_template.md`, `.github/dependabot.yml`,
-  hardened `.github/workflows/ci.yml` and
-  `.github/workflows/atlas-documentation-gate.yml` (permissions,
-  SHA-pinned actions, timeouts), and a new governance validation suite
-  (`tests/unit/test_as_gh_001_governance.py`). See
-  `docs/evidence/AS-GH-001-receipt.yaml` for exact commands and results.
-- Not yet in this phase: `GOVERNANCE.md`, `README.md`, `VERSIONING.md`,
-  `RELEASING.md`, `SUPPORT.md`/`CODE_OF_CONDUCT.md` decision, and the
-  `.github/ISSUE_TEMPLATE/*` set — these remain part of the certified
-  architecture's full artifact list but were outside this phase's
-  explicitly authorized scope.
-- Implementation verification: pending (Agent Two).
-- Platform (GitHub settings) activation beyond the already-completed
-  approval-count bootstrap transition: pending.
-- Live governance validation and final package closure: pending.
+- Repository implementation (bounded first slice): complete and
+  independently verified for `SECURITY.md`, `CONTRIBUTING.md`,
+  `.github/CODEOWNERS`, `.github/pull_request_template.md`,
+  `.github/dependabot.yml`, hardened workflows, and the initial
+  governance validation suite (see prior IV / `docs/evidence/AS-GH-001-receipt.yaml`).
+- Artifact-closure phase (this branch `docs/as-gh-001-artifact-closure`):
+  adds `GOVERNANCE.md`, `VERSIONING.md`, `RELEASING.md`, `SUPPORT.md`,
+  `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/*` (including `config.yml`),
+  README governance navigation links, and additive governance tests.
+  **Independent verification of this phase is required; not self-certified.**
+- Still deferred / not claimed complete: live GitHub settings activation
+  (required checks, approval-count restoration, CODEOWNERS enforcement,
+  force-push/deletion hardening, signed commits) — planned successor
+  package hint AS-GH-002; `BACKUP-AND-RECOVERY.md` and policy docs under
+  `docs/policies/` remain recommended follow-up.
+- Final package closure: pending Owner decision after IV of artifact closure
+  and any authorized settings batches.
 
 ## Problem statement
 

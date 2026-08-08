@@ -1,12 +1,20 @@
 schema_version: 1
 work_package: AS-GH-001
 title: GitHub Repository Governance Baseline
-status: repository-implementation-complete-independent-verification-pending
+status: artifact-closure-implementation-complete-independent-verification-required
 
 certified_baseline: a7a6ebc41ea884f7ce4ec2d70da89e6a44097381
 certified_architecture_source: 7e730042e646346773519cc0e5ffe60610f86f0b
 implementation_base: 42410e968cd3eb392afd66181d64ed3c25e36833
 implementation_branch: implementation/as-gh-001-governance-baseline
+# Kickoff authorized main (AS-CORE-008 tip at directive start):
+artifact_closure_kickoff_main: 59670bf33feede82dd85daa3da994f410a8d838e
+artifact_closure_kickoff_main_tree: 58a7235f250d562c7ebe705d7619b28df1a24ea4
+# Current authorized main at artifact-closure commit time (AS-MAINT-002 tip;
+# branch fast-forwarded before commit; workflows preserved / not edited here):
+artifact_closure_base: 895979f95c523cad205b8e3341dc135cd4dfec19
+artifact_closure_base_tree: fe755b68b42ef12506b782186be142879a8fa4d7
+artifact_closure_branch: docs/as-gh-001-artifact-closure
 adr: docs/adr/ADR-006-github-repository-governance-baseline.md
 work_package_doc: docs/work-packages/AS-GH-001.md
 
@@ -24,14 +32,40 @@ scope:
     - docs/work-packages/AS-GH-001.md
     - docs/backlog.md
     - docs/master-roadmap.md
+  artifact_closure_authorized_paths:
+    - GOVERNANCE.md
+    - VERSIONING.md
+    - RELEASING.md
+    - SUPPORT.md
+    - CODE_OF_CONDUCT.md
+    - README.md
+    - .github/ISSUE_TEMPLATE/bug_report.yml
+    - .github/ISSUE_TEMPLATE/feature_request.yml
+    - .github/ISSUE_TEMPLATE/documentation.yml
+    - .github/ISSUE_TEMPLATE/architecture_proposal.yml
+    - .github/ISSUE_TEMPLATE/governance_gap.yml
+    - .github/ISSUE_TEMPLATE/technical_debt.yml
+    - .github/ISSUE_TEMPLATE/config.yml
+    - tests/unit/test_as_gh_001_governance.py
+    - docs/evidence/AS-GH-001-receipt.yaml
+    - docs/work-packages/AS-GH-001.md
+    - docs/backlog.md
+    - docs/master-roadmap.md
   out_of_scope_confirmed_untouched:
     - src/project_atlas/
     - src/
     - tests/fixtures/
-    - docs/evidence/AS-*.yaml (existing files, none modified)
     - docs/adr/ADR-00[1-6]*.md (none modified)
+    - .github/workflows/ci.yml (preserved; not modified in artifact-closure)
+    - .github/workflows/atlas-documentation-gate.yml (preserved)
+    - .github/CODEOWNERS (preserved)
+    - .github/dependabot.yml (preserved)
+    - .github/pull_request_template.md (preserved)
+    - SECURITY.md (preserved)
+    - CONTRIBUTING.md (preserved)
   production_behavior_modified: false
   live_github_settings_modified_during_this_phase: false
+  live_github_settings_modified_during_artifact_closure: false
 
 deliverables:
   security_policy:
@@ -139,24 +173,67 @@ required_approving_reviews_live: 0
 signed_commit_enforcement: deferred
 github_settings_changed_during_implementation: false
 
+artifact_closure:
+  directive: D-PROJECT-ATLAS-AS-GH-001-ARTIFACT-CLOSURE-001
+  status: implementation-complete-independent-verification-required
+  self_certified: false
+  merged: false
+  live_settings_activated: false
+  deliverables:
+    - GOVERNANCE.md
+    - VERSIONING.md
+    - RELEASING.md
+    - SUPPORT.md
+    - CODE_OF_CONDUCT.md
+    - README.md (navigation links only)
+    - .github/ISSUE_TEMPLATE/*
+  validation:
+    governance_pytest: "26 passed (tests/unit/test_as_gh_001_governance.py; includes AS-MAINT-002 control-plane job assertion + 12 artifact-closure tests)"
+    full_core_pytest_windows: "624 collected; 623 passed, 1 skipped, 0 failed (exit 0)"
+    full_core_pytest_wsl: "624 collected; exit 0 (CORE_WSL_EXIT=0)"
+    control_plane_pytest_wsl: "146 passed (CP_EXIT=0); Windows host fails fcntl/exe constraints — environment limitation"
+    ruff: clean
+    mypy: "Success: no issues found in 61 source files"
+    compileall: clean
+  deferred_to_as_gh_002_hint:
+    - live branch-protection hardenings (force-push/deletion off)
+    - required status check quality enablement
+    - approval-count restoration to 1 (blocked until second reviewer)
+    - CODEOWNERS review enforcement
+    - signed-commit enforcement
+  recommended_follow_up_not_required_for_this_closure_slice:
+    - BACKUP-AND-RECOVERY.md
+    - docs/policies/commit-signing.md
+    - docs/policies/branch-and-merge-policy.md
+  unrelated_changes: none
+  preserved_verified_slice_paths_untouched_in_closure:
+    - SECURITY.md
+    - CONTRIBUTING.md
+    - .github/CODEOWNERS
+    - .github/pull_request_template.md
+    - .github/dependabot.yml
+    - .github/workflows/ci.yml
+    - .github/workflows/atlas-documentation-gate.yml
+
 known_limitations:
-  - README.md, GOVERNANCE.md, VERSIONING.md, RELEASING.md,
-    CODE_OF_CONDUCT.md, SUPPORT.md, and .github/ISSUE_TEMPLATE/* are part
-    of ADR-006's full artifact list but were not in this implementation
-    phase's explicitly authorized scope; not implemented here, not
-    claimed complete.
+  - Artifact-closure documents and issue templates are implemented on
+    branch docs/as-gh-001-artifact-closure; independent verification and
+    Owner merge are still required before package closure.
   - actionlint or an equivalent workflow-syntax linter was not added;
     the governance test suite's own YAML-parse + regex-based checks
-    (action pin format, permissions block, trigger set) cover the
-    concrete risks this phase targets without adding a new third-party
-    dependency.
+    (action pin format, permissions block, trigger set, issue-template
+    YAML) cover the concrete risks this phase targets without adding a
+    new third-party dependency.
   - The exact GitHub check name for this specific PR/branch is expected,
     not yet freshly re-observed on this exact diff, until the PR
     actually runs.
   - CODEOWNERS review enforcement, required-check branch-protection
     activation, and restoring required approving reviews to 1 all
-    remain separate, later, independently-verified phases per ADR-006's
-    own phase sequencing; none is claimed here.
+    remain separate, later, independently-verified phases (AS-GH-002
+    hint); none is claimed here.
+  - No dedicated conduct-enforcement email or external support intake
+    is published; CODE_OF_CONDUCT.md and SUPPORT.md document that
+    limitation truthfully rather than inventing contacts.
 
 rollback: >-
   Every change in this package is additive or narrowly scoped to the

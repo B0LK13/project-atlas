@@ -70,3 +70,6 @@ desktop.ini
 
 # Windsurf plans and session state
 .windsurf/
+
+# Local WSL validation venv (artifact-closure worktree)
+.venv-wsl/

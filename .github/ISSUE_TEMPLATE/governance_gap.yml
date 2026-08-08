@@ -1,0 +1,44 @@
+name: Governance gap
+description: Record a missing policy, evidence field, or GitHub governance inconsistency.
+title: "[governance] "
+labels: ["governance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use for gaps in governance documents, templates, receipts, or settings
+        honesty — not for product bugs. Do not invent contacts or claim live
+        settings are active without verification. Security → `SECURITY.md`.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: This report contains no secrets, credentials, or vulnerability exploit details.
+          required: true
+  - type: dropdown
+    id: gap_type
+    attributes:
+      label: Gap type
+      options:
+        - Missing artifact
+        - Incorrect or stale claim
+        - Evidence / receipt gap
+        - Settings honesty / activation sequencing
+        - Role or lifecycle ambiguity
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Gap description
+      description: What is missing or inconsistent, and where.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact if left unaddressed
+    validations:
+      required: false

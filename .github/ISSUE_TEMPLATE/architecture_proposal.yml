@@ -1,0 +1,43 @@
+name: Architecture proposal
+description: Propose an ADR-level or boundary change for Architecture Governor review.
+title: "[architecture] "
+labels: ["architecture"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Architecture proposals are not implementation authorization.
+        Do not include secrets. Security → `SECURITY.md`.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: This proposal contains no secrets, credentials, or vulnerability exploit details.
+          required: true
+  - type: input
+    id: related_package
+    attributes:
+      label: Related work package / ADR (if any)
+      placeholder: AS-xxx / ADR-00x
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and problem
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Proposed decision
+    validations:
+      required: true
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences and boundaries
+      description: Include what must not change (Core semantics, history, settings, etc.).
+    validations:
+      required: true

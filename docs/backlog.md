@@ -135,7 +135,7 @@ independent verification passes and the branch is merged to `main`._
 
 ## Epic L — Repository governance
 
-- [ ] L-001 AS-GH-001 GitHub repository governance baseline — architecture certified and integrated into `main`; a bounded first repository-implementation slice complete on `implementation/as-gh-001-governance-baseline` (security/contribution policy, CODEOWNERS, PR template, Dependabot, workflow hardening, governance validation); independent implementation verification, remaining artifacts, settings activation, and owner integration remain pending (`docs/adr/ADR-006-github-repository-governance-baseline.md`, `docs/work-packages/AS-GH-001.md`, `docs/evidence/AS-GH-001-receipt.yaml`).
+- [ ] L-001 AS-GH-001 GitHub repository governance baseline — architecture certified; bounded first slice independently verified; artifact-closure candidate on `docs/as-gh-001-artifact-closure` adds `GOVERNANCE.md`, `VERSIONING.md`, `RELEASING.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, issue templates, README nav, additive governance tests — **IV required**; live settings activation deferred (AS-GH-002 hint); owner closure pending (`docs/adr/ADR-006-github-repository-governance-baseline.md`, `docs/work-packages/AS-GH-001.md`, `docs/evidence/AS-GH-001-receipt.yaml`).
 
 - [ ] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
   `ProvenanceReference` into formal project projections and richer validated

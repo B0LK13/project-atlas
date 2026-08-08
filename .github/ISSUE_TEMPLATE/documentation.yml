@@ -1,0 +1,37 @@
+name: Documentation
+description: Report a docs defect, missing cross-link, or planning-doc inconsistency.
+title: "[docs] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use for documentation and planning-doc issues only.
+        Do not include secrets. Security → `SECURITY.md`.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: This report contains no secrets, credentials, or vulnerability exploit details.
+          required: true
+  - type: input
+    id: path
+    attributes:
+      label: Document path
+      description: Repository-relative path (e.g. docs/plan.md, GOVERNANCE.md)
+      placeholder: docs/...
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is wrong or missing
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested correction
+    validations:
+      required: false

@@ -102,6 +102,16 @@ Governance, agents, and controlled workflows
 - The control plane is intentionally separate from the Core package and must
   not be imported into core runtime code.
 
+Governance navigation
+- `GOVERNANCE.md` — roles, certify/merge/baseline lifecycle, stop boundaries
+- `CONTRIBUTING.md` — internal contribution and PR workflow
+- `SECURITY.md` — vulnerability reporting limitations (no invented contacts)
+- `SUPPORT.md` — support boundaries for this private repository
+- `CODE_OF_CONDUCT.md` — conduct expectations and enforcement limitation
+- `VERSIONING.md` / `RELEASING.md` — pre-1.0 version and release authorization
+- `.github/ISSUE_TEMPLATE/` — structured issue forms (security → `SECURITY.md`)
+- `docs/adr/ADR-006-github-repository-governance-baseline.md` — architecture
+
 Contributing & branch policy
 - Private repository model: currently maintained by the repository owner
   (`B0LK13`) and explicitly-authorized agents. No public contribution path is
@@ -111,11 +121,14 @@ Contributing & branch policy
 - All changes land via pull-request to `main`. Do not rewrite history, force
   push, or delete evidence. For governed work, include the evidence receipt in
   the PR description per `AGENT-BOOTSTRAP.md`.
+- Live GitHub settings activation (required checks, approval restoration,
+  CODEOWNERS enforcement) remains deferred until separately authorized and
+  verified — see `GOVERNANCE.md`.
 
 Security & vulnerability handling
 - This pre-1.0 project has no published external private vulnerability intake.
-  Do not open public issues with sensitive vulnerability details. Use an
-  authorized private channel with the owner.
+  Do not open public issues with sensitive vulnerability details. Follow
+  `SECURITY.md`.
 - Confirm path-safety, secret detection, and protected-region enforcement before
   accepting changes that touch ingestion or generation code.
 

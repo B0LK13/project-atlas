@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a defect in Core, contracts, CI, or the control-plane sibling.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for non-sensitive defects only.
+        **Do not** include credentials, tokens, private keys, connection strings,
+        or vulnerability exploit details. Security concerns → `SECURITY.md`.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: This report contains no secrets, credentials, or vulnerability exploit details.
+          required: true
+        - label: If this is a security concern, I will follow SECURITY.md instead of this form.
+          required: true
+  - type: input
+    id: package
+    attributes:
+      label: Work package or area (if known)
+      description: e.g. AS-CORE-003, CI, atlas-vault-documentation
+      placeholder: AS-xxx or area name
+    validations:
+      required: false
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong in one or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands or actions. Redact secrets.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, commit SHA if known. No secrets.
+    validations:
+      required: false
