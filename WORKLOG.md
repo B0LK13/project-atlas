@@ -3626,6 +3626,8 @@ Invariant: GRAPH ≠ AUTHORITY; provenance/hash binding required; no fuzzy LLM m
 **Base:** `59670bf33feede82dd85daa3da994f410a8d838e` / tree `58a7235f250d562c7ebe705d7619b28df1a24ea4`  
 **Branch:** `feat/as-ingest-manifest-001`  
 **Worktree:** `D:\atlas-worktrees\parallel-wave-002\core-debt`  
+**HEAD:** `519343fd94d059bf977d5b77c667c07e576be0ef`  
+**TREE:** `418087b7d2b90ccb8da1f9882e0286fa428c8f1e`  
 
 ### Plan
 Merge vault-wide `source-manifest.json` and ingest/secret/injection reports by
@@ -3637,7 +3639,7 @@ contracts only.
 
 ### Commands / gates
 - Focused: 6 passed (`test_as_ingest_manifest_001` unit + pipeline + multi-batch)
-- Full Core: 617 collected, exit 0 (1 skipped)
+- Full Core: 616 passed, 1 skipped
 - Control Plane (WSL): 146 passed
 - ruff / mypy / compileall: PASS
 - Orphan evidence: `D:\project-atlas-orphans\atlas-tech-debt\AS-INGEST-MANIFEST-001-IMPLEMENTATION-EVIDENCE.md`
