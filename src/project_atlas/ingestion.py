@@ -35,7 +35,7 @@ from project_atlas.domain import (
 from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.source_registry import SourceLineageRecord
 from project_atlas.domain.sources import SourceRecord
-from project_atlas.domain.vocabulary import DocumentLifecycle, SourceChangeState
+from project_atlas.domain.vocabulary import DocumentLifecycle, Maturity, SourceChangeState
 from project_atlas.graph_acceptance import classify_graphify_document
 from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
 from project_atlas.lineage import (
@@ -547,7 +547,11 @@ def _find_project_marker(root: Path, relative_path: str, project: str) -> Path:
 
 
 def _project_context(root: Path, relative_path: str, project: str) -> dict[str, str]:
-    """Read optional concept metadata from the authoritative project marker."""
+    """Read optional concept metadata from the authoritative project marker.
+
+    Surfaces ``concept_type`` and AS-CORE-MODEL-001A ``maturity`` when declared.
+    Invalid maturity fails closed (no silent coerce).
+    """
     try:
         marker = _find_project_marker(root, relative_path, project)
     except ValueError as exc:
@@ -560,12 +564,28 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
         raise ValueError(f"invalid project marker: {marker}") from exc
     if not isinstance(raw, dict):
         raise ValueError(f"project marker must be an object: {marker}")
+    context: dict[str, str] = {}
     concept_type = raw.get("concept_type")
-    if concept_type is None:
-        return {}
-    if not isinstance(concept_type, str) or not concept_type.strip():
-        raise ValueError(f"project marker concept_type must be a non-empty string: {marker}")
-    return {"concept_type": concept_type}
+    if concept_type is not None:
+        if not isinstance(concept_type, str) or not concept_type.strip():
+            raise ValueError(
+                f"project marker concept_type must be a non-empty string: {marker}"
+            )
+        context["concept_type"] = concept_type
+    maturity = raw.get("maturity")
+    if maturity is not None:
+        if not isinstance(maturity, str) or not maturity.strip():
+            raise ValueError(
+                f"project marker maturity must be a non-empty string: {marker}"
+            )
+        try:
+            Maturity(maturity)
+        except ValueError as exc:
+            raise ValueError(
+                f"project marker maturity must be a valid Maturity value: {marker}"
+            ) from exc
+        context["maturity"] = maturity
+    return context
 
 
 def _prepare_project_identity(
