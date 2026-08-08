@@ -156,6 +156,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write optional derived resolution outputs (requires --vault).",
     )
     resolve_graph_parser.add_argument(
+        "--project-uuid",
+        type=str,
+        default=None,
+        help=(
+            "Optional local project UUID binding for durable project_uuid hits "
+            "(ADV-G2-007; unbound/foreign UUID fails closed)."
+        ),
+    )
+    resolve_graph_parser.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -367,6 +376,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 manifest=manifest,
                 mapping_table=mapping,
                 config=config,
+                local_project_uuid=args.project_uuid,
                 strict=args.strict,
             )
             written: list[str] = []

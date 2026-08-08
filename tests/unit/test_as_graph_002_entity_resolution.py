@@ -113,7 +113,12 @@ def test_precedence_durable_core_claim_id() -> None:
 def test_precedence_durable_core_project_uuid() -> None:
     uuid = validate_project_uuid(PROJECT_UUID)
     node = {"id": "n-proj", "type": "component", "project_uuid": uuid}
-    resolved = resolve_node(node, project_id="demo", source_artifact_refs=_refs())
+    resolved = resolve_node(
+        node,
+        project_id="demo",
+        source_artifact_refs=_refs(),
+        local_project_uuid=uuid,
+    )
     assert resolved.status == "resolved"
     assert resolved.resolution_step == "durable_core_id"
     assert resolved.resolved_entity_id == uuid

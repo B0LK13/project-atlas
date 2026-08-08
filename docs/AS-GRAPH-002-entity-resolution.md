@@ -46,12 +46,18 @@ Explicit Atlas entity ID (project-scoped / well-formed)
 AS-ID-001 lineage / project UUID / claim_id formulas are **consumed only** — this
 package does not redefine or mint authoritative claim identity.
 
+Fail-closed scope rules (Wave7 ADV-G2):
+
+- Node-stamped `project_id` ≠ resolution scope → `cross-project-resolution-forbidden`
+- `project_uuid` durable hits require an explicit local UUID binding (`local_project_uuid` / `--project-uuid`); foreign/unbound UUIDs fail closed
+- Duplicate Graphify ids with divergent identity payloads → `ambiguous-identity` (never dual winners)
+
 ## CLI
 
 ```bash
 atlas resolve-graph --source <project-root> --manifest <manifest.json>
 atlas resolve-graph --source <project-root> --manifest <manifest.json> \
-  --mapping <mapping.json> --vault <vault> --write
+  --mapping <mapping.json> --project-uuid <uuid> --vault <vault> --write
 ```
 
 Reports resolved/quarantined counts and winning precedence steps. Exit `1` on
