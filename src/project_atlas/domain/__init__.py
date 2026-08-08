@@ -23,6 +23,13 @@ from project_atlas.domain.concepts import (
 from project_atlas.domain.conflicts import ConflictingClaim, ConflictRecord, ConflictState
 from project_atlas.domain.diagnostics import CanonicalImpact, Diagnostic, DiagnosticCode
 from project_atlas.domain.findings import ValidationFinding
+from project_atlas.domain.knowledge_query import (
+    AnswerStatus,
+    ClaimProjection,
+    KnowledgeAnswer,
+    KnowledgeQueryErrorCode,
+    QueryKind,
+)
 from project_atlas.domain.parser_output import (
     AmbiguityStatus,
     LocatorConfidence,
@@ -91,6 +98,7 @@ __all__ = [
     "SUBJECT_KEY_PATTERN",
     "AgentEventReference",
     "AmbiguityStatus",
+    "AnswerStatus",
     "ArtifactRole",
     "AuthoritativeStateRecord",
     "AuthorityDisposition",
@@ -103,6 +111,7 @@ __all__ = [
     "ClaimLifecycle",
     "ClaimLifecycleRecord",
     "ClaimLifecycleTransition",
+    "ClaimProjection",
     "ClaimType",
     "ClassificationState",
     "ConceptLifecycle",
@@ -121,6 +130,8 @@ __all__ = [
     "DiagnosticCode",
     "DocumentLifecycle",
     "GeneratedMetadata",
+    "KnowledgeAnswer",
+    "KnowledgeQueryErrorCode",
     "KnowledgeState",
     "LifecycleStatus",
     "LocatorConfidence",
@@ -130,6 +141,7 @@ __all__ = [
     "PathHistoryEntry",
     "ProjectRecord",
     "ProvenanceReference",
+    "QueryKind",
     "RelationType",
     "Relationship",
     "RepositoryInfo",
