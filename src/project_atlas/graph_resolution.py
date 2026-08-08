@@ -90,6 +90,19 @@ _TYPE_ALIASES: dict[str, EntityClass] = {
 _STABLE_GRAPHIFY_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _SLINE_ID = re.compile(r"^sline-[0-9a-f]{20}$")
 _CLAIM_ID = re.compile(r"^claim-[0-9a-f]{20}$")
+# Identity-relevant fields for duplicate Graphify-id conflict detection (ADV-G2-008).
+# Display label alone is not identity-relevant; type/explicit/durable/scope are.
+_IDENTITY_FINGERPRINT_KEYS: tuple[str, ...] = (
+    "type",
+    "entity_type",
+    "atlas_entity_id",
+    "atlas_id",
+    "entity_id",
+    "source_lineage_id",
+    "claim_id",
+    "project_uuid",
+    "project_id",
+)
 _FORBIDDEN_WRITE_PREFIXES: tuple[str, ...] = (
     "relationships/",
     "state/current-state/",
@@ -149,6 +162,10 @@ class MappingTable:
             for item in raw_entries:
                 if not isinstance(item, dict):
                     raise GraphResolutionError("mapping-table-malformed")
+                row_project = item.get("project_id")
+                if row_project is not None and str(row_project) != project_id:
+                    # ADV-G2-052: foreign project keys in mapping table fail closed.
+                    raise GraphResolutionError("cross-project-resolution-forbidden")
                 gid = str(item.get("graphify_node_id") or "").strip()
                 eid = str(item.get("resolved_entity_id") or "").strip()
                 if not gid or not eid:
@@ -358,7 +375,11 @@ def _graphify_node_id(node: Mapping[str, Any]) -> str:
     for key in ("id", "node_id"):
         value = node.get(key)
         if isinstance(value, str) and value.strip():
-            return value.strip()
+            node_id = value.strip()
+            # ADV-G2-002: empty/`.`/`..` are unsafe identifiers.
+            if node_id in {".", ".."}:
+                raise GraphResolutionError("malformed-accepted-node")
+            return node_id
     raise GraphResolutionError("malformed-accepted-node")
 
 
@@ -459,8 +480,17 @@ def _eval_explicit(node: Mapping[str, Any], project_id: str) -> _StepHit | None:
     )
 
 
-def _durable_candidates(node: Mapping[str, Any]) -> list[tuple[str, str, EntityClass | None]]:
-    """Return (field, value, suggested_class) for valid durable Core ids (consume-only)."""
+def _durable_candidates(
+    node: Mapping[str, Any],
+    *,
+    local_project_uuid: str | None,
+) -> list[tuple[str, str, EntityClass | None]] | _StepHit:
+    """Return durable candidates, or a quarantine hit for foreign project_uuid.
+
+    ``project_uuid`` is conclusive only when it matches an explicit local
+    project-UUID binding (ADV-G2-007 / INV-002). Foreign or unbound UUIDs
+    fail closed as cross-project.
+    """
     found: list[tuple[str, str, EntityClass | None]] = []
     lineage = node.get("source_lineage_id")
     if isinstance(lineage, str) and lineage.strip():
@@ -479,12 +509,40 @@ def _durable_candidates(node: Mapping[str, Any]) -> list[tuple[str, str, EntityC
         except ValueError:
             value = ""
         if value:
+            bound: str | None = None
+            if local_project_uuid is not None:
+                try:
+                    bound = validate_project_uuid(local_project_uuid.strip())
+                except ValueError as exc:
+                    raise GraphResolutionError("local-project-uuid-invalid") from exc
+            if bound is None:
+                return _StepHit(
+                    entity_id="",
+                    quarantine="cross-project-resolution-forbidden",
+                    reason="project-uuid-binding-required",
+                    inputs=(f"project_uuid:{value}",),
+                    hard_reject=True,
+                )
+            if value != bound:
+                return _StepHit(
+                    entity_id="",
+                    quarantine="cross-project-resolution-forbidden",
+                    reason="cross-project-resolution-forbidden",
+                    inputs=(f"project_uuid:{value}", f"local_project_uuid:{bound}"),
+                    hard_reject=True,
+                )
             found.append(("project_uuid", value, "project"))
     return found
 
 
-def _eval_durable(node: Mapping[str, Any]) -> _StepHit | None:
-    candidates = _durable_candidates(node)
+def _eval_durable(
+    node: Mapping[str, Any],
+    *,
+    local_project_uuid: str | None,
+) -> _StepHit | None:
+    candidates = _durable_candidates(node, local_project_uuid=local_project_uuid)
+    if isinstance(candidates, _StepHit):
+        return candidates
     if not candidates:
         # Present-but-invalid durable fields are skipped (consume-only; no minting).
         present = []
@@ -514,6 +572,102 @@ def _eval_durable(node: Mapping[str, Any]) -> _StepHit | None:
         entity_class=suggested,
         reason=f"durable-core:{field_name}",
         inputs=inputs,
+    )
+
+
+def _stamped_project_scope_hit(
+    node: Mapping[str, Any], project_id: str
+) -> _StepHit | None:
+    """ADV-G2-051: node-stamped project_id ≠ resolution scope → fail closed."""
+    stamped = node.get("project_id")
+    if not isinstance(stamped, str) or not stamped.strip():
+        return None
+    stamped = stamped.strip()
+    if stamped == project_id:
+        return None
+    return _StepHit(
+        entity_id="",
+        quarantine="cross-project-resolution-forbidden",
+        reason="cross-project-resolution-forbidden",
+        inputs=(f"stamped_project_id:{stamped}", f"scope_project_id:{project_id}"),
+        hard_reject=True,
+    )
+
+
+def _identity_fingerprint(node: Mapping[str, Any]) -> str:
+    """Deterministic fingerprint of identity-relevant node fields (ADV-G2-008)."""
+    material: dict[str, Any] = {}
+    for key in _IDENTITY_FINGERPRINT_KEYS:
+        if key in node:
+            material[key] = node[key]
+    return json.dumps(material, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _quarantine_candidate_node(
+    *,
+    project_id: str,
+    node: Mapping[str, Any],
+    category: QuarantineCategory,
+    reason: str,
+    source_artifact_refs: Sequence[Mapping[str, Any]] | None,
+) -> ResolvedNode:
+    """Build a schema-valid quarantine candidate with explanation."""
+    node_id = _graphify_node_id(node)
+    entity_class = _normalize_entity_class(
+        str(node.get("type") or node.get("entity_type") or "") or None
+    )
+    refs = _artifact_refs(source_artifact_refs)
+    explanation = IdentityExplanation(
+        graphify_node_id=node_id,
+        project_id=project_id,
+        winning_step="none",
+        considered_steps=(
+            StepConsideration(
+                step="explicit_atlas_id",
+                outcome="rejected",
+                reason=reason,
+            ),
+            StepConsideration(
+                step="durable_core_id",
+                outcome="skipped",
+                reason="lower-precedence-not-evaluated",
+            ),
+            StepConsideration(
+                step="mapping_table",
+                outcome="skipped",
+                reason="lower-precedence-not-evaluated",
+            ),
+            StepConsideration(
+                step="graphify_stable",
+                outcome="skipped",
+                reason="lower-precedence-not-evaluated",
+            ),
+        ),
+        confidence="none",
+        notes="categorical confidence only; not an authority or trust score",
+    )
+    resolved = ResolvedNode(
+        project_id=project_id,
+        graphify_node_id=node_id,
+        entity_class=entity_class,
+        resolution_step="none",
+        status="quarantine_candidate",
+        quarantine_category=category,
+        source_artifact_refs=refs,
+        explanation=explanation,
+    )
+    validate_record(resolved.as_dict(), "graph-resolved-node")
+    validate_record(explanation.as_dict(), "graph-identity-explanation")
+    return ResolvedNode(
+        project_id=resolved.project_id,
+        graphify_node_id=resolved.graphify_node_id,
+        entity_class=resolved.entity_class,
+        resolution_step=resolved.resolution_step,
+        status=resolved.status,
+        source_artifact_refs=resolved.source_artifact_refs,
+        resolved_entity_id=None,
+        quarantine_category=resolved.quarantine_category,
+        explanation=explanation,
     )
 
 
@@ -574,6 +728,7 @@ def resolve_node(
     project_id: str,
     mapping_table: MappingTable | Mapping[str, Any] | None = None,
     source_artifact_refs: Sequence[Mapping[str, Any]] | None = None,
+    local_project_uuid: str | None = None,
 ) -> ResolvedNode:
     """Resolve one accepted Graphify node (AS-GRAPH-002-FR-001…005)."""
     if not isinstance(project_id, str) or not project_id.strip():
@@ -595,13 +750,28 @@ def resolve_node(
     entity_class = _normalize_entity_class(
         str(node.get("type") or node.get("entity_type") or "") or None
     )
+
+    # ADV-G2-051: stamped project_id ≠ scope fails closed before precedence.
+    scope_hit = _stamped_project_scope_hit(node, project_id)
+    if scope_hit is not None:
+        return _quarantine_candidate_node(
+            project_id=project_id,
+            node=node,
+            category="cross-project-resolution-forbidden",
+            reason=scope_hit.reason,
+            source_artifact_refs=source_artifact_refs,
+        )
+
     considerations: list[StepConsideration] = []
     winner: _StepHit | None = None
     winning_step: ResolutionStep = "none"
 
     evaluators: list[tuple[ResolutionStep, Any]] = [
         ("explicit_atlas_id", lambda: _eval_explicit(node, project_id)),
-        ("durable_core_id", lambda: _eval_durable(node)),
+        (
+            "durable_core_id",
+            lambda: _eval_durable(node, local_project_uuid=local_project_uuid),
+        ),
         ("mapping_table", lambda: _eval_mapping(node_id, project_id, table)),
         ("graphify_stable", lambda: _eval_graphify_stable(node_id, project_id, entity_class)),
     ]
@@ -724,6 +894,7 @@ def resolve_nodes(
     project_id: str,
     mapping_table: MappingTable | Mapping[str, Any] | None = None,
     source_artifact_refs: Sequence[Mapping[str, Any]] | None = None,
+    local_project_uuid: str | None = None,
     strict: bool = True,
 ) -> ResolutionResult:
     """Resolve many nodes deterministically (stable sort by graphify id)."""
@@ -751,16 +922,36 @@ def resolve_nodes(
         indexed.append((node_id, index, node))
     indexed.sort(key=lambda row: (row[0].casefold(), row[1]))
 
+    # ADV-G2-008: group by Graphify id; divergent identity payloads → quarantine.
+    groups: dict[str, list[tuple[int, Mapping[str, Any]]]] = {}
+    for node_id, index, node in indexed:
+        groups.setdefault(node_id, []).append((index, node))
+
     resolved_nodes: list[ResolvedNode] = []
     explanations: list[IdentityExplanation] = []
     errors: list[dict[str, str]] = []
-    for node_id, _, node in indexed:
+    for node_id in sorted(groups, key=str.casefold):
+        members = sorted(groups[node_id], key=lambda row: row[0])
+        fingerprints = {_identity_fingerprint(node) for _, node in members}
+        if len(fingerprints) > 1:
+            item = _quarantine_candidate_node(
+                project_id=project_id,
+                node=members[0][1],
+                category="ambiguous-identity",
+                reason="duplicate-graphify-id-divergent-payload",
+                source_artifact_refs=source_artifact_refs,
+            )
+            resolved_nodes.append(item)
+            if item.explanation is not None:
+                explanations.append(item.explanation)
+            continue
         try:
             item = resolve_node(
-                node,
+                members[0][1],
                 project_id=project_id,
                 mapping_table=table,
                 source_artifact_refs=source_artifact_refs,
+                local_project_uuid=local_project_uuid,
             )
         except GraphResolutionError as exc:
             code = str(exc).split(":", 1)[0]
@@ -805,11 +996,15 @@ def load_accepted_nodes(
     project_root: Path,
     receipt: AcceptanceReceipt,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
-    """Load node dicts + artifact refs from AS-GRAPH-001 accepted artifacts."""
+    """Load node dicts + artifact refs from AS-GRAPH-001 accepted artifacts.
+
+    Duplicate Graphify ids are retained so ``resolve_nodes`` can quarantine
+    divergent identity payloads (ADV-G2-008). Identical overlaps collapse later.
+    """
     project_root = project_root.expanduser().resolve()
     nodes: list[dict[str, Any]] = []
     refs: list[dict[str, str]] = []
-    seen_ids: set[str] = set()
+    seen: dict[str, str] = {}
 
     accepted = [
         item
@@ -833,11 +1028,15 @@ def load_accepted_nodes(
                 node_id = _graphify_node_id(node)
             except GraphResolutionError:
                 raise GraphResolutionError("malformed-accepted-node") from None
-            # Envelope + nodes.jsonl may overlap; keep first by sorted artifact path.
-            if node_id in seen_ids:
-                continue
-            seen_ids.add(node_id)
-            nodes.append(node)
+            fingerprint = _identity_fingerprint(node)
+            prior = seen.get(node_id)
+            if prior is None:
+                seen[node_id] = fingerprint
+                nodes.append(node)
+            elif prior != fingerprint:
+                # Retain divergent duplicate for batch ambiguity quarantine.
+                nodes.append(node)
+            # Identical fingerprint: keep first occurrence only.
     nodes.sort(key=lambda item: _graphify_node_id(item).casefold())
     refs.sort(key=lambda item: item["relative_path"])
     return nodes, refs
@@ -849,6 +1048,7 @@ def resolve_from_acceptance(
     manifest: dict[str, Any],
     mapping_table: MappingTable | Mapping[str, Any] | None = None,
     config: Any = None,
+    local_project_uuid: str | None = None,
     strict: bool = True,
 ) -> tuple[AcceptanceReceipt, ResolutionResult]:
     """Accept (AS-GRAPH-001) then resolve (AS-GRAPH-002). Does not redefine acceptance."""
@@ -864,6 +1064,7 @@ def resolve_from_acceptance(
         project_id=receipt.project_id,
         mapping_table=mapping_table,
         source_artifact_refs=refs,
+        local_project_uuid=local_project_uuid,
         strict=strict,
     )
     return receipt, result
