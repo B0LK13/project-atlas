@@ -39,6 +39,7 @@ from project_atlas.domain import (
     GeneratedMetadata,
     KnowledgeState,
     LifecycleStatus,
+    Maturity,
     ProvenanceReference,
     ReviewCategory,
     ReviewEntry,
@@ -52,9 +53,13 @@ from project_atlas.evidence_compiler import SourceExtraction, extract_source
 from project_atlas.okf_renderer import render_concept_note
 from project_atlas.schema import validate_record
 from project_atlas.secrets import scan_text
+from project_atlas.semantic_compiler import COVERAGE_RULES, coverage_for
 from project_atlas.subject_derivation import detect_duplicate_semantic_subjects
 from project_atlas.temporal_evaluator import evaluate_conflicts
 from project_atlas.temporal_evidence import extract_source_temporal_facts
+
+# AS-CORE-MODEL-001A: categories required for the coverage ladder (Rule C).
+_REQUIRED_MATURITY_COVERAGE = ("overview", "architecture", "security")
 
 _ALLOWED_LIFECYCLE_TRANSITIONS: dict[ClaimLifecycle, frozenset[ClaimLifecycle]] = {
     ClaimLifecycle.NEW: frozenset(
@@ -371,7 +376,55 @@ def _event_claim(project: str, entry: dict[str, Any]) -> Claim:
     )
 
 
-def _concept(project: str, claims: list[Claim], entries: list[dict[str, Any]]) -> ConceptRecord:
+def derive_project_maturity(
+    *,
+    declared_maturity: str | None,
+    open_conflicts: int,
+    entries: list[dict[str, Any]],
+) -> Maturity | None:
+    """AS-CORE-MODEL-001A: deterministic maturity for the singleton project concept.
+
+    Precedence (first applicable wins):
+      A — valid marker declaration
+      B — open conflicts without declaration → None (portfolio \"unknown\")
+      C — coverage ladder (prototype / mvp / beta); never above beta
+      D — production-candidate / production / hardened are declaration-only
+    """
+    if declared_maturity is not None:
+        try:
+            return Maturity(declared_maturity)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid project maturity declaration: {declared_maturity!r}"
+            ) from exc
+    if open_conflicts > 0:
+        return None
+    records = coverage_for(entries)
+    by_category = {record.category: record.state for record in records}
+    required_present = all(
+        by_category.get(category) in ("present", "partial")
+        for category in _REQUIRED_MATURITY_COVERAGE
+    )
+    validation_present = by_category.get("testing") == "present"
+    if required_present and validation_present:
+        return Maturity.BETA
+    if required_present:
+        return Maturity.MVP
+    if any(
+        by_category.get(category) in ("present", "partial")
+        for category, _ in COVERAGE_RULES
+    ):
+        return Maturity.PROTOTYPE
+    return None
+
+
+def _concept(
+    project: str,
+    claims: list[Claim],
+    entries: list[dict[str, Any]],
+    *,
+    open_conflicts: int = 0,
+) -> ConceptRecord:
     sources = [_provenance(project, entry) for entry in entries]
     requested_type = next(
         (str(entry["concept_type"]) for entry in entries if entry.get("concept_type")),
@@ -383,6 +436,15 @@ def _concept(project: str, claims: list[Claim], entries: list[dict[str, Any]]) -
         # Unknown source classifications remain valid evidence and are emitted
         # as a generic Reference concept rather than rejected.
         concept_type = ConceptType.REFERENCE
+    declared_maturity = next(
+        (str(entry["maturity"]) for entry in entries if entry.get("maturity")),
+        None,
+    )
+    maturity = derive_project_maturity(
+        declared_maturity=declared_maturity,
+        open_conflicts=open_conflicts,
+        entries=entries,
+    )
     return ConceptRecord(
         project_id=project,
         concept_id=project,
@@ -396,6 +458,7 @@ def _concept(project: str, claims: list[Claim], entries: list[dict[str, Any]]) -
         if claims
         else KnowledgeState.IMPORTED_SOURCE,
         review_state=ReviewState.PENDING_HUMAN_REVIEW if claims else ReviewState.UNREVIEWED,
+        maturity=maturity,
         sources=sources,
         generated_by="project-atlas:as-core-003",
         generated=GeneratedMetadata(by="agent:project-atlas"),
@@ -941,7 +1004,7 @@ def compile_knowledge(
         {item.review_id: item for item in reviews}.values(),
         key=lambda item: item.review_id,
     )
-    concepts = [_concept(project, claims, entries)]
+    concepts = [_concept(project, claims, entries, open_conflicts=len(conflicts))]
     authorities: list[AuthorityRecord] = []
     for entry in entries:
         level, precedence, reason = _authority(str(entry["path"]), str(entry["classification"]))
