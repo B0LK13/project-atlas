@@ -3656,3 +3656,28 @@ byte-stable for merged snapshot/report.
 **MERGE AUTHORIZED: NO**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 
+
+## AS-INGEST-MANIFEST-001 — Reintegration onto AS-GH-001 tip `b72aa0c`
+
+**Directive:** D-PROJECT-ATLAS-PARALLEL-WAVE-002 Lane D / third hop  
+**Trigger:** Prior certified tip `1c9b44dbc21c32fbc89f9dabcbc1392a38bd6415` on base `32675c7` is **STALE** after AS-GH-001 tip `b72aa0c`.  
+**Base (tip-compat / new main tip):** `b72aa0c4936a8e2828171bd0254e6c2b77ff1309` / tree `c43c94668101bfe6d137cffe90ebff32e7bd6495`  
+**Prior tip (on `32675c7`):** `1c9b44dbc21c32fbc89f9dabcbc1392a38bd6415` / tree `8025851804afcb2e77c6f76c8222c50bf9ca6cdd`  
+**Branch:** `feat/as-ingest-manifest-001`  
+**Worktree:** `D:\atlas-worktrees\parallel-wave-002\core-debt`  
+**Method:** `git rebase --onto b72aa0c 32675c7 44edb1b` (feature + WORKLOG pin only); skipped stale docs commit that recorded reintegration onto `32675c7`. Clean replay — no conflicts.  
+**Package contract:** **UNCHANGED** — package-file patch-id identical to pre-rebase feature (`53c46e4…`); merge helpers / feature tests / backlog package lines byte-identical; sole backlog delta vs old tip is base AS-GH-001 L-001 wording.
+
+### Gates (post-reintegration)
+- ruff: PASS (`ruff-reintegrate-b72aa0c.txt`)
+- mypy src: PASS (`mypy-reintegrate-b72aa0c.txt`)
+- Focused: 12 passed (`pytest-focused-reintegrate-b72aa0c.txt`)
+- Full Core: **642 passed, 1 skipped** (643 collected) — `pytest-core-reintegrate-b72aa0c.txt`
+- Control Plane (WSL): **146 passed** — `pytest-control-plane-reintegrate-b72aa0c.txt`
+- Orphan evidence: `D:\project-atlas-orphans\atlas-tech-debt\AS-INGEST-MANIFEST-001-IMPLEMENTATION-EVIDENCE.md`
+
+**PRODUCTION CODE MODIFIED: NO (replay only)**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: REINTEGRATION COMPLETE — GOVERNOR REVIEW REQUIRED (base b72aa0c)**  
+**Do not merge / self-certify. Do not start AS-CORE-009.**
+
