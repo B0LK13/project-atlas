@@ -23,6 +23,7 @@ from project_atlas.knowledge_query import (
     answer_to_json,
     list_authoritative,
     query_knowledge,
+    query_knowledge_fields,
 )
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.migrations.claim_v2_migration import migrate_v2
@@ -101,13 +102,32 @@ def build_parser() -> argparse.ArgumentParser:
         "query",
         help=(
             "Read-only knowledge query over temporal and authoritative state "
-            "(AS-CORE-007)."
+            "(AS-CORE-007 point / AS-CORE-008 multi-field)."
         ),
     )
     query_parser.add_argument("--vault", type=Path, required=True)
     query_parser.add_argument("--project", type=str, required=True)
     query_parser.add_argument("--subject", type=str, default=None)
-    query_parser.add_argument("--field", type=str, default=None)
+    query_parser.add_argument(
+        "--field",
+        action="append",
+        default=None,
+        dest="field_args",
+        help=(
+            "Field name. Repeat for AS-CORE-008 multi-field composition; "
+            "a single --field keeps the AS-CORE-007 point path."
+        ),
+    )
+    query_parser.add_argument(
+        "--fields",
+        type=str,
+        default=None,
+        dest="fields_csv",
+        help=(
+            "Comma-separated field list for AS-CORE-008 multi-field query "
+            "(mutually exclusive with --field)."
+        ),
+    )
     query_parser.add_argument(
         "--kind",
         choices=["authoritative", "temporal", "explain"],
@@ -243,24 +263,61 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "query":
         try:
+            field_args: list[str] | None = args.field_args
+            fields_csv: str | None = args.fields_csv
             if args.list:
+                if field_args or fields_csv:
+                    _log.error("query --list cannot be combined with --field/--fields")
+                    return EXIT_ERROR
                 if args.kind != "authoritative":
                     _log.error("query --list requires --kind authoritative")
                     return EXIT_ERROR
                 answers = list_authoritative(args.vault, args.project)
                 print(answer_to_json(answers), end="")
                 return EXIT_OK
-            if not args.subject or not args.field:
-                _log.error("query requires --subject and --field unless --list is set")
+            if field_args and fields_csv:
+                _log.error("query --field and --fields are mutually exclusive")
                 return EXIT_ERROR
-            answer = query_knowledge(
+            if not args.subject:
+                _log.error(
+                    "query requires --subject and --field/--fields unless --list is set"
+                )
+                return EXIT_ERROR
+            if fields_csv is not None:
+                multifield = [part.strip() for part in fields_csv.split(",")]
+                csv_answer = query_knowledge_fields(
+                    args.vault,
+                    args.project,
+                    args.subject,
+                    multifield,
+                    kind=args.kind,
+                )
+                print(answer_to_json(csv_answer), end="")
+                return EXIT_OK
+            if not field_args:
+                _log.error(
+                    "query requires --subject and --field/--fields unless --list is set"
+                )
+                return EXIT_ERROR
+            if len(field_args) == 1:
+                # Preserve AS-CORE-007 point-query CLI contract.
+                point_answer = query_knowledge(
+                    args.vault,
+                    args.project,
+                    args.subject,
+                    field_args[0],
+                    kind=args.kind,
+                )
+                print(answer_to_json(point_answer), end="")
+                return EXIT_OK
+            multi_answer = query_knowledge_fields(
                 args.vault,
                 args.project,
                 args.subject,
-                args.field,
+                field_args,
                 kind=args.kind,
             )
-            print(answer_to_json(answer), end="")
+            print(answer_to_json(multi_answer), end="")
             return EXIT_OK
         except KnowledgeQueryError as exc:
             _log.error("query failed [%s]: %s", exc.code.value, exc.message)
