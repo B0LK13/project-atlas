@@ -246,3 +246,14 @@ _Status: implementation complete through Level 0 self-host evidence. Directive D
 - [x] EXT1A-024 Claim Identity v2 tests remain green; compiler and migration remain consistent (§10 MUST)
 - [x] EXT1A-025 Aliases promoted only for provable one-to-one mappings; one-to-many remain ambiguous (§10 MUST)
 - [x] EXT1A-026 Source/parser provenance on every emitted claim; claim counts from canonical JSON cross-checked (§10 MUST)
+
+## AS-CORE-008 — Subject Multi-Field Knowledge Query
+
+_Status: implementation complete on `feat/as-core-008-subject-multifield-query`; awaiting governor review / merge. Governing contract: query-scope-lock `AS-CORE-008-PACKAGE-CONTRACT.md`. Base `d209b359ddd30e75e4709932fd55cb9b71016927`. Additive read-only composition over AS-CORE-007; persistence NONE; authority/temporal CONSUME-ONLY._
+
+- [x] CORE8-001 Domain envelope `KnowledgeMultiFieldAnswer` + JSON schema
+- [x] CORE8-002 Library `query_knowledge_fields` (single snapshot; point-builder reuse)
+- [x] CORE8-003 CLI adapter (repeatable `--field` / `--fields`; point path preserved)
+- [x] CORE8-004 Focused FR/INV suite (ordering, duplicates, snapshot fail-closed, parity, no-mutation)
+- [x] CORE8-005 Package guide `docs/AS-CORE-008-subject-multifield-query.md`
+- [ ] CORE8-006 Governor review and merge to `main`

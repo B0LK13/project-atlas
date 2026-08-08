@@ -89,6 +89,10 @@ Exit codes: `0` structured answer/non-answer, `1` operational/integrity error,
 Library entry points: `project_atlas.knowledge_query.query_knowledge`,
 `list_authoritative`, `answer_to_json`.
 
+For multi-field composition under one compilation snapshot, see
+[AS-CORE-008](AS-CORE-008-subject-multifield-query.md)
+(`query_knowledge_fields`). Point semantics here remain unchanged.
+
 ## Example (acceptance fixture)
 
 After compiling the AS-ID-001 receipt corpus:
