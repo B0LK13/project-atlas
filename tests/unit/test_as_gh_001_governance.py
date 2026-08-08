@@ -253,6 +253,32 @@ def test_ci_workflow_preserves_the_quality_job_name() -> None:
     )
 
 
+def test_ci_workflow_declares_control_plane_job() -> None:
+    """AS-MAINT-002 / ADR-006: push/PR CI runs CP under a stable job id.
+
+    The job id ``control-plane`` is the intended GitHub check identity and must
+    remain distinct from the matrixed ``quality`` job so existing check names
+    are not renamed or duplicated.
+    """
+    ci_path = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+    config = _load_yaml_no_duplicates(ci_path)
+    jobs = config["jobs"]
+    assert "control-plane" in jobs, "AS-MAINT-002 requires a 'control-plane' job in ci.yml"
+    assert "quality" in jobs, "quality job must remain alongside control-plane"
+    job = jobs["control-plane"]
+    assert job.get("runs-on") == "ubuntu-latest"
+    assert isinstance(job.get("timeout-minutes"), int) and job["timeout-minutes"] > 0
+    assert "strategy" not in job, "control-plane must stay a single stable check identity"
+    step_runs = [
+        step.get("run", "")
+        for step in job.get("steps", [])
+        if isinstance(step, dict) and isinstance(step.get("run"), str)
+    ]
+    assert any(
+        "atlas-vault-documentation/tests" in run and "pytest" in run for run in step_runs
+    ), "control-plane must invoke pytest on atlas-vault-documentation/tests directly"
+
+
 def test_atlas_documentation_gate_remains_workflow_dispatch_only() -> None:
     path = REPO_ROOT / ".github" / "workflows" / "atlas-documentation-gate.yml"
     config = _load_yaml_no_duplicates(path)

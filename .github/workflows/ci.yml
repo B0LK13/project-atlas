@@ -80,3 +80,24 @@ jobs:
       - name: Line-ending-sensitive golden fixture test (Windows)
         if: matrix.suite == 'windows'
         run: python -m pytest tests/integration/test_as_mvp_001_release_closure.py::test_k005_settled_rebuild_is_byte_identical_to_golden_state -v
+
+  # AS-MAINT-002 / ADR-006: Control Plane suite on every push/PR.
+  # Distinct job id preserves the existing `quality (*)` check identities.
+  control-plane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package with dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Control Plane pytest
+        env:
+          PYTHONPATH: src
+        run: python -m pytest atlas-vault-documentation/tests --tb=short -q

@@ -3562,3 +3562,27 @@ non-answer under shared compilation snapshot.
 **PRODUCTION CODE MODIFIED: YES (query/domain/CLI additive only)**  
 **TESTS MODIFIED: YES**  
 **MERGE AUTHORIZED: NO**
+
+## AS-MAINT-002 — Control Plane Push/PR CI Coverage (implementation)
+
+**Directive:** D-PROJECT-ATLAS-MULTITASK-ACCELERATION-001 / LANE D1  
+**Base:** `origin/main` @ `59670bf33feede82dd85daa3da994f410a8d838e` (AS-CORE-008 tip)  
+**Branch:** `feat/as-maint-002-control-plane-ci`  
+**Worktree:** `D:\atlas-worktrees\as-maint-002-control-plane-ci`  
+**Entry/contract:** `D:\project-atlas-orphans\as-maint-002\`
+
+### Plan
+Additive `control-plane` job in `.github/workflows/ci.yml` per ADR-006:
+Linux / Python 3.12, `PYTHONPATH=src`, direct
+`pytest atlas-vault-documentation/tests --tb=short -q`. Preserve `quality`
+matrix check identities. No `pull_request_target`, no branch-protection
+edits, no Atlas production semantics change.
+
+### Scope
+- `.github/workflows/ci.yml` — new `control-plane` job
+- `tests/unit/test_as_gh_001_governance.py` — stable-job assertion
+- `WORKLOG.md` — this entry
+
+### Results
+Entry gate: READY SMALL; no blocking ADR; implementation on feature branch.
+**MERGE AUTHORIZED: NO** — stop for IV / Governor.
