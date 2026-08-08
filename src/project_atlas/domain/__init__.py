@@ -27,6 +27,7 @@ from project_atlas.domain.knowledge_query import (
     AnswerStatus,
     ClaimProjection,
     KnowledgeAnswer,
+    KnowledgeMultiFieldAnswer,
     KnowledgeQueryErrorCode,
     QueryKind,
 )
@@ -131,6 +132,7 @@ __all__ = [
     "DocumentLifecycle",
     "GeneratedMetadata",
     "KnowledgeAnswer",
+    "KnowledgeMultiFieldAnswer",
     "KnowledgeQueryErrorCode",
     "KnowledgeState",
     "LifecycleStatus",

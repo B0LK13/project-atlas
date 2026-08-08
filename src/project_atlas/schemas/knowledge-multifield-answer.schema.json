@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/knowledge-multifield-answer.schema.json",
+  "title": "KnowledgeMultiFieldAnswer",
+  "description": "AS-CORE-008 subject multi-field knowledge query envelope (composition over AS-CORE-007 point answers)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package",
+    "project_id",
+    "subject",
+    "kind",
+    "fields",
+    "results",
+    "inspected_artifacts"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package": { "const": "AS-CORE-008" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "subject": { "type": "string", "minLength": 1 },
+    "kind": {
+      "type": "string",
+      "enum": ["authoritative", "temporal", "explain"]
+    },
+    "compilation_id": { "type": ["string", "null"] },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "https://project-atlas.local/schemas/knowledge-answer.schema.json" }
+    },
+    "inspected_artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

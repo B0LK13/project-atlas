@@ -1,13 +1,17 @@
-"""AS-CORE-007 Knowledge Query Contract — read-only consumer of persisted state.
+"""AS-CORE-007 / AS-CORE-008 Knowledge Query — read-only consumer of persisted state.
 
 Does not call evaluate_authority / evaluate_conflicts and never writes the vault.
 Answers derive solely from state/current-state and state/authoritative-state plus
 immutable claims for provenance projection.
+
+AS-CORE-008 adds subject multi-field composition under one shared snapshot load.
+Composition ≠ new authority; multi-field success ≠ all fields authoritative.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +21,7 @@ from project_atlas.domain.knowledge_query import (
     AnswerStatus,
     ClaimProjection,
     KnowledgeAnswer,
+    KnowledgeMultiFieldAnswer,
     KnowledgeQueryErrorCode,
     QueryKind,
 )
@@ -36,8 +41,10 @@ class KnowledgeQueryError(Exception):
         super().__init__(f"{self.code.value}: {message}")
 
 
-def answer_to_json(answer: KnowledgeAnswer | list[KnowledgeAnswer]) -> str:
-    """Serialize answer(s) deterministically (AS-CORE-007-FR-009)."""
+def answer_to_json(
+    answer: KnowledgeAnswer | KnowledgeMultiFieldAnswer | list[KnowledgeAnswer],
+) -> str:
+    """Serialize answer(s) deterministically (AS-CORE-007-FR-009 / AS-CORE-008-FR-010)."""
     if isinstance(answer, list):
         payload: Any = [item.model_dump(mode="json") for item in answer]
     else:
@@ -79,7 +86,87 @@ def query_knowledge(
 
     root = _resolve_vault(vault)
     snapshot = _load_snapshot(root, project_id)
+    return _answer_for_kind(snapshot, subject, field, query_kind)
 
+
+def query_knowledge_fields(
+    vault: Path,
+    project_id: str,
+    subject: str,
+    fields: Sequence[str],
+    *,
+    kind: QueryKindName = "authoritative",
+) -> KnowledgeMultiFieldAnswer:
+    """Answer (project, subject, fields[]) under one shared compilation snapshot.
+
+    AS-CORE-008 — library-first multi-field composition over point AS-CORE-007
+    semantics. Loads project state once; never invents values or recomputes
+    authority/temporal dispositions.
+    """
+    if not project_id or not project_id.strip():
+        raise KnowledgeQueryError(
+            KnowledgeQueryErrorCode.INVALID_INPUT, "project_id is required"
+        )
+    if not fields:
+        raise KnowledgeQueryError(
+            KnowledgeQueryErrorCode.INVALID_INPUT,
+            "fields must be a non-empty list (AS-CORE-008-FR-008)",
+        )
+    normalized_fields: list[str] = []
+    for index, field in enumerate(fields):
+        if not isinstance(field, str) or not field.strip():
+            raise KnowledgeQueryError(
+                KnowledgeQueryErrorCode.INVALID_INPUT,
+                f"fields[{index}] must be a non-empty string (AS-CORE-008-FR-008)",
+            )
+        normalized_fields.append(field.strip())
+    if len(normalized_fields) != len(set(normalized_fields)):
+        raise KnowledgeQueryError(
+            KnowledgeQueryErrorCode.INVALID_INPUT,
+            "duplicate field names are not allowed (AS-CORE-008-FR-007)",
+        )
+    try:
+        subject = validate_claim_subject(subject)
+    except ValueError as exc:
+        raise KnowledgeQueryError(
+            KnowledgeQueryErrorCode.INVALID_INPUT, str(exc)
+        ) from exc
+
+    try:
+        query_kind = QueryKind(kind)
+    except ValueError as exc:
+        raise KnowledgeQueryError(
+            KnowledgeQueryErrorCode.UNSUPPORTED_KIND,
+            f"unsupported query kind: {kind!r}",
+        ) from exc
+
+    root = _resolve_vault(vault)
+    # Single snapshot load — no silent mixed compilation_id (AS-CORE-008-INV-004).
+    snapshot = _load_snapshot(root, project_id)
+
+    # Preserve caller field order (AS-CORE-008-FR-006 / INV-007); never dict/set order.
+    results: list[KnowledgeAnswer] = [
+        _answer_for_kind(snapshot, subject, field_name, query_kind)
+        for field_name in normalized_fields
+    ]
+    return KnowledgeMultiFieldAnswer(
+        project_id=project_id,
+        subject=subject,
+        kind=query_kind,
+        compilation_id=snapshot.compilation_id,
+        fields=tuple(normalized_fields),
+        results=tuple(results),
+        inspected_artifacts=_artifacts(snapshot),
+    )
+
+
+def _answer_for_kind(
+    snapshot: _ProjectSnapshot,
+    subject: str,
+    field: str,
+    query_kind: QueryKind,
+) -> KnowledgeAnswer:
+    """Point-answer builder used by AS-CORE-007 and AS-CORE-008 fan-out."""
     if query_kind is QueryKind.TEMPORAL:
         return _answer_temporal(snapshot, subject, field)
     if query_kind is QueryKind.AUTHORITATIVE:

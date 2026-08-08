@@ -36,6 +36,7 @@ SCHEMA_FILES: dict[str, str] = {
     "parser-output": "parser-output.schema.json",
     "diagnostic": "diagnostic.schema.json",
     "knowledge-answer": "knowledge-answer.schema.json",
+    "knowledge-multifield-answer": "knowledge-multifield-answer.schema.json",
 }
 
 
