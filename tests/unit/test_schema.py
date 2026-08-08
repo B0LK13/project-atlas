@@ -31,6 +31,7 @@ def test_all_expected_schemas_available() -> None:
         "conflict-record",
         "diagnostic",
         "knowledge-answer",
+        "knowledge-multifield-answer",
         "parser-output",
         "provenance-reference",
         "review-entry",
