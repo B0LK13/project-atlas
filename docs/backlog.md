@@ -140,7 +140,13 @@ independent verification passes and the branch is merged to `main`._
 - [ ] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
   `ProvenanceReference` into formal project projections and richer validated
   project frontmatter; the current slice intentionally uses a thin
-  `SourceRecord`-backed projection.
+  `SourceRecord`-backed projection. (Split later: maturity slice
+  AS-CORE-MODEL-001A; multi-concept composition AS-CORE-MODEL-001B —
+  contracts only under Lane D / D-PROJECT-ATLAS-PARALLEL-WAVE-002.)
+- [x] AS-INGEST-MANIFEST-001 Multi-batch discovery snapshot and ingest-report
+  merge by `source_id` — implementation complete on
+  `feat/as-ingest-manifest-001` (closes AS-MVP-001 accepted overwrite debt;
+  governor review required; not self-certified).
 - [ ] CORE-OPS-001 Add explicit read-before-write/hash-before-replace
   accounting and evidence for filesystem-write suppression on unchanged
   replay. Keep `content drift` and `canonical content changes` distinct from
@@ -177,6 +183,8 @@ independent verification passes and the branch is merged to `main`._
 - [ ] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
 - [ ] CORE2-008 Add duplicate-source conflict projections and authority review queue
 - [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
+  (ATOMIC-PROMOTION residual; contract-only under Lane D — see
+  `D:\project-atlas-orphans\atlas-tech-debt\contracts\AS-CORE2-009.md`)
 - [ ] CORE2-010 Run controlled pilot lifecycle certification
 
 ## AS-ID-001 — Durable Source Lineage Identity

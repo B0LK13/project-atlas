@@ -18,12 +18,10 @@ Covers, over and above the ten ADR-005 acceptance scenarios in
   one credential-shaped string to a fourth, minimal fixture project").
 - The overview.json "coverage_categories_present" vs. maturity-matrix
   "required_coverage_present" field-semantics reconciliation.
-- A multi-batch discover/ingest regression, documenting a pre-existing
-  (not AS-MVP-001-introduced) ingestion.py manifest-overwrite
-  limitation that this package does not fix (out of the bounded
-  remediation's allowed paths), plus the in-scope portfolio.py
-  mitigation that keeps `overview.json` from reporting a fabricated 0
-  for a project whose sources fell out of the truncated manifest.
+- A multi-batch discover/ingest regression for AS-INGEST-MANIFEST-001:
+  narrower second-batch ingest retains sibling-project discovery
+  snapshot rows, classifications, coverage, and stale-knowledge inputs
+  (closing the AS-MVP-001 accepted overwrite limitation).
 
 Golden fixtures under tests/fixtures/expected/ were generated once by
 running the real pipeline against tests/fixtures/pilots/ with every
@@ -67,7 +65,7 @@ _REFERENCE_DATE = datetime(2026, 8, 1, tzinfo=UTC)
 # project_uuid of their own (so real, uncopied `atlas discover`/`ingest`
 # runs against them do not durably mutate the committed
 # .atlas-project.yaml marker files -- see
-# test_multi_batch_ingest_manifest_overwrite_is_reproduced_and_bounded's
+# test_multi_batch_ingest_manifest_merge_retains_sibling_projects'
 # docstring). ingestion.py's `_prepare_project_identity()` allocates a
 # fresh, genuinely random UUID exactly once for any project marker with
 # no `project_uuid` field (AS-ID-001's "genesis" design), which would
@@ -368,31 +366,19 @@ def test_overview_coverage_categories_present_counts_strictly_present_only(
 
 
 # ---------------------------------------------------------------------------
-# Multi-batch discover/ingest: pre-existing ingestion.py limitation
+# Multi-batch discover/ingest: AS-INGEST-MANIFEST-001 snapshot merge
 # ---------------------------------------------------------------------------
 
 
-def test_multi_batch_ingest_manifest_overwrite_is_reproduced_and_bounded(
+def test_multi_batch_ingest_manifest_merge_retains_sibling_projects(
     tmp_path: Path,
 ) -> None:
-    """Reproduces the pre-existing (not AS-MVP-001-introduced)
-    ingestion.py behavior where ``sources/manifests/source-manifest.json``
-    is overwritten (not merged) by each ``atlas ingest`` call: a second,
-    narrower discover+ingest batch causes earlier projects' entries to
-    disappear from that manifest.
+    """AS-INGEST-MANIFEST-001: narrower second-batch ingest retains sibling
+    projects' discovery snapshot rows, classifications, coverage signals,
+    and stale-knowledge inventory.
 
-    Fixing ingestion.py's write behavior is out of AS-MVP-001-R1's
-    bounded remediation scope (not in the allowed paths; it is a shared
-    boundary used by AS-CORE-002/AS-ID-001/AS-SEC-001) -- explicitly
-    accepted by the owner as a non-MVP workflow limitation (see
-    docs/evidence/AS-MVP-001-receipt.yaml's remediation section), not
-    silently marked complete.
-
-    The in-scope portfolio.py mitigation verified here: overview.json
-    reports "unknown" (never a fabricated 0) for a project whose sources
-    fell out of the truncated manifest, rather than misrepresenting
-    "no data" as "zero quarantined sources". Canonical per-project state
-    (concepts/claims) is not lost -- all three pilots still appear.
+    Closes the AS-MVP-001 accepted overwrite limitation for
+    ``sources/manifests/source-manifest.json`` and batch reports.
     """
     # Never discover directly from the committed tests/fixtures/pilots/
     # tree: a first-ever ingest durably allocates and writes a one-time
@@ -418,6 +404,51 @@ def test_multi_batch_ingest_manifest_overwrite_is_reproduced_and_bounded(
         "black-agency-os",
         "dark-factory",
     }
+    combined_report = json.loads(
+        (vault / "generated" / "reports" / "ingestion-report.json").read_text(encoding="utf-8")
+    )
+    sibling_classification_ids = {
+        source_id
+        for source_id, _info in combined_report["classifications"].items()
+        if any(
+            entry["source_id"] == source_id
+            and entry["likely_project"] in {"black-agency-os", "dark-factory"}
+            for entry in combined_manifest["sources"]
+        )
+    }
+    assert sibling_classification_ids
+
+    assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
+    assert main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
+    coverage_before = json.loads(
+        (vault / "generated" / "portfolio" / "documentation-coverage.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    stale_before = json.loads(
+        (vault / "generated" / "portfolio" / "stale-knowledge.json").read_text(encoding="utf-8")
+    )
+
+    def _presentish_counts(coverage: dict[str, object], project_id: str) -> int:
+        project = coverage["projects"][project_id]  # type: ignore[index]
+        categories = project["categories"]  # type: ignore[index]
+        return sum(
+            1
+            for category in categories  # type: ignore[union-attr]
+            if category["state"] in {"present", "partial"}
+        )
+
+    sibling_presentish_before = {
+        project_id: _presentish_counts(coverage_before, project_id)
+        for project_id in ("black-agency-os", "dark-factory")
+    }
+    assert all(count > 0 for count in sibling_presentish_before.values())
+    sibling_stale_before = {
+        project_id: list(
+            stale_before["projects"].get(project_id, {}).get("sources", [])  # type: ignore[index]
+        )
+        for project_id in ("black-agency-os", "dark-factory")
+    }
 
     manifest_2 = tmp_path / "m2.json"
     assert (
@@ -426,13 +457,15 @@ def test_multi_batch_ingest_manifest_overwrite_is_reproduced_and_bounded(
     )
     assert main(["ingest", "--manifest", str(manifest_2), "--vault", str(vault)]) == EXIT_OK
 
-    truncated_manifest = json.loads(
+    merged_manifest = json.loads(
         (vault / "sources" / "manifests" / "source-manifest.json").read_text(encoding="utf-8")
     )
-    truncated_projects = {s["likely_project"] for s in truncated_manifest["sources"]}
-    # Reproduces the known limitation: black-agency-os/dark-factory's
-    # manifest entries were overwritten away by the narrower second batch.
-    assert truncated_projects == {"nebula"}
+    merged_projects = {s["likely_project"] for s in merged_manifest["sources"]}
+    assert merged_projects == {"nebula", "black-agency-os", "dark-factory"}
+    merged_report = json.loads(
+        (vault / "generated" / "reports" / "ingestion-report.json").read_text(encoding="utf-8")
+    )
+    assert sibling_classification_ids <= set(merged_report["classifications"])
 
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
@@ -443,12 +476,24 @@ def test_multi_batch_ingest_manifest_overwrite_is_reproduced_and_bounded(
             (vault / "generated" / "portfolio" / "overview.json").read_text(encoding="utf-8")
         )["projects"]
     }
-    # Canonical project state is not lost: all three pilots still appear.
     assert set(overview_by_project) == {"nebula", "black-agency-os", "dark-factory"}
-    # In-scope portfolio.py mitigation: "unknown", not a fabricated 0, for
-    # the two projects whose manifest entries were overwritten away.
-    assert overview_by_project["black-agency-os"]["quarantined_sources"] == "unknown"
-    assert overview_by_project["dark-factory"]["quarantined_sources"] == "unknown"
-    # nebula is still present in the truncated manifest, so it correctly
-    # gets a real, cited count rather than "unknown".
+    assert overview_by_project["black-agency-os"]["quarantined_sources"] == 0
+    assert overview_by_project["dark-factory"]["quarantined_sources"] == 0
     assert overview_by_project["nebula"]["quarantined_sources"] == 0
+
+    coverage_after = json.loads(
+        (vault / "generated" / "portfolio" / "documentation-coverage.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    for project_id, before_count in sibling_presentish_before.items():
+        assert _presentish_counts(coverage_after, project_id) == before_count
+
+    stale_after = json.loads(
+        (vault / "generated" / "portfolio" / "stale-knowledge.json").read_text(encoding="utf-8")
+    )
+    for project_id, before_entries in sibling_stale_before.items():
+        after_entries = stale_after["projects"].get(project_id, {}).get("sources", [])
+        assert {entry["source_id"] for entry in before_entries} <= {
+            entry["source_id"] for entry in after_entries
+        }

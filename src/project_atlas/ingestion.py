@@ -730,6 +730,198 @@ def _read_registry_compatibility(vault: Path) -> dict[str, tuple[bool, str | Non
     }
 
 
+# AS-INGEST-MANIFEST-001: multi-batch discovery snapshot / report merge.
+_DELETED_SOURCE_CHANGE_STATES = frozenset({"deleted", "restored-elsewhere"})
+
+
+def _load_vault_json(path: Path) -> Any | None:
+    """Best-effort JSON load for prior vault artifacts; missing/invalid → None."""
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+
+
+def _batch_deleted_source_ids(
+    registry_records: list[dict[str, Any]],
+    batch_project_uuids: set[str],
+) -> set[str]:
+    """Return source_ids tombstoned for projects included in the current batch.
+
+    Deletion authority is registry lifecycle for batch projects only
+    (AS-INGEST-MANIFEST-001). Projects absent from the batch retain their
+    prior snapshot rows even when omitted from the current discover root.
+    """
+    deleted: set[str] = set()
+    if not batch_project_uuids:
+        return deleted
+    for item in registry_records:
+        if str(item.get("canonical_project_id", "")) not in batch_project_uuids:
+            continue
+        if str(item.get("source_change_state", "")) not in _DELETED_SOURCE_CHANGE_STATES:
+            continue
+        source_id = str(item.get("source_id", ""))
+        if source_id:
+            deleted.add(source_id)
+    return deleted
+
+
+def _recompute_duplicates(sources: list[dict[str, Any]]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for record in sources:
+        digest = record.get("sha256")
+        source_id = record.get("source_id")
+        if isinstance(digest, str) and isinstance(source_id, str) and source_id:
+            groups.setdefault(digest, []).append(source_id)
+    return {
+        digest: sorted(ids)
+        for digest, ids in sorted(groups.items())
+        if len(ids) > 1
+    }
+
+
+def merge_discovery_manifest(
+    prior: dict[str, Any] | None,
+    incoming: dict[str, Any],
+    *,
+    deleted_source_ids: set[str],
+) -> dict[str, Any]:
+    """Upsert discovery snapshot rows by ``source_id`` (AS-INGEST-MANIFEST-001).
+
+    ``source_root`` and ``agent_events`` follow the last batch. ``inventory_sha256``
+    is recomputed from the merged semantic payload; ``last_batch_inventory_sha256``
+    preserves the incoming batch hash for operators.
+    """
+    prior_sources = (
+        [item for item in prior.get("sources", []) if isinstance(item, dict)]
+        if isinstance(prior, dict)
+        else []
+    )
+    incoming_sources = [
+        item for item in incoming.get("sources", []) if isinstance(item, dict)
+    ]
+    by_id: dict[str, dict[str, Any]] = {}
+    for item in prior_sources:
+        source_id = str(item.get("source_id", ""))
+        if not source_id or source_id in deleted_source_ids:
+            continue
+        by_id[source_id] = dict(item)
+    for item in incoming_sources:
+        source_id = str(item.get("source_id", ""))
+        if not source_id or source_id in deleted_source_ids:
+            continue
+        by_id[source_id] = dict(item)
+    merged_sources = [by_id[key] for key in sorted(by_id)]
+    duplicates = _recompute_duplicates(merged_sources)
+    prior_version = int(prior.get("schema_version", 1)) if isinstance(prior, dict) else 1
+    incoming_version = int(incoming.get("schema_version", 1))
+    semantic = {
+        "schema_version": max(prior_version, incoming_version, 1),
+        "source_root": incoming.get("source_root"),
+        "sources": merged_sources,
+        "duplicates": duplicates,
+        "agent_events": list(incoming.get("agent_events", [])),
+    }
+    inventory_sha256 = hashlib.sha256(
+        json.dumps(semantic, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        **semantic,
+        "inventory_sha256": inventory_sha256,
+        "last_batch_inventory_sha256": incoming.get("inventory_sha256"),
+    }
+
+
+def merge_ingestion_report(
+    prior: dict[str, Any] | None,
+    current: dict[str, Any],
+    *,
+    merged_manifest: dict[str, Any],
+    deleted_source_ids: set[str],
+) -> dict[str, Any]:
+    """Merge classification maps by ``source_id``; keep batch operational counts."""
+    active_ids = {
+        str(item["source_id"])
+        for item in merged_manifest.get("sources", [])
+        if isinstance(item, dict) and item.get("source_id")
+    }
+    classifications: dict[str, Any] = {}
+    if isinstance(prior, dict) and isinstance(prior.get("classifications"), dict):
+        for source_id, info in prior["classifications"].items():
+            key = str(source_id)
+            if key in deleted_source_ids or key not in active_ids:
+                continue
+            classifications[key] = info
+    if isinstance(current.get("classifications"), dict):
+        for source_id, info in current["classifications"].items():
+            key = str(source_id)
+            if key in deleted_source_ids or key not in active_ids:
+                continue
+            classifications[key] = info
+    return {
+        "schema_version": 1,
+        "inventory_sha256": merged_manifest.get("inventory_sha256"),
+        "classifications": classifications,
+        "documents_ingested": current.get("documents_ingested", 0),
+        "security_findings": current.get("security_findings", 0),
+        "injection_findings": current.get("injection_findings", 0),
+        "duplicates": merged_manifest.get("duplicates", {}),
+    }
+
+
+def merge_secret_findings(
+    prior: list[dict[str, Any]] | None,
+    current: list[dict[str, Any]],
+    *,
+    deleted_source_ids: set[str],
+    active_source_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Upsert secret findings by (source_id, pattern)."""
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in (*(prior or ()), *current):
+        source_id = str(item.get("source_id", ""))
+        pattern = str(item.get("pattern", ""))
+        if (
+            not source_id
+            or source_id in deleted_source_ids
+            or source_id not in active_source_ids
+        ):
+            continue
+        merged[(source_id, pattern)] = dict(item)
+    return [merged[key] for key in sorted(merged)]
+
+
+def merge_injection_findings(
+    prior: dict[str, Any] | list[dict[str, Any]] | None,
+    current_findings: list[dict[str, Any]],
+    *,
+    deleted_source_ids: set[str],
+    active_source_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Upsert injection findings by (source_id, rule)."""
+    prior_findings: list[dict[str, Any]]
+    if isinstance(prior, dict) and isinstance(prior.get("findings"), list):
+        prior_findings = [item for item in prior["findings"] if isinstance(item, dict)]
+    elif isinstance(prior, list):
+        prior_findings = [item for item in prior if isinstance(item, dict)]
+    else:
+        prior_findings = []
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in (*prior_findings, *current_findings):
+        source_id = str(item.get("source_id", ""))
+        rule = str(item.get("rule", ""))
+        if (
+            not source_id
+            or source_id in deleted_source_ids
+            or source_id not in active_source_ids
+        ):
+            continue
+        merged[(source_id, rule)] = dict(item)
+    return [merged[key] for key in sorted(merged)]
+
+
 def _ingest(
     manifest_path: Path,
     vault: Path,
@@ -1314,18 +1506,67 @@ def _ingest(
         write_plan[destination] = (
             json.dumps(receipt, indent=2, sort_keys=True) + "\n"
         ).encode()
+    # AS-INGEST-MANIFEST-001: merge vault-wide discovery snapshot + reports by
+    # source_id so narrower batches do not erase sibling-project inventory.
+    batch_project_uuids = set(project_identity.values())
+    deleted_source_ids = _batch_deleted_source_ids(registry_records, batch_project_uuids)
+    prior_manifest = _load_vault_json(vault / "sources" / "manifests" / "source-manifest.json")
+    merged_manifest = merge_discovery_manifest(
+        prior_manifest if isinstance(prior_manifest, dict) else None,
+        manifest,
+        deleted_source_ids=deleted_source_ids,
+    )
+    active_source_ids = {
+        str(item["source_id"])
+        for item in merged_manifest.get("sources", [])
+        if isinstance(item, dict) and item.get("source_id")
+    }
+    prior_report = _load_vault_json(vault / "generated" / "reports" / "ingestion-report.json")
+    merged_report = merge_ingestion_report(
+        prior_report if isinstance(prior_report, dict) else None,
+        report,
+        merged_manifest=merged_manifest,
+        deleted_source_ids=deleted_source_ids,
+    )
+    prior_secrets = _load_vault_json(vault / "generated" / "reports" / "secret-findings.json")
+    prior_secret_list = (
+        prior_secrets
+        if isinstance(prior_secrets, list)
+        else (
+            prior_secrets.get("findings")
+            if isinstance(prior_secrets, dict) and isinstance(prior_secrets.get("findings"), list)
+            else None
+        )
+    )
+    merged_secrets = merge_secret_findings(
+        [item for item in prior_secret_list if isinstance(item, dict)]
+        if isinstance(prior_secret_list, list)
+        else None,
+        security_findings,
+        deleted_source_ids=deleted_source_ids,
+        active_source_ids=active_source_ids,
+    )
+    prior_injection = _load_vault_json(
+        vault / "generated" / "reports" / "injection-findings.json"
+    )
+    merged_injections = merge_injection_findings(
+        prior_injection if isinstance(prior_injection, (dict, list)) else None,
+        injection_findings,
+        deleted_source_ids=deleted_source_ids,
+        active_source_ids=active_source_ids,
+    )
     write_plan[_inside(vault, vault / "sources" / "manifests" / "source-manifest.json")] = (
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        json.dumps(merged_manifest, indent=2, sort_keys=True) + "\n"
     ).encode()
     write_plan[_inside(vault, vault / "generated" / "reports" / "ingestion-report.json")] = (
-        json.dumps(report, indent=2, sort_keys=True) + "\n"
+        json.dumps(merged_report, indent=2, sort_keys=True) + "\n"
     ).encode()
     write_plan[_inside(vault, vault / "generated" / "reports" / "secret-findings.json")] = (
-        json.dumps(security_findings, indent=2, sort_keys=True) + "\n"
+        json.dumps(merged_secrets, indent=2, sort_keys=True) + "\n"
     ).encode()
     write_plan[_inside(vault, vault / "generated" / "reports" / "injection-findings.json")] = (
         json.dumps(
-            {"schema_version": 1, "findings": injection_findings},
+            {"schema_version": 1, "findings": merged_injections},
             indent=2,
             sort_keys=True,
         )

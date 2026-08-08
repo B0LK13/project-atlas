@@ -3619,3 +3619,38 @@ Invariant: GRAPH ≠ AUTHORITY; provenance/hash binding required; no fuzzy LLM m
 **PRODUCTION CODE MODIFIED: YES (additive Graph acceptance only)**  
 **TESTS MODIFIED: YES**  
 **MERGE AUTHORIZED: NO**
+
+## AS-INGEST-MANIFEST-001 — Multi-batch discovery snapshot merge
+
+**Directive:** D-PROJECT-ATLAS-PARALLEL-WAVE-002 Lane D  
+**Base:** `59670bf33feede82dd85daa3da994f410a8d838e` / tree `58a7235f250d562c7ebe705d7619b28df1a24ea4`  
+**Branch:** `feat/as-ingest-manifest-001`  
+**Worktree:** `D:\atlas-worktrees\parallel-wave-002\core-debt`  
+
+### Plan
+Merge vault-wide `source-manifest.json` and ingest/secret/injection reports by
+`source_id` on each `atlas ingest`, retaining sibling-project inventory across
+narrower batches. Registry lifecycle remains deletion authority for projects
+included in the current batch. Recompute `inventory_sha256` from merged rows;
+record `last_batch_inventory_sha256`. CORE-MODEL and ATOMIC-PROMOTION →
+contracts only.
+
+### Commands / gates
+- Focused: 6 passed (`test_as_ingest_manifest_001` unit + pipeline + multi-batch)
+- Full Core: 617 collected, exit 0 (1 skipped)
+- Control Plane (WSL): 146 passed
+- ruff / mypy / compileall: PASS
+- Orphan evidence: `D:\project-atlas-orphans\atlas-tech-debt\AS-INGEST-MANIFEST-001-IMPLEMENTATION-EVIDENCE.md`
+
+### Results
+Multi-batch nebula-only refresh retains black-agency-os / dark-factory snapshot
+rows, classifications, coverage presentish counts, and stale-knowledge sources.
+In-batch deletion still drops tombstoned `source_id`s. Identical replay
+byte-stable for merged snapshot/report.
+
+**PRODUCTION CODE MODIFIED: YES (ingestion merge helpers + portfolio comments)**  
+**TESTS MODIFIED: YES**  
+**BACKLOG MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+

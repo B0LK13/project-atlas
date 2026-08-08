@@ -67,11 +67,10 @@ def _state_records(vault: Path, directory: str, key: str) -> dict[str, list[dict
 def _manifest_sources(vault: Path) -> list[dict[str, Any]]:
     """Best-effort discovery-time manifest snapshot (all discovered sources).
 
-    Known limitation: ``sources/manifests/source-manifest.json`` is
-    overwritten by each ``atlas ingest`` call rather than merged, so it only
-    reflects the most recently ingested discovery batch. A combined
-    ``atlas discover``/``atlas ingest`` over every project (the recommended
-    portfolio workflow) keeps this accurate for the whole vault.
+    AS-INGEST-MANIFEST-001 merges multi-batch discovery snapshots by
+    ``source_id`` at ingest time (registry lifecycle remains deletion
+    authority for projects in the current batch). ``source_root`` still
+    reflects the last ingested batch.
     """
     raw = _json(vault / "sources" / "manifests" / "source-manifest.json", {"sources": []})
     return [item for item in raw.get("sources", []) if isinstance(item, dict)]
@@ -248,13 +247,11 @@ def overview(vault: Path, coverage_payload: dict[str, Any]) -> dict[str, Any]:
                 "open_conflicts": len(conflicts_by_project.get(project_id, [])),
                 # "unknown" (not a fabricated 0) whenever this project has no
                 # entries of its own in sources/manifests/source-manifest.json
-                # -- either because the vault has no manifest at all, or
-                # because a later, narrower `atlas ingest` call overwrote the
-                # combined manifest (known pre-existing ingestion.py
-                # limitation, AS-MVP-001 release-closure remediation) and no
-                # longer carries this project's sources. A project present
-                # in the manifest with zero matching quarantine findings is
-                # reported as a real 0, never confused with "no evidence".
+                # (empty vault or genuinely absent project inventory). After
+                # AS-INGEST-MANIFEST-001, narrower batches retain sibling
+                # projects' snapshot rows, so this fallback is defensive.
+                # A project present in the manifest with zero matching
+                # quarantine findings is a real 0, never "no evidence".
                 "quarantined_sources": quarantined_count if project_manifest_ids else "unknown",
             }
         )
