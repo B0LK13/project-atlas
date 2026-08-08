@@ -3531,3 +3531,34 @@ TOTAL 92%); `pytest -m integration` 117 passed + 1 skipped; CLI smoke
 **HISTORICAL COMMITS REWRITTEN: NO**
 **FORCE PUSH USED: NO**
 **MERGE AUTHORIZED: NO**
+
+## AS-CORE-008 — Subject Multi-Field Knowledge Query (implementation)
+
+**Directive:** D-PROJECT-ATLAS-AS-CORE-008-IMPLEMENT-001  
+**Base:** `d209b359ddd30e75e4709932fd55cb9b71016927` / tree `2828b5eab79a4ef9ccda092cba9c7cfc647d6c2a`  
+**Branch:** `feat/as-core-008-subject-multifield-query`  
+**Worktree:** `D:\atlas-worktrees\as-core-008-multifield`  
+**HEAD:** `7b5bb2d821971cdd17b643d85efcd1d577bd2b86`  
+
+### Plan
+Library-first multi-field composition `(project, subject, fields[])` over one
+shared `compilation_id` snapshot, reusing AS-CORE-007 point answer builders.
+CLI adapter afterward (repeatable `--field` / `--fields`). Persistence NONE;
+authority/temporal CONSUME-ONLY.
+
+### Commands / gates
+- Focused AS-CORE-008: 26 passed
+- AS-CORE-007: 22 passed; AS-CORE-005/006: 32 passed; AS-RET: 5 passed
+- Full Core: 611 passed, 1 skipped
+- Control Plane (WSL): 146 + 12 agent-control passed
+- ruff / mypy / compileall: PASS
+- External evidence: `D:\project-atlas-orphans\as-core-008-impl\AS-CORE-008-IMPLEMENTATION-EVIDENCE.md`
+
+### Results
+`query_knowledge_fields` + `KnowledgeMultiFieldAnswer` shipped; point path
+unchanged; R-TITLE-001 title certified beside structured `package_status`
+non-answer under shared compilation snapshot.
+
+**PRODUCTION CODE MODIFIED: YES (query/domain/CLI additive only)**  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**
