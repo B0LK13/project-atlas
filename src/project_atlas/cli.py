@@ -18,6 +18,12 @@ from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
+from project_atlas.knowledge_query import (
+    KnowledgeQueryError,
+    answer_to_json,
+    list_authoritative,
+    query_knowledge,
+)
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.migrations.claim_v2_migration import migrate_v2
 from project_atlas.portfolio import build_portfolio
@@ -90,6 +96,35 @@ def build_parser() -> argparse.ArgumentParser:
         "validate", help="Validate Vault structure, provenance links and safety (FR-012)."
     )
     validate_parser.add_argument("--vault", type=Path, required=True)
+
+    query_parser = subparsers.add_parser(
+        "query",
+        help=(
+            "Read-only knowledge query over temporal and authoritative state "
+            "(AS-CORE-007)."
+        ),
+    )
+    query_parser.add_argument("--vault", type=Path, required=True)
+    query_parser.add_argument("--project", type=str, required=True)
+    query_parser.add_argument("--subject", type=str, default=None)
+    query_parser.add_argument("--field", type=str, default=None)
+    query_parser.add_argument(
+        "--kind",
+        choices=["authoritative", "temporal", "explain"],
+        default="authoritative",
+        help="Query kind (distinct from AS-RET-001 retrieval kinds).",
+    )
+    query_parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List authoritative-state records for the project (kind=authoritative).",
+    )
+    query_parser.add_argument(
+        "--format",
+        choices=["json"],
+        default="json",
+        help="Output format (json).",
+    )
 
     init_parser.add_argument(
         "--dry-run",
@@ -205,6 +240,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_ERROR
         print(f"validated {result['markdown_files']} Markdown files")
         return EXIT_OK
+
+    if args.command == "query":
+        try:
+            if args.list:
+                if args.kind != "authoritative":
+                    _log.error("query --list requires --kind authoritative")
+                    return EXIT_ERROR
+                answers = list_authoritative(args.vault, args.project)
+                print(answer_to_json(answers), end="")
+                return EXIT_OK
+            if not args.subject or not args.field:
+                _log.error("query requires --subject and --field unless --list is set")
+                return EXIT_ERROR
+            answer = query_knowledge(
+                args.vault,
+                args.project,
+                args.subject,
+                args.field,
+                kind=args.kind,
+            )
+            print(answer_to_json(answer), end="")
+            return EXIT_OK
+        except KnowledgeQueryError as exc:
+            _log.error("query failed [%s]: %s", exc.code.value, exc.message)
+            return EXIT_ERROR
+        except (OSError, ValueError, TypeError) as exc:
+            _log.error("query failed: %s", exc)
+            return EXIT_ERROR
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 

@@ -10,6 +10,8 @@ from typing import Any
 
 import yaml
 
+from project_atlas.domain.authority_semantics import AuthoritativeStateRecord
+from project_atlas.domain.temporal import CurrentStateRecord
 from project_atlas.portfolio import build_portfolio_payloads
 from project_atlas.schema import SchemaValidationError, validate_record
 from project_atlas.source_identity import canonical_source_sha256
@@ -199,8 +201,49 @@ def _validate_knowledge_state(vault: Path, errors: list[str]) -> None:
             TypeError,
         ) as exc:
             errors.append(f"invalid lifecycle state {path.relative_to(vault)}: {exc}")
+    # AS-CORE-007-FR-011: additive checks when 005/006 state files exist.
+    # Missing files on legacy vaults are not errors.
+    _validate_current_and_authoritative_state(vault, errors)
     _validate_indexes(vault, errors)
     _validate_injection_findings(vault, errors)
+
+
+def _validate_current_and_authoritative_state(vault: Path, errors: list[str]) -> None:
+    """AS-CORE-007-FR-011: validate 005/006 state files when present (additive)."""
+    for path in _json_files(vault, "state", "current-state"):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                errors.append(f"invalid current-state root {path.relative_to(vault)}")
+                continue
+            for item in raw.get("current_states", []):
+                CurrentStateRecord.model_validate(item)
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            AttributeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            errors.append(f"invalid current-state {path.relative_to(vault)}: {exc}")
+    for path in _json_files(vault, "state", "authoritative-state"):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                errors.append(f"invalid authoritative-state root {path.relative_to(vault)}")
+                continue
+            for item in raw.get("authoritative_states", []):
+                AuthoritativeStateRecord.model_validate(item)
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            AttributeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            errors.append(f"invalid authoritative-state {path.relative_to(vault)}: {exc}")
 
 
 def _validate_injection_findings(vault: Path, errors: list[str]) -> None:
