@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-identity-explanation.schema.json",
+  "title": "Graph Identity Explanation",
+  "description": "AS-GRAPH-002 explainable identity resolution record. Categorical confidence only; never a subjective trust/authority score.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "graphify_node_id",
+    "winning_step",
+    "considered_steps",
+    "confidence"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-002" },
+    "graphify_node_id": { "type": "string", "minLength": 1 },
+    "project_id": { "type": "string", "minLength": 1 },
+    "winning_step": {
+      "type": "string",
+      "enum": [
+        "explicit_atlas_id",
+        "durable_core_id",
+        "mapping_table",
+        "graphify_stable",
+        "none"
+      ]
+    },
+    "considered_steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "outcome"],
+        "properties": {
+          "step": {
+            "type": "string",
+            "enum": [
+              "explicit_atlas_id",
+              "durable_core_id",
+              "mapping_table",
+              "graphify_stable"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["matched", "skipped", "rejected"]
+          },
+          "reason": { "type": "string", "minLength": 1 },
+          "inputs": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["explicit", "durable-core", "mapped", "graphify-stable", "none"]
+    },
+    "notes": { "type": "string" }
+  }
+}

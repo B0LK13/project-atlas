@@ -31,6 +31,8 @@ def test_all_expected_schemas_available() -> None:
         "conflict-record",
         "diagnostic",
         "graph-acceptance-receipt",
+        "graph-identity-explanation",
+        "graph-resolved-node",
         "graphify-edge",
         "graphify-envelope",
         "graphify-metadata",
