@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://project-atlas.local/schemas/adv-release-cert-report.schema.json",
   "title": "Advanced Release Fixture Certification Report",
-  "description": "AS-ADV-RELEASE-001 recovery/determinism/clean-clone/perf fixture certification under generated/ops/ (AS-ADV-RELEASE-002 deepens clean_clone_replay; AS-ADV-RELEASE-003 adds deterministic performance-budget signals and digest summaries). Operational only; never stamps RELEASE CERTIFIED, PILOT PASS, or WEB ACCEPTED. No wall-clock generated.at.",
+  "description": "AS-ADV-RELEASE-001 recovery/determinism/clean-clone/perf fixture certification under generated/ops/ (AS-ADV-RELEASE-002 deepens clean_clone_replay; AS-ADV-RELEASE-003 adds deterministic performance-budget signals and digest summaries; AS-ADV-RELEASE-004 adds interrupted-promotion recovery replay). Operational only; never stamps RELEASE CERTIFIED, PILOT PASS, or WEB ACCEPTED. No wall-clock generated.at.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -48,6 +48,7 @@
             "enum": [
               "recovery_promote_noop",
               "recovery_snapshot_roundtrip",
+              "migration_recovery_replay",
               "determinism_pipeline",
               "clean_clone_replay",
               "perf_baseline_fixture",

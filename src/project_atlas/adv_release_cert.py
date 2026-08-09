@@ -3,7 +3,8 @@
 Combines recovery, determinism, clean-clone replay, and performance-baseline
 cases on disposable vaults. AS-ADV-RELEASE-002 deepens clean-clone RC hardening;
 AS-ADV-RELEASE-003 adds objective fixture-scale counters and stable-plane digest
-summaries without claiming RELEASE CERTIFIED. Operational certification only — never
+summaries; AS-ADV-RELEASE-004 adds deterministic interrupted-promotion recovery
+replay without claiming RELEASE CERTIFIED. Operational certification only — never
 stamps RELEASE CERTIFIED, ESTATE PILOT PASSED, or WEB APPLICATION ACCEPTED.
 """
 
@@ -35,6 +36,7 @@ _STABLE_PREFIXES = ("projects/", "state/", "generated/indexes/", "00-system/")
 CaseId = Literal[
     "recovery_promote_noop",
     "recovery_snapshot_roundtrip",
+    "migration_recovery_replay",
     "determinism_pipeline",
     "clean_clone_replay",
     "perf_baseline_fixture",
@@ -46,6 +48,7 @@ ReportStatus = Literal["certified", "failed", "partial"]
 MATRIX_CASE_IDS: tuple[CaseId, ...] = (
     "recovery_promote_noop",
     "recovery_snapshot_roundtrip",
+    "migration_recovery_replay",
     "determinism_pipeline",
     "clean_clone_replay",
     "perf_baseline_fixture",
@@ -189,6 +192,78 @@ def _case_recovery_snapshot_roundtrip(work: Path) -> dict[str, Any]:
         "observed": (
             f"snapshot_id={verified.get('snapshot_id')}; "
             f"restored_state={(restored / 'state').is_dir()}"
+        ),
+    }
+
+
+def _case_migration_recovery_replay(work: Path) -> dict[str, Any]:
+    """Recover a deterministic stage-only interruption, then replay the pipeline."""
+    source = work / "src-recovery"
+    vault = work / "vault-recovery"
+    manifest = work / "manifest.json"
+    _seed_source(source)
+    create_scaffold(vault)
+    write_manifest(discover(source), manifest)
+    ingest(manifest, vault)
+    build_indexes(vault)
+    validate(vault)
+
+    baseline = _stable_plane(_vault_file_bytes(vault))
+    canonical_files = sorted((vault / "projects").rglob("*.md"))
+    if not canonical_files:
+        raise AdvReleaseCertError("recovery fixture produced no canonical project note")
+    canonical = canonical_files[0]
+    canonical_before = canonical.read_bytes()
+    transaction_id = "4" * 32
+    stage = canonical.parent / (
+        f".{canonical.name}.{transaction_id}.atlas-stage"
+    )
+    stage.write_bytes(b"interrupted-promotion-fixture\n")
+
+    recovery = recover_promote_orphans(vault)
+    validate(vault)
+    ingest(manifest, vault)
+    build_indexes(vault)
+    validate(vault)
+    replayed = _stable_plane(_vault_file_bytes(vault))
+    second_recovery = recover_promote_orphans(vault)
+
+    drifted = _stable_drift(baseline, replayed)
+    baseline_summary = _stable_plane_summary(baseline)
+    replayed_summary = _stable_plane_summary(replayed)
+    ok = (
+        recovery.orphan_count == 1
+        and recovery.transactions_recovered == 1
+        and recovery.receipt_path is not None
+        and not stage.exists()
+        and canonical.read_bytes() == canonical_before
+        and second_recovery.orphan_count == 0
+        and second_recovery.transactions_recovered == 0
+        and not drifted
+        and baseline_summary == replayed_summary
+        and bool(baseline)
+    )
+    observed = {
+        "baseline": baseline_summary,
+        "canonical_preserved": canonical.read_bytes() == canonical_before,
+        "drift": drifted[:8],
+        "orphan_count": recovery.orphan_count,
+        "replayed": replayed_summary,
+        "second_orphan_count": second_recovery.orphan_count,
+        "stage_removed": not stage.exists(),
+        "transactions_recovered": recovery.transactions_recovered,
+    }
+    return {
+        "case_id": "migration_recovery_replay",
+        "result": "pass" if ok else "fail",
+        "expected": (
+            "stage-only interrupted promotion recovers cleanly; pipeline replay "
+            "restores byte-identical stable planes"
+        ),
+        "observed": json.dumps(observed, sort_keys=True),
+        "detail": (
+            "AS-ADV-RELEASE-004 migration/recovery RC evidence only; "
+            "RELEASE CERTIFIED remains false"
         ),
     }
 
@@ -353,6 +428,7 @@ def _case_perf_budget_smoke(work: Path) -> dict[str, Any]:
 _CASE_RUNNERS = {
     "recovery_promote_noop": _case_recovery_promote_noop,
     "recovery_snapshot_roundtrip": _case_recovery_snapshot_roundtrip,
+    "migration_recovery_replay": _case_migration_recovery_replay,
     "determinism_pipeline": _case_determinism_pipeline,
     "clean_clone_replay": _case_clean_clone_replay,
     "perf_baseline_fixture": _case_perf_baseline_fixture,
