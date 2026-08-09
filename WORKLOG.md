@@ -4030,3 +4030,32 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-GRAPH-004-*.md
 
+## AS-GRAPH-005 — Human-readable derived graph projections
+
+**Date:** 2026-08-09
+**Branch:** feat/as-graph-005-projections
+**Worktree:** D:\atlas-worktrees\as-graph-005-projections
+**Base tip / TREE:** b761b69c / e8ca203a (includes GRAPH-004 @ 03e21de / da129ee)
+**Impl HEAD / TREE:** 1314718b / c790577c
+**Gate:** READY WITH CONSTRAINTS — AS-GRAPH-005-REENTRY-GATE.md
+**Contract:** as-wp-005-entry/AS-GRAPH-005-PACKAGE-CONTRACT.md
+**PR:** https://github.com/B0LK13/project-atlas/pull/41
+
+### Scope
+- New project_atlas.graph_projections: relationships.md + graph-health.md emitters
+- Promote under generated/graph/projections/ only; AT-011 protected-region preserve
+- Consume-only GRAPH-003 relationships + GRAPH-004 health; no CLI dual-own
+- Focused tests `test_as_graph_005_*`; package guide docs/AS-GRAPH-005-graph-projections.md
+- GRAPH PROJECTION ≠ AUTOMATIC AUTHORITY; REL-001 not opened
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused test_as_graph_005_*: 16 passed
+- Auto-merge: FORBIDDEN
+
+**PRODUCTION CODE MODIFIED: YES** (owned graph_projections only)
+**TESTS MODIFIED: YES** (owned test_as_graph_005_* only)
+**MUST NOT TOUCHED:** knowledge_compiler / GRAPH-002/003/004 stores / QUERY-MULTI / EXPLAIN / XPROJ / cli.py
+**MERGE AUTHORIZED: NO**
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-GRAPH-005-*.md
