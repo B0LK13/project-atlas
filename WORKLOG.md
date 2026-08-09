@@ -4948,3 +4948,14 @@ WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
 Added Agent OS / Digital Twin / KCI / Context / Architecture PROTOTYPE-PREP docs and Z15–Z19.
 `ATLAS_2_0_IMPLEMENTATION_READY = NO` (honest prep ≈68%; gates 1–3 and 10 blocked).
 
+||||||| parent of a9c878f (docs(adv): clean-clone rehearsal procedure (RELEASE=NO))
+
+## AS-ADV-CLEAN-CLONE-REHEARSAL-001 - Clean-clone RC operator rehearsal
+
+**Date:** 2026-08-09
+**Branch:** docs/as-adv-clean-clone-rehearsal-001
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+- Added a disposable-only operator procedure around the existing `atlas adv certify` `clean_clone_replay` case.
+- Added a fail-closed helper that accepts no estate/report roots and verifies all non-claim booleans.
+- Added docs-as-spec guards for `RELEASE=NO`, `PILOT=NO`, and `WEB ACCEPTED=NO`.
