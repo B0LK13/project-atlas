@@ -4981,3 +4981,7 @@ threat 025-028, OpenAI importer fixtures, prototype UIs. Prep ≈82%.
 - Indexed landed ADV clean-clone rehearsal, ADV-004 recovery assertions, WEB tip pins, and Track B deepen-h prep.
 - Checklist gates remain unchecked and RELEASE CERTIFIED remains **NO**.
 >>>>>>> Stashed changes
+
+## ADV/SEC fixture matrices
+
+Indexes ADV-001..004 + SEC-CONT-001/002. RELEASE/PILOT remain **NO**.
