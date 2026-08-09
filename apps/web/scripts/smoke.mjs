@@ -1,12 +1,15 @@
 /**
- * AS-WEB-003 smoke — production shell + design-lab presence (no npm install).
+ * AS-WEB-003 + AS-WEB-ACCEPT-001 smoke — production shell, design-lab, ADRs.
  * Exit 0 on success; non-zero on missing artifacts / invariant breaks.
+ * Does NOT claim WEB APPLICATION ACCEPTED.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = join(root, "..", "..");
+
 const required = [
   "package.json",
   "README.md",
@@ -35,7 +38,7 @@ const required = [
 
 const missing = required.filter((rel) => !existsSync(join(root, rel)));
 if (missing.length) {
-  console.error("AS-WEB-003 smoke FAIL — missing:", missing.join(", "));
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — missing:", missing.join(", "));
   process.exit(1);
 }
 
@@ -43,21 +46,21 @@ const stub = JSON.parse(
   readFileSync(join(root, "public/sample-read-status.json"), "utf8"),
 );
 if (stub.ui_canonical !== false || stub.graph_authority !== false) {
-  console.error("AS-WEB-003 smoke FAIL — stub must keep UI/graph non-authority");
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — stub must keep UI/graph non-authority");
   process.exit(1);
 }
 if (stub.unknown_equals_healthy !== false) {
-  console.error("AS-WEB-003 smoke FAIL — unknown_equals_healthy must be false");
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — unknown_equals_healthy must be false");
   process.exit(1);
 }
 if (stub.health?.rollup === "healthy" && stub.health?.available === false) {
-  console.error("AS-WEB-003 smoke FAIL — unavailable health must not be healthy");
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — unavailable health must not be healthy");
   process.exit(1);
 }
 
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 if (!pkg.dependencies?.["react-router-dom"]) {
-  console.error("AS-WEB-003 smoke FAIL — react-router-dom required for client routes");
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — react-router-dom required for client routes");
   process.exit(1);
 }
 
@@ -69,7 +72,7 @@ for (const theme of [
   "terminal-honest",
 ]) {
   if (!tokens.includes(`[data-theme="${theme}"]`)) {
-    console.error(`AS-WEB-003 smoke FAIL — missing token theme ${theme}`);
+    console.error(`AS-WEB-ACCEPT-001 smoke FAIL — missing token theme ${theme}`);
     process.exit(1);
   }
 }
@@ -85,7 +88,7 @@ for (const route of [
   "/design-lab/terminal-honest",
 ]) {
   if (!app.includes(route)) {
-    console.error(`AS-WEB-003 smoke FAIL — App missing route ${route}`);
+    console.error(`AS-WEB-ACCEPT-001 smoke FAIL — App missing route ${route}`);
     process.exit(1);
   }
 }
@@ -96,21 +99,87 @@ const commandCenter = readFileSync(
 );
 for (const mode of ["overview", "projects", "ops", "impact"]) {
   if (!commandCenter.includes(`"${mode}"`) && !commandCenter.includes(`'${mode}'`)) {
-    console.error(`AS-WEB-003 smoke FAIL — Command Center missing mode ${mode}`);
+    console.error(`AS-WEB-ACCEPT-001 smoke FAIL — Command Center missing mode ${mode}`);
     process.exit(1);
   }
 }
 
 const main = readFileSync(join(root, "src/main.tsx"), "utf8");
 if (!main.includes("HashRouter") && !main.includes("BrowserRouter")) {
-  console.error("AS-WEB-003 smoke FAIL — client router missing in main.tsx");
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — client router missing in main.tsx");
   process.exit(1);
 }
 
-const adr = join(root, "..", "..", "docs", "adr", "ADR-010-atlas-web-ux.md");
-if (!existsSync(adr)) {
-  console.error("AS-WEB-003 smoke FAIL — ADR-010 missing at docs/adr/ADR-010-atlas-web-ux.md");
+// ADR-008 / ADR-009 / ADR-010 presence (acceptance prep — not certification)
+const adrs = [
+  ["ADR-008-atlas-web-application.md", "UI"],
+  ["ADR-009-web-design-tokens.md", "token"],
+  ["ADR-010-atlas-web-ux.md", "Command Center"],
+];
+for (const [name, needle] of adrs) {
+  const path = join(repoRoot, "docs", "adr", name);
+  if (!existsSync(path)) {
+    console.error(`AS-WEB-ACCEPT-001 smoke FAIL — missing ${name}`);
+    process.exit(1);
+  }
+  const body = readFileSync(path, "utf8");
+  if (!body.toLowerCase().includes(needle.toLowerCase())) {
+    console.error(`AS-WEB-ACCEPT-001 smoke FAIL — ${name} missing expected content`);
+    process.exit(1);
+  }
+}
+
+const checklist = join(repoRoot, "docs", "AS-WEB-ACCEPT-001-checklist.md");
+if (!existsSync(checklist)) {
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — checklist doc missing");
+  process.exit(1);
+}
+const checklistBody = readFileSync(checklist, "utf8");
+if (!checklistBody.includes("WEB APPLICATION ACCEPTED") || !checklistBody.includes("NO")) {
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — checklist must state ACCEPTED=NO");
   process.exit(1);
 }
 
-console.log("AS-WEB-003 smoke PASS — production shell + design-lab + ADR-010");
+// web_api read-only boundary — module present, no writer imports in __init__
+const webApiInit = join(repoRoot, "src", "project_atlas", "web_api", "__init__.py");
+if (!existsSync(webApiInit)) {
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — web_api __init__.py missing");
+  process.exit(1);
+}
+const webApiText = readFileSync(webApiInit, "utf8");
+const webApiImports = webApiText
+  .split("\n")
+  .filter((line) => /^\s*(from|import)\s/.test(line))
+  .filter((line) => !line.includes("__future__"));
+for (const forbidden of ["knowledge_compiler", "ingestion", "_promote", "write_plan"]) {
+  if (webApiImports.some((line) => line.includes(forbidden))) {
+    console.error(`AS-WEB-ACCEPT-001 smoke FAIL — web_api imports writer: ${forbidden}`);
+    process.exit(1);
+  }
+}
+if (!webApiImports.every((line) => line.includes("project_atlas.web_api"))) {
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — web_api must only import web_api submodules");
+  process.exit(1);
+}
+
+// UI invariant banners on production pages
+const pageChecks = [
+  ["src/pages/HomePage.tsx", ["ui_canonical", "graph_authority", "unknown"]],
+  ["src/pages/production/ProjectsPage.tsx", ["UI", "canonical"]],
+  ["src/pages/production/OpsHealthPage.tsx", ["unknown", "Graph", "authority"]],
+  ["src/pages/production/CommandCenterPage.tsx", ["ui_canonical", "graph_authority"]],
+  ["src/components/ReadStatusPanel.tsx", ["ui_canonical", "graph_authority", "unknown_equals_healthy"]],
+];
+for (const [rel, needles] of pageChecks) {
+  const body = readFileSync(join(root, rel), "utf8").toLowerCase();
+  for (const needle of needles) {
+    if (!body.includes(needle.toLowerCase())) {
+      console.error(`AS-WEB-ACCEPT-001 smoke FAIL — ${rel} missing invariant: ${needle}`);
+      process.exit(1);
+    }
+  }
+}
+
+console.log(
+  "AS-WEB-ACCEPT-001 smoke PASS — routes + ADR-008/009/010 + invariants (ACCEPTED=NO)",
+);
