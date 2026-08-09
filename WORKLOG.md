@@ -4348,3 +4348,33 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-L-001-*.md
+
+## AS-WEB-001 — Atlas Web Application foundation
+
+**Date:** 2026-08-09
+**Branch:** feat/as-web-001-foundation
+**Worktree:** D:\atlas-worktrees\as-web-001-foundation
+**Base tip / TREE:** 75fb73d88683675a23ee2d9a0e785ae9504896b8 / a10a68bf96cefde386b9fad34979dd17c1164d8f
+**Gate:** READY — AS-WEB-001-ENTRY-GATE.md
+**Contract:** AS-WEB-001-PACKAGE-CONTRACT.md (WEB001-FR-001..007)
+**Overlap:** SAFE WITH EXCLUSIONS (AS-WEB-001-SURFACE-OVERLAP.md + kickoff)
+**Wake / Lock / Directive:** AS-WEB-001-WAKE.md · AS-WEB-001-SOLE-WRITER-LOCK.md · AS-WEB-001-IMPL-DIRECTIVE.md
+**Directive:** D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001
+
+### Scope
+- ADR-008: Vite + React (justify vs Next.js); UI≠canonical; Graph≠authority; unknown≠healthy
+- NEW `apps/web/**` runnable shell + smoke script
+- NEW `src/project_atlas/web_api/` read-only adapters (list projects / consume OBS snapshot)
+- Orphan DESIGN-LAB (4 prototype themes); focused `test_as_web_001_*`
+- Soft WORKLOG conflict cleanup (tip merge residue) + backlog WEB-001 row
+- NO knowledge_compiler/authority/graph writers; NO ingestion dual-own; NO REL-001; NO PILOT invent
+
+### Gates
+- ruff (owned web_api + tests): PASS
+- mypy src/project_atlas/web_api: PASS
+- Focused test_as_web_001_*: 9 passed
+- apps/web smoke: PASS
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-WEB-001-*.md

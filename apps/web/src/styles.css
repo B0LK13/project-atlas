@@ -1,0 +1,108 @@
+:root {
+  color-scheme: light;
+  --ink: #1c1917;
+  --muted: #57534e;
+  --paper: #f5f0e8;
+  --panel: #fffdf8;
+  --line: #d6d3d1;
+  --accent: #0f766e;
+  --warn: #9a3412;
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  background: radial-gradient(circle at top left, #efe6d6, var(--paper) 55%);
+  color: var(--ink);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.shell {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 3.5rem 1.5rem 4rem;
+}
+
+.hero h1 {
+  font-size: clamp(2.8rem, 8vw, 4.5rem);
+  letter-spacing: -0.04em;
+  margin: 0.2rem 0 0.6rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin: 0;
+}
+
+.lede {
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 34rem;
+}
+
+.panel {
+  margin-top: 2rem;
+  padding: 1.25rem 1.35rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.panel h2,
+.panel h3 {
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1.25rem;
+  margin: 0;
+}
+
+.grid dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.grid dd {
+  margin: 0.15rem 0 0;
+  font-family: "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+}
+
+.unknown {
+  color: var(--warn);
+}
+
+.disclaimer,
+.flags,
+.empty {
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.banner {
+  margin-top: 1.5rem;
+  color: var(--muted);
+}
+
+.banner.warn {
+  color: var(--warn);
+}
+
+ul {
+  padding-left: 1.1rem;
+}
+
+code {
+  font-family: "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+}
