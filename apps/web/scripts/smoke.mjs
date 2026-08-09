@@ -26,6 +26,7 @@ const required = [
   "src/pages/production/OpsHealthPage.tsx",
   "src/pages/production/CommandCenterPage.tsx",
   "src/pages/production/MissionControlPage.tsx",
+  "src/pages/production/WorkspacePage.tsx",
   "src/pages/design-lab/LedgerDeskPage.tsx",
   "src/pages/design-lab/SignalRackPage.tsx",
   "src/pages/design-lab/CartographQuietPage.tsx",
@@ -38,6 +39,7 @@ const required = [
   "src/hooks/useReadStatus.ts",
   "public/sample-read-status.json",
   "public/sample-mission-control.json",
+  "public/sample-workspace.json",
 ];
 
 const missing = required.filter((rel) => !existsSync(join(root, rel)));
@@ -89,6 +91,7 @@ for (const route of [
   "/ops",
   "/command-center",
   "/mission-control",
+  "/workspace",
   "/design-lab/ledger-desk",
   "/design-lab/signal-rack",
   "/design-lab/cartograph-quiet",
@@ -178,9 +181,10 @@ const pageChecks = [
   ["src/pages/production/OpsHealthPage.tsx", ["unknown", "Graph", "authority"]],
   ["src/pages/production/CommandCenterPage.tsx", ["ui_canonical", "graph_authority"]],
   ["src/pages/production/MissionControlPage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority"]],
+  ["src/pages/production/WorkspacePage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority"]],
   ["src/components/ReadStatusPanel.tsx", ["ui_canonical", "graph_authority", "unknown_equals_healthy"]],
   ["src/components/ProdShell.tsx", ["skip-link", "Skip to main"]],
-  ["src/components/ProdNav.tsx", ["/mission-control", "Mission Control"]],
+  ["src/components/ProdNav.tsx", ["/mission-control", "Mission Control", "/workspace", "Workspace"]],
 ];
 for (const [rel, needles] of pageChecks) {
   const body = readFileSync(join(root, rel), "utf8").toLowerCase();
@@ -208,6 +212,22 @@ if (!Array.isArray(missionStub.pilot_estate_rows) || missionStub.pilot_estate_ro
   process.exit(1);
 }
 
+const workspaceStub = JSON.parse(
+  readFileSync(join(root, "public/sample-workspace.json"), "utf8"),
+);
+if (
+  workspaceStub.ui_canonical !== false ||
+  workspaceStub.graph_authority !== false ||
+  workspaceStub.unknown_equals_healthy !== false
+) {
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — workspace stub must keep UI/graph/unknown non-authority");
+  process.exit(1);
+}
+if (!Array.isArray(workspaceStub.pilot_estate_rows) || workspaceStub.pilot_estate_rows.length !== 0) {
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — workspace stub must not invent PILOT estate rows");
+  process.exit(1);
+}
+
 console.log(
-  "AS-WEB-ACCEPT-001 smoke PASS — routes + mission-control + knowledge/graph + a11y skip + ADRs (ACCEPTED=NO)",
+  "AS-WEB-ACCEPT-001 smoke PASS — routes + mission-control + workspace + knowledge/graph + a11y skip + ADRs (ACCEPTED=NO)",
 );

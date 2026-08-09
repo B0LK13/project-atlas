@@ -32,6 +32,8 @@ npm run dev
 | `#/graph` | Graph lens (derived ≠ authority) |
 | `#/ops` | Ops / health |
 | `#/command-center` | Command Center modes |
+| `#/mission-control` | Mission Control lens (stub; ACCEPTED=NO) |
+| `#/workspace` | Workspace lens (stub; ACCEPTED=NO) |
 | `#/design-lab/*` | Design-lab themes A–D |
 
 ### Design-lab themes

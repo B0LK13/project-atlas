@@ -4703,7 +4703,41 @@ Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surf
 - node apps/web/scripts/smoke.mjs
 - python -m pytest tests/unit/test_as_web_mission_control_001.py -q
 - Auto-merge: FORBIDDEN
+<<<<<<< Updated upstream
 
 ## AS-LANE-Y-001
 Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
+
+||||||| Stash base
+=======
+
+
+## AS-WEB-WORKSPACE-001 - Workspace lens
+
+**Date:** 2026-08-09
+**Branch:** feat/as-web-workspace-001
+**Worktree:** D:\atlas-worktrees\as-web-workspace-001
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 (web micro-lane)
+**Base tip:** e3e3c6be6c6af4307f0e43f4d6c2785aec290251
+
+### Scope
+- Production hash route #/workspace read-only stub UI
+- Invariant banners: UI≠canonical / Graph≠authority / Unknown≠healthy
+- ProdNav + Home hub link; smoke.mjs route file presence; unit tests
+- Sample stub flags-only (no PILOT estate invent)
+- WEB APPLICATION ACCEPTED remains NO; a11y skip-link preserved
+- Checklist notes Mission Control + Workspace as automated routes only
+
+### Firewall
+- apps/web/** + tests/unit/test_as_web_workspace_001.py + soft WORKLOG + AS-WEB-ACCEPT checklist
+- NO src/project_atlas/cli.py, schema.py, knowledge_compiler, ingestion
+
+### Gates
+- node apps/web/scripts/smoke.mjs
+- python -m pytest tests/unit/test_as_web_workspace_001.py -q
+- Auto-merge: FORBIDDEN
+>>>>>>> Stashed changes
+
+## AS-WEB-WORKSPACE-001
+Workspace production lens. WEB ACCEPTED remains NO.
 

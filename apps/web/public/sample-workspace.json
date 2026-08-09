@@ -1,0 +1,11 @@
+{
+  "read_plane": "stub",
+  "workspace_board_available": false,
+  "rollup": "unknown",
+  "ui_canonical": false,
+  "graph_authority": false,
+  "unknown_equals_healthy": false,
+  "pilot_estate_rows": [],
+  "note": "AS-WEB-WORKSPACE-001 sample stub — flags only; no PILOT estate invent",
+  "disclaimer": "UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy; WEB APPLICATION ACCEPTED = NO"
+}
