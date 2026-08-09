@@ -4567,3 +4567,24 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-011-*.md
 
+
+## AS-INT-012 - Schema compatibility / migration tooling
+
+**Date:** 2026-08-09
+**Branch:** feat/as-int-012-schema-migration
+**Worktree:** D:\atlas-worktrees\as-int-012-schema-migration
+**Base tip / TREE:** 57b231aaea32855088f4a743b74a0b31d9356bf4 / 65146f82ff96054a0e4fb1e2cc5f6ddcbc4ab4e4
+**Directive:** D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 Track A
+
+### Scope
+- NEW schema_compat.py + schema-compat-report schema under generated/ops/
+- CLI `atlas schema compat|migrate` (migrate = dry-run only)
+- Tests test_as_int_012_*; backlog INT-012 flip
+- NO dual-own revocation/tombstones/retention cores; NO apps/web; NO PILOT; NO REL-001; NO 2.0 prod
+
+### Gates
+- Local ruff/mypy/pytest (governor takeover)
+- Auto-merge: FORBIDDEN
+- DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-012-*.md
+
