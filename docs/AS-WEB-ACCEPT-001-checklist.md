@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Package | AS-WEB-ACCEPT-001 through AS-WEB-ACCEPT-004 |
+| Package | AS-WEB-ACCEPT-001 through AS-WEB-ACCEPT-005 |
 | Parent | D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 |
-| Tip pin | `989c0f8039b1a958f5e4bf40ec2e02cc99a48b63` / TREE `aeebf06bd896426edf517e47c97d4ee105a1fc89` (refresh after merge) |
+| Tip pin | `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59f` / TREE `fa404c270c1659d4c48739440a43087a4226b939` |
 | **WEB APPLICATION ACCEPTED** | **NO** |
 | Governor sign-off | **PENDING** — see `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
 
@@ -57,3 +57,4 @@ while item 10 (governor sign-off) remains open.
 | 2026-08-09 | WEB-ACCEPT-003: governor sign-off template + smoke docs; ACCEPTED remains NO |
 | 2026-08-09 | Mission Control + Workspace routes noted as automated gates only (ACCEPTED=NO) |
 | 2026-08-09 | WEB-ACCEPT-004: refreshed tip pins + Ops Health receipt micro-lens; ACCEPTED remains NO |
+| 2026-08-09 | WEB-ACCEPT-005: governor evidence pack + current MAIN/TREE pins; ACCEPTED remains NO |
