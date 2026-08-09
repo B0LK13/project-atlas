@@ -58,6 +58,9 @@ SCHEMA_FILES: dict[str, str] = {
     "xproj-global-entity": "xproj-global-entity.schema.json",
     "xproj-join-key": "xproj-join-key.schema.json",
     "xproj-quarantine-candidate": "xproj-quarantine-candidate.schema.json",
+    # AS-XPROJ-002 - Cross-project edges between registered globals (derived; no name-merge)
+    "xproj-global-edge": "xproj-global-edge.schema.json",
+    "xproj-edge-quarantine": "xproj-edge-quarantine.schema.json",
 
     # AS-BACKUP-001 — verified snapshot / restore (operational durability ≠ authority)
     "backup-manifest": "backup-manifest.schema.json",

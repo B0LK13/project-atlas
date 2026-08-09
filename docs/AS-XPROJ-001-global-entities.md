@@ -84,7 +84,7 @@ registry records.
 
 ## Out of scope
 
-- Cross-project edges → **AS-XPROJ-002**
+- Cross-project edges → **AS-XPROJ-002** (see `docs/AS-XPROJ-002-cross-project-edges.md`)
 - Duplicate-project detection → **AS-XPROJ-003**
 - Conflict indexes / projections → **AS-XPROJ-004**
 - Graph-002/003 semantics (consume-only)
