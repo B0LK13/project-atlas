@@ -10,6 +10,9 @@ type Props = {
 export function ProdShell({ children, className = "" }: Props) {
   return (
     <div className={`prod-shell theme-ledger ${className}`} data-theme="ledger-desk">
+      <a className="skip-link" href="#main">
+        Skip to main content
+      </a>
       <ProdNav />
       {children}
     </div>

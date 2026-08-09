@@ -3,6 +3,8 @@ import { NavLink } from "react-router-dom";
 const PROD_LINKS = [
   { to: "/", label: "Home", end: true },
   { to: "/projects", label: "Projects" },
+  { to: "/knowledge", label: "Knowledge" },
+  { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
   { to: "/command-center", label: "Command Center" },
 ] as const;
@@ -16,7 +18,7 @@ export function ProdNav() {
           {link.label}
         </NavLink>
       ))}
-      <span className="lab-badge">AS-WEB-003 · UI≠canonical · read-only</span>
+      <span className="lab-badge">AS-WEB-ACCEPT · UI≠canonical · read-only</span>
     </nav>
   );
 }

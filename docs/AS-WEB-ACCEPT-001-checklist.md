@@ -2,45 +2,43 @@
 
 | Field | Value |
 |---|---|
-| Package | AS-WEB-ACCEPT-001 |
+| Package | AS-WEB-ACCEPT-001 / AS-WEB-ACCEPT-002 closeout |
 | Parent | D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 |
-| Tip pin (draft) | `origin/main` @ governor review |
+| Tip pin | pending merge tip |
 | **WEB APPLICATION ACCEPTED** | **NO** |
-| Governor sign-off | **PENDING** |
-
-This checklist drafts acceptance criteria for the Atlas web application. It does
-**not** certify WEB APPLICATION ACCEPTED. Governor checklist green + explicit
-sign-off artifact are required before flipping ACCEPTED to YES.
+| Governor sign-off | **PENDING** (automated gates ≠ ACCEPTED) |
 
 ## Normative invariants (ADR-008)
 
-All production web surfaces must preserve:
+- **UI ≠ canonical**
+- **Graph ≠ authority**
+- **Unknown ≠ healthy**
 
-- **UI ≠ canonical** — browser state never becomes vault truth.
-- **Graph ≠ authority** — derived graph / impact lenses never pick authority winners.
-- **Unknown ≠ healthy** — absent OBS / read evidence renders unknown, never fabricated healthy.
-
-## Checklist (draft — not certified)
+## Checklist
 
 | # | Criterion | Evidence | Status |
 |---|---|---|---|
-| 1 | Production shell routes smoke green (`/`, `/projects`, `/ops`, `/command-center`, design-lab) | `apps/web/scripts/smoke.mjs` | draft |
-| 2 | Stub + UI enforce UI≠canonical / Graph≠authority / Unknown≠healthy | `public/sample-read-status.json`, production pages, `ReadStatusPanel` | draft |
-| 3 | ADR-008 / ADR-009 / ADR-010 present and referenced | `docs/adr/ADR-008-*.md`, `ADR-009-*.md`, `ADR-010-*.md`; smoke + unit tests | draft |
-| 4 | `web_api` read-only boundary intact — no Core truth writers | `src/project_atlas/web_api/`, `tests/unit/test_as_web_001_web_api.py` | draft |
-| 5 | Command Center modes (overview · projects · ops · impact) present | `CommandCenterPage.tsx`, smoke | draft |
-| 6 | Design-lab themes retained (AS-WEB-002) without production acceptance claim | design-lab routes + tokens | draft |
-| 7 | Governor sign-off artifact + tip pin recorded | evidence package + this doc | **open** |
-| 8 | CI smoke invocation documented | `apps/web/README.md`, package scripts | draft |
+| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
+| 2 | Stub + UI enforce UI≠canonical / Graph≠authority / Unknown≠healthy | sample stub + production pages | automated |
+| 3 | ADR-008 / ADR-009 / ADR-010 present | smoke + unit tests | automated |
+| 4 | `web_api` read-only boundary intact | `web_api/`, tests | automated |
+| 5 | Command Center modes present | CommandCenterPage + smoke | automated |
+| 6 | Design-lab themes retained | design-lab routes + tokens | automated |
+| 7 | Knowledge + Graph production lenses | `/knowledge`, `/graph` + `web_api.knowledge` / `web_api.graph` | automated |
+| 8 | a11y skip-link on production shell | `ProdShell` + CSS `:focus` | automated |
+| 9 | Fixture E2E read bundle (projects/knowledge/graph/health) | `test_as_web_accept_002_*` | automated |
+| 10 | Governor sign-off artifact + tip pin recorded | evidence package | **open** |
+| 11 | CI smoke invocation documented | `apps/web/README.md` | draft |
 
 ## Automated gates (non-certifying)
 
 ```bash
 node apps/web/scripts/smoke.mjs
-python -m pytest tests/unit/test_as_web_001_web_api.py tests/unit/test_as_web_accept_001_checklist.py -q
+python -m pytest tests/unit/test_as_web_001_web_api.py tests/unit/test_as_web_accept_001_checklist.py tests/unit/test_as_web_accept_002_closeout.py -q
 ```
 
-Passing automated gates is necessary but **not sufficient** for WEB APPLICATION ACCEPTED.
+Passing automated gates is necessary but **not sufficient** for WEB APPLICATION ACCEPTED
+while item 10 (governor sign-off) remains open.
 
 ## Explicit non-claims
 
@@ -52,4 +50,5 @@ Passing automated gates is necessary but **not sufficient** for WEB APPLICATION 
 
 | Date | Change |
 |---|---|
-| 2026-08-09 | Initial checklist draft under AS-WEB-ACCEPT-001 (ACCEPTED=NO) |
+| 2026-08-09 | Initial checklist draft (ACCEPTED=NO) |
+| 2026-08-09 | WEB-ACCEPT-002: knowledge/graph routes, a11y skip-link, fixture E2E (ACCEPTED=NO) |

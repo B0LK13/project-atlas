@@ -21,6 +21,8 @@ const required = [
   "src/styles.css",
   "src/pages/HomePage.tsx",
   "src/pages/production/ProjectsPage.tsx",
+  "src/pages/production/KnowledgePage.tsx",
+  "src/pages/production/GraphPage.tsx",
   "src/pages/production/OpsHealthPage.tsx",
   "src/pages/production/CommandCenterPage.tsx",
   "src/pages/design-lab/LedgerDeskPage.tsx",
@@ -80,6 +82,8 @@ for (const theme of [
 const app = readFileSync(join(root, "src/App.tsx"), "utf8");
 for (const route of [
   "/projects",
+  "/knowledge",
+  "/graph",
   "/ops",
   "/command-center",
   "/design-lab/ledger-desk",
@@ -166,9 +170,12 @@ if (!webApiImports.every((line) => line.includes("project_atlas.web_api"))) {
 const pageChecks = [
   ["src/pages/HomePage.tsx", ["ui_canonical", "graph_authority", "unknown"]],
   ["src/pages/production/ProjectsPage.tsx", ["UI", "canonical"]],
+  ["src/pages/production/KnowledgePage.tsx", ["ui_canonical", "graph_authority", "unknown"]],
+  ["src/pages/production/GraphPage.tsx", ["graph_authority", "ui_canonical", "unknown"]],
   ["src/pages/production/OpsHealthPage.tsx", ["unknown", "Graph", "authority"]],
   ["src/pages/production/CommandCenterPage.tsx", ["ui_canonical", "graph_authority"]],
   ["src/components/ReadStatusPanel.tsx", ["ui_canonical", "graph_authority", "unknown_equals_healthy"]],
+  ["src/components/ProdShell.tsx", ["skip-link", "Skip to main"]],
 ];
 for (const [rel, needles] of pageChecks) {
   const body = readFileSync(join(root, rel), "utf8").toLowerCase();
@@ -181,5 +188,5 @@ for (const [rel, needles] of pageChecks) {
 }
 
 console.log(
-  "AS-WEB-ACCEPT-001 smoke PASS — routes + ADR-008/009/010 + invariants (ACCEPTED=NO)",
+  "AS-WEB-ACCEPT-001 smoke PASS — routes + knowledge/graph + a11y skip + ADRs (ACCEPTED=NO)",
 );
