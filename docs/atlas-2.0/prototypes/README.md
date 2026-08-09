@@ -46,3 +46,9 @@ file must carry an explicit non-production header and remain `READY=NO`.
 |---|---|
 | 2026-08-09 | deepen-e: initial prototypes stub README (non-production) |
 | 2026-08-09 | deepen-g: added non-production contract review walkthrough; READY remains NO |
+| `AGENT-OS-SESSION-PROTOTYPE.md` | PROTOTYPE | Session narrative stub |
+| `DIGITAL-TWIN-DASHBOARD-PROTOTYPE.md` | PROTOTYPE | Twin UI stub; no invent estate |
+| `UX-COMMAND-CENTER-WIREFRAME-PROTOTYPE.md` | PROTOTYPE | Non-canonical CC wireframe |
+| `REVIEW-WALKTHROUGH-PROTOTYPE.md` | PROTOTYPE | Human review walkthrough |
+
+deepen-j: inventory polish only; `AGENT_ELIGIBLE_COUNT=0` except owner gates.

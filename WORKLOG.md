@@ -4985,3 +4985,10 @@ threat 025-028, OpenAI importer fixtures, prototype UIs. Prep ≈82%.
 ## ADV/SEC fixture matrices
 
 Indexes ADV-001..004 + SEC-CONT-001/002. RELEASE/PILOT remain **NO**.
+
+## Atlas 2.0 deepen-j (agent-eligible closeout)
+
+OQ-001…019 dispositioned; §98 DRAFT complete; DAG_DRAFT_COMPLETE=YES; DAG_FREEZE=NO.
+`2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR=YES`. `ATLAS_2_0_IMPLEMENTATION_READY=NO`.
+`AGENT_ELIGIBLE_COUNT=0` except owner-held (WEB #10, PILOT, RELEASE, gate 10).
+

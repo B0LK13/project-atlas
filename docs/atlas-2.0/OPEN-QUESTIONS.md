@@ -1,65 +1,76 @@
-# Atlas 2.0 — Open questions (prep)
+# Atlas 2.0 — Open questions (prep) · dispositions
 
-Status: **PREP ONLY**. Production answers blocked on 1.0 freeze.
-`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Status: **PREP ONLY**. `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Production binding still requires `ATLAS_1_0_RELEASE_CERTIFIED` + owner/governor where noted.
+
+Disposition legend:
+
+| Disposition | Meaning |
+|---|---|
+| `ANSWERED-DRAFT` | Agent-eligible default selected from existing 1.0 principles; **not** production freeze |
+| `DEFERRED-WITH-WAIVER` | Explicitly deferred until named owner/1.0 gate; not ignored |
 
 ## Identity and federation
 
-| # | Question | Options (sketch) | Blocker | Related stub |
-|---|---|---|---|---|
-| OQ-001 | Federation identity model vs AS-ID-001 locks | (a) operator manifest join; (b) discovery with quarantine | 1.0 freeze + FED entry gate | AS-2.0-FED-001 |
-| OQ-002 | Cross-vault project ID collision resolution | fail-closed quarantine vs namespaced IDs | AS-XPROJ-001 maturity | AS-2.0-FED-001 |
-| OQ-003 | Global entity registry ownership | Core vs graph vs federation package | AS-XPROJ-001 | AS-2.0-FED-001 |
+| # | Question | Disposition | Draft answer / waiver |
+|---|---|---|---|
+| OQ-001 | Federation identity vs AS-ID-001 | `ANSWERED-DRAFT` | **(a) operator manifest join only** — no discovery-as-consent; aligns fail-closed / no invent |
+| OQ-002 | Cross-vault project ID collision | `ANSWERED-DRAFT` | **Fail-closed quarantine** — no namespaced silent merge; AS-ID-001 / XPROJ posture |
+| OQ-003 | Global entity registry ownership | `DEFERRED-WITH-WAIVER` | Deferred to owner after XPROJ maturity + READY; interim: Core-owned derived registry, graph consume-only |
+| OQ-016 | Federation join issuer / signed form | `DEFERRED-WITH-WAIVER` | Deferred to release governor trust-root decision after 1.0 RELEASE CERTIFIED |
 
 ## Provider and quarantine
 
-| # | Question | Options (sketch) | Blocker | Related stub |
-|---|---|---|---|---|
-| OQ-004 | Provider adapter quarantine boundary | in-process vs subprocess sandbox | NFR-006 adapter design | AS-2.0-PROV-001 |
-| OQ-005 | Model-assisted classification precedence | deterministic-first always vs opt-in override | FR-004 policy | AS-2.0-PROV-001 |
-| OQ-006 | Provider receipt shape | extend agent-event vs new contract | AS-CTRL-001 | AS-2.0-PROV-001 |
+| # | Question | Disposition | Draft answer / waiver |
+|---|---|---|---|
+| OQ-004 | Adapter quarantine boundary | `ANSWERED-DRAFT` | **Subprocess sandbox preferred**; in-process allowed only with mandatory quarantine + deny write tools (NFR-006) |
+| OQ-005 | Model-assisted classification precedence | `ANSWERED-DRAFT` | **Deterministic-first always** — model never overrides FR-004 without explicit quarantine path |
+| OQ-006 | Provider receipt shape | `ANSWERED-DRAFT` | **Extend agent-event / provenance receipts** where possible; new contract only if gaps proven at freeze |
 
 ## Web and UX
 
-| # | Question | Options (sketch) | Blocker | Related stub |
-|---|---|---|---|---|
-| OQ-007 | Command Center advanced modes vs WEB 1.0 acceptance | ship modes incrementally vs batch | WEB APPLICATION ACCEPTED | AS-2.0-UX-001 |
-| OQ-008 | Live vault adapter vs sample stub default | env-configured vault path vs fixture-only | AS-WEB-ACCEPT-001 | AS-2.0-UX-001 |
-| OQ-009 | Impact lens data source | AS-J-005 projection only vs multi-source | AS-J-005 maturity | AS-2.0-UX-001 |
+| # | Question | Disposition | Draft answer / waiver |
+|---|---|---|---|
+| OQ-007 | Advanced CC modes vs WEB acceptance | `DEFERRED-WITH-WAIVER` | Deferred until `WEB APPLICATION ACCEPTED = YES` (governor #10) |
+| OQ-008 | Live vault vs sample stub default | `ANSWERED-DRAFT` | **Fixture/sample default**; live path only via explicit config after WEB ACCEPTED |
+| OQ-009 | Impact lens data source | `ANSWERED-DRAFT` | **AS-J-005 derived projection only** as default; multi-source requires freeze review |
+| OQ-017 | WEB ACCEPTED evidence without false stamp | `ANSWERED-DRAFT` | **Governor-signed evidence bundle** bound to tip SHA/TREE (AS-WEB-ACCEPT-005); route-render alone insufficient |
 
 ## Sync and migration
 
-| # | Question | Options (sketch) | Blocker | Related stub |
-|---|---|---|---|---|
-| OQ-010 | Migration tooling ownership (INT-012 vs 2.0-COMPAT) | INT owns tooling; 2.0 consumes snapshot | INT-012 entry | AS-2.0-COMPAT-001 |
-| OQ-011 | Estate sync v2 tombstone semantics | hard delete vs soft tombstone vs retention archive | AS-INT-010 policy | AS-2.0-SYNC-001 |
-| OQ-012 | Partial sync failure recovery | promote rollback vs forward-fix receipt | AS-CORE2-009 | AS-2.0-SYNC-001 |
+| # | Question | Disposition | Draft answer / waiver |
+|---|---|---|---|
+| OQ-010 | Migration tooling ownership | `ANSWERED-DRAFT` | **INT owns tooling**; AS-2.0-COMPAT consumes certified snapshot |
+| OQ-011 | Estate sync tombstone semantics | `DEFERRED-WITH-WAIVER` | Deferred until PILOT/INT-010 estate policy owner decision |
+| OQ-012 | Partial sync failure recovery | `ANSWERED-DRAFT` | **Forward-fix recovery receipt** (CORE2-009 posture); no silent rollback invent |
+| OQ-018 | Sync queue authorization / replay | `DEFERRED-WITH-WAIVER` | Deferred until PILOT + production SYNC cert path; scaffolds remain unauthorized dry-run |
 
-## Compatibility and release
+## Compatibility, release, evidence
 
-| # | Question | Options (sketch) | Blocker | Related stub |
-|---|---|---|---|---|
-| OQ-013 | Snapshot pin format | YAML manifest vs JSON contract bundle | 1.0 release cert | AS-2.0-COMPAT-001 |
-| OQ-014 | 2.0 major version boundary | semantic vs calendar vs capability flag | governor decision | all stubs |
-| OQ-015 | Threat model control promotion | which T-2.0-xxx mitigations ship in 2.0 MVP | threat review | THREAT-MODEL.md |
+| # | Question | Disposition | Draft answer / waiver |
+|---|---|---|---|
+| OQ-013 | Snapshot pin format | `DEFERRED-WITH-WAIVER` | Deferred until 1.0 RELEASE CERTIFIED publishes pin |
+| OQ-014 | 2.0 major version boundary | `DEFERRED-WITH-WAIVER` | Deferred to governor at READY flip |
+| OQ-015 | Threat control promotion to MVP | `DEFERRED-WITH-WAIVER` | Deferred to threat/governor review at freeze; register T-2.0-001…028 is prep-complete |
+| OQ-019 | Fixture vs waiver vs estate evidence class | `ANSWERED-DRAFT` | **Typed classes**: `fixture_rehearsal` \| `fixture_only_waiver` \| `estate_pilot_pass` — mutually exclusive; waiver ≠ PILOT PASS |
 
-## Deepen-f blockers (unanswered)
+## Counts
 
-| # | Question | Options (sketch) | Blocker | Related stub |
-|---|---|---|---|---|
-| OQ-016 | Who issues and verifies federation join authorization, and what is its canonical signed form? | release governor trust root vs operator trust bundle | 1.0 identity/release trust decision | AS-2.0-FED-001 |
-| OQ-017 | What evidence can set WEB APPLICATION ACCEPTED without allowing a route-render or sample-data false stamp? | independent acceptance receipt vs governor-signed evidence bundle | WEB acceptance governance | AS-2.0-UX-001 |
-| OQ-018 | What authorizes a queued sync plan, and how do cancellation, expiry, and replay retain operation identity? | per-plan authorization vs scoped session authorization | sync/recovery policy | AS-2.0-SYNC-001 |
-| OQ-019 | What machine-readable evidence class distinguishes fixture rehearsal, fixture-only waiver, and authentic estate pilot pass? | typed receipt vs separately governed manifests | ESTATE PILOT gate owner | AS-2.0-SYNC-001 / COMPAT |
+| Metric | Value |
+|---|---|
+| Total OQ | 19 (001–019) |
+| `ANSWERED-DRAFT` | 11 |
+| `DEFERRED-WITH-WAIVER` | 8 |
+| Silently ignored | **0** |
 
-These questions are newly captured blockers. No option is selected or resolved.
+## Explicit
 
-All production answers require `ATLAS_1_0_RELEASE_CERTIFIED` first.
+Dispositions do **not** flip `ATLAS_2_0_IMPLEMENTATION_READY`, RELEASE, WEB ACCEPTED, or PILOT.
 
 ## Changelog
 
 | Date | Change |
 |---|---|
-| 2026-08-09 | Initial four open questions |
-| 2026-08-09 | Structured OQ table with blockers and stub links |
-| 2026-08-09 | deepen-f: added unresolved OQ-016…019 for trust, acceptance, sync authorization, and evidence class |
+| 2026-08-09 | Initial / structured OQ tables |
+| 2026-08-09 | deepen-f: OQ-016…019 |
+| 2026-08-09 | deepen-j: full disposition table ANSWERED-DRAFT / DEFERRED-WITH-WAIVER |

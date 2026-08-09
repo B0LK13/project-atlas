@@ -80,3 +80,6 @@ estate pilot evidence, a certified 1.0 snapshot, or governor authorization.
 - Compatibility: [COMPATIBILITY.md](../COMPATIBILITY.md)
 - Z-wave lanes: [Z-WAVE-INDEX.md](../Z-WAVE-INDEX.md)
 - Prototype markers: [PROTOTYPE-MARKERS.md](../PROTOTYPE-MARKERS.md)
+
+| `openai-importer/` | AS-2.0-PROV-001 | Synthetic chat export; secrets-scan before any future ingest |
+
