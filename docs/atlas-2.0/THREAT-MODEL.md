@@ -30,6 +30,9 @@ Structured threat inventory for 2.0 planning. Mitigations listed here are
 | T-2.0-011 | Implicit federation discovery without operator-signed join | Multi-vault join, trust boundary | M | H | Require operator-signed join manifests; quarantine unsigned discovery; no merge-by-guess | OQ-001, AS-2.0-FED-001 |
 | T-2.0-012 | Provider/MCP adapter secret egress or sandbox escape | Adapter process, logs, tool surface | M | H | Prefer subprocess sandbox sketch; metadata-only secret findings; deny write tools (`promote`, claim mutate) | OQ-004, OPENAI-MCP-DESIGN.md |
 | T-2.0-013 | Protected human-region corruption during 2.0 regen paths | OKF notes, human-edit markers | L | H | Reuse AT-011 fail-closed unbalanced markers; byte-identical protected regions on regen | AT-011, FR-015 |
+| T-2.0-014 | Estate sync conflict silently promotes tombstone or stale authority winner | Estate sync v2, claims, review queue | M | H | Surface conflicts in review queue; no silent authority overwrite; tombstone vs winner policy explicit before promote | OQ-011, OQ-012, AS-2.0-SYNC-001, AS-CORE-003 |
+| T-2.0-015 | MCP / provider tool enumeration drift introduces write-capable tools | Adapter registry, tool allowlist | M | H | Deny-by-default tool allowlist; CI drift check vs pinned deny set (`promote`, claim mutate, vault write); registry version pin | OQ-004, OPENAI-MCP-DESIGN.md, AS-2.0-PROV-001 |
+| T-2.0-016 | Compatibility snapshot pin forgery or stale pin acceptance | Release gate, 2.0 package CI | L | H | Require governor-published snapshot (HEAD/TREE/tag); refuse unsigned/stale pins; hard-drift fails CI | OQ-013, COMPATIBILITY.md, AS-2.0-COMPAT-001 |
 
 ## Mitigation themes (not yet implemented)
 
@@ -44,8 +47,12 @@ Structured threat inventory for 2.0 planning. Mitigations listed here are
   (partially captured as T-2.0-011; residual: signed-manifest crypto shape).
 - Provider adapter sandbox: subprocess vs in-process; secret egress boundaries
   (partially captured as T-2.0-012; residual: host FS allowlist).
-- Estate sync conflict resolution: tombstone vs authority winner semantics.
-- MCP tool enumeration drift: new write-capable tools sneaking past deny list.
+- Estate sync conflict resolution: tombstone vs authority winner semantics
+  (partially captured as T-2.0-014; residual: retention archive vs soft tombstone).
+- MCP tool enumeration drift: new write-capable tools sneaking past deny list
+  (partially captured as T-2.0-015; residual: dynamic tool discovery from remote MCP).
+- Snapshot pin authenticity and rotation (partially captured as T-2.0-016;
+  residual: multi-snapshot migration windows).
 
 No production branches for threat mitigations until `ATLAS_1_0_RELEASE_CERTIFIED`
 and `ATLAS_2_0_IMPLEMENTATION_READY`. Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
@@ -57,3 +64,4 @@ and `ATLAS_2_0_IMPLEMENTATION_READY`. Explicit: `ATLAS_2_0_IMPLEMENTATION_READY 
 | 2026-08-09 | Initial seed threats |
 | 2026-08-09 | Structured register + mitigation themes (prep deepen) |
 | 2026-08-09 | Added T-2.0-011…013 (federation trust, adapter egress, protected regions) |
+| 2026-08-09 | deepen-e: added T-2.0-014…016 (sync conflict, tool drift, snapshot pin) |

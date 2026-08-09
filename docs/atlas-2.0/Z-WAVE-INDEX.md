@@ -25,6 +25,27 @@ until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
 | Z13 | Open questions & research blockers | PREP | NO |
 | Z14 | Prototype markers & READY firewall | PREP | NO |
 
+## Status notes (deepen-e / PREP)
+
+All notes below are Track B progress only. None flip READY.
+
+| ID | Prep status note |
+|---|---|
+| Z1 | CHARTER.md present as PROTOTYPE purpose envelope; not certified. |
+| Z2 | VISION.md themes drafted; explicitly non-normative. |
+| Z3 | PRD.md + PACKAGE-CONTRACT-STUBS FR-2.0-xxx seed; placeholders only. |
+| Z4 | DAG.md gate chain sketched; 1.0 tip pin still pending RELEASE CERTIFIED. |
+| Z5 | THREAT-MODEL.md register T-2.0-001…016; mitigations = design intent. |
+| Z6 | AS-2.0-FED-001 stubs + OQ-001…003 open; no join schema shipped. |
+| Z7 | AS-2.0-UX-001 stubs blocked on WEB APPLICATION ACCEPTED = NO. |
+| Z8 | AS-2.0-PROV-001 stubs + OPENAI-MCP-DESIGN PROTOTYPE; no SDK wiring. |
+| Z9 | AS-2.0-SYNC-001 stubs; tombstone/conflict policy unresolved (OQ-011/012). |
+| Z10 | COMPATIBILITY.md snapshot pin model sketched; consumer not frozen. |
+| Z11 | FIXTURE-PLAN.md + fixtures/README inventory; no payload harness. |
+| Z12 | OPENAI-MCP-DESIGN.md marked PROTOTYPE; production wiring forbidden. |
+| Z13 | OPEN-QUESTIONS.md OQ-001…015 unanswered; research blockers intact. |
+| Z14 | PROTOTYPE-MARKERS.md + `prototypes/` stub; READY firewall explicit NO. |
+
 ## Cross-links (prep artifacts)
 
 | Lane | Primary artifact(s) |
@@ -34,11 +55,11 @@ until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
 | Z3 | [PRD.md](PRD.md), [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) |
 | Z4 | [DAG.md](DAG.md) |
 | Z5 | [THREAT-MODEL.md](THREAT-MODEL.md) |
-| Z6–Z10 | [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md), [COMPATIBILITY.md](COMPATIBILITY.md) |
+| Z6–Z10 | [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md), [COMPATIBILITY.md](COMPATIBILITY.md), [CONTRACT-FREEZE-CHECKLIST.md](CONTRACT-FREEZE-CHECKLIST.md) |
 | Z11 | [FIXTURE-PLAN.md](FIXTURE-PLAN.md), [fixtures/README.md](fixtures/README.md) |
 | Z12 | [OPENAI-MCP-DESIGN.md](OPENAI-MCP-DESIGN.md) |
 | Z13 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) |
-| Z14 | [PROTOTYPE-MARKERS.md](PROTOTYPE-MARKERS.md) |
+| Z14 | [PROTOTYPE-MARKERS.md](PROTOTYPE-MARKERS.md), [prototypes/README.md](prototypes/README.md), [IMPLEMENTATION-READY-GATE.md](IMPLEMENTATION-READY-GATE.md) |
 
 ## Firewall
 
@@ -51,3 +72,4 @@ until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
 | Date | Change |
 |---|---|
 | 2026-08-09 | Initial Z1–Z14 prep lane map (`READY=NO`) |
+| 2026-08-09 | deepen-e: per-lane status notes; contract-freeze + prototypes cross-links |
