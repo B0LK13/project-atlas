@@ -26,6 +26,7 @@ immutable claims
   → derived authoritative state
   → AS-CORE-007 point knowledge query (UNCHANGED)
   → AS-CORE-008 multi-field composition (read-only fan-out, one snapshot)
+  → AS-QUERY-DIAG-001 outcome diagnostics (additive; see docs/AS-QUERY-DIAG-001-query-outcome-diagnostics.md)
 ```
 
 ## Library API

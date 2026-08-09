@@ -37,12 +37,16 @@ SCHEMA_FILES: dict[str, str] = {
     "diagnostic": "diagnostic.schema.json",
     "knowledge-answer": "knowledge-answer.schema.json",
     "knowledge-multifield-answer": "knowledge-multifield-answer.schema.json",
+    "query-diagnostic": "query-diagnostic.schema.json",
     # AS-GRAPH-001 — Graphify acceptance (derived-only; not domain authority)
     "graphify-envelope": "graphify-envelope.schema.json",
     "graphify-node": "graphify-node.schema.json",
     "graphify-edge": "graphify-edge.schema.json",
     "graphify-metadata": "graphify-metadata.schema.json",
     "graph-acceptance-receipt": "graph-acceptance-receipt.schema.json",
+    # AS-GRAPH-002 — Deterministic entity resolution (derived-only; not authority)
+    "graph-resolved-node": "graph-resolved-node.schema.json",
+    "graph-identity-explanation": "graph-identity-explanation.schema.json",
     # AS-OBS-001 — operational health snapshot (non-authoritative ops plane)
     "ops-health-snapshot": "ops-health-snapshot.schema.json",
 }
