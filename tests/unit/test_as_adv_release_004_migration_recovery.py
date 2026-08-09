@@ -35,18 +35,28 @@ def test_as_adv_release_004_migration_recovery_replay_passes(
     assert observed["baseline"] == observed["replayed"]
 
 
-def test_as_adv_release_004_recovery_signals_repeat_exactly(
+def test_as_adv_release_004_recovery_outcomes_repeat(
     tmp_path: Path,
 ) -> None:
-    first = run_fixture_adv_release_certification(
-        tmp_path / "first", case_ids=("migration_recovery_replay",)
-    )
-    second = run_fixture_adv_release_certification(
-        tmp_path / "second", case_ids=("migration_recovery_replay",)
-    )
-    assert first["cases"][0]["observed"] == second["cases"][0]["observed"]
-    assert first["release_certified"] is False
-    assert second["release_certified"] is False
+    reports = [
+        run_fixture_adv_release_certification(
+            tmp_path / run, case_ids=("migration_recovery_replay",)
+        )
+        for run in ("first", "second")
+    ]
+    observed = [json.loads(report["cases"][0]["observed"]) for report in reports]
+    for report, signals in zip(reports, observed, strict=True):
+        assert report["release_certified"] is False
+        assert report["cases"][0]["result"] == "pass"
+        assert signals["baseline"] == signals["replayed"]
+        assert signals["canonical_preserved"] is True
+        assert signals["drift"] == []
+        assert signals["orphan_count"] == 1
+        assert signals["second_orphan_count"] == 0
+        assert signals["stage_removed"] is True
+        assert signals["transactions_recovered"] == 1
+    assert observed[0]["baseline"]["file_count"] == observed[1]["baseline"]["file_count"]
+    assert observed[0]["baseline"]["byte_count"] == observed[1]["baseline"]["byte_count"]
 
 
 def test_as_adv_release_004_matrix_and_docs_keep_release_no() -> None:
