@@ -38,6 +38,8 @@ SCHEMA_FILES: dict[str, str] = {
     "knowledge-answer": "knowledge-answer.schema.json",
     "knowledge-multifield-answer": "knowledge-multifield-answer.schema.json",
     "query-diagnostic": "query-diagnostic.schema.json",
+    # AS-QUERY-MULTI-001 — tip-safe multi-subject / multi-project PLAN (≠ answer / authority)
+    "query-multi-plan": "query-multi-plan.schema.json",
     # AS-EXPLAIN-001 — explainability / provenance receipts (operational metadata ≠ authority)
     "explain-receipt": "explain-receipt.schema.json",
     # AS-EXPLAIN-001 Band B — graph explain sidecars (derived enrichment ≠ query winner)

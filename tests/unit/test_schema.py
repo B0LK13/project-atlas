@@ -54,6 +54,7 @@ def test_all_expected_schemas_available() -> None:
         "parser-output",
         "provenance-reference",
         "query-diagnostic",
+        "query-multi-plan",
         "review-entry",
         "semantic-records",
         "source-record",
