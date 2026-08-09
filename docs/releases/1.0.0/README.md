@@ -7,8 +7,8 @@ This directory is the non-certifying release-receipt scaffold for Atlas 1.0.0 un
 
 Baseline pin:
 
-- MAIN: `40ce30f34301cc3cbb3d3f0d2ab880357e1d8f0a`
-- TREE: `4b3d2f7d45ea48c4dde82a64554fc4ca3e2b38fe`
+- MAIN: `b57cceb383dca8d4a8c967da58abfc799386a829`
+- TREE: `7efe25dccee4c91a9095cbf4743865274c4e9dff`
 
 The files here inventory candidate evidence and reserve the shape of a future certification receipt. They do not assert that any release gate has passed. Every gate remains unchecked until independently verified against the exact candidate commit and tree.
 

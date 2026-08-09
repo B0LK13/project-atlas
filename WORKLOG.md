@@ -4959,7 +4959,6 @@ Added Agent OS / Digital Twin / KCI / Context / Architecture PROTOTYPE-PREP docs
 - Added a disposable-only operator procedure around the existing `atlas adv certify` `clean_clone_replay` case.
 - Added a fail-closed helper that accepts no estate/report roots and verifies all non-claim booleans.
 - Added docs-as-spec guards for `RELEASE=NO`, `PILOT=NO`, and `WEB ACCEPTED=NO`.
-<<<<<<< Updated upstream
 
 ## Atlas 2.0 deepen-i
 
@@ -4968,8 +4967,6 @@ threat 025-028, OpenAI importer fixtures, prototype UIs. Prep ≈82%.
 `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR = CANDIDATE` (not READY; gates 1-3/10 blocked).
 
-||||||| Stash base
-=======
 
 ## Atlas 1.0.0 PRE-RC tip-pin refresh
 
@@ -4980,4 +4977,3 @@ threat 025-028, OpenAI importer fixtures, prototype UIs. Prep ≈82%.
 - Refreshed `docs/releases/1.0.0/` to MAIN `b57cceb383dca8d4a8c967da58abfc799386a829` / TREE `7efe25dccee4c91a9095cbf4743865274c4e9dff`.
 - Indexed landed ADV clean-clone rehearsal, ADV-004 recovery assertions, WEB tip pins, and Track B deepen-h prep.
 - Checklist gates remain unchecked and RELEASE CERTIFIED remains **NO**.
->>>>>>> Stashed changes
