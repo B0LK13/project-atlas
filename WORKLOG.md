@@ -3708,3 +3708,27 @@ byte-stable for merged snapshot/report.
 **MERGE AUTHORIZED: NO**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 
+
+## AS-OBS-001 — FR-002 remediation (OPS-SIG-005/006)
+
+**Directive:** Governor remediation (`AS-OBS-001-GOVERNOR-REPORT.md` / agent `80f0e3c6`)  
+**Blocker:** OBS-001-FR-002 fabricated `ok` on absent promotion/quarantine evidence  
+**Branch / WT:** `feat/as-obs-001-health-snapshot` / `D:\atlas-worktrees\as-obs-001`  
+**Prior tip:** `b2ca9112c398708525d0cef98d78017fef61a941`  
+**Remediation HEAD:** `cba074a65c4257c5842f2a4a73f2c10ad966b832`  
+**Remediation TREE:** `f90300dfb44dde2022802cd4f1aa9ff14df4fa04`
+
+### Fix
+- Absent `quarantine/promotion-failures/index.json` → `OPS-SIG-005` = `unknown`
+- No readable quarantine evidence surfaces → `OPS-SIG-006` = `unknown`
+- Present empty indexes still `ok`/0 with non-empty `evidence_refs`
+- Tests assert absent ≠ ok; present-empty = ok
+
+### Gates
+- ruff / mypy: PASS
+- Focused: 20 passed
+- knowledge_compiler / Graph / Model / QUERY-DIAG: untouched this hop
+
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
