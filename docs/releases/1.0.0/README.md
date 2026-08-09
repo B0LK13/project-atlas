@@ -7,10 +7,19 @@ This directory is the non-certifying release-receipt scaffold for Atlas 1.0.0 un
 
 Baseline pin:
 
-- MAIN: `ac1cee723f368154334815dade33212e593fc88c`
-- TREE: `e0ed54782830df036cc439fa127ff5a16c5d8915`
+- MAIN: `40ce30f34301cc3cbb3d3f0d2ab880357e1d8f0a`
+- TREE: `4b3d2f7d45ea48c4dde82a64554fc4ca3e2b38fe`
 
 The files here inventory candidate evidence and reserve the shape of a future certification receipt. They do not assert that any release gate has passed. Every gate remains unchecked until independently verified against the exact candidate commit and tree.
+
+## Newly landed evidence at this baseline
+
+- ADV clean-clone rehearsal procedure and disposable fail-closed helper (`docs/AS-ADV-CLEAN-CLONE-REHEARSAL.md`).
+- ADV-004 migration/recovery replay assertions stabilized around deterministic outcomes.
+- WEB acceptance evidence tip pins refreshed while governor acceptance remains pending.
+- Track B deepen-h prep expanded Agent OS, Digital Twin, KCI, Context, and Architecture themes; `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
+These are inventory updates only. None certifies Atlas 1.0.0, completes an estate pilot, accepts the web application, or authorizes Atlas 2.0 implementation.
 
 ## Contents
 
