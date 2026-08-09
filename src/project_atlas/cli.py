@@ -63,6 +63,13 @@ from project_atlas.ops_health import (
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
+from project_atlas.xproj_edges import (
+    XprojEdgeError,
+    apply_edge_registrations,
+    inspect_edge_registry,
+    load_edge_registry_state,
+    write_edge_outputs,
+)
 from project_atlas.xproj_registry import (
     XprojRegistryError,
     apply_registrations,
@@ -365,6 +372,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--write",
         action="store_true",
         help="Write optional derived registry outputs (requires --vault).",
+    )
+
+    # AS-XPROJ-002 - cross-project edges (derived; explicit globals only).
+    xproj_edge_parser = subparsers.add_parser(
+        "register-global-edge",
+        help=(
+            "Apply explicit cross-project edge registrations "
+            "(AS-XPROJ-002; derived-only; no name-merge; no authority writes)."
+        ),
+    )
+    xproj_edge_parser.add_argument(
+        "--edges",
+        type=Path,
+        required=True,
+        help='JSON file: {"edges": [ {kind: edge, ...}, ... ] }.',
+    )
+    xproj_edge_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Vault root with XPROJ-001 globals/joins; optional emits under "
+            "state/global-entities/edges/ and edge-quarantine/."
+        ),
+    )
+    xproj_edge_parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write optional derived edge outputs (requires --vault).",
     )
 
     # AS-BACKUP-001: verified snapshot / fixture restore (ops durability != authority).
@@ -798,6 +834,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"written: {len(xproj_written)}")
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             _log.error("register-global-entity failed: %s", exc)
+            return EXIT_ERROR
+        return EXIT_OK
+
+    if args.command == "register-global-edge":
+        try:
+            if args.write and args.vault is None:
+                raise XprojEdgeError("register-global-edge --write requires --vault")
+            if args.vault is None:
+                raise XprojEdgeError("register-global-edge requires --vault")
+            payload = json.loads(args.edges.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise XprojEdgeError("edges-not-object")
+            raw = payload.get("edges")
+            if not isinstance(raw, list):
+                raise XprojEdgeError("edges-not-array")
+            edge_requests: list[dict[str, object]] = []
+            for index, item in enumerate(raw):
+                if not isinstance(item, dict):
+                    raise XprojEdgeError(f"edge-not-object:{index}")
+                edge_requests.append(item)
+            entities, joins = load_registry_state(args.vault)
+            prior_edges = load_edge_registry_state(args.vault)
+            edge_result = apply_edge_registrations(
+                edge_requests,
+                entities=entities,
+                joins=joins,
+                prior_edges=prior_edges,
+            )
+            edge_written: list[str] = []
+            if args.write:
+                edge_written = write_edge_outputs(edge_result, vault=args.vault)
+            edge_summary = inspect_edge_registry(edge_result)
+            print(json.dumps(edge_summary, indent=2, sort_keys=True))
+            print(f"registered: {edge_result.registered_count}")
+            print(f"quarantined: {edge_result.quarantined_count}")
+            print("authority: derived")
+            if edge_written:
+                print(f"written: {len(edge_written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("register-global-edge failed: %s", exc)
             return EXIT_ERROR
         return EXIT_OK
 
