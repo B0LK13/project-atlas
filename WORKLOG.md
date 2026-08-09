@@ -4271,7 +4271,6 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-E-006-*.md
-<<<<<<< Updated upstream
 
 ## AS-CORE-OPS-001 — Hash-before-replace / promote write accounting
 
@@ -4296,8 +4295,6 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE-OPS-001-*.md
-||||||| Stash base
-=======
 
 ## AS-D-006 — Parser registry
 
@@ -4324,4 +4321,30 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-D-006-*.md
->>>>>>> Stashed changes
+
+## AS-L-001 / AS-GH-001 — Governance docs reconciliation
+
+**Date:** 2026-08-09
+**Branch:** feat/as-l-001-governance-close
+**Worktree:** D:\atlas-worktrees\as-l-001-governance-close
+**Base tip / TREE:** 75fb73d88683675a23ee2d9a0e785ae9504896b8 / a10a68bf96cefde386b9fad34979dd17c1164d8f
+**Directive:** D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001
+**Gate:** READY WITH CONSTRAINTS — AS-L-001-ENTRY-GATE.md
+**Contract:** AS-L-001-PACKAGE-CONTRACT.md (FROZEN)
+**Overlap:** SAFE WITH EXCLUSIONS — AS-L-001-SURFACE-OVERLAP.md
+**Wake / Lock:** AS-L-001-WAKE.md · AS-L-001-SOLE-WRITER-LOCK.md
+**Reconciled state:** PROJECT-ATLAS-1.0-RECONCILED-STATE.md
+
+### Scope
+- Flip backlog L-001 `[x]` — tip artifacts present (GOVERNANCE.md, ADR-006, companion policy docs, WP/receipt, governance tests)
+- Flip CORE-MODEL-001 and CORE2-007 `[x]` — CLOSED SATISFIED BY MODEL-001A/B/C on tip
+- Repair accidental WORKLOG merge-conflict markers left on tip (keep both CORE-OPS-001 + D-006 entries)
+- Comment legacy open docs PRs #6/#8/#10 — tip supersedes intent; unique evidence files still missing from tip → recommend close if obsolete, NO force-close
+- NO AS-GH-002 live settings; NO AS-REL-001; NO src product changes
+
+### Gates
+- Docs-only diff
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-L-001-*.md

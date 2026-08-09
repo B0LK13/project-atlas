@@ -135,15 +135,13 @@ independent verification passes and the branch is merged to `main`._
 
 ## Epic L — Repository governance
 
-- [ ] L-001 AS-GH-001 GitHub repository governance baseline — architecture certified; bounded first slice independently verified; artifact-closure candidate on `docs/as-gh-001-artifact-closure` adds `GOVERNANCE.md`, `VERSIONING.md`, `RELEASING.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, issue templates, README nav, additive governance tests — **IV required**; live settings activation deferred (AS-GH-002 hint); owner closure pending (`docs/adr/ADR-006-github-repository-governance-baseline.md`, `docs/work-packages/AS-GH-001.md`, `docs/evidence/AS-GH-001-receipt.yaml`).
+- [x] L-001 AS-GH-001 GitHub repository governance baseline — tip artifacts present (`GOVERNANCE.md`, `VERSIONING.md`, `RELEASING.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, issue templates, README nav, additive governance tests, `docs/adr/ADR-006-github-repository-governance-baseline.md`, `docs/work-packages/AS-GH-001.md`, `docs/evidence/AS-GH-001-receipt.yaml`); docs reconciliation on `feat/as-l-001-governance-close` — **GOVERNOR REQUIRED**; live settings activation deferred (AS-GH-002 owner-gated).
 
-- [ ] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
+- [x] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
   `ProvenanceReference` into formal project projections and richer validated
-  project frontmatter; the current slice intentionally uses a thin
-  `SourceRecord`-backed projection. (**Partial:** AS-CORE-MODEL-001A maturity
-  fill implemented on `feat/as-core-model-001a-maturity` — governor review
-  required; multi-concept composition remains AS-CORE-MODEL-001B/001C —
-  contracts only; do not treat CORE-MODEL-001 as closed.)
+  project frontmatter — **CLOSED — SATISFIED BY** MODEL-001A + 001B + 001C on tip
+  per `PROJECT-ATLAS-1.0-RECONCILED-STATE.md`. Residual richer frontmatter polish
+  is optional deferred, not a reopen.
 - [x] AS-INGEST-MANIFEST-001 Multi-batch discovery snapshot and ingest-report
   merge by `source_id` — implementation complete on
   `feat/as-ingest-manifest-001` (closes AS-MVP-001 accepted overwrite debt;
@@ -184,9 +182,10 @@ independent verification passes and the branch is merged to `main`._
 - [x] CORE2-004 Preserve human regions and fail closed on malformed markers
 - [x] CORE2-005 Add content-based secret findings with metadata-only output
 - [x] CORE2-006 Persist source lifecycle state and deletion tombstones
-- [ ] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
-  (**Partial:** AS-CORE-MODEL-001A fills singleton `ConceptRecord.maturity`
-  via Rules A–D; AS-CORE-MODEL-001B Capability emission COMPLETE on feat/as-core-model-001b-capability pending re-IV/merge; multi-type composition remains AS-CORE-MODEL-001C.)
+- [x] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
+  — **CLOSED — SATISFIED BY** MODEL-001A/B/C composition on tip per
+  `PROJECT-ATLAS-1.0-RECONCILED-STATE.md`. Stale “001B pending merge” prose
+  **SUPERSEDED**.
 - [x] CORE2-008 Add duplicate-source conflict projections and authority review queue
   (AS-CORE2-008 tip-safe residual on `feat/as-core2-008-review-queue`; IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED)
 - [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
