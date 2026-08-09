@@ -4588,3 +4588,22 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-012-*.md
 
+
+## AS-CORE2-010 - Fixture-safe lifecycle certification
+
+**Date:** 2026-08-09
+**Branch:** feat/as-core2-010-lifecycle-cert
+**Base tip / TREE:** 8ddada39ee4808390bf449f7bdce29bccbf4a584 / 5f4c90548d5d75045b4e7740da1b5fa894ba82ec
+**Directive:** D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 Track A (fixture-safe; PILOT blocked)
+
+### Scope
+- NEW lifecycle_cert.py + lifecycle-cert-report schema; CLI atlas lifecycle certify
+- Matrix new/unchanged/modified/renamed/deleted/restored/ambiguous/corrupt
+- estate_pilot_passed forced false; no invent estate roots
+- Tests test_as_core2_010_*; backlog CORE2-010 flip
+
+### Gates
+- Local ruff/mypy/pytest
+- Auto-merge FORBIDDEN until governor IV
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE2-010-*.md
+
