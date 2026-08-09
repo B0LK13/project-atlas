@@ -148,11 +148,13 @@ independent verification passes and the branch is merged to `main`._
   merge by `source_id` — implementation complete on
   `feat/as-ingest-manifest-001` (closes AS-MVP-001 accepted overwrite debt;
   governor review required; not self-certified).
-- [ ] CORE-OPS-001 Add explicit read-before-write/hash-before-replace
-- [x] AS-BACKUP-001 Verified Atlas Snapshot (fixture restore; cold D1-D4+D6; ops durability ≠ authority)
+- [x] CORE-OPS-001 Add explicit read-before-write/hash-before-replace
   accounting and evidence for filesystem-write suppression on unchanged
   replay. Keep `content drift` and `canonical content changes` distinct from
-  physical filesystem writes.
+  physical filesystem writes. (AS-CORE-OPS-001 on
+  `feat/as-core-ops-001-promote-accounting` — governor review required; not
+  self-certified.)
+- [x] AS-BACKUP-001 Verified Atlas Snapshot (fixture restore; cold D1-D4+D6; ops durability ≠ authority)
 - [x] CORE-SEC-001 Implement content-based secret detection and redaction for
   pilot ingestion. Filename-only sensitive-file detection must not be treated
   as sufficient for real-project ingestion.

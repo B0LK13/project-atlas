@@ -4271,3 +4271,27 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-E-006-*.md
+
+## AS-CORE-OPS-001 — Hash-before-replace / promote write accounting
+
+**Date:** 2026-08-09
+**Branch:** feat/as-core-ops-001-promote-accounting
+**Worktree:** D:\atlas-worktrees\as-core-ops-001-promote-accounting
+**Base tip / TREE:** 5dae17223032d64a7e496cc882694bb9393807a2 / 033e4d9759f7e179ad250e5ebffafd8356e7a74c
+**Gate:** READY WITH CONSTRAINTS — AS-CORE-OPS-001-ENTRY-GATE.md
+**Contract:** AS-CORE-OPS-001-PACKAGE-CONTRACT.md (OPS001-FR-001..007)
+
+### Scope
+- `ingestion._promote`: prefer SHA-256 hash-before-replace skip (reuse `_file_hash` + `_payload_sha256`)
+- Return module-level `PromoteAccounting(planned, noop_skipped, written)` — no wall-clock stamps
+- Focused tests `tests/unit/test_as_core_ops_001_*.py`; flip backlog CORE-OPS-001
+- NO new promote protocol; NO CORE2-009; NO D-006 `parser_registry` / `evidence_compiler`
+
+### Gates
+- ruff (owned): PASS
+- mypy src: PASS
+- Focused test_as_core_ops_001_*: 12 passed
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE-OPS-001-*.md
