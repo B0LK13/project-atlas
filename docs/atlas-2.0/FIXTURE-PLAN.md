@@ -75,6 +75,35 @@ Do not create production-mutating fixture harnesses until 2.0 IMPLEMENTATION REA
 | `tool-denylist.yaml` | Forbidden `promote`, claim compile, authority mutate | T-2.0-012 |
 | `expected-deny-receipt.json` | Sample deny response shape (no vault write) | NFR-006 |
 
+## Scenario inventory deepen-f (filenames reserved; payloads absent)
+
+| Scenario ID | Family | Evidence class | Positive sketch | Required negative sketch | Exit still blocked by |
+|---|---|---|---|---|---|
+| FX-2.0-FED-001 | federation-smoke | fixture rehearsal | two explicit identities join read-only | duplicate identity and unsigned member both quarantine | OQ-001/OQ-016 |
+| FX-2.0-FED-002 | federation-smoke | fixture rehearsal | stable member ordering | reordered input must not change inventory bytes | contract freeze |
+| FX-2.0-UX-001 | ux-command-center | sample display | source and freshness labels visible | absent health must render unknown | WEB acceptance |
+| FX-2.0-UX-002 | ux-command-center | sample display | derived impact lens labelled | route render must not emit acceptance evidence | OQ-017 |
+| FX-2.0-PROV-001 | provider-adapter | quarantined sample | provenance-complete redacted result | secret finding or missing pin cannot leave quarantine | OQ-004/OQ-006 |
+| FX-2.0-PROV-002 | mcp-readonly-surface | capability rehearsal | pinned read tool accepted | discovered write tool denied after registry drift | OQ-004 |
+| FX-2.0-COMPAT-001 | compat-snapshot | reference sample | exact commit/tree pair consumed | tree mismatch and stale pin both fail closed | release certification |
+| FX-2.0-SYNC-001 | sync-v2-tombstone | fixture rehearsal | dry plan preserves tombstone | stale winner cannot silently resurrect | OQ-011 |
+| FX-2.0-SYNC-002 | sync-v2-tombstone | fixture rehearsal | identical operation replay is idempotent | enqueue without authorization and changed-scope replay denied | OQ-018 |
+| FX-2.0-ESTATE-001 | estate-evidence-class | evidence-class sketch | fixture-only waiver remains explicit | fixture receipt must not satisfy PILOT PASSED | OQ-019 |
+
+### Proposed inventory-only additions
+
+The following names may be documented under `docs/atlas-2.0/fixtures/`, but no
+JSON/YAML payload or executable harness is authorized yet:
+
+- `estate-evidence-class/README.md`
+- `sync-v2-tombstone/queue-state-cases.md`
+- `ux-command-center/acceptance-non-evidence.md`
+- `compat-snapshot/pin-mismatch-cases.md`
+
+Completeness means every scenario eventually has provenance, expected outcome,
+negative outcome, deterministic comparison rule, and evidence-class label. The
+current estate is an inventory only and therefore is not complete or ready.
+
 ## Harness policy (prep)
 
 1. Sketches live under `docs/atlas-2.0/fixtures/` until IMPLEMENTATION READY.
@@ -89,3 +118,4 @@ Do not create production-mutating fixture harnesses until 2.0 IMPLEMENTATION REA
 | 2026-08-09 | Initial fixture family names |
 | 2026-08-09 | Per-family inventory sketches + compat/sync families |
 | 2026-08-09 | Added `mcp-readonly-surface/` family sketch (Z-wave deepen) |
+| 2026-08-09 | deepen-f: scenario/negative-case/evidence-class inventory; no payload harness |

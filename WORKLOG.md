@@ -4749,3 +4749,9 @@ Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
 - ESTATE PILOT PASSED: NO
 - WEB APPLICATION ACCEPTED: NO
 
+
+## 2026-08-09 - D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 / Track B deepen-f
+
+- Deepened Atlas 2.0 prep-only contract, threat, fixture, gate, DAG, and open-question artifacts under `docs/atlas-2.0/**`.
+- Pinned prep baseline `91c0d06ad5224dd081b9e2248fe17b65f360d5fc` / tree `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc`; not a certified 1.0 snapshot.
+- Firewall held: no production code or package schemas; all freeze rows NO; `ATLAS_2_0_IMPLEMENTATION_READY = NO`.

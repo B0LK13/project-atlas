@@ -25,7 +25,7 @@ until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
 | Z13 | Open questions & research blockers | PREP | NO |
 | Z14 | Prototype markers & READY firewall | PREP | NO |
 
-## Status notes (deepen-e / PREP)
+## Status notes (deepen-f / PREP)
 
 All notes below are Track B progress only. None flip READY.
 
@@ -34,17 +34,30 @@ All notes below are Track B progress only. None flip READY.
 | Z1 | CHARTER.md present as PROTOTYPE purpose envelope; not certified. |
 | Z2 | VISION.md themes drafted; explicitly non-normative. |
 | Z3 | PRD.md + PACKAGE-CONTRACT-STUBS FR-2.0-xxx seed; placeholders only. |
-| Z4 | DAG.md gate chain sketched; 1.0 tip pin still pending RELEASE CERTIFIED. |
-| Z5 | THREAT-MODEL.md register T-2.0-001…016; mitigations = design intent. |
-| Z6 | AS-2.0-FED-001 stubs + OQ-001…003 open; no join schema shipped. |
-| Z7 | AS-2.0-UX-001 stubs blocked on WEB APPLICATION ACCEPTED = NO. |
+| Z4 | DAG.md carries observed prep tip; certified 1.0 snapshot pin still pending RELEASE CERTIFIED. |
+| Z5 | THREAT-MODEL.md register T-2.0-001…020; mitigations = design intent. |
+| Z6 | AS-2.0-FED-001 stubs + OQ-001…003 + OQ-016 open; no join schema shipped. |
+| Z7 | AS-2.0-UX-001 stubs blocked on WEB APPLICATION ACCEPTED = NO; false-stamp question OQ-017 open. |
 | Z8 | AS-2.0-PROV-001 stubs + OPENAI-MCP-DESIGN PROTOTYPE; no SDK wiring. |
-| Z9 | AS-2.0-SYNC-001 stubs; tombstone/conflict policy unresolved (OQ-011/012). |
+| Z9 | AS-2.0-SYNC-001 stubs; tombstone/conflict/queue authorization unresolved (OQ-011/012/018). |
 | Z10 | COMPATIBILITY.md snapshot pin model sketched; consumer not frozen. |
-| Z11 | FIXTURE-PLAN.md + fixtures/README inventory; no payload harness. |
+| Z11 | FIXTURE-PLAN.md + fixtures/README scenario/evidence-class inventory; no payload harness. |
 | Z12 | OPENAI-MCP-DESIGN.md marked PROTOTYPE; production wiring forbidden. |
-| Z13 | OPEN-QUESTIONS.md OQ-001…015 unanswered; research blockers intact. |
+| Z13 | OPEN-QUESTIONS.md OQ-001…019 unanswered; research blockers intact. |
 | Z14 | PROTOTYPE-MARKERS.md + `prototypes/` stub; READY firewall explicit NO. |
+
+## Deepen-f delta (no readiness credit)
+
+- Contract checklist now carries per-stub FR/INV/schema review sketches; all
+  review and freeze cells remain unchecked / NO.
+- Package boundaries now state candidate IN/OUT/FORBIDDEN surfaces without APIs
+  or shipped schemas.
+- Threat inventory reaches T-2.0-020 and fixture scenarios include mandatory
+  negative cases and evidence-class separation.
+- The observed prep tip is pinned in DAG/gate artifacts but is explicitly not a
+  certified compatibility snapshot.
+
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
 ## Cross-links (prep artifacts)
 
@@ -73,3 +86,4 @@ All notes below are Track B progress only. None flip READY.
 |---|---|
 | 2026-08-09 | Initial Z1–Z14 prep lane map (`READY=NO`) |
 | 2026-08-09 | deepen-e: per-lane status notes; contract-freeze + prototypes cross-links |
+| 2026-08-09 | deepen-f: deeper contract boundaries, threats, fixture scenarios, blockers, and non-certified tip pin; READY=NO |

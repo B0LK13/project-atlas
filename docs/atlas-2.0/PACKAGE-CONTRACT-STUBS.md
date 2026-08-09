@@ -69,6 +69,51 @@ Draft FR IDs for planning traceability only — **not** certified requirements.
 | FR-2.0-COMPAT-003 | Migration tooling produces reversible audit trail | INT-012 (open) |
 | NFR-2.0-COMPAT-001 | No production impl until `ATLAS_1_0_RELEASE_CERTIFIED` | release gate |
 
+## Candidate package boundaries (deepen-f; non-normative)
+
+The terms **IN**, **OUT**, and **FORBIDDEN** describe review boundaries only.
+They do not establish Python APIs, JSON Schemas, or runtime semantics.
+
+### FED boundary
+
+- **IN:** operator-declared member references; AS-ID-001 identity pins;
+  compatibility snapshot references; consume-only project/entity projections.
+- **OUT:** deterministic membership inventory; ambiguity/conflict records;
+  read-only federation lens with source-vault attribution.
+- **FORBIDDEN:** directory crawling as consent; path-name identity; implicit
+  merge; cross-vault `_promote`; choosing an authority winner from graph rank.
+
+### UX boundary
+
+- **IN:** versioned read-adapter results; health state with unknown preserved;
+  derived impact projection; evidence and freshness references.
+- **OUT:** display-only mode models; source/staleness labels; explicit blocked,
+  degraded, and unknown states; operator navigation intent.
+- **FORBIDDEN:** canonical writes; acceptance inferred from routes rendering;
+  graph-derived authority; sample/fixture data labelled as live estate state.
+
+### PROV boundary
+
+- **IN:** redacted request metadata; provider/model/config pins; deny-by-default
+  tool capability declaration; source context references, never hidden writes.
+- **OUT:** quarantined result envelope; provenance references; validation and
+  secret-scan state; deterministic denial receipt for forbidden capabilities.
+- **FORBIDDEN:** raw credential persistence; direct vault mutation; claim or
+  authority promotion; dynamic MCP tools gaining capability without re-review.
+
+### SYNC boundary
+
+- **IN:** pinned source/destination identities; compatibility pins; prior sync
+  cursor; tombstone/retention facts; explicit operator scope.
+- **OUT:** deterministic dry plan; operation queue records; conflict-review
+  entries; apply/recovery receipts that distinguish planned/applied/terminal.
+- **FORBIDDEN:** enqueue-as-authorization; duplicate replay with a new identity;
+  silent stale/tombstone winner; fixture-estate evidence treated as pilot proof.
+
+Cross-package rule: where any candidate 2.0 boundary conflicts with the 1.0
+snapshot, **1.0 wins**. All boundary names remain subject to freeze review.
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Prep deepen (2026-08-09d)
 
 - `IMPLEMENTATION-READY-GATE.md` — §101 checklist (READY=NO)
@@ -79,3 +124,8 @@ Draft FR IDs for planning traceability only — **not** certified requirements.
 
 Added COMPATIBILITY.md, FIXTURE-PLAN.md, OPEN-QUESTIONS.md — still PREP ONLY.
 Expanded FR stubs for federation, UX, provider, sync, compat (this revision).
+
+## Prep deepen-f (2026-08-09)
+
+Added candidate FED/UX/PROV/SYNC IN/OUT/FORBIDDEN boundaries without shipping
+schemas or authorizing production packages. READY remains NO.
