@@ -1,4 +1,4 @@
-# AS-EXPLAIN-001 — Structured explainability / provenance receipts (Band A)
+# AS-EXPLAIN-001 — Structured explainability / provenance receipts
 
 Band A adds **consume-only** explanation receipts over existing AS-CORE-007/008
 answers and AS-QUERY-DIAG diagnostics. Receipts are operational provenance
@@ -35,13 +35,16 @@ AS-QUERY-001). Library receipts are sufficient for Band A.
 
 ## Band B
 
-Graph relationship / resolved-entity explain sidecars require a separate
-addendum. Missing graph ≠ query failure.
+Graph explain sidecars are documented in
+[`AS-EXPLAIN-001-graph-sidecars.md`](AS-EXPLAIN-001-graph-sidecars.md)
+(additive module `explain_graph_sidecars.py`, schema `explain-graph-sidecar`).
+Missing graph ≠ query failure. Band A receipt envelope remains closed.
 
 ## Invariants
 
 - No trust/confidence scores (EXPL-INV-001)
 - No invented claim / authority / temporal values (EXPL-INV-002)
 - Absent evidence → structured `omissions` (EXPL-INV-003)
+- Graph sidecars optional; missing graph ≠ query failure (EXPL-INV-004)
 - Deterministic JSON (`sort_keys=True`) (EXPL-INV-005)
-- No `knowledge_compiler` / VAL / BACKUP dual-own (EXPL-INV-008)
+- No `knowledge_compiler` / VAL / BACKUP / GRAPH-004 dual-own (EXPL-INV-008)
