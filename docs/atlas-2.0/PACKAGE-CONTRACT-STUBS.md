@@ -12,3 +12,7 @@ Status: **PREP ONLY** — names reserved; not authorized for production impl.
 
 Do not open production branches for these until `ATLAS_1_0_RELEASE_CERTIFIED`
 and `ATLAS_2_0_IMPLEMENTATION_READY`.
+
+## Prep deepen (2026-08-09)
+Added COMPATIBILITY.md, FIXTURE-PLAN.md, OPEN-QUESTIONS.md — still PREP ONLY.
+
