@@ -4959,3 +4959,11 @@ Added Agent OS / Digital Twin / KCI / Context / Architecture PROTOTYPE-PREP docs
 - Added a disposable-only operator procedure around the existing `atlas adv certify` `clean_clone_replay` case.
 - Added a fail-closed helper that accepts no estate/report roots and verifies all non-claim booleans.
 - Added docs-as-spec guards for `RELEASE=NO`, `PILOT=NO`, and `WEB ACCEPTED=NO`.
+
+## Atlas 2.0 deepen-i
+
+Schema/MCP drafts, Reality Gap, Obsidian, perf/test/migration, DAG freeze draft,
+threat 025-028, OpenAI importer fixtures, prototype UIs. Prep ≈82%.
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+`2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR = CANDIDATE` (not READY; gates 1-3/10 blocked).
+

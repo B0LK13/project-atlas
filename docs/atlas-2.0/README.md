@@ -1,19 +1,15 @@
 # Atlas 2.0 — README
 
-Prep tree for Atlas 2.0 under `D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001`.
+Prep tree under `D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001`.
 
-| Artifact | Status |
+| Status | Value |
 |---|---|
-| CHARTER / VISION / PRD | PREP / PROTOTYPE |
-| ARCHITECTURE.md | PREP sketch (deepen-h) |
-| AGENT-OS / DIGITAL-TWIN / KCI / CONTEXT | PROTOTYPE (deepen-h) |
-| DAG.md | deepened (observed tip pin only) |
-| THREAT-MODEL.md | deepened |
-| PACKAGE-CONTRACT-STUBS + CONTRACT-FREEZE-CHECKLIST | §98 stubs (**all freeze NO**) |
-| OPENAI-MCP-DESIGN.md | PROTOTYPE |
-| IMPLEMENTATION-READY-GATE.md | §56/§101 (**READY=NO**; prep ≈68%) |
-| Z-WAVE-INDEX.md | Z1–Z19 (**READY=NO**) |
-| prototypes/ | NON-PRODUCTION stubs |
-| FIXTURE-PLAN / COMPATIBILITY / OPEN-QUESTIONS | prep |
+| `ATLAS_2_0_IMPLEMENTATION_READY` | **NO** |
+| `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | **CANDIDATE** (deepen-i; ≠ READY) |
+| Honest prep depth | ≈ **82%** |
 
-**NOT** Atlas 2.0 IMPLEMENTATION READY. **NO** production semantic changes here.
+Key deepen-i artifacts: SCHEMA-API-DRAFTS, MCP-API-DRAFTS, REALITY-GAP, OBSIDIAN-2.0,
+PERFORMANCE-BUDGETS, TEST-STRATEGY, MIGRATION-STRATEGY, DAG-FREEZE-DRAFT,
+fixtures/openai-importer, prototype UIs. Z-lanes Z1–Z27.
+
+**Firewall:** no production 2.0 semantics in `src/`. 1.0 wins conflicts.

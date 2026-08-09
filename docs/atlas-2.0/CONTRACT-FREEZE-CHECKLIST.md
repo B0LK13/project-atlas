@@ -20,9 +20,9 @@ authorize `src/` work or dependency-bearing schemas.
 
 ## Observed prep baseline pin (not release certification)
 
-- Tip commit: `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59`
-- Tip tree: `fa404c270c1659d4c48739440a43087a4226b939`
-- Meaning: branch-creation baseline for deepen-g only. It is **not** a release
+- Tip commit: `b57cceb383dca8d4a8c967da58abfc799386a829`
+- Tip tree: `7efe25dccee4c91a9095cbf4743865274c4e9dff`
+- Meaning: branch-creation baseline for deepen-i only. It is **not** a release
   tag, compatibility snapshot, governor signature, or proof that 1.0 is
   certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
 
@@ -35,6 +35,11 @@ authorize `src/` work or dependency-bearing schemas.
 | AS-2.0-PROV-001 | Provider adapters | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
 | AS-2.0-SYNC-001 | Estate sync v2 | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
 | AS-2.0-COMPAT-001 | Compatibility snapshot consumer | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
+| AS-2.0-AGENTOS-001 | Agent OS envelope | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
+| AS-2.0-KCI-001 | KCI | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
+| AS-2.0-TWIN-001 | Digital Twin | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
+| AS-2.0-CTX-001 | Context packs | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
+| AS-2.0-OBS-UX-001 | Obsidian non-canonical UX | [ ] **NO** | [ ] **NO** | [ ] **NO** | [ ] **NO** |
 
 ## Cross-cutting freeze gates
 

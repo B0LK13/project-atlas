@@ -29,6 +29,14 @@ until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
 | Z17 | KCI — Knowledge Compilation Interface | PREP | NO |
 | Z18 | Context assembly envelope | PREP | NO |
 | Z19 | Architecture sketch (PREP) | PREP | NO |
+| Z20 | Schema/API drafts (non-shipping) | PREP | NO |
+| Z21 | MCP/tool API drafts | PREP | NO |
+| Z22 | Reality Gap analysis | PREP | NO |
+| Z23 | Obsidian 2.0 non-canonical UX | PREP | NO |
+| Z24 | Performance budgets | PREP | NO |
+| Z25 | Test strategy | PREP | NO |
+| Z26 | Migration strategy | PREP | NO |
+| Z27 | DAG freeze draft | PREP | NO |
 
 ## Status notes (deepen-g / PREP)
 
@@ -123,6 +131,15 @@ All notes below are Track B progress only. None flip READY.
 | Z13 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) |
 | Z14 | [PROTOTYPE-MARKERS.md](PROTOTYPE-MARKERS.md), [prototypes/README.md](prototypes/README.md), [prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md](prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md), [IMPLEMENTATION-READY-GATE.md](IMPLEMENTATION-READY-GATE.md) |
 
+
+| Z20 | [SCHEMA-API-DRAFTS.md](SCHEMA-API-DRAFTS.md) |
+| Z21 | [MCP-API-DRAFTS.md](MCP-API-DRAFTS.md) |
+| Z22 | [REALITY-GAP.md](REALITY-GAP.md) |
+| Z23 | [OBSIDIAN-2.0.md](OBSIDIAN-2.0.md) |
+| Z24 | [PERFORMANCE-BUDGETS.md](PERFORMANCE-BUDGETS.md) |
+| Z25 | [TEST-STRATEGY.md](TEST-STRATEGY.md) |
+| Z26 | [MIGRATION-STRATEGY.md](MIGRATION-STRATEGY.md) |
+| Z27 | [DAG-FREEZE-DRAFT.md](DAG-FREEZE-DRAFT.md) |
 ## Firewall
 
 - Docs-only: no `src/` production semantics from these lanes.
