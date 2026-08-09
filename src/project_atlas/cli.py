@@ -66,6 +66,11 @@ from project_atlas.ops_health import (
     emit_health_snapshot,
     snapshot_to_json,
 )
+from project_atlas.ops_report import (
+    OpsReportError,
+    emit_ops_report,
+    report_to_json,
+)
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
@@ -326,12 +331,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Report what would be created without writing anything.",
     )
 
-    # AS-OBS-001 / AS-OBS-002 - operational observability (ops plane only).
+    # AS-OBS-001 / AS-OBS-002 / AS-OBS-003 - operational observability (ops plane only).
     ops_parser = subparsers.add_parser(
         "ops",
         help=(
             "Operational observability commands "
-            "(AS-OBS-001 health / AS-OBS-002 events; health != authority)."
+            "(AS-OBS-001 health / AS-OBS-002 events / AS-OBS-003 report; "
+            "health != authority)."
         ),
     )
     ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)
@@ -392,6 +398,41 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=10_000,
         help="Retention cap (newest N events; default 10000).",
+    )
+    # AS-OBS-003 — regenerable ops-report projection (tip-safe; consume-only).
+    report_parser = ops_sub.add_parser(
+        "report",
+        help=(
+            "Emit regenerable ops-report JSON/Markdown under "
+            "generated/ops/ops-report.* (AS-OBS-003; ops report != authority)."
+        ),
+    )
+    report_parser.add_argument("--vault", type=Path, required=True)
+    report_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the ops-report JSON to stdout.",
+    )
+    report_parser.add_argument(
+        "--no-write",
+        action="store_true",
+        help="Project only; do not persist generated/ops/ops-report.*",
+    )
+    report_parser.add_argument(
+        "--no-events",
+        action="store_true",
+        help="Skip optional OBS-002 events panel (snapshot-only report).",
+    )
+    report_parser.add_argument(
+        "--archive",
+        action="store_true",
+        help="Also copy into generated/ops/archive/ops-report-NNNN.* (last-N).",
+    )
+    report_parser.add_argument(
+        "--max-archive",
+        type=int,
+        default=50,
+        help="Archive retention cap (default 50).",
     )
 
     # AS-XPROJ-001 - global entity registry (derived; explicit registration only).
@@ -899,6 +940,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"events: {len(events)}")
                 print(
                     f"stream: {args.vault / 'generated' / 'ops' / 'events' / 'stream.jsonl'}"
+                )
+            return EXIT_OK
+        if args.ops_command == "report":
+            try:
+                report = emit_ops_report(
+                    args.vault,
+                    include_events=not args.no_events,
+                    persist=not args.no_write,
+                    archive=args.archive and not args.no_write,
+                    max_archive=args.max_archive,
+                )
+            except (OpsReportError, OSError, ValueError, TypeError) as exc:
+                _log.error("ops report failed: %s", exc)
+                return EXIT_ERROR
+            if args.json or args.no_write:
+                print(report_to_json(report), end="")
+            else:
+                print(f"estate rollup: {report['rollup']['estate']}")
+                print(f"snapshot_status: {report['snapshot_status']}")
+                print(f"signals: {len(report['signals'])}")
+                print(
+                    f"report: {args.vault / 'generated' / 'ops' / 'ops-report.json'}"
                 )
             return EXIT_OK
         parser.error(f"unknown ops command: {args.ops_command}")  # pragma: no cover

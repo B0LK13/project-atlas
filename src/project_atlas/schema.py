@@ -58,6 +58,8 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-OBS-002 - operational event stream (OPS-EVT-*; non-authoritative ops plane)
     "ops-event": "ops-event.schema.json",
     "ops-event-stream": "ops-event-stream.schema.json",
+    # AS-OBS-003 - ops-report projection (consume OBS-001 snapshot; optional OBS-002 events)
+    "ops-report": "ops-report.schema.json",
     # AS-GRAPH-003 - Canonical derived relationships (not authority; not CP relationships/)
     "graph-relationship": "graph-relationship.schema.json",
     "graph-relationship-quarantine": "graph-relationship-quarantine.schema.json",

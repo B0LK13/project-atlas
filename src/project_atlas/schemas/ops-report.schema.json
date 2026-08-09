@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/ops-report.schema.json",
+  "title": "Operational Ops Report",
+  "description": "AS-OBS-003 regenerable ops-report projection from OBS-001 health snapshot (+ optional OBS-002 events). truth_plane=operational; authority_plane=none. Never project authority or temporal truth. HEALTH ≠ TRUTH.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "estate_id",
+    "source_snapshot",
+    "snapshot_status",
+    "rollup",
+    "scopes",
+    "signals",
+    "events",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.ops.report.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": { "const": "OPERATIONAL METRIC ≠ PROJECT AUTHORITY" },
+    "estate_id": { "type": "string", "minLength": 1 },
+    "source_snapshot": {
+      "type": "string",
+      "const": "generated/ops/health-snapshot.json"
+    },
+    "snapshot_status": {
+      "type": "string",
+      "enum": ["present", "missing", "invalid"]
+    },
+    "rollup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["estate"],
+      "properties": {
+        "estate": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+        }
+      }
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scope", "scope_id", "health"],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["estate", "project", "adapter", "skill", "run"]
+          },
+          "scope_id": { "type": "string", "minLength": 1 },
+          "health": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+          }
+        }
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "signal_id",
+          "scope",
+          "scope_id",
+          "status",
+          "severity",
+          "observed_value",
+          "evidence_refs"
+        ],
+        "properties": {
+          "signal_id": {
+            "type": "string",
+            "pattern": "^OPS-SIG-[0-9]{3}$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["estate", "project", "adapter", "skill", "run"]
+          },
+          "scope_id": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "warn", "fail", "unknown"]
+          },
+          "severity": {
+            "type": ["string", "null"],
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", null]
+          },
+          "observed_value": {
+            "type": ["number", "string", "boolean", "null"]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "events": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "count", "items"],
+      "properties": {
+        "present": { "type": "boolean" },
+        "count": { "type": "integer", "minimum": 0 },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event_id", "sequence", "severity", "event_uid", "evidence_refs"],
+            "properties": {
+              "event_id": { "type": "string", "minLength": 1 },
+              "sequence": { "type": ["integer", "null"], "minimum": 1 },
+              "severity": {
+                "type": ["string", "null"],
+                "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", null]
+              },
+              "event_uid": { "type": ["string", "null"] },
+              "evidence_refs": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-obs-003" }
+      }
+    }
+  }
+}
