@@ -363,12 +363,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write optional derived registry outputs (requires --vault).",
     )
 
-    # AS-BACKUP-001 — verified snapshot / fixture restore (ops durability ≠ authority).
+    # AS-BACKUP-001: verified snapshot / fixture restore (ops durability != authority).
     snapshot_parser = subparsers.add_parser(
         "snapshot",
         help=(
             "Create or verify an Atlas recovery bundle (AS-BACKUP-001; "
-            "operational durability ≠ project authority)."
+            "operational durability != project authority)."
         ),
     )
     snapshot_parser.add_argument(
