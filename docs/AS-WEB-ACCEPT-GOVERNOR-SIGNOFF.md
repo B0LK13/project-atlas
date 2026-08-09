@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Package | AS-WEB-ACCEPT-003 |
-| Tip pin (automated evidence) | `641170f` / TREE `5b67b714` (cycle start; update on merge) |
+| Tip pin (automated evidence) | `e3e3c6b` / TREE `cd7955e` (update on merge) |
 | **WEB APPLICATION ACCEPTED** | **NO** |
 | Governor decision | **PENDING** |
 
