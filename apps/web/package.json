@@ -1,8 +1,8 @@
 {
   "name": "@project-atlas/web",
   "private": true,
-  "version": "0.1.0",
-  "description": "AS-WEB-001 Atlas web foundation shell (Vite + React). UI ≠ canonical.",
+  "version": "0.2.0",
+  "description": "AS-WEB-002 Atlas web design-lab (Vite + React + hash router). UI ≠ canonical.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

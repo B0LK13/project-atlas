@@ -286,11 +286,22 @@ _Status: implementation complete on `feat/as-query-diag-001`; awaiting governor 
 
 ## AS-WEB-001 — Atlas Web Application foundation
 
-_Status: implementation complete on `feat/as-web-001-foundation`; awaiting governor review / merge. Directive `D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001`. Base `75fb73d` / TREE `a10a68bf`. Firewall: `apps/web/**` + `src/project_atlas/web_api/**` + ADR-008. UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy. NO vault truth writes; NO REL-001; NO PILOT invent._
+_Status: **MERGED** via PR #53 (`bcd453f`). Directive `D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001`. Firewall: `apps/web/**` + `src/project_atlas/web_api/**` + ADR-008. UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy. NO vault truth writes; NO REL-001; NO PILOT invent. **WEB APPLICATION ACCEPTED = NO** (foundation only)._
 
 - [x] WEB001-001 ADR-008 Vite+React architecture + read-first API boundary
 - [x] WEB001-002 Scaffold `apps/web` runnable shell + smoke script
 - [x] WEB001-003 `project_atlas.web_api` read-only adapters (projects / OBS health consume)
 - [x] WEB001-004 Orphan design-lab note (4 prototype themes)
 - [x] WEB001-005 Focused pytest `tests/unit/test_as_web_001_*.py`
-- [ ] WEB001-006 Governor review and merge to `main`
+- [x] WEB001-006 Governor review and merge to `main`
+
+## AS-WEB-002 — Design-lab prototypes + shared tokens
+
+_Status: implementation complete on `feat/as-web-002-design-lab`; awaiting governor review / merge. Base tip at open: `bcd453f` / TREE `0afe3218`. Firewall: **`apps/web/**` + ADR-009 + soft WORKLOG/backlog only** — zero `src/project_atlas` mutation. UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy. **WEB APPLICATION ACCEPTED = NO** (design-lab only)._
+
+- [x] WEB002-001 Four HashRouter design-lab prototype routes (Ledger Desk / Signal Rack / Cartograph Quiet / Terminal Honest)
+- [x] WEB002-002 Shared `tokens.css` `--atlas-*` tokens + `[data-theme]` remaps
+- [x] WEB002-003 ADR-009 web design tokens
+- [x] WEB002-004 Smoke script covers design-lab routes
+- [x] WEB002-005 Soft WORKLOG + backlog checklist
+- [ ] WEB002-006 Governor review and merge to `main`

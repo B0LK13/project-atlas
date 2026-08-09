@@ -4402,3 +4402,29 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE2-009-*.md
+
+
+## AS-WEB-002 — Atlas Web design-lab prototypes
+
+**Date:** 2026-08-09
+**Branch:** feat/as-web-002-design-lab
+**Worktree:** D:\atlas-worktrees\as-web-002-design-lab
+**Base tip / TREE:** bcd453febef2f238b982e8fc67103cfb3bb46ae0 / 0afe32186b7d67ac8ea806523bb32c66715b8513
+**Gate:** READY — AS-WEB-002-ENTRY-GATE.md
+**Contract:** AS-WEB-002-PACKAGE-CONTRACT.md (WEB002-FR-001..007)
+**Overlap:** SAFE WITH EXCLUSIONS (AS-WEB-002-SURFACE-OVERLAP.md)
+**Wake / Lock / Directive:** AS-WEB-002-WAKE.md · AS-WEB-002-SOLE-WRITER-LOCK.md · AS-WEB-002-IMPL-DIRECTIVE.md
+**Directive:** D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001
+
+### Scope
+- Four design-lab routes (themes A–D) + shared CSS tokens + HashRouter
+- ADR-009 thin design-token note; apps/web README update; smoke extended
+- Firewall: apps/web/** + ADR-009 + soft WORKLOG — zero Core / web_api mutation
+- Sample/read-status only; NO REL-001; NO PILOT invent; NO CORE2-009 dual-own
+
+### Gates
+- apps/web smoke: PASS (expected)
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-WEB-002-*.md
