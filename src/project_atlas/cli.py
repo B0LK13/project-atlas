@@ -77,6 +77,13 @@ from project_atlas.ops_report import (
     report_to_json,
 )
 from project_atlas.portfolio import build_portfolio
+from project_atlas.receipt_revocation import (
+    RevocationError,
+    inventory_with_revocations,
+    list_revocations,
+    receipt_trust_disposition,
+    revoke_receipt,
+)
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate, validation_exit_code
 from project_atlas.xproj_duplicates import (
@@ -642,6 +649,72 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the retention report JSON to stdout.",
     )
+
+    # AS-INT-011 — receipt revocation / invalidation (operational; not authority).
+    revocation_parser = subparsers.add_parser(
+        "revocation",
+        help=(
+            "Record or inspect agent-event receipt revocation / invalidation "
+            "(AS-INT-011; never deletes receipt files; never Layer B)."
+        ),
+    )
+    revocation_sub = revocation_parser.add_subparsers(
+        dest="revocation_command", required=True
+    )
+    revocation_revoke = revocation_sub.add_parser(
+        "revoke",
+        help="Mark a receipt revoked or invalidated (does not delete the file).",
+    )
+    revocation_revoke.add_argument("--vault", type=Path, required=True)
+    revocation_revoke.add_argument("--project", type=str, required=True)
+    revocation_revoke.add_argument("--event", type=str, required=True)
+    revocation_revoke.add_argument(
+        "--reason",
+        type=str,
+        choices=("operator", "skill_policy", "integrity"),
+        default="operator",
+        help="Revocation reason (default: operator).",
+    )
+    revocation_revoke.add_argument(
+        "--status",
+        type=str,
+        choices=("revoked", "invalidated"),
+        default=None,
+        help="Override default status for the reason.",
+    )
+    revocation_revoke.add_argument(
+        "--detail",
+        type=str,
+        default=None,
+        help="Optional deterministic detail string (no wall-clock).",
+    )
+    revocation_revoke.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the revocation index JSON to stdout.",
+    )
+    revocation_list = revocation_sub.add_parser(
+        "list",
+        help="List receipt revocations from generated/ops/receipt-revocations.json.",
+    )
+    revocation_list.add_argument("--vault", type=Path, required=True)
+    revocation_list.add_argument(
+        "--json",
+        action="store_true",
+        help="Print revocations JSON to stdout.",
+    )
+    revocation_status = revocation_sub.add_parser(
+        "status",
+        help="Show active/revoked/invalidated disposition for one receipt.",
+    )
+    revocation_status.add_argument("--vault", type=Path, required=True)
+    revocation_status.add_argument("--project", type=str, required=True)
+    revocation_status.add_argument("--event", type=str, required=True)
+    revocation_status.add_argument(
+        "--json",
+        action="store_true",
+        help="Print disposition JSON to stdout.",
+    )
     return parser
 
 
@@ -1175,6 +1248,81 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown retention command: {args.retention_command}"
+        )
+
+    if args.command == "revocation":
+        if args.revocation_command == "revoke":
+            try:
+                revocation_index = revoke_receipt(
+                    args.vault,
+                    project_id=args.project,
+                    event_id=args.event,
+                    reason=args.reason,
+                    status=args.status,
+                    detail=args.detail,
+                )
+            except (RevocationError, OSError, ValueError, TypeError) as exc:
+                _log.error("revocation revoke failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(
+                    json.dumps(revocation_index, indent=2, sort_keys=True) + "\n",
+                    end="",
+                )
+            else:
+                entry = revocation_index["revocations"][-1]
+                for row in revocation_index["revocations"]:
+                    if row["unit_key"] == f"{args.project}/{args.event}":
+                        entry = row
+                        break
+                print(f"status: {entry['status']}")
+                print(f"reason: {entry['reason']}")
+                print(f"unit_key: {entry['unit_key']}")
+                print(
+                    "index: "
+                    f"{args.vault / 'generated' / 'ops' / 'receipt-revocations.json'}"
+                )
+            return EXIT_OK
+        if args.revocation_command == "list":
+            try:
+                rows = list_revocations(args.vault)
+                if args.json:
+                    payload = {
+                        "schema": "atlas.receipt_revocation.index.v1",
+                        "revocations": rows,
+                        "inventory": inventory_with_revocations(args.vault),
+                    }
+                    print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
+                else:
+                    print(f"revocations: {len(rows)}")
+                    for row in rows:
+                        print(
+                            f"  {row['unit_key']} {row['status']} ({row['reason']})"
+                        )
+            except (RevocationError, OSError, ValueError, TypeError) as exc:
+                _log.error("revocation list failed: %s", exc)
+                return EXIT_ERROR
+            return EXIT_OK
+        if args.revocation_command == "status":
+            try:
+                disposition = receipt_trust_disposition(
+                    args.vault, project_id=args.project, event_id=args.event
+                )
+                payload = {
+                    "unit_key": f"{args.project}/{args.event}",
+                    "disposition": disposition,
+                }
+                if args.json:
+                    print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
+                else:
+                    print(f"unit_key: {payload['unit_key']}")
+                    print(f"disposition: {disposition}")
+            except (RevocationError, OSError, ValueError, TypeError) as exc:
+                _log.error("revocation status failed: %s", exc)
+                return EXIT_ERROR
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown revocation command: {args.revocation_command}"
         )
 
     if args.command == "snapshot":

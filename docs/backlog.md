@@ -171,7 +171,9 @@ independent verification passes and the branch is merged to `main`._
 - [x] INT-010 Preserve removed-package/deletion state in projections
   (AS-INT-010 tip-safe tombstone projection on
   `feat/as-int-010-tombstones`; IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED)
-- [ ] INT-011 Define receipt revocation and invalidation semantics
+- [x] INT-011 Define receipt revocation and invalidation semantics
+  (AS-INT-011 tip-safe operational index under
+  `generated/ops/receipt-revocations.json`; never Layer B / never authority)
 - [ ] INT-012 Define schema migration and compatibility tooling
 - [ ] INT-013 Run the bounded multi-project integration pilot
 

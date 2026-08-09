@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/receipt-revocation-index.schema.json",
+  "title": "Agent-Event Receipt Revocation / Invalidation Index",
+  "description": "AS-INT-011 deterministic receipt revocation and invalidation projection under generated/ops/. Operational only; never Layer B / never authority. Does not delete receipt files. No wall-clock stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "revocations",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.receipt_revocation.index.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "RECEIPT REVOCATION / INVALIDATION ≠ PROJECT AUTHORITY"
+    },
+    "revocations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "unit_key",
+          "project_id",
+          "event_id",
+          "receipt_path",
+          "reason",
+          "status"
+        ],
+        "properties": {
+          "unit_key": { "type": "string", "minLength": 1 },
+          "project_id": { "type": "string", "minLength": 1 },
+          "event_id": { "type": "string", "minLength": 1 },
+          "receipt_path": { "type": "string", "minLength": 1 },
+          "reason": {
+            "type": "string",
+            "enum": ["operator", "skill_policy", "integrity"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["revoked", "invalidated"]
+          },
+          "detail": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

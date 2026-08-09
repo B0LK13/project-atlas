@@ -63,6 +63,7 @@ def test_all_expected_schemas_available() -> None:
         "provenance-reference",
         "query-diagnostic",
         "query-multi-plan",
+        "receipt-revocation-index",
         "review-entry",
         "semantic-records",
         "source-record",

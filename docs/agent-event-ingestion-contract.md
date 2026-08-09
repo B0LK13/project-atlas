@@ -89,6 +89,8 @@ ConceptRecord construction, content secret scanning, and Graph Layer behavior
 remain separate work packages.
 
 Integration follow-up items cover skill-policy rotation/revocation,
-removed-package state, receipt revocation, schema migration and the
-bounded multi-project pilot. Raw-package and receipt retention is defined
-by AS-INT-009 (`docs/AS-INT-009-retention-policy.md`).
+removed-package state, schema migration and the bounded multi-project
+pilot. Raw-package and receipt retention is defined by AS-INT-009
+(`docs/AS-INT-009-retention-policy.md`). Removed-package tombstones are
+AS-INT-010 (`event_tombstones`). Receipt revocation / invalidation is
+AS-INT-011 (`docs/AS-INT-011-receipt-revocation.md`).
