@@ -98,8 +98,8 @@ SCHEMA_FILES: dict[str, str] = {
     "schema-compat-report": "schema-compat-report.schema.json",
     # AS-CORE2-010 — fixture-safe lifecycle certification (≠ estate PILOT PASS)
     "lifecycle-cert-report": "lifecycle-cert-report.schema.json",
-    # AS-ADV-RELEASE-001 — recovery/determinism/perf fixture cert (≠ RELEASE CERTIFIED)
-    "adv-release-cert-report": "adv-release-cert-report.schema.json",
+    # AS-SYNC-001-SCAFFOLD — dry-run workspace registry (≠ production SYNC-001 / PILOT)
+    "workspace-registry-dry-run": "workspace-registry-dry-run.schema.json",
     # AS-J-005 — derived impact graph projection (Graph≠authority; consume GRAPH-003)
     "impact-graph": "impact-graph.schema.json",
 }

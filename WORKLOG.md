@@ -4621,3 +4621,7 @@ Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
 ## AS-ADV-RELEASE-001
 Fixture recovery/determinism/perf certification (atlas adv certify). release_certified always false.
 
+
+## AS-SYNC-001-SCAFFOLD
+Dry-run workspace registry from explicit roots. production_sync_certified=false.
+
