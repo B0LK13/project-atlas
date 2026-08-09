@@ -4629,3 +4629,19 @@ Dry-run workspace registry from explicit roots. production_sync_certified=false.
 ## CLI integrator ADV+SYNC
 Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surfaces retained.
 
+||||||| parent of 18ed23d (feat(sec-cont-001): fixture security continuous gates docs+tests)
+
+## AS-SEC-CONT-001 - Continuous security fixture gates (soft)
+
+**Date:** 2026-08-09
+**Branch:** feat/as-sec-cont-001-fixture-gates
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 (fixture-safe)
+
+### Scope
+- docs/AS-SEC-CONT-001-fixture-gates.md (secrets.scan_text, path refuse, quarantine)
+- tests/unit/test_as_sec_cont_001_fixture_gates.py (metadata-only + non-claims)
+- Soft WORKLOG only; no Core behavior change; no PILOT roots; path refuse unchanged
+
+### Explicit non-claims
+- ESTATE PILOT PASSED: NO
+- RELEASE / ATLAS_1_0_RELEASE_CERTIFIED: NO
