@@ -41,6 +41,7 @@ def test_all_expected_schemas_available() -> None:
         "knowledge-multifield-answer",
         "parser-output",
         "provenance-reference",
+        "query-diagnostic",
         "review-entry",
         "semantic-records",
         "source-record",
