@@ -282,3 +282,14 @@ _Status: implementation complete on `feat/as-query-diag-001`; awaiting governor 
 - [x] QDIAG-004 Focused T01–T12 suite `tests/unit/test_as_query_diag_001.py`
 - [x] QDIAG-005 Package guide + 007/008 cross-links
 - [ ] QDIAG-006 Governor review and merge to `main`
+
+## AS-WEB-001 — Atlas Web Application foundation
+
+_Status: implementation complete on `feat/as-web-001-foundation`; awaiting governor review / merge. Directive `D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001`. Base `75fb73d` / TREE `a10a68bf`. Firewall: `apps/web/**` + `src/project_atlas/web_api/**` + ADR-008. UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy. NO vault truth writes; NO REL-001; NO PILOT invent._
+
+- [x] WEB001-001 ADR-008 Vite+React architecture + read-first API boundary
+- [x] WEB001-002 Scaffold `apps/web` runnable shell + smoke script
+- [x] WEB001-003 `project_atlas.web_api` read-only adapters (projects / OBS health consume)
+- [x] WEB001-004 Orphan design-lab note (4 prototype themes)
+- [x] WEB001-005 Focused pytest `tests/unit/test_as_web_001_*.py`
+- [ ] WEB001-006 Governor review and merge to `main`

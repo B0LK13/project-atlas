@@ -1,0 +1,24 @@
+{
+  "vault_present": true,
+  "vault_id": "fixture-vault-uuid",
+  "read_plane": "stub",
+  "health": {
+    "available": false,
+    "rollup": "unknown",
+    "truth_plane": "operational",
+    "authority_plane": "none",
+    "note": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY",
+    "source": "stub-sample (OBS snapshot absent)",
+    "disclaimer": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY; UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy"
+  },
+  "projects": [
+    {
+      "project_id": "demo-alpha",
+      "has_project_note": true,
+      "path": "projects/demo-alpha"
+    }
+  ],
+  "ui_canonical": false,
+  "graph_authority": false,
+  "unknown_equals_healthy": false
+}
