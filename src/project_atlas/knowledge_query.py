@@ -1,4 +1,4 @@
-"""AS-CORE-007 / AS-CORE-008 Knowledge Query — read-only consumer of persisted state.
+"""AS-CORE-007 / AS-CORE-008 / AS-QUERY-DIAG-001 Knowledge Query.
 
 Does not call evaluate_authority / evaluate_conflicts and never writes the vault.
 Answers derive solely from state/current-state and state/authoritative-state plus
@@ -6,6 +6,9 @@ immutable claims for provenance projection.
 
 AS-CORE-008 adds subject multi-field composition under one shared snapshot load.
 Composition ≠ new authority; multi-field success ≠ all fields authoritative.
+
+AS-QUERY-DIAG-001 adds additive outcome diagnostics over existing answers and
+KnowledgeQueryError codes. Success-path answer JSON remains unchanged.
 """
 
 from __future__ import annotations
@@ -23,11 +26,33 @@ from project_atlas.domain.knowledge_query import (
     KnowledgeAnswer,
     KnowledgeMultiFieldAnswer,
     KnowledgeQueryErrorCode,
+    QueryDiagnostic,
     QueryKind,
+    QueryOutcomeClass,
+    QueryShape,
 )
 from project_atlas.domain.temporal import CurrentStateRecord
+from project_atlas.secrets import scan_text
 
 QueryKindName = Literal["authoritative", "temporal", "explain"]
+
+_INTEGRITY_ERROR_CODES: frozenset[KnowledgeQueryErrorCode] = frozenset(
+    {
+        KnowledgeQueryErrorCode.STATE_CORRUPT,
+        KnowledgeQueryErrorCode.COMPILATION_MISMATCH,
+        KnowledgeQueryErrorCode.PROVENANCE_MISMATCH,
+        KnowledgeQueryErrorCode.VALUE_MISMATCH,
+        KnowledgeQueryErrorCode.STATE_RACE,
+        KnowledgeQueryErrorCode.STATE_MISSING,
+    }
+)
+_REQUEST_INVALID_ERROR_CODES: frozenset[KnowledgeQueryErrorCode] = frozenset(
+    {
+        KnowledgeQueryErrorCode.INVALID_INPUT,
+        KnowledgeQueryErrorCode.UNSUPPORTED_KIND,
+    }
+)
+_SAFE_REDACTED_MESSAGE = "query failure detail redacted (secret-shaped content)"
 
 
 class KnowledgeQueryError(Exception):
@@ -50,6 +75,125 @@ def answer_to_json(
     else:
         payload = answer.model_dump(mode="json")
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def diagnostic_to_json(diagnostic: QueryDiagnostic) -> str:
+    """Serialize a query diagnostic deterministically (AS-QUERY-DIAG-001-FR-007)."""
+    return json.dumps(diagnostic.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
+
+
+def classify_query_outcome(
+    status_or_code: AnswerStatus | KnowledgeQueryErrorCode | KnowledgeQueryError,
+) -> QueryOutcomeClass:
+    """Map certified answer status / error code → outcome_class (FR-003 / FR-004)."""
+    if isinstance(status_or_code, KnowledgeQueryError):
+        return classify_query_outcome(status_or_code.code)
+    if isinstance(status_or_code, KnowledgeQueryErrorCode):
+        if status_or_code in _INTEGRITY_ERROR_CODES:
+            return QueryOutcomeClass.INTEGRITY_FAILURE
+        if status_or_code in _REQUEST_INVALID_ERROR_CODES:
+            return QueryOutcomeClass.REQUEST_INVALID
+        # Fail closed: unknown codes are never elevated to answer/nonanswer.
+        return QueryOutcomeClass.INTEGRITY_FAILURE
+    if status_or_code is AnswerStatus.OK:
+        return QueryOutcomeClass.ANSWER
+    return QueryOutcomeClass.NONANSWER
+
+
+def query_diagnostic_from_answer(
+    answer: KnowledgeAnswer | KnowledgeMultiFieldAnswer,
+) -> QueryDiagnostic:
+    """Build a diagnostic envelope from an exit-0 answer / nonanswer (FR-001/FR-004/FR-005)."""
+    if isinstance(answer, KnowledgeMultiFieldAnswer):
+        item_classes = tuple(
+            classify_query_outcome(item.status) for item in answer.results
+        )
+        # Request-level class: answer only when every item is answer; else nonanswer.
+        # Never invent a rollup authoritative value (FR-005).
+        if all(cls is QueryOutcomeClass.ANSWER for cls in item_classes):
+            outcome = QueryOutcomeClass.ANSWER
+            answer_status: AnswerStatus | None = AnswerStatus.OK
+        else:
+            outcome = QueryOutcomeClass.NONANSWER
+            answer_status = None
+        return QueryDiagnostic(
+            outcome_class=outcome,
+            query_shape=QueryShape.MULTIFIELD,
+            project_id=answer.project_id,
+            subject=answer.subject,
+            field=None,
+            fields=answer.fields,
+            kind=answer.kind,
+            compilation_id=answer.compilation_id,
+            error_code=None,
+            message=None,
+            answer_status=answer_status,
+            item_outcome_classes=item_classes,
+            inspected_artifacts=answer.inspected_artifacts,
+        )
+    return QueryDiagnostic(
+        outcome_class=classify_query_outcome(answer.status),
+        query_shape=QueryShape.POINT,
+        project_id=answer.project_id,
+        subject=answer.subject,
+        field=answer.field,
+        fields=None,
+        kind=answer.kind,
+        compilation_id=answer.compilation_id,
+        error_code=None,
+        message=None,
+        answer_status=answer.status,
+        item_outcome_classes=(),
+        inspected_artifacts=answer.inspected_artifacts,
+    )
+
+
+def query_diagnostic_from_error(
+    exc: KnowledgeQueryError,
+    *,
+    project_id: str | None = None,
+    subject: str | None = None,
+    field: str | None = None,
+    fields: Sequence[str] | None = None,
+    kind: QueryKind | QueryKindName | None = None,
+    query_shape: QueryShape | str = QueryShape.UNKNOWN,
+    compilation_id: str | None = None,
+    inspected_artifacts: Sequence[str] = (),
+) -> QueryDiagnostic:
+    """Build a diagnostic envelope from KnowledgeQueryError (FR-001/FR-003/FR-010)."""
+    shape = (
+        query_shape
+        if isinstance(query_shape, QueryShape)
+        else QueryShape(query_shape)
+    )
+    kind_value: QueryKind | None = None
+    if kind is not None:
+        kind_value = kind if isinstance(kind, QueryKind) else QueryKind(kind)
+    fields_tuple = tuple(fields) if fields is not None else None
+    return QueryDiagnostic(
+        outcome_class=classify_query_outcome(exc.code),
+        query_shape=shape,
+        project_id=project_id,
+        subject=subject,
+        field=field,
+        fields=fields_tuple,
+        kind=kind_value,
+        compilation_id=compilation_id,
+        error_code=exc.code,
+        message=_safe_diagnostic_message(exc.message),
+        answer_status=None,
+        item_outcome_classes=(),
+        inspected_artifacts=tuple(inspected_artifacts),
+    )
+
+
+def _safe_diagnostic_message(message: str) -> str:
+    """Return metadata-safe message; never echo secret-shaped payloads (FR-010)."""
+    if not message:
+        return message
+    if scan_text(message):
+        return _SAFE_REDACTED_MESSAGE
+    return message
 
 
 def query_knowledge(

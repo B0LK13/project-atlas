@@ -17,6 +17,7 @@ from pathlib import Path
 from project_atlas import __version__
 from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
+from project_atlas.domain.knowledge_query import QueryShape
 from project_atlas.graph_acceptance import (
     GraphAcceptanceError,
     accept_graphify_artifacts,
@@ -27,7 +28,9 @@ from project_atlas.ingestion import ingest
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
+    diagnostic_to_json,
     list_authoritative,
+    query_diagnostic_from_error,
     query_knowledge,
     query_knowledge_fields,
 )
@@ -308,9 +311,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "query":
+        field_args: list[str] | None = args.field_args
+        fields_csv: str | None = args.fields_csv
+        diag_shape = QueryShape.UNKNOWN
+        diag_field: str | None = None
+        diag_fields: list[str] | None = None
         try:
-            field_args: list[str] | None = args.field_args
-            fields_csv: str | None = args.fields_csv
             if args.list:
                 if field_args or fields_csv:
                     _log.error("query --list cannot be combined with --field/--fields")
@@ -318,6 +324,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if args.kind != "authoritative":
                     _log.error("query --list requires --kind authoritative")
                     return EXIT_ERROR
+                diag_shape = QueryShape.LIST
                 answers = list_authoritative(args.vault, args.project)
                 print(answer_to_json(answers), end="")
                 return EXIT_OK
@@ -331,6 +338,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return EXIT_ERROR
             if fields_csv is not None:
                 multifield = [part.strip() for part in fields_csv.split(",")]
+                diag_shape = QueryShape.MULTIFIELD
+                diag_fields = multifield
                 csv_answer = query_knowledge_fields(
                     args.vault,
                     args.project,
@@ -347,6 +356,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return EXIT_ERROR
             if len(field_args) == 1:
                 # Preserve AS-CORE-007 point-query CLI contract.
+                diag_shape = QueryShape.POINT
+                diag_field = field_args[0]
                 point_answer = query_knowledge(
                     args.vault,
                     args.project,
@@ -356,6 +367,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 print(answer_to_json(point_answer), end="")
                 return EXIT_OK
+            diag_shape = QueryShape.MULTIFIELD
+            diag_fields = list(field_args)
             multi_answer = query_knowledge_fields(
                 args.vault,
                 args.project,
@@ -366,7 +379,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(answer_to_json(multi_answer), end="")
             return EXIT_OK
         except KnowledgeQueryError as exc:
+            # AS-QUERY-DIAG-001-FR-009: structured stdout on integrity/request failures.
             _log.error("query failed [%s]: %s", exc.code.value, exc.message)
+            diagnostic = query_diagnostic_from_error(
+                exc,
+                project_id=args.project,
+                subject=args.subject,
+                field=diag_field,
+                fields=diag_fields,
+                kind=args.kind,
+                query_shape=diag_shape,
+            )
+            print(diagnostic_to_json(diagnostic), end="")
             return EXIT_ERROR
         except (OSError, ValueError, TypeError) as exc:
             _log.error("query failed: %s", exc)

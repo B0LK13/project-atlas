@@ -37,6 +37,7 @@ SCHEMA_FILES: dict[str, str] = {
     "diagnostic": "diagnostic.schema.json",
     "knowledge-answer": "knowledge-answer.schema.json",
     "knowledge-multifield-answer": "knowledge-multifield-answer.schema.json",
+    "query-diagnostic": "query-diagnostic.schema.json",
     # AS-GRAPH-001 — Graphify acceptance (derived-only; not domain authority)
     "graphify-envelope": "graphify-envelope.schema.json",
     "graphify-node": "graphify-node.schema.json",
