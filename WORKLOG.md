@@ -4932,3 +4932,12 @@ WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
 - Added docs-only PRE-RC checklist, evidence index, and unsigned receipt template under `docs/releases/1.0.0/`.
 - Pinned the inventory to MAIN `ac1cee723f368154334815dade33212e593fc88c` / TREE `e0ed54782830df036cc439fa127ff5a16c5d8915`.
 - No source, app, Atlas 2.0, or executable test changes. RELEASE CERTIFIED remains **NO**.
+||||||| parent of 0f4d277 (docs(web): refresh acceptance evidence tip pins)
+- Production SYNC certified: NO. Estate PILOT passed: NO.
+- Production SYNC certified: NO. Estate PILOT passed: NO.
+
+## AS-WEB-ACCEPT tip-pin refresh (2026-08-09)
+
+- Refreshed checklist, governor sign-off, and AS-WEB-ACCEPT-005 evidence to MAIN ac1cee723f368154334815dade33212e593fc88c / TREE e0ed54782830df036cc439fa127ff5a16c5d8915.
+- Kept WEB APPLICATION ACCEPTED = NO, governor decision PENDING, and all governor checkboxes unchecked.
+- Validation: web smoke PASS (ACCEPTED=NO); 24 focused unit tests PASS. Independent governor review remains required.
