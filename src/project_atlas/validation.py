@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,10 @@ from project_atlas.schema import SchemaValidationError, validate_record
 from project_atlas.source_identity import canonical_source_sha256
 
 LINK = re.compile(r"\]\(([^)]+)\)")
+
+# AS-H-010 process exit codes for ``atlas validate`` (argparse usage remains 2).
+VALIDATION_EXIT_OK = 0
+VALIDATION_EXIT_ERROR = 1
 
 # Vault-relative entry points that seed orphan reachability (H-007).
 _ORPHAN_SEED_PATHS = (
@@ -99,6 +104,35 @@ def validate(
         "findings": findings,
         "markdown_files": len(list(vault.rglob("*.md"))),
     }
+
+
+def validation_exit_code(result: Mapping[str, Any]) -> int:
+    """AS-H-010: map validation result severities to process exit codes.
+
+    Normative matrix (H010-FR-001..007):
+
+    - any ``Severity.ERROR`` finding → ``1``
+    - legacy ``errors`` non-empty or ``ok is False`` → ``1`` (fail-closed)
+    - ``WARNING`` / ``INFO`` findings alone → ``0`` (explicit non-failing policy)
+    - clean result → ``0``
+
+    Deterministic: identical payloads yield identical exit codes (NFR-001).
+    Argparse usage exit ``2`` is owned by the CLI layer, not this helper.
+    """
+    if result.get("ok") is False:
+        return VALIDATION_EXIT_ERROR
+    errors = result.get("errors")
+    if isinstance(errors, list) and errors:
+        return VALIDATION_EXIT_ERROR
+    findings = result.get("findings")
+    if isinstance(findings, list):
+        for finding in findings:
+            if not isinstance(finding, Mapping):
+                continue
+            severity = finding.get("severity")
+            if severity == Severity.ERROR or severity == Severity.ERROR.value:
+                return VALIDATION_EXIT_ERROR
+    return VALIDATION_EXIT_OK
 
 
 def _validate_graph_acceptance(vault: Path, errors: list[str]) -> None:

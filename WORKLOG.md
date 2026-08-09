@@ -4221,3 +4221,28 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE2-008-*.md
+
+## AS-H-010 - Severity exit codes
+
+**Date:** 2026-08-09
+**Branch:** feat/as-h-010-severity-exits
+**Worktree:** D:\atlas-worktrees\as-h-010-severity-exits
+**Base tip / TREE:** e8297d7d412c475894e35111e3777f0aa853d4a8 / ac4e56d65784a63d3ec19b065cdde5e9c9d77cca
+**Gate:** AS-H-010-ENTRY-GATE.md
+**Wake:** AS-H-010-WAKE.md FIRED
+**Overlap:** SAFE WITH EXCLUSIONS - AS-H-010-SURFACE-OVERLAP.md
+**Sole-writer:** AS-H-010-SOLE-WRITER-LOCK.md
+**Impl directive:** AS-H-010-IMPL-DIRECTIVE.md
+
+### Scope
+- Additive `validation_exit_code` (ERROR→1; WARNING/INFO alone→0; legacy errors fail-closed)
+- Thin `cli.py` validate wiring; preserve argparse usage exit 2
+- Focused tests `test_as_h_010_*`; flip backlog H-010
+- NO H-006/H-007 re-impl; NO dual-own CORE2-008/OBS; NO CORE2-009; NO REL-001; NO PILOT invent
+
+### Gates
+- ruff (src/tests): PASS`r`n- mypy src: PASS`r`n- Focused test_as_h_010_* : 11 passed`r`n- Focused + VAL-001 regression: 21 passed
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-H-010-*.md

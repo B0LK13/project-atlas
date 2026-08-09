@@ -1,8 +1,9 @@
 """Command-line interface for Project Atlas (A-007).
 
 Exit codes:
-- 0: success;
-- 1: operational error (unsafe path, non-empty target, I/O failure);
+- 0: success (``atlas validate``: also WARNING/INFO-only findings — AS-H-010);
+- 1: operational error (unsafe path, non-empty target, I/O failure), or
+  ``atlas validate`` ERROR findings / legacy validation errors (AS-H-010);
 - 2: usage error (argparse).
 """
 
@@ -73,7 +74,7 @@ from project_atlas.ops_report import (
 )
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
-from project_atlas.validation import validate
+from project_atlas.validation import validate, validation_exit_code
 from project_atlas.xproj_duplicates import (
     XprojDuplicateError,
     detect_project_duplicates,
@@ -701,10 +702,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ValueError) as exc:
             _log.error("validate failed: %s", exc)
             return EXIT_ERROR
-        if not result["ok"]:
+        # AS-H-010: severity→exit (ERROR→1; WARNING/INFO alone→0; preserve usage→2).
+        exit_code = validation_exit_code(result)
+        if exit_code != EXIT_OK:
+            logged: set[str] = set()
             for error in result["errors"]:
                 _log.error("validation: %s", error)
+                logged.add(error)
+            for finding in result.get("findings") or []:
+                if not isinstance(finding, dict):
+                    continue
+                if finding.get("severity") != "error":
+                    continue
+                message = finding.get("message")
+                if isinstance(message, str) and message and message not in logged:
+                    _log.error("validation: %s", message)
             return EXIT_ERROR
+        for finding in result.get("findings") or []:
+            if not isinstance(finding, dict):
+                continue
+            severity = finding.get("severity")
+            message = finding.get("message")
+            if not isinstance(message, str) or not message:
+                continue
+            if severity == "warning":
+                _log.warning("validation: %s", message)
+            elif severity == "info":
+                _log.info("validation: %s", message)
         print(f"validated {result['markdown_files']} Markdown files")
         return EXIT_OK
 

@@ -199,7 +199,10 @@ class ClassificationState(StrEnum):
 
 
 class Severity(StrEnum):
-    """Validation finding severity (drives exit codes in later phases)."""
+    """Validation finding severity (AS-H-010 / backlog H-010 exit mapping).
+
+    ``ERROR`` → non-zero validate exit; ``WARNING`` / ``INFO`` alone → exit 0.
+    """
 
     ERROR = "error"
     WARNING = "warning"
