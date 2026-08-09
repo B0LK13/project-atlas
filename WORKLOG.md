@@ -3796,3 +3796,62 @@ Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 s
 **AS-CORE-009: NOT OPENED**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 
+## AS-OBS-001 — Operational Health Snapshot
+
+**Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`  
+**Contract:** `gen4-parallel-wave-007/AS-OBS-001-CONTRACT.md`  
+**Branch:** `feat/as-obs-001-health-snapshot`  
+**Worktree:** `D:\atlas-worktrees\as-obs-001`  
+**Base:** `9f656ab29a2f1da95389ed213746b2e9b1a80565` / tree `20882c5526522eaf8467cd9b1819cef496282385`  
+**Mode:** collect → normalize → expose; Unknown ≠ healthy; health ≠ authority  
+**CLI:** `atlas ops health` (additive on Gen-4; QUERY-DIAG **not** absorbed; query paths byte-identical to base)  
+**SERIALIZE:** `cli.py` held until QUERY-DIAG COMPLETE @ `5b24cb9`, then released for OBS-only wiring
+
+### Gates
+- SURFACE-OVERLAP: NO vs ACCEPT / KC / Graph / Model-001A/B; SERIALIZE vs QUERY-DIAG (released)
+- ruff / mypy: PASS
+- Focused: 18 passed (`test_as_obs_001_health_snapshot` + `test_schema`)
+- Full Core: PASS (1 skipped)
+- Query path firewall: PASS
+- HEAD: `c7a59f8e1413aa5454450f5693454104ccdb885a`
+- TREE: `f3e987deab862dc1a240a49dc1cb9eb59b308eb3`
+- Orphans: `gen4-next-wave-parallel-001/AS-OBS-001-IMPLEMENTATION-EVIDENCE.md`
+
+**PRODUCTION CODE MODIFIED: YES** (`ops_health`, schema, CLI ops health only)  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
+
+## AS-OBS-001 — FR-002 remediation (OPS-SIG-005/006)
+
+**Directive:** Governor remediation (`AS-OBS-001-GOVERNOR-REPORT.md` / agent `80f0e3c6`)  
+**Blocker:** OBS-001-FR-002 fabricated `ok` on absent promotion/quarantine evidence  
+**Branch / WT:** `feat/as-obs-001-health-snapshot` / `D:\atlas-worktrees\as-obs-001`  
+**Prior tip:** `b2ca9112c398708525d0cef98d78017fef61a941`  
+**Remediation HEAD:** `cba074a65c4257c5842f2a4a73f2c10ad966b832`  
+**Remediation TREE:** `f90300dfb44dde2022802cd4f1aa9ff14df4fa04`  
+**Tip HEAD:** `fb13172ff1bb119452550fdd476078433db6af58`  
+**Tip TREE:** `1b969a1baad355f5f9d32a39e411b0e890c72905`
+
+### Fix
+- Absent `quarantine/promotion-failures/index.json` → `OPS-SIG-005` = `unknown`
+- No readable quarantine evidence surfaces → `OPS-SIG-006` = `unknown`
+- Present empty indexes still `ok`/0 with non-empty `evidence_refs`
+- Tests assert absent ≠ ok; present-empty = ok
+
+### Gates
+- ruff / mypy: PASS
+- Focused: 20 passed
+- knowledge_compiler / Graph / Model / QUERY-DIAG: untouched this hop
+
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
+
+## AS-OBS-001 — tip reintegration onto post-DIAG main
+
+**Date:** 2026-08-09  
+**Base:** `e3b5b6b` (post AS-QUERY-DIAG-001 merge)  
+**Branch:** `feat/as-obs-001-on-diag-tip`  
+**Reconcile:** `schema.py` keeps Graph + `query-diagnostic` + `ops-health-snapshot`; `cli.py` preserves `resolve-graph`, DIAG fail-closed stdout, `ops health`; Unknown ≠ healthy retained.
