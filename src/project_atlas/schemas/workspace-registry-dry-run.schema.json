@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/workspace-registry-dry-run.schema.json",
+  "title": "Workspace Registry Dry-Run (SYNC-001 scaffold)",
+  "description": "AS-SYNC-001-SCAFFOLD dry-run registry under generated/ops/. Explicit roots only; never invents UUIDs; never claims production SYNC-001 or PILOT PASS. No wall-clock generated.at.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "package",
+    "production_sync_certified",
+    "estate_pilot_passed",
+    "registry_id",
+    "vault_identity",
+    "allowed_root_prefixes",
+    "workspaces",
+    "projects",
+    "quarantine",
+    "policy_defaults",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.workspace_registry.dry_run.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "DRY-RUN REGISTRY SCAFFOLD ≠ AS-SYNC-001 CERTIFIED / ≠ PILOT PASS"
+    },
+    "package": { "const": "AS-SYNC-001-SCAFFOLD" },
+    "production_sync_certified": { "const": false },
+    "estate_pilot_passed": { "const": false },
+    "registry_id": { "type": "string", "minLength": 1 },
+    "vault_identity": { "type": "string", "minLength": 1 },
+    "allowed_root_prefixes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "workspaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["root_id", "path", "enabled"],
+        "properties": {
+          "root_id": { "type": "string", "minLength": 1 },
+          "path": { "type": "string", "minLength": 1 },
+          "enabled": { "type": "boolean" },
+          "label": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project_uuid",
+          "root_id",
+          "project_root",
+          "enabled",
+          "graphify_opt_in",
+          "portfolio_opt_in"
+        ],
+        "properties": {
+          "project_uuid": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "source_lineage_id": { "type": ["string", "null"] },
+          "root_id": { "type": "string", "minLength": 1 },
+          "project_root": { "type": "string", "minLength": 1 },
+          "enabled": { "type": "boolean" },
+          "display_name": { "type": ["string", "null"] },
+          "policy": { "type": ["object", "null"] },
+          "graphify_opt_in": { "type": "boolean" },
+          "portfolio_opt_in": { "type": "boolean" }
+        }
+      }
+    },
+    "quarantine": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "missing_atlas_project_marker",
+              "missing_or_invalid_project_uuid",
+              "outside_allowed_root_prefixes"
+            ]
+          }
+        }
+      }
+    },
+    "policy_defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "include_globs",
+        "exclude_globs",
+        "sync_eligible",
+        "priority",
+        "max_file_bytes",
+        "max_files_per_sync",
+        "sensitive_defaults"
+      ],
+      "properties": {
+        "include_globs": { "type": "array", "items": { "type": "string" } },
+        "exclude_globs": { "type": "array", "items": { "type": "string" } },
+        "sync_eligible": { "type": "boolean" },
+        "priority": { "type": "integer" },
+        "max_file_bytes": { "type": ["integer", "null"], "minimum": 1 },
+        "max_files_per_sync": { "type": ["integer", "null"], "minimum": 1 },
+        "sensitive_defaults": { "type": "string", "enum": ["exclude", "flag_only"] }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

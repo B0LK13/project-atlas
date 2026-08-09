@@ -16,10 +16,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from project_atlas import __version__
-from project_atlas.adv_release_cert import (
-    AdvReleaseCertError,
-    run_fixture_adv_release_certification,
-)
 from project_atlas.backup import (
     BackupError,
     create_snapshot,
@@ -99,6 +95,11 @@ from project_atlas.schema_compat import (
     scan_compat,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.workspace_registry import (
+    WorkspaceRegistryError,
+    build_dry_run_registry,
+    write_dry_run_registry,
+)
 from project_atlas.xproj_duplicates import (
     XprojDuplicateError,
     detect_project_duplicates,
@@ -798,35 +799,57 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the certification report JSON to stdout.",
     )
 
-    # AS-ADV-RELEASE-001 — fixture recovery / determinism / perf (≠ RELEASE CERTIFIED).
-    adv_parser = subparsers.add_parser(
-        "adv",
+    # AS-SYNC-001-SCAFFOLD — dry-run registry from explicit roots (≠ production SYNC-001).
+    sync_parser = subparsers.add_parser(
+        "sync",
         help=(
-            "Run fixture-safe advanced release certification "
-            "(AS-ADV-RELEASE-001; never stamps RELEASE CERTIFIED)."
+            "Workspace registry scaffold helpers "
+            "(AS-SYNC-001-SCAFFOLD dry-run only; never claims SYNC-001 certified)."
         ),
     )
-    adv_sub = adv_parser.add_subparsers(dest="adv_command", required=True)
-    adv_certify = adv_sub.add_parser(
-        "certify",
-        help="Execute recovery/determinism/perf fixture matrix and write ops report.",
+    sync_sub = sync_parser.add_subparsers(dest="sync_command", required=True)
+    sync_registry = sync_sub.add_parser(
+        "registry",
+        help="Dry-run workspace registry from explicit roots (no whole-machine scan).",
     )
-    adv_certify.add_argument(
-        "--work-root",
+    sync_registry_sub = sync_registry.add_subparsers(
+        dest="sync_registry_command", required=True
+    )
+    sync_dry_run = sync_registry_sub.add_parser(
+        "dry-run",
+        help="Build a schema-valid dry-run registry from --root paths only.",
+    )
+    sync_dry_run.add_argument(
+        "--root",
+        type=Path,
+        action="append",
+        required=True,
+        dest="roots",
+        help="Explicit project/workspace root (repeatable). Required; no implied scan.",
+    )
+    sync_dry_run.add_argument(
+        "--vault",
         type=Path,
         required=True,
-        help="Scratch directory for synthetic sources/vaults (fixture-safe).",
+        help="Vault that receives generated/ops/workspace-registry-dry-run.json.",
     )
-    adv_certify.add_argument(
-        "--report-vault",
+    sync_dry_run.add_argument(
+        "--vault-identity",
+        required=True,
+        help="Vault identity binding string (mismatch refuse is future SYNC concern).",
+    )
+    sync_dry_run.add_argument(
+        "--allowed-prefix",
         type=Path,
+        action="append",
         default=None,
-        help="Optional vault that receives generated/ops/adv-release-cert-report.json.",
+        dest="allowed_prefixes",
+        help="Optional allowed root prefix (repeatable). Defaults to the --root set.",
     )
-    adv_certify.add_argument(
+    sync_dry_run.add_argument(
         "--json",
         action="store_true",
-        help="Print the certification report JSON to stdout.",
+        help="Print the dry-run registry JSON to stdout.",
     )
     return parser
 
@@ -1505,36 +1528,33 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"unknown lifecycle command: {args.lifecycle_command}"
         )
 
-    if args.command == "adv":
-        if args.adv_command == "certify":
-            try:
-                report = run_fixture_adv_release_certification(
-                    args.work_root,
-                    report_vault=args.report_vault,
-                )
-            except (AdvReleaseCertError, OSError, ValueError, TypeError) as exc:
-                _log.error("adv certify failed: %s", exc)
-                return EXIT_ERROR
-            if args.json:
-                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
-            else:
-                print(f"status: {report['status']}")
-                print(f"passed: {report['counts']['passed']}")
-                print(f"failed: {report['counts']['failed']}")
-                print("release_certified: false")
-                print("estate_pilot_passed: false")
-                print("web_application_accepted: false")
-                if args.report_vault is not None:
-                    report_path = (
-                        args.report_vault
-                        / "generated"
-                        / "ops"
-                        / "adv-release-cert-report.json"
+    if args.command == "sync":
+        if args.sync_command == "registry":
+            if args.sync_registry_command == "dry-run":
+                try:
+                    document = build_dry_run_registry(
+                        explicit_roots=args.roots,
+                        vault_identity=args.vault_identity,
+                        allowed_root_prefixes=args.allowed_prefixes,
                     )
-                    print(f"report: {report_path}")
-            return EXIT_OK if report["status"] == "certified" else EXIT_ERROR
+                    path = write_dry_run_registry(args.vault, document)
+                except (WorkspaceRegistryError, OSError, ValueError, TypeError) as exc:
+                    _log.error("sync registry dry-run failed: %s", exc)
+                    return EXIT_ERROR
+                if args.json:
+                    print(json.dumps(document, indent=2, sort_keys=True) + "\n", end="")
+                else:
+                    print(f"projects: {len(document['projects'])}")
+                    print(f"quarantine: {len(document['quarantine'])}")
+                    print("production_sync_certified: false")
+                    print("estate_pilot_passed: false")
+                    print(f"report: {path}")
+                return EXIT_OK
+            parser.error(  # pragma: no cover
+                f"unknown sync registry command: {args.sync_registry_command}"
+            )
         parser.error(  # pragma: no cover
-            f"unknown adv command: {args.adv_command}"
+            f"unknown sync command: {args.sync_command}"
         )
 
     if args.command == "snapshot":
