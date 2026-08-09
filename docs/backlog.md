@@ -198,7 +198,8 @@ independent verification passes and the branch is merged to `main`._
   (AS-CORE2-009 tip-safe crash orphan recovery on
   `feat/as-core2-009-promote-recovery`; IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED;
   contract refresh under D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001)
-- [ ] CORE2-010 Run controlled pilot lifecycle certification
+- [x] CORE2-010 Run controlled pilot lifecycle certification
+  (AS-CORE2-010 fixture-safe matrix; estate_pilot_passed=false)
 
 ## AS-ID-001 — Durable Source Lineage Identity
 

@@ -58,6 +58,10 @@ from project_atlas.knowledge_query import (
     query_knowledge,
     query_knowledge_fields,
 )
+from project_atlas.lifecycle_cert import (
+    LifecycleCertError,
+    run_fixture_lifecycle_certification,
+)
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.migrations.claim_v2_migration import migrate_v2
 from project_atlas.ops_events import (
@@ -756,6 +760,39 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the migration plan report JSON to stdout.",
     )
+
+    # AS-CORE2-010 — fixture-safe lifecycle certification (≠ estate PILOT PASS).
+    lifecycle_parser = subparsers.add_parser(
+        "lifecycle",
+        help=(
+            "Run fixture-safe source lifecycle certification "
+            "(AS-CORE2-010; never claims ESTATE PILOT PASSED)."
+        ),
+    )
+    lifecycle_sub = lifecycle_parser.add_subparsers(
+        dest="lifecycle_command", required=True
+    )
+    lifecycle_certify = lifecycle_sub.add_parser(
+        "certify",
+        help="Execute the fixture lifecycle matrix and write an ops report.",
+    )
+    lifecycle_certify.add_argument(
+        "--work-root",
+        type=Path,
+        required=True,
+        help="Scratch directory for synthetic sources/vaults (fixture-safe).",
+    )
+    lifecycle_certify.add_argument(
+        "--report-vault",
+        type=Path,
+        default=None,
+        help="Optional vault that receives generated/ops/lifecycle-cert-report.json.",
+    )
+    lifecycle_certify.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the certification report JSON to stdout.",
+    )
     return parser
 
 
@@ -1404,6 +1441,33 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown schema command: {args.schema_command}"
+        )
+
+    if args.command == "lifecycle":
+        if args.lifecycle_command == "certify":
+            try:
+                report = run_fixture_lifecycle_certification(
+                    args.work_root,
+                    report_vault=args.report_vault,
+                )
+            except (LifecycleCertError, OSError, ValueError, TypeError) as exc:
+                _log.error("lifecycle certify failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"status: {report['status']}")
+                print(f"passed: {report['counts']['passed']}")
+                print(f"failed: {report['counts']['failed']}")
+                print("estate_pilot_passed: false")
+                if args.report_vault is not None:
+                    print(
+                        "report: "
+                        f"{args.report_vault / 'generated' / 'ops' / 'lifecycle-cert-report.json'}"
+                    )
+            return EXIT_OK if report["status"] == "certified" else EXIT_ERROR
+        parser.error(  # pragma: no cover
+            f"unknown lifecycle command: {args.lifecycle_command}"
         )
 
     if args.command == "snapshot":

@@ -96,6 +96,8 @@ SCHEMA_FILES: dict[str, str] = {
     "receipt-revocation-index": "receipt-revocation-index.schema.json",
     # AS-INT-012 — schema compatibility / migration report (operational)
     "schema-compat-report": "schema-compat-report.schema.json",
+    # AS-CORE2-010 — fixture-safe lifecycle certification (≠ estate PILOT PASS)
+    "lifecycle-cert-report": "lifecycle-cert-report.schema.json",
     # AS-J-005 — derived impact graph projection (Graph≠authority; consume GRAPH-003)
     "impact-graph": "impact-graph.schema.json",
 }
