@@ -33,6 +33,7 @@ def test_all_expected_schemas_available() -> None:
         "concept-record",
         "conflict-record",
         "diagnostic",
+        "explain-receipt",
         "graph-acceptance-receipt",
         "graph-identity-explanation",
         "graph-relationship",

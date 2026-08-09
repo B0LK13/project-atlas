@@ -38,6 +38,8 @@ SCHEMA_FILES: dict[str, str] = {
     "knowledge-answer": "knowledge-answer.schema.json",
     "knowledge-multifield-answer": "knowledge-multifield-answer.schema.json",
     "query-diagnostic": "query-diagnostic.schema.json",
+    # AS-EXPLAIN-001 — explainability / provenance receipts (operational metadata ≠ authority)
+    "explain-receipt": "explain-receipt.schema.json",
     # AS-GRAPH-001 — Graphify acceptance (derived-only; not domain authority)
     "graphify-envelope": "graphify-envelope.schema.json",
     "graphify-node": "graphify-node.schema.json",
