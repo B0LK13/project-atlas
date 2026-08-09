@@ -4059,3 +4059,28 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 **MERGE AUTHORIZED: NO**
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-GRAPH-005-*.md
+
+## AS-XPROJ-003 — Duplicate / successor project detection
+
+**Date:** 2026-08-09
+**Branch:** feat/as-xproj-003-duplicate-detection
+**Worktree:** D:\atlas-worktrees\as-xproj-003-duplicate-detection
+**Base tip / TREE:** c00c62ee / (post AS-XPROJ-004 #42 MERGED — POST-MERGE VERIFIED)
+**Gate:** READY WITH CONSTRAINTS — AS-XPROJ-003-ENTRY-GATE.md (refresh @ 344bd34; rebased to c00c62ee)
+**Wake:** AS-XPROJ-003-REENTRY-WAKE.md (DORMANT_SERIALIZE cleared by GRAPH-005 PM-IV)
+
+### Scope
+- New project_atlas.xproj_duplicates: deterministic dup/successor/monorepo review candidates
+- Schema xproj-duplicate-candidate + schema.py companion only
+- Thin CLI detect-project-duplicates; emits under generated/xproj/duplicate-candidates/
+- Focused tests test_as_xproj_003_*; package guide docs/AS-XPROJ-003-duplicate-detection.md
+- NO dual-own xproj_indexes / GRAPH-005 / graph_quarantine / knowledge_compiler
+- AS-XPROJ-INV-NO-AUTOCOLLAPSE-001; REL-001 not opened
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused unit+integration+schema: PASS
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-XPROJ-003-*.md

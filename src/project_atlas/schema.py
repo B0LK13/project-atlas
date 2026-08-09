@@ -73,6 +73,8 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-XPROJ-004 - Conflict intelligence + global derived indexes (derived; not RET-001)
     "xproj-conflict-report": "xproj-conflict-report.schema.json",
     "xproj-index-document": "xproj-index-document.schema.json",
+    # AS-XPROJ-003 - Duplicate / successor review candidates (derived; no autocollapse)
+    "xproj-duplicate-candidate": "xproj-duplicate-candidate.schema.json",
 
     # AS-BACKUP-001 — verified snapshot / restore (operational durability ≠ authority)
     "backup-manifest": "backup-manifest.schema.json",

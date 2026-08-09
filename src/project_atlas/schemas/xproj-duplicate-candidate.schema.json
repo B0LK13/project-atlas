@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/xproj-duplicate-candidate.schema.json",
+  "title": "XPROJ Duplicate / Successor Review Candidate",
+  "description": "AS-XPROJ-003 fail-closed review/reject candidate for duplicate clones, renames, successors, and monorepo overlaps. Never auto-collapse project UUIDs. Never name-merge. Never elevate authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "candidate_id",
+    "category",
+    "authority",
+    "status",
+    "reason",
+    "project_ids",
+    "inputs_considered",
+    "truth_boundary",
+    "autocollapse"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-XPROJ-003" },
+    "candidate_id": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": [
+        "canonical-remote-url-collision",
+        "lineage-retired-slot-collision",
+        "identity-lock-collision",
+        "explicit-successor",
+        "monorepo-path-prefix-overlap",
+        "name-only-match-forbidden",
+        "fuzzy-match-forbidden",
+        "autocollapse-forbidden",
+        "llm-match-forbidden",
+        "invalid-observation",
+        "secret-finding"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["review_candidate", "reject"]
+    },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "project_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "signal": {
+      "type": "string",
+      "enum": [
+        "canonical-remote-url",
+        "lineage-retired-slot",
+        "identity-lock",
+        "explicit-successor",
+        "monorepo-path-prefix"
+      ]
+    },
+    "inputs_considered": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null", "array", "object"]
+      },
+      "description": "Metadata only — never secret payloads; no winning_choice / UUID rewrite fields."
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "DUPLICATE CANDIDATE ≠ AUTOMATIC UUID COLLAPSE"
+    },
+    "autocollapse": { "const": false }
+  },
+  "not": {
+    "anyOf": [
+      { "required": ["winning_choice"] },
+      { "required": ["winning_project_id"] },
+      { "required": ["collapsed_uuid"] },
+      { "required": ["rewritten_project_id"] }
+    ]
+  }
+}
