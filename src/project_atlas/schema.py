@@ -47,6 +47,8 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-GRAPH-002 — Deterministic entity resolution (derived-only; not authority)
     "graph-resolved-node": "graph-resolved-node.schema.json",
     "graph-identity-explanation": "graph-identity-explanation.schema.json",
+    # AS-OBS-001 — operational health snapshot (non-authoritative ops plane)
+    "ops-health-snapshot": "ops-health-snapshot.schema.json",
 }
 
 
