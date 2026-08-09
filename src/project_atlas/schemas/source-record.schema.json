@@ -31,7 +31,12 @@
       "type": "string",
       "enum": ["unclassified", "classified", "excluded", "unknown"]
     },
-    "exclusion_reason": { "type": ["string", "null"] }
+    "exclusion_reason": { "type": ["string", "null"] },
+    "classification_method": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "AS-E-006: fired ClassificationRecord.classification_rule id; null when unclassified/excluded"
+    }
   },
   "$defs": {
     "lineage-resolution": {

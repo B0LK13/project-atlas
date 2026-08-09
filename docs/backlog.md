@@ -48,7 +48,7 @@
 - [x] E-003 Filename rules
 - [x] E-004 Frontmatter rules
 - [x] E-005 Heading rules
-- [ ] E-006 Classification method audit field
+- [x] E-006 Classification method audit field
 - [x] E-007 Unknown classification path
 
 ## Epic F — Generation

@@ -29,7 +29,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from project_atlas.domain.sources import SourceRecord
 
 #: Deterministic confidence that the fired rule identified the source.
 ClassificationConfidence = Literal["high", "medium", "low"]
@@ -75,6 +78,34 @@ class ClassificationRecord:
     classification_rule: str
     classification_confidence: ClassificationConfidence
     parser_id: ParserSelection
+
+
+def apply_classification_method(
+    source: SourceRecord,
+    classification: ClassificationRecord,
+) -> SourceRecord:
+    """AS-E-006: stamp ``SourceRecord.classification_method`` from EXT rule id.
+
+    Consumes :class:`ClassificationRecord` only — does **not** rewrite EXT-001A
+    precedence. Excluded sources keep ``classification_method`` null.
+    Unsupported / ``no-matching-rule`` outcomes map to ``unknown`` state.
+    """
+    from project_atlas.domain.vocabulary import ClassificationState
+
+    if source.classification_state is ClassificationState.EXCLUDED:
+        return source.model_copy(update={"classification_method": None})
+
+    method = classification.classification_rule
+    if classification.source_kind == "unsupported" or method == "no-matching-rule":
+        state = ClassificationState.UNKNOWN
+    else:
+        state = ClassificationState.CLASSIFIED
+    return source.model_copy(
+        update={
+            "classification_state": state,
+            "classification_method": method,
+        }
+    )
 
 
 def classify_source(path: str, text: str) -> ClassificationRecord:

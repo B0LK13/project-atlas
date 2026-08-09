@@ -21,6 +21,7 @@ from atlas_contracts.event_package import (
     load_event_package,
 )
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.classification import apply_classification_method, classify_source
 from project_atlas.compilation import (
     CompilationCandidate,
     CompilationOutcome,
@@ -957,6 +958,48 @@ def merge_discovery_manifest(
     }
 
 
+def apply_classification_audits_to_manifest(
+    merged_manifest: dict[str, Any],
+    audits: dict[str, SourceRecord],
+) -> dict[str, Any]:
+    """AS-E-006: stamp ``classification_method`` onto merged manifest source rows.
+
+    Recomputes ``inventory_sha256`` after mutation. Preserves
+    ``last_batch_inventory_sha256`` from the merged payload.
+    """
+    if not audits:
+        return merged_manifest
+    sources_out: list[dict[str, Any]] = []
+    for item in merged_manifest.get("sources", []):
+        if not isinstance(item, dict):
+            continue
+        source_id = str(item.get("source_id", ""))
+        stamped = audits.get(source_id)
+        if stamped is None:
+            sources_out.append(dict(item))
+            continue
+        row = dict(item)
+        row["classification_state"] = stamped.classification_state.value
+        row["classification_method"] = stamped.classification_method
+        sources_out.append(row)
+    duplicates = _recompute_duplicates(sources_out)
+    semantic = {
+        "schema_version": int(merged_manifest.get("schema_version", 1)),
+        "source_root": merged_manifest.get("source_root"),
+        "sources": sources_out,
+        "duplicates": duplicates,
+        "agent_events": list(merged_manifest.get("agent_events", [])),
+    }
+    inventory_sha256 = hashlib.sha256(
+        json.dumps(semantic, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        **semantic,
+        "inventory_sha256": inventory_sha256,
+        "last_batch_inventory_sha256": merged_manifest.get("last_batch_inventory_sha256"),
+    }
+
+
 def merge_ingestion_report(
     prior: dict[str, Any] | None,
     current: dict[str, Any],
@@ -1060,6 +1103,7 @@ def _ingest(
     expected_skill = _trusted_skill(vault)
     imported: list[dict[str, Any]] = []
     classifications: dict[str, dict[str, str]] = {}
+    classification_audits: dict[str, SourceRecord] = {}
     projects: dict[str, list[dict[str, Any]]] = {}
     event_entries: dict[str, list[dict[str, str]]] = {}
     event_state: dict[str, list[dict[str, Any]]] = {}
@@ -1122,6 +1166,11 @@ def _ingest(
         prepared.append(_PreparedRecord(source_record, source, destination, text))
     for source_record, source, destination, text in prepared:
         classification, method = _classify(source_record.path, text)
+        # AS-E-006: stamp EXT classification_rule onto SourceRecord without
+        # rewriting EXT-001A precedence (consume classify_source only).
+        ext = classify_source(source_record.path, text)
+        stamped = apply_classification_method(source_record, ext)
+        classification_audits[stamped.source_id] = stamped
         source_id = source_record.source_id
         project = source_record.likely_project or "unknown-project"
         entry: dict[str, Any] = {
@@ -1129,6 +1178,7 @@ def _ingest(
             "source_lineage_id": source_record.source_lineage_id or "",
             "path": source_record.path,
             "classification": classification,
+            "classification_method": stamped.classification_method or "",
             "source": f"../../sources/imported-documents/{destination.name}",
             "sha256": source_record.sha256 or "",
             "text": text,
@@ -1137,7 +1187,11 @@ def _ingest(
         if source_record.lineage_resolution is not None:
             entry["lineage_resolution"] = source_record.lineage_resolution.model_dump(mode="json")
         imported.append(entry)
-        classifications[source_id] = {"type": classification, "method": method}
+        classifications[source_id] = {
+            "type": classification,
+            "method": method,
+            "classification_method": stamped.classification_method or "",
+        }
         projects.setdefault(project, []).append(entry)
         source_bytes = source.read_bytes()
         manifest_hash = canonical_source_sha256(source)
@@ -1638,6 +1692,9 @@ def _ingest(
         prior_manifest if isinstance(prior_manifest, dict) else None,
         manifest,
         deleted_source_ids=deleted_source_ids,
+    )
+    merged_manifest = apply_classification_audits_to_manifest(
+        merged_manifest, classification_audits
     )
     active_source_ids = {
         str(item["source_id"])
