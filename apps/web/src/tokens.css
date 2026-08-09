@@ -1,0 +1,97 @@
+/**
+ * AS-WEB-002 shared design tokens (CSS variables).
+ * Themes remapp these under [data-theme="…"]. UI ≠ canonical.
+ * See docs/adr/ADR-009-web-design-tokens.md
+ */
+
+:root {
+  /* Semantic roles — themes override concrete values */
+  --atlas-ink: #1c1917;
+  --atlas-muted: #57534e;
+  --atlas-paper: #f5f0e8;
+  --atlas-panel: #fffdf8;
+  --atlas-line: #d6d3d1;
+  --atlas-accent: #0f766e;
+  --atlas-warn: #9a3412;
+  --atlas-ok: #166534;
+  --atlas-unknown: #b45309;
+  --atlas-rail: #292524;
+  --atlas-signal: #2dd4bf;
+  --atlas-grid: rgba(28, 25, 23, 0.06);
+  --atlas-mono: "Cascadia Code", "Segoe UI Mono", Consolas, monospace;
+  --atlas-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --atlas-sans: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --atlas-display: var(--atlas-serif);
+  --atlas-body: var(--atlas-serif);
+  --atlas-radius: 0;
+  --atlas-shadow: none;
+  --atlas-max: 42rem;
+  --atlas-pad: 1.35rem;
+  color-scheme: light;
+}
+
+[data-theme="ledger-desk"] {
+  --atlas-ink: #1c1917;
+  --atlas-muted: #57534e;
+  --atlas-paper: #f5f0e8;
+  --atlas-panel: #fffdf8;
+  --atlas-line: #d6d3d1;
+  --atlas-accent: #0f766e;
+  --atlas-warn: #9a3412;
+  --atlas-unknown: #b45309;
+  --atlas-display: var(--atlas-serif);
+  --atlas-body: var(--atlas-serif);
+  --atlas-max: 42rem;
+  color-scheme: light;
+}
+
+[data-theme="signal-rack"] {
+  --atlas-ink: #e7e5e4;
+  --atlas-muted: #a8a29e;
+  --atlas-paper: #0c0a09;
+  --atlas-panel: #1c1917;
+  --atlas-line: #44403c;
+  --atlas-accent: #2dd4bf;
+  --atlas-warn: #fb923c;
+  --atlas-unknown: #fbbf24;
+  --atlas-ok: #34d399;
+  --atlas-rail: #171412;
+  --atlas-signal: #2dd4bf;
+  --atlas-display: var(--atlas-sans);
+  --atlas-body: var(--atlas-sans);
+  --atlas-max: 56rem;
+  color-scheme: dark;
+}
+
+[data-theme="cartograph-quiet"] {
+  --atlas-ink: #1e293b;
+  --atlas-muted: #64748b;
+  --atlas-paper: #f1f5f9;
+  --atlas-panel: rgba(255, 255, 255, 0.82);
+  --atlas-line: #cbd5e1;
+  --atlas-accent: #334155;
+  --atlas-warn: #b45309;
+  --atlas-unknown: #92400e;
+  --atlas-grid: rgba(51, 65, 85, 0.12);
+  --atlas-display: var(--atlas-sans);
+  --atlas-body: var(--atlas-sans);
+  --atlas-max: 48rem;
+  --atlas-radius: 2px;
+  color-scheme: light;
+}
+
+[data-theme="terminal-honest"] {
+  --atlas-ink: #d4d4d4;
+  --atlas-muted: #737373;
+  --atlas-paper: #0a0a0a;
+  --atlas-panel: #111111;
+  --atlas-line: #262626;
+  --atlas-accent: #e5e5e5;
+  --atlas-warn: #fafafa;
+  --atlas-unknown: #a3a3a3;
+  --atlas-ok: #d4d4d4;
+  --atlas-display: var(--atlas-mono);
+  --atlas-body: var(--atlas-mono);
+  --atlas-max: 52rem;
+  color-scheme: dark;
+}
