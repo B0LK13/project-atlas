@@ -63,6 +63,12 @@ from project_atlas.ops_health import (
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
+from project_atlas.xproj_duplicates import (
+    XprojDuplicateError,
+    detect_project_duplicates,
+    inspect_duplicate_detection,
+    write_duplicate_outputs,
+)
 from project_atlas.xproj_edges import (
     XprojEdgeError,
     apply_edge_registrations,
@@ -401,6 +407,42 @@ def build_parser() -> argparse.ArgumentParser:
         "--write",
         action="store_true",
         help="Write optional derived edge outputs (requires --vault).",
+    )
+
+    # AS-XPROJ-003 - duplicate / successor review candidates (derived; no autocollapse).
+    xproj_dup_parser = subparsers.add_parser(
+        "detect-project-duplicates",
+        help=(
+            "Detect duplicate / successor / monorepo-overlap review candidates "
+            "(AS-XPROJ-003; derived-only; never UUID rewrite / name-merge)."
+        ),
+    )
+    xproj_dup_parser.add_argument(
+        "--projects",
+        type=Path,
+        required=True,
+        help='JSON file: {"projects": [ {project_id, ...}, ... ] }.',
+    )
+    xproj_dup_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Optional vault root for derived emits under "
+            "generated/xproj/duplicate-candidates/ only."
+        ),
+    )
+    xproj_dup_parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write optional derived duplicate-candidate outputs (requires --vault).",
+    )
+    xproj_dup_parser.add_argument(
+        "--approved-monorepo-root",
+        action="append",
+        default=[],
+        dest="approved_monorepo_roots",
+        help="Approved monorepo root for path-prefix overlap (repeatable).",
     )
 
     # AS-BACKUP-001: verified snapshot / fixture restore (ops durability != authority).
@@ -874,6 +916,44 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"written: {len(edge_written)}")
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             _log.error("register-global-edge failed: %s", exc)
+            return EXIT_ERROR
+        return EXIT_OK
+
+    if args.command == "detect-project-duplicates":
+        try:
+            if args.write and args.vault is None:
+                raise XprojDuplicateError(
+                    "detect-project-duplicates --write requires --vault"
+                )
+            payload = json.loads(args.projects.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise XprojDuplicateError("projects-not-object")
+            raw = payload.get("projects")
+            if not isinstance(raw, list):
+                raise XprojDuplicateError("projects-not-array")
+            projects: list[dict[str, object]] = []
+            for index, item in enumerate(raw):
+                if not isinstance(item, dict):
+                    raise XprojDuplicateError(f"project-not-object:{index}")
+                projects.append(item)
+            dup_result = detect_project_duplicates(
+                projects,
+                approved_monorepo_roots=args.approved_monorepo_roots or None,
+            )
+            dup_written: list[str] = []
+            if args.write:
+                assert args.vault is not None
+                dup_written = write_duplicate_outputs(dup_result, vault=args.vault)
+            summary = inspect_duplicate_detection(dup_result)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            print(f"review_candidates: {dup_result.review_count}")
+            print(f"rejects: {dup_result.reject_count}")
+            print("authority: derived")
+            print("autocollapse: false")
+            if dup_written:
+                print(f"written: {len(dup_written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("detect-project-duplicates failed: %s", exc)
             return EXIT_ERROR
         return EXIT_OK
 
