@@ -4546,3 +4546,24 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 
 ### Gates
 - Docs-only; GOVERNOR REQUIRED
+
+## AS-INT-011 - Receipt revocation / invalidation
+
+**Date:** 2026-08-09
+**Branch:** feat/as-int-011-receipt-revocation
+**Worktree:** D:\atlas-worktrees\as-int-011-receipt-revocation
+**Base tip / TREE:** 28bfa4f5dea06bc6bb5c3355e19ce3b49eefbbd3 / 1d1f5dfbe0a15f6016da26e4e1ab69f4e177e509
+**Directive:** D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 Track A
+
+### Scope
+- NEW receipt_revocation.py + receipt-revocation-index schema under generated/ops/
+- CLI `atlas revocation revoke|list|status`; thin helpers only (no tombstone rewrite)
+- Tests test_as_int_011_*; backlog INT-011 flip; docs/AS-INT-011-receipt-revocation.md
+- NO apps/web; NO PILOT invent; NO REL-001; NO Atlas 2.0 prod; NO event_tombstones dual-own
+
+### Gates
+- Local ruff/mypy/pytest (governor takeover)
+- Auto-merge: FORBIDDEN
+- DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-011-*.md
+
