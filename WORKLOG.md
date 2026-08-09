@@ -4703,14 +4703,9 @@ Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surf
 - node apps/web/scripts/smoke.mjs
 - python -m pytest tests/unit/test_as_web_mission_control_001.py -q
 - Auto-merge: FORBIDDEN
-<<<<<<< Updated upstream
 
 ## AS-LANE-Y-001
 Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
-
-||||||| Stash base
-=======
-
 
 ## AS-WEB-WORKSPACE-001 - Workspace lens
 
@@ -4721,7 +4716,7 @@ Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
 **Base tip:** e3e3c6be6c6af4307f0e43f4d6c2785aec290251
 
 ### Scope
-- Production hash route #/workspace read-only stub UI
+- Production hash route `#/workspace` read-only stub UI
 - Invariant banners: UI≠canonical / Graph≠authority / Unknown≠healthy
 - ProdNav + Home hub link; smoke.mjs route file presence; unit tests
 - Sample stub flags-only (no PILOT estate invent)
@@ -4736,8 +4731,4 @@ Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
 - node apps/web/scripts/smoke.mjs
 - python -m pytest tests/unit/test_as_web_workspace_001.py -q
 - Auto-merge: FORBIDDEN
->>>>>>> Stashed changes
-
-## AS-WEB-WORKSPACE-001
-Workspace production lens. WEB ACCEPTED remains NO.
 

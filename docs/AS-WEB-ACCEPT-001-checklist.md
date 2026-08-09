@@ -18,13 +18,7 @@
 
 | # | Criterion | Evidence | Status |
 |---|---|---|---|
-<<<<<<< Updated upstream
-| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, `/mission-control`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
-||||||| Stash base
-| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
-=======
 | 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, `/mission-control`, `/workspace`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
->>>>>>> Stashed changes
 | 2 | Stub + UI enforce UI≠canonical / Graph≠authority / Unknown≠healthy | sample stub + production pages | automated |
 | 3 | ADR-008 / ADR-009 / ADR-010 present | smoke + unit tests | automated |
 | 4 | `web_api` read-only boundary intact | `web_api/`, tests | automated |
