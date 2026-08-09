@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Package | AS-WEB-ACCEPT-001 / AS-WEB-ACCEPT-002 closeout |
-| Parent | D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 |
-| Tip pin | `e3e3c6b` / TREE `cd7955e` (update on merge) |
+| Package | AS-WEB-ACCEPT-001 through AS-WEB-ACCEPT-004 |
+| Parent | D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 |
+| Tip pin | `91c0d06ad5224dd081b9e2248fe17b65f360d5fc` / TREE `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc` (refresh after merge) |
 | **WEB APPLICATION ACCEPTED** | **NO** |
 | Governor sign-off | **PENDING** — see `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
 
@@ -30,6 +30,7 @@
 | 10 | Governor sign-off artifact + tip pin recorded | `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | **open** |
 | 11 | CI / local smoke invocation documented | `apps/web/README.md` | documented |
 | 12 | Mission Control + Workspace lenses (route presence only) | `#/mission-control`, `#/workspace` + smoke/unit | automated — **not** WEB ACCEPTED |
+| 13 | Ops Health receipt micro-lens (read-only unknown stub) | `#/ops` + smoke/unit | automated — **not** WEB ACCEPTED |
 
 ## Automated gates (non-certifying)
 
@@ -55,3 +56,4 @@ while item 10 (governor sign-off) remains open.
 | 2026-08-09 | WEB-ACCEPT-002: knowledge/graph routes, a11y skip-link, fixture E2E (ACCEPTED=NO) |
 | 2026-08-09 | WEB-ACCEPT-003: governor sign-off template + smoke docs; ACCEPTED remains NO |
 | 2026-08-09 | Mission Control + Workspace routes noted as automated gates only (ACCEPTED=NO) |
+| 2026-08-09 | WEB-ACCEPT-004: refreshed tip pins + Ops Health receipt micro-lens; ACCEPTED remains NO |
