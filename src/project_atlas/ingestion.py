@@ -39,6 +39,7 @@ from project_atlas.domain.semantic import SourceLifecycleRecord
 from project_atlas.domain.source_registry import SourceLineageRecord
 from project_atlas.domain.sources import SourceRecord
 from project_atlas.domain.vocabulary import DocumentLifecycle, Maturity, SourceChangeState
+from project_atlas.event_retention import maybe_apply_after_ingest
 from project_atlas.graph_acceptance import classify_graphify_document
 from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
 from project_atlas.lineage import (
@@ -2016,6 +2017,8 @@ def _ingest(
     _verify_identity_post_state(
         vault, project_identity, identity_markers, allocated_projects
     )
+    # AS-INT-009: thin post-ingest hook — apply only when policy file exists.
+    maybe_apply_after_ingest(vault)
     return {
         "ok": True,
         "projects": len(projects),

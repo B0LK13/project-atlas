@@ -25,6 +25,10 @@ from project_atlas.backup import (
 from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.domain.knowledge_query import KnowledgeQueryErrorCode, QueryShape
+from project_atlas.event_retention import (
+    RetentionError,
+    apply_event_retention,
+)
 from project_atlas.graph_acceptance import (
     GraphAcceptanceError,
     accept_graphify_artifacts,
@@ -599,6 +603,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Refuse restore when bundle vault_logical_id disagrees (RS-06).",
     )
+
+    # AS-INT-009 — raw package / receipt retention (operational; not authority).
+    retention_parser = subparsers.add_parser(
+        "retention",
+        help=(
+            "Apply deterministic raw-package and receipt retention caps "
+            "(AS-INT-009; count/size only; never Layer B / never INT-010 tombstones)."
+        ),
+    )
+    retention_sub = retention_parser.add_subparsers(
+        dest="retention_command", required=True
+    )
+    retention_apply = retention_sub.add_parser(
+        "apply",
+        help="Apply retention to sources/agent-events and receipts/agent-events.",
+    )
+    retention_apply.add_argument("--vault", type=Path, required=True)
+    retention_apply.add_argument(
+        "--max-packages",
+        type=int,
+        default=None,
+        help="Count cap (lexicographic keep-newest); overrides vault policy when set.",
+    )
+    retention_apply.add_argument(
+        "--max-bytes",
+        type=int,
+        default=None,
+        help="Total byte cap across retained units; overrides vault policy when set.",
+    )
+    retention_apply.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Compute victims and write report without deleting.",
+    )
+    retention_apply.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the retention report JSON to stdout.",
+    )
     return parser
 
 
@@ -1108,6 +1151,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error("detect-project-duplicates failed: %s", exc)
             return EXIT_ERROR
         return EXIT_OK
+
+    if args.command == "retention":
+        if args.retention_command == "apply":
+            try:
+                report = apply_event_retention(
+                    args.vault,
+                    max_packages=args.max_packages,
+                    max_bytes=args.max_bytes,
+                    dry_run=args.dry_run,
+                )
+            except (RetentionError, OSError, ValueError, TypeError) as exc:
+                _log.error("retention apply failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"status: {report['status']}")
+                print(f"units_removed: {report['counts']['units_removed']}")
+                print(
+                    f"report: {args.vault / 'generated' / 'ops' / 'retention-report.json'}"
+                )
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown retention command: {args.retention_command}"
+        )
 
     if args.command == "snapshot":
         try:

@@ -167,7 +167,7 @@ independent verification passes and the branch is merged to `main`._
 - [x] INT-006 Prove deterministic replay and strict public CLI workflow
 - [x] INT-007 Independent integration certification
 - [x] INT-008 Bind event skill identity to a trusted Vault policy
-- [ ] INT-009 Define raw-package and receipt retention policy
+- [x] INT-009 Define raw-package and receipt retention policy
 - [ ] INT-010 Preserve removed-package/deletion state in projections
 - [ ] INT-011 Define receipt revocation and invalidation semantics
 - [ ] INT-012 Define schema migration and compatibility tooling

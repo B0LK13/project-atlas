@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/event-retention-report.schema.json",
+  "title": "Event Package / Receipt Retention Report",
+  "description": "AS-INT-009 deterministic retention receipt under generated/ops/. Operational only; no wall-clock stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "status",
+    "applied",
+    "dry_run",
+    "policy",
+    "counts",
+    "removed_units",
+    "deleted_paths",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.event_retention.report.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "RAW PACKAGE / RECEIPT RETENTION ≠ PROJECT AUTHORITY"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["applied", "dry-run", "no-op", "skipped-no-policy"]
+    },
+    "applied": { "type": "boolean" },
+    "dry_run": { "type": "boolean" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_packages", "max_bytes"],
+      "properties": {
+        "max_packages": { "type": ["integer", "null"], "minimum": 1 },
+        "max_bytes": { "type": ["integer", "null"], "minimum": 1024 }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "units_before",
+        "units_kept",
+        "units_removed",
+        "bytes_before",
+        "bytes_kept",
+        "bytes_removed"
+      ],
+      "properties": {
+        "units_before": { "type": "integer", "minimum": 0 },
+        "units_kept": { "type": "integer", "minimum": 0 },
+        "units_removed": { "type": "integer", "minimum": 0 },
+        "bytes_before": { "type": "integer", "minimum": 0 },
+        "bytes_kept": { "type": "integer", "minimum": 0 },
+        "bytes_removed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "removed_units": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "deleted_paths": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
