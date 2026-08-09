@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LabShell } from "../components/LabShell";
+import { ProdShell } from "../components/ProdShell";
 import { ReadStatusPanel } from "../components/ReadStatusPanel";
 import { useReadStatus } from "../hooks/useReadStatus";
 
@@ -26,19 +26,30 @@ const THEMES = [
   },
 ] as const;
 
-/** Foundation hub — Theme A lean + links into design-lab prototypes. */
+const PROD = [
+  { to: "/projects", title: "Projects", blurb: "Read-only inventory lens." },
+  { to: "/ops", title: "Ops health", blurb: "OBS/sample consume — unknown ≠ healthy." },
+  {
+    to: "/command-center",
+    title: "Command Center",
+    blurb: "Mode switcher: overview · projects · ops · impact.",
+  },
+] as const;
+
+/** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
 export default function HomePage() {
   const { status, error, loading } = useReadStatus();
 
   return (
-    <LabShell theme="ledger-desk" className="theme-ledger">
+    <ProdShell className="theme-ledger">
       <main className="shell">
         <header className="hero">
-          <p className="eyebrow">Project Atlas · AS-WEB-002</p>
+          <p className="eyebrow">Project Atlas · AS-WEB-003</p>
           <h1>Atlas</h1>
           <p className="lede">
-            Read-first vault status shell and design-lab prototypes. UI is not
-            canonical; graph is not authority; unknown is never healthy.
+            Production read shell and design-lab prototypes. UI is not canonical;
+            graph is not authority; unknown is never healthy. Web application
+            acceptance is not claimed by this package.
           </p>
           <p className="flags" style={{ marginTop: "0.75rem" }}>
             <span className="chip">ui_canonical=false</span>
@@ -51,10 +62,27 @@ export default function HomePage() {
         {loading ? <p className="banner">Loading read status…</p> : null}
         {status ? <ReadStatusPanel status={status} /> : null}
 
+        <section className="panel" aria-label="Production shell">
+          <h2>Production shell</h2>
+          <p className="disclaimer">
+            Operator surfaces from ADR-010 — still read-only; not WEB ACCEPTED.
+          </p>
+          <ul className="theme-hub">
+            {PROD.map((item) => (
+              <li key={item.to}>
+                <Link to={item.to}>
+                  <strong>{item.title}</strong>
+                  <span>{item.blurb}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <section className="panel" aria-label="Design lab themes">
           <h2>Design lab</h2>
           <p className="disclaimer">
-            Four prototype themes from AS-WEB-001-DESIGN-LAB — not production UI
+            Four prototype themes from AS-WEB-002 — retained; not production
             acceptance.
           </p>
           <ul className="theme-hub">
@@ -69,6 +97,6 @@ export default function HomePage() {
           </ul>
         </section>
       </main>
-    </LabShell>
+    </ProdShell>
   );
 }

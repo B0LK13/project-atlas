@@ -306,4 +306,17 @@ _Status: implementation complete on `feat/as-web-002-design-lab`; awaiting gover
 - [x] WEB002-003 ADR-009 web design tokens
 - [x] WEB002-004 Smoke script covers design-lab routes
 - [x] WEB002-005 Soft WORKLOG + backlog checklist
-- [ ] WEB002-006 Governor review and merge to `main`
+- [x] WEB002-006 Governor review and merge to `main`
+
+## AS-WEB-003 — Production shell + Command Center + ADR-010
+
+_Status: implementation complete on `feat/as-web-003-production-shell`; awaiting governor review / merge. Tip base `6c74b91`. Firewall: `apps/web/**` + ADR-010 + soft WORKLOG/backlog. UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy. **WEB APPLICATION ACCEPTED = NO**._
+
+- [x] WEB003-001 ADR-010 / ADR-ATLAS-WEB-UX-001 (production vs design-lab; Command Center modes)
+- [x] WEB003-002 Production routes: Home / Projects / Ops / Command Center
+- [x] WEB003-003 Command Center mode switcher (overview · projects · ops · impact)
+- [x] WEB003-004 Preserve design-lab routes; smoke extended
+- [x] WEB003-005 Soft WORKLOG + backlog checklist
+- [ ] WEB003-006 Governor review and merge to `main`
+- [ ] WEB003-007 WEB APPLICATION ACCEPTED criteria package (later — not this PR)
+
