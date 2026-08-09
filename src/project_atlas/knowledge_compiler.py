@@ -41,6 +41,8 @@ from project_atlas.domain import (
     LifecycleStatus,
     Maturity,
     ProvenanceReference,
+    Relationship,
+    RelationType,
     ReviewCategory,
     ReviewEntry,
     ReviewState,
@@ -436,6 +438,10 @@ def _concept(
         # Unknown source classifications remain valid evidence and are emitted
         # as a generic Reference concept rather than rejected.
         concept_type = ConceptType.REFERENCE
+    # AS-CORE-MODEL-001B: Capability is never the singleton project type.
+    # Explicit Capability declarations emit additional concepts instead.
+    if concept_type is ConceptType.CAPABILITY:
+        concept_type = ConceptType.PROJECT
     declared_maturity = next(
         (str(entry["maturity"]) for entry in entries if entry.get("maturity")),
         None,
@@ -464,6 +470,232 @@ def _concept(
         generated=GeneratedMetadata(by="agent:project-atlas"),
         verified=VerificationMetadata(),
     )
+
+
+def capability_concept_id(project_id: str, canonical_key: str) -> str:
+    """AS-CORE-MODEL-001B: stable Capability concept_id (never equals project_id)."""
+    digest = _digest(f"{project_id}\0{canonical_key}")[:32]
+    concept_id = f"cap-{digest}"
+    if concept_id == project_id:
+        raise ValueError(
+            f"capability concept_id collided with project_id: {project_id!r}"
+        )
+    return concept_id
+
+
+def _capability_title_from_path(path: str) -> str:
+    stem = Path(path.replace("\\", "/")).stem.strip()
+    return stem or "capability"
+
+
+def _reject_secret_capability_text(label: str, value: str) -> None:
+    """AS-CORE-MODEL-001B / NFR-004: capability display strings must be secret-free."""
+    if scan_text(value):
+        raise ValueError(f"secret-bearing capability {label} rejected")
+
+
+def _marker_source_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return project-marker entries for Capability provenance (F3)."""
+    results: list[dict[str, Any]] = []
+    for entry in entries:
+        name = Path(str(entry.get("path") or "").replace("\\", "/")).name
+        if name in {".atlas-project.yaml", ".atlas-project.yml"}:
+            results.append(entry)
+    return results
+
+
+def _normalize_capability_declarations(
+    project: str,
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Collect explicit Capability declarations (marker list + concept_type).
+
+    Collision of two different titles into one slug (without distinct ids)
+    fails closed. Duplicate identical canonical keys collapse deterministically.
+
+    Marker ``concept_type: Capability`` must not invent Capabilities from every
+    stamped entry — only the ``capabilities:`` list and per-entry source
+    ``concept_type: Capability`` (true declaring source) emit.
+    """
+    # Marker ``capabilities:`` is stamped onto every project entry; read once.
+    marker_caps: list[Any] | None = None
+    for entry in entries:
+        if "capabilities" in entry:
+            marker_caps = entry.get("capabilities")
+            break
+    marker_sources = _marker_source_entries(entries)
+    declarations: list[dict[str, Any]] = []
+    if marker_caps is not None:
+        if not isinstance(marker_caps, list):
+            raise ValueError(
+                f"project marker capabilities must be a list for project {project!r}"
+            )
+        for index, item in enumerate(marker_caps):
+            if not isinstance(item, dict):
+                raise ValueError(
+                    f"project marker capabilities[{index}] must be an object "
+                    f"for project {project!r}"
+                )
+            raw_id = item.get("id")
+            raw_title = item.get("title")
+            if raw_id is not None and (
+                not isinstance(raw_id, str) or not raw_id.strip()
+            ):
+                raise ValueError(
+                    f"project marker capabilities[{index}].id must be a non-empty "
+                    f"string for project {project!r}"
+                )
+            if raw_title is not None and (
+                not isinstance(raw_title, str) or not raw_title.strip()
+            ):
+                raise ValueError(
+                    f"project marker capabilities[{index}].title must be a "
+                    f"non-empty string for project {project!r}"
+                )
+            explicit_id = raw_id.strip() if isinstance(raw_id, str) else None
+            title = (
+                raw_title.strip()
+                if isinstance(raw_title, str)
+                else (explicit_id or "")
+            )
+            if not title:
+                raise ValueError(
+                    f"project marker capabilities[{index}] requires title or id "
+                    f"for project {project!r}"
+                )
+            _reject_secret_capability_text(f"capabilities[{index}].title", title)
+            if explicit_id is not None:
+                _reject_secret_capability_text(
+                    f"capabilities[{index}].id", explicit_id
+                )
+            # Unknown sibling keys ignored (schema-tolerant).
+            provides = item.get("provides")
+            if provides is not None and (
+                not isinstance(provides, str) or not provides.strip()
+            ):
+                raise ValueError(
+                    f"project marker capabilities[{index}].provides must be a "
+                    f"non-empty string for project {project!r}"
+                )
+            provides_value = (
+                provides.strip() if isinstance(provides, str) else None
+            )
+            if provides_value is not None:
+                _reject_secret_capability_text(
+                    f"capabilities[{index}].provides", provides_value
+                )
+            declarations.append(
+                {
+                    "key": explicit_id or _slug(title),
+                    "title": title,
+                    "explicit_id": explicit_id is not None,
+                    "provides": provides_value,
+                    # Cite marker evidence only — not every imported document (F3).
+                    "sources": list(marker_sources),
+                }
+            )
+
+    for entry in entries:
+        if entry.get("concept_type") != ConceptType.CAPABILITY.value:
+            continue
+        # Quarantined / secret-bearing sources never reach compile entries.
+        # Per-entry concept_type only (true declaring source) — not marker stamp.
+        path = str(entry.get("path") or "")
+        title = str(entry.get("capability_title") or "").strip() or _capability_title_from_path(
+            path
+        )
+        _reject_secret_capability_text("concept_type title", title)
+        declarations.append(
+            {
+                "key": _slug(title),
+                "title": title,
+                "explicit_id": False,
+                "provides": None,
+                "sources": [entry],
+            }
+        )
+
+    # Collapse duplicates by canonical key; detect title→slug collisions.
+    by_key: dict[str, dict[str, Any]] = {}
+    slug_owners: dict[str, str] = {}
+    for decl in declarations:
+        key = str(decl["key"])
+        title = str(decl["title"])
+        if not decl["explicit_id"]:
+            owner = slug_owners.get(key)
+            if owner is not None and owner != title:
+                raise ValueError(
+                    f"capability slug collision for project {project!r}: "
+                    f"{owner!r} and {title!r} both map to {key!r}"
+                )
+            slug_owners[key] = title
+        prior = by_key.get(key)
+        if prior is None:
+            by_key[key] = {
+                "key": key,
+                "title": title,
+                "provides": decl.get("provides"),
+                "sources": list(decl.get("sources") or []),
+            }
+            continue
+        # Deterministic single Capability for duplicate identical keys.
+        if prior["title"] != title and decl["explicit_id"]:
+            # Explicit id wins as key; keep first title for stability.
+            pass
+        if prior.get("provides") is None and decl.get("provides"):
+            prior["provides"] = decl["provides"]
+        prior["sources"].extend(decl.get("sources") or [])
+
+    return [by_key[key] for key in sorted(by_key)]
+
+
+def _capability_concepts(
+    project: str,
+    claims: list[Claim],
+    entries: list[dict[str, Any]],
+) -> list[ConceptRecord]:
+    """AS-CORE-MODEL-001B: emit Capability concepts from explicit evidence only."""
+    declarations = _normalize_capability_declarations(project, entries)
+    if not declarations:
+        return []
+    results: list[ConceptRecord] = []
+    for decl in declarations:
+        concept_id = capability_concept_id(project, str(decl["key"]))
+        source_entries = list(decl.get("sources") or [])
+        sources = [_provenance(project, entry) for entry in source_entries]
+        relationships: list[Relationship] = []
+        provides = decl.get("provides")
+        if isinstance(provides, str) and provides:
+            relationships.append(
+                Relationship(type=RelationType.PROVIDES, target=provides)
+            )
+        results.append(
+            ConceptRecord(
+                project_id=project,
+                concept_id=concept_id,
+                type=ConceptType.CAPABILITY,
+                title=str(decl["title"]),
+                description="Explicitly declared capability concept.",
+                resource=f"projects/{project}/concepts.md",
+                tags=[_slug(str(decl["title"]))],
+                lifecycle=ConceptLifecycle(status=LifecycleStatus.UNKNOWN),
+                knowledge_state=KnowledgeState.EVIDENCE_BACKED
+                if claims or source_entries
+                else KnowledgeState.IMPORTED_SOURCE,
+                review_state=(
+                    ReviewState.PENDING_HUMAN_REVIEW
+                    if claims or source_entries
+                    else ReviewState.UNREVIEWED
+                ),
+                maturity=None,
+                sources=sources,
+                relationships=relationships,
+                generated_by="project-atlas:as-core-model-001b",
+                generated=GeneratedMetadata(by="agent:project-atlas"),
+                verified=VerificationMetadata(),
+            )
+        )
+    return sorted(results, key=lambda item: item.concept_id)
 
 
 def _conflicts(project: str, claims: list[Claim]) -> list[ConflictRecord]:
@@ -1004,7 +1236,11 @@ def compile_knowledge(
         {item.review_id: item for item in reviews}.values(),
         key=lambda item: item.review_id,
     )
-    concepts = [_concept(project, claims, entries, open_conflicts=len(conflicts))]
+    project_concept = _concept(
+        project, claims, entries, open_conflicts=len(conflicts)
+    )
+    capability_concepts = _capability_concepts(project, claims, entries)
+    concepts = [project_concept, *capability_concepts]
     authorities: list[AuthorityRecord] = []
     for entry in entries:
         level, precedence, reason = _authority(str(entry["path"]), str(entry["classification"]))

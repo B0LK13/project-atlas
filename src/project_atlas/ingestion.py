@@ -546,11 +546,28 @@ def _find_project_marker(root: Path, relative_path: str, project: str) -> Path:
     raise ValueError(f"project marker not found for project: {project}")
 
 
-def _project_context(root: Path, relative_path: str, project: str) -> dict[str, str]:
+def _reject_secret_capability_field(
+    marker: Path, index: int, field: str, value: str
+) -> None:
+    """AS-CORE-MODEL-001B / NFR-004: secret-bearing capability fields fail closed."""
+    if scan_text(value):
+        raise ValueError(
+            f"project marker capabilities[{index}].{field} contains a secret "
+            f"pattern and cannot propagate: {marker}"
+        )
+
+
+def _project_context(root: Path, relative_path: str, project: str) -> dict[str, Any]:
     """Read optional concept metadata from the authoritative project marker.
 
-    Surfaces ``concept_type`` and AS-CORE-MODEL-001A ``maturity`` when declared.
-    Invalid maturity fails closed (no silent coerce).
+    Surfaces ``concept_type``, AS-CORE-MODEL-001A ``maturity``, and
+    AS-CORE-MODEL-001B ``capabilities`` when declared.
+    Invalid maturity / capabilities shape fails closed (no silent coerce).
+
+    AS-CORE-MODEL-001B: marker ``concept_type: Capability`` is NOT stamped onto
+    every project entry (that invents Capabilities from README / marker path
+    stems). Capability emission uses the explicit ``capabilities:`` list, or
+    per-entry ``concept_type`` set on a true declaring source only.
     """
     try:
         marker = _find_project_marker(root, relative_path, project)
@@ -564,14 +581,16 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
         raise ValueError(f"invalid project marker: {marker}") from exc
     if not isinstance(raw, dict):
         raise ValueError(f"project marker must be an object: {marker}")
-    context: dict[str, str] = {}
+    context: dict[str, Any] = {}
     concept_type = raw.get("concept_type")
     if concept_type is not None:
         if not isinstance(concept_type, str) or not concept_type.strip():
             raise ValueError(
                 f"project marker concept_type must be a non-empty string: {marker}"
             )
-        context["concept_type"] = concept_type
+        # Do not blanket-stamp Capability onto ordinary documents (F1).
+        if concept_type.strip() != "Capability":
+            context["concept_type"] = concept_type
     maturity = raw.get("maturity")
     if maturity is not None:
         if not isinstance(maturity, str) or not maturity.strip():
@@ -585,6 +604,23 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
                 f"project marker maturity must be a valid Maturity value: {marker}"
             ) from exc
         context["maturity"] = maturity
+    # AS-CORE-MODEL-001B: explicit capability list (validated shape only).
+    if "capabilities" in raw:
+        capabilities = raw.get("capabilities")
+        if not isinstance(capabilities, list):
+            raise ValueError(
+                f"project marker capabilities must be a list: {marker}"
+            )
+        for index, item in enumerate(capabilities):
+            if not isinstance(item, dict):
+                raise ValueError(
+                    f"project marker capabilities[{index}] must be an object: {marker}"
+                )
+            for field in ("id", "title", "provides"):
+                value = item.get(field)
+                if isinstance(value, str) and value.strip():
+                    _reject_secret_capability_field(marker, index, field, value)
+        context["capabilities"] = capabilities
     return context
 
 

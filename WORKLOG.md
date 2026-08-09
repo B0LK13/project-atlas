@@ -3849,7 +3849,6 @@ Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 s
 **AS-CORE-009: NOT OPENED**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 
-
 ## AS-ACCEPT-002 - Combined Post-Merge External Acceptance (Band A P0)
 
 **Directive:** `D-PROJECT-ATLAS-AUTONOMOUS-TO-COMPLETION-001` STREAM I  
@@ -3879,3 +3878,46 @@ Additive `tests/unit/test_as_accept_002_*.py` + helpers. Band B AX-GRF deferred.
 **DISPOSITION: IMPLEMENTATION COMPLETE — IV-READY**  
 **Orphan evidence:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-002-*.md`
 
+## AS-CORE-MODEL-001B — Explicit Capability emission
+
+**Directive:** `D-PROJECT-ATLAS-AUTONOMOUS-TO-COMPLETION-001`  
+**Contract:** `convergence-parallel-005/AS-CORE-MODEL-001B.md`  
+**Re-entry:** READY WITH CONSTRAINTS (`AS-CORE-MODEL-001B-REENTRY-GATE.md`)  
+**Branch:** `feat/as-core-model-001b-capability`  
+**Worktree:** `D:\atlas-worktrees\as-core-model-001b-capability`  
+**Base:** post-DIAG tip `e3b5b6b` (rebased from post-001A `6f3ad62`)
+
+### Rules chosen
+- Marker `capabilities:` list + entry `concept_type: Capability` (title from path stem)
+- Identity: `cap-` + sha256(project_id + NUL + key)[:32]
+- Slug collision without distinct ids → fail closed
+- Singleton never typed Capability; 001A maturity unchanged
+- `provides` only from explicit marker field
+
+### Gates (pre-commit)
+- Focused unit+integration 001B: PASS
+- 001A maturity regression: PASS
+- ruff / mypy owned surfaces: PASS
+- ADV-B-01..12: package-local notes in orphans
+
+**PRODUCTION CODE MODIFIED: YES** (`knowledge_compiler`, `ingestion` capabilities plumbing)  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
+
+## AS-CORE-MODEL-001B — IV remediation (F1/F2 HIGH)
+
+**Prior IV:** NOT CERTIFIED @ `2de6c97` / `ab26b397`  
+**Branch:** `feat/as-core-model-001b-capability` (sole-writer)
+
+### Fixes
+- **F1:** Marker `concept_type: Capability` is no longer blanket-stamped onto every entry; Capability emission requires explicit `capabilities:` list or per-entry declaring-source `concept_type`.
+- **F2:** Capability `id` / `title` / `provides` scanned via `scan_text`; secret-bearing values fail closed before context/compiler propagation.
+- **F3:** Marker-declared Capability provenance cites marker entry only (not all imported documents).
+- **F5:** Backlog CORE2-007 wording aligned (001B COMPLETE pending re-IV/merge).
+
+### Gates
+- Focused 001B + 001A + F1/F2 ADV probes: PASS
+- ruff / mypy owned surfaces: PASS
+
+**DISPOSITION: REMEDIATION COMPLETE — RE-IV REQUIRED (do not reuse denied tip)**

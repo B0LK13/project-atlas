@@ -183,7 +183,7 @@ independent verification passes and the branch is merged to `main`._
 - [x] CORE2-006 Persist source lifecycle state and deletion tombstones
 - [ ] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
   (**Partial:** AS-CORE-MODEL-001A fills singleton `ConceptRecord.maturity`
-  via Rules A–D; Capability / multi-concept composition still open.)
+  via Rules A–D; AS-CORE-MODEL-001B Capability emission COMPLETE on feat/as-core-model-001b-capability pending re-IV/merge; multi-type composition remains AS-CORE-MODEL-001C.)
 - [ ] CORE2-008 Add duplicate-source conflict projections and authority review queue
 - [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
   (ATOMIC-PROMOTION residual; contract-only under Lane D — see
