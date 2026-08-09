@@ -1,22 +1,27 @@
-# Atlas 2.0 — CHARTER (prep stub)
+# Atlas 2.0 — Charter (**PROTOTYPE / PREP**)
 
-| Field | Value |
-|---|---|
-| Status | **PREP ONLY** — not IMPLEMENTATION READY |
-| Gate | Blocked until `ATLAS_1_0_RELEASE_CERTIFIED` |
-| Directive | `D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001` Track B |
+Status: **PREP ONLY** — `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
 ## Purpose
 
-Define the post-1.0 charter for Atlas as a durable local-first knowledge
-operating system beyond the certified Core + Web 1.0 surface.
+Define the governed envelope for Atlas 2.0 after Atlas 1.0 is release-certified.
+2.0 extends the local-first knowledge compiler into multi-vault, provider-optional,
+and advanced operator surfaces without weakening provenance or fail-closed safety.
 
-## Hard firewall
+## Non-goals (firewall)
 
-- No production schema / identity / authority / compiler mutations for 2.0
-  until 1.0 freeze evidence exists (v1.0.0 + HEAD + TREE + compatibility snapshot).
-- 1.0 wins all dependency-bearing conflicts.
+- No production implementation while this charter is PREP
+- No bypass of 1.0 provenance, secrets, or promote-recovery boundaries
+- No invented estate genesis / PILOT PASS from 2.0 prep docs
 
-## Next prep artifacts
+## Principles carried from 1.0
 
-VISION · PRD · DAG · threat model · package contract stubs (§98) · fixtures/prototypes (docs-only).
+1. No claim without a traceable source
+2. Three-layer vault model (evidence / OKF / portfolio)
+3. Determinism and offline-first core
+4. Human-edit preservation
+5. Objective signals only (no subjective trust scores)
+
+## First-wave package themes (§98)
+
+See `PACKAGE-CONTRACT-STUBS.md` and `IMPLEMENTATION-READY-GATE.md`.
