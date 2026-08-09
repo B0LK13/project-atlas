@@ -30,6 +30,7 @@ def test_all_expected_schemas_available() -> None:
         "claim",
         "claim-alias",
         "claim-lifecycle",
+        "compile-cache-receipt",
         "concept-record",
         "conflict-record",
         "diagnostic",
