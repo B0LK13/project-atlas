@@ -4490,3 +4490,23 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 ### Gates
 - Docs-only
 - DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
+
+## AS-INT-010 - Removed-package deletion tombstones
+
+**Date:** 2026-08-09
+**Branch:** feat/as-int-010-tombstones
+**Worktree:** D:\atlas-worktrees\as-int-010-tombstones
+**Base tip / TREE:** 6c74b917c612401ba6afe51d7e89e7e4785f7114 / 778835ce654bc97dfc71961c6ee8bbbed089b352
+**Directive:** D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 Track A
+
+### Scope
+- NEW event_tombstones.py + event-tombstone-index schema under generated/ops/
+- Thin hook from event_retention after applied deletes (no retention redesign)
+- Tests test_as_int_010_*; backlog INT-010 flip
+- NO apps/web; NO PILOT invent; NO REL-001; NO Atlas 2.0 prod
+
+### Gates
+- Local ruff/mypy/pytest (governor takeover)
+- Auto-merge: FORBIDDEN
+- DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-010-*.md

@@ -14,7 +14,7 @@ Hard rules (INT9-FR-003 / INT9-FR-007):
 - Fail closed on malformed retention config.
 - Never delete Layer B concept notes or paths outside the two allowed roots.
 - Do not rewrite ``recover_promote_orphans`` / ``_promote``.
-- Do not invent removal tombstones in projections (AS-INT-010 owns that).
+- Do not redesign removal tombstones here (AS-INT-010 owns that; thin hook only).
 - Do not dual-own ``apps/web``, PILOT invent, or open REL-001.
 """
 
@@ -445,6 +445,17 @@ def apply_event_retention(
         status=status,
     )
     write_report(vault, report)
+    # AS-INT-010 thin hook — record deleted-state projection after real deletes.
+    # Retention caps / deletion core remain owned by this module (INT9); tombstone
+    # projection ownership stays with event_tombstones (INT10).
+    if applied and removed:
+        from project_atlas.event_tombstones import record_retention_tombstones
+
+        record_retention_tombstones(
+            vault,
+            removed_unit_keys=[unit.unit_key for unit in removed],
+            deleted_paths=deleted_paths,
+        )
     return report
 
 
