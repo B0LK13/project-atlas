@@ -80,7 +80,7 @@
 - [x] H-007 Orphan validator
 - [x] H-008 Secret scanner
 - [x] H-009 Coverage validator
-- [ ] H-010 Severity exit codes
+- [x] H-010 Severity exit codes
 
 ## Epic I — Portfolio intelligence
 

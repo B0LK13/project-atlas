@@ -1,7 +1,7 @@
 """Validation findings produced by quality gates (B-006; FR-012).
 
 Findings are objective, machine-readable records. Severity drives exit
-codes in the validation work package (backlog H-010).
+codes via ``validation_exit_code`` (backlog H-010 / AS-H-010).
 """
 
 from __future__ import annotations
