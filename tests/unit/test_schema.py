@@ -50,6 +50,9 @@ def test_all_expected_schemas_available() -> None:
         "source-record",
         "source-registry",
         "validation-finding",
+        "xproj-global-entity",
+        "xproj-join-key",
+        "xproj-quarantine-candidate",
     ]
 
 

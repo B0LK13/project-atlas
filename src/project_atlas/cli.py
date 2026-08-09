@@ -56,6 +56,13 @@ from project_atlas.ops_health import (
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
+from project_atlas.xproj_registry import (
+    XprojRegistryError,
+    apply_registrations,
+    inspect_registry,
+    load_registry_state,
+    write_registry_outputs,
+)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -319,6 +326,35 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-write",
         action="store_true",
         help="Collect/normalize only; do not persist generated/ops/health-snapshot.json.",
+    )
+
+    # AS-XPROJ-001 - global entity registry (derived; explicit registration only).
+    xproj_parser = subparsers.add_parser(
+        "register-global-entity",
+        help=(
+            "Apply explicit global-entity / join registrations "
+            "(AS-XPROJ-001; derived-only; no name-merge; no authority writes)."
+        ),
+    )
+    xproj_parser.add_argument(
+        "--registrations",
+        type=Path,
+        required=True,
+        help="JSON file: {\"registrations\": [ {kind: entity|join, ...}, ... ] }.",
+    )
+    xproj_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Optional vault root for derived emits under state/global-entities/ "
+            "(joins/ and quarantine-candidates/ only)."
+        ),
+    )
+    xproj_parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write optional derived registry outputs (requires --vault).",
     )
     return parser
 
@@ -637,6 +673,47 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             return EXIT_OK
         parser.error(f"unknown ops command: {args.ops_command}")  # pragma: no cover
+
+    if args.command == "register-global-entity":
+        try:
+            if args.write and args.vault is None:
+                raise XprojRegistryError("register-global-entity --write requires --vault")
+            payload = json.loads(args.registrations.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise XprojRegistryError("registrations-not-object")
+            raw = payload.get("registrations")
+            if not isinstance(raw, list):
+                raise XprojRegistryError("registrations-not-array")
+            requests: list[dict[str, object]] = []
+            for index, item in enumerate(raw):
+                if not isinstance(item, dict):
+                    raise XprojRegistryError(f"registration-not-object:{index}")
+                requests.append(item)
+            prior_entities = None
+            prior_joins = None
+            if args.vault is not None:
+                prior_entities, prior_joins = load_registry_state(args.vault)
+            xproj_result = apply_registrations(
+                requests,
+                prior_entities=prior_entities,
+                prior_joins=prior_joins,
+            )
+            xproj_written: list[str] = []
+            if args.write:
+                assert args.vault is not None
+                xproj_written = write_registry_outputs(xproj_result, vault=args.vault)
+            summary = inspect_registry(xproj_result)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            print(f"registered: {xproj_result.registered_count}")
+            print(f"joined: {xproj_result.joined_count}")
+            print(f"quarantined: {xproj_result.quarantined_count}")
+            print("authority: derived")
+            if xproj_written:
+                print(f"written: {len(xproj_written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("register-global-entity failed: %s", exc)
+            return EXIT_ERROR
+        return EXIT_OK
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 
