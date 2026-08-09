@@ -124,12 +124,20 @@ def write_dry_run_sync_queue(vault: Path, document: dict[str, Any]) -> Path:
     """Persist only to ``generated/ops/sync-queue-dry-run.json``."""
     validate_record(document, REPORT_SCHEMA)
     vault_root = vault.expanduser().resolve()
-    ops_root = (vault_root / "generated" / "ops").resolve()
     path = (vault_root / REPORT_RELATIVE).resolve()
-    production_sync = (vault_root / "00-system" / "sync").resolve()
-    if path.parent != ops_root or not path.is_relative_to(ops_root):
-        raise SyncQueueError("queue scaffold may write only under generated/ops/")
-    if path.is_relative_to(production_sync):
+    # Fail closed if generated/ops (or any parent) is a symlink escaping the vault.
+    if not path.is_relative_to(vault_root):
+        raise SyncQueueError("queue scaffold output path escapes vault root")
+    try:
+        relative = path.relative_to(vault_root)
+    except ValueError as exc:
+        raise SyncQueueError("queue scaffold output path escapes vault root") from exc
+    if relative != REPORT_RELATIVE:
+        raise SyncQueueError(
+            "queue scaffold may write only to generated/ops/sync-queue-dry-run.json"
+        )
+    production_sync = vault_root / "00-system" / "sync"
+    if path.is_relative_to(production_sync.resolve()):
         raise SyncQueueError("queue scaffold must not write under 00-system/sync/")
     payload = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8")
     _write_atomic(path, payload)

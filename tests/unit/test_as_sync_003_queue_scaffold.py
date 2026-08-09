@@ -86,9 +86,24 @@ def test_write_is_limited_to_generated_ops(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(
         "project_atlas.sync_queue.REPORT_RELATIVE", Path("00-system/sync/sync-queue.json")
     )
-    with pytest.raises(SyncQueueError, match="generated/ops"):
+    with pytest.raises(SyncQueueError, match="generated/ops/sync-queue-dry-run"):
         write_dry_run_sync_queue(tmp_path, queue)
     assert not (tmp_path / "00-system" / "sync" / "sync-queue.json").exists()
+
+
+def test_write_rejects_generated_symlink_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Symlink escape of generated/ must fail closed before any write (AT-013)."""
+    queue = build_dry_run_sync_queue(_plan())
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    (vault / "generated").symlink_to(outside, target_is_directory=True)
+    with pytest.raises(SyncQueueError, match="escapes vault root"):
+        write_dry_run_sync_queue(vault, queue)
+    assert not (outside / "ops" / "sync-queue-dry-run.json").exists()
 
 
 @pytest.mark.parametrize("plan", [{}, {"entries": []}])
