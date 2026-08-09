@@ -1,10 +1,14 @@
-"""Knowledge Query answer envelopes (AS-CORE-007 / AS-CORE-008).
+"""Knowledge Query answer envelopes (AS-CORE-007 / AS-CORE-008 / AS-QUERY-DIAG-001).
 
 Query is a read-only consumer of persisted temporal and authoritative state.
 It must not invent values or recompute AS-CORE-005 / AS-CORE-006 dispositions.
 
 AS-CORE-008 adds a multi-field composition envelope over point (007) answers
 under one shared compilation snapshot. Composition ≠ new authority.
+
+AS-QUERY-DIAG-001 adds an additive operational diagnostic envelope over
+existing answer statuses and KnowledgeQueryErrorCode values. Diagnostics are
+never Layer-B/C truth and never authority.
 """
 
 from __future__ import annotations
@@ -47,6 +51,24 @@ class KnowledgeQueryErrorCode(StrEnum):
     UNSUPPORTED_KIND = "unsupported_kind"
     INVALID_INPUT = "invalid_input"
     STATE_RACE = "state_race"
+
+
+class QueryOutcomeClass(StrEnum):
+    """AS-QUERY-DIAG-001 operational outcome classes (never Layer-B/C truth)."""
+
+    ANSWER = "answer"
+    NONANSWER = "nonanswer"
+    INTEGRITY_FAILURE = "integrity_failure"
+    REQUEST_INVALID = "request_invalid"
+
+
+class QueryShape(StrEnum):
+    """Query request shape recorded on the diagnostic envelope."""
+
+    POINT = "point"
+    MULTIFIELD = "multifield"
+    LIST = "list"
+    UNKNOWN = "unknown"
 
 
 class ClaimProjection(BaseModel):
@@ -177,4 +199,51 @@ class KnowledgeMultiFieldAnswer(BaseModel):
                 raise ValueError(
                     "item compilation_id must match envelope (AS-CORE-008-INV-004)"
                 )
+        return self
+
+
+class QueryDiagnostic(BaseModel):
+    """AS-QUERY-DIAG-001 structured query outcome diagnostic (operational only).
+
+    Never invents authoritative ``value``. Nonanswer ≠ integrity_failure.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    schema_version: Literal[1] = 1
+    package: Literal["AS-QUERY-DIAG-001"] = "AS-QUERY-DIAG-001"
+    outcome_class: QueryOutcomeClass
+    query_shape: QueryShape = QueryShape.UNKNOWN
+    # project_id / subject are diagnostic metadata only; may be absent on
+    # early request_invalid paths (do not re-validate claim subject here).
+    project_id: str | None = None
+    subject: str | None = None
+    field: str | None = None
+    fields: tuple[str, ...] | None = None
+    kind: QueryKind | None = None
+    compilation_id: str | None = None
+    error_code: KnowledgeQueryErrorCode | None = None
+    message: str | None = None
+    answer_status: AnswerStatus | None = None
+    item_outcome_classes: tuple[QueryOutcomeClass, ...] = ()
+    inspected_artifacts: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _diagnostic_invariants(self) -> QueryDiagnostic:
+        # AS-QUERY-DIAG-001-INV-003 — integrity/request failures never invent answer value.
+        if self.outcome_class is QueryOutcomeClass.ANSWER and self.error_code is not None:
+            raise ValueError("answer outcome_class forbids error_code (AS-QUERY-DIAG-001)")
+        if (
+            self.outcome_class is QueryOutcomeClass.NONANSWER
+            and self.error_code is not None
+        ):
+            raise ValueError("nonanswer outcome_class forbids error_code (AS-QUERY-DIAG-001)")
+        if (
+            self.fields is not None
+            and self.item_outcome_classes
+            and len(self.fields) != len(self.item_outcome_classes)
+        ):
+            raise ValueError(
+                "item_outcome_classes must align with fields (AS-QUERY-DIAG-001-FR-005)"
+            )
         return self

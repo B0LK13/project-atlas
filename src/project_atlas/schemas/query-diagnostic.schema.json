@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/query-diagnostic.schema.json",
+  "title": "QueryDiagnostic",
+  "description": "AS-QUERY-DIAG-001 structured query outcome diagnostic (operational metadata only)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package",
+    "outcome_class",
+    "query_shape",
+    "item_outcome_classes",
+    "inspected_artifacts"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package": { "const": "AS-QUERY-DIAG-001" },
+    "outcome_class": {
+      "type": "string",
+      "enum": ["answer", "nonanswer", "integrity_failure", "request_invalid"]
+    },
+    "query_shape": {
+      "type": "string",
+      "enum": ["point", "multifield", "list", "unknown"]
+    },
+    "project_id": { "type": ["string", "null"] },
+    "subject": { "type": ["string", "null"] },
+    "field": { "type": ["string", "null"] },
+    "fields": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "kind": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "enum": ["authoritative", "temporal", "explain"] }
+      ]
+    },
+    "compilation_id": { "type": ["string", "null"] },
+    "error_code": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": [
+            "state_missing",
+            "state_corrupt",
+            "compilation_mismatch",
+            "provenance_mismatch",
+            "value_mismatch",
+            "unsupported_kind",
+            "invalid_input",
+            "state_race"
+          ]
+        }
+      ]
+    },
+    "message": { "type": ["string", "null"] },
+    "answer_status": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": [
+            "ok",
+            "not_found",
+            "authority-pending",
+            "authority-conflict",
+            "unresolved",
+            "temporal_state_missing"
+          ]
+        }
+      ]
+    },
+    "item_outcome_classes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["answer", "nonanswer", "integrity_failure", "request_invalid"]
+      }
+    },
+    "inspected_artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
