@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/xproj-index-document.schema.json",
+  "title": "XPROJ Global Index Document",
+  "description": "AS-XPROJ-004 derived global index bucket. Not AS-RET-001 lexical indexes (generated/indexes/). CROSS-PROJECT INDEX ≠ AUTOMATIC AUTHORITY.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "bucket",
+    "entry_count",
+    "entries",
+    "content_fingerprint",
+    "authority",
+    "status",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-XPROJ-004" },
+    "bucket": {
+      "type": "string",
+      "enum": [
+        "projects",
+        "technologies",
+        "components",
+        "services",
+        "agents",
+        "skills",
+        "work-packages",
+        "decisions",
+        "risks",
+        "relationships"
+      ]
+    },
+    "entry_count": { "type": "integer", "minimum": 0 },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "content_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "built" },
+    "truth_boundary": {
+      "type": "string",
+      "const": "CROSS-PROJECT INDEX ≠ AUTOMATIC AUTHORITY"
+    }
+  }
+}
