@@ -3979,3 +3979,26 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 **MERGE AUTHORIZED: STANDING AUTH AFTER CERTIFY**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — IV-READY**  
 **Orphan evidence:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-002-BAND-B-*.md`
+## AS-VAL-001 — H-006 freshness + H-007 orphan validators
+
+**Date:** 2026-08-09
+**Branch:** feat/as-val-001-freshness-orphan
+**Worktree:** D:\atlas-worktrees\as-val-001-freshness-orphan
+**Base (post Band B #32):** 3e199d1
+**Gate:** READY WITH CONSTRAINTS — sole-writer lock issued
+
+### Scope
+- Additive H-006 / H-007 checks in validation.py only
+- Injected reference_now; objective timestamps; no trust scores
+- Orphan detect report-only; fail-closed on corrupt/unknown/laundering
+- Package tests + guide; no knowledge_compiler / backup / cli / schema touches
+
+### Gates
+- Focused test_as_val_001_*: PASS
+- ruff / mypy owned: PASS
+- ADV: AS-VAL-001-ADV-REPORT.md
+
+**PRODUCTION CODE MODIFIED: YES** (validation.py)
+**TESTS MODIFIED: YES** (owned test_as_val_001_* only)
+**MERGE AUTHORIZED: STANDING AUTH AFTER CERTIFY**
+**DISPOSITION: IMPLEMENTATION COMPLETE — IV-READY**

@@ -1,4 +1,10 @@
-"""Strict structural and provenance validation for the Core slice."""
+"""Strict structural and provenance validation for the Core slice.
+
+AS-VAL-001 (H-006 / H-007): additive freshness and orphan checks. Freshness
+uses objective timestamps only (ADR-005 pattern); orphan detection is
+report-only by default (VAL-INV-002). Corrupt freshness metadata fails
+closed — never silently normalized to fresh/stale.
+"""
 
 from __future__ import annotations
 
@@ -10,17 +16,44 @@ from typing import Any
 
 import yaml
 
+from project_atlas.domain import Severity, ValidationFinding, ValidationGate
 from project_atlas.domain.authority_semantics import AuthoritativeStateRecord
 from project_atlas.domain.temporal import CurrentStateRecord
-from project_atlas.portfolio import build_portfolio_payloads
+from project_atlas.portfolio import DEFAULT_STALE_DAYS, build_portfolio_payloads
 from project_atlas.schema import SchemaValidationError, validate_record
 from project_atlas.source_identity import canonical_source_sha256
 
 LINK = re.compile(r"\]\(([^)]+)\)")
 
+# Vault-relative entry points that seed orphan reachability (H-007).
+_ORPHAN_SEED_PATHS = (
+    "index.md",
+    "projects/index.md",
+    "sources/index.md",
+    "01-portfolio/index.md",
+)
+_ORPHAN_LAYER_ROOTS = frozenset({"projects", "01-portfolio"})
+_ORPHAN_EXCLUDED_ROOTS = frozenset(
+    {"sources", "00-system", "templates", "state", "review", "receipts", "generated"}
+)
 
-def validate(vault: Path) -> dict[str, Any]:
+
+def validate(
+    vault: Path,
+    *,
+    reference_now: datetime | None = None,
+    stale_after_days: int = DEFAULT_STALE_DAYS,
+) -> dict[str, Any]:
+    """Validate vault structure, provenance, freshness (H-006), and orphans (H-007).
+
+    ``reference_now`` is injected once by the caller (CLI or tests). Wall-clock
+    values never appear in deterministic finding payloads (NFR-001 / VAL-FR-002).
+    """
     errors: list[str] = []
+    findings: list[dict[str, Any]] = []
+    now = reference_now if reference_now is not None else datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
     for required in ("index.md", "projects/index.md", "sources/index.md", "01-portfolio/index.md"):
         if not (vault / required).is_file():
             errors.append(f"missing required generated file: {required}")
@@ -51,7 +84,21 @@ def validate(vault: Path) -> dict[str, Any]:
     _validate_portfolio(vault, errors)
     _validate_graph_acceptance(vault, errors)
     _validate_graph_resolution(vault, errors)
-    return {"ok": not errors, "errors": errors, "markdown_files": len(list(vault.rglob("*.md")))}
+    _validate_freshness(
+        vault,
+        errors,
+        findings,
+        reference_now=now,
+        stale_after_days=stale_after_days,
+    )
+    _validate_orphans(vault, errors, findings)
+    findings.sort(key=lambda item: (item["rule_id"], item["finding_id"], item.get("path") or ""))
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "findings": findings,
+        "markdown_files": len(list(vault.rglob("*.md"))),
+    }
 
 
 def _validate_graph_acceptance(vault: Path, errors: list[str]) -> None:
@@ -567,3 +614,367 @@ def _validate_provenance(
 def _sha256(path: Path) -> str:
     """Return the same canonical source hash used during discovery."""
     return canonical_source_sha256(path)
+
+
+def _finding(
+    *,
+    finding_id: str,
+    rule_id: str,
+    severity: Severity,
+    gate: ValidationGate,
+    message: str,
+    path: str | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic ValidationFinding payload (metadata only)."""
+    return ValidationFinding(
+        finding_id=finding_id,
+        rule_id=rule_id,
+        severity=severity,
+        gate=gate,
+        message=message,
+        path=path,
+    ).model_dump(mode="json")
+
+
+def _stable_finding_id(*parts: str) -> str:
+    """Build an ID_PATTERN-safe deterministic finding id."""
+    cleaned: list[str] = []
+    for part in parts:
+        token = re.sub(r"[^A-Za-z0-9._-]+", ".", part).strip(".-_")
+        cleaned.append(token or "x")
+    return ".".join(cleaned)
+
+
+def _parse_freshness_timestamp(value: Any) -> tuple[datetime | None, str | None]:
+    """Parse objective freshness timestamps.
+
+    Returns ``(datetime, None)`` on success, ``(None, "missing")`` when absent,
+    or ``(None, "corrupt")`` when present but unparseable. Corrupt values are
+    never coerced to fresh/stale (fail-closed; no silent normalization).
+    """
+    if value is None or value == "":
+        return None, "missing"
+    if not isinstance(value, str):
+        return None, "corrupt"
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None, "corrupt"
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed, None
+
+
+def _manifest_sources(vault: Path) -> list[dict[str, Any]]:
+    path = vault / "sources" / "manifests" / "source-manifest.json"
+    if not path.is_file():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return []
+    if not isinstance(raw, dict):
+        return []
+    return [item for item in raw.get("sources", []) if isinstance(item, dict)]
+
+
+def _portfolio_freshness_by_source(vault: Path) -> dict[str, str] | None:
+    """Return on-disk portfolio freshness labels keyed by source_id, or None."""
+    path = vault / "generated" / "portfolio" / "stale-knowledge.json"
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    labels: dict[str, str] = {}
+    projects = raw.get("projects", {})
+    if not isinstance(projects, dict):
+        return None
+    for project_payload in projects.values():
+        if not isinstance(project_payload, dict):
+            continue
+        for item in project_payload.get("sources", []):
+            if not isinstance(item, dict):
+                continue
+            source_id = item.get("source_id")
+            freshness = item.get("freshness")
+            if isinstance(source_id, str) and isinstance(freshness, str):
+                labels[source_id] = freshness
+    return labels
+
+
+def _validate_freshness(
+    vault: Path,
+    errors: list[str],
+    findings: list[dict[str, Any]],
+    *,
+    reference_now: datetime,
+    stale_after_days: int,
+) -> None:
+    """H-006: objective freshness checks (ADR-005 pattern).
+
+    Fail-closed on unknown/corrupt timestamps and on portfolio laundering
+    (marked fresh while objectively stale). Honestly reported stale findings
+    are emitted as warnings so existing portfolio-aware vaults stay consistent
+    without silent skip of the freshness gate.
+    """
+    if stale_after_days < 1:
+        errors.append("freshness threshold must be a positive integer day count")
+        return
+    sources = _manifest_sources(vault)
+    if not sources:
+        return
+    portfolio_labels = _portfolio_freshness_by_source(vault)
+    for entry in sorted(sources, key=lambda item: str(item.get("source_id", ""))):
+        source_id = entry.get("source_id")
+        if not isinstance(source_id, str) or not source_id:
+            continue
+        rel_path = str(entry.get("path", ""))
+        # Never echo raw secret-bearing content; path/id metadata only (NFR-004).
+        modified_raw = entry.get("modified_at")
+        modified_at, status = _parse_freshness_timestamp(modified_raw)
+        if status == "corrupt":
+            finding = _finding(
+                finding_id=_stable_finding_id("H-006-corrupt", source_id),
+                rule_id="H-006-corrupt",
+                severity=Severity.ERROR,
+                gate=ValidationGate.FRESHNESS,
+                message=(
+                    "corrupt modified_at for source "
+                    f"{source_id}: refuse silent normalization"
+                ),
+                path=rel_path or None,
+            )
+            findings.append(finding)
+            errors.append(finding["message"])
+            continue
+        if status == "missing" or modified_at is None:
+            finding = _finding(
+                finding_id=_stable_finding_id("H-006-unknown", source_id),
+                rule_id="H-006-unknown",
+                severity=Severity.ERROR,
+                gate=ValidationGate.FRESHNESS,
+                message=(
+                    f"freshness unknown for source {source_id}: "
+                    "missing modified_at (never assumed fresh/stale)"
+                ),
+                path=rel_path or None,
+            )
+            findings.append(finding)
+            errors.append(finding["message"])
+            continue
+        age_days = (reference_now - modified_at).days
+        freshness = "stale" if age_days >= stale_after_days else "fresh"
+        if freshness == "fresh":
+            continue
+        finding = _finding(
+            finding_id=_stable_finding_id("H-006-stale", source_id),
+            rule_id="H-006-stale",
+            severity=Severity.WARNING,
+            gate=ValidationGate.FRESHNESS,
+            message=(
+                f"source {source_id} is stale under threshold "
+                f"{stale_after_days}d (objective age_days={age_days})"
+            ),
+            path=rel_path or None,
+        )
+        findings.append(finding)
+        if portfolio_labels is not None:
+            reported = portfolio_labels.get(source_id)
+            if reported == "fresh":
+                launder = _finding(
+                    finding_id=_stable_finding_id("H-006-launder", source_id),
+                    rule_id="H-006-launder",
+                    severity=Severity.ERROR,
+                    gate=ValidationGate.FRESHNESS,
+                    message=(
+                        f"freshness laundering: source {source_id} marked fresh "
+                        "in portfolio but objectively stale"
+                    ),
+                    path=rel_path or None,
+                )
+                findings.append(launder)
+                errors.append(launder["message"])
+            elif reported is None:
+                silent = _finding(
+                    finding_id=_stable_finding_id("H-006-silent", source_id),
+                    rule_id="H-006-silent",
+                    severity=Severity.ERROR,
+                    gate=ValidationGate.FRESHNESS,
+                    message=(
+                        f"stale source {source_id} missing from portfolio "
+                        "stale-knowledge report"
+                    ),
+                    path=rel_path or None,
+                )
+                findings.append(silent)
+                errors.append(silent["message"])
+
+
+def _posix_rel(path: Path, vault: Path) -> str:
+    return path.relative_to(vault).as_posix()
+
+
+def _resolve_md_link(owner: Path, target: str, vault: Path) -> Path | None:
+    if target.startswith(("http://", "https://", "#")):
+        return None
+    bare = target.split("#", 1)[0]
+    if not bare:
+        return None
+    candidate = (owner.parent / bare).resolve()
+    try:
+        candidate.relative_to(vault.resolve())
+    except ValueError:
+        return None
+    if candidate.is_file() and candidate.suffix.lower() == ".md":
+        return candidate
+    return None
+
+
+def _orphan_candidates(vault: Path) -> list[Path]:
+    candidates: list[Path] = []
+    for root_name in sorted(_ORPHAN_LAYER_ROOTS):
+        root = vault / root_name
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*.md")):
+            if ".tmp" in path.parts:
+                continue
+            rel = _posix_rel(path, vault)
+            if rel in _ORPHAN_SEED_PATHS:
+                continue
+            # Index hubs under layer roots are navigation seeds, not orphans.
+            if path.name == "index.md":
+                continue
+            candidates.append(path)
+    return candidates
+
+
+def _collect_reachable_notes(vault: Path) -> set[str]:
+    """BFS from indexes + generated navigation; fail closed on vault escape."""
+    vault_resolved = vault.resolve()
+    reachable: set[str] = set()
+    queue: list[Path] = []
+    for rel in _ORPHAN_SEED_PATHS:
+        seed = vault / rel
+        if seed.is_file():
+            queue.append(seed)
+            reachable.add(rel)
+    nav_root = vault / "generated" / "navigation"
+    if nav_root.is_dir():
+        for path in sorted(nav_root.rglob("*.md")):
+            queue.append(path)
+            reachable.add(_posix_rel(path, vault))
+    seen: set[str] = set(reachable)
+    while queue:
+        current = queue.pop(0)
+        try:
+            text = current.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            continue
+        for target in LINK.findall(text):
+            resolved = _resolve_md_link(current, target, vault)
+            if resolved is None:
+                # Escaping targets are already reported by the link validator.
+                continue
+            try:
+                resolved.relative_to(vault_resolved)
+            except ValueError:
+                continue
+            rel = _posix_rel(resolved, vault)
+            if rel in seen:
+                continue
+            top = Path(rel).parts[0] if rel else ""
+            # Layer A / system / templates are not Layer B/C orphan targets;
+            # following links into generated/navigation remains allowed.
+            if top in _ORPHAN_EXCLUDED_ROOTS and top != "generated":
+                continue
+            seen.add(rel)
+            reachable.add(rel)
+            queue.append(resolved)
+    return reachable
+
+
+def _bundle_members_of_reachable_projects(vault: Path, reachable: set[str]) -> set[str]:
+    """Project-bundle members of a reachable project.md are not orphans.
+
+    Prevents false orphans on protected/generated siblings (concepts.md,
+    claims.md, …) that are part of a reachable project hub (ADV: false orphan
+    on protected human regions / bundle mates).
+    """
+    members: set[str] = set()
+    for rel in reachable:
+        parts = Path(rel).parts
+        if len(parts) >= 3 and parts[0] == "projects" and parts[-1] == "project.md":
+            project_dir = vault / "projects" / parts[1]
+            if not project_dir.is_dir():
+                continue
+            for path in sorted(project_dir.glob("*.md")):
+                members.add(_posix_rel(path, vault))
+    return members
+
+
+def _index_member_paths(vault: Path) -> set[str]:
+    """Paths referenced from lexical concept indexes (membership, not delete)."""
+    members: set[str] = set()
+    for path in _json_files(vault, "state", "concepts"):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        for concept in raw.get("concepts", []):
+            if not isinstance(concept, dict):
+                continue
+            resource = concept.get("resource")
+            if isinstance(resource, str) and resource.endswith(".md"):
+                members.add(resource.replace("\\", "/"))
+    return members
+
+
+def _validate_orphans(
+    vault: Path,
+    errors: list[str],
+    findings: list[dict[str, Any]],
+) -> None:
+    """H-007: detect unreachable Layer B/C notes (report-only; VAL-INV-002)."""
+    candidates = _orphan_candidates(vault)
+    if not candidates:
+        return
+    reachable = _collect_reachable_notes(vault)
+    bundle_members = _bundle_members_of_reachable_projects(vault, reachable)
+    index_members = _index_member_paths(vault)
+    covered = reachable | bundle_members | index_members
+    for path in candidates:
+        rel = _posix_rel(path, vault)
+        # Path safety: every candidate must remain inside the vault root.
+        try:
+            path.resolve().relative_to(vault.resolve())
+        except ValueError:
+            message = f"orphan scan path escapes vault: {rel}"
+            finding = _finding(
+                finding_id=_stable_finding_id("H-007-escape", rel),
+                rule_id="H-007-escape",
+                severity=Severity.ERROR,
+                gate=ValidationGate.STRUCTURAL,
+                message=message,
+                path=rel,
+            )
+            findings.append(finding)
+            errors.append(message)
+            continue
+        if rel in covered:
+            continue
+        finding = _finding(
+            finding_id=_stable_finding_id("H-007-orphan", rel),
+            rule_id="H-007-orphan",
+            severity=Severity.WARNING,
+            gate=ValidationGate.STRUCTURAL,
+            message=f"orphan note (no inbound link / index membership): {rel}",
+            path=rel,
+        )
+        findings.append(finding)
+        # Report-only: do not append to errors (VAL-INV-002).
+
