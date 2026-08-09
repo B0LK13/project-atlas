@@ -76,8 +76,8 @@
 - [x] H-003 Link validator
 - [x] H-004 Provenance validator
 - [x] H-005 Lifecycle validator
-- [ ] H-006 Freshness validator
-- [ ] H-007 Orphan validator
+- [x] H-006 Freshness validator
+- [x] H-007 Orphan validator
 - [x] H-008 Secret scanner
 - [x] H-009 Coverage validator
 - [ ] H-010 Severity exit codes
