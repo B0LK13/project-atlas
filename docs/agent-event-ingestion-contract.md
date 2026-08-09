@@ -88,6 +88,7 @@ Cross-project identity, Control Plane inbox production changes, semantic
 ConceptRecord construction, content secret scanning, and Graph Layer behavior
 remain separate work packages.
 
-Integration follow-up items cover skill-policy rotation/revocation, raw-package
-retention, removed-package state, receipt revocation, schema migration and the
-bounded multi-project pilot.
+Integration follow-up items cover skill-policy rotation/revocation,
+removed-package state, receipt revocation, schema migration and the
+bounded multi-project pilot. Raw-package and receipt retention is defined
+by AS-INT-009 (`docs/AS-INT-009-retention-policy.md`).

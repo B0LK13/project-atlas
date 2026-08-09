@@ -4428,3 +4428,23 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-WEB-002-*.md
+
+## AS-INT-009 - Raw package and receipt retention policy
+
+**Date:** 2026-08-09
+**Branch:** feat/as-int-009-retention-policy
+**Worktree:** D:\atlas-worktrees\as-int-009-retention
+**Base tip / TREE:** edb190ede5633d2e3030d8ce35fc30c0403fc4ec / 5c3ca6c079c7560f61d70fbb61fd1a1545762cd3
+**Directive:** D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001
+
+### Scope
+- NEW `event_retention.py` count/size caps for sources/agent-events + receipts/agent-events
+- Schemas event-retention-policy / event-retention-report; CLI `atlas retention apply`
+- Thin ingest hook `maybe_apply_after_ingest` (policy-file gated)
+- Never Layer B deletes; no CORE2-009 dual-own; no INT-010 tombstones
+
+### Gates
+- Local ruff/mypy/pytest (governor takeover)
+- Auto-merge: FORBIDDEN
+- DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-009-*.md

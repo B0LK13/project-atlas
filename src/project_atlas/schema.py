@@ -87,6 +87,9 @@ SCHEMA_FILES: dict[str, str] = {
     "backup-receipt": "backup-receipt.schema.json",
     # AS-INCR-COMPILE-001 tip-safe compile-cache receipt (not authority/GRAPH/XPROJ)
     "compile-cache-receipt": "compile-cache-receipt.schema.json",
+    # AS-INT-009 — raw package / receipt retention (operational; not authority / not INT-010)
+    "event-retention-policy": "event-retention-policy.schema.json",
+    "event-retention-report": "event-retention-report.schema.json",
 }
 
 

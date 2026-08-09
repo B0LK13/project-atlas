@@ -34,6 +34,8 @@ def test_all_expected_schemas_available() -> None:
         "concept-record",
         "conflict-record",
         "diagnostic",
+        "event-retention-policy",
+        "event-retention-report",
         "explain-graph-sidecar",
         "explain-receipt",
         "graph-acceptance-receipt",
