@@ -4271,6 +4271,7 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-E-006-*.md
+<<<<<<< Updated upstream
 
 ## AS-CORE-OPS-001 — Hash-before-replace / promote write accounting
 
@@ -4295,3 +4296,32 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE-OPS-001-*.md
+||||||| Stash base
+=======
+
+## AS-D-006 — Parser registry
+
+**Date:** 2026-08-09
+**Branch:** feat/as-d-006-parser-registry
+**Worktree:** D:\atlas-worktrees\as-d-006-parser-registry
+**Base tip / TREE:** 5dae17223032d64a7e496cc882694bb9393807a2 / 033e4d9759f7e179ad250e5ebffafd8356e7a74c
+**Gate:** READY WITH CONSTRAINTS — AS-D-006-ENTRY-GATE.md
+**Contract:** AS-D-006-PACKAGE-CONTRACT.md (FROZEN)
+**Overlap:** SAFE WITH EXCLUSIONS (AS-D-006-SURFACE-OVERLAP.md + dual-lane vs CORE-OPS-001)
+**Wake / Lock / Directive:** AS-D-006-WAKE.md · AS-D-006-SOLE-WRITER-LOCK.md · AS-D-006-IMPL-DIRECTIVE.md
+
+### Scope
+- NEW `src/project_atlas/parser_registry.py` — static ParserSelection/parser_id → callable map
+- Fail-closed unknown id; NO dynamic plugin load; preserve §7.3 exclusivity
+- Refactor `evidence_compiler.extract_source` dispatch through registry (behavior-preserving)
+- Minimal `classification.ParserSelection` export via `__all__`
+- Focused tests `test_as_d_006_*`; flip backlog D-006
+- DO NOT edit `ingestion.py` (CORE-OPS-001); NO CORE2-009; NO REL-001; NO PILOT/SURF; NO trust scores
+
+### Gates
+- (pending local ruff/mypy/pytest)
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-D-006-*.md
+>>>>>>> Stashed changes

@@ -23,7 +23,7 @@ knowledge compiler derive identities unchanged.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from project_atlas.claim_identity import extract_claims
 from project_atlas.classification import ClassificationRecord, classify_source
@@ -46,6 +46,7 @@ from project_atlas.evidence_profiles import (
     assess_receipt,
     classify_root_key,
 )
+from project_atlas.parser_registry import bind_static_parsers, get_parser
 from project_atlas.status_dimensions import refine_status_dimension
 from project_atlas.subject_derivation import derive_semantic_subject
 from project_atlas.verify_profile import parse_verify_document
@@ -759,29 +760,82 @@ def _unsupported(
     )
 
 
+def _parse_evidence_yaml(
+    project: str,
+    entry: dict[str, Any],
+    classification: ClassificationRecord,
+) -> SourceExtraction:
+    """AS-D-006 adapter: evidence-yaml → receipt extract (§7.3 exclusivity)."""
+    path = str(entry.get("path", ""))
+    text = str(entry.get("text", ""))
+    source_id = str(entry.get("source_id") or "")
+    return _extract_receipt(
+        project, path, text, classification, source_id=source_id
+    )
+
+
+def _parse_verify_profile(
+    project: str,
+    entry: dict[str, Any],
+    classification: ClassificationRecord,
+) -> SourceExtraction:
+    """AS-D-006 adapter: verify-profile → VERIFY extract (§7.3 exclusivity)."""
+    path = str(entry.get("path", ""))
+    text = str(entry.get("text", ""))
+    source_id = str(entry.get("source_id") or "")
+    return _extract_verify(
+        project, path, text, classification, source_id=source_id
+    )
+
+
+def _parse_unsupported(
+    _project: str,
+    entry: dict[str, Any],
+    classification: ClassificationRecord,
+) -> SourceExtraction:
+    """AS-D-006 adapter: none → unsupported (§7.3 exclusivity)."""
+    path = str(entry.get("path", ""))
+    return _unsupported(path, classification)
+
+
+def _parse_kv_lines(
+    project: str,
+    entry: dict[str, Any],
+    classification: ClassificationRecord,
+) -> SourceExtraction:
+    """AS-D-006 adapter: kv/adr/manifest line extract (§7.3 exclusivity)."""
+    path = str(entry.get("path", ""))
+    text = str(entry.get("text", ""))
+    return _extract_lines(project, path, text, entry, classification)
+
+
+# Static §7.3 table — one exclusive callable per ParserSelection (AS-D-006).
+# No plugin discovery: bind_static_parsers rejects any other id set.
+bind_static_parsers(
+    {
+        "evidence-yaml": _parse_evidence_yaml,
+        "verify-profile": _parse_verify_profile,
+        "none": _parse_unsupported,
+        "project-manifest": _parse_kv_lines,
+        "adr": _parse_kv_lines,
+        "kv-markdown": _parse_kv_lines,
+    }
+)
+
+
 def extract_source(project: str, entry: dict[str, Any]) -> SourceExtraction:
     """Compile one source entry in isolation (§7.8: zero whole-batch abort).
 
     Any unexpected parser error is converted into a FAILED candidate with a
     PARSER_FAILURE diagnostic so one bad source can never prevent extraction
-    from independent good sources.
+    from independent good sources. Parser resolution goes through the static
+    AS-D-006 registry (NFR-006 / §7.3); unknown ids fail closed.
     """
     path = str(entry.get("path", ""))
-    text = str(entry.get("text", ""))
-    source_id = str(entry.get("source_id") or "")
-    classification = classify_source(path, text)
+    classification = classify_source(path, str(entry.get("text", "")))
     try:
-        if classification.parser_id == "evidence-yaml":
-            return _extract_receipt(
-                project, path, text, classification, source_id=source_id
-            )
-        if classification.parser_id == "verify-profile":
-            return _extract_verify(
-                project, path, text, classification, source_id=source_id
-            )
-        if classification.parser_id == "none":
-            return _unsupported(path, classification)
-        return _extract_lines(project, path, text, entry, classification)
+        parser = get_parser(classification.parser_id)
+        return cast(SourceExtraction, parser(project, entry, classification))
     except Exception as exc:  # deliberate failure-isolation boundary (§7.8)
         reason = f"unhandled parser error: {type(exc).__name__}: {exc}"
         return SourceExtraction(

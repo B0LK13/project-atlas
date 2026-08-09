@@ -34,10 +34,19 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from project_atlas.domain.sources import SourceRecord
 
+__all__ = [
+    "ClassificationConfidence",
+    "ClassificationRecord",
+    "ParserSelection",
+    "apply_classification_method",
+    "classify_source",
+]
+
 #: Deterministic confidence that the fired rule identified the source.
 ClassificationConfidence = Literal["high", "medium", "low"]
 
-#: Static parser-dispatch surface (§7.3). ``none`` means unsupported.
+#: Static parser-dispatch surface (§7.3 / AS-D-006). ``none`` means unsupported.
+#: Consumed by ``project_atlas.parser_registry``; do not invent plugin ids here.
 ParserSelection = Literal[
     "project-manifest", "evidence-yaml", "adr", "verify-profile", "kv-markdown", "none"
 ]

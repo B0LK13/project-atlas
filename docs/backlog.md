@@ -38,7 +38,7 @@
 - [x] D-003 Plain-text parser
 - [x] D-004 Heading extraction
 - [x] D-005 Link extraction
-- [ ] D-006 Parser registry
+- [x] D-006 Parser registry
 - [x] D-007 Malformed input tests
 
 ## Epic E — Classification
