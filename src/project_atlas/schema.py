@@ -102,6 +102,8 @@ SCHEMA_FILES: dict[str, str] = {
     "adv-release-cert-report": "adv-release-cert-report.schema.json",
     # AS-SYNC-001-SCAFFOLD — dry-run workspace registry (≠ production SYNC-001 / PILOT)
     "workspace-registry-dry-run": "workspace-registry-dry-run.schema.json",
+    # AS-SYNC-002-SCAFFOLD — dry-run sync plan (≠ production SYNC-002 / PILOT)
+    "sync-plan-dry-run": "sync-plan-dry-run.schema.json",
     # AS-J-005 — derived impact graph projection (Graph≠authority; consume GRAPH-003)
     "impact-graph": "impact-graph.schema.json",
 }
