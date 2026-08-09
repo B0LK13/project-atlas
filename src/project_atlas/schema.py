@@ -56,6 +56,11 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-GRAPH-003 - Canonical derived relationships (not authority; not CP relationships/)
     "graph-relationship": "graph-relationship.schema.json",
     "graph-relationship-quarantine": "graph-relationship-quarantine.schema.json",
+    # AS-GRAPH-004 - Durable quarantine / health / incremental (derived; never authority)
+    "graph-quarantine-record": "graph-quarantine-record.schema.json",
+    "graph-quarantine-receipt": "graph-quarantine-receipt.schema.json",
+    "graph-health-snapshot": "graph-health-snapshot.schema.json",
+    "graph-incremental-state": "graph-incremental-state.schema.json",
     # AS-XPROJ-001 - Global entity identity registry (derived; not automatic authority)
     "xproj-global-entity": "xproj-global-entity.schema.json",
     "xproj-join-key": "xproj-join-key.schema.json",

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-incremental-state.schema.json",
+  "title": "Graph Incremental State",
+  "description": "AS-GRAPH-004 incremental hash/state for deterministic quarantine/health refresh. No wall-clock timestamps. Content-hash driven idempotency only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "project_id",
+    "authority",
+    "input_content_hash",
+    "quarantine_store_hash",
+    "health_hash",
+    "quarantine_ids",
+    "refreshed",
+    "removed_artifact_retention",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-004" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "input_content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "quarantine_store_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "health_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "quarantine_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "refreshed": { "type": "boolean" },
+    "removed_artifact_retention": {
+      "type": "string",
+      "const": "deferred-explicit"
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH QUARANTINE ≠ AUTOMATIC AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-graph-004" }
+      }
+    }
+  }
+}
