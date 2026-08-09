@@ -4904,3 +4904,21 @@ RELEASE / PILOT / WEB ACCEPTED remain **NO**.
 - Refreshed the docs-only prep pin to `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59` / tree `fa404c270c1659d4c48739440a43087a4226b939`; not release certification.
 - Deepened contract FR/INV review, package rejection boundaries, fixture oracle inventory, and threat residuals; added one explicitly non-production review prototype.
 - No source, apps, production schema, fixture payload, or executable harness changes. All freeze rows remain NO and `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+||||||| parent of 58c96b4 (feat(sync-004): estate receipt and trigger dry-run scaffold)
+||||||| parent of 2dedaaa (feat(sync-004): estate receipt and trigger dry-run scaffold)
+## LANE Y tip-pin refresh (post #86/#87)
+
+Updated WEB accept tip pins to `989c0f8039b1a958f5e4bf40ec2e02cc99a48b63` / TREE `aeebf06bd896426edf517e47c97d4ee105a1fc89`.
+WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
+
+
+## AS-SYNC-004-SCAFFOLD - Estate-receipt / trigger stubs
+
+**Date:** 2026-08-09
+**Branch:** feat/as-sync-004-receipts
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+- Added a deterministic library projection from explicit AS-SYNC-003 dry-run queues to inert estate-receipt and disabled trigger stubs.
+- Added a schema-locked `generated/ops/` writer with symlink-escape and `00-system/sync/` refusal.
+- Added focused determinism, fail-closed, certification-flag, schema, and path-safety tests.
+- Production SYNC certified: NO. Estate PILOT passed: NO.
