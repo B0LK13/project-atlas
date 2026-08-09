@@ -3921,33 +3921,61 @@ Additive `tests/unit/test_as_accept_002_*.py` + helpers. Band B AX-GRF deferred.
 - ruff / mypy owned surfaces: PASS
 
 **DISPOSITION: REMEDIATION COMPLETE — RE-IV REQUIRED (do not reuse denied tip)**
-
 ## AS-BACKUP-001 — Verified Atlas Snapshot
 
 **Directive:** STREAM H autonomous sole-writer (READY WITH CONSTRAINTS / fixture-only)
-**Contract:** `gen4-parallel-wave-007/AS-BACKUP-001-CONTRACT.md`
-**Entry gate:** `gen4-next-wave-parallel-001/AS-BACKUP-001-ENTRY-GATE.md`
-**Base (open):** `38b8eac` / tree `070e951b`
-**Base (commit):** `c3608ed` (rebased after GRAPH-003 merge) / tree `559c3c21`
-**Branch:** `feat/as-backup-001-verified-snapshot`
-**Worktree:** `D:\atlas-worktrees\as-backup-001-verified-snapshot`
+**Contract:** gen4-parallel-wave-007/AS-BACKUP-001-CONTRACT.md
+**Entry gate:** gen4-next-wave-parallel-001/AS-BACKUP-001-ENTRY-GATE.md
+**Base (open):** 38b8eac / tree  70e951b
+**Base (commit):** c3608ed (rebased after GRAPH-003 merge) / tree 559c3c21
+**Branch:** eat/as-backup-001-verified-snapshot
+**Worktree:** D:\atlas-worktrees\as-backup-001-verified-snapshot
 
 ### What changed
-- `project_atlas.backup`: verified cold bundle create/verify/restore/compare
+- project_atlas.backup: verified cold bundle create/verify/restore/compare
 - Schemas: backup-manifest / backup-meta / backup-receipt
-- CLI: `atlas snapshot` / `atlas restore` (additive)
+- CLI: tlas snapshot / tlas restore (additive)
 - Fixture drill: CREATE→SNAPSHOT→CORRUPT→RESTORE→VALIDATE→COMPARE
-- Package guide: `docs/AS-BACKUP-001-verified-snapshot.md`
+- Package guide: docs/AS-BACKUP-001-verified-snapshot.md
 
 ### Gates
 - ruff (owned): PASS
 - mypy (owned): PASS
 - Focused backup tests: **11 passed**
 - Live DR: **NONE** (forbidden)
-- Orphan evidence: `gen4-next-wave-parallel-001/AS-BACKUP-001-*.md`
+- Orphan evidence: gen4-next-wave-parallel-001/AS-BACKUP-001-*.md
 
 **PRODUCTION CODE MODIFIED: YES (owned backup/cli/schema only)**
-**TESTS MODIFIED: YES (`tests/unit/test_as_backup_001_verified_snapshot.py` only)**
+**TESTS MODIFIED: YES (	ests/unit/test_as_backup_001_verified_snapshot.py only)**
 **BACKLOG MODIFIED: NO (soft orphan evidence preferred)**
 **MERGE AUTHORIZED: NO**
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
+
+## AS-ACCEPT-002 Band B — Post-graph AX-GRF regression harness
+
+**Directive:** D-PROJECT-ATLAS-AUTONOMOUS-TO-COMPLETION-001 STREAM I  
+**Entry gate:** READY WITH CONSTRAINTS (AS-ACCEPT-002-BAND-B-ENTRY-GATE.md)  
+**Base tip / tree:** cf7d71ae195711f0bd3bea65b5d908a883ee77a2 / d7216011e7b4d598e824489d68f437818dd828c7 (rebased post-BACKUP)  
+**Branch:** eat/as-accept-002-band-b-ax-grf  
+**Worktree:** D:\atlas-worktrees\as-accept-002-band-b
+
+### Plan
+Tests-only AX-GRF-001/002/007/008 on public Graph resolve contracts. Do not reopen Band A. Do not mutate `src/`. Disjoint from VAL-001 / 001C / BACKUP. AX-AUTH-005 remains CORE-007.
+
+### Commands / gates
+- Sole-writer lock recorded pre-mutation
+- Focused Band B: **4 passed**
+- Band A ACCEPT-002 suite (co-run): **11 passed** (untouched)
+- `ruff` owned Band B test: PASS
+- `mypy src`: PASS
+- `src/` diff: empty
+
+### Results
+Additive `tests/unit/test_as_accept_002_graph.py` only.
+
+**PRODUCTION CODE MODIFIED: NO**  
+**TESTS MODIFIED: YES (Band B additive only)**  
+**BAND A: UNTOUCHED / CLOSED**  
+**MERGE AUTHORIZED: STANDING AUTH AFTER CERTIFY**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — IV-READY**  
+**Orphan evidence:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-002-BAND-B-*.md`
