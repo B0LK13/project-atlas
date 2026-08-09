@@ -4620,6 +4620,18 @@ Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
 
 ## AS-ADV-RELEASE-001
 Fixture recovery/determinism/perf certification (atlas adv certify). release_certified always false.
+||||||| parent of 5d0dd5a (docs(atlas-2.0): deepen-d IMPLEMENTATION-READY gate and PROTOTYPE charter)
+
+## AS-WEB-ACCEPT-003
+Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
+
+## AS-WEB-ACCEPT-003
+Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
+
+||||||| parent of 04c25cc (docs(atlas-2.0): deepen-d IMPLEMENTATION-READY gate and PROTOTYPE charter)
+
+## Atlas 2.0 deepen-d
+IMPLEMENTATION-READY-GATE + PROTOTYPE charter/vision/PRD. READY=NO.
 
 
 ## AS-SYNC-001-SCAFFOLD

@@ -69,6 +69,12 @@ Draft FR IDs for planning traceability only — **not** certified requirements.
 | FR-2.0-COMPAT-003 | Migration tooling produces reversible audit trail | INT-012 (open) |
 | NFR-2.0-COMPAT-001 | No production impl until `ATLAS_1_0_RELEASE_CERTIFIED` | release gate |
 
+## Prep deepen (2026-08-09d)
+
+- `IMPLEMENTATION-READY-GATE.md` — §101 checklist (READY=NO)
+- CHARTER / VISION / PRD rewritten as PROTOTYPE / PREP (not stubs-only)
+- Firewall unchanged: no 2.0 production semantics
+
 ## Prep deepen (2026-08-09)
 
 Added COMPATIBILITY.md, FIXTURE-PLAN.md, OPEN-QUESTIONS.md — still PREP ONLY.

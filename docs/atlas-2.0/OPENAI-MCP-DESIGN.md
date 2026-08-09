@@ -1,6 +1,7 @@
-# Atlas 2.0 — OpenAI / MCP design notes (prep)
+# Atlas 2.0 — OpenAI / MCP design notes (**PROTOTYPE / PREP**)
 
 Status: **PREP ONLY** — `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Marker: **PROTOTYPE** — not production wiring.
 
 Design sketches for optional provider adapters (AS-2.0-PROV-001) and MCP tool
 surfaces. No production semantics; no runtime wiring in Track B.
