@@ -3877,3 +3877,20 @@ Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 s
 **MERGE AUTHORIZED: NO**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
 
+## AS-CORE-MODEL-001B — IV remediation (F1/F2 HIGH)
+
+**Prior IV:** NOT CERTIFIED @ `2de6c97` / `ab26b397`  
+**Branch:** `feat/as-core-model-001b-capability` (sole-writer)
+
+### Fixes
+- **F1:** Marker `concept_type: Capability` is no longer blanket-stamped onto every entry; Capability emission requires explicit `capabilities:` list or per-entry declaring-source `concept_type`.
+- **F2:** Capability `id` / `title` / `provides` scanned via `scan_text`; secret-bearing values fail closed before context/compiler propagation.
+- **F3:** Marker-declared Capability provenance cites marker entry only (not all imported documents).
+- **F5:** Backlog CORE2-007 wording aligned (001B COMPLETE pending re-IV/merge).
+
+### Gates
+- Focused 001B + 001A + F1/F2 ADV probes: PASS
+- ruff / mypy owned surfaces: PASS
+
+**DISPOSITION: REMEDIATION COMPLETE — RE-IV REQUIRED (do not reuse denied tip)**
+

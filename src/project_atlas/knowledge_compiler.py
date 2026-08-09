@@ -488,6 +488,22 @@ def _capability_title_from_path(path: str) -> str:
     return stem or "capability"
 
 
+def _reject_secret_capability_text(label: str, value: str) -> None:
+    """AS-CORE-MODEL-001B / NFR-004: capability display strings must be secret-free."""
+    if scan_text(value):
+        raise ValueError(f"secret-bearing capability {label} rejected")
+
+
+def _marker_source_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return project-marker entries for Capability provenance (F3)."""
+    results: list[dict[str, Any]] = []
+    for entry in entries:
+        name = Path(str(entry.get("path") or "").replace("\\", "/")).name
+        if name in {".atlas-project.yaml", ".atlas-project.yml"}:
+            results.append(entry)
+    return results
+
+
 def _normalize_capability_declarations(
     project: str,
     entries: list[dict[str, Any]],
@@ -496,6 +512,10 @@ def _normalize_capability_declarations(
 
     Collision of two different titles into one slug (without distinct ids)
     fails closed. Duplicate identical canonical keys collapse deterministically.
+
+    Marker ``concept_type: Capability`` must not invent Capabilities from every
+    stamped entry — only the ``capabilities:`` list and per-entry source
+    ``concept_type: Capability`` (true declaring source) emit.
     """
     # Marker ``capabilities:`` is stamped onto every project entry; read once.
     marker_caps: list[Any] | None = None
@@ -503,6 +523,7 @@ def _normalize_capability_declarations(
         if "capabilities" in entry:
             marker_caps = entry.get("capabilities")
             break
+    marker_sources = _marker_source_entries(entries)
     declarations: list[dict[str, Any]] = []
     if marker_caps is not None:
         if not isinstance(marker_caps, list):
@@ -542,6 +563,11 @@ def _normalize_capability_declarations(
                     f"project marker capabilities[{index}] requires title or id "
                     f"for project {project!r}"
                 )
+            _reject_secret_capability_text(f"capabilities[{index}].title", title)
+            if explicit_id is not None:
+                _reject_secret_capability_text(
+                    f"capabilities[{index}].id", explicit_id
+                )
             # Unknown sibling keys ignored (schema-tolerant).
             provides = item.get("provides")
             if provides is not None and (
@@ -551,13 +577,21 @@ def _normalize_capability_declarations(
                     f"project marker capabilities[{index}].provides must be a "
                     f"non-empty string for project {project!r}"
                 )
+            provides_value = (
+                provides.strip() if isinstance(provides, str) else None
+            )
+            if provides_value is not None:
+                _reject_secret_capability_text(
+                    f"capabilities[{index}].provides", provides_value
+                )
             declarations.append(
                 {
                     "key": explicit_id or _slug(title),
                     "title": title,
                     "explicit_id": explicit_id is not None,
-                    "provides": provides.strip() if isinstance(provides, str) else None,
-                    "sources": [],
+                    "provides": provides_value,
+                    # Cite marker evidence only — not every imported document (F3).
+                    "sources": list(marker_sources),
                 }
             )
 
@@ -565,10 +599,12 @@ def _normalize_capability_declarations(
         if entry.get("concept_type") != ConceptType.CAPABILITY.value:
             continue
         # Quarantined / secret-bearing sources never reach compile entries.
+        # Per-entry concept_type only (true declaring source) — not marker stamp.
         path = str(entry.get("path") or "")
         title = str(entry.get("capability_title") or "").strip() or _capability_title_from_path(
             path
         )
+        _reject_secret_capability_text("concept_type title", title)
         declarations.append(
             {
                 "key": _slug(title),
@@ -622,16 +658,11 @@ def _capability_concepts(
     declarations = _normalize_capability_declarations(project, entries)
     if not declarations:
         return []
-    default_sources = [_provenance(project, entry) for entry in entries]
     results: list[ConceptRecord] = []
     for decl in declarations:
         concept_id = capability_concept_id(project, str(decl["key"]))
-        source_entries = decl.get("sources") or []
-        sources = (
-            [_provenance(project, entry) for entry in source_entries]
-            if source_entries
-            else default_sources
-        )
+        source_entries = list(decl.get("sources") or [])
+        sources = [_provenance(project, entry) for entry in source_entries]
         relationships: list[Relationship] = []
         provides = decl.get("provides")
         if isinstance(provides, str) and provides:

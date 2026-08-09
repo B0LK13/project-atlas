@@ -183,3 +183,49 @@ def test_concept_type_capability_does_not_hijack_singleton() -> None:
     caps = _capability_concepts("demo", [], entries)
     assert len(caps) == 1
     assert caps[0].type is ConceptType.CAPABILITY
+
+
+def test_marker_capability_title_with_secret_fails_closed() -> None:
+    """F2 / NFR-004: AKIA-like capability titles must not become concepts."""
+    entries = [
+        _entry(
+            path=".atlas-project.yaml",
+            capabilities=[
+                {"id": "search", "title": "AKIAIOSFODNN7EXAMPLE"},
+            ],
+        )
+    ]
+    with pytest.raises(ValueError, match="secret-bearing capability"):
+        _normalize_capability_declarations("demo", entries)
+
+
+def test_concept_type_title_with_secret_fails_closed() -> None:
+    entries = [
+        _entry(
+            path="docs/AKIAIOSFODNN7EXAMPLE.md",
+            concept_type="Capability",
+        )
+    ]
+    with pytest.raises(ValueError, match="secret-bearing capability"):
+        _normalize_capability_declarations("demo", entries)
+
+
+def test_marker_capability_provenance_cites_marker_only() -> None:
+    """F3: marker-declared caps cite marker evidence, not every document."""
+    entries = [
+        _entry(
+            source_id="marker",
+            path=".atlas-project.yaml",
+            classification="project-marker",
+            capabilities=[{"id": "search", "title": "Search"}],
+        ),
+        _entry(
+            source_id="readme",
+            path="README.md",
+            capabilities=[{"id": "search", "title": "Search"}],
+        ),
+    ]
+    caps = _capability_concepts("demo", [], entries)
+    assert len(caps) == 1
+    assert len(caps[0].sources) == 1
+    assert caps[0].sources[0].source_id == "marker"
