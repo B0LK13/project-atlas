@@ -4861,3 +4861,14 @@ WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
 Continuous security fixture deepen: path-refuse + PEM/AKIA metadata-only gates.
 RELEASE / PILOT / WEB ACCEPTED remain **NO**.
 
+||||||| parent of 54ad668 (docs(web): add governor evidence pack (ACCEPTED=NO))
+
+## AS-WEB-ACCEPT-005 - Governor evidence pack
+
+**Date:** 2026-08-09
+**Branch:** feat/as-web-accept-005-gov-evidence
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+- Added pinned, reproducible automated evidence for criteria 1-9, 12, and 13.
+- Added regression guards that keep governor item 10 open and unsigned.
+- WEB APPLICATION ACCEPTED remains **NO**; governor decision remains **PENDING**.

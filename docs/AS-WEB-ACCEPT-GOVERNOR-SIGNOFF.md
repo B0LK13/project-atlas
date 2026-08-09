@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Package | AS-WEB-ACCEPT-004 tip-pin refresh |
-| Tip pin (automated evidence) | `989c0f8039b1a958f5e4bf40ec2e02cc99a48b63` / TREE `aeebf06bd896426edf517e47c97d4ee105a1fc89` (refresh after merge) |
+| Package | AS-WEB-ACCEPT-005 governor evidence pack |
+| Tip pin (automated evidence) | `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59f` / TREE `fa404c270c1659d4c48739440a43087a4226b939` |
 | **WEB APPLICATION ACCEPTED** | **NO** |
 | Governor decision | **PENDING** |
 
