@@ -3699,6 +3699,8 @@ byte-stable for merged snapshot/report.
 - Focused: 18 passed (`test_as_obs_001_health_snapshot` + `test_schema`)
 - Full Core: PASS (1 skipped)
 - Query path firewall: PASS
+- HEAD: `c7a59f8e1413aa5454450f5693454104ccdb885a`
+- TREE: `f3e987deab862dc1a240a49dc1cb9eb59b308eb3`
 - Orphans: `gen4-next-wave-parallel-001/AS-OBS-001-IMPLEMENTATION-EVIDENCE.md`
 
 **PRODUCTION CODE MODIFIED: YES** (`ops_health`, schema, CLI ops health only)  
