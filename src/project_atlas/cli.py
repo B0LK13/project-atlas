@@ -16,6 +16,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from project_atlas import __version__
+from project_atlas.adv_release_cert import (
+    AdvReleaseCertError,
+    run_fixture_adv_release_certification,
+)
 from project_atlas.backup import (
     BackupError,
     create_snapshot,
@@ -793,6 +797,37 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the certification report JSON to stdout.",
     )
+
+    # AS-ADV-RELEASE-001 — fixture recovery / determinism / perf (≠ RELEASE CERTIFIED).
+    adv_parser = subparsers.add_parser(
+        "adv",
+        help=(
+            "Run fixture-safe advanced release certification "
+            "(AS-ADV-RELEASE-001; never stamps RELEASE CERTIFIED)."
+        ),
+    )
+    adv_sub = adv_parser.add_subparsers(dest="adv_command", required=True)
+    adv_certify = adv_sub.add_parser(
+        "certify",
+        help="Execute recovery/determinism/perf fixture matrix and write ops report.",
+    )
+    adv_certify.add_argument(
+        "--work-root",
+        type=Path,
+        required=True,
+        help="Scratch directory for synthetic sources/vaults (fixture-safe).",
+    )
+    adv_certify.add_argument(
+        "--report-vault",
+        type=Path,
+        default=None,
+        help="Optional vault that receives generated/ops/adv-release-cert-report.json.",
+    )
+    adv_certify.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the certification report JSON to stdout.",
+    )
     return parser
 
 
@@ -1468,6 +1503,38 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK if report["status"] == "certified" else EXIT_ERROR
         parser.error(  # pragma: no cover
             f"unknown lifecycle command: {args.lifecycle_command}"
+        )
+
+    if args.command == "adv":
+        if args.adv_command == "certify":
+            try:
+                report = run_fixture_adv_release_certification(
+                    args.work_root,
+                    report_vault=args.report_vault,
+                )
+            except (AdvReleaseCertError, OSError, ValueError, TypeError) as exc:
+                _log.error("adv certify failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"status: {report['status']}")
+                print(f"passed: {report['counts']['passed']}")
+                print(f"failed: {report['counts']['failed']}")
+                print("release_certified: false")
+                print("estate_pilot_passed: false")
+                print("web_application_accepted: false")
+                if args.report_vault is not None:
+                    report_path = (
+                        args.report_vault
+                        / "generated"
+                        / "ops"
+                        / "adv-release-cert-report.json"
+                    )
+                    print(f"report: {report_path}")
+            return EXIT_OK if report["status"] == "certified" else EXIT_ERROR
+        parser.error(  # pragma: no cover
+            f"unknown adv command: {args.adv_command}"
         )
 
     if args.command == "snapshot":
