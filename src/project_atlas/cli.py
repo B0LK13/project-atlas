@@ -23,7 +23,7 @@ from project_atlas.backup import (
 )
 from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
-from project_atlas.domain.knowledge_query import QueryShape
+from project_atlas.domain.knowledge_query import KnowledgeQueryErrorCode, QueryShape
 from project_atlas.graph_acceptance import (
     GraphAcceptanceError,
     accept_graphify_artifacts,
@@ -48,6 +48,7 @@ from project_atlas.knowledge_query import (
     answer_to_json,
     diagnostic_to_json,
     list_authoritative,
+    list_temporal,
     query_diagnostic_from_error,
     query_knowledge,
     query_knowledge_fields,
@@ -288,7 +289,10 @@ def build_parser() -> argparse.ArgumentParser:
     query_parser.add_argument(
         "--list",
         action="store_true",
-        help="List authoritative-state records for the project (kind=authoritative).",
+        help=(
+            "List kind-scoped records for the project "
+            "(--kind authoritative|temporal; AS-QUERY-001)."
+        ),
     )
     query_parser.add_argument(
         "--format",
@@ -653,11 +657,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if field_args or fields_csv:
                     _log.error("query --list cannot be combined with --field/--fields")
                     return EXIT_ERROR
-                if args.kind != "authoritative":
-                    _log.error("query --list requires --kind authoritative")
-                    return EXIT_ERROR
                 diag_shape = QueryShape.LIST
-                answers = list_authoritative(args.vault, args.project)
+                if args.kind == "authoritative":
+                    answers = list_authoritative(args.vault, args.project)
+                elif args.kind == "temporal":
+                    answers = list_temporal(args.vault, args.project)
+                else:
+                    # AS-QUERY-001: unsupported list kind → fail-closed diagnostic
+                    raise KnowledgeQueryError(
+                        KnowledgeQueryErrorCode.UNSUPPORTED_KIND,
+                        f"query --list does not support --kind {args.kind!r}",
+                    )
                 print(answer_to_json(answers), end="")
                 return EXIT_OK
             if field_args and fields_csv:

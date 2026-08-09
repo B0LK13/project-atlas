@@ -341,6 +341,40 @@ def list_authoritative(vault: Path, project_id: str) -> list[KnowledgeAnswer]:
     )
 
 
+def list_temporal(vault: Path, project_id: str) -> list[KnowledgeAnswer]:
+    """List temporal current-state records for a project (AS-QUERY-001 / Q1-FR-001).
+
+    Enumerates persisted current-state subject+field pairs only. Does not invent
+    temporal tips or elevate list rows to authority winners (Q1-INV-005).
+    """
+    if not project_id or not project_id.strip():
+        raise KnowledgeQueryError(
+            KnowledgeQueryErrorCode.INVALID_INPUT, "project_id is required"
+        )
+    root = _resolve_vault(vault)
+    snapshot = _load_snapshot(root, project_id)
+    if snapshot.current_path is None:
+        raise KnowledgeQueryError(
+            KnowledgeQueryErrorCode.STATE_MISSING,
+            f"missing current-state for project {project_id}",
+        )
+    records = sorted(
+        snapshot.current_by_key.values(),
+        key=lambda item: (item.subject, item.field, item.current_claim_id or ""),
+    )
+    answers = [
+        _answer_temporal(snapshot, record.subject, record.field) for record in records
+    ]
+    return sorted(
+        answers,
+        key=lambda item: (
+            item.subject or "",
+            item.field or "",
+            item.temporal_current_claim_id or "",
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Snapshot loading (read-only)
 # ---------------------------------------------------------------------------
