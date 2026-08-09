@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/ops-event.schema.json",
+  "title": "Operational Event (OPS-EVT-*)",
+  "description": "AS-OBS-002 append-only operational event envelope. truth_plane=operational; authority_plane=none. Never project authority, temporal truth, or claim evidence. NFR-004: payload is metadata/codes/refs only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "event_id",
+    "sequence",
+    "event_uid",
+    "severity",
+    "payload",
+    "evidence_refs",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.ops.event.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": { "const": "OPERATIONAL EVENT ≠ PROJECT AUTHORITY" },
+    "event_id": {
+      "type": "string",
+      "pattern": "^OPS-EVT-[A-Z0-9-]+$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "event_uid": {
+      "type": "string",
+      "minLength": 8,
+      "pattern": "^[a-f0-9]{16,64}$"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

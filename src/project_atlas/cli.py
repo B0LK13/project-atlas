@@ -55,6 +55,12 @@ from project_atlas.knowledge_query import (
 )
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.migrations.claim_v2_migration import migrate_v2
+from project_atlas.ops_events import (
+    OpsEventError,
+    apply_retention,
+    read_events,
+    record_health_transition,
+)
 from project_atlas.ops_health import (
     OpsHealthError,
     emit_health_snapshot,
@@ -320,10 +326,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Report what would be created without writing anything.",
     )
 
-    # AS-OBS-001 - operational health snapshot (ops plane only; query paths untouched).
+    # AS-OBS-001 / AS-OBS-002 - operational observability (ops plane only).
     ops_parser = subparsers.add_parser(
         "ops",
-        help="Operational observability commands (AS-OBS-001; health != authority).",
+        help=(
+            "Operational observability commands "
+            "(AS-OBS-001 health / AS-OBS-002 events; health != authority)."
+        ),
     )
     ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)
     health_parser = ops_sub.add_parser(
@@ -349,6 +358,40 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-write",
         action="store_true",
         help="Collect/normalize only; do not persist generated/ops/health-snapshot.json.",
+    )
+    # AS-OBS-002 — append-only OPS-EVT-* stream (thin additive CLI).
+    events_parser = ops_sub.add_parser(
+        "events",
+        help=(
+            "Read or update the append-only operational event stream under "
+            "generated/ops/events/ (AS-OBS-002; events != authority)."
+        ),
+    )
+    events_parser.add_argument("--vault", type=Path, required=True)
+    events_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print events JSON array to stdout.",
+    )
+    events_parser.add_argument(
+        "--record-health-transitions",
+        action="store_true",
+        help=(
+            "Diff OBS-001 health snapshot vs stored prior and append "
+            "OPS-EVT-HEALTH-TRANSITION only when health changes "
+            "(no fabricated bootstrap events)."
+        ),
+    )
+    events_parser.add_argument(
+        "--retain",
+        action="store_true",
+        help="Apply count-based retention to the event stream.",
+    )
+    events_parser.add_argument(
+        "--max-events",
+        type=int,
+        default=10_000,
+        help="Retention cap (newest N events; default 10000).",
     )
 
     # AS-XPROJ-001 - global entity registry (derived; explicit registration only).
@@ -834,6 +877,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"signals: {len(snapshot['signals'])}")
                 print(
                     f"snapshot: {args.vault / 'generated' / 'ops' / 'health-snapshot.json'}"
+                )
+            return EXIT_OK
+        if args.ops_command == "events":
+            try:
+                if args.record_health_transitions:
+                    record_health_transition(args.vault)
+                if args.retain:
+                    apply_retention(args.vault, max_events=args.max_events)
+                events = read_events(args.vault)
+            except (OpsEventError, OSError, ValueError, TypeError) as exc:
+                _log.error("ops events failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(
+                    json.dumps(events, indent=2, sort_keys=True, ensure_ascii=False)
+                    + "\n",
+                    end="",
+                )
+            else:
+                print(f"events: {len(events)}")
+                print(
+                    f"stream: {args.vault / 'generated' / 'ops' / 'events' / 'stream.jsonl'}"
                 )
             return EXIT_OK
         parser.error(f"unknown ops command: {args.ops_command}")  # pragma: no cover
