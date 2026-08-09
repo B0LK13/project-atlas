@@ -4167,3 +4167,32 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-OBS-002-*.md
+
+## AS-OBS-003 — Ops-report projection (tip-safe)
+
+**Date:** 2026-08-09
+**Branch:** feat/as-obs-003-ops-report
+**Worktree:** D:\atlas-worktrees\as-obs-003-ops-report
+**Base tip / TREE:** 2f00d29 / d364cb3d (post AS-OBS-002 #45 MERGED — POST-MERGE VERIFIED)
+**Gate:** READY WITH CONSTRAINTS — AS-OBS-003-ENTRY-GATE.md (OBS-002 serialize LIFTED)
+**Wake:** AS-OBS-003-WAKE.md FIRED
+**Sole-writer:** AS-OBS-003-SOLE-WRITER-LOCK.md
+
+### Scope
+- New project_atlas.ops_report: regenerable JSON/Markdown ops-report from OBS-001 snapshot
+- Optional read-only consume of OBS-002 events (no fabricate; no dual-own writers)
+- Schema ops-report; schema.py companion only (OBS-001/002/INCR keys untouched)
+- Vault emit under generated/ops/ops-report.* (+ optional archive) only
+- Thin CLI `atlas ops report` (additive under ops)
+- Focused tests test_as_obs_003_* + ADV; docs AS-OBS-003-*
+- truth_plane=operational / authority_plane=none; HEALTH ≠ TRUTH
+- NO monitoring; NO SURF UI; NO event-enriched band; AS-REL-001 MUST NOT OPEN
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused test_as_obs_003_* FR+ADV: 19 passed
+- Focused FR+ADV+schema golden: 27 passed
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-OBS-003-*.md

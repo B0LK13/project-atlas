@@ -54,6 +54,7 @@ def test_all_expected_schemas_available() -> None:
         "ops-event",
         "ops-event-stream",
         "ops-health-snapshot",
+        "ops-report",
         "parser-output",
         "provenance-reference",
         "query-diagnostic",
