@@ -4795,3 +4795,57 @@ Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
 - RELEASE CERTIFIED: NO
 - ESTATE PILOT PASSED: NO
 - WEB APPLICATION ACCEPTED: NO
+||||||| parent of a99d5d7 (feat(adv-release-003): perf budget smoke + stable-plane digests (RELEASE=NO))
+||||||| Stash base
+||||||| Stash base
+
+## AS-ADV-RELEASE-002 — Clean-clone RC hardening deepen
+
+**Date:** 2026-08-09
+**Branch:** feat/as-adv-release-002-deepen
+**Worktree:** D:\atlas-worktrees\as-adv-release-002-deepen
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+### Scope
+- Matrix case `clean_clone_replay` in `adv_release_cert.py` + schema enum
+- docs/AS-ADV-RELEASE-002-clean-clone.md (RC hardening; no RELEASE claim)
+- Unit tests for clean-clone + matrix inclusion; soft WORKLOG only
+
+### Explicit non-claims
+- RELEASE CERTIFIED: NO
+- ESTATE PILOT PASSED: NO
+- WEB APPLICATION ACCEPTED: NO
+
+## AS-ADV-RELEASE-002
+Clean-clone / RC hardening deepen. release_certified remains false.
+
+||||||| Stash base
+
+## AS-ADV-RELEASE-002 — Clean-clone RC hardening deepen
+
+**Date:** 2026-08-09
+**Branch:** feat/as-adv-release-002-deepen
+**Worktree:** D:\atlas-worktrees\as-adv-release-002-deepen
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+### Scope
+- Matrix case `clean_clone_replay` in `adv_release_cert.py` + schema enum
+- docs/AS-ADV-RELEASE-002-clean-clone.md (RC hardening; no RELEASE claim)
+- Unit tests for clean-clone + matrix inclusion; soft WORKLOG only
+
+### Explicit non-claims
+- RELEASE CERTIFIED: NO
+- ESTATE PILOT PASSED: NO
+- WEB APPLICATION ACCEPTED: NO
+
+## AS-ADV-RELEASE-002
+Clean-clone / RC hardening deepen. release_certified remains false.
+
+## AS-ADV-RELEASE-003 - Performance/determinism deepen
+
+**Date:** 2026-08-09
+**Branch:** feat/as-adv-release-003-perf
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+- Added deterministic fixture file/byte/operation budgets and stable-plane digest summaries.
+- Fixture evidence only: RELEASE CERTIFIED remains NO.
