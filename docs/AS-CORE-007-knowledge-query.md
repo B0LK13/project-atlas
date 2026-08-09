@@ -23,6 +23,7 @@ immutable claims
   → AS-CORE-006 authority evaluation
   → derived authoritative state
   → AS-CORE-007 knowledge query (read-only consumer)
+  → AS-QUERY-DIAG-001 outcome diagnostics (additive; see docs/AS-QUERY-DIAG-001-query-outcome-diagnostics.md)
 ```
 
 ## Distinction from AS-RET-001

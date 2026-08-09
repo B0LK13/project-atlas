@@ -29,7 +29,10 @@ from project_atlas.domain.knowledge_query import (
     KnowledgeAnswer,
     KnowledgeMultiFieldAnswer,
     KnowledgeQueryErrorCode,
+    QueryDiagnostic,
     QueryKind,
+    QueryOutcomeClass,
+    QueryShape,
 )
 from project_atlas.domain.parser_output import (
     AmbiguityStatus,
@@ -143,7 +146,10 @@ __all__ = [
     "PathHistoryEntry",
     "ProjectRecord",
     "ProvenanceReference",
+    "QueryDiagnostic",
     "QueryKind",
+    "QueryOutcomeClass",
+    "QueryShape",
     "RelationType",
     "Relationship",
     "RepositoryInfo",

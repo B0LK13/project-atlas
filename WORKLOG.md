@@ -3681,3 +3681,171 @@ byte-stable for merged snapshot/report.
 **DISPOSITION: REINTEGRATION COMPLETE — GOVERNOR REVIEW REQUIRED (base b72aa0c)**  
 **Do not merge / self-certify. Do not start AS-CORE-009.**
 
+
+## AS-ACCEPT-001 — Wave-A P0 acceptance / adversarial hardening
+
+**Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001` (SOLE WRITER AUTHORIZED)  
+**Contract:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-001-CONTRACT.md`  
+**Base tip:** `9f656ab29a2f1da95389ed213746b2e9b1a80565` / tree `20882c5526522eaf8467cd9b1819cef496282385`  
+**Branch:** `feat/as-accept-001-wave-a`  
+**Worktree:** `D:\atlas-worktrees\as-accept-001`  
+**Scope:** Wave-A only (16 P0 AX-* cases) — tests/fixtures only  
+
+### SURFACE-OVERLAP GATE
+`NO OVERLAP / SAFE` vs knowledge_compiler (exercise-only), Graph certified, Model-001A/001B, QUERY-DIAG owned paths, OBS owned paths.  
+Receipt: `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-001-SURFACE-OVERLAP.md`
+
+### Case → test map (Wave-A)
+| Case ID | Test node |
+|---|---|
+| AX-TMP-002 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_002_late_observation_does_not_flip_tip` |
+| AX-TMP-003 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_003_equal_timestamp_incompatible_values_unresolved` |
+| AX-TMP-006 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_006_staging_partial_does_not_replace_canonical_tip` |
+| AX-TMP-010 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_010_historical_genesis_not_resurrected_by_authority` |
+| AX-AUTH-003 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_003_malformed_amends_field_never_cross_field_launders` |
+| AX-AUTH-004 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_004_cross_domain_title_does_not_force_package_status` |
+| AX-AUTH-005 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_005_forged_trust_root_fail_closed_or_regenerate` |
+| AX-AUTH-009 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_009_equal_genesis_conflict_no_lexical_tiebreak` |
+| AX-QRY-001 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_001_multifield_single_snapshot_no_mixed_compilation` |
+| AX-QRY-002 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_002_cross_project_request_invalid` |
+| AX-QRY-004 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_004_ret_kind_confusion_rejected` |
+| AX-QRY-008 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_008_multifield_envelope_has_no_request_level_value` |
+| AX-CMP-003 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_003_graph_resolved_path_not_claim_evidence` |
+| AX-CMP-004 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_004_no_auth_record_when_rule_skipped` |
+| AX-CMP-009 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_009_quarantined_source_yields_zero_claims` |
+| AX-CMP-010 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_010_project_id_path_escape_rejected_before_promote` |
+
+### BLOCKED_CASE
+- **AX-AUTH-005 consume** (partial): query currently echoes forged `trust_root` / `registry_version` without fail-closed. Regenerated compile path asserts correct trust root (green). Marked `pytest.xfail` with owner-visible receipt. Owning package for consume gap: **AS-CORE-007** (optionally validate hardening under AS-CORE-006). **No product mutation under ACCEPT-001.**
+
+### Gates
+- Focused Wave-A: **15 passed, 1 xfailed** (AUTH-005 consume)
+- Replay ×2: identical exit 0
+- Full Core pytest: exit 0 (see evidence)
+- ruff check .: PASS
+- mypy src: PASS
+- Diff: **tests (+ WORKLOG) only** — zero `src/` product mutation
+
+### Receipts
+- Graph ADV not reopened
+- Model ADV not reopened
+- Frozen GRAPH-002 / MODEL-001A SHAs not amended
+- Merge: **NONE**
+
+**PRODUCTION CODE MODIFIED: NO**  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
+## AS-OBS-001 — Operational Health Snapshot
+
+**Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`  
+**Contract:** `gen4-parallel-wave-007/AS-OBS-001-CONTRACT.md`  
+**Branch:** `feat/as-obs-001-health-snapshot`  
+**Worktree:** `D:\atlas-worktrees\as-obs-001`  
+**Base:** `9f656ab29a2f1da95389ed213746b2e9b1a80565` / tree `20882c5526522eaf8467cd9b1819cef496282385`  
+**Mode:** collect → normalize → expose; Unknown ≠ healthy; health ≠ authority  
+**CLI:** `atlas ops health` (additive on Gen-4; QUERY-DIAG **not** absorbed; query paths byte-identical to base)  
+**SERIALIZE:** `cli.py` held until QUERY-DIAG COMPLETE @ `5b24cb9`, then released for OBS-only wiring
+
+### Gates
+- SURFACE-OVERLAP: NO vs ACCEPT / KC / Graph / Model-001A/B; SERIALIZE vs QUERY-DIAG (released)
+- ruff / mypy: PASS
+- Focused: 18 passed (`test_as_obs_001_health_snapshot` + `test_schema`)
+- Full Core: PASS (1 skipped)
+- Query path firewall: PASS
+- HEAD: `c7a59f8e1413aa5454450f5693454104ccdb885a`
+- TREE: `f3e987deab862dc1a240a49dc1cb9eb59b308eb3`
+- Orphans: `gen4-next-wave-parallel-001/AS-OBS-001-IMPLEMENTATION-EVIDENCE.md`
+
+**PRODUCTION CODE MODIFIED: YES** (`ops_health`, schema, CLI ops health only)  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
+
+## AS-OBS-001 — FR-002 remediation (OPS-SIG-005/006)
+
+**Directive:** Governor remediation (`AS-OBS-001-GOVERNOR-REPORT.md` / agent `80f0e3c6`)  
+**Blocker:** OBS-001-FR-002 fabricated `ok` on absent promotion/quarantine evidence  
+**Branch / WT:** `feat/as-obs-001-health-snapshot` / `D:\atlas-worktrees\as-obs-001`  
+**Prior tip:** `b2ca9112c398708525d0cef98d78017fef61a941`  
+**Remediation HEAD:** `cba074a65c4257c5842f2a4a73f2c10ad966b832`  
+**Remediation TREE:** `f90300dfb44dde2022802cd4f1aa9ff14df4fa04`  
+**Tip HEAD:** `fb13172ff1bb119452550fdd476078433db6af58`  
+**Tip TREE:** `1b969a1baad355f5f9d32a39e411b0e890c72905`
+
+### Fix
+- Absent `quarantine/promotion-failures/index.json` → `OPS-SIG-005` = `unknown`
+- No readable quarantine evidence surfaces → `OPS-SIG-006` = `unknown`
+- Present empty indexes still `ok`/0 with non-empty `evidence_refs`
+- Tests assert absent ≠ ok; present-empty = ok
+
+### Gates
+- ruff / mypy: PASS
+- Focused: 20 passed
+- knowledge_compiler / Graph / Model / QUERY-DIAG: untouched this hop
+
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
+
+## AS-QUERY-DIAG-001 — Structured Query Outcome Diagnostics
+
+**Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001` (sole writer)
+**Base tip / tree:** `9f656ab29a2f1da95389ed213746b2e9b1a80565` / `20882c5526522eaf8467cd9b1819cef496282385`
+**Branch:** `feat/as-query-diag-001`
+**Worktree:** `D:\atlas-worktrees\as-query-diag-001`
+**Contract:** orphans `gen4-next-wave-parallel-001/AS-QUERY-DIAG-001-CONTRACT.md`
+
+### Plan
+Additive diagnostic envelope only. Preserve AS-CORE-007/008 success JSON. CLI emits diagnostic stdout on `KnowledgeQueryError` (exit 1). No `knowledge_compiler` / Graph / MODEL / RET. OBS holds `cli.py` until this closeout; soft-serialize `domain/__init__.py` exports.
+
+### Commands / gates
+- Overlap precheck + matrix: OVERLAP NO; CLI priority DIAG vs OBS
+- `pytest` DIAG+007+008 `--no-cov`: **61 passed**
+- `ruff` / `mypy` owned surfaces: PASS
+- Forbidden surfaces: untouched
+
+### Results
+Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 suite green; success-path parity retained.
+
+**PRODUCTION CODE MODIFIED: YES (owned query/cli/domain/schema only)**
+**TESTS MODIFIED: YES (`tests/unit/test_as_query_diag_001.py` only)**
+**BACKLOG MODIFIED: YES (QDIAG-001..006)**
+**MERGE AUTHORIZED: NO**
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+**Orphan evidence:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-QUERY-DIAG-001-IMPLEMENTATION-EVIDENCE.md`
+
+
+## AS-CORE-MODEL-001A — Deterministic project-concept maturity fill
+
+**Directive:** D-PROJECT-ATLAS-GEN4-PARALLEL-WAVE-007 Lane B  
+**Contract:** `convergence-parallel-005/AS-CORE-MODEL-001A.md` (Rules A–D; `AS-CORE-MODEL-001A@wave5`)  
+**Base:** Gen-4 tip `9f656ab29a2f1da95389ed213746b2e9b1a80565` / tree `20882c5526522eaf8467cd9b1819cef496282385`  
+**Branch:** `feat/as-core-model-001a-maturity`  
+**Worktree:** `D:\atlas-worktrees\as-core-model-001a`  
+**Overlap gate:** **NO OVERLAP** vs AS-GRAPH-002 — `gen4-parallel-wave-007/AS-CORE-MODEL-001A-SURFACE-OVERLAP-GATE.md`
+
+### What changed
+- `knowledge_compiler.derive_project_maturity` + `_concept` fills singleton `ConceptRecord.maturity`
+- `ingestion._project_context` surfaces marker `maturity` (fail-closed on invalid)
+- Golden `maturity-matrix.json`: nebula=beta, black-agency-os=prototype, dark-factory=unknown
+- Unit Rules A–D + integration pilot differentiation / replay / no-Capability invention
+- Backlog CORE-MODEL-001 / CORE2-007 marked **partial** (maturity only; 001B/001C open)
+
+### Gates
+- ruff: PASS
+- mypy src: PASS (62 files)
+- Focused maturity: 12 passed
+- Full Core: **654 passed, 1 skipped** (655 collected)
+- Control Plane: unchanged (out of package)
+- Orphan evidence: `D:\project-atlas-orphans\atlas-tech-debt\AS-CORE-MODEL-001A-IMPLEMENTATION-EVIDENCE.md`
+
+**PRODUCTION CODE MODIFIED: YES**  
+**TESTS MODIFIED: YES**  
+**BACKLOG MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**AS-CORE-009: NOT OPENED**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+

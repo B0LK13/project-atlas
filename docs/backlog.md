@@ -140,9 +140,10 @@ independent verification passes and the branch is merged to `main`._
 - [ ] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
   `ProvenanceReference` into formal project projections and richer validated
   project frontmatter; the current slice intentionally uses a thin
-  `SourceRecord`-backed projection. (Split later: maturity slice
-  AS-CORE-MODEL-001A; multi-concept composition AS-CORE-MODEL-001B —
-  contracts only under Lane D / D-PROJECT-ATLAS-PARALLEL-WAVE-002.)
+  `SourceRecord`-backed projection. (**Partial:** AS-CORE-MODEL-001A maturity
+  fill implemented on `feat/as-core-model-001a-maturity` — governor review
+  required; multi-concept composition remains AS-CORE-MODEL-001B/001C —
+  contracts only; do not treat CORE-MODEL-001 as closed.)
 - [x] AS-INGEST-MANIFEST-001 Multi-batch discovery snapshot and ingest-report
   merge by `source_id` — implementation complete on
   `feat/as-ingest-manifest-001` (closes AS-MVP-001 accepted overwrite debt;
@@ -181,6 +182,8 @@ independent verification passes and the branch is merged to `main`._
 - [x] CORE2-005 Add content-based secret findings with metadata-only output
 - [x] CORE2-006 Persist source lifecycle state and deletion tombstones
 - [ ] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
+  (**Partial:** AS-CORE-MODEL-001A fills singleton `ConceptRecord.maturity`
+  via Rules A–D; Capability / multi-concept composition still open.)
 - [ ] CORE2-008 Add duplicate-source conflict projections and authority review queue
 - [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
   (ATOMIC-PROMOTION residual; contract-only under Lane D — see
@@ -265,3 +268,14 @@ _Status: implementation complete on `feat/as-core-008-subject-multifield-query`;
 - [x] CORE8-004 Focused FR/INV suite (ordering, duplicates, snapshot fail-closed, parity, no-mutation)
 - [x] CORE8-005 Package guide `docs/AS-CORE-008-subject-multifield-query.md`
 - [ ] CORE8-006 Governor review and merge to `main`
+
+## AS-QUERY-DIAG-001 — Structured Query Outcome Diagnostics
+
+_Status: implementation complete on `feat/as-query-diag-001`; awaiting governor review. MERGE NO. Directive `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`. Frozen contract: orphans `gen4-next-wave-parallel-001/AS-QUERY-DIAG-001-CONTRACT.md`. Base `9f656ab` / tree `20882c55`. Additive diagnostics only; success-path 007/008 JSON default-stable; `knowledge_compiler` / Graph / MODEL FORBIDDEN._
+
+- [x] QDIAG-001 Domain `QueryDiagnostic` + outcome classes + JSON schema
+- [x] QDIAG-002 Library classifiers / serializers (`classify_query_outcome`, `query_diagnostic_from_*`)
+- [x] QDIAG-003 CLI structured stdout on `KnowledgeQueryError` (exit 1); argparse exit 2 unchanged
+- [x] QDIAG-004 Focused T01–T12 suite `tests/unit/test_as_query_diag_001.py`
+- [x] QDIAG-005 Package guide + 007/008 cross-links
+- [ ] QDIAG-006 Governor review and merge to `main`

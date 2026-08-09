@@ -17,22 +17,36 @@ from pathlib import Path
 from project_atlas import __version__
 from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
+from project_atlas.domain.knowledge_query import QueryShape
 from project_atlas.graph_acceptance import (
     GraphAcceptanceError,
     accept_graphify_artifacts,
     inspect_acceptance,
+)
+from project_atlas.graph_resolution import (
+    GraphResolutionError,
+    inspect_resolution,
+    resolve_from_acceptance,
+    write_resolution_outputs,
 )
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
+    diagnostic_to_json,
     list_authoritative,
+    query_diagnostic_from_error,
     query_knowledge,
     query_knowledge_fields,
 )
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.migrations.claim_v2_migration import migrate_v2
+from project_atlas.ops_health import (
+    OpsHealthError,
+    emit_health_snapshot,
+    snapshot_to_json,
+)
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
@@ -46,7 +60,7 @@ _log = get_logger("cli")
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="atlas",
-        description="Project Atlas — source-backed, offline-first project knowledge compiler.",
+        description="Project Atlas - source-backed, offline-first project knowledge compiler.",
     )
     parser.add_argument(
         "--config",
@@ -120,6 +134,51 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail closed on first rejection (default: true).",
     )
 
+    resolve_graph_parser = subparsers.add_parser(
+        "resolve-graph",
+        help=(
+            "Resolve accepted Graphify nodes to project-local Atlas entity ids "
+            "(AS-GRAPH-002; derived-only; no authority/claims/relationship writes)."
+        ),
+    )
+    resolve_graph_parser.add_argument("--source", type=Path, required=True)
+    resolve_graph_parser.add_argument("--manifest", type=Path, required=True)
+    resolve_graph_parser.add_argument(
+        "--mapping",
+        type=Path,
+        default=None,
+        help="Optional project-local mapping table JSON (deterministic; no remote fetch).",
+    )
+    resolve_graph_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Optional vault root for derived emits under generated/graph/resolved/ "
+            "and generated/graph/quarantine-candidates/ only."
+        ),
+    )
+    resolve_graph_parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write optional derived resolution outputs (requires --vault).",
+    )
+    resolve_graph_parser.add_argument(
+        "--project-uuid",
+        type=str,
+        default=None,
+        help=(
+            "Optional local project UUID binding for durable project_uuid hits "
+            "(ADV-G2-007; unbound/foreign UUID fails closed)."
+        ),
+    )
+    resolve_graph_parser.add_argument(
+        "--strict",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail closed on first rejection (default: true).",
+    )
+
     query_parser = subparsers.add_parser(
         "query",
         help=(
@@ -172,6 +231,37 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Report what would be created without writing anything.",
+    )
+
+    # AS-OBS-001 - operational health snapshot (ops plane only; query paths untouched).
+    ops_parser = subparsers.add_parser(
+        "ops",
+        help="Operational observability commands (AS-OBS-001; health != authority).",
+    )
+    ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)
+    health_parser = ops_sub.add_parser(
+        "health",
+        help=(
+            "Emit a regenerable operational health snapshot under "
+            "generated/ops/ (AS-OBS-001; consume-only collectors)."
+        ),
+    )
+    health_parser.add_argument("--vault", type=Path, required=True)
+    health_parser.add_argument(
+        "--project",
+        type=str,
+        default=None,
+        help="Optional stable project UUID filter (name-only forbidden by contract).",
+    )
+    health_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the snapshot JSON to stdout (always schema-bound).",
+    )
+    health_parser.add_argument(
+        "--no-write",
+        action="store_true",
+        help="Collect/normalize only; do not persist generated/ops/health-snapshot.json.",
     )
     return parser
 
@@ -307,10 +397,50 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("authority: derived")
         return EXIT_OK
 
-    if args.command == "query":
+    if args.command == "resolve-graph":
         try:
-            field_args: list[str] | None = args.field_args
-            fields_csv: str | None = args.fields_csv
+            if args.write and args.vault is None:
+                raise GraphResolutionError("resolve-graph --write requires --vault")
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise GraphResolutionError("manifest-not-object")
+            mapping: dict[str, object] | None = None
+            if args.mapping is not None:
+                loaded = json.loads(args.mapping.read_text(encoding="utf-8"))
+                if not isinstance(loaded, dict):
+                    raise GraphResolutionError("mapping-table-malformed")
+                mapping = loaded
+            _receipt, resolution = resolve_from_acceptance(
+                project_root=args.source,
+                manifest=manifest,
+                mapping_table=mapping,
+                config=config,
+                local_project_uuid=args.project_uuid,
+                strict=args.strict,
+            )
+            written: list[str] = []
+            if args.write:
+                assert args.vault is not None
+                written = write_resolution_outputs(resolution, vault=args.vault)
+            summary = inspect_resolution(resolution)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            print(f"resolved: {resolution.resolved_count}")
+            print(f"quarantined: {resolution.quarantined_count}")
+            print("authority: derived")
+            if written:
+                print(f"written: {len(written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("resolve-graph failed: %s", exc)
+            return EXIT_ERROR
+        return EXIT_OK
+
+    if args.command == "query":
+        field_args: list[str] | None = args.field_args
+        fields_csv: str | None = args.fields_csv
+        diag_shape = QueryShape.UNKNOWN
+        diag_field: str | None = None
+        diag_fields: list[str] | None = None
+        try:
             if args.list:
                 if field_args or fields_csv:
                     _log.error("query --list cannot be combined with --field/--fields")
@@ -318,6 +448,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if args.kind != "authoritative":
                     _log.error("query --list requires --kind authoritative")
                     return EXIT_ERROR
+                diag_shape = QueryShape.LIST
                 answers = list_authoritative(args.vault, args.project)
                 print(answer_to_json(answers), end="")
                 return EXIT_OK
@@ -331,6 +462,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return EXIT_ERROR
             if fields_csv is not None:
                 multifield = [part.strip() for part in fields_csv.split(",")]
+                diag_shape = QueryShape.MULTIFIELD
+                diag_fields = multifield
                 csv_answer = query_knowledge_fields(
                     args.vault,
                     args.project,
@@ -347,6 +480,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return EXIT_ERROR
             if len(field_args) == 1:
                 # Preserve AS-CORE-007 point-query CLI contract.
+                diag_shape = QueryShape.POINT
+                diag_field = field_args[0]
                 point_answer = query_knowledge(
                     args.vault,
                     args.project,
@@ -356,6 +491,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 print(answer_to_json(point_answer), end="")
                 return EXIT_OK
+            diag_shape = QueryShape.MULTIFIELD
+            diag_fields = list(field_args)
             multi_answer = query_knowledge_fields(
                 args.vault,
                 args.project,
@@ -366,11 +503,44 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(answer_to_json(multi_answer), end="")
             return EXIT_OK
         except KnowledgeQueryError as exc:
+            # AS-QUERY-DIAG-001-FR-009: structured stdout on integrity/request failures.
             _log.error("query failed [%s]: %s", exc.code.value, exc.message)
+            diagnostic = query_diagnostic_from_error(
+                exc,
+                project_id=args.project,
+                subject=args.subject,
+                field=diag_field,
+                fields=diag_fields,
+                kind=args.kind,
+                query_shape=diag_shape,
+            )
+            print(diagnostic_to_json(diagnostic), end="")
             return EXIT_ERROR
         except (OSError, ValueError, TypeError) as exc:
             _log.error("query failed: %s", exc)
             return EXIT_ERROR
+
+    if args.command == "ops":
+        if args.ops_command == "health":
+            try:
+                snapshot = emit_health_snapshot(
+                    args.vault,
+                    project_filter=args.project,
+                    persist=not args.no_write,
+                )
+            except (OpsHealthError, OSError, ValueError, TypeError) as exc:
+                _log.error("ops health failed: %s", exc)
+                return EXIT_ERROR
+            if args.json or args.no_write:
+                print(snapshot_to_json(snapshot), end="")
+            else:
+                print(f"estate rollup: {snapshot['rollup']['estate']}")
+                print(f"signals: {len(snapshot['signals'])}")
+                print(
+                    f"snapshot: {args.vault / 'generated' / 'ops' / 'health-snapshot.json'}"
+                )
+            return EXIT_OK
+        parser.error(f"unknown ops command: {args.ops_command}")  # pragma: no cover
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 
