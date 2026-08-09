@@ -63,6 +63,23 @@ code,
   background: var(--atlas-paper);
 }
 
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 1000;
+  padding: 0.5rem 0.75rem;
+  background: var(--atlas-ink);
+  color: var(--atlas-paper);
+  font-family: var(--atlas-sans);
+  font-size: 0.85rem;
+}
+
+.skip-link:focus {
+  left: 0.75rem;
+  top: 0.75rem;
+}
+
 .mode-switcher {
   display: flex;
   flex-wrap: wrap;

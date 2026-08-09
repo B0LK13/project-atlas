@@ -5,6 +5,8 @@ import SignalRackPage from "./pages/design-lab/SignalRackPage";
 import CartographQuietPage from "./pages/design-lab/CartographQuietPage";
 import TerminalHonestPage from "./pages/design-lab/TerminalHonestPage";
 import ProjectsPage from "./pages/production/ProjectsPage";
+import KnowledgePage from "./pages/production/KnowledgePage";
+import GraphPage from "./pages/production/GraphPage";
 import OpsHealthPage from "./pages/production/OpsHealthPage";
 import CommandCenterPage from "./pages/production/CommandCenterPage";
 
@@ -14,6 +16,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/knowledge" element={<KnowledgePage />} />
+      <Route path="/graph" element={<GraphPage />} />
       <Route path="/ops" element={<OpsHealthPage />} />
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
