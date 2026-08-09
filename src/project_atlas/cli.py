@@ -23,6 +23,12 @@ from project_atlas.graph_acceptance import (
     accept_graphify_artifacts,
     inspect_acceptance,
 )
+from project_atlas.graph_relationships import (
+    GraphRelationshipError,
+    inspect_relationship_store,
+    store_from_acceptance,
+    write_relationship_outputs,
+)
 from project_atlas.graph_resolution import (
     GraphResolutionError,
     inspect_resolution,
@@ -173,6 +179,57 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     resolve_graph_parser.add_argument(
+        "--strict",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail closed on first rejection (default: true).",
+    )
+
+    store_graph_parser = subparsers.add_parser(
+        "store-graph",
+        help=(
+            "Normalize accepted Graphify edges into derived relationship records "
+            "(AS-GRAPH-003; derived-only; no authority/claims/CP relationships writes)."
+        ),
+    )
+    store_graph_parser.add_argument("--source", type=Path, required=True)
+    store_graph_parser.add_argument("--manifest", type=Path, required=True)
+    store_graph_parser.add_argument(
+        "--mapping",
+        type=Path,
+        default=None,
+        help="Optional project-local mapping table JSON (deterministic; no remote fetch).",
+    )
+    store_graph_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Optional vault root for derived emits under generated/graph/relationships/ "
+            "and generated/graph/relationship-quarantine/ only."
+        ),
+    )
+    store_graph_parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write optional derived relationship outputs (requires --vault).",
+    )
+    store_graph_parser.add_argument(
+        "--project-uuid",
+        type=str,
+        default=None,
+        help=(
+            "Optional local project UUID binding for durable project_uuid hits "
+            "(passed through AS-GRAPH-002 resolve)."
+        ),
+    )
+    store_graph_parser.add_argument(
+        "--max-edges",
+        type=int,
+        default=None,
+        help="Optional edge capacity gate (fail closed when exceeded; ADV-G3-030).",
+    )
+    store_graph_parser.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -431,6 +488,45 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"written: {len(written)}")
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             _log.error("resolve-graph failed: %s", exc)
+            return EXIT_ERROR
+        return EXIT_OK
+
+    if args.command == "store-graph":
+        try:
+            if args.write and args.vault is None:
+                raise GraphRelationshipError("store-graph --write requires --vault")
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise GraphRelationshipError("manifest-not-object")
+            store_mapping: dict[str, object] | None = None
+            if args.mapping is not None:
+                loaded = json.loads(args.mapping.read_text(encoding="utf-8"))
+                if not isinstance(loaded, dict):
+                    raise GraphRelationshipError("mapping-table-malformed")
+                store_mapping = loaded
+            max_edges = args.max_edges
+            _receipt, _resolution, store = store_from_acceptance(
+                project_root=args.source,
+                manifest=manifest,
+                mapping_table=store_mapping,
+                config=config,
+                local_project_uuid=args.project_uuid,
+                strict=args.strict,
+                **({"max_edges": max_edges} if max_edges is not None else {}),
+            )
+            store_written: list[str] = []
+            if args.write:
+                assert args.vault is not None
+                store_written = write_relationship_outputs(store, vault=args.vault)
+            summary = inspect_relationship_store(store)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            print(f"retained: {store.retained_count}")
+            print(f"quarantined: {store.quarantined_count}")
+            print("authority: derived")
+            if store_written:
+                print(f"written: {len(store_written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("store-graph failed: %s", exc)
             return EXIT_ERROR
         return EXIT_OK
 

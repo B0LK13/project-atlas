@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-relationship.schema.json",
+  "title": "Graph Relationship Record",
+  "description": "AS-GRAPH-003 canonical derived relationship. GRAPH RELATIONSHIP ≠ AUTOMATIC AUTHORITY. Link-quality verified ≠ domain-authoritative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "project_id",
+    "relationship_id",
+    "relationship_type",
+    "source_entity_id",
+    "target_entity_id",
+    "link_quality",
+    "relationship_fingerprint",
+    "authority",
+    "status",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-003" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "relationship_id": { "type": "string", "minLength": 1 },
+    "relationship_type": {
+      "type": "string",
+      "enum": [
+        "part-of",
+        "depends-on",
+        "documents",
+        "validates",
+        "supersedes",
+        "derived-from",
+        "conflicts-with",
+        "extension"
+      ]
+    },
+    "extension_type": { "type": "string", "minLength": 1 },
+    "source_entity_id": { "type": "string", "minLength": 1 },
+    "target_entity_id": { "type": "string", "minLength": 1 },
+    "source_graphify_id": { "type": "string", "minLength": 1 },
+    "target_graphify_id": { "type": "string", "minLength": 1 },
+    "link_quality": {
+      "type": "string",
+      "enum": ["verified", "supported", "inferred"]
+    },
+    "relationship_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "retained" },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH RELATIONSHIP ≠ AUTOMATIC AUTHORITY"
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graphify_artifact_refs",
+        "graphify_edge_ids",
+        "source_graphify_ids",
+        "target_graphify_ids",
+        "supporting_source_docs"
+      ],
+      "properties": {
+        "graphify_artifact_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["relative_path", "sha256"],
+            "properties": {
+              "relative_path": { "type": "string", "minLength": 1 },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        },
+        "graphify_edge_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "graphify_edge_indexes": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 }
+        },
+        "source_graphify_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "target_graphify_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "supporting_source_docs": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "relationship_type": { "const": "extension" } }
+      },
+      "then": { "required": ["extension_type"] },
+      "else": { "not": { "required": ["extension_type"] } }
+    }
+  ]
+}
