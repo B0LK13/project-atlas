@@ -22,7 +22,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from project_atlas.graph_acceptance import AcceptanceReceipt
 from project_atlas.graph_resolution import (
@@ -31,6 +31,9 @@ from project_atlas.graph_resolution import (
     resolve_from_acceptance,
 )
 from project_atlas.schema import validate_record
+
+if TYPE_CHECKING:
+    from project_atlas.graph_quarantine import QuarantineStoreResult
 
 PACKAGE_ID = "AS-GRAPH-003"
 AUTHORITY_LEVEL = "derived"
@@ -155,7 +158,12 @@ class RelationshipRecord:
 
 @dataclass(frozen=True)
 class RelationshipQuarantine:
-    """Soft quarantine candidate (handoff AS-GRAPH-004; never LWW promote)."""
+    """Soft quarantine candidate (handoff AS-GRAPH-004; never LWW promote).
+
+    Durable persistence, health counters, and incremental hash/state live in
+    ``project_atlas.graph_quarantine`` (AS-GRAPH-004). This type remains the
+    GRAPH-003 soft-candidate shape only — never elevate to authority.
+    """
 
     project_id: str
     candidate_id: str
@@ -934,6 +942,20 @@ def promote_relationship_path_forbidden(relative: str) -> None:
     _safe_vault_relative(Path("."), relative)
 
 
+def handoff_quarantine_store(
+    result: RelationshipStoreResult,
+    *,
+    prior_state: Mapping[str, Any] | None = None,
+) -> QuarantineStoreResult:
+    """Thin AS-GRAPH-004 handoff — durable quarantine / health / incremental.
+
+    Does not mutate retained relationships, claims, authority, or CP paths.
+    """
+    from project_atlas.graph_quarantine import materialize_quarantine_store
+
+    return materialize_quarantine_store(result, prior_state=prior_state)
+
+
 __all__ = [
     "ALLOWED_WRITE_PREFIXES",
     "AUTHORITY_LEVEL",
@@ -945,6 +967,7 @@ __all__ = [
     "RelationshipQuarantine",
     "RelationshipRecord",
     "RelationshipStoreResult",
+    "handoff_quarantine_store",
     "inspect_relationship_store",
     "load_accepted_edges",
     "normalize_edges",

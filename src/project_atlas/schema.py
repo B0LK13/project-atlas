@@ -42,6 +42,8 @@ SCHEMA_FILES: dict[str, str] = {
     "query-multi-plan": "query-multi-plan.schema.json",
     # AS-EXPLAIN-001 — explainability / provenance receipts (operational metadata ≠ authority)
     "explain-receipt": "explain-receipt.schema.json",
+    # AS-EXPLAIN-001 Band B — graph explain sidecars (derived enrichment ≠ query winner)
+    "explain-graph-sidecar": "explain-graph-sidecar.schema.json",
     # AS-GRAPH-001 — Graphify acceptance (derived-only; not domain authority)
     "graphify-envelope": "graphify-envelope.schema.json",
     "graphify-node": "graphify-node.schema.json",
@@ -56,10 +58,18 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-GRAPH-003 - Canonical derived relationships (not authority; not CP relationships/)
     "graph-relationship": "graph-relationship.schema.json",
     "graph-relationship-quarantine": "graph-relationship-quarantine.schema.json",
+    # AS-GRAPH-004 - Durable quarantine / health / incremental (derived; never authority)
+    "graph-quarantine-record": "graph-quarantine-record.schema.json",
+    "graph-quarantine-receipt": "graph-quarantine-receipt.schema.json",
+    "graph-health-snapshot": "graph-health-snapshot.schema.json",
+    "graph-incremental-state": "graph-incremental-state.schema.json",
     # AS-XPROJ-001 - Global entity identity registry (derived; not automatic authority)
     "xproj-global-entity": "xproj-global-entity.schema.json",
     "xproj-join-key": "xproj-join-key.schema.json",
     "xproj-quarantine-candidate": "xproj-quarantine-candidate.schema.json",
+    # AS-XPROJ-002 - Cross-project edges between registered globals (derived; no name-merge)
+    "xproj-global-edge": "xproj-global-edge.schema.json",
+    "xproj-edge-quarantine": "xproj-edge-quarantine.schema.json",
 
     # AS-BACKUP-001 — verified snapshot / restore (operational durability ≠ authority)
     "backup-manifest": "backup-manifest.schema.json",

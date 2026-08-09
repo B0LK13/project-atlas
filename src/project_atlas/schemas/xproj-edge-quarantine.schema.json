@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/xproj-edge-quarantine.schema.json",
+  "title": "XPROJ Edge Quarantine Candidate",
+  "description": "AS-XPROJ-002 fail-closed quarantine for forbidden / incomplete cross-project edge attempts. Never pick a winner. Never claim synthesis from conflicts-with. Never elevate authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "candidate_id",
+    "category",
+    "authority",
+    "status",
+    "reason",
+    "inputs_considered",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-XPROJ-002" },
+    "candidate_id": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": [
+        "missing-endpoint-registration",
+        "name-only-edge-forbidden",
+        "fuzzy-edge-forbidden",
+        "not-cross-project",
+        "self-loop-forbidden",
+        "incompatible-duplicate-edge",
+        "unknown-relationship-type",
+        "endpoint-guess-forbidden",
+        "secret-finding",
+        "evidence-refs-required",
+        "edge-id-invalid"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "quarantine_candidate" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "inputs_considered": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null", "array", "object"]
+      },
+      "description": "Metadata only — never secret payloads; no winning_choice field."
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "CROSS-PROJECT EDGE ≠ AUTOMATIC AUTHORITY"
+    },
+    "edge_id": { "type": "string" },
+    "source_global_entity_id": { "type": "string" },
+    "target_global_entity_id": { "type": "string" },
+    "relationship_type": { "type": "string" }
+  },
+  "not": {
+    "required": ["winning_choice"]
+  }
+}

@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/explain-graph-sidecar.schema.json",
+  "title": "ExplainGraphSidecar",
+  "description": "AS-EXPLAIN-001 Band B graph explain sidecar (derived enrichment only; never query/authority winner; never subjective trust scores). Missing/mismatched graph ≠ query failure.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package",
+    "sidecar_kind",
+    "disposition",
+    "project_id",
+    "reason_categories",
+    "graph_refs",
+    "artifact_refs",
+    "omissions",
+    "notes",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package": { "const": "AS-EXPLAIN-001" },
+    "sidecar_kind": {
+      "type": "string",
+      "enum": [
+        "resolved_node",
+        "identity_explanation",
+        "relationship",
+        "graph_absent",
+        "hash_refused"
+      ]
+    },
+    "disposition": {
+      "type": "string",
+      "enum": ["present", "absent", "refused_hash_mismatch"]
+    },
+    "project_id": { "type": ["string", "null"] },
+    "graphify_node_id": { "type": ["string", "null"] },
+    "resolved_entity_id": { "type": ["string", "null"] },
+    "resolution_step": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": [
+            "explicit_atlas_id",
+            "durable_core_id",
+            "mapping_table",
+            "graphify_stable",
+            "none"
+          ]
+        }
+      ]
+    },
+    "resolve_status": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "enum": ["resolved", "quarantine_candidate"] }
+      ]
+    },
+    "identity_confidence_label": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": [
+            "explicit",
+            "durable-core",
+            "mapped",
+            "graphify-stable",
+            "none"
+          ]
+        }
+      ]
+    },
+    "relationship_id": { "type": ["string", "null"] },
+    "relationship_type": { "type": ["string", "null"] },
+    "link_quality": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "string", "enum": ["verified", "supported", "inferred"] }
+      ]
+    },
+    "source_entity_id": { "type": ["string", "null"] },
+    "target_entity_id": { "type": ["string", "null"] },
+    "reason_categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "resolved_node",
+          "identity_explanation",
+          "relationship_record",
+          "graph_absent",
+          "hash_mismatch",
+          "quarantine_candidate",
+          "derived_only"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "graph_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref_kind", "ref_id"],
+        "properties": {
+          "ref_kind": {
+            "type": "string",
+            "enum": [
+              "graphify_node_id",
+              "resolved_entity_id",
+              "relationship_id",
+              "relationship_fingerprint",
+              "source_entity_id",
+              "target_entity_id",
+              "graphify_edge_id"
+            ]
+          },
+          "ref_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "sha256", "hash_status"],
+        "properties": {
+          "relative_path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "hash_status": {
+            "type": "string",
+            "enum": ["unchecked", "matched", "mismatched", "missing_expected"]
+          }
+        }
+      }
+    },
+    "omissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "graph_artifacts_absent",
+          "resolved_entity_absent",
+          "identity_explanation_absent",
+          "relationship_absent",
+          "artifact_hash_unchecked",
+          "payload_omitted_hash_mismatch"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "truth_boundary": {
+      "const": "GRAPH RELATIONSHIP ≠ AUTOMATIC AUTHORITY"
+    }
+  }
+}

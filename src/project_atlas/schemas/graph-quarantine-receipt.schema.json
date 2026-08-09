@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-quarantine-receipt.schema.json",
+  "title": "Graph Quarantine Refresh Receipt",
+  "description": "AS-GRAPH-004 immutable quarantine-refresh receipt. Derived-only; authority.graphify=derived; canonical_override_allowed=false. Never domain authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "receipt_type",
+    "receipt_id",
+    "project_id",
+    "authority",
+    "input_content_hash",
+    "quarantined_count",
+    "retained_count",
+    "health_state",
+    "refreshed",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-004" },
+    "receipt_type": { "const": "atlas-graph-quarantine-refresh" },
+    "receipt_id": { "type": "string", "minLength": 1 },
+    "project_id": { "type": "string", "minLength": 1 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["graphify", "level", "canonical_override_allowed"],
+      "properties": {
+        "graphify": { "const": "derived" },
+        "level": { "const": "derived" },
+        "canonical_override_allowed": { "const": false },
+        "note": { "type": "string" }
+      }
+    },
+    "input_content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "quarantined_count": { "type": "integer", "minimum": 0 },
+    "retained_count": { "type": "integer", "minimum": 0 },
+    "health_state": {
+      "type": "string",
+      "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+    },
+    "refreshed": { "type": "boolean" },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH QUARANTINE ≠ AUTOMATIC AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-graph-004" }
+      }
+    }
+  }
+}

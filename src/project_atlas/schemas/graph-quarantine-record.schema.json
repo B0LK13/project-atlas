@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/graph-quarantine-record.schema.json",
+  "title": "Graph Durable Quarantine Record",
+  "description": "AS-GRAPH-004 durable quarantine store record. Consumes AS-GRAPH-003 soft quarantine candidates. Never last-write-wins into retained relationships. Never claim/authority elevation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "project_id",
+    "quarantine_id",
+    "category",
+    "authority",
+    "status",
+    "reason",
+    "remediation",
+    "source_package_id",
+    "source_candidate_id",
+    "content_hash",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-GRAPH-004" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "quarantine_id": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": [
+        "orphaned-endpoint",
+        "quarantined-endpoint",
+        "cross-project-endpoint",
+        "incompatible-duplicate",
+        "capacity-rejected",
+        "malformed-edge"
+      ]
+    },
+    "relationship_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "graphify_edge_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "source_graphify_id": { "type": "string" },
+    "target_graphify_id": { "type": "string" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "quarantined" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "remediation": { "type": "string", "minLength": 1, "maxLength": 480 },
+    "source_package_id": { "const": "AS-GRAPH-003" },
+    "source_candidate_id": { "type": "string", "minLength": 1 },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "GRAPH QUARANTINE ≠ AUTOMATIC AUTHORITY"
+    },
+    "artifact_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "sha256"],
+        "properties": {
+          "relative_path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-graph-004" }
+      }
+    }
+  },
+  "not": {
+    "required": ["winning_choice", "authority_level_elevated", "promoted_relationship_id"]
+  }
+}
