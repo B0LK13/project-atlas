@@ -4625,3 +4625,7 @@ Fixture recovery/determinism/perf certification (atlas adv certify). release_cer
 ## AS-SYNC-001-SCAFFOLD
 Dry-run workspace registry from explicit roots. production_sync_certified=false.
 
+
+## CLI integrator ADV+SYNC
+Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surfaces retained.
+
