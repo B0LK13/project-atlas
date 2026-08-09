@@ -4,7 +4,7 @@
 |---|---|
 | Package | AS-WEB-ACCEPT-001 through AS-WEB-ACCEPT-004 |
 | Parent | D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 |
-| Tip pin | `91c0d06ad5224dd081b9e2248fe17b65f360d5fc` / TREE `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc` (refresh after merge) |
+| Tip pin | `989c0f8039b1a958f5e4bf40ec2e02cc99a48b63` / TREE `aeebf06bd896426edf517e47c97d4ee105a1fc89` (refresh after merge) |
 | **WEB APPLICATION ACCEPTED** | **NO** |
 | Governor sign-off | **PENDING** — see `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
 
