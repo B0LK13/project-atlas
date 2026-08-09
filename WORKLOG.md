@@ -4607,3 +4607,8 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - Auto-merge FORBIDDEN until governor IV
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE2-010-*.md
 
+||||||| parent of 6f78835 (test(e2e-001): add fixture pipeline determinism and recovery matrix)
+
+## AS-E2E-001 fixture matrix
+Fixture pipeline determinism + recovery noop + optional CORE2-010 bind.
+
