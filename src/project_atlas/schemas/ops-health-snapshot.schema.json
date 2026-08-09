@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/ops-health-snapshot.schema.json",
+  "title": "Operational Health Snapshot",
+  "description": "AS-OBS-001 regenerable operational health snapshot. truth_plane=operational; authority_plane=none. Never project authority or temporal truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "estate_id",
+    "rollup",
+    "scopes",
+    "signals",
+    "collector",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.ops.health_snapshot.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": { "const": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY" },
+    "estate_id": { "type": "string", "minLength": 1 },
+    "project_filter": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "rollup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["estate"],
+      "properties": {
+        "estate": {
+          "type": "string",
+          "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+        }
+      }
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scope", "scope_id", "health"],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["estate", "project", "adapter", "skill", "run"]
+          },
+          "scope_id": { "type": "string", "minLength": 1 },
+          "health": {
+            "type": "string",
+            "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+          }
+        }
+      }
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "signal_id",
+          "scope",
+          "scope_id",
+          "status",
+          "severity",
+          "observed_value",
+          "threshold",
+          "evidence_refs",
+          "observed_generation",
+          "collector"
+        ],
+        "properties": {
+          "signal_id": {
+            "type": "string",
+            "pattern": "^OPS-SIG-[0-9]{3}$"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["estate", "project", "adapter", "skill", "run"]
+          },
+          "scope_id": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "warn", "fail", "unknown"]
+          },
+          "severity": {
+            "type": ["string", "null"],
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO", null]
+          },
+          "observed_value": {
+            "type": ["number", "string", "boolean", "null"]
+          },
+          "threshold": {
+            "type": ["object", "null"],
+            "additionalProperties": true
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "observed_generation": { "type": ["string", "null"] },
+          "collector": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "collector": { "const": "atlas.ops.health" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-obs-001" }
+      }
+    }
+  }
+}
