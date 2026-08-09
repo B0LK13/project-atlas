@@ -4532,3 +4532,17 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - Auto-merge: FORBIDDEN
 - DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-WEB-003-*.md
+
+## Docs — Atlas 2.0 prep deepen + CURRENT-STATE refresh
+
+**Date:** 2026-08-09
+**Branch:** docs/atlas-2.0-prep-deepen
+**Directive:** D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 Track B
+
+### Scope
+- Deepen docs/atlas-2.0 COMPATIBILITY / FIXTURE-PLAN / OPEN-QUESTIONS
+- Refresh PROJECT-ATLAS-CURRENT-STATE tip after INT-010 + WEB-003
+- NO production semantic changes
+
+### Gates
+- Docs-only; GOVERNOR REQUIRED
