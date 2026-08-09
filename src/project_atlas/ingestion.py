@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 import uuid
 from contextlib import ExitStack, suppress
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 
 import yaml
@@ -21,6 +22,7 @@ from atlas_contracts.event_package import (
     load_event_package,
 )
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.backup import find_promote_orphans, parse_promote_orphan_name
 from project_atlas.classification import apply_classification_method, classify_source
 from project_atlas.compilation import (
     CompilationCandidate,
@@ -122,6 +124,17 @@ class PromoteAccounting(NamedTuple):
     written: int
 
 
+class PromoteRecoveryResult(NamedTuple):
+    """Deterministic result of interrupted-write recovery (AS-CORE2-009).
+
+    Counts and receipt path only — no wall-clock stamps.
+    """
+
+    orphan_count: int
+    transactions_recovered: int
+    receipt_path: Path | None
+
+
 def _payload_sha256(payload: bytes) -> str:
     """SHA-256 hex digest of an in-memory promote payload (AS-CORE-OPS-001)."""
     return hashlib.sha256(payload).hexdigest()
@@ -140,6 +153,140 @@ def _remove_empty_directories(directories: set[Path]) -> None:
 
 def _promotion_failure_report_path(vault: Path) -> Path:
     return _inside(vault, vault / "quarantine" / "promotion-failures" / "index.json")
+
+
+def _promotion_recovery_receipt_path(vault: Path) -> Path:
+    return _inside(vault, vault / "quarantine" / "promotion-recovery" / "index.json")
+
+
+def recover_promote_orphans(vault: Path) -> PromoteRecoveryResult:
+    """Detect and recover process-crash promote orphans (AS-CORE2-009).
+
+    Uses ``backup.find_promote_orphans``. Dispositions:
+
+    - stage-only txn → abort clean (delete stages; canonical untouched)
+    - any backup present → abort restore (restore backups; delete stages)
+    - unparseable orphan name or restore failure → fail closed
+
+    Writes a deterministic receipt when orphans were present. No-ops with
+    ``orphan_count=0`` when the vault is clean (no receipt write).
+    """
+    vault_root = vault.expanduser().resolve()
+    orphans = find_promote_orphans(vault_root)
+    if not orphans:
+        return PromoteRecoveryResult(
+            orphan_count=0, transactions_recovered=0, receipt_path=None
+        )
+
+    by_txn: dict[str, dict[str, list[tuple[str, str]]]] = {}
+    for relative in orphans:
+        rel = PurePosixPath(relative)
+        parsed = parse_promote_orphan_name(rel.name)
+        if parsed is None:
+            raise ValueError(
+                "unparseable promote orphan (AS-CORE2-009 fail-closed): "
+                f"{relative}"
+            )
+        canonical_name, txn, kind = parsed
+        bucket = by_txn.setdefault(txn, {"atlas-stage": [], "atlas-backup": []})
+        parent_parts = rel.parent.parts
+        if parent_parts and parent_parts != (".",):
+            canonical_rel = str(PurePosixPath(*parent_parts) / canonical_name)
+        else:
+            canonical_rel = canonical_name
+        bucket[kind].append((relative, canonical_rel))
+
+    txn_reports: list[dict[str, Any]] = []
+    for txn in sorted(by_txn):
+        stages = sorted(by_txn[txn]["atlas-stage"])
+        backups = sorted(by_txn[txn]["atlas-backup"])
+        cleaned: list[str] = []
+        restored: list[str] = []
+        if backups:
+            disposition = "abort_restore"
+            try:
+                for relative, canonical_rel in backups:
+                    backup_path = _inside(vault_root, vault_root / relative)
+                    canonical_path = _inside(vault_root, vault_root / canonical_rel)
+                    if not backup_path.is_file():
+                        raise FileNotFoundError(
+                            f"promote backup missing during recovery: {relative}"
+                        )
+                    canonical_path.parent.mkdir(parents=True, exist_ok=True)
+                    _replace_path(backup_path, canonical_path)
+                    restored.append(canonical_rel)
+                for relative, _canonical_rel in stages:
+                    stage_path = _inside(vault_root, vault_root / relative)
+                    if stage_path.is_file():
+                        stage_path.unlink()
+                        cleaned.append(relative)
+                for relative, _canonical_rel in backups:
+                    # Successful replace consumes the backup path; unlink any
+                    # leftover (e.g. identical path edge cases).
+                    leftover = vault_root / relative
+                    if leftover.is_file():
+                        leftover.unlink()
+                        cleaned.append(relative)
+                    else:
+                        cleaned.append(relative)
+            except OSError as exc:
+                raise RuntimeError(
+                    "promote orphan recovery failed (AS-CORE2-009 fail-closed); "
+                    "transaction artifacts were preserved"
+                ) from exc
+        else:
+            disposition = "abort_clean_stages"
+            for relative, _canonical_rel in stages:
+                stage_path = _inside(vault_root, vault_root / relative)
+                if stage_path.is_file():
+                    stage_path.unlink()
+                    cleaned.append(relative)
+
+        txn_reports.append(
+            {
+                "transaction_id": txn,
+                "disposition": disposition,
+                "stages": [item[0] for item in stages],
+                "backups": [item[0] for item in backups],
+                "restored": sorted(set(restored)),
+                "cleaned": sorted(set(cleaned)),
+            }
+        )
+
+    remaining = find_promote_orphans(vault_root)
+    if remaining:
+        raise RuntimeError(
+            "promote orphan recovery incomplete (AS-CORE2-009 fail-closed): "
+            f"{remaining[:5]}"
+        )
+
+    receipt_path = _promotion_recovery_receipt_path(vault_root)
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "receipt_type": "promotion-recovery",
+        "generated": {"by": "atlas-core2-009"},
+        "orphan_count": len(orphans),
+        "transactions": txn_reports,
+    }
+    # Atomic receipt publish (temp + os.replace) — AS-CORE2-009 review P2.
+    content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    fd, tmp_name = tempfile.mkstemp(
+        dir=receipt_path.parent, prefix=f".{receipt_path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(content)
+        os.replace(tmp_name, receipt_path)
+    except BaseException:
+        with suppress(OSError):
+            os.unlink(tmp_name)
+        raise
+    return PromoteRecoveryResult(
+        orphan_count=len(orphans),
+        transactions_recovered=len(txn_reports),
+        receipt_path=receipt_path,
+    )
 
 
 def _quarantine_promotion_failure(
@@ -1897,6 +2044,8 @@ def ingest(
         }
     )
     vault = vault.expanduser().resolve()
+    # AS-CORE2-009: recover process-crash promote orphans before any new writes.
+    recover_promote_orphans(vault)
     with ExitStack() as stack:
         for project in projects:
             lock_key = hashlib.sha256(project.encode("utf-8")).hexdigest()[:20]

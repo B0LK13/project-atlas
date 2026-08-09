@@ -677,3 +677,28 @@ release_closure_remediation:
     merge_method_when_authorized: fast_forward_only
     merge_source: fix/as-mvp-001-r1-relation-edge-tests
     merge_target: main
+
+# ---------------------------------------------------------------------------
+# AS-CORE2-009 ERRATUM (additive; does not rewrite AS-MVP-001 history)
+# Date: 2026-08-09
+# Package: AS-CORE2-009 / CORE2-009 interrupted-write recovery
+# ---------------------------------------------------------------------------
+# Historical AS-MVP-001 text above correctly recorded that, at MVP freeze,
+# cross-file transactional rollback for `_promote` was NOT certified.
+# Subsequent platform packages changed that residual:
+#   - CORE3-023: in-process mid-promotion cross-file rollback + artifact cleanup
+#   - CORE-OPS-001: hash-before-replace + PromoteAccounting
+#   - AS-CORE2-009: process-crash orphan `.atlas-stage`/`.atlas-backup` recovery
+#     on ingest preflight (fail-closed or deterministic abort-clean/abort-restore
+#     with receipt). This erratum does not alter AS-MVP-001 acceptance claims.
+as_core2_009_promotion_atomicity_erratum:
+  status: additive_erratum_only
+  does_not_rewrite_as_mvp_001_history: true
+  superseding_packages:
+    - CORE3-023
+    - AS-CORE-OPS-001
+    - AS-CORE2-009
+  residual_addressed_by_as_core2_009: >-
+    Process-crash / power-loss window leaving orphan stage/backup artifacts
+    is recovered deterministically on ingest preflight; backup snapshot create
+    continues to refuse unclean orphans until recovery runs.

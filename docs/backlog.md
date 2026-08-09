@@ -188,9 +188,10 @@ independent verification passes and the branch is merged to `main`._
   **SUPERSEDED**.
 - [x] CORE2-008 Add duplicate-source conflict projections and authority review queue
   (AS-CORE2-008 tip-safe residual on `feat/as-core2-008-review-queue`; IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED)
-- [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
-  (ATOMIC-PROMOTION residual; contract-only under Lane D — see
-  `D:\project-atlas-orphans\atlas-tech-debt\contracts\AS-CORE2-009.md`)
+- [x] CORE2-009 Add interrupted-write recovery and complete write accounting
+  (AS-CORE2-009 tip-safe crash orphan recovery on
+  `feat/as-core2-009-promote-recovery`; IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED;
+  contract refresh under D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001)
 - [ ] CORE2-010 Run controlled pilot lifecycle certification
 
 ## AS-ID-001 — Durable Source Lineage Identity
