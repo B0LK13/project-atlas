@@ -73,3 +73,6 @@ desktop.ini
 
 # Local WSL validation venv (artifact-closure worktree)
 .venv-wsl/
+
+# Root agent spool (local session residue; do not ignore tracked `.atlas/project.yaml`)
+.atlas-spool/
