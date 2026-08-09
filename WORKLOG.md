@@ -4196,3 +4196,28 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-OBS-003-*.md
+
+## AS-CORE2-008 - Duplicate-source conflict projections + review-queue honesty
+
+**Date:** 2026-08-09
+**Branch:** feat/as-core2-008-review-queue
+**Worktree:** D:\atlas-worktrees\as-core2-008-review-queue
+**Base tip / TREE:** ee92cb624ea81b43938f217016ee333a1886ff8f / 6050c23a87395b982318418f89405fb2cd5feb16
+**Gate:** READY WITH CONSTRAINTS - AS-CORE2-008-ENTRY-GATE.md
+**Wake:** AS-CORE2-008-WAKE.md FIRED
+**Overlap:** SAFE WITH EXCLUSIONS - AS-CORE2-008-SURFACE-OVERLAP.md
+**Sole-writer:** AS-CORE2-008-SOLE-WRITER-LOCK.md
+
+### Scope
+- NEW project_atlas.conflict_projections: duplicate-source facet + review honesty helpers
+- Minimal hooks in knowledge_compiler (_conflicts/_review/_render_conflicts) and indexes.py companion keys + reviews.json
+- Focused tests test_as_core2_008_* FR+ADV; soft backlog CORE2-008 checkbox
+- NO Graph invent; NO trust scores; NO MODEL reopen; NO dual-own GRAPH/XPROJ/OBS/INCR/TEMPORAL; NO CORE2-009; PILOT untouched; AS-REL-001 MUST NOT OPEN
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused test_as_core2_008_* + RET-001: 30 passed
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE2-008-*.md

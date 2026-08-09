@@ -44,6 +44,7 @@ def test_indexes_cover_canonical_state_and_retrieval_is_read_only(tmp_path: Path
         "concepts.json",
         "conflicts.json",
         "provenance.json",
+        "reviews.json",
         "sources.json",
     }
     assert not (vault / "indexes").exists()

@@ -185,7 +185,8 @@ independent verification passes and the branch is merged to `main`._
 - [ ] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
   (**Partial:** AS-CORE-MODEL-001A fills singleton `ConceptRecord.maturity`
   via Rules A–D; AS-CORE-MODEL-001B Capability emission COMPLETE on feat/as-core-model-001b-capability pending re-IV/merge; multi-type composition remains AS-CORE-MODEL-001C.)
-- [ ] CORE2-008 Add duplicate-source conflict projections and authority review queue
+- [x] CORE2-008 Add duplicate-source conflict projections and authority review queue
+  (AS-CORE2-008 tip-safe residual on `feat/as-core2-008-review-queue`; IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED)
 - [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
   (ATOMIC-PROMOTION residual; contract-only under Lane D — see
   `D:\project-atlas-orphans\atlas-tech-debt\contracts\AS-CORE2-009.md`)
