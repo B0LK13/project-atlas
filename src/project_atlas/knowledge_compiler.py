@@ -2088,9 +2088,7 @@ def _render_concepts(project: str, concepts: tuple[ConceptRecord, ...]) -> str:
     start = "<!-- atlas:generated:start -->"
     end = "<!-- atlas:generated:end -->"
     if not concepts:
-        # Empty index still leads with OKF fence so validate never sees bare H1.
-        # Body-only placeholder stays inside a single marker pair (AT-011).
-        return f"---\n---\n\n{start}\n_No concepts._\n{end}\n"
+        return f"# Concepts — {project}\n\n_No concepts._\n"
 
     resource = f"projects/{project}/concepts.md"
     # Leading note establishes OKF frontmatter + open marker (singleton shape).
