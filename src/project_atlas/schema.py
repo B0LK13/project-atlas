@@ -43,6 +43,8 @@ SCHEMA_FILES: dict[str, str] = {
     "graphify-edge": "graphify-edge.schema.json",
     "graphify-metadata": "graphify-metadata.schema.json",
     "graph-acceptance-receipt": "graph-acceptance-receipt.schema.json",
+    # AS-OBS-001 — operational health snapshot (non-authoritative ops plane)
+    "ops-health-snapshot": "ops-health-snapshot.schema.json",
 }
 
 

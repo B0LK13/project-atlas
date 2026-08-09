@@ -37,6 +37,7 @@ def test_all_expected_schemas_available() -> None:
         "graphify-node",
         "knowledge-answer",
         "knowledge-multifield-answer",
+        "ops-health-snapshot",
         "parser-output",
         "provenance-reference",
         "review-entry",

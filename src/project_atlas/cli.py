@@ -33,6 +33,11 @@ from project_atlas.knowledge_query import (
 )
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.migrations.claim_v2_migration import migrate_v2
+from project_atlas.ops_health import (
+    OpsHealthError,
+    emit_health_snapshot,
+    snapshot_to_json,
+)
 from project_atlas.portfolio import build_portfolio
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.validation import validate
@@ -172,6 +177,37 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Report what would be created without writing anything.",
+    )
+
+    # AS-OBS-001 — operational health snapshot (ops plane only; query paths untouched).
+    ops_parser = subparsers.add_parser(
+        "ops",
+        help="Operational observability commands (AS-OBS-001; health ≠ authority).",
+    )
+    ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)
+    health_parser = ops_sub.add_parser(
+        "health",
+        help=(
+            "Emit a regenerable operational health snapshot under "
+            "generated/ops/ (AS-OBS-001; consume-only collectors)."
+        ),
+    )
+    health_parser.add_argument("--vault", type=Path, required=True)
+    health_parser.add_argument(
+        "--project",
+        type=str,
+        default=None,
+        help="Optional stable project UUID filter (name-only forbidden by contract).",
+    )
+    health_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the snapshot JSON to stdout (always schema-bound).",
+    )
+    health_parser.add_argument(
+        "--no-write",
+        action="store_true",
+        help="Collect/normalize only; do not persist generated/ops/health-snapshot.json.",
     )
     return parser
 
@@ -371,6 +407,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ValueError, TypeError) as exc:
             _log.error("query failed: %s", exc)
             return EXIT_ERROR
+
+    if args.command == "ops":
+        if args.ops_command == "health":
+            try:
+                snapshot = emit_health_snapshot(
+                    args.vault,
+                    project_filter=args.project,
+                    persist=not args.no_write,
+                )
+            except (OpsHealthError, OSError, ValueError, TypeError) as exc:
+                _log.error("ops health failed: %s", exc)
+                return EXIT_ERROR
+            if args.json or args.no_write:
+                print(snapshot_to_json(snapshot), end="")
+            else:
+                print(f"estate rollup: {snapshot['rollup']['estate']}")
+                print(f"signals: {len(snapshot['signals'])}")
+                print(
+                    f"snapshot: {args.vault / 'generated' / 'ops' / 'health-snapshot.json'}"
+                )
+            return EXIT_OK
+        parser.error(f"unknown ops command: {args.ops_command}")  # pragma: no cover
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 

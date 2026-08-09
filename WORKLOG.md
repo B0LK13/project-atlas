@@ -3681,3 +3681,28 @@ byte-stable for merged snapshot/report.
 **DISPOSITION: REINTEGRATION COMPLETE — GOVERNOR REVIEW REQUIRED (base b72aa0c)**  
 **Do not merge / self-certify. Do not start AS-CORE-009.**
 
+
+## AS-OBS-001 — Operational Health Snapshot
+
+**Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`  
+**Contract:** `gen4-parallel-wave-007/AS-OBS-001-CONTRACT.md`  
+**Branch:** `feat/as-obs-001-health-snapshot`  
+**Worktree:** `D:\atlas-worktrees\as-obs-001`  
+**Base:** `9f656ab29a2f1da95389ed213746b2e9b1a80565` / tree `20882c5526522eaf8467cd9b1819cef496282385`  
+**Mode:** collect → normalize → expose; Unknown ≠ healthy; health ≠ authority  
+**CLI:** `atlas ops health` (additive on Gen-4; QUERY-DIAG **not** absorbed; query paths byte-identical to base)  
+**SERIALIZE:** `cli.py` held until QUERY-DIAG COMPLETE @ `5b24cb9`, then released for OBS-only wiring
+
+### Gates
+- SURFACE-OVERLAP: NO vs ACCEPT / KC / Graph / Model-001A/B; SERIALIZE vs QUERY-DIAG (released)
+- ruff / mypy: PASS
+- Focused: 18 passed (`test_as_obs_001_health_snapshot` + `test_schema`)
+- Full Core: PASS (1 skipped)
+- Query path firewall: PASS
+- Orphans: `gen4-next-wave-parallel-001/AS-OBS-001-IMPLEMENTATION-EVIDENCE.md`
+
+**PRODUCTION CODE MODIFIED: YES** (`ops_health`, schema, CLI ops health only)  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
