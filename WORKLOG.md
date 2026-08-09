@@ -4612,3 +4612,7 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 ## AS-E2E-001 fixture matrix
 Fixture pipeline determinism + recovery noop + optional CORE2-010 bind.
 
+
+## AS-WEB-ACCEPT-003
+Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
+

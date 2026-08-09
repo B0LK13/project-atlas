@@ -1,17 +1,17 @@
-# Atlas Web (`apps/web`) — AS-WEB-002 design lab
+# Atlas Web (`apps/web`)
 
-**Vite + React (TypeScript)** shell with a **hash client router** and four
-design-lab prototype themes. Architecture: ADR-008 (stack) · ADR-009 (tokens).
+**Vite + React (TypeScript)** shell with hash client router, design-lab
+themes (AS-WEB-002), and production lenses (AS-WEB-003 / WEB-ACCEPT-002).
 
-Foundation: AS-WEB-001. Design-lab themes: orphan `AS-WEB-001-DESIGN-LAB.md`.
+Architecture: ADR-008 (stack) · ADR-009 (tokens) · ADR-010 (Command Center).
 
 ## Invariants
 
 - **UI ≠ canonical** — this app never writes Layer B / claims / authority.
 - **Graph ≠ authority** — derived displays only.
 - **Unknown ≠ healthy** — missing OBS snapshot renders as `unknown`.
-- Prototypes are **not** production UI acceptance.
-- Vault reads go through `project_atlas.web_api` (Python); this shell uses
+- Prototypes are **not** production UI acceptance until governor sign-off.
+- Vault reads go through `project_atlas.web_api` (Python); the shell may use
   `public/sample-read-status.json` until an HTTP bridge lands.
 
 ## Run
@@ -22,21 +22,52 @@ npm install
 npm run dev
 ```
 
-Open `/` (hub) or hash routes:
+### Production shell routes
+
+| Route | Surface |
+|---|---|
+| `#/` | Hub |
+| `#/projects` | Projects lens |
+| `#/knowledge` | Knowledge lens |
+| `#/graph` | Graph lens (derived ≠ authority) |
+| `#/ops` | Ops / health |
+| `#/command-center` | Command Center modes |
+| `#/design-lab/*` | Design-lab themes A–D |
+
+### Design-lab themes
 
 | Route | Theme |
 |---|---|
-| `#/` | Home (Ledger Desk lean + theme index) |
 | `#/design-lab/ledger-desk` | A · Ledger Desk |
 | `#/design-lab/signal-rack` | B · Signal Rack |
 | `#/design-lab/cartograph-quiet` | C · Cartograph Quiet |
 | `#/design-lab/terminal-honest` | D · Terminal Honest |
 
-Smoke (no install required for file-presence checks):
+## Smoke / acceptance gates (local)
+
+No browser install required for file-presence + invariant smoke:
 
 ```bash
+cd apps/web
 npm run smoke
+# equivalent:
+node apps/web/scripts/smoke.mjs
 ```
+
+Unit gates (from repo root, after `pip install -e ".[dev]"`):
+
+```bash
+python -m pytest tests/unit/test_as_web_001_web_api.py \
+  tests/unit/test_as_web_accept_001_checklist.py \
+  tests/unit/test_as_web_accept_002_closeout.py -q
+```
+
+CI: invoke the same `node apps/web/scripts/smoke.mjs` step in the quality
+job when the workflow matrix is healthy. Empty-step CI failures are tracked
+under `CI_INFRA_EXCEPTION` and do **not** alone certify WEB ACCEPTED.
+
+**WEB APPLICATION ACCEPTED = NO** until
+`docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` is completed by a governor.
 
 ## Design tokens
 

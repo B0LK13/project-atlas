@@ -4,9 +4,9 @@
 |---|---|
 | Package | AS-WEB-ACCEPT-001 / AS-WEB-ACCEPT-002 closeout |
 | Parent | D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 |
-| Tip pin | pending merge tip |
+| Tip pin | `641170f` / TREE `5b67b714` (update on merge) |
 | **WEB APPLICATION ACCEPTED** | **NO** |
-| Governor sign-off | **PENDING** (automated gates ≠ ACCEPTED) |
+| Governor sign-off | **PENDING** — see `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
 
 ## Normative invariants (ADR-008)
 
@@ -27,8 +27,8 @@
 | 7 | Knowledge + Graph production lenses | `/knowledge`, `/graph` + `web_api.knowledge` / `web_api.graph` | automated |
 | 8 | a11y skip-link on production shell | `ProdShell` + CSS `:focus` | automated |
 | 9 | Fixture E2E read bundle (projects/knowledge/graph/health) | `test_as_web_accept_002_*` | automated |
-| 10 | Governor sign-off artifact + tip pin recorded | evidence package | **open** |
-| 11 | CI smoke invocation documented | `apps/web/README.md` | draft |
+| 10 | Governor sign-off artifact + tip pin recorded | `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | **open** |
+| 11 | CI / local smoke invocation documented | `apps/web/README.md` | documented |
 
 ## Automated gates (non-certifying)
 
@@ -52,3 +52,4 @@ while item 10 (governor sign-off) remains open.
 |---|---|
 | 2026-08-09 | Initial checklist draft (ACCEPTED=NO) |
 | 2026-08-09 | WEB-ACCEPT-002: knowledge/graph routes, a11y skip-link, fixture E2E (ACCEPTED=NO) |
+| 2026-08-09 | WEB-ACCEPT-003: governor sign-off template + smoke docs; ACCEPTED remains NO |
