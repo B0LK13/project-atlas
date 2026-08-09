@@ -10,6 +10,11 @@ Status: **PREP ONLY** — names reserved; not authorized for production impl.
 | AS-2.0-PROV-001 | Provider adapters | optional; provenance non-bypass |
 | AS-2.0-SYNC-001 | Estate sync v2 | after INT-013 / CORE2-010 |
 | AS-2.0-COMPAT-001 | Compatibility snapshot consumer | post 1.0 freeze |
+| AS-2.0-AGENTOS-001 | Agent OS envelope | PROTOTYPE; no Core wiring |
+| AS-2.0-KCI-001 | Knowledge Compilation Interface | PROTOTYPE API draft |
+| AS-2.0-TWIN-001 | Digital Twin projections | blocked on PILOT |
+| AS-2.0-CTX-001 | Context assembly packs | PROTOTYPE |
+| AS-2.0-OBS-UX-001 | Obsidian 2.0 non-canonical UX | PROTOTYPE |
 
 ## Design deepen (2026-08-09c)
 

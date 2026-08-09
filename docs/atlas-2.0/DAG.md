@@ -21,8 +21,8 @@ While `ATLAS_1_0_RELEASE_CERTIFIED = NO`, Track B may only deepen docs/ADRs/cont
 
 ## Observed prep baseline pin (not release certification)
 
-- Tip commit: `ac1cee723f368154334815dade33212e593fc88c`
-- Tip tree: `e0ed54782830df036cc439fa127ff5a16c5d8915`
+- Tip commit: `b57cceb383dca8d4a8c967da58abfc799386a829`
+- Tip tree: `7efe25dccee4c91a9095cbf4743865274c4e9dff`
 - Meaning: branch-creation baseline for deepen-g only. It is **not** a release
   tag, compatibility snapshot, governor signature, or proof that 1.0 is
   certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
@@ -58,8 +58,8 @@ certification and compatibility-snapshot status. READY remains NO.
 ## Deepen-g (2026-08-09)
 
 Refreshed the observed prep baseline to
-`ac1cee723f368154334815dade33212e593fc88c` / tree
-`e0ed54782830df036cc439fa127ff5a16c5d8915`. This is branch ancestry only:
+`b57cceb383dca8d4a8c967da58abfc799386a829` / tree
+`7efe25dccee4c91a9095cbf4743865274c4e9dff`. This is branch ancestry only:
 it is not the certified compatibility snapshot and grants no implementation
 entry. Contract, fixture, and threat residual reviews remain open.
 

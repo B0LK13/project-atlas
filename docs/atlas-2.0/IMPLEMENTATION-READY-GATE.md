@@ -2,8 +2,17 @@
 
 Status: **PREP ONLY**. `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
-This checklist is the Track B gate. Every row must be green before flipping
-the READY flag. Do not open production 2.0 branches until then.
+Secondary Track B status (docs completeness, not a READY flip):
+
+| Status string | Meaning | Current |
+|---|---|---|
+| `ATLAS_2_0_IMPLEMENTATION_READY` | Gates 1–10 all green; governor flip | **NO** |
+| `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | Prep docs/fixtures/prototypes as complete as honest without lying that gates 1–3/10 are true | **CANDIDATE after deepen-i** (still not READY) |
+
+§56 **requires** gates 1–3 (1.0 RELEASE, WEB ACCEPTED, PILOT/waiver) and gate 10
+(owner auth). Those cannot be satisfied by Track B docs. Therefore full READY
+must **not** be stamped; use `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` only as a
+prep-depth signal after deepen-i review.
 
 | # | Gate | Status |
 |---|---|---|
@@ -20,9 +29,9 @@ the READY flag. Do not open production 2.0 branches until then.
 
 ## Observed prep baseline pin (not release certification)
 
-- Tip commit: `ac1cee723f368154334815dade33212e593fc88c`
-- Tip tree: `e0ed54782830df036cc439fa127ff5a16c5d8915`
-- Meaning: branch-creation baseline for deepen-h only. It is **not** a release
+- Tip commit: `b57cceb383dca8d4a8c967da58abfc799386a829`
+- Tip tree: `7efe25dccee4c91a9095cbf4743865274c4e9dff`
+- Meaning: branch-creation baseline for deepen-i only. It is **not** a release
   tag, compatibility snapshot, governor signature, or proof that 1.0 is
   certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
 
@@ -83,6 +92,29 @@ Theme coverage expanded; **no gate flipped to YES**. Honest prep ≈ **68%**.
 Blocking READY flip: gates **1–3** and **10** (1.0 RELEASE, WEB ACCEPTED, PILOT/waiver, owner auth) plus unchecked §98 freeze rows.
 Explicit after deepen-h: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
+## Progress notes (deepen-i) — READY still NO · PREP_COMPLETE candidate
+
+Docs/fixtures/prototypes for gates **4–9** deepened as far as honest without
+falsifying gates **1–3/10**. Honest prep ≈ **82%**.
+
+| Note | Evidence | READY impact |
+|---|---|---|
+| Schema/API + MCP drafts | SCHEMA-API-DRAFTS.md, MCP-API-DRAFTS.md | none — non-shipping |
+| Reality Gap / Obsidian 2.0 | REALITY-GAP.md, OBSIDIAN-2.0.md | none — PREP/PROTOTYPE |
+| Perf budgets / test / migration | PERFORMANCE-BUDGETS.md, TEST-STRATEGY.md, MIGRATION-STRATEGY.md | none |
+| DAG freeze draft | DAG-FREEZE-DRAFT.md | `DAG_FREEZE=NO` |
+| §98 stubs expanded (AGENTOS/KCI/TWIN/CTX/OBS) | PACKAGE-CONTRACT-STUBS + CONTRACT-FREEZE | freeze rows still **NO** |
+| Threat T-2.0-025…028 | THREAT-MODEL.md | design intent only |
+| OpenAI importer fixtures + UX/Twin prototypes | fixtures/openai-importer/, prototypes/* | non-evidentiary |
+| Status string `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | this gate | **≠** IMPLEMENTATION READY |
+
+Remaining Track B gaps before even claiming prep-complete: governor review of
+deepen-i artifact set; optional OQ deferral waivers; freeze still NO.
+
+Full READY still blocked by gates **1–3** and **10**.
+Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+`2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` = **CANDIDATE** (pending governor ack of deepen-i pack; still not READY).
+
 ## Explicit firewall
 
 - No 2.0 production semantics in `src/project_atlas/`
@@ -104,3 +136,4 @@ Only a governor may set `ATLAS_2_0_IMPLEMENTATION_READY = YES` after rows
 | 2026-08-09 | deepen-f: deeper contracts, residual threats, fixture scenarios, open blockers, and prep tip pin; READY unchanged NO |
 | 2026-08-09 | deepen-g: refreshed prep pin; deepened FR/INV, fixtures, threats, package reviews, and prototype walkthrough; READY unchanged NO |
 | 2026-08-09 | deepen-h: Agent OS / Twin / KCI / Context / Architecture themes + Z15–Z19; READY unchanged NO; prep ≈68% |
+| 2026-08-09 | deepen-i: schema/MCP drafts, Reality Gap, Obsidian, perf/test/migration, DAG freeze draft, threat 025–028, importer fixtures; READY=NO; PREP_COMPLETE_PENDING_1.0_ANCHOR=CANDIDATE; prep ≈82% |
