@@ -86,7 +86,7 @@ def test_write_is_limited_to_generated_ops(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(
         "project_atlas.sync_queue.REPORT_RELATIVE", Path("00-system/sync/sync-queue.json")
     )
-    with pytest.raises(SyncQueueError, match="generated/ops/sync-queue-dry-run"):
+    with pytest.raises(SyncQueueError, match="00-system/sync"):
         write_dry_run_sync_queue(tmp_path, queue)
     assert not (tmp_path / "00-system" / "sync" / "sync-queue.json").exists()
 
