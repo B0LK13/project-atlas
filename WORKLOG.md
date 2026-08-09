@@ -4616,3 +4616,8 @@ Fixture pipeline determinism + recovery noop + optional CORE2-010 bind.
 ## AS-WEB-ACCEPT-003
 Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
 
+||||||| parent of 7b42fa9 (feat(adv-release-001): fixture recovery, determinism, and perf certification)
+
+## AS-ADV-RELEASE-001
+Fixture recovery/determinism/perf certification (atlas adv certify). release_certified always false.
+

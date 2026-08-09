@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/adv-release-cert-report.schema.json",
+  "title": "Advanced Release Fixture Certification Report",
+  "description": "AS-ADV-RELEASE-001 recovery/determinism/perf fixture certification under generated/ops/. Operational only; never stamps RELEASE CERTIFIED, PILOT PASS, or WEB ACCEPTED. No wall-clock generated.at.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "package",
+    "status",
+    "release_certified",
+    "estate_pilot_passed",
+    "web_application_accepted",
+    "cases",
+    "counts",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.adv_release_cert.report.v1" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "ADV-RELEASE FIXTURE CERT ≠ RELEASE CERTIFIED / PILOT PASS / WEB ACCEPTED"
+    },
+    "package": { "const": "AS-ADV-RELEASE-001" },
+    "status": {
+      "type": "string",
+      "enum": ["certified", "failed", "partial"]
+    },
+    "release_certified": { "const": false },
+    "estate_pilot_passed": { "const": false },
+    "web_application_accepted": { "const": false },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["case_id", "result", "expected", "observed"],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "enum": [
+              "recovery_promote_noop",
+              "recovery_snapshot_roundtrip",
+              "determinism_pipeline",
+              "perf_baseline_fixture"
+            ]
+          },
+          "result": { "type": "string", "enum": ["pass", "fail"] },
+          "expected": { "type": "string", "minLength": 1 },
+          "observed": { "type": "string", "minLength": 1 },
+          "detail": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "passed", "failed"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
