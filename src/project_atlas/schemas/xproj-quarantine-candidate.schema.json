@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/xproj-quarantine-candidate.schema.json",
+  "title": "XPROJ Quarantine Candidate",
+  "description": "AS-XPROJ-001 fail-closed quarantine for ambiguous / forbidden registration attempts. Never pick a winner. Never claim synthesis.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "candidate_id",
+    "category",
+    "authority",
+    "status",
+    "reason",
+    "inputs_considered"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-XPROJ-001" },
+    "candidate_id": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "enum": [
+        "ambiguous-join",
+        "colliding-registration",
+        "class-conflict",
+        "name-only-merge-forbidden",
+        "fuzzy-identity-forbidden",
+        "physical-resource-promotion-forbidden",
+        "unknown-class",
+        "missing-registration"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "status": { "const": "quarantine_candidate" },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "inputs_considered": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean", "null", "array", "object"]
+      },
+      "description": "Metadata only — never secret payloads; no winning_choice field."
+    },
+    "truth_boundary": {
+      "type": "string",
+      "const": "CROSS-PROJECT IDENTITY ≠ AUTOMATIC AUTHORITY"
+    },
+    "project_id": { "type": "string" },
+    "project_local_entity_id": { "type": "string" },
+    "global_entity_id": { "type": "string" }
+  },
+  "not": {
+    "required": ["winning_choice"]
+  }
+}
