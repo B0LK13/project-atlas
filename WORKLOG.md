@@ -4045,7 +4045,7 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - New project_atlas.graph_projections: relationships.md + graph-health.md emitters
 - Promote under generated/graph/projections/ only; AT-011 protected-region preserve
 - Consume-only GRAPH-003 relationships + GRAPH-004 health; no CLI dual-own
-- Focused tests 	est_as_graph_005_*; package guide docs/AS-GRAPH-005-graph-projections.md
+- Focused tests `test_as_graph_005_*`; package guide docs/AS-GRAPH-005-graph-projections.md
 - GRAPH PROJECTION ≠ AUTOMATIC AUTHORITY; REL-001 not opened
 
 ### Gates
