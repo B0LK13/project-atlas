@@ -7,7 +7,7 @@ Secondary Track B status (docs completeness, not a READY flip):
 | Status string | Meaning | Current |
 |---|---|---|
 | `ATLAS_2_0_IMPLEMENTATION_READY` | Gates 1–10 all green; governor flip | **NO** |
-| `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | Prep docs/fixtures/prototypes as complete as honest without lying that gates 1–3/10 are true | **CANDIDATE after deepen-i** (still not READY) |
+| `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | Prep docs/fixtures/prototypes as complete as honest without lying that gates 1–3/10 are true | **YES** after deepen-j (still ≠ READY) |
 
 §56 **requires** gates 1–3 (1.0 RELEASE, WEB ACCEPTED, PILOT/waiver) and gate 10
 (owner auth). Those cannot be satisfied by Track B docs. Therefore full READY
@@ -19,19 +19,19 @@ prep-depth signal after deepen-i review.
 | 1 | Atlas 1.0 `RELEASE CERTIFIED = YES` | **NO** (blocked) |
 | 2 | WEB APPLICATION ACCEPTED = YES | **NO** |
 | 3 | ESTATE PILOT PASSED = YES (or explicit fixture-only waiver recorded) | **NO** |
-| 4 | Package contracts (§98) frozen with FR/INV/schema sketches | partial (stubs); see [CONTRACT-FREEZE-CHECKLIST.md](CONTRACT-FREEZE-CHECKLIST.md) — all freeze rows **NO** |
-| 5 | DEPENDENCY-DAG reviewed vs 1.0 tip pin | partial |
-| 6 | Threat model register complete for first 2.0 wave | partial (T-2.0-001…020; residuals open) |
-| 7 | Fixture families inventoried (FIXTURE-PLAN) | partial (scenario matrix only; no payload harness) |
-| 8 | OpenAI/MCP designs marked PROTOTYPE / no production wiring | present (+ `prototypes/` stub) |
-| 9 | Compatibility snapshot consumer contract drafted | partial |
+| 4 | Package contracts (§98) frozen with FR/INV/schema sketches | **DRAFT complete** / production freeze **NO** — see CONTRACT-FREEZE-CHECKLIST |
+| 5 | DEPENDENCY-DAG reviewed vs 1.0 tip pin | `DAG_DRAFT_COMPLETE=YES` / `DAG_FREEZE=NO` |
+| 6 | Threat model register complete for first 2.0 wave | prep register T-2.0-001…028; production controls **NO** |
+| 7 | Fixture families inventoried (FIXTURE-PLAN) | inventory + openai-importer sketch; harness **NO** |
+| 8 | OpenAI/MCP designs marked PROTOTYPE / no production wiring | **YES** (PROTOTYPE) |
+| 9 | Compatibility snapshot consumer contract drafted | DRAFT yes; freeze **NO** |
 | 10 | Owner authorization to open first 2.0 impl package | **NO** |
 
 ## Observed prep baseline pin (not release certification)
 
-- Tip commit: `b57cceb383dca8d4a8c967da58abfc799386a829`
-- Tip tree: `7efe25dccee4c91a9095cbf4743865274c4e9dff`
-- Meaning: branch-creation baseline for deepen-i only. It is **not** a release
+- Tip commit: `a1a0912b35848f77a933fc94549a23657c0e92d0`
+- Tip tree: `397147ff2dd81d611b08e0cb879ba30f53c555e8`
+- Meaning: branch-creation baseline for deepen-j only. It is **not** a release
   tag, compatibility snapshot, governor signature, or proof that 1.0 is
   certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
 
@@ -115,6 +115,19 @@ Full READY still blocked by gates **1–3** and **10**.
 Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` = **CANDIDATE** (pending governor ack of deepen-i pack; still not READY).
 
+## Progress notes (deepen-j) — agent-eligible closeout
+
+| Note | Evidence | READY impact |
+|---|---|---|
+| OQ-001…019 fully dispositioned | OPEN-QUESTIONS.md (11 ANSWERED-DRAFT, 8 DEFERRED-WITH-WAIVER) | none — not READY |
+| §98 DRAFT complete; production freeze NO | CONTRACT-FREEZE-CHECKLIST.md | none |
+| `DAG_DRAFT_COMPLETE=YES` / `DAG_FREEZE=NO` | DAG-FREEZE-DRAFT.md | none |
+| `AGENT_ELIGIBLE_COUNT=0` except owner gates | AGENT-ELIGIBLE-INVENTORY.md | stop filler docs |
+
+Honest prep ≈ **90%** of agent-eligible Track B. Full READY still blocked by gates **1–3** and **10**.
+Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+`2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR = YES` (docs/prep depth; **≠** IMPLEMENTATION READY).
+
 ## Explicit firewall
 
 - No 2.0 production semantics in `src/project_atlas/`
@@ -137,3 +150,4 @@ Only a governor may set `ATLAS_2_0_IMPLEMENTATION_READY = YES` after rows
 | 2026-08-09 | deepen-g: refreshed prep pin; deepened FR/INV, fixtures, threats, package reviews, and prototype walkthrough; READY unchanged NO |
 | 2026-08-09 | deepen-h: Agent OS / Twin / KCI / Context / Architecture themes + Z15–Z19; READY unchanged NO; prep ≈68% |
 | 2026-08-09 | deepen-i: schema/MCP drafts, Reality Gap, Obsidian, perf/test/migration, DAG freeze draft, threat 025–028, importer fixtures; READY=NO; PREP_COMPLETE_PENDING_1.0_ANCHOR=CANDIDATE; prep ≈82% |
+| 2026-08-09 | deepen-j: OQ dispositions; §98 DRAFT complete; DAG_DRAFT_COMPLETE=YES; PREP_COMPLETE_PENDING_1.0_ANCHOR=YES; AGENT_ELIGIBLE_COUNT=0 except owner; READY=NO |
