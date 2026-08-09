@@ -2062,38 +2062,43 @@ def _render_claims(project: str, claims: tuple[Claim, ...]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _render_concepts(project: str, concepts: tuple[ConceptRecord, ...]) -> str:
-    """Render project concepts.md with a single generated-marker pair.
+def _concept_generated_body(concept: ConceptRecord) -> str:
+    """Body section for one concept inside the shared generated region."""
+    return "\n".join(
+        [
+            f"# {concept.title}",
+            "",
+            concept.description or "_No description._",
+            "",
+            f"Knowledge state: `{concept.knowledge_state.value}`",
+        ]
+    )
 
-    AS-CORE-MODEL-001C / 001B multi-concept: ``render_concept_note`` embeds
-    per-note markers; aggregating them verbatim breaks AT-011 replay
-    (``_generated_content`` requires exactly one start/end pair). Strip
-    per-note markers and wrap the aggregate once.
+
+def _render_concepts(project: str, concepts: tuple[ConceptRecord, ...]) -> str:
+    """Render concepts.md with leading OKF frontmatter and one marker pair.
+
+    AS-CORE-MODEL-001C / AT-011 / validate contract:
+    - ``validation.py`` requires concept notes ``startswith("---\\n")``.
+    - ``_generated_content`` requires exactly one start/end marker pair.
+    Project-singleton frontmatter leads; all concept bodies (singleton +
+    Capabilities + allow-list) share the single generated region so human
+    regions outside the markers are preserved byte-for-byte on replay.
     """
     start = "<!-- atlas:generated:start -->"
     end = "<!-- atlas:generated:end -->"
     if not concepts:
-        body = "_No concepts._"
-    else:
-        parts: list[str] = []
-        for concept in concepts:
-            note = render_concept_note(
-                concept, f"projects/{project}/concepts.md"
-            ).rstrip()
-            note = note.replace(f"{start}\n", "").replace(f"\n{end}", "")
-            note = note.replace(start, "").replace(end, "")
-            parts.append(note.strip())
-        body = "\n\n".join(parts)
-    return "\n".join(
-        [
-            f"# Concepts — {project}",
-            "",
-            start,
-            body,
-            end,
-            "",
-        ]
-    )
+        # Empty index still leads with OKF fence so validate never sees bare H1.
+        # Body-only placeholder stays inside a single marker pair (AT-011).
+        return f"---\n---\n\n{start}\n_No concepts._\n{end}\n"
+
+    resource = f"projects/{project}/concepts.md"
+    # Leading note establishes OKF frontmatter + open marker (singleton shape).
+    leading = render_concept_note(concepts[0], resource)
+    start_index = leading.index(start)
+    prefix = leading[: start_index + len(start)]
+    body = "\n\n".join(_concept_generated_body(concept) for concept in concepts)
+    return f"{prefix}\n{body}\n\n{end}\n"
 
 
 def _render_conflicts(project: str, conflicts: tuple[ConflictRecord, ...]) -> str:

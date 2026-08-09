@@ -11,12 +11,17 @@ from project_atlas.knowledge_compiler import (
     _allowlist_concepts,
     _capability_concepts,
     _concept,
+    _normalize_architecture_declarations,
     _normalize_component_declarations,
+    _normalize_decision_declarations,
+    _normalize_status_declarations,
     _parse_emit_concepts,
+    _render_concepts,
     allowlist_concept_id,
     capability_concept_id,
     compile_knowledge,
     derive_project_maturity,
+    render_bundle,
 )
 
 
@@ -331,3 +336,117 @@ def test_identity_never_equals_project_id() -> None:
         concept_id = allowlist_concept_id("demo", concept_type.value, "x")
         assert concept_id != "demo"
         assert concept_id.split("-", 1)[0] in {"status", "arch", "comp", "decision"}
+
+
+def test_adv_c12_component_secret_title_fails_closed() -> None:
+    """ADV-C-12 / NFR-004: secret-bearing allow-list titles must be rejected."""
+    entries = [
+        _entry(
+            components=[{"id": "auth", "title": "AKIAIOSFODNN7EXAMPLE"}],
+        )
+    ]
+    with pytest.raises(ValueError, match="secret-bearing allow-list"):
+        _normalize_component_declarations("demo", entries)
+
+
+def test_adv_c12_project_status_secret_title_fails_closed() -> None:
+    entries = [
+        _entry(
+            path=".atlas-project.yaml",
+            project_status={"id": "current", "title": "AKIAIOSFODNN7EXAMPLE"},
+        )
+    ]
+    with pytest.raises(ValueError, match="secret-bearing allow-list"):
+        _normalize_status_declarations("demo", entries, frozenset())
+
+
+def test_adv_c12_architecture_secret_title_fails_closed() -> None:
+    entries = [
+        _entry(
+            classification="architecture",
+            path="docs/AKIAIOSFODNN7EXAMPLE.md",
+            emit_concepts=["architecture"],
+            text="# Architecture\n",
+        )
+    ]
+    with pytest.raises(ValueError, match="secret-bearing allow-list"):
+        _normalize_architecture_declarations(
+            "demo", entries, frozenset({"architecture"})
+        )
+
+
+def test_adv_c12_decision_secret_title_fails_closed() -> None:
+    entries = [
+        _entry(
+            classification="decision",
+            path="docs/adr/ADR-001-storage.md",
+            emit_concepts=["decision"],
+            decision_id="AKIAIOSFODNN7EXAMPLE",
+            text="# Storage\n",
+        )
+    ]
+    with pytest.raises(ValueError, match="secret-bearing allow-list"):
+        _normalize_decision_declarations("demo", entries, frozenset({"decision"}))
+
+
+def test_render_concepts_okf_frontmatter_leads_with_single_marker_pair(
+    tmp_path: Path,
+) -> None:
+    """F1/F2 remediation: leading ``---`` + exactly one generated marker pair."""
+    entries = [
+        _entry(
+            path=".atlas-project.yaml",
+            components=[{"id": "auth", "title": "Auth"}],
+            capabilities=[{"id": "search", "title": "Search"}],
+        )
+    ]
+    bundle = compile_knowledge("demo", entries, tmp_path)
+    rendered = render_bundle(bundle, "demo")["projects/demo/concepts.md"]
+    assert rendered.startswith("---\n")
+    assert rendered.count("<!-- atlas:generated:start -->") == 1
+    assert rendered.count("<!-- atlas:generated:end -->") == 1
+    # Frontmatter precedes the generated region (not H1-before-YAML).
+    assert rendered.index("---\n") < rendered.index("<!-- atlas:generated:start -->")
+    assert not rendered.lstrip().startswith("# Concepts")
+    # Multi-concept bodies share the single generated region.
+    assert "# Auth" in rendered
+    assert "# Search" in rendered
+    # Direct helper stays consistent with bundle render.
+    assert _render_concepts("demo", bundle.concepts) == rendered
+
+
+def test_at011_human_regions_preserved_with_multi_concept(tmp_path: Path) -> None:
+    """A-10 / ADV-C-13: human regions outside markers survive multi-concept replay."""
+    from project_atlas.ingestion import _generated_content
+
+    entries = [
+        _entry(
+            path=".atlas-project.yaml",
+            components=[{"id": "auth", "title": "Auth"}],
+            text="# Overview\nPurpose: preserve humans.",
+        )
+    ]
+    generated = render_bundle(
+        compile_knowledge("demo", entries, tmp_path), "demo"
+    )["projects/demo/concepts.md"]
+    path = tmp_path / "projects/demo/concepts.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        generated.replace(
+            "---\n\n<!-- atlas:generated:start -->",
+            "---\n\nHuman-owned note.\n\n<!-- atlas:generated:start -->",
+        ).replace(
+            "<!-- atlas:generated:end -->\n",
+            "<!-- atlas:generated:end -->\n\nHuman conclusion.\n",
+        ),
+        encoding="utf-8",
+    )
+    replay = render_bundle(
+        compile_knowledge("demo", entries, tmp_path), "demo"
+    )["projects/demo/concepts.md"]
+    preserved = _generated_content(path, replay)
+    assert preserved.startswith("---\n")
+    assert "Human-owned note." in preserved
+    assert "Human conclusion." in preserved
+    assert preserved.count("<!-- atlas:generated:start -->") == 1
+    assert preserved.count("<!-- atlas:generated:end -->") == 1
