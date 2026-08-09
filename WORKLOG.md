@@ -3709,3 +3709,35 @@ Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 s
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 **Orphan evidence:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-QUERY-DIAG-001-IMPLEMENTATION-EVIDENCE.md`
 
+
+## AS-CORE-MODEL-001A — Deterministic project-concept maturity fill
+
+**Directive:** D-PROJECT-ATLAS-GEN4-PARALLEL-WAVE-007 Lane B  
+**Contract:** `convergence-parallel-005/AS-CORE-MODEL-001A.md` (Rules A–D; `AS-CORE-MODEL-001A@wave5`)  
+**Base:** Gen-4 tip `9f656ab29a2f1da95389ed213746b2e9b1a80565` / tree `20882c5526522eaf8467cd9b1819cef496282385`  
+**Branch:** `feat/as-core-model-001a-maturity`  
+**Worktree:** `D:\atlas-worktrees\as-core-model-001a`  
+**Overlap gate:** **NO OVERLAP** vs AS-GRAPH-002 — `gen4-parallel-wave-007/AS-CORE-MODEL-001A-SURFACE-OVERLAP-GATE.md`
+
+### What changed
+- `knowledge_compiler.derive_project_maturity` + `_concept` fills singleton `ConceptRecord.maturity`
+- `ingestion._project_context` surfaces marker `maturity` (fail-closed on invalid)
+- Golden `maturity-matrix.json`: nebula=beta, black-agency-os=prototype, dark-factory=unknown
+- Unit Rules A–D + integration pilot differentiation / replay / no-Capability invention
+- Backlog CORE-MODEL-001 / CORE2-007 marked **partial** (maturity only; 001B/001C open)
+
+### Gates
+- ruff: PASS
+- mypy src: PASS (62 files)
+- Focused maturity: 12 passed
+- Full Core: **654 passed, 1 skipped** (655 collected)
+- Control Plane: unchanged (out of package)
+- Orphan evidence: `D:\project-atlas-orphans\atlas-tech-debt\AS-CORE-MODEL-001A-IMPLEMENTATION-EVIDENCE.md`
+
+**PRODUCTION CODE MODIFIED: YES**  
+**TESTS MODIFIED: YES**  
+**BACKLOG MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**AS-CORE-009: NOT OPENED**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+

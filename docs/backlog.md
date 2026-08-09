@@ -140,9 +140,10 @@ independent verification passes and the branch is merged to `main`._
 - [ ] CORE-MODEL-001 Integrate `ConceptRecord`, `Claim`, and
   `ProvenanceReference` into formal project projections and richer validated
   project frontmatter; the current slice intentionally uses a thin
-  `SourceRecord`-backed projection. (Split later: maturity slice
-  AS-CORE-MODEL-001A; multi-concept composition AS-CORE-MODEL-001B —
-  contracts only under Lane D / D-PROJECT-ATLAS-PARALLEL-WAVE-002.)
+  `SourceRecord`-backed projection. (**Partial:** AS-CORE-MODEL-001A maturity
+  fill implemented on `feat/as-core-model-001a-maturity` — governor review
+  required; multi-concept composition remains AS-CORE-MODEL-001B/001C —
+  contracts only; do not treat CORE-MODEL-001 as closed.)
 - [x] AS-INGEST-MANIFEST-001 Multi-batch discovery snapshot and ingest-report
   merge by `source_id` — implementation complete on
   `feat/as-ingest-manifest-001` (closes AS-MVP-001 accepted overwrite debt;
@@ -181,6 +182,8 @@ independent verification passes and the branch is merged to `main`._
 - [x] CORE2-005 Add content-based secret findings with metadata-only output
 - [x] CORE2-006 Persist source lifecycle state and deletion tombstones
 - [ ] CORE2-007 Complete ConceptRecord/Claim projection composition and migrations
+  (**Partial:** AS-CORE-MODEL-001A fills singleton `ConceptRecord.maturity`
+  via Rules A–D; Capability / multi-concept composition still open.)
 - [ ] CORE2-008 Add duplicate-source conflict projections and authority review queue
 - [ ] CORE2-009 Add interrupted-write recovery and complete write accounting
   (ATOMIC-PROMOTION residual; contract-only under Lane D — see
