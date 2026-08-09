@@ -114,6 +114,68 @@ Cross-package rule: where any candidate 2.0 boundary conflicts with the 1.0
 snapshot, **1.0 wins**. All boundary names remain subject to freeze review.
 `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
+
+## Candidate interaction and rejection notes (deepen-g; non-normative)
+
+These notes deepen review vocabulary only. They are not API definitions,
+serialized records, lifecycle decisions, or production schemas.
+
+### FED interaction sketch
+
+- **Candidate phases:** declare members → verify identity/snapshot references →
+  evaluate consent/ambiguity → publish consume-only inventory or quarantine.
+- **Rejection classes to review:** unsigned member, duplicate lineage identity,
+  incompatible snapshot, path outside declared root, capability beyond read.
+- **Authority firewall:** inventory inclusion means discoverable membership only;
+  it does not select a canonical project, claim, entity, or source.
+- **Unresolved:** issuer/verifier, signature form, namespace policy, and trust-root
+  rotation remain OQ-001/OQ-002/OQ-003/OQ-016.
+
+### UX interaction sketch
+
+- **Candidate phases:** read pinned adapter snapshot → classify freshness/evidence
+  state → derive labelled view → render blocked/degraded/unknown explicitly.
+- **Rejection classes to review:** absent source pin, unsupported view version,
+  unlabeled derived graph, fixture presented as live, stale state presented fresh.
+- **Acceptance firewall:** rendering, route availability, and sample-data success
+  are observations only; none can emit WEB APPLICATION ACCEPTED evidence.
+- **Unresolved:** rollout, live-vault default, impact sources, and independent
+  acceptance evidence remain OQ-007/OQ-008/OQ-009/OQ-017.
+
+### PROV interaction sketch
+
+- **Candidate phases:** resolve pinned adapter/capabilities → redact request
+  metadata → execute in selected isolation boundary → quarantine result → scan,
+  provenance-check, and validate → expose only an accepted consume-only result.
+- **Rejection classes to review:** unpinned model/tool set, capability drift,
+  secret finding, incomplete provenance, invalid result, write-capable discovery.
+- **Promotion firewall:** successful provider execution is not claim acceptance,
+  source authority, or permission to call canonical writers.
+- **Unresolved:** isolation boundary, deterministic precedence, and receipt family
+  remain OQ-004/OQ-005/OQ-006.
+
+### SYNC interaction sketch
+
+- **Candidate phases:** inventory pinned endpoints → compute deterministic dry plan
+  → classify conflicts/tombstones → obtain separate authorization → apply through
+  recovery boundary → issue terminal receipt without erasing prior states.
+- **Rejection classes to review:** changed plan digest, expired/cancelled authority,
+  replay with changed scope, unresolved conflict, stale resurrection, partial apply.
+- **Evidence firewall:** queued/planned/applied/fixture-rehearsed are distinct; none
+  alone proves authorization, canonical success, or ESTATE PILOT PASSED.
+- **Unresolved:** tombstone policy, rollback/forward-fix, authorization lifetime,
+  replay identity, and evidence class remain OQ-011/OQ-012/OQ-018/OQ-019.
+
+### Cross-package review vocabulary
+
+Candidate states such as `declared`, `quarantined`, `derived`, `planned`, and
+`denied` are prose labels, not reserved enum values. Any future schema must be
+separately proposed and frozen. Failure details must not contain secrets, raw
+provider content, or untrusted absolute paths. No package may infer a stronger
+governance state from a weaker operational state.
+
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Prep deepen (2026-08-09d)
 
 - `IMPLEMENTATION-READY-GATE.md` — §101 checklist (READY=NO)
@@ -129,3 +191,8 @@ Expanded FR stubs for federation, UX, provider, sync, compat (this revision).
 
 Added candidate FED/UX/PROV/SYNC IN/OUT/FORBIDDEN boundaries without shipping
 schemas or authorizing production packages. READY remains NO.
+
+## Prep deepen-g (2026-08-09)
+
+Added candidate interaction/rejection notes for FED/UX/PROV/SYNC. Open questions remain unresolved; no schema or production contract shipped.
+READY remains NO.

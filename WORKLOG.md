@@ -4892,3 +4892,15 @@ RELEASE / PILOT / WEB ACCEPTED remain **NO**.
 
 - Added deterministic stage-only promotion recovery and full pipeline replay evidence.
 - Fixture RC evidence only: RELEASE CERTIFIED remains NO (`release_certified: false`).
+||||||| parent of 551893a (docs(atlas-2.0): deepen readiness review without gate flip)
+
+
+## Atlas 2.0 prep Track B — deepen-g
+
+**Date:** 2026-08-09
+**Branch:** docs/atlas-2.0-prep-deepen-g
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+- Refreshed the docs-only prep pin to `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59` / tree `fa404c270c1659d4c48739440a43087a4226b939`; not release certification.
+- Deepened contract FR/INV review, package rejection boundaries, fixture oracle inventory, and threat residuals; added one explicitly non-production review prototype.
+- No source, apps, production schema, fixture payload, or executable harness changes. All freeze rows remain NO and `ATLAS_2_0_IMPLEMENTATION_READY = NO`.

@@ -20,9 +20,9 @@ authorize `src/` work or dependency-bearing schemas.
 
 ## Observed prep baseline pin (not release certification)
 
-- Tip commit: `91c0d06ad5224dd081b9e2248fe17b65f360d5fc`
-- Tip tree: `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc`
-- Meaning: branch-creation baseline for deepen-f only. It is **not** a release
+- Tip commit: `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59`
+- Tip tree: `fa404c270c1659d4c48739440a43087a4226b939`
+- Meaning: branch-creation baseline for deepen-g only. It is **not** a release
   tag, compatibility snapshot, governor signature, or proof that 1.0 is
   certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
 
@@ -41,7 +41,7 @@ authorize `src/` work or dependency-bearing schemas.
 | # | Gate | Status |
 |---|---|---|
 | C1 | Threat register reviewed vs first 2.0 wave (T-2.0-xxx) | [ ] **NO** |
-| C2 | Open questions OQ-001…015 answered or deferred with waiver | [ ] **NO** |
+| C2 | Open questions OQ-001…019 answered or deferred with waiver | [ ] **NO** |
 | C3 | Fixture families named + harness policy agreed | [ ] **NO** |
 | C4 | Prototype artifacts remain marked non-production | [ ] **NO** (inventory exists; freeze not claimed) |
 | C5 | No dependency-bearing 2.0 schemas in package data | [ ] **NO** (policy holds; freeze not claimed) |
@@ -116,6 +116,38 @@ not schemas, accepted requirements, or evidence that any row above is green.
 Each FR/INV/schema review result remains `[ ] NO` until a governor records
 the missing decision and evidence. `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
+
+## Freeze-review evidence ledger (deepen-g; all NO)
+
+The ledger separates writing a candidate from accepting it. A future reviewer
+must cite durable evidence for every cell; prose in this prep tree is not that
+evidence.
+
+| Stub | FR decision still required | INV falsification review still required | Evidence absent now | Status |
+|---|---|---|---|---|
+| AS-2.0-FED-001 | approve consent, membership, and projection scope | prove ambiguous/unsigned/reordered joins cannot select authority | issuer/verifier decision, certified snapshot, executable negatives | [ ] **NO** |
+| AS-2.0-UX-001 | approve read-model modes and freshness semantics | prove route/sample/derived graph cannot stamp acceptance or authority | WEB acceptance bundle and live-vault criteria | [ ] **NO** |
+| AS-2.0-PROV-001 | approve adapter lifecycle, quarantine exit, and tool capability scope | prove disabled-provider, secret, missing-pin, and tool-drift cases fail closed | sandbox decision, receipt decision, executable deny cases | [ ] **NO** |
+| AS-2.0-SYNC-001 | approve plan/apply/recovery states and tombstone precedence | prove replay, stale winner, cancellation, and partial failure cannot silently promote | authorization/expiry decisions and authentic estate evidence | [ ] **NO** |
+| AS-2.0-COMPAT-001 | approve snapshot reference and drift classes | prove forged, stale, mismatched, and conflicting pins fail closed | governor-published 1.0 release snapshot | [ ] **NO** |
+
+## FR / INV review rules (candidate, not frozen)
+
+1. **FR completeness:** each FR must identify actor, input class, observable
+   outcome, rejection outcome, and 1.0 dependency. Missing rejection behavior
+   keeps `FR stubs reviewed = NO`.
+2. **INV testability:** each INV must name at least one falsifying scenario and
+   deterministic oracle. Restating an FR as an INV earns no freeze credit.
+3. **Boundary consistency:** FED/UX/PROV/SYNC outputs must not imply canonical
+   authority, acceptance, authorization, or pilot status.
+4. **Open-question discipline:** OQ-001…019 remain unanswered; candidate options
+   cannot be copied into FR/INV text as decisions.
+5. **Evidence discipline:** narrative, prototype, and reserved fixture names are
+   prep evidence only. They cannot satisfy review, schema-freeze, or READY rows.
+
+Every rule above awaits governor review. Every package row and precondition
+remains `[ ] NO`; `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Explicit non-claims
 
 - All rows above are **unchecked / NO**.
@@ -136,3 +168,4 @@ the missing decision and evidence. `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 |---|---|
 | 2026-08-09 | deepen-e: initial checklist; all items unchecked / NO |
 | 2026-08-09 | deepen-f: per-stub FR/INV/schema review sketches; all freeze rows remain unchecked / NO |
+| 2026-08-09 | deepen-g: evidence ledger and FR/INV review rules; all rows remain NO |

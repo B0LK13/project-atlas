@@ -39,6 +39,34 @@ Additional reserved family `estate-evidence-class/` exists solely to prevent a
 fixture rehearsal or fixture-only waiver from being reported as an authentic
 pilot pass. Current state for every family is **reserved/sketched only**.
 
+
+## Scenario inventory ledger (deepen-g)
+
+| Family | Reserved scenarios | Positive narrative | Negative narrative | Payloads | Runner | Gate credit |
+|---|---|---|---|---|---|---|
+| federation-smoke | FX-2.0-FED-001/002 | sketched | sketched | absent | absent | none / **NO** |
+| ux-command-center | FX-2.0-UX-001/002 | sketched | sketched | absent | absent | none / **NO** |
+| provider-adapter | FX-2.0-PROV-001 | sketched | sketched | absent | absent | none / **NO** |
+| mcp-readonly-surface | FX-2.0-PROV-002 | sketched | sketched | absent | absent | none / **NO** |
+| compat-snapshot | FX-2.0-COMPAT-001 | sketched | sketched | absent | absent | none / **NO** |
+| sync-v2-tombstone | FX-2.0-SYNC-001/002 | sketched | sketched | absent | absent | none / **NO** |
+| estate-evidence-class | FX-2.0-ESTATE-001 | sketched | sketched | absent | absent | none / **NO** |
+
+A row is not coverage until reviewed payloads and a deterministic runner exist.
+Even future fixture success cannot substitute for WEB acceptance, authentic
+estate pilot evidence, a certified 1.0 snapshot, or governor authorization.
+
+## Review checklist for future payload proposals (all NO)
+
+- [ ] **NO** — no secrets, credentials, personal data, or raw provider output.
+- [ ] **NO** — all paths are synthetic relative paths; no host-specific roots.
+- [ ] **NO** — expected results include explicit failure classes.
+- [ ] **NO** — byte/digest comparison rule is documented.
+- [ ] **NO** — fixture, waiver, acceptance, and pilot evidence classes cannot be conflated.
+- [ ] **NO** — proposal remains outside production package data until authorized.
+
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Creation policy
 
 - Do **not** add JSON/YAML payload files here until IMPLEMENTATION READY.

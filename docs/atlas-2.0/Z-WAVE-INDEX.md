@@ -25,7 +25,7 @@ until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
 | Z13 | Open questions & research blockers | PREP | NO |
 | Z14 | Prototype markers & READY firewall | PREP | NO |
 
-## Status notes (deepen-f / PREP)
+## Status notes (deepen-g / PREP)
 
 All notes below are Track B progress only. None flip READY.
 
@@ -35,7 +35,7 @@ All notes below are Track B progress only. None flip READY.
 | Z2 | VISION.md themes drafted; explicitly non-normative. |
 | Z3 | PRD.md + PACKAGE-CONTRACT-STUBS FR-2.0-xxx seed; placeholders only. |
 | Z4 | DAG.md carries observed prep tip; certified 1.0 snapshot pin still pending RELEASE CERTIFIED. |
-| Z5 | THREAT-MODEL.md register T-2.0-001…020; mitigations = design intent. |
+| Z5 | THREAT-MODEL.md register T-2.0-001…024; mitigations = design intent. |
 | Z6 | AS-2.0-FED-001 stubs + OQ-001…003 + OQ-016 open; no join schema shipped. |
 | Z7 | AS-2.0-UX-001 stubs blocked on WEB APPLICATION ACCEPTED = NO; false-stamp question OQ-017 open. |
 | Z8 | AS-2.0-PROV-001 stubs + OPENAI-MCP-DESIGN PROTOTYPE; no SDK wiring. |
@@ -59,6 +59,22 @@ All notes below are Track B progress only. None flip READY.
 
 `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
+
+## Deepen-g delta (no readiness credit)
+
+- Observed prep ancestry is now pinned to `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59`
+  / tree `fa404c270c1659d4c48739440a43087a4226b939`; it is not a certified snapshot.
+- Contract review now separates candidate FR completeness, INV falsification,
+  rejection classes, and missing evidence; every checklist row remains NO.
+- Fixture inventory names deterministic oracles and promotion exits while
+  retaining zero payloads and zero executable runners.
+- Threat residuals cover confused-deputy capability, context replay, error
+  leakage, and resource amplification; mitigations remain design intent.
+- The review walkthrough is explicitly PROTOTYPE / NON-PRODUCTION and provides
+  no gate evidence. OQ-001…019 remain unanswered.
+
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Cross-links (prep artifacts)
 
 | Lane | Primary artifact(s) |
@@ -72,7 +88,7 @@ All notes below are Track B progress only. None flip READY.
 | Z11 | [FIXTURE-PLAN.md](FIXTURE-PLAN.md), [fixtures/README.md](fixtures/README.md) |
 | Z12 | [OPENAI-MCP-DESIGN.md](OPENAI-MCP-DESIGN.md) |
 | Z13 | [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md) |
-| Z14 | [PROTOTYPE-MARKERS.md](PROTOTYPE-MARKERS.md), [prototypes/README.md](prototypes/README.md), [IMPLEMENTATION-READY-GATE.md](IMPLEMENTATION-READY-GATE.md) |
+| Z14 | [PROTOTYPE-MARKERS.md](PROTOTYPE-MARKERS.md), [prototypes/README.md](prototypes/README.md), [prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md](prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md), [IMPLEMENTATION-READY-GATE.md](IMPLEMENTATION-READY-GATE.md) |
 
 ## Firewall
 
@@ -87,3 +103,4 @@ All notes below are Track B progress only. None flip READY.
 | 2026-08-09 | Initial Z1–Z14 prep lane map (`READY=NO`) |
 | 2026-08-09 | deepen-e: per-lane status notes; contract-freeze + prototypes cross-links |
 | 2026-08-09 | deepen-f: deeper contract boundaries, threats, fixture scenarios, blockers, and non-certified tip pin; READY=NO |
+| 2026-08-09 | deepen-g: refreshed prep pin; deepened review, fixture oracle, threat residual, and prototype notes; READY=NO |
