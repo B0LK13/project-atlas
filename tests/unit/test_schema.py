@@ -32,6 +32,8 @@ def test_all_expected_schemas_available() -> None:
         "diagnostic",
         "graph-acceptance-receipt",
         "graph-identity-explanation",
+        "graph-relationship",
+        "graph-relationship-quarantine",
         "graph-resolved-node",
         "graphify-edge",
         "graphify-envelope",
