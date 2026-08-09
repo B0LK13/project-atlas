@@ -546,11 +546,12 @@ def _find_project_marker(root: Path, relative_path: str, project: str) -> Path:
     raise ValueError(f"project marker not found for project: {project}")
 
 
-def _project_context(root: Path, relative_path: str, project: str) -> dict[str, str]:
+def _project_context(root: Path, relative_path: str, project: str) -> dict[str, Any]:
     """Read optional concept metadata from the authoritative project marker.
 
-    Surfaces ``concept_type`` and AS-CORE-MODEL-001A ``maturity`` when declared.
-    Invalid maturity fails closed (no silent coerce).
+    Surfaces ``concept_type``, AS-CORE-MODEL-001A ``maturity``, and
+    AS-CORE-MODEL-001B ``capabilities`` when declared.
+    Invalid maturity / capabilities shape fails closed (no silent coerce).
     """
     try:
         marker = _find_project_marker(root, relative_path, project)
@@ -564,7 +565,7 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
         raise ValueError(f"invalid project marker: {marker}") from exc
     if not isinstance(raw, dict):
         raise ValueError(f"project marker must be an object: {marker}")
-    context: dict[str, str] = {}
+    context: dict[str, Any] = {}
     concept_type = raw.get("concept_type")
     if concept_type is not None:
         if not isinstance(concept_type, str) or not concept_type.strip():
@@ -585,6 +586,19 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
                 f"project marker maturity must be a valid Maturity value: {marker}"
             ) from exc
         context["maturity"] = maturity
+    # AS-CORE-MODEL-001B: explicit capability list (validated shape only).
+    if "capabilities" in raw:
+        capabilities = raw.get("capabilities")
+        if not isinstance(capabilities, list):
+            raise ValueError(
+                f"project marker capabilities must be a list: {marker}"
+            )
+        for index, item in enumerate(capabilities):
+            if not isinstance(item, dict):
+                raise ValueError(
+                    f"project marker capabilities[{index}] must be an object: {marker}"
+                )
+        context["capabilities"] = capabilities
     return context
 
 

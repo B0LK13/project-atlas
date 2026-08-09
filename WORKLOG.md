@@ -3849,3 +3849,31 @@ Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 s
 **AS-CORE-009: NOT OPENED**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 
+
+## AS-CORE-MODEL-001B — Explicit Capability emission
+
+**Directive:** `D-PROJECT-ATLAS-AUTONOMOUS-TO-COMPLETION-001`  
+**Contract:** `convergence-parallel-005/AS-CORE-MODEL-001B.md`  
+**Re-entry:** READY WITH CONSTRAINTS (`AS-CORE-MODEL-001B-REENTRY-GATE.md`)  
+**Branch:** `feat/as-core-model-001b-capability`  
+**Worktree:** `D:\atlas-worktrees\as-core-model-001b-capability`  
+**Base:** post-DIAG tip `e3b5b6b` (rebased from post-001A `6f3ad62`)
+
+### Rules chosen
+- Marker `capabilities:` list + entry `concept_type: Capability` (title from path stem)
+- Identity: `cap-` + sha256(project_id + NUL + key)[:32]
+- Slug collision without distinct ids → fail closed
+- Singleton never typed Capability; 001A maturity unchanged
+- `provides` only from explicit marker field
+
+### Gates (pre-commit)
+- Focused unit+integration 001B: PASS
+- 001A maturity regression: PASS
+- ruff / mypy owned surfaces: PASS
+- ADV-B-01..12: package-local notes in orphans
+
+**PRODUCTION CODE MODIFIED: YES** (`knowledge_compiler`, `ingestion` capabilities plumbing)  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
+
