@@ -1,7 +1,7 @@
 # Atlas 1.0.0 PRE-RC certification checklist
 
 **Directive:** `D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001`
-**Baseline:** MAIN `40ce30f34301cc3cbb3d3f0d2ab880357e1d8f0a` / TREE `4b3d2f7d45ea48c4dde82a64554fc4ca3e2b38fe`
+**Baseline:** MAIN `1a69405a799fc559653d48e4c7cab3c29036aeeb` / TREE `1a69405a799fc559653d48e4c7cab3c29036aeeb`
 **RELEASE CERTIFIED = NO**
 
 All gates are deliberately unchecked. Evidence must be rerun or independently reviewed against the final candidate pin before any certification receipt can be signed.
