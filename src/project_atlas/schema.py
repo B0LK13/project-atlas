@@ -104,6 +104,8 @@ SCHEMA_FILES: dict[str, str] = {
     "workspace-registry-dry-run": "workspace-registry-dry-run.schema.json",
     # AS-SYNC-002-SCAFFOLD — dry-run sync plan (≠ production SYNC-002 / PILOT)
     "sync-plan-dry-run": "sync-plan-dry-run.schema.json",
+    # AS-SYNC-003-SCAFFOLD - dry-run queue/retry/resume/receipt stubs
+    "sync-queue-dry-run": "sync-queue-dry-run.schema.json",
     # AS-J-005 — derived impact graph projection (Graph≠authority; consume GRAPH-003)
     "impact-graph": "impact-graph.schema.json",
 }

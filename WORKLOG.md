@@ -4755,3 +4755,12 @@ Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
 - Deepened Atlas 2.0 prep-only contract, threat, fixture, gate, DAG, and open-question artifacts under `docs/atlas-2.0/**`.
 - Pinned prep baseline `91c0d06ad5224dd081b9e2248fe17b65f360d5fc` / tree `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc`; not a certified 1.0 snapshot.
 - Firewall held: no production code or package schemas; all freeze rows NO; `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+||||||| parent of a3c286a (feat: add dry-run sync queue scaffold)
+
+## AS-SYNC-003-SCAFFOLD
+
+- Added a library-only deterministic dry-run sync queue projection from an explicit AS-SYNC-002 plan.
+- Added inert retry, resume cursor, and estate receipt stubs with schema-locked false certification/PILOT flags.
+- Restricted persistence to `generated/ops/sync-queue-dry-run.json`; production sync paths fail closed.
+- Local gates: targeted pytest and ruff (results recorded in the implementation PR).
+- Non-claims: production SYNC certification = NO; estate PILOT PASS = NO; RELEASE/WEB acceptance = NO.

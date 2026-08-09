@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/sync-queue-dry-run.schema.json",
+  "title": "Sync Queue Dry-Run (SYNC-003 scaffold)",
+  "description": "Deterministic queue/retry/resume/estate receipt stubs from an explicit dry-run plan. Never production certified and never an estate PILOT pass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "schema", "truth_plane", "authority_plane", "note", "package", "production_sync_certified", "estate_pilot_passed", "registry_id", "vault_identity", "source_plan_package", "entries", "resume_cursor", "generated"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "schema": {"const": "atlas.sync_queue.dry_run.v1"},
+    "truth_plane": {"const": "operational"},
+    "authority_plane": {"const": "none"},
+    "note": {"const": "DRY-RUN SYNC QUEUE SCAFFOLD - NOT PRODUCTION CERTIFIED / NOT PILOT PASS"},
+    "package": {"const": "AS-SYNC-003-SCAFFOLD"},
+    "production_sync_certified": {"const": false},
+    "estate_pilot_passed": {"const": false},
+    "registry_id": {"type": "string", "minLength": 1},
+    "vault_identity": {"type": "string", "minLength": 1},
+    "source_plan_package": {"const": "AS-SYNC-002-SCAFFOLD"},
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["queue_index", "project_uuid", "disposition", "queue_state", "retry_policy", "resume_checkpoint_key", "estate_receipt"],
+        "properties": {
+          "queue_index": {"type": "integer", "minimum": 0},
+          "project_uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+          "disposition": {"enum": ["eligible", "quarantined", "disabled"]},
+          "queue_state": {"enum": ["pending", "blocked"]},
+          "retry_policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["max_attempts", "backoff_seconds", "retryable_errors"],
+            "properties": {
+              "max_attempts": {"type": "null"},
+              "backoff_seconds": {"type": "array", "maxItems": 0},
+              "retryable_errors": {"type": "array", "maxItems": 0}
+            }
+          },
+          "resume_checkpoint_key": {"type": "null"},
+          "estate_receipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["receipt_id", "status", "evidence_hash"],
+            "properties": {
+              "receipt_id": {"type": "null"},
+              "status": {"const": "not_issued"},
+              "evidence_hash": {"type": "null"}
+            }
+          }
+        }
+      }
+    },
+    "resume_cursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["next_queue_index", "next_project_uuid", "completed_project_uuids", "last_estate_receipt_id"],
+      "properties": {
+        "next_queue_index": {"type": "null"},
+        "next_project_uuid": {"type": "null"},
+        "completed_project_uuids": {"type": "array", "maxItems": 0},
+        "last_estate_receipt_id": {"type": "null"}
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {"by": {"const": "atlas-sync-003-scaffold"}}
+    }
+  }
+}
