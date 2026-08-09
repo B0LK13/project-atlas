@@ -14,8 +14,10 @@ See also: [fixtures/README.md](fixtures/README.md) for per-family inventory sket
 | Provider adapter | `fixtures/atlas-2.0/provider-adapter/` | Quarantine + provenance gate samples | **no** |
 | Compat snapshot | `fixtures/atlas-2.0/compat-snapshot/` | 1.0 HEAD/TREE pin consumer sketches | **no** |
 | Sync v2 tombstone | `fixtures/atlas-2.0/sync-v2-tombstone/` | Incremental sync + tombstone scenarios | **no** |
+| MCP read-only surface | `fixtures/atlas-2.0/mcp-readonly-surface/` | Consume-only MCP tool stubs + write-deny matrix | **no** |
 
 Do not create production-mutating fixture harnesses until 2.0 IMPLEMENTATION READY.
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
 ## Inventory sketches (per family)
 
@@ -64,6 +66,15 @@ Do not create production-mutating fixture harnesses until 2.0 IMPLEMENTATION REA
 | `after-manifest.json` | Post-sync inventory sketch | tombstone respect |
 | `conflict-review-queue.json` | Unresolved conflict → review | AS-CORE-003 |
 
+### mcp-readonly-surface/
+
+| File (sketch) | Contents | Validates |
+|---|---|---|
+| `README.md` | MCP tool family narrative (read/query/ops only) | OPENAI-MCP-DESIGN.md |
+| `tool-allowlist.yaml` | Allowed `atlas.vault.read_*` / `atlas.query.*` / `atlas.ops.*` | consume-only |
+| `tool-denylist.yaml` | Forbidden `promote`, claim compile, authority mutate | T-2.0-012 |
+| `expected-deny-receipt.json` | Sample deny response shape (no vault write) | NFR-006 |
+
 ## Harness policy (prep)
 
 1. Sketches live under `docs/atlas-2.0/fixtures/` until IMPLEMENTATION READY.
@@ -77,3 +88,4 @@ Do not create production-mutating fixture harnesses until 2.0 IMPLEMENTATION REA
 |---|---|
 | 2026-08-09 | Initial fixture family names |
 | 2026-08-09 | Per-family inventory sketches + compat/sync families |
+| 2026-08-09 | Added `mcp-readonly-surface/` family sketch (Z-wave deepen) |

@@ -20,6 +20,7 @@ full inventory table.
 | `provider-adapter/` | AS-2.0-PROV-001 | Quarantine + provenance gate samples |
 | `compat-snapshot/` | AS-2.0-COMPAT-001 | 1.0 snapshot pin consumer |
 | `sync-v2-tombstone/` | AS-2.0-SYNC-001 | Tombstone + incremental sync scenarios |
+| `mcp-readonly-surface/` | AS-2.0-PROV-001 | MCP consume-only tools; write-deny matrix |
 
 ## Creation policy
 
@@ -29,6 +30,8 @@ full inventory table.
 
 ## Cross-references
 
-- Threat model: [THREAT-MODEL.md](../THREAT-MODEL.md) (T-2.0-007, T-2.0-010)
+- Threat model: [THREAT-MODEL.md](../THREAT-MODEL.md) (T-2.0-007, T-2.0-010, T-2.0-012)
 - FR stubs: [PACKAGE-CONTRACT-STUBS.md](../PACKAGE-CONTRACT-STUBS.md)
 - Compatibility: [COMPATIBILITY.md](../COMPATIBILITY.md)
+- Z-wave lanes: [Z-WAVE-INDEX.md](../Z-WAVE-INDEX.md)
+- Prototype markers: [PROTOTYPE-MARKERS.md](../PROTOTYPE-MARKERS.md)
