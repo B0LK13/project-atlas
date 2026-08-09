@@ -24,6 +24,11 @@ until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
 | Z12 | OpenAI / MCP design sketches | PREP | NO |
 | Z13 | Open questions & research blockers | PREP | NO |
 | Z14 | Prototype markers & READY firewall | PREP | NO |
+| Z15 | Agent OS (PROTOTYPE) | PREP | NO |
+| Z16 | Digital Twin (PROTOTYPE) | PREP | NO |
+| Z17 | KCI — Knowledge Compilation Interface | PREP | NO |
+| Z18 | Context assembly envelope | PREP | NO |
+| Z19 | Architecture sketch (PREP) | PREP | NO |
 
 ## Status notes (deepen-g / PREP)
 
@@ -45,6 +50,11 @@ All notes below are Track B progress only. None flip READY.
 | Z12 | OPENAI-MCP-DESIGN.md marked PROTOTYPE; production wiring forbidden. |
 | Z13 | OPEN-QUESTIONS.md OQ-001…019 unanswered; research blockers intact. |
 | Z14 | PROTOTYPE-MARKERS.md + `prototypes/` stub; READY firewall explicit NO. |
+| Z15 | AGENT-OS.md + session prototype stub; no production wiring. |
+| Z16 | DIGITAL-TWIN.md; estate twin blocked on PILOT. |
+| Z17 | KCI.md interface sketch; no public API freeze. |
+| Z18 | CONTEXT.md assembly envelope; no production context API. |
+| Z19 | ARCHITECTURE.md layering sketch; non-normative. |
 
 ## Deepen-f delta (no readiness credit)
 
@@ -72,6 +82,29 @@ All notes below are Track B progress only. None flip READY.
   leakage, and resource amplification; mitigations remain design intent.
 - The review walkthrough is explicitly PROTOTYPE / NON-PRODUCTION and provides
   no gate evidence. OQ-001…019 remain unanswered.
+
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
+## Deepen-h delta (no readiness credit)
+
+- Added PROTOTYPE theme docs: AGENT-OS, DIGITAL-TWIN, KCI, CONTEXT + ARCHITECTURE sketch.
+- Z15–Z19 lanes registered; freeze rows and gates 1–3/10 remain NO.
+- Honest prep estimate after deepen-h: **~68%** of Track B *prep artifacts*;
+  **IMPLEMENTATION READY still NO** because gates 1–3 and 10 are owner/1.0 blocked
+  and §98 freeze rows remain unchecked.
+
+| Gap blocking READY flip | Status |
+|---|---|
+| Gate 1 RELEASE CERTIFIED | NO |
+| Gate 2 WEB ACCEPTED | NO |
+| Gate 3 ESTATE PILOT / waiver | NO |
+| Gate 4 §98 contract freeze | all rows NO |
+| Gate 5 DAG certified 1.0 pin | partial (observed tip only) |
+| Gate 6 threat register | partial / design intent |
+| Gate 7 fixture harness | inventory only |
+| Gate 8 OpenAI/MCP | PROTOTYPE present |
+| Gate 9 compatibility consumer | partial |
+| Gate 10 owner auth | NO |
 
 `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
