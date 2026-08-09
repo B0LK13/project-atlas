@@ -4764,3 +4764,34 @@ Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
 - Restricted persistence to `generated/ops/sync-queue-dry-run.json`; production sync paths fail closed.
 - Local gates: targeted pytest and ruff (results recorded in the implementation PR).
 - Non-claims: production SYNC certification = NO; estate PILOT PASS = NO; RELEASE/WEB acceptance = NO.
+||||||| parent of 4cc8ba9 (docs(web): clear WORKLOG conflict markers after rebase)
+
+## 2026-08-09 - D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 / Track B deepen-f
+
+- Deepened Atlas 2.0 prep-only contract, threat, fixture, gate, DAG, and open-question artifacts under `docs/atlas-2.0/**`.
+- Pinned prep baseline `91c0d06ad5224dd081b9e2248fe17b65f360d5fc` / tree `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc`; not a certified 1.0 snapshot.
+- Firewall held: no production code or package schemas; all freeze rows NO; `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
+## 2026-08-09 - D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 / Track B deepen-f
+
+- Deepened Atlas 2.0 prep-only contract, threat, fixture, gate, DAG, and open-question artifacts under `docs/atlas-2.0/**`.
+- Pinned prep baseline `91c0d06ad5224dd081b9e2248fe17b65f360d5fc` / tree `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc`; not a certified 1.0 snapshot.
+- Firewall held: no production code or package schemas; all freeze rows NO; `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+||||||| Stash base
+
+## AS-ADV-RELEASE-002 — Clean-clone RC hardening deepen
+
+**Date:** 2026-08-09
+**Branch:** feat/as-adv-release-002-deepen
+**Worktree:** D:\atlas-worktrees\as-adv-release-002-deepen
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+### Scope
+- Matrix case `clean_clone_replay` in `adv_release_cert.py` + schema enum
+- docs/AS-ADV-RELEASE-002-clean-clone.md (RC hardening; no RELEASE claim)
+- Unit tests for clean-clone + matrix inclusion; soft WORKLOG only
+
+### Explicit non-claims
+- RELEASE CERTIFIED: NO
+- ESTATE PILOT PASSED: NO
+- WEB APPLICATION ACCEPTED: NO

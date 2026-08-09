@@ -30,7 +30,7 @@ npm run dev
 | `#/projects` | Projects lens |
 | `#/knowledge` | Knowledge lens |
 | `#/graph` | Graph lens (derived ≠ authority) |
-| `#/ops` | Ops / health |
+| `#/ops` | Ops Health + receipt evidence (read-only unknown stub) |
 | `#/command-center` | Command Center modes |
 | `#/mission-control` | Mission Control lens (stub; ACCEPTED=NO) |
 | `#/workspace` | Workspace lens (stub; ACCEPTED=NO) |
@@ -61,8 +61,11 @@ Unit gates (from repo root, after `pip install -e ".[dev]"`):
 ```bash
 python -m pytest tests/unit/test_as_web_001_web_api.py \
   tests/unit/test_as_web_accept_001_checklist.py \
-  tests/unit/test_as_web_accept_002_closeout.py -q
+  tests/unit/test_as_web_accept_002_closeout.py \
+  tests/unit/test_as_web_ops_health_001.py -q
 ```
+
+These commands document and exercise evidence; passing them does not certify acceptance.
 
 CI: invoke the same `node apps/web/scripts/smoke.mjs` step in the quality
 job when the workflow matrix is healthy. Empty-step CI failures are tracked

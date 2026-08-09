@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Package | AS-WEB-ACCEPT-003 |
-| Tip pin (automated evidence) | `e3e3c6b` / TREE `cd7955e` (update on merge) |
+| Package | AS-WEB-ACCEPT-004 tip-pin refresh |
+| Tip pin (automated evidence) | `91c0d06ad5224dd081b9e2248fe17b65f360d5fc` / TREE `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc` (refresh after merge) |
 | **WEB APPLICATION ACCEPTED** | **NO** |
 | Governor decision | **PENDING** |
 
@@ -20,6 +20,7 @@ governor before `WEB APPLICATION ACCEPTED` may flip to YES.
 | 1–9 | Routes, invariants, ADRs, web_api RO, CC, design-lab, knowledge/graph, a11y, fixture E2E | automated PASS on tip |
 | 11 | CI / local smoke invocation documented in `apps/web/README.md` | documented |
 | 10 | This governor sign-off | **open** |
+| 12–13 | Mission Control, Workspace, and Ops Health receipt micro-lens | automated only; not acceptance |
 
 ## Governor checklist (human)
 
