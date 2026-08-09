@@ -4703,6 +4703,7 @@ Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surf
 - node apps/web/scripts/smoke.mjs
 - python -m pytest tests/unit/test_as_web_mission_control_001.py -q
 - Auto-merge: FORBIDDEN
+<<<<<<< Updated upstream
 
 ## AS-LANE-Y-001
 Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
@@ -4731,4 +4732,28 @@ Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
 - node apps/web/scripts/smoke.mjs
 - python -m pytest tests/unit/test_as_web_workspace_001.py -q
 - Auto-merge: FORBIDDEN
+
+||||||| Stash base
+=======
+
+## AS-ADV-RELEASE-002 — Clean-clone RC hardening deepen
+
+**Date:** 2026-08-09
+**Branch:** feat/as-adv-release-002-deepen
+**Worktree:** D:\atlas-worktrees\as-adv-release-002-deepen
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+### Scope
+- Matrix case `clean_clone_replay` in `adv_release_cert.py` + schema enum
+- docs/AS-ADV-RELEASE-002-clean-clone.md (RC hardening; no RELEASE claim)
+- Unit tests for clean-clone + matrix inclusion; soft WORKLOG only
+
+### Explicit non-claims
+- RELEASE CERTIFIED: NO
+- ESTATE PILOT PASSED: NO
+- WEB APPLICATION ACCEPTED: NO
+>>>>>>> Stashed changes
+
+## AS-ADV-RELEASE-002
+Clean-clone / RC hardening deepen. release_certified remains false.
 
