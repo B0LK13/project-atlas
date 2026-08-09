@@ -40,6 +40,8 @@ SCHEMA_FILES: dict[str, str] = {
     "query-diagnostic": "query-diagnostic.schema.json",
     # AS-EXPLAIN-001 — explainability / provenance receipts (operational metadata ≠ authority)
     "explain-receipt": "explain-receipt.schema.json",
+    # AS-EXPLAIN-001 Band B — graph explain sidecars (derived enrichment ≠ query winner)
+    "explain-graph-sidecar": "explain-graph-sidecar.schema.json",
     # AS-GRAPH-001 — Graphify acceptance (derived-only; not domain authority)
     "graphify-envelope": "graphify-envelope.schema.json",
     "graphify-node": "graphify-node.schema.json",
