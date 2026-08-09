@@ -43,6 +43,9 @@ SCHEMA_FILES: dict[str, str] = {
     "graphify-edge": "graphify-edge.schema.json",
     "graphify-metadata": "graphify-metadata.schema.json",
     "graph-acceptance-receipt": "graph-acceptance-receipt.schema.json",
+    # AS-GRAPH-002 — Deterministic entity resolution (derived-only; not authority)
+    "graph-resolved-node": "graph-resolved-node.schema.json",
+    "graph-identity-explanation": "graph-identity-explanation.schema.json",
 }
 
 

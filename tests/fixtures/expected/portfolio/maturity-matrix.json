@@ -2,12 +2,12 @@
   "projects": {
     "black-agency-os": {
       "inputs": {
-        "declared_maturity_source": null,
+        "declared_maturity_source": "state/concepts/black-agency-os.json",
         "open_conflicts": 0,
         "required_coverage_present": false,
         "validation_evidence_present": false
       },
-      "maturity": "unknown"
+      "maturity": "prototype"
     },
     "dark-factory": {
       "inputs": {
@@ -20,12 +20,12 @@
     },
     "nebula": {
       "inputs": {
-        "declared_maturity_source": null,
+        "declared_maturity_source": "state/concepts/nebula.json",
         "open_conflicts": 0,
         "required_coverage_present": true,
         "validation_evidence_present": true
       },
-      "maturity": "unknown"
+      "maturity": "beta"
     }
   },
   "schema_version": 1

@@ -22,6 +22,12 @@ from project_atlas.graph_acceptance import (
     accept_graphify_artifacts,
     inspect_acceptance,
 )
+from project_atlas.graph_resolution import (
+    GraphResolutionError,
+    inspect_resolution,
+    resolve_from_acceptance,
+    write_resolution_outputs,
+)
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.knowledge_query import (
@@ -114,6 +120,51 @@ def build_parser() -> argparse.ArgumentParser:
     accept_graph_parser.add_argument("--source", type=Path, required=True)
     accept_graph_parser.add_argument("--manifest", type=Path, required=True)
     accept_graph_parser.add_argument(
+        "--strict",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail closed on first rejection (default: true).",
+    )
+
+    resolve_graph_parser = subparsers.add_parser(
+        "resolve-graph",
+        help=(
+            "Resolve accepted Graphify nodes to project-local Atlas entity ids "
+            "(AS-GRAPH-002; derived-only; no authority/claims/relationship writes)."
+        ),
+    )
+    resolve_graph_parser.add_argument("--source", type=Path, required=True)
+    resolve_graph_parser.add_argument("--manifest", type=Path, required=True)
+    resolve_graph_parser.add_argument(
+        "--mapping",
+        type=Path,
+        default=None,
+        help="Optional project-local mapping table JSON (deterministic; no remote fetch).",
+    )
+    resolve_graph_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Optional vault root for derived emits under generated/graph/resolved/ "
+            "and generated/graph/quarantine-candidates/ only."
+        ),
+    )
+    resolve_graph_parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write optional derived resolution outputs (requires --vault).",
+    )
+    resolve_graph_parser.add_argument(
+        "--project-uuid",
+        type=str,
+        default=None,
+        help=(
+            "Optional local project UUID binding for durable project_uuid hits "
+            "(ADV-G2-007; unbound/foreign UUID fails closed)."
+        ),
+    )
+    resolve_graph_parser.add_argument(
         "--strict",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -305,6 +356,43 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"edges: {receipt.edge_count}")
         print(f"semantic: {receipt.semantic_status}")
         print("authority: derived")
+        return EXIT_OK
+
+    if args.command == "resolve-graph":
+        try:
+            if args.write and args.vault is None:
+                raise GraphResolutionError("resolve-graph --write requires --vault")
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise GraphResolutionError("manifest-not-object")
+            mapping: dict[str, object] | None = None
+            if args.mapping is not None:
+                loaded = json.loads(args.mapping.read_text(encoding="utf-8"))
+                if not isinstance(loaded, dict):
+                    raise GraphResolutionError("mapping-table-malformed")
+                mapping = loaded
+            _receipt, resolution = resolve_from_acceptance(
+                project_root=args.source,
+                manifest=manifest,
+                mapping_table=mapping,
+                config=config,
+                local_project_uuid=args.project_uuid,
+                strict=args.strict,
+            )
+            written: list[str] = []
+            if args.write:
+                assert args.vault is not None
+                written = write_resolution_outputs(resolution, vault=args.vault)
+            summary = inspect_resolution(resolution)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            print(f"resolved: {resolution.resolved_count}")
+            print(f"quarantined: {resolution.quarantined_count}")
+            print("authority: derived")
+            if written:
+                print(f"written: {len(written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("resolve-graph failed: %s", exc)
+            return EXIT_ERROR
         return EXIT_OK
 
     if args.command == "query":

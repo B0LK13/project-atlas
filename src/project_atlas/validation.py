@@ -50,6 +50,7 @@ def validate(vault: Path) -> dict[str, Any]:
     _validate_knowledge_state(vault, errors)
     _validate_portfolio(vault, errors)
     _validate_graph_acceptance(vault, errors)
+    _validate_graph_resolution(vault, errors)
     return {"ok": not errors, "errors": errors, "markdown_files": len(list(vault.rglob("*.md")))}
 
 
@@ -77,6 +78,46 @@ def _validate_graph_acceptance(vault: Path, errors: list[str]) -> None:
             SchemaValidationError,
         ) as exc:
             errors.append(f"invalid graph acceptance receipt {path.relative_to(vault)}: {exc}")
+
+
+def _validate_graph_resolution(vault: Path, errors: list[str]) -> None:
+    """Optional AS-GRAPH-002 checks when derived resolution outputs exist."""
+    roots = (
+        vault / "generated" / "graph" / "resolved",
+        vault / "generated" / "graph" / "quarantine-candidates",
+    )
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*.json")):
+            # Explanations live under resolved/<project>/explanations/.
+            record_kind = (
+                "graph-identity-explanation"
+                if "explanations" in path.parts
+                else "graph-resolved-node"
+            )
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("record must be an object")
+                validate_record(payload, record_kind)
+                if record_kind == "graph-resolved-node":
+                    authority = payload.get("authority", {})
+                    if not isinstance(authority, dict) or authority.get("level") != "derived":
+                        errors.append(
+                            "graph resolution authority must be derived: "
+                            f"{path.relative_to(vault)}"
+                        )
+            except (
+                OSError,
+                UnicodeError,
+                json.JSONDecodeError,
+                ValueError,
+                SchemaValidationError,
+            ) as exc:
+                errors.append(
+                    f"invalid graph resolution record {path.relative_to(vault)}: {exc}"
+                )
 
 
 def _validate_okf_concept_note(vault: Path, path: Path, errors: list[str]) -> None:
