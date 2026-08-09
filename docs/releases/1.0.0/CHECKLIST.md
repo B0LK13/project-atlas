@@ -1,7 +1,7 @@
 # Atlas 1.0.0 PRE-RC certification checklist
 
 **Directive:** `D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001`
-**Baseline:** MAIN `ac1cee723f368154334815dade33212e593fc88c` / TREE `e0ed54782830df036cc439fa127ff5a16c5d8915`
+**Baseline:** MAIN `40ce30f34301cc3cbb3d3f0d2ab880357e1d8f0a` / TREE `4b3d2f7d45ea48c4dde82a64554fc4ca3e2b38fe`
 **RELEASE CERTIFIED = NO**
 
 All gates are deliberately unchecked. Evidence must be rerun or independently reviewed against the final candidate pin before any certification receipt can be signed.
@@ -21,6 +21,10 @@ All gates are deliberately unchecked. Evidence must be rerun or independently re
 | [ ] | Release artifacts | Version, changelog, packaging, install, and artifact digest evidence recorded | NO |
 | [ ] | Open findings | No unresolved release-blocking findings; dispositions are documented | NO |
 | [ ] | Independent certification | Authorized reviewer signs a receipt bound to the exact candidate commit and tree | NO |
+
+## Evidence refresh notes
+
+The pinned baseline now includes the ADV clean-clone rehearsal procedure, stabilized ADV-004 recovery replay assertions, refreshed WEB evidence tip pins, and Track B deepen-h prep. These additions improve the evidence inventory only: no checklist row is complete, WEB governor signoff remains pending, and Atlas 2.0 implementation readiness remains NO.
 
 ## Certification boundary
 
