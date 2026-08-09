@@ -104,6 +104,43 @@ Completeness means every scenario eventually has provenance, expected outcome,
 negative outcome, deterministic comparison rule, and evidence-class label. The
 current estate is an inventory only and therefore is not complete or ready.
 
+
+## Coverage ledger deepen-g (inventory only; no payloads)
+
+Each reserved scenario now names the future comparison oracle and the minimum
+review evidence. This does not claim that the files, runner, or evidence exist.
+
+| Scenario | Deterministic oracle to design | Minimum future review evidence | Current state |
+|---|---|---|---|
+| FX-2.0-FED-001 | same declared identities produce same quarantine class independent of root spelling | signed-form decision plus positive/unsigned/collision cases | sketched / **NO** |
+| FX-2.0-FED-002 | normalized member ordering and inventory bytes match across input permutations | at least three permutation runs with pinned snapshot | sketched / **NO** |
+| FX-2.0-UX-001 | absent source always maps to explicit unknown, never healthy | live-adapter acceptance case plus missing/stale source cases | sketched / **NO** |
+| FX-2.0-UX-002 | derived-label presence and no acceptance artifact after render | independent acceptance contract and negative route/sample cases | sketched / **NO** |
+| FX-2.0-PROV-001 | identical redacted input/pins yield same gate outcome class | complete/missing-pin/secret/invalid-result cases | sketched / **NO** |
+| FX-2.0-PROV-002 | tool-set digest change forces capability re-review and write denial | pinned allowlist, drifted discovery, deterministic deny receipt | sketched / **NO** |
+| FX-2.0-COMPAT-001 | exact commit/tree accepted only against certified manifest digest | valid, forged, stale, and tree-mismatch references | sketched / **NO** |
+| FX-2.0-SYNC-001 | same endpoints/cursor/policy yield byte-stable plan and conflict set | preserve/delete/stale-resurrection/retention cases | sketched / **NO** |
+| FX-2.0-SYNC-002 | same operation identity cannot change scope or duplicate effects | first apply, exact replay, changed-scope replay, expired/cancelled cases | sketched / **NO** |
+| FX-2.0-ESTATE-001 | evidence-class comparison never orders fixture as authentic pilot | fixture, waiver, authentic-pilot, and missing-class cases | sketched / **NO** |
+
+### Future fixture metadata questions (unresolved)
+
+A future fixture manifest may need scenario ID, consumed snapshot pin, input and
+expected-output digests, evidence class, comparison mode, and linked FR/INV/T
+IDs. Whether that metadata is YAML, JSON, or another governed contract is not
+decided here. OQ-013 and OQ-019 remain open, so no payload example is added.
+
+### Promotion exit criteria (all unmet)
+
+- [ ] **NO** — governing FR/INV rows frozen.
+- [ ] **NO** — machine-readable format approved.
+- [ ] **NO** — positive and negative payloads reviewed for secret/path safety.
+- [ ] **NO** — deterministic runner authorized outside this docs tree.
+- [ ] **NO** — evidence-class semantics approved.
+- [ ] **NO** — governor records fixture-family promotion.
+
+`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Harness policy (prep)
 
 1. Sketches live under `docs/atlas-2.0/fixtures/` until IMPLEMENTATION READY.
@@ -119,3 +156,4 @@ current estate is an inventory only and therefore is not complete or ready.
 | 2026-08-09 | Per-family inventory sketches + compat/sync families |
 | 2026-08-09 | Added `mcp-readonly-surface/` family sketch (Z-wave deepen) |
 | 2026-08-09 | deepen-f: scenario/negative-case/evidence-class inventory; no payload harness |
+| 2026-08-09 | deepen-g: deterministic-oracle coverage ledger and unmet promotion exits; no payloads |

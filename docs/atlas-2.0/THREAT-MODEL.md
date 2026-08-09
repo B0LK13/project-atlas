@@ -37,6 +37,10 @@ Structured threat inventory for 2.0 planning. Mitigations listed here are
 | T-2.0-018 | Web acceptance is falsely stamped from route availability, sample data, or self-attestation | WEB acceptance gate, UX entry | M | H | Require independently attributable acceptance evidence bound to commit/tree and live-vault criteria; rendering alone proves nothing | OQ-017, AS-WEB-ACCEPT-001, AS-2.0-UX-001 |
 | T-2.0-019 | Fixture estate is confused with an authentic pilot estate | Fixture inventory, estate gate | M | H | Label fixture roots and receipts; require explicit evidence class; fixture-only waiver cannot claim ESTATE PILOT PASSED | OQ-019, FIXTURE-PLAN.md |
 | T-2.0-020 | A 2.0 draft silently overrides a conflicting 1.0 contract | All package boundaries | L | H | Pin the 1.0 snapshot and apply the 1.0-wins rule; quarantine unresolved drift rather than selecting latest-by-version | COMPATIBILITY.md, DAG.md |
+| T-2.0-021 | A read-capable provider or federation component becomes a confused deputy for canonical writes | FED/PROV capability boundary | M | H | Bind capabilities to operation and snapshot; reject delegated or discovered writes; keep consume and promote identities separate | OQ-004, OQ-016, AS-2.0-FED-001, AS-2.0-PROV-001 |
+| T-2.0-022 | A valid receipt or authorization is replayed against a different snapshot, plan, or vault | Federation joins, provider results, sync apply | M | H | Bind future receipts to vault identities, snapshot/plan digest, operation identity, and scope; reject context mismatch | OQ-006, OQ-016, OQ-018 |
+| T-2.0-023 | Error or deny output leaks secrets, absolute paths, or raw provider content | Logs, quarantine summaries, fixture expected output | M | H | Metadata-only findings; synthetic relative paths in fixtures; redact before formatting errors; review negative payloads | NFR-004, FIXTURE-PLAN.md |
+| T-2.0-024 | Resource-amplification input causes unbounded federation inventory, provider tool discovery, or sync plan growth | FED/PROV/SYNC planning surfaces | M | M | Define bounded inventory/tool/plan budgets and fail-closed overflow receipts before production; preserve deterministic truncation semantics | OQ-004, AS-2.0-FED-001, AS-2.0-SYNC-001 |
 
 ## Mitigation themes (not yet implemented)
 
@@ -62,6 +66,10 @@ Structured threat inventory for 2.0 planning. Mitigations listed here are
   (captured as T-2.0-017; policy blocked by OQ-018).
 - Independent WEB acceptance evidence and fixture-vs-pilot evidence classes
   (captured as T-2.0-018/019; blocked by OQ-017/OQ-019).
+- Capability delegation and receipt context binding (captured as T-2.0-021/022;
+  residual: capability token/receipt contract decisions remain open).
+- Error-channel redaction and planning resource budgets (captured as
+  T-2.0-023/024; residual: limits and deterministic overflow behavior unchosen).
 
 No production branches for threat mitigations until `ATLAS_1_0_RELEASE_CERTIFIED`
 and `ATLAS_2_0_IMPLEMENTATION_READY`. Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
@@ -75,3 +83,4 @@ and `ATLAS_2_0_IMPLEMENTATION_READY`. Explicit: `ATLAS_2_0_IMPLEMENTATION_READY 
 | 2026-08-09 | Added T-2.0-011…013 (federation trust, adapter egress, protected regions) |
 | 2026-08-09 | deepen-e: added T-2.0-014…016 (sync conflict, tool drift, snapshot pin) |
 | 2026-08-09 | deepen-f: added T-2.0-017…020 (queue misuse, false web stamp, fixture/pilot confusion, 1.0 conflict) |
+| 2026-08-09 | deepen-g: added T-2.0-021…024 (confused deputy, context replay, error leakage, resource amplification); residuals remain open |

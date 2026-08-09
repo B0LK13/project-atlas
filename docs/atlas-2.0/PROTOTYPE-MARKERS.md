@@ -35,6 +35,7 @@ production branches.
 | `PROTOTYPE-MARKERS.md` | PROTOTYPE / PREP | This file |
 | `CONTRACT-FREEZE-CHECKLIST.md` | PROTOTYPE / PREP | §98 freeze checklist; all unchecked / NO |
 | `prototypes/README.md` | PROTOTYPE / NON-PRODUCTION | Prototype stub index; not shippable |
+| `prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md` | PROTOTYPE / NON-PRODUCTION | Human review walkthrough; no schema or executable artifact |
 | `IMPLEMENTATION-READY-GATE.md` | PROTOTYPE / PREP | §56/§101 gate; READY=NO |
 
 ## Explicit non-claims
@@ -49,3 +50,4 @@ production branches.
 |---|---|
 | 2026-08-09 | Initial PROTOTYPE inventory for Track B Z-wave |
 | 2026-08-09 | deepen-e: contract-freeze + prototypes/ stub inventory rows |
+| 2026-08-09 | deepen-g: inventoried non-production review walkthrough; READY=NO |

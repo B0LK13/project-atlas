@@ -20,9 +20,9 @@ the READY flag. Do not open production 2.0 branches until then.
 
 ## Observed prep baseline pin (not release certification)
 
-- Tip commit: `91c0d06ad5224dd081b9e2248fe17b65f360d5fc`
-- Tip tree: `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc`
-- Meaning: branch-creation baseline for deepen-f only. It is **not** a release
+- Tip commit: `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59`
+- Tip tree: `fa404c270c1659d4c48739440a43087a4226b939`
+- Meaning: branch-creation baseline for deepen-g only. It is **not** a release
   tag, compatibility snapshot, governor signature, or proof that 1.0 is
   certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
 
@@ -53,6 +53,22 @@ Track B deepen-f increased review depth without satisfying a gate.
 
 Explicit after deepen-f: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
+
+## Progress notes (deepen-g) — READY still NO
+
+Track B deepen-g improved reviewability only. **No gate flipped to YES.**
+
+| Note | Evidence | READY impact |
+|---|---|---|
+| Prep ancestry pin refreshed to `bfdc5862…` / tree `fa404c27…` | DAG.md + this gate | none — not release certification or compatibility snapshot |
+| FR/INV evidence ledger and rejection reviews added | CONTRACT-FREEZE-CHECKLIST.md + PACKAGE-CONTRACT-STUBS.md | none — all package/freeze rows NO |
+| Deterministic-oracle fixture inventory deepened | FIXTURE-PLAN.md + fixtures/README.md | none — payloads and runner absent |
+| Residual threats T-2.0-021…024 captured | THREAT-MODEL.md | none — controls remain design intent |
+| Human review walkthrough prototype added | prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md | none — non-production and non-evidentiary |
+
+Open questions OQ-001…019 remain unanswered. Rows 1–10 remain ungreen.
+Explicit after deepen-g: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Explicit firewall
 
 - No 2.0 production semantics in `src/project_atlas/`
@@ -72,3 +88,4 @@ Only a governor may set `ATLAS_2_0_IMPLEMENTATION_READY = YES` after rows
 | 2026-08-09 | Initial §101 checklist (`READY=NO`) |
 | 2026-08-09 | deepen-e: progress notes; contract-freeze + prototypes + threats cross-links; READY unchanged NO |
 | 2026-08-09 | deepen-f: deeper contracts, residual threats, fixture scenarios, open blockers, and prep tip pin; READY unchanged NO |
+| 2026-08-09 | deepen-g: refreshed prep pin; deepened FR/INV, fixtures, threats, package reviews, and prototype walkthrough; READY unchanged NO |

@@ -28,6 +28,7 @@ runtime dependency.
 | Path | Marker | Notes |
 |---|---|---|
 | `prototypes/README.md` | PROTOTYPE / NON-PRODUCTION | This index; deepen-e placeholder |
+| `prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md` | PROTOTYPE / NON-PRODUCTION | Human review sequence; no schema, payload, or gate evidence |
 
 Additional prototype files may be added later under this directory. Each new
 file must carry an explicit non-production header and remain `READY=NO`.
@@ -44,3 +45,4 @@ file must carry an explicit non-production header and remain `READY=NO`.
 | Date | Change |
 |---|---|
 | 2026-08-09 | deepen-e: initial prototypes stub README (non-production) |
+| 2026-08-09 | deepen-g: added non-production contract review walkthrough; READY remains NO |
