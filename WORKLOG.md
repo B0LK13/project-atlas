@@ -4246,3 +4246,28 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-H-010-*.md
+
+## AS-E-006 — Classification method audit field
+
+**Date:** 2026-08-09
+**Branch:** feat/as-e-006-classification-method
+**Worktree:** D:\atlas-worktrees\as-e-006-classification-method
+**Base tip / TREE:** 428cbf432ca72d9676e94e049a02b1ebb982191c / ad7b0f074ea8d14db33bebf0ae1d609694101995
+**Gate:** READY WITH CONSTRAINTS — AS-E-006-ENTRY-GATE.md
+**Contract:** AS-E-006-PACKAGE-CONTRACT.md (FROZEN)
+**Overlap:** SAFE WITH EXCLUSIONS
+**Wake / Lock / Directive:** AS-E-006-WAKE.md · AS-E-006-SOLE-WRITER-LOCK.md · AS-E-006-IMPL-DIRECTIVE.md
+
+### Scope
+- Additive SourceRecord.classification_method + source-record.schema.json
+- Stamp helper: method ← ClassificationRecord.classification_rule (no EXT precedence rewrite)
+- Ingest classify-path wire + manifest audit stamp; null when unclassified/excluded
+- Focused tests test_as_e_006_*; flip backlog E-006
+- NO D-006 invent; NO dual-own OBS/H-010; NO CORE2-009; NO REL-001; NO PILOT/SURF; NO trust scores
+
+### Gates
+- (pending local ruff/mypy/pytest)
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-E-006-*.md

@@ -76,6 +76,15 @@ class SourceRecord(BaseModel):
     likely_project: str | None = Field(default=None, pattern=ID_PATTERN)
     classification_state: ClassificationState = ClassificationState.UNCLASSIFIED
     exclusion_reason: str | None = None
+    # AS-E-006: optional audit of which EXT classify rule fired (rule id string).
+    classification_method: str | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Fired ClassificationRecord.classification_rule; "
+            "null when unclassified/excluded"
+        ),
+    )
 
     @model_validator(mode="after")
     def _exclusion_reason_consistency(self) -> SourceRecord:
@@ -84,6 +93,19 @@ class SourceRecord(BaseModel):
                 raise ValueError("excluded sources must record an exclusion_reason")
         elif self.exclusion_reason is not None:
             raise ValueError("exclusion_reason is only valid for excluded sources")
+        return self
+
+    @model_validator(mode="after")
+    def _classification_method_consistency(self) -> SourceRecord:
+        """AS-E-006: method audit is null for unclassified/excluded; optional otherwise."""
+        if (
+            self.classification_state
+            in (ClassificationState.UNCLASSIFIED, ClassificationState.EXCLUDED)
+            and self.classification_method is not None
+        ):
+            raise ValueError(
+                "classification_method must be null for unclassified/excluded sources"
+            )
         return self
 
     @model_validator(mode="after")
