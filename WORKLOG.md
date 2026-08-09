@@ -4475,3 +4475,18 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-J-005-*.md
+
+## Docs — CURRENT-STATE + Atlas 2.0 prep scaffold
+
+**Date:** 2026-08-09
+**Branch:** docs/atlas-1.0-state-and-2.0-prep
+**Directive:** D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001
+
+### Scope
+- `docs/PROJECT-ATLAS-CURRENT-STATE.md` §9 baseline
+- `docs/atlas-2.0/` Track B prep stubs (CHARTER/VISION/PRD/DAG/threat/package stubs)
+- NO production semantic changes; NO REL-001; NO claim RELEASE CERTIFIED / 2.0 READY
+
+### Gates
+- Docs-only
+- DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
