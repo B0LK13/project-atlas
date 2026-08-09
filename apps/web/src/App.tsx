@@ -4,12 +4,18 @@ import LedgerDeskPage from "./pages/design-lab/LedgerDeskPage";
 import SignalRackPage from "./pages/design-lab/SignalRackPage";
 import CartographQuietPage from "./pages/design-lab/CartographQuietPage";
 import TerminalHonestPage from "./pages/design-lab/TerminalHonestPage";
+import ProjectsPage from "./pages/production/ProjectsPage";
+import OpsHealthPage from "./pages/production/OpsHealthPage";
+import CommandCenterPage from "./pages/production/CommandCenterPage";
 
-/** Client router — design-lab prototypes + foundation hub. UI ≠ canonical. */
+/** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/ops" element={<OpsHealthPage />} />
+      <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />
       <Route path="/design-lab/cartograph-quiet" element={<CartographQuietPage />} />

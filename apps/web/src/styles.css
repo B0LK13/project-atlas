@@ -37,6 +37,56 @@ code,
   font-size: 0.85rem;
 }
 
+.prod-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--atlas-line);
+  background: color-mix(in srgb, var(--atlas-panel) 92%, transparent);
+  font-family: var(--atlas-sans);
+  font-size: 0.85rem;
+}
+
+.prod-nav a {
+  color: var(--atlas-ink);
+  text-decoration: none;
+}
+
+.prod-nav a.active {
+  color: var(--atlas-accent);
+  font-weight: 600;
+}
+
+.prod-shell {
+  min-height: 100vh;
+  background: var(--atlas-paper);
+}
+
+.mode-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 1.25rem;
+}
+
+.mode-switcher .mode {
+  font-family: var(--atlas-sans);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--atlas-line);
+  background: var(--atlas-panel);
+  color: var(--atlas-ink);
+  cursor: pointer;
+}
+
+.mode-switcher .mode.active {
+  border-color: var(--atlas-accent);
+  color: var(--atlas-accent);
+  font-weight: 600;
+}
+
+
 .lab-nav a {
   text-decoration: none;
   color: var(--atlas-muted);

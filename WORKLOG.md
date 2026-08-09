@@ -4510,3 +4510,25 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - Auto-merge: FORBIDDEN
 - DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-010-*.md
+
+
+
+## AS-WEB-003 - Production shell + Command Center + ADR-010
+
+**Date:** 2026-08-09
+**Branch:** feat/as-web-003-production-shell
+**Worktree:** D:\atlas-worktrees\as-web-003-production-shell
+**Base tip / TREE:** 6c74b917c612401ba6afe51d7e89e7e4785f7114 / 778835ce654bc97dfc71961c6ee8bbbed089b352
+**Directive:** D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 Track A
+
+### Scope
+- ADR-010 Atlas Web UX; production routes Home/Projects/Ops/Command Center
+- Mode switcher overview/projects/ops/impact; preserve design-lab
+- Smoke extended; backlog WEB-003; WEB APPLICATION ACCEPTED NOT CLAIMED
+- Firewall apps/web + ADR only; NO Core truth writers; NO INT-010 dual-own
+
+### Gates
+- apps/web smoke PASS (expected)
+- Auto-merge: FORBIDDEN
+- DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-WEB-003-*.md
