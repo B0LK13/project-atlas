@@ -236,7 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
     # AS-OBS-001 — operational health snapshot (ops plane only; query paths untouched).
     ops_parser = subparsers.add_parser(
         "ops",
-        help="Operational observability commands (AS-OBS-001; health ≠ authority).",
+        help="Operational observability commands (AS-OBS-001; health != authority).",
     )
     ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)
     health_parser = ops_sub.add_parser(
