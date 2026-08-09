@@ -1,8 +1,9 @@
 """AS-ADV-RELEASE-001 — Fixture-safe advanced release certification suite.
 
-Combines recovery, determinism, and performance-baseline cases on disposable
-vaults. Operational certification only — never stamps RELEASE CERTIFIED,
-ESTATE PILOT PASSED, or WEB APPLICATION ACCEPTED.
+Combines recovery, determinism, clean-clone replay, and performance-baseline
+cases on disposable vaults. AS-ADV-RELEASE-002 deepens clean-clone RC hardening
+without claiming RELEASE CERTIFIED. Operational certification only — never
+stamps RELEASE CERTIFIED, ESTATE PILOT PASSED, or WEB APPLICATION ACCEPTED.
 """
 
 from __future__ import annotations
@@ -27,10 +28,13 @@ PACKAGE_ID = "AS-ADV-RELEASE-001"
 REPORT_SCHEMA = "adv-release-cert-report"
 REPORT_RELATIVE = Path("generated") / "ops" / "adv-release-cert-report.json"
 
+_STABLE_PREFIXES = ("projects/", "state/", "generated/indexes/", "00-system/")
+
 CaseId = Literal[
     "recovery_promote_noop",
     "recovery_snapshot_roundtrip",
     "determinism_pipeline",
+    "clean_clone_replay",
     "perf_baseline_fixture",
 ]
 CaseResult = Literal["pass", "fail"]
@@ -40,6 +44,7 @@ MATRIX_CASE_IDS: tuple[CaseId, ...] = (
     "recovery_promote_noop",
     "recovery_snapshot_roundtrip",
     "determinism_pipeline",
+    "clean_clone_replay",
     "perf_baseline_fixture",
 )
 
@@ -81,6 +86,29 @@ def _pipeline(source: Path, vault: Path, work: Path) -> None:
     ingest(manifest, vault)
     build_indexes(vault)
     validate(vault)
+
+
+def _vault_file_bytes(vault: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(vault).as_posix(): path.read_bytes()
+        for path in vault.rglob("*")
+        if path.is_file()
+        and ".atlas-stage" not in path.parts
+        and ".atlas-backup" not in path.parts
+    }
+
+
+def _stable_plane(files: dict[str, bytes]) -> dict[str, bytes]:
+    return {
+        key: value
+        for key, value in files.items()
+        if key.startswith(_STABLE_PREFIXES)
+    }
+
+
+def _stable_drift(left: dict[str, bytes], right: dict[str, bytes]) -> list[str]:
+    keys = set(left) | set(right)
+    return sorted(key for key in keys if left.get(key) != right.get(key))
 
 
 def _case_recovery_promote_noop(work: Path) -> dict[str, Any]:
@@ -152,35 +180,64 @@ def _case_determinism_pipeline(work: Path) -> dict[str, Any]:
     ingest(manifest, vault)
     build_indexes(vault)
     validate(vault)
-    first = {
-        path.relative_to(vault).as_posix(): path.read_bytes()
-        for path in vault.rglob("*")
-        if path.is_file()
-        and ".atlas-stage" not in path.parts
-        and ".atlas-backup" not in path.parts
-    }
+    first = _stable_plane(_vault_file_bytes(vault))
     ingest(manifest, vault)
     build_indexes(vault)
     validate(vault)
-    second = {
-        path.relative_to(vault).as_posix(): path.read_bytes()
-        for path in vault.rglob("*")
-        if path.is_file()
-        and ".atlas-stage" not in path.parts
-        and ".atlas-backup" not in path.parts
-    }
-    stable = {
-        key
-        for key in first
-        if key.startswith(("projects/", "state/", "generated/indexes/", "00-system/"))
-    }
-    drifted = sorted(key for key in stable if first.get(key) != second.get(key))
+    second = _stable_plane(_vault_file_bytes(vault))
+    drifted = _stable_drift(first, second)
     ok = not drifted
     return {
         "case_id": "determinism_pipeline",
         "result": "pass" if ok else "fail",
         "expected": "idempotent re-ingest/indexes/validate: stable planes byte-identical",
         "observed": "drift=[]" if ok else f"drift={drifted[:8]}",
+    }
+
+
+def _case_clean_clone_replay(work: Path) -> dict[str, Any]:
+    """Two sequential pipelines on disposable vaults with one shared manifest.
+
+    AS-ADV-RELEASE-002 RC hardening: clean-clone replay must match E2E-style
+    stable-plane equality without claiming RELEASE CERTIFIED.
+    """
+    source = work / "src-clone"
+    _seed_source(source)
+    manifest = work / "shared-manifest.json"
+    write_manifest(discover(source), manifest)
+
+    vault_a = work / "vault-a"
+    vault_b = work / "vault-b"
+    create_scaffold(vault_a)
+    create_scaffold(vault_b)
+
+    ingest(manifest, vault_a)
+    build_indexes(vault_a)
+    validate(vault_a)
+
+    ingest(manifest, vault_b)
+    build_indexes(vault_b)
+    validate(vault_b)
+
+    plane_a = _stable_plane(_vault_file_bytes(vault_a))
+    plane_b = _stable_plane(_vault_file_bytes(vault_b))
+    drifted = _stable_drift(plane_a, plane_b)
+    ok = not drifted and bool(plane_a)
+    return {
+        "case_id": "clean_clone_replay",
+        "result": "pass" if ok else "fail",
+        "expected": (
+            "two disposable vaults + identical manifest → stable planes byte-identical"
+        ),
+        "observed": (
+            f"keys={len(plane_a)}; drift=[]"
+            if ok
+            else f"keys_a={len(plane_a)} keys_b={len(plane_b)} drift={drifted[:8]}"
+        ),
+        "detail": (
+            "AS-ADV-RELEASE-002 clean-clone prep; RC hardening only; "
+            "RELEASE CERTIFIED remains false"
+        ),
     }
 
 
@@ -215,6 +272,7 @@ _CASE_RUNNERS = {
     "recovery_promote_noop": _case_recovery_promote_noop,
     "recovery_snapshot_roundtrip": _case_recovery_snapshot_roundtrip,
     "determinism_pipeline": _case_determinism_pipeline,
+    "clean_clone_replay": _case_clean_clone_replay,
     "perf_baseline_fixture": _case_perf_baseline_fixture,
 }
 

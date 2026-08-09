@@ -10,8 +10,11 @@
 
 - `recovery_promote_noop` — CORE2-009 clean vault
 - `recovery_snapshot_roundtrip` — BACKUP-001 create/verify/restore
-- `determinism_pipeline` — twin pipeline digest equality
+- `determinism_pipeline` — twin pipeline digest equality (same vault)
+- `clean_clone_replay` — two disposable vaults + identical manifest → stable plane compare (AS-ADV-RELEASE-002)
 - `perf_baseline_fixture` — fixture-scale timings (ms)
+
+See `docs/AS-ADV-RELEASE-002-clean-clone.md` for clean-clone RC hardening notes.
 
 ## Explicit non-claims
 
