@@ -51,6 +51,7 @@ def test_all_expected_schemas_available() -> None:
         "graphify-envelope",
         "graphify-metadata",
         "graphify-node",
+        "impact-graph",
         "knowledge-answer",
         "knowledge-multifield-answer",
         "ops-event",

@@ -107,7 +107,7 @@ independent verification passes and the branch is merged to `main`._
 - [x] J-002 Added source detection
 - [x] J-003 Changed source detection
 - [x] J-004 Removed source handling
-- [ ] J-005 Impact graph
+- [x] J-005 Impact graph
 - [x] J-006 Selective regeneration
 
 ## Epic K — Pilot onboarding

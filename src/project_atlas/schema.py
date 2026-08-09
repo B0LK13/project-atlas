@@ -90,6 +90,8 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-INT-009 — raw package / receipt retention (operational; not authority / not INT-010)
     "event-retention-policy": "event-retention-policy.schema.json",
     "event-retention-report": "event-retention-report.schema.json",
+    # AS-J-005 — derived impact graph projection (Graph≠authority; consume GRAPH-003)
+    "impact-graph": "impact-graph.schema.json",
 }
 
 

@@ -4448,3 +4448,30 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - Auto-merge: FORBIDDEN
 - DISPOSITION: IMPLEMENTATION COMPLETE - GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INT-009-*.md
+
+
+## AS-J-005 — Derived impact graph
+
+**Date:** 2026-08-09
+**Branch:** feat/as-j-005-impact-graph
+**Worktree:** D:\atlas-worktrees\as-j-005-impact-graph
+**Base tip / TREE:** edb190ede5633d2e3030d8ce35fc30c0403fc4ec / 5c3ca6c079c7560f61d70fbb61fd1a1545762cd3
+**Gate:** READY WITH CONSTRAINTS — AS-J-005-ENTRY-GATE.md
+**Contract:** AS-J-005-PACKAGE-CONTRACT.md (J5-FR-001..007)
+**Overlap:** SAFE WITH EXCLUSIONS (AS-J-005-SURFACE-OVERLAP.md)
+**Wake / Lock / Directive:** AS-J-005-WAKE.md · AS-J-005-SOLE-WRITER-LOCK.md · AS-J-005-IMPL-DIRECTIVE.md
+**Directive:** D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001
+
+### Scope
+- New project_atlas.impact_graph: deterministic derived impact projection from GRAPH-003
+- Schema impact-graph + schema.py companion; emit under generated/graph/impact/
+- Consume-only load_relationships_from_vault; IMPACT GRAPH ≠ AUTOMATIC AUTHORITY
+- Focused tests test_as_j_005_*; package guide docs/AS-J-005-impact-graph.md
+- Backlog J-005 flipped; NO authority invent; NO apps/web; NO INT retention; NO promote recovery; NO REL-001; NO PILOT
+
+### Gates
+- ruff / mypy / pytest (owned): pending local run
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-J-005-*.md
