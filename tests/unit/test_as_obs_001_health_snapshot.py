@@ -71,11 +71,44 @@ def test_empty_vault_required_signals_unknown_not_healthy(tmp_path: Path) -> Non
     signals = _signal_map(snapshot)
     for signal_id in REQUIRED_SIGNAL_IDS:
         assert signal_id in signals
-    # Absent sync/backup/readiness evidence must not fabricate ok/healthy.
+    # Absent sync/backup/readiness/promotion/quarantine evidence must not fabricate ok.
     assert signals["OPS-SIG-002"]["status"] == "unknown"
+    assert signals["OPS-SIG-005"]["status"] == "unknown"
+    assert signals["OPS-SIG-005"]["evidence_refs"] == []
+    assert signals["OPS-SIG-006"]["status"] == "unknown"
+    assert signals["OPS-SIG-006"]["evidence_refs"] == []
     assert signals["OPS-SIG-013"]["status"] == "unknown"
     assert signals["OPS-SIG-014"]["status"] == "unknown"
     assert signals["OPS-SIG-010"]["status"] == "unknown"
+
+
+def test_absent_promotion_and_quarantine_evidence_not_ok(tmp_path: Path) -> None:
+    """OBS-001-FR-002 / governor FR-002: unavailable ≠ fabricated ok."""
+    vault = _vault(tmp_path)
+    snapshot = build_health_snapshot(vault)
+    signals = _signal_map(snapshot)
+    assert signals["OPS-SIG-005"]["status"] != "ok"
+    assert signals["OPS-SIG-005"]["status"] == "unknown"
+    assert signals["OPS-SIG-005"]["observed_value"] is None
+    assert signals["OPS-SIG-006"]["status"] != "ok"
+    assert signals["OPS-SIG-006"]["status"] == "unknown"
+    assert signals["OPS-SIG-006"]["observed_value"] is None
+    assert snapshot["rollup"]["estate"] != "healthy"
+
+
+def test_present_empty_promotion_and_quarantine_indexes_are_ok(tmp_path: Path) -> None:
+    """Observed empty evidence surfaces may report ok/0 with non-empty refs."""
+    vault = _vault(tmp_path)
+    _write(vault / "quarantine" / "promotion-failures" / "index.json", [])
+    _write(vault / "generated" / "reports" / "secret-findings.json", [])
+    snapshot = build_health_snapshot(vault)
+    signals = _signal_map(snapshot)
+    assert signals["OPS-SIG-005"]["status"] == "ok"
+    assert signals["OPS-SIG-005"]["observed_value"] == 0
+    assert signals["OPS-SIG-005"]["evidence_refs"]
+    assert signals["OPS-SIG-006"]["status"] == "ok"
+    assert signals["OPS-SIG-006"]["observed_value"] == 0
+    assert signals["OPS-SIG-006"]["evidence_refs"]
 
 
 def test_certification_fixture_failed_sync_quarantine_stale_adapter(tmp_path: Path) -> None:

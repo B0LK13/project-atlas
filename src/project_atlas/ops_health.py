@@ -376,14 +376,14 @@ def _collect_transaction_failures(vault: Path, estate_id: str) -> dict[str, Any]
     path = vault / "quarantine" / "promotion-failures" / "index.json"
     raw = _read_json(path, None)
     if raw is None:
-        # No report → no open promotion barrier observed as present-zero.
+        # Absent evidence surface → unknown (OBS-001-FR-002); never fabricate ok.
         return _signal(
             signal_id="OPS-SIG-005",
             scope="estate",
             scope_id=estate_id,
-            status="ok",
+            status="unknown",
             severity=None,
-            observed_value=0,
+            observed_value=None,
             threshold={"open_failures": 0},
             evidence_refs=[],
         )
@@ -471,6 +471,18 @@ def _collect_quarantine(
         "warn_above": _QUARANTINE_WARN_THRESHOLD,
         "fail_above": _QUARANTINE_FAIL_THRESHOLD,
     }
+    # No quarantine evidence surface observed → unknown (OBS-001-FR-002).
+    if not refs:
+        return _signal(
+            signal_id="OPS-SIG-006",
+            scope=scope,
+            scope_id=scope_id,
+            status="unknown",
+            severity=None,
+            observed_value=None,
+            threshold=threshold,
+            evidence_refs=[],
+        )
     if count > _QUARANTINE_FAIL_THRESHOLD:
         status: SignalStatus = "fail"
         severity: Severity | None = "HIGH"
