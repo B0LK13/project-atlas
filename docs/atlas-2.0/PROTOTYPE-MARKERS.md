@@ -31,8 +31,11 @@ production branches.
 | `fixtures/README.md` | PROTOTYPE / PREP | Docs-only inventory; no payloads |
 | `OPENAI-MCP-DESIGN.md` | PROTOTYPE / PREP | No SDK/MCP production wiring |
 | `OPEN-QUESTIONS.md` | PROTOTYPE / PREP | Research blockers; unanswered |
-| `Z-WAVE-INDEX.md` | PROTOTYPE / PREP | Z1–Z14 lane map; all READY=NO |
+| `Z-WAVE-INDEX.md` | PROTOTYPE / PREP | Z1–Z14 lane map + status notes; all READY=NO |
 | `PROTOTYPE-MARKERS.md` | PROTOTYPE / PREP | This file |
+| `CONTRACT-FREEZE-CHECKLIST.md` | PROTOTYPE / PREP | §98 freeze checklist; all unchecked / NO |
+| `prototypes/README.md` | PROTOTYPE / NON-PRODUCTION | Prototype stub index; not shippable |
+| `IMPLEMENTATION-READY-GATE.md` | PROTOTYPE / PREP | §56/§101 gate; READY=NO |
 
 ## Explicit non-claims
 
@@ -45,3 +48,4 @@ production branches.
 | Date | Change |
 |---|---|
 | 2026-08-09 | Initial PROTOTYPE inventory for Track B Z-wave |
+| 2026-08-09 | deepen-e: contract-freeze + prototypes/ stub inventory rows |
