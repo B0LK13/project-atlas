@@ -36,6 +36,7 @@ def test_all_expected_schemas_available() -> None:
         "diagnostic",
         "event-retention-policy",
         "event-retention-report",
+        "event-tombstone-index",
         "explain-graph-sidecar",
         "explain-receipt",
         "graph-acceptance-receipt",

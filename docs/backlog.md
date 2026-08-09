@@ -168,7 +168,9 @@ independent verification passes and the branch is merged to `main`._
 - [x] INT-007 Independent integration certification
 - [x] INT-008 Bind event skill identity to a trusted Vault policy
 - [x] INT-009 Define raw-package and receipt retention policy
-- [ ] INT-010 Preserve removed-package/deletion state in projections
+- [x] INT-010 Preserve removed-package/deletion state in projections
+  (AS-INT-010 tip-safe tombstone projection on
+  `feat/as-int-010-tombstones`; IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED)
 - [ ] INT-011 Define receipt revocation and invalidation semantics
 - [ ] INT-012 Define schema migration and compatibility tooling
 - [ ] INT-013 Run the bounded multi-project integration pilot
