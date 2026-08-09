@@ -80,6 +80,8 @@ SCHEMA_FILES: dict[str, str] = {
     "backup-manifest": "backup-manifest.schema.json",
     "backup-meta": "backup-meta.schema.json",
     "backup-receipt": "backup-receipt.schema.json",
+    # AS-INCR-COMPILE-001 tip-safe compile-cache receipt (not authority/GRAPH/XPROJ)
+    "compile-cache-receipt": "compile-cache-receipt.schema.json",
 }
 
 

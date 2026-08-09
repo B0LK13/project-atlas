@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/compile-cache-receipt.schema.json",
+  "title": "CompileCacheReceipt",
+  "description": "AS-INCR-COMPILE-001 tip-safe compiler cache / invalidation receipt. Cache hit / skip ≠ authority winner ≠ temporal tip ≠ trust score. Forbidden fields (trust*, confidence*, authority_*, claim_id, value, graph_*) must not appear. Disjoint from graph-incremental-state and XPROJ product trees.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package",
+    "receipt_kind",
+    "generated",
+    "scope_id",
+    "invalidation_key",
+    "combined_fingerprint",
+    "input_fingerprints",
+    "artifact_paths",
+    "disposition",
+    "noop_disposition",
+    "impacted_artifacts",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package": { "const": "AS-INCR-COMPILE-001" },
+    "receipt_kind": { "const": "compile_cache_receipt" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-incr-compile-001" }
+      },
+      "description": "NFR-001 / ADR-001: generated.by only — never generated.at wall-clock."
+    },
+    "scope_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "invalidation_key": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "combined_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "input_fingerprints": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "artifact_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!.*\\.\\.)(?!/).+"
+      }
+    },
+    "disposition": {
+      "type": "string",
+      "enum": ["hit", "miss", "stale", "recompile"]
+    },
+    "noop_disposition": {
+      "type": "string",
+      "enum": ["noop", "recompile", "abort"]
+    },
+    "impacted_artifacts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

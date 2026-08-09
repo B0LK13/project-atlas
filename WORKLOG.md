@@ -4084,3 +4084,31 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-XPROJ-003-*.md
+
+## AS-INCR-COMPILE-001 — Compiler cache invalidation (tip-safe)
+
+**Date:** 2026-08-09
+**Branch:** feat/as-incr-compile-001-cache-invalidation
+**Worktree:** D:\atlas-worktrees\as-incr-compile-001-cache-invalidation
+**Base tip / TREE:** bef4ae2 / 6fb3df81 (post AS-XPROJ-003 #43 MERGED — POST-MERGE VERIFIED; XPROJ-003 serialize LIFTED)
+**Gate:** READY WITH CONSTRAINTS — AS-INCR-COMPILE-001-ENTRY-GATE.md
+**Overlap:** SAFE WITH EXCLUSIONS — AS-INCR-COMPILE-001-SURFACE-OVERLAP.md
+**Sole-writer:** AS-INCR-COMPILE-001-SOLE-WRITER-LOCK.md
+
+### Scope
+- New project_atlas.compile_cache: invalidation keys / hit-miss / stale detect / FR-013 byte-identical no-op
+- Schema compile-cache-receipt (package AS-INCR-COMPILE-001) + schema.py companion only
+- Vault emit under generated/compile-cache/** (disjoint from GRAPH/XPROJ)
+- Focused tests test_as_incr_compile_001_*; package guide docs/AS-INCR-COMPILE-001-compile-cache.md
+- Consume-only vs knowledge_compiler / semantic_compiler — NO MODEL reopen
+- NO dual-own GRAPH incr / XPROJ / RET-001 / compilation.py EXT-001A
+- Optional CLI deferred (soft-serialize); no trust scores / authority elevation
+- AS-REL-001 MUST NOT OPEN
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused test_as_incr_compile_001_* + schema golden: 29 passed
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INCR-COMPILE-001-*.md
