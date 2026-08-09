@@ -149,6 +149,7 @@ independent verification passes and the branch is merged to `main`._
   `feat/as-ingest-manifest-001` (closes AS-MVP-001 accepted overwrite debt;
   governor review required; not self-certified).
 - [ ] CORE-OPS-001 Add explicit read-before-write/hash-before-replace
+- [x] AS-BACKUP-001 Verified Atlas Snapshot (fixture restore; cold D1-D4+D6; ops durability ≠ authority)
   accounting and evidence for filesystem-write suppression on unchanged
   replay. Keep `content drift` and `canonical content changes` distinct from
   physical filesystem writes.

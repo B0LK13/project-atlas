@@ -15,6 +15,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from project_atlas import __version__
+from project_atlas.backup import (
+    BackupError,
+    create_snapshot,
+    restore_bundle,
+    verify_bundle,
+)
 from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.domain.knowledge_query import QueryShape
@@ -355,6 +361,76 @@ def build_parser() -> argparse.ArgumentParser:
         "--write",
         action="store_true",
         help="Write optional derived registry outputs (requires --vault).",
+    )
+
+    # AS-BACKUP-001: verified snapshot / fixture restore (ops durability != authority).
+    snapshot_parser = subparsers.add_parser(
+        "snapshot",
+        help=(
+            "Create or verify an Atlas recovery bundle (AS-BACKUP-001; "
+            "operational durability != project authority)."
+        ),
+    )
+    snapshot_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help="Vault root to snapshot (required unless --verify).",
+    )
+    snapshot_parser.add_argument(
+        "--cp",
+        type=Path,
+        default=None,
+        help="Optional control-plane root for D4 receipts.",
+    )
+    snapshot_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="External bundle output directory (required unless --verify).",
+    )
+    snapshot_parser.add_argument(
+        "--bundle",
+        type=Path,
+        default=None,
+        help="Existing bundle directory (required with --verify).",
+    )
+    snapshot_parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="Verify MANIFEST digests for an existing bundle; do not create.",
+    )
+    snapshot_parser.add_argument(
+        "--include-d5",
+        action="store_true",
+        help="Include optional warm D5 derived cache (not used for cold certification).",
+    )
+
+    restore_parser = subparsers.add_parser(
+        "restore",
+        help=(
+            "Restore a verified Atlas recovery bundle onto an empty disposable "
+            "target (AS-BACKUP-001; fixture certify only)."
+        ),
+    )
+    restore_parser.add_argument("--bundle", type=Path, required=True)
+    restore_parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Empty disposable restore target (AT-013 path safety).",
+    )
+    restore_parser.add_argument(
+        "--tier",
+        choices=["T0", "T1", "T2", "T3", "T4"],
+        default="T3",
+        help="Restore tier (default T3 governance-complete cold path omits D5).",
+    )
+    restore_parser.add_argument(
+        "--expect-vault-logical-id",
+        type=str,
+        default=None,
+        help="Refuse restore when bundle vault_logical_id disagrees (RS-06).",
     )
     return parser
 
@@ -715,6 +791,51 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_ERROR
         return EXIT_OK
 
+    if args.command == "snapshot":
+        try:
+            if args.verify:
+                if args.bundle is None:
+                    raise BackupError("snapshot --verify requires --bundle")
+                result = verify_bundle(args.bundle)
+                print(f"verified: {result['snapshot_id']}")
+                print(f"vault_logical_id: {result['vault_logical_id']}")
+                print(f"members: {result['member_count']}")
+                return EXIT_OK
+            if args.vault is None or args.output is None:
+                raise BackupError("snapshot create requires --vault and --output")
+            result = create_snapshot(
+                args.vault,
+                args.output,
+                cp=args.cp,
+                include_d5=args.include_d5,
+            )
+        except (BackupError, OSError, ValueError, TypeError) as exc:
+            _log.error("snapshot failed: %s", exc)
+            return EXIT_ERROR
+        print(f"bundle: {result['bundle']}")
+        print(f"snapshot_id: {result['snapshot_id']}")
+        print(f"vault_logical_id: {result['vault_logical_id']}")
+        print(f"members: {result['member_count']}")
+        print(f"domains: {','.join(result['domains_included'])}")
+        return EXIT_OK
+
+    if args.command == "restore":
+        try:
+            result = restore_bundle(
+                args.bundle,
+                args.output,
+                tier=args.tier,
+                expected_vault_logical_id=args.expect_vault_logical_id,
+            )
+        except (BackupError, OSError, ValueError, TypeError) as exc:
+            _log.error("restore failed: %s", exc)
+            return EXIT_ERROR
+        print(f"restored: {result['target']}")
+        print(f"snapshot_id: {result['snapshot_id']}")
+        print(f"vault_logical_id: {result['vault_logical_id']}")
+        print(f"members: {result['member_count']}")
+        print(f"tier: {result['tier']}")
+        return EXIT_OK
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 
 

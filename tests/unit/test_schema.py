@@ -24,6 +24,9 @@ from project_atlas.schema import (
 def test_all_expected_schemas_available() -> None:
     assert available_schemas() == [
         "authority-record",
+        "backup-manifest",
+        "backup-meta",
+        "backup-receipt",
         "claim",
         "claim-alias",
         "claim-lifecycle",
