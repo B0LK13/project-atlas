@@ -3921,3 +3921,33 @@ Additive `tests/unit/test_as_accept_002_*.py` + helpers. Band B AX-GRF deferred.
 - ruff / mypy owned surfaces: PASS
 
 **DISPOSITION: REMEDIATION COMPLETE — RE-IV REQUIRED (do not reuse denied tip)**
+
+## AS-BACKUP-001 — Verified Atlas Snapshot
+
+**Directive:** STREAM H autonomous sole-writer (READY WITH CONSTRAINTS / fixture-only)
+**Contract:** `gen4-parallel-wave-007/AS-BACKUP-001-CONTRACT.md`
+**Entry gate:** `gen4-next-wave-parallel-001/AS-BACKUP-001-ENTRY-GATE.md`
+**Base (open):** `38b8eac` / tree `070e951b`
+**Base (commit):** `c3608ed` (rebased after GRAPH-003 merge) / tree `559c3c21`
+**Branch:** `feat/as-backup-001-verified-snapshot`
+**Worktree:** `D:\atlas-worktrees\as-backup-001-verified-snapshot`
+
+### What changed
+- `project_atlas.backup`: verified cold bundle create/verify/restore/compare
+- Schemas: backup-manifest / backup-meta / backup-receipt
+- CLI: `atlas snapshot` / `atlas restore` (additive)
+- Fixture drill: CREATE→SNAPSHOT→CORRUPT→RESTORE→VALIDATE→COMPARE
+- Package guide: `docs/AS-BACKUP-001-verified-snapshot.md`
+
+### Gates
+- ruff (owned): PASS
+- mypy (owned): PASS
+- Focused backup tests: **11 passed**
+- Live DR: **NONE** (forbidden)
+- Orphan evidence: `gen4-next-wave-parallel-001/AS-BACKUP-001-*.md`
+
+**PRODUCTION CODE MODIFIED: YES (owned backup/cli/schema only)**
+**TESTS MODIFIED: YES (`tests/unit/test_as_backup_001_verified_snapshot.py` only)**
+**BACKLOG MODIFIED: NO (soft orphan evidence preferred)**
+**MERGE AUTHORIZED: NO**
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**

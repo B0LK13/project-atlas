@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/backup-receipt.schema.json",
+  "title": "Backup / Restore Receipt",
+  "description": "AS-BACKUP-001 operator receipt. Metadata and hashes only — never secret matched content (NFR-004).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "kind",
+    "outcome",
+    "snapshot_id",
+    "vault_logical_id",
+    "domains_included",
+    "member_count",
+    "manifest_sha256",
+    "identity_samples",
+    "truth_plane",
+    "authority_plane",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.backup.receipt.v1" },
+    "kind": { "type": "string", "enum": ["backup", "restore"] },
+    "outcome": { "type": "string", "enum": ["ok", "refused", "failed"] },
+    "snapshot_id": { "type": "string", "minLength": 1 },
+    "vault_logical_id": { "type": "string", "minLength": 1 },
+    "domains_included": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["D1", "D2", "D3", "D4", "D5", "D6"] },
+      "uniqueItems": true
+    },
+    "member_count": { "type": "integer", "minimum": 0 },
+    "tier": {
+      "type": "string",
+      "enum": ["T0", "T1", "T2", "T3", "T4"]
+    },
+    "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "identity_samples": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vault_logical_id",
+        "project_uuid_count",
+        "source_lineage_id_count"
+      ],
+      "properties": {
+        "vault_logical_id": { "type": "string", "minLength": 1 },
+        "project_uuid_count": { "type": "integer", "minimum": 0 },
+        "source_lineage_id_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
