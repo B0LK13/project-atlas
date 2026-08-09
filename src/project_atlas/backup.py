@@ -124,8 +124,37 @@ def _is_ephemeral(relative: PurePosixPath) -> bool:
     return ".atlas-stage" in name or ".atlas-backup" in name
 
 
+def parse_promote_orphan_name(name: str) -> tuple[str, str, str] | None:
+    """Parse `.{canonical}.{txn}.atlas-stage|atlas-backup` basenames (AS-CORE2-009).
+
+    Returns ``(canonical_filename, transaction_id, kind)`` where ``kind`` is
+    ``atlas-stage`` or ``atlas-backup``. Returns ``None`` when the name does
+    not match the `_promote` artifact convention (uuid.hex txn = 32 hex).
+    """
+    if not name.startswith("."):
+        return None
+    for kind in ("atlas-stage", "atlas-backup"):
+        suffix = f".{kind}"
+        if not name.endswith(suffix):
+            continue
+        body = name[1 : -len(suffix)]
+        if len(body) < 33 or body[-33] != ".":
+            return None
+        txn = body[-32:]
+        if any(ch not in "0123456789abcdef" for ch in txn):
+            return None
+        canonical = body[:-33]
+        if not canonical:
+            return None
+        return canonical, txn, kind
+    return None
+
+
 def find_promote_orphans(root: Path) -> list[str]:
-    """Return vault-relative paths of mid-promote EPHEMERAL orphans (FR-003)."""
+    """Return vault-relative paths of mid-promote EPHEMERAL orphans (FR-003).
+
+    AS-CORE2-009: scanner reused by interrupted-write recovery preflight.
+    """
     root = root.resolve()
     found: list[str] = []
     if not root.is_dir():

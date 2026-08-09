@@ -4378,3 +4378,27 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-WEB-001-*.md
+
+## AS-CORE2-009 — Interrupted-write promote orphan recovery
+
+**Date:** 2026-08-09
+**Branch:** feat/as-core2-009-promote-recovery
+**Worktree:** D:\atlas-worktrees\as-core2-009-promote-recovery
+**Base tip / TREE:** bcd453febef2f238b982e8fc67103cfb3bb46ae0 / 0afe32186b7d67ac8ea806523bb32c66715b8513
+**Gate:** READY WITH CONSTRAINTS — AS-CORE2-009-ENTRY-GATE.md
+**Contract:** AS-CORE2-009-PACKAGE-CONTRACT.md (C209-FR-001..010)
+**Directive:** D-PROJECT-ATLAS-WEB-AND-1.0-AUTONOMOUS-COMPLETION-001
+
+### Scope
+- `recover_promote_orphans` + ingest preflight; reuse/extend `backup.find_promote_orphans` / `parse_promote_orphan_name`
+- Stage-only → abort clean; backups present → abort restore + deterministic receipt
+- Fail-closed on unparseable orphans / restore failure; no `_promote` protocol redesign
+- Focused tests `tests/unit/test_as_core2_009_*`; flip backlog CORE2-009
+- Soft AS-MVP-001 receipt erratum (do not rewrite history)
+
+### Gates
+- Local ruff/mypy/pytest (coordinator takeover)
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-CORE2-009-*.md
