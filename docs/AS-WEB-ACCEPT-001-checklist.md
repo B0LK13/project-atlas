@@ -18,7 +18,7 @@
 
 | # | Criterion | Evidence | Status |
 |---|---|---|---|
-| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, `/mission-control`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
+| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, `/mission-control`, `/workspace`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
 | 2 | Stub + UI enforce UI≠canonical / Graph≠authority / Unknown≠healthy | sample stub + production pages | automated |
 | 3 | ADR-008 / ADR-009 / ADR-010 present | smoke + unit tests | automated |
 | 4 | `web_api` read-only boundary intact | `web_api/`, tests | automated |
@@ -29,6 +29,7 @@
 | 9 | Fixture E2E read bundle (projects/knowledge/graph/health) | `test_as_web_accept_002_*` | automated |
 | 10 | Governor sign-off artifact + tip pin recorded | `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | **open** |
 | 11 | CI / local smoke invocation documented | `apps/web/README.md` | documented |
+| 12 | Mission Control + Workspace lenses (route presence only) | `#/mission-control`, `#/workspace` + smoke/unit | automated — **not** WEB ACCEPTED |
 
 ## Automated gates (non-certifying)
 
@@ -53,3 +54,4 @@ while item 10 (governor sign-off) remains open.
 | 2026-08-09 | Initial checklist draft (ACCEPTED=NO) |
 | 2026-08-09 | WEB-ACCEPT-002: knowledge/graph routes, a11y skip-link, fixture E2E (ACCEPTED=NO) |
 | 2026-08-09 | WEB-ACCEPT-003: governor sign-off template + smoke docs; ACCEPTED remains NO |
+| 2026-08-09 | Mission Control + Workspace routes noted as automated gates only (ACCEPTED=NO) |

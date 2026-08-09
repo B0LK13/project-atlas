@@ -39,6 +39,11 @@ const PROD = [
     title: "Mission Control",
     blurb: "AS-WEB-MISSION-001 stub — UI≠canonical; ACCEPTED=NO.",
   },
+  {
+    to: "/workspace",
+    title: "Workspace",
+    blurb: "AS-WEB-WORKSPACE-001 stub — UI≠canonical; ACCEPTED=NO.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
