@@ -4112,3 +4112,58 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 - MERGE AUTHORIZED: NO
 - DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
 **Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-INCR-COMPILE-001-*.md
+
+## AS-OBS-002 — Operational Event Model (tip-safe)
+
+**Date:** 2026-08-09
+**Branch:** feat/as-obs-002-ops-events
+**Worktree:** D:\atlas-worktrees\as-obs-002-ops-events
+**Base tip / TREE:** 5ecb228 / 4879b1ee (post AS-INCR-COMPILE-001 #44 MERGED — POST-MERGE VERIFIED)
+**Gate:** READY WITH CONSTRAINTS — AS-OBS-002-ENTRY-GATE.md (serialize LIFTED)
+**Wake:** AS-OBS-002-WAKE.md FIRED
+**Overlap:** SAFE WITH EXCLUSIONS — AS-OBS-CONSUMERS-SURFACE-OVERLAP.md
+**Sole-writer:** AS-OBS-002-SOLE-WRITER-LOCK.md
+
+### Scope
+- New project_atlas.ops_events: append-only OPS-EVT-* stream + retention + health-transition
+- Schemas ops-event + ops-event-stream; schema.py companion only (INCR/OBS-001 keys untouched)
+- Vault emit under generated/ops/events/** only
+- Thin CLI `atlas ops events` (additive under ops)
+- Focused tests test_as_obs_002_* + ADV; docs AS-OBS-002-*
+- Consume-only OBS-001 snapshot; NO ops_health rewrite; NO monitoring; NO OBS-003 dual-own
+- AS-REL-001 MUST NOT OPEN
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused test_as_obs_002_*: 22 passed
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-OBS-002-*.md
+
+## AS-OBS-002 — Operational Event Model (tip-safe OPS-EVT-*)
+
+**Date:** 2026-08-09
+**Branch:** feat/as-obs-002-ops-events
+**Worktree:** D:\atlas-worktrees\as-obs-002-ops-events
+**Base tip / TREE:** 5ecb2285008c07958034772e596bcd46af578d34 / 4879b1ee4975c1b754b894f77bcccf801cb141a3 (post AS-INCR-COMPILE-001 #44 MERGED — POST-MERGE VERIFIED)
+**Gate:** READY WITH CONSTRAINTS — AS-OBS-002-ENTRY-GATE.md (wake FIRED)
+**Overlap:** SAFE WITH EXCLUSIONS — AS-OBS-CONSUMERS-SURFACE-OVERLAP.md
+**Sole-writer:** AS-OBS-002-SOLE-WRITER-LOCK.md (replacement sole-writer; prior ec11cbab abandoned)
+
+### Scope
+- New project_atlas.ops_events: append-only OPS-EVT-* helpers, retention, optional OPS-EVT-HEALTH-TRANSITION from OBS-001 snapshot diffs
+- Schemas ops-event + ops-event-stream; schema.py companion register only (compile-cache-receipt / ops-health-snapshot keys untouched)
+- Thin additive CLI: atlas ops events
+- Vault writes under generated/ops/events/** only
+- Focused tests test_as_obs_002_*; package guide docs/AS-OBS-002-ops-events.md
+- truth_plane=operational / authority_plane=none on every envelope
+- NO ops_health rewrite; NO INCR dual-own; NO OBS-003 dual-own; NO monitoring; AS-REL-001 MUST NOT OPEN
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused test_as_obs_002_* + schema golden: PASS
+- Auto-merge: FORBIDDEN
+- MERGE AUTHORIZED: NO
+- DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-OBS-002-*.md
