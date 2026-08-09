@@ -29,7 +29,8 @@
         "fuzzy-identity-forbidden",
         "physical-resource-promotion-forbidden",
         "unknown-class",
-        "missing-registration"
+        "missing-registration",
+        "secret-finding"
       ]
     },
     "authority": {

@@ -15,6 +15,7 @@ Truth boundary: CROSS-PROJECT IDENTITY ≠ AUTOMATIC AUTHORITY
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -25,6 +26,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from project_atlas.schema import validate_record
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-XPROJ-001"
 AUTHORITY_LEVEL = "derived"
@@ -98,6 +100,7 @@ QuarantineCategory = Literal[
     "physical-resource-promotion-forbidden",
     "unknown-class",
     "missing-registration",
+    "secret-finding",
 ]
 
 JoinStatus = Literal["joined", "quarantine_candidate"]
@@ -282,21 +285,53 @@ def _is_physical_promotion(
 ) -> bool:
     if entity_class not in {"technology", "service"}:
         return False
-    markers: list[str] = []
+    # Attribute keys: exact marker match only (not substring of key names).
     if attributes:
         for key, value in attributes.items():
-            markers.append(str(key).casefold())
-            if isinstance(value, str):
-                markers.append(value.casefold())
-    markers.append(display_name.casefold())
-    joined = " ".join(markers)
+            if str(key).casefold() in PHYSICAL_RESOURCE_MARKERS:
+                return True
+            if isinstance(value, str) and _text_has_physical_marker(value):
+                return True
+    return _text_has_physical_marker(display_name)
+
+
+def _text_has_physical_marker(text: str) -> bool:
+    """Token-boundary marker match — avoids false hits like ``Ghost`` ⊃ ``host``."""
+    lowered = text.casefold()
     for marker in PHYSICAL_RESOURCE_MARKERS:
-        if marker in joined:
+        if re.search(rf"(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])", lowered):
             return True
     # ARN / hostname-ish patterns without inventing fuzzy identity.
-    if re.search(r"\barn:[a-z0-9-]+:", joined):
+    if re.search(r"\barn:[a-z0-9-]+:", lowered):
         return True
-    return bool(re.search(r"\b(?:ip|mac)[-_ ]?address\b", joined))
+    return bool(re.search(r"\b(?:ip|mac)[-_ ]?address\b", lowered))
+
+
+def _secret_findings_present(
+    *,
+    display_name: str | None,
+    notes: str | None,
+    attributes: Mapping[str, Any] | None,
+) -> bool:
+    blobs: list[str] = []
+    if display_name:
+        blobs.append(display_name)
+    if notes:
+        blobs.append(notes)
+    if attributes:
+        blobs.append(json.dumps(attributes, sort_keys=True, default=str))
+    return any(scan_text(blob) for blob in blobs)
+
+
+def _emit_filename(token: str) -> str:
+    """Collision-free vault basename: readable prefix + stable digest of raw token."""
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:12]
+    safe = _safe_name(token)[:80]
+    return f"{safe}--{digest}"
+
+
+def _records_equivalent(a: GlobalEntityRecord, b: GlobalEntityRecord) -> bool:
+    return a.to_json() == b.to_json()
 
 
 def _validate_global_id(global_entity_id: str) -> str:
@@ -359,6 +394,23 @@ def register_global_entity(
     label = (display_name or "").strip()
     if not label:
         raise XprojRegistryError("display-name-required")
+
+    if _secret_findings_present(
+        display_name=label,
+        notes=notes,
+        attributes=attributes,
+    ):
+        return QuarantineCandidate(
+            candidate_id=f"q-secret-{_safe_name(str(global_entity_id))}",
+            category="secret-finding",
+            reason="secret-finding",
+            inputs_considered={
+                "entity_class": entity_class or "",
+                "display_name": "[redacted-scan]",
+                "global_entity_id": str(global_entity_id).strip(),
+            },
+            global_entity_id=str(global_entity_id).strip(),
+        )
 
     normalized = _normalize_class(entity_class)
     if normalized is None:
@@ -520,10 +572,25 @@ def detect_class_collapse(
 
 def apply_registrations(
     requests: Sequence[Mapping[str, Any]],
+    *,
+    prior_entities: Mapping[str, GlobalEntityRecord] | Sequence[GlobalEntityRecord] | None = None,
+    prior_joins: Sequence[JoinKeyRecord] | None = None,
 ) -> RegistryResult:
-    """Deterministic batch apply for entities then joins (stable sort)."""
+    """Deterministic batch apply for entities then joins (stable sort).
+
+    Optional ``prior_*`` seeds allow additive CLI/vault updates without
+    replaying the full registration history in one JSON file.
+    """
     result = RegistryResult()
     entity_map: dict[str, GlobalEntityRecord] = {}
+    if prior_entities is not None:
+        if isinstance(prior_entities, Mapping):
+            entity_map.update(prior_entities)
+        else:
+            for item in prior_entities:
+                entity_map[item.global_entity_id] = item
+
+    joins: list[JoinKeyRecord] = list(prior_joins or ())
 
     entity_reqs = [item for item in requests if item.get("kind") == "entity"]
     join_reqs = [item for item in requests if item.get("kind") == "join"]
@@ -578,19 +645,35 @@ def apply_registrations(
                     )
                 )
                 continue
-            # Idempotent same registration — keep first.
+            if not _records_equivalent(prior, entity_outcome):
+                result.quarantine.append(
+                    QuarantineCandidate(
+                        candidate_id=(
+                            f"q-collide-meta-{_safe_name(entity_outcome.global_entity_id)}"
+                        ),
+                        category="colliding-registration",
+                        reason="non-identical-duplicate-registration",
+                        inputs_considered={
+                            "global_entity_id": entity_outcome.global_entity_id,
+                            "entity_class": entity_outcome.entity_class,
+                        },
+                        global_entity_id=entity_outcome.global_entity_id,
+                    )
+                )
+                continue
+            # Idempotent byte-identical registration — keep first.
             continue
         entity_map[entity_outcome.global_entity_id] = entity_outcome
         result.entities.append(entity_outcome)
 
     # Per distinct display name: same global_entity_id must not span classes.
-    names = sorted({item.display_name for item in result.entities}, key=str.casefold)
+    names = sorted({item.display_name for item in entity_map.values()}, key=str.casefold)
     for name in names:
-        hit = detect_class_collapse(display_name=name, entities=result.entities)
+        hit = detect_class_collapse(display_name=name, entities=list(entity_map.values()))
         if hit is not None:
             result.quarantine.append(hit)
 
-    joins: list[JoinKeyRecord] = []
+    new_joins: list[JoinKeyRecord] = []
     for req in join_reqs:
         raw_refs = req.get("evidence_refs") or []
         evidence: list[EvidenceRef | Mapping[str, str]] = []
@@ -606,12 +689,21 @@ def apply_registrations(
             global_entity_id=str(req.get("global_entity_id") or ""),
             evidence_refs=evidence,
             registry=entity_map,
-            existing_joins=joins,
+            existing_joins=joins + new_joins,
         )
         if isinstance(join_outcome, QuarantineCandidate):
             result.quarantine.append(join_outcome)
             continue
-        joins.append(join_outcome)
+        # Idempotent identical join replay — skip duplicate emit.
+        if any(
+            existing.project_id == join_outcome.project_id
+            and existing.project_local_entity_id == join_outcome.project_local_entity_id
+            and existing.global_entity_id == join_outcome.global_entity_id
+            and existing.status == "joined"
+            for existing in joins
+        ):
+            continue
+        new_joins.append(join_outcome)
         result.joins.append(join_outcome)
 
     result.entities.sort(key=lambda item: item.global_entity_id.casefold())
@@ -666,6 +758,54 @@ def _write_atomic(path: Path, content: str) -> None:
         raise
 
 
+def load_registry_state(vault: Path) -> tuple[dict[str, GlobalEntityRecord], list[JoinKeyRecord]]:
+    """Load previously persisted entities/joins from ``state/global-entities/**``."""
+    vault = vault.expanduser().resolve()
+    entities: dict[str, GlobalEntityRecord] = {}
+    joins: list[JoinKeyRecord] = []
+    root = vault / "state" / "global-entities"
+    if not root.is_dir():
+        return entities, joins
+
+    for path in sorted(root.glob("*.json"), key=lambda item: item.name.casefold()):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise XprojRegistryError(f"malformed-registry:{path.name}")
+        validate_record(payload, "xproj-global-entity")
+        gid = str(payload["global_entity_id"])
+        record = GlobalEntityRecord(
+            global_entity_id=gid,
+            entity_class=payload["entity_class"],
+            display_name=str(payload["display_name"]),
+            notes=str(payload["notes"]) if payload.get("notes") is not None else None,
+            attributes=(
+                dict(payload["attributes"])
+                if isinstance(payload.get("attributes"), Mapping)
+                else None
+            ),
+        )
+        entities[gid] = record
+
+    joins_dir = root / "joins"
+    if joins_dir.is_dir():
+        for path in sorted(joins_dir.glob("*.json"), key=lambda item: item.name.casefold()):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise XprojRegistryError(f"malformed-join:{path.name}")
+            validate_record(payload, "xproj-join-key")
+            refs = _validate_evidence(payload.get("evidence_refs") or [])
+            joins.append(
+                JoinKeyRecord(
+                    project_id=str(payload["project_id"]),
+                    project_local_entity_id=str(payload["project_local_entity_id"]),
+                    global_entity_id=str(payload["global_entity_id"]),
+                    evidence_refs=refs,
+                    status="joined",
+                )
+            )
+    return entities, joins
+
+
 def write_registry_outputs(
     result: RegistryResult,
     *,
@@ -677,31 +817,37 @@ def write_registry_outputs(
         raise XprojRegistryError(f"vault-missing:{vault}")
 
     written: list[str] = []
-    for record in result.entities:
-        safe = _safe_name(record.global_entity_id)
-        relative = f"state/global-entities/{safe}.json"
+    planned: dict[str, str] = {}
+
+    def _plan(relative: str, content: str) -> None:
+        if relative in planned and planned[relative] != content:
+            raise XprojRegistryError(f"emit-path-collision:{relative}")
         path = _safe_vault_relative(vault, relative)
-        validate_record(record.as_dict(), "xproj-global-entity")
-        _write_atomic(path, record.to_json())
+        # Also refuse colliding basenames that would overwrite distinct content.
+        if relative in planned:
+            return
+        planned[relative] = content
+        _write_atomic(path, content)
         written.append(relative)
+
+    for record in result.entities:
+        safe = _emit_filename(record.global_entity_id)
+        relative = f"state/global-entities/{safe}.json"
+        validate_record(record.as_dict(), "xproj-global-entity")
+        _plan(relative, record.to_json())
 
     for join in result.joins:
-        safe = _safe_name(
-            f"{join.project_id}--{join.project_local_entity_id}--{join.global_entity_id}"
-        )
+        token = f"{join.project_id}--{join.project_local_entity_id}--{join.global_entity_id}"
+        safe = _emit_filename(token)
         relative = f"state/global-entities/joins/{safe}.json"
-        path = _safe_vault_relative(vault, relative)
         validate_record(join.as_dict(), "xproj-join-key")
-        _write_atomic(path, join.to_json())
-        written.append(relative)
+        _plan(relative, join.to_json())
 
     for candidate in result.quarantine:
-        safe = _safe_name(candidate.candidate_id)
+        safe = _emit_filename(candidate.candidate_id)
         relative = f"state/global-entities/quarantine-candidates/{safe}.json"
-        path = _safe_vault_relative(vault, relative)
         validate_record(candidate.as_dict(), "xproj-quarantine-candidate")
-        _write_atomic(path, candidate.to_json())
-        written.append(relative)
+        _plan(relative, candidate.to_json())
 
     written.sort()
     return written
@@ -727,6 +873,7 @@ __all__ = [
     "apply_registrations",
     "detect_class_collapse",
     "inspect_registry",
+    "load_registry_state",
     "promote_registry_path_forbidden",
     "register_global_entity",
     "register_join",

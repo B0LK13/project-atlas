@@ -19,6 +19,7 @@ from project_atlas.xproj_registry import (
     XprojRegistryError,
     apply_registrations,
     inspect_registry,
+    load_registry_state,
     promote_registry_path_forbidden,
     register_global_entity,
     register_join,
@@ -328,3 +329,102 @@ def test_xp_fx_013_join_schema_valid() -> None:
     )
     assert isinstance(join, JoinKeyRecord)
     validate_record(join.as_dict(), "xproj-join-key")
+
+
+def test_xp_fx_014_emit_filename_collision_free(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    result = apply_registrations(
+        [
+            {
+                "kind": "entity",
+                "global_entity_id": "ge:a",
+                "entity_class": "technology",
+                "display_name": "Colon",
+            },
+            {
+                "kind": "entity",
+                "global_entity_id": "ge-a",
+                "entity_class": "library",
+                "display_name": "Dash",
+            },
+        ]
+    )
+    written = write_registry_outputs(result, vault=vault)
+    assert len(written) == 2
+    assert len(set(written)) == 2
+    files = sorted(p.name for p in (vault / "state" / "global-entities").glob("*.json"))
+    assert len(files) == 2
+
+
+def test_xp_fx_015_ghost_not_physical() -> None:
+    outcome = register_global_entity(
+        global_entity_id="ge-tech-ghost",
+        entity_class="technology",
+        display_name="Ghost",
+    )
+    assert isinstance(outcome, GlobalEntityRecord)
+
+
+def test_xp_fx_016_secret_attributes_quarantined() -> None:
+    outcome = register_global_entity(
+        global_entity_id="ge-svc-secret",
+        entity_class="service",
+        display_name="payments",
+        attributes={"url": "postgres://user:secretpass@localhost/db"},
+    )
+    assert isinstance(outcome, QuarantineCandidate)
+    assert outcome.category == "secret-finding"
+
+
+def test_xp_fx_017_nonidentical_duplicate_quarantined() -> None:
+    result = apply_registrations(
+        [
+            {
+                "kind": "entity",
+                "global_entity_id": "ge-same",
+                "entity_class": "technology",
+                "display_name": "Alpha",
+            },
+            {
+                "kind": "entity",
+                "global_entity_id": "ge-same",
+                "entity_class": "technology",
+                "display_name": "Beta",
+            },
+        ]
+    )
+    assert result.registered_count == 1
+    assert any(q.reason == "non-identical-duplicate-registration" for q in result.quarantine)
+
+
+def test_xp_fx_018_prior_vault_state_enables_join(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    first = apply_registrations(
+        [
+            {
+                "kind": "entity",
+                "global_entity_id": "ge-lib-prior",
+                "entity_class": "library",
+                "display_name": "PriorLib",
+            }
+        ]
+    )
+    write_registry_outputs(first, vault=vault)
+    prior_entities, prior_joins = load_registry_state(vault)
+    second = apply_registrations(
+        [
+            {
+                "kind": "join",
+                "project_id": "proj-z",
+                "project_local_entity_id": "local-lib",
+                "global_entity_id": "ge-lib-prior",
+                "evidence_refs": [EVIDENCE.as_dict()],
+            }
+        ],
+        prior_entities=prior_entities,
+        prior_joins=prior_joins,
+    )
+    assert second.joined_count == 1
+    assert second.quarantined_count == 0

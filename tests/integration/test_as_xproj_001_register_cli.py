@@ -57,7 +57,8 @@ def test_register_global_entity_cli_write(
     out = capsys.readouterr().out
     assert "authority: derived" in out
     assert "registered: 1" in out
-    assert (vault / "state" / "global-entities" / "ge-tech-kafka.json").is_file()
+    entities = list((vault / "state" / "global-entities").glob("ge-tech-kafka--*.json"))
+    assert len(entities) == 1
     assert list((vault / "state" / "global-entities" / "joins").glob("*.json"))
 
 

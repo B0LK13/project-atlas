@@ -60,6 +60,7 @@ from project_atlas.xproj_registry import (
     XprojRegistryError,
     apply_registrations,
     inspect_registry,
+    load_registry_state,
     write_registry_outputs,
 )
 
@@ -683,8 +684,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             raw = payload.get("registrations")
             if not isinstance(raw, list):
                 raise XprojRegistryError("registrations-not-array")
-            requests = [item for item in raw if isinstance(item, dict)]
-            xproj_result = apply_registrations(requests)
+            requests: list[dict[str, object]] = []
+            for index, item in enumerate(raw):
+                if not isinstance(item, dict):
+                    raise XprojRegistryError(f"registration-not-object:{index}")
+                requests.append(item)
+            prior_entities = None
+            prior_joins = None
+            if args.vault is not None:
+                prior_entities, prior_joins = load_registry_state(args.vault)
+            xproj_result = apply_registrations(
+                requests,
+                prior_entities=prior_entities,
+                prior_joins=prior_joins,
+            )
             xproj_written: list[str] = []
             if args.write:
                 assert args.vault is not None
