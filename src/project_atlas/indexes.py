@@ -6,6 +6,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from project_atlas.conflict_projections import (
+    conflict_index_companions,
+    review_index_companions,
+)
 from project_atlas.ingestion import _promote
 
 GENERATED_INDEX_ROOT = "generated/indexes"
@@ -124,12 +128,30 @@ def _conflict_index(vault: Path, overlay: dict[Path, bytes] | None = None) -> di
         claim_ids = sorted(str(item) for item in conflict.get("claim_ids", []))
         if claim_ids:
             _add(by_pair, "|".join(claim_ids), conflict_id)
+    # AS-CORE2-008: additive companion keys only (C8-FR-003).
+    companions = conflict_index_companions(records)
     return {
         "schema_version": 1,
         "ids": sorted(by_id),
         "by_conflict_id": _sorted_index(by_id),
         "by_claim_pair": _sorted_index(by_pair),
+        "by_source_id": _sorted_index(companions["by_source_id"]),
+        "by_source_lineage_id": _sorted_index(companions["by_source_lineage_id"]),
+        "by_project_id": _sorted_index(companions["by_project_id"]),
     }
+
+
+def _review_index(vault: Path, overlay: dict[Path, bytes] | None = None) -> dict[str, Any]:
+    """Lexical companion over ``review/pending/**`` (C8-FR-005) — not a queue root."""
+    records: list[dict[str, Any]] = []
+    root = vault / "review" / "pending"
+    paths_set = set(root.glob("*.json")) if root.is_dir() else set()
+    paths_set.update(path for path in (overlay or {}) if path.parent == root)
+    paths = sorted(paths_set)
+    for path in paths:
+        raw = _json(path, {}, overlay)
+        records.extend(item for item in raw.get("entries", []) if isinstance(item, dict))
+    return review_index_companions(records)
 
 
 def _authority_index(
@@ -239,6 +261,8 @@ def canonical_index_payloads(
         "claims.json": _claim_index(vault, overlay),
         "concepts.json": _concept_index(vault, overlay),
         "conflicts.json": _conflict_index(vault, overlay),
+        # AS-CORE2-008 companion — regenerable lexical view of pending reviews.
+        "reviews.json": _review_index(vault, overlay),
     }
     authority_index, provenance_index = _authority_index(vault, overlay)
     plan["authority.json"] = authority_index

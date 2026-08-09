@@ -19,6 +19,11 @@ from project_atlas.claim_identity import (
     claim_id_from_key,
 )
 from project_atlas.compilation import CompilationCandidate, CompilationOutcome
+from project_atlas.conflict_projections import (
+    conflict_markdown_line,
+    conflict_review_reason,
+    duplicate_source_facet,
+)
 from project_atlas.domain import (
     AuthorityLevel,
     AuthorityRecord,
@@ -1205,6 +1210,8 @@ def _allowlist_concepts(
 
 
 def _conflicts(project: str, claims: list[Claim]) -> list[ConflictRecord]:
+    # AS-CORE2-008: spine unchanged — duplicate-source facets are projected
+    # additively via conflict_projections (C8-FR-001/002); no ConflictType growth.
     grouped: dict[str, list[Claim]] = {}
     for claim in claims:
         grouped.setdefault(f"{claim.subject}|{claim.field}", []).append(claim)
@@ -1223,36 +1230,42 @@ def _conflicts(project: str, claims: list[Claim]) -> list[ConflictRecord]:
         )
         conflict_key = project + "|" + key + "|" + lineage_key + "|" + "|".join(sorted(distinct))
         conflict_id = f"conflict-{_digest(conflict_key)[:20]}"
-        results.append(
-            ConflictRecord(
-                project_id=project,
-                conflict_id=conflict_id,
-                subject=subject,
-                field=field,
-                claims=[
-                    ConflictingClaim(
-                        source_id=claim.provenance[0].source_id,
-                        source_lineage_id=claim.source_lineage_id,
-                        claim=claim.value,
-                    )
-                    for claim in sorted(values, key=lambda item: item.claim_id)
-                ],
-                claim_ids=sorted(claim.claim_id for claim in values),
-                source_lineage_ids=sorted(
-                    {
-                        claim.source_lineage_id
-                        for claim in values
-                        if claim.source_lineage_id is not None
-                    }
-                ),
-                provenance=[ref for claim in values for ref in claim.provenance],
-            )
+        record = ConflictRecord(
+            project_id=project,
+            conflict_id=conflict_id,
+            subject=subject,
+            field=field,
+            claims=[
+                ConflictingClaim(
+                    source_id=claim.provenance[0].source_id,
+                    source_lineage_id=claim.source_lineage_id,
+                    claim=claim.value,
+                )
+                for claim in sorted(values, key=lambda item: item.claim_id)
+            ],
+            claim_ids=sorted(claim.claim_id for claim in values),
+            source_lineage_ids=sorted(
+                {
+                    claim.source_lineage_id
+                    for claim in values
+                    if claim.source_lineage_id is not None
+                }
+            ),
+            provenance=[ref for claim in values for ref in claim.provenance],
         )
+        # Facet derivation is fail-closed / omit-only; never invents conflicts.
+        _ = duplicate_source_facet(record)
+        results.append(record)
     return results
 
 
 def _review(
-    project: str, claims: list[Claim], conflicts: list[ConflictRecord]
+    project: str,
+    claims: list[Claim],
+    conflicts: list[ConflictRecord],
+    authoritative_states: (
+        tuple[AuthoritativeStateRecord, ...] | list[AuthoritativeStateRecord]
+    ) = (),
 ) -> list[ReviewEntry]:
     entries = [
         ReviewEntry(
@@ -1306,7 +1319,8 @@ def _review(
             project_id=project,
             category=ReviewCategory.CONFLICT,
             subject_id=conflict.conflict_id,
-            reason="materially incompatible source-backed claims",
+            # AS-CORE2-008: authority review-queue honesty (C8-FR-004).
+            reason=conflict_review_reason(conflict, authoritative_states),
             source_ids=[item.source_id for item in conflict.claims],
             source_lineage_ids=[
                 item.source_lineage_id
@@ -1720,7 +1734,7 @@ def compile_knowledge(
         conflicts,
         compilation_id=compilation_id,
     )
-    reviews = _review(project, claims, conflicts)
+    reviews = _review(project, claims, conflicts, authoritative_states)
     reviews.extend(
         ReviewEntry(
             review_id=f"review-{_digest(f'{project}|lifecycle|{record.claim_id}')[:20]}",
@@ -2102,9 +2116,8 @@ def _render_concepts(project: str, concepts: tuple[ConceptRecord, ...]) -> str:
 def _render_conflicts(project: str, conflicts: tuple[ConflictRecord, ...]) -> str:
     lines = [f"# Conflicts — {project}", ""]
     if conflicts:
-        lines.extend(
-            f"- `{conflict.conflict_id}` `{conflict.field}` — unresolved" for conflict in conflicts
-        )
+        # AS-CORE2-008: duplicate-source facet honesty on Markdown projection.
+        lines.extend(conflict_markdown_line(conflict) for conflict in conflicts)
     else:
         lines.append("_No unresolved conflicts._")
     return "\n".join(lines) + "\n"
