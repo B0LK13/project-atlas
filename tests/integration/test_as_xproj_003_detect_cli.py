@@ -7,9 +7,6 @@ from pathlib import Path
 
 from project_atlas.cli import main
 
-PID_A = "11111111-1111-4111-8111-111111111111"
-PID_B = "22222222-2222-4222-8222-222222222222"
-
 
 def test_detect_project_duplicates_cli_write(tmp_path: Path, monkeypatch: object) -> None:
     projects = tmp_path / "projects.json"
@@ -18,18 +15,12 @@ def test_detect_project_duplicates_cli_write(tmp_path: Path, monkeypatch: object
             {
                 "projects": [
                     {
-                        "project_id": PID_A,
+                        "project_id": "proj-acme-a",
                         "canonical_remote_url": "https://example.com/dup.git",
-                        "evidence_refs": [
-                            {"relative_path": "sources/a.md", "sha256": "a" * 64}
-                        ],
                     },
                     {
-                        "project_id": PID_B,
+                        "project_id": "proj-acme-b",
                         "canonical_remote_url": "https://example.com/dup",
-                        "evidence_refs": [
-                            {"relative_path": "sources/b.md", "sha256": "b" * 64}
-                        ],
                     },
                 ]
             },
