@@ -3716,7 +3716,9 @@ byte-stable for merged snapshot/report.
 **Branch / WT:** `feat/as-obs-001-health-snapshot` / `D:\atlas-worktrees\as-obs-001`  
 **Prior tip:** `b2ca9112c398708525d0cef98d78017fef61a941`  
 **Remediation HEAD:** `cba074a65c4257c5842f2a4a73f2c10ad966b832`  
-**Remediation TREE:** `f90300dfb44dde2022802cd4f1aa9ff14df4fa04`
+**Remediation TREE:** `f90300dfb44dde2022802cd4f1aa9ff14df4fa04`  
+**Tip HEAD:** `fb13172ff1bb119452550fdd476078433db6af58`  
+**Tip TREE:** `1b969a1baad355f5f9d32a39e411b0e890c72905`
 
 ### Fix
 - Absent `quarantine/promotion-failures/index.json` → `OPS-SIG-005` = `unknown`
