@@ -4941,3 +4941,10 @@ WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
 - Refreshed checklist, governor sign-off, and AS-WEB-ACCEPT-005 evidence to MAIN ac1cee723f368154334815dade33212e593fc88c / TREE e0ed54782830df036cc439fa127ff5a16c5d8915.
 - Kept WEB APPLICATION ACCEPTED = NO, governor decision PENDING, and all governor checkboxes unchecked.
 - Validation: web smoke PASS (ACCEPTED=NO); 24 focused unit tests PASS. Independent governor review remains required.
+||||||| parent of 27e843e (docs(atlas-2.0): deepen-h Agent OS/Twin/KCI/Context themes (READY=NO))
+
+## Atlas 2.0 deepen-h (themes)
+
+Added Agent OS / Digital Twin / KCI / Context / Architecture PROTOTYPE-PREP docs and Z15–Z19.
+`ATLAS_2_0_IMPLEMENTATION_READY = NO` (honest prep ≈68%; gates 1–3 and 10 blocked).
+

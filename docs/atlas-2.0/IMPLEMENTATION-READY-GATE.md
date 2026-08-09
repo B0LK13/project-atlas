@@ -20,9 +20,9 @@ the READY flag. Do not open production 2.0 branches until then.
 
 ## Observed prep baseline pin (not release certification)
 
-- Tip commit: `bfdc5862b46c7e8da8fff26224fac8b7b6a2f59`
-- Tip tree: `fa404c270c1659d4c48739440a43087a4226b939`
-- Meaning: branch-creation baseline for deepen-g only. It is **not** a release
+- Tip commit: `ac1cee723f368154334815dade33212e593fc88c`
+- Tip tree: `e0ed54782830df036cc439fa127ff5a16c5d8915`
+- Meaning: branch-creation baseline for deepen-h only. It is **not** a release
   tag, compatibility snapshot, governor signature, or proof that 1.0 is
   certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
 
@@ -69,6 +69,20 @@ Track B deepen-g improved reviewability only. **No gate flipped to YES.**
 Open questions OQ-001…019 remain unanswered. Rows 1–10 remain ungreen.
 Explicit after deepen-g: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
+## Progress notes (deepen-h) — READY still NO
+
+Theme coverage expanded; **no gate flipped to YES**. Honest prep ≈ **68%**.
+
+| Note | Evidence | READY impact |
+|---|---|---|
+| Agent OS / Digital Twin / KCI / Context / Architecture theme docs | AGENT-OS.md, DIGITAL-TWIN.md, KCI.md, CONTEXT.md, ARCHITECTURE.md | none — PROTOTYPE/PREP |
+| Z15–Z19 registered | Z-WAVE-INDEX.md | none — READY=NO |
+| Agent OS session prototype stub | prototypes/AGENT-OS-SESSION-PROTOTYPE.md | none — non-evidentiary |
+| Prep tip pin → `ac1cee7` / `e0ed5478` | DAG.md + this gate | none — not certification |
+
+Blocking READY flip: gates **1–3** and **10** (1.0 RELEASE, WEB ACCEPTED, PILOT/waiver, owner auth) plus unchecked §98 freeze rows.
+Explicit after deepen-h: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
 ## Explicit firewall
 
 - No 2.0 production semantics in `src/project_atlas/`
@@ -89,3 +103,4 @@ Only a governor may set `ATLAS_2_0_IMPLEMENTATION_READY = YES` after rows
 | 2026-08-09 | deepen-e: progress notes; contract-freeze + prototypes + threats cross-links; READY unchanged NO |
 | 2026-08-09 | deepen-f: deeper contracts, residual threats, fixture scenarios, open blockers, and prep tip pin; READY unchanged NO |
 | 2026-08-09 | deepen-g: refreshed prep pin; deepened FR/INV, fixtures, threats, package reviews, and prototype walkthrough; READY unchanged NO |
+| 2026-08-09 | deepen-h: Agent OS / Twin / KCI / Context / Architecture themes + Z15–Z19; READY unchanged NO; prep ≈68% |
