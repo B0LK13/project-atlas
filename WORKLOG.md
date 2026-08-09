@@ -4703,3 +4703,7 @@ Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surf
 - node apps/web/scripts/smoke.mjs
 - python -m pytest tests/unit/test_as_web_mission_control_001.py -q
 - Auto-merge: FORBIDDEN
+
+## AS-LANE-Y-001
+Docs reconciliation after max-parallel merges #70-77. DoD flags remain NO.
+

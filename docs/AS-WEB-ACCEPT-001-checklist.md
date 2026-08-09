@@ -4,7 +4,7 @@
 |---|---|
 | Package | AS-WEB-ACCEPT-001 / AS-WEB-ACCEPT-002 closeout |
 | Parent | D-PROJECT-ATLAS-1.0-FINISH-PLUS-2.0-PREP-001 |
-| Tip pin | `641170f` / TREE `5b67b714` (update on merge) |
+| Tip pin | `e3e3c6b` / TREE `cd7955e` (update on merge) |
 | **WEB APPLICATION ACCEPTED** | **NO** |
 | Governor sign-off | **PENDING** — see `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
 
@@ -18,7 +18,7 @@
 
 | # | Criterion | Evidence | Status |
 |---|---|---|---|
-| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
+| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, `/mission-control`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
 | 2 | Stub + UI enforce UI≠canonical / Graph≠authority / Unknown≠healthy | sample stub + production pages | automated |
 | 3 | ADR-008 / ADR-009 / ADR-010 present | smoke + unit tests | automated |
 | 4 | `web_api` read-only boundary intact | `web_api/`, tests | automated |
