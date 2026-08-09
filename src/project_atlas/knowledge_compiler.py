@@ -698,6 +698,512 @@ def _capability_concepts(
     return sorted(results, key=lambda item: item.concept_id)
 
 
+# ---------------------------------------------------------------------------
+# AS-CORE-MODEL-001C — allow-list v1 multi-type Layer-B composition
+# Allow-list: Project Status / Architecture / Component / Decision
+# Capability remains 001B-only; maturity Rules A-D remain 001A-only.
+# WORKLOG-frozen opt-in key: emit_concepts
+# ---------------------------------------------------------------------------
+
+_EMIT_CONCEPT_TOKENS = frozenset({"architecture", "decision", "project_status"})
+_STATUS_CLASSIFICATIONS = frozenset({"project-status", "status"})
+
+
+def allowlist_concept_id(project_id: str, concept_type: str, canonical_key: str) -> str:
+    """AS-CORE-MODEL-001C: stable non-project concept_id (never equals project_id)."""
+    prefix = {
+        ConceptType.PROJECT_STATUS.value: "status",
+        ConceptType.ARCHITECTURE.value: "arch",
+        ConceptType.COMPONENT.value: "comp",
+        ConceptType.DECISION.value: "decision",
+    }.get(concept_type)
+    if prefix is None:
+        raise ValueError(f"unsupported allow-list concept type: {concept_type!r}")
+    digest = _digest(f"{project_id}\0{concept_type}\0{canonical_key}")[:32]
+    concept_id = f"{prefix}-{digest}"
+    if concept_id == project_id:
+        raise ValueError(
+            f"allow-list concept_id collided with project_id: {project_id!r}"
+        )
+    return concept_id
+
+
+def _reject_secret_allowlist_text(label: str, value: str) -> None:
+    """AS-CORE-MODEL-001C / NFR-004: allow-list display strings must be secret-free."""
+    if scan_text(value):
+        raise ValueError(f"secret-bearing allow-list {label} rejected")
+
+
+def _parse_emit_concepts(entries: list[dict[str, Any]], project: str) -> set[str]:
+    """Return normalized emit_concepts opt-in tokens (WORKLOG-frozen key).
+
+    Unknown tokens and ``capability`` are ignored (ADV-C-18) — never invent
+    Capability from this path. Invalid types fail closed.
+    """
+    raw: Any = None
+    for entry in entries:
+        if "emit_concepts" in entry:
+            raw = entry.get("emit_concepts")
+            break
+    if raw is None:
+        return set()
+    if not isinstance(raw, list):
+        raise ValueError(
+            f"project marker emit_concepts must be a list for project {project!r}"
+        )
+    tokens: set[str] = set()
+    for index, item in enumerate(raw):
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(
+                f"project marker emit_concepts[{index}] must be a non-empty "
+                f"string for project {project!r}"
+            )
+        token = item.strip().lower().replace(" ", "_").replace("-", "_")
+        if token in {"capability", "capabilities"}:
+            # Never invent Capability via 001C opt-in (ADV-C-18).
+            continue
+        if token in {"project_status", "projectstatus", "status"}:
+            tokens.add("project_status")
+            continue
+        if token in _EMIT_CONCEPT_TOKENS:
+            tokens.add(token)
+            continue
+        # Unknown sibling tokens ignored (schema-tolerant).
+    return tokens
+
+
+def _parse_declared_relationships(
+    raw: Any,
+    *,
+    label: str,
+) -> list[Relationship]:
+    """Parse optional evidenced relationships; unknown RelationType fails closed."""
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(f"{label} relationships must be a list")
+    results: list[Relationship] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise ValueError(f"{label} relationships[{index}] must be an object")
+        rel_type = item.get("type")
+        target = item.get("target")
+        if not isinstance(rel_type, str) or not rel_type.strip():
+            raise ValueError(
+                f"{label} relationships[{index}].type must be a non-empty string"
+            )
+        if not isinstance(target, str) or not target.strip():
+            raise ValueError(
+                f"{label} relationships[{index}].target must be a non-empty string"
+            )
+        try:
+            parsed_type = RelationType(rel_type.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"{label} relationships[{index}].type is not an allowed "
+                f"RelationType: {rel_type!r}"
+            ) from exc
+        target_value = target.strip()
+        _reject_secret_allowlist_text(f"{label} relationships[{index}].target", target_value)
+        note = item.get("note")
+        if note is not None and (not isinstance(note, str) or not note.strip()):
+            raise ValueError(
+                f"{label} relationships[{index}].note must be a non-empty string"
+            )
+        results.append(
+            Relationship(
+                type=parsed_type,
+                target=target_value,
+                note=note.strip() if isinstance(note, str) else None,
+            )
+        )
+    return results
+
+
+def _decision_key_from_path(path: str) -> str | None:
+    """ADR filename stem rule: ADR-* stems or docs/adr/* paths yield a key."""
+    normalized = path.replace("\\", "/")
+    stem = Path(normalized).stem.strip()
+    if not stem:
+        return None
+    lower = stem.lower()
+    if lower.startswith("adr-") or lower.startswith("adr_"):
+        return _slug(stem)
+    parts = normalized.lower().split("/")
+    if "adr" in parts or "adrs" in parts or "decisions" in parts:
+        return _slug(stem)
+    return None
+
+
+def _collapse_allowlist_declarations(
+    project: str,
+    declarations: list[dict[str, Any]],
+    *,
+    kind: str,
+) -> list[dict[str, Any]]:
+    """Collapse duplicate keys; fail closed on title→slug collisions."""
+    by_key: dict[str, dict[str, Any]] = {}
+    slug_owners: dict[str, str] = {}
+    for decl in declarations:
+        key = str(decl["key"])
+        title = str(decl["title"])
+        if not decl.get("explicit_id"):
+            owner = slug_owners.get(key)
+            if owner is not None and owner != title:
+                raise ValueError(
+                    f"{kind} slug collision for project {project!r}: "
+                    f"{owner!r} and {title!r} both map to {key!r}"
+                )
+            slug_owners[key] = title
+        prior = by_key.get(key)
+        if prior is None:
+            by_key[key] = {
+                "key": key,
+                "title": title,
+                "relationships": list(decl.get("relationships") or []),
+                "sources": list(decl.get("sources") or []),
+            }
+            continue
+        prior["sources"].extend(decl.get("sources") or [])
+        # Deterministic: keep first relationships; do not invent merges.
+    return [by_key[key] for key in sorted(by_key)]
+
+
+def _normalize_component_declarations(
+    project: str,
+    entries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Collect structured ``components:`` marker declarations (A-4)."""
+    marker_components: list[Any] | None = None
+    for entry in entries:
+        if "components" in entry:
+            marker_components = entry.get("components")
+            break
+    if marker_components is None:
+        return []
+    if not isinstance(marker_components, list):
+        raise ValueError(
+            f"project marker components must be a list for project {project!r}"
+        )
+    marker_sources = _marker_source_entries(entries)
+    declarations: list[dict[str, Any]] = []
+    for index, item in enumerate(marker_components):
+        if not isinstance(item, dict):
+            raise ValueError(
+                f"project marker components[{index}] must be an object "
+                f"for project {project!r}"
+            )
+        raw_id = item.get("id")
+        raw_title = item.get("title")
+        if raw_id is not None and (not isinstance(raw_id, str) or not raw_id.strip()):
+            raise ValueError(
+                f"project marker components[{index}].id must be a non-empty "
+                f"string for project {project!r}"
+            )
+        if raw_title is not None and (
+            not isinstance(raw_title, str) or not raw_title.strip()
+        ):
+            raise ValueError(
+                f"project marker components[{index}].title must be a "
+                f"non-empty string for project {project!r}"
+            )
+        explicit_id = raw_id.strip() if isinstance(raw_id, str) else None
+        title = (
+            raw_title.strip()
+            if isinstance(raw_title, str)
+            else (explicit_id or "")
+        )
+        if not title:
+            raise ValueError(
+                f"project marker components[{index}] requires title or id "
+                f"for project {project!r}"
+            )
+        _reject_secret_allowlist_text(f"components[{index}].title", title)
+        if explicit_id is not None:
+            _reject_secret_allowlist_text(f"components[{index}].id", explicit_id)
+        relationships = _parse_declared_relationships(
+            item.get("relationships"),
+            label=f"components[{index}]",
+        )
+        declarations.append(
+            {
+                "key": explicit_id or _slug(title),
+                "title": title,
+                "explicit_id": explicit_id is not None,
+                "relationships": relationships,
+                "sources": list(marker_sources),
+            }
+        )
+    return _collapse_allowlist_declarations(
+        project, declarations, kind="component"
+    )
+
+
+def _normalize_status_declarations(
+    project: str,
+    entries: list[dict[str, Any]],
+    emit_tokens: set[str],
+) -> list[dict[str, Any]]:
+    """Project Status from marker field or dedicated status classification (A-3)."""
+    declarations: list[dict[str, Any]] = []
+    marker_sources = _marker_source_entries(entries)
+
+    marker_status: Any = None
+    for entry in entries:
+        if "project_status" in entry:
+            marker_status = entry.get("project_status")
+            break
+    if marker_status is not None:
+        if isinstance(marker_status, str):
+            if not marker_status.strip():
+                raise ValueError(
+                    f"project marker project_status must be a non-empty string "
+                    f"for project {project!r}"
+                )
+            title = marker_status.strip()
+            explicit_id = None
+            relationships: list[Relationship] = []
+        elif isinstance(marker_status, dict):
+            raw_id = marker_status.get("id")
+            raw_title = marker_status.get("title")
+            if raw_id is not None and (
+                not isinstance(raw_id, str) or not raw_id.strip()
+            ):
+                raise ValueError(
+                    f"project marker project_status.id must be a non-empty "
+                    f"string for project {project!r}"
+                )
+            if raw_title is not None and (
+                not isinstance(raw_title, str) or not raw_title.strip()
+            ):
+                raise ValueError(
+                    f"project marker project_status.title must be a non-empty "
+                    f"string for project {project!r}"
+                )
+            explicit_id = raw_id.strip() if isinstance(raw_id, str) else None
+            title = (
+                raw_title.strip()
+                if isinstance(raw_title, str)
+                else (explicit_id or "Project Status")
+            )
+            relationships = _parse_declared_relationships(
+                marker_status.get("relationships"),
+                label="project_status",
+            )
+        else:
+            raise ValueError(
+                f"project marker project_status must be a string or object "
+                f"for project {project!r}"
+            )
+        _reject_secret_allowlist_text("project_status.title", title)
+        if explicit_id is not None:
+            _reject_secret_allowlist_text("project_status.id", explicit_id)
+        declarations.append(
+            {
+                "key": explicit_id or _slug(title),
+                "title": title,
+                "explicit_id": explicit_id is not None,
+                "relationships": relationships,
+                "sources": list(marker_sources),
+            }
+        )
+
+    for entry in entries:
+        classification = str(entry.get("classification") or "").strip().lower()
+        if classification not in _STATUS_CLASSIFICATIONS:
+            continue
+        # Dedicated status classification is an explicit trigger (no emit_concepts).
+        # Also honor emit_concepts project_status if a status-class source exists.
+        path = str(entry.get("path") or "")
+        title = (
+            str(entry.get("status_title") or "").strip()
+            or Path(path.replace("\\", "/")).stem.strip()
+            or "Project Status"
+        )
+        _reject_secret_allowlist_text("status classification title", title)
+        declarations.append(
+            {
+                "key": _slug(title),
+                "title": title,
+                "explicit_id": False,
+                "relationships": [],
+                "sources": [entry],
+            }
+        )
+
+    if not declarations and "project_status" in emit_tokens:
+        # Opt-in alone without marker/status source does not invent status.
+        return []
+    return _collapse_allowlist_declarations(project, declarations, kind="status")
+
+
+def _normalize_architecture_declarations(
+    project: str,
+    entries: list[dict[str, Any]],
+    emit_tokens: set[str],
+) -> list[dict[str, Any]]:
+    """Architecture requires classification + emit_concepts opt-in (A-5 / A-2)."""
+    if "architecture" not in emit_tokens:
+        return []
+    declarations: list[dict[str, Any]] = []
+    for entry in entries:
+        classification = str(entry.get("classification") or "").strip().lower()
+        if classification != "architecture":
+            continue
+        path = str(entry.get("path") or "")
+        stem = Path(path.replace("\\", "/")).stem.strip() or "architecture"
+        title = str(entry.get("architecture_title") or "").strip() or stem
+        _reject_secret_allowlist_text("architecture title", title)
+        declarations.append(
+            {
+                "key": _slug(stem),
+                "title": title,
+                "explicit_id": False,
+                "relationships": [],
+                "sources": [entry],
+            }
+        )
+    return _collapse_allowlist_declarations(
+        project, declarations, kind="architecture"
+    )
+
+
+def _normalize_decision_declarations(
+    project: str,
+    entries: list[dict[str, Any]],
+    emit_tokens: set[str],
+) -> list[dict[str, Any]]:
+    """Decision requires emit opt-in + (classification decision | ADR path) + id/stem.
+
+    Tip ``_classify`` has no ``decision`` CLASS_RULES label; ADR path/title
+    profiles are the explicit decision-bearing surface (contract ADR stem rule).
+    Classification ``decision`` remains accepted when present.
+    """
+    if "decision" not in emit_tokens:
+        return []
+    declarations: list[dict[str, Any]] = []
+    for entry in entries:
+        classification = str(entry.get("classification") or "").strip().lower()
+        path = str(entry.get("path") or "")
+        adr_key = _decision_key_from_path(path)
+        is_decision_class = classification == "decision"
+        is_adr_surface = adr_key is not None
+        if not is_decision_class and not is_adr_surface:
+            continue
+        raw_id = entry.get("decision_id")
+        explicit_id: str | None = None
+        if raw_id is not None:
+            if not isinstance(raw_id, str) or not raw_id.strip():
+                raise ValueError(
+                    f"decision_id must be a non-empty string for project {project!r}"
+                )
+            explicit_id = raw_id.strip()
+            _reject_secret_allowlist_text("decision_id", explicit_id)
+        if explicit_id is None and adr_key is None:
+            # Classification alone without id/ADR stem must not spawn (fail closed).
+            continue
+        key = explicit_id or str(adr_key)
+        stem = Path(path.replace("\\", "/")).stem.strip() or key
+        title = str(entry.get("decision_title") or "").strip() or stem
+        _reject_secret_allowlist_text("decision title", title)
+        declarations.append(
+            {
+                "key": key if explicit_id else _slug(key),
+                "title": title,
+                "explicit_id": explicit_id is not None,
+                "relationships": [],
+                "sources": [entry],
+            }
+        )
+    return _collapse_allowlist_declarations(project, declarations, kind="decision")
+
+
+def _emit_allowlist_concept(
+    project: str,
+    *,
+    concept_type: ConceptType,
+    decl: dict[str, Any],
+    claims: list[Claim],
+) -> ConceptRecord:
+    concept_id = allowlist_concept_id(
+        project, concept_type.value, str(decl["key"])
+    )
+    source_entries = list(decl.get("sources") or [])
+    sources = [_provenance(project, entry) for entry in source_entries]
+    relationships = list(decl.get("relationships") or [])
+    return ConceptRecord(
+        project_id=project,
+        concept_id=concept_id,
+        type=concept_type,
+        title=str(decl["title"]),
+        description=f"Explicitly declared {concept_type.value} concept.",
+        resource=f"projects/{project}/concepts.md",
+        tags=[_slug(str(decl["title"]))],
+        lifecycle=ConceptLifecycle(status=LifecycleStatus.UNKNOWN),
+        knowledge_state=KnowledgeState.EVIDENCE_BACKED
+        if claims or source_entries
+        else KnowledgeState.IMPORTED_SOURCE,
+        review_state=(
+            ReviewState.PENDING_HUMAN_REVIEW
+            if claims or source_entries
+            else ReviewState.UNREVIEWED
+        ),
+        maturity=None,
+        sources=sources,
+        relationships=relationships,
+        generated_by="project-atlas:as-core-model-001c",
+        generated=GeneratedMetadata(by="agent:project-atlas"),
+        verified=VerificationMetadata(),
+    )
+
+
+def _allowlist_concepts(
+    project: str,
+    claims: list[Claim],
+    entries: list[dict[str, Any]],
+) -> list[ConceptRecord]:
+    """AS-CORE-MODEL-001C: emit allow-list v1 concepts from explicit evidence only."""
+    emit_tokens = _parse_emit_concepts(entries, project)
+    results: list[ConceptRecord] = []
+    for decl in _normalize_status_declarations(project, entries, emit_tokens):
+        results.append(
+            _emit_allowlist_concept(
+                project,
+                concept_type=ConceptType.PROJECT_STATUS,
+                decl=decl,
+                claims=claims,
+            )
+        )
+    for decl in _normalize_architecture_declarations(project, entries, emit_tokens):
+        results.append(
+            _emit_allowlist_concept(
+                project,
+                concept_type=ConceptType.ARCHITECTURE,
+                decl=decl,
+                claims=claims,
+            )
+        )
+    for decl in _normalize_component_declarations(project, entries):
+        results.append(
+            _emit_allowlist_concept(
+                project,
+                concept_type=ConceptType.COMPONENT,
+                decl=decl,
+                claims=claims,
+            )
+        )
+    for decl in _normalize_decision_declarations(project, entries, emit_tokens):
+        results.append(
+            _emit_allowlist_concept(
+                project,
+                concept_type=ConceptType.DECISION,
+                decl=decl,
+                claims=claims,
+            )
+        )
+    return sorted(results, key=lambda item: item.concept_id)
+
+
 def _conflicts(project: str, claims: list[Claim]) -> list[ConflictRecord]:
     grouped: dict[str, list[Claim]] = {}
     for claim in claims:
@@ -1240,7 +1746,13 @@ def compile_knowledge(
         project, claims, entries, open_conflicts=len(conflicts)
     )
     capability_concepts = _capability_concepts(project, claims, entries)
-    concepts = [project_concept, *capability_concepts]
+    # AS-CORE-MODEL-001C: compose allow-list types alongside 001B Capabilities.
+    allowlist_concepts = _allowlist_concepts(project, claims, entries)
+    composed = sorted(
+        [*capability_concepts, *allowlist_concepts],
+        key=lambda item: item.concept_id,
+    )
+    concepts = [project_concept, *composed]
     authorities: list[AuthorityRecord] = []
     for entry in entries:
         level, precedence, reason = _authority(str(entry["path"]), str(entry["classification"]))
@@ -1550,13 +2062,41 @@ def _render_claims(project: str, claims: tuple[Claim, ...]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _concept_generated_body(concept: ConceptRecord) -> str:
+    """Body section for one concept inside the shared generated region."""
+    return "\n".join(
+        [
+            f"# {concept.title}",
+            "",
+            concept.description or "_No description._",
+            "",
+            f"Knowledge state: `{concept.knowledge_state.value}`",
+        ]
+    )
+
+
 def _render_concepts(project: str, concepts: tuple[ConceptRecord, ...]) -> str:
+    """Render concepts.md with leading OKF frontmatter and one marker pair.
+
+    AS-CORE-MODEL-001C / AT-011 / validate contract:
+    - ``validation.py`` requires concept notes ``startswith("---\\n")``.
+    - ``_generated_content`` requires exactly one start/end marker pair.
+    Project-singleton frontmatter leads; all concept bodies (singleton +
+    Capabilities + allow-list) share the single generated region so human
+    regions outside the markers are preserved byte-for-byte on replay.
+    """
+    start = "<!-- atlas:generated:start -->"
+    end = "<!-- atlas:generated:end -->"
     if not concepts:
         return f"# Concepts — {project}\n\n_No concepts._\n"
-    return "\n".join(
-        render_concept_note(concept, f"projects/{project}/concepts.md").rstrip()
-        for concept in concepts
-    ) + "\n"
+
+    resource = f"projects/{project}/concepts.md"
+    # Leading note establishes OKF frontmatter + open marker (singleton shape).
+    leading = render_concept_note(concepts[0], resource)
+    start_index = leading.index(start)
+    prefix = leading[: start_index + len(start)]
+    body = "\n\n".join(_concept_generated_body(concept) for concept in concepts)
+    return f"{prefix}\n{body}\n\n{end}\n"
 
 
 def _render_conflicts(project: str, conflicts: tuple[ConflictRecord, ...]) -> str:

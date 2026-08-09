@@ -557,12 +557,24 @@ def _reject_secret_capability_field(
         )
 
 
+def _reject_secret_allowlist_field(
+    marker: Path, label: str, field: str, value: str
+) -> None:
+    """AS-CORE-MODEL-001C / NFR-004: secret-bearing allow-list fields fail closed."""
+    if scan_text(value):
+        raise ValueError(
+            f"project marker {label}.{field} contains a secret "
+            f"pattern and cannot propagate: {marker}"
+        )
+
+
 def _project_context(root: Path, relative_path: str, project: str) -> dict[str, Any]:
     """Read optional concept metadata from the authoritative project marker.
 
-    Surfaces ``concept_type``, AS-CORE-MODEL-001A ``maturity``, and
-    AS-CORE-MODEL-001B ``capabilities`` when declared.
-    Invalid maturity / capabilities shape fails closed (no silent coerce).
+    Surfaces ``concept_type``, AS-CORE-MODEL-001A ``maturity``,
+    AS-CORE-MODEL-001B ``capabilities``, and AS-CORE-MODEL-001C allow-list
+    markers (``emit_concepts``, ``components``, ``project_status``) when declared.
+    Invalid maturity / capabilities / allow-list shape fails closed (no silent coerce).
 
     AS-CORE-MODEL-001B: marker ``concept_type: Capability`` is NOT stamped onto
     every project entry (that invents Capabilities from README / marker path
@@ -621,6 +633,61 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
                 if isinstance(value, str) and value.strip():
                     _reject_secret_capability_field(marker, index, field, value)
         context["capabilities"] = capabilities
+    # AS-CORE-MODEL-001C: allow-list v1 marker plumbing (shape + secrets only).
+    if "emit_concepts" in raw:
+        emit_concepts = raw.get("emit_concepts")
+        if not isinstance(emit_concepts, list):
+            raise ValueError(
+                f"project marker emit_concepts must be a list: {marker}"
+            )
+        for index, item in enumerate(emit_concepts):
+            if not isinstance(item, str) or not item.strip():
+                raise ValueError(
+                    f"project marker emit_concepts[{index}] must be a "
+                    f"non-empty string: {marker}"
+                )
+        context["emit_concepts"] = emit_concepts
+    if "components" in raw:
+        components = raw.get("components")
+        if not isinstance(components, list):
+            raise ValueError(
+                f"project marker components must be a list: {marker}"
+            )
+        for index, item in enumerate(components):
+            if not isinstance(item, dict):
+                raise ValueError(
+                    f"project marker components[{index}] must be an object: {marker}"
+                )
+            for field in ("id", "title"):
+                value = item.get(field)
+                if isinstance(value, str) and value.strip():
+                    _reject_secret_allowlist_field(
+                        marker, f"components[{index}]", field, value
+                    )
+        context["components"] = components
+    if "project_status" in raw:
+        project_status = raw.get("project_status")
+        if isinstance(project_status, str):
+            if not project_status.strip():
+                raise ValueError(
+                    f"project marker project_status must be a non-empty string: "
+                    f"{marker}"
+                )
+            _reject_secret_allowlist_field(
+                marker, "project_status", "title", project_status.strip()
+            )
+        elif isinstance(project_status, dict):
+            for field in ("id", "title"):
+                value = project_status.get(field)
+                if isinstance(value, str) and value.strip():
+                    _reject_secret_allowlist_field(
+                        marker, "project_status", field, value
+                    )
+        else:
+            raise ValueError(
+                f"project marker project_status must be a string or object: {marker}"
+            )
+        context["project_status"] = project_status
     return context
 
 
