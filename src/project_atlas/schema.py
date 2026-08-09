@@ -70,6 +70,9 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-XPROJ-002 - Cross-project edges between registered globals (derived; no name-merge)
     "xproj-global-edge": "xproj-global-edge.schema.json",
     "xproj-edge-quarantine": "xproj-edge-quarantine.schema.json",
+    # AS-XPROJ-004 - Conflict intelligence + global derived indexes (derived; not RET-001)
+    "xproj-conflict-report": "xproj-conflict-report.schema.json",
+    "xproj-index-document": "xproj-index-document.schema.json",
 
     # AS-BACKUP-001 — verified snapshot / restore (operational durability ≠ authority)
     "backup-manifest": "backup-manifest.schema.json",
