@@ -110,6 +110,23 @@ class _PromotionEntry(NamedTuple):
     had_original: bool
 
 
+class PromoteAccounting(NamedTuple):
+    """Deterministic filesystem-write accounting for one `_promote` call.
+
+    AS-CORE-OPS-001 / CORE-OPS-001: counts only — no wall-clock stamps.
+    Distinguishes physical writes from content-drift semantics.
+    """
+
+    planned: int
+    noop_skipped: int
+    written: int
+
+
+def _payload_sha256(payload: bytes) -> str:
+    """SHA-256 hex digest of an in-memory promote payload (AS-CORE-OPS-001)."""
+    return hashlib.sha256(payload).hexdigest()
+
+
 def _replace_path(source: Path, destination: Path) -> None:
     """Small seam for atomic-promotion fault injection tests."""
     os.replace(source, destination)
@@ -199,17 +216,22 @@ def _clear_promotion_failure_report(vault: Path) -> None:
         _remove_empty_directories({path.parent})
 
 
-def _promote(plan: dict[Path, bytes]) -> None:
+def _promote(plan: dict[Path, bytes]) -> PromoteAccounting:
     """Promote a validated write plan with cross-file rollback.
 
     Every changed file is staged before canonical state is touched. Existing
     files are moved to transaction-scoped backups during promotion. Any
     mid-promotion failure restores every prior target and removes all staging
     artifacts before the error escapes.
+
+    AS-CORE-OPS-001: skip replace when existing-file SHA-256 matches the
+    planned payload digest (hash-before-replace). Returns deterministic
+    planned/noop/written accounting with no wall-clock stamps.
     """
     transaction = uuid.uuid4().hex
     entries: list[_PromotionEntry] = []
     created_directories: set[Path] = set()
+    noop_skipped = 0
     try:
         for path in sorted(plan):
             parent = path.parent
@@ -219,7 +241,9 @@ def _promote(plan: dict[Path, bytes]) -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
             if path.exists() and not path.is_file():
                 raise IsADirectoryError(f"canonical write target is not a file: {path}")
-            if path.is_file() and path.read_bytes() == plan[path]:
+            # CORE-OPS-001: prefer sha256 hash-before-replace over byte equality.
+            if path.is_file() and _file_hash(path) == _payload_sha256(plan[path]):
+                noop_skipped += 1
                 continue
             staged = path.with_name(f".{path.name}.{transaction}.atlas-stage")
             backup = path.with_name(f".{path.name}.{transaction}.atlas-backup")
@@ -270,6 +294,12 @@ def _promote(plan: dict[Path, bytes]) -> None:
     for entry in entries:
         entry.staged.unlink(missing_ok=True)
         entry.backup.unlink(missing_ok=True)
+
+    return PromoteAccounting(
+        planned=len(plan),
+        noop_skipped=noop_skipped,
+        written=len(entries),
+    )
 
 
 def _validate_existing_markers(vault: Path, project_ids: set[str]) -> None:
