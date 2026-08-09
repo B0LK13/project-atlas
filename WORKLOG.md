@@ -3737,6 +3737,34 @@ Receipt: `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-001-SUR
 **MERGE AUTHORIZED: NO**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 
+## AS-QUERY-DIAG-001 — Structured Query Outcome Diagnostics
+
+**Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001` (sole writer)
+**Base tip / tree:** `9f656ab29a2f1da95389ed213746b2e9b1a80565` / `20882c5526522eaf8467cd9b1819cef496282385`
+**Branch:** `feat/as-query-diag-001`
+**Worktree:** `D:\atlas-worktrees\as-query-diag-001`
+**Contract:** orphans `gen4-next-wave-parallel-001/AS-QUERY-DIAG-001-CONTRACT.md`
+
+### Plan
+Additive diagnostic envelope only. Preserve AS-CORE-007/008 success JSON. CLI emits diagnostic stdout on `KnowledgeQueryError` (exit 1). No `knowledge_compiler` / Graph / MODEL / RET. OBS holds `cli.py` until this closeout; soft-serialize `domain/__init__.py` exports.
+
+### Commands / gates
+- Overlap precheck + matrix: OVERLAP NO; CLI priority DIAG vs OBS
+- `pytest` DIAG+007+008 `--no-cov`: **61 passed**
+- `ruff` / `mypy` owned surfaces: PASS
+- Forbidden surfaces: untouched
+
+### Results
+Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 suite green; success-path parity retained.
+
+**PRODUCTION CODE MODIFIED: YES (owned query/cli/domain/schema only)**
+**TESTS MODIFIED: YES (`tests/unit/test_as_query_diag_001.py` only)**
+**BACKLOG MODIFIED: YES (QDIAG-001..006)**
+**MERGE AUTHORIZED: NO**
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+**Orphan evidence:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-QUERY-DIAG-001-IMPLEMENTATION-EVIDENCE.md`
+
+
 ## AS-CORE-MODEL-001A — Deterministic project-concept maturity fill
 
 **Directive:** D-PROJECT-ATLAS-GEN4-PARALLEL-WAVE-007 Lane B  

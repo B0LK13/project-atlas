@@ -268,3 +268,14 @@ _Status: implementation complete on `feat/as-core-008-subject-multifield-query`;
 - [x] CORE8-004 Focused FR/INV suite (ordering, duplicates, snapshot fail-closed, parity, no-mutation)
 - [x] CORE8-005 Package guide `docs/AS-CORE-008-subject-multifield-query.md`
 - [ ] CORE8-006 Governor review and merge to `main`
+
+## AS-QUERY-DIAG-001 — Structured Query Outcome Diagnostics
+
+_Status: implementation complete on `feat/as-query-diag-001`; awaiting governor review. MERGE NO. Directive `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`. Frozen contract: orphans `gen4-next-wave-parallel-001/AS-QUERY-DIAG-001-CONTRACT.md`. Base `9f656ab` / tree `20882c55`. Additive diagnostics only; success-path 007/008 JSON default-stable; `knowledge_compiler` / Graph / MODEL FORBIDDEN._
+
+- [x] QDIAG-001 Domain `QueryDiagnostic` + outcome classes + JSON schema
+- [x] QDIAG-002 Library classifiers / serializers (`classify_query_outcome`, `query_diagnostic_from_*`)
+- [x] QDIAG-003 CLI structured stdout on `KnowledgeQueryError` (exit 1); argparse exit 2 unchanged
+- [x] QDIAG-004 Focused T01–T12 suite `tests/unit/test_as_query_diag_001.py`
+- [x] QDIAG-005 Package guide + 007/008 cross-links
+- [ ] QDIAG-006 Governor review and merge to `main`
