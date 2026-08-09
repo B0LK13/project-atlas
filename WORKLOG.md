@@ -4849,3 +4849,9 @@ Clean-clone / RC hardening deepen. release_certified remains false.
 
 - Added deterministic fixture file/byte/operation budgets and stable-plane digest summaries.
 - Fixture evidence only: RELEASE CERTIFIED remains NO.
+
+## LANE Y tip-pin refresh (post #86/#87)
+
+Updated WEB accept tip pins to `989c0f8039b1a958f5e4bf40ec2e02cc99a48b63` / TREE `aeebf06bd896426edf517e47c97d4ee105a1fc89`.
+WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
+
