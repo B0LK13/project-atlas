@@ -3849,6 +3849,34 @@ Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 s
 **AS-CORE-009: NOT OPENED**  
 **DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
 
+## AS-ACCEPT-002 - Combined Post-Merge External Acceptance (Band A P0)
+
+**Directive:** `D-PROJECT-ATLAS-AUTONOMOUS-TO-COMPLETION-001` STREAM I  
+**Entry gate:** READY WITH CONSTRAINTS (`AS-ACCEPT-002-ENTRY-GATE.md`)  
+**Base tip / tree (impl):** `c3608ed989e86676a9ad7aed89db5e8de45f92e2` / `559c3c214d80ee04ae470e6632043595d9e22eb1`  
+**Entry-gate pin:** `38b8eac` / `070e951b` (met; rebased onto Graph-003 tip)  
+**Branch:** `feat/as-accept-002-external-wave`  
+**Worktree:** `D:\atlas-worktrees\as-accept-002`
+
+### Plan
+Tests-only Wave-A2 P0 (AX2-QOK/QFL/HUN/EMP/ATF/MIX). No `src/` product mutation. Do not wait on GRAPH-003/#26 or MODEL-001B/#24. Do not amend ACCEPT-001. AX-AUTH-005 remains CORE-007 owned.
+
+### Commands / gates
+- Sole-writer lock recorded pre-mutation
+- Focused Band A P0: **11 passed**
+- `ruff` owned tests: PASS
+- `mypy src`: PASS
+- `src/` diff: empty
+
+### Results
+Additive `tests/unit/test_as_accept_002_*.py` + helpers. Band B AX-GRF deferred.
+
+**PRODUCTION CODE MODIFIED: NO**  
+**TESTS MODIFIED: YES (ACCEPT-002 additive only)**  
+**ACCEPT-001: UNTOUCHED**  
+**MERGE AUTHORIZED: STANDING AUTH AFTER CERTIFY**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — IV-READY**  
+**Orphan evidence:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-002-*.md`
 
 ## AS-CORE-MODEL-001B — Explicit Capability emission
 
@@ -3893,4 +3921,3 @@ Library classifiers + `QueryDiagnostic` schema; CLI failure-path JSON; T01-T12 s
 - ruff / mypy owned surfaces: PASS
 
 **DISPOSITION: REMEDIATION COMPLETE — RE-IV REQUIRED (do not reuse denied tip)**
-
