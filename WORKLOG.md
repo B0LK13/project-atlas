@@ -4872,3 +4872,23 @@ RELEASE / PILOT / WEB ACCEPTED remain **NO**.
 - Added pinned, reproducible automated evidence for criteria 1-9, 12, and 13.
 - Added regression guards that keep governor item 10 open and unsigned.
 - WEB APPLICATION ACCEPTED remains **NO**; governor decision remains **PENDING**.
+||||||| parent of 3ac5168 (feat(adv-release-004): migration recovery RC matrix case (RELEASE=NO))
+Updated WEB accept tip pins to `989c0f8039b1a958f5e4bf40ec2e02cc99a48b63` / TREE `aeebf06bd896426edf517e47c97d4ee105a1fc89`.
+WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
+
+
+## AS-SEC-CONT-002 fixture deepen
+
+Continuous security fixture deepen: path-refuse + PEM/AKIA metadata-only gates.
+RELEASE / PILOT / WEB ACCEPTED remain **NO**.
+
+||||||| parent of 40b1c82 (feat(adv-release-004): migration recovery RC matrix case (RELEASE=NO))
+
+## AS-ADV-RELEASE-004 - Migration/recovery RC deepen
+
+**Date:** 2026-08-09
+**Branch:** feat/as-adv-release-004-recovery
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001
+
+- Added deterministic stage-only promotion recovery and full pipeline replay evidence.
+- Fixture RC evidence only: RELEASE CERTIFIED remains NO (`release_certified: false`).
