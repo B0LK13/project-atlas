@@ -19,6 +19,14 @@ ATLAS_2_0_IMPLEMENTATION_READY = YES
 
 While `ATLAS_1_0_RELEASE_CERTIFIED = NO`, Track B may only deepen docs/ADRs/contracts/fixtures.
 
+## Observed prep baseline pin (not release certification)
+
+- Tip commit: `91c0d06ad5224dd081b9e2248fe17b65f360d5fc`
+- Tip tree: `a8c4dbbe88a96a5e05a2d74c3b29c43fb70525bc`
+- Meaning: branch-creation baseline for deepen-f only. It is **not** a release
+  tag, compatibility snapshot, governor signature, or proof that 1.0 is
+  certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
+
 ## Package dependency sketch (§98)
 
 ```text
@@ -41,3 +49,8 @@ AS-2.0-SYNC-001 ──depends──► INT-013 (estate), CORE2-010 (fixture cert
 ## Idle deepen (2026-08-09)
 
 Expanded gate chain + package dependency sketch. Still **PREP ONLY**.
+
+## Deepen-f (2026-08-09)
+
+Pinned the observed prep tip commit/tree while explicitly withholding release
+certification and compatibility-snapshot status. READY remains NO.

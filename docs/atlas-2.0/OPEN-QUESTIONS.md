@@ -43,6 +43,17 @@ Status: **PREP ONLY**. Production answers blocked on 1.0 freeze.
 | OQ-014 | 2.0 major version boundary | semantic vs calendar vs capability flag | governor decision | all stubs |
 | OQ-015 | Threat model control promotion | which T-2.0-xxx mitigations ship in 2.0 MVP | threat review | THREAT-MODEL.md |
 
+## Deepen-f blockers (unanswered)
+
+| # | Question | Options (sketch) | Blocker | Related stub |
+|---|---|---|---|---|
+| OQ-016 | Who issues and verifies federation join authorization, and what is its canonical signed form? | release governor trust root vs operator trust bundle | 1.0 identity/release trust decision | AS-2.0-FED-001 |
+| OQ-017 | What evidence can set WEB APPLICATION ACCEPTED without allowing a route-render or sample-data false stamp? | independent acceptance receipt vs governor-signed evidence bundle | WEB acceptance governance | AS-2.0-UX-001 |
+| OQ-018 | What authorizes a queued sync plan, and how do cancellation, expiry, and replay retain operation identity? | per-plan authorization vs scoped session authorization | sync/recovery policy | AS-2.0-SYNC-001 |
+| OQ-019 | What machine-readable evidence class distinguishes fixture rehearsal, fixture-only waiver, and authentic estate pilot pass? | typed receipt vs separately governed manifests | ESTATE PILOT gate owner | AS-2.0-SYNC-001 / COMPAT |
+
+These questions are newly captured blockers. No option is selected or resolved.
+
 All production answers require `ATLAS_1_0_RELEASE_CERTIFIED` first.
 
 ## Changelog
@@ -51,3 +62,4 @@ All production answers require `ATLAS_1_0_RELEASE_CERTIFIED` first.
 |---|---|
 | 2026-08-09 | Initial four open questions |
 | 2026-08-09 | Structured OQ table with blockers and stub links |
+| 2026-08-09 | deepen-f: added unresolved OQ-016…019 for trust, acceptance, sync authorization, and evidence class |

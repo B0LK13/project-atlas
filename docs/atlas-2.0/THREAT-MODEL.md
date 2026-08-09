@@ -33,6 +33,10 @@ Structured threat inventory for 2.0 planning. Mitigations listed here are
 | T-2.0-014 | Estate sync conflict silently promotes tombstone or stale authority winner | Estate sync v2, claims, review queue | M | H | Surface conflicts in review queue; no silent authority overwrite; tombstone vs winner policy explicit before promote | OQ-011, OQ-012, AS-2.0-SYNC-001, AS-CORE-003 |
 | T-2.0-015 | MCP / provider tool enumeration drift introduces write-capable tools | Adapter registry, tool allowlist | M | H | Deny-by-default tool allowlist; CI drift check vs pinned deny set (`promote`, claim mutate, vault write); registry version pin | OQ-004, OPENAI-MCP-DESIGN.md, AS-2.0-PROV-001 |
 | T-2.0-016 | Compatibility snapshot pin forgery or stale pin acceptance | Release gate, 2.0 package CI | L | H | Require governor-published snapshot (HEAD/TREE/tag); refuse unsigned/stale pins; hard-drift fails CI | OQ-013, COMPATIBILITY.md, AS-2.0-COMPAT-001 |
+| T-2.0-017 | Sync queue entry is mistaken for authorization, or replay changes scope | Estate sync queue, apply worker | M | H | Separate requested/planned/authorized states; bind operation identity, plan digest, actor authorization, and replay count before apply | OQ-018, AS-2.0-SYNC-001 |
+| T-2.0-018 | Web acceptance is falsely stamped from route availability, sample data, or self-attestation | WEB acceptance gate, UX entry | M | H | Require independently attributable acceptance evidence bound to commit/tree and live-vault criteria; rendering alone proves nothing | OQ-017, AS-WEB-ACCEPT-001, AS-2.0-UX-001 |
+| T-2.0-019 | Fixture estate is confused with an authentic pilot estate | Fixture inventory, estate gate | M | H | Label fixture roots and receipts; require explicit evidence class; fixture-only waiver cannot claim ESTATE PILOT PASSED | OQ-019, FIXTURE-PLAN.md |
+| T-2.0-020 | A 2.0 draft silently overrides a conflicting 1.0 contract | All package boundaries | L | H | Pin the 1.0 snapshot and apply the 1.0-wins rule; quarantine unresolved drift rather than selecting latest-by-version | COMPATIBILITY.md, DAG.md |
 
 ## Mitigation themes (not yet implemented)
 
@@ -40,6 +44,7 @@ Structured threat inventory for 2.0 planning. Mitigations listed here are
 2. **Federation fail-closed** — ambiguous vault identity → quarantine, never merge-by-guess.
 3. **Provider quarantine lane** — adapter output never bypasses provenance or validation.
 4. **Compatibility snapshot gate** — 2.0 production branches require published 1.0 snapshot pin.
+5. **Evidence-class separation** — queue, web acceptance, fixtures, pilot evidence, and canonical authority are distinct states.
 
 ## Open threat research (prep)
 
@@ -53,6 +58,10 @@ Structured threat inventory for 2.0 planning. Mitigations listed here are
   (partially captured as T-2.0-015; residual: dynamic tool discovery from remote MCP).
 - Snapshot pin authenticity and rotation (partially captured as T-2.0-016;
   residual: multi-snapshot migration windows).
+- Sync queue authorization, cancellation, expiry, and replay identity
+  (captured as T-2.0-017; policy blocked by OQ-018).
+- Independent WEB acceptance evidence and fixture-vs-pilot evidence classes
+  (captured as T-2.0-018/019; blocked by OQ-017/OQ-019).
 
 No production branches for threat mitigations until `ATLAS_1_0_RELEASE_CERTIFIED`
 and `ATLAS_2_0_IMPLEMENTATION_READY`. Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
@@ -65,3 +74,4 @@ and `ATLAS_2_0_IMPLEMENTATION_READY`. Explicit: `ATLAS_2_0_IMPLEMENTATION_READY 
 | 2026-08-09 | Structured register + mitigation themes (prep deepen) |
 | 2026-08-09 | Added T-2.0-011…013 (federation trust, adapter egress, protected regions) |
 | 2026-08-09 | deepen-e: added T-2.0-014…016 (sync conflict, tool drift, snapshot pin) |
+| 2026-08-09 | deepen-f: added T-2.0-017…020 (queue misuse, false web stamp, fixture/pilot confusion, 1.0 conflict) |
