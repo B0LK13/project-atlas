@@ -85,6 +85,11 @@ from project_atlas.receipt_revocation import (
     revoke_receipt,
 )
 from project_atlas.scaffold import ScaffoldError, create_scaffold
+from project_atlas.schema_compat import (
+    SchemaCompatError,
+    migrate_dry_run,
+    scan_compat,
+)
 from project_atlas.validation import validate, validation_exit_code
 from project_atlas.xproj_duplicates import (
     XprojDuplicateError,
@@ -715,6 +720,42 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print disposition JSON to stdout.",
     )
+
+    # AS-INT-012 — schema compatibility / migration tooling (operational).
+    schema_parser = subparsers.add_parser(
+        "schema",
+        help=(
+            "Scan schema compatibility or emit a dry-run migration plan "
+            "(AS-INT-012; never mutates scanned artifacts on dry-run)."
+        ),
+    )
+    schema_sub = schema_parser.add_subparsers(dest="schema_command", required=True)
+    schema_compat = schema_sub.add_parser(
+        "compat",
+        help="Scan known ops JSON artifacts against shipped schemas.",
+    )
+    schema_compat.add_argument("--vault", type=Path, required=True)
+    schema_compat.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the schema-compat report JSON to stdout.",
+    )
+    schema_migrate = schema_sub.add_parser(
+        "migrate",
+        help="Dry-run migration plan only (no auto-apply).",
+    )
+    schema_migrate.add_argument("--vault", type=Path, required=True)
+    schema_migrate.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=True,
+        help="Always dry-run (default; apply is not implemented in INT-012).",
+    )
+    schema_migrate.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the migration plan report JSON to stdout.",
+    )
     return parser
 
 
@@ -1323,6 +1364,46 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown revocation command: {args.revocation_command}"
+        )
+
+    if args.command == "schema":
+        if args.schema_command == "compat":
+            try:
+                report = scan_compat(args.vault)
+            except (SchemaCompatError, OSError, ValueError, TypeError) as exc:
+                _log.error("schema compat failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"status: {report['status']}")
+                print(f"scanned: {report['counts']['scanned']}")
+                print(
+                    "report: "
+                    f"{args.vault / 'generated' / 'ops' / 'schema-compat-report.json'}"
+                )
+            return EXIT_OK if report["status"] in {"ok", "dry-run"} else EXIT_ERROR
+        if args.schema_command == "migrate":
+            try:
+                report = migrate_dry_run(args.vault)
+            except (SchemaCompatError, OSError, ValueError, TypeError) as exc:
+                _log.error("schema migrate dry-run failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"status: {report['status']}")
+                print(f"mode: {report['mode']}")
+                print(
+                    f"migrate_candidate: {report['counts']['migrate_candidate']}"
+                )
+                print(
+                    "report: "
+                    f"{args.vault / 'generated' / 'ops' / 'schema-compat-report.json'}"
+                )
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown schema command: {args.schema_command}"
         )
 
     if args.command == "snapshot":

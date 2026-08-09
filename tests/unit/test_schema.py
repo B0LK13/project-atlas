@@ -65,6 +65,7 @@ def test_all_expected_schemas_available() -> None:
         "query-multi-plan",
         "receipt-revocation-index",
         "review-entry",
+        "schema-compat-report",
         "semantic-records",
         "source-record",
         "source-registry",

@@ -94,6 +94,8 @@ SCHEMA_FILES: dict[str, str] = {
     "event-tombstone-index": "event-tombstone-index.schema.json",
     # AS-INT-011 — receipt revocation / invalidation (operational; never authority)
     "receipt-revocation-index": "receipt-revocation-index.schema.json",
+    # AS-INT-012 — schema compatibility / migration report (operational)
+    "schema-compat-report": "schema-compat-report.schema.json",
     # AS-J-005 — derived impact graph projection (Graph≠authority; consume GRAPH-003)
     "impact-graph": "impact-graph.schema.json",
 }

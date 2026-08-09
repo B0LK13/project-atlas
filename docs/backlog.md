@@ -174,7 +174,9 @@ independent verification passes and the branch is merged to `main`._
 - [x] INT-011 Define receipt revocation and invalidation semantics
   (AS-INT-011 tip-safe operational index under
   `generated/ops/receipt-revocations.json`; never Layer B / never authority)
-- [ ] INT-012 Define schema migration and compatibility tooling
+- [x] INT-012 Define schema migration and compatibility tooling
+  (AS-INT-012 tip-safe compat/migrate-dry-run report under
+  `generated/ops/schema-compat-report.json`; never Layer B / never authority)
 - [ ] INT-013 Run the bounded multi-project integration pilot
 
 ## AS-CORE-002 — Semantic domain model and source lifecycle hardening
