@@ -4002,3 +4002,31 @@ Additive `tests/unit/test_as_accept_002_graph.py` only.
 **TESTS MODIFIED: YES** (owned test_as_val_001_* only)
 **MERGE AUTHORIZED: STANDING AUTH AFTER CERTIFY**
 **DISPOSITION: IMPLEMENTATION COMPLETE — IV-READY**
+## AS-GRAPH-004 — Quarantine / health / incremental
+
+**Date:** 2026-08-09
+**Branch:** feat/as-graph-004-quarantine-health
+**Worktree:** D:\atlas-worktrees\as-graph-004-quarantine-health
+**Base tip / TREE:** 3422fb22 / 95f9ae1f
+**Gate:** READY WITH CONSTRAINTS — sole-writer lock issued
+**Contract:** as-wp-005-entry/AS-GRAPH-004-PACKAGE-CONTRACT.md
+
+### Scope
+- New `project_atlas.graph_quarantine`: durable store + health + incremental + receipt
+- Additive schemas: graph-quarantine-record/receipt, graph-health-snapshot, graph-incremental-state
+- Minimal handoff in `graph_relationships.handoff_quarantine_store` (no 003 truth rewrite)
+- Focused tests `test_as_graph_004_*`; package guide `docs/AS-GRAPH-004-quarantine-health.md`
+- GRAPH ≠ AUTHORITY; fail-closed promote rollback; incremental byte-identical no-op
+
+### Gates
+- ruff / mypy (owned): PASS
+- Focused test_as_graph_004_*: 34 passed
+- Auto-merge: FORBIDDEN
+
+**PRODUCTION CODE MODIFIED: YES** (owned graph_quarantine + minimal handoff + schemas)
+**TESTS MODIFIED: YES** (owned test_as_graph_004_* + schema registry expectation)
+**MUST NOT TOUCHED:** knowledge_compiler / VAL / BACKUP / GRAPH-002/003 semantics / EXPLAIN-B / XPROJ-002 / QUERY-MULTI
+**MERGE AUTHORIZED: NO**
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REQUIRED**
+**Orphan evidence:** D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-GRAPH-004-*.md
+
