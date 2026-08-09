@@ -3682,6 +3682,61 @@ byte-stable for merged snapshot/report.
 **Do not merge / self-certify. Do not start AS-CORE-009.**
 
 
+## AS-ACCEPT-001 — Wave-A P0 acceptance / adversarial hardening
+
+**Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001` (SOLE WRITER AUTHORIZED)  
+**Contract:** `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-001-CONTRACT.md`  
+**Base tip:** `9f656ab29a2f1da95389ed213746b2e9b1a80565` / tree `20882c5526522eaf8467cd9b1819cef496282385`  
+**Branch:** `feat/as-accept-001-wave-a`  
+**Worktree:** `D:\atlas-worktrees\as-accept-001`  
+**Scope:** Wave-A only (16 P0 AX-* cases) — tests/fixtures only  
+
+### SURFACE-OVERLAP GATE
+`NO OVERLAP / SAFE` vs knowledge_compiler (exercise-only), Graph certified, Model-001A/001B, QUERY-DIAG owned paths, OBS owned paths.  
+Receipt: `D:\project-atlas-orphans\gen4-next-wave-parallel-001\AS-ACCEPT-001-SURFACE-OVERLAP.md`
+
+### Case → test map (Wave-A)
+| Case ID | Test node |
+|---|---|
+| AX-TMP-002 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_002_late_observation_does_not_flip_tip` |
+| AX-TMP-003 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_003_equal_timestamp_incompatible_values_unresolved` |
+| AX-TMP-006 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_006_staging_partial_does_not_replace_canonical_tip` |
+| AX-TMP-010 | `tests/unit/test_as_accept_001_temporal.py::test_ax_tmp_010_historical_genesis_not_resurrected_by_authority` |
+| AX-AUTH-003 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_003_malformed_amends_field_never_cross_field_launders` |
+| AX-AUTH-004 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_004_cross_domain_title_does_not_force_package_status` |
+| AX-AUTH-005 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_005_forged_trust_root_fail_closed_or_regenerate` |
+| AX-AUTH-009 | `tests/unit/test_as_accept_001_authority.py::test_ax_auth_009_equal_genesis_conflict_no_lexical_tiebreak` |
+| AX-QRY-001 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_001_multifield_single_snapshot_no_mixed_compilation` |
+| AX-QRY-002 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_002_cross_project_request_invalid` |
+| AX-QRY-004 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_004_ret_kind_confusion_rejected` |
+| AX-QRY-008 | `tests/unit/test_as_accept_001_query.py::test_ax_qry_008_multifield_envelope_has_no_request_level_value` |
+| AX-CMP-003 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_003_graph_resolved_path_not_claim_evidence` |
+| AX-CMP-004 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_004_no_auth_record_when_rule_skipped` |
+| AX-CMP-009 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_009_quarantined_source_yields_zero_claims` |
+| AX-CMP-010 | `tests/unit/test_as_accept_001_compiler.py::test_ax_cmp_010_project_id_path_escape_rejected_before_promote` |
+
+### BLOCKED_CASE
+- **AX-AUTH-005 consume** (partial): query currently echoes forged `trust_root` / `registry_version` without fail-closed. Regenerated compile path asserts correct trust root (green). Marked `pytest.xfail` with owner-visible receipt. Owning package for consume gap: **AS-CORE-007** (optionally validate hardening under AS-CORE-006). **No product mutation under ACCEPT-001.**
+
+### Gates
+- Focused Wave-A: **15 passed, 1 xfailed** (AUTH-005 consume)
+- Replay ×2: identical exit 0
+- Full Core pytest: exit 0 (see evidence)
+- ruff check .: PASS
+- mypy src: PASS
+- Diff: **tests (+ WORKLOG) only** — zero `src/` product mutation
+
+### Receipts
+- Graph ADV not reopened
+- Model ADV not reopened
+- Frozen GRAPH-002 / MODEL-001A SHAs not amended
+- Merge: **NONE**
+
+**PRODUCTION CODE MODIFIED: NO**  
+**TESTS MODIFIED: YES**  
+**MERGE AUTHORIZED: NO**  
+**DISPOSITION: IMPLEMENTATION COMPLETE — GOVERNOR REVIEW REQUIRED**
+
 ## AS-OBS-001 — Operational Health Snapshot
 
 **Directive:** `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`  
