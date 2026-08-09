@@ -1,13 +1,15 @@
 """AS-ADV-RELEASE-001 — Fixture-safe advanced release certification suite.
 
 Combines recovery, determinism, clean-clone replay, and performance-baseline
-cases on disposable vaults. AS-ADV-RELEASE-002 deepens clean-clone RC hardening
-without claiming RELEASE CERTIFIED. Operational certification only — never
+cases on disposable vaults. AS-ADV-RELEASE-002 deepens clean-clone RC hardening;
+AS-ADV-RELEASE-003 adds objective fixture-scale counters and stable-plane digest
+summaries without claiming RELEASE CERTIFIED. Operational certification only — never
 stamps RELEASE CERTIFIED, ESTATE PILOT PASSED, or WEB APPLICATION ACCEPTED.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -36,6 +38,7 @@ CaseId = Literal[
     "determinism_pipeline",
     "clean_clone_replay",
     "perf_baseline_fixture",
+    "perf_budget_smoke",
 ]
 CaseResult = Literal["pass", "fail"]
 ReportStatus = Literal["certified", "failed", "partial"]
@@ -46,6 +49,7 @@ MATRIX_CASE_IDS: tuple[CaseId, ...] = (
     "determinism_pipeline",
     "clean_clone_replay",
     "perf_baseline_fixture",
+    "perf_budget_smoke",
 )
 
 
@@ -109,6 +113,25 @@ def _stable_plane(files: dict[str, bytes]) -> dict[str, bytes]:
 def _stable_drift(left: dict[str, bytes], right: dict[str, bytes]) -> list[str]:
     keys = set(left) | set(right)
     return sorted(key for key in keys if left.get(key) != right.get(key))
+
+
+def _stable_plane_summary(files: dict[str, bytes]) -> dict[str, Any]:
+    """Return deterministic size signals and a framed stable-plane digest."""
+    digest = hashlib.sha256()
+    byte_count = 0
+    for key in sorted(files):
+        key_bytes = key.encode("utf-8")
+        content = files[key]
+        digest.update(len(key_bytes).to_bytes(8, "big"))
+        digest.update(key_bytes)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+        byte_count += len(content)
+    return {
+        "file_count": len(files),
+        "byte_count": byte_count,
+        "sha256": digest.hexdigest(),
+    }
 
 
 def _case_recovery_promote_noop(work: Path) -> dict[str, Any]:
@@ -186,12 +209,22 @@ def _case_determinism_pipeline(work: Path) -> dict[str, Any]:
     validate(vault)
     second = _stable_plane(_vault_file_bytes(vault))
     drifted = _stable_drift(first, second)
-    ok = not drifted
+    first_summary = _stable_plane_summary(first)
+    second_summary = _stable_plane_summary(second)
+    ok = not drifted and first_summary == second_summary and bool(first)
+    observed = {
+        "first": first_summary,
+        "second": second_summary,
+        "drift": drifted[:8],
+    }
     return {
         "case_id": "determinism_pipeline",
         "result": "pass" if ok else "fail",
-        "expected": "idempotent re-ingest/indexes/validate: stable planes byte-identical",
-        "observed": "drift=[]" if ok else f"drift={drifted[:8]}",
+        "expected": (
+            "idempotent re-ingest/indexes/validate: stable planes byte-identical "
+            "with equal digest summaries"
+        ),
+        "observed": json.dumps(observed, sort_keys=True),
     }
 
 
@@ -268,12 +301,62 @@ def _case_perf_baseline_fixture(work: Path) -> dict[str, Any]:
     }
 
 
+def _case_perf_budget_smoke(work: Path) -> dict[str, Any]:
+    """Bound fixture scale with deterministic counters, never wall-clock."""
+    source = work / "src-perf-budget"
+    vault = work / "vault-perf-budget"
+    manifest = work / "perf-budget-manifest.json"
+    _seed_source(source)
+    source_files = sorted(path for path in source.rglob("*") if path.is_file())
+    source_bytes = sum(path.stat().st_size for path in source_files)
+    create_scaffold(vault)
+    write_manifest(discover(source), manifest)
+    ingest(manifest, vault)
+    build_indexes(vault)
+    validate(vault)
+    stable_summary = _stable_plane_summary(_stable_plane(_vault_file_bytes(vault)))
+    signals = {
+        "operation_count": 4,
+        "source_file_count": len(source_files),
+        "source_byte_count": source_bytes,
+        "stable_file_count": stable_summary["file_count"],
+        "stable_byte_count": stable_summary["byte_count"],
+    }
+    budgets = {
+        "operation_count_max": 4,
+        "source_file_count_max": 4,
+        "source_byte_count_max": 4_096,
+        "stable_file_count_max": 128,
+        "stable_byte_count_max": 1_048_576,
+    }
+    ok = (
+        signals["operation_count"] <= budgets["operation_count_max"]
+        and signals["source_file_count"] <= budgets["source_file_count_max"]
+        and signals["source_byte_count"] <= budgets["source_byte_count_max"]
+        and 0 < signals["stable_file_count"] <= budgets["stable_file_count_max"]
+        and 0 < signals["stable_byte_count"] <= budgets["stable_byte_count_max"]
+    )
+    return {
+        "case_id": "perf_budget_smoke",
+        "result": "pass" if ok else "fail",
+        "expected": "fixture stays within deterministic file/byte/operation budgets",
+        "observed": json.dumps(
+            {"budgets": budgets, "signals": signals}, sort_keys=True
+        ),
+        "detail": (
+            "AS-ADV-RELEASE-003 objective fixture-scale smoke; no wall-clock "
+            "gate; RELEASE CERTIFIED remains false"
+        ),
+    }
+
+
 _CASE_RUNNERS = {
     "recovery_promote_noop": _case_recovery_promote_noop,
     "recovery_snapshot_roundtrip": _case_recovery_snapshot_roundtrip,
     "determinism_pipeline": _case_determinism_pipeline,
     "clean_clone_replay": _case_clean_clone_replay,
     "perf_baseline_fixture": _case_perf_baseline_fixture,
+    "perf_budget_smoke": _case_perf_budget_smoke,
 }
 
 
