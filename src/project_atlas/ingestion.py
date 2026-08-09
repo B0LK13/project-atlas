@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 import uuid
 from contextlib import ExitStack, suppress
 from pathlib import Path, PurePosixPath
@@ -268,9 +269,19 @@ def recover_promote_orphans(vault: Path) -> PromoteRecoveryResult:
         "orphan_count": len(orphans),
         "transactions": txn_reports,
     }
-    receipt_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    # Atomic receipt publish (temp + os.replace) — AS-CORE2-009 review P2.
+    content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    fd, tmp_name = tempfile.mkstemp(
+        dir=receipt_path.parent, prefix=f".{receipt_path.name}.", suffix=".tmp"
     )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(content)
+        os.replace(tmp_name, receipt_path)
+    except BaseException:
+        with suppress(OSError):
+            os.unlink(tmp_name)
+        raise
     return PromoteRecoveryResult(
         orphan_count=len(orphans),
         transactions_recovered=len(txn_reports),
