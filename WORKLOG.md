@@ -4621,12 +4621,19 @@ Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
 ## AS-ADV-RELEASE-001
 Fixture recovery/determinism/perf certification (atlas adv certify). release_certified always false.
 ||||||| parent of 5d0dd5a (docs(atlas-2.0): deepen-d IMPLEMENTATION-READY gate and PROTOTYPE charter)
+||||||| parent of 85dc8ee (feat(web): Mission Control lens (ACCEPTED=NO))
+
+||||||| parent of f12ec4f (feat(web): Mission Control lens (ACCEPTED=NO))
 
 ## AS-WEB-ACCEPT-003
 Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
 
 ## AS-WEB-ACCEPT-003
 Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
+||||||| parent of 85dc8ee (feat(web): Mission Control lens (ACCEPTED=NO))
+
+## CLI integrator ADV+SYNC
+Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surfaces retained.
 
 ||||||| parent of 04c25cc (docs(atlas-2.0): deepen-d IMPLEMENTATION-READY gate and PROTOTYPE charter)
 
@@ -4657,3 +4664,42 @@ Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surf
 ### Explicit non-claims
 - ESTATE PILOT PASSED: NO
 - RELEASE / ATLAS_1_0_RELEASE_CERTIFIED: NO
+||||||| parent of 85dc8ee (feat(web): Mission Control lens (ACCEPTED=NO))
+
+## AS-WEB-ACCEPT-003
+Governor sign-off template + smoke docs. WEB ACCEPTED remains NO.
+
+
+## AS-SYNC-001-SCAFFOLD
+Dry-run workspace registry from explicit roots. production_sync_certified=false.
+
+
+## CLI integrator ADV+SYNC
+Restore ADV CLI/schema hooks dropped by SYNC #74 sole-writer conflict. Both surfaces retained.
+
+||||||| parent of b5cabef (feat(web): Mission Control lens (ACCEPTED=NO))
+
+||||||| Stash base
+
+## AS-WEB-MISSION-001 - Mission Control lens
+
+**Date:** 2026-08-09
+**Branch:** feat/as-web-mission-control-001
+**Worktree:** D:\atlas-worktrees\as-web-mission-control-001
+**Directive:** D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 (web micro-lane)
+
+### Scope
+- Production hash route `#/mission-control` read-only stub UI
+- Invariant banners: UI≠canonical / Graph≠authority / Unknown≠healthy
+- ProdNav + Home hub link; smoke.mjs route file presence; unit tests
+- Sample stub flags-only (no PILOT estate invent)
+- WEB APPLICATION ACCEPTED remains NO; a11y skip-link preserved
+
+### Firewall
+- apps/web/** + tests/unit/test_as_web_mission_control_001.py + soft WORKLOG
+- NO src/project_atlas/cli.py, schema.py, knowledge_compiler, ingestion
+
+### Gates
+- node apps/web/scripts/smoke.mjs
+- python -m pytest tests/unit/test_as_web_mission_control_001.py -q
+- Auto-merge: FORBIDDEN

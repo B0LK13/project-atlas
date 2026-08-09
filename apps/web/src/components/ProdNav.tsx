@@ -7,6 +7,7 @@ const PROD_LINKS = [
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
   { to: "/command-center", label: "Command Center" },
+  { to: "/mission-control", label: "Mission Control" },
 ] as const;
 
 /** Production shell chrome — read-only; UI≠canonical. */

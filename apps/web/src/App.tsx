@@ -9,6 +9,7 @@ import KnowledgePage from "./pages/production/KnowledgePage";
 import GraphPage from "./pages/production/GraphPage";
 import OpsHealthPage from "./pages/production/OpsHealthPage";
 import CommandCenterPage from "./pages/production/CommandCenterPage";
+import MissionControlPage from "./pages/production/MissionControlPage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
       <Route path="/graph" element={<GraphPage />} />
       <Route path="/ops" element={<OpsHealthPage />} />
       <Route path="/command-center" element={<CommandCenterPage />} />
+      <Route path="/mission-control" element={<MissionControlPage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />
       <Route path="/design-lab/cartograph-quiet" element={<CartographQuietPage />} />

@@ -34,6 +34,11 @@ const PROD = [
     title: "Command Center",
     blurb: "Mode switcher: overview · projects · ops · impact.",
   },
+  {
+    to: "/mission-control",
+    title: "Mission Control",
+    blurb: "AS-WEB-MISSION-001 stub — UI≠canonical; ACCEPTED=NO.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
