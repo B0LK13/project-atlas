@@ -4922,3 +4922,13 @@ WEB APPLICATION ACCEPTED remains **NO** (governor item #10 open).
 - Added a schema-locked `generated/ops/` writer with symlink-escape and `00-system/sync/` refusal.
 - Added focused determinism, fail-closed, certification-flag, schema, and path-safety tests.
 - Production SYNC certified: NO. Estate PILOT passed: NO.
+
+## Atlas 1.0.0 PRE-RC release receipts scaffold
+
+**Date:** 2026-08-09
+**Branch:** `docs/releases-1.0-prerc-001`
+**Directive:** `D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001`
+
+- Added docs-only PRE-RC checklist, evidence index, and unsigned receipt template under `docs/releases/1.0.0/`.
+- Pinned the inventory to MAIN `ac1cee723f368154334815dade33212e593fc88c` / TREE `e0ed54782830df036cc439fa127ff5a16c5d8915`.
+- No source, app, Atlas 2.0, or executable test changes. RELEASE CERTIFIED remains **NO**.
