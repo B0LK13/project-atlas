@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-INTEL-SLICE-PREP-001",
+  "action_id": "action.demo.intel-slice.canonical-write.forbidden",
+  "slice_id": "intel-slice.demo.estate-alpha.001",
+  "kind": "canonical_write",
+  "status": "rejected_forbidden",
+  "expected_error": "intel-slice-canonical-write-forbidden",
+  "canonical_write": false,
+  "authority": {
+    "level": "derived",
+    "note": "UI/Ask/MCP lenses consume slice; never Layer B write"
+  },
+  "truth_boundary": "UI ≠ CANONICAL / INTEL SLICE ≠ LAYER B WRITE",
+  "_prep_note": "FX-2.2-ISL-007 — expected rejection of canonical write"
+}
