@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/ask2-lens-projection.schema.json",
+  "title": "ask2-lens-projection (PREP STUB — not package data)",
+  "description": "AS-2.2-ASK2-DEEPEN-PREP-001 consume lens projection for web/mcp/cli. Read-only; never writes Layer B.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "projection_id",
+    "answer_id",
+    "surface",
+    "fields_present",
+    "canonical_write",
+    "ui_truth",
+    "llm_authority",
+    "live_path_owned",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-ASK2-DEEPEN-PREP-001" },
+    "projection_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "answer_id": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "surface": { "enum": ["web", "mcp", "cli"] },
+    "fields_present": {
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "ANSWER",
+          "WHY",
+          "WHY_NOT",
+          "EVIDENCE",
+          "AUTHORITY",
+          "TEMPORAL_VALIDITY",
+          "CONFLICTS",
+          "UNKNOWN"
+        ]
+      }
+    },
+    "render_mode": {
+      "enum": ["full", "compact", "citations_first"]
+    },
+    "canonical_write": { "const": false },
+    "ui_truth": { "const": false },
+    "llm_authority": { "const": false },
+    "live_path_owned": { "const": false },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "ASK LENS ≠ CANONICAL WRITE / ≠ AUTHORITY / UI ≠ TRUTH"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "_prep_note": { "type": "string" }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ASK2-DEEPEN-PREP-001",
+  "chain_id": "chain-fx-ask2-001",
+  "answer_id": "ans-fx-ask2-deepen-001",
+  "nodes": [
+    {
+      "node_id": "node.ev.compat",
+      "role": "evidence",
+      "ref_id": "ev-compat-doc",
+      "ordinal": 0,
+      "supports_answer": true,
+      "note": "Compat pin documentation"
+    },
+    {
+      "node_id": "node.hyp.compat",
+      "role": "hypothesis",
+      "ref_id": "h-compat-pinned",
+      "ordinal": 1,
+      "supports_answer": true,
+      "note": "Hypothesis supported by evidence"
+    },
+    {
+      "node_id": "node.pack.001",
+      "role": "pack",
+      "ref_id": "pack-fx-ask2-deepen-001",
+      "ordinal": 2,
+      "supports_answer": true,
+      "note": "Evidence pack projection target"
+    },
+    {
+      "node_id": "node.conflict.001",
+      "role": "conflict",
+      "ref_id": "conflict.demo.package-status.001",
+      "ordinal": 3,
+      "supports_answer": false,
+      "note": "Retained conflict cited in CONFLICTS"
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Citation chain is derived provenance, not authority"
+  },
+  "truth_boundary": "CITATION CHAIN ≠ AUTHORITY / ≠ TRUST SCORE",
+  "evidence_class": "fixture-only",
+  "_prep_note": "FX-2.2-ASK2-002 — structured citation chain"
+}

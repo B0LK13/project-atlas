@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ASK2-DEEPEN-PREP-001",
+  "action_id": "action.demo.llm-authority.forbidden",
+  "kind": "llm_authority_stamp",
+  "status": "rejected_forbidden",
+  "expected_error": "ask2-llm-authority-forbidden",
+  "canonical_writes": false,
+  "live_path_owned": false,
+  "authority": {
+    "level": "derived",
+    "note": "LLM authority stamps are never accepted by Ask2 deepen"
+  },
+  "truth_boundary": "ASK2 ACTION ≠ LIVE MUTATE / ≠ LAYER B WRITE / ≠ LLM AUTHORITY",
+  "_prep_note": "FX-2.2-ASK2-005 — expected rejection of llm_authority_stamp"
+}
