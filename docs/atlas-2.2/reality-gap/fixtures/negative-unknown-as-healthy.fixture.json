@@ -1,0 +1,14 @@
+{
+  "scenario_id": "FX-2.2-RG-002",
+  "kind": "negative",
+  "title": "unknown must not coerce to healthy",
+  "forbidden_mapping": {
+    "from_status": "unknown",
+    "to_healthy": true
+  },
+  "expected_error": "reality-gap-prep-unknown-as-healthy-forbidden",
+  "invariant": "unknown≠healthy",
+  "notes": "PREP rehearsal only — documents rejection; not executable harness",
+  "atlas_2_1_release_certified": false,
+  "pilot_roots": 0
+}

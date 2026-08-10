@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/reality-gap-prep-scenario.schema.json",
+  "title": "reality-gap-prep-scenario (PREP STUB - not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gap_id",
+    "title",
+    "status",
+    "evidence_class",
+    "authentic_estate",
+    "invent_pilot_roots",
+    "healthy"
+  ],
+  "properties": {
+    "gap_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "one_dot_oh_today": { "type": "string", "maxLength": 240 },
+    "two_dot_oh_aspiration": { "type": "string", "maxLength": 240 },
+    "two_dot_two_aspiration": { "type": "string", "maxLength": 240 },
+    "blocker": { "type": "string", "maxLength": 240 },
+    "status": {
+      "type": "string",
+      "enum": [
+        "open",
+        "partially-addressed",
+        "blocked-pilot",
+        "blocked-freeze",
+        "addressed-fixture-only",
+        "unknown"
+      ]
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "invent_pilot_roots": { "const": false },
+    "healthy": { "const": false },
+    "notes": { "type": "string", "maxLength": 240 }
+  }
+}

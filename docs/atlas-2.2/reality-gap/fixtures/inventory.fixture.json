@@ -1,0 +1,110 @@
+{
+  "schema": "atlas.2.2.reality-gap-prep-inventory.v0",
+  "schema_version": 1,
+  "package_id": "AS-2.2-REALITY-GAP-PREP-001",
+  "source_doc": "docs/atlas-2.0/REALITY-GAP.md",
+  "pilot_roots": 0,
+  "authentic_estate_pilot_passed": false,
+  "atlas_2_1_release_certified": false,
+  "scenario_count": 6,
+  "scenarios": [
+    {
+      "gap_id": "advanced-ux",
+      "title": "Advanced UX",
+      "one_dot_oh_today": "WEB ACCEPTED cleared on tip",
+      "two_dot_oh_aspiration": "UX-001 advanced CC",
+      "two_dot_two_aspiration": "Conflict/review cockpit remains UI≠canonical",
+      "blocker": "WEB governor posture + UI≠canonical",
+      "status": "partially-addressed",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "healthy": false,
+      "notes": "UI≠canonical preserved; unknown health never implied"
+    },
+    {
+      "gap_id": "agent-os-in-core",
+      "title": "Agent OS in Core",
+      "one_dot_oh_today": "sibling control plane",
+      "two_dot_oh_aspiration": "integrated Agent OS",
+      "two_dot_two_aspiration": "Agent surfaces consume derived Reality Gap only",
+      "blocker": "owner auth + READY",
+      "status": "partially-addressed",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "healthy": false,
+      "notes": "Complementary envelope; not Core absorption"
+    },
+    {
+      "gap_id": "estate-twin",
+      "title": "Estate twin",
+      "one_dot_oh_today": "fixtures only; PILOT_ROOTS=0",
+      "two_dot_oh_aspiration": "Digital Twin",
+      "two_dot_two_aspiration": "Estate honesty without inventing PILOT",
+      "blocker": "PILOT / waiver",
+      "status": "blocked-pilot",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "healthy": false,
+      "notes": "Fixture twin ≠ authentic estate PILOT PASSED"
+    },
+    {
+      "gap_id": "federation",
+      "title": "Federation",
+      "one_dot_oh_today": "XPROJ derived only",
+      "two_dot_oh_aspiration": "multi-vault FED",
+      "two_dot_two_aspiration": "Deferred multi-vault; gap remains honest",
+      "blocker": "contract freeze",
+      "status": "partially-addressed",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "healthy": false,
+      "notes": "Consume-only join inventory posture"
+    },
+    {
+      "gap_id": "production-sync",
+      "title": "Production SYNC",
+      "one_dot_oh_today": "dry-run scaffolds",
+      "two_dot_oh_aspiration": "SYNC v2",
+      "two_dot_two_aspiration": "No fixture waiver for production SYNC final",
+      "blocker": "PILOT + INT-013",
+      "status": "blocked-pilot",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "healthy": false,
+      "notes": "unknown/blocked ≠ healthy ops state"
+    },
+    {
+      "gap_id": "provider-mcp",
+      "title": "Provider/MCP",
+      "one_dot_oh_today": "design / optional registry",
+      "two_dot_oh_aspiration": "optional adapters",
+      "two_dot_two_aspiration": "Disabled-by-default adapters; quarantine-first",
+      "blocker": "NFR-006 + freeze",
+      "status": "partially-addressed",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "healthy": false,
+      "notes": "No SDK wiring; no invent estate from provider output"
+    }
+  ],
+  "invariants": {
+    "unknown_ne_healthy": true,
+    "ui_ne_canonical": true,
+    "no_pilot_invent": true
+  },
+  "authority": {
+    "level": "derived",
+    "note": "Prep fixture inventory only; never invents estate or stamps release"
+  },
+  "truth_boundary": "REALITY-GAP PREP FIXTURE ≠ PILOT PASS / ≠ HEALTHY FROM UNKNOWN / ≠ UI CANONICAL / ≠ 2.1 RELEASE CERTIFIED",
+  "generated": {
+    "by": "project-atlas",
+    "package": "AS-2.2-REALITY-GAP-PREP-001"
+  }
+}

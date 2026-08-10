@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/reality-gap-prep-inventory.schema.json",
+  "title": "reality-gap-prep-inventory (PREP STUB - not package data)",
+  "description": "AS-2.2-REALITY-GAP-PREP-001 docs-only inventory. unknown≠healthy; UI≠canonical; no PILOT invent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "package_id",
+    "source_doc",
+    "pilot_roots",
+    "authentic_estate_pilot_passed",
+    "atlas_2_1_release_certified",
+    "scenarios",
+    "scenario_count",
+    "invariants",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.reality-gap-prep-inventory.v0" },
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-REALITY-GAP-PREP-001" },
+    "source_doc": {
+      "type": "string",
+      "const": "docs/atlas-2.0/REALITY-GAP.md"
+    },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate_pilot_passed": { "const": false },
+    "atlas_2_1_release_certified": { "const": false },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "reality-gap-prep-scenario.schema.json"
+      }
+    },
+    "scenario_count": { "type": "integer", "minimum": 1 },
+    "invariants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unknown_ne_healthy",
+        "ui_ne_canonical",
+        "no_pilot_invent"
+      ],
+      "properties": {
+        "unknown_ne_healthy": { "const": true },
+        "ui_ne_canonical": { "const": true },
+        "no_pilot_invent": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "REALITY-GAP PREP FIXTURE ≠ PILOT PASS / ≠ HEALTHY FROM UNKNOWN / ≠ UI CANONICAL / ≠ 2.1 RELEASE CERTIFIED"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" },
+        "package": { "const": "AS-2.2-REALITY-GAP-PREP-001" }
+      }
+    }
+  }
+}
