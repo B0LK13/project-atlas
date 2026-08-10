@@ -21,6 +21,7 @@ full inventory table.
 | `compat-snapshot/` | AS-2.0-COMPAT-001 | 1.0 snapshot pin consumer |
 | `sync-v2-tombstone/` | AS-2.0-SYNC-001 | Tombstone + incremental sync scenarios |
 | `mcp-readonly-surface/` | AS-2.0-PROV-001 | MCP consume-only tools; write-deny matrix |
+| `reality-gap/` | AS-2.0-REALITY-GAP-001 | Fixture inventory for REALITY-GAP.md scenarios |
 
 ## Inventory depth (deepen-f)
 

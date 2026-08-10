@@ -5096,3 +5096,13 @@ Optional disabled-by-default provider registry + quarantine envelopes; secrets m
 ## AS-2.0-AGENTOS-001
 Thin session envelope bound to 1.0 compat anchor.
 
+
+## AS-2.0-TEMPORAL-001 + AS-2.0-REALITY-GAP-001
+
+**Date:** 2026-08-10
+**Branch:** feat/as-2.0-temporal-reality-001
+**Directive:** D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001
+
+Bitemporal claim validity windows (deepens AS-CORE-005, fail-closed) plus
+reality-gap fixture inventory/schema from docs/atlas-2.0/REALITY-GAP.md.
+Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
