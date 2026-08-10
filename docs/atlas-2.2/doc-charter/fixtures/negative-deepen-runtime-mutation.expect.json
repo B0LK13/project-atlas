@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-DOC-CHARTER-DEEPEN-PREP-001",
+  "action_id": "action.demo.doc-charter.runtime-mutation.forbidden",
+  "kind": "runtime_mutation",
+  "status": "rejected_forbidden",
+  "expected_error": "doc-charter-runtime-mutation-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "Doc-charter deepen PREP must not mutate src/, shipped schemas, or apps/"
+  },
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "release_certified": false,
+  "pilot_pass": false,
+  "canonical_writes": false,
+  "pilot_roots": 0,
+  "truth_boundary": "DOC CHARTER PREP ≠ RELEASE CERT / ≠ UNLOCK / ≠ PILOT / ≠ MATRIX CERT / ≠ RUNTIME / ≠ LLM AUTHORITY",
+  "_prep_note": "FX-2.2-DOC-CHARTER-DEEPEN-105 — expected rejection of runtime_mutation"
+}
