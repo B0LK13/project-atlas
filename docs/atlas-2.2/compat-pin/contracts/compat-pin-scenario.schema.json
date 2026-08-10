@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/compat-pin-scenario.schema.json",
+  "title": "compat-pin-scenario (PREP STUB — not package data)",
+  "description": "AS-2.2-COMPAT-PIN-PREP-001 docs-only consumer/anchor scenario row. Declares future v2.1.0 pin expectations; never claims release certified.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scenario_id",
+    "consumer_package",
+    "compat_snapshot_id",
+    "anchor_status",
+    "release_certified",
+    "evidence_class",
+    "authentic_estate",
+    "invent_pilot_roots",
+    "notes"
+  ],
+  "properties": {
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^FX-2\\.2-COMPAT-[0-9]{3}$"
+    },
+    "consumer_package": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "compat_snapshot_id": {
+      "type": "string",
+      "enum": ["atlas-1.0.0-compat", "atlas-2.1.0-compat"]
+    },
+    "anchor_status": {
+      "enum": [
+        "certified-reference",
+        "future-placeholder",
+        "declared-dependency"
+      ]
+    },
+    "release_certified": { "const": false },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "invent_pilot_roots": { "const": false },
+    "two_dot_one_wins_conflicts": { "type": "boolean" },
+    "notes": { "type": "string", "minLength": 1 }
+  }
+}
