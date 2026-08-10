@@ -32,3 +32,7 @@ That keeps Track B / 2.2 honesty independent of marketing package names.
 - No production module mutation in PREP
 - No PILOT root invent
 - No RELEASE / WEB ACCEPTED / cert stamps from fixture success
+
+## Deepen PREP
+
+See [`AS-2.2-REALITY-LIVE-DEEPEN-PREP-001.md`](AS-2.2-REALITY-LIVE-DEEPEN-PREP-001.md).

@@ -1,0 +1,7 @@
+{
+  "action": "unknown-as-healthy",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "missing evidence must not render healthy",
+  "release_certified": false
+}

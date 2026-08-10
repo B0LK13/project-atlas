@@ -1,0 +1,7 @@
+{
+  "action": "layer-b-write",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "collectors must not write Layer B",
+  "release_certified": false
+}

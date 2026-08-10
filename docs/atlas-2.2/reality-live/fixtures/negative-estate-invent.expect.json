@@ -1,0 +1,7 @@
+{
+  "action": "estate-invent",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "must not invent authentic estate roots or markers",
+  "release_certified": false
+}

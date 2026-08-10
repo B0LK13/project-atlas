@@ -1,0 +1,35 @@
+{
+  "$id": "atlas-2.2/reality-live/reality-live-forbidden-action.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "PREP STUB \u2014 reality-live deepen forbidden actions",
+  "properties": {
+    "action": {
+      "type": "string"
+    },
+    "expect": {
+      "const": "reject"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "reason": {
+      "type": "string"
+    },
+    "release_certified": {
+      "const": false
+    }
+  },
+  "required": [
+    "action",
+    "expect",
+    "reason",
+    "release_certified",
+    "pilot_pass"
+  ],
+  "title": "Reality-live forbidden action (PREP STUB)",
+  "type": "object"
+}
