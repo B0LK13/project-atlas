@@ -20,6 +20,9 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | FX-2.2-CUX-005 | `negative-ui-write.expect.json` | UI canonical write → rejected |
 | FX-2.2-CUX-006 | `negative-authority-elevation.expect.json` | authority elevation → rejected |
 
+Deepen certification / PILOT / LLM negatives are inventoried in
+[`DEEPEN-FIXTURE-PLAN.md`](DEEPEN-FIXTURE-PLAN.md) (FX-2.2-CUX-101..103).
+
 ## Rules
 
 - `evidence_class = fixture-only`

@@ -14,6 +14,7 @@ Ship path after unlock (future): `src/project_atlas/schemas/` via ADR + freeze.
 | `conflict-projection-card.schema.json` | Single conflict card | `card` / nested in view |
 | `review-queue-slice.schema.json` | CONFLICT queue slice | `queue` |
 | `disposition-action.schema.json` | Operator action proposal | `propose` |
+| `conflict-ux-forbidden-action.schema.json` | Deepen forbidden-action vocabulary | `reject` (DEEPEN; do not relocate disposition) |
 
 ## Conceptual operations
 
