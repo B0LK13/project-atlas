@@ -40,3 +40,7 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 
 Promotion to `fixtures/atlas-2.2/` + harness requires
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.
+
+## Deepen negatives (PREP)
+
+See `DEEPEN-FIXTURE-PLAN.md`.

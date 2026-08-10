@@ -1,0 +1,20 @@
+{
+  "_prep_note": "deepen negative fuzzy_join",
+  "action_id": "fx-fuzzy_join",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "must not invent fuzzy joins as canonical"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "xproj-fuzzy-join-forbidden",
+  "kind": "fuzzy_join",
+  "package_id": "AS-2.2-XPROJ-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "XPROJ FABRIC \u2260 AUTHORITY / \u2260 AUTOCOLLAPSE / \u2260 FUZZY JOIN / \u2260 LAYER B / \u2260 PILOT / \u2260 RELEASE"
+}
