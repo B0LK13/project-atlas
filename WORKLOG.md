@@ -5115,13 +5115,29 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.1-WEB-MISSION-WORKSPACE-UX — Mission/Workspace LIVE/DEMO/FIXTURE polish
+## AS-2.2-RESEARCH-001 PREP — Research workspace + Ask Atlas 2
 
 **Date:** 2026-08-10
-**Branch:** `feat/as-2.1-web-mission-workspace-ux`
-**Tip base:** `f45134f`
-**Exclusion:** `apps/web` Mission/Workspace UI (+ unit/smoke gates) only — API server and shared schema roots untouched.
-**PILOT:** no invent / no waiver
+**Branch:** feat/as-2.2-research-prep
+**Worktree:** D:\atlas-worktrees\as-2.2-research-prep
+**Directive:** D-PROJECT-ATLAS-FORCED-MULTIAGENT-ORCHESTRATION-001 (SAFE pre-v2.1.0)
+**Main tip:** a1e0972 / TREE c6cfe95
+**Evidence:** atlas-2.1-productionization-001
 
-Visible LIVE-first mode switcher with DEMO and FIXTURE samples; LIVE failures stay unknown (no silent demo invent). Evidence: `D:\project-atlas-orphans\atlas-2.1-productionization-001\`.
+### Scope
+- docs/AS-2.2-RESEARCH-001.md package card
+- docs/atlas-2.2/research/ architecture + Ask Atlas 2 surface
+- docs/atlas-2.2/contracts/research/ schema stubs (not package data)
+- docs/atlas-2.2/fixtures/research/ fixture sketches
+- docs/adr/ADR-025-research-workspace-prep.md
+- tests/unit/test_as_2_2_research_prep_001.py
+- Soft WORKLOG only
 
+### Pipeline
+question → hypotheses → evidence → conflicts → synthesis → packs
+
+### Explicit non-claims
+- ATLAS_2_1_RELEASE_CERTIFIED: NO
+- AUTHENTIC_ESTATE_PILOT: NO / PASS not claimed
+- Production src/ mutation: NONE
+- Schema package-data promotion: NONE

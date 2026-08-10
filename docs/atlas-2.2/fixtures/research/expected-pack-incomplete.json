@@ -1,0 +1,26 @@
+{
+  "schema": "atlas.research.evidence_pack.v0",
+  "pack_id": "pack-fx-res-002",
+  "question_id": "q-fx-res-002",
+  "status": "INCOMPLETE",
+  "pipeline": [
+    "question",
+    "hypotheses",
+    "evidence",
+    "conflicts",
+    "synthesis",
+    "packs"
+  ],
+  "hypothesis_ids": ["h-open-no-evidence"],
+  "evidence_ref_ids": [],
+  "conflict_ids": [],
+  "synthesis_id": "syn-fx-res-002",
+  "canonical_write": false,
+  "authority_promoted": false,
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "truth_boundary": "MISSING EVIDENCE ⇒ INCOMPLETE / UNKNOWN — never silent certainty",
+  "generated": {
+    "by": "project-atlas"
+  }
+}

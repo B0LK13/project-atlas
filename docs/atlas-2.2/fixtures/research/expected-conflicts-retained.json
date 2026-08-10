@@ -1,0 +1,20 @@
+{
+  "scenario_id": "FX-2.2-RES-003",
+  "question_id": "q-fx-res-003",
+  "conflicts": [
+    {
+      "schema": "atlas.research.conflict.v0",
+      "conflict_id": "c-fx-res-003",
+      "question_id": "q-fx-res-003",
+      "left_ref_id": "ev-claim-a",
+      "right_ref_id": "ev-claim-b",
+      "field": "status",
+      "resolution": "unresolved",
+      "retained": true,
+      "notes": "Lower-authority evidence retained; no silent winner"
+    }
+  ],
+  "silent_winner_forbidden": true,
+  "authority_promoted": false,
+  "truth_boundary": "CONFLICT RETAINED ≠ AUTHORITY RESOLUTION"
+}
