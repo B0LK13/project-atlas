@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/ux-mode-catalog.schema.json",
+  "title": "UxModeCatalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "catalog_id",
+    "ui_rewrite",
+    "canonical_writes",
+    "modes",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-UX-002" },
+    "compat_snapshot_id": { "type": "string" },
+    "catalog_id": { "type": "string" },
+    "ui_rewrite": { "const": false },
+    "canonical_writes": { "const": false },
+    "modes": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mode_id", "title", "read_adapter", "graph_authority"],
+        "properties": {
+          "mode_id": {
+            "type": "string",
+            "enum": ["overview", "projects", "ops", "impact", "review"]
+          },
+          "title": { "type": "string" },
+          "read_adapter": { "type": "string" },
+          "graph_authority": { "const": false }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
