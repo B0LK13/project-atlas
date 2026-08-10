@@ -1,0 +1,20 @@
+{
+  "scenario_id": "FX-2.2-RG-003",
+  "kind": "negative",
+  "title": "UI canonical writes forbidden",
+  "forbidden_catalog": {
+    "canonical_writes": true,
+    "panels": [
+      {
+        "panel_id": "estate-twin",
+        "gap_id": "estate-twin",
+        "read_only": false
+      }
+    ]
+  },
+  "expected_error": "reality-gap-prep-ui-canonical-writes-forbidden",
+  "invariant": "UI≠canonical",
+  "notes": "PREP rehearsal only — UI panels remain read-only derived lenses",
+  "atlas_2_1_release_certified": false,
+  "pilot_roots": 0
+}
