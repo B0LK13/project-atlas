@@ -10,8 +10,8 @@ production slots in
 |---|---|
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
 | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` | **NO** |
-| Tip audited | `e4292e8` |
-| PREP packages mapped | **19** |
+| Tip audited | `5e2559f096ce6e1a906ee69ded45f8393ff2310b` / TREE `2768267fa1923a3a1108f84fff9d77eae7e794fc` |
+| PREP packages mapped | **21** (+ ADV-POOL, FIXTURE-ROLLUP) |
 
 ## Legend
 
@@ -84,7 +84,13 @@ production slots in
 | Package | PR | Role |
 |---|---|---|
 | `AS-2.2-PREP-STATUS-001` | [#203](https://github.com/B0LK13/project-atlas/pull/203) | Status snapshot — see [`../PREP-STATUS.md`](../PREP-STATUS.md) |
-| README index lanes | [#173](https://github.com/B0LK13/project-atlas/pull/173) · [#195](https://github.com/B0LK13/project-atlas/pull/195) · [#198](https://github.com/B0LK13/project-atlas/pull/198) · [#202](https://github.com/B0LK13/project-atlas/pull/202) | Multi-package restore — see [`../README.md`](../README.md) |
+| `AS-2.2-PREP-FIXTURE-ROLLUP-001` | [#242](https://github.com/B0LK13/project-atlas/pull/242) | Fixture-plan + contract-stub rollup — see [`../AS-2.2-PREP-FIXTURE-ROLLUP-001.md`](../AS-2.2-PREP-FIXTURE-ROLLUP-001.md) |
+| `AS-2.2-ADV-POOL-001` | [#243](https://github.com/B0LK13/project-atlas/pull/243) | ADV threat-matrix pool — see [`../adv-pool/`](../adv-pool/) |
+| README index lanes | [#173](https://github.com/B0LK13/project-atlas/pull/173) · [#195](https://github.com/B0LK13/project-atlas/pull/195) · [#198](https://github.com/B0LK13/project-atlas/pull/198) · [#202](https://github.com/B0LK13/project-atlas/pull/202) · [#244](https://github.com/B0LK13/project-atlas/pull/244) (INDEX-013) · [#245](https://github.com/B0LK13/project-atlas/pull/245) (INDEX-014) | Multi-package restore / rollup+ADV index — see [`../README.md`](../README.md) |
+
+## Sync note (AS-2.2-ROADMAP-CROSSWALK-SYNC-001)
+
+Tip refreshed to `5e2559f096ce6e1a906ee69ded45f8393ff2310b` / TREE `2768267fa1923a3a1108f84fff9d77eae7e794fc` after merge of fixture rollup (#242), ADV-POOL (#243), and README INDEX-013/014 (#244/#245). Product crosswalk row count remains **19**; rollup and ADV-POOL are integration indexes only (not new DAG product slots / not SEMIDX).
 
 ## Explicit non-claims
 

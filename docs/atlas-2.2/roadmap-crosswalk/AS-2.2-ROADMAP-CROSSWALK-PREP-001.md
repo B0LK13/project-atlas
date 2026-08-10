@@ -4,7 +4,7 @@
 |---|---|
 | Package | **AS-2.2-ROADMAP-CROSSWALK-PREP-001** |
 | Class | **PREP ONLY** — docs-only integration |
-| Tip audited | `e4292e8` (`origin/main` at branch cut) |
+| Tip audited | `5e2559f096ce6e1a906ee69ded45f8393ff2310b` / TREE `2768267fa1923a3a1108f84fff9d77eae7e794fc` (`docs/atlas-2.2` at sync) |
 | Scope | `docs/atlas-2.2/roadmap-crosswalk/**` + strategy roadmap cross-links |
 | Production mutation | **NONE** |
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |

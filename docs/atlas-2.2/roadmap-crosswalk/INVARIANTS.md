@@ -14,6 +14,12 @@ ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED = NO
 Fixture rehearsal under this tree grants **no** WEB / RELEASE / PILOT / unlock
 credit.
 
+## Tip / TREE baseline (sync)
+
+- Tip: `5e2559f096ce6e1a906ee69ded45f8393ff2310b`
+- TREE (`docs/atlas-2.2`): `2768267fa1923a3a1108f84fff9d77eae7e794fc`
+- Sync package: `AS-2.2-ROADMAP-CROSSWALK-SYNC-001` (docs-only; Unlock **NO**)
+
 ## Hard invariants
 
 | ID | Rule | Shorthand |

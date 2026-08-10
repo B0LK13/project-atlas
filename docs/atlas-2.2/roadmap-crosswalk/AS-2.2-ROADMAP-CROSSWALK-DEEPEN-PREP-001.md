@@ -4,8 +4,8 @@
 |---|---|
 | Package | **AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001** |
 | Class | **PREP ONLY** (contracts / fixtures / ADR) |
-| Tip audited | `7f9692aeaa163d185e916713b0eb2b02e4bd8123` |
-| Tree | `441da552896e9fbe589a4b9af5f7f0145477b28a` |
+| Tip audited | `5e2559f096ce6e1a906ee69ded45f8393ff2310b` |
+| Tree | `2768267fa1923a3a1108f84fff9d77eae7e794fc` (`docs/atlas-2.2`) |
 | Scope | `docs/atlas-2.2/roadmap-crosswalk/**` deepen lane (+ unique unit test) |
 | Production mutation | **NONE** |
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
