@@ -1,0 +1,91 @@
+{
+  "authentic_estate_pilot_passed": false,
+  "authority": {
+    "level": "derived",
+    "note": "Fixture inventory only; never invents estate or stamps release"
+  },
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "generated": {
+    "by": "project-atlas"
+  },
+  "package_id": "AS-2.0-REALITY-GAP-001",
+  "pilot_roots": 0,
+  "scenario_count": 6,
+  "scenarios": [
+    {
+      "authentic_estate": false,
+      "blocker": "WEB governor #10 (cleared for entry)",
+      "evidence_class": "fixture-only",
+      "gap_id": "advanced-ux",
+      "invent_pilot_roots": false,
+      "notes": "AS-2.0-UX-001 entry gate; UI\u2260canonical preserved",
+      "one_dot_oh_today": "WEB ACCEPTED cleared on tip",
+      "status": "partially-addressed",
+      "title": "Advanced UX",
+      "two_dot_oh_aspiration": "UX-001 advanced CC"
+    },
+    {
+      "authentic_estate": false,
+      "blocker": "owner auth + READY",
+      "evidence_class": "fixture-only",
+      "gap_id": "agent-os-in-core",
+      "invent_pilot_roots": false,
+      "notes": "AS-2.0-AGENTOS-001 envelope is complementary; not Core absorption",
+      "one_dot_oh_today": "sibling control plane",
+      "status": "partially-addressed",
+      "title": "Agent OS in Core",
+      "two_dot_oh_aspiration": "integrated Agent OS"
+    },
+    {
+      "authentic_estate": false,
+      "blocker": "PILOT / waiver",
+      "evidence_class": "fixture-only",
+      "gap_id": "estate-twin",
+      "invent_pilot_roots": false,
+      "notes": "Fixture twin \u2260 authentic estate PILOT PASSED",
+      "one_dot_oh_today": "fixtures only; PILOT_ROOTS=0",
+      "status": "blocked-pilot",
+      "title": "Estate twin",
+      "two_dot_oh_aspiration": "Digital Twin"
+    },
+    {
+      "authentic_estate": false,
+      "blocker": "contract freeze",
+      "evidence_class": "fixture-only",
+      "gap_id": "federation",
+      "invent_pilot_roots": false,
+      "notes": "AS-2.0-FED-001 join inventory is consume-only",
+      "one_dot_oh_today": "XPROJ derived only",
+      "status": "partially-addressed",
+      "title": "Federation",
+      "two_dot_oh_aspiration": "multi-vault FED"
+    },
+    {
+      "authentic_estate": false,
+      "blocker": "PILOT + INT-013",
+      "evidence_class": "fixture-only",
+      "gap_id": "production-sync",
+      "invent_pilot_roots": false,
+      "notes": "Fixture waiver insufficient for 2.0 SYNC final",
+      "one_dot_oh_today": "dry-run scaffolds",
+      "status": "blocked-pilot",
+      "title": "Production SYNC",
+      "two_dot_oh_aspiration": "SYNC v2"
+    },
+    {
+      "authentic_estate": false,
+      "blocker": "NFR-006 + freeze",
+      "evidence_class": "fixture-only",
+      "gap_id": "provider-mcp",
+      "invent_pilot_roots": false,
+      "notes": "AS-2.0-PROV-001 registry disabled-by-default; no SDK wiring",
+      "one_dot_oh_today": "design PROTOTYPE / optional registry",
+      "status": "partially-addressed",
+      "title": "Provider/MCP",
+      "two_dot_oh_aspiration": "optional adapters"
+    }
+  ],
+  "schema_version": 1,
+  "source_doc": "docs/atlas-2.0/REALITY-GAP.md",
+  "truth_boundary": "REALITY-GAP FIXTURE \u2260 PILOT PASS / \u2260 WEB ACCEPTED / \u2260 2.0 RELEASE"
+}

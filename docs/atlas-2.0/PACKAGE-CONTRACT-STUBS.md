@@ -12,6 +12,8 @@ Status: **PRODUCTION IMPLEMENTATION AUTHORIZED** after 1.0 anchor verify.
 | AS-2.0-FED-001 | Multi-vault federation | READY / RWC after COMPAT |
 | AS-2.0-UX-001 | Advanced Command Center | READY (WEB ACCEPTED=YES) |
 | AS-2.0-PROV-001 | Provider adapters | RWC (provenance non-bypass) |
+| AS-2.0-TEMPORAL-001 | Bitemporal validity windows | RWC — deepens AS-CORE-005; fail-closed |
+| AS-2.0-REALITY-GAP-001 | Reality-gap fixture inventory | READY — fixtures only; no estate invent |
 | AS-2.0-SYNC-001 | Estate sync v2 | **BLOCKED** — authentic PILOT |
 | AS-2.0-AGENTOS-001 | Agent OS envelope | PREPARED |
 | AS-2.0-KCI-001 | Knowledge Compilation Interface | PREPARED |
