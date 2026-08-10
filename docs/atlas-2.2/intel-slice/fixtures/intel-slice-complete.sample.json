@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-INTEL-SLICE-PREP-001",
+  "slice_id": "intel-slice.demo.estate-alpha.001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "estate_slice",
+    "id": "demo-estate-alpha"
+  },
+  "status": "COMPLETE",
+  "inputs": {
+    "kf_fabric": [
+      {
+        "citation_id": "kf2.inv.demo-estate-alpha.001",
+        "kind": "fabric_inventory"
+      }
+    ],
+    "retrieval": [
+      {
+        "citation_id": "ret.plan.demo-alpha.001",
+        "kind": "hybrid_plan"
+      }
+    ],
+    "context_packs": [
+      {
+        "citation_id": "ctx.pack.demo-alpha.001",
+        "kind": "context_pack"
+      }
+    ],
+    "temporal": [
+      {
+        "citation_id": "temporal.receipt.demo-alpha.001",
+        "kind": "validity_window",
+        "resolution": "known"
+      }
+    ],
+    "conflicts": [
+      {
+        "citation_id": "conflict.demo.package-status.001",
+        "kind": "open_conflict",
+        "state": "open"
+      }
+    ]
+  },
+  "unknown": [],
+  "authority": {
+    "level": "derived",
+    "note": "Slice composes cite-only inputs; never Layer B authority"
+  },
+  "truth_boundary": "INTEL SLICE ≠ AUTHORITY / ≠ LAYER B WRITE / ≠ SILENT CONFLICT RESOLVE",
+  "canonical_write": false,
+  "authentic_estate": false,
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "atlas_2_1_release_certified": false,
+  "atlas_2_2_intelligence_implementation_unlocked": false,
+  "generated": {
+    "by": "project-atlas"
+  },
+  "_prep_note": "FX-2.2-ISL-001 — docs-only complete slice sketch"
+}
