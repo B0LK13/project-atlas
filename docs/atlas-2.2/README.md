@@ -5,7 +5,7 @@
 | Status | **PREP ONLY** — docs / contracts / fixtures / benchmarks / ADRs |
 | Unlock gate | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` (after `v2.1.0`) |
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
-| Tip baseline (index cut) | MAIN b431494 / TREE 26a59cd (full b431494dc8860f4f1db3f327c9ccf991699ccfc5 / 26a59cd76bd9df410912b4552ddd907f7a160588) |
+| Tip baseline (index cut) | MAIN 431494 / TREE 26a59cd (full 431494dc8860f4f1db3f327c9ccf991699ccfc5 / 26a59cd76bd9df410912b4552ddd907f7a160588) |
 | Charter | [CHARTER.md](CHARTER.md) |
 | Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
 | Roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) |

@@ -4,7 +4,7 @@
 |---|---|
 | Package | **AS-2.2-PREP-STATUS-001** |
 | Class | **PREP ONLY** — status / inventory snapshot (docs-only) |
-| Tip audited | b431494dc8860f4f1db3f327c9ccf991699ccfc5 / TREE 26a59cd76bd9df410912b4552ddd907f7a160588 (INDEX-007 / PREP-STATUS sync) |
+| Tip audited | 431494dc8860f4f1db3f327c9ccf991699ccfc5 / TREE 26a59cd76bd9df410912b4552ddd907f7a160588 (INDEX-007 / PREP-STATUS sync) |
 | Integration index | [`README.md`](README.md) (package rows + entry links) |
 | Charter | [`CHARTER.md`](CHARTER.md) |
 | Maturity draft | [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md) |
