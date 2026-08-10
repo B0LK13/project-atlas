@@ -5,7 +5,7 @@
 | Status | **PREP ONLY** — docs / contracts / fixtures / benchmarks / ADRs |
 | Unlock gate | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` (after `v2.1.0`) |
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
-| Tip baseline (index cut) | MAIN `7c2100d` / TREE `431b507` (full `7c2100dcda8a7c516f360b025da538eed085a971` / `431b5078d2c4cb83d52c11447e06fddecafb2e26`) |
+| Tip baseline (index cut) | MAIN `d840e3b` / TREE `16eacc3` (full `d840e3b3110975f99aa0a59efab92ca6dd45be9e` / `16eacc32b20a96483e41f26728ad35d3abfb6050`) |
 | Charter | [CHARTER.md](CHARTER.md) |
 | Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
 | Roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) |
@@ -52,6 +52,9 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **TIME-DEEPEN** | `AS-2.2-TIME-MACHINE-DEEPEN-PREP-001` | [#218](https://github.com/B0LK13/project-atlas/pull/218) | [time-machine/AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md](time-machine/AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md) |
 | **DOD-DEEPEN** | `AS-2.2-DOD-DEEPEN-PREP-001` | [#210](https://github.com/B0LK13/project-atlas/pull/210) | [dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md](dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md) · [dod-compiler/INVARIANTS.md](dod-compiler/INVARIANTS.md) · [dod-compiler/FIXTURE-PLAN.md](dod-compiler/FIXTURE-PLAN.md) · [dod-compiler/contracts/](dod-compiler/contracts/) · [dod-compiler/fixtures/](dod-compiler/fixtures/) · [dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md](dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md) |
 | **XPROJ-DEEPEN** | `AS-2.2-XPROJ-DEEPEN-PREP-001` | [#233](https://github.com/B0LK13/project-atlas/pull/233) | [xproj/AS-2.2-XPROJ-DEEPEN-PREP-001.md](xproj/AS-2.2-XPROJ-DEEPEN-PREP-001.md) |
+| **DOC-CHARTER-DEEPEN** | `AS-2.2-DOC-CHARTER-DEEPEN-PREP-001` | [#235](https://github.com/B0LK13/project-atlas/pull/235) | [doc-charter/AS-2.2-DOC-CHARTER-DEEPEN-PREP-001.md](doc-charter/AS-2.2-DOC-CHARTER-DEEPEN-PREP-001.md) |
+| **KF2-DEEPEN** | `AS-2.2-KF2-FABRIC-DEEPEN-PREP-001` | [#236](https://github.com/B0LK13/project-atlas/pull/236) | [kf2-fabric/AS-2.2-KF2-FABRIC-DEEPEN-PREP-001.md](kf2-fabric/AS-2.2-KF2-FABRIC-DEEPEN-PREP-001.md) |
+| **CROSSWALK-DEEPEN** | `AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001` | [#237](https://github.com/B0LK13/project-atlas/pull/237) | [roadmap-crosswalk/AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001.md](roadmap-crosswalk/AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001.md) |
 | **INTEL-DEEPEN** | `AS-2.2-INTEL-SLICE-DEEPEN-PREP-001` | [#229](https://github.com/B0LK13/project-atlas/pull/229) | [intel-slice/AS-2.2-INTEL-SLICE-DEEPEN-PREP-001.md](intel-slice/AS-2.2-INTEL-SLICE-DEEPEN-PREP-001.md) |
 | **TEMPORAL-DEEPEN** | `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001` | [#228](https://github.com/B0LK13/project-atlas/pull/228)/[#230](https://github.com/B0LK13/project-atlas/pull/230) | [temporal-ux/AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md](temporal-ux/AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md) |
 | **ESTATE-OPS-DEEPEN** | `AS-2.2-ESTATE-OPS-DEEPEN-PREP-001` | [#227](https://github.com/B0LK13/project-atlas/pull/227) | [estate-ops/AS-2.2-ESTATE-OPS-DEEPEN-PREP-001.md](estate-ops/AS-2.2-ESTATE-OPS-DEEPEN-PREP-001.md) |
