@@ -1,0 +1,55 @@
+{
+  "$id": "atlas-2.2/ret-hybrid/ret-hybrid-forbidden-action.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "PREP STUB \u2014 RET-HYBRID deepen forbidden actions",
+  "properties": {
+    "action": {
+      "enum": [
+        "semantic-as-authority",
+        "invent-rank-winner",
+        "layer-b-write",
+        "release-cert-stamp",
+        "pilot-invent"
+      ],
+      "type": "string"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "expect": {
+      "const": "reject"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "reason": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "release_certified": {
+      "const": false
+    }
+  },
+  "required": [
+    "action",
+    "expect",
+    "reason",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "title": "RET-HYBRID forbidden action (PREP STUB)",
+  "type": "object"
+}

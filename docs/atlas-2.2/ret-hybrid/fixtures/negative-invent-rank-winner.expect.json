@@ -1,0 +1,10 @@
+{
+  "action": "invent-rank-winner",
+  "authentic_estate": false,
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "must not invent fusion winners without lexical substrate",
+  "release_certified": false
+}

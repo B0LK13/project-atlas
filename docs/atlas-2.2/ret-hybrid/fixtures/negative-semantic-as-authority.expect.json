@@ -1,0 +1,10 @@
+{
+  "action": "semantic-as-authority",
+  "authentic_estate": false,
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "must not treat semantic/vector scores as Layer B authority",
+  "release_certified": false
+}

@@ -1,0 +1,10 @@
+{
+  "action": "layer-b-write",
+  "authentic_estate": false,
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "retrieval plans must not write Layer B",
+  "release_certified": false
+}
