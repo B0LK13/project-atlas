@@ -184,6 +184,12 @@ SCHEMA_FILES: dict[str, str] = {
     "reality-gap-ui-catalog": "reality-gap-ui-catalog.schema.json",
     # AS-2.0-KCI-HARNESS-001 — Knowledge CI harness
     "knowledge-ci-harness": "knowledge-ci-harness.schema.json",
+    # AS-2.0-COLLAB-001 — collaboration stubs (live=false)
+    "collaboration-stub-registry": "collaboration-stub-registry.schema.json",
+    # AS-2.0-SCALE-001 — scale harness plan (live_load=false)
+    "scale-harness-plan": "scale-harness-plan.schema.json",
+    # AS-2.0-SEC-ADV-001 — advanced security control matrix
+    "security-adv-matrix": "security-adv-matrix.schema.json",
 }
 
 
