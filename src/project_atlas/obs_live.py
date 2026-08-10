@@ -47,6 +47,7 @@ def build_live_observability_receipt(
         "oai_responses_poc": (ops / "oai-responses-poc").exists(),
         "authz_audit": (ops / "authz").exists(),
         "pilot_prep": (ops / "pilot").exists(),
+        "perf_baselines": (ops / "perf").exists(),
     }
     payload: dict[str, Any] = {
         "schema_version": 1,

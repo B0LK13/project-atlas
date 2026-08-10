@@ -79,6 +79,11 @@ def bridge_chatgpt_export(
         "source_sha256": digest,
         "turn_count": len(turns),
         "turns": [t.as_dict() for t in turns],
+        "export_variant": (
+            "json"
+            if export_path.suffix.lower() == ".json"
+            else "markdown-or-text"
+        ),
         "quarantine": {
             "envelope_id": quarantine.get("envelope_id"),
             "status": quarantine.get("status"),

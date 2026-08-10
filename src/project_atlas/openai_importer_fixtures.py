@@ -27,7 +27,7 @@ PACKAGE_ID = "AS-2.0-OAI-IMPORT-001"
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _ENV_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _TURN_RE = re.compile(
-    r"^(User|Assistant)\s*:\s*(.+)$",
+    r"^(User|Assistant|Human|AI)\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
 _FENCE_RE = re.compile(r"```(?:text)?\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
@@ -75,7 +75,7 @@ def default_sample_path(*, repo_root: Path | None = None) -> Path:
 
 
 def parse_chat_export(text: str) -> list[ChatTurn]:
-    """Parse User/Assistant turns from a synthetic chat-export fixture."""
+    """Parse User/Assistant (and Human/AI) turns from a chat-export fixture."""
     body = text
     fence = _FENCE_RE.search(text)
     if fence:
@@ -84,14 +84,115 @@ def parse_chat_export(text: str) -> list[ChatTurn]:
     for match in _TURN_RE.finditer(body):
         role_raw = match.group(1).lower()
         role: Literal["user", "assistant"] = (
-            "user" if role_raw == "user" else "assistant"
+            "user" if role_raw in {"user", "human"} else "assistant"
         )
         content = match.group(2).strip()
         if not content:
             raise OpenAIImportFixtureError("oai-import-turn-empty")
         turns.append(ChatTurn(role=role, text=content))
     if not turns:
+        # JSON conversation variants (ChatGPT export / simple role arrays).
+        turns = _parse_json_chat_variants(body)
+    if not turns:
         raise OpenAIImportFixtureError("oai-import-turns-empty")
+    return turns
+
+
+def _parse_json_chat_variants(body: str) -> list[ChatTurn]:
+    """Best-effort parse of JSON chat export shapes (never invents content)."""
+    stripped = body.strip()
+    if not stripped or stripped[0] not in {"{", "["}:
+        return []
+    try:
+        raw = json.loads(stripped)
+    except json.JSONDecodeError:
+        return []
+    turns: list[ChatTurn] = []
+
+    def _role_of(value: object) -> Literal["user", "assistant"] | None:
+        if not isinstance(value, str):
+            return None
+        token = value.strip().lower()
+        if token in {"user", "human", "system"}:
+            # system mapped to user for quarantine reconstruction only
+            return "user"
+        if token in {"assistant", "ai", "tool", "chatgpt"}:
+            return "assistant"
+        return None
+
+    def _append(role: Literal["user", "assistant"], content: object) -> None:
+        if not isinstance(content, str):
+            return
+        text = content.strip()
+        if text:
+            turns.append(ChatTurn(role=role, text=text))
+
+    if isinstance(raw, list):
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            # Simple [{role, content|text}] or nested mapping export rows.
+            role = _role_of(item.get("role") or item.get("author"))
+            if role is None and isinstance(item.get("author"), dict):
+                role = _role_of(item["author"].get("role"))
+            content = item.get("content")
+            if isinstance(content, list):
+                # OpenAI content parts
+                texts = [
+                    p.get("text")
+                    for p in content
+                    if isinstance(p, dict) and isinstance(p.get("text"), str)
+                ]
+                content = "\n".join(t for t in texts if t)
+            if role is None:
+                continue
+            _append(role, content if content is not None else item.get("text"))
+            # Conversations mapping-style message node
+            message = item.get("message")
+            if isinstance(message, dict) and not content:
+                author = message.get("author")
+                role2 = None
+                if isinstance(author, dict):
+                    role2 = _role_of(author.get("role"))
+                parts = message.get("content")
+                text2 = None
+                if isinstance(parts, dict) and isinstance(parts.get("parts"), list):
+                    text2 = "\n".join(
+                        str(p) for p in parts["parts"] if isinstance(p, str)
+                    )
+                if role2 and text2:
+                    _append(role2, text2)
+        return turns
+
+    if isinstance(raw, dict):
+        mapping = raw.get("mapping")
+        if isinstance(mapping, dict):
+            for node in mapping.values():
+                if not isinstance(node, dict):
+                    continue
+                message = node.get("message")
+                if not isinstance(message, dict):
+                    continue
+                author = message.get("author")
+                role = None
+                if isinstance(author, dict):
+                    role = _role_of(author.get("role"))
+                parts = message.get("content")
+                text = None
+                if isinstance(parts, dict) and isinstance(parts.get("parts"), list):
+                    text = "\n".join(
+                        str(p) for p in parts["parts"] if isinstance(p, str)
+                    )
+                if role and text:
+                    _append(role, text)
+        messages = raw.get("messages")
+        if isinstance(messages, list) and not turns:
+            for item in messages:
+                if not isinstance(item, dict):
+                    continue
+                role = _role_of(item.get("role"))
+                if role:
+                    _append(role, item.get("content") or item.get("text"))
     return turns
 
 
