@@ -225,7 +225,18 @@ def make_handler(
                     },
                 )
                 return
-            length = int(self.headers.get("Content-Length", "0") or "0")
+            raw_length = self.headers.get("Content-Length", "0") or "0"
+            try:
+                length = int(raw_length)
+            except ValueError:
+                self._send(
+                    400,
+                    {
+                        "error": "content-length-invalid",
+                        "package_id": PACKAGE_ID,
+                    },
+                )
+                return
             if length < 0 or length > MAX_POST_BYTES:
                 self._send(
                     413,
@@ -239,8 +250,12 @@ def make_handler(
             raw = self.rfile.read(length) if length > 0 else b"{}"
             try:
                 body = json.loads(raw.decode("utf-8"))
-            except (UnicodeError, json.JSONDecodeError) as exc:
-                self._send(400, {"error": f"json-invalid:{exc}"})
+            except (UnicodeError, json.JSONDecodeError):
+                # Avoid leaking parser internals / filesystem paths (ADV path leakage).
+                self._send(
+                    400,
+                    {"error": "json-invalid", "package_id": PACKAGE_ID},
+                )
                 return
             if not isinstance(body, dict):
                 self._send(400, {"error": "body-not-object"})
