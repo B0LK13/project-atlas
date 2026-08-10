@@ -83,7 +83,7 @@ def _seed_two_projects(vault: Path) -> None:
         (proj / "project.md").write_text(f"# {name}\n", encoding="utf-8")
 
 
-# --- ADV-2.1-23: invalid action IDs -----------------------------------------
+# --- ADV-2.1-30: invalid action IDs -----------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -141,7 +141,7 @@ def test_adv_api_rejects_forbidden_action_type(tmp_path: Path) -> None:
         server.shutdown()
 
 
-# --- ADV-2.1-24: cross-project isolation ------------------------------------
+# --- ADV-2.1-31: cross-project isolation ------------------------------------
 
 
 def test_adv_api_cross_project_lists_only_vault_relative_paths(
@@ -198,7 +198,7 @@ def test_adv_api_cross_project_authority_payload_rejected(tmp_path: Path) -> Non
         server.shutdown()
 
 
-# --- ADV-2.1-25: oversized payload ------------------------------------------
+# --- ADV-2.1-32: oversized payload ------------------------------------------
 
 
 def test_adv_api_oversized_payload_exact_boundary(tmp_path: Path) -> None:
@@ -246,7 +246,7 @@ def test_adv_api_invalid_content_length_fail_closed(tmp_path: Path) -> None:
         server.shutdown()
 
 
-# --- ADV-2.1-26: authz bypass attempts --------------------------------------
+# --- ADV-2.1-33: authz bypass attempts --------------------------------------
 
 
 def test_adv_api_default_operator_cannot_post_actions(tmp_path: Path) -> None:
@@ -339,7 +339,7 @@ def test_adv_api_non_action_writes_forbidden(tmp_path: Path) -> None:
         server.shutdown()
 
 
-# --- ADV-2.1-27: duplicate actions ------------------------------------------
+# --- ADV-2.1-34: duplicate actions ------------------------------------------
 
 
 def test_adv_api_duplicate_action_id_rejected(tmp_path: Path) -> None:
@@ -366,7 +366,7 @@ def test_adv_api_duplicate_action_id_rejected(tmp_path: Path) -> None:
         server.shutdown()
 
 
-# --- ADV-2.1-28: internal path leakage --------------------------------------
+# --- ADV-2.1-35: internal path leakage --------------------------------------
 
 
 def test_adv_api_traversal_404_does_not_leak_filesystem(
