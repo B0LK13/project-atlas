@@ -1900,18 +1900,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return EXIT_ERROR
             if args.json:
                 print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
-                else:
-                    inventory_path = (
-                        args.vault
-                        / "generated"
-                        / "federation"
-                        / f"{report['federation_id']}-join-inventory.json"
-                    )
-                    print(f"federation_id: {report['federation_id']}")
-                    print(f"status: {report['status']}")
-                    if report.get("refusal_reason"):
-                        print(f"refusal_reason: {report['refusal_reason']}")
-                    print(f"inventory: {inventory_path}")
+            else:
+                inventory_path = (
+                    args.vault
+                    / "generated"
+                    / "federation"
+                    / f"{report['federation_id']}-join-inventory.json"
+                )
+                print(f"federation_id: {report['federation_id']}")
+                print(f"status: {report['status']}")
+                if report.get("refusal_reason"):
+                    print(f"refusal_reason: {report['refusal_reason']}")
+                print(f"inventory: {inventory_path}")
             return EXIT_OK if report["status"] == "joined" else EXIT_ERROR
         parser.error(  # pragma: no cover
             f"unknown federation command: {args.federation_command}"
