@@ -5092,3 +5092,7 @@ Operator-declared consume-only federation join inventory bound to 1.0 compat anc
 **Directive:** D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001
 
 Optional disabled-by-default provider registry + quarantine envelopes; secrets metadata-only; no SDK wiring.
+
+## AS-2.0-AGENTOS-001
+Thin session envelope bound to 1.0 compat anchor.
+
