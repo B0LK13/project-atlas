@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "package": "AS-DEMO-2.1-001",
+  "corpus": "fixtures/demo/estate",
+  "class": "DEMO_FIXTURE",
+  "honesty": {
+    "demo": true,
+    "authentic_pilot": false,
+    "release_evidence": false,
+    "atlas_2_1_release_certified": false
+  },
+  "projects": ["project-a", "project-b", "project-c"],
+  "hero_conflict": {
+    "project_id": "project-a",
+    "semantic_subject": "doc:harbor-database",
+    "field": "deployment",
+    "values": ["PostgreSQL 15", "PostgreSQL 16"],
+    "expected_state": "unresolved",
+    "forbid_silent_winner": true
+  },
+  "cross_project_dependency": {
+    "from_project_id": "project-b",
+    "claim_type": "runtime-dependency",
+    "field": "runtime",
+    "target": "project-a"
+  },
+  "unknown_fields": {
+    "project_id": "project-c",
+    "fields": [
+      "on-call pager rotation",
+      "primary SLO target (p99)",
+      "disaster-recovery RPO",
+      "production region"
+    ],
+    "expected_ask_outcome": "UNKNOWN"
+  },
+  "stale_evidence": {
+    "project_id": "project-c",
+    "path": "estate/project-c/docs/ADR-002-mysql-superseded.md",
+    "status": "superseded"
+  }
+}
