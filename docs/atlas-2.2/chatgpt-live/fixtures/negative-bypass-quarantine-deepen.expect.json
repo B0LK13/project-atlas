@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001",
+  "action_id": "action.demo.chatgpt-live.bypass-quarantine.deepen.forbidden",
+  "session_id": "live-session-demo-001",
+  "kind": "bypass_quarantine",
+  "status": "rejected_forbidden",
+  "expected_error": "chatgpt-live-bypass-quarantine-forbidden",
+  "pilot_roots": 0,
+  "invent_pilot_roots": false,
+  "canonical_writes": false,
+  "opt_in": true,
+  "authority": {
+    "level": "derived",
+    "note": "QUARANTINE-FIRST reaffirm — deepen vocabulary still rejects quarantine bypass"
+  },
+  "truth_boundary": "CHATGPT LIVE DEEPEN ≠ ENV FORCE / ≠ BILLING WITHOUT OPT-IN / ≠ BYPASS QUARANTINE / ≠ RELEASE CERT",
+  "_prep_note": "FX-2.2-CGL-103 — deepen reaffirmation that quarantine bypass stays forbidden"
+}

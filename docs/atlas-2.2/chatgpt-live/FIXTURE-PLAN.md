@@ -2,14 +2,16 @@
 
 Status: **PREP ONLY**. Payloads under `docs/atlas-2.2/chatgpt-live/fixtures/`
 are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
+**DEMO ≠ RELEASE.**
 
 ## Family
 
 | Family | Path | Package |
 |---|---|---|
-| chatgpt-live | `docs/atlas-2.2/chatgpt-live/fixtures/` | AS-2.2-CHATGPT-LIVE-PREP-001 |
+| chatgpt-live (base) | `docs/atlas-2.2/chatgpt-live/fixtures/` | AS-2.2-CHATGPT-LIVE-PREP-001 |
+| chatgpt-live (deepen) | `docs/atlas-2.2/chatgpt-live/fixtures/` | AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001 |
 
-## Scenarios
+## Scenarios — base (#194)
 
 | ID | File | Intent |
 |---|---|---|
@@ -22,6 +24,15 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | FX-2.2-CGL-007 | `negative-default-on-live.expect.json` | Default-on live → rejected |
 | FX-2.2-CGL-008 | `negative-pilot-invent.expect.json` | PILOT invent → rejected |
 
+## Scenarios — deepen (AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001)
+
+| ID | File | Intent |
+|---|---|---|
+| FX-2.2-CGL-101 | `negative-env-force-live.expect.json` | Env force-live → rejected |
+| FX-2.2-CGL-102 | `negative-billing-without-opt-in.expect.json` | Billing without opt-in → rejected |
+| FX-2.2-CGL-103 | `negative-bypass-quarantine-deepen.expect.json` | Quarantine bypass reaffirm → rejected |
+| FX-2.2-CGL-104 | `negative-release-cert-stamp.expect.json` | Release-cert stamp → rejected |
+
 ## Rules
 
 - `evidence_class = fixture-only`
@@ -30,12 +41,14 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 - No secrets / credentials / personal data / API keys in payloads
 - Never stamp WEB / RELEASE / 2.1 READY / PILOT PASS
 - Never mutate runtime `chatgpt_bridge` from fixture success
+- Env alone ≠ live opt-in; billing/network spend requires explicit `opt_in`
 
 ## Inventory state
 
 | Scenario | State | Gate credit |
 |---|---|---|
 | FX-2.2-CGL-001..008 | payload-present (docs sketch) | **NO** |
+| FX-2.2-CGL-101..104 | payload-present (deepen docs sketch) | **NO** |
 
 Promotion to harness + production schemas requires
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.
