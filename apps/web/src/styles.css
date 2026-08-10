@@ -103,6 +103,18 @@ code,
   font-weight: 600;
 }
 
+/* AS-2.1-WEB-MISSION-WORKSPACE-UX — LIVE / DEMO / FIXTURE visibility */
+.mode-switcher .mode-live.active {
+  border-color: var(--atlas-ok);
+  color: var(--atlas-ok);
+}
+
+.mode-switcher .mode-demo.active,
+.mode-switcher .mode-fixture.active {
+  border-color: var(--atlas-warn);
+  color: var(--atlas-warn);
+}
+
 
 .lab-nav a {
   text-decoration: none;

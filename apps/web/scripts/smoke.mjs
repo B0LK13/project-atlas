@@ -36,10 +36,14 @@ const required = [
   "src/components/ProdNav.tsx",
   "src/components/ProdShell.tsx",
   "src/components/ReadStatusPanel.tsx",
+  "src/components/LensModeSwitcher.tsx",
   "src/hooks/useReadStatus.ts",
+  "src/hooks/useLiveMissionWorkspace.ts",
   "public/sample-read-status.json",
   "public/sample-mission-control.json",
   "public/sample-workspace.json",
+  "public/sample-mission-control.fixture.json",
+  "public/sample-workspace.fixture.json",
 ];
 
 const missing = required.filter((rel) => !existsSync(join(root, rel)));
@@ -182,10 +186,11 @@ const pageChecks = [
   ["src/pages/production/ProjectsPage.tsx", ["UI", "canonical"]],
   ["src/pages/production/KnowledgePage.tsx", ["ui_canonical", "graph_authority", "unknown"]],
   ["src/pages/production/GraphPage.tsx", ["graph_authority", "ui_canonical", "unknown"]],
-  ["src/pages/production/OpsHealthPage.tsx", ["ui_canonical", "graph_authority", "unknown", "Receipt evidence", "no live receipt adapter", "No PILOT estate rows", "WEB APPLICATION ACCEPTED = YES"]],
+  ["src/pages/production/OpsHealthPage.tsx", ["ui_canonical", "graph_authority", "unknown", "Receipt evidence", "useOpsReceipts", "No PILOT estate rows", "WEB APPLICATION ACCEPTED = YES"]],
   ["src/pages/production/CommandCenterPage.tsx", ["ui_canonical", "graph_authority"]],
-  ["src/pages/production/MissionControlPage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority"]],
-  ["src/pages/production/WorkspacePage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority"]],
+  ["src/pages/production/MissionControlPage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority", "LensModeSwitcher", "LIVE", "DEMO", "FIXTURE"]],
+  ["src/pages/production/WorkspacePage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority", "LensModeSwitcher", "LIVE", "DEMO", "FIXTURE"]],
+  ["src/components/LensModeSwitcher.tsx", ["LIVE", "DEMO", "FIXTURE", "mode-switcher"]],
   ["src/components/ReadStatusPanel.tsx", ["ui_canonical", "graph_authority", "unknown_equals_healthy"]],
   ["src/components/ProdShell.tsx", ["skip-link", "Skip to main"]],
   ["src/components/ProdNav.tsx", ["/mission-control", "Mission Control", "/workspace", "Workspace"]],
@@ -232,6 +237,41 @@ if (!Array.isArray(workspaceStub.pilot_estate_rows) || workspaceStub.pilot_estat
   process.exit(1);
 }
 
+for (const fixtureRel of [
+  "public/sample-mission-control.fixture.json",
+  "public/sample-workspace.fixture.json",
+]) {
+  const fixture = JSON.parse(readFileSync(join(root, fixtureRel), "utf8"));
+  if (fixture.data_source !== "fixture") {
+    console.error(`AS-2.1-WEB-MISSION-WORKSPACE-UX smoke FAIL — ${fixtureRel} data_source must be fixture`);
+    process.exit(1);
+  }
+  if (
+    fixture.ui_canonical !== false ||
+    fixture.graph_authority !== false ||
+    fixture.unknown_equals_healthy !== false ||
+    fixture.authentic_pilot !== false
+  ) {
+    console.error(`AS-2.1-WEB-MISSION-WORKSPACE-UX smoke FAIL — ${fixtureRel} must stay non-authority`);
+    process.exit(1);
+  }
+  if (!Array.isArray(fixture.pilot_estate_rows) || fixture.pilot_estate_rows.length !== 0) {
+    console.error(`AS-2.1-WEB-MISSION-WORKSPACE-UX smoke FAIL — ${fixtureRel} must not invent PILOT`);
+    process.exit(1);
+  }
+}
+
+const lensHook = readFileSync(
+  join(root, "src/hooks/useLiveMissionWorkspace.ts"),
+  "utf8",
+);
+for (const needle of ["LensModeId", "fixture", "demo", "live", "no silent invent"]) {
+  if (!lensHook.includes(needle)) {
+    console.error(`AS-2.1-WEB-MISSION-WORKSPACE-UX smoke FAIL — hook missing ${needle}`);
+    process.exit(1);
+  }
+}
+
 console.log(
-  "AS-WEB-ACCEPT-004 smoke PASS — ops-health receipts + mission-control + workspace + knowledge/graph + a11y skip + ADRs (ACCEPTED=YES)",
+  "AS-WEB-ACCEPT-004 + AS-2.1-WEB-MISSION-WORKSPACE-UX smoke PASS — LIVE/DEMO/FIXTURE modes visible (ACCEPTED=YES; no PILOT invent)",
 );
