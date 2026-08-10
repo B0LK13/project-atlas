@@ -32,7 +32,7 @@ to obtain “authentic” discovery hits for demo or pilot optics.
 
 | Area | Limitation |
 |---|---|
-| Browser E2E | May be `BROWSER_E2E_MISSING` until an isolated demo-E2E package lands |
+| Browser E2E | BROWSER_E2E_MISSING via isolated package [rowser-e2e/](browser-e2e/) when harness/tooling blocked |
 | Ask Atlas | Answers only as strong as compiled evidence; unknown/conflict are success classes |
 | Graph | Projection / navigation aid — not Layer B truth |
 | Mode B | Optional; may feed pilot work only if pilot rules pass independently |

@@ -241,9 +241,14 @@ Record for TECHNICAL_PREVIEW:
 BROWSER_E2E_MISSING
 ```
 
-Manual browser walkthrough (Path A and/or Path B) plus smoke/build is the
-frontend verification bar for this demo package until an isolated demo-E2E
-harness lands. Screenshot-only certification is **not** sufficient.
+Isolated package: [rowser-e2e/AS-DEMO-2.1-BROWSER-E2E-001.md](browser-e2e/AS-DEMO-2.1-BROWSER-E2E-001.md)
+(charter alternative path when chips cannot be attested).
+
+Manual browser walkthrough (Path A and/or Path B) plus smoke/build remains the
+preferred frontend verification bar when tooling works. When the harness is
+absent or automation is blocked, record BROWSER_E2E_MISSING via the isolated
+package — screenshot-only certification is **not** sufficient. The isolated
+package alone does **not** stamp TECHNICAL DEMO — VERIFIED.
 
 ---
 

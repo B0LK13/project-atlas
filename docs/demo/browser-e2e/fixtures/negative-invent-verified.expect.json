@@ -1,0 +1,7 @@
+{
+  "expect": "reject",
+  "forbidden_claim": "TECHNICAL DEMO \u2014 VERIFIED",
+  "pilot_pass": false,
+  "reason": "package alone does not verify; other DEMO gates required",
+  "release_certified": false
+}
