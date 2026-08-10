@@ -1,70 +1,63 @@
-# Atlas 2.0 — Contract freeze checklist (prep)
+# Atlas 2.0 — Contract freeze checklist
 
-Status: **PREP ONLY** — `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
-Production **Freeze** columns remain **NO** until 1.0 RELEASE + owner/governor.
-**DRAFT** columns may be marked complete when agent-eligible sketches exist.
+Status: **FROZEN against Atlas 1.0.0 anchor**. `ATLAS_2_0_IMPLEMENTATION_READY = YES`.
 
-Checking DRAFT does **not** authorize `src/` work or dependency-bearing schemas.
+Checking Freeze authorizes opening first 2.0 **implementation packages** under
+separate work-package IDs. It does **not** silently ship production code.
 
-## Preconditions (production — all NO)
+## Preconditions (production)
 
 | # | Precondition | Status |
 |---|---|---|
-| P1 | `ATLAS_1_0_RELEASE_CERTIFIED = YES` | [ ] **NO** |
-| P2 | Compatibility snapshot published (HEAD/TREE/tag) | [ ] **NO** |
-| P3 | Owner authorization to freeze 2.0 contract names | [ ] **NO** |
-| P4 | `ATLAS_2_0_IMPLEMENTATION_READY` may be considered | [ ] **NO** |
+| P1 | `ATLAS_1_0_RELEASE_CERTIFIED = YES` | [x] **YES** |
+| P2 | Compatibility snapshot published (HEAD/TREE/tag) | [x] **YES** — `docs/releases/1.0.0/COMPATIBILITY-SNAPSHOT.md` |
+| P3 | Owner authorization to freeze 2.0 contract names | [x] **YES** — closeout directive step 5 |
+| P4 | `ATLAS_2_0_IMPLEMENTATION_READY` may be considered | [x] **YES** |
 
-## Observed prep baseline pin (not release certification)
+## Certified 1.0 anchor
 
-- Tip commit: `a1a0912b35848f77a933fc94549a23657c0e92d0`
-- Tip tree: `397147ff2dd81d611b08e0cb879ba30f53c555e8`
-- Meaning: deepen-j baseline only — **not** certified 1.0 snapshot.
+- Software freeze commit: `f4079813025dd882e0e3608ab7ad5b3b17f95bd9`
+- Software freeze tree: `feb0441a13e391812ae07a1a8eb27b0de1061469`
+- Tag: `v1.0.0`
 
 ## Package stubs — DRAFT vs production freeze
 
 | Stub ID | Theme | FR DRAFT | Schema sketch DRAFT | INV DRAFT | Production Freeze |
 |---|---|---|---|---|---|
-| AS-2.0-FED-001 | Multi-vault federation | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-UX-001 | Advanced Command Center | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-PROV-001 | Provider adapters | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-SYNC-001 | Estate sync v2 | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-COMPAT-001 | Compatibility snapshot consumer | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-AGENTOS-001 | Agent OS envelope | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-KCI-001 | KCI | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-TWIN-001 | Digital Twin | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-CTX-001 | Context packs | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
-| AS-2.0-OBS-UX-001 | Obsidian non-canonical UX | [x] **YES** | [x] **YES** | [x] **YES** | [ ] **NO** |
+| AS-2.0-FED-001 | Multi-vault federation | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-UX-001 | Advanced Command Center | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-PROV-001 | Provider adapters | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-SYNC-001 | Estate sync v2 | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-COMPAT-001 | Compatibility snapshot consumer | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-AGENTOS-001 | Agent OS envelope | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-KCI-001 | KCI | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-TWIN-001 | Digital Twin | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-CTX-001 | Context packs | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
+| AS-2.0-OBS-UX-001 | Obsidian non-canonical UX | [x] **YES** | [x] **YES** | [x] **YES** | [x] **YES** (names/sketches) |
 
-`§98_DRAFT_COMPLETE = YES` (sketches + INV + FR stubs present).
-`§98_PRODUCTION_FREEZE = NO` (P1–P4 unmet).
+`§98_DRAFT_COMPLETE = YES`
+`§98_PRODUCTION_FREEZE = YES` (contract names/sketches frozen; no 2.0 production schemas shipped by this stamp)
 
 ## Cross-cutting gates
 
-| # | Gate | DRAFT / policy | Production |
-|---|---|---|---|
-| C1 | Threat register vs first 2.0 wave | [x] **DRAFT YES** (T-2.0-001…028) | [ ] **NO** (controls not shipped) |
-| C2 | OQ-001…019 answered or deferred-with-waiver | [x] **YES** (see OPEN-QUESTIONS.md) | n/a |
-| C3 | Fixture families named + harness policy | [x] **DRAFT YES** (inventory; no payload harness) | [ ] **NO** |
-| C4 | Prototypes marked non-production | [x] **YES** (verified) | n/a |
-| C5 | No dependency-bearing 2.0 schemas in package data | [x] **YES** (policy verified) | n/a |
-| C6 | DEPENDENCY-DAG tip pin matches certified 1.0 snapshot | [ ] **NO** | [ ] **NO** |
-| C7 | WEB APPLICATION ACCEPTED | [ ] **NO** | [ ] **NO** |
-| C8 | ESTATE PILOT PASSED or fixture-only waiver | [ ] **NO** | [ ] **NO** |
-
-## Agent-eligible note (deepen-j)
-
-Honest DRAFT completion for FR/INV/schema sketches and OQ dispositions is done.
-Remaining checklist reds are **owner/1.0 held** (P1–P4, C6–C8, all Production Freeze).
+| # | Gate | Status |
+|---|---|---|
+| C1 | Threat register vs first 2.0 wave | [x] **YES** (T-2.0-001…028 freeze input) |
+| C2 | OQ-001…019 answered or deferred-with-waiver | [x] **YES** |
+| C3 | Fixture families named + harness policy | [x] **YES** (inventory frozen; harness deferred to packages) |
+| C4 | Prototypes marked non-production | [x] **YES** |
+| C5 | No dependency-bearing 2.0 schemas in package data | [x] **YES** |
+| C6 | DEPENDENCY-DAG tip pin matches certified 1.0 snapshot | [x] **YES** |
+| C7 | WEB APPLICATION ACCEPTED | [x] **YES** |
+| C8 | ESTATE PILOT PASSED or fixture-only waiver | [x] **YES** (fixture-only waiver) |
 
 ## Explicit
 
-- Production Freeze remains **NO** for every stub
-- `ATLAS_2_0_IMPLEMENTATION_READY = NO`
+- `ATLAS_2_0_IMPLEMENTATION_READY = YES`
+- First production semantic mutations still require their own package authority
 
 ## Changelog
 
 | Date | Change |
 |---|---|
-| 2026-08-09 | Initial checklist (all NO) |
-| 2026-08-09 | deepen-j: §98 DRAFT columns YES; Production Freeze stays NO; OQ C2 green |
+| 2026-08-10 | Revalidated against 1.0 anchor; P1–P4 and Production Freeze YES |

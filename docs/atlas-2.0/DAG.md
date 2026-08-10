@@ -1,6 +1,6 @@
-# Atlas 2.0 — Dependency DAG (prep)
+# Atlas 2.0 — Dependency DAG
 
-Status: **PREP ONLY** — `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Status: **FROZEN against Atlas 1.0.0**. `ATLAS_2_0_IMPLEMENTATION_READY = YES`.
 
 ## Gate chain (normative for Track B)
 
@@ -17,15 +17,14 @@ ATLAS_2_0_IMPLEMENTATION_READY = YES
 2.0 production packages may open (FED / UX / PROV / SYNC / COMPAT)
 ```
 
-While `ATLAS_1_0_RELEASE_CERTIFIED = NO`, Track B may only deepen docs/ADRs/contracts/fixtures.
+## Certified 1.0 snapshot pin
 
-## Observed prep baseline pin (not release certification)
+- Software freeze commit: `f4079813025dd882e0e3608ab7ad5b3b17f95bd9`
+- Software freeze tree: `feb0441a13e391812ae07a1a8eb27b0de1061469`
+- Tag: `v1.0.0`
+- Snapshot doc: `docs/releases/1.0.0/COMPATIBILITY-SNAPSHOT.md`
 
-- Tip commit: `b57cceb383dca8d4a8c967da58abfc799386a829`
-- Tip tree: `7efe25dccee4c91a9095cbf4743865274c4e9dff`
-- Meaning: branch-creation baseline for deepen-g only. It is **not** a release
-  tag, compatibility snapshot, governor signature, or proof that 1.0 is
-  certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
+`DAG_DRAFT_COMPLETE = YES` · `DAG_FREEZE = YES`
 
 ## Package dependency sketch (§98)
 
@@ -44,23 +43,9 @@ AS-2.0-SYNC-001 ──depends──► INT-013 (estate), CORE2-010 (fixture cert
 |---|---|
 | 1.0 Core writers | 1.0 wins all dependency conflicts |
 | `apps/web` | WEB 1.0 acceptance before AS-2.0-UX-001 |
-| Estate SYNC | Blocked until authentic PILOT roots or explicit fixture-only auth |
+| Estate SYNC | Authentic PILOT roots still required for production sync; fixture-only waiver does not open INT-013 production sync |
 
-## Idle deepen (2026-08-09)
+## Revalidation (2026-08-10)
 
-Expanded gate chain + package dependency sketch. Still **PREP ONLY**.
-
-## Deepen-f (2026-08-09)
-
-Pinned the observed prep tip commit/tree while explicitly withholding release
-certification and compatibility-snapshot status. READY remains NO.
-
-## Deepen-g (2026-08-09)
-
-Refreshed the observed prep baseline to
-`b57cceb383dca8d4a8c967da58abfc799386a829` / tree
-`7efe25dccee4c91a9095cbf4743865274c4e9dff`. This is branch ancestry only:
-it is not the certified compatibility snapshot and grants no implementation
-entry. Contract, fixture, and threat residual reviews remain open.
-
-`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+DAG and §98 sketches revalidated against the certified 1.0 anchor above.
+`2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` cleared.

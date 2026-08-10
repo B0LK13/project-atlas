@@ -501,7 +501,7 @@ def create_snapshot(
         "domains_included": domains_included,
         "include_d5": include_d5,
         "identity_samples": identity_samples,
-        "tool_version": "0.1.0",
+        "tool_version": "1.0.0",
         "generated": {"by": GENERATED_BY},
     }
     receipt: dict[str, Any] = {

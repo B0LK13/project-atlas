@@ -2,12 +2,14 @@
 
 ## Supported versions
 
-Project Atlas is pre-1.0 (`pyproject.toml` currently declares `0.1.0`) with
-no tagged releases yet. There is no maintained release branch model; the
-only supported target is the current `main`.
+Project Atlas 1.0.0 is RELEASE CERTIFIED (`pyproject.toml` declares `1.0.0`;
+annotated tag `v1.0.0`). There is no separate long-term release-branch model
+yet; supported targets are the certified tag and current `main` when it is
+a fast-forward descendant of that tag.
 
 | Version | Supported |
 | ------- | --------- |
+| `v1.0.0` / `1.0.0` | Yes |
 | `main`  | Yes       |
 
 ## Reporting a vulnerability

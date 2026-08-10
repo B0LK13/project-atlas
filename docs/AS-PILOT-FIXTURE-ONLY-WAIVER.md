@@ -29,7 +29,7 @@ This is **not**:
 | `PILOT_ROOTS` (authentic) | **0** (known registry paths missing / empty as of 2026-08-10) |
 | ESTATE PILOT PASSED (authentic / production) | **NO** |
 | INT-013 production sync | **NOT OPENED** against authentic estate |
-| RELEASE CERTIFIED | **NO** (separate gate) |
+| RELEASE CERTIFIED | **YES** (AS-REL-001; authentic pilot remains waived / not claimed) |
 
 ## Allowed evidence roots
 

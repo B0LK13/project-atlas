@@ -1,10 +1,12 @@
 # Atlas 2.0 — Z-wave prep index
 
-Status: **PREP ONLY** — `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Status: `ATLAS_2_0_IMPLEMENTATION_READY = YES` after AS-REL-001
+(certified 1.0 anchor `f407981` / `feb0441a` / `v1.0.0`). Historical deepen
+notes below retain prior READY=NO language as audit trail; authoritative flip
+is `IMPLEMENTATION-READY-GATE.md`.
 
-Idle Track B lanes for deepening `docs/atlas-2.0/**` without production
-semantics or dependency-bearing 2.0 schemas. Every lane stays `READY=NO`
-until a governor flips the IMPLEMENTATION READY gate after 1.0 freeze.
+Idle Track B lanes inventoried `docs/atlas-2.0/**`. Production semantics still
+require separate work-package authority after this READY stamp.
 
 ## Prep lanes Z1–Z14
 

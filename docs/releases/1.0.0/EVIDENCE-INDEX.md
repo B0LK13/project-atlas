@@ -1,33 +1,28 @@
-# Atlas 1.0.0 PRE-RC evidence index
+# Atlas 1.0.0 evidence index (§37)
 
 **Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
-**Evidence baseline:** MAIN `d5e46a1be32a1d627a1ae00a0b34ff7d61526457` / TREE `08cfcf185f390c934ffdce2228d45c37b489d165`
-**Index status:** PRE-RC inventory only
-**RELEASE CERTIFIED = NO**
+**Evidence baseline (software freeze):** MAIN `f4079813025dd882e0e3608ab7ad5b3b17f95bd9` / TREE `feb0441a13e391812ae07a1a8eb27b0de1061469`
+**Index status:** RELEASE evidence pack
+**RELEASE CERTIFIED = YES**
 
-This index records evidence packages known to exist at the pinned baseline. Inclusion means discoverable evidence, not a fresh rerun, independent acceptance, or release certification.
+Orphan evidence root: `D:\project-atlas-orphans\gen4-next-wave-parallel-001\`
 
-| Package | Evidence at pinned tip | Evidence class | Release effect |
+| Package | Tip-bound evidence | Evidence class | Release effect |
 |---|---|---|---|
-| ADV-001 | `docs/AS-ADV-RELEASE-001-package.md` | Fixture advanced-certification matrix scaffold | NONE / NO |
-| ADV-002 | `docs/AS-ADV-RELEASE-002-clean-clone.md` | Fixture clean-clone replay | NONE / NO |
-| ADV-CLEAN-CLONE-REHEARSAL | `docs/AS-ADV-CLEAN-CLONE-REHEARSAL.md`; `docs/scripts/adv_clean_clone_rehearsal.py` | Disposable operator rehearsal and fail-closed helper | NONE / NO |
-| ADV-003 | `docs/AS-ADV-RELEASE-003-perf-determinism.md` | Fixture performance and determinism signals | NONE / NO |
-| ADV-004 | `docs/AS-ADV-RELEASE-004-migration-recovery.md`; `tests/unit/test_as_adv_release_004_migration_recovery.py` | Fixture migration/recovery replay with stabilized deterministic-outcome assertions | NONE / NO |
-| SEC-CONT | `docs/AS-SEC-CONT-001-fixture-gates.md`; `docs/AS-SEC-CONT-002-fixture-deepen.md` | Fixture continuous-security gates | NONE / NO |
-| E2E | `tests/integration/test_as_e2e_001_fixture_matrix.py` | Integration fixture matrix | NONE / NO |
-| WEB-ACCEPT | `docs/AS-WEB-ACCEPT-001-checklist.md`; `docs/AS-WEB-ACCEPT-005-governor-evidence.md`; `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | Governor APPROVED in pull request #106 | WEB APPLICATION ACCEPTED = YES; RELEASE still NO |
-| PILOT-WAIVER | `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` | Owner waiver landed in pull request #106 | FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES; authentic estate PILOT = NO |
-| CORE-QUALITY | PR #111 ruff/mypy/full pytest (Core package) | Local RC quality gates | FULL QUALITY PARTIAL — CP Windows normalize_event platform fails recorded |
-| TRACK-B-DEEPEN-H | `docs/atlas-2.0/IMPLEMENTATION-READY-GATE.md`; `docs/atlas-2.0/Z-WAVE-INDEX.md` | PREP/PROTOTYPE theme expansion; implementation readiness remains NO | NONE / NO |
+| ADV-001..004 / SEC / E2E | `AS-IV-ADV-E2E-F407981.md` (42 ADV/SEC/docs/E2E + 61 determinism = 103 PASS) | Independent tip-bound IV | PASS |
+| SYNC / MIG / recovery | `AS-IV-SYNC-MIG-F407981.md` (67 PASS + fixture vault validate) | Independent tip-bound IV | PASS |
+| Core / CP / Web quality | `AS-IV-CORE-CP-WEB-F407981.md` (ruff/mypy/pytest/CP/web smoke PASS) | Independent tip-bound IV | PASS |
+| WEB-ACCEPT | `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` (#106) | Owner/governor | WEB APPLICATION ACCEPTED = YES |
+| PILOT-WAIVER | `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` (#106) | Owner waiver | FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES |
+| Fixture pilot pipeline | `pilot-f407981-clean/` under orphan root | Disposable fixture estate | Supports waiver; not authentic PILOT |
+| Release receipt | `docs/releases/1.0.0/RECEIPT.md` | Authorized certification | RELEASE CERTIFIED = YES |
+| Compatibility snapshot | `docs/releases/1.0.0/COMPATIBILITY-SNAPSHOT.md` | 1.0 anchor for Track B | Post-cert consumer pin |
 
 ## Use rules
 
-1. Verify each path and rerun its applicable commands at the final candidate commit and tree.
-2. Record actual outputs, environment, artifact digests, reviewer identity, and dispositions in a completed receipt.
-3. Keep fixture evidence distinct from authentic estate PILOT evidence.
-4. Preserve the owner-approved WEB acceptance while keeping it distinct from release certification.
-5. Treat Track B prep as non-release, non-readiness evidence; Atlas 1.0 authority wins conflicts.
-6. Treat missing, stale, ambiguous, or unsigned evidence as an unmet gate.
+1. Qualification commands were rerun at the freeze tip above.
+2. Authentic estate PILOT is waived as a release blocker; do not relabel fixture evidence as authentic.
+3. WEB acceptance is prerequisite evidence, not a substitute for the signed receipt.
+4. Track B may consume the compatibility snapshot only after this pack lands and `v1.0.0` is tagged.
 
-At this PRE-RC pin, **WEB APPLICATION ACCEPTED = YES** and **FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES**, while authentic estate **PILOT = NO**. This index grants no release decision. **RELEASE CERTIFIED = NO**.
+At this pin, **WEB APPLICATION ACCEPTED = YES**, **FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES**, authentic estate **PILOT = NO (waived)**, and **RELEASE CERTIFIED = YES**.
