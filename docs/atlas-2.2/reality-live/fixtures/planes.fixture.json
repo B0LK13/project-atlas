@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-REALITY-LIVE-001",
+  "phase": "prep",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "authentic_estate_pilot_passed": false,
+  "invent_pilot_roots": false,
+  "truth_boundary": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B",
+  "planes": [
+    {
+      "plane_id": "conversational",
+      "title": "Conversational",
+      "question": "What did humans/agents say happened?",
+      "authority_class": "quarantine",
+      "can_certify_live_production_alone": false
+    },
+    {
+      "plane_id": "documentary",
+      "title": "Documentary",
+      "question": "What do governed docs claim?",
+      "authority_class": "claim",
+      "can_certify_live_production_alone": false
+    },
+    {
+      "plane_id": "implementation",
+      "title": "Implementation",
+      "question": "What does the code actually provide?",
+      "authority_class": "derived",
+      "can_certify_live_production_alone": false
+    },
+    {
+      "plane_id": "operational",
+      "title": "Operational",
+      "question": "What did runtime actually observe?",
+      "authority_class": "derived",
+      "can_certify_live_production_alone": false
+    }
+  ],
+  "plane_count": 4,
+  "generated": {
+    "by": "project-atlas"
+  }
+}

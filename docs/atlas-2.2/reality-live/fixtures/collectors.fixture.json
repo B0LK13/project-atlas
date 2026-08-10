@@ -1,0 +1,167 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-REALITY-LIVE-001",
+  "phase": "prep",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "authentic_estate_pilot_passed": false,
+  "invent_pilot_roots": false,
+  "mode": "fixture",
+  "truth_boundary": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B",
+  "authority": {
+    "level": "derived",
+    "note": "Fixture collectors sample only; never invents estate or stamps release"
+  },
+  "plane_reports": [
+    {
+      "plane_id": "conversational",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "observations": [
+        {
+          "observation_id": "conv-export-sample",
+          "source_ref": "docs/atlas-2.0/fixtures/openai-importer/sample-chat-export.md",
+          "signal": "export_quarantined",
+          "notes": "Synthetic export; quarantine-class"
+        }
+      ],
+      "maturity_signals": [
+        {
+          "surface": "chatgpt-bridge",
+          "observed_class": "FIXTURE_ONLY",
+          "support_level": "weak",
+          "anchors": ["conv-export-sample"]
+        }
+      ],
+      "findings": []
+    },
+    {
+      "plane_id": "documentary",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "observations": [
+        {
+          "observation_id": "doc-board-api",
+          "source_ref": "docs/atlas-2.1/PACKAGE-BOARD.md",
+          "signal": "board_claim",
+          "notes": "AS-2.1-API-SERVER-001 claimed LIVE_READ_ONLY deepen"
+        },
+        {
+          "observation_id": "doc-gap-pilot",
+          "source_ref": "docs/atlas-2.1/KNOWN-GAPS.md",
+          "signal": "gap_row_status",
+          "notes": "Gap I authentic PILOT OWNER_BLOCKED"
+        }
+      ],
+      "maturity_signals": [
+        {
+          "surface": "api",
+          "observed_class": "LIVE_READ_ONLY",
+          "support_level": "weak",
+          "anchors": ["doc-board-api"]
+        },
+        {
+          "surface": "pilot",
+          "observed_class": "ABSENT",
+          "support_level": "strong",
+          "anchors": ["doc-gap-pilot"]
+        }
+      ],
+      "findings": []
+    },
+    {
+      "plane_id": "implementation",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "observations": [
+        {
+          "observation_id": "impl-reality-gap-module",
+          "source_ref": "src/project_atlas/reality_gap.py",
+          "signal": "fixture_harness_only",
+          "notes": "AS-2.0 static inventory; predecessor of live collectors"
+        },
+        {
+          "observation_id": "impl-api-surface",
+          "source_ref": "src/project_atlas",
+          "signal": "module_present",
+          "notes": "Live API modules exist on tip; PREP does not re-inventory bytes"
+        }
+      ],
+      "maturity_signals": [
+        {
+          "surface": "reality-gap",
+          "observed_class": "FIXTURE_ONLY",
+          "support_level": "strong",
+          "anchors": ["impl-reality-gap-module"]
+        },
+        {
+          "surface": "api",
+          "observed_class": "LIVE_READ_ONLY",
+          "support_level": "weak",
+          "anchors": ["impl-api-surface"]
+        }
+      ],
+      "findings": []
+    },
+    {
+      "plane_id": "operational",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "observations": [
+        {
+          "observation_id": "ops-empty-honest",
+          "source_ref": "generated/ops/reality-live-gap-report.json",
+          "signal": "receipt_empty_honest",
+          "notes": "Runtime report absent in PREP; empty-ok UNKNOWN"
+        }
+      ],
+      "maturity_signals": [
+        {
+          "surface": "reality-live",
+          "observed_class": "UNKNOWN",
+          "support_level": "strong",
+          "anchors": ["ops-empty-honest"]
+        }
+      ],
+      "findings": [
+        {
+          "finding_id": "ops-runtime-absent-prep",
+          "gap_kind": "claim-without-evidence",
+          "severity": "info",
+          "summary": "Live collectors not wired; operational plane intentionally UNKNOWN in PREP"
+        }
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "gap_id": "reality-live-runtime-unwired",
+      "gap_kind": "claim-without-evidence",
+      "surface": "reality-live",
+      "planes": ["documentary", "implementation", "operational"],
+      "claimed_class": "DOCUMENTATION_ONLY",
+      "observed_class": "UNKNOWN",
+      "summary": "PREP docs exist; runtime collectors unlock only post v2.1.0",
+      "blocking_release": false
+    },
+    {
+      "gap_id": "pilot-invent-forbidden",
+      "gap_kind": "pilot-invent",
+      "surface": "pilot",
+      "planes": ["operational"],
+      "claimed_class": "LIVE_PRODUCTION",
+      "observed_class": "ABSENT",
+      "summary": "Adversarial sample: inventing PILOT roots is fail-closed; wake AUTHENTIC_ESTATE_ROOT_AVAILABLE",
+      "blocking_release": true
+    }
+  ],
+  "gap_count": 2,
+  "plane_report_count": 4,
+  "generated": {
+    "by": "project-atlas"
+  }
+}
