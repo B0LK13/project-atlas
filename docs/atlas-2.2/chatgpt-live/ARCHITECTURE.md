@@ -80,13 +80,31 @@ A session result is a **derived, deterministic** envelope:
 - `atlas_2_1_release_certified = false` on all prep fixtures
 - `pilot_roots = 0`
 
+## Deepen delta (AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001)
+
+Base PREP (#194) covered quarantine-first stubs and base negatives. Deepen adds
+peer-depth fail-closed vocabulary:
+
+| Theme | Forbidden kind | Fixture |
+|---|---|---|
+| Env | `env_force_live` | FX-2.2-CGL-101 |
+| Billing | `billing_without_opt_in` | FX-2.2-CGL-102 |
+| Quarantine | `bypass_quarantine` (reaffirm) | FX-2.2-CGL-103 |
+| Release cert | `release_cert_stamp` | FX-2.2-CGL-104 |
+
+Ask Atlas 2 deepen (`ask-atlas-2/**`) remains a **peer** — cite quarantine
+receipts only; do not dual-own answer-lens contracts.
+
 ## Non-goals
 
 - Mutating `project_atlas.chatgpt_bridge` or flipping export defaults
 - Default-on live network clients or credential stores in Core
+- Env-forced live enablement or silent billing/network spend
 - Promoting quarantined LLM text to Layer B / claims
 - Subjective trust / confidence scores
 - Authentic estate PILOT evidence from fixtures
+- Stamping `ATLAS_2_1_RELEASE_CERTIFIED` from fixture rehearsal (DEMO ≠ RELEASE)
+- Dual-owning `docs/atlas-2.2/ask-atlas-2/**`
 
 ## Security / safety
 
@@ -94,3 +112,4 @@ A session result is a **derived, deterministic** envelope:
 - Secrets: metadata-only; never embed matched secret content
 - Quarantine-first: live prep never calls `_promote` / never mutates Layer B
 - Live opt-in remains explicit; disabled/default path stays export-only
+- Env presence ≠ opt-in; billing requires explicit operator consent
