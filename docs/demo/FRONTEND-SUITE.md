@@ -235,15 +235,24 @@ As of this runbook, `apps/web` ships **Node smoke** (`scripts/smoke.mjs`) and
 unit/file gates — **no** repository-standard Playwright/Cypress suite for
 the production shell.
 
-Record for TECHNICAL_PREVIEW:
+Record for TECHNICAL_PREVIEW when the driver is absent:
 
 ```text
 BROWSER_E2E_MISSING
 ```
 
-Manual browser walkthrough (Path A and/or Path B) plus smoke/build is the
-frontend verification bar for this demo package until an isolated demo-E2E
-harness lands. Screenshot-only certification is **not** sufficient.
+Isolated harness / honesty package (charter alternative path — does **not**
+auto-stamp **TECHNICAL DEMO — VERIFIED**):
+
+[`browser-e2e/AS-DEMO-2.1-BROWSER-E2E-001.md`](browser-e2e/AS-DEMO-2.1-BROWSER-E2E-001.md)
+
+Operator checklist:
+[`browser-e2e/checklists/browser-e2e.md`](browser-e2e/checklists/browser-e2e.md)
+
+Manual Path A/B chip walkthrough (this runbook) plus smoke/build remains the
+frontend observation bar when chips are claimed. The isolated package records
+harness absence fail-closed — it must **not** invent Path A observation.
+Screenshot-only certification is **not** sufficient.
 
 ---
 

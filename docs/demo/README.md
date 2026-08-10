@@ -48,6 +48,7 @@ NOT AUTHENTIC PILOT PASS
 | `fixtures/` | `DEMO_FIXTURE` corpus | D03 |
 | `BACKEND-SUITE.md` / `checklists/backend.md` | Backend gate runbook | D04 |
 | `FRONTEND-SUITE.md` / `checklists/frontend.md` | Web + E2E path | D05 |
+| `browser-e2e/` (`AS-DEMO-2.1-BROWSER-E2E-001`) | Isolated `BROWSER_E2E_MISSING` harness (≠ auto VERIFIED) | Demo browser-E2E package |
 | `API-MCP-E2E.md` / `checklists/api-mcp.md` | Live smoke + MCP consistency | D06 |
 | `L3-OAI-OPTIONAL.md` | Non-blocking optional lane | D07 |
 | `ADV-DEMO.md` / `CERTIFICATE-TEMPLATE.md` | ADV + cert template | D08 |

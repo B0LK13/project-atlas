@@ -1,0 +1,17 @@
+{
+  "package_id": "AS-DEMO-2.1-BROWSER-E2E-001",
+  "scenario_id": "FX-DEMO-BROWSER-E2E-NEG-003",
+  "forbidden_inventory": {
+    "release_certified": true,
+    "atlas_2_1_release_certified": true,
+    "claim": "ATLAS_2_1_RELEASE_CERTIFIED from demo browser harness"
+  },
+  "expected_error": "browser-e2e-release-certified-forbidden",
+  "release_certified": false,
+  "atlas_2_1_release_certified": false,
+  "pilot_pass": false,
+  "status": "BROWSER_E2E_MISSING",
+  "evidence_class": "DEMO_FIXTURE",
+  "authentic_estate": false,
+  "notes": "NOT RELEASE CERTIFIED — demo browser harness must never invent release certification"
+}

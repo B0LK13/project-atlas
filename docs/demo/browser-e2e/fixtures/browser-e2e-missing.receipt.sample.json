@@ -1,0 +1,48 @@
+{
+  "package_id": "AS-DEMO-2.1-BROWSER-E2E-001",
+  "scenario_id": "FX-DEMO-BROWSER-E2E-001",
+  "status": "BROWSER_E2E_MISSING",
+  "path_a_chips_observed": false,
+  "path_b_chips_observed": false,
+  "technical_demo_verified": false,
+  "release_certified": false,
+  "atlas_2_1_release_certified": false,
+  "pilot_pass": false,
+  "authentic_estate": false,
+  "evidence_class": "DEMO_FIXTURE",
+  "not_release_evidence": true,
+  "tooling_blocker": {
+    "repo_playwright": false,
+    "repo_cypress": false,
+    "browser_mcp": "unavailable_or_failed",
+    "notes": [
+      "No repository-standard Playwright/Cypress suite for apps/web on tip",
+      "Browser MCP tab create/navigate failed against localhost in harvest evidence",
+      "FRONTEND-SUITE Node smoke/build remains separate; HTTP demo-up Path A 200 is not chip observation"
+    ]
+  },
+  "charter_alternative_path": {
+    "enabled_by_this_package": true,
+    "auto_stamps_technical_demo_verified": false,
+    "still_requires_other_gates": [
+      "pipeline",
+      "api",
+      "mcp",
+      "adv",
+      "pytest",
+      "frontend_smoke_build"
+    ]
+  },
+  "non_claims": [
+    "NOT RELEASE CERTIFIED",
+    "NOT AUTHENTIC PILOT PASS",
+    "package alone does not stamp TECHNICAL DEMO — VERIFIED",
+    "BROWSER_E2E_MISSING is not BROWSER_E2E_PASS"
+  ],
+  "labels": [
+    "DEMO",
+    "NOT AUTHENTIC PILOT",
+    "NOT RELEASE EVIDENCE"
+  ],
+  "notes": "Sample receipt only — operators must record tip SHA and blocker notes in orphan evidence; do not invent Path A chips or VERIFIED from this file alone"
+}
