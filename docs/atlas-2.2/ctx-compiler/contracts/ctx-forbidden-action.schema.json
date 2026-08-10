@@ -5,6 +5,11 @@
   "description": "PREP STUB \u2014 ctx-compiler deepen forbidden actions",
   "properties": {
     "action": {
+      "enum": [
+        "layer-b-write",
+        "llm-as-authority",
+        "budget-invent"
+      ],
       "type": "string"
     },
     "expect": {
