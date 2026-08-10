@@ -100,6 +100,8 @@ def test_all_expected_schemas_available() -> None:
         "twin-projection-fixture",
         "ux-mode-catalog",
         "validation-finding",
+        "web-ask-atlas-contract",
+        "web-surface-catalog",
         "workspace-registry-dry-run",
         "xproj-conflict-report",
         "xproj-duplicate-candidate",
