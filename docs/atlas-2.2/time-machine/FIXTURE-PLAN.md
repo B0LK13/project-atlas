@@ -1,15 +1,18 @@
-# Knowledge Time Machine — fixture plan (PREP)
+# Knowledge Time Machine — fixture plan (PREP deepen)
 
-Status: **PREP ONLY**. Payloads under `docs/atlas-2.2/time-machine/fixtures/`
-are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
+Status: **PREP ONLY**. Base positive payloads remain under
+`docs/atlas-2.2/time-machine/fixtures/` (peer to PR #168). Negative deepen
+payloads live in the same directory with `negative-*` prefix. **Gate credit:
+NO.** Runner: absent until post-unlock.
 
-## Family
+## Families
 
 | Family | Path | Package |
 |---|---|---|
-| time-machine | `docs/atlas-2.2/time-machine/fixtures/` | AS-2.2-TIME-MACHINE-001 |
+| time-machine (base) | `docs/atlas-2.2/time-machine/fixtures/` | AS-2.2-TIME-MACHINE-001 (peer positives) |
+| time-machine deepen | `docs/atlas-2.2/time-machine/fixtures/negative-*.expect.json` | AS-2.2-TIME-MACHINE-DEEPEN-PREP-001 |
 
-## Scenarios
+## Base scenarios (peer — do not relocate)
 
 | ID | File | Intent |
 |---|---|---|
@@ -21,19 +24,34 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | FX-2.2-TM-006 | `decision-diff.sample.json` | Review disposition transition sketch |
 | FX-2.2-TM-007 | `rejected-wall-clock.expect.json` | `as_of=now` → rejected_malformed |
 
+## Deepen scenarios (negative)
+
+| ID | File | Intent |
+|---|---|---|
+| FX-2.2-TM-101 | `negative-layer-b-promotion.expect.json` | Layer B / canonical promotion → rejected |
+| FX-2.2-TM-102 | `negative-llm-authority.expect.json` | LLM authority stamp on diff → rejected |
+| FX-2.2-TM-103 | `negative-silent-overlap-winner.expect.json` | Silent overlap winner → rejected |
+| FX-2.2-TM-104 | `negative-pilot-invent.expect.json` | Fixture-as-authentic-pilot → rejected |
+| FX-2.2-TM-105 | `negative-release-cert-stamp.expect.json` | Release-cert stamp from fixture → rejected |
+
 ## Rules
 
 - `evidence_class = fixture-only`
 - `pilot_roots = 0`
-- Synthetic relative paths only; no host-specific estate roots
+- `authority.level = derived` on any referenced snapshot/diff context
+- Synthetic relative paths / ids only; no host-specific estate roots
 - No secrets / credentials / personal data in payloads
-- Never stamp WEB / RELEASE / 2.1 READY / PILOT PASS
+- Never stamp WEB / RELEASE / 2.1 READY / PILOT PASS / unlock YES
+- `generated` may include `by` only — never wall-clock `at`
+- Never mutate runtime from fixture success
+- Do not relocate or duplicate base positive fixtures
 
 ## Inventory state
 
 | Scenario | State | Gate credit |
 |---|---|---|
-| FX-2.2-TM-001..007 | payload-present (docs sketch) | **NO** |
+| FX-2.2-TM-001..007 | payload-present (base peer) | **NO** |
+| FX-2.2-TM-101..105 | payload-present (docs sketch) | **NO** |
 
-Promotion to `fixtures/atlas-2.2/` + harness requires
+Promotion to harness + production schemas requires
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.

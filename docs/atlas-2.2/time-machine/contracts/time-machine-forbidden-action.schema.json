@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/time-machine-forbidden-action.schema.json",
+  "title": "time-machine-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-TIME-MACHINE-DEEPEN-PREP-001 fail-closed action proposal. Reject Layer B promotion, LLM authority stamps, silent overlap winners, wall-clock as-of, graph-as-authority, fixture-as-pilot, and release-cert stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "consume_only",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TIME-MACHINE-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "scope_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "kind": {
+      "enum": [
+        "layer_b_promotion",
+        "llm_authority_stamp",
+        "silent_overlap_winner",
+        "wall_clock_as_of",
+        "graph_as_authority",
+        "fixture_as_authentic_pilot",
+        "release_cert_from_fixture"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "time-machine-layer-b-promotion-forbidden",
+        "time-machine-llm-authority-forbidden",
+        "time-machine-silent-overlap-forbidden",
+        "time-machine-wall-clock-as-of-forbidden",
+        "time-machine-graph-as-authority-forbidden",
+        "time-machine-fixture-as-pilot-forbidden",
+        "time-machine-release-cert-from-fixture-forbidden"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "canonical_writes": { "type": "boolean" },
+    "consume_only": { "const": true },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate": { "const": false },
+    "evidence_class": { "const": "fixture-only" },
+    "truth_boundary": {
+      "const": "TIME MACHINE AS-OF ≠ AUTHORITY / DIFF ≠ MUTATION / GRAPH ≠ AUTHORITY / FIXTURE ≠ PILOT"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

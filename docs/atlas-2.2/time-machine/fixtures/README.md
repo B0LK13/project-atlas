@@ -13,5 +13,15 @@ Aligned with AS-2.0-TEMPORAL-001 fail-closed as-of semantics.
 | `decision-diff.sample.json` | FX-2.2-TM-006 | Disposition transition |
 | `rejected-wall-clock.expect.json` | FX-2.2-TM-007 | `now` rejected |
 
+## Deepen negatives (AS-2.2-TIME-MACHINE-DEEPEN-PREP-001)
+
+| File | Scenario | Notes |
+|---|---|---|
+| `negative-layer-b-promotion.expect.json` | FX-2.2-TM-101 | Layer B promotion forbidden |
+| `negative-llm-authority.expect.json` | FX-2.2-TM-102 | LLM authority forbidden |
+| `negative-silent-overlap-winner.expect.json` | FX-2.2-TM-103 | Silent overlap winner forbidden |
+| `negative-pilot-invent.expect.json` | FX-2.2-TM-104 | Fixture-as-pilot forbidden |
+| `negative-release-cert-stamp.expect.json` | FX-2.2-TM-105 | Release-cert stamp forbidden |
+
 **Gate credit: NO.** Runner: absent until post-unlock harness.
 **PILOT roots: 0.** Evidence class: fixture-only.
