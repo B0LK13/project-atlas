@@ -1,7 +1,7 @@
 # Atlas 1.0.0 PRE-RC certification checklist
 
 **Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
-**Baseline:** MAIN `30ed9be3ddda098cf2c56ee24773c957858ea225` / TREE `dc2d45ef744cd126c44c00e6ccb088e0a90a5ee0`
+**Baseline:** MAIN `518bdef66b24e099b889d2165540a6ca756e8aa4` / TREE `d0eaa64a216b3f8bf3d9a67857f1b13a7f8af41c`
 **RELEASE CERTIFIED = NO**
 
 Owner-gates closeout landed in pull request #106 and unlocked WEB acceptance plus the fixture-only pilot waiver. Remaining unchecked rows still block release certification.

@@ -2,7 +2,7 @@
 
 **Template status:** UNSIGNED / BLANK
 **Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
-**PRE-RC evidence baseline:** MAIN `30ed9be3ddda098cf2c56ee24773c957858ea225` / TREE `dc2d45ef744cd126c44c00e6ccb088e0a90a5ee0`
+**PRE-RC evidence baseline:** MAIN `518bdef66b24e099b889d2165540a6ca756e8aa4` / TREE `d0eaa64a216b3f8bf3d9a67857f1b13a7f8af41c`
 **RELEASE CERTIFIED = NO**
 
 This template has no certification authority until completed from independently verified evidence and signed by an authorized reviewer.

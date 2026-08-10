@@ -6,8 +6,8 @@
 
 Authority tip after pull request #106:
 
-- MAIN: `30ed9be3ddda098cf2c56ee24773c957858ea225`
-- TREE: `dc2d45ef744cd126c44c00e6ccb088e0a90a5ee0`
+- MAIN: `518bdef66b24e099b889d2165540a6ca756e8aa4`
+- TREE: `d0eaa64a216b3f8bf3d9a67857f1b13a7f8af41c`
 
 The files here inventory candidate evidence and reserve the shape of a future certification receipt. They do not assert that the release is certified. Every remaining release gate must be independently verified against the exact candidate commit and tree.
 
