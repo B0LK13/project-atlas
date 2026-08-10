@@ -1,18 +1,20 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-RL-101 \u2014 expected rejection of pilot_invent (allow_pilot_invent=true)",
   "action_id": "action.demo.reality-live.pilot-invent.forbidden",
-  "plane_id": "operational",
-  "kind": "pilot_invent",
-  "status": "rejected_forbidden",
-  "expected_error": "reality-live-pilot-invent-forbidden",
-  "pilot_roots": 0,
-  "invent_pilot_roots": false,
-  "canonical_writes": false,
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "Collectors must not invent PILOT roots or synthetic estate markers"
   },
-  "truth_boundary": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B",
-  "_prep_note": "FX-2.2-RL-101 — expected rejection of pilot_invent (allow_pilot_invent=true)"
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "reality-live-pilot-invent-forbidden",
+  "invent_pilot_roots": false,
+  "kind": "pilot_invent",
+  "package_id": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001",
+  "pilot_roots": 0,
+  "plane_id": "operational",
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "REALITY-LIVE GAP REPORT \u2260 PILOT PASS / \u2260 WEB ACCEPTED / \u2260 RELEASE CERT / \u2260 Layer B"
 }
