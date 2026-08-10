@@ -1974,7 +1974,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "kf2":
         if args.kf2_command == "namespace":
             try:
-                record = register_namespace(
+                ns_record = register_namespace(
                     args.vault,
                     namespace_id=args.namespace_id,
                     display_name=args.display_name,
@@ -1983,16 +1983,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             except (Kf2Error, CompatAnchorError, OSError, ValueError, TypeError) as exc:
                 _log.error("kf2 namespace failed: %s", exc)
                 return EXIT_ERROR
-            payload = record.as_dict()
+            payload = ns_record.as_dict()
             if args.json:
                 print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
             else:
-                print(f"namespace_id: {record.namespace_id}")
+                print(f"namespace_id: {ns_record.namespace_id}")
                 print(f"compat_snapshot_id: {payload['compat_snapshot_id']}")
             return EXIT_OK
         if args.kf2_command == "entity":
             try:
-                record = register_entity(
+                entity_record = register_entity(
                     args.vault,
                     entity_id=args.entity_id,
                     namespace_id=args.namespace_id,
@@ -2003,16 +2003,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             except (Kf2Error, CompatAnchorError, OSError, ValueError, TypeError) as exc:
                 _log.error("kf2 entity failed: %s", exc)
                 return EXIT_ERROR
-            payload = record.as_dict()
+            payload = entity_record.as_dict()
             if args.json:
                 print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
             else:
-                print(f"entity_id: {record.entity_id}")
-                print(f"namespace_id: {record.namespace_id}")
+                print(f"entity_id: {entity_record.entity_id}")
+                print(f"namespace_id: {entity_record.namespace_id}")
             return EXIT_OK
         if args.kf2_command == "rel":
             try:
-                record = register_relationship(
+                rel_record = register_relationship(
                     args.vault,
                     relationship_id=args.relationship_id,
                     from_entity_id=args.from_entity_id,
@@ -2023,12 +2023,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             except (Kf2Error, CompatAnchorError, OSError, ValueError, TypeError) as exc:
                 _log.error("kf2 rel failed: %s", exc)
                 return EXIT_ERROR
-            payload = record.as_dict()
+            payload = rel_record.as_dict()
             if args.json:
                 print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
             else:
-                print(f"relationship_id: {record.relationship_id}")
-                print(f"relation_type: {record.relation_type}")
+                print(f"relationship_id: {rel_record.relationship_id}")
+                print(f"relation_type: {rel_record.relation_type}")
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown kf2 command: {args.kf2_command}"
