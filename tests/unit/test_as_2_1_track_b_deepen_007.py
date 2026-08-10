@@ -88,12 +88,14 @@ def test_l3_job_matrix_allowed_jobs(tmp_path: Path) -> None:
     report = run_bounded_l3_loop(
         vault,
         policy_id="pol-m",
-        jobs=["version", "version"],
+        jobs=["version"],
         operator=op,
     )
     assert report["promoted"] is False
-    assert len(report["jobs_run"]) == 2
-    assert all(j["exit_code"] == 0 for j in report["jobs_run"])
+    assert len(report["jobs_run"]) == 1
+    assert report["jobs_run"][0]["exit_code"] == 0
+    assert report["levels_enabled"]["4"] is False
+    assert report["levels_enabled"]["5"] is False
 
 
 def test_l3_job_matrix_forbidden_disabled_and_exceed_max(tmp_path: Path) -> None:
