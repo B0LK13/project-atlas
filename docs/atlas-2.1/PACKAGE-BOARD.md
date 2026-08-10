@@ -1,6 +1,6 @@
 # Atlas 2.1 — Package board
 
-Tip: `d9b6732` + pilot/OAI-POC hardening PR. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
+Tip: `14ae2e2` + ADV live harden. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
 
 | Package | Wave | Status | Notes |
 |---|---|---|---|
@@ -19,7 +19,8 @@ Tip: `d9b6732` + pilot/OAI-POC hardening PR. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
 | AS-2.1-WEB-ACTIONS-001 | 2 | MERGED #145 | Action ledger |
 | AS-2.1-PROV-LIVE-001 | 2 | MERGED #145 | local-model live |
 | AS-2.1-ASK-ATLAS-LIVE / OBS-LIVE | 2 | MERGED #145 | Polish |
-| AS-2.1-OAI-RESPONSES-POC-001 | 3 | LANDING | EXPERIMENTAL non-blocking |
+| AS-2.1-OAI-RESPONSES-POC-001 | 3 | MERGED #146 | EXPERIMENTAL non-blocking |
+| AS-2.1-ADV-LIVE-001 | 3 | LANDING | ADV suite + OBS deepen |
 | AS-2.1-PILOT-AUTH-001 | — | **OWNER_BLOCKED** | FOUND=0; wake AUTHENTIC_ESTATE_ROOT_AVAILABLE |
 | AS-2.1-SYNC-AUTH / TWIN-AUTH | 3 | BLOCKED on PILOT | Authentic only |
 | AS-REL-2.1-001 | RC | NOT OPEN | v2.1.0 |
