@@ -17,3 +17,4 @@ Conceptual substrate (do not fork here):
 | `kf2-estate-fabric-inventory.schema.json` | Estate KF fabric inventory envelope |
 | `kf2-estate-fabric-scenario.schema.json` | Substrate scenario row |
 | `kf2-estate-projection.schema.json` | Read-only projection over selected buckets |
+| `kf2-fabric-forbidden-action.schema.json` | Deepen fail-closed action (AS-2.2-KF2-FABRIC-DEEPEN-PREP-001) |
