@@ -238,6 +238,9 @@ def make_handler(
                 )
                 return
             if length < 0 or length > MAX_POST_BYTES:
+                # Close without reading body (DoS-safe). Clients — especially on
+                # Windows — may see connection abort instead of a full 413 body.
+                self.close_connection = True
                 self._send(
                     413,
                     {
