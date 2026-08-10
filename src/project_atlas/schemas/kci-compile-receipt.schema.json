@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/kci-compile-receipt.schema.json",
+  "title": "KCI Compile Receipt",
+  "description": "AS-2.0-KCI-001 consume-only compile receipt. Never promotes Layer B authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "receipt_id",
+    "request_id",
+    "status",
+    "consume_only",
+    "authority_promoted",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-KCI-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "status": { "enum": ["accepted", "refused"] },
+    "consume_only": { "const": true },
+    "authority_promoted": { "const": false },
+    "outcome_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+      }
+    },
+    "refusal_reason": { "type": "string", "maxLength": 240 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "KCI RECEIPT ≠ LAYER B AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

@@ -31,6 +31,12 @@ from project_atlas.compat_anchor import (
     load_compatibility_anchor,
 )
 from project_atlas.config import load_config
+from project_atlas.context_pack import (
+    ContextEntry,
+    ContextPackError,
+    ProvenancePointer,
+    build_context_pack,
+)
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.domain.knowledge_query import KnowledgeQueryErrorCode, QueryShape
 from project_atlas.event_retention import (
@@ -61,6 +67,11 @@ from project_atlas.graph_resolution import (
 )
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
+from project_atlas.kci import (
+    KciError,
+    build_compile_request,
+    issue_compile_receipt,
+)
 from project_atlas.kf2_fabric import (
     Kf2Error,
     register_entity,
@@ -966,6 +977,110 @@ def build_parser() -> argparse.ArgumentParser:
         help="Opt-in scan/quarantine path (still never promotes to authority).",
     )
     provider_quarantine.add_argument("--json", action="store_true")
+
+    # AS-2.0-KCI-001 — consume-only compile request / receipt envelopes.
+    kci_parser = subparsers.add_parser(
+        "kci",
+        help=(
+            "Knowledge Compilation Interface envelopes "
+            "(AS-2.0-KCI-001; consume-only; ≠ Layer B authority)."
+        ),
+    )
+    kci_sub = kci_parser.add_subparsers(dest="kci_command", required=True)
+    kci_req = kci_sub.add_parser(
+        "request",
+        help="Build a consume-only KCI compile-request record.",
+    )
+    kci_req.add_argument("--request-id", required=True)
+    kci_req.add_argument(
+        "--source-ref",
+        action="append",
+        required=True,
+        dest="source_refs",
+        help="Provenance/source pointer (repeatable; required).",
+    )
+    kci_req.add_argument(
+        "--subject-ref",
+        action="append",
+        default=None,
+        dest="subject_refs",
+        help="Optional subject pointer (repeatable).",
+    )
+    kci_req.add_argument(
+        "--fixture-mode",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    kci_req.add_argument("--notes", default=None)
+    kci_req.add_argument(
+        "--vault",
+        type=Path,
+        required=True,
+        help="Vault that receives generated/kci/<id>-compile-request.json.",
+    )
+    kci_req.add_argument("--json", action="store_true")
+    kci_receipt = kci_sub.add_parser(
+        "receipt",
+        help="Issue a consume-only KCI compile-receipt (never promotes authority).",
+    )
+    kci_receipt.add_argument("--receipt-id", required=True)
+    kci_receipt.add_argument("--request-id", required=True)
+    kci_receipt.add_argument(
+        "--status",
+        choices=["accepted", "refused"],
+        default="accepted",
+    )
+    kci_receipt.add_argument(
+        "--outcome-ref",
+        action="append",
+        default=None,
+        dest="outcome_refs",
+    )
+    kci_receipt.add_argument("--refusal-reason", default=None)
+    kci_receipt.add_argument(
+        "--vault",
+        type=Path,
+        required=True,
+        help="Vault that receives generated/kci/<id>-compile-receipt.json.",
+    )
+    kci_receipt.add_argument("--json", action="store_true")
+
+    # AS-2.0-CTX-001 — fixture-safe context packs with provenance pointers.
+    ctx_parser = subparsers.add_parser(
+        "context-pack",
+        help=(
+            "Build a fixture-safe context pack "
+            "(AS-2.0-CTX-001; provenance pointers required; ≠ estate facts)."
+        ),
+    )
+    ctx_sub = ctx_parser.add_subparsers(dest="context_pack_command", required=True)
+    ctx_build = ctx_sub.add_parser(
+        "build",
+        help="Build a context-pack record (no estate-fact invention).",
+    )
+    ctx_build.add_argument("--pack-id", required=True)
+    ctx_build.add_argument(
+        "--provenance",
+        action="append",
+        required=True,
+        dest="provenance",
+        help="kind|ref (kind=source|receipt|index|claim|concept|other).",
+    )
+    ctx_build.add_argument(
+        "--entry",
+        action="append",
+        default=None,
+        dest="entries",
+        help="entry_id|ref[|label] (optional repeatable).",
+    )
+    ctx_build.add_argument("--notes", default=None)
+    ctx_build.add_argument(
+        "--vault",
+        type=Path,
+        required=True,
+        help="Vault that receives generated/context/<id>-context-pack.json.",
+    )
+    ctx_build.add_argument("--json", action="store_true")
 
     # AS-SYNC-001-SCAFFOLD — dry-run registry from explicit roots (≠ production SYNC-001).
     sync_parser = subparsers.add_parser(
@@ -2025,6 +2140,132 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown provider command: {args.provider_command}"
+        )
+
+    if args.command == "kci":
+        if args.kci_command == "request":
+            try:
+                report = build_compile_request(
+                    request_id=args.request_id,
+                    source_refs=list(args.source_refs),
+                    subject_refs=list(args.subject_refs or []),
+                    fixture_mode=bool(args.fixture_mode),
+                    notes=args.notes,
+                    output_vault=args.vault,
+                )
+            except (KciError, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("kci request failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                request_path = (
+                    args.vault
+                    / "generated"
+                    / "kci"
+                    / f"{report['request_id']}-compile-request.json"
+                )
+                print(f"request_id: {report['request_id']}")
+                print(f"operation: {report['operation']}")
+                print(f"path: {request_path}")
+            return EXIT_OK
+        if args.kci_command == "receipt":
+            try:
+                report = issue_compile_receipt(
+                    receipt_id=args.receipt_id,
+                    request_id=args.request_id,
+                    status=args.status,
+                    outcome_refs=list(args.outcome_refs or []),
+                    refusal_reason=args.refusal_reason,
+                    output_vault=args.vault,
+                )
+            except (KciError, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("kci receipt failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                receipt_path = (
+                    args.vault
+                    / "generated"
+                    / "kci"
+                    / f"{report['receipt_id']}-compile-receipt.json"
+                )
+                print(f"receipt_id: {report['receipt_id']}")
+                print(f"status: {report['status']}")
+                print(f"authority_promoted: {report['authority_promoted']}")
+                print(f"path: {receipt_path}")
+            return EXIT_OK if report["status"] == "accepted" else EXIT_ERROR
+        parser.error(  # pragma: no cover
+            f"unknown kci command: {args.kci_command}"
+        )
+
+    if args.command == "context-pack":
+        if args.context_pack_command == "build":
+            try:
+                pointers: list[ProvenancePointer] = []
+                for raw in args.provenance:
+                    parts = str(raw).split("|", 1)
+                    if len(parts) != 2:
+                        raise ContextPackError("context-provenance-spec-invalid")
+                    kind, ref = parts[0], parts[1]
+                    allowed = {
+                        "source",
+                        "receipt",
+                        "index",
+                        "claim",
+                        "concept",
+                        "other",
+                    }
+                    if kind not in allowed:
+                        raise ContextPackError("context-provenance-kind-invalid")
+                    pointers.append(
+                        ProvenancePointer(ref=ref, kind=kind)  # type: ignore[arg-type]
+                    )
+                parsed_entries: list[ContextEntry] = []
+                for raw in args.entries or []:
+                    parts = str(raw).split("|")
+                    if len(parts) not in {2, 3}:
+                        raise ContextPackError("context-entry-spec-invalid")
+                    label = parts[2] if len(parts) == 3 else None
+                    parsed_entries.append(
+                        ContextEntry(
+                            entry_id=parts[0],
+                            ref=parts[1],
+                            label=label,
+                        )
+                    )
+                report = build_context_pack(
+                    pack_id=args.pack_id,
+                    provenance_pointers=pointers,
+                    entries=parsed_entries,
+                    notes=args.notes,
+                    output_vault=args.vault,
+                )
+            except (
+                ContextPackError,
+                CompatAnchorError,
+                OSError,
+                ValueError,
+                TypeError,
+            ) as exc:
+                _log.error("context-pack build failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                pack_path = (
+                    args.vault
+                    / "generated"
+                    / "context"
+                    / f"{report['pack_id']}-context-pack.json"
+                )
+                print(f"pack_id: {report['pack_id']}")
+                print(f"fixture_safe: {report['fixture_safe']}")
+                print(f"path: {pack_path}")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown context-pack command: {args.context_pack_command}"
         )
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
