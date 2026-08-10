@@ -6,6 +6,7 @@
 .DESCRIPTION
   Stops tracked PIDs under .tmp/as-demo-2.1-001/state and optionally removes the
   disposable DEMO runtime directory. Never claims RELEASE CERTIFIED or PILOT PASS.
+  Pilot remains DORMANT.
 
 .PARAMETER KeepRuntime
   Keep .tmp/as-demo-2.1-001 (vault + logs); only stop processes.
@@ -21,11 +22,12 @@ $ErrorActionPreference = "Continue"
 function Write-DemoBanner {
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "  PROJECT ATLAS — TECHNICAL DEMO TEARDOWN (AS-DEMO-2.1-001)" -ForegroundColor Cyan
+    Write-Host "  PROJECT ATLAS - TECHNICAL DEMO TEARDOWN (AS-DEMO-2.1-001)" -ForegroundColor Cyan
     Write-Host "----------------------------------------------------------------" -ForegroundColor Cyan
     Write-Host "  NOT RELEASE CERTIFIED" -ForegroundColor Yellow
     Write-Host "  NOT AUTHENTIC PILOT PASS" -ForegroundColor Yellow
-    Write-Host "  DEMO_FIXTURE session end ≠ estate pilot closeout" -ForegroundColor Yellow
+    Write-Host "  DEMO_FIXTURE session end is not estate pilot closeout" -ForegroundColor Yellow
+    Write-Host "  PILOT remains DORMANT" -ForegroundColor Yellow
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -44,7 +46,7 @@ if (-not (Test-Path $PidFile)) {
         Write-Host "Removing leftover runtime $RuntimeRoot ..."
         Remove-Item -Recurse -Force $RuntimeRoot -ErrorAction SilentlyContinue
     }
-    Write-Host "RELEASE CERTIFIED = NO · PILOT PASS = NO"
+    Write-Host "RELEASE CERTIFIED = NO | PILOT PASS = NO | PILOT DORMANT"
     exit 0
 }
 
@@ -52,7 +54,7 @@ try {
     $state = Get-Content -Raw -Path $PidFile | ConvertFrom-Json
 }
 catch {
-    Write-Host "WARN: could not parse $PidFile — $($_.Exception.Message)" -ForegroundColor DarkYellow
+    Write-Host "WARN: could not parse $PidFile - $($_.Exception.Message)" -ForegroundColor DarkYellow
     $state = $null
 }
 
@@ -92,6 +94,6 @@ else {
 
 Write-Host ""
 Write-Host "Teardown complete."
-Write-Host "HONEST STATUS: TECHNICAL DEMO stopped · RELEASE CERTIFIED = NO · PILOT PASS = NO" -ForegroundColor Yellow
+Write-Host "HONEST STATUS: TECHNICAL DEMO stopped | RELEASE CERTIFIED = NO | PILOT PASS = NO | PILOT DORMANT" -ForegroundColor Yellow
 Write-Host ""
 exit 0

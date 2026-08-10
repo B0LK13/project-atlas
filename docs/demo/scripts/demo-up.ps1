@@ -1,17 +1,16 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  AS-DEMO-2.1-001 Windows-first TECHNICAL DEMO launcher (Mode A / DEMO_FIXTURE).
+  AS-DEMO-2.1-001 Windows TECHNICAL DEMO launcher (Mode A / DEMO_FIXTURE).
 
 .DESCRIPTION
   Starts a disposable local demo using DEMO_FIXTURE paths only.
   Prints an honest TECHNICAL DEMO banner and refuses RELEASE CERTIFIED / PILOT PASS claims.
-
-  Owned by DEMO worker D02. Does not edit docs/demo/AS-DEMO-2.1-001.md (D01).
+  Pilot remains DORMANT / DORMANT_BLOCKED.
 
 .PARAMETER WithApi
   Also start `atlas live api-serve` against a disposable vault under .tmp/as-demo-2.1-001/
-  built only from docs/demo/fixtures (DEMO_FIXTURE). Requires atlas on PATH.
+  built only from tests/fixtures/demo/estate (DEMO_FIXTURE). Requires atlas on PATH.
 
 .PARAMETER SkipWeb
   Do not start the Vite web shell (API-only / ops check).
@@ -36,14 +35,14 @@ $ErrorActionPreference = "Stop"
 function Write-DemoBanner {
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "  PROJECT ATLAS — TECHNICAL DEMO (AS-DEMO-2.1-001)" -ForegroundColor Cyan
-    Write-Host "  Mode: DEMO_FIXTURE  ·  ATLAS_DEMO_MODE=fixture" -ForegroundColor Cyan
+    Write-Host "  PROJECT ATLAS - TECHNICAL DEMO (AS-DEMO-2.1-001)" -ForegroundColor Cyan
+    Write-Host "  Mode: DEMO_FIXTURE  |  ATLAS_DEMO_MODE=fixture" -ForegroundColor Cyan
     Write-Host "----------------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "  Certificate target: TECHNICAL DEMO — VERIFIED (when gates pass)" -ForegroundColor Yellow
+    Write-Host "  Certificate target: TECHNICAL DEMO - VERIFIED (when gates pass)" -ForegroundColor Yellow
     Write-Host "  NOT RELEASE CERTIFIED" -ForegroundColor Yellow
     Write-Host "  NOT AUTHENTIC PILOT PASS" -ForegroundColor Yellow
-    Write-Host "  DEMO_FIXTURE ≠ authentic estate ≠ release evidence" -ForegroundColor Yellow
-    Write-Host "  PILOT: DORMANT_BLOCKED" -ForegroundColor Yellow
+    Write-Host "  DEMO_FIXTURE only (not authentic estate, not release evidence)" -ForegroundColor Yellow
+    Write-Host "  PILOT: DORMANT / DORMANT_BLOCKED" -ForegroundColor Yellow
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -55,7 +54,7 @@ function Assert-NoForbiddenClaims {
         "RELEASE CERTIFIED=YES",
         "ESTATE PILOT PASSED",
         "PILOT PASS = YES",
-        "AUTHENTIC PILOT PASS"
+        "PILOT PASS=YES"
     )
     foreach ($t in $Texts) {
         if ([string]::IsNullOrWhiteSpace($t)) { continue }
@@ -74,7 +73,8 @@ function Test-UnderDemoFixtureAllowlist {
     )
     $resolved = [System.IO.Path]::GetFullPath($Candidate)
     $allowed = @(
-        [System.IO.Path]::GetFullPath((Join-Path $RepoRoot "docs\demo\fixtures")),
+        [System.IO.Path]::GetFullPath((Join-Path $RepoRoot "tests\fixtures\demo")),
+        [System.IO.Path]::GetFullPath((Join-Path $RepoRoot "fixtures\demo")),
         [System.IO.Path]::GetFullPath((Join-Path $RepoRoot "apps\web\public")),
         [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".tmp\as-demo-2.1-001"))
     )
@@ -86,6 +86,20 @@ function Test-UnderDemoFixtureAllowlist {
     return $false
 }
 
+function Resolve-DemoFixtureEstate {
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+    $candidates = @(
+        (Join-Path $RepoRoot "tests\fixtures\demo\estate"),
+        (Join-Path $RepoRoot "fixtures\demo\estate")
+    )
+    foreach ($c in $candidates) {
+        if (Test-Path -LiteralPath $c) {
+            return [System.IO.Path]::GetFullPath($c)
+        }
+    }
+    return $null
+}
+
 # --- resolve repo root: docs/demo/scripts -> ../../..
 $ScriptDir = $PSScriptRoot
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "..\..\.."))
@@ -95,12 +109,12 @@ if (-not (Test-Path (Join-Path $RepoRoot "pyproject.toml"))) {
 
 Write-DemoBanner
 
-# Honest status stamps — never YES for release/pilot.
+# Honest status stamps - never YES for release/pilot.
 $env:ATLAS_DEMO_MODE = "fixture"
 $env:VITE_ATLAS_DEMO_ONLY = "1"
-$env:ATLAS_DEMO_CLAIM = "TECHNICAL DEMO — NOT RELEASE CERTIFIED — NOT PILOT PASS"
+$env:ATLAS_DEMO_CLAIM = "TECHNICAL DEMO - NOT RELEASE CERTIFIED - NOT PILOT PASS - PILOT DORMANT"
 $env:ATLAS_RELEASE_STATUS = "RELEASE CERTIFIED = NO"
-$env:ATLAS_PILOT_STATUS = "PILOT = DORMANT_BLOCKED (NOT PILOT PASS)"
+$env:ATLAS_PILOT_STATUS = "PILOT = DORMANT / DORMANT_BLOCKED (NOT PILOT PASS)"
 
 Assert-NoForbiddenClaims @(
     $env:ATLAS_DEMO_CLAIM,
@@ -117,12 +131,12 @@ if ($env:AUTHENTIC_ESTATE_ROOT -and $env:AUTHENTIC_ESTATE_ROOT.Trim().Length -gt
 if ($env:ATLAS_DEMO_ROOT -and $env:ATLAS_DEMO_ROOT.Trim().Length -gt 0) {
     if (-not (Test-UnderDemoFixtureAllowlist -Candidate $env:ATLAS_DEMO_ROOT -RepoRoot $RepoRoot)) {
         Write-Host "REFUSED: ATLAS_DEMO_ROOT='$($env:ATLAS_DEMO_ROOT)' is outside DEMO_FIXTURE allowlist." -ForegroundColor Red
-        Write-Host "Allowed roots: docs/demo/fixtures, apps/web/public, .tmp/as-demo-2.1-001" -ForegroundColor Red
+        Write-Host "Allowed roots: tests/fixtures/demo, fixtures/demo, apps/web/public, .tmp/as-demo-2.1-001" -ForegroundColor Red
         exit 1
     }
 }
 
-$DemoFixtureRoot = Join-Path $RepoRoot "docs\demo\fixtures"
+$DemoFixtureRoot = Resolve-DemoFixtureEstate -RepoRoot $RepoRoot
 $WebPublicRoot = Join-Path $RepoRoot "apps\web\public"
 $RuntimeRoot = Join-Path $RepoRoot ".tmp\as-demo-2.1-001"
 $StateDir = Join-Path $RuntimeRoot "state"
@@ -131,21 +145,26 @@ $PidFile = Join-Path $StateDir "demo-pids.json"
 
 New-Item -ItemType Directory -Force -Path $StateDir | Out-Null
 
-Write-Host "DEMO_FIXTURE root : $DemoFixtureRoot"
+if ($DemoFixtureRoot) {
+    $env:ATLAS_DEMO_FIXTURE = $DemoFixtureRoot
+}
+
+Write-Host "DEMO_FIXTURE root : $(if ($DemoFixtureRoot) { $DemoFixtureRoot } else { '(missing - web stubs only)' })"
 Write-Host "Web DEMO stubs    : $WebPublicRoot"
 Write-Host "Runtime (tmp)     : $RuntimeRoot"
 Write-Host "ATLAS_DEMO_MODE   : $($env:ATLAS_DEMO_MODE)"
 Write-Host "VITE_ATLAS_DEMO_ONLY=$($env:VITE_ATLAS_DEMO_ONLY)"
+Write-Host "PILOT STATUS      : $($env:ATLAS_PILOT_STATUS)"
 Write-Host ""
 
-$fixtureReady = Test-Path $DemoFixtureRoot
+$fixtureReady = [bool]$DemoFixtureRoot
 $webStubReady = (
     (Test-Path (Join-Path $WebPublicRoot "sample-mission-control.json")) -and
     (Test-Path (Join-Path $WebPublicRoot "sample-mission-control.fixture.json"))
 )
 
 if (-not $fixtureReady) {
-    Write-Host "NOTE: docs/demo/fixtures not present yet (D03 DEMO_FIXTURE pack may land separately)." -ForegroundColor DarkYellow
+    Write-Host "NOTE: DEMO_FIXTURE estate not present (expected tests/fixtures/demo/estate)." -ForegroundColor DarkYellow
     Write-Host "      Continuing with apps/web/public DEMO/FIXTURE stubs only." -ForegroundColor DarkYellow
 }
 if (-not $webStubReady) {
@@ -182,8 +201,8 @@ function Start-TrackedProcess {
 # --- optional API against DEMO_FIXTURE-derived disposable vault ---
 if ($WithApi) {
     if (-not $fixtureReady) {
-        Write-Host "REFUSED -WithApi: docs/demo/fixtures is required for DEMO_FIXTURE vault builds." -ForegroundColor Red
-        Write-Host "Land D03 fixtures first, or omit -WithApi and use web DEMO stubs." -ForegroundColor Red
+        Write-Host "REFUSED -WithApi: tests/fixtures/demo/estate is required for DEMO_FIXTURE vault builds." -ForegroundColor Red
+        Write-Host "Omit -WithApi and use web DEMO stubs, or restore the fixture corpus." -ForegroundColor Red
         exit 1
     }
     if (-not (Test-UnderDemoFixtureAllowlist -Candidate $DemoFixtureRoot -RepoRoot $RepoRoot)) {
@@ -205,6 +224,10 @@ if ($WithApi) {
     if ($LASTEXITCODE -ne 0) { throw "atlas discover failed against DEMO_FIXTURE" }
     & atlas ingest --manifest $manifest --vault $VaultDir
     if ($LASTEXITCODE -ne 0) { throw "atlas ingest failed for DEMO vault" }
+    & atlas build-indexes --vault $VaultDir
+    if ($LASTEXITCODE -ne 0) { throw "atlas build-indexes failed for DEMO vault" }
+    & atlas validate --vault $VaultDir
+    if ($LASTEXITCODE -ne 0) { throw "atlas validate failed for DEMO vault" }
 
     Write-Host "Starting LIVE_API against DEMO vault (host loopback only)..."
     $atlasPath = $atlasCmd.Source
@@ -213,7 +236,8 @@ if ($WithApi) {
         -ArgumentList $apiArgs -WorkingDirectory $RepoRoot
     [void]$processRecords.Add($apiProc)
     Write-Host "  LIVE_API (DEMO vault) pid=$($apiProc.pid)  http://127.0.0.1:$ApiPort"
-    Write-Host "  NOTE: live_api transport ≠ authentic pilot; vault is DEMO_FIXTURE-derived." -ForegroundColor DarkYellow
+    Write-Host "  NOTE: live_api transport is not authentic pilot; vault is DEMO_FIXTURE-derived." -ForegroundColor DarkYellow
+    Write-Host "  PILOT remains DORMANT. RELEASE CERTIFIED = NO." -ForegroundColor DarkYellow
     $env:VITE_ATLAS_API_BASE = "http://127.0.0.1:$ApiPort"
 }
 
@@ -254,7 +278,8 @@ $started = [ordered]@{
     mode                = "DEMO_FIXTURE"
     release_certified   = $false
     pilot_pass          = $false
-    note                = "TECHNICAL DEMO session — NOT RELEASE CERTIFIED — NOT AUTHENTIC PILOT PASS"
+    pilot_status        = "DORMANT"
+    note                = "TECHNICAL DEMO session - NOT RELEASE CERTIFIED - NOT AUTHENTIC PILOT PASS - PILOT DORMANT"
     demo_fixture_root   = $DemoFixtureRoot
     web_public_root     = $WebPublicRoot
     runtime_root        = $RuntimeRoot
@@ -270,6 +295,7 @@ Write-Host "HONEST STATUS:" -ForegroundColor Yellow
 Write-Host "  TECHNICAL DEMO launcher running (DEMO_FIXTURE paths only)" -ForegroundColor Yellow
 Write-Host "  RELEASE CERTIFIED = NO" -ForegroundColor Yellow
 Write-Host "  AUTHENTIC PILOT PASS = NO" -ForegroundColor Yellow
-Write-Host "  Demo success ≠ v2.1.0 release certification" -ForegroundColor Yellow
+Write-Host "  PILOT = DORMANT" -ForegroundColor Yellow
+Write-Host "  Demo success is not v2.1.0 release certification" -ForegroundColor Yellow
 Write-Host ""
 exit 0
