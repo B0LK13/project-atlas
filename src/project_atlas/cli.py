@@ -37,6 +37,11 @@ from project_atlas.event_retention import (
     RetentionError,
     apply_event_retention,
 )
+from project_atlas.federation import (
+    FederationError,
+    FederationMember,
+    build_join_inventory,
+)
 from project_atlas.graph_acceptance import (
     GraphAcceptanceError,
     accept_graphify_artifacts,
@@ -880,6 +885,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     kf2_rel.add_argument("--notes", default=None)
     kf2_rel.add_argument("--json", action="store_true")
+
+    # AS-2.0-FED-001 — operator-declared federation join inventory.
+    fed_parser = subparsers.add_parser(
+        "federation",
+        help=(
+            "Build an operator-declared federation join inventory "
+            "(AS-2.0-FED-001; consume-only; no cross-vault promote)."
+        ),
+    )
+    fed_sub = fed_parser.add_subparsers(dest="federation_command", required=True)
+    fed_join = fed_sub.add_parser(
+        "join",
+        help="Build join inventory from explicit --member rows (no crawl).",
+    )
+    fed_join.add_argument("--federation-id", required=True)
+    fed_join.add_argument(
+        "--member",
+        action="append",
+        required=True,
+        dest="members",
+        help=(
+            "member_id|vault_path|role[|project_id] "
+            "(role=primary|member; pipe-separated for Windows paths)."
+        ),
+    )
+    fed_join.add_argument(
+        "--vault",
+        type=Path,
+        required=True,
+        help="Vault that receives generated/federation/<id>-join-inventory.json.",
+    )
+    fed_join.add_argument("--json", action="store_true")
 
     # AS-SYNC-001-SCAFFOLD — dry-run registry from explicit roots (≠ production SYNC-001).
     sync_parser = subparsers.add_parser(
@@ -1831,6 +1868,51 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown kf2 command: {args.kf2_command}"
+        )
+
+    if args.command == "federation":
+        if args.federation_command == "join":
+            try:
+                parsed_members: list[FederationMember] = []
+                for raw in args.members:
+                    parts = str(raw).split("|")
+                    if len(parts) not in {3, 4}:
+                        raise FederationError("federation-member-spec-invalid")
+                    mid, root, role = parts[0], parts[1], parts[2]
+                    if role not in {"primary", "member"}:
+                        raise FederationError("federation-member-role-invalid")
+                    project_val = parts[3] if len(parts) == 4 else None
+                    parsed_members.append(
+                        FederationMember(
+                            member_id=mid,
+                            vault_root=root,
+                            role=role,  # type: ignore[arg-type]
+                            project_id=project_val,
+                        )
+                    )
+                report = build_join_inventory(
+                    federation_id=args.federation_id,
+                    members=parsed_members,
+                    output_vault=args.vault,
+                )
+            except (FederationError, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("federation join failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"federation_id: {report['federation_id']}")
+                print(f"status: {report['status']}")
+                if report.get("refusal_reason"):
+                    print(f"refusal_reason: {report['refusal_reason']}")
+                print(
+                    "inventory: "
+                    f"{args.vault / 'generated' / 'federation' / "
+                    f"{report['federation_id']}-join-inventory.json}"
+                )
+            return EXIT_OK if report["status"] == "joined" else EXIT_ERROR
+        parser.error(  # pragma: no cover
+            f"unknown federation command: {args.federation_command}"
         )
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces

@@ -5076,3 +5076,11 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 
 ### Gates
 - Focused pytest PASS; ruff/mypy on new modules PASS
+
+## AS-2.0-FED-001 — federation join inventory
+
+**Date:** 2026-08-10
+**Branch:** feat/as-2.0-fed-001
+**Directive:** D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001
+
+Operator-declared consume-only federation join inventory bound to 1.0 compat anchor.
