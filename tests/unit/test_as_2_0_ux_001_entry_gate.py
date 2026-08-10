@@ -48,7 +48,7 @@ def test_web_accepted_yes_and_adrs_present() -> None:
 def test_adr_008_and_010_freeze_invariants() -> None:
     adr008 = (ADR_DIR / "ADR-008-atlas-web-application.md").read_text(encoding="utf-8")
     adr010 = (ADR_DIR / "ADR-010-atlas-web-ux.md").read_text(encoding="utf-8")
-    assert "UI ≠ canonical" in adr008 or "UI" in adr008 and "canonical" in adr008.lower()
+    assert "UI ≠ canonical" in adr008 or ("UI" in adr008 and "canonical" in adr008.lower())
     assert "Graph ≠ authority" in adr008 or (
         "graph" in adr008.lower() and "authority" in adr008.lower()
     )
