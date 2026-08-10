@@ -1,7 +1,7 @@
 # Atlas Gap Register
 
 **Directive:** `D-PROJECT-ATLAS-GAP-ANALYSIS-TO-EXECUTABLE-ROADMAP-001`  
-**Tip at register:** `f98be17` (revalidate)  
+**Tip at register:** `4f3ade9` / TREE `80a4ba55` (revalidate)  
 **Backlogs:** keep **2.1 release-critical** and **north-star** separate — do not merge queues.
 
 Legend:
@@ -27,11 +27,11 @@ Legend:
 
 | GAP_ID | Gap | Maturity | RELEASE_BLOCKING | Priority | Proposed package | Target release | Evidence |
 |---|---|---|---|---|---|---|---|
-| GAP-2.1-H01 | Mission/Workspace pages flags-only | PROTOTYPE | NO | P1 | AS-2.1-WEB-MISSION/WORKSPACE-LIVE | v2.1.x / harden | production pages stubs |
-| GAP-2.1-H02 | Ops receipt adapter unavailable | UNKNOWN | NO | P1 | AS-2.1-OBS-RECEIPTS-001 | v2.1.x | OpsHealth honest unknown |
-| GAP-2.1-H03 | L3 policy→dispatch loop thin | BOUNDED | NO | P1 | AS-2.1-AUTONOMY-L3-LOOP-001 | v2.1.x | enable/disable only |
-| GAP-2.1-H04 | OAI import size/format ADV | BOUNDED | NO | P1 | AS-2.1-OAI-IMPORT-ADV-001 | v2.1.x | real import + bridge |
-| GAP-2.1-H05 | Host/CORS ADV matrix deepen | PARTIAL | NO | P1 | AS-2.1-ADV-HOST-CORS-001 | v2.1.x | Host gate landed #151 |
+| GAP-2.1-H01 | Mission/Workspace LIVE + polish | LIVE_READ_ONLY | NO | P1 | AS-2.1-WEB-MISSION/WORKSPACE-LIVE | v2.1.x / harden | **DRAINED** #153/#155 |
+| GAP-2.1-H02 | Ops receipt adapter | LIVE_READ_ONLY / honest empty | NO | P1 | AS-2.1-OBS-RECEIPTS-001 | v2.1.x | **DRAINED** #155 `/v1/ops/receipts` |
+| GAP-2.1-H03 | L3 policy→dispatch loop + ADV | BOUNDED + ADV | NO | P1 | AS-2.1-AUTONOMY-L3-LOOP-001 | v2.1.x | **DRAINED** #153/#155 |
+| GAP-2.1-H04 | OAI import size/format ADV | BOUNDED | NO | P1 | AS-2.1-OAI-IMPORT-ADV-001 | v2.1.x | **DRAINED** #153 size cap |
+| GAP-2.1-H05 | Host/CORS ADV matrix deepen | BOUNDED/ADV | NO | P1 | AS-2.1-ADV-HOST-CORS-001 | v2.1.x | **DRAINED** #154 |
 | GAP-2.1-H06 | OAI Responses POC live smoke | EXPERIMENTAL / RATE_LIMITED | **NO** | P2 | AS-2.1-OAI-RESPONSES-POC-001 | experimental | NON_RELEASE_BLOCKING |
 
 ---
@@ -55,12 +55,12 @@ Legend:
 
 ---
 
-## C. Counts (at tip `f98be17`)
+## C. Counts (at tip `4f3ade9`)
 
 | Bucket | Count |
 |---|---|
-| P0 RELEASE_BLOCKING=YES | **6** (GAP-2.1-001..006) |
-| P1 Track B harden (non-blocking) | **5** (H01–H05) |
+| P0 RELEASE_BLOCKING=YES | **6** (GAP-2.1-001..006) — PILOT OWNER_BLOCKED |
+| P1 Track B harden (non-blocking) | **0 open** (H01–H05 **DRAINED** #153–#155) |
 | P2 north-star / 2.2 | **7** (NS-001..007) + H06 experimental |
 | P3 2.3/3.0 | **5** (NS-008..012) |
 

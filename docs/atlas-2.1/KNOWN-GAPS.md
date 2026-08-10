@@ -1,6 +1,6 @@
 # Atlas 2.1 — Known gaps A–K (revalidated)
 
-Tip reference: Wave-2 `d9b6732` + pilot/OAI-POC hardening.
+Tip reference: `4f3ade9` (post #155 Track B drain). H01–H05 drained; PILOT still OWNER_BLOCKED.
 
 | Gap | Description | Tip status | Package if still open |
 |---|---|---|---|
