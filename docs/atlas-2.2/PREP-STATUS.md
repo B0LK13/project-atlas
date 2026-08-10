@@ -1,0 +1,130 @@
+# Atlas 2.2 — Pre-unlock PREP status (AS-2.2-PREP-STATUS-001)
+
+| Field | Value |
+|---|---|
+| Package | **AS-2.2-PREP-STATUS-001** |
+| Class | **PREP ONLY** — status / inventory snapshot (docs-only) |
+| Tip audited | `0f7cb4e` (`origin/main` at refresh cut) |
+| Integration index | [`README.md`](README.md) (package rows + entry links) |
+| Charter | [`CHARTER.md`](CHARTER.md) |
+| Maturity draft | [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md) |
+| Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
+| Production mutation | **NONE** |
+
+## Unlock gates (normative)
+
+```text
+ATLAS_2_1_RELEASE_CERTIFIED = NO
+ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED = NO
+```
+
+Both remain **NO** on this tip. This document grants **no** PILOT, WEB, or
+release certification credit.
+
+## Summary
+
+| Metric | Value |
+|---|---|
+| Landed PREP packages | **19** (wave 1 #159–#172 + wave 2 #179–#199) |
+| Package trees under `docs/atlas-2.2/` | **22** dirs (19 packages + shared `adr/`, `contracts/`, `fixtures/`, `benchmarks/`, `schemas/`) |
+| README index merges | [#173](https://github.com/B0LK13/project-atlas/pull/173) · [#195](https://github.com/B0LK13/project-atlas/pull/195) · [#198](https://github.com/B0LK13/project-atlas/pull/198) · [#202](https://github.com/B0LK13/project-atlas/pull/202) |
+| Runtime modules touched | **0** (`src/project_atlas/` unchanged by PREP lane) |
+| Authentic estate PILOT roots | **0** (all prep fixtures) |
+| Saturation | **YES** — all known 2.2 intelligence PREP slots through tip #199 are landed and indexed |
+
+## Merge waves
+
+### Wave 1 — foundation PREP (#159–#172)
+
+Parallel doc-only merges seeded hybrid retrieval, context compiler, KCI engine,
+DoD compiler, time machine, reality live/gap, research, and mem-gov trees.
+`README.md` last-writer-wins (#159) dropped multi-package rows until index
+restores (#173, #195).
+
+### Wave 2 — estate intelligence PREP (#179–#199)
+
+Cross-project fabric, conflict UX, KF2 fabric, Ask Atlas 2 deepen, intel slice,
+ChatGPT live bridge, temporal UX, compat pin, estate ops, and doc-charter /
+maturity matrix PREP landed as additive package trees.
+
+### README index lane (integration only)
+
+| PR | Package | Role |
+|---|---|---|
+| [#173](https://github.com/B0LK13/project-atlas/pull/173) | H01 restore | Multi-package prep index after parallel merges |
+| [#195](https://github.com/B0LK13/project-atlas/pull/195) | `AS-2.2-README-INDEX-002` | Restore rows for wave-2 packages through #192 |
+| [#198](https://github.com/B0LK13/project-atlas/pull/198) | `AS-2.2-README-INDEX-003` | Add **compat-pin** (#196) and **estate-ops** (#197) rows |
+| [#202](https://github.com/B0LK13/project-atlas/pull/202) | `AS-2.2-README-INDEX-004` | Add **doc-charter** (#199) row; tip index through #199 |
+
+Entry links and artifact paths: [`README.md`](README.md) (authoritative index).
+
+## Landed PREP inventory (tip)
+
+| Short | Package | PR | Maturity (draft) |
+|---|---|---|---|
+| RET | `AS-2.2-RET-HYBRID-001` | [#159](https://github.com/B0LK13/project-atlas/pull/159) | DOCUMENTATION_ONLY |
+| CTX | `AS-2.2-CTX-COMPILER-001` | [#161](https://github.com/B0LK13/project-atlas/pull/161) | FIXTURE_ONLY |
+| KCI | `AS-2.2-KCI-ENGINE-PREP-001` | [#160](https://github.com/B0LK13/project-atlas/pull/160) | DOCUMENTATION_ONLY |
+| MEM | `AS-2.2-MEM-GOV-001` | [#169](https://github.com/B0LK13/project-atlas/pull/169) | FIXTURE_ONLY |
+| DoD | `AS-2.2-DOD-COMPILER-001` | [#170](https://github.com/B0LK13/project-atlas/pull/170) | FIXTURE_ONLY |
+| TIME | `AS-2.2-TIME-MACHINE-001` | [#168](https://github.com/B0LK13/project-atlas/pull/168) | FIXTURE_ONLY |
+| REALITY-LIVE | `AS-2.2-REALITY-LIVE-001` | [#167](https://github.com/B0LK13/project-atlas/pull/167) | FIXTURE_ONLY |
+| REALITY-GAP | `AS-2.2-REALITY-GAP-PREP-001` | [#172](https://github.com/B0LK13/project-atlas/pull/172) | FIXTURE_ONLY |
+| RESEARCH | `AS-2.2-RESEARCH-001` | [#171](https://github.com/B0LK13/project-atlas/pull/171) | FIXTURE_ONLY |
+| CONFLICT | `AS-2.2-CONFLICT-UX-PREP-001` | [#181](https://github.com/B0LK13/project-atlas/pull/181) | FIXTURE_ONLY |
+| XPROJ | `AS-2.2-XPROJ-CONTRACT-PREP-001` | [#179](https://github.com/B0LK13/project-atlas/pull/179) | FIXTURE_ONLY |
+| KF2 | `AS-2.2-KF2-FABRIC-PREP-001` | [#186](https://github.com/B0LK13/project-atlas/pull/186) | FIXTURE_ONLY |
+| ASK2 | `AS-2.2-ASK2-DEEPEN-PREP-001` | [#188](https://github.com/B0LK13/project-atlas/pull/188) | FIXTURE_ONLY |
+| INTEL | `AS-2.2-INTEL-SLICE-PREP-001` | [#189](https://github.com/B0LK13/project-atlas/pull/189) | FIXTURE_ONLY |
+| CHATGPT | `AS-2.2-CHATGPT-LIVE-PREP-001` | [#191](https://github.com/B0LK13/project-atlas/pull/191) | FIXTURE_ONLY |
+| TEMPORAL | `AS-2.2-TEMPORAL-UX-PREP-001` | [#192](https://github.com/B0LK13/project-atlas/pull/192) | FIXTURE_ONLY |
+| **COMPAT-PIN** | `AS-2.2-COMPAT-PIN-PREP-001` | [#196](https://github.com/B0LK13/project-atlas/pull/196) | FIXTURE_ONLY |
+| **ESTATE-OPS** | `AS-2.2-ESTATE-OPS-PREP-001` | [#197](https://github.com/B0LK13/project-atlas/pull/197) | FIXTURE_ONLY |
+| **DOC-CHARTER** | `AS-2.2-DOC-CHARTER-PREP-001` | [#199](https://github.com/B0LK13/project-atlas/pull/199) | FIXTURE_ONLY |
+
+Maturity classes are **draft audit labels** from
+[`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md);
+they are not release certification.
+
+## Tip highlights (#196–#199)
+
+| Package | PR | Scope |
+|---|---|---|
+| **COMPAT-PIN** | [#196](https://github.com/B0LK13/project-atlas/pull/196) | Future `v2.1.0` compat anchor expectations; read-only reference to `AS-2.0-COMPAT-001` pattern |
+| **ESTATE-OPS** | [#197](https://github.com/B0LK13/project-atlas/pull/197) | Mission Control / Workspace / Ops Health estate lens contracts; unknown≠healthy |
+| **DOC-CHARTER** | [#199](https://github.com/B0LK13/project-atlas/pull/199) | Deepened [`CHARTER.md`](CHARTER.md) + maturity matrix draft + charter ADR |
+
+Post-unlock production slots (`AS-2.2-DOC-CHARTER-001`, `AS-2.2-COMPAT-PIN-001`,
+`AS-2.2-ESTATE-OPS-001`, …) remain **BLOCKED** until
+`ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.
+
+## Shared artifacts
+
+| Artifact | Path |
+|---|---|
+| Contract stub rollup | [`PACKAGE-CONTRACT-STUBS.md`](PACKAGE-CONTRACT-STUBS.md) |
+| Cross-package fixture plan | [`FIXTURE-PLAN.md`](FIXTURE-PLAN.md) |
+| Shared fixture index | [`fixtures/README.md`](fixtures/README.md) |
+| Shared ADRs | [`adr/`](adr/) |
+| Hybrid retrieval benchmarks | [`benchmarks/`](benchmarks/) |
+
+## Explicit non-claims
+
+- Not `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`
+- Not `ATLAS_2_1_RELEASE_CERTIFIED=YES`
+- Not production mutation of `project_atlas.retrieval` / `knowledge_compiler` /
+  `hybrid_retrieval.py` live semantics
+- Not an embeddings / vector retrieval product as Layer B authority
+- Not authentic estate PILOT / not `v2.1.0` / not `v2.2.0` certification
+- Fixture PASS ≠ authentic PILOT PASS
+- PREP MATRIX ≠ RELEASE CERTIFICATION
+
+## Refresh protocol
+
+Re-run `AS-2.2-PREP-STATUS-001` when:
+
+1. A new 2.2 PREP package merges to `main` before unlock, or
+2. README index lane adds rows for new packages, or
+3. Unlock gates change (requires separate ADR; not expected on prep tip).
+
+Until then, this snapshot is **saturated** at tip `0f7cb4e`.
