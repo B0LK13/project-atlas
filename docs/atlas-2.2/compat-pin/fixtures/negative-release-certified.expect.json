@@ -1,0 +1,15 @@
+{
+  "package_id": "AS-2.2-COMPAT-PIN-PREP-001",
+  "scenario_id": "FX-2.2-COMPAT-NEG-001",
+  "forbidden_inventory": {
+    "atlas_2_1_release_certified": true,
+    "release_certified": true,
+    "future_tag_published": true
+  },
+  "expected_error": "compat-pin-prep-release-certified-forbidden",
+  "atlas_2_1_release_certified": false,
+  "release_certified": false,
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "notes": "PREP must not claim v2.1.0 released or ATLAS_2_1_RELEASE_CERTIFIED=YES"
+}

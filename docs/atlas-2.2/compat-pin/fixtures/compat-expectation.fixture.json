@@ -1,0 +1,88 @@
+{
+  "schema": "atlas.2.2.compat-pin-expectation.v0",
+  "schema_version": 1,
+  "package_id": "AS-2.2-COMPAT-PIN-PREP-001",
+  "live_compat_snapshot_id": "atlas-1.0.0-compat",
+  "future_compat_snapshot_id": "atlas-2.1.0-compat",
+  "future_tag": "v2.1.0",
+  "pilot_roots": 0,
+  "authentic_estate_pilot_passed": false,
+  "atlas_2_1_release_certified": false,
+  "atlas_2_2_intelligence_unlocked": false,
+  "scenario_count": 5,
+  "scenarios": [
+    {
+      "scenario_id": "FX-2.2-COMPAT-001",
+      "consumer_package": "AS-2.0-COMPAT-001",
+      "compat_snapshot_id": "atlas-1.0.0-compat",
+      "anchor_status": "certified-reference",
+      "release_certified": false,
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "two_dot_one_wins_conflicts": false,
+      "notes": "Live 1.0 anchor consumer; certified on tip via docs/releases/1.0.0/"
+    },
+    {
+      "scenario_id": "FX-2.2-COMPAT-002",
+      "consumer_package": "AS-2.2-COMPAT-PIN-001",
+      "compat_snapshot_id": "atlas-2.1.0-compat",
+      "anchor_status": "future-placeholder",
+      "release_certified": false,
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "two_dot_one_wins_conflicts": false,
+      "notes": "Future production pin package; anchor not published on prep tip"
+    },
+    {
+      "scenario_id": "FX-2.2-COMPAT-003",
+      "consumer_package": "AS-2.2-KCI-001",
+      "compat_snapshot_id": "atlas-2.1.0-compat",
+      "anchor_status": "declared-dependency",
+      "release_certified": false,
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "two_dot_one_wins_conflicts": false,
+      "notes": "KCI engine refuses run without 2.1 compat pin post-unlock"
+    },
+    {
+      "scenario_id": "FX-2.2-COMPAT-004",
+      "consumer_package": "AS-2.2-RET-CTX-001",
+      "compat_snapshot_id": "atlas-2.1.0-compat",
+      "anchor_status": "declared-dependency",
+      "release_certified": false,
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "two_dot_one_wins_conflicts": false,
+      "notes": "Hybrid retrieval + context pack production path depends on compat pin"
+    },
+    {
+      "scenario_id": "FX-2.2-COMPAT-005",
+      "consumer_package": "AS-2.2-CTX-COMPILER-001",
+      "compat_snapshot_id": "atlas-2.1.0-compat",
+      "anchor_status": "declared-dependency",
+      "release_certified": false,
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "two_dot_one_wins_conflicts": false,
+      "notes": "Context compiler post-unlock dependency on compat pin substrate"
+    }
+  ],
+  "invariants": {
+    "prep_ne_anchor": true,
+    "no_2_1_release_stamp": true,
+    "future_pin_only": true,
+    "no_pilot_invent": true,
+    "no_runtime_mutation": true
+  },
+  "truth_boundary": "PREP EXPECTATION ≠ PUBLISHED 2.1 ANCHOR / ≠ v2.1.0 RELEASED / ≠ 2.1 RELEASE CERTIFIED",
+  "evidence_class": "fixture-only",
+  "generated": {
+    "by": "project-atlas",
+    "package": "AS-2.2-COMPAT-PIN-PREP-001"
+  }
+}
