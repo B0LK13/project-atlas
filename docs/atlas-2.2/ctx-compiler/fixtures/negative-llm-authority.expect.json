@@ -1,0 +1,7 @@
+{
+  "action": "llm-authority",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "LLM output is not canonical authority",
+  "release_certified": false
+}
