@@ -6,9 +6,9 @@
   "properties": {
     "action": {
       "enum": [
+        "budget-invent-winner",
         "layer-b-write",
-        "llm-as-authority",
-        "budget-invent"
+        "llm-authority"
       ],
       "type": "string"
     },
