@@ -17,3 +17,4 @@ When unlocked, promote through schema freeze + ADR — do not copy blindly into
 | `claim-diff.schema.json` | Claim delta |
 | `graph-diff.schema.json` | Graph delta |
 | `decision-diff.schema.json` | Decision delta |
+| `time-machine-forbidden-action.schema.json` | Deepen fail-closed action (AS-2.2-TIME-MACHINE-DEEPEN-PREP-001) |

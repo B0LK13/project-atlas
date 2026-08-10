@@ -7,10 +7,13 @@ Production mutation: **NONE**. Gate credit: **NO**.
 |---|---|
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | As-of + T1–T2 layers, truth boundaries |
 | [CONTRACT.md](./CONTRACT.md) | FR/NFR stubs + operation shapes |
-| [FIXTURE-PLAN.md](./FIXTURE-PLAN.md) | Fixture family reservation |
-| [../AS-2.2-TIME-MACHINE-001.md](../AS-2.2-TIME-MACHINE-001.md) | Package charter |
+| [INVARIANTS.md](./INVARIANTS.md) | Hard invariants (deepen) |
+| [FIXTURE-PLAN.md](./FIXTURE-PLAN.md) | Base + deepen fixture inventory |
+| [AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md](./AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md) | Deepen package charter |
+| [../AS-2.2-TIME-MACHINE-001.md](../AS-2.2-TIME-MACHINE-001.md) | Base package charter |
 | [./contracts/](./contracts/) | Docs-only JSON Schema stubs |
-| [./fixtures/](./fixtures/) | Synthetic sample payloads |
+| [./fixtures/](./fixtures/) | Synthetic sample + negative payloads |
+| [./adr/](./adr/) | Deepen boundary ADR |
 
 ## Truth boundaries
 

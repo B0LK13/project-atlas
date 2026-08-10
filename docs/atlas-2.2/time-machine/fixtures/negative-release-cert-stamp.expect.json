@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TIME-MACHINE-DEEPEN-PREP-001",
+  "action_id": "action.demo.time-machine.release-cert-stamp.forbidden",
+  "scope_id": "demo-project",
+  "kind": "release_cert_from_fixture",
+  "status": "rejected_forbidden",
+  "expected_error": "time-machine-release-cert-from-fixture-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "Fixture diff success must not stamp ATLAS_2_1_RELEASE_CERTIFIED"
+  },
+  "canonical_writes": false,
+  "consume_only": true,
+  "pilot_roots": 0,
+  "authentic_estate": false,
+  "evidence_class": "fixture-only",
+  "truth_boundary": "TIME MACHINE AS-OF ≠ AUTHORITY / DIFF ≠ MUTATION / GRAPH ≠ AUTHORITY / FIXTURE ≠ PILOT",
+  "_prep_note": "FX-2.2-TM-105 — expected rejection of release-cert stamp from fixture rehearsal"
+}
