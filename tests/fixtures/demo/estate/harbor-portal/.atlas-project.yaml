@@ -1,0 +1,5 @@
+schema_version: 1
+project:
+  id: harbor-portal
+  name: Harbor Portal
+project_uuid: d49074b7-c3f5-48ee-ac9d-3837c2f51b58
