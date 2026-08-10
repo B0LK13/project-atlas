@@ -9,6 +9,7 @@
 | Charter | [`CHARTER.md`](CHARTER.md) |
 | Maturity draft | [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md) |
 | Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
+| Roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) (`AS-2.2-ROADMAP-CROSSWALK-PREP-001`) |
 | Production mutation | **NONE** |
 
 ## Unlock gates (normative)
@@ -106,6 +107,7 @@ Post-unlock production slots (`AS-2.2-DOC-CHARTER-001`, `AS-2.2-COMPAT-PIN-001`,
 | Cross-package fixture plan | [`FIXTURE-PLAN.md`](FIXTURE-PLAN.md) |
 | Shared fixture index | [`fixtures/README.md`](fixtures/README.md) |
 | Shared ADRs | [`adr/`](adr/) |
+| PREP → roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) |
 | Hybrid retrieval benchmarks | [`benchmarks/`](benchmarks/) |
 
 ## Explicit non-claims
