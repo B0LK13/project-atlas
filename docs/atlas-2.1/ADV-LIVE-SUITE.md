@@ -21,8 +21,12 @@ authentic PILOT, SYNC-AUTH, TWIN-AUTH, or release certification.
 | ADV-2.1-14 | PERF | Baseline receipt non-release-blocking |
 | ADV-2.1-15 | COLLAB | Closed session rejects further actions |
 | ADV-2.1-16 | PROVIDER | Empty/secret prompts fail closed; output quarantined |
+| ADV-2.1-17 | API | Non-local Host header rejected |
+| ADV-2.1-18 | MCP | projects.list.read allow-listed; write tools empty |
+| ADV-2.1-19 | WEB-ACTIONS | Recent list read-only; invalid limit fails closed |
 
 Executable coverage: `tests/unit/test_as_2_1_pilot_oai_poc_001.py`,
 `tests/unit/test_as_2_1_adv_live_001.py`,
 `tests/unit/test_as_2_1_track_b_deepen_001.py`,
-`tests/unit/test_as_2_1_track_b_deepen_002.py`.
+`tests/unit/test_as_2_1_track_b_deepen_002.py`,
+`tests/unit/test_as_2_1_track_b_deepen_003.py`.

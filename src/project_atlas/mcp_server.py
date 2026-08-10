@@ -39,6 +39,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
             "note": "explain receipts via snapshot graph/health only",
             "graph": service.graph_summary(),
         },
+        "atlas.projects.list.read": lambda: {"projects": service.projects()},
     }
 
 

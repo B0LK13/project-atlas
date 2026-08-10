@@ -3,8 +3,9 @@ import { useReadStatus } from "../../hooks/useReadStatus";
 
 /** Production projects inventory — read-only; never invents PILOT rows. */
 export default function ProjectsPage() {
-  const { status, error, loading } = useReadStatus();
+  const { status, error, loading, dataSource } = useReadStatus();
   const projects = status?.projects ?? [];
+  const isDemo = dataSource === "demo_stub" || status?.demo_isolated === true;
 
   return (
     <ProdShell>
@@ -13,13 +14,18 @@ export default function ProjectsPage() {
           <p className="eyebrow">Production · Projects</p>
           <h1>Projects</h1>
           <p className="lede">
-            Read-only project inventory from the sample/read adapter. Missing
-            evidence stays unknown — never invented estate rows.
+            Read-only project inventory. LIVE_API preferred; demo stub isolated.
+            Missing evidence stays unknown — never invented estate rows.
           </p>
         </header>
 
         {error ? <p className="banner warn">Inventory unavailable: {error}</p> : null}
         {loading ? <p className="banner">Loading…</p> : null}
+        {isDemo ? (
+          <p className="banner warn">DEMO STUB — isolated sample data · not live vault</p>
+        ) : dataSource === "live_api" ? (
+          <p className="banner">LIVE_API — read-only vault projection</p>
+        ) : null}
 
         <section className="panel" aria-label="Project inventory">
           <h2>Inventory</h2>
@@ -30,12 +36,15 @@ export default function ProjectsPage() {
               {projects.map((project) => (
                 <li key={project.project_id ?? project.path ?? JSON.stringify(project)}>
                   <strong>{project.project_id ?? "unnamed"}</strong>
-                  <span>{project.path ?? "sample row"}</span>
+                  <span>{project.path ?? "path unknown"}</span>
                 </li>
               ))}
             </ul>
           )}
-          <p className="disclaimer">UI ≠ canonical · sample/adapter only</p>
+          <p className="disclaimer">
+            UI ≠ canonical · Graph ≠ authority
+            {isDemo ? " · demo isolated" : " · LIVE_API read-only"}
+          </p>
         </section>
       </main>
     </ProdShell>
