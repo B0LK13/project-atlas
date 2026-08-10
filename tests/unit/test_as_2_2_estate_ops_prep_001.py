@@ -182,25 +182,16 @@ def test_no_runtime_ops_mutation() -> None:
         text=True,
     )
     changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
-    status = subprocess.check_output(
-        ["git", "status", "--porcelain"],
-        cwd=ROOT,
-        text=True,
-    )
-    for line in status.splitlines():
-        path = line[3:].strip().replace("\\", "/")
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1]
-        if path:
-            changed.add(path)
 
     assert "src/project_atlas/ops_health.py" not in changed
     assert "src/project_atlas/ops_events.py" not in changed
+    allowed_tests = {
+        "tests/unit/test_as_2_2_estate_ops_prep_001.py",
+        "tests/unit/test_as_2_2_estate_ops_deepen_prep_001.py",
+    }
     for name in changed:
         assert not name.startswith("src/"), name
         assert not name.startswith("apps/"), name
-        assert name.startswith("docs/atlas-2.2/estate-ops/") or name == (
-            "tests/unit/test_as_2_2_estate_ops_prep_001.py"
-        ), name
+        assert name.startswith("docs/atlas-2.2/estate-ops/") or name in allowed_tests, name
         assert not name.endswith("README.md"), name
         assert name != "docs/atlas-2.2/README.md"

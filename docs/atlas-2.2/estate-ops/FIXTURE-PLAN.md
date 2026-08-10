@@ -20,6 +20,17 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | FX-2.2-EO-004 | `negative-unknown-as-healthy.expect.json` | unknown→healthy → rejected |
 | FX-2.2-EO-005 | `negative-ui-canonical-write.expect.json` | canonical_write → rejected |
 | FX-2.2-EO-006 | `negative-pilot-invent.expect.json` | pilot_invent → rejected |
+| FX-2.2-EO-DEEPEN-101 | `negative-deepen-unknown-as-healthy.expect.json` | deepen forbidden-action |
+| FX-2.2-EO-DEEPEN-102 | `negative-deepen-ui-canonical-write.expect.json` | deepen forbidden-action |
+| FX-2.2-EO-DEEPEN-103 | `negative-deepen-pilot-invent.expect.json` | deepen forbidden-action |
+| FX-2.2-EO-DEEPEN-104 | `negative-deepen-ops-runtime-mutation.expect.json` | deepen forbidden-action |
+| FX-2.2-EO-DEEPEN-105 | `negative-deepen-llm-authority.expect.json` | deepen forbidden-action |
+
+Deepen contract stub: `contracts/estate-ops-forbidden-action.schema.json`
+(peer to base `estate-ops-action.schema.json`; do not dual-own).
+
+All deepen negatives: `evidence_class=fixture-only`, `authentic_estate=false`,
+`release_certified=false`, `pilot_pass=false`, `canonical_writes=false`.
 
 ## Rules
 
@@ -35,6 +46,7 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | Scenario | State | Gate credit |
 |---|---|---|
 | FX-2.2-EO-001..006 | payload-present (docs sketch) | **NO** |
+| FX-2.2-EO-DEEPEN-101..105 | payload-present (deepen sketch) | **NO** |
 
 Promotion to harness + production schemas requires
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.
