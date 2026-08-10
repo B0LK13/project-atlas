@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/research-conflict.schema.json",
+  "title": "research-conflict (PREP STUB - not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "conflict_id",
+    "question_id",
+    "left_ref_id",
+    "right_ref_id",
+    "resolution",
+    "retained"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.research.conflict.v0" },
+    "conflict_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "question_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "left_ref_id": { "type": "string" },
+    "right_ref_id": { "type": "string" },
+    "field": { "type": "string" },
+    "resolution": {
+      "type": "string",
+      "enum": ["unresolved", "superseded", "manual_review"]
+    },
+    "retained": { "const": true },
+    "notes": { "type": "string" }
+  }
+}

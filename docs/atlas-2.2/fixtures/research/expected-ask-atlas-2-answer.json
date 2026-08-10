@@ -1,0 +1,32 @@
+{
+  "schema": "atlas.ask_atlas_2.answer.v0",
+  "answer_id": "ans-fx-res-005",
+  "question_id": "q-fx-res-001",
+  "pack_id": "pack-fx-res-001",
+  "ANSWER": "Fixture vault documents compatibility posture; Atlas 2.1 is not release-certified on this tip.",
+  "WHY": [
+    "ev-compat-doc supports compat pin documentation",
+    "h-compat-pinned status=supported"
+  ],
+  "WHY_NOT": [
+    "h-release-certified status=refuted",
+    "ATLAS_2_1_RELEASE_CERTIFIED remains NO"
+  ],
+  "EVIDENCE": ["ev-compat-doc", "ev-board-state"],
+  "AUTHORITY": {
+    "level": "derived",
+    "note": "Ask Atlas 2 is a read lens; UI≠canonical"
+  },
+  "TEMPORAL_VALIDITY": {
+    "valid_from": null,
+    "valid_to": null,
+    "as_of_known": false
+  },
+  "CONFLICTS": [],
+  "UNKNOWN": ["authentic estate pilot outcome"],
+  "canonical_write": false,
+  "ui_truth": false,
+  "graph_authority": false,
+  "llm_authority": false,
+  "truth_boundary": "ASK ATLAS 2 ≠ CANONICAL WRITE / ≠ AUTHORITY / UI ≠ TRUTH"
+}

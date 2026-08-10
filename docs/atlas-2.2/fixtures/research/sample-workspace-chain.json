@@ -1,0 +1,77 @@
+{
+  "package_id": "AS-2.2-RESEARCH-001",
+  "scenario_id": "FX-2.2-RES-001",
+  "pipeline": [
+    "question",
+    "hypotheses",
+    "evidence",
+    "conflicts",
+    "synthesis",
+    "packs"
+  ],
+  "question": {
+    "schema": "atlas.research.question.v0",
+    "question_id": "q-fx-res-001",
+    "statement": "What is the certified compatibility posture of the fixture vault?",
+    "scope": "fixture",
+    "project_id": "fixture-demo",
+    "evidence_class": "fixture-only",
+    "authentic_estate": false
+  },
+  "hypotheses": [
+    {
+      "schema": "atlas.research.hypothesis.v0",
+      "hypothesis_id": "h-compat-pinned",
+      "question_id": "q-fx-res-001",
+      "statement": "Vault declares atlas-1.0.0-compat / future v2.1.0 pin.",
+      "status": "supported",
+      "authority_promoted": false,
+      "evidence_ref_ids": ["ev-compat-doc"]
+    },
+    {
+      "schema": "atlas.research.hypothesis.v0",
+      "hypothesis_id": "h-release-certified",
+      "question_id": "q-fx-res-001",
+      "statement": "Atlas 2.1 is already RELEASE CERTIFIED.",
+      "status": "refuted",
+      "authority_promoted": false,
+      "evidence_ref_ids": ["ev-board-state"]
+    }
+  ],
+  "evidence": [
+    {
+      "schema": "atlas.research.evidence_ref.v0",
+      "evidence_ref_id": "ev-compat-doc",
+      "question_id": "q-fx-res-001",
+      "evidence_class": "fixture_receipt",
+      "pointer": {
+        "kind": "path",
+        "value": "docs/AS-2.0-COMPAT-001.md"
+      },
+      "invent_estate_facts": false
+    },
+    {
+      "schema": "atlas.research.evidence_ref.v0",
+      "evidence_ref_id": "ev-board-state",
+      "question_id": "q-fx-res-001",
+      "evidence_class": "fixture_receipt",
+      "pointer": {
+        "kind": "path",
+        "value": "docs/atlas-2.1/PACKAGE-BOARD.md"
+      },
+      "invent_estate_facts": false
+    }
+  ],
+  "conflicts": [],
+  "synthesis": {
+    "schema": "atlas.research.synthesis.v0",
+    "synthesis_id": "syn-fx-res-001",
+    "question_id": "q-fx-res-001",
+    "summary": "Fixture vault remains pre-v2.1.0 certified; compat posture is documented, not release-certified.",
+    "unknown": ["authentic estate pilot outcome"],
+    "conflict_ids": [],
+    "hypothesis_ids": ["h-compat-pinned", "h-release-certified"],
+    "authority_promoted": false
+  },
+  "truth_boundary": "RESEARCH FIXTURE ≠ PILOT PASS / ≠ 2.1 RELEASE CERTIFIED"
+}
