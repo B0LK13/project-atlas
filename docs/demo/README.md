@@ -51,6 +51,7 @@ NOT AUTHENTIC PILOT PASS
 | `API-MCP-E2E.md` / `checklists/api-mcp.md` | Live smoke + MCP consistency | D06 |
 | `L3-OAI-OPTIONAL.md` | Non-blocking optional lane | D07 |
 | `ADV-DEMO.md` / `CERTIFICATE-TEMPLATE.md` | ADV + cert template | D08 |
+| `browser-e2e/` | Isolated `BROWSER_E2E_MISSING` harness package | AS-DEMO-2.1-BROWSER-E2E-001 |
 
 Sibling paths may land on separate branches/PRs. Do not dual-write another
 worker's sole-writer surface.
