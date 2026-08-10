@@ -36,10 +36,10 @@ $ErrorActionPreference = "Stop"
 function Write-DemoBanner {
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "  PROJECT ATLAS — TECHNICAL DEMO (AS-DEMO-2.1-001)" -ForegroundColor Cyan
+    Write-Host "  PROJECT ATLAS  -  TECHNICAL DEMO (AS-DEMO-2.1-001)" -ForegroundColor Cyan
     Write-Host "  Mode: DEMO_FIXTURE  ·  ATLAS_DEMO_MODE=fixture" -ForegroundColor Cyan
     Write-Host "----------------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "  Certificate target: TECHNICAL DEMO — VERIFIED (when gates pass)" -ForegroundColor Yellow
+    Write-Host "  Certificate target: TECHNICAL DEMO  -  VERIFIED (when gates pass)" -ForegroundColor Yellow
     Write-Host "  NOT RELEASE CERTIFIED" -ForegroundColor Yellow
     Write-Host "  NOT AUTHENTIC PILOT PASS" -ForegroundColor Yellow
     Write-Host "  DEMO_FIXTURE ≠ authentic estate ≠ release evidence" -ForegroundColor Yellow
@@ -95,10 +95,10 @@ if (-not (Test-Path (Join-Path $RepoRoot "pyproject.toml"))) {
 
 Write-DemoBanner
 
-# Honest status stamps — never YES for release/pilot.
+# Honest status stamps  -  never YES for release/pilot.
 $env:ATLAS_DEMO_MODE = "fixture"
 $env:VITE_ATLAS_DEMO_ONLY = "1"
-$env:ATLAS_DEMO_CLAIM = "TECHNICAL DEMO — NOT RELEASE CERTIFIED — NOT PILOT PASS"
+$env:ATLAS_DEMO_CLAIM = "TECHNICAL DEMO  -  NOT RELEASE CERTIFIED  -  NOT PILOT PASS"
 $env:ATLAS_RELEASE_STATUS = "RELEASE CERTIFIED = NO"
 $env:ATLAS_PILOT_STATUS = "PILOT = DORMANT_BLOCKED (NOT PILOT PASS)"
 
@@ -254,7 +254,7 @@ $started = [ordered]@{
     mode                = "DEMO_FIXTURE"
     release_certified   = $false
     pilot_pass          = $false
-    note                = "TECHNICAL DEMO session — NOT RELEASE CERTIFIED — NOT AUTHENTIC PILOT PASS"
+    note                = "TECHNICAL DEMO session  -  NOT RELEASE CERTIFIED  -  NOT AUTHENTIC PILOT PASS"
     demo_fixture_root   = $DemoFixtureRoot
     web_public_root     = $WebPublicRoot
     runtime_root        = $RuntimeRoot

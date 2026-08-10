@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Project Atlas Technical Demo outline (Windows-first) — AS-DEMO-2.1-001
+  Project Atlas Technical Demo outline (Windows-first)  -  AS-DEMO-2.1-001
 
 .DESCRIPTION
   Scaffold / operator outline for Mode A (DEMO_FIXTURE).

@@ -21,7 +21,7 @@ $ErrorActionPreference = "Continue"
 function Write-DemoBanner {
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Cyan
-    Write-Host "  PROJECT ATLAS — TECHNICAL DEMO TEARDOWN (AS-DEMO-2.1-001)" -ForegroundColor Cyan
+    Write-Host "  PROJECT ATLAS  -  TECHNICAL DEMO TEARDOWN (AS-DEMO-2.1-001)" -ForegroundColor Cyan
     Write-Host "----------------------------------------------------------------" -ForegroundColor Cyan
     Write-Host "  NOT RELEASE CERTIFIED" -ForegroundColor Yellow
     Write-Host "  NOT AUTHENTIC PILOT PASS" -ForegroundColor Yellow
@@ -52,7 +52,7 @@ try {
     $state = Get-Content -Raw -Path $PidFile | ConvertFrom-Json
 }
 catch {
-    Write-Host "WARN: could not parse $PidFile — $($_.Exception.Message)" -ForegroundColor DarkYellow
+    Write-Host "WARN: could not parse $PidFile  -  $($_.Exception.Message)" -ForegroundColor DarkYellow
     $state = $null
 }
 
