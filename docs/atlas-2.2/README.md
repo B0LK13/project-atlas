@@ -19,7 +19,7 @@ or inventing authentic-estate PILOT credit.
 
 Package directories under this tree are **preserved**; this README is an
 integration index only (builds on H01 #173 multi-package restore; extends through
-#179–#199 tip merges).
+#179–#199 wave-2 merges and #208–#210 wave-1 deepen merges).
 
 ## Landed PREP packages
 
@@ -44,8 +44,11 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **COMPAT-PIN** | `AS-2.2-COMPAT-PIN-PREP-001` | [#196](https://github.com/B0LK13/project-atlas/pull/196) | [compat-pin/](compat-pin/) · [compat-pin/contracts/](compat-pin/contracts/) · [compat-pin/fixtures/](compat-pin/fixtures/) · [compat-pin/AS-2.2-COMPAT-PIN-PREP-001.md](compat-pin/AS-2.2-COMPAT-PIN-PREP-001.md) |
 | **ESTATE-OPS** | `AS-2.2-ESTATE-OPS-PREP-001` | [#197](https://github.com/B0LK13/project-atlas/pull/197) | [estate-ops/](estate-ops/) · [estate-ops/contracts/](estate-ops/contracts/) · [estate-ops/fixtures/](estate-ops/fixtures/) · [estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md](estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md) |
 | **DOC-CHARTER** | `AS-2.2-DOC-CHARTER-PREP-001` | [#199](https://github.com/B0LK13/project-atlas/pull/199) | [doc-charter/](doc-charter/) · [doc-charter/contracts/](doc-charter/contracts/) · [doc-charter/fixtures/](doc-charter/fixtures/) · [doc-charter/adr/](doc-charter/adr/) · [doc-charter/AS-2.2-DOC-CHARTER-PREP-001.md](doc-charter/AS-2.2-DOC-CHARTER-PREP-001.md) |
+| **MEM-DEEPEN** | `AS-2.2-MEM-GOV-DEEPEN-PREP-001` | [#208](https://github.com/B0LK13/project-atlas/pull/208) | [mem-gov/AS-2.2-MEM-GOV-DEEPEN-PREP-001.md](mem-gov/AS-2.2-MEM-GOV-DEEPEN-PREP-001.md) · [mem-gov/INVARIANTS.md](mem-gov/INVARIANTS.md) · [mem-gov/FIXTURE-PLAN.md](mem-gov/FIXTURE-PLAN.md) · [mem-gov/contracts/](mem-gov/contracts/) · [mem-gov/fixtures/](mem-gov/fixtures/) · [mem-gov/adr/ADR-2.2-MEM-GOV-001-governed-agent-memory-deepen-prep.md](mem-gov/adr/ADR-2.2-MEM-GOV-001-governed-agent-memory-deepen-prep.md) |
+| **RESEARCH-DEEPEN** | `AS-2.2-RESEARCH-DEEPEN-PREP-001` | [#209](https://github.com/B0LK13/project-atlas/pull/209) | [research/AS-2.2-RESEARCH-DEEPEN-PREP-001.md](research/AS-2.2-RESEARCH-DEEPEN-PREP-001.md) · [research/INVARIANTS.md](research/INVARIANTS.md) · [research/DEEPEN-FIXTURE-PLAN.md](research/DEEPEN-FIXTURE-PLAN.md) · [research/contracts/](research/contracts/) · [research/fixtures/](research/fixtures/) · [research/adr/ADR-2.2-RESEARCH-001-workspace-deepen-prep.md](research/adr/ADR-2.2-RESEARCH-001-workspace-deepen-prep.md) |
+| **DOD-DEEPEN** | `AS-2.2-DOD-DEEPEN-PREP-001` | [#210](https://github.com/B0LK13/project-atlas/pull/210) | [dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md](dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md) · [dod-compiler/INVARIANTS.md](dod-compiler/INVARIANTS.md) · [dod-compiler/FIXTURE-PLAN.md](dod-compiler/FIXTURE-PLAN.md) · [dod-compiler/contracts/](dod-compiler/contracts/) · [dod-compiler/fixtures/](dod-compiler/fixtures/) · [dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md](dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md) |
 | **PREP-STATUS** | `AS-2.2-PREP-STATUS-001` | [#203](https://github.com/B0LK13/project-atlas/pull/203) | [PREP-STATUS.md](PREP-STATUS.md) |
-| **CROSSWALK** | `AS-2.2-ROADMAP-CROSSWALK-PREP-001` | *(this PR)* | [roadmap-crosswalk/](roadmap-crosswalk/) · [CROSSWALK.md](roadmap-crosswalk/CROSSWALK.md) |
+| **CROSSWALK** | `AS-2.2-ROADMAP-CROSSWALK-PREP-001` | [#206](https://github.com/B0LK13/project-atlas/pull/206) | [roadmap-crosswalk/](roadmap-crosswalk/) · [CROSSWALK.md](roadmap-crosswalk/CROSSWALK.md) |
 
 Shared stubs: [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) · [FIXTURE-PLAN.md](FIXTURE-PLAN.md) · [fixtures/README.md](fixtures/README.md) · [adr/](adr/) · [roadmap-crosswalk/](roadmap-crosswalk/)
 
@@ -60,6 +63,7 @@ Shared stubs: [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) · [FIXTURE
 
 ## Harvest note
 
-Parallel PREP merges (#159–#172, then #179–#199) left package directories
-intact but `README.md` was last-writer-wins (#159). This index restores the
-multi-package tree through tip (#199) without reopening runtime surfaces.
+Parallel PREP merges (#159–#172, then #179–#199, then #208–#210 deepen) left
+package directories intact but `README.md` was last-writer-wins (#159). This
+index restores the multi-package tree through tip (`d7c4d79`) without reopening
+runtime surfaces.

@@ -4,7 +4,7 @@
 |---|---|
 | Package | **AS-2.2-PREP-STATUS-001** |
 | Class | **PREP ONLY** — status / inventory snapshot (docs-only) |
-| Tip audited | `0f7cb4e` (`origin/main` at refresh cut) |
+| Tip audited | `d7c4d79` (`origin/main` at refresh cut) |
 | Integration index | [`README.md`](README.md) (package rows + entry links) |
 | Charter | [`CHARTER.md`](CHARTER.md) |
 | Maturity draft | [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md) |
@@ -26,12 +26,12 @@ release certification credit.
 
 | Metric | Value |
 |---|---|
-| Landed PREP packages | **19** (wave 1 #159–#172 + wave 2 #179–#199) |
-| Package trees under `docs/atlas-2.2/` | **22** dirs (19 packages + shared `adr/`, `contracts/`, `fixtures/`, `benchmarks/`, `schemas/`) |
-| README index merges | [#173](https://github.com/B0LK13/project-atlas/pull/173) · [#195](https://github.com/B0LK13/project-atlas/pull/195) · [#198](https://github.com/B0LK13/project-atlas/pull/198) · [#202](https://github.com/B0LK13/project-atlas/pull/202) |
+| Landed PREP packages | **22** (wave 1 #159–#172 + wave 2 #179–#199 + wave 3 deepen #208–#210) |
+| Package trees under `docs/atlas-2.2/` | **22** dirs (19 base packages + shared `adr/`, `contracts/`, `fixtures/`, `benchmarks/`, `schemas/`; deepen artifacts live under base package dirs) |
+| README index merges | [#173](https://github.com/B0LK13/project-atlas/pull/173) · [#195](https://github.com/B0LK13/project-atlas/pull/195) · [#198](https://github.com/B0LK13/project-atlas/pull/198) · [#202](https://github.com/B0LK13/project-atlas/pull/202) · [#204](https://github.com/B0LK13/project-atlas/pull/204) |
 | Runtime modules touched | **0** (`src/project_atlas/` unchanged by PREP lane) |
 | Authentic estate PILOT roots | **0** (all prep fixtures) |
-| Saturation | **YES** — all known 2.2 intelligence PREP slots through tip #199 are landed and indexed |
+| Saturation | **YES** — all known 2.2 intelligence PREP slots through tip #210 are landed and indexed |
 
 ## Merge waves
 
@@ -48,6 +48,12 @@ Cross-project fabric, conflict UX, KF2 fabric, Ask Atlas 2 deepen, intel slice,
 ChatGPT live bridge, temporal UX, compat pin, estate ops, and doc-charter /
 maturity matrix PREP landed as additive package trees.
 
+### Wave 3 — wave-1 deepen PREP (#208–#210)
+
+Mem-gov, research workspace, and DoD compiler deepen packages added fail-closed
+invariants, forbidden-action schemas, and negative rehearsal payloads under
+their existing package dirs (peer to wave-1 base stubs; no dual-own relocation).
+
 ### README index lane (integration only)
 
 | PR | Package | Role |
@@ -56,6 +62,8 @@ maturity matrix PREP landed as additive package trees.
 | [#195](https://github.com/B0LK13/project-atlas/pull/195) | `AS-2.2-README-INDEX-002` | Restore rows for wave-2 packages through #192 |
 | [#198](https://github.com/B0LK13/project-atlas/pull/198) | `AS-2.2-README-INDEX-003` | Add **compat-pin** (#196) and **estate-ops** (#197) rows |
 | [#202](https://github.com/B0LK13/project-atlas/pull/202) | `AS-2.2-README-INDEX-004` | Add **doc-charter** (#199) row; tip index through #199 |
+| [#204](https://github.com/B0LK13/project-atlas/pull/204) | `AS-2.2-README-INDEX-005` | Add **PREP-STATUS** (#203) row |
+| *(this PR)* | `AS-2.2-README-INDEX-006` | Add **mem-gov / research / DoD deepen** rows (#208–#210); fix crosswalk PR link |
 
 Entry links and artifact paths: [`README.md`](README.md) (authoritative index).
 
@@ -82,12 +90,23 @@ Entry links and artifact paths: [`README.md`](README.md) (authoritative index).
 | **COMPAT-PIN** | `AS-2.2-COMPAT-PIN-PREP-001` | [#196](https://github.com/B0LK13/project-atlas/pull/196) | FIXTURE_ONLY |
 | **ESTATE-OPS** | `AS-2.2-ESTATE-OPS-PREP-001` | [#197](https://github.com/B0LK13/project-atlas/pull/197) | FIXTURE_ONLY |
 | **DOC-CHARTER** | `AS-2.2-DOC-CHARTER-PREP-001` | [#199](https://github.com/B0LK13/project-atlas/pull/199) | FIXTURE_ONLY |
+| **MEM-DEEPEN** | `AS-2.2-MEM-GOV-DEEPEN-PREP-001` | [#208](https://github.com/B0LK13/project-atlas/pull/208) | FIXTURE_ONLY |
+| **RESEARCH-DEEPEN** | `AS-2.2-RESEARCH-DEEPEN-PREP-001` | [#209](https://github.com/B0LK13/project-atlas/pull/209) | FIXTURE_ONLY |
+| **DOD-DEEPEN** | `AS-2.2-DOD-DEEPEN-PREP-001` | [#210](https://github.com/B0LK13/project-atlas/pull/210) | FIXTURE_ONLY |
 
 Maturity classes are **draft audit labels** from
 [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md);
 they are not release certification.
 
-## Tip highlights (#196–#199)
+## Tip highlights (#208–#210)
+
+| Package | PR | Scope |
+|---|---|---|
+| **MEM-DEEPEN** | [#208](https://github.com/B0LK13/project-atlas/pull/208) | Fail-closed mem-gov invariants, forbidden-action schema, negative rehearsal under `mem-gov/` |
+| **RESEARCH-DEEPEN** | [#209](https://github.com/B0LK13/project-atlas/pull/209) | Research workspace deepen: invariants, forbidden-action schema, negative fixtures under `research/` |
+| **DOD-DEEPEN** | [#210](https://github.com/B0LK13/project-atlas/pull/210) | DoD compiler deepen: FX-2.2-DOD-004 proof shape, Layer B / LLM / invented-PASS negatives under `dod-compiler/` |
+
+## Prior tip highlights (#196–#199)
 
 | Package | PR | Scope |
 |---|---|---|
@@ -129,4 +148,4 @@ Re-run `AS-2.2-PREP-STATUS-001` when:
 2. README index lane adds rows for new packages, or
 3. Unlock gates change (requires separate ADR; not expected on prep tip).
 
-Until then, this snapshot is **saturated** at tip `0f7cb4e`.
+Until then, this snapshot is **saturated** at tip `d7c4d79`.
