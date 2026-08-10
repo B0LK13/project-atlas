@@ -43,6 +43,7 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **COMPAT-PIN** | `AS-2.2-COMPAT-PIN-PREP-001` | [#196](https://github.com/B0LK13/project-atlas/pull/196) | [compat-pin/](compat-pin/) · [compat-pin/contracts/](compat-pin/contracts/) · [compat-pin/fixtures/](compat-pin/fixtures/) · [compat-pin/AS-2.2-COMPAT-PIN-PREP-001.md](compat-pin/AS-2.2-COMPAT-PIN-PREP-001.md) |
 | **ESTATE-OPS** | `AS-2.2-ESTATE-OPS-PREP-001` | [#197](https://github.com/B0LK13/project-atlas/pull/197) | [estate-ops/](estate-ops/) · [estate-ops/contracts/](estate-ops/contracts/) · [estate-ops/fixtures/](estate-ops/fixtures/) · [estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md](estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md) |
 | **DOC-CHARTER** | `AS-2.2-DOC-CHARTER-PREP-001` | [#199](https://github.com/B0LK13/project-atlas/pull/199) | [doc-charter/](doc-charter/) · [doc-charter/contracts/](doc-charter/contracts/) · [doc-charter/fixtures/](doc-charter/fixtures/) · [doc-charter/adr/](doc-charter/adr/) · [doc-charter/AS-2.2-DOC-CHARTER-PREP-001.md](doc-charter/AS-2.2-DOC-CHARTER-PREP-001.md) |
+| **PREP-STATUS** | `AS-2.2-PREP-STATUS-001` | [#203](https://github.com/B0LK13/project-atlas/pull/203) | [PREP-STATUS.md](PREP-STATUS.md) |
 
 Shared stubs: [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) · [FIXTURE-PLAN.md](FIXTURE-PLAN.md) · [fixtures/README.md](fixtures/README.md) · [adr/](adr/)
 
