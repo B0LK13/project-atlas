@@ -25,9 +25,11 @@ export interface ReadStatus {
   ui_canonical: boolean;
   graph_authority: boolean;
   unknown_equals_healthy: boolean;
-  /** AS-2.1 deepen: live vs isolated demo stub */
+  /** AS-2.1 deepen: live vs isolated demo stub vs fixture sample */
   data_source?: DataSource;
   demo_isolated?: boolean;
+  fixture_isolated?: boolean;
 }
 
-export type DataSource = "live_api" | "demo_stub";
+/** LIVE_API preferred; DEMO stub isolated; FIXTURE sample for gates. */
+export type DataSource = "live_api" | "demo_stub" | "fixture";

@@ -1,13 +1,23 @@
+import { useSearchParams } from "react-router-dom";
+import {
+  LensModeSwitcher,
+  LENS_MODES,
+  resolveLensMode,
+  type LensModeId,
+} from "../../components/LensModeSwitcher";
 import { ProdShell } from "../../components/ProdShell";
 import { useLiveMission } from "../../hooks/useLiveMissionWorkspace";
 
 /**
- * Mission Control lens — AS-WEB-MISSION-001 / LIVE deepen + UX polish.
- * LIVE_API preferred; demo stub isolated; never invents PILOT estate rows.
+ * Mission Control lens — AS-WEB-MISSION-001 / AS-2.1-WEB-MISSION-WORKSPACE-UX.
+ * LIVE-first with visible DEMO / FIXTURE modes; never invents PILOT estate rows.
+ * Exclusion: apps/web UI only — API server / shared schema roots untouched.
  */
 export default function MissionControlPage() {
-  const { view, error, loading, dataSource } = useLiveMission();
-  const isDemo = dataSource === "demo_stub" || view?.demo_isolated === true;
+  const [params, setParams] = useSearchParams();
+  const mode: LensModeId = resolveLensMode(params.get("mode"));
+  const { view, error, loading, dataSource } = useLiveMission(mode);
+  const active = LENS_MODES.find((item) => item.id === mode) ?? LENS_MODES[0];
   const surfaces =
     view && typeof view.surfaces === "object" && view.surfaces !== null
       ? (view.surfaces as Record<string, unknown>)
@@ -17,26 +27,39 @@ export default function MissionControlPage() {
     <ProdShell>
       <main id="main" className="shell" tabIndex={-1}>
         <header className="hero">
-          <p className="eyebrow">Production · Mission Control · AS-WEB-MISSION-001</p>
+          <p className="eyebrow">Production · Mission Control · AS-2.1-WEB-MISSION-WORKSPACE-UX</p>
           <h1>Mission Control</h1>
           <p className="lede">
-            Operator mission lens. LIVE_API composition preferred; demo fallback
-            isolated. Never invents PILOT estate rows or elevates UI to vault truth.
+            Operator mission lens. LIVE-first composition with visible DEMO and
+            FIXTURE modes. Never invents PILOT estate rows or elevates UI to vault
+            truth.
           </p>
           <p className="flags" style={{ marginTop: "0.75rem" }}>
             <span className="chip">ui_canonical=false</span>
             <span className="chip">graph_authority=false</span>
             <span className="chip">unknown≠healthy</span>
             <span className="chip">authentic_pilot=false</span>
+            <span className="chip">lens_mode={mode}</span>
             <span className="chip">data_source={dataSource ?? "unknown"}</span>
           </p>
         </header>
 
+        <LensModeSwitcher
+          mode={mode}
+          ariaLabel="Mission Control data modes"
+          onChange={(next) => setParams({ mode: next })}
+        />
+        <p className="disclaimer">{active.blurb}</p>
+
         {error ? <p className="banner warn">Mission unavailable: {error}</p> : null}
         {loading ? <p className="banner">Loading…</p> : null}
-        {isDemo ? (
+        {mode === "demo" || dataSource === "demo_stub" ? (
           <p className="banner warn">DEMO STUB — isolated sample · not live vault · not PILOT</p>
-        ) : dataSource === "live_api" ? (
+        ) : null}
+        {mode === "fixture" || dataSource === "fixture" ? (
+          <p className="banner warn">FIXTURE — deterministic sample · flags only · not PILOT</p>
+        ) : null}
+        {mode === "live" && dataSource === "live_api" ? (
           <p className="banner">LIVE_API — composed read projection</p>
         ) : null}
 
@@ -82,7 +105,11 @@ export default function MissionControlPage() {
           <p className="disclaimer">
             UI ≠ canonical · Graph ≠ authority · Unknown ≠ healthy · no PILOT invent
             · WEB APPLICATION ACCEPTED = YES
-            {isDemo ? " · demo isolated" : " · LIVE_API read-only"}
+            {mode === "demo"
+              ? " · DEMO isolated"
+              : mode === "fixture"
+                ? " · FIXTURE sample"
+                : " · LIVE-first read-only"}
           </p>
         </section>
 

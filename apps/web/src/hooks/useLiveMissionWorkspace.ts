@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
+import type { LensModeId } from "../components/LensModeSwitcher";
 import type { DataSource } from "../types";
 
-/** LIVE_API mission/workspace lenses; demo stub isolated; never invents PILOT rows. */
+/**
+ * AS-2.1-WEB-MISSION-WORKSPACE-UX — LIVE-first lens loader.
+ * Explicit LIVE / DEMO / FIXTURE modes; never invents PILOT estate rows.
+ * Exclusion: apps/web only — does not edit API server or shared schema roots.
+ */
 
 function envFlag(name: string): string | undefined {
   const env = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
@@ -12,7 +17,7 @@ function apiBase(): string {
   return (envFlag("VITE_ATLAS_API_BASE") ?? "http://127.0.0.1:8765").replace(/\/$/, "");
 }
 
-function demoOnly(): boolean {
+function demoOnlyEnv(): boolean {
   const raw = (envFlag("VITE_ATLAS_DEMO_ONLY") ?? "").trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes";
 }
@@ -27,6 +32,7 @@ export interface LensView {
   authentic_pilot?: boolean;
   data_source?: DataSource;
   demo_isolated?: boolean;
+  fixture_isolated?: boolean;
   note?: string;
   [key: string]: unknown;
 }
@@ -36,6 +42,7 @@ function stampDemo(stub: LensView): LensView {
     ...stub,
     data_source: "demo_stub",
     demo_isolated: true,
+    fixture_isolated: false,
     authentic_pilot: false,
     pilot_estate_rows: [],
     ui_canonical: false,
@@ -44,41 +51,81 @@ function stampDemo(stub: LensView): LensView {
   };
 }
 
-async function loadLens(path: string, stubUrl: string): Promise<{
+function stampFixture(stub: LensView): LensView {
+  return {
+    ...stub,
+    data_source: "fixture",
+    fixture_isolated: true,
+    demo_isolated: false,
+    authentic_pilot: false,
+    pilot_estate_rows: [],
+    ui_canonical: false,
+    graph_authority: false,
+    unknown_equals_healthy: false,
+  };
+}
+
+async function fetchJson(url: string): Promise<LensView> {
+  const resp = await fetch(url);
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status} for ${url}`);
+  }
+  return (await resp.json()) as LensView;
+}
+
+async function loadLens(
+  path: string,
+  demoUrl: string,
+  fixtureUrl: string,
+  mode: LensModeId,
+): Promise<{
   view: LensView;
   source: DataSource;
 }> {
-  if (!demoOnly()) {
-    try {
-      const resp = await fetch(`${apiBase()}${path}`);
-      if (resp.ok) {
-        const body = (await resp.json()) as LensView;
-        return {
-          view: {
-            ...body,
-            data_source: "live_api",
-            demo_isolated: false,
-            authentic_pilot: false,
-            pilot_estate_rows: [],
-          },
-          source: "live_api",
-        };
-      }
-    } catch {
-      // fall through
+  const effective: LensModeId = demoOnlyEnv() && mode === "live" ? "demo" : mode;
+
+  if (effective === "fixture") {
+    const stub = await fetchJson(fixtureUrl);
+    return { view: stampFixture(stub), source: "fixture" };
+  }
+
+  if (effective === "demo") {
+    const stub = await fetchJson(demoUrl);
+    return { view: stampDemo(stub), source: "demo_stub" };
+  }
+
+  // LIVE-first: no silent demo fallback — unavailable stays unknown.
+  try {
+    const resp = await fetch(`${apiBase()}${path}`);
+    if (!resp.ok) {
+      throw new Error(`LIVE_API HTTP ${resp.status}`);
     }
+    const body = (await resp.json()) as LensView;
+    return {
+      view: {
+        ...body,
+        data_source: "live_api",
+        demo_isolated: false,
+        fixture_isolated: false,
+        authentic_pilot: false,
+        // Never surface invented PILOT estate rows from the browser shell.
+        pilot_estate_rows: [],
+      },
+      source: "live_api",
+    };
+  } catch (err: unknown) {
+    const detail = err instanceof Error ? err.message : "LIVE_API unavailable";
+    throw new Error(
+      `${detail} — choose DEMO or FIXTURE mode (no silent invent)`,
+    );
   }
-  const stubResp = await fetch(stubUrl);
-  if (!stubResp.ok) {
-    throw new Error(`demo stub HTTP ${stubResp.status}`);
-  }
-  const stub = (await stubResp.json()) as LensView;
-  return { view: stampDemo(stub), source: "demo_stub" };
 }
 
 function useLens(
   path: string,
-  stubUrl: string,
+  demoUrl: string,
+  fixtureUrl: string,
+  mode: LensModeId,
 ): {
   view: LensView | null;
   error: string | null;
@@ -93,7 +140,7 @@ function useLens(
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    loadLens(path, stubUrl)
+    loadLens(path, demoUrl, fixtureUrl, mode)
       .then(({ view: payload, source }) => {
         if (!cancelled) {
           setView(payload);
@@ -116,15 +163,25 @@ function useLens(
     return () => {
       cancelled = true;
     };
-  }, [path, stubUrl]);
+  }, [path, demoUrl, fixtureUrl, mode]);
 
   return { view, error, loading, dataSource };
 }
 
-export function useLiveMission() {
-  return useLens("/v1/mission", "/sample-mission-control.json");
+export function useLiveMission(mode: LensModeId = "live") {
+  return useLens(
+    "/v1/mission",
+    "/sample-mission-control.json",
+    "/sample-mission-control.fixture.json",
+    mode,
+  );
 }
 
-export function useLiveWorkspace() {
-  return useLens("/v1/workspace", "/sample-workspace.json");
+export function useLiveWorkspace(mode: LensModeId = "live") {
+  return useLens(
+    "/v1/workspace",
+    "/sample-workspace.json",
+    "/sample-workspace.fixture.json",
+    mode,
+  );
 }

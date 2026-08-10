@@ -5115,18 +5115,13 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.1-MCP-ADV-001 — MCP READ ONLY adversarial suite
+## AS-2.1-WEB-MISSION-WORKSPACE-UX — Mission/Workspace LIVE/DEMO/FIXTURE polish
 
 **Date:** 2026-08-10
-**Branch:** feat/as-2.1-mcp-adv
-**Directive:** D-PROJECT-ATLAS-2.1-PRODUCTIONIZATION-001 (ADV sole-writer)
+**Branch:** `feat/as-2.1-web-mission-workspace-ux`
+**Tip base:** `f45134f`
+**Exclusion:** `apps/web` Mission/Workspace UI (+ unit/smoke gates) only — API server and shared schema roots untouched.
+**PILOT:** no invent / no waiver
 
-### Scope
-- Fail-closed MCP request guards (path traversal, forbidden/unexpected keys, malformed tool ids)
-- Unit ADV matrix: unknown tools, escalation with vault.write, write-via-read zero vault mutation, path traversal, malformed args, deterministic replay
-- Docs: ADV-LIVE-SUITE ADV-2.1-23 + board/threat/matrix pointers
-- MCP remains READ ONLY (T-2.1-03); no PILOT/SYNC/TWIN unlock
+Visible LIVE-first mode switcher with DEMO and FIXTURE samples; LIVE failures stay unknown (no silent demo invent). Evidence: `D:\project-atlas-orphans\atlas-2.1-productionization-001\`.
 
-### Gates
-- pytest tests/unit/test_as_2_1_mcp_adv_001.py (+ MCP regression smoke) PASS
-- ruff/mypy on touched MCP surface PASS
