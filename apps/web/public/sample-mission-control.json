@@ -1,11 +1,14 @@
 {
   "read_plane": "stub",
+  "data_source": "demo_stub",
+  "demo_isolated": true,
   "mission_board_available": false,
   "rollup": "unknown",
   "ui_canonical": false,
   "graph_authority": false,
   "unknown_equals_healthy": false,
+  "authentic_pilot": false,
   "pilot_estate_rows": [],
   "note": "AS-WEB-MISSION-001 sample stub — flags only; no PILOT estate invent",
-  "disclaimer": "UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy; WEB APPLICATION ACCEPTED = YES"
+  "disclaimer": "UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy; DEMO STUB isolated"
 }

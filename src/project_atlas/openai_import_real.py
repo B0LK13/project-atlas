@@ -24,6 +24,7 @@ TRUTH_BOUNDARY = (
     "REAL_OPENAI_EXPORT_IMPORT != LIVE OPENAI API / != AUTHORITY PROMOTE"
 )
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+MAX_EXPORT_BYTES = 2_000_000
 
 
 class OpenAIRealImportError(ValueError):
@@ -58,10 +59,15 @@ def import_openai_export(
     src = export_path.resolve()
     if not src.is_file():
         raise OpenAIRealImportError("oai-export-missing")
+    size = src.stat().st_size
+    if size <= 0 or size > MAX_EXPORT_BYTES:
+        raise OpenAIRealImportError("oai-export-size-out-of-range")
     lowered = src.name.lower()
     if any(x in lowered for x in (".env", "credential", "secret", "apikey", "api_key")):
         raise OpenAIRealImportError("oai-export-filename-forbidden")
     text = src.read_text(encoding="utf-8")
+    if len(text.encode("utf-8")) > MAX_EXPORT_BYTES:
+        raise OpenAIRealImportError("oai-export-size-out-of-range")
     findings = scan_text(text)
     if findings:
         raise OpenAIRealImportError("oai-export-secret-findings")
@@ -84,6 +90,8 @@ def import_openai_export(
         "import_id": iid,
         "source_path": str(src),
         "source_sha256": digest,
+        "source_bytes": size,
+        "max_export_bytes": MAX_EXPORT_BYTES,
         "turn_count": len(turns),
         "turns": [t.as_dict() for t in turns],
         "quarantine": {
