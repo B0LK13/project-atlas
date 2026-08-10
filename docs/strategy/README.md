@@ -10,5 +10,6 @@ Strategic planning artifacts for Project Atlas.
 | [ATLAS-2.2-EXECUTABLE-ROADMAP.md](./ATLAS-2.2-EXECUTABLE-ROADMAP.md) | 2.2 roadmap + package DAG |
 | [ATLAS-2.3-STRATEGIC-BACKLOG.md](./ATLAS-2.3-STRATEGIC-BACKLOG.md) | 2.3 backlog |
 | [ATLAS-3.0-NORTH-STAR-BACKLOG.md](./ATLAS-3.0-NORTH-STAR-BACKLOG.md) | 3.0 north-star backlog |
+| [docs/atlas-2.2/](../atlas-2.2/README.md) | SAFE pre-v2.1.0 2.2 prep (Hybrid Retrieval 2, …) |
 
 **Rule:** these docs do not widen active 2.1 release scope. Live board remains `docs/atlas-2.1/PACKAGE-BOARD.md`.

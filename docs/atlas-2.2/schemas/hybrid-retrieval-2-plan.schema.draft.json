@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/docs/atlas-2.2/schemas/hybrid-retrieval-2-plan.schema.draft.json",
+  "title": "Hybrid Retrieval 2 Plan (DRAFT — docs only)",
+  "description": "AS-2.2-RET-HYBRID-001 PREP draft. NOT package data. NOT installed via importlib.resources. Extends AS-2.0 hybrid_retrieval_plan with multi-slot fusion sketch. Semantic remains disabled-by-default.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "plan_kind",
+    "query",
+    "slots",
+    "results",
+    "semantic_enabled",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-RET-HYBRID-001" },
+    "compat_snapshot_id": { "type": "string", "minLength": 1 },
+    "plan_kind": { "const": "hybrid_retrieval_2_plan" },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "mode"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["exact", "prefix"] },
+        "filters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "project_id": { "type": ["string", "null"] },
+            "as_of": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lexical_exact",
+        "lexical_prefix",
+        "metadata",
+        "graph",
+        "temporal",
+        "authority",
+        "semantic"
+      ],
+      "properties": {
+        "lexical_exact": { "$ref": "#/$defs/slot" },
+        "lexical_prefix": { "$ref": "#/$defs/slot" },
+        "metadata": { "$ref": "#/$defs/slot" },
+        "graph": { "$ref": "#/$defs/slot" },
+        "temporal": { "$ref": "#/$defs/slot" },
+        "authority": { "$ref": "#/$defs/slot" },
+        "semantic": { "$ref": "#/$defs/semantic_slot" }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["record_type", "record_id", "slots_contributing"],
+        "properties": {
+          "record_type": { "type": "string", "minLength": 1 },
+          "record_id": { "type": "string", "minLength": 1 },
+          "slots_contributing": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1
+          },
+          "authority_level": { "const": "derived" }
+        }
+      }
+    },
+    "fusion_trace": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "semantic_enabled": { "const": false },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "HYBRID PLAN ≠ EMBEDDINGS SERVICE / ≠ AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  },
+  "$defs": {
+    "slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "status": {
+          "enum": ["active", "idle", "advisory", "disabled"]
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "semantic_slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status", "reason"],
+      "properties": {
+        "enabled": { "const": false },
+        "status": { "const": "disabled" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "_prep": {
+    "installed_as_package_data": false,
+    "gate_credit": "NO"
+  }
+}

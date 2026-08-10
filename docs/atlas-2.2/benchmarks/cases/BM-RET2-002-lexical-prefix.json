@@ -1,0 +1,21 @@
+{
+  "case_id": "BM-RET2-002",
+  "package_id": "AS-2.2-RET-HYBRID-001",
+  "title": "Lexical prefix plan stability",
+  "fixture_ref": "docs/atlas-2.2/fixtures/hybrid-retrieval/plan-prefix.sample.json",
+  "inputs": {
+    "kind": "concept",
+    "value": "demo-",
+    "mode": "prefix",
+    "enable_semantic": false
+  },
+  "expect": {
+    "semantic_enabled": false,
+    "result_ids": ["demo-concept"],
+    "active_slot": "lexical_prefix",
+    "vault_mutated": false
+  },
+  "signals": ["ops_count", "plan_digest"],
+  "gate_credit": "NO",
+  "runnable": false
+}

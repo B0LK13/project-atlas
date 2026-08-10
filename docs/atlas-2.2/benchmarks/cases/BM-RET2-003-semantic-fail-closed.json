@@ -1,0 +1,20 @@
+{
+  "case_id": "BM-RET2-003",
+  "package_id": "AS-2.2-RET-HYBRID-001",
+  "title": "Semantic enable fails closed",
+  "fixture_ref": "docs/atlas-2.2/fixtures/hybrid-retrieval/semantic-disabled.expect.json",
+  "inputs": {
+    "kind": "concept",
+    "value": "demo-concept",
+    "mode": "exact",
+    "enable_semantic": true
+  },
+  "expect": {
+    "outcome": "fail_closed",
+    "error_token_prefix": "semantic-slot-not-available",
+    "vault_mutated": false
+  },
+  "signals": ["error_class"],
+  "gate_credit": "NO",
+  "runnable": false
+}

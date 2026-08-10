@@ -64,6 +64,13 @@ AS-REL-2.2-001 → v2.2.0
 - Fixture sketches under `docs/atlas-2.2/` (additive only)
 - Contract stubs that do not change 2.1 runtime defaults
 
+## Pre-unlock PREP packages (landed / in flight)
+
+| Package | Surface | Status |
+|---|---|---|
+| **AS-2.2-RET-HYBRID-001** | `docs/atlas-2.2/` Hybrid Retrieval 2 arch + fixtures + benchmarks | **PREP** — no live `retrieval` / `knowledge_compiler` mutation |
+| (feeds) AS-2.2-RET-CTX-001 | Production hybrid + context packs | Blocked on unlock |
+
 ## Pre-unlock work forbidden
 
 - Merging 2.2 packages that change Core authority semantics on `main` before v2.1.0
