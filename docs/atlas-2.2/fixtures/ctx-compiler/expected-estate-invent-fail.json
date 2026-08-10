@@ -1,0 +1,8 @@
+{
+  "outcome": "fail",
+  "error_code": "context-compiler-estate-facts-invent-forbidden",
+  "trigger": "invent_estate_facts_forced_true",
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "note": "PREP expected negative — Compiler must reject any invent-estate force path."
+}

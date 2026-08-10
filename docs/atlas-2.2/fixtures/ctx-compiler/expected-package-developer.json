@@ -1,0 +1,85 @@
+{
+  "schema_version": 0,
+  "package_id": "AS-2.2-CTX-COMPILER-001",
+  "draft": true,
+  "pack_id": "dev-auth-eval-ctx",
+  "task_id": "impl-auth-evaluator",
+  "profile_id": "developer",
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "items": [
+    {
+      "item_id": "overview",
+      "ref": "fixture/sources/overview.md",
+      "kind": "source",
+      "reason_included": "profile-prefer",
+      "authority": "maintained",
+      "freshness": "fresh",
+      "conflict_state": "none",
+      "project_id": "fixture-project-alpha",
+      "label": "Project overview",
+      "approx_bytes": 900
+    },
+    {
+      "item_id": "architecture",
+      "ref": "fixture/sources/architecture.md",
+      "kind": "source",
+      "reason_included": "profile-prefer",
+      "authority": "maintained",
+      "freshness": "fresh",
+      "conflict_state": "none",
+      "project_id": "fixture-project-alpha",
+      "label": "Architecture",
+      "approx_bytes": 1200
+    },
+    {
+      "item_id": "auth-primary",
+      "ref": "fixture/claims/claim-auth-primary",
+      "kind": "claim",
+      "reason_included": "authority-primary",
+      "authority": "primary",
+      "freshness": "fresh",
+      "conflict_state": "none",
+      "project_id": "fixture-project-alpha",
+      "approx_bytes": 400
+    },
+    {
+      "item_id": "validate-receipt",
+      "ref": "fixture/receipts/validate-001",
+      "kind": "receipt",
+      "reason_included": "task-match",
+      "authority": "validated-execution",
+      "freshness": "unknown",
+      "conflict_state": "none",
+      "project_id": "fixture-project-alpha",
+      "approx_bytes": 320
+    }
+  ],
+  "pipeline": {
+    "stages": [
+      "task",
+      "candidates",
+      "authority",
+      "freshness",
+      "conflicts",
+      "budget",
+      "package"
+    ],
+    "candidates_in": 6,
+    "items_out": 4,
+    "truncated": true,
+    "overflow": {
+      "occurred": true,
+      "dropped_count": 2,
+      "policy": "truncate"
+    },
+    "unresolved_conflicts_retained": 0
+  },
+  "notes": "PREP expected package — inferred claim demoted/truncated under developer budget.",
+  "authority": {
+    "level": "derived",
+    "note": "Context Compiler output is derived; Core authority unchanged."
+  },
+  "truth_boundary": "CONTEXT COMPILER ≠ ESTATE FACTS / ≠ AUTHORITY / ≠ PILOT",
+  "generated": { "by": "project-atlas-prep" }
+}

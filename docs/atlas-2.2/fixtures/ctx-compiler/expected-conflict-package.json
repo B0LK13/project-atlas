@@ -1,0 +1,83 @@
+{
+  "schema_version": 0,
+  "package_id": "AS-2.2-CTX-COMPILER-001",
+  "draft": true,
+  "pack_id": "sec-conflict-ctx",
+  "task_id": "conflict-retain",
+  "profile_id": "security",
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "items": [
+    {
+      "item_id": "threat-model",
+      "ref": "fixture/sources/threat-model.md",
+      "kind": "source",
+      "reason_included": "profile-prefer",
+      "authority": "maintained",
+      "freshness": "fresh",
+      "conflict_state": "none",
+      "project_id": "fixture-project-alpha",
+      "approx_bytes": 1100
+    },
+    {
+      "item_id": "tls-true",
+      "ref": "fixture/claims/claim-tls-required-true",
+      "kind": "claim",
+      "reason_included": "authority-primary",
+      "authority": "primary",
+      "freshness": "fresh",
+      "conflict_state": "unresolved",
+      "project_id": "fixture-project-alpha",
+      "approx_bytes": 280
+    },
+    {
+      "item_id": "tls-false",
+      "ref": "fixture/claims/claim-tls-required-false",
+      "kind": "claim",
+      "reason_included": "conflict-sidecar",
+      "authority": "maintained",
+      "freshness": "stale",
+      "conflict_state": "unresolved",
+      "project_id": "fixture-project-alpha",
+      "approx_bytes": 260
+    },
+    {
+      "item_id": "conflict-tls",
+      "ref": "fixture/review/conflicts/conflict-tls-001",
+      "kind": "other",
+      "reason_included": "conflict-sidecar",
+      "authority": "conflicting",
+      "freshness": "unknown",
+      "conflict_state": "unresolved",
+      "project_id": "fixture-project-alpha",
+      "approx_bytes": 200
+    }
+  ],
+  "pipeline": {
+    "stages": [
+      "task",
+      "candidates",
+      "authority",
+      "freshness",
+      "conflicts",
+      "budget",
+      "package"
+    ],
+    "candidates_in": 4,
+    "items_out": 4,
+    "truncated": false,
+    "overflow": {
+      "occurred": false,
+      "dropped_count": 0,
+      "policy": "none"
+    },
+    "unresolved_conflicts_retained": 1
+  },
+  "notes": "PREP expected — both conflicted claims retained; no winner selected.",
+  "authority": {
+    "level": "derived",
+    "note": "Conflict sidecars are derived review surfaces; Graph≠authority."
+  },
+  "truth_boundary": "CONTEXT COMPILER ≠ ESTATE FACTS / ≠ AUTHORITY / ≠ PILOT",
+  "generated": { "by": "project-atlas-prep" }
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 0,
+  "package_id": "AS-2.2-CTX-COMPILER-001",
+  "draft": true,
+  "task_id": "conflict-retain",
+  "profile_id": "security",
+  "goal": "Retain unresolved conflict sidecars; no silent winner.",
+  "scope": {
+    "project_ids": ["fixture-project-alpha"]
+  },
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "include_unresolved_conflicts": true,
+  "budget": {
+    "max_items": 5,
+    "on_overflow": "truncate"
+  },
+  "candidate_refs": [
+    { "ref": "fixture/claims/claim-tls-required-true", "kind": "claim" },
+    { "ref": "fixture/claims/claim-tls-required-false", "kind": "claim" },
+    { "ref": "fixture/review/conflicts/conflict-tls-001", "kind": "other" },
+    { "ref": "fixture/sources/threat-model.md", "kind": "source" }
+  ]
+}

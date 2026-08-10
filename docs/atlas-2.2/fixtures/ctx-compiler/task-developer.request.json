@@ -1,0 +1,27 @@
+{
+  "schema_version": 0,
+  "package_id": "AS-2.2-CTX-COMPILER-001",
+  "draft": true,
+  "task_id": "impl-auth-evaluator",
+  "profile_id": "developer",
+  "goal": "Implement authority evaluator hardening for Core claims.",
+  "scope": {
+    "project_ids": ["fixture-project-alpha"]
+  },
+  "fixture_safe": true,
+  "estate_facts_invented": false,
+  "include_unresolved_conflicts": true,
+  "budget": {
+    "max_items": 4,
+    "max_bytes": 8192,
+    "on_overflow": "truncate"
+  },
+  "candidate_refs": [
+    { "ref": "fixture/sources/overview.md", "kind": "source" },
+    { "ref": "fixture/sources/architecture.md", "kind": "source" },
+    { "ref": "fixture/claims/claim-auth-primary", "kind": "claim" },
+    { "ref": "fixture/claims/claim-auth-inferred", "kind": "claim" },
+    { "ref": "fixture/receipts/validate-001", "kind": "receipt" },
+    { "ref": "fixture/indexes/concepts-prefix", "kind": "index" }
+  ]
+}
