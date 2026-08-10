@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "action_id": "action.demo.temporal-ux.llm-authority-stamp.forbidden",
+  "claim_id": "claim.demo.status.planned",
+  "kind": "llm_authority_stamp",
+  "status": "rejected_forbidden",
+  "expected_error": "temporal-ux-llm-authority-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "LLM-suggested as-of winners and trust scores are forbidden"
+  },
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "release_certified": false,
+  "pilot_pass": false,
+  "canonical_writes": false,
+  "pilot_roots": 0,
+  "truth_boundary": "TEMPORAL UX ≠ WALL-CLOCK / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY / ≠ PILOT",
+  "_prep_note": "FX-2.2-TUX-DEEPEN-104 — expected rejection of llm_authority_stamp"
+}
