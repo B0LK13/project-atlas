@@ -1,0 +1,81 @@
+{
+  "schema": "atlas.2.2.kf2-estate-fabric-inventory.v0",
+  "schema_version": 1,
+  "package_id": "AS-2.2-KF2-FABRIC-PREP-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "project-set",
+    "project_ids": ["proj-alpha", "proj-beta"]
+  },
+  "pilot_roots": 0,
+  "authentic_estate_pilot_passed": false,
+  "atlas_2_1_release_certified": false,
+  "cross_promote": false,
+  "scenario_count": 4,
+  "scenarios": [
+    {
+      "scenario_id": "FX-2.2-KF2-002",
+      "substrate_package": "AS-KF2-NS-001",
+      "bucket": "namespaces",
+      "status": "retained",
+      "cited_ids": ["kf2-ns-portfolio-v1"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "cross_promote": false,
+      "authority_elevated": false,
+      "notes": "Explicit namespace citation; KF2 NAMESPACE ≠ AUTHORITY"
+    },
+    {
+      "scenario_id": "FX-2.2-KF2-003",
+      "substrate_package": "AS-KF2-ENTITY-001",
+      "bucket": "entities",
+      "status": "retained",
+      "cited_ids": ["kf2-ent-billing-svc-v1"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "cross_promote": false,
+      "authority_elevated": false,
+      "notes": "Entity citation; optional XPROJ cite ≠ authority"
+    },
+    {
+      "scenario_id": "FX-2.2-KF2-004",
+      "substrate_package": "AS-KF2-REL-001",
+      "bucket": "relationships",
+      "status": "retained",
+      "cited_ids": ["kf2-rel-billing-depends-postgres-v1"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "cross_promote": false,
+      "authority_elevated": false,
+      "notes": "Relationship citation; Graph≠authority"
+    },
+    {
+      "scenario_id": "FX-2.2-KF2-005",
+      "substrate_package": "AS-KF2-002",
+      "bucket": "inventory-export",
+      "status": "retained",
+      "cited_ids": ["kf2-inv-estate-slice-v1"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "cross_promote": false,
+      "authority_elevated": false,
+      "notes": "AS-KF2-002 count export; cross_promote=false"
+    }
+  ],
+  "invariants": {
+    "kf2_ne_authority": true,
+    "no_cross_promote": true,
+    "projection_ne_mutation": true,
+    "kf2_ne_fed": true
+  },
+  "authority": {
+    "level": "derived",
+    "note": "Prep estate KF inventory only; never elevates AS-KF2 substrate to Layer B"
+  },
+  "truth_boundary": "KF2 ESTATE FABRIC ≠ AUTHORITY / ≠ CROSS PROMOTE / ≠ LAYER B MUTATION / ≠ 2.1 RELEASE CERTIFIED",
+  "evidence_class": "fixture-only",
+  "generated": {
+    "by": "project-atlas",
+    "package": "AS-2.2-KF2-FABRIC-PREP-001"
+  }
+}

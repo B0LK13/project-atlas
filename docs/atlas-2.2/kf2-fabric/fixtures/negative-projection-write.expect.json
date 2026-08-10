@@ -1,0 +1,16 @@
+{
+  "scenario_id": "FX-2.2-KF2-008",
+  "attempt": "projection-write-under-generated-kf2",
+  "input": {
+    "write_path": "generated/kf2/entities/kf2-ent-invented-v1.json",
+    "mode": "project"
+  },
+  "expected_error": "kf2-prep-projection-write-forbidden",
+  "expected_status": "reject",
+  "atlas_2_1_release_certified": false,
+  "invariants": {
+    "projection_ne_mutation": true,
+    "kf2_ne_authority": true
+  },
+  "notes": "PROJECTION ≠ MUTATION; estate projection cites ids only"
+}
