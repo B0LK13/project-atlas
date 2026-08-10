@@ -140,6 +140,17 @@ Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
 |---|---|---|
 | [#246](https://github.com/B0LK13/project-atlas/pull/246) | AS-2.2-ROADMAP-CROSSWALK-SYNC-001 | Crosswalk tip + integration rows |
 
+
+### Wave 11 — RET-SEMIDX reserved prep (#248)
+
+Named reserved semantic-index stub activated as PREP (default-off). Tip ee9df15 / TREE 0d0eda0.
+Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
+
+| PR | Package | Note |
+|---|---|---|
+| [#248](https://github.com/B0LK13/project-atlas/pull/248) | AS-2.2-RET-SEMIDX-PREP-001 | Reserved SEMIDX contract prep |
+| [#247](https://github.com/B0LK13/project-atlas/pull/247) | README-INDEX-015 | Index crosswalk sync #246 |
+
 ## Landed PREP inventory (tip)
 
 | Short | Package | PR | Maturity (draft) |
