@@ -5115,7 +5115,7 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.2-RESEARCH-001 PREP — Research workspace + Ask Atlas 2
+## AS-2.2-RESEARCH-001 PREP - Research workspace + Ask Atlas 2
 
 **Date:** 2026-08-10
 **Branch:** feat/as-2.2-research-prep
@@ -5134,7 +5134,7 @@ Disposable twin projection fixtures + OpenAI importer fixture harness (parse sam
 - Soft WORKLOG only
 
 ### Pipeline
-question → hypotheses → evidence → conflicts → synthesis → packs
+question -> hypotheses -> evidence -> conflicts -> synthesis -> packs
 
 ### Explicit non-claims
 - ATLAS_2_1_RELEASE_CERTIFIED: NO
