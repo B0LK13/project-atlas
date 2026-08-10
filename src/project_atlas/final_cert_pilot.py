@@ -8,18 +8,33 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
 WAIVER_MODE = "FIXTURE_ONLY_OWNER_WAIVER"
 HONEST_LABEL = (
-    "PILOT PASS — FIXTURE-ONLY UNDER EXPLICIT OWNER FINAL-CERT WAIVER"
+    "PILOT PASS \u2014 FIXTURE-ONLY UNDER EXPLICIT OWNER FINAL-CERT WAIVER"
 )
 PACKAGE_ID = "AS-2.0-FINAL-CERT-PILOT-WAIVER"
 
 
 class FinalCertPilotError(ValueError):
     """Fail-closed final-cert pilot waiver error."""
+
+
+def _load_payload_bytes() -> bytes:
+    """Load waiver JSON from docs (source tree) or packaged data."""
+    repo = Path(__file__).resolve().parents[2]
+    doc = repo / "docs" / "releases" / "2.0.0" / "final-cert-pilot-waiver.json"
+    if doc.is_file():
+        return doc.read_bytes()
+    packaged = resources.files("project_atlas").joinpath(
+        "data", "final-cert-pilot-waiver.json"
+    )
+    if packaged.is_file():
+        return packaged.read_bytes()
+    raise FinalCertPilotError("final-cert-pilot-waiver-missing")
 
 
 @lru_cache(maxsize=1)
@@ -30,13 +45,7 @@ def load_final_cert_pilot_waiver(
     if path is not None:
         raw: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     else:
-        # Prefer docs path relative to package parents when running from source.
-        repo = Path(__file__).resolve().parents[2]
-        doc = repo / "docs" / "releases" / "2.0.0" / "final-cert-pilot-waiver.json"
-        if doc.is_file():
-            raw = json.loads(doc.read_text(encoding="utf-8"))
-        else:
-            raise FinalCertPilotError("final-cert-pilot-waiver-missing")
+        raw = json.loads(_load_payload_bytes().decode("utf-8"))
     if raw.get("atlas_2_0_final_cert_pilot_mode") != WAIVER_MODE:
         raise FinalCertPilotError("final-cert-pilot-mode-mismatch")
     if raw.get("authentic_estate_pilot") is not False:
