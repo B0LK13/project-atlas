@@ -1,11 +1,16 @@
 # Atlas 2.1 — Package board
 
-Tip: `a1e0972` / TREE `c6cfe95`. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
+Tip: `7afaafd` / TREE `cfd0f238`. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
 
 | Package | Wave | Status | Notes |
 |---|---|---|---|
 | AS-2.1 Track B harden H01–H05 | 1–5 | **DRAINED** #153–#155 | EMPTY_EXCEPT_AUTHENTIC_PILOT |
-| AS-2.1-API-ADV-DEEPEN | 5 | OPEN (this PR) | ADV-2.1-23..28 invalid IDs/cross-project/oversized/authz/dup/path |
+| AS-2.1-OPS-RECEIPT-ADAPTER | Track A | **MERGED** #158 | honest UNKNOWN; presence ≠ healthy |
+| AS-2.1-WEB-MISSION-WORKSPACE-UX | Track A | **MERGED** #162 | LIVE/DEMO/FIXTURE polish |
+| AS-2.1-OBS-PERF-001 | Track A | **MERGED** #163 | obs lanes + fixture perf baselines |
+| AS-2.1-MCP-ADV-001 | ADV | **MERGED** #166 | ADV-2.1-23 READ ONLY probes |
+| AS-2.1-L3-JOB-MATRIX-ADV | ADV | **MERGED** #164 | ADV-2.1-24..29 fail-closed matrix |
+| AS-2.1-API-ADV-DEEPEN | ADV | **MERGED** #165 | ADV-2.1-30..35 invalid IDs/cross-project/oversized/authz/dup/path |
 | AS-2.1-PILOT-AUTH-001 | — | **DORMANT_BLOCKED** | ACTIVE_WORKER=NONE; wake AUTHENTIC_ESTATE_ROOT_AVAILABLE |
 | AS-2.1-SYNC/TWIN/E2E/REL | RC | BLOCKED on PILOT | Authentic only |
 | AS-2.2-*-PREP (RET/CTX/MEM/KCI/DoD/TIME/REALITY/RESEARCH/IV/ADV) | pre-unlock | **IN FLIGHT** | contracts/fixtures/ADR only; no 2.1 runtime mutation |

@@ -168,9 +168,17 @@ def test_adv_docs_and_package_id() -> None:
     suite = (root / "docs" / "atlas-2.1" / "ADV-LIVE-SUITE.md").read_text(
         encoding="utf-8"
     )
-    assert "ADV-2.1-23" in suite
+    assert "| ADV-2.1-23 | MCP ADV |" in suite
     assert "AS-2.1-MCP-ADV-001" in suite
+    assert "AS-2.1-L3-JOB-MATRIX-ADV" in suite
+    assert "AS-2.1-API-ADV-DEEPEN" in suite
+    assert "| ADV-2.1-24 | L3 job-matrix ADV |" in suite
+    assert "| ADV-2.1-30 | API |" in suite
     board = (root / "docs" / "atlas-2.1" / "PACKAGE-BOARD.md").read_text(
         encoding="utf-8"
     )
     assert "AS-2.1-MCP-ADV-001" in board
+    assert "OPEN (this PR)" not in board
+    assert "**MERGED** #165" in board
+    assert "**MERGED** #166" in board
+    assert "**MERGED** #164" in board
