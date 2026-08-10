@@ -118,6 +118,9 @@ SCHEMA_FILES: dict[str, str] = {
     "kf2-relationship": "kf2-relationship.schema.json",
     # AS-2.0-FED-001 — operator-declared federation join inventory (consume-only)
     "federation-join-inventory": "federation-join-inventory.schema.json",
+    # AS-2.0-PROV-001 — optional provider adapters + quarantine (≠ authority)
+    "provider-adapter-registry": "provider-adapter-registry.schema.json",
+    "provider-quarantine-envelope": "provider-quarantine-envelope.schema.json",
 }
 
 

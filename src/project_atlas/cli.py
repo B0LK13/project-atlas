@@ -100,6 +100,12 @@ from project_atlas.ops_report import (
     report_to_json,
 )
 from project_atlas.portfolio import build_portfolio
+from project_atlas.provider_adapters import (
+    ProviderAdapter,
+    ProviderError,
+    build_adapter_registry,
+    quarantine_provider_output,
+)
 from project_atlas.receipt_revocation import (
     RevocationError,
     inventory_with_revocations,
@@ -917,6 +923,49 @@ def build_parser() -> argparse.ArgumentParser:
         help="Vault that receives generated/federation/<id>-join-inventory.json.",
     )
     fed_join.add_argument("--json", action="store_true")
+
+    # AS-2.0-PROV-001 — optional provider adapters (disabled by default).
+    provider_parser = subparsers.add_parser(
+        "provider",
+        help=(
+            "Provider adapter registry and quarantine helpers "
+            "(AS-2.0-PROV-001; disabled-by-default; never authority)."
+        ),
+    )
+    provider_sub = provider_parser.add_subparsers(
+        dest="provider_command", required=True
+    )
+    provider_registry = provider_sub.add_parser(
+        "registry",
+        help="Write a disabled-by-default provider adapter registry.",
+    )
+    provider_registry.add_argument("--vault", type=Path, required=True)
+    provider_registry.add_argument(
+        "--adapter",
+        action="append",
+        default=None,
+        dest="adapters",
+        help="adapter_id|provider|cap1,cap2 (enabled forced false).",
+    )
+    provider_registry.add_argument("--json", action="store_true")
+    provider_quarantine = provider_sub.add_parser(
+        "quarantine",
+        help="Quarantine provider output after secret scan (metadata only).",
+    )
+    provider_quarantine.add_argument("--vault", type=Path, required=True)
+    provider_quarantine.add_argument("--envelope-id", required=True)
+    provider_quarantine.add_argument("--adapter-id", required=True)
+    provider_quarantine.add_argument(
+        "--text",
+        required=True,
+        help="Provider payload text (scanned; never logged raw on findings).",
+    )
+    provider_quarantine.add_argument(
+        "--enable-adapters",
+        action="store_true",
+        help="Opt-in scan/quarantine path (still never promotes to authority).",
+    )
+    provider_quarantine.add_argument("--json", action="store_true")
 
     # AS-SYNC-001-SCAFFOLD — dry-run registry from explicit roots (≠ production SYNC-001).
     sync_parser = subparsers.add_parser(
@@ -1915,6 +1964,67 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK if report["status"] == "joined" else EXIT_ERROR
         parser.error(  # pragma: no cover
             f"unknown federation command: {args.federation_command}"
+        )
+
+    if args.command == "provider":
+        if args.provider_command == "registry":
+            try:
+                adapters: list[ProviderAdapter] = []
+                for raw in args.adapters or []:
+                    parts = str(raw).split("|")
+                    if len(parts) != 3:
+                        raise ProviderError("provider-adapter-spec-invalid")
+                    aid, provider, caps_raw = parts
+                    caps = tuple(
+                        item.strip()
+                        for item in caps_raw.split(",")
+                        if item.strip()
+                    )
+                    adapters.append(
+                        ProviderAdapter(
+                            adapter_id=aid,
+                            provider=provider,  # type: ignore[arg-type]
+                            capabilities=caps,  # type: ignore[arg-type]
+                        )
+                    )
+                report = build_adapter_registry(args.vault, adapters=adapters)
+            except (ProviderError, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("provider registry failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"adapters_enabled: {report['adapters_enabled']}")
+                print(f"adapters: {len(report['adapters'])}")
+                print(
+                    "registry: "
+                    f"{args.vault / 'generated' / 'ops' / 'provider-adapter-registry.json'}"
+                )
+            return EXIT_OK
+        if args.provider_command == "quarantine":
+            try:
+                report = quarantine_provider_output(
+                    args.vault,
+                    envelope_id=args.envelope_id,
+                    adapter_id=args.adapter_id,
+                    payload_text=args.text,
+                    adapters_enabled=bool(args.enable_adapters),
+                )
+            except (ProviderError, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("provider quarantine failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"envelope_id: {report['envelope_id']}")
+                print(f"status: {report['status']}")
+                print(
+                    "findings_count: "
+                    f"{report['secret_scan']['findings_count']}"
+                )
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown provider command: {args.provider_command}"
         )
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
