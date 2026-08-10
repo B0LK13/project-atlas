@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/drafts/atlas-2.2/context-compiler-request.schema.json",
+  "title": "ContextCompilerRequestDraft",
+  "description": "AS-2.2-CTX-COMPILER-001 PREP draft. Not production package data. Not frozen.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "draft",
+    "task_id",
+    "profile_id",
+    "fixture_safe",
+    "estate_facts_invented",
+    "budget"
+  ],
+  "properties": {
+    "schema_version": { "const": 0 },
+    "package_id": { "const": "AS-2.2-CTX-COMPILER-001" },
+    "draft": { "const": true },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "profile_id": {
+      "type": "string",
+      "enum": [
+        "developer",
+        "architect",
+        "security",
+        "release",
+        "operations",
+        "research"
+      ]
+    },
+    "goal": { "type": "string", "maxLength": 480 },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "project_ids": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 128 }
+        },
+        "exclude_project_ids": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 128 }
+        }
+      }
+    },
+    "fixture_safe": { "const": true },
+    "estate_facts_invented": { "const": false },
+    "include_unresolved_conflicts": { "type": "boolean", "default": true },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_items", "on_overflow"],
+      "properties": {
+        "max_items": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "max_bytes": { "type": "integer", "minimum": 256, "maximum": 1048576 },
+        "on_overflow": { "type": "string", "enum": ["truncate", "fail"] }
+      }
+    },
+    "candidate_refs": {
+      "type": "array",
+      "description": "Optional pre-seeded candidate pointers for fixture rehearsal.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "kind"],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["source", "receipt", "index", "claim", "concept", "other"]
+          }
+        }
+      }
+    }
+  }
+}

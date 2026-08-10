@@ -1,22 +1,28 @@
-# Atlas 2.2 — pre-unlock prep tree
+# Atlas 2.2 — prep index (SAFE pre-v2.1.0)
 
-Status: **PREP ONLY**. Additive docs/fixtures under this directory.
-Runtime unlock: `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` after `v2.1.0`.
+| Field | Value |
+|---|---|
+| Status | **PREP ONLY** — architecture / contracts / fixtures |
+| Unlock event | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` (fires after `v2.1.0`) |
+| Production semantic mutation | **FORBIDDEN** on this tip |
+| Baseline tip | `a1e0972a18608487f71c6979e454247df52d2e44` / TREE `c6cfe95ffe7d3c1699459f620aadf112c66a8524` |
+| Evidence lane | `atlas-2.1-productionization-001` |
 
-Strategy DAG: `docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`
-Evidence (2.1 coord): `D:\project-atlas-orphans\atlas-2.1-productionization-001\`
+## Purpose
 
-## Packages present in this tree
+Hold Atlas 2.2 **north-star intelligence** prep packs that do not change Core
+authority semantics, runtime defaults, or production schemas under `src/`.
 
-| Package | Path | Class |
+Roadmap: [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md).
+
+## Packages in this tree (prep)
+
+| Package | Theme | Path |
 |---|---|---|
-| AS-2.2-KCI-ENGINE-PREP-001 | [`AS-2.2-KCI-ENGINE-PREP-001.md`](AS-2.2-KCI-ENGINE-PREP-001.md) | PREP — Knowledge CI engine |
+| **AS-2.2-CTX-COMPILER-001** | Task-specific Context Compiler | [`ctx-compiler/`](./ctx-compiler/) |
 
-Other 2.2 prep packages may append rows here without reopening 2.1 production
-surfaces.
+## Firewall
 
-## Forbidden
-
-- Dependency-bearing mutations that destabilize the 2.1 tip
-- Claiming 2.2 intelligence certification from prep docs
-- Using fixture sketches as authentic estate PILOT evidence
+- Static `AS-2.0-CTX-001` context packs ≠ full Context Compiler.
+- Docs/ADR/fixtures here do **not** unlock production implementation.
+- No invent markers / no authentic PILOT from fixtures.
