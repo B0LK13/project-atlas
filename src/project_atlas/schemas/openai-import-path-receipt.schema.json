@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/openai-import-path-receipt.schema.json",
+  "title": "OpenaiImportPathReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+        "schema_version",
+        "package_id",
+        "compat_snapshot_id",
+        "receipt_id",
+        "live_api",
+        "export_present",
+        "path_mode",
+        "status",
+        "authority",
+        "truth_boundary",
+        "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-OAI-IMPORT-002" },
+    "compat_snapshot_id": { "type": "string", "minLength": 1 },
+
+    "receipt_id": { "type": "string" },
+    "live_api": { "const": false },
+    "export_present": { "type": "boolean" },
+    "path_mode": {
+      "type": "string",
+      "enum": ["fixture-sample", "fixture-no-export"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ready-fixture", "blocked-no-export", "rejected"]
+    },
+
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
