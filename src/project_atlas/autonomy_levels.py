@@ -1,4 +1,4 @@
-"""AS-2.0-AUTONOMY-001 — Autonomy L0–L5 productize catalog (live_autonomy=false).
+"""AS-2.0-AUTONOMY-001 — Autonomy L0-L5 productize catalog (live_autonomy=false).
 
 Bound to the Atlas 1.0 compatibility anchor. Never Layer B authority.
 """
