@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/mcp-tool-registry.schema.json",
+  "title": "McpToolRegistry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "registry_id",
+    "live_server",
+    "default_policy",
+    "tools",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-MCP-001" },
+    "compat_snapshot_id": { "type": "string" },
+    "registry_id": { "type": "string" },
+    "live_server": { "const": false },
+    "default_policy": { "const": "deny" },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tool_id", "class", "enabled", "reason"],
+        "properties": {
+          "tool_id": { "type": "string" },
+          "class": {
+            "type": "string",
+            "enum": ["vault-read", "vault-write", "estate-scan", "provider-generate"]
+          },
+          "enabled": { "type": "boolean" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
