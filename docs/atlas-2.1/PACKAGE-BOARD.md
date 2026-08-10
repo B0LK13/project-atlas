@@ -1,6 +1,6 @@
 # Atlas 2.1 — Package board
 
-Tip: `7afaafd` / TREE `cfd0f238`. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
+Tip: bbdc121488ee0c28e8f3898facc7ff30f8c48fe / TREE bb2269ab3d103fd083e57a2937773b4742d0c45. ATLAS_2_1_RELEASE_CERTIFIED = NO.
 
 | Package | Wave | Status | Notes |
 |---|---|---|---|
@@ -17,7 +17,7 @@ Tip: `7afaafd` / TREE `cfd0f238`. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
 
 ## Track B (2.1 release-harden)
 
-**BOARD_EMPTY_EXCEPT_AUTHENTIC_PILOT.** Do not invent 2.1 busywork. Capacity → 2.2 P1 prep.
+**BOARD_EMPTY_EXCEPT_AUTHENTIC_PILOT.** Tip is not empty; Track B queue is empty except authentic PILOT. Do not invent 2.1 busywork. Capacity → 2.2 P1 prep.
 
 ## Dynamic allocation
 
