@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/mem-gov-forbidden-action.schema.json",
+  "title": "mem-gov-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-MEM-GOV-DEEPEN-PREP-001 fail-closed action proposal. Reject Layer B promotion, LLM authority stamps, and dual-active forks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority_plane",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-MEM-GOV-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "memory_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "kind": {
+      "enum": [
+        "layer_b_promotion",
+        "llm_authority_stamp",
+        "dual_active_fork",
+        "missing_provenance_write",
+        "int011_index_dual_own"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "mem-gov-layer-b-promotion-forbidden",
+        "mem-gov-llm-authority-forbidden",
+        "mem-gov-dual-active-forbidden",
+        "mem-gov-missing-provenance-forbidden",
+        "mem-gov-int011-dual-own-forbidden"
+      ]
+    },
+    "authority_plane": { "const": "none" },
+    "canonical_writes": { "type": "boolean" },
+    "consume_only": { "const": true },
+    "truth_boundary": {
+      "const": "AGENT MEMORY ≠ LAYER B AUTHORITY / ≠ LLM AUTHORITY / ≠ DUAL-ACTIVE"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}
