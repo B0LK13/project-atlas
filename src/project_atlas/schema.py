@@ -158,6 +158,12 @@ SCHEMA_FILES: dict[str, str] = {
     "kf2-fabric-inventory": "kf2-fabric-inventory.schema.json",
     # AS-2.0-FED-002 — federation read lens (≠ cross-vault promote)
     "federation-read-lens": "federation-read-lens.schema.json",
+    # AS-2.0-INBOX-001 — Knowledge Inbox quarantine receipt
+    "knowledge-inbox-receipt": "knowledge-inbox-receipt.schema.json",
+    # AS-2.0-SCHED-001 — autonomy scheduler dry-run
+    "scheduler-dry-run": "scheduler-dry-run.schema.json",
+    # AS-2.0-SEC-001 — continuous security receipt (metadata only)
+    "security-continuous-receipt": "security-continuous-receipt.schema.json",
 }
 
 
