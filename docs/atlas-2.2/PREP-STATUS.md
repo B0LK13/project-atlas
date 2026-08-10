@@ -83,6 +83,21 @@ RET-HYBRID (#220), and KCI-engine (#221) deepen packages. Demo VERIFIED remains
 | [#220](https://github.com/B0LK13/project-atlas/pull/220) | AS-2.2-RET-HYBRID-DEEPEN-PREP-001 | Hybrid retrieval deepen |
 | [#221](https://github.com/B0LK13/project-atlas/pull/221) | AS-2.2-KCI-ENGINE-DEEPEN-PREP-001 | KCI engine deepen |
 
+
+### Wave 6 — doc-charter / kf2 / roadmap deepen (#233–#237)
+
+Post-xproj deepen (#233) + INDEX-010 (#234), landed DOC-CHARTER (#235),
+KF2-FABRIC (#236), and ROADMAP-CROSSWALK (#237) deepen packages. Tip
+`d840e3b` / TREE `4dbf8a9`. Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
+
+| PR | Package | Note |
+|---|---|---|
+| [#233](https://github.com/B0LK13/project-atlas/pull/233) | AS-2.2-XPROJ-DEEPEN-PREP-001 | Cross-project fabric deepen |
+| [#234](https://github.com/B0LK13/project-atlas/pull/234) | README-INDEX-010 | Index xproj deepen |
+| [#235](https://github.com/B0LK13/project-atlas/pull/235) | AS-2.2-DOC-CHARTER-DEEPEN-PREP-001 | Doc-charter deepen |
+| [#236](https://github.com/B0LK13/project-atlas/pull/236) | AS-2.2-KF2-FABRIC-DEEPEN-PREP-001 | KF2 fabric deepen |
+| [#237](https://github.com/B0LK13/project-atlas/pull/237) | AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001 | Roadmap crosswalk deepen |
+
 ## Landed PREP inventory (tip)
 
 | Short | Package | PR | Maturity (draft) |
