@@ -150,6 +150,10 @@ SCHEMA_FILES: dict[str, str] = {
     "context-pack-composition": "context-pack-composition.schema.json",
     # AS-2.0-AGENTOS-002 — Agent OS phase transition deepen (≠ Core authority)
     "agentos-phase-transition": "agentos-phase-transition.schema.json",
+    # AS-KF2-002 — fabric inventory export (≠ authority)
+    "kf2-fabric-inventory": "kf2-fabric-inventory.schema.json",
+    # AS-2.0-FED-002 — federation read lens (≠ cross-vault promote)
+    "federation-read-lens": "federation-read-lens.schema.json",
 }
 
 
