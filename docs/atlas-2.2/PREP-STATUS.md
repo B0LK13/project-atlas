@@ -4,7 +4,7 @@
 |---|---|
 | Package | **AS-2.2-PREP-STATUS-001** |
 | Class | **PREP ONLY** — status / inventory snapshot (docs-only) |
-| Tip audited | `d7c4d79` (`origin/main` at refresh cut) |
+| Tip audited | 431494dc8860f4f1db3f327c9ccf991699ccfc5 / TREE 26a59cd76bd9df410912b4552ddd907f7a160588 (INDEX-007 / PREP-STATUS sync) |
 | Integration index | [`README.md`](README.md) (package rows + entry links) |
 | Charter | [`CHARTER.md`](CHARTER.md) |
 | Maturity draft | [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md) |
@@ -31,7 +31,7 @@ release certification credit.
 | README index merges | [#173](https://github.com/B0LK13/project-atlas/pull/173) · [#195](https://github.com/B0LK13/project-atlas/pull/195) · [#198](https://github.com/B0LK13/project-atlas/pull/198) · [#202](https://github.com/B0LK13/project-atlas/pull/202) · [#204](https://github.com/B0LK13/project-atlas/pull/204) |
 | Runtime modules touched | **0** (`src/project_atlas/` unchanged by PREP lane) |
 | Authentic estate PILOT roots | **0** (all prep fixtures) |
-| Saturation | **YES** — all known 2.2 intelligence PREP slots through tip #210 are landed and indexed |
+| Saturation | **REFILLING** — wave-4 deepen #215-#221 landed; conflict-ux/compat/estate deepen in flight |
 
 ## Merge waves
 
@@ -66,6 +66,22 @@ their existing package dirs (peer to wave-1 base stubs; no dual-own relocation).
 | *(this PR)* | `AS-2.2-README-INDEX-006` | Add **mem-gov / research / DoD deepen** rows (#208–#210); fix crosswalk PR link |
 
 Entry links and artifact paths: [`README.md`](README.md) (authoritative index).
+
+
+
+### Wave 4 — deepen refill (#215–#221)
+
+Post-demo SATURATED refill landed CTX (#215), REALITY-LIVE (#217/#219), TIME (#218),
+RET-HYBRID (#220), and KCI-engine (#221) deepen packages. Demo VERIFIED remains
+≠ release unlock; PILOT stays DORMANT (FOUND=0). Tip b431494 / TREE 26a59cd.
+
+| PR | Package | Note |
+|---|---|---|
+| [#215](https://github.com/B0LK13/project-atlas/pull/215) | AS-2.2-CTX-DEEPEN-PREP-001 | Context compiler fail-closed deepen |
+| [#217](https://github.com/B0LK13/project-atlas/pull/217)/[#219](https://github.com/B0LK13/project-atlas/pull/219) | AS-2.2-REALITY-LIVE-DEEPEN-PREP-001 | Reality-live deepen + fail-closed tighten |
+| [#218](https://github.com/B0LK13/project-atlas/pull/218) | AS-2.2-TIME-MACHINE-DEEPEN-PREP-001 | Time Machine deepen |
+| [#220](https://github.com/B0LK13/project-atlas/pull/220) | AS-2.2-RET-HYBRID-DEEPEN-PREP-001 | Hybrid retrieval deepen |
+| [#221](https://github.com/B0LK13/project-atlas/pull/221) | AS-2.2-KCI-ENGINE-DEEPEN-PREP-001 | KCI engine deepen |
 
 ## Landed PREP inventory (tip)
 
