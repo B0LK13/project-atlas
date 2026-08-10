@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-PREP-001",
+  "action_id": "action.demo.llm-authority.forbidden",
+  "session_id": "live-session-demo-001",
+  "kind": "llm_authority_stamp",
+  "status": "rejected_forbidden",
+  "expected_error": "chatgpt-live-llm-authority-forbidden",
+  "canonical_writes": false,
+  "authority": {
+    "level": "derived",
+    "note": "LLM≠authority — live turns cannot elevate authority.level"
+  },
+  "truth_boundary": "CHATGPT LIVE ACTION ≠ BYPASS / ≠ LAYER B / ≠ AUTHORITY / ≠ PILOT",
+  "_prep_note": "FX-2.2-CGL-006 — expected rejection of LLM authority stamp"
+}
