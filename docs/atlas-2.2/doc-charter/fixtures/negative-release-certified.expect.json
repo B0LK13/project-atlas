@@ -1,0 +1,15 @@
+{
+  "package_id": "AS-2.2-DOC-CHARTER-PREP-001",
+  "scenario_id": "FX-2.2-DOC-CHARTER-NEG-001",
+  "forbidden_inventory": {
+    "atlas_2_1_release_certified": true,
+    "atlas_2_2_intelligence_unlocked": true,
+    "matrix_release_certified": true
+  },
+  "expected_error": "doc-charter-prep-release-certified-forbidden",
+  "atlas_2_1_release_certified": false,
+  "atlas_2_2_intelligence_unlocked": false,
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "notes": "PREP must not claim v2.1.0 released or ATLAS_2_1_RELEASE_CERTIFIED=YES"
+}

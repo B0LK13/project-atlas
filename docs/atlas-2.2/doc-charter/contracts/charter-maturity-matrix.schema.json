@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/charter-maturity-matrix.schema.json",
+  "title": "charter-maturity-matrix (PREP STUB — not package data)",
+  "description": "AS-2.2-DOC-CHARTER-PREP-001 docs-only maturity matrix inventory. Draft rows; ATLAS_2_1_RELEASE_CERTIFIED=NO; no runtime mutation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "package_id",
+    "charter_path",
+    "matrix_path",
+    "pilot_roots",
+    "authentic_estate_pilot_passed",
+    "atlas_2_1_release_certified",
+    "atlas_2_2_intelligence_unlocked",
+    "rows",
+    "row_count",
+    "invariants",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.charter-maturity-matrix.v0" },
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-DOC-CHARTER-PREP-001" },
+    "charter_path": { "const": "docs/atlas-2.2/CHARTER.md" },
+    "matrix_path": {
+      "const": "docs/atlas-2.2/doc-charter/FEATURE-MATURITY-MATRIX.md"
+    },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate_pilot_passed": { "const": false },
+    "atlas_2_1_release_certified": { "const": false },
+    "atlas_2_2_intelligence_unlocked": { "const": false },
+    "rows": {
+      "type": "array",
+      "minItems": 19,
+      "items": {
+        "$ref": "charter-maturity-row.schema.json"
+      }
+    },
+    "row_count": { "type": "integer", "minimum": 19 },
+    "invariants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prep_ne_cert",
+        "no_2_1_release_stamp",
+        "no_2_2_unlock_stamp",
+        "no_pilot_invent",
+        "no_runtime_mutation"
+      ],
+      "properties": {
+        "prep_ne_cert": { "const": true },
+        "no_2_1_release_stamp": { "const": true },
+        "no_2_2_unlock_stamp": { "const": true },
+        "no_pilot_invent": { "const": true },
+        "no_runtime_mutation": { "const": true }
+      }
+    },
+    "truth_boundary": {
+      "const": "PREP MATRIX DRAFT ≠ v2.2.0 RELEASE CERTIFIED / ≠ 2.1 RELEASE CERTIFIED"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" },
+        "package": { "const": "AS-2.2-DOC-CHARTER-PREP-001" }
+      }
+    }
+  }
+}
