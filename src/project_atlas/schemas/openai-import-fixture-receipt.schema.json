@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/openai-import-fixture-receipt.schema.json",
+  "title": "OpenAI Import Fixture Receipt",
+  "description": "AS-2.0-OAI-IMPORT-001 structured receipt from synthetic chat-export parse. No live API.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "receipt_id",
+    "adapter_id",
+    "status",
+    "live_api",
+    "sample_path",
+    "turn_count",
+    "turns",
+    "payload_sha256",
+    "secret_scan",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-OAI-IMPORT-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "adapter_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "status": {
+      "enum": ["parsed-quarantined", "parsed-rejected-secret", "parsed-only"]
+    },
+    "live_api": { "const": false },
+    "sample_path": { "type": "string", "minLength": 1 },
+    "turn_count": { "type": "integer", "minimum": 1 },
+    "turns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "text"],
+        "properties": {
+          "role": { "enum": ["user", "assistant"] },
+          "text": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "payload_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "secret_scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings_count", "content_redacted"],
+      "properties": {
+        "findings_count": { "type": "integer", "minimum": 0 },
+        "content_redacted": { "const": true },
+        "finding_kinds": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "quarantine_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["envelope_id", "status", "package_id"],
+      "properties": {
+        "envelope_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "status": {
+          "enum": ["quarantined", "rejected-secret", "rejected-disabled"]
+        },
+        "package_id": { "const": "AS-2.0-PROV-001" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "OAI IMPORT FIXTURE ≠ LIVE API / ≠ AUTHORITY / ≠ PILOT"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

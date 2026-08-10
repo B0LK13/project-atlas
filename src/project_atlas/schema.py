@@ -136,6 +136,10 @@ SCHEMA_FILES: dict[str, str] = {
     "bitemporal-as-of-result": "bitemporal-as-of-result.schema.json",
     # AS-2.0-REALITY-GAP-001 — fixture-only reality-gap inventory (≠ PILOT / estate)
     "reality-gap-inventory": "reality-gap-inventory.schema.json",
+    # AS-2.0-TWIN-FIXTURE-001 — disposable twin projections (≠ TWIN production / PILOT)
+    "twin-projection-fixture": "twin-projection-fixture.schema.json",
+    # AS-2.0-OAI-IMPORT-001 — OpenAI importer fixture receipt (no live API)
+    "openai-import-fixture-receipt": "openai-import-fixture-receipt.schema.json",
 }
 
 

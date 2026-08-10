@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/twin-projection-fixture.schema.json",
+  "title": "Twin Projection Fixture",
+  "description": "AS-2.0-TWIN-FIXTURE-001 disposable twin projection. Never estate PILOT PASSED or TWIN production READY.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "projection_id",
+    "fixture_class",
+    "pilot_status",
+    "authentic_pilot_roots",
+    "estate_pilot_passed",
+    "twin_production_ready",
+    "twin_001_status",
+    "projects",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-TWIN-FIXTURE-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "projection_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "fixture_class": { "const": "disposable" },
+    "pilot_status": { "const": "fixture-only" },
+    "authentic_pilot_roots": { "type": "integer", "minimum": 0 },
+    "estate_pilot_passed": { "const": false },
+    "twin_production_ready": { "const": false },
+    "twin_001_status": { "const": "BLOCKED" },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["project_id", "display_name", "health", "evidence_class"],
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "display_name": { "type": "string", "minLength": 1 },
+          "health": { "enum": ["unknown", "degraded", "healthy"] },
+          "evidence_class": { "enum": ["fixture", "absent"] }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "TWIN FIXTURE ≠ ESTATE PILOT PASSED / ≠ TWIN PRODUCTION READY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
