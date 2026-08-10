@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-XPROJ-CONTRACT-PREP-001",
+  "lens_id": "xlens-entity-join-sample-v1",
+  "scope": {
+    "kind": "project-set",
+    "project_ids": ["proj-alpha", "proj-beta"]
+  },
+  "buckets": ["entities", "joins"],
+  "cited_ids": [
+    "ge-tech-postgres-v1",
+    "join-proj-alpha-postgres",
+    "join-proj-beta-postgres"
+  ],
+  "status": "selected",
+  "authority": {
+    "level": "derived",
+    "note": "Conceptual citation of AS-XPROJ-001; no runtime mutation"
+  },
+  "truth_boundary": "XPROJ ESTATE LENS ≠ AUTHORITY / ≠ LAYER B MUTATION",
+  "evidence_class": "fixture-only",
+  "atlas_2_1_release_certified": false,
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" }
+}

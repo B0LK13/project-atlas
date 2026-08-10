@@ -1,0 +1,15 @@
+{
+  "scenario_id": "FX-2.2-XPROJ-008",
+  "attempt": "elevate-fabric-to-layer-b-authority",
+  "input": {
+    "authority": { "level": "authoritative" },
+    "write_claims": true
+  },
+  "expected_error": "xproj-prep-authority-elevate-forbidden",
+  "expected_status": "reject",
+  "atlas_2_1_release_certified": false,
+  "invariants": {
+    "cross_project_ne_authority": true
+  },
+  "notes": "CROSS-PROJECT ≠ AUTHORITY; fabric remains derived"
+}
