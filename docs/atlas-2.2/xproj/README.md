@@ -30,3 +30,7 @@ FIXTURE PASS            ≠  PILOT / RELEASE
 
 Runtime work for `AS-2.2-XPROJ-001` remains blocked until
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` after `v2.1.0` certification.
+
+## Deepen PREP
+
+See [`AS-2.2-XPROJ-DEEPEN-PREP-001.md`](AS-2.2-XPROJ-DEEPEN-PREP-001.md).

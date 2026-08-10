@@ -1,0 +1,105 @@
+{
+  "$id": "https://project-atlas.local/prep/atlas-2.2/xproj-forbidden-action.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-2.2-XPROJ-DEEPEN-PREP-001 fail-closed action proposal. Reject authority_elevate, autocollapse, fuzzy_join, layer_b_write, release_cert_stamp, pilot_invent, llm_authority_stamp.",
+  "properties": {
+    "_prep_note": {
+      "type": "string"
+    },
+    "action_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "type": "string"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "const": "derived"
+        },
+        "note": {
+          "maxLength": 400,
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "type": "object"
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "expected_error": {
+      "enum": [
+        null,
+        "xproj-authority-elevate-forbidden",
+        "xproj-autocollapse-forbidden",
+        "xproj-fuzzy-join-forbidden",
+        "xproj-layer-b-write-forbidden",
+        "xproj-release-cert-stamp-forbidden",
+        "xproj-pilot-invent-forbidden",
+        "xproj-llm-authority-forbidden"
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "authority_elevate",
+        "autocollapse",
+        "fuzzy_join",
+        "layer_b_write",
+        "release_cert_stamp",
+        "pilot_invent",
+        "llm_authority_stamp"
+      ]
+    },
+    "package_id": {
+      "const": "AS-2.2-XPROJ-DEEPEN-PREP-001"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "pilot_roots": {
+      "const": 0
+    },
+    "release_certified": {
+      "const": false
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "const": "rejected_forbidden"
+    },
+    "truth_boundary": {
+      "const": "XPROJ FABRIC \u2260 AUTHORITY / \u2260 AUTOCOLLAPSE / \u2260 FUZZY JOIN / \u2260 LAYER B / \u2260 PILOT / \u2260 RELEASE"
+    }
+  },
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "title": "xproj-forbidden-action (PREP STUB \u2014 not package data)",
+  "type": "object"
+}
