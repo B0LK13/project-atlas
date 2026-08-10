@@ -109,6 +109,16 @@ Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
 | [#240](https://github.com/B0LK13/project-atlas/pull/240) | AS-2.2-REALITY-GAP-DEEPEN-PREP-001 | Reality-gap deepen (unknown≠healthy) |
 | [#238](https://github.com/B0LK13/project-atlas/pull/238) | README-INDEX-011 | Index wave-6 deepen |
 
+
+### Wave 8 — fixture-plan rollup (#242)
+
+Deepen-wave fixture + forbidden-action stub rollup. Tip e9c5c12 / TREE a7e6207.
+Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
+
+| PR | Package | Note |
+|---|---|---|
+| [#242](https://github.com/B0LK13/project-atlas/pull/242) | AS-2.2-PREP-FIXTURE-ROLLUP-001 | FIXTURE-PLAN + PACKAGE-CONTRACT-STUBS sync |
+
 ## Landed PREP inventory (tip)
 
 | Short | Package | PR | Maturity (draft) |
