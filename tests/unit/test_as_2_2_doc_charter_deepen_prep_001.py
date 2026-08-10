@@ -196,5 +196,6 @@ def test_no_production_mutation_paths_in_prep_tree() -> None:
             name.startswith("docs/atlas-2.2/doc-charter/")
             or name == "tests/unit/test_as_2_2_doc_charter_deepen_prep_001.py"
             or name == "tests/unit/test_as_2_2_doc_charter_prep_001.py"
+            or name == "tests/unit/test_as_2_2_doc_charter_matrix_sync_001.py"
         ), name
         assert not name.endswith("README.md"), name

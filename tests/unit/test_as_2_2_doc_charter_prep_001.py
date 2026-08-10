@@ -178,5 +178,6 @@ def test_no_runtime_mutation() -> None:
         assert name.startswith("docs/atlas-2.2/") or name in {
             "tests/unit/test_as_2_2_doc_charter_prep_001.py",
             "tests/unit/test_as_2_2_doc_charter_deepen_prep_001.py",
+            "tests/unit/test_as_2_2_doc_charter_matrix_sync_001.py",
         }, name
         assert not name.endswith("README.md"), name
