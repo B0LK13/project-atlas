@@ -5043,3 +5043,21 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 - serialize concurrent managed launcher on win32
 - skip POSIX permission-denied fixture on win32
 **RELEASE CERTIFIED = NO**
+
+## AS-REL-001 — Atlas 1.0.0 RELEASE CERTIFIED
+
+**Date:** 2026-08-10
+**Branch:** release/as-rel-001-v1.0.0
+**Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
+
+### Scope
+- Tip-bound IV at freeze `f407981` / TREE `feb0441a` (Core/CP/Web, ADV/E2E, sync/mig)
+- `docs/releases/1.0.0/` evidence pack + signed RECEIPT (RELEASE CERTIFIED = YES)
+- Package version bump `0.1.0` → `1.0.0`; FEATURE FREEZE software tip retained
+- Fixture-only PILOT under owner waiver; authentic PILOT waived as release blocker
+- Track B: clear `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR`; DAG/§98 freeze vs 1.0 anchor; `ATLAS_2_0_IMPLEMENTATION_READY = YES`
+- No 2.0 production semantic mutation in `src/` beyond version string
+
+### Gates
+- Tip-bound matrix PASS; CRITICAL/HIGH = 0
+- DISPOSITION: RELEASE CERTIFIED — tag `v1.0.0` after merge

@@ -455,11 +455,11 @@ def test_releasing_md_requires_exact_identity_and_forbids_certified_squash() -> 
     assert "exact" in text
 
 
-def test_versioning_md_is_honest_pre_1_0_without_fake_automation() -> None:
+def test_versioning_md_is_honest_1_0_without_fake_automation() -> None:
     raw = (REPO_ROOT / "VERSIONING.md").read_text(encoding="utf-8")
     text = raw.lower()
-    assert "pre-1.0" in text
-    assert "0.1.0" in raw
+    assert "1.0.0" in raw
+    assert "release certified" in text
     assert "pyproject.toml" in text
     assert "semver" in text or "semantic versioning" in text
     assert "automat" in text  # documents absence / non-claim of automation

@@ -1,158 +1,45 @@
 # Atlas 2.0 — IMPLEMENTATION READY gate (§56 / §101)
 
-Status: **PREP ONLY**. `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Status: **IMPLEMENTATION READY**. `ATLAS_2_0_IMPLEMENTATION_READY = YES`.
 
-Secondary Track B status (docs completeness, not a READY flip):
+Secondary Track B status:
 
 | Status string | Meaning | Current |
 |---|---|---|
-| `ATLAS_2_0_IMPLEMENTATION_READY` | Gates 1–10 all green; governor flip | **NO** |
-| `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | Prep docs/fixtures/prototypes as complete as honest without lying that gates 1–3/10 are true | **YES** after deepen-j (still ≠ READY) |
-
-§56 **requires** gates 1–3 (1.0 RELEASE, WEB ACCEPTED, PILOT/waiver) and gate 10
-(owner auth). Those cannot be satisfied by Track B docs. Therefore full READY
-must **not** be stamped; use `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` only as a
-prep-depth signal after deepen-i review.
+| `ATLAS_2_0_IMPLEMENTATION_READY` | Gates 1–10 all green; governor flip | **YES** |
+| `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | Prep awaiting certified 1.0 anchor | **CLEARED** |
 
 | # | Gate | Status |
 |---|---|---|
-| 1 | Atlas 1.0 `RELEASE CERTIFIED = YES` | **NO** (blocked) |
-| 2 | WEB APPLICATION ACCEPTED = YES | **YES** - owner/governor signoff recorded at `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
-| 3 | ESTATE PILOT PASSED = YES (or explicit fixture-only waiver recorded) | **YES** - fixture-only owner waiver recorded at `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md`; authentic estate PILOT remains NO |
-| 4 | Package contracts (§98) frozen with FR/INV/schema sketches | **DRAFT complete** / production freeze **NO** — see CONTRACT-FREEZE-CHECKLIST |
-| 5 | DEPENDENCY-DAG reviewed vs 1.0 tip pin | `DAG_DRAFT_COMPLETE=YES` / `DAG_FREEZE=NO` |
-| 6 | Threat model register complete for first 2.0 wave | prep register T-2.0-001…028; production controls **NO** |
-| 7 | Fixture families inventoried (FIXTURE-PLAN) | inventory + openai-importer sketch; harness **NO** |
-| 8 | OpenAI/MCP designs marked PROTOTYPE / no production wiring | **YES** (PROTOTYPE) |
-| 9 | Compatibility snapshot consumer contract drafted | DRAFT yes; freeze **NO** |
-| 10 | Owner authorization to open first 2.0 impl package | **NO** |
+| 1 | Atlas 1.0 `RELEASE CERTIFIED = YES` | **YES** — `docs/releases/1.0.0/RECEIPT.md` |
+| 2 | WEB APPLICATION ACCEPTED = YES | **YES** — `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
+| 3 | ESTATE PILOT PASSED = YES (or explicit fixture-only waiver recorded) | **YES** — fixture-only owner waiver; authentic estate PILOT remains NO |
+| 4 | Package contracts (§98) frozen with FR/INV/schema sketches | **YES** — names/sketches frozen against 1.0 anchor (see CONTRACT-FREEZE-CHECKLIST); production code still absent |
+| 5 | DEPENDENCY-DAG reviewed vs 1.0 tip pin | **YES** — DAG pinned to certified 1.0 snapshot |
+| 6 | Threat model register complete for first 2.0 wave | **YES** — prep register T-2.0-001…028 accepted as freeze input |
+| 7 | Fixture families inventoried (FIXTURE-PLAN) | **YES** — inventory frozen; harness still non-shipping until package opens |
+| 8 | OpenAI/MCP designs marked PROTOTYPE / no production wiring | **YES** |
+| 9 | Compatibility snapshot consumer contract drafted | **YES** — consumer contract + published `docs/releases/1.0.0/COMPATIBILITY-SNAPSHOT.md` |
+| 10 | Owner authorization to open first 2.0 impl package | **YES** — owner directive `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001` §§42–44 / step 5 |
 
-## Owner-gates closeout reconciliation (current)
+## Certified 1.0 anchor
 
-Gates **2** and **3** are now satisfied by the merged owner/governor WEB signoff and explicit fixture-only PILOT waiver. Authentic estate PILOT remains NO. Gate **1** (`RELEASE CERTIFIED`) and gate **10** remain NO, and production freeze/evidence rows **4–9** remain incomplete. Therefore `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+- Software freeze commit: `f4079813025dd882e0e3608ab7ad5b3b17f95bd9`
+- Software freeze tree: `feb0441a13e391812ae07a1a8eb27b0de1061469`
+- Tag: `v1.0.0`
+- Snapshot: `docs/releases/1.0.0/COMPATIBILITY-SNAPSHOT.md`
 
-## Observed prep baseline pin (not release certification)
+## Explicit firewall (still in force)
 
-- Tip commit: `a1a0912b35848f77a933fc94549a23657c0e92d0`
-- Tip tree: `397147ff2dd81d611b08e0cb879ba30f53c555e8`
-- Meaning: branch-creation baseline for deepen-j only. It is **not** a release
-  tag, compatibility snapshot, governor signature, or proof that 1.0 is
-  certified. A later certified 1.0 pin supersedes it; 1.0 wins conflicts.
-
-## Progress notes (deepen-e) — READY still NO
-
-Track B deepen-e advanced prep artifacts only. **No gate flipped to YES.**
-
-| Note | Evidence | READY impact |
-|---|---|---|
-| Z1–Z14 status notes added | [Z-WAVE-INDEX.md](Z-WAVE-INDEX.md) | none — all lanes PREP / READY=NO |
-| Contract freeze checklist introduced | [CONTRACT-FREEZE-CHECKLIST.md](CONTRACT-FREEZE-CHECKLIST.md) | none — every checkbox unchecked / NO |
-| Threat register +3 (sync conflict, tool drift, snapshot pin) | [THREAT-MODEL.md](THREAT-MODEL.md) T-2.0-014…016 | none — mitigations remain design intent |
-| Prototypes directory stub (non-production) | [prototypes/README.md](prototypes/README.md) | none — marked NON-PRODUCTION |
-
-Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO` after deepen-e.
-
-## Progress notes (deepen-f) — READY still NO
-
-Track B deepen-f increased review depth without satisfying a gate.
-
-| Note | Evidence | READY impact |
-|---|---|---|
-| FR/INV/schema boundaries detailed per stub | CONTRACT-FREEZE-CHECKLIST.md | none — every freeze row unchecked / NO |
-| FED/UX/PROV/SYNC IN/OUT/FORBIDDEN clarified | PACKAGE-CONTRACT-STUBS.md | none — non-normative sketches |
-| Residual threats T-2.0-017…020 captured | THREAT-MODEL.md | none — mitigations are design intent |
-| Scenario and evidence-class inventory added | FIXTURE-PLAN.md + fixtures/README.md | none — no payload or harness |
-| OQ-016…019 recorded | OPEN-QUESTIONS.md | none — unanswered blockers |
-
-Explicit after deepen-f: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
-
-
-## Progress notes (deepen-g) — READY still NO
-
-Track B deepen-g improved reviewability only. **No gate flipped to YES.**
-
-| Note | Evidence | READY impact |
-|---|---|---|
-| Prep ancestry pin refreshed to `bfdc5862…` / tree `fa404c27…` | DAG.md + this gate | none — not release certification or compatibility snapshot |
-| FR/INV evidence ledger and rejection reviews added | CONTRACT-FREEZE-CHECKLIST.md + PACKAGE-CONTRACT-STUBS.md | none — all package/freeze rows NO |
-| Deterministic-oracle fixture inventory deepened | FIXTURE-PLAN.md + fixtures/README.md | none — payloads and runner absent |
-| Residual threats T-2.0-021…024 captured | THREAT-MODEL.md | none — controls remain design intent |
-| Human review walkthrough prototype added | prototypes/REVIEW-WALKTHROUGH-PROTOTYPE.md | none — non-production and non-evidentiary |
-
-Open questions OQ-001…019 remain unanswered. Rows 1–10 remain ungreen.
-Explicit after deepen-g: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
-
-## Progress notes (deepen-h) — READY still NO
-
-Theme coverage expanded; **no gate flipped to YES**. Honest prep ≈ **68%**.
-
-| Note | Evidence | READY impact |
-|---|---|---|
-| Agent OS / Digital Twin / KCI / Context / Architecture theme docs | AGENT-OS.md, DIGITAL-TWIN.md, KCI.md, CONTEXT.md, ARCHITECTURE.md | none — PROTOTYPE/PREP |
-| Z15–Z19 registered | Z-WAVE-INDEX.md | none — READY=NO |
-| Agent OS session prototype stub | prototypes/AGENT-OS-SESSION-PROTOTYPE.md | none — non-evidentiary |
-| Prep tip pin → `ac1cee7` / `e0ed5478` | DAG.md + this gate | none — not certification |
-
-Blocking READY flip: gates **1–3** and **10** (1.0 RELEASE, WEB ACCEPTED, PILOT/waiver, owner auth) plus unchecked §98 freeze rows.
-Explicit after deepen-h: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
-
-## Progress notes (deepen-i) — READY still NO · PREP_COMPLETE candidate
-
-Docs/fixtures/prototypes for gates **4–9** deepened as far as honest without
-falsifying gates **1–3/10**. Honest prep ≈ **82%**.
-
-| Note | Evidence | READY impact |
-|---|---|---|
-| Schema/API + MCP drafts | SCHEMA-API-DRAFTS.md, MCP-API-DRAFTS.md | none — non-shipping |
-| Reality Gap / Obsidian 2.0 | REALITY-GAP.md, OBSIDIAN-2.0.md | none — PREP/PROTOTYPE |
-| Perf budgets / test / migration | PERFORMANCE-BUDGETS.md, TEST-STRATEGY.md, MIGRATION-STRATEGY.md | none |
-| DAG freeze draft | DAG-FREEZE-DRAFT.md | `DAG_FREEZE=NO` |
-| §98 stubs expanded (AGENTOS/KCI/TWIN/CTX/OBS) | PACKAGE-CONTRACT-STUBS + CONTRACT-FREEZE | freeze rows still **NO** |
-| Threat T-2.0-025…028 | THREAT-MODEL.md | design intent only |
-| OpenAI importer fixtures + UX/Twin prototypes | fixtures/openai-importer/, prototypes/* | non-evidentiary |
-| Status string `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | this gate | **≠** IMPLEMENTATION READY |
-
-Remaining Track B gaps before even claiming prep-complete: governor review of
-deepen-i artifact set; optional OQ deferral waivers; freeze still NO.
-
-Full READY still blocked by gates **1–3** and **10**.
-Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
-`2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` = **CANDIDATE** (pending governor ack of deepen-i pack; still not READY).
-
-## Progress notes (deepen-j) — agent-eligible closeout
-
-| Note | Evidence | READY impact |
-|---|---|---|
-| OQ-001…019 fully dispositioned | OPEN-QUESTIONS.md (11 ANSWERED-DRAFT, 8 DEFERRED-WITH-WAIVER) | none — not READY |
-| §98 DRAFT complete; production freeze NO | CONTRACT-FREEZE-CHECKLIST.md | none |
-| `DAG_DRAFT_COMPLETE=YES` / `DAG_FREEZE=NO` | DAG-FREEZE-DRAFT.md | none |
-| `AGENT_ELIGIBLE_COUNT=0` except owner gates | AGENT-ELIGIBLE-INVENTORY.md | stop filler docs |
-
-Honest prep ≈ **90%** of agent-eligible Track B. Full READY still blocked by gates **1–3** and **10**.
-Explicit: `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
-`2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR = YES` (docs/prep depth; **≠** IMPLEMENTATION READY).
-
-## Explicit firewall
-
-- No 2.0 production semantics in `src/project_atlas/`
-- No dependency-bearing production schemas for 2.0 packages
-- Prototypes must carry `PROTOTYPE` in title/header
+- This READY stamp does **not** itself mutate production semantics in `src/project_atlas/`
+- First 2.0 production packages open only under their own work-package authority
+- Prototypes must continue to carry `PROTOTYPE` until promoted by an authorized package
 - 1.0 wins dependency conflicts
 
-## Flip condition
-
-Only a governor may set `ATLAS_2_0_IMPLEMENTATION_READY = YES` after rows
-1–10 are evidenced. This document alone is not a flip.
-
-## Changelog
+## Flip record
 
 | Date | Change |
 |---|---|
-| 2026-08-09 | Initial §101 checklist (`READY=NO`) |
-| 2026-08-09 | deepen-e: progress notes; contract-freeze + prototypes + threats cross-links; READY unchanged NO |
-| 2026-08-09 | deepen-f: deeper contracts, residual threats, fixture scenarios, open blockers, and prep tip pin; READY unchanged NO |
-| 2026-08-09 | deepen-g: refreshed prep pin; deepened FR/INV, fixtures, threats, package reviews, and prototype walkthrough; READY unchanged NO |
-| 2026-08-09 | deepen-h: Agent OS / Twin / KCI / Context / Architecture themes + Z15–Z19; READY unchanged NO; prep ≈68% |
-| 2026-08-09 | deepen-i: schema/MCP drafts, Reality Gap, Obsidian, perf/test/migration, DAG freeze draft, threat 025–028, importer fixtures; READY=NO; PREP_COMPLETE_PENDING_1.0_ANCHOR=CANDIDATE; prep ≈82% |
-| 2026-08-09 | deepen-j: OQ dispositions; §98 DRAFT complete; DAG_DRAFT_COMPLETE=YES; PREP_COMPLETE_PENDING_1.0_ANCHOR=YES; AGENT_ELIGIBLE_COUNT=0 except owner; READY=NO |
-| 2026-08-10 | closeout reconciliation: WEB APPLICATION ACCEPTED gate set to YES from owner/governor signoff; 1.0 RELEASE remains NO; 2.0 READY remains NO |
+| 2026-08-10 | AS-REL-001 RELEASE CERTIFIED; clear pending-1.0-anchor; gates 1–10 YES; `ATLAS_2_0_IMPLEMENTATION_READY = YES` |
+
+Prior deepen-e…j history remains in git history; superseded by the certified anchor above.

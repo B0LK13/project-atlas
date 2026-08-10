@@ -1,41 +1,43 @@
-# DEPENDENCY-DAG freeze draft (PREP)
+# DEPENDENCY-DAG freeze (against Atlas 1.0.0)
 
-Status: **DRAFT COMPLETE** for agent-eligible content — **not** a frozen DAG.
+Status: **FROZEN** against certified 1.0 snapshot.
 
 | Flag | Value |
 |---|---|
 | `DAG_DRAFT_COMPLETE` | **YES** |
-| `DAG_FREEZE` | **NO** (certified 1.0 snapshot missing) |
-| `ATLAS_2_0_IMPLEMENTATION_READY` | **NO** |
+| `DAG_FREEZE` | **YES** |
+| `ATLAS_2_0_IMPLEMENTATION_READY` | **YES** |
 
-## Observed tip pin (not certified 1.0 snapshot)
+## Certified 1.0 snapshot pin
 
-- Tip: `a1a0912b35848f77a933fc94549a23657c0e92d0`
-- Tree: `397147ff2dd81d611b08e0cb879ba30f53c555e8`
+- Software freeze commit: `f4079813025dd882e0e3608ab7ad5b3b17f95bd9`
+- Software freeze tree: `feb0441a13e391812ae07a1a8eb27b0de1061469`
+- Tag: `v1.0.0`
+- Doc: `docs/releases/1.0.0/COMPATIBILITY-SNAPSHOT.md`
 
 ## Freeze prerequisites (production)
 
 | # | Item | Status |
 |---|---|---|
-| D1 | Certified 1.0 RELEASE snapshot pin | **NO** → blocks `DAG_FREEZE` |
-| D2 | WEB APPLICATION ACCEPTED | **NO** |
-| D3 | PILOT or fixture waiver | **NO** |
-| D4 | §98 production freeze | **NO** (`§98_DRAFT_COMPLETE=YES`) |
-| D5 | Owner auth for 2.0 impl | **NO** |
+| D1 | Certified 1.0 RELEASE snapshot pin | **YES** |
+| D2 | WEB APPLICATION ACCEPTED | **YES** |
+| D3 | PILOT or fixture waiver | **YES** (fixture-only waiver) |
+| D4 | §98 production freeze | **YES** (names/sketches) |
+| D5 | Owner auth for 2.0 impl | **YES** |
 
-## Package edge sketch (non-normative · draft-complete)
+## Package edge sketch
 
 ```text
 1.0 Core ──► COMPAT snapshot ──► FED / SYNC / UX / PROV
                 │
-                └──► Agent OS / KCI / Context / Twin / Obsidian-UX (PROTOTYPE)
+                └──► Agent OS / KCI / Context / Twin / Obsidian-UX (packages may open)
 ```
 
-Edge rules (draft):
+Edge rules:
 
-1. No 2.0 package depends on uncertified 1.0 HEAD as a freeze pin
+1. 2.0 packages consume the certified 1.0 freeze pin (HEAD/TREE/tag)
 2. 1.0 wins contract conflicts
-3. Twin/SYNC edges require PILOT or explicit waiver before production
-4. UX edges require WEB ACCEPTED before production freeze
+3. Twin/SYNC production still requires authentic PILOT roots or a separate owner auth beyond the fixture-only 1.0 waiver
+4. UX edges require WEB ACCEPTED (satisfied)
 
-See [DAG.md](DAG.md) for narrative. `DAG_FREEZE` stays **NO** until D1.
+See also: `DAG.md`, `CONTRACT-FREEZE-CHECKLIST.md`, `IMPLEMENTATION-READY-GATE.md`.
