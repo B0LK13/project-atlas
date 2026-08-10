@@ -8,7 +8,7 @@
   "authentic_estate_pilot_passed": false,
   "atlas_2_1_release_certified": false,
   "atlas_2_2_intelligence_unlocked": false,
-  "row_count": 19,
+  "row_count": 23,
   "rows": [
     {
       "row_id": "FX-2.2-DOC-CHARTER-001",
@@ -222,6 +222,54 @@
       "notes": "Feeds AS-2.2-ESTATE-OPS-001"
     },
     {
+      "row_id": "FX-2.2-DOC-CHARTER-020",
+      "package_id": "AS-2.2-PREP-FIXTURE-ROLLUP-001",
+      "maturity": "DOCUMENTATION_ONLY",
+      "evidence_path": "docs/atlas-2.2/AS-2.2-PREP-FIXTURE-ROLLUP-001.md",
+      "disposition": "PREP",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "release_certified": false,
+      "notes": "PR #242 deepen fixture/contract stub rollup by reference"
+    },
+    {
+      "row_id": "FX-2.2-DOC-CHARTER-021",
+      "package_id": "AS-2.2-ADV-POOL-001",
+      "maturity": "DOCUMENTATION_ONLY",
+      "evidence_path": "docs/atlas-2.2/adv-pool/",
+      "disposition": "PREP",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "release_certified": false,
+      "notes": "PR #243 ADV threat matrix sketch; not live ADV suite"
+    },
+    {
+      "row_id": "FX-2.2-DOC-CHARTER-022",
+      "package_id": "AS-2.2-ROADMAP-CROSSWALK-SYNC-001",
+      "maturity": "DOCUMENTATION_ONLY",
+      "evidence_path": "docs/atlas-2.2/roadmap-crosswalk/",
+      "disposition": "PREP",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "release_certified": false,
+      "notes": "PR #246 crosswalk tip sync after rollup/ADV-POOL"
+    },
+    {
+      "row_id": "FX-2.2-DOC-CHARTER-023",
+      "package_id": "AS-2.2-RET-SEMIDX-PREP-001",
+      "maturity": "FIXTURE_ONLY",
+      "evidence_path": "docs/atlas-2.2/ret-semidx/",
+      "disposition": "PREP",
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "invent_pilot_roots": false,
+      "release_certified": false,
+      "notes": "PR #248 semantic index prep; slot default-off"
+    },
+    {
       "row_id": "FX-2.2-DOC-CHARTER-019",
       "package_id": "AS-2.2-DOC-CHARTER-001",
       "maturity": "BLOCKED",
@@ -246,5 +294,8 @@
   "generated": {
     "by": "project-atlas",
     "package": "AS-2.2-DOC-CHARTER-PREP-001"
-  }
+  },
+  "tip_audited": "70889b1ecfd986e7fcf5311d23ef89985858dafe",
+  "docs_atlas_2_2_tree": "92370052bfc577123821db5f4126ab8cda224794",
+  "sync_package_id": "AS-2.2-DOC-CHARTER-MATRIX-SYNC-001"
 }

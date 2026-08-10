@@ -44,6 +44,10 @@ LANDED_PREP_PACKAGES = (
     "AS-2.2-TEMPORAL-UX-PREP-001",
     "AS-2.2-COMPAT-PIN-PREP-001",
     "AS-2.2-ESTATE-OPS-PREP-001",
+    "AS-2.2-PREP-FIXTURE-ROLLUP-001",
+    "AS-2.2-ADV-POOL-001",
+    "AS-2.2-ROADMAP-CROSSWALK-SYNC-001",
+    "AS-2.2-RET-SEMIDX-PREP-001",
 )
 
 
@@ -101,7 +105,7 @@ def test_maturity_matrix_fixture_invariants() -> None:
         "no_pilot_invent": True,
         "no_runtime_mutation": True,
     }
-    assert payload["row_count"] == len(payload["rows"]) == 19
+    assert payload["row_count"] == len(payload["rows"]) == 23
     package_ids = {row["package_id"] for row in payload["rows"]}
     assert set(LANDED_PREP_PACKAGES).issubset(package_ids)
     assert "AS-2.2-DOC-CHARTER-001" in package_ids
@@ -171,7 +175,8 @@ def test_no_runtime_mutation() -> None:
     for name in changed:
         assert not name.startswith("src/"), name
         assert not name.startswith("apps/"), name
-        assert name.startswith("docs/atlas-2.2/") or name == (
-            "tests/unit/test_as_2_2_doc_charter_prep_001.py"
-        ), name
+        assert name.startswith("docs/atlas-2.2/") or name in {
+            "tests/unit/test_as_2_2_doc_charter_prep_001.py",
+            "tests/unit/test_as_2_2_doc_charter_deepen_prep_001.py",
+        }, name
         assert not name.endswith("README.md"), name
