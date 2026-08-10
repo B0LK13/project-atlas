@@ -34,7 +34,9 @@
         "llm_authority_stamp",
         "default_on_live",
         "pilot_invent",
-        "chatgpt_bridge_mutate"
+        "chatgpt_bridge_mutate",
+        "missing_env_credential",
+        "billing_blocked"
       ]
     },
     "status": {
@@ -49,9 +51,21 @@
         "chatgpt-live-llm-authority-forbidden",
         "chatgpt-live-default-on-forbidden",
         "chatgpt-live-pilot-invent-forbidden",
-        "chatgpt-live-bridge-mutate-forbidden"
+        "chatgpt-live-bridge-mutate-forbidden",
+        "chatgpt-live-missing-env-forbidden",
+        "chatgpt-live-billing-blocked-forbidden"
       ]
     },
+    "env_var_name": {
+      "type": "string",
+      "enum": ["OPENAI_API_KEY", "OPENAI_ORG_ID", "OPENAI_PROJECT_ID"]
+    },
+    "env_present": { "type": "boolean" },
+    "billing_gate": {
+      "type": "string",
+      "enum": ["spending_limit", "quota_exceeded", "billing_disabled"]
+    },
+    "network_call_attempted": { "type": "boolean" },
     "canonical_writes": { "type": "boolean" },
     "authority": {
       "type": "object",

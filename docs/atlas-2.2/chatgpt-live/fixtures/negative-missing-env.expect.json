@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-PREP-001",
+  "action_id": "act.demo.missing-env.001",
+  "session_id": "live-session-demo-001",
+  "kind": "missing_env_credential",
+  "status": "rejected_forbidden",
+  "expected_error": "chatgpt-live-missing-env-forbidden",
+  "env_var_name": "OPENAI_API_KEY",
+  "env_present": false,
+  "authority": {
+    "level": "derived",
+    "note": "Fail-closed when required env credential is absent; no network call attempted"
+  },
+  "truth_boundary": "CHATGPT LIVE ACTION ≠ BYPASS / ≠ LAYER B / ≠ AUTHORITY / ≠ PILOT",
+  "_prep_note": "FX-2.2-CGL-010 — env blocker sketch (name only; no secret value)"
+}

@@ -54,7 +54,18 @@ links, not code ownership.
 | Operator action | escalate / open evidence | `_promote` / canonical write |
 | Ask Atlas citation | Cite quarantine envelope id | Stamp authority |
 
-## 6. no PILOT invent / certification wall
+## 6. Env / billing fail-closed (no live OAI verification)
+
+| Signal | Allowed | Forbidden |
+|---|---|---|
+| Missing `OPENAI_API_KEY` (name only in fixtures) | `rejected_forbidden` / `rejected-disabled` | Proceed with live network call |
+| Billing / spending-limit gate | Block before API call | Charge live OpenAI billing in PREP |
+| Env var values in fixtures | Env **names** only | Embed API keys / secrets / tokens |
+
+PREP fixtures rehearse fail-closed gates only. They do **not** verify live OpenAI
+billing, quota, or credential validity.
+
+## 7. no PILOT invent / certification wall
 
 | Field | Const / rule |
 |---|---|

@@ -21,6 +21,9 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | FX-2.2-CGL-006 | `negative-llm-authority.expect.json` | LLM authority stamp → rejected |
 | FX-2.2-CGL-007 | `negative-default-on-live.expect.json` | Default-on live → rejected |
 | FX-2.2-CGL-008 | `negative-pilot-invent.expect.json` | PILOT invent → rejected |
+| FX-2.2-CGL-009 | `synthetic-transcript.sample.json` | Synthetic turn transcript (no network) |
+| FX-2.2-CGL-010 | `negative-missing-env.expect.json` | Missing env credential → rejected |
+| FX-2.2-CGL-011 | `negative-billing-blocked.expect.json` | Billing gate → rejected before API call |
 
 ## Rules
 
@@ -35,7 +38,7 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 
 | Scenario | State | Gate credit |
 |---|---|---|
-| FX-2.2-CGL-001..008 | payload-present (docs sketch) | **NO** |
+| FX-2.2-CGL-001..011 | payload-present (docs sketch) | **NO** |
 
 Promotion to harness + production schemas requires
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-PREP-001",
+  "action_id": "act.demo.billing-blocked.001",
+  "session_id": "live-session-demo-001",
+  "kind": "billing_blocked",
+  "status": "rejected_forbidden",
+  "expected_error": "chatgpt-live-billing-blocked-forbidden",
+  "billing_gate": "spending_limit",
+  "network_call_attempted": false,
+  "authority": {
+    "level": "derived",
+    "note": "Fail-closed billing gate blocks live bridge before any paid API call"
+  },
+  "truth_boundary": "CHATGPT LIVE ACTION ≠ BYPASS / ≠ LAYER B / ≠ AUTHORITY / ≠ PILOT",
+  "_prep_note": "FX-2.2-CGL-011 — billing blocker sketch (no live OAI billing verification)"
+}

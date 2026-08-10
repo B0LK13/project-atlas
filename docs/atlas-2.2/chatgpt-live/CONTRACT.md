@@ -13,6 +13,7 @@ Ship path after unlock (future): `src/project_atlas/schemas/` via ADR + freeze.
 | `live-bridge-request.schema.json` | Opt-in live request | `request` |
 | `quarantine-envelope.schema.json` | Mandatory quarantine result | `quarantine` |
 | `live-session-receipt.schema.json` | Derived session receipt | `receipt` |
+| `live-transcript.schema.json` | Synthetic turn transcript | `transcript` |
 | `forbidden-action.schema.json` | Fail-closed action proposal | `reject` |
 
 ## Conceptual operations
@@ -22,7 +23,8 @@ Ship path after unlock (future): `src/project_atlas/schemas/` via ADR + freeze.
 | `request` | `(opt_in, session_id)` | `rejected_disabled` when opt-in false; malformed → `rejected_malformed` |
 | `quarantine` | `(envelope_id, payload)` | secret → `rejected-secret`; never skip quarantine |
 | `receipt` | `(session_id)` | requires quarantine ref; never Layer B |
-| `reject` | `(action)` | reject bypass / Layer B write / LLM authority / default-on live / pilot invent |
+| `transcript` | `(session_id, turns[])` | synthetic turns only; `synthetic=true`; no secrets |
+| `reject` | `(action)` | reject bypass / Layer B write / LLM authority / default-on live / pilot invent / missing env / billing blocked |
 
 ## FR stubs (planning IDs only — not certified requirements)
 
@@ -34,6 +36,8 @@ Ship path after unlock (future): `src/project_atlas/schemas/` via ADR + freeze.
 | FR-2.2-CGL-004 | Bypass-quarantine / Layer B write / LLM authority stamps are rejected |
 | FR-2.2-CGL-005 | Live bridge never mutates `chatgpt_bridge` export semantics in PREP |
 | FR-2.2-CGL-006 | Fixtures set `pilot_roots=0` and never invent PILOT estate roots |
+| FR-2.2-CGL-007 | Missing env credentials and billing gates fail closed before network calls |
+| FR-2.2-CGL-008 | Synthetic transcripts are fixture-only and never carry LLM authority |
 | NFR-2.2-CGL-001 | Deterministic serialization (`sort_keys=True`; no `generated.at`) |
 | NFR-2.2-CGL-002 | Prep stubs must not alter 2.1 runtime defaults or mutate `chatgpt_bridge` |
 | NFR-2.2-CGL-003 | Fixture success grants **no** PILOT / RELEASE / gate credit |

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-PREP-001",
+  "session_id": "live-session-demo-001",
+  "turn_count": 2,
+  "turns": [
+    {
+      "turn_id": "turn.demo.user.001",
+      "role": "user",
+      "text": "Summarize the quarantine-first live bridge prep in one sentence.",
+      "synthetic": true
+    },
+    {
+      "turn_id": "turn.demo.assistant.002",
+      "role": "assistant",
+      "text": "Live ChatGPT payloads must land in provider quarantine first and never become Layer B authority.",
+      "synthetic": true
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Synthetic transcript for PREP rehearsal only; not live OAI verification"
+  },
+  "truth_boundary": "LIVE TRANSCRIPT ≠ AUTHORITY / LLM≠AUTHORITY / FIXTURE ONLY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-CGL-009 — synthetic transcript sketch (no network, no secrets)"
+}

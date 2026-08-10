@@ -29,6 +29,7 @@ SCHEMA_FILES = {
     "request": "live-bridge-request.schema.json",
     "quarantine": "quarantine-envelope.schema.json",
     "receipt": "live-session-receipt.schema.json",
+    "transcript": "live-transcript.schema.json",
     "action": "forbidden-action.schema.json",
 }
 
@@ -36,11 +37,14 @@ FIXTURE_SCHEMA = {
     "live-bridge-request.sample.json": "request",
     "quarantine-envelope.sample.json": "quarantine",
     "live-session-quarantined.sample.json": "receipt",
+    "synthetic-transcript.sample.json": "transcript",
     "negative-bypass-quarantine.expect.json": "action",
     "negative-layer-b-write.expect.json": "action",
     "negative-llm-authority.expect.json": "action",
     "negative-default-on-live.expect.json": "action",
     "negative-pilot-invent.expect.json": "action",
+    "negative-missing-env.expect.json": "action",
+    "negative-billing-blocked.expect.json": "action",
 }
 
 
@@ -99,6 +103,8 @@ def test_invariants_document_fail_closed_walls() -> None:
     assert "chatgpt_bridge" in text
     assert "UI ≠ canonical" in text or "UI≠canonical" in text
     assert "LLM ≠ authority" in text or "LLM≠authority" in text
+    assert "billing" in text.lower()
+    assert "OPENAI_API_KEY" in text
     assert "ATLAS_2_1_RELEASE_CERTIFIED" in text
     assert "NO" in text
     assert "Never PILOT" in text or "never PILOT" in text.lower()
@@ -164,6 +170,14 @@ def test_negative_actions_are_rejected_forbidden() -> None:
             "pilot_invent",
             "chatgpt-live-pilot-invent-forbidden",
         ),
+        "negative-missing-env.expect.json": (
+            "missing_env_credential",
+            "chatgpt-live-missing-env-forbidden",
+        ),
+        "negative-billing-blocked.expect.json": (
+            "billing_blocked",
+            "chatgpt-live-billing-blocked-forbidden",
+        ),
     }
     for name, (kind, error) in cases.items():
         payload = _load_json(FIXTURES / name)
@@ -172,6 +186,27 @@ def test_negative_actions_are_rejected_forbidden() -> None:
         assert payload["status"] == "rejected_forbidden"
         assert payload["expected_error"] == error
         assert payload["authority"]["level"] == "derived"
+
+
+def test_synthetic_transcript_is_fixture_only() -> None:
+    transcript = _load_json(FIXTURES / "synthetic-transcript.sample.json")
+    assert isinstance(transcript, dict)
+    schema = _schema("transcript")
+    jsonschema.validate(instance=transcript, schema=schema)
+    assert transcript["turn_count"] == len(transcript["turns"])
+    assert all(t["synthetic"] is True for t in transcript["turns"])
+    assert transcript["evidence_class"] == "fixture-only"
+    assert "sk-" not in transcript["turns"][0]["text"].lower()
+    assert "api_key" not in json.dumps(transcript).lower()
+
+
+def test_env_and_billing_blockers_fail_closed_before_network() -> None:
+    missing_env = _load_json(FIXTURES / "negative-missing-env.expect.json")
+    billing = _load_json(FIXTURES / "negative-billing-blocked.expect.json")
+    assert missing_env["env_present"] is False
+    assert missing_env["env_var_name"] == "OPENAI_API_KEY"
+    assert billing["network_call_attempted"] is False
+    assert billing["billing_gate"] == "spending_limit"
 
 
 def test_request_schema_rejects_opt_in_false_with_live_true() -> None:
