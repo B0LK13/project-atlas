@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/as-of-lens-receipt.schema.json",
+  "title": "as-of-lens-receipt (PREP STUB — not package data)",
+  "description": "AS-2.2-TEMPORAL-UX-PREP-001 as-of lens receipt. Prefer unresolved over wrong current. Never uses wall-clock now.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "scope",
+    "as_of_valid_time",
+    "status",
+    "selected_claim_ids",
+    "unresolved",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TEMPORAL-UX-PREP-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["project", "subject", "estate-slice"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "as_of_valid_time": { "type": "string", "minLength": 4, "maxLength": 64 },
+    "knowledge_compilation_id": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "status": {
+      "enum": [
+        "selected",
+        "partial",
+        "not_found",
+        "unresolved_overlap",
+        "unresolved_incomplete",
+        "rejected_malformed"
+      ]
+    },
+    "selected_claim_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason"],
+        "properties": {
+          "reason": {
+            "enum": [
+              "unresolved_overlap",
+              "unresolved_incomplete",
+              "rejected_malformed",
+              "not_found"
+            ]
+          },
+          "subject": { "type": "string" },
+          "field": { "type": "string" },
+          "candidate_claim_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "AS-OF LENS ≠ AUTHORITY / ≠ WALL-CLOCK NOW / ≠ SILENT WINNER"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" }
+      }
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

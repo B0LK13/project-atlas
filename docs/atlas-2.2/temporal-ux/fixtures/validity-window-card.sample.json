@@ -1,0 +1,18 @@
+{
+  "claim_id": "claim.demo.status.planned",
+  "project_id": "demo-project",
+  "subject": "demo-project.status",
+  "field": "package_status",
+  "disposition": "selected",
+  "valid_from": "2024-01-01",
+  "valid_to": "2024-12-31",
+  "source_id": "src.manifest-a",
+  "value_fingerprint": "planned0001",
+  "markdown_honesty_line": "- `claim.demo.status.planned` `package_status` — selected; window[2024-01-01,2024-12-31]",
+  "authority": {
+    "level": "derived",
+    "note": "Validity card is derived projection; not Layer B"
+  },
+  "truth_boundary": "VALIDITY CARD ≠ WALL-CLOCK NOW / ≠ SILENT WINNER",
+  "_prep_note": "FX-2.2-TUX-002 — docs-only fixture sketch"
+}
