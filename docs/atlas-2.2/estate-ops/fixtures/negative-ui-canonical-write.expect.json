@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ESTATE-OPS-PREP-001",
+  "kind": "canonical_write",
+  "status": "rejected_forbidden",
+  "expected_error": "estate-ops-ui-canonical-write-forbidden",
+  "forbidden_catalog": {
+    "canonical_writes": true,
+    "target": "state/authoritative-state/harbor-ops.json"
+  },
+  "authority": {
+    "level": "derived",
+    "note": "UI panels must not write Layer B"
+  },
+  "canonical_write": false,
+  "truth_boundary": "ESTATE OPS ACTION ≠ CANONICAL WRITE / ≠ PILOT INVENT / ≠ UNKNOWN-AS-HEALTHY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-EO-005 — negative expectation"
+}

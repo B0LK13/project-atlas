@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ESTATE-OPS-PREP-001",
+  "estate_scope": {
+    "kind": "estate-slice",
+    "project_ids": ["harbor-api", "harbor-ops", "harbor-portal"]
+  },
+  "rollup": { "estate": "unknown" },
+  "signals": [
+    {
+      "signal_id": "OPS-SIG-002",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "signal_id": "OPS-SIG-005",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "signal_id": "OPS-SIG-006",
+      "status": "unknown",
+      "evidence_refs": []
+    },
+    {
+      "signal_id": "OPS-SIG-013",
+      "status": "unknown",
+      "evidence_refs": []
+    }
+  ],
+  "truth_plane": "operational",
+  "authority_plane": "none",
+  "note": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY",
+  "authority": {
+    "level": "derived",
+    "note": "Honest unknown rollup; absent evidence never maps to healthy"
+  },
+  "truth_boundary": "OPS HEALTH RECEIPT ≠ UNKNOWN-AS-HEALTHY / ≠ PROJECT AUTHORITY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-EO-003 — docs-only fixture sketch"
+}

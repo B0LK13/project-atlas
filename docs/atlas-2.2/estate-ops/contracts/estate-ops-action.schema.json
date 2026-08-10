@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/estate-ops-action.schema.json",
+  "title": "estate-ops-action (PREP STUB — not package data)",
+  "description": "AS-2.2-ESTATE-OPS-PREP-001 operator action proposal. Rejects canonical_write, pilot_invent, unknown_as_healthy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "kind",
+    "status",
+    "expected_error",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-ESTATE-OPS-PREP-001" },
+    "kind": {
+      "enum": [
+        "unknown_as_healthy",
+        "canonical_write",
+        "pilot_invent",
+        "ops_runtime_mutation"
+      ]
+    },
+    "status": { "const": "rejected_forbidden" },
+    "expected_error": { "type": "string", "minLength": 1 },
+    "forbidden_catalog": { "type": "object" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "canonical_write": { "const": false },
+    "truth_boundary": {
+      "const": "ESTATE OPS ACTION ≠ CANONICAL WRITE / ≠ PILOT INVENT / ≠ UNKNOWN-AS-HEALTHY"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

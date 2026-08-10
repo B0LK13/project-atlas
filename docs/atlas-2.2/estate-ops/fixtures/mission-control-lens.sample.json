@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ESTATE-OPS-PREP-001",
+  "lens_id": "mclens-harbor-ops-001",
+  "lens_kind": "mission-control",
+  "project_id": "harbor-ops",
+  "status": "partial",
+  "queue_chips": [
+    {
+      "chip_id": "chip.review.queue",
+      "label": "Review queue",
+      "state": "open",
+      "evidence_ref": "state/reviews/harbor-ops.json"
+    },
+    {
+      "chip_id": "chip.conflicts.open",
+      "label": "Open conflicts",
+      "state": "open",
+      "evidence_ref": "projects/harbor-ops/conflicts.md"
+    },
+    {
+      "chip_id": "chip.sync.status",
+      "label": "Sync status",
+      "state": "unknown",
+      "evidence_ref": ""
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Mission Control lens is read-only; never promotes queue items"
+  },
+  "truth_boundary": "MISSION CONTROL LENS ≠ CANONICAL WRITE / ≠ AUTHORITY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-EO-002 — docs-only fixture sketch"
+}

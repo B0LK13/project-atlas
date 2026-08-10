@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/estate-ops-cockpit-view.schema.json",
+  "title": "estate-ops-cockpit-view (PREP STUB — not package data)",
+  "description": "AS-2.2-ESTATE-OPS-PREP-001 cockpit envelope. Consume-only over ops health / XPROJ / web lenses. unknown≠healthy; UI≠canonical.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "estate_scope",
+    "status",
+    "lenses",
+    "ops_receipt",
+    "cited_ids",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-ESTATE-OPS-PREP-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "estate_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "project_ids"],
+      "properties": {
+        "kind": { "enum": ["estate-slice", "project-set"] },
+        "project_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "status": {
+      "enum": ["ok", "partial", "unknown", "empty", "rejected_malformed", "not_found"]
+    },
+    "lenses": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "ops_receipt": { "type": "object" },
+    "cited_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "ESTATE OPS ≠ UNKNOWN-AS-HEALTHY / ≠ UI-CANONICAL / ≠ OPS RUNTIME MUTATION / ≠ AUTHORITY"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "atlas_2_1_release_certified": { "const": false },
+    "atlas_2_2_intelligence_implementation_unlocked": { "const": false },
+    "authentic_estate": { "const": false },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" }
+      }
+    },
+    "_prep_note": { "type": "string" }
+  }
+}
