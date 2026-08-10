@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CONFLICT-UX-PREP-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "project",
+    "id": "demo-project"
+  },
+  "status": "ok",
+  "cards": [
+    {
+      "conflict_id": "conflict.demo.package-status.001",
+      "project_id": "demo-project",
+      "subject": "demo-project.status",
+      "field": "package_status",
+      "state": "open",
+      "sides": [
+        {
+          "claim_id": "claim.demo.status.planned",
+          "source_id": "src.manifest-a",
+          "source_lineage_id": "lineage.manifest-a",
+          "value_fingerprint": "planned0001"
+        },
+        {
+          "claim_id": "claim.demo.status.active",
+          "source_id": "src.manifest-b",
+          "source_lineage_id": "lineage.manifest-b",
+          "value_fingerprint": "active00001"
+        }
+      ],
+      "duplicate_source": {
+        "kind": "duplicate-source",
+        "source_ids": ["src.manifest-a", "src.manifest-b"],
+        "source_lineage_ids": ["lineage.manifest-a", "lineage.manifest-b"]
+      },
+      "authority_disposition": "contested",
+      "review_reason": "materially incompatible source-backed claims; duplicate-source; sources=src.manifest-a,src.manifest-b; authority_disposition=contested",
+      "markdown_honesty_line": "- `conflict.demo.package-status.001` `package_status` — open; duplicate-source[src.manifest-a,src.manifest-b]",
+      "authority": {
+        "level": "derived",
+        "note": "Card consumes conflict_projections; never Layer B authority"
+      },
+      "truth_boundary": "PROJECTION CARD ≠ AUTO-RESOLVE / ≠ TRUST SCORE"
+    }
+  ],
+  "queue": {
+    "schema_version": 1,
+    "package_id": "AS-2.2-CONFLICT-UX-PREP-001",
+    "scope": {
+      "kind": "project",
+      "id": "demo-project"
+    },
+    "category": "CONFLICT",
+    "durable_queue_root": "review/conflicts",
+    "entries": [
+      {
+        "review_id": "review.demo.conflict.001",
+        "subject_id": "conflict.demo.package-status.001",
+        "project_id": "demo-project",
+        "reason": "materially incompatible source-backed claims; duplicate-source; sources=src.manifest-a,src.manifest-b; authority_disposition=contested",
+        "status": "pending",
+        "source_ids": ["src.manifest-a", "src.manifest-b"]
+      }
+    ],
+    "authority": {
+      "level": "derived",
+      "note": "Same durable review root; no second queue invent"
+    },
+    "truth_boundary": "REVIEW QUEUE SLICE ≠ SECOND QUEUE ROOT / ≠ AUTO-RESOLVE"
+  },
+  "unresolved": [],
+  "authority": {
+    "level": "derived",
+    "note": "Cockpit is consume-only over Core projections"
+  },
+  "truth_boundary": "CONFLICT COCKPIT ≠ AUTO-RESOLVE / ≠ CANONICAL WRITE / ≠ AUTHORITY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-CUX-001 — docs-only fixture sketch"
+}

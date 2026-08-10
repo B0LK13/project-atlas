@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CONFLICT-UX-PREP-001",
+  "scope": {
+    "kind": "project",
+    "id": "demo-project"
+  },
+  "category": "CONFLICT",
+  "durable_queue_root": "review/conflicts",
+  "entries": [
+    {
+      "review_id": "review.demo.conflict.001",
+      "subject_id": "conflict.demo.package-status.001",
+      "project_id": "demo-project",
+      "reason": "materially incompatible source-backed claims; duplicate-source; sources=src.manifest-a,src.manifest-b; authority_disposition=contested",
+      "status": "pending",
+      "source_ids": ["src.manifest-a", "src.manifest-b"]
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Same durable review root; no second queue invent"
+  },
+  "truth_boundary": "REVIEW QUEUE SLICE ≠ SECOND QUEUE ROOT / ≠ AUTO-RESOLVE",
+  "_prep_note": "FX-2.2-CUX-003 — review-queue slice sketch"
+}

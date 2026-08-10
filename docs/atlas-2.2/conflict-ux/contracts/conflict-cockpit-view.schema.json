@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/conflict-cockpit-view.schema.json",
+  "title": "conflict-cockpit-view (PREP STUB — not package data)",
+  "description": "AS-2.2-CONFLICT-UX-PREP-001 cockpit envelope. Consume-only over Core conflict_projections. UI≠canonical; cockpit≠auto-resolve.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "scope",
+    "status",
+    "cards",
+    "queue",
+    "unresolved",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-CONFLICT-UX-PREP-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["project", "subject", "estate-slice"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "status": {
+      "enum": ["ok", "empty", "partial", "rejected_malformed", "not_found"]
+    },
+    "cards": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "queue": { "type": "object" },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason"],
+        "properties": {
+          "reason": {
+            "enum": [
+              "missing_evidence",
+              "malformed_action",
+              "not_found",
+              "rejected_malformed"
+            ]
+          },
+          "conflict_id": { "type": "string" },
+          "detail": { "type": "string", "maxLength": 400 }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "CONFLICT COCKPIT ≠ AUTO-RESOLVE / ≠ CANONICAL WRITE / ≠ AUTHORITY"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" }
+      }
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/conflict-projection-card.schema.json",
+  "title": "conflict-projection-card (PREP STUB — not package data)",
+  "description": "AS-2.2-CONFLICT-UX-PREP-001 projection card. Consumes Core conflict_projections facets; never invents conflict ids or trust scores.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "conflict_id",
+    "project_id",
+    "subject",
+    "field",
+    "state",
+    "sides",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "conflict_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "project_id": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "subject": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "field": { "type": "string", "minLength": 1, "maxLength": 240 },
+    "state": {
+      "enum": ["open", "unresolved", "deferred", "resolved"]
+    },
+    "sides": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "source_id", "value_fingerprint"],
+        "properties": {
+          "claim_id": { "type": "string", "minLength": 1 },
+          "source_id": { "type": "string", "minLength": 1 },
+          "source_lineage_id": { "type": ["string", "null"] },
+          "value_fingerprint": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64
+          }
+        }
+      }
+    },
+    "duplicate_source": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["kind", "source_ids"],
+      "properties": {
+        "kind": { "const": "duplicate-source" },
+        "source_ids": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "source_lineage_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "authority_disposition": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "authoritative",
+        "contested",
+        "authority_pending",
+        "non_authoritative"
+      ]
+    },
+    "review_reason": { "type": ["string", "null"], "maxLength": 800 },
+    "markdown_honesty_line": { "type": ["string", "null"], "maxLength": 800 },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "PROJECTION CARD ≠ AUTO-RESOLVE / ≠ TRUST SCORE"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

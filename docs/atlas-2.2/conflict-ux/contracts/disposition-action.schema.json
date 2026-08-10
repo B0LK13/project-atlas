@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/disposition-action.schema.json",
+  "title": "disposition-action (PREP STUB — not package data)",
+  "description": "AS-2.2-CONFLICT-UX-PREP-001 operator disposition proposal. Fail-closed: reject auto_resolve, UI canonical writes, authority elevation, LLM winner picks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "conflict_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-CONFLICT-UX-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "conflict_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "kind": {
+      "enum": [
+        "escalate_review",
+        "open_evidence",
+        "request_human",
+        "auto_resolve",
+        "ui_canonical_write",
+        "authority_elevation",
+        "llm_pick_winner"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "conflict-ux-auto-resolve-forbidden",
+        "conflict-ux-ui-canonical-write-forbidden",
+        "conflict-ux-authority-elevation-forbidden",
+        "conflict-ux-llm-pick-winner-forbidden"
+      ]
+    },
+    "canonical_writes": { "type": "boolean" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "DISPOSITION ACTION ≠ AUTO-RESOLVE / ≠ LAYER B WRITE / ≠ AUTHORITY"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

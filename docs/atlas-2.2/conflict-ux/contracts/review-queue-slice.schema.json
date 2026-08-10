@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/review-queue-slice.schema.json",
+  "title": "review-queue-slice (PREP STUB — not package data)",
+  "description": "AS-2.2-CONFLICT-UX-PREP-001 CONFLICT review-queue slice. Same durable root; no second queue invent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "scope",
+    "category",
+    "entries",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-CONFLICT-UX-PREP-001" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["project", "subject", "estate-slice"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "category": { "const": "CONFLICT" },
+    "durable_queue_root": { "const": "review/conflicts" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["review_id", "subject_id", "reason", "status"],
+        "properties": {
+          "review_id": { "type": "string", "minLength": 1 },
+          "subject_id": { "type": "string", "minLength": 1 },
+          "project_id": { "type": "string" },
+          "reason": { "type": "string", "minLength": 1, "maxLength": 800 },
+          "status": { "enum": ["pending", "escalated", "deferred"] },
+          "source_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "REVIEW QUEUE SLICE ≠ SECOND QUEUE ROOT / ≠ AUTO-RESOLVE"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}
