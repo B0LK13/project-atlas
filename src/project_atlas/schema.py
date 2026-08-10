@@ -190,6 +190,10 @@ SCHEMA_FILES: dict[str, str] = {
     "scale-harness-plan": "scale-harness-plan.schema.json",
     # AS-2.0-SEC-ADV-001 — advanced security control matrix
     "security-adv-matrix": "security-adv-matrix.schema.json",
+    # AS-2.0-SYNC-001 — production sync plan under final-cert fixture waiver
+    "sync-production-plan": "sync-production-plan.schema.json",
+    # AS-2.0-TWIN-001 — production twin projection under final-cert fixture waiver
+    "twin-production-projection": "twin-production-projection.schema.json",
 }
 
 
