@@ -150,6 +150,10 @@ SCHEMA_FILES: dict[str, str] = {
     "context-pack-composition": "context-pack-composition.schema.json",
     # AS-2.0-AGENTOS-002 — Agent OS phase transition deepen (≠ Core authority)
     "agentos-phase-transition": "agentos-phase-transition.schema.json",
+    # AS-2.0-OBS-UX-002 — Obsidian workspace binding (≠ plugin)
+    "obsidian-workspace-binding": "obsidian-workspace-binding.schema.json",
+    # AS-2.0-AUTONOMY-001 — Autonomy L0-L5 catalog (live=false)
+    "autonomy-level-catalog": "autonomy-level-catalog.schema.json",
     # AS-2.0-WEB-ASK-001 — Ask Atlas read-only contract
     "web-ask-atlas-contract": "web-ask-atlas-contract.schema.json",
     # AS-2.0-WEB-SURFACE-001 — Twin UI/Canvas/Timeline catalog
