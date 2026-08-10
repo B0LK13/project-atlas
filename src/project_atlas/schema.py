@@ -144,6 +144,8 @@ SCHEMA_FILES: dict[str, str] = {
     "obsidian-lens-registry": "obsidian-lens-registry.schema.json",
     # AS-2.0-MCP-001 — deny-by-default MCP tool registry (≠ live server)
     "mcp-tool-registry": "mcp-tool-registry.schema.json",
+    # AS-2.0-UX-002 — Advanced Command Center mode catalog (≠ UI rewrite)
+    "ux-mode-catalog": "ux-mode-catalog.schema.json",
 }
 
 

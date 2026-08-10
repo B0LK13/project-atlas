@@ -94,6 +94,7 @@ def test_all_expected_schemas_available() -> None:
         "sync-queue-dry-run",
         "sync-receipts-dry-run",
         "twin-projection-fixture",
+        "ux-mode-catalog",
         "validation-finding",
         "workspace-registry-dry-run",
         "xproj-conflict-report",
