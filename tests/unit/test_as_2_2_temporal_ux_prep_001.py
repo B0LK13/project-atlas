@@ -84,7 +84,13 @@ def test_package_card_non_claims() -> None:
     assert "**NO**" in text
     assert "ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED" in text
     assert "bitemporal" in text
-    assert "do not mutate" in text.lower() or "NONE" in text or "No bitemporal" in text or "NO BITEMPORAL" in text
+    lowered = text.lower()
+    assert (
+        "do not mutate" in lowered
+        or "NONE" in text
+        or "No bitemporal" in text
+        or "NO BITEMPORAL" in text
+    )
 
 
 def test_invariants_document_fail_closed_walls() -> None:

@@ -141,7 +141,9 @@ def test_fx_dod_004_unknown_criterion_fixture_exists() -> None:
     assert isinstance(proof, dict)
     assert proof["status"] == "FAIL"
     orphan = next(
-        row for row in proof["criterion_results"] if row["criterion_id"] == "crit.demo.orphan-binding"
+        row
+        for row in proof["criterion_results"]
+        if row["criterion_id"] == "crit.demo.orphan-binding"
     )
     assert orphan["reason_codes"] == ["unknown_criterion"]
 
