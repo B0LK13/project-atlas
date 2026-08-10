@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-RESEARCH-DEEPEN-PREP-001",
+  "action_id": "action.demo.research.class-mismatch.forbidden",
+  "question_id": "q.demo.research.authentic-estate",
+  "kind": "evidence_class_mismatch",
+  "status": "rejected_forbidden",
+  "expected_error": "research-class-mismatch-forbidden",
+  "authority_promoted": false,
+  "canonical_writes": false,
+  "authority": {
+    "level": "derived",
+    "note": "fixture_receipt cannot satisfy authentic_estate question class"
+  },
+  "truth_boundary": "RESEARCH ACTION ≠ LAYER B / ≠ SILENT WINNER / ≠ LLM AUTHORITY",
+  "_prep_note": "FX-2.2-RES-104 — expected rejection of evidence_class_mismatch (T-2.2-RES-004)"
+}
