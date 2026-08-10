@@ -6,8 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASE_DIR = ROOT / "docs" / "releases" / "1.0.0"
-MAIN = "518bdef66b24e099b889d2165540a6ca756e8aa4"
-TREE = "d0eaa64a216b3f8bf3d9a67857f1b13a7f8af41c"
+MAIN = "75409c796a664556b6ba8acc78bdbb0f1aaf20a7"
+TREE = "0e84e45d0e00f4f8142d168f3eb066976f3fc3dd"
 DOCUMENTS = (
     "README.md",
     "CHECKLIST.md",
@@ -16,7 +16,7 @@ DOCUMENTS = (
 )
 
 
-def test_prerc_documents_pin_post_106_authority_tip() -> None:
+def test_prerc_documents_pin_post_109_authority_tip() -> None:
     for name in DOCUMENTS:
         text = (RELEASE_DIR / name).read_text(encoding="utf-8")
         assert MAIN in text, f"{name} does not pin authority MAIN"

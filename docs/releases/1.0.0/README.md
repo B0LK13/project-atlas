@@ -4,10 +4,10 @@
 **Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
 **RELEASE CERTIFIED = NO**
 
-Authority tip after pull request #106:
+Authority tip after pull request #109 (post owner-gates #106–#109):
 
-- MAIN: `518bdef66b24e099b889d2165540a6ca756e8aa4`
-- TREE: `d0eaa64a216b3f8bf3d9a67857f1b13a7f8af41c`
+- MAIN: `75409c796a664556b6ba8acc78bdbb0f1aaf20a7`
+- TREE: `0e84e45d0e00f4f8142d168f3eb066976f3fc3dd`
 
 The files here inventory candidate evidence and reserve the shape of a future certification receipt. They do not assert that the release is certified. Every remaining release gate must be independently verified against the exact candidate commit and tree.
 
