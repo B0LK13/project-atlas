@@ -4,18 +4,20 @@
   "package_id": "AS-2.2-ROADMAP-CROSSWALK-PREP-001",
   "roadmap_path": "docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md",
   "crosswalk_path": "docs/atlas-2.2/roadmap-crosswalk/CROSSWALK.md",
-  "tip_audited": "e4292e8",
+  "tip_audited": "5e2559f",
   "pilot_roots": 0,
   "authentic_estate_pilot_passed": false,
   "atlas_2_1_release_certified": false,
   "atlas_2_2_intelligence_unlocked": false,
-  "row_count": 19,
+  "row_count": 21,
   "rows": [
     {
       "row_id": "FX-2.2-CROSSWALK-001",
       "prep_package_id": "AS-2.2-RET-HYBRID-001",
       "merge_pr": 159,
-      "roadmap_slots": ["AS-2.2-RET-CTX-001"],
+      "roadmap_slots": [
+        "AS-2.2-RET-CTX-001"
+      ],
       "relation": "feeds",
       "prep_entry": "docs/atlas-2.2/AS-2.2-RET-HYBRID-001.md"
     },
@@ -23,7 +25,9 @@
       "row_id": "FX-2.2-CROSSWALK-002",
       "prep_package_id": "AS-2.2-CTX-COMPILER-001",
       "merge_pr": 161,
-      "roadmap_slots": ["AS-2.2-RET-CTX-001"],
+      "roadmap_slots": [
+        "AS-2.2-RET-CTX-001"
+      ],
       "relation": "feeds",
       "prep_entry": "docs/atlas-2.2/ctx-compiler/"
     },
@@ -31,7 +35,9 @@
       "row_id": "FX-2.2-CROSSWALK-003",
       "prep_package_id": "AS-2.2-KCI-ENGINE-PREP-001",
       "merge_pr": 160,
-      "roadmap_slots": ["AS-2.2-KCI-001"],
+      "roadmap_slots": [
+        "AS-2.2-KCI-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/AS-2.2-KCI-ENGINE-PREP-001.md"
     },
@@ -55,7 +61,9 @@
       "row_id": "FX-2.2-CROSSWALK-006",
       "prep_package_id": "AS-2.2-TIME-MACHINE-001",
       "merge_pr": 168,
-      "roadmap_slots": ["AS-2.2-TEMPORAL-001"],
+      "roadmap_slots": [
+        "AS-2.2-TEMPORAL-001"
+      ],
       "relation": "feeds",
       "prep_entry": "docs/atlas-2.2/time-machine/"
     },
@@ -79,7 +87,9 @@
       "row_id": "FX-2.2-CROSSWALK-009",
       "prep_package_id": "AS-2.2-RESEARCH-001",
       "merge_pr": 171,
-      "roadmap_slots": ["AS-2.2-ASK2-001"],
+      "roadmap_slots": [
+        "AS-2.2-ASK2-001"
+      ],
       "relation": "feeds",
       "prep_entry": "docs/atlas-2.2/research/"
     },
@@ -87,7 +97,9 @@
       "row_id": "FX-2.2-CROSSWALK-010",
       "prep_package_id": "AS-2.2-CONFLICT-UX-PREP-001",
       "merge_pr": 181,
-      "roadmap_slots": ["AS-2.2-CONFLICT-UX-001"],
+      "roadmap_slots": [
+        "AS-2.2-CONFLICT-UX-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/conflict-ux/"
     },
@@ -95,7 +107,9 @@
       "row_id": "FX-2.2-CROSSWALK-011",
       "prep_package_id": "AS-2.2-XPROJ-CONTRACT-PREP-001",
       "merge_pr": 179,
-      "roadmap_slots": ["AS-2.2-XPROJ-001"],
+      "roadmap_slots": [
+        "AS-2.2-XPROJ-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/xproj/"
     },
@@ -103,7 +117,9 @@
       "row_id": "FX-2.2-CROSSWALK-012",
       "prep_package_id": "AS-2.2-KF2-FABRIC-PREP-001",
       "merge_pr": 186,
-      "roadmap_slots": ["AS-2.2-KF2-FABRIC-001"],
+      "roadmap_slots": [
+        "AS-2.2-KF2-FABRIC-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/kf2-fabric/"
     },
@@ -111,7 +127,9 @@
       "row_id": "FX-2.2-CROSSWALK-013",
       "prep_package_id": "AS-2.2-ASK2-DEEPEN-PREP-001",
       "merge_pr": 188,
-      "roadmap_slots": ["AS-2.2-ASK2-001"],
+      "roadmap_slots": [
+        "AS-2.2-ASK2-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/ask-atlas-2/"
     },
@@ -119,7 +137,9 @@
       "row_id": "FX-2.2-CROSSWALK-014",
       "prep_package_id": "AS-2.2-INTEL-SLICE-PREP-001",
       "merge_pr": 189,
-      "roadmap_slots": ["AS-2.2-INTEL-SLICE-001"],
+      "roadmap_slots": [
+        "AS-2.2-INTEL-SLICE-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/intel-slice/"
     },
@@ -127,7 +147,9 @@
       "row_id": "FX-2.2-CROSSWALK-015",
       "prep_package_id": "AS-2.2-CHATGPT-LIVE-PREP-001",
       "merge_pr": 191,
-      "roadmap_slots": ["AS-2.2-CHATGPT-LIVE-001"],
+      "roadmap_slots": [
+        "AS-2.2-CHATGPT-LIVE-001"
+      ],
       "relation": "optional",
       "prep_entry": "docs/atlas-2.2/chatgpt-live/"
     },
@@ -135,7 +157,9 @@
       "row_id": "FX-2.2-CROSSWALK-016",
       "prep_package_id": "AS-2.2-TEMPORAL-UX-PREP-001",
       "merge_pr": 192,
-      "roadmap_slots": ["AS-2.2-TEMPORAL-001"],
+      "roadmap_slots": [
+        "AS-2.2-TEMPORAL-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/temporal-ux/"
     },
@@ -143,7 +167,9 @@
       "row_id": "FX-2.2-CROSSWALK-017",
       "prep_package_id": "AS-2.2-COMPAT-PIN-PREP-001",
       "merge_pr": 196,
-      "roadmap_slots": ["AS-2.2-COMPAT-PIN-001"],
+      "roadmap_slots": [
+        "AS-2.2-COMPAT-PIN-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/compat-pin/"
     },
@@ -151,7 +177,9 @@
       "row_id": "FX-2.2-CROSSWALK-018",
       "prep_package_id": "AS-2.2-ESTATE-OPS-PREP-001",
       "merge_pr": 197,
-      "roadmap_slots": ["AS-2.2-ESTATE-OPS-001"],
+      "roadmap_slots": [
+        "AS-2.2-ESTATE-OPS-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/estate-ops/"
     },
@@ -159,9 +187,28 @@
       "row_id": "FX-2.2-CROSSWALK-019",
       "prep_package_id": "AS-2.2-DOC-CHARTER-PREP-001",
       "merge_pr": 199,
-      "roadmap_slots": ["AS-2.2-DOC-CHARTER-001"],
+      "roadmap_slots": [
+        "AS-2.2-DOC-CHARTER-001"
+      ],
       "relation": "direct",
       "prep_entry": "docs/atlas-2.2/doc-charter/"
+    },
+    {
+      "row_id": "FX-2.2-CROSSWALK-020",
+      "prep_package_id": "AS-2.2-ADV-POOL-001",
+      "merge_pr": 243,
+      "roadmap_slots": [],
+      "relation": "enabler",
+      "prep_entry": "docs/atlas-2.2/adv-pool/"
+    },
+    {
+      "row_id": "FX-2.2-CROSSWALK-021",
+      "prep_package_id": "AS-2.2-PREP-FIXTURE-ROLLUP-001",
+      "merge_pr": 242,
+      "roadmap_slots": [],
+      "relation": "enabler",
+      "prep_entry": "docs/atlas-2.2/AS-2.2-PREP-FIXTURE-ROLLUP-001.md"
     }
-  ]
+  ],
+  "sync_package_id": "AS-2.2-ROADMAP-CROSSWALK-SYNC-001"
 }
