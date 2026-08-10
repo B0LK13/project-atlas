@@ -1,0 +1,15 @@
+{
+  "package_id": "AS-2.2-DOC-CHARTER-PREP-001",
+  "scenario_id": "FX-2.2-DOC-CHARTER-NEG-002",
+  "forbidden_inventory": {
+    "pilot_roots": 1,
+    "invent_pilot_roots": true,
+    "authentic_estate_pilot_passed": true
+  },
+  "expected_error": "doc-charter-prep-pilot-invent-forbidden",
+  "pilot_roots": 0,
+  "authentic_estate_pilot_passed": false,
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "notes": "PREP must not invent authentic estate PILOT roots for matrix rows"
+}
