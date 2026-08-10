@@ -1,28 +1,22 @@
-# Atlas 2.2 — prep index (SAFE pre-v2.1.0)
+# Atlas 2.2 — prep tree (additive)
 
 | Field | Value |
 |---|---|
-| Status | **PREP ONLY** — architecture / contracts / fixtures |
-| Unlock event | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` (fires after `v2.1.0`) |
-| Production semantic mutation | **FORBIDDEN** on this tip |
-| Baseline tip | `a1e0972a18608487f71c6979e454247df52d2e44` / TREE `c6cfe95ffe7d3c1699459f620aadf112c66a8524` |
-| Evidence lane | `atlas-2.1-productionization-001` |
+| `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` | **NO** (awaits `v2.1.0`) |
+| Prep policy | Docs / contracts / fixtures / ADRs only |
+| Production mutation | **FORBIDDEN** on this branch |
 
-## Purpose
+## Packages seeded here
 
-Hold Atlas 2.2 **north-star intelligence** prep packs that do not change Core
-authority semantics, runtime defaults, or production schemas under `src/`.
-
-Roadmap: [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md).
-
-## Packages in this tree (prep)
-
-| Package | Theme | Path |
+| Package | Directory | Status |
 |---|---|---|
-| **AS-2.2-CTX-COMPILER-001** | Task-specific Context Compiler | [`ctx-compiler/`](./ctx-compiler/) |
+| AS-2.2-MEM-GOV-001 | `mem-gov/`, `contracts/mem-gov/`, `fixtures/mem-gov/`, `adr/ADR-2.2-MEM-GOV-001-*` | **PREP** |
 
-## Firewall
+Sibling 2.2 prep PRs may add other directories under this tree. Do not treat presence of this README as charter freeze or implementation unlock.
 
-- Static `AS-2.0-CTX-001` context packs ≠ full Context Compiler.
-- Docs/ADR/fixtures here do **not** unlock production implementation.
-- No invent markers / no authentic PILOT from fixtures.
+## Invariants
+
+- No `src/` / package-data schema promotion from these stubs
+- No tip-pin edits to `docs/atlas-2.1/PACKAGE-BOARD.md` in prep PRs
+- Fixture PASS ≠ authentic PILOT PASS
+- Agent memory ≠ Layer B authority

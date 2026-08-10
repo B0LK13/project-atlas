@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/agent-memory-expiry.schema.json",
+  "title": "agent-memory-expiry (PREP STUB — not package data)",
+  "description": "AS-2.2-MEM-GOV-001 expiry evaluation envelope. as_of is injected; writers must not embed wall-clock now.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "memory_id",
+    "expires_at",
+    "as_of",
+    "effective_status",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.agent_memory.expiry.v0" },
+    "memory_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "expires_at": { "type": "string", "minLength": 4, "maxLength": 64 },
+    "as_of": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 64,
+      "description": "Injected evaluation instant; never generated via wall-clock inside Atlas writers."
+    },
+    "written_at": { "type": "string", "minLength": 4, "maxLength": 64 },
+    "effective_status": {
+      "type": "string",
+      "enum": ["active", "expired"]
+    },
+    "truth_boundary": {
+      "const": "MEMORY EXPIRY ≠ PROJECT AUTHORITY"
+    }
+  }
+}

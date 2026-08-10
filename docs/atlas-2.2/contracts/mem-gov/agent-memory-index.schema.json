@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/agent-memory-index.schema.json",
+  "title": "agent-memory-index (PREP STUB — not package data)",
+  "description": "AS-2.2-MEM-GOV-001 operational index envelope under future generated/ops/. Never Layer B.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "package_id",
+    "truth_plane",
+    "authority_plane",
+    "note",
+    "records",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 0 },
+    "schema": { "const": "atlas.2.2.agent_memory.index.v0" },
+    "package_id": { "const": "AS-2.2-MEM-GOV-001" },
+    "truth_plane": { "const": "operational" },
+    "authority_plane": { "const": "none" },
+    "note": {
+      "const": "AGENT MEMORY INDEX ≠ PROJECT AUTHORITY"
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "memory_id",
+          "memory_key",
+          "project_id",
+          "status"
+        ],
+        "properties": {
+          "memory_id": { "type": "string", "minLength": 3 },
+          "memory_key": { "type": "string", "minLength": 1 },
+          "project_id": { "type": "string", "minLength": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["active", "revoked", "expired", "superseded"]
+          },
+          "expires_at": { "type": "string", "minLength": 4 },
+          "supersedes": { "type": "string", "minLength": 3 },
+          "superseded_by": { "type": "string", "minLength": 3 }
+        }
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
