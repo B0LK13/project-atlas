@@ -1,0 +1,21 @@
+{
+  "_prep_note": "FX-2.2-ISL-102 \u2014 expected rejection of pilot_invent from fixture slice rehearsal",
+  "action_id": "action.demo.intel-slice.pilot-invent.forbidden",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "Intelligence slice must not invent PILOT roots or authentic-estate markers"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "intel-slice-pilot-invent-forbidden",
+  "kind": "pilot_invent",
+  "package_id": "AS-2.2-INTEL-SLICE-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "slice_id": "intel-slice.demo.estate-alpha.001",
+  "status": "rejected_forbidden",
+  "truth_boundary": "INTEL SLICE ACTION \u2260 RELEASE CERT / \u2260 PILOT PASS / \u2260 LLM AUTHORITY / \u2260 CANONICAL WRITE"
+}

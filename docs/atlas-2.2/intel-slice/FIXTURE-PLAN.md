@@ -21,6 +21,10 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | FX-2.2-ISL-006 | `negative-llm-authority.expect.json` | LLM-as-authority → rejected |
 | FX-2.2-ISL-007 | `negative-canonical-write.expect.json` | canonical write from slice → rejected |
 
+Deepen certification / PILOT / LLM negatives (FX-2.2-ISL-101..103) are inventoried
+in [`DEEPEN-FIXTURE-PLAN.md`](DEEPEN-FIXTURE-PLAN.md) and validate against
+`contracts/intel-slice-forbidden-action.schema.json`.
+
 ## Rules
 
 - `evidence_class = fixture-only`

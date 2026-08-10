@@ -1,6 +1,6 @@
 # Intelligence slice — hard invariants (PREP)
 
-Package: **AS-2.2-INTEL-SLICE-PREP-001**  
+Package: **AS-2.2-INTEL-SLICE-PREP-001** (base) + **AS-2.2-INTEL-SLICE-DEEPEN-PREP-001** (deepen notes)  
 Status: **normative for this PREP tree**; runtime enforcement deferred until unlock.
 
 ## 1. Slice ≠ authority
@@ -54,3 +54,33 @@ or `mcp_server`.
 
 Fixture slice rehearsal ≠ authentic estate PILOT PASSED ≠ 2.1 RELEASE
 CERTIFIED ≠ 2.2 unlock.
+
+## 6. Deepen notes (AS-2.2-INTEL-SLICE-DEEPEN-PREP-001)
+
+Additive fail-closed vocabulary for certification walls. Base negatives
+(authority-elevation / silent-conflict-resolve / llm-authority /
+canonical-write) remain owned by `AS-2.2-INTEL-SLICE-PREP-001` informal expect
+JSON — **do not relocate**.
+
+| Forbidden kind | Const / rule |
+|---|---|
+| `release_cert_stamp` | Slice / DEMO VERIFIED must not stamp `ATLAS_2_1_RELEASE_CERTIFIED` |
+| `pilot_invent` | `pilot_roots=0`, `authentic_estate=false`, `pilot_pass=false` |
+| `llm_authority_stamp` | LLM prose never stamps winners or elevates authority |
+
+Deepen negative payloads **must** carry:
+
+| Field | Const |
+|---|---|
+| `evidence_class` | `fixture-only` |
+| `authentic_estate` | `false` |
+| `release_certified` | `false` |
+| `pilot_pass` | `false` |
+| `canonical_writes` | `false` |
+| `status` | `rejected_forbidden` |
+
+Truth boundary (deepen):  
+`INTEL SLICE ACTION ≠ RELEASE CERT / ≠ PILOT PASS / ≠ LLM AUTHORITY / ≠ CANONICAL WRITE`
+
+**DEMO VERIFIED ≠ release / PILOT.** Any demo or fixture walkthrough grants no
+release, WEB ACCEPTED, authentic-estate PILOT, or unlock credit.
