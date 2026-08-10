@@ -3,6 +3,7 @@
 Serves AppService JSON over HTTP. Default bind 127.0.0.1 only.
 GET is read-only. POST /v1/actions records reconstructable web actions only
 (never Layer B). Requires authz api.read / web.action as applicable.
+Hardened: localhost CORS, request body size cap, action ledger + MCP tool list.
 """
 
 from __future__ import annotations
@@ -17,12 +18,15 @@ from project_atlas.app_service import AppService, open_app_service
 from project_atlas.ask_atlas_live import AskAtlasLiveError, ask_atlas_live
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
-from project_atlas.web_actions import WebActionError, submit_web_action
+from project_atlas.mcp_server import list_mcp_tools
+from project_atlas.web_actions import WebActionError, load_action_ledger, submit_web_action
 
 PACKAGE_ID = "AS-2.1-API-SERVER-001"
 TRUTH_BOUNDARY = (
     "LIVE_API READ + BOUNDED ACTIONS != AUTHORITY / != LAYER-B WRITE"
 )
+MAX_POST_BYTES = 64_000
+CORS_ORIGIN = "http://127.0.0.1:5173"
 
 
 class ApiServerError(ValueError):
@@ -43,6 +47,12 @@ def make_handler(
         def log_message(self, format: str, *args: object) -> None:
             return
 
+        def _cors(self) -> None:
+            self.send_header("Access-Control-Allow-Origin", CORS_ORIGIN)
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Vary", "Origin")
+
         def _send(self, code: int, payload: dict[str, Any]) -> None:
             body = _json_bytes(payload)
             self.send_response(code)
@@ -50,8 +60,15 @@ def make_handler(
             self.send_header("Content-Length", str(len(body)))
             self.send_header("X-Atlas-Package", PACKAGE_ID)
             self.send_header("X-Atlas-Truth-Boundary", TRUTH_BOUNDARY)
+            self._cors()
             self.end_headers()
             self.wfile.write(body)
+
+        def do_OPTIONS(self) -> None:
+            self.send_response(204)
+            self._cors()
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
         def do_GET(self) -> None:
             try:
@@ -79,6 +96,8 @@ def make_handler(
                 "/v1/knowledge": lambda: {"knowledge": service.knowledge()},
                 "/v1/graph": lambda: service.graph_summary(),
                 "/v1/snapshot": lambda: service.snapshot(),
+                "/v1/actions": lambda: load_action_ledger(service.vault),
+                "/v1/mcp/tools": lambda: list_mcp_tools(operator=operator),
                 "/v1/meta": lambda: {
                     "package_id": PACKAGE_ID,
                     "truth_boundary": TRUTH_BOUNDARY,
@@ -86,13 +105,18 @@ def make_handler(
                     "actions_enabled": True,
                     "live_api": True,
                     "ask_atlas_live": True,
+                    "max_post_bytes": MAX_POST_BYTES,
+                    "cors_origin": CORS_ORIGIN,
                     "operator_id": operator.operator_id,
                 },
             }
             if path not in routes:
                 self._send(404, {"error": "not-found", "path": path})
                 return
-            self._send(200, routes[path]())
+            try:
+                self._send(200, routes[path]())
+            except PermissionError as exc:
+                self._send(403, {"error": str(exc), "package_id": PACKAGE_ID})
 
         def do_POST(self) -> None:
             parsed = urlparse(self.path)
@@ -108,6 +132,16 @@ def make_handler(
                 )
                 return
             length = int(self.headers.get("Content-Length", "0") or "0")
+            if length < 0 or length > MAX_POST_BYTES:
+                self._send(
+                    413,
+                    {
+                        "error": "payload-too-large",
+                        "max_post_bytes": MAX_POST_BYTES,
+                        "package_id": PACKAGE_ID,
+                    },
+                )
+                return
             raw = self.rfile.read(length) if length > 0 else b"{}"
             try:
                 body = json.loads(raw.decode("utf-8"))

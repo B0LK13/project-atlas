@@ -1,17 +1,19 @@
-# Atlas 2.1 — Known gaps A–K (revalidated at tip `1ac7a3f`)
+# Atlas 2.1 — Known gaps A–K (revalidated)
+
+Tip reference: Wave-2 `d9b6732` + pilot/OAI-POC hardening.
 
 | Gap | Description | Tip status | Package if still open |
 |---|---|---|---|
-| A | No shared application service layer above vault readers | **OPEN** | AS-2.1-APP-SVC-001 |
-| B | No live HTTP API server (registry only) | **OPEN** | AS-2.1-API-SERVER-001 |
-| C | Web shell uses sample JSON, not live vault data | **OPEN** | AS-2.1-WEB-LIVE-001 |
-| D | MCP registry without live read server | **OPEN** | AS-2.1-MCP-SERVER-001 |
-| E | OpenAI import fixture-only / no real export path | **OPEN** | AS-2.1-OAI-IMPORT-REAL-001 |
-| F | Scheduler dry-run only; live dispatch forbidden | **OPEN** | AS-2.1-SCHED-LIVE-001 |
-| G | No authorization / operator capability model | **OPEN** | AS-2.1-AUTHZ-001 |
-| H | Autonomy L3 disabled; live_autonomy=false | **OPEN** (wave-2) | AS-2.1-AUTONOMY-L3-001 (later) |
-| I | Authentic estate PILOT not PASS | **OPEN** (release-critical) | AS-2.1-PILOT-AUTH-001-PREP → PILOT |
-| J | Docs/contracts overstate “production” vs runtime | **OPEN** (this audit) | AS-2.1-DOC-REALITY-001 |
-| K | SYNC/TWIN production still fixture-evidence only | **OPEN** (blocked on I) | post-PILOT deepen |
+| A | Shared application service layer | **CLOSED** (#143) | — |
+| B | Live HTTP API server | **CLOSED** + deepen | AS-2.1-API-SERVER-001 |
+| C | Web shell live vault prefer | **CLOSED** (#143) | — |
+| D | MCP live read server | **CLOSED** + deepen | AS-2.1-MCP-SERVER-001 |
+| E | OpenAI real export import | **CLOSED** (#143) | — |
+| F | Scheduler live supervised | **CLOSED** (#143) | — |
+| G | Operator capability model | **CLOSED** + deepen | AS-2.1-AUTHZ-001 |
+| H | Autonomy L3 bounded | **CLOSED** (#144) | — |
+| I | Authentic estate PILOT PASS | **OWNER_BLOCKED** | AS-2.1-PILOT-AUTH-001 |
+| J | Docs/contracts reality | **CLOSED** (#143) + board reconcile | — |
+| K | SYNC/TWIN authentic production | **BLOCKED on I** | post-PILOT |
 
-All gaps A–K remain open at `v2.0.0` tip; packages created accordingly.
+Additional experimental (non-blocking): AS-2.1-OAI-RESPONSES-POC-001.
