@@ -56,3 +56,7 @@ not code ownership.
 
 Fixture cockpit rehearsal ≠ authentic estate PILOT PASSED ≠ 2.1 RELEASE
 CERTIFIED ≠ 2.2 unlock.
+
+## Deepen PREP
+
+See `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md` and deepen negatives under `fixtures/`.

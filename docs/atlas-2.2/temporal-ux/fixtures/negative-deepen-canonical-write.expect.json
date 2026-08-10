@@ -1,21 +1,21 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-TUX-DEEPEN-105 \u2014 expected rejection of ui_canonical_write",
   "action_id": "action.demo.temporal-ux.ui-canonical-write.forbidden",
-  "claim_id": "claim.demo.status.planned",
-  "kind": "ui_canonical_write",
-  "status": "rejected_forbidden",
-  "expected_error": "temporal-ux-ui-canonical-write-forbidden",
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "Temporal UX panels never write Layer B or mutate validity windows"
   },
-  "evidence_class": "fixture-only",
-  "authentic_estate": false,
-  "release_certified": false,
-  "pilot_pass": false,
   "canonical_writes": false,
+  "claim_id": "claim.demo.status.planned",
+  "evidence_class": "fixture-only",
+  "expected_error": "temporal-ux-ui-canonical-write-forbidden",
+  "kind": "ui_canonical_write",
+  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "pilot_pass": false,
   "pilot_roots": 0,
-  "truth_boundary": "TEMPORAL UX ≠ WALL-CLOCK / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY / ≠ PILOT",
-  "_prep_note": "FX-2.2-TUX-DEEPEN-105 — expected rejection of ui_canonical_write"
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "TEMPORAL UX \u2260 WALL-CLOCK / \u2260 SILENT WINNER / \u2260 BITEMPORAL MUTATION / \u2260 AUTHORITY / \u2260 PILOT"
 }

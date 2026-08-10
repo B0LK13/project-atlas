@@ -1,0 +1,111 @@
+{
+  "$id": "https://project-atlas.local/prep/atlas-2.2/temporal-ux-forbidden-action.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001 fail-closed action proposal. Reject wall_clock_as_of, silent_winner, bitemporal_mutation.",
+  "properties": {
+    "_prep_note": {
+      "type": "string"
+    },
+    "action_id": {
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "type": "string"
+    },
+    "authentic_estate": {
+      "const": false
+    },
+    "authority": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "const": "derived"
+        },
+        "note": {
+          "maxLength": 400,
+          "type": "string"
+        }
+      },
+      "required": [
+        "level"
+      ],
+      "type": "object"
+    },
+    "canonical_writes": {
+      "const": false
+    },
+    "claim_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence_class": {
+      "const": "fixture-only"
+    },
+    "expected_error": {
+      "enum": [
+        null,
+        "temporal-ux-wall-clock-forbidden",
+        "temporal-ux-silent-winner-forbidden",
+        "temporal-ux-bitemporal-mutation-forbidden",
+        "temporal-ux-llm-authority-forbidden",
+        "temporal-ux-ui-canonical-write-forbidden",
+        "temporal-ux-pilot-invent-forbidden",
+        "temporal-ux-release-cert-stamp-forbidden"
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "wall_clock_as_of",
+        "silent_winner",
+        "bitemporal_mutation",
+        "llm_authority_stamp",
+        "ui_canonical_write",
+        "pilot_invent",
+        "release_cert_stamp"
+      ]
+    },
+    "package_id": {
+      "const": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001"
+    },
+    "pilot_pass": {
+      "const": false
+    },
+    "pilot_roots": {
+      "const": 0
+    },
+    "release_certified": {
+      "const": false
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "const": "rejected_forbidden"
+    },
+    "truth_boundary": {
+      "const": "TEMPORAL UX \u2260 WALL-CLOCK / \u2260 SILENT WINNER / \u2260 BITEMPORAL MUTATION / \u2260 AUTHORITY / \u2260 PILOT"
+    }
+  },
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "title": "temporal-ux-forbidden-action (PREP STUB \u2014 not package data)",
+  "type": "object"
+}
