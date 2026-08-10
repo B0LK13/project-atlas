@@ -289,10 +289,13 @@
     "no_pilot_invent": true,
     "no_runtime_mutation": true
   },
-  "truth_boundary": "PREP MATRIX DRAFT \u2260 v2.2.0 RELEASE CERTIFIED / \u2260 2.1 RELEASE CERTIFIED",
+  "truth_boundary": "PREP MATRIX DRAFT ≠ v2.2.0 RELEASE CERTIFIED / ≠ 2.1 RELEASE CERTIFIED",
   "evidence_class": "fixture-only",
   "generated": {
     "by": "project-atlas",
     "package": "AS-2.2-DOC-CHARTER-PREP-001"
-  }
+  },
+  "tip_audited": "70889b1ecfd986e7fcf5311d23ef89985858dafe",
+  "docs_atlas_2_2_tree": "92370052bfc577123821db5f4126ab8cda224794",
+  "sync_package_id": "AS-2.2-DOC-CHARTER-MATRIX-SYNC-001"
 }
