@@ -1,29 +1,29 @@
 # Atlas 2.0 — Package contract stubs (§98 seed)
 
-Status: **PREP ONLY** — names reserved; not authorized for production impl.
-`ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Status: **PRODUCTION IMPLEMENTATION AUTHORIZED** after 1.0 anchor verify.
+`ATLAS_2_0_IMPLEMENTATION_READY = YES`. Wave 1 opens COMPAT + KF2.
 
 | Stub ID | Theme | Notes |
 |---|---|---|
-| AS-2.0-FED-001 | Multi-vault federation | docs/contracts only |
-| AS-2.0-UX-001 | Advanced Command Center | after WEB 1.0 accepted |
-| AS-2.0-PROV-001 | Provider adapters | optional; provenance non-bypass |
-| AS-2.0-SYNC-001 | Estate sync v2 | after INT-013 / CORE2-010 |
-| AS-2.0-COMPAT-001 | Compatibility snapshot consumer | post 1.0 freeze |
-| AS-2.0-AGENTOS-001 | Agent OS envelope | PROTOTYPE; no Core wiring |
-| AS-2.0-KCI-001 | Knowledge Compilation Interface | PROTOTYPE API draft |
-| AS-2.0-TWIN-001 | Digital Twin projections | blocked on PILOT |
-| AS-2.0-CTX-001 | Context assembly packs | PROTOTYPE |
-| AS-2.0-OBS-UX-001 | Obsidian 2.0 non-canonical UX | PROTOTYPE |
+| AS-2.0-COMPAT-001 | Compatibility snapshot consumer | **Wave 1 ACTIVE / PRODUCTION** |
+| AS-KF2-NS-001 | Knowledge Fabric namespaces | **Wave 1 ACTIVE / PRODUCTION** |
+| AS-KF2-ENTITY-001 | Knowledge Fabric entities | **Wave 1 ACTIVE / PRODUCTION** |
+| AS-KF2-REL-001 | Knowledge Fabric relationships | **Wave 1 ACTIVE / PRODUCTION** |
+| AS-2.0-FED-001 | Multi-vault federation | READY / RWC after COMPAT |
+| AS-2.0-UX-001 | Advanced Command Center | READY (WEB ACCEPTED=YES) |
+| AS-2.0-PROV-001 | Provider adapters | RWC (provenance non-bypass) |
+| AS-2.0-SYNC-001 | Estate sync v2 | **BLOCKED** — authentic PILOT |
+| AS-2.0-AGENTOS-001 | Agent OS envelope | PREPARED |
+| AS-2.0-KCI-001 | Knowledge Compilation Interface | PREPARED |
+| AS-2.0-TWIN-001 | Digital Twin projections | **BLOCKED** — authentic PILOT |
+| AS-2.0-CTX-001 | Context assembly packs | PREPARED |
+| AS-2.0-OBS-UX-001 | Obsidian 2.0 non-canonical UX | PREPARED |
 
-## Design deepen (2026-08-09c)
+## Notes
 
-- `DAG.md` — gate chain + package dependency sketch
-- `OPENAI-MCP-DESIGN.md` — provider/MCP prep notes (no production wiring)
-- Threat model register retained; still PREP ONLY
-
-Do not open production branches for these until `ATLAS_1_0_RELEASE_CERTIFIED`
-and `ATLAS_2_0_IMPLEMENTATION_READY`.
+Wave 1 production packages: AS-2.0-COMPAT-001 and AS-KF2-*.
+Do not open production branches for BLOCKED packages until authentic estate
+PILOT (or a new explicit waiver). 1.0 wins conflicts.
 
 ## Functional requirement stubs (FR-2.0-xxx)
 

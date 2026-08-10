@@ -5061,3 +5061,18 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 ### Gates
 - Tip-bound matrix PASS; CRITICAL/HIGH = 0
 - DISPOSITION: RELEASE CERTIFIED — tag `v1.0.0` after merge
+
+## AS-2.0 Wave 1 — COMPAT + KF2
+
+**Date:** 2026-08-10
+**Branch:** feat/as-2.0-wave1-compat-kf
+**Directive:** D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001
+
+### Scope
+- Phase 0: 1.0 anchor verified; GATE_10 unlocked; production impl authorized
+- AS-2.0-COMPAT-001 machine anchor + consumer + `atlas compat verify`
+- AS-KF2-NS/ENTITY/REL Wave 1 fabric (derived ≠ authority)
+- Parallel PILOT2-AUTH prep + §98 board lanes
+
+### Gates
+- Focused pytest PASS; ruff/mypy on new modules PASS
