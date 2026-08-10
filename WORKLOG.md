@@ -5084,3 +5084,11 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 **Directive:** D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001
 
 Operator-declared consume-only federation join inventory bound to 1.0 compat anchor.
+
+## AS-2.0-PROV-001 — provider adapters
+
+**Date:** 2026-08-10
+**Branch:** feat/as-2.0-prov-001
+**Directive:** D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001
+
+Optional disabled-by-default provider registry + quarantine envelopes; secrets metadata-only; no SDK wiring.
