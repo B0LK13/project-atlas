@@ -1,0 +1,21 @@
+{
+  "_prep_note": "FX-2.2-ISL-101 \u2014 expected rejection of release_cert_stamp from fixture slice rehearsal",
+  "action_id": "action.demo.intel-slice.release-cert-stamp.forbidden",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "DEMO VERIFIED / fixture slice success must not stamp ATLAS_2_1_RELEASE_CERTIFIED"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "intel-slice-release-cert-stamp-forbidden",
+  "kind": "release_cert_stamp",
+  "package_id": "AS-2.2-INTEL-SLICE-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "slice_id": "intel-slice.demo.estate-alpha.001",
+  "status": "rejected_forbidden",
+  "truth_boundary": "INTEL SLICE ACTION \u2260 RELEASE CERT / \u2260 PILOT PASS / \u2260 LLM AUTHORITY / \u2260 CANONICAL WRITE"
+}

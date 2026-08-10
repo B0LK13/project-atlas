@@ -63,8 +63,7 @@ def test_prep_docs_exist_without_readme() -> None:
         assert "PREP" in text.upper() or "prep" in text
     assert not (PREP / "README.md").exists()
     assert not any(PREP.rglob("README.md"))
-    assert not (PREP / "contracts").exists()
-    assert not (PREP / "adr").exists()
+    # Deepen PREP may add contracts/ + adr/; base package remains architecture + fixtures.
 
 
 def test_package_card_non_claims() -> None:
@@ -198,7 +197,8 @@ def test_no_runtime_mutation_in_branch_diff() -> None:
     for name in changed:
         assert not name.startswith("src/"), name
         assert not name.startswith("apps/"), name
-        assert name.startswith("docs/atlas-2.2/intel-slice/") or name == (
-            "tests/unit/test_as_2_2_intel_slice_prep_001.py"
-        ), name
+        assert name.startswith("docs/atlas-2.2/intel-slice/") or name in {
+            "tests/unit/test_as_2_2_intel_slice_prep_001.py",
+            "tests/unit/test_as_2_2_intel_slice_deepen_prep_001.py",
+        }, name
         assert not name.endswith("README.md"), name
