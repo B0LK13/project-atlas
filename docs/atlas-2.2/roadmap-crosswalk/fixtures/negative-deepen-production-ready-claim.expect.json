@@ -1,0 +1,20 @@
+{
+  "_prep_note": "FX-2.2-CROSSWALK-DEEPEN-102 — expected rejection of production_ready_claim",
+  "action_id": "fx-production_ready_claim",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "mapped PREP rows remain PREP until production package execution"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "crosswalk-production-ready-claim-forbidden",
+  "kind": "production_ready_claim",
+  "package_id": "AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "CROSSWALK \u2260 UNLOCK / \u2260 PRODUCTION / \u2260 PILOT / \u2260 RELEASE / \u2260 CERT"
+}
