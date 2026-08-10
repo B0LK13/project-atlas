@@ -24,6 +24,7 @@ from project_atlas.schema import (
 def test_all_expected_schemas_available() -> None:
     assert available_schemas() == [
         "adv-release-cert-report",
+        "agentos-phase-transition",
         "agentos-session-envelope",
         "authority-record",
         "backup-manifest",
@@ -40,6 +41,7 @@ def test_all_expected_schemas_available() -> None:
         "concept-record",
         "conflict-record",
         "context-pack",
+        "context-pack-composition",
         "diagnostic",
         "event-retention-policy",
         "event-retention-report",

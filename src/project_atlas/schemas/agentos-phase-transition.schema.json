@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/agentos-phase-transition.schema.json",
+  "title": "AgentOsPhaseTransition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","package_id","compat_snapshot_id","transition_id","session_id","from_phase","to_phase","receipt_required","authority_promoted","authority","truth_boundary","generated"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "package_id": {"const": "AS-2.0-AGENTOS-002"},
+    "compat_snapshot_id": {"type": "string"},
+    "transition_id": {"type": "string"},
+    "session_id": {"type": "string"},
+    "from_phase": {"type": "string"},
+    "to_phase": {"type": "string"},
+    "receipt_required": {"const": true},
+    "authority_promoted": {"const": false},
+    "authority": {
+      "type": "object",
+      "required": ["level","note"],
+      "additionalProperties": false,
+      "properties": {"level": {"const": "derived"}, "note": {"type": "string"}}
+    },
+    "truth_boundary": {"type": "string"},
+    "generated": {"type": "object", "required": ["by"], "additionalProperties": false, "properties": {"by": {"const": "project-atlas"}}}
+  }
+}
