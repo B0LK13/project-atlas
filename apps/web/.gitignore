@@ -4,3 +4,9 @@ dist/
 *.local
 *.tsbuildinfo
 package-lock.json
+
+# Playwright (AS-WEB-BROWSER-E2E-001) outputs
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

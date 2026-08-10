@@ -56,6 +56,35 @@ npm run smoke
 node apps/web/scripts/smoke.mjs
 ```
 
+## Browser E2E acceptance (`AS-WEB-BROWSER-E2E-001`)
+
+`e2e/mission-control.acceptance.spec.ts` is the first repository-native browser
+acceptance spec. It is the automated, reproducible reproduction of the operator
+journey that was previously captured only as a manual screen recording
+(observational evidence). It drives real Chromium via Playwright:
+
+- Hub `#/` renders the production shell
+- Projects `#/projects` renders the read-only inventory (`demo-alpha`)
+- Mission Control `#/mission-control` shows the LIVE failure **honestly**
+  (`choose DEMO or FIXTURE mode (no silent invent)`), not silently replaced
+- clicking **DEMO** changes state: URL → `?mode=demo`, DEMO stub banner + blurb
+  appear, and the Mission board populates (still `0` PILOT estate rows)
+- design-lab `#/design-lab/terminal-honest` renders the themed JSON block
+
+```bash
+cd apps/web
+npm run test:e2e            # starts/reuses the Vite dev server on :5173
+```
+
+Playwright's Chromium is provisioned by the environment install (`npx playwright
+install chromium`); run it manually once if you set up deps by hand.
+
+Status (updated only from a green automated run, never from the recording):
+
+- `MANUAL_BROWSER_EVIDENCE = OBSERVED`
+- `BROWSER_E2E = PASS` — 5/5 specs green, reproduced across repeated
+  Playwright-managed standalone runs. UI ≠ canonical remains normative.
+
 Unit gates (from repo root, after `pip install -e ".[dev]"`):
 
 ```bash
