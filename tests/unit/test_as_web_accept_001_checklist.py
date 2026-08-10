@@ -1,7 +1,7 @@
-"""AS-WEB-ACCEPT-001 checklist gates — criteria draft only.
+"""AS-WEB-ACCEPT-001 checklist gates.
 
-Does NOT claim WEB APPLICATION ACCEPTED. Asserts ADR presence, checklist
-artifact, and web_api read-only import boundary for acceptance prep.
+Asserts ADR presence, checklist artifact (ACCEPTED=YES after governor),
+and web_api read-only import boundary.
 """
 
 from __future__ import annotations
@@ -14,12 +14,12 @@ CHECKLIST = REPO_ROOT / "docs" / "AS-WEB-ACCEPT-001-checklist.md"
 WEB_API_INIT = REPO_ROOT / "src" / "project_atlas" / "web_api" / "__init__.py"
 
 
-def test_checklist_exists_and_accepted_is_no() -> None:
+def test_checklist_exists_and_accepted_is_yes() -> None:
     text = CHECKLIST.read_text(encoding="utf-8")
     assert "AS-WEB-ACCEPT-001" in text
-    assert "WEB APPLICATION ACCEPTED" in text
-    assert "NO" in text
-    assert "ACCEPTED" in text
+    assert "**WEB APPLICATION ACCEPTED** | **YES**" in text
+    assert "closed — APPROVED" in text
+    assert "UI ≠ canonical" in text
 
 
 def test_adr_008_009_010_present() -> None:

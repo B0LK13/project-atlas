@@ -51,8 +51,9 @@ def test_ops_health_keeps_production_skip_link_target() -> None:
     assert 'id="main"' in page
 
 
-def test_ops_health_does_not_claim_web_acceptance() -> None:
+def test_ops_health_records_web_acceptance_yes() -> None:
     checklist = CHECKLIST.read_text(encoding="utf-8")
     page = PAGE.read_text(encoding="utf-8")
-    assert "**WEB APPLICATION ACCEPTED** | **NO**" in checklist
-    assert "WEB APPLICATION ACCEPTED = NO" in page
+    assert "**WEB APPLICATION ACCEPTED** | **YES**" in checklist
+    assert "WEB APPLICATION ACCEPTED = YES" in page
+    assert "UI ≠ canonical" in page

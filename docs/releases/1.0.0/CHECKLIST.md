@@ -1,16 +1,17 @@
 # Atlas 1.0.0 PRE-RC certification checklist
 
 **Directive:** `D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001`
-**Baseline:** MAIN `1a69405a799fc559653d48e4c7cab3c29036aeeb` / TREE `1a69405a799fc559653d48e4c7cab3c29036aeeb`
+**Baseline:** MAIN `8ee65b91871bc04039ffe401a9da3743e4800a8b` / TREE `a2e592a797056935fbec0d8c54033aa3c25a5b06`
 **RELEASE CERTIFIED = NO**
 
-All gates are deliberately unchecked. Evidence must be rerun or independently reviewed against the final candidate pin before any certification receipt can be signed.
+Owner-gates closeout (`D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`) unlocked WEB acceptance and fixture-only pilot waiver. Remaining unchecked rows still block RELEASE CERTIFIED.
 
 | Done | Required gate | Required evidence | Current state |
 |---|---|---|---|
 | [ ] | Candidate pin | Final candidate commit and tree recorded and immutable | NO |
-| [ ] | Estate PILOT | Authentic bounded estate pilot completed; fixture roots are not substituted | NO |
-| [ ] | WEB APPLICATION ACCEPTED | Acceptance checklist complete and human governor signoff recorded | NO |
+| [x] | WEB APPLICATION ACCEPTED | Acceptance checklist complete and human/owner governor signoff recorded (`docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` APPROVED on tip `8ee65b9`) | YES |
+| [x] | Fixture-only PILOT waiver | Owner waiver `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` (`pilot_mode: FIXTURE_ONLY_OWNER_WAIVER`) | FIXTURE-ONLY CERT UNDER OWNER WAIVER |
+| [ ] | Estate PILOT (authentic) | Authentic bounded estate pilot completed; fixture roots are not substituted for authentic | NO |
 | [ ] | ADV-001..004 matrix | Base, clean-clone, performance/determinism, and migration/recovery cases independently verified | NO |
 | [ ] | SEC-CONT | Continuous security gates reviewed, including path refusal and metadata-only secret findings | NO |
 | [ ] | E2E fixture matrix | Determinism, replay, failure, and recovery fixture matrix completed | NO |

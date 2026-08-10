@@ -2,7 +2,7 @@ import { ProdShell } from "../../components/ProdShell";
 
 /**
  * Workspace lens — AS-WEB-WORKSPACE-001.
- * Read-only stub UI; never vault writers; WEB APPLICATION ACCEPTED not claimed.
+ * Read-only stub UI; never vault writers; ACCEPTED=YES does not make UI canonical.
  * UI ≠ canonical · Graph ≠ authority · Unknown ≠ healthy.
  */
 export default function WorkspacePage() {
@@ -39,7 +39,7 @@ export default function WorkspacePage() {
           </p>
           <p className="disclaimer">
             UI ≠ canonical · Graph ≠ authority · Unknown ≠ healthy · WEB
-            APPLICATION ACCEPTED = NO
+            APPLICATION ACCEPTED = YES
           </p>
         </section>
       </main>

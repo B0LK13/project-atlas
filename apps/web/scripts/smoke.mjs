@@ -145,8 +145,12 @@ if (!existsSync(checklist)) {
   process.exit(1);
 }
 const checklistBody = readFileSync(checklist, "utf8");
-if (!checklistBody.includes("WEB APPLICATION ACCEPTED") || !checklistBody.includes("NO")) {
-  console.error("AS-WEB-ACCEPT-001 smoke FAIL — checklist must state ACCEPTED=NO");
+if (
+  !checklistBody.includes("WEB APPLICATION ACCEPTED") ||
+  !checklistBody.includes("**YES**") ||
+  !checklistBody.includes("closed — APPROVED")
+) {
+  console.error("AS-WEB-ACCEPT-001 smoke FAIL — checklist must state ACCEPTED=YES with item 10 closed");
   process.exit(1);
 }
 
@@ -178,7 +182,7 @@ const pageChecks = [
   ["src/pages/production/ProjectsPage.tsx", ["UI", "canonical"]],
   ["src/pages/production/KnowledgePage.tsx", ["ui_canonical", "graph_authority", "unknown"]],
   ["src/pages/production/GraphPage.tsx", ["graph_authority", "ui_canonical", "unknown"]],
-  ["src/pages/production/OpsHealthPage.tsx", ["ui_canonical", "graph_authority", "unknown", "Receipt evidence", "no live receipt adapter", "No PILOT estate rows", "WEB APPLICATION ACCEPTED = NO"]],
+  ["src/pages/production/OpsHealthPage.tsx", ["ui_canonical", "graph_authority", "unknown", "Receipt evidence", "no live receipt adapter", "No PILOT estate rows", "WEB APPLICATION ACCEPTED = YES"]],
   ["src/pages/production/CommandCenterPage.tsx", ["ui_canonical", "graph_authority"]],
   ["src/pages/production/MissionControlPage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority"]],
   ["src/pages/production/WorkspacePage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority"]],
@@ -229,5 +233,5 @@ if (!Array.isArray(workspaceStub.pilot_estate_rows) || workspaceStub.pilot_estat
 }
 
 console.log(
-  "AS-WEB-ACCEPT-004 smoke PASS — ops-health receipts + mission-control + workspace + knowledge/graph + a11y skip + ADRs (ACCEPTED=NO)",
+  "AS-WEB-ACCEPT-004 smoke PASS — ops-health receipts + mission-control + workspace + knowledge/graph + a11y skip + ADRs (ACCEPTED=YES)",
 );
