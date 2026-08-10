@@ -51,8 +51,8 @@ def open_collab_session(
     sid = session_id.strip()
     if not _ID_RE.fullmatch(sid):
         raise CollabError("collab-session-id-invalid")
-    if kind == "comment-thread":
-        raise CollabError("collab-comment-thread-not-enabled")
+    if kind not in {"review-queue", "shared-receipt"}:
+        raise CollabError(f"collab-kind-not-enabled:{kind}")
     subj = subject.strip()
     if not subj or len(subj) > 256:
         raise CollabError("collab-subject-invalid")
@@ -74,6 +74,7 @@ def open_collab_session(
         "subject": subj,
         "live_collab": True,
         "network_multiuser": False,
+        "closed": False,
         "actions": [action],
         "action_hash": action_hash,
         "operator_id": op.operator_id,
@@ -106,6 +107,8 @@ def append_collab_action(
     if not path.is_file():
         raise CollabError("collab-session-missing")
     payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("closed") is True:
+        raise CollabError("collab-session-closed")
     name = action_name.strip()
     if not re.fullmatch(r"^[a-z][a-z0-9-]{0,63}$", name):
         raise CollabError("collab-action-name-invalid")
@@ -117,6 +120,35 @@ def append_collab_action(
     actions = list(payload.get("actions") or [])
     actions.append(entry)
     payload["actions"] = actions
+    payload["action_hash"] = hashlib.sha256(
+        json.dumps(actions, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    _atomic_write_json(path, payload)
+    return payload
+
+
+def close_collab_session(
+    vault: Path,
+    *,
+    session_id: str,
+    operator: OperatorProfile | None = None,
+) -> dict[str, Any]:
+    """Close a collab session (append-only close action; no network plane)."""
+    require_compatibility_anchor()
+    op = operator or default_operator()
+    op.require("collab.session")
+    sid = session_id.strip()
+    path = vault / "generated" / "ops" / "collab" / f"{sid}-session.json"
+    if not path.is_file():
+        raise CollabError("collab-session-missing")
+    payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("closed") is True:
+        raise CollabError("collab-session-already-closed")
+    entry = {"action": "close-session", "operator_id": op.operator_id}
+    actions = list(payload.get("actions") or [])
+    actions.append(entry)
+    payload["actions"] = actions
+    payload["closed"] = True
     payload["action_hash"] = hashlib.sha256(
         json.dumps(actions, sort_keys=True).encode("utf-8")
     ).hexdigest()
