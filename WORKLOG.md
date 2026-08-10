@@ -5034,3 +5034,12 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 **Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
 **Pin:** MAIN d5e46a1 / TREE 08cfcf18
 **RELEASE CERTIFIED = NO**
+
+## CP Windows MDA shebang resolution
+
+**Date:** 2026-08-10
+**Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
+- resolve_executable_argv prefixes sys.executable for Python shebang mocks (WinError 193)
+- serialize concurrent managed launcher on win32
+- skip POSIX permission-denied fixture on win32
+**RELEASE CERTIFIED = NO**

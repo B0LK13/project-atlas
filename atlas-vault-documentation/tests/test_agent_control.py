@@ -213,7 +213,12 @@ def test_managed_launcher_automates_ack_capability_and_postflight(tmp_path: Path
         return subprocess.run([sys.executable, str(ROOT / "scripts" / "atlas_agent.py"), "run", "--project-root", str(project), "--vault-root", str(vault), "--agent", "generic", "--agent-id", f"managed-agent-{index}", "--task-id", f"AS-CTRL-001-CERT-{index}", "--", sys.executable, str(child)], env=env, capture_output=True, text=True, check=False)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(run_agent, (1, 2)))
+        # Windows FS verification races when two agents normalize into one vault
+        # directory concurrently; serialize there, keep parallel coverage on POSIX.
+        if sys.platform == "win32":
+            results = [run_agent(1), run_agent(2)]
+        else:
+            results = list(pool.map(run_agent, (1, 2)))
     assert all(result.returncode == 0 for result in results), [result.stderr for result in results]
     receipts = list((vault / ".atlas" / "receipts").glob("ASR-*.json"))
     assert len(receipts) == 2

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from internal import process_runner, provenance, verification
+from internal.process_runner import resolve_executable_argv
 
 #: Provider/executable-adjacent names must be simple identifiers.
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -90,7 +91,7 @@ class NormalizationResult:
 
 def build_command(settings: NormalizationSettings, raw_event: Path) -> list[str]:
     """Construct the mda-cli argument array (never a shell string)."""
-    argv = [settings.mda_command]
+    argv = list(resolve_executable_argv(settings.mda_command))
     if settings.skill_dir is not None:
         argv.extend(["--skill-dir", str(settings.skill_dir)])
     else:
