@@ -1,19 +1,19 @@
 # Atlas 2.1 — Package board
 
-Tip: `868815b` + Track B deepen-005. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
+Tip: `bce3327` + Track B Host/CORS ADV. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
 
 | Package | Wave | Status | Notes |
 |---|---|---|---|
 | AS-2.1-DOC-REALITY-001 | 1 | MERGED #143 | Audit + matrix |
 | AS-2.1-APP-SVC-001 | 1 | MERGED #143 | App service |
-| AS-2.1-API-SERVER-001 | 1–5 | DEEPENING | + `/v1/mission` `/v1/workspace` |
-| AS-2.1-WEB-LIVE-001 | 1–5 | DEEPENING | Mission/Workspace LIVE |
+| AS-2.1-API-SERVER-001 | 1–5 | MERGED #153 | mission/workspace routes |
+| AS-2.1-WEB-LIVE-001 | 1–5 | MERGED #153 | Mission/Workspace LIVE |
 | AS-2.1-MCP-SERVER-001 | 1–4 | MERGED #151 | projects.list.read |
-| AS-2.1-OAI-IMPORT-REAL-001 | 1/5 | DEEPENING | export size cap |
+| AS-2.1-OAI-IMPORT-REAL-001 | 1/5 | MERGED #153 | export size cap |
 | AS-2.1-SCHED-LIVE-001 | 1/4 | MERGED #149 | timeout receipts |
 | AS-2.1-AUTHZ-001 | 1–3 | MERGED #146 | + oai.responses + audit |
 | AS-2.1-PILOT-AUTH-001-PREP | 1/3 | MERGED #146 | Bounded env/workspace scan |
-| AS-2.1-AUTONOMY-L3-001 | 2/5 | DEEPENING | policy→dispatch loop |
+| AS-2.1-AUTONOMY-L3-001 | 2/5 | MERGED #153 | policy→dispatch loop |
 | AS-2.1-CHATGPT-BRIDGE-001 | 2/4 | MERGED #149 | JSON/Human-AI variants |
 | AS-2.1-COLLAB-001 | 2/4 | MERGED #150 | close-session receipt |
 | AS-2.1-WEB-ACTIONS-001 | 2/4 | MERGED #151 | recent list + ledger cap |
@@ -30,9 +30,8 @@ Tip: `868815b` + Track B deepen-005. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
 ## Remaining Track B queue (honest)
 
 1. Ops receipt adapter still unavailable (honest unknown)
-2. Continuous Host/CORS ADV matrix expansion
-3. Mission/Workspace UX polish beyond composition (not north-star product)
-4. Further L3 loop job-matrix ADV under RC later
+2. Mission/Workspace UX polish beyond composition (not north-star product)
+3. Further L3 loop job-matrix ADV under RC later
 
 **Separate north-star backlog:** `docs/strategy/` — do not merge into 2.1 P0.
 
