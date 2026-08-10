@@ -1,6 +1,6 @@
 # Atlas 2.1 — Feature maturity matrix
 
-Tip baseline for Track B deepen: `4edb489` (+ deepen PR). Classes per `CHARTER.md`.
+Tip baseline for Track B deepen: `5fcaba3` (+ deepen-002). Classes per `CHARTER.md`.
 
 | Capability / package | Maturity | Evidence (code) | 2.1 disposition |
 |---|---|---|---|
