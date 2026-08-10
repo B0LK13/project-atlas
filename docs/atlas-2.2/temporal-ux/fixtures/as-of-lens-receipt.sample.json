@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TEMPORAL-UX-PREP-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "project",
+    "id": "demo-project"
+  },
+  "as_of_valid_time": "2024-06-15",
+  "knowledge_compilation_id": "compile-fixture-1",
+  "status": "selected",
+  "selected_claim_ids": ["claim.demo.status.planned"],
+  "unresolved": [],
+  "authority": {
+    "level": "derived",
+    "note": "As-of lens receipt consumes TEMPORAL windows; never Layer B authority"
+  },
+  "truth_boundary": "AS-OF LENS ≠ AUTHORITY / ≠ WALL-CLOCK NOW / ≠ SILENT WINNER",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-TUX-003 — docs-only fixture sketch"
+}

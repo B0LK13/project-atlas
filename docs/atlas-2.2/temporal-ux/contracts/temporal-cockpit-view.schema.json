@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/temporal-cockpit-view.schema.json",
+  "title": "temporal-cockpit-view (PREP STUB — not package data)",
+  "description": "AS-2.2-TEMPORAL-UX-PREP-001 cockpit envelope. Consume-only over Core bitemporal / Time Machine stubs. UI≠canonical; now≠as-of.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "scope",
+    "as_of_valid_time",
+    "status",
+    "cards",
+    "receipt",
+    "unresolved",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TEMPORAL-UX-PREP-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["project", "subject", "estate-slice"] },
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "as_of_valid_time": { "type": "string", "minLength": 4, "maxLength": 64 },
+    "status": {
+      "enum": [
+        "ok",
+        "empty",
+        "partial",
+        "unresolved_overlap",
+        "rejected_malformed",
+        "not_found"
+      ]
+    },
+    "cards": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "receipt": { "type": "object" },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reason"],
+        "properties": {
+          "reason": {
+            "enum": [
+              "unresolved_overlap",
+              "unresolved_incomplete",
+              "missing_evidence",
+              "rejected_malformed",
+              "not_found"
+            ]
+          },
+          "claim_id": { "type": "string" },
+          "detail": { "type": "string", "maxLength": 400 }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "TEMPORAL UX ≠ WALL-CLOCK NOW / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" }
+      }
+    },
+    "_prep_note": { "type": "string" }
+  }
+}
