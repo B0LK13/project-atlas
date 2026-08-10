@@ -2,12 +2,13 @@
 
 Enables autonomy level 3 only when operator has ``autonomy.l3`` and an
 active supervised scheduler arm exists. Never enables L4/L5. Never
-promotes Layer B authority.
+promotes Layer B authority. Hardened: job timeout bound + disable receipt.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ PACKAGE_ID = "AS-2.1-AUTONOMY-L3-001"
 TRUTH_BOUNDARY = (
     "L3_BOUNDED_AUTONOMY != L4/L5 / != UNSUPERVISED PROMOTE / != AUTHORITY"
 )
+_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
 
 class AutonomyL3Error(ValueError):
@@ -42,13 +44,19 @@ def enable_bounded_l3(
     arm_id: str,
     operator: OperatorProfile | None = None,
     max_jobs: int = 3,
+    job_timeout_s: int = 120,
 ) -> dict[str, Any]:
     """Enable L3 bounded autonomy under AUTHZ + armed scheduler receipt."""
     require_compatibility_anchor()
     op = operator or default_operator()
     op.require("autonomy.l3")
+    pid = policy_id.strip()
+    if not _ID_RE.fullmatch(pid):
+        raise AutonomyL3Error("autonomy-l3-policy-id-invalid")
     if max_jobs < 1 or max_jobs > 10:
         raise AutonomyL3Error("autonomy-l3-max-jobs-out-of-range")
+    if job_timeout_s < 1 or job_timeout_s > 600:
+        raise AutonomyL3Error("autonomy-l3-timeout-out-of-range")
     arm_path = vault / "generated" / "ops" / "scheduler" / f"{arm_id}-arm.json"
     if not arm_path.is_file():
         raise AutonomyL3Error("autonomy-l3-scheduler-not-armed")
@@ -59,11 +67,20 @@ def enable_bounded_l3(
         "schema_version": 1,
         "package_id": PACKAGE_ID,
         "compat_snapshot_id": SNAPSHOT_ID,
-        "policy_id": policy_id,
+        "policy_id": pid,
         "level": 3,
         "l3_bounded_autonomy": True,
-        "levels_enabled": {"0": True, "1": True, "2": True, "3": True, "4": False, "5": False},
+        "enabled": True,
+        "levels_enabled": {
+            "0": True,
+            "1": True,
+            "2": True,
+            "3": True,
+            "4": False,
+            "5": False,
+        },
         "max_jobs_per_arm": max_jobs,
+        "job_timeout_s": job_timeout_s,
         "allowed_jobs": ["validate", "build-indexes", "version"],
         "arm_id": arm_id,
         "operator_id": op.operator_id,
@@ -75,6 +92,51 @@ def enable_bounded_l3(
         },
         "generated": {"by": "project-atlas"},
     }
-    out = vault / "generated" / "ops" / "autonomy" / f"{policy_id}-l3-policy.json"
+    out = vault / "generated" / "ops" / "autonomy" / f"{pid}-l3-policy.json"
     _atomic_write_json(out, payload)
+    return payload
+
+
+def disable_bounded_l3(
+    vault: Path,
+    *,
+    policy_id: str,
+    operator: OperatorProfile | None = None,
+) -> dict[str, Any]:
+    """Write a disable receipt for an existing L3 policy (fail-closed if missing)."""
+    require_compatibility_anchor()
+    op = operator or default_operator()
+    op.require("autonomy.l3")
+    pid = policy_id.strip()
+    if not _ID_RE.fullmatch(pid):
+        raise AutonomyL3Error("autonomy-l3-policy-id-invalid")
+    path = vault / "generated" / "ops" / "autonomy" / f"{pid}-l3-policy.json"
+    if not path.is_file():
+        raise AutonomyL3Error("autonomy-l3-policy-missing")
+    prior = json.loads(path.read_text(encoding="utf-8"))
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "package_id": PACKAGE_ID,
+        "compat_snapshot_id": SNAPSHOT_ID,
+        "policy_id": pid,
+        "level": 3,
+        "l3_bounded_autonomy": False,
+        "enabled": False,
+        "prior_enabled": bool(prior.get("enabled", True)),
+        "arm_id": prior.get("arm_id"),
+        "operator_id": op.operator_id,
+        "vault_write_enabled": False,
+        "truth_boundary": TRUTH_BOUNDARY,
+        "authority": {
+            "level": "derived",
+            "note": "L3 disabled; never Layer B promote",
+        },
+        "generated": {"by": "project-atlas"},
+    }
+    out = vault / "generated" / "ops" / "autonomy" / f"{pid}-l3-disabled.json"
+    _atomic_write_json(out, payload)
+    # Flip policy enabled flag in place for reconstructable state.
+    prior["enabled"] = False
+    prior["l3_bounded_autonomy"] = False
+    _atomic_write_json(path, prior)
     return payload

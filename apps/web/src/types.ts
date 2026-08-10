@@ -25,4 +25,9 @@ export interface ReadStatus {
   ui_canonical: boolean;
   graph_authority: boolean;
   unknown_equals_healthy: boolean;
+  /** AS-2.1 deepen: live vs isolated demo stub */
+  data_source?: DataSource;
+  demo_isolated?: boolean;
 }
+
+export type DataSource = "live_api" | "demo_stub";

@@ -126,6 +126,7 @@ from project_atlas.ops_report import (
     emit_ops_report,
     report_to_json,
 )
+from project_atlas.perf_baselines import PerfBaselineError, run_perf_baselines
 from project_atlas.pilot_auth_prep import PilotAuthPrepError, write_pilot_prep_report
 from project_atlas.portfolio import build_portfolio
 from project_atlas.provider_adapters import (
@@ -1322,6 +1323,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip live API even if OPENAI_API_KEY is set.",
     )
     live_oai_poc.add_argument("--json", action="store_true")
+    live_perf = live_sub.add_parser(
+        "perf-baseline",
+        help="Record deterministic local read performance baselines (non-release-blocking).",
+    )
+    live_perf.add_argument("--vault", type=Path, required=True)
+    live_perf.add_argument("--baseline-id", default="live-read")
+    live_perf.add_argument("--iterations", type=int, default=3)
+    live_perf.add_argument("--json", action="store_true")
 
     return parser
 
@@ -2641,6 +2650,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"smoke_status: {report['smoke_status']}")
                 print(f"live_smoke: {report['live_smoke']}")
                 print(f"llm_authority: {report['llm_authority']}")
+                print(f"release_blocking: {report['release_blocking']}")
+            return EXIT_OK
+        if args.live_command == "perf-baseline":
+            try:
+                report = run_perf_baselines(
+                    args.vault,
+                    baseline_id=args.baseline_id,
+                    iterations=int(args.iterations),
+                )
+            except (
+                PerfBaselineError,
+                CompatAnchorError,
+                OSError,
+                ValueError,
+            ) as exc:
+                _log.error("live perf-baseline failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                snap = report["measurements"]["app_service_snapshot_ms"]
+                print(f"baseline_id: {report['baseline_id']}")
+                print(f"snapshot_max_ms: {snap['max_ms']}")
                 print(f"release_blocking: {report['release_blocking']}")
             return EXIT_OK
         parser.error(  # pragma: no cover

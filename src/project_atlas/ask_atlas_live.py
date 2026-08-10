@@ -1,6 +1,7 @@
 """AS-2.1 Ask Atlas live path - read-only query over AppService.
 
 UI != canonical. Graph != authority. Never writes Layer B.
+Hardened: health keyword + broader project/knowledge field match.
 """
 
 from __future__ import annotations
@@ -36,19 +37,31 @@ def ask_atlas_live(
     svc = open_app_service(vault)
     projects = svc.projects()
     knowledge = svc.knowledge()
+    health = svc.health()
     q_lower = q.lower()
     matched_projects = [
         p
         for p in projects
         if q_lower in str(p.get("project_id", "")).lower()
         or q_lower in str(p.get("path", "")).lower()
+        or q_lower in str(p.get("title", "")).lower()
+        or q_lower in str(p.get("name", "")).lower()
     ]
     matched_knowledge = [
         k
         for k in knowledge
         if q_lower in str(k.get("subject") or "").lower()
         or q_lower in str(k.get("answer_id") or "").lower()
+        or q_lower in str(k.get("title") or "").lower()
+        or q_lower in str(k.get("summary") or "").lower()
     ]
+    vault_health = health.get("vault_health") or {}
+    health_hits: list[str] = []
+    for token in ("health", "rollup", "status", "ops"):
+        if token in q_lower:
+            health_hits.append(token)
+    if str(vault_health.get("rollup", "")).lower() in q_lower:
+        health_hits.append("rollup-value")
     return {
         "schema_version": 1,
         "package_id": PACKAGE_ID,
@@ -60,8 +73,9 @@ def ask_atlas_live(
         "matches": {
             "projects": matched_projects[:50],
             "knowledge": matched_knowledge[:50],
+            "health_keywords": sorted(set(health_hits)),
         },
-        "health": svc.health()["vault_health"],
+        "health": vault_health,
         "operator_id": op.operator_id,
         "truth_boundary": TRUTH_BOUNDARY,
         "generated": {"by": "project-atlas"},

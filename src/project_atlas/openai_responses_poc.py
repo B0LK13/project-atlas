@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -242,42 +243,62 @@ def run_openai_responses_poc(
     smoke_status = "IMPLEMENTATION_READY_FOR_LIVE_SMOKE"
     api_meta: dict[str, Any] = {}
     tool_results: list[dict[str, Any]] = []
+    retry_count = 0
     model_out = (
         "[oai-responses-poc offline] no OPENAI_API_KEY; "
         "read-only tool schemas registered; llm_authority=false"
     )
 
+    allow_retry = (
+        os.environ.get("ATLAS_OAI_POC_RETRY", "").strip().lower() in {"1", "true", "yes"}
+    )
+
     if key_present:
-        try:
-            api_payload = _call_responses_api(prompt=text, model=model)
-            tool_results = _dispatch_tool_calls_from_response(vault, api_payload)
-            model_out = _extract_output_text(api_payload)
-            live_smoke = True
-            smoke_status = "LIVE_SMOKE_EXECUTED"
-            api_meta = {
-                "response_id": api_payload.get("id"),
-                "status": api_payload.get("status"),
-                "model": api_payload.get("model") or model,
-                "output_item_count": (
-                    len(api_payload["output"])
-                    if isinstance(api_payload.get("output"), list)
-                    else 0
-                ),
-            }
-        except OpenAIResponsesPocError as exc:
-            # Experimental: record attempt honestly; do not invent success.
-            err = str(exc)
-            model_out = f"[oai-responses-poc live-attempt-failed] {err}"
-            live_smoke = False
-            if "oai-poc-http:429" in err:
-                smoke_status = "LIVE_SMOKE_RATE_LIMITED"
-            elif err.startswith("oai-poc-http:"):
-                smoke_status = "LIVE_SMOKE_HTTP_ERROR"
-            elif err.startswith("oai-poc-network:"):
-                smoke_status = "LIVE_SMOKE_NETWORK_ERROR"
-            else:
-                smoke_status = "LIVE_SMOKE_FAILED"
-            api_meta = {"error_class": err.split(":")[0], "error_code": err}
+        attempts = 2 if allow_retry else 1
+        last_err: str | None = None
+        for attempt in range(attempts):
+            try:
+                api_payload = _call_responses_api(prompt=text, model=model)
+                tool_results = _dispatch_tool_calls_from_response(vault, api_payload)
+                model_out = _extract_output_text(api_payload)
+                live_smoke = True
+                smoke_status = "LIVE_SMOKE_EXECUTED"
+                api_meta = {
+                    "response_id": api_payload.get("id"),
+                    "status": api_payload.get("status"),
+                    "model": api_payload.get("model") or model,
+                    "output_item_count": (
+                        len(api_payload["output"])
+                        if isinstance(api_payload.get("output"), list)
+                        else 0
+                    ),
+                    "attempt": attempt + 1,
+                }
+                last_err = None
+                break
+            except OpenAIResponsesPocError as exc:
+                last_err = str(exc)
+                if "oai-poc-http:429" in last_err and attempt + 1 < attempts:
+                    retry_count += 1
+                    time.sleep(1.5)
+                    continue
+                model_out = f"[oai-responses-poc live-attempt-failed] {last_err}"
+                live_smoke = False
+                if "oai-poc-http:429" in last_err:
+                    smoke_status = "LIVE_SMOKE_RATE_LIMITED"
+                elif last_err.startswith("oai-poc-http:"):
+                    smoke_status = "LIVE_SMOKE_HTTP_ERROR"
+                elif last_err.startswith("oai-poc-network:"):
+                    smoke_status = "LIVE_SMOKE_NETWORK_ERROR"
+                else:
+                    smoke_status = "LIVE_SMOKE_FAILED"
+                api_meta = {
+                    "error_class": last_err.split(":")[0],
+                    "error_code": last_err,
+                    "attempt": attempt + 1,
+                }
+                break
+
 
     quarantine = quarantine_provider_output(
         vault,
@@ -300,6 +321,7 @@ def run_openai_responses_poc(
         "openai_api_key_present": key_present,
         "live_smoke": live_smoke,
         "smoke_status": smoke_status,
+        "retry_count": retry_count,
         "read_only_tools": sorted(READ_ONLY_TOOL_NAMES),
         "write_tools": [],
         "tool_results": tool_results,

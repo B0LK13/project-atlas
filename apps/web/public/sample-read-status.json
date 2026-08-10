@@ -2,6 +2,8 @@
   "vault_present": true,
   "vault_id": "fixture-vault-uuid",
   "read_plane": "stub",
+  "data_source": "demo_stub",
+  "demo_isolated": true,
   "health": {
     "available": false,
     "rollup": "unknown",
@@ -9,7 +11,7 @@
     "authority_plane": "none",
     "note": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY",
     "source": "stub-sample (OBS snapshot absent)",
-    "disclaimer": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY; UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy"
+    "disclaimer": "OPERATIONAL HEALTH ≠ PROJECT AUTHORITY; UI ≠ canonical; Graph ≠ authority; Unknown ≠ healthy; DEMO STUB isolated"
   },
   "projects": [
     {
