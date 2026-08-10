@@ -1,21 +1,21 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-TUX-DEEPEN-101 \u2014 expected rejection of wall_clock_as_of",
   "action_id": "action.demo.temporal-ux.wall-clock-as-of.forbidden",
-  "claim_id": "claim.demo.status.planned",
-  "kind": "wall_clock_as_of",
-  "status": "rejected_forbidden",
-  "expected_error": "temporal-ux-wall-clock-forbidden",
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "wall-clock now/today is never accepted as as-of input"
   },
-  "evidence_class": "fixture-only",
-  "authentic_estate": false,
-  "release_certified": false,
-  "pilot_pass": false,
   "canonical_writes": false,
+  "claim_id": "claim.demo.status.planned",
+  "evidence_class": "fixture-only",
+  "expected_error": "temporal-ux-wall-clock-forbidden",
+  "kind": "wall_clock_as_of",
+  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "pilot_pass": false,
   "pilot_roots": 0,
-  "truth_boundary": "TEMPORAL UX ≠ WALL-CLOCK / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY / ≠ PILOT",
-  "_prep_note": "FX-2.2-TUX-DEEPEN-101 — expected rejection of wall_clock_as_of"
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "TEMPORAL UX \u2260 WALL-CLOCK / \u2260 SILENT WINNER / \u2260 BITEMPORAL MUTATION / \u2260 AUTHORITY / \u2260 PILOT"
 }

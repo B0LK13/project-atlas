@@ -1,21 +1,21 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-TUX-DEEPEN-103 \u2014 expected rejection of bitemporal_mutation",
   "action_id": "action.demo.temporal-ux.bitemporal-mutation.forbidden",
-  "claim_id": null,
-  "kind": "bitemporal_mutation",
-  "status": "rejected_forbidden",
-  "expected_error": "temporal-ux-bitemporal-mutation-forbidden",
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "Temporal UX deepen PREP must never mutate project_atlas.bitemporal"
   },
-  "evidence_class": "fixture-only",
-  "authentic_estate": false,
-  "release_certified": false,
-  "pilot_pass": false,
   "canonical_writes": false,
+  "claim_id": null,
+  "evidence_class": "fixture-only",
+  "expected_error": "temporal-ux-bitemporal-mutation-forbidden",
+  "kind": "bitemporal_mutation",
+  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "pilot_pass": false,
   "pilot_roots": 0,
-  "truth_boundary": "TEMPORAL UX ≠ WALL-CLOCK / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY / ≠ PILOT",
-  "_prep_note": "FX-2.2-TUX-DEEPEN-103 — expected rejection of bitemporal_mutation"
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "TEMPORAL UX \u2260 WALL-CLOCK / \u2260 SILENT WINNER / \u2260 BITEMPORAL MUTATION / \u2260 AUTHORITY / \u2260 PILOT"
 }

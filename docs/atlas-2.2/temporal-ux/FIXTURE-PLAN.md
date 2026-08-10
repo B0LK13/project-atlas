@@ -38,3 +38,7 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 
 Promotion to harness + production schemas requires
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.
+
+## Deepen PREP
+
+See `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md` and deepen negatives under `fixtures/`.

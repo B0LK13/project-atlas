@@ -1,21 +1,21 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-TUX-DEEPEN-104 \u2014 expected rejection of llm_authority_stamp",
   "action_id": "action.demo.temporal-ux.llm-authority-stamp.forbidden",
-  "claim_id": "claim.demo.status.planned",
-  "kind": "llm_authority_stamp",
-  "status": "rejected_forbidden",
-  "expected_error": "temporal-ux-llm-authority-forbidden",
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "LLM-suggested as-of winners and trust scores are forbidden"
   },
-  "evidence_class": "fixture-only",
-  "authentic_estate": false,
-  "release_certified": false,
-  "pilot_pass": false,
   "canonical_writes": false,
+  "claim_id": "claim.demo.status.planned",
+  "evidence_class": "fixture-only",
+  "expected_error": "temporal-ux-llm-authority-forbidden",
+  "kind": "llm_authority_stamp",
+  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "pilot_pass": false,
   "pilot_roots": 0,
-  "truth_boundary": "TEMPORAL UX ≠ WALL-CLOCK / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY / ≠ PILOT",
-  "_prep_note": "FX-2.2-TUX-DEEPEN-104 — expected rejection of llm_authority_stamp"
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "TEMPORAL UX \u2260 WALL-CLOCK / \u2260 SILENT WINNER / \u2260 BITEMPORAL MUTATION / \u2260 AUTHORITY / \u2260 PILOT"
 }

@@ -53,3 +53,7 @@ Ship path after unlock (future): `src/project_atlas/schemas/` via ADR + freeze.
 - Mutating `src/project_atlas/bitemporal.py` from this lane
 - Referencing stubs from `.github/workflows/ci.yml` as required gates
 - Claiming RELEASE CERTIFIED or PILOT PASS from fixture cockpits
+
+## Deepen PREP
+
+See `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md` and deepen negatives under `fixtures/`.

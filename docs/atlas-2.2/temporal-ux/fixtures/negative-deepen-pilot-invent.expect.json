@@ -1,21 +1,21 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-TUX-DEEPEN-106 \u2014 expected rejection of pilot_invent",
   "action_id": "action.demo.temporal-ux.pilot-invent.forbidden",
-  "claim_id": null,
-  "kind": "pilot_invent",
-  "status": "rejected_forbidden",
-  "expected_error": "temporal-ux-pilot-invent-forbidden",
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "Prep fixtures must not invent PILOT roots to justify temporal UX credit"
   },
-  "evidence_class": "fixture-only",
-  "authentic_estate": false,
-  "release_certified": false,
-  "pilot_pass": false,
   "canonical_writes": false,
+  "claim_id": null,
+  "evidence_class": "fixture-only",
+  "expected_error": "temporal-ux-pilot-invent-forbidden",
+  "kind": "pilot_invent",
+  "package_id": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001",
+  "pilot_pass": false,
   "pilot_roots": 0,
-  "truth_boundary": "TEMPORAL UX ≠ WALL-CLOCK / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY / ≠ PILOT",
-  "_prep_note": "FX-2.2-TUX-DEEPEN-106 — expected rejection of pilot_invent"
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "TEMPORAL UX \u2260 WALL-CLOCK / \u2260 SILENT WINNER / \u2260 BITEMPORAL MUTATION / \u2260 AUTHORITY / \u2260 PILOT"
 }

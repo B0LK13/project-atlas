@@ -76,3 +76,7 @@ selected; overlap → unresolved; wall-clock token → rejected_malformed.
 - Secrets: metadata-only; never embed matched secret content
 - Consume-only: temporal UX prep never calls `_promote` / never mutates Layer B
 - Evidence refs remain project-scoped
+
+## Deepen PREP
+
+See `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md` and deepen negatives under `fixtures/`.
