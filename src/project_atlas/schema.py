@@ -140,6 +140,8 @@ SCHEMA_FILES: dict[str, str] = {
     "twin-projection-fixture": "twin-projection-fixture.schema.json",
     # AS-2.0-OAI-IMPORT-001 — OpenAI importer fixture receipt (no live API)
     "openai-import-fixture-receipt": "openai-import-fixture-receipt.schema.json",
+    # AS-2.0-OBS-UX-001 — Obsidian non-canonical lens registry (≠ plugin / ≠ canonical)
+    "obsidian-lens-registry": "obsidian-lens-registry.schema.json",
 }
 
 
