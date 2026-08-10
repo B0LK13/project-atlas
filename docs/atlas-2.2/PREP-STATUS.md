@@ -130,6 +130,16 @@ Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
 | [#243](https://github.com/B0LK13/project-atlas/pull/243) | AS-2.2-ADV-POOL-001 | ADV matrix + fixture invariants |
 | [#244](https://github.com/B0LK13/project-atlas/pull/244) | README-INDEX-013 | Index fixture rollup #242 |
 
+
+### Wave 10 — crosswalk sync (#246)
+
+CROSSWALK tip sync for FIXTURE-ROLLUP + ADV-POOL. Tip 8507cbc / TREE 3e32cff.
+Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
+
+| PR | Package | Note |
+|---|---|---|
+| [#246](https://github.com/B0LK13/project-atlas/pull/246) | AS-2.2-ROADMAP-CROSSWALK-SYNC-001 | Crosswalk tip + integration rows |
+
 ## Landed PREP inventory (tip)
 
 | Short | Package | PR | Maturity (draft) |
