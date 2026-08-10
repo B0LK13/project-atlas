@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-PREP-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "envelope_id": "chatgpt-live-demo-001",
+  "adapter_id": "chatgpt-live-api-bridge",
+  "status": "quarantined",
+  "payload_kind": "text",
+  "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "findings_count": 0,
+  "bypass_quarantine": false,
+  "layer_b_write": false,
+  "llm_authority": false,
+  "authority": {
+    "level": "derived",
+    "note": "Live payload landed in quarantine; never Layer B"
+  },
+  "truth_boundary": "QUARANTINE ENVELOPE ≠ BYPASS / ≠ LAYER B / ≠ AUTHORITY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-CGL-002 — mandatory quarantine envelope sketch"
+}

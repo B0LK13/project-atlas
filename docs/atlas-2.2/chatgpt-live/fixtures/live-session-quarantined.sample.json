@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-CHATGPT-LIVE-PREP-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "session_id": "live-session-demo-001",
+  "request_id": "req.demo.live.opt-in.001",
+  "live_chatgpt_api": true,
+  "llm_authority": false,
+  "canonical_write": false,
+  "bypass_quarantine": false,
+  "chatgpt_bridge_mutated": false,
+  "quarantine": {
+    "envelope_id": "chatgpt-live-demo-001",
+    "status": "quarantined"
+  },
+  "turn_count": 2,
+  "status": "quarantined",
+  "authority": {
+    "level": "derived",
+    "note": "Live session receipt is derived over quarantine; never Layer B authority"
+  },
+  "truth_boundary": "CHATGPT LIVE ≠ BYPASS QUARANTINE / ≠ LAYER B / ≠ AUTHORITY / LLM≠AUTHORITY",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "authentic_estate": false,
+  "atlas_2_1_release_certified": false,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-CGL-003 — quarantine-first live session receipt sketch"
+}
