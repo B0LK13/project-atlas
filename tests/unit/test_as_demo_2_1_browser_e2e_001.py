@@ -27,7 +27,6 @@ def test_browser_e2e_package_docs_present() -> None:
 def test_browser_e2e_honesty_phrases() -> None:
     card = (PKG / "AS-DEMO-2.1-BROWSER-E2E-001.md").read_text(encoding="utf-8")
     inv = (PKG / "INVARIANTS.md").read_text(encoding="utf-8")
-    blob = (card + "\n" + inv).upper()
     assert "BROWSER_E2E_MISSING" in card
     assert "NOT RELEASE CERTIFIED" in card or "ATLAS_2_1_RELEASE_CERTIFIED" in card
     assert "NOT AUTHENTIC PILOT PASS" in card or "PILOT PASS" in card

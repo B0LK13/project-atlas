@@ -1,8 +1,11 @@
 """AS-2.2-KCI-ENGINE-DEEPEN-PREP-001 - docs/contracts/fixtures only."""
 from __future__ import annotations
+
 import json
 from pathlib import Path
+
 import jsonschema
+
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "kci-engine"
 CONTRACTS = PREP / "contracts"
