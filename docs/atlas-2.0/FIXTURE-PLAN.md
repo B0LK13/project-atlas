@@ -15,6 +15,8 @@ See also: [fixtures/README.md](fixtures/README.md) for per-family inventory sket
 | Compat snapshot | `fixtures/atlas-2.0/compat-snapshot/` | 1.0 HEAD/TREE pin consumer sketches | **no** |
 | Sync v2 tombstone | `fixtures/atlas-2.0/sync-v2-tombstone/` | Incremental sync + tombstone scenarios | **no** |
 | MCP read-only surface | `fixtures/atlas-2.0/mcp-readonly-surface/` | Consume-only MCP tool stubs + write-deny matrix | **no** |
+| OpenAI importer | `docs/atlas-2.0/fixtures/openai-importer/` | Parse sample → fixture receipt / PROV quarantine | ops receipt only |
+| Twin projection | `docs/atlas-2.0/fixtures/twin-projection/` | Disposable twin fixtures (≠ TWIN-001 READY) | ops fixture only |
 
 Do not create production-mutating fixture harnesses until 2.0 IMPLEMENTATION READY.
 `ATLAS_2_0_IMPLEMENTATION_READY = NO`.

@@ -18,6 +18,8 @@ Status: **PRODUCTION IMPLEMENTATION AUTHORIZED** after 1.0 anchor verify.
 | AS-2.0-AGENTOS-001 | Agent OS envelope | **PRODUCTION** (thin envelope) |
 | AS-2.0-KCI-001 | Knowledge Compilation Interface | **PRODUCTION** (thin compile contracts) |
 | AS-2.0-TWIN-001 | Digital Twin projections | **BLOCKED** — authentic PILOT |
+| AS-2.0-TWIN-FIXTURE-001 | Disposable twin fixtures | Fixture-safe; ≠ TWIN-001 READY |
+| AS-2.0-OAI-IMPORT-001 | OpenAI importer fixture harness | Fixture-safe; no live API; consumes PROV |
 | AS-2.0-CTX-001 | Context assembly packs | **PRODUCTION** (fixture-safe packs) |
 | AS-2.0-OBS-UX-001 | Obsidian 2.0 non-canonical UX | PREPARED |
 

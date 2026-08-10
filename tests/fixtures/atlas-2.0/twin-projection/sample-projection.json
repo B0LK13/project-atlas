@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.0-TWIN-FIXTURE-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "projection_id": "fixture-alpha",
+  "fixture_class": "disposable",
+  "pilot_status": "fixture-only",
+  "authentic_pilot_roots": 0,
+  "estate_pilot_passed": false,
+  "twin_production_ready": false,
+  "twin_001_status": "BLOCKED",
+  "projects": [
+    {
+      "project_id": "demo-project",
+      "display_name": "Demo Project",
+      "health": "unknown",
+      "evidence_class": "fixture"
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Disposable twin fixture only; AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT"
+  },
+  "truth_boundary": "TWIN FIXTURE ≠ ESTATE PILOT PASSED / ≠ TWIN PRODUCTION READY",
+  "generated": {
+    "by": "project-atlas"
+  }
+}

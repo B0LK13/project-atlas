@@ -94,6 +94,11 @@ from project_atlas.lifecycle_cert import (
 )
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.migrations.claim_v2_migration import migrate_v2
+from project_atlas.openai_importer_fixtures import (
+    OpenAIImportFixtureError,
+    build_openai_import_fixture_receipt,
+    default_sample_path,
+)
 from project_atlas.ops_events import (
     OpsEventError,
     apply_retention,
@@ -129,6 +134,11 @@ from project_atlas.schema_compat import (
     SchemaCompatError,
     migrate_dry_run,
     scan_compat,
+)
+from project_atlas.twin_fixtures import (
+    TwinFixtureError,
+    TwinProjectRow,
+    build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
 from project_atlas.workspace_registry import (
@@ -1081,6 +1091,72 @@ def build_parser() -> argparse.ArgumentParser:
         help="Vault that receives generated/context/<id>-context-pack.json.",
     )
     ctx_build.add_argument("--json", action="store_true")
+
+    # AS-2.0-TWIN-FIXTURE-001 — disposable twin projection fixtures (≠ TWIN-001 READY).
+    twin_fixture_parser = subparsers.add_parser(
+        "twin-fixture",
+        help=(
+            "Build disposable Digital Twin projection fixtures "
+            "(AS-2.0-TWIN-FIXTURE-001; never estate PILOT / TWIN production READY)."
+        ),
+    )
+    twin_fixture_sub = twin_fixture_parser.add_subparsers(
+        dest="twin_fixture_command", required=True
+    )
+    twin_build = twin_fixture_sub.add_parser(
+        "build",
+        help="Write a disposable twin projection fixture under generated/ops/.",
+    )
+    twin_build.add_argument("--vault", type=Path, required=True)
+    twin_build.add_argument("--projection-id", required=True)
+    twin_build.add_argument(
+        "--project",
+        action="append",
+        default=None,
+        dest="projects",
+        help="project_id|display_name[|health] (health defaults to unknown).",
+    )
+    twin_build.add_argument(
+        "--authentic-pilot-roots",
+        type=int,
+        default=0,
+        help="Authentic PILOT root count (0 keeps healthy→unknown demotion).",
+    )
+    twin_build.add_argument("--json", action="store_true")
+
+    # AS-2.0-OAI-IMPORT-001 — OpenAI importer fixture harness (no live API).
+    oai_parser = subparsers.add_parser(
+        "openai-import",
+        help=(
+            "Parse synthetic OpenAI chat-export fixtures into quarantined "
+            "receipts (AS-2.0-OAI-IMPORT-001; no live API)."
+        ),
+    )
+    oai_sub = oai_parser.add_subparsers(dest="openai_import_command", required=True)
+    oai_parse = oai_sub.add_parser(
+        "parse",
+        help="Parse sample-chat-export.md → fixture receipt (+ PROV quarantine).",
+    )
+    oai_parse.add_argument("--vault", type=Path, required=True)
+    oai_parse.add_argument("--receipt-id", required=True)
+    oai_parse.add_argument(
+        "--sample",
+        type=Path,
+        default=None,
+        help="Path to synthetic chat export (defaults to docs fixture).",
+    )
+    oai_parse.add_argument("--adapter-id", default="openai-fixture")
+    oai_parse.add_argument(
+        "--no-quarantine",
+        action="store_true",
+        help="Skip PROV quarantine write (parse-only receipt).",
+    )
+    oai_parse.add_argument(
+        "--disable-adapters",
+        action="store_true",
+        help="Force adapters_enabled=false for PROV quarantine path.",
+    )
+    oai_parse.add_argument("--json", action="store_true")
 
     # AS-SYNC-001-SCAFFOLD — dry-run registry from explicit roots (≠ production SYNC-001).
     sync_parser = subparsers.add_parser(
@@ -2266,6 +2342,86 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown context-pack command: {args.context_pack_command}"
+        )
+
+    if args.command == "twin-fixture":
+        if args.twin_fixture_command == "build":
+            try:
+                twin_rows: list[TwinProjectRow] = []
+                for raw in args.projects or []:
+                    parts = str(raw).split("|")
+                    if len(parts) not in {2, 3}:
+                        raise TwinFixtureError("twin-fixture-project-spec-invalid")
+                    project_id, display_name = parts[0], parts[1]
+                    health = parts[2].strip() if len(parts) == 3 else "unknown"
+                    if health not in {"unknown", "degraded", "healthy"}:
+                        raise TwinFixtureError("twin-fixture-health-invalid")
+                    twin_rows.append(
+                        TwinProjectRow(
+                            project_id=project_id,
+                            display_name=display_name,
+                            health=health,  # type: ignore[arg-type]
+                        )
+                    )
+                report = build_twin_projection_fixture(
+                    args.vault,
+                    projection_id=args.projection_id,
+                    projects=twin_rows,
+                    authentic_pilot_roots=int(args.authentic_pilot_roots),
+                )
+            except (
+                TwinFixtureError,
+                CompatAnchorError,
+                OSError,
+                ValueError,
+                TypeError,
+            ) as exc:
+                _log.error("twin-fixture build failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"projection_id: {report['projection_id']}")
+                print(f"estate_pilot_passed: {report['estate_pilot_passed']}")
+                print(f"twin_production_ready: {report['twin_production_ready']}")
+                print(f"twin_001_status: {report['twin_001_status']}")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown twin-fixture command: {args.twin_fixture_command}"
+        )
+
+    if args.command == "openai-import":
+        if args.openai_import_command == "parse":
+            try:
+                sample = args.sample if args.sample is not None else default_sample_path()
+                report = build_openai_import_fixture_receipt(
+                    args.vault,
+                    receipt_id=args.receipt_id,
+                    sample_path=sample,
+                    adapter_id=args.adapter_id,
+                    quarantine=not bool(args.no_quarantine),
+                    adapters_enabled=not bool(args.disable_adapters),
+                )
+            except (
+                OpenAIImportFixtureError,
+                ProviderError,
+                CompatAnchorError,
+                OSError,
+                ValueError,
+                TypeError,
+            ) as exc:
+                _log.error("openai-import parse failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"receipt_id: {report['receipt_id']}")
+                print(f"status: {report['status']}")
+                print(f"live_api: {report['live_api']}")
+                print(f"turn_count: {report['turn_count']}")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown openai-import command: {args.openai_import_command}"
         )
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
