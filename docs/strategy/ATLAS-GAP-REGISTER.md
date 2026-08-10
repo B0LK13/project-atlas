@@ -28,7 +28,7 @@ Legend:
 | GAP_ID | Gap | Maturity | RELEASE_BLOCKING | Priority | Proposed package | Target release | Evidence |
 |---|---|---|---|---|---|---|---|
 | GAP-2.1-H01 | Mission/Workspace LIVE + polish | LIVE_READ_ONLY | NO | P1 | AS-2.1-WEB-MISSION/WORKSPACE-LIVE | v2.1.x / harden | **DRAINED** #153/#155 |
-| GAP-2.1-H02 | Ops receipt adapter | LIVE_READ_ONLY / honest empty | NO | P1 | AS-2.1-OBS-RECEIPTS-001 | v2.1.x | **DRAINED** #155 `/v1/ops/receipts` |
+| GAP-2.1-H02 | Ops receipt adapter | LIVE_READ_ONLY / honest UNKNOWN | NO | P1 | AS-2.1-OPS-RECEIPT-ADAPTER | v2.1.x | #155 + Track A harden; UNKNOWN≠HEALTHY |
 | GAP-2.1-H03 | L3 policy→dispatch loop + ADV | BOUNDED + ADV | NO | P1 | AS-2.1-AUTONOMY-L3-LOOP-001 | v2.1.x | **DRAINED** #153/#155 |
 | GAP-2.1-H04 | OAI import size/format ADV | BOUNDED | NO | P1 | AS-2.1-OAI-IMPORT-ADV-001 | v2.1.x | **DRAINED** #153 size cap |
 | GAP-2.1-H05 | Host/CORS ADV matrix deepen | BOUNDED/ADV | NO | P1 | AS-2.1-ADV-HOST-CORS-001 | v2.1.x | **DRAINED** #154 |

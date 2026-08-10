@@ -20,7 +20,7 @@ Tip baseline: `4f3ade9` / TREE `80a4ba55` (post #155). Classes per `CHARTER.md`.
 | AS-2.1-PROV-LIVE-001 | BOUNDED | `provider_live.py` | MERGED #150 |
 | AS-2.1-ASK-ATLAS-LIVE-001 | LIVE_READ_ONLY | `ask_atlas_live.py` | MERGED #149 |
 | AS-2.1-OBS-LIVE-001 | LIVE_READ_ONLY | `obs_live.py` + `/v1/obs` | MERGED |
-| AS-2.1-OPS-RECEIPTS-001 | LIVE_READ_ONLY / honest empty | `ops_receipts.py` + `/v1/ops/receipts` | MERGED #155 |
+| AS-2.1-OPS-RECEIPT-ADAPTER | LIVE_READ_ONLY / honest UNKNOWN | `ops_receipts.py` + `/v1/ops/receipts` | #155 + Track A harden |
 | AS-2.1-PERF-BASELINE-001 | CONTRACT / local | `perf_baselines.py` | MERGED #151 |
 | AS-2.1-ADV-LIVE-001 | FIXTURE/ADV | ADV suite + unit tests | Continuing pre-RC |
 | Web Graph/Mission/Workspace | LIVE_READ_ONLY (bounded) | production pages + hooks | H01 drained |
