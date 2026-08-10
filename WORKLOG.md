@@ -5134,3 +5134,21 @@ Disposable twin projection fixtures + OpenAI importer fixture harness (parse sam
 - pytest `test_as_2_1_api_adv_deepen_001` PASS (22)
 - ruff + mypy on touched surfaces PASS
 - `ATLAS_2_1_RELEASE_CERTIFIED = NO`
+
+## AS-DEMO-2.1-001 TECHNICAL_PREVIEW (scaffold / D01)
+
+**Date:** 2026-08-10
+**Branch:** feat/as-demo-2.1-001
+**Directive:** D-PROJECT-ATLAS-HARVEST-DEMO-POC-001
+**Evidence:** D:\project-atlas-orphans\atlas-2.1-productionization-001\AS-DEMO-2.1-001-TECHNICAL-PREVIEW-SCAFFOLD.md
+
+### Scope
+- Scaffold docs/demo core charter docs (README, QUICKSTART, DEMO-SCRIPT, ARCHITECTURE, LIMITATIONS)
+- DEMO_FIXTURE corpus at tests/fixtures/demo/estate/ (harbor-api / portal / ops)
+- Windows-first scripts/demo.ps1 (-InitVault / -SmokeApi)
+- Banner: DEMO / NOT AUTHENTIC PILOT / NOT RELEASE EVIDENCE
+
+### Explicit non-claims
+- ATLAS_2_1_RELEASE_CERTIFIED: NO
+- Authentic estate PILOT: NO / NOT AUTHENTIC PILOT PASS
+- No invented .atlas-project.yaml outside committed fixtures

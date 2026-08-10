@@ -1,0 +1,5 @@
+schema_version: 1
+project:
+  id: harbor-ops
+  name: Harbor Ops
+project_uuid: 3a75b156-c1c7-47f3-b8b3-589dee9d1ffc
