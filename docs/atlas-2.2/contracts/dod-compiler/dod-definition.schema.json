@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/dod-definition.schema.json",
+  "title": "dod-definition (PREP STUB — not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "dod_id", "goal_id", "criterion_ids"],
+  "properties": {
+    "schema": { "const": "atlas.dod.definition.v0" },
+    "dod_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "goal_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "title": { "type": "string" },
+    "criterion_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 3 },
+      "uniqueItems": true
+    },
+    "consume_only": { "const": true },
+    "authority_promoted": { "const": false }
+  }
+}

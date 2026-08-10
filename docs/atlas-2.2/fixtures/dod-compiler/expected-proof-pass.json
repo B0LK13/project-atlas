@@ -1,0 +1,29 @@
+{
+  "schema": "atlas.dod.proof_receipt.v0",
+  "proof_id": "proof.demo.unit-gate.pass",
+  "goal_id": "goal.demo.unit-gate",
+  "dod_id": "dod.demo.unit-gate",
+  "status": "PASS",
+  "criterion_results": [
+    {
+      "criterion_id": "crit.demo.ruff-clean",
+      "status": "PASS",
+      "binding_ids": ["bind.demo.ruff"],
+      "evidence_ids": ["ev.demo.ruff-fixture"],
+      "reason_codes": ["ok"]
+    },
+    {
+      "criterion_id": "crit.demo.schema-stub-present",
+      "status": "PASS",
+      "binding_ids": ["bind.demo.stub-path"],
+      "evidence_ids": ["ev.demo.stub-path"],
+      "reason_codes": ["ok"]
+    }
+  ],
+  "consume_only": true,
+  "authority_promoted": false,
+  "generated": {
+    "by": "atlas-dod-compiler-prep-fixture",
+    "package": "AS-2.2-DOD-COMPILER-001"
+  }
+}
