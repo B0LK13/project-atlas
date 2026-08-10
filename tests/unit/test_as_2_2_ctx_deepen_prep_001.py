@@ -31,6 +31,9 @@ def test_ctx_deepen_docs_present() -> None:
         assert path.is_file(), name
         text = path.read_text(encoding="utf-8")
         assert "PREP" in text.upper()
+    package = (PREP / "AS-2.2-CTX-DEEPEN-PREP-001.md").read_text(encoding="utf-8")
+    invariants = (PREP / "INVARIANTS.md").read_text(encoding="utf-8")
+    for text in (package, invariants):
         assert "ATLAS_2_1_RELEASE_CERTIFIED" in text or "RELEASE" in text.upper()
 
 
