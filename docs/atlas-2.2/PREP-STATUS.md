@@ -4,7 +4,7 @@
 |---|---|
 | Package | **AS-2.2-PREP-STATUS-001** |
 | Class | **PREP ONLY** — status / inventory snapshot (docs-only) |
-| Tip audited | `49910083b7b217fa9b5f03b5601876e8b2e5a6b2` / TREE `7ee5dff6314e6916ae6f860cf998d3a12efd1085` (INDEX-009) |
+| Tip audited | `7c2100dcda8a7c516f360b025da538eed085a971` / TREE `431b5078d2c4cb83d52c11447e06fddecafb2e26` (INDEX-010) |
 | Integration index | [`README.md`](README.md) (package rows + entry links) |
 | Charter | [`CHARTER.md`](CHARTER.md) |
 | Maturity draft | [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md) |
@@ -108,6 +108,7 @@ RET-HYBRID (#220), and KCI-engine (#221) deepen packages. Demo VERIFIED remains
 | **DOC-CHARTER** | `AS-2.2-DOC-CHARTER-PREP-001` | [#199](https://github.com/B0LK13/project-atlas/pull/199) | FIXTURE_ONLY |
 | **MEM-DEEPEN** | `AS-2.2-MEM-GOV-DEEPEN-PREP-001` | [#208](https://github.com/B0LK13/project-atlas/pull/208) | FIXTURE_ONLY |
 | **RESEARCH-DEEPEN** | `AS-2.2-RESEARCH-DEEPEN-PREP-001` | [#209](https://github.com/B0LK13/project-atlas/pull/209) | FIXTURE_ONLY |
+| **XPROJ-DEEPEN** | `AS-2.2-XPROJ-DEEPEN-PREP-001` | [#233](https://github.com/B0LK13/project-atlas/pull/233) | FIXTURE_ONLY |
 | **INTEL-DEEPEN** | `AS-2.2-INTEL-SLICE-DEEPEN-PREP-001` | [#229](https://github.com/B0LK13/project-atlas/pull/229) | FIXTURE_ONLY |
 | **TEMPORAL-DEEPEN** | `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001` | [#228](https://github.com/B0LK13/project-atlas/pull/228) | FIXTURE_ONLY |
 | **ESTATE-OPS-DEEPEN** | `AS-2.2-ESTATE-OPS-DEEPEN-PREP-001` | [#227](https://github.com/B0LK13/project-atlas/pull/227) | FIXTURE_ONLY |
