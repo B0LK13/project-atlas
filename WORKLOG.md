@@ -5106,3 +5106,11 @@ Thin session envelope bound to 1.0 compat anchor.
 Bitemporal claim validity windows (deepens AS-CORE-005, fail-closed) plus
 reality-gap fixture inventory/schema from docs/atlas-2.0/REALITY-GAP.md.
 Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
+
+## AS-2.0-TWIN-FIXTURE-001 + AS-2.0-OAI-IMPORT-001
+
+**Date:** 2026-08-10
+**Branch:** feat/as-2.0-twin-oai-fixtures
+**Directive:** D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001
+
+Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.

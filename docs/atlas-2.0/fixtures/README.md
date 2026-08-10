@@ -22,6 +22,8 @@ full inventory table.
 | `sync-v2-tombstone/` | AS-2.0-SYNC-001 | Tombstone + incremental sync scenarios |
 | `mcp-readonly-surface/` | AS-2.0-PROV-001 | MCP consume-only tools; write-deny matrix |
 | `reality-gap/` | AS-2.0-REALITY-GAP-001 | Fixture inventory for REALITY-GAP.md scenarios |
+| `openai-importer/` | AS-2.0-OAI-IMPORT-001 | Synthetic chat export → fixture receipt (no live API) |
+| `twin-projection/` | AS-2.0-TWIN-FIXTURE-001 | Disposable twin fixtures; **≠** TWIN-001 READY / PILOT PASS |
 
 ## Inventory depth (deepen-f)
 
@@ -52,6 +54,8 @@ pilot pass. Current state for every family is **reserved/sketched only**.
 | compat-snapshot | FX-2.0-COMPAT-001 | sketched | sketched | absent | absent | none / **NO** |
 | sync-v2-tombstone | FX-2.0-SYNC-001/002 | sketched | sketched | absent | absent | none / **NO** |
 | estate-evidence-class | FX-2.0-ESTATE-001 | sketched | sketched | absent | absent | none / **NO** |
+| openai-importer | FX-2.0-OAI-001 | harness parse+quarantine | secret reject | present | `atlas openai-import parse` | fixture-only / **NO PILOT** |
+| twin-projection | FX-2.0-TWIN-FIX-001 | disposable unknown health | healthy demoted when roots=0 | present | `atlas twin-fixture build` | fixture-only / **TWIN-001 BLOCKED** |
 
 A row is not coverage until reviewed payloads and a deterministic runner exist.
 Even future fixture success cannot substitute for WEB acceptance, authentic
@@ -82,5 +86,10 @@ estate pilot evidence, a certified 1.0 snapshot, or governor authorization.
 - Z-wave lanes: [Z-WAVE-INDEX.md](../Z-WAVE-INDEX.md)
 - Prototype markers: [PROTOTYPE-MARKERS.md](../PROTOTYPE-MARKERS.md)
 
-| `openai-importer/` | AS-2.0-PROV-001 | Synthetic chat export; secrets-scan before any future ingest |
+## Fixture harness packages (2026-08-10)
+
+| Package | Surface | Production claim |
+|---|---|---|
+| AS-2.0-OAI-IMPORT-001 | `openai-importer/` parse → receipt + PROV quarantine consume | **none** (no live API) |
+| AS-2.0-TWIN-FIXTURE-001 | `twin-projection/` disposable projection | **none** — authentic AS-2.0-TWIN-001 stays **BLOCKED** |
 
