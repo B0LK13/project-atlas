@@ -7,10 +7,11 @@ import { useReadStatus } from "../../hooks/useReadStatus";
  * UI ≠ canonical · Graph ≠ authority · Unknown ≠ healthy.
  */
 export default function OpsHealthPage() {
-  const { status, error, loading } = useReadStatus();
+  const { status, error, loading, dataSource } = useReadStatus();
   const health = status?.health;
   const available = health?.available === true;
   const rollup = available ? health?.rollup ?? "unknown" : "unknown";
+  const isDemo = dataSource === "demo_stub" || status?.demo_isolated === true;
 
   return (
     <ProdShell>
@@ -29,11 +30,17 @@ export default function OpsHealthPage() {
             <span className="chip">ui_canonical=false</span>
             <span className="chip">graph_authority=false</span>
             <span className="chip">unknown≠healthy</span>
+            <span className="chip">data_source={dataSource ?? "unknown"}</span>
           </p>
         </header>
 
         {error ? <p className="banner warn">Health read failed: {error}</p> : null}
         {loading ? <p className="banner">Loading…</p> : null}
+        {isDemo ? (
+          <p className="banner warn">DEMO STUB — isolated sample data · not live vault</p>
+        ) : dataSource === "live_api" ? (
+          <p className="banner">LIVE_API — read-only vault projection</p>
+        ) : null}
 
         <section className="panel" aria-label="Health rollup">
           <h2>Rollup</h2>
@@ -43,7 +50,7 @@ export default function OpsHealthPage() {
             <span className="chip">read_plane={status?.read_plane ?? "unknown"}</span>
           </p>
           {!available ? (
-            <p className="banner warn">unknown — OBS / sample health unavailable</p>
+            <p className="banner warn">unknown — OBS / health unavailable</p>
           ) : (
             <p>
               Operational rollup <strong>{rollup}</strong> (ops plane only — not
@@ -53,6 +60,7 @@ export default function OpsHealthPage() {
           <p className="disclaimer">
             Unknown ≠ healthy · UI ≠ canonical · operational rollup ≠ project
             authority
+            {isDemo ? " · demo isolated" : ""}
           </p>
         </section>
 
