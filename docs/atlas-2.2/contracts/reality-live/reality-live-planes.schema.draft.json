@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/drafts/reality-live-planes.schema.draft.json",
+  "title": "Reality Live Planes (DRAFT)",
+  "description": "AS-2.2-REALITY-LIVE-001 PREP draft — four evidence planes. Not production schema until unlock.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "phase",
+    "evidence_class",
+    "pilot_roots",
+    "authentic_estate_pilot_passed",
+    "invent_pilot_roots",
+    "truth_boundary",
+    "planes",
+    "plane_count",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-REALITY-LIVE-001" },
+    "phase": { "enum": ["prep", "implementation"] },
+    "evidence_class": { "const": "fixture-only" },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate_pilot_passed": { "type": "boolean" },
+    "invent_pilot_roots": { "const": false },
+    "truth_boundary": {
+      "const": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B"
+    },
+    "planes": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plane_id",
+          "title",
+          "question",
+          "authority_class",
+          "can_certify_live_production_alone"
+        ],
+        "properties": {
+          "plane_id": {
+            "enum": [
+              "conversational",
+              "documentary",
+              "implementation",
+              "operational"
+            ]
+          },
+          "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "question": { "type": "string", "minLength": 1, "maxLength": 240 },
+          "authority_class": {
+            "enum": ["quarantine", "claim", "derived"]
+          },
+          "can_certify_live_production_alone": { "const": false }
+        }
+      }
+    },
+    "plane_count": { "const": 4 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

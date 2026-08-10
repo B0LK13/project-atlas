@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/drafts/reality-live-gap-report.schema.draft.json",
+  "title": "Reality Live Gap Report (DRAFT)",
+  "description": "AS-2.2-REALITY-LIVE-001 PREP draft aggregated report. Not production schema until unlock.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "phase",
+    "evidence_class",
+    "pilot_roots",
+    "authentic_estate_pilot_passed",
+    "invent_pilot_roots",
+    "mode",
+    "truth_boundary",
+    "authority",
+    "plane_reports",
+    "gaps",
+    "gap_count",
+    "plane_report_count",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-REALITY-LIVE-001" },
+    "phase": { "enum": ["prep", "implementation"] },
+    "evidence_class": {
+      "enum": ["fixture-only", "live-read-only"]
+    },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate_pilot_passed": { "type": "boolean" },
+    "invent_pilot_roots": { "const": false },
+    "mode": { "enum": ["fixture", "live-read-only"] },
+    "truth_boundary": {
+      "const": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 240 }
+      }
+    },
+    "plane_reports": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plane_id",
+          "evidence_class",
+          "authentic_estate",
+          "invent_pilot_roots",
+          "observations",
+          "maturity_signals",
+          "findings"
+        ],
+        "properties": {
+          "plane_id": {
+            "enum": [
+              "conversational",
+              "documentary",
+              "implementation",
+              "operational"
+            ]
+          },
+          "evidence_class": {
+            "enum": ["fixture-only", "live-read-only"]
+          },
+          "authentic_estate": { "type": "boolean" },
+          "invent_pilot_roots": { "const": false },
+          "observations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["observation_id", "source_ref", "signal"],
+              "properties": {
+                "observation_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                },
+                "source_ref": { "type": "string", "minLength": 1, "maxLength": 320 },
+                "content_hash": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "signal": { "type": "string", "minLength": 1, "maxLength": 80 },
+                "notes": { "type": "string", "maxLength": 240 }
+              }
+            }
+          },
+          "maturity_signals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "surface",
+                "observed_class",
+                "support_level",
+                "anchors"
+              ],
+              "properties": {
+                "surface": { "type": "string", "minLength": 1, "maxLength": 80 },
+                "observed_class": { "type": "string", "minLength": 1, "maxLength": 40 },
+                "support_level": {
+                  "enum": ["none", "weak", "strong"]
+                },
+                "anchors": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["finding_id", "gap_kind", "severity", "summary"],
+              "properties": {
+                "finding_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                },
+                "gap_kind": {
+                  "enum": [
+                    "claim-without-evidence",
+                    "evidence-without-claim",
+                    "maturity-overclaim",
+                    "plane-conflict",
+                    "authority-leak",
+                    "pilot-invent"
+                  ]
+                },
+                "severity": {
+                  "enum": ["info", "low", "medium", "high", "critical"]
+                },
+                "summary": { "type": "string", "minLength": 1, "maxLength": 320 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gap_id",
+          "gap_kind",
+          "surface",
+          "planes",
+          "claimed_class",
+          "observed_class",
+          "summary",
+          "blocking_release"
+        ],
+        "properties": {
+          "gap_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "gap_kind": {
+            "enum": [
+              "claim-without-evidence",
+              "evidence-without-claim",
+              "maturity-overclaim",
+              "plane-conflict",
+              "authority-leak",
+              "pilot-invent"
+            ]
+          },
+          "surface": { "type": "string", "minLength": 1, "maxLength": 80 },
+          "planes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "conversational",
+                "documentary",
+                "implementation",
+                "operational"
+              ]
+            }
+          },
+          "claimed_class": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "observed_class": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "summary": { "type": "string", "minLength": 1, "maxLength": 320 },
+          "blocking_release": { "type": "boolean" }
+        }
+      }
+    },
+    "gap_count": { "type": "integer", "minimum": 0 },
+    "plane_report_count": { "type": "integer", "minimum": 1 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
