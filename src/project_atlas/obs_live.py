@@ -48,6 +48,7 @@ def build_live_observability_receipt(
         "authz_audit": (ops / "authz").exists(),
         "pilot_prep": (ops / "pilot").exists(),
         "perf_baselines": (ops / "perf").exists(),
+        "ops_receipts": True,
     }
     payload: dict[str, Any] = {
         "schema_version": 1,

@@ -21,6 +21,7 @@ from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.obs_live import build_live_observability_receipt
+from project_atlas.ops_receipts import inventory_ops_receipts
 from project_atlas.web_actions import (
     WebActionError,
     list_recent_actions,
@@ -150,6 +151,20 @@ def make_handler(
                     return
                 self._send(200, list_recent_actions(service.vault, limit=limit))
                 return
+            if path == "/v1/ops/receipts":
+                try:
+                    limit = _parse_limit(qs, default=100)
+                except ApiServerError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                    return
+                try:
+                    self._send(
+                        200,
+                        inventory_ops_receipts(service.vault, limit=limit),
+                    )
+                except ValueError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             routes: dict[str, Any] = {
                 "/health": lambda: service.health(),
                 "/v1/health": lambda: service.health(),
@@ -177,6 +192,7 @@ def make_handler(
                     "live_api": True,
                     "ask_atlas_live": True,
                     "obs_live": True,
+                    "ops_receipts": True,
                     "mission_live": True,
                     "workspace_live": True,
                     "authz_profile": True,
