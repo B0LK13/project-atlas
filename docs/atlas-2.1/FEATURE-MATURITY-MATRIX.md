@@ -9,6 +9,7 @@ Tip baseline: `4f3ade9` / TREE `80a4ba55` (post #155). Classes per `CHARTER.md`.
 | AS-2.1-API-SERVER-001 | LIVE_PRODUCTION (local bind) | `api_server.py` Host/obs/authz/limits | MERGED #153/#154 |
 | AS-2.1-WEB-LIVE-001 | LIVE_READ_ONLY + isolated demo | hooks + Mission/Workspace/Ops | MERGED #153/#155 |
 | AS-2.1-MCP-SERVER-001 | LIVE_READ_ONLY | `mcp_server.py` + projects.list | MERGED #151 |
+| AS-2.1-MCP-ADV-001 | FIXTURE/ADV | `test_as_2_1_mcp_adv_001.py` + request guards | OPEN |
 | AS-2.1-OAI-IMPORT-REAL-001 | BOUNDED + size cap | `openai_import_real.py` | MERGED #153 |
 | AS-2.1-OAI-RESPONSES-POC-001 | EXPERIMENTAL | `openai_responses_poc.py` | Non-release-blocking |
 | AS-2.1-SCHED-LIVE-001 | BOUNDED + timeouts | `scheduler_live.py` | MERGED #149 |

@@ -2,14 +2,18 @@
 
 Exposes allow-listed read tools over stdio JSON lines. No vault writes.
 Requires authz mcp.read. Does not load remote MCP SDKs.
+
+AS-2.1-MCP-ADV-001 hardens request parsing: unknown tools, write escalation,
+path traversal, and malformed args fail closed. MCP stays READ ONLY.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from project_atlas.app_service import AppService, open_app_service
 from project_atlas.authz import OperatorProfile, default_operator
@@ -17,7 +21,32 @@ from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
+ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
+
+# Allow-listed request keys for JSON-line invoke (no path/write/args surface).
+_ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool"})
+_FORBIDDEN_REQUEST_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "path",
+        "paths",
+        "file",
+        "files",
+        "vault",
+        "write",
+        "content",
+        "payload",
+        "args",
+        "arguments",
+        "params",
+        "parameters",
+        "cwd",
+        "target",
+        "destination",
+        "output",
+    }
+)
+_TOOL_ID_SAFE_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9.-]{0,127}$")
 
 
 class McpServerError(ValueError):
@@ -28,6 +57,30 @@ def _enabled_read_tools() -> frozenset[str]:
     return frozenset(
         t.tool_id for t in DEFAULT_TOOLS if t.enabled and t.tool_class == "vault-read"
     )
+
+
+def _assert_safe_tool_id(tool_id: str) -> str:
+    """Reject path traversal / malformed tool identifiers before dispatch."""
+    tid = tool_id.strip()
+    if not tid:
+        raise McpServerError("mcp-tool-missing")
+    if "\x00" in tid:
+        raise McpServerError("mcp-tool-id-nul")
+    lowered = tid.lower()
+    if (
+        ".." in tid
+        or "/" in tid
+        or "\\" in tid
+        or ":" in tid
+        or tid.startswith(".")
+        or "%2e" in lowered
+        or "%2f" in lowered
+        or "%5c" in lowered
+    ):
+        raise McpServerError(f"mcp-tool-path-traversal:{tid}")
+    if not _TOOL_ID_SAFE_RE.fullmatch(tid):
+        raise McpServerError(f"mcp-tool-id-malformed:{tid}")
+    return tid
 
 
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
@@ -74,18 +127,19 @@ def invoke_mcp_tool(
     require_compatibility_anchor()
     op = operator or default_operator()
     op.require("mcp.read")
-    if tool_id not in _enabled_read_tools():
-        raise McpServerError(f"mcp-tool-denied:{tool_id}")
+    tid = _assert_safe_tool_id(tool_id)
+    if tid not in _enabled_read_tools():
+        raise McpServerError(f"mcp-tool-denied:{tid}")
     service = open_app_service(vault)
     dispatch = build_tool_dispatch(service)
-    if tool_id not in dispatch:
-        raise McpServerError(f"mcp-tool-unbound:{tool_id}")
-    result = dispatch[tool_id]()
+    if tid not in dispatch:
+        raise McpServerError(f"mcp-tool-unbound:{tid}")
+    result = dispatch[tid]()
     return {
         "schema_version": 1,
         "package_id": PACKAGE_ID,
         "truth_boundary": TRUTH_BOUNDARY,
-        "tool_id": tool_id,
+        "tool_id": tid,
         "live_mcp_read": True,
         "result": result,
         "generated": {"by": "project-atlas"},
@@ -98,13 +152,24 @@ def handle_mcp_request_line(
     *,
     operator: OperatorProfile | None = None,
 ) -> str:
-    """Handle one JSON-line request: {\"tool\": \"...\"} -> JSON response."""
+    """Handle one JSON-line request: {\"tool\": \"...\"} -> JSON response.
+
+    Rejects malformed JSON, non-objects, missing/empty tool, forbidden
+    write/path/args keys, and unknown extra keys (AS-2.1-MCP-ADV-001).
+    """
     try:
         payload = json.loads(line)
     except json.JSONDecodeError as exc:
         raise McpServerError(f"mcp-json-invalid:{exc}") from exc
     if not isinstance(payload, dict):
         raise McpServerError("mcp-request-not-object")
+    keys = set(payload.keys())
+    forbidden = sorted(keys & _FORBIDDEN_REQUEST_KEYS)
+    if forbidden:
+        raise McpServerError(f"mcp-request-forbidden-key:{forbidden[0]}")
+    unexpected = sorted(keys - _ALLOWED_REQUEST_KEYS)
+    if unexpected:
+        raise McpServerError(f"mcp-request-unexpected-key:{unexpected[0]}")
     tool = payload.get("tool")
     if not isinstance(tool, str) or not tool.strip():
         raise McpServerError("mcp-tool-missing")

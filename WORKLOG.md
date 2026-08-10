@@ -5115,25 +5115,18 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.1-OBS-PERF-001 — Observability / performance deepen (Track A)
+## AS-2.1-MCP-ADV-001 — MCP READ ONLY adversarial suite
 
 **Date:** 2026-08-10
-**Branch:** feat/as-2.1-obs-perf
-**Base tip:** f45134f / TREE 02eeb7392a7cfcbf78a8c28a2034cf0b54ac509e
-**Directive evidence:** atlas-2.1-productionization-001
+**Branch:** feat/as-2.1-mcp-adv
+**Directive:** D-PROJECT-ATLAS-2.1-PRODUCTIONIZATION-001 (ADV sole-writer)
 
-Deepened operational lane visibility and fixture-scale perf baselines for
-API / MCP / query / sync without shared schema mutation.
+### Scope
+- Fail-closed MCP request guards (path traversal, forbidden/unexpected keys, malformed tool ids)
+- Unit ADV matrix: unknown tools, escalation with vault.write, write-via-read zero vault mutation, path traversal, malformed args, deterministic replay
+- Docs: ADV-LIVE-SUITE ADV-2.1-23 + board/threat/matrix pointers
+- MCP remains READ ONLY (T-2.1-03); no PILOT/SYNC/TWIN unlock
 
-**Owned:**
-- src/project_atlas/obs_live.py (lanes)
-- src/project_atlas/perf_baselines.py (lane timings)
-- src/project_atlas/obs_perf.py (combined receipt)
-- docs/atlas-2.1/OBS-PERF.md
-- tests/unit/test_as_2_1_obs_perf_001.py
-
-**Non-owned:** schema.py / shared schemas, api_server.py, authz.py,
-ops_receipts.py, autonomy_l3.py, Web Mission/Workspace.
-
-**Gates:** focused pytest PASS; ruff/mypy on owned modules PASS.
-
+### Gates
+- pytest tests/unit/test_as_2_1_mcp_adv_001.py (+ MCP regression smoke) PASS
+- ruff/mypy on touched MCP surface PASS
