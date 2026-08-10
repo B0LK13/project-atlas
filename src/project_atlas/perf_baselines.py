@@ -15,6 +15,7 @@ from typing import Any
 
 from project_atlas.app_service import open_app_service
 from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_anchor
+from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.pilot_auth_prep import scan_known_pilot_roots
 
 PACKAGE_ID = "AS-2.1-PERF-BASELINE-001"
@@ -77,6 +78,11 @@ def run_perf_baselines(
         )
         pilot_ms.append(ms)
 
+    mcp_ms: list[int] = []
+    for _ in range(iterations):
+        _, ms = _time_ms(list_mcp_tools)
+        mcp_ms.append(ms)
+
     payload: dict[str, Any] = {
         "schema_version": 1,
         "package_id": PACKAGE_ID,
@@ -93,6 +99,11 @@ def run_perf_baselines(
                 "samples": pilot_ms,
                 "max_ms": max(pilot_ms),
                 "min_ms": min(pilot_ms),
+            },
+            "mcp_list_tools_ms": {
+                "samples": mcp_ms,
+                "max_ms": max(mcp_ms),
+                "min_ms": min(mcp_ms),
             },
         },
         "release_blocking": False,

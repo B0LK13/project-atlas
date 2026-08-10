@@ -59,6 +59,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; explain receipts",
     ),
     McpTool(
+        "atlas.projects.list.read",
+        "vault-read",
+        True,
+        "allow-list candidate; project inventory read",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

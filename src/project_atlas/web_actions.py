@@ -18,6 +18,7 @@ from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_ancho
 PACKAGE_ID = "AS-2.1-WEB-ACTIONS-001"
 TRUTH_BOUNDARY = "WEB ACTION TXN != CANONICAL WRITE / UI!=TRUTH / != AUTHORITY"
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+MAX_LEDGER_TRANSACTIONS = 500
 ActionType = Literal[
     "ask-query",
     "refresh-status",
@@ -108,11 +109,37 @@ def submit_web_action(
     txns = list(ledger.get("transactions") or [])
     if any(t.get("action_id") == aid for t in txns):
         raise WebActionError("web-action-id-duplicate")
+    if len(txns) >= MAX_LEDGER_TRANSACTIONS:
+        raise WebActionError("web-action-ledger-full")
     txns.append(txn)
     ledger["transactions"] = txns
     ledger["ledger_hash"] = hashlib.sha256(
         json.dumps(txns, sort_keys=True).encode("utf-8")
     ).hexdigest()
     ledger["web_actions_live"] = True
+    ledger["max_transactions"] = MAX_LEDGER_TRANSACTIONS
     _atomic_write_json(_ledger_path(vault), ledger)
     return txn
+
+
+def list_recent_actions(
+    vault: Path,
+    *,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Return the most recent reconstructable actions (read-only)."""
+    if limit < 1 or limit > 200:
+        raise WebActionError("web-action-limit-out-of-range")
+    ledger = load_action_ledger(vault)
+    txns = list(ledger.get("transactions") or [])
+    recent = txns[-limit:]
+    return {
+        "schema_version": 1,
+        "package_id": PACKAGE_ID,
+        "limit": limit,
+        "count": len(recent),
+        "transactions": recent,
+        "truth_boundary": TRUTH_BOUNDARY,
+        "authority": False,
+        "generated": {"by": "project-atlas"},
+    }
