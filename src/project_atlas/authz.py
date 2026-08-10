@@ -20,6 +20,10 @@ Capability = Literal[
     "pilot.scan",
     "autonomy.l3",
     "vault.write",
+    "chatgpt.bridge",
+    "collab.session",
+    "web.action",
+    "provider.live",
 ]
 
 ALL_CAPABILITIES: Final[frozenset[Capability]] = frozenset(
@@ -33,10 +37,15 @@ ALL_CAPABILITIES: Final[frozenset[Capability]] = frozenset(
         "pilot.scan",
         "autonomy.l3",
         "vault.write",
+        "chatgpt.bridge",
+        "collab.session",
+        "web.action",
+        "provider.live",
     }
 )
 
-# Default local operator: read surfaces + import/pilot scan; no write/L3/dispatch.
+# Default local operator: read surfaces + import/pilot/collab/chatgpt;
+# no write/L3/dispatch/provider.live/web.action.
 DEFAULT_OPERATOR_CAPS: Final[frozenset[Capability]] = frozenset(
     {
         "api.read",
@@ -45,6 +54,8 @@ DEFAULT_OPERATOR_CAPS: Final[frozenset[Capability]] = frozenset(
         "oai.import",
         "pilot.scan",
         "scheduler.arm",
+        "chatgpt.bridge",
+        "collab.session",
     }
 )
 

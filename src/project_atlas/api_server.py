@@ -1,7 +1,8 @@
-"""AS-2.1-API-SERVER-001 - stdlib LIVE_API read server.
+"""AS-2.1-API-SERVER-001 - stdlib LIVE_API read server (+ bounded actions).
 
 Serves AppService JSON over HTTP. Default bind 127.0.0.1 only.
-Write routes are rejected. Requires authz api.read.
+GET is read-only. POST /v1/actions records reconstructable web actions only
+(never Layer B). Requires authz api.read / web.action as applicable.
 """
 
 from __future__ import annotations
@@ -10,14 +11,18 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from project_atlas.app_service import AppService, open_app_service
+from project_atlas.ask_atlas_live import AskAtlasLiveError, ask_atlas_live
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.web_actions import WebActionError, submit_web_action
 
 PACKAGE_ID = "AS-2.1-API-SERVER-001"
-TRUTH_BOUNDARY = "LIVE_API READ-ONLY != AUTHORITY / != WRITE BRIDGE"
+TRUTH_BOUNDARY = (
+    "LIVE_API READ + BOUNDED ACTIONS != AUTHORITY / != LAYER-B WRITE"
+)
 
 
 class ApiServerError(ValueError):
@@ -54,7 +59,19 @@ def make_handler(
             except PermissionError as exc:
                 self._send(403, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
-            path = urlparse(self.path).path.rstrip("/") or "/"
+            parsed = urlparse(self.path)
+            path = parsed.path.rstrip("/") or "/"
+            qs = parse_qs(parsed.query)
+            if path == "/v1/ask":
+                query = (qs.get("q") or qs.get("query") or [""])[0]
+                try:
+                    self._send(
+                        200,
+                        ask_atlas_live(service.vault, query=query, operator=operator),
+                    )
+                except (AskAtlasLiveError, PermissionError, ValueError) as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             routes: dict[str, Any] = {
                 "/health": lambda: service.health(),
                 "/v1/health": lambda: service.health(),
@@ -66,7 +83,9 @@ def make_handler(
                     "package_id": PACKAGE_ID,
                     "truth_boundary": TRUTH_BOUNDARY,
                     "write_enabled": False,
+                    "actions_enabled": True,
                     "live_api": True,
+                    "ask_atlas_live": True,
                     "operator_id": operator.operator_id,
                 },
             }
@@ -76,20 +95,48 @@ def make_handler(
             self._send(200, routes[path]())
 
         def do_POST(self) -> None:
-            self._send(
-                405,
-                {
-                    "error": "writes-forbidden",
-                    "package_id": PACKAGE_ID,
-                    "truth_boundary": TRUTH_BOUNDARY,
-                },
-            )
+            parsed = urlparse(self.path)
+            path = parsed.path.rstrip("/") or "/"
+            if path != "/v1/actions":
+                self._send(
+                    405,
+                    {
+                        "error": "writes-forbidden",
+                        "package_id": PACKAGE_ID,
+                        "truth_boundary": TRUTH_BOUNDARY,
+                    },
+                )
+                return
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                self._send(400, {"error": f"json-invalid:{exc}"})
+                return
+            if not isinstance(body, dict):
+                self._send(400, {"error": "body-not-object"})
+                return
+            try:
+                txn = submit_web_action(
+                    service.vault,
+                    action_id=str(body.get("action_id", "")),
+                    action_type=body.get("action_type"),  # type: ignore[arg-type]
+                    payload=body.get("payload")
+                    if isinstance(body.get("payload"), dict)
+                    else {},
+                    operator=operator,
+                )
+            except (WebActionError, PermissionError, TypeError, ValueError) as exc:
+                self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            self._send(200, {"accepted": True, "transaction": txn})
 
         def do_PUT(self) -> None:
-            self.do_POST()
+            self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
 
         def do_DELETE(self) -> None:
-            self.do_POST()
+            self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
 
     return Handler
 
