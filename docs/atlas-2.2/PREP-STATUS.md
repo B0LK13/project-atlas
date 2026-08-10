@@ -119,6 +119,17 @@ Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
 |---|---|---|
 | [#242](https://github.com/B0LK13/project-atlas/pull/242) | AS-2.2-PREP-FIXTURE-ROLLUP-001 | FIXTURE-PLAN + PACKAGE-CONTRACT-STUBS sync |
 
+
+### Wave 9 — ADV pool prep (#243)
+
+Cross-cutting 2.2 ADV threat-matrix sketch. Tip fb7e2b3 / TREE ee8c8d8.
+Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
+
+| PR | Package | Note |
+|---|---|---|
+| [#243](https://github.com/B0LK13/project-atlas/pull/243) | AS-2.2-ADV-POOL-001 | ADV matrix + fixture invariants |
+| [#244](https://github.com/B0LK13/project-atlas/pull/244) | README-INDEX-013 | Index fixture rollup #242 |
+
 ## Landed PREP inventory (tip)
 
 | Short | Package | PR | Maturity (draft) |
