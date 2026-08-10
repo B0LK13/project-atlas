@@ -98,6 +98,17 @@ KF2-FABRIC (#236), and ROADMAP-CROSSWALK (#237) deepen packages. Tip
 | [#236](https://github.com/B0LK13/project-atlas/pull/236) | AS-2.2-KF2-FABRIC-DEEPEN-PREP-001 | KF2 fabric deepen |
 | [#237](https://github.com/B0LK13/project-atlas/pull/237) | AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001 | Roadmap crosswalk deepen |
 
+
+### Wave 7 — reality-gap deepen (#240)
+
+Last unsaturated P1 deepen fill: REALITY-GAP (#240). Tip 758dd2c / TREE 07c8e89.
+Demo VERIFIED ≠ release unlock; PILOT DORMANT (FOUND=0).
+
+| PR | Package | Note |
+|---|---|---|
+| [#240](https://github.com/B0LK13/project-atlas/pull/240) | AS-2.2-REALITY-GAP-DEEPEN-PREP-001 | Reality-gap deepen (unknown≠healthy) |
+| [#238](https://github.com/B0LK13/project-atlas/pull/238) | README-INDEX-011 | Index wave-6 deepen |
+
 ## Landed PREP inventory (tip)
 
 | Short | Package | PR | Maturity (draft) |
