@@ -19,7 +19,9 @@ fi
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e ".[dev]"
 
-# Web app dependencies (deterministic install from package-lock.json).
-npm --prefix apps/web ci
+# Web app dependencies. The repo intentionally gitignores apps/web/package-lock.json
+# (see apps/web/.gitignore), so `npm install` (per apps/web/README.md) is used rather
+# than `npm ci`, which requires a committed lockfile.
+npm --prefix apps/web install
 
 echo "Project Atlas environment ready: $(.venv/bin/atlas version 2>/dev/null | tail -1)"
