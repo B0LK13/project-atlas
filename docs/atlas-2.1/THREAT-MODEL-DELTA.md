@@ -7,7 +7,7 @@ Tip reference: `f98be17` (+ deepen-003/004).
 |---|---|---|
 | T-2.1-01 | Unauthenticated LIVE_API reads leak vault metadata | AUTHZ capability tokens / local bind default |
 | T-2.1-02 | Web shell writes canonical planes | Read-only API; UI≠canonical invariant tests |
-| T-2.1-03 | MCP tool escalation to vault-write | Deny-by-default; read-first server; allow-list only |
+| T-2.1-03 | MCP tool escalation to vault-write | Deny-by-default; read-first server; allow-list only; AS-2.1-MCP-ADV-001 probes |
 | T-2.1-04 | Real OpenAI export contains secrets | `secrets.scan_text` before persist; quarantine |
 | T-2.1-05 | Scheduler live dispatch runaway | Operator arming + receipt + supervised mode + timeouts |
 | T-2.1-06 | L3 autonomy silent promote | AUTHZ + receipt gate; disable receipt; fail-closed |
