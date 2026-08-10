@@ -17,3 +17,4 @@ package data and must not be imported from `src/` until unlock + freeze.
 | `reality-gap-prep-pilot-invent-forbidden` | invent_pilot_roots or pilot_roots>0 |
 | `reality-gap-prep-gap-id-invalid` | gap_id pattern fail |
 | `reality-gap-prep-evidence-class-invalid` | non fixture-only in PREP |
+| `reality-gap-forbidden-action.schema.json` | Deepen fail-closed action (AS-2.2-REALITY-GAP-DEEPEN-PREP-001) |

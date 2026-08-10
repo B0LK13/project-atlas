@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-REALITY-GAP-DEEPEN-PREP-001",
+  "action_id": "action.demo.reality-gap.llm-authority-stamp.forbidden",
+  "kind": "llm_authority_stamp",
+  "status": "rejected_forbidden",
+  "expected_error": "reality-gap-llm-authority-forbidden",
+  "authority": {
+    "level": "derived",
+    "note": "LLM output as gap health authority"
+  },
+  "evidence_class": "fixture-only",
+  "authentic_estate": false,
+  "release_certified": false,
+  "pilot_pass": false,
+  "canonical_writes": false,
+  "pilot_roots": 0,
+  "truth_boundary": "REALITY GAP PREP ≠ RELEASE CERT / ≠ UNLOCK / ≠ PILOT / ≠ UNKNOWN-AS-HEALTHY / ≠ UI CANONICAL / ≠ LLM AUTHORITY",
+  "_prep_note": "FX-2.2-REALITY-GAP-DEEPEN-107 — expected rejection of llm_authority_stamp"
+}
