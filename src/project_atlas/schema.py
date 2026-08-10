@@ -121,6 +121,8 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-2.0-PROV-001 — optional provider adapters + quarantine (≠ authority)
     "provider-adapter-registry": "provider-adapter-registry.schema.json",
     "provider-quarantine-envelope": "provider-quarantine-envelope.schema.json",
+    # AS-2.0-AGENTOS-001 — governed session envelope (≠ Core authority)
+    "agentos-session-envelope": "agentos-session-envelope.schema.json",
 }
 
 
