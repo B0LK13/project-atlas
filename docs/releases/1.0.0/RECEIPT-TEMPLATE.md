@@ -1,9 +1,19 @@
 # Atlas 1.0.0 certification receipt template
 
 **Template status:** UNSIGNED / BLANK
+**Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
+**PRE-RC evidence baseline:** MAIN `30ed9be3ddda098cf2c56ee24773c957858ea225` / TREE `dc2d45ef744cd126c44c00e6ccb088e0a90a5ee0`
 **RELEASE CERTIFIED = NO**
 
 This template has no certification authority until completed from independently verified evidence and signed by an authorized reviewer.
+
+## Inherited owner-gate state
+
+- WEB APPLICATION ACCEPTED = YES (landed in pull request #106).
+- FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES (landed in pull request #106).
+- Authentic estate PILOT = NO.
+
+These inherited facts do not complete the receipt or certify the release.
 
 ## Candidate identity
 
@@ -17,8 +27,9 @@ This template has no certification authority until completed from independently 
 
 | Gate | Evidence reference | Result |
 |---|---|---|
-| Estate PILOT | `<blank>` | NO / NOT RECORDED |
-| WEB APPLICATION ACCEPTED | `<blank>` | NO / NOT RECORDED |
+| Estate PILOT (authentic) | `<blank>` | NO / NOT RECORDED |
+| WEB APPLICATION ACCEPTED | `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | YES / OWNER-GATE APPROVED |
+| Fixture-only owner waiver | `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` | YES / NOT AUTHENTIC ESTATE PILOT |
 | ADV-001..004 matrix | `<blank>` | NO / NOT RECORDED |
 | SEC-CONT | `<blank>` | NO / NOT RECORDED |
 | E2E fixture matrix | `<blank>` | NO / NOT RECORDED |
