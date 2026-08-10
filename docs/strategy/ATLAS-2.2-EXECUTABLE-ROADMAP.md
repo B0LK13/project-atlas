@@ -64,12 +64,32 @@ AS-REL-2.2-001 → v2.2.0
 - Fixture sketches under `docs/atlas-2.2/` (additive only)
 - Contract stubs that do not change 2.1 runtime defaults
 
-## Pre-unlock PREP packages (landed / in flight)
+## Pre-unlock PREP packages (landed)
 
-| Package | Surface | Status |
+**19 packages** merged (#159–#199). Full PREP → roadmap slot mapping:
+[`docs/atlas-2.2/roadmap-crosswalk/CROSSWALK.md`](../atlas-2.2/roadmap-crosswalk/CROSSWALK.md)
+(`AS-2.2-ROADMAP-CROSSWALK-PREP-001`). Inventory snapshot:
+[`docs/atlas-2.2/PREP-STATUS.md`](../atlas-2.2/PREP-STATUS.md).
+
+| Roadmap slot (post-unlock) | Landed PREP (feeds / direct) | Status |
 |---|---|---|
-| **AS-2.2-RET-HYBRID-001** | `docs/atlas-2.2/` Hybrid Retrieval 2 arch + fixtures + benchmarks | **PREP** — no live `retrieval` / `knowledge_compiler` mutation |
-| (feeds) AS-2.2-RET-CTX-001 | Production hybrid + context packs | Blocked on unlock |
+| `AS-2.2-DOC-CHARTER-001` | `AS-2.2-DOC-CHARTER-PREP-001` (#199) | **PREP** |
+| `AS-2.2-COMPAT-PIN-001` | `AS-2.2-COMPAT-PIN-PREP-001` (#196) | **PREP** |
+| `AS-2.2-KF2-FABRIC-001` | `AS-2.2-KF2-FABRIC-PREP-001` (#186) | **PREP** |
+| `AS-2.2-RET-CTX-001` | `AS-2.2-RET-HYBRID-001` (#159) + `AS-2.2-CTX-COMPILER-001` (#161) | **PREP** |
+| `AS-2.2-TEMPORAL-001` | `AS-2.2-TEMPORAL-UX-PREP-001` (#192) + `AS-2.2-TIME-MACHINE-001` (#168) | **PREP** |
+| `AS-2.2-CONFLICT-UX-001` | `AS-2.2-CONFLICT-UX-PREP-001` (#181) | **PREP** |
+| `AS-2.2-XPROJ-001` | `AS-2.2-XPROJ-CONTRACT-PREP-001` (#179) | **PREP** |
+| `AS-2.2-ESTATE-OPS-001` | `AS-2.2-ESTATE-OPS-PREP-001` (#197) | **PREP** |
+| `AS-2.2-INTEL-SLICE-001` | `AS-2.2-INTEL-SLICE-PREP-001` (#189) | **PREP** |
+| `AS-2.2-KCI-001` | `AS-2.2-KCI-ENGINE-PREP-001` (#160) | **PREP** |
+| `AS-2.2-CHATGPT-LIVE-001` *(optional)* | `AS-2.2-CHATGPT-LIVE-PREP-001` (#191) | **PREP** |
+
+Enabler PREP (no dedicated DAG node yet): MEM-GOV (#169), DoD compiler (#170),
+REALITY-LIVE (#167), REALITY-GAP (#172). Peer slot `AS-2.2-ASK2-001` fed by
+RESEARCH (#171) + ASK2-DEEPEN (#188) — see crosswalk.
+
+All PREP rows: **no live Core mutation**; production slots remain **blocked on unlock**.
 
 ## Pre-unlock work forbidden
 

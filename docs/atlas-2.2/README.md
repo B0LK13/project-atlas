@@ -8,6 +8,7 @@
 | Tip baseline (index cut) | MAIN `c538235` (= `origin/main` at branch cut) |
 | Charter | [CHARTER.md](CHARTER.md) |
 | Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
+| Roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) |
 
 ## Purpose
 
@@ -44,8 +45,9 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **ESTATE-OPS** | `AS-2.2-ESTATE-OPS-PREP-001` | [#197](https://github.com/B0LK13/project-atlas/pull/197) | [estate-ops/](estate-ops/) · [estate-ops/contracts/](estate-ops/contracts/) · [estate-ops/fixtures/](estate-ops/fixtures/) · [estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md](estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md) |
 | **DOC-CHARTER** | `AS-2.2-DOC-CHARTER-PREP-001` | [#199](https://github.com/B0LK13/project-atlas/pull/199) | [doc-charter/](doc-charter/) · [doc-charter/contracts/](doc-charter/contracts/) · [doc-charter/fixtures/](doc-charter/fixtures/) · [doc-charter/adr/](doc-charter/adr/) · [doc-charter/AS-2.2-DOC-CHARTER-PREP-001.md](doc-charter/AS-2.2-DOC-CHARTER-PREP-001.md) |
 | **PREP-STATUS** | `AS-2.2-PREP-STATUS-001` | [#203](https://github.com/B0LK13/project-atlas/pull/203) | [PREP-STATUS.md](PREP-STATUS.md) |
+| **CROSSWALK** | `AS-2.2-ROADMAP-CROSSWALK-PREP-001` | *(this PR)* | [roadmap-crosswalk/](roadmap-crosswalk/) · [CROSSWALK.md](roadmap-crosswalk/CROSSWALK.md) |
 
-Shared stubs: [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) · [FIXTURE-PLAN.md](FIXTURE-PLAN.md) · [fixtures/README.md](fixtures/README.md) · [adr/](adr/)
+Shared stubs: [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) · [FIXTURE-PLAN.md](FIXTURE-PLAN.md) · [fixtures/README.md](fixtures/README.md) · [adr/](adr/) · [roadmap-crosswalk/](roadmap-crosswalk/)
 
 ## Explicit non-claims
 
