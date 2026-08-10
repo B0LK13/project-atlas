@@ -72,3 +72,7 @@ Extended review stages (still derived, still non-authority):
 3. Schema freeze review for `atlas.2.2.context-compiler.*`
 4. Sole-writer ownership of future `project_atlas.context_compiler` (name TBD)
 5. ADV + IV lanes scheduled; implementer cannot self-certify
+
+## Deepen PREP
+
+See [`AS-2.2-CTX-DEEPEN-PREP-001.md`](AS-2.2-CTX-DEEPEN-PREP-001.md).

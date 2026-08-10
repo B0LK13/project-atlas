@@ -1,0 +1,7 @@
+{
+  "action": "layer-b-write",
+  "expect": "reject",
+  "pilot_pass": false,
+  "reason": "context compiler must not mutate Layer B",
+  "release_certified": false
+}
