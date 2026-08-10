@@ -1,4 +1,4 @@
-# Fixture plan — reality-live deepen
+# Fixture plan (PREP) — reality-live deepen
 
 | Fixture | Role |
 |---|---|
