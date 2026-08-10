@@ -2,44 +2,37 @@
 
 | Field | Value |
 |---|---|
-| Directive | **`D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`** |
-| Updated | 2026-08-10T10:30:00+02:00 |
+| Directive | **`D-PROJECT-ATLAS-1.0-VERIFY-TO-2.0-AUTONOMOUS-001`** |
+| Updated | 2026-08-10T09:40:00+02:00 |
 | Evidence | `D:\project-atlas-orphans\gen4-next-wave-parallel-001\` |
 
 ## §60 Baseline
 
 ```text
-SOFTWARE_FREEZE_MAIN = f4079813025dd882e0e3608ab7ad5b3b17f95bd9
-SOFTWARE_FREEZE_TREE = feb0441a13e391812ae07a1a8eb27b0de1061469
+ORIGIN_MAIN = bb0957c47b5e2976b5cf358342cf89dffe6e6a55
+ORIGIN_TREE = 86279cb39381577a27e49ac9daa9d4dee2913f30
 TAG = v1.0.0
-PACKAGE_VERSION = 1.0.0
-BOARD_EMPTY_EXCEPT_OWNER_HELD = YES (1.0 release certified; Track B READY stamped)
-OPEN_PRS = none expected at closeout write
-CI_INFRA_EXCEPTION = in force for empty-step GHA when local CERTIFY green
+SOFTWARE_FREEZE = f407981 / feb0441a
+ATLAS_1_0_RELEASE_ANCHOR_VERIFIED = YES
+ATLAS_1_0_COMPATIBILITY_ANCHOR_CONFIRMED = YES
+GATE_10 = UNLOCKED
+ATLAS_2_0_PRODUCTION_IMPLEMENTATION = AUTHORIZED
 ```
 
-## Certification flags (honest)
+## Certification flags
 
 | Flag | Value |
 |---|---|
-| Atlas 1.0 COMPLETE | **YES** |
-| ATLAS_1_0_RELEASE_CERTIFIED | **YES** |
+| Atlas 1.0 COMPLETE / RELEASE CERTIFIED | **YES** |
 | WEB APPLICATION ACCEPTED | **YES** |
-| FIXTURE-ONLY CERTIFICATION UNDER OWNER WAIVER | **YES** (`pilot_mode: FIXTURE_ONLY_OWNER_WAIVER`) |
-| ESTATE PILOT PASSED (authentic / production) | **NO** (waived as 1.0 release blocker) |
+| FIXTURE-ONLY CERT UNDER OWNER WAIVER | **YES** |
+| ESTATE PILOT PASSED (authentic) | **NO** (2.0 final still requires authentic) |
 | Atlas 2.0 IMPLEMENTATION READY | **YES** |
-| `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR` | **CLEARED** (1.0 anchor published) |
-| ATLAS 2.0 BARRIER | **UNLOCKED** (implementation packages may open; no silent production mutation claimed here) |
+| ATLAS 2.0 BARRIER | **UNLOCKED** |
+| Atlas 2.0 RELEASE CERTIFIED | **NO** (Wave 1 starting) |
 
-## Track A
+## Active Wave 1
 
-AS-REL-001 complete · `docs/releases/1.0.0/` evidence pack · tip-bound IV PASS ·
-FEATURE FREEZE at `f407981` / `feb0441a` · tag `v1.0.0`.
-
-## Track B
-
-1.0 compatibility snapshot published. DAG/§98 revalidated against certified
-anchor. Gate 10 owner authorization recorded via closeout directive.
-`ATLAS_2_0_IMPLEMENTATION_READY = YES`. No 2.0 production semantic mutation is
-introduced by this stamp alone — first 2.0 impl packages open under separate
-work-package authority.
+- AS-2.0-COMPAT-001
+- AS-KF2-NS-001 / AS-KF2-ENTITY-001 / AS-KF2-REL-001
+- Parallel: AS-PILOT2-AUTH-001 prep · §98 package board

@@ -110,6 +110,12 @@ SCHEMA_FILES: dict[str, str] = {
     "sync-receipts-dry-run": "sync-receipts-dry-run.schema.json",
     # AS-J-005 — derived impact graph projection (Graph≠authority; consume GRAPH-003)
     "impact-graph": "impact-graph.schema.json",
+    # AS-2.0-COMPAT-001 — Atlas 1.0 compatibility anchor (2.0 packages must consume)
+    "compatibility-anchor": "compatibility-anchor.schema.json",
+    # AS-KF2-NS-001 / ENTITY-001 / REL-001 — Knowledge Fabric Wave 1 (derived ≠ authority)
+    "kf2-namespace": "kf2-namespace.schema.json",
+    "kf2-entity": "kf2-entity.schema.json",
+    "kf2-relationship": "kf2-relationship.schema.json",
 }
 
 

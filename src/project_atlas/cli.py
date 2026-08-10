@@ -26,6 +26,10 @@ from project_atlas.backup import (
     restore_bundle,
     verify_bundle,
 )
+from project_atlas.compat_anchor import (
+    CompatAnchorError,
+    load_compatibility_anchor,
+)
 from project_atlas.config import load_config
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.domain.knowledge_query import KnowledgeQueryErrorCode, QueryShape
@@ -52,6 +56,12 @@ from project_atlas.graph_resolution import (
 )
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
+from project_atlas.kf2_fabric import (
+    Kf2Error,
+    register_entity,
+    register_namespace,
+    register_relationship,
+)
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
@@ -802,6 +812,74 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the certification report JSON to stdout.",
     )
+
+    # AS-2.0-COMPAT-001 — verify machine-readable 1.0 compatibility anchor.
+    compat_parser = subparsers.add_parser(
+        "compat",
+        help=(
+            "Verify the Atlas 1.0 compatibility anchor "
+            "(AS-2.0-COMPAT-001; 1.0 wins conflicts)."
+        ),
+    )
+    compat_sub = compat_parser.add_subparsers(dest="compat_command", required=True)
+    compat_verify = compat_sub.add_parser(
+        "verify",
+        help="Load and pin-check docs/releases/1.0.0/compatibility-anchor.json.",
+    )
+    compat_verify.add_argument(
+        "--anchor",
+        type=Path,
+        default=None,
+        help="Optional explicit anchor path (defaults to shipped repo path).",
+    )
+    compat_verify.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the verified anchor JSON to stdout.",
+    )
+
+    # AS-KF2-* Wave 1 — Knowledge Fabric namespace/entity/relationship (derived).
+    kf2_parser = subparsers.add_parser(
+        "kf2",
+        help=(
+            "Knowledge Fabric Wave 1 helpers "
+            "(AS-KF2-NS/ENTITY/REL; derived ≠ authority)."
+        ),
+    )
+    kf2_sub = kf2_parser.add_subparsers(dest="kf2_command", required=True)
+    kf2_ns = kf2_sub.add_parser("namespace", help="Register a KF2 namespace.")
+    kf2_ns.add_argument("--vault", type=Path, required=True)
+    kf2_ns.add_argument("--id", required=True, dest="namespace_id")
+    kf2_ns.add_argument("--name", required=True, dest="display_name")
+    kf2_ns.add_argument("--notes", default=None)
+    kf2_ns.add_argument("--json", action="store_true")
+    kf2_entity = kf2_sub.add_parser("entity", help="Register a KF2 entity.")
+    kf2_entity.add_argument("--vault", type=Path, required=True)
+    kf2_entity.add_argument("--id", required=True, dest="entity_id")
+    kf2_entity.add_argument("--namespace", required=True, dest="namespace_id")
+    kf2_entity.add_argument("--name", required=True, dest="display_name")
+    kf2_entity.add_argument("--xproj-global-id", default=None)
+    kf2_entity.add_argument("--notes", default=None)
+    kf2_entity.add_argument("--json", action="store_true")
+    kf2_rel = kf2_sub.add_parser("rel", help="Register a KF2 relationship.")
+    kf2_rel.add_argument("--vault", type=Path, required=True)
+    kf2_rel.add_argument("--id", required=True, dest="relationship_id")
+    kf2_rel.add_argument("--from", required=True, dest="from_entity_id")
+    kf2_rel.add_argument("--to", required=True, dest="to_entity_id")
+    kf2_rel.add_argument(
+        "--type",
+        required=True,
+        dest="relation_type",
+        choices=[
+            "depends-on",
+            "implements",
+            "related-to",
+            "supersedes",
+            "member-of",
+        ],
+    )
+    kf2_rel.add_argument("--notes", default=None)
+    kf2_rel.add_argument("--json", action="store_true")
 
     # AS-SYNC-001-SCAFFOLD — dry-run registry from explicit roots (≠ production SYNC-001).
     sync_parser = subparsers.add_parser(
@@ -1669,6 +1747,92 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"members: {result['member_count']}")
         print(f"tier: {result['tier']}")
         return EXIT_OK
+
+    if args.command == "compat":
+        if args.compat_command == "verify":
+            try:
+                anchor = load_compatibility_anchor(args.anchor)
+            except (CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("compat verify failed: %s", exc)
+                return EXIT_ERROR
+            payload = anchor.as_dict()
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"snapshot_id: {anchor.snapshot_id}")
+                print(f"tag: {anchor.tag}")
+                print(f"software_freeze_head: {anchor.software_freeze_head}")
+                print(f"software_freeze_tree: {anchor.software_freeze_tree}")
+                print(f"release_certified: {anchor.release_certified}")
+                print("one_dot_oh_wins_conflicts: true")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown compat command: {args.compat_command}"
+        )
+
+    if args.command == "kf2":
+        if args.kf2_command == "namespace":
+            try:
+                record = register_namespace(
+                    args.vault,
+                    namespace_id=args.namespace_id,
+                    display_name=args.display_name,
+                    notes=args.notes,
+                )
+            except (Kf2Error, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("kf2 namespace failed: %s", exc)
+                return EXIT_ERROR
+            payload = record.as_dict()
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"namespace_id: {record.namespace_id}")
+                print(f"compat_snapshot_id: {payload['compat_snapshot_id']}")
+            return EXIT_OK
+        if args.kf2_command == "entity":
+            try:
+                record = register_entity(
+                    args.vault,
+                    entity_id=args.entity_id,
+                    namespace_id=args.namespace_id,
+                    display_name=args.display_name,
+                    xproj_global_entity_id=args.xproj_global_id,
+                    notes=args.notes,
+                )
+            except (Kf2Error, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("kf2 entity failed: %s", exc)
+                return EXIT_ERROR
+            payload = record.as_dict()
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"entity_id: {record.entity_id}")
+                print(f"namespace_id: {record.namespace_id}")
+            return EXIT_OK
+        if args.kf2_command == "rel":
+            try:
+                record = register_relationship(
+                    args.vault,
+                    relationship_id=args.relationship_id,
+                    from_entity_id=args.from_entity_id,
+                    to_entity_id=args.to_entity_id,
+                    relation_type=args.relation_type,
+                    notes=args.notes,
+                )
+            except (Kf2Error, CompatAnchorError, OSError, ValueError, TypeError) as exc:
+                _log.error("kf2 rel failed: %s", exc)
+                return EXIT_ERROR
+            payload = record.as_dict()
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"relationship_id: {record.relationship_id}")
+                print(f"relation_type: {record.relation_type}")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown kf2 command: {args.kf2_command}"
+        )
+
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 
 

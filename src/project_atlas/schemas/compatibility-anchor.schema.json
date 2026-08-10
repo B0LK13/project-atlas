@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/compatibility-anchor.schema.json",
+  "title": "Atlas 1.0 Compatibility Anchor",
+  "description": "AS-2.0-COMPAT-001 machine-readable 1.0 freeze pin. 2.0 packages must consume this snapshot; 1.0 wins conflicts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "snapshot_id",
+    "package_version",
+    "tag",
+    "tag_commit",
+    "software_freeze_head",
+    "software_freeze_tree",
+    "release_certified",
+    "pilot_mode",
+    "authentic_estate_pilot_passed",
+    "one_dot_oh_wins_conflicts",
+    "invariants",
+    "adr_manifest",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "compatibility-anchor" },
+    "snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "package_version": { "const": "1.0.0" },
+    "tag": { "const": "v1.0.0" },
+    "tag_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "software_freeze_head": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "software_freeze_tree": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "release_certified": { "const": true },
+    "pilot_mode": { "const": "FIXTURE_ONLY_OWNER_WAIVER" },
+    "authentic_estate_pilot_passed": { "const": false },
+    "one_dot_oh_wins_conflicts": { "const": true },
+    "invariants": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "adr_manifest": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" }
+      }
+    }
+  }
+}

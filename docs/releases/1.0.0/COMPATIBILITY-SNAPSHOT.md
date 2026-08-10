@@ -12,5 +12,6 @@
 | Annotated tag | `v1.0.0` |
 | Release pack | `docs/releases/1.0.0/` |
 | Pilot mode | `FIXTURE_ONLY_OWNER_WAIVER` |
+| Machine record | `docs/releases/1.0.0/compatibility-anchor.json` |
 
 Track B consumers must pin to this snapshot (HEAD/TREE/tag). Prep baseline pins in `docs/atlas-2.0/` are superseded by this certified 1.0 anchor. 1.0 wins dependency conflicts.

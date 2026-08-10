@@ -1,6 +1,7 @@
-# Atlas 2.0 — Compatibility constraints (prep)
+# Atlas 2.0 — Compatibility constraints
 
-Status: **PREP ONLY**. `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+Status: **PRODUCTION consumer available** via AS-2.0-COMPAT-001.
+`ATLAS_2_0_IMPLEMENTATION_READY = YES`.
 
 After `ATLAS_1_0_RELEASE_CERTIFIED`, 2.0 production packages must:
 
@@ -8,21 +9,23 @@ After `ATLAS_1_0_RELEASE_CERTIFIED`, 2.0 production packages must:
 2. Not silently rewrite 1.0 authority / identity / provenance contracts.
 3. Keep UI≠canonical / Graph≠authority / Unknown≠healthy for any web surfaces.
 
-## Snapshot pin model (stub)
+## Published snapshot
 
-| Field | Description | Example (sketch) |
-|---|---|---|
-| `snapshot_id` | Human-readable pin label | `atlas-1.0.0-compat` |
-| `git_head` | Certified commit SHA | `28bfa4f…` |
-| `git_tree` | Tree hash at certification | TBD at freeze |
-| `schema_manifest` | JSON Schema IDs + versions consumed | `project_atlas.domain.v1`, … |
-| `adr_manifest` | ADR IDs that 2.0 must not contradict | ADR-001…ADR-010 |
+| Field | Value |
+|---|---|
+| `snapshot_id` | `atlas-1.0.0-compat` |
+| Machine record | `docs/releases/1.0.0/compatibility-anchor.json` |
+| Human snapshot | `docs/releases/1.0.0/COMPATIBILITY-SNAPSHOT.md` |
+| `git_head` (software freeze) | `f4079813025dd882e0e3608ab7ad5b3b17f95bd9` |
+| `git_tree` (software freeze) | `feb0441a13e391812ae07a1a8eb27b0de1061469` |
+| Tag | `v1.0.0` @ `bb0957c47b5e2976b5cf358342cf89dffe6e6a55` |
+| Consumer | `project_atlas.compat_anchor` / `atlas compat verify` |
 
 ## Drift classes
 
-| Class | Description | 2.0 response (prep) |
+| Class | Description | 2.0 response |
 |---|---|---|
-| **Hard** | Authority / identity / provenance contract change | Fail CI; require new major snapshot |
+| **Hard** | Authority / identity / provenance contract change | Fail closed; require new major snapshot |
 | **Soft** | Additive schema fields with defaults | Allowed with compat test green |
 | **Web** | UI invariant regression | Block UX packages; ADR-008 gate |
 | **Graph** | Derived projection format change | Consume-only adapter version bump |
@@ -36,11 +39,5 @@ After `ATLAS_1_0_RELEASE_CERTIFIED`, 2.0 production packages must:
 
 ## WEB acceptance dependency
 
-Advanced Command Center fixtures (AS-2.0-UX-001) must not promote to production
-paths until **WEB APPLICATION ACCEPTED = YES** (AS-WEB-ACCEPT-001 governor green).
-
-## Open compat work (prep)
-
-- Publish machine-readable `contract-manifest.json` at 1.0 freeze.
-- Define CI job sketch for FR-2.0-COMPAT-002 drift detection.
-- Resolve INT-012 vs AS-2.0-COMPAT-001 migration ownership (see OPEN-QUESTIONS.md).
+Advanced Command Center fixtures (AS-2.0-UX-001) may open now that
+**WEB APPLICATION ACCEPTED = YES**.
