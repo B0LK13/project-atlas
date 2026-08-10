@@ -1,0 +1,24 @@
+{
+  "schema": "atlas.2.2.agent_memory.record.v0",
+  "package_id": "AS-2.2-MEM-GOV-001",
+  "memory_id": "mem-active-001",
+  "memory_key": "pref.timezone",
+  "project_id": "proj-fixture-001",
+  "kind": "preference",
+  "status": "active",
+  "body_ref": "fixtures/mem-gov/bodies/pref-timezone.txt",
+  "provenance": {
+    "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_receipt_id": "rcpt-sess-001",
+    "session_id": "sess-fixture-001",
+    "event_id": "evt-fixture-001"
+  },
+  "expires_at": "2099-01-01T00:00:00Z",
+  "written_at": "2026-08-01T00:00:00Z",
+  "authority_plane": "none",
+  "truth_boundary": "AGENT MEMORY ≠ LAYER B AUTHORITY",
+  "consume_only": true,
+  "generated": {
+    "by": "project-atlas-prep"
+  }
+}

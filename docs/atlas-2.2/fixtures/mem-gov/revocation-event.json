@@ -1,0 +1,10 @@
+{
+  "schema": "atlas.2.2.agent_memory.revocation.v0",
+  "memory_id": "mem-revoked-001",
+  "project_id": "proj-fixture-001",
+  "memory_key": "working.scratchpad",
+  "reason": "operator",
+  "status": "revoked",
+  "detail": "operator withdrew scratchpad trust",
+  "truth_boundary": "MEMORY REVOCATION ≠ PROJECT AUTHORITY"
+}

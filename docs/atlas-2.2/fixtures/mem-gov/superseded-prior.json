@@ -1,0 +1,24 @@
+{
+  "schema": "atlas.2.2.agent_memory.record.v0",
+  "package_id": "AS-2.2-MEM-GOV-001",
+  "memory_id": "mem-prior-001",
+  "memory_key": "episodic.last-decision",
+  "project_id": "proj-fixture-001",
+  "kind": "episodic",
+  "status": "superseded",
+  "body_ref": "fixtures/mem-gov/bodies/decision-v1.txt",
+  "provenance": {
+    "content_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "source_receipt_id": "rcpt-sess-003",
+    "session_id": "sess-fixture-003",
+    "event_id": "evt-fixture-003"
+  },
+  "written_at": "2026-07-01T00:00:00Z",
+  "superseded_by": "mem-successor-001",
+  "authority_plane": "none",
+  "truth_boundary": "AGENT MEMORY ≠ LAYER B AUTHORITY",
+  "consume_only": true,
+  "generated": {
+    "by": "project-atlas-prep"
+  }
+}

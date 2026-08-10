@@ -1,0 +1,40 @@
+{
+  "schema_version": 0,
+  "schema": "atlas.2.2.agent_memory.index.v0",
+  "package_id": "AS-2.2-MEM-GOV-001",
+  "truth_plane": "operational",
+  "authority_plane": "none",
+  "note": "AGENT MEMORY INDEX ≠ PROJECT AUTHORITY",
+  "records": [
+    {
+      "memory_id": "mem-active-001",
+      "memory_key": "pref.timezone",
+      "project_id": "proj-fixture-001",
+      "status": "active",
+      "expires_at": "2099-01-01T00:00:00Z"
+    },
+    {
+      "memory_id": "mem-revoked-001",
+      "memory_key": "working.scratchpad",
+      "project_id": "proj-fixture-001",
+      "status": "revoked"
+    },
+    {
+      "memory_id": "mem-prior-001",
+      "memory_key": "episodic.last-decision",
+      "project_id": "proj-fixture-001",
+      "status": "superseded",
+      "superseded_by": "mem-successor-001"
+    },
+    {
+      "memory_id": "mem-successor-001",
+      "memory_key": "episodic.last-decision",
+      "project_id": "proj-fixture-001",
+      "status": "active",
+      "supersedes": "mem-prior-001"
+    }
+  ],
+  "generated": {
+    "by": "project-atlas-prep"
+  }
+}

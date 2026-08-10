@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/agent-memory-revocation.schema.json",
+  "title": "agent-memory-revocation (PREP STUB — not package data)",
+  "description": "AS-2.2-MEM-GOV-001 memory revocation row / event. Operational only; does not delete files; never Layer B.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "memory_id",
+    "project_id",
+    "reason",
+    "status",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.agent_memory.revocation.v0" },
+    "memory_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "project_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "memory_key": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "reason": {
+      "type": "string",
+      "enum": ["operator", "skill_policy", "integrity"]
+    },
+    "status": { "const": "revoked" },
+    "detail": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "truth_boundary": {
+      "const": "MEMORY REVOCATION ≠ PROJECT AUTHORITY"
+    }
+  }
+}
