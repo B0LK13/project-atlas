@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-ASK2-DEEPEN-PREP-001",
+  "answer_id": "ans-fx-ask2-deepen-001",
+  "question_id": "q-fx-ask2-deepen-001",
+  "pack_id": "pack-fx-ask2-deepen-001",
+  "ANSWER": "Fixture deepen view documents Ask Atlas 2 citation depth; Atlas 2.1 is not release-certified on this tip.",
+  "WHY": [
+    "ev-compat-doc supports compat pin documentation",
+    "h-compat-pinned status=supported",
+    "citation chain chain-fx-ask2-001 binds evidence to pack"
+  ],
+  "WHY_NOT": [
+    "h-release-certified status=refuted",
+    "ATLAS_2_1_RELEASE_CERTIFIED remains NO",
+    "ask_atlas_live is not the deepen owner"
+  ],
+  "EVIDENCE": ["ev-compat-doc", "ev-board-state"],
+  "AUTHORITY": {
+    "level": "derived",
+    "note": "Ask Atlas 2 deepen is a read lens; UI≠canonical"
+  },
+  "TEMPORAL_VALIDITY": {
+    "valid_from": null,
+    "valid_to": null,
+    "as_of_known": false
+  },
+  "CONFLICTS": ["conflict.demo.package-status.001"],
+  "UNKNOWN": ["authentic estate pilot outcome"],
+  "citation_chain_id": "chain-fx-ask2-001",
+  "lenses": [
+    { "surface": "web", "projection_id": "lens-web-fx-ask2-001" },
+    { "surface": "mcp", "projection_id": "lens-mcp-fx-ask2-001" },
+    { "surface": "cli", "projection_id": "lens-cli-fx-ask2-001" }
+  ],
+  "canonical_write": false,
+  "ui_truth": false,
+  "graph_authority": false,
+  "llm_authority": false,
+  "live_path_owned": false,
+  "authority": {
+    "level": "derived",
+    "note": "Deepen envelopes remain derived"
+  },
+  "truth_boundary": "ASK ATLAS 2 DEEPEN ≠ LIVE MUTATE / ≠ CANONICAL WRITE / ≠ AUTHORITY / UI ≠ TRUTH",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "authentic_estate": false,
+  "generated": {
+    "by": "project-atlas"
+  },
+  "_prep_note": "FX-2.2-ASK2-001 — deepen answer beyond research-ask2 flat envelope"
+}
