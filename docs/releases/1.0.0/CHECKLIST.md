@@ -1,16 +1,16 @@
 # Atlas 1.0.0 PRE-RC certification checklist
 
-**Directive:** `D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001`
-**Baseline:** MAIN `8ee65b91871bc04039ffe401a9da3743e4800a8b` / TREE `a2e592a797056935fbec0d8c54033aa3c25a5b06`
+**Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
+**Baseline:** MAIN `30ed9be3ddda098cf2c56ee24773c957858ea225` / TREE `dc2d45ef744cd126c44c00e6ccb088e0a90a5ee0`
 **RELEASE CERTIFIED = NO**
 
-Owner-gates closeout (`D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`) unlocked WEB acceptance and fixture-only pilot waiver. Remaining unchecked rows still block RELEASE CERTIFIED.
+Owner-gates closeout landed in pull request #106 and unlocked WEB acceptance plus the fixture-only pilot waiver. Remaining unchecked rows still block release certification.
 
 | Done | Required gate | Required evidence | Current state |
 |---|---|---|---|
 | [ ] | Candidate pin | Final candidate commit and tree recorded and immutable | NO |
-| [x] | WEB APPLICATION ACCEPTED | Acceptance checklist complete and human/owner governor signoff recorded (`docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` APPROVED on tip `8ee65b9`) | YES |
-| [x] | Fixture-only PILOT waiver | Owner waiver `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` (`pilot_mode: FIXTURE_ONLY_OWNER_WAIVER`) | FIXTURE-ONLY CERT UNDER OWNER WAIVER |
+| [x] | WEB APPLICATION ACCEPTED | Acceptance checklist complete and human/owner governor signoff recorded (`docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md`) | YES |
+| [x] | Fixture-only PILOT waiver | Owner waiver `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` (`pilot_mode: FIXTURE_ONLY_OWNER_WAIVER`) | FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES |
 | [ ] | Estate PILOT (authentic) | Authentic bounded estate pilot completed; fixture roots are not substituted for authentic | NO |
 | [ ] | ADV-001..004 matrix | Base, clean-clone, performance/determinism, and migration/recovery cases independently verified | NO |
 | [ ] | SEC-CONT | Continuous security gates reviewed, including path refusal and metadata-only secret findings | NO |
@@ -25,8 +25,8 @@ Owner-gates closeout (`D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`) u
 
 ## Evidence refresh notes
 
-The pinned baseline now includes the ADV clean-clone rehearsal procedure, stabilized ADV-004 recovery replay assertions, refreshed WEB evidence tip pins, and Track B deepen-h prep. These additions improve the evidence inventory only: no checklist row is complete, WEB governor signoff remains pending, and Atlas 2.0 implementation readiness remains NO.
+The pinned baseline includes the owner-gate decisions from pull request #106: **WEB APPLICATION ACCEPTED = YES** and **FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES**. The authentic estate **PILOT = NO**, and the remaining release gates above are not closed.
 
 ## Certification boundary
 
-A checked fixture gate is evidence for that gate only. It does not imply estate PILOT completion, WEB acceptance, or release certification. Until every required gate is complete and an authorized receipt is signed, **RELEASE CERTIFIED = NO**.
+A checked fixture or WEB gate is evidence for that gate only. It does not imply authentic estate PILOT completion or release certification. Until every required gate is complete and an authorized receipt is signed, **RELEASE CERTIFIED = NO**.
