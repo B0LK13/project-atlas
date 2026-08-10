@@ -42,6 +42,27 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
     }
 
 
+def list_mcp_tools(
+    *,
+    operator: OperatorProfile | None = None,
+) -> dict[str, Any]:
+    """Return allow-listed read tool inventory (no execution)."""
+    require_compatibility_anchor()
+    op = operator or default_operator()
+    op.require("mcp.read")
+    tools = sorted(_enabled_read_tools())
+    return {
+        "schema_version": 1,
+        "package_id": PACKAGE_ID,
+        "truth_boundary": TRUTH_BOUNDARY,
+        "tools": tools,
+        "write_tools": [],
+        "live_mcp_read": True,
+        "operator_id": op.operator_id,
+        "generated": {"by": "project-atlas"},
+    }
+
+
 def invoke_mcp_tool(
     vault: Path,
     tool_id: str,

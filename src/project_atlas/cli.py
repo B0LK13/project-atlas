@@ -106,6 +106,10 @@ from project_atlas.openai_importer_fixtures import (
     build_openai_import_fixture_receipt,
     default_sample_path,
 )
+from project_atlas.openai_responses_poc import (
+    OpenAIResponsesPocError,
+    run_openai_responses_poc,
+)
 from project_atlas.ops_events import (
     OpsEventError,
     apply_retention,
@@ -1301,6 +1305,23 @@ def build_parser() -> argparse.ArgumentParser:
     live_pilot.add_argument("--vault", type=Path, required=True)
     live_pilot.add_argument("--report-id", default="pilot-prep")
     live_pilot.add_argument("--json", action="store_true")
+    live_oai_poc = live_sub.add_parser(
+        "oai-responses-poc",
+        help=(
+            "EXPERIMENTAL OpenAI Responses POC (non-release-blocking; "
+            "quarantine-first; read-only tools)."
+        ),
+    )
+    live_oai_poc.add_argument("--vault", type=Path, required=True)
+    live_oai_poc.add_argument("--run-id", required=True)
+    live_oai_poc.add_argument("--prompt", required=True)
+    live_oai_poc.add_argument("--model", default="gpt-4.1-mini")
+    live_oai_poc.add_argument(
+        "--force-offline",
+        action="store_true",
+        help="Skip live API even if OPENAI_API_KEY is set.",
+    )
+    live_oai_poc.add_argument("--json", action="store_true")
 
     return parser
 
@@ -2592,6 +2613,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"authentic_found: {report['authentic_found']}")
                 print(f"escalation_required: {report['escalation_required']}")
                 print(f"pilot_pass: {report['pilot_pass']}")
+                if report.get("wake_event"):
+                    print(f"wake_event: {report['wake_event']}")
+            return EXIT_OK
+        if args.live_command == "oai-responses-poc":
+            try:
+                report = run_openai_responses_poc(
+                    args.vault,
+                    run_id=args.run_id,
+                    prompt=args.prompt,
+                    model=args.model,
+                    force_offline=bool(args.force_offline),
+                )
+            except (
+                OpenAIResponsesPocError,
+                AuthzError,
+                CompatAnchorError,
+                ProviderError,
+                OSError,
+                ValueError,
+            ) as exc:
+                _log.error("live oai-responses-poc failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"smoke_status: {report['smoke_status']}")
+                print(f"live_smoke: {report['live_smoke']}")
+                print(f"llm_authority: {report['llm_authority']}")
+                print(f"release_blocking: {report['release_blocking']}")
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown live command: {args.live_command}"
