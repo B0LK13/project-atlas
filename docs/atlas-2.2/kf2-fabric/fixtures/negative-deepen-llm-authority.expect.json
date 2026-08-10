@@ -1,0 +1,20 @@
+{
+  "_prep_note": "FX-2.2-KF2-DEEPEN-107 — expected rejection of llm_authority_stamp",
+  "action_id": "fx-kf2-llm_authority_stamp",
+  "authentic_estate": false,
+  "authority": {
+    "level": "derived",
+    "note": "LLM is not KF fabric authority"
+  },
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "kf2-fabric-llm-authority-forbidden",
+  "kind": "llm_authority_stamp",
+  "package_id": "AS-2.2-KF2-FABRIC-DEEPEN-PREP-001",
+  "pilot_pass": false,
+  "pilot_roots": 0,
+  "release_certified": false,
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "KF2 FABRIC ≠ AUTHORITY / ≠ CROSS PROMOTE / ≠ PROJECTION WRITE / ≠ LAYER B / ≠ PILOT / ≠ RELEASE"
+}
