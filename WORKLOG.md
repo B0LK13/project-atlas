@@ -5115,18 +5115,19 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.2-RET-HYBRID-001 — Hybrid Retrieval 2 PREP (SAFE pre-v2.1.0)
+## AS-2.1-L3-JOB-MATRIX-ADV
 
 **Date:** 2026-08-10
-**Branch:** feat/as-2.2-ret-hybrid-prep
-**Directive:** D-PROJECT-ATLAS-FORCED-MULTIAGENT-ORCHESTRATION-001
-**Baseline:** MAIN `a1e0972` / TREE `c6cfe95`
+**Branch:** feat/as-2.1-l3-job-matrix-adv
+**Directive:** D-PROJECT-ATLAS-2.1-PRODUCTIONIZATION-001 (Track A ADV/test sole-writer)
+**Evidence:** D:\project-atlas-orphans\atlas-2.1-productionization-001\
 
 ### Scope
-- Own `docs/atlas-2.2/` Hybrid Retrieval 2 architecture, contract stubs, fixture sketches, benchmark cases, docs-only schema draft
-- Strategy cross-links (roadmap PREP table, GAP-NS-002 evidence, strategy README)
-- **No** dependency-bearing mutation of `knowledge_compiler` / `retrieval` / `hybrid_retrieval` live path
+- Adversarial L3 job-matrix: scope expansion, arm overlap, destructive deny,
+  stale context, receipt mismatch, duplicate dispatch
+- Minimal `autonomy_l3.py` fail-closed guards; L4/L5 remain false
+- ADV-LIVE-SUITE ADV-2.1-23..28; tests/unit/test_as_2_1_l3_job_matrix_adv.py
 
-### Gates
-- Docs/fixtures/benchmarks only; gate credit = NO; unlock still required for production
-- Evidence: `atlas-2.1-productionization-001` orphan receipt
+### Explicit non-claims
+- ATLAS_2_1_RELEASE_CERTIFIED: NO
+- Authentic estate PILOT: NO

@@ -27,8 +27,13 @@ authentic PILOT, SYNC-AUTH, TWIN-AUTH, or release certification.
 | ADV-2.1-20 | API Host/CORS | OPTIONS CORS origin; evil Host→403; local Host:port OK |
 | ADV-2.1-21 | OPS receipts | Empty inventory honest unknown; no completion claim |
 | ADV-2.1-22 | L3 job-matrix | Allowed jobs run; forbidden/disabled fail closed |
-| ADV-2.1-23 | MCP ADV | AS-2.1-MCP-ADV-001: unknown/escalation/write-via-read/path/malformed/replay |
+| ADV-2.1-23 | L3 job-matrix ADV | Scope expansion (tampered max/allowed) fail closed |
+| ADV-2.1-24 | L3 job-matrix ADV | Arm overlap across enabled policies denied |
+| ADV-2.1-25 | L3 job-matrix ADV | Destructive jobs denied; L4/L5 stay false |
+| ADV-2.1-26 | L3 job-matrix ADV | Stale/disarmed arm context fail closed |
+| ADV-2.1-27 | L3 job-matrix ADV | Package/arm receipt mismatch fail closed |
+| ADV-2.1-28 | L3 job-matrix ADV | Duplicate dispatch in one loop denied |
 
 Executable coverage includes `tests/unit/test_as_2_1_track_b_deepen_007.py`,
-`tests/unit/test_as_2_1_adv_host_cors_001.py`,
-`tests/unit/test_as_2_1_mcp_adv_001.py`.
+`tests/unit/test_as_2_1_l3_job_matrix_adv.py`,
+`tests/unit/test_as_2_1_adv_host_cors_001.py`.
