@@ -5027,3 +5027,10 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 - Fix ruff E501 / I001 in SEC + LANE-Y tests
 - Update LANE-Y checklist assertions for WEB ACCEPTED=YES
 **RELEASE CERTIFIED = NO**
+
+## PRE-RC tip pin — d5e46a1
+
+**Date:** 2026-08-10
+**Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
+**Pin:** MAIN d5e46a1 / TREE 08cfcf18
+**RELEASE CERTIFIED = NO**

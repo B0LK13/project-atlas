@@ -6,8 +6,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 RELEASE_DIR = ROOT / "docs" / "releases" / "1.0.0"
-MAIN = "75409c796a664556b6ba8acc78bdbb0f1aaf20a7"
-TREE = "0e84e45d0e00f4f8142d168f3eb066976f3fc3dd"
+MAIN = "d5e46a1be32a1d627a1ae00a0b34ff7d61526457"
+TREE = "08cfcf185f390c934ffdce2228d45c37b489d165"
 DOCUMENTS = (
     "README.md",
     "CHECKLIST.md",

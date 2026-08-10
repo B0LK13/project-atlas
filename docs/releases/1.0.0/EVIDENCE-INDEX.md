@@ -1,7 +1,7 @@
 # Atlas 1.0.0 PRE-RC evidence index
 
 **Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
-**Evidence baseline:** MAIN `75409c796a664556b6ba8acc78bdbb0f1aaf20a7` / TREE `0e84e45d0e00f4f8142d168f3eb066976f3fc3dd`
+**Evidence baseline:** MAIN `d5e46a1be32a1d627a1ae00a0b34ff7d61526457` / TREE `08cfcf185f390c934ffdce2228d45c37b489d165`
 **Index status:** PRE-RC inventory only
 **RELEASE CERTIFIED = NO**
 
@@ -18,6 +18,7 @@ This index records evidence packages known to exist at the pinned baseline. Incl
 | E2E | `tests/integration/test_as_e2e_001_fixture_matrix.py` | Integration fixture matrix | NONE / NO |
 | WEB-ACCEPT | `docs/AS-WEB-ACCEPT-001-checklist.md`; `docs/AS-WEB-ACCEPT-005-governor-evidence.md`; `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | Governor APPROVED in pull request #106 | WEB APPLICATION ACCEPTED = YES; RELEASE still NO |
 | PILOT-WAIVER | `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` | Owner waiver landed in pull request #106 | FIXTURE-ONLY CERT UNDER OWNER WAIVER = YES; authentic estate PILOT = NO |
+| CORE-QUALITY | PR #111 ruff/mypy/full pytest (Core package) | Local RC quality gates | FULL QUALITY PARTIAL — CP Windows normalize_event platform fails recorded |
 | TRACK-B-DEEPEN-H | `docs/atlas-2.0/IMPLEMENTATION-READY-GATE.md`; `docs/atlas-2.0/Z-WAVE-INDEX.md` | PREP/PROTOTYPE theme expansion; implementation readiness remains NO | NONE / NO |
 
 ## Use rules
