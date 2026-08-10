@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TIME-MACHINE-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "project",
+    "id": "demo-project"
+  },
+  "as_of_valid_time": "2024-06-15",
+  "knowledge_compilation_id": "compile-fixture-1",
+  "status": "selected",
+  "claims": [
+    {
+      "subject": "demo-project.status",
+      "field": "package_status",
+      "disposition": "selected",
+      "selected_claim_id": "claim.demo.status.planned",
+      "candidate_claim_ids": ["claim.demo.status.planned"]
+    }
+  ],
+  "graph": {
+    "entity_ids": ["ent.demo-project"],
+    "edge_ids": ["edge.demo-project.owns.module-a"]
+  },
+  "decisions": [
+    {
+      "decision_id": "review.demo-001",
+      "disposition": "open"
+    }
+  ],
+  "unresolved": [],
+  "authority": {
+    "level": "derived",
+    "note": "As-of snapshot consumes TEMPORAL windows; never Layer B authority"
+  },
+  "truth_boundary": "TIME MACHINE AS-OF ≠ AUTHORITY / ≠ WALL-CLOCK NOW",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-TM-001 — docs-only fixture sketch"
+}

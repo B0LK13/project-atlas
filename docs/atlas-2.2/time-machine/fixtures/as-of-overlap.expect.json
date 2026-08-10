@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-TIME-MACHINE-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "subject",
+    "id": "demo-project.status"
+  },
+  "as_of_valid_time": "2024-06-01",
+  "knowledge_compilation_id": "compile-fixture-1",
+  "status": "unresolved_overlap",
+  "claims": [
+    {
+      "subject": "demo-project.status",
+      "field": "package_status",
+      "disposition": "unresolved",
+      "selected_claim_id": null,
+      "candidate_claim_ids": [
+        "claim.demo.status.planned",
+        "claim.demo.status.implementing"
+      ]
+    }
+  ],
+  "graph": null,
+  "decisions": [],
+  "unresolved": [
+    {
+      "reason": "unresolved_overlap",
+      "subject": "demo-project.status",
+      "field": "package_status",
+      "candidate_claim_ids": [
+        "claim.demo.status.planned",
+        "claim.demo.status.implementing"
+      ]
+    }
+  ],
+  "authority": {
+    "level": "derived",
+    "note": "Overlap must not silently pick a winner"
+  },
+  "truth_boundary": "TIME MACHINE AS-OF ≠ AUTHORITY / ≠ WALL-CLOCK NOW",
+  "evidence_class": "fixture-only",
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" },
+  "_prep_note": "FX-2.2-TM-002 — expected fail-closed overlap outcome"
+}
