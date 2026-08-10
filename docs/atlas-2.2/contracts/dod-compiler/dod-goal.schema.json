@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/dod-goal.schema.json",
+  "title": "dod-goal (PREP STUB — not package data)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "goal_id", "statement", "release_line"],
+  "properties": {
+    "schema": { "const": "atlas.dod.goal.v0" },
+    "goal_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "statement": { "type": "string", "minLength": 3, "maxLength": 1024 },
+    "release_line": {
+      "type": "string",
+      "enum": ["2.1", "2.2", "2.3", "3.0", "package"]
+    },
+    "owner_package": { "type": "string" },
+    "notes": { "type": "string" }
+  }
+}

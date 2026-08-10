@@ -1,0 +1,22 @@
+{
+  "schema": "atlas.dod.proof_receipt.v0",
+  "proof_id": "proof.demo.pilot-mismatch.fail",
+  "goal_id": "goal.demo.fake-pilot",
+  "dod_id": "dod.demo.fake-pilot",
+  "status": "FAIL",
+  "criterion_results": [
+    {
+      "criterion_id": "crit.demo.authentic-pilot",
+      "status": "FAIL",
+      "binding_ids": ["bind.demo.pilot-checklist"],
+      "evidence_ids": ["ev.demo.fixture-as-pilot"],
+      "reason_codes": ["evidence_class_mismatch"]
+    }
+  ],
+  "consume_only": true,
+  "authority_promoted": false,
+  "generated": {
+    "by": "atlas-dod-compiler-prep-fixture",
+    "package": "AS-2.2-DOD-COMPILER-001"
+  }
+}
