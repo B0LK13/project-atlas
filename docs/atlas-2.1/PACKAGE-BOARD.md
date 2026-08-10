@@ -17,7 +17,7 @@ Tip: `7afaafd` / TREE `cfd0f238`. `ATLAS_2_1_RELEASE_CERTIFIED = NO`.
 
 ## Track B (2.1 release-harden)
 
-**BOARD_EMPTY_EXCEPT_AUTHENTIC_PILOT.** Do not invent 2.1 busywork. Capacity → 2.2 P1 prep.
+**BOARD_EMPTY_EXCEPT_AUTHENTIC_PILOT.** Tip is not empty; Track B queue is empty except authentic PILOT. Do not invent 2.1 busywork. Capacity → 2.2 P1 prep.
 
 ## Dynamic allocation
 
