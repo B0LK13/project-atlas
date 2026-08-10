@@ -41,7 +41,7 @@ Legend:
 | GAP_ID | Gap | Maturity | RELEASE_BLOCKING | Priority | Proposed package | Target release | Evidence |
 |---|---|---|---|---|---|---|---|
 | GAP-NS-001 | Estate-scale knowledge intelligence fabric | PARTIAL | NO | P2 | AS-2.2-KF2-* | v2.2.0 | Core KF modules exist; estate unlock post-2.1 |
-| GAP-NS-002 | Hybrid retrieval + context packs production | CONTRACT/BOUNDED | NO | P2 | AS-2.2-RET-CTX-001 | v2.2.0 | `hybrid_retrieval` / `context_pack` |
+| GAP-NS-002 | Hybrid retrieval + context packs production | CONTRACT/BOUNDED | NO | P2 | AS-2.2-RET-CTX-001 (+ PREP **AS-2.2-RET-HYBRID-001**) | v2.2.0 | `hybrid_retrieval` / `context_pack`; prep under `docs/atlas-2.2/` |
 | GAP-NS-003 | Temporal / bitemporal claim validity UX | CONTRACT | NO | P2 | AS-2.2-TEMPORAL-001 | v2.2.0 | `bitemporal` / temporal evaluator |
 | GAP-NS-004 | Conflict projection + review cockpit | PARTIAL | NO | P2 | AS-2.2-CONFLICT-UX-001 | v2.2.0 | conflict_projections |
 | GAP-NS-005 | Knowledge CI / eval harness live | FIXTURE | NO | P2 | AS-2.2-KCI-001 | v2.2.0 | knowledge_ci_harness |

@@ -5115,29 +5115,18 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.2-RESEARCH-001 PREP - Research workspace + Ask Atlas 2
+## AS-2.2-RET-HYBRID-001 — Hybrid Retrieval 2 PREP (SAFE pre-v2.1.0)
 
 **Date:** 2026-08-10
-**Branch:** feat/as-2.2-research-prep
-**Worktree:** D:\atlas-worktrees\as-2.2-research-prep
-**Directive:** D-PROJECT-ATLAS-FORCED-MULTIAGENT-ORCHESTRATION-001 (SAFE pre-v2.1.0)
-**Main tip:** f45134f (rebased; prior a1e0972 / TREE c6cfe95)
-**Evidence:** atlas-2.1-productionization-001
+**Branch:** feat/as-2.2-ret-hybrid-prep
+**Directive:** D-PROJECT-ATLAS-FORCED-MULTIAGENT-ORCHESTRATION-001
+**Baseline:** MAIN `a1e0972` / TREE `c6cfe95`
 
 ### Scope
-- docs/AS-2.2-RESEARCH-001.md package card
-- docs/atlas-2.2/research/ architecture + Ask Atlas 2 surface
-- docs/atlas-2.2/contracts/research/ schema stubs (not package data)
-- docs/atlas-2.2/fixtures/research/ fixture sketches
-- docs/adr/ADR-025-research-workspace-prep.md
-- tests/unit/test_as_2_2_research_prep_001.py
-- Soft WORKLOG only
+- Own `docs/atlas-2.2/` Hybrid Retrieval 2 architecture, contract stubs, fixture sketches, benchmark cases, docs-only schema draft
+- Strategy cross-links (roadmap PREP table, GAP-NS-002 evidence, strategy README)
+- **No** dependency-bearing mutation of `knowledge_compiler` / `retrieval` / `hybrid_retrieval` live path
 
-### Pipeline
-question -> hypotheses -> evidence -> conflicts -> synthesis -> packs
-
-### Explicit non-claims
-- ATLAS_2_1_RELEASE_CERTIFIED: NO
-- AUTHENTIC_ESTATE_PILOT: NO / PASS not claimed
-- Production src/ mutation: NONE
-- Schema package-data promotion: NONE
+### Gates
+- Docs/fixtures/benchmarks only; gate credit = NO; unlock still required for production
+- Evidence: `atlas-2.1-productionization-001` orphan receipt

@@ -1,0 +1,19 @@
+{
+  "scenario_id": "FX-2.2-RET-003",
+  "package_id": "AS-2.2-RET-HYBRID-001",
+  "expect": {
+    "semantic_enabled": false,
+    "semantic_slot": {
+      "enabled": false,
+      "status": "disabled",
+      "reason": "semantic-slot-disabled-by-default-no-embeddings-service"
+    },
+    "enable_semantic_true": {
+      "outcome": "fail_closed",
+      "error_token_prefix": "semantic-slot-not-available",
+      "note": "AS-2.0-RET-HYBRID-001 rejects enable_semantic=True; 2.2 prep preserves this invariant until SemanticIndexContract exists"
+    }
+  },
+  "truth_boundary": "SEMANTIC INDEX ≠ CANONICAL TRUTH",
+  "gate_credit": "NO"
+}
