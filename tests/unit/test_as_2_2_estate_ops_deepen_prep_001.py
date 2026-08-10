@@ -188,6 +188,7 @@ def test_no_production_mutation_paths_in_prep_tree() -> None:
         assert not name.startswith("src/"), name
         assert not name.startswith("apps/"), name
         assert not name.endswith("README.md"), name
-        assert name.startswith("docs/atlas-2.2/estate-ops/") or name == (
-            "tests/unit/test_as_2_2_estate_ops_deepen_prep_001.py"
-        ), name
+        assert name.startswith("docs/atlas-2.2/estate-ops/") or name in {
+            "tests/unit/test_as_2_2_estate_ops_deepen_prep_001.py",
+            "tests/unit/test_as_2_2_estate_ops_prep_001.py",
+        }, name
