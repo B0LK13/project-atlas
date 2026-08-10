@@ -5115,20 +5115,25 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.2-CTX-COMPILER-001 PREP — Context Compiler (SAFE pre-v2.1.0)
+## AS-2.1-OBS-PERF-001 — Observability / performance deepen (Track A)
 
 **Date:** 2026-08-10
-**Branch:** feat/as-2.2-ctx-compiler-prep
-**Baseline:** origin/main `a1e0972` / TREE `c6cfe95`
-**Directive:** D-PROJECT-ATLAS-FORCED-MULTIAGENT-ORCHESTRATION-001 (Track B 2.2 prep)
-**Evidence lane:** atlas-2.1-productionization-001
+**Branch:** feat/as-2.1-obs-perf
+**Base tip:** f45134f / TREE 02eeb7392a7cfcbf78a8c28a2034cf0b54ac509e
+**Directive evidence:** atlas-2.1-productionization-001
 
-### Scope
-- Architecture + ADR for task→candidates→authority→freshness→conflicts→budget→package
-- Contract drafts under `docs/atlas-2.2/contracts/ctx-compiler/`
-- Fixture sketches (positive developer pack, conflict retain, budget/invent negatives)
-- **No** `src/` production semantic mutation; CTX-001 not relabeled as Compiler
+Deepened operational lane visibility and fixture-scale perf baselines for
+API / MCP / query / sync without shared schema mutation.
 
-### Gates
-- Docs/ADR/fixtures only; `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` remains unfired
-- RELEASE / PILOT credit: **NO**
+**Owned:**
+- src/project_atlas/obs_live.py (lanes)
+- src/project_atlas/perf_baselines.py (lane timings)
+- src/project_atlas/obs_perf.py (combined receipt)
+- docs/atlas-2.1/OBS-PERF.md
+- tests/unit/test_as_2_1_obs_perf_001.py
+
+**Non-owned:** schema.py / shared schemas, api_server.py, authz.py,
+ops_receipts.py, autonomy_l3.py, Web Mission/Workspace.
+
+**Gates:** focused pytest PASS; ruff/mypy on owned modules PASS.
+

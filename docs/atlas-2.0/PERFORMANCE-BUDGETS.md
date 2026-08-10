@@ -19,3 +19,18 @@ Federation/sync v2 budgets deferred until estate PILOT exists. Do not invent
 load numbers from missing roots.
 
 `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
+
+## 2.1 OBS-PERF local baselines (AS-2.1-OBS-PERF-001)
+
+Fixture-scale `duration_ms` samples only — **not** production SLOs and **not**
+a release gate. See `docs/atlas-2.1/OBS-PERF.md`.
+
+| Lane | Measurement keys | Soft advisory |
+|---|---|---|
+| API (AppService reads) | `api_health_read_ms`, `api_projects_read_ms` | record only |
+| MCP | `mcp_list_tools_ms`, `mcp_invoke_health_ms` | record only |
+| Query | `ask_atlas_query_ms`, `query_plan_build_ms` | record only |
+| Sync dry-run | `sync_plan_dry_run_ms` | scaffold only; ≠ authentic SYNC |
+
+Hard fail in CI is limited to harness correctness (schema of receipt, fail-closed
+iteration bounds). Wall-clock thresholds are never release-blocking.
