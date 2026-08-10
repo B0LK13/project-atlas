@@ -4,7 +4,7 @@
   "package_id": "AS-2.2-ROADMAP-CROSSWALK-PREP-001",
   "roadmap_path": "docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md",
   "crosswalk_path": "docs/atlas-2.2/roadmap-crosswalk/CROSSWALK.md",
-  "tip_audited": "5e2559f",
+  "tip_audited": "5e2559f096ce6e1a906ee69ded45f8393ff2310b",
   "pilot_roots": 0,
   "authentic_estate_pilot_passed": false,
   "atlas_2_1_release_certified": false,
@@ -210,5 +210,6 @@
       "prep_entry": "docs/atlas-2.2/AS-2.2-PREP-FIXTURE-ROLLUP-001.md"
     }
   ],
-  "sync_package_id": "AS-2.2-ROADMAP-CROSSWALK-SYNC-001"
+  "sync_package_id": "AS-2.2-ROADMAP-CROSSWALK-SYNC-001",
+  "docs_atlas_2_2_tree": "2768267fa1923a3a1108f84fff9d77eae7e794fc"
 }

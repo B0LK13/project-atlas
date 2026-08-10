@@ -10,7 +10,7 @@ production slots in
 |---|---|
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
 | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` | **NO** |
-| Tip audited | `5e2559f096ce6e1a906ee69ded45f8393ff2310b` / TREE `2768267fa1923a3a1108f84fff9d77eae7e794fc` (`docs/atlas-2.2`) |
+| Tip audited | `5e2559f096ce6e1a906ee69ded45f8393ff2310b` / TREE `2768267fa1923a3a1108f84fff9d77eae7e794fc` |
 | PREP packages mapped | **21** (+ ADV-POOL, FIXTURE-ROLLUP) |
 
 ## Legend
