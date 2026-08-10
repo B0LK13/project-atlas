@@ -1,7 +1,7 @@
 # Atlas Gap Register
 
 **Directive:** `D-PROJECT-ATLAS-GAP-ANALYSIS-TO-EXECUTABLE-ROADMAP-001`  
-**Tip at register:** `4f3ade9` / TREE `80a4ba55` (revalidate)  
+**Tip at register:** `a1e0972` / TREE `c6cfe95` (revalidate)  
 **Backlogs:** keep **2.1 release-critical** and **north-star** separate — do not merge queues.
 
 Legend:
@@ -16,7 +16,7 @@ Legend:
 
 | GAP_ID | Gap | Maturity | RELEASE_BLOCKING | Priority | Proposed package | Target release | Evidence |
 |---|---|---|---|---|---|---|---|
-| GAP-2.1-001 | Authentic estate PILOT PASS | OWNER_BLOCKED | **YES** | P0 | AS-2.1-PILOT-AUTH-001 | v2.1.0 | prep FOUND=0; wake `AUTHENTIC_ESTATE_ROOT_AVAILABLE` |
+| GAP-2.1-001 | Authentic estate PILOT PASS | DORMANT_BLOCKED | **YES** | P0 | AS-2.1-PILOT-AUTH-001 | v2.1.0 | ACTIVE_WORKER=NONE; wake `AUTHENTIC_ESTATE_ROOT_AVAILABLE` |
 | GAP-2.1-002 | SYNC-AUTH on authentic estate | BLOCKED | **YES** (post-PILOT) | P0 | AS-2.1-SYNC-AUTH-001 | v2.1.0 | blocked on GAP-2.1-001 |
 | GAP-2.1-003 | TWIN-AUTH on authentic estate | BLOCKED | **YES** (post-PILOT) | P0 | AS-2.1-TWIN-AUTH-001 | v2.1.0 | blocked on GAP-2.1-001 |
 | GAP-2.1-004 | LIVE E2E authentic matrix | BLOCKED | **YES** (post-PILOT) | P0 | AS-2.1-LIVE-E2E-001 | v2.1.0 | blocked on GAP-2.1-001..003 |
@@ -55,7 +55,7 @@ Legend:
 
 ---
 
-## C. Counts (at tip `4f3ade9`)
+## C. Counts (at tip `a1e0972`)
 
 | Bucket | Count |
 |---|---|
