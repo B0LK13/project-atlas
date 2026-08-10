@@ -5,7 +5,7 @@
 | Status | **PREP ONLY** — docs / contracts / fixtures / benchmarks / ADRs |
 | Unlock gate | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` (after `v2.1.0`) |
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
-| Tip baseline (index cut) | MAIN `0d7b623` / TREE `ecf010e` (full `0d7b6237de89b3016776aaf5c15bc73c3582191c` / `ecf010ebdda6cd3a0fb90b119aff46825a1f6f0a`) |
+| Tip baseline (index cut) | MAIN `4991008` / TREE `7ee5dff` (full `49910083b7b217fa9b5f03b5601876e8b2e5a6b2` / `7ee5dff6314e6916ae6f860cf998d3a12efd1085`) |
 | Charter | [CHARTER.md](CHARTER.md) |
 | Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
 | Roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) |
@@ -51,6 +51,11 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **REALITY-LIVE-DEEPEN** | `AS-2.2-REALITY-LIVE-DEEPEN-PREP-001` | [#217](https://github.com/B0LK13/project-atlas/pull/217)/[#219](https://github.com/B0LK13/project-atlas/pull/219) | [reality-live/AS-2.2-REALITY-LIVE-DEEPEN-PREP-001.md](reality-live/AS-2.2-REALITY-LIVE-DEEPEN-PREP-001.md) |
 | **TIME-DEEPEN** | `AS-2.2-TIME-MACHINE-DEEPEN-PREP-001` | [#218](https://github.com/B0LK13/project-atlas/pull/218) | [time-machine/AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md](time-machine/AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md) |
 | **DOD-DEEPEN** | `AS-2.2-DOD-DEEPEN-PREP-001` | [#210](https://github.com/B0LK13/project-atlas/pull/210) | [dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md](dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md) · [dod-compiler/INVARIANTS.md](dod-compiler/INVARIANTS.md) · [dod-compiler/FIXTURE-PLAN.md](dod-compiler/FIXTURE-PLAN.md) · [dod-compiler/contracts/](dod-compiler/contracts/) · [dod-compiler/fixtures/](dod-compiler/fixtures/) · [dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md](dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md) |
+| **INTEL-DEEPEN** | `AS-2.2-INTEL-SLICE-DEEPEN-PREP-001` | [#229](https://github.com/B0LK13/project-atlas/pull/229) | [intel-slice/AS-2.2-INTEL-SLICE-DEEPEN-PREP-001.md](intel-slice/AS-2.2-INTEL-SLICE-DEEPEN-PREP-001.md) |
+| **TEMPORAL-DEEPEN** | `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001` | [#228](https://github.com/B0LK13/project-atlas/pull/228)/[#230](https://github.com/B0LK13/project-atlas/pull/230) | [temporal-ux/AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md](temporal-ux/AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001.md) |
+| **ESTATE-OPS-DEEPEN** | `AS-2.2-ESTATE-OPS-DEEPEN-PREP-001` | [#227](https://github.com/B0LK13/project-atlas/pull/227) | [estate-ops/AS-2.2-ESTATE-OPS-DEEPEN-PREP-001.md](estate-ops/AS-2.2-ESTATE-OPS-DEEPEN-PREP-001.md) |
+| **COMPAT-DEEPEN** | `AS-2.2-COMPAT-PIN-DEEPEN-PREP-001` | [#226](https://github.com/B0LK13/project-atlas/pull/226) | [compat-pin/AS-2.2-COMPAT-PIN-DEEPEN-PREP-001.md](compat-pin/AS-2.2-COMPAT-PIN-DEEPEN-PREP-001.md) |
+| **CHATGPT-LIVE-DEEPEN** | `AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001` | [#224](https://github.com/B0LK13/project-atlas/pull/224) | [chatgpt-live/AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001.md](chatgpt-live/AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001.md) |
 | **CONFLICT-DEEPEN** | `AS-2.2-CONFLICT-UX-DEEPEN-PREP-001` | [#223](https://github.com/B0LK13/project-atlas/pull/223) | [conflict-ux/AS-2.2-CONFLICT-UX-DEEPEN-PREP-001.md](conflict-ux/AS-2.2-CONFLICT-UX-DEEPEN-PREP-001.md) |
 | **KCI-DEEPEN** | AS-2.2-KCI-ENGINE-DEEPEN-PREP-001 | [#221](https://github.com/B0LK13/project-atlas/pull/221) | [kci-engine/AS-2.2-KCI-ENGINE-DEEPEN-PREP-001.md](kci-engine/AS-2.2-KCI-ENGINE-DEEPEN-PREP-001.md) |
 | **PREP-STATUS** | `AS-2.2-PREP-STATUS-001` | [#203](https://github.com/B0LK13/project-atlas/pull/203) | [PREP-STATUS.md](PREP-STATUS.md) |
