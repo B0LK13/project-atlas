@@ -1,0 +1,15 @@
+{
+  "scenario_id": "FX-2.2-KF2-007",
+  "attempt": "elevate-fabric-to-layer-b-authority",
+  "input": {
+    "authority": { "level": "domain" }
+  },
+  "expected_error": "kf2-prep-authority-elevate-forbidden",
+  "expected_status": "reject",
+  "atlas_2_1_release_certified": false,
+  "invariants": {
+    "kf2_ne_authority": true,
+    "projection_ne_mutation": true
+  },
+  "notes": "KF2 ≠ AUTHORITY; fabric accounting never becomes Layer B"
+}

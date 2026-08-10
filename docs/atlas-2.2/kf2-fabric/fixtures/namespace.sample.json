@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-KF2-FABRIC-PREP-001",
+  "projection_id": "kproj-namespace-sample-v1",
+  "scope": {
+    "kind": "project-set",
+    "project_ids": ["proj-alpha", "proj-beta"]
+  },
+  "buckets": ["namespaces"],
+  "cited_ids": ["kf2-ns-portfolio-v1"],
+  "status": "selected",
+  "cross_promote": false,
+  "authority": {
+    "level": "derived",
+    "note": "Conceptual citation of AS-KF2-NS-001; no runtime mutation"
+  },
+  "truth_boundary": "KF2 ESTATE PROJECTION ≠ AUTHORITY / ≠ LAYER B MUTATION / ≠ CROSS PROMOTE",
+  "evidence_class": "fixture-only",
+  "atlas_2_1_release_certified": false,
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" }
+}

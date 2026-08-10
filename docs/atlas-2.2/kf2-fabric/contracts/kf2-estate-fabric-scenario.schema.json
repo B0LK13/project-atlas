@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/kf2-estate-fabric-scenario.schema.json",
+  "title": "kf2-estate-fabric-scenario (PREP STUB — not package data)",
+  "description": "AS-2.2-KF2-FABRIC-PREP-001 scenario row citing AS-KF2-* substrate conceptually. KF2 ≠ AUTHORITY; cross_promote=false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scenario_id",
+    "substrate_package",
+    "bucket",
+    "status",
+    "evidence_class",
+    "authentic_estate",
+    "cross_promote",
+    "authority_elevated"
+  ],
+  "properties": {
+    "scenario_id": {
+      "type": "string",
+      "pattern": "^FX-2\\.2-KF2-[0-9]{3}$"
+    },
+    "substrate_package": {
+      "type": "string",
+      "enum": [
+        "AS-KF2-NS-001",
+        "AS-KF2-ENTITY-001",
+        "AS-KF2-REL-001",
+        "AS-KF2-002"
+      ]
+    },
+    "bucket": {
+      "type": "string",
+      "enum": [
+        "namespaces",
+        "entities",
+        "relationships",
+        "inventory-export"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["retained", "quarantine", "reject", "review-candidate"]
+    },
+    "cited_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "cross_promote": { "const": false },
+    "authority_elevated": { "const": false },
+    "notes": { "type": "string", "maxLength": 240 }
+  }
+}
