@@ -142,6 +142,8 @@ SCHEMA_FILES: dict[str, str] = {
     "openai-import-fixture-receipt": "openai-import-fixture-receipt.schema.json",
     # AS-2.0-OBS-UX-001 — Obsidian non-canonical lens registry (≠ plugin / ≠ canonical)
     "obsidian-lens-registry": "obsidian-lens-registry.schema.json",
+    # AS-2.0-MCP-001 — deny-by-default MCP tool registry (≠ live server)
+    "mcp-tool-registry": "mcp-tool-registry.schema.json",
 }
 
 

@@ -70,6 +70,7 @@ def test_all_expected_schemas_available() -> None:
         "knowledge-answer",
         "knowledge-multifield-answer",
         "lifecycle-cert-report",
+        "mcp-tool-registry",
         "obsidian-lens-registry",
         "openai-import-fixture-receipt",
         "ops-event",
