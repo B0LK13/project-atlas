@@ -22,6 +22,7 @@ from project_atlas.adv_release_cert import (
 )
 from project_atlas.api_server import ApiServerError, serve_api
 from project_atlas.authz import AuthzError, elevated_operator
+from project_atlas.autonomy_l3 import AutonomyL3Error, run_bounded_l3_loop
 from project_atlas.backup import (
     BackupError,
     create_snapshot,
@@ -1331,6 +1332,21 @@ def build_parser() -> argparse.ArgumentParser:
     live_perf.add_argument("--baseline-id", default="live-read")
     live_perf.add_argument("--iterations", type=int, default=3)
     live_perf.add_argument("--json", action="store_true")
+    live_l3 = live_sub.add_parser(
+        "l3-loop",
+        help="Run bounded L3 policy-to-dispatch loop (requires autonomy.l3 + dispatch).",
+    )
+    live_l3.add_argument("--vault", type=Path, required=True)
+    live_l3.add_argument("--policy-id", required=True)
+    live_l3.add_argument(
+        "--job",
+        action="append",
+        dest="jobs",
+        choices=("validate", "build-indexes", "version"),
+        required=True,
+        help="Job to run (repeatable; capped by policy max_jobs_per_arm).",
+    )
+    live_l3.add_argument("--json", action="store_true")
 
     return parser
 
@@ -2674,6 +2690,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"baseline_id: {report['baseline_id']}")
                 print(f"snapshot_max_ms: {snap['max_ms']}")
                 print(f"release_blocking: {report['release_blocking']}")
+            return EXIT_OK
+        if args.live_command == "l3-loop":
+            try:
+                op = elevated_operator(
+                    "local-operator-l3",
+                    extra={"autonomy.l3", "scheduler.dispatch"},
+                )
+                report = run_bounded_l3_loop(
+                    args.vault,
+                    policy_id=args.policy_id,
+                    jobs=list(args.jobs),
+                    operator=op,
+                )
+            except (
+                AutonomyL3Error,
+                AuthzError,
+                CompatAnchorError,
+                SchedulerLiveError,
+                OSError,
+                ValueError,
+            ) as exc:
+                _log.error("live l3-loop failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"policy_id: {report['policy_id']}")
+                print(f"jobs_run: {len(report['jobs_run'])}")
+                print(f"promoted: {report['promoted']}")
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown live command: {args.live_command}"

@@ -27,6 +27,7 @@ from project_atlas.web_actions import (
     load_action_ledger,
     submit_web_action,
 )
+from project_atlas.web_mission_workspace import build_mission_view, build_workspace_view
 
 PACKAGE_ID = "AS-2.1-API-SERVER-001"
 TRUTH_BOUNDARY = (
@@ -159,6 +160,8 @@ def make_handler(
                 "/v1/obs": lambda: build_live_observability_receipt(
                     service.vault, receipt_id="api-obs"
                 ),
+                "/v1/mission": lambda: build_mission_view(service.vault),
+                "/v1/workspace": lambda: build_workspace_view(service.vault),
                 "/v1/authz": lambda: {
                     "package_id": "AS-2.1-AUTHZ-001",
                     "operator_id": operator.operator_id,
@@ -174,6 +177,8 @@ def make_handler(
                     "live_api": True,
                     "ask_atlas_live": True,
                     "obs_live": True,
+                    "mission_live": True,
+                    "workspace_live": True,
                     "authz_profile": True,
                     "max_post_bytes": MAX_POST_BYTES,
                     "cors_origin": CORS_ORIGIN,

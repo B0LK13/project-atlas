@@ -14,12 +14,16 @@ from typing import Any
 
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_anchor
+from project_atlas.scheduler_live import dispatch_supervised_job
 
 PACKAGE_ID = "AS-2.1-AUTONOMY-L3-001"
 TRUTH_BOUNDARY = (
     "L3_BOUNDED_AUTONOMY != L4/L5 / != UNSUPERVISED PROMOTE / != AUTHORITY"
 )
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+ALLOWED_L3_JOBS: frozenset[str] = frozenset(
+    {"validate", "build-indexes", "version"}
+)
 
 
 class AutonomyL3Error(ValueError):
@@ -139,4 +143,82 @@ def disable_bounded_l3(
     prior["enabled"] = False
     prior["l3_bounded_autonomy"] = False
     _atomic_write_json(path, prior)
+    return payload
+
+
+def run_bounded_l3_loop(
+    vault: Path,
+    *,
+    policy_id: str,
+    jobs: list[str],
+    operator: OperatorProfile | None = None,
+) -> dict[str, Any]:
+    """Run a bounded policy→dispatch loop under L3 + armed scheduler.
+
+    Requires ``autonomy.l3`` and ``scheduler.dispatch``. Never promotes
+    Layer B. Caps job count by policy ``max_jobs_per_arm``.
+    """
+    require_compatibility_anchor()
+    op = operator or default_operator()
+    op.require("autonomy.l3")
+    op.require("scheduler.dispatch")
+    pid = policy_id.strip()
+    if not _ID_RE.fullmatch(pid):
+        raise AutonomyL3Error("autonomy-l3-policy-id-invalid")
+    path = vault / "generated" / "ops" / "autonomy" / f"{pid}-l3-policy.json"
+    if not path.is_file():
+        raise AutonomyL3Error("autonomy-l3-policy-missing")
+    policy = json.loads(path.read_text(encoding="utf-8"))
+    if policy.get("enabled") is not True or policy.get("l3_bounded_autonomy") is not True:
+        raise AutonomyL3Error("autonomy-l3-policy-disabled")
+    arm_id = str(policy.get("arm_id") or "")
+    if not arm_id:
+        raise AutonomyL3Error("autonomy-l3-arm-id-missing")
+    max_jobs = int(policy.get("max_jobs_per_arm") or 0)
+    timeout_s = int(policy.get("job_timeout_s") or 120)
+    if not jobs:
+        raise AutonomyL3Error("autonomy-l3-jobs-empty")
+    if len(jobs) > max_jobs:
+        raise AutonomyL3Error("autonomy-l3-jobs-exceed-max")
+    results: list[dict[str, Any]] = []
+    for raw_job in jobs:
+        job = raw_job.strip()
+        if job not in ALLOWED_L3_JOBS:
+            raise AutonomyL3Error(f"autonomy-l3-job-forbidden:{job}")
+        dispatch = dispatch_supervised_job(
+            vault,
+            arm_id=arm_id,
+            job=job,  # type: ignore[arg-type]
+            operator=op,
+            timeout_s=timeout_s,
+        )
+        results.append(
+            {
+                "job": job,
+                "exit_code": dispatch.get("exit_code"),
+                "timed_out": dispatch.get("timed_out"),
+                "duration_ms": dispatch.get("duration_ms"),
+            }
+        )
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "package_id": PACKAGE_ID,
+        "compat_snapshot_id": SNAPSHOT_ID,
+        "policy_id": pid,
+        "arm_id": arm_id,
+        "l3_loop": True,
+        "jobs_requested": list(jobs),
+        "jobs_run": results,
+        "vault_write_enabled": False,
+        "promoted": False,
+        "operator_id": op.operator_id,
+        "truth_boundary": TRUTH_BOUNDARY,
+        "authority": {
+            "level": "derived",
+            "note": "L3 loop dispatches supervised jobs only; never Layer B",
+        },
+        "generated": {"by": "project-atlas"},
+    }
+    out = vault / "generated" / "ops" / "autonomy" / f"{pid}-l3-loop.json"
+    _atomic_write_json(out, payload)
     return payload
