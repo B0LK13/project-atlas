@@ -1,18 +1,20 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-RL-103 \u2014 expected rejection of release_cert_stamp from derived gap report",
   "action_id": "action.demo.reality-live.release-cert-stamp.forbidden",
-  "plane_id": "aggregator",
-  "kind": "release_cert_stamp",
-  "status": "rejected_forbidden",
-  "expected_error": "reality-live-release-cert-stamp-forbidden",
-  "pilot_roots": 0,
-  "invent_pilot_roots": false,
-  "canonical_writes": false,
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "Gap report must not stamp WEB ACCEPTED or ATLAS_2_1_RELEASE_CERTIFIED"
   },
-  "truth_boundary": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B",
-  "_prep_note": "FX-2.2-RL-103 — expected rejection of release_cert_stamp from derived gap report"
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "reality-live-release-cert-stamp-forbidden",
+  "invent_pilot_roots": false,
+  "kind": "release_cert_stamp",
+  "package_id": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001",
+  "pilot_roots": 0,
+  "plane_id": "aggregator",
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "REALITY-LIVE GAP REPORT \u2260 PILOT PASS / \u2260 WEB ACCEPTED / \u2260 RELEASE CERT / \u2260 Layer B"
 }

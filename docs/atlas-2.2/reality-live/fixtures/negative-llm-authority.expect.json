@@ -1,18 +1,20 @@
 {
-  "schema_version": 1,
-  "package_id": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001",
+  "_prep_note": "FX-2.2-RL-102 \u2014 expected rejection of llm_authority_stamp on conversational plane",
   "action_id": "action.demo.reality-live.llm-authority.forbidden",
-  "plane_id": "conversational",
-  "kind": "llm_authority_stamp",
-  "status": "rejected_forbidden",
-  "expected_error": "reality-live-llm-authority-forbidden",
-  "pilot_roots": 0,
-  "invent_pilot_roots": false,
-  "canonical_writes": false,
+  "authentic_estate": false,
   "authority": {
     "level": "derived",
     "note": "Conversational evidence must not stamp Layer B or claim authority"
   },
-  "truth_boundary": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B",
-  "_prep_note": "FX-2.2-RL-102 — expected rejection of llm_authority_stamp on conversational plane"
+  "canonical_writes": false,
+  "evidence_class": "fixture-only",
+  "expected_error": "reality-live-llm-authority-forbidden",
+  "invent_pilot_roots": false,
+  "kind": "llm_authority_stamp",
+  "package_id": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001",
+  "pilot_roots": 0,
+  "plane_id": "conversational",
+  "schema_version": 1,
+  "status": "rejected_forbidden",
+  "truth_boundary": "REALITY-LIVE GAP REPORT \u2260 PILOT PASS / \u2260 WEB ACCEPTED / \u2260 RELEASE CERT / \u2260 Layer B"
 }

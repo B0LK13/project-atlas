@@ -6,7 +6,7 @@
 | Class | **PREP ONLY** (contracts / fixtures / ADR) |
 | Unlock target | Post-`v2.1.0` → feeds future `AS-2.2-REALITY-LIVE-001` runtime |
 | Tip audited | `961577c74191ee8e74ae0bcde438673ea041077c` |
-| Tree | `961577c74191ee8e74ae0bcde438673ea041077c` |
+| Tree | `a23e3ae1027eaeeaed50e3fb470be8226b1afe29` |
 | Scope | `docs/atlas-2.2/reality-live/**` deepen lane (+ unique unit test) |
 | Production mutation | **NONE** |
 | `reality_gap.py` / `reality_gap_ui.py` | **do not mutate** |
