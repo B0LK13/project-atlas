@@ -20,3 +20,4 @@ Status: **PREP ONLY** — review payloads, not a harness.
 | `expected-proof-pass.json` | PASS proof shape |
 | `expected-proof-incomplete.json` | Missing evidence → INCOMPLETE |
 | `expected-proof-fail-evidence-class.json` | Fixture≠pilot → FAIL |
+| `expected-proof-fail-unknown-criterion.json` | Orphan binding → FAIL (FX-2.2-DOD-004) |
