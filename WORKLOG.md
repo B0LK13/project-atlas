@@ -5013,3 +5013,10 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 - node apps/web/scripts/smoke.mjs PASS (ACCEPTED=YES)
 - npm run build PASS
 - focused web+pilot pytest PASS
+
+## PRE-RC tip pin — 75409c7
+
+**Date:** 2026-08-10
+**Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
+**Pin:** MAIN 75409c7 / TREE 0e84e45d
+**RELEASE CERTIFIED = NO**

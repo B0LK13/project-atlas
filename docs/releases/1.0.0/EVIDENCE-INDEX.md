@@ -1,7 +1,7 @@
 # Atlas 1.0.0 PRE-RC evidence index
 
 **Directive:** `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001`
-**Evidence baseline:** MAIN `518bdef66b24e099b889d2165540a6ca756e8aa4` / TREE `d0eaa64a216b3f8bf3d9a67857f1b13a7f8af41c`
+**Evidence baseline:** MAIN `75409c796a664556b6ba8acc78bdbb0f1aaf20a7` / TREE `0e84e45d0e00f4f8142d168f3eb066976f3fc3dd`
 **Index status:** PRE-RC inventory only
 **RELEASE CERTIFIED = NO**
 
