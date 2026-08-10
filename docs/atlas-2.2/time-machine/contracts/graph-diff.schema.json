@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/graph-diff.schema.json",
+  "title": "graph-diff (PREP STUB — not package data)",
+  "description": "AS-2.2-TIME-MACHINE-001 derived graph delta. Graph≠authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "entities_added",
+    "entities_removed",
+    "edges_added",
+    "edges_removed",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TIME-MACHINE-001" },
+    "entities_added": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "entities_removed": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "edges_added": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["edge_id", "from_entity", "to_entity", "rel_type"],
+        "properties": {
+          "edge_id": { "type": "string", "minLength": 1 },
+          "from_entity": { "type": "string", "minLength": 1 },
+          "to_entity": { "type": "string", "minLength": 1 },
+          "rel_type": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "edges_removed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["edge_id"],
+        "properties": {
+          "edge_id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "GRAPH DIFF ≠ AUTHORITY / ≠ LAYER B"
+    }
+  }
+}

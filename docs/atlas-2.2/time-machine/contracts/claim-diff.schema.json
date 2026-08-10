@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/claim-diff.schema.json",
+  "title": "claim-diff (PREP STUB — not package data)",
+  "description": "AS-2.2-TIME-MACHINE-001 claim delta between two as-of views.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "added",
+    "removed",
+    "changed",
+    "unresolved_delta",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TIME-MACHINE-001" },
+    "added": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "subject", "field"],
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "subject": { "type": "string" },
+          "field": { "type": "string" },
+          "value_sketch": { "type": "string" }
+        }
+      }
+    },
+    "removed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim_id", "subject", "field"],
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "subject": { "type": "string" },
+          "field": { "type": "string" }
+        }
+      }
+    },
+    "changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "from_claim_id", "to_claim_id"],
+        "properties": {
+          "subject": { "type": "string" },
+          "field": { "type": "string" },
+          "from_claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "to_claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "relation": {
+            "enum": ["SUPERSEDES", "REOBSERVES", "REOPENS", "UNKNOWN"]
+          }
+        }
+      }
+    },
+    "unresolved_delta": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "reason"],
+        "properties": {
+          "subject": { "type": "string" },
+          "field": { "type": "string" },
+          "reason": {
+            "enum": [
+              "unresolved_overlap",
+              "unresolved_incomplete",
+              "authority_pending"
+            ]
+          }
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "CLAIM DIFF ≠ AUTHORITY / ≠ LAYER B MUTATION"
+    }
+  }
+}
