@@ -146,6 +146,10 @@ SCHEMA_FILES: dict[str, str] = {
     "mcp-tool-registry": "mcp-tool-registry.schema.json",
     # AS-2.0-UX-002 — Advanced Command Center mode catalog (≠ UI rewrite)
     "ux-mode-catalog": "ux-mode-catalog.schema.json",
+    # AS-2.0-CTX-002 — context pack composition deepen (≠ estate facts)
+    "context-pack-composition": "context-pack-composition.schema.json",
+    # AS-2.0-AGENTOS-002 — Agent OS phase transition deepen (≠ Core authority)
+    "agentos-phase-transition": "agentos-phase-transition.schema.json",
 }
 
 
