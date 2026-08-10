@@ -164,6 +164,12 @@ SCHEMA_FILES: dict[str, str] = {
     "scheduler-dry-run": "scheduler-dry-run.schema.json",
     # AS-2.0-SEC-001 — continuous security receipt (metadata only)
     "security-continuous-receipt": "security-continuous-receipt.schema.json",
+    # AS-2.0-API-001 — API 2.0 surface registry (write_enabled=false)
+    "api-surface-registry": "api-surface-registry.schema.json",
+    # AS-2.0-CHATGPT-CAPTURE-001 — fixture ChatGPT capture (no live API)
+    "chatgpt-capture-receipt": "chatgpt-capture-receipt.schema.json",
+    # AS-2.0-ESTATE-INTEL-001 — fixture estate intel (≠ PILOT PASS)
+    "estate-intel-fixture": "estate-intel-fixture.schema.json",
 }
 
 
