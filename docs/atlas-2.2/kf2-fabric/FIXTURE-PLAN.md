@@ -22,6 +22,11 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | FX-2.2-KF2-007 | `negative-authority-elevate.expect.json` | Authority elevate → reject expect |
 | FX-2.2-KF2-008 | `negative-projection-write.expect.json` | Projection write → reject expect |
 
+Deepen forbidden-action negatives (FX-2.2-KF2-DEEPEN-101..108) are inventoried in
+[`DEEPEN-FIXTURE-PLAN.md`](DEEPEN-FIXTURE-PLAN.md) and validate against
+`contracts/kf2-fabric-forbidden-action.schema.json` (peer to base stubs; do not
+dual-own).
+
 ## Rules
 
 - `evidence_class = fixture-only`
@@ -38,6 +43,7 @@ are synthetic sketches. **Gate credit: NO.** Runner: absent until post-unlock.
 | Scenario | State | Gate credit |
 |---|---|---|
 | FX-2.2-KF2-001..008 | payload-present (docs sketch) | **NO** |
+| FX-2.2-KF2-DEEPEN-101..108 | payload-present (deepen sketch) | **NO** |
 
 Promotion to `fixtures/atlas-2.2/` + harness requires
 `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED`.

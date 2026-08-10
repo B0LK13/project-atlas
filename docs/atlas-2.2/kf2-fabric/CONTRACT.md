@@ -15,6 +15,7 @@ fork AS-KF2 package_ids in this PREP.
 | `kf2-estate-fabric-inventory.schema.json` | Estate KF fabric inventory envelope | `inventory` |
 | `kf2-estate-fabric-scenario.schema.json` | Scenario / substrate row | nested in inventory |
 | `kf2-estate-projection.schema.json` | Read projection over selected buckets | `project` |
+| `kf2-fabric-forbidden-action.schema.json` | Deepen forbidden-action vocabulary | `reject` (DEEPEN; do not relocate base stubs) |
 
 ## Conceptual operations
 
