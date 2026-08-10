@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-DOD-DEEPEN-PREP-001",
+  "action_id": "action.demo.dod.invented-pass.forbidden",
+  "proof_id": "proof.demo.empty-evidence.forbidden",
+  "criterion_id": "crit.demo.ruff-clean",
+  "kind": "invented_pass",
+  "status": "rejected_forbidden",
+  "expected_error": "dod-invented-pass-forbidden",
+  "authority_promoted": false,
+  "consume_only": true,
+  "pilot_roots": 0,
+  "authentic_estate": false,
+  "evidence_class": "fixture-only",
+  "truth_boundary": "DoD PROOF ≠ LAYER B AUTHORITY / ≠ LLM AUTHORITY / ≠ INVENTED PASS / FIXTURE ≠ PILOT",
+  "_prep_note": "FX-2.2-DOD-104 — expected rejection of PASS with empty evidence list"
+}
