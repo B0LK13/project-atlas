@@ -5,7 +5,7 @@
 | Status | **PREP ONLY** — docs / contracts / fixtures / benchmarks / ADRs |
 | Unlock gate | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` (after `v2.1.0`) |
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
-| Tip baseline (index cut) | MAIN `1d81a98` (= `origin/main` at branch cut) |
+| Tip baseline (index cut) | MAIN `4fbf517` (= `origin/main` at branch cut) |
 | Charter | [CHARTER.md](CHARTER.md) |
 | Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
 
@@ -18,7 +18,7 @@ or inventing authentic-estate PILOT credit.
 
 Package directories under this tree are **preserved**; this README is an
 integration index only (builds on H01 #173 multi-package restore; extends through
-#179–#192 tip merges).
+#179–#197 tip merges).
 
 ## Landed PREP packages
 
@@ -40,6 +40,8 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **INTEL** | `AS-2.2-INTEL-SLICE-PREP-001` | [#189](https://github.com/B0LK13/project-atlas/pull/189) | [intel-slice/](intel-slice/) · [intel-slice/fixtures/](intel-slice/fixtures/) · [intel-slice/AS-2.2-INTEL-SLICE-PREP-001.md](intel-slice/AS-2.2-INTEL-SLICE-PREP-001.md) |
 | **CHATGPT** | `AS-2.2-CHATGPT-LIVE-PREP-001` | [#191](https://github.com/B0LK13/project-atlas/pull/191) | [chatgpt-live/](chatgpt-live/) · [chatgpt-live/contracts/](chatgpt-live/contracts/) · [chatgpt-live/fixtures/](chatgpt-live/fixtures/) · [chatgpt-live/AS-2.2-CHATGPT-LIVE-PREP-001.md](chatgpt-live/AS-2.2-CHATGPT-LIVE-PREP-001.md) |
 | **TEMPORAL** | `AS-2.2-TEMPORAL-UX-PREP-001` | [#192](https://github.com/B0LK13/project-atlas/pull/192) | [temporal-ux/](temporal-ux/) · [temporal-ux/contracts/](temporal-ux/contracts/) · [temporal-ux/fixtures/](temporal-ux/fixtures/) · [temporal-ux/AS-2.2-TEMPORAL-UX-PREP-001.md](temporal-ux/AS-2.2-TEMPORAL-UX-PREP-001.md) |
+| **COMPAT-PIN** | `AS-2.2-COMPAT-PIN-PREP-001` | [#196](https://github.com/B0LK13/project-atlas/pull/196) | [compat-pin/](compat-pin/) · [compat-pin/contracts/](compat-pin/contracts/) · [compat-pin/fixtures/](compat-pin/fixtures/) · [compat-pin/AS-2.2-COMPAT-PIN-PREP-001.md](compat-pin/AS-2.2-COMPAT-PIN-PREP-001.md) |
+| **ESTATE-OPS** | `AS-2.2-ESTATE-OPS-PREP-001` | [#197](https://github.com/B0LK13/project-atlas/pull/197) | [estate-ops/](estate-ops/) · [estate-ops/contracts/](estate-ops/contracts/) · [estate-ops/fixtures/](estate-ops/fixtures/) · [estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md](estate-ops/AS-2.2-ESTATE-OPS-PREP-001.md) |
 
 Shared stubs: [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) · [FIXTURE-PLAN.md](FIXTURE-PLAN.md) · [fixtures/README.md](fixtures/README.md) · [adr/](adr/)
 
@@ -54,6 +56,6 @@ Shared stubs: [PACKAGE-CONTRACT-STUBS.md](PACKAGE-CONTRACT-STUBS.md) · [FIXTURE
 
 ## Harvest note
 
-Parallel PREP merges (#159–#172, then #179–#192) left package directories
+Parallel PREP merges (#159–#172, then #179–#197) left package directories
 intact but `README.md` was last-writer-wins (#159). This index restores the
-multi-package tree through tip (#192) without reopening runtime surfaces.
+multi-package tree through tip (#197) without reopening runtime surfaces.
