@@ -12,11 +12,13 @@ Status: **PRODUCTION IMPLEMENTATION AUTHORIZED** after 1.0 anchor verify.
 | AS-2.0-FED-001 | Multi-vault federation | READY / RWC after COMPAT |
 | AS-2.0-UX-001 | Advanced Command Center | READY (WEB ACCEPTED=YES) |
 | AS-2.0-PROV-001 | Provider adapters | RWC (provenance non-bypass) |
+| AS-2.0-TEMPORAL-001 | Bitemporal validity windows | RWC — deepens AS-CORE-005; fail-closed |
+| AS-2.0-REALITY-GAP-001 | Reality-gap fixture inventory | READY — fixtures only; no estate invent |
 | AS-2.0-SYNC-001 | Estate sync v2 | **BLOCKED** — authentic PILOT |
-| AS-2.0-AGENTOS-001 | Agent OS envelope | PREPARED |
-| AS-2.0-KCI-001 | Knowledge Compilation Interface | PREPARED |
+| AS-2.0-AGENTOS-001 | Agent OS envelope | **PRODUCTION** (thin envelope) |
+| AS-2.0-KCI-001 | Knowledge Compilation Interface | **PRODUCTION** (thin compile contracts) |
 | AS-2.0-TWIN-001 | Digital Twin projections | **BLOCKED** — authentic PILOT |
-| AS-2.0-CTX-001 | Context assembly packs | PREPARED |
+| AS-2.0-CTX-001 | Context assembly packs | **PRODUCTION** (fixture-safe packs) |
 | AS-2.0-OBS-UX-001 | Obsidian 2.0 non-canonical UX | PREPARED |
 
 ## Notes
