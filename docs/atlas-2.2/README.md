@@ -64,6 +64,7 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **ROADMAP-DEEPEN** | `AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001` | [#237](https://github.com/B0LK13/project-atlas/pull/237) | [roadmap-crosswalk/AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001.md](roadmap-crosswalk/AS-2.2-ROADMAP-CROSSWALK-DEEPEN-PREP-001.md) |
 | **REALITY-GAP-DEEPEN** | AS-2.2-REALITY-GAP-DEEPEN-PREP-001 | [#240](https://github.com/B0LK13/project-atlas/pull/240) | [reality-gap/AS-2.2-REALITY-GAP-DEEPEN-PREP-001.md](reality-gap/AS-2.2-REALITY-GAP-DEEPEN-PREP-001.md) |
 | **FIXTURE-ROLLUP** | AS-2.2-PREP-FIXTURE-ROLLUP-001 | [#242](https://github.com/B0LK13/project-atlas/pull/242) | [AS-2.2-PREP-FIXTURE-ROLLUP-001.md](AS-2.2-PREP-FIXTURE-ROLLUP-001.md) |
+| **ADV-POOL** | AS-2.2-ADV-POOL-001 | [#243](https://github.com/B0LK13/project-atlas/pull/243) | [adv-pool/](adv-pool/) · [adv-pool/ADV-MATRIX.md](adv-pool/ADV-MATRIX.md) |
 | **PREP-STATUS** | `AS-2.2-PREP-STATUS-001` | [#203](https://github.com/B0LK13/project-atlas/pull/203) | [PREP-STATUS.md](PREP-STATUS.md) |
 | **CROSSWALK** | `AS-2.2-ROADMAP-CROSSWALK-PREP-001` | [#206](https://github.com/B0LK13/project-atlas/pull/206) | [roadmap-crosswalk/](roadmap-crosswalk/) · [CROSSWALK.md](roadmap-crosswalk/CROSSWALK.md) |
 
