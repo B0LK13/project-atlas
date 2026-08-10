@@ -24,4 +24,8 @@ fi
 # than `npm ci`, which requires a committed lockfile.
 npm --prefix apps/web install
 
+# Browser for the repository-native Playwright acceptance suite (npm run test:e2e).
+# Idempotent: skips the download when the browser is already cached.
+npm --prefix apps/web exec -- playwright install chromium
+
 echo "Project Atlas environment ready: $(.venv/bin/atlas version 2>/dev/null | tail -1)"
