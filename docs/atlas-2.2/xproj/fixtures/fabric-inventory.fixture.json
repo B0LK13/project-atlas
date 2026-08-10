@@ -1,0 +1,80 @@
+{
+  "schema": "atlas.2.2.xproj-fabric-inventory.v0",
+  "schema_version": 1,
+  "package_id": "AS-2.2-XPROJ-CONTRACT-PREP-001",
+  "compat_snapshot_id": "atlas-1.0.0-compat",
+  "scope": {
+    "kind": "project-set",
+    "project_ids": ["proj-alpha", "proj-beta"]
+  },
+  "pilot_roots": 0,
+  "authentic_estate_pilot_passed": false,
+  "atlas_2_1_release_certified": false,
+  "scenario_count": 4,
+  "scenarios": [
+    {
+      "scenario_id": "FX-2.2-XPROJ-002",
+      "substrate_package": "AS-XPROJ-001",
+      "bucket": "entities",
+      "status": "retained",
+      "cited_ids": ["ge-tech-postgres-v1", "join-proj-alpha-postgres"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "autocollapse": false,
+      "authority_elevated": false,
+      "notes": "Explicit entity + join citation; name≠identity"
+    },
+    {
+      "scenario_id": "FX-2.2-XPROJ-003",
+      "substrate_package": "AS-XPROJ-002",
+      "bucket": "edges",
+      "status": "retained",
+      "cited_ids": ["xe-dep-billing-postgres-v1"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "autocollapse": false,
+      "authority_elevated": false,
+      "notes": "Cross-project edge spanning ≥2 projects"
+    },
+    {
+      "scenario_id": "FX-2.2-XPROJ-004",
+      "substrate_package": "AS-XPROJ-003",
+      "bucket": "duplicate-candidates",
+      "status": "review-candidate",
+      "cited_ids": ["dup-cand-widgets-remote-v1"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "autocollapse": false,
+      "authority_elevated": false,
+      "notes": "Duplicate candidate; no UUID collapse"
+    },
+    {
+      "scenario_id": "FX-2.2-XPROJ-005",
+      "substrate_package": "AS-XPROJ-004",
+      "bucket": "conflicts",
+      "status": "retained",
+      "cited_ids": ["xconflict-version-postgres-v1", "indexes/technologies"],
+      "evidence_class": "fixture-only",
+      "authentic_estate": false,
+      "autocollapse": false,
+      "authority_elevated": false,
+      "notes": "Derived conflict + index refs; ≠ RET-001"
+    }
+  ],
+  "invariants": {
+    "cross_project_ne_authority": true,
+    "name_ne_identity": true,
+    "no_autocollapse": true,
+    "index_ne_ret001": true
+  },
+  "authority": {
+    "level": "derived",
+    "note": "Prep fabric inventory only; never elevates AS-XPROJ substrate to Layer B"
+  },
+  "truth_boundary": "CROSS-PROJECT FABRIC ≠ AUTHORITY / ≠ RET-001 / ≠ UUID COLLAPSE / ≠ 2.1 RELEASE CERTIFIED",
+  "evidence_class": "fixture-only",
+  "generated": {
+    "by": "project-atlas",
+    "package": "AS-2.2-XPROJ-CONTRACT-PREP-001"
+  }
+}

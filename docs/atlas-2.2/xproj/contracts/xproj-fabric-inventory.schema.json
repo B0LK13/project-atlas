@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/xproj-fabric-inventory.schema.json",
+  "title": "xproj-fabric-inventory (PREP STUB — not package data)",
+  "description": "AS-2.2-XPROJ-CONTRACT-PREP-001 docs-only fabric inventory. References AS-XPROJ-* conceptually; never mutates runtime.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "scope",
+    "pilot_roots",
+    "authentic_estate_pilot_passed",
+    "atlas_2_1_release_certified",
+    "scenarios",
+    "scenario_count",
+    "invariants",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "generated"
+  ],
+  "properties": {
+    "schema": { "const": "atlas.2.2.xproj-fabric-inventory.v0" },
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-XPROJ-CONTRACT-PREP-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "project_ids"],
+      "properties": {
+        "kind": { "enum": ["estate-slice", "project-set"] },
+        "project_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+        }
+      }
+    },
+    "pilot_roots": { "const": 0 },
+    "authentic_estate_pilot_passed": { "const": false },
+    "atlas_2_1_release_certified": { "const": false },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "xproj-fabric-scenario.schema.json"
+      }
+    },
+    "scenario_count": { "type": "integer", "minimum": 1 },
+    "invariants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cross_project_ne_authority",
+        "name_ne_identity",
+        "no_autocollapse",
+        "index_ne_ret001"
+      ],
+      "properties": {
+        "cross_project_ne_authority": { "const": true },
+        "name_ne_identity": { "const": true },
+        "no_autocollapse": { "const": true },
+        "index_ne_ret001": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "CROSS-PROJECT FABRIC ≠ AUTHORITY / ≠ RET-001 / ≠ UUID COLLAPSE / ≠ 2.1 RELEASE CERTIFIED"
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "project-atlas" },
+        "package": { "const": "AS-2.2-XPROJ-CONTRACT-PREP-001" }
+      }
+    }
+  }
+}

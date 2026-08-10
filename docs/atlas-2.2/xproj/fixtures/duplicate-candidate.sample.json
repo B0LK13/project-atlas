@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-XPROJ-CONTRACT-PREP-001",
+  "lens_id": "xlens-duplicate-candidate-sample-v1",
+  "scope": {
+    "kind": "project-set",
+    "project_ids": ["proj-widgets-a", "proj-widgets-b"]
+  },
+  "buckets": ["duplicate-candidates"],
+  "cited_ids": ["dup-cand-widgets-remote-v1"],
+  "status": "partial",
+  "authority": {
+    "level": "derived",
+    "note": "AS-XPROJ-003 review candidate; autocollapse remains false"
+  },
+  "truth_boundary": "XPROJ ESTATE LENS ≠ AUTHORITY / ≠ LAYER B MUTATION",
+  "evidence_class": "fixture-only",
+  "atlas_2_1_release_certified": false,
+  "pilot_roots": 0,
+  "generated": { "by": "project-atlas" }
+}
