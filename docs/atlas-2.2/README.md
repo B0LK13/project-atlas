@@ -5,7 +5,7 @@
 | Status | **PREP ONLY** — docs / contracts / fixtures / benchmarks / ADRs |
 | Unlock gate | `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED` (after `v2.1.0`) |
 | `ATLAS_2_1_RELEASE_CERTIFIED` | **NO** |
-| Tip baseline (index cut) | MAIN `c538235` (= `origin/main` at branch cut) |
+| Tip baseline (index cut) | MAIN b431494 / TREE 26a59cd (full b431494dc8860f4f1db3f327c9ccf991699ccfc5 / 26a59cd76bd9df410912b4552ddd907f7a160588) |
 | Charter | [CHARTER.md](CHARTER.md) |
 | Strategy DAG | [`docs/strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md`](../strategy/ATLAS-2.2-EXECUTABLE-ROADMAP.md) |
 | Roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) |
@@ -51,6 +51,7 @@ integration index only (builds on H01 #173 multi-package restore; extends throug
 | **REALITY-LIVE-DEEPEN** | `AS-2.2-REALITY-LIVE-DEEPEN-PREP-001` | [#217](https://github.com/B0LK13/project-atlas/pull/217)/[#219](https://github.com/B0LK13/project-atlas/pull/219) | [reality-live/AS-2.2-REALITY-LIVE-DEEPEN-PREP-001.md](reality-live/AS-2.2-REALITY-LIVE-DEEPEN-PREP-001.md) |
 | **TIME-DEEPEN** | `AS-2.2-TIME-MACHINE-DEEPEN-PREP-001` | [#218](https://github.com/B0LK13/project-atlas/pull/218) | [time-machine/AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md](time-machine/AS-2.2-TIME-MACHINE-DEEPEN-PREP-001.md) |
 | **DOD-DEEPEN** | `AS-2.2-DOD-DEEPEN-PREP-001` | [#210](https://github.com/B0LK13/project-atlas/pull/210) | [dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md](dod-compiler/AS-2.2-DOD-DEEPEN-PREP-001.md) · [dod-compiler/INVARIANTS.md](dod-compiler/INVARIANTS.md) · [dod-compiler/FIXTURE-PLAN.md](dod-compiler/FIXTURE-PLAN.md) · [dod-compiler/contracts/](dod-compiler/contracts/) · [dod-compiler/fixtures/](dod-compiler/fixtures/) · [dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md](dod-compiler/adr/ADR-2.2-DOD-002-dod-compiler-deepen-prep.md) |
+| **KCI-DEEPEN** | AS-2.2-KCI-ENGINE-DEEPEN-PREP-001 | [#221](https://github.com/B0LK13/project-atlas/pull/221) | [kci-engine/AS-2.2-KCI-ENGINE-DEEPEN-PREP-001.md](kci-engine/AS-2.2-KCI-ENGINE-DEEPEN-PREP-001.md) |
 | **PREP-STATUS** | `AS-2.2-PREP-STATUS-001` | [#203](https://github.com/B0LK13/project-atlas/pull/203) | [PREP-STATUS.md](PREP-STATUS.md) |
 | **CROSSWALK** | `AS-2.2-ROADMAP-CROSSWALK-PREP-001` | [#206](https://github.com/B0LK13/project-atlas/pull/206) | [roadmap-crosswalk/](roadmap-crosswalk/) · [CROSSWALK.md](roadmap-crosswalk/CROSSWALK.md) |
 
