@@ -875,7 +875,7 @@ def build_parser() -> argparse.ArgumentParser:
         "kf2",
         help=(
             "Knowledge Fabric Wave 1 helpers "
-            "(AS-KF2-NS/ENTITY/REL; derived ≠ authority)."
+            "(AS-KF2-NS/ENTITY/REL; derived != authority)."
         ),
     )
     kf2_sub = kf2_parser.add_subparsers(dest="kf2_command", required=True)
@@ -993,7 +993,7 @@ def build_parser() -> argparse.ArgumentParser:
         "kci",
         help=(
             "Knowledge Compilation Interface envelopes "
-            "(AS-2.0-KCI-001; consume-only; ≠ Layer B authority)."
+            "(AS-2.0-KCI-001; consume-only; != Layer B authority)."
         ),
     )
     kci_sub = kci_parser.add_subparsers(dest="kci_command", required=True)
@@ -1060,7 +1060,7 @@ def build_parser() -> argparse.ArgumentParser:
         "context-pack",
         help=(
             "Build a fixture-safe context pack "
-            "(AS-2.0-CTX-001; provenance pointers required; ≠ estate facts)."
+            "(AS-2.0-CTX-001; provenance pointers required; != estate facts)."
         ),
     )
     ctx_sub = ctx_parser.add_subparsers(dest="context_pack_command", required=True)

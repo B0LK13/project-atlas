@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "project-atlas"
-version = "1.0.0"
+version = "2.0.0"
 description = "Local-first, source-backed project knowledge compiler generating an OKF-oriented Obsidian vault."
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
@@ -30,7 +30,7 @@ atlas = "project_atlas.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-project_atlas = ["schemas/*.json", "py.typed"]
+project_atlas = ["schemas/*.json", "data/*.json", "py.typed"]
 atlas_contracts = ["schemas/*.json"]
 
 [tool.pytest.ini_options]
