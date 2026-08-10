@@ -20,6 +20,8 @@ from project_atlas.adv_release_cert import (
     AdvReleaseCertError,
     run_fixture_adv_release_certification,
 )
+from project_atlas.api_server import ApiServerError, serve_api
+from project_atlas.authz import AuthzError, elevated_operator
 from project_atlas.backup import (
     BackupError,
     create_snapshot,
@@ -93,7 +95,12 @@ from project_atlas.lifecycle_cert import (
     run_fixture_lifecycle_certification,
 )
 from project_atlas.logging import configure_logging, get_logger
+from project_atlas.mcp_server import McpServerError, invoke_mcp_tool
 from project_atlas.migrations.claim_v2_migration import migrate_v2
+from project_atlas.openai_import_real import (
+    OpenAIRealImportError,
+    import_openai_export,
+)
 from project_atlas.openai_importer_fixtures import (
     OpenAIImportFixtureError,
     build_openai_import_fixture_receipt,
@@ -115,6 +122,7 @@ from project_atlas.ops_report import (
     emit_ops_report,
     report_to_json,
 )
+from project_atlas.pilot_auth_prep import PilotAuthPrepError, write_pilot_prep_report
 from project_atlas.portfolio import build_portfolio
 from project_atlas.provider_adapters import (
     ProviderAdapter,
@@ -130,6 +138,11 @@ from project_atlas.receipt_revocation import (
     revoke_receipt,
 )
 from project_atlas.scaffold import ScaffoldError, create_scaffold
+from project_atlas.scheduler_live import (
+    SchedulerLiveError,
+    arm_scheduler,
+    dispatch_supervised_job,
+)
 from project_atlas.schema_compat import (
     SchemaCompatError,
     migrate_dry_run,
@@ -1240,6 +1253,54 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the certification report JSON to stdout.",
     )
+    # AS-2.1 live productionization surfaces (read-first / supervised).
+    live_parser = subparsers.add_parser(
+        "live",
+        help=(
+            "Atlas 2.1 live productionization helpers "
+            "(API/MCP/OAI/SCHED/PILOT-PREP; never stamps RELEASE CERTIFIED)."
+        ),
+    )
+    live_sub = live_parser.add_subparsers(dest="live_command", required=True)
+    live_api = live_sub.add_parser("api-serve", help="Serve LIVE_API read-only (127.0.0.1).")
+    live_api.add_argument("--vault", type=Path, required=True)
+    live_api.add_argument("--host", default="127.0.0.1")
+    live_api.add_argument("--port", type=int, default=8765)
+    live_mcp = live_sub.add_parser("mcp-invoke", help="Invoke one MCP_READ allow-listed tool.")
+    live_mcp.add_argument("--vault", type=Path, required=True)
+    live_mcp.add_argument("--tool", required=True)
+    live_mcp.add_argument("--json", action="store_true")
+    live_oai = live_sub.add_parser(
+        "oai-import",
+        help="REAL_OPENAI_EXPORT_IMPORT from an on-disk export file.",
+    )
+    live_oai.add_argument("--vault", type=Path, required=True)
+    live_oai.add_argument("--export", type=Path, required=True)
+    live_oai.add_argument("--import-id", required=True)
+    live_oai.add_argument("--json", action="store_true")
+    live_arm = live_sub.add_parser("sched-arm", help="Arm LIVE_SUPERVISED_SCHEDULER.")
+    live_arm.add_argument("--vault", type=Path, required=True)
+    live_arm.add_argument("--arm-id", required=True)
+    live_arm.add_argument("--json", action="store_true")
+    live_disp = live_sub.add_parser(
+        "sched-dispatch",
+        help="Dispatch a supervised job (requires elevated scheduler.dispatch).",
+    )
+    live_disp.add_argument("--vault", type=Path, required=True)
+    live_disp.add_argument("--arm-id", required=True)
+    live_disp.add_argument(
+        "--job",
+        choices=("validate", "build-indexes", "version"),
+        required=True,
+    )
+    live_disp.add_argument("--json", action="store_true")
+    live_pilot = live_sub.add_parser(
+        "pilot-prep",
+        help="Scan known roots for authentic PILOT prep (never invent markers).",
+    )
+    live_pilot.add_argument("--vault", type=Path, required=True)
+    live_pilot.add_argument("--report-id", default="pilot-prep")
+    live_pilot.add_argument("--json", action="store_true")
 
     return parser
 
@@ -2422,6 +2483,118 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown openai-import command: {args.openai_import_command}"
+        )
+
+    if args.command == "live":
+        if args.live_command == "api-serve":
+            try:
+                server = serve_api(args.vault, host=args.host, port=args.port)
+            except (ApiServerError, AuthzError, CompatAnchorError, OSError, ValueError) as exc:
+                _log.error("live api-serve failed: %s", exc)
+                return EXIT_ERROR
+            _log.info("LIVE_API listening on %s:%s", args.host, args.port)
+            try:
+                server.serve_forever()
+            except KeyboardInterrupt:
+                return EXIT_OK
+            return EXIT_OK
+        if args.live_command == "mcp-invoke":
+            try:
+                report = invoke_mcp_tool(args.vault, args.tool)
+            except (McpServerError, AuthzError, CompatAnchorError, OSError, ValueError) as exc:
+                _log.error("live mcp-invoke failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"tool_id: {report['tool_id']}")
+                print(f"live_mcp_read: {report['live_mcp_read']}")
+            return EXIT_OK
+        if args.live_command == "oai-import":
+            try:
+                report = import_openai_export(
+                    args.vault,
+                    args.export,
+                    import_id=args.import_id,
+                )
+            except (
+                OpenAIRealImportError,
+                ProviderError,
+                AuthzError,
+                CompatAnchorError,
+                OSError,
+                ValueError,
+            ) as exc:
+                _log.error("live oai-import failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"import_id: {report['import_id']}")
+                print(f"real_openai_export_import: {report['real_openai_export_import']}")
+                print(f"live_openai_api: {report['live_openai_api']}")
+            return EXIT_OK
+        if args.live_command == "sched-arm":
+            try:
+                report = arm_scheduler(args.vault, arm_id=args.arm_id)
+            except (SchedulerLiveError, AuthzError, CompatAnchorError, OSError, ValueError) as exc:
+                _log.error("live sched-arm failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"arm_id: {report['arm_id']}")
+                print(f"armed: {report['armed']}")
+            return EXIT_OK
+        if args.live_command == "sched-dispatch":
+            try:
+                op = elevated_operator(
+                    "local-operator-dispatch",
+                    extra={"scheduler.dispatch"},
+                )
+                report = dispatch_supervised_job(
+                    args.vault,
+                    arm_id=args.arm_id,
+                    job=args.job,
+                    operator=op,
+                )
+            except (SchedulerLiveError, AuthzError, CompatAnchorError, OSError, ValueError) as exc:
+                _log.error("live sched-dispatch failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"job: {report['job']}")
+                print(f"exit_code: {report['exit_code']}")
+                print(
+                    "live_supervised_scheduler: "
+                    f"{report['live_supervised_scheduler']}"
+                )
+            return EXIT_OK
+        if args.live_command == "pilot-prep":
+            try:
+                report = write_pilot_prep_report(
+                    args.vault,
+                    report_id=args.report_id,
+                )
+            except (
+                PilotAuthPrepError,
+                AuthzError,
+                CompatAnchorError,
+                OSError,
+                ValueError,
+            ) as exc:
+                _log.error("live pilot-prep failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(f"authentic_found: {report['authentic_found']}")
+                print(f"escalation_required: {report['escalation_required']}")
+                print(f"pilot_pass: {report['pilot_pass']}")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown live command: {args.live_command}"
         )
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
