@@ -178,6 +178,12 @@ SCHEMA_FILES: dict[str, str] = {
     "twin-fixture-scenario": "twin-fixture-scenario.schema.json",
     # AS-2.0-AGENT-EVAL-001 — agent eval/shadow receipt
     "agent-eval-shadow-receipt": "agent-eval-shadow-receipt.schema.json",
+    # AS-2.0-OAI-IMPORT-002 — OAI import path (fixtures if no export)
+    "openai-import-path-receipt": "openai-import-path-receipt.schema.json",
+    # AS-2.0-REALITY-GAP-UI-001 — Reality Gap UI catalog
+    "reality-gap-ui-catalog": "reality-gap-ui-catalog.schema.json",
+    # AS-2.0-KCI-HARNESS-001 — Knowledge CI harness
+    "knowledge-ci-harness": "knowledge-ci-harness.schema.json",
 }
 
 
