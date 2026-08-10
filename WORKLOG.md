@@ -5121,7 +5121,7 @@ Disposable twin projection fixtures + OpenAI importer fixture harness (parse sam
 **Branch:** feat/as-2.2-research-prep
 **Worktree:** D:\atlas-worktrees\as-2.2-research-prep
 **Directive:** D-PROJECT-ATLAS-FORCED-MULTIAGENT-ORCHESTRATION-001 (SAFE pre-v2.1.0)
-**Main tip:** a1e0972 / TREE c6cfe95
+**Main tip:** f45134f (rebased; prior a1e0972 / TREE c6cfe95)
 **Evidence:** atlas-2.1-productionization-001
 
 ### Scope
