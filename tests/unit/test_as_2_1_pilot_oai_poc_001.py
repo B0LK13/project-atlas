@@ -94,11 +94,27 @@ def test_api_rejects_oversized_post(tmp_path: Path) -> None:
             method="POST",
             headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
         )
-        from urllib.error import HTTPError
+        from urllib.error import HTTPError, URLError
 
-        with pytest.raises(HTTPError) as excinfo:
-            urlopen(req, timeout=2)
-        assert excinfo.value.code == 413
+        # Server answers 413 from Content-Length before reading the body and may
+        # close the socket. On Windows urllib often surfaces ConnectionAbortedError
+        # (WinError 10053) instead of HTTPError — both mean reject-closed.
+        try:
+            urlopen(req, timeout=5)
+            pytest.fail("expected oversized POST rejection")
+        except HTTPError as exc:
+            assert exc.code == 413
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+        except URLError as exc:
+            reason = exc.reason
+            if isinstance(
+                reason,
+                (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, TimeoutError),
+            ):
+                pass
+            else:
+                raise
     finally:
         server.shutdown()
 
