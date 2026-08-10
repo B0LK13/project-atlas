@@ -41,8 +41,10 @@ def impact_graph_summary(vault: Path) -> dict[str, Any]:
             "graph_authority": False,
             "note": "IMPACT GRAPH ABSENT → UNKNOWN (not authority)",
         }
-    nodes = graph.get("nodes") if isinstance(graph.get("nodes"), list) else []
-    edges = graph.get("edges") if isinstance(graph.get("edges"), list) else []
+    nodes_raw = graph.get("nodes")
+    edges_raw = graph.get("edges")
+    nodes: list[Any] = nodes_raw if isinstance(nodes_raw, list) else []
+    edges: list[Any] = edges_raw if isinstance(edges_raw, list) else []
     return {
         "available": True,
         "node_count": len(nodes),

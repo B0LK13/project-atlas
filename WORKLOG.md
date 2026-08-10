@@ -4959,7 +4959,6 @@ Added Agent OS / Digital Twin / KCI / Context / Architecture PROTOTYPE-PREP docs
 - Added a disposable-only operator procedure around the existing `atlas adv certify` `clean_clone_replay` case.
 - Added a fail-closed helper that accepts no estate/report roots and verifies all non-claim booleans.
 - Added docs-as-spec guards for `RELEASE=NO`, `PILOT=NO`, and `WEB ACCEPTED=NO`.
-<<<<<<< Updated upstream
 
 ## Atlas 2.0 deepen-i
 
@@ -4969,7 +4968,6 @@ threat 025-028, OpenAI importer fixtures, prototype UIs. Prep ≈82%.
 `2.0_PREP_COMPLETE_PENDING_1.0_ANCHOR = CANDIDATE` (not READY; gates 1-3/10 blocked).
 
 ||||||| Stash base
-=======
 
 ## Atlas 1.0.0 PRE-RC tip-pin refresh
 
@@ -4980,7 +4978,6 @@ threat 025-028, OpenAI importer fixtures, prototype UIs. Prep ≈82%.
 - Refreshed `docs/releases/1.0.0/` to MAIN `b57cceb383dca8d4a8c967da58abfc799386a829` / TREE `7efe25dccee4c91a9095cbf4743865274c4e9dff`.
 - Indexed landed ADV clean-clone rehearsal, ADV-004 recovery assertions, WEB tip pins, and Track B deepen-h prep.
 - Checklist gates remain unchecked and RELEASE CERTIFIED remains **NO**.
->>>>>>> Stashed changes
 
 ## ADV/SEC fixture matrices
 
@@ -5019,4 +5016,14 @@ Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE 
 **Date:** 2026-08-10
 **Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
 **Pin:** MAIN 75409c7 / TREE 0e84e45d
+**RELEASE CERTIFIED = NO**
+||||||| parent of c809af4 (fix(core): clear ruff/mypy blockers for RC quality gates)
+
+## Core/CP RC quality gate fixes
+
+**Date:** 2026-08-10
+**Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
+- Fix mypy on web_api.graph list narrowing
+- Fix ruff E501 / I001 in SEC + LANE-Y tests
+- Update LANE-Y checklist assertions for WEB ACCEPTED=YES
 **RELEASE CERTIFIED = NO**

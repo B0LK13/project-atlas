@@ -16,7 +16,11 @@ from project_atlas.secrets import SecretFinding, scan_text
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOC = REPO_ROOT / "docs" / "AS-SEC-CONT-002-fixture-deepen.md"
 
-_FAKE_PEM = "-----BEGIN RSA PRIVATE KEY-----\nfixture-pem-body-NOT-A-REAL-KEY\n-----END RSA PRIVATE KEY-----"
+_FAKE_PEM = (
+    "-----BEGIN RSA PRIVATE KEY-----\n"
+    "fixture-pem-body-NOT-A-REAL-KEY\n"
+    "-----END RSA PRIVATE KEY-----"
+)
 _FAKE_AKIA = "AKIAIOSFODNN7EXAMPLEXX"
 
 

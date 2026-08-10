@@ -23,6 +23,7 @@ from project_atlas.schema import (
 
 def test_all_expected_schemas_available() -> None:
     assert available_schemas() == [
+        "adv-release-cert-report",
         "authority-record",
         "backup-manifest",
         "backup-meta",
@@ -70,7 +71,11 @@ def test_all_expected_schemas_available() -> None:
         "semantic-records",
         "source-record",
         "source-registry",
+        "sync-plan-dry-run",
+        "sync-queue-dry-run",
+        "sync-receipts-dry-run",
         "validation-finding",
+        "workspace-registry-dry-run",
         "xproj-conflict-report",
         "xproj-duplicate-candidate",
         "xproj-edge-quarantine",
