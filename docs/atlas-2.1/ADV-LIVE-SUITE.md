@@ -25,10 +25,8 @@ authentic PILOT, SYNC-AUTH, TWIN-AUTH, or release certification.
 | ADV-2.1-18 | MCP | projects.list.read allow-listed; write tools empty |
 | ADV-2.1-19 | WEB-ACTIONS | Recent list read-only; invalid limit fails closed |
 | ADV-2.1-20 | API Host/CORS | OPTIONS CORS origin; evil Host→403; local Host:port OK |
+| ADV-2.1-21 | OPS receipts | Empty inventory honest unknown; no completion claim |
+| ADV-2.1-22 | L3 job-matrix | Allowed jobs run; forbidden/disabled fail closed |
 
-Executable coverage: `tests/unit/test_as_2_1_pilot_oai_poc_001.py`,
-`tests/unit/test_as_2_1_adv_live_001.py`,
-`tests/unit/test_as_2_1_track_b_deepen_001.py`,
-`tests/unit/test_as_2_1_track_b_deepen_002.py`,
-`tests/unit/test_as_2_1_track_b_deepen_003.py`,
+Executable coverage includes `tests/unit/test_as_2_1_track_b_deepen_007.py`,
 `tests/unit/test_as_2_1_adv_host_cors_001.py`.

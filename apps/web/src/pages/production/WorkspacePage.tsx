@@ -2,12 +2,16 @@ import { ProdShell } from "../../components/ProdShell";
 import { useLiveWorkspace } from "../../hooks/useLiveMissionWorkspace";
 
 /**
- * Workspace lens — AS-WEB-WORKSPACE-001 / LIVE deepen.
+ * Workspace lens — AS-WEB-WORKSPACE-001 / LIVE deepen + UX polish.
  * LIVE_API preferred; demo stub isolated; never invents PILOT estate rows.
  */
 export default function WorkspacePage() {
   const { view, error, loading, dataSource } = useLiveWorkspace();
   const isDemo = dataSource === "demo_stub" || view?.demo_isolated === true;
+  const surfaces =
+    view && typeof view.surfaces === "object" && view.surfaces !== null
+      ? (view.surfaces as Record<string, unknown>)
+      : {};
 
   return (
     <ProdShell>
@@ -23,6 +27,7 @@ export default function WorkspacePage() {
             <span className="chip">ui_canonical=false</span>
             <span className="chip">graph_authority=false</span>
             <span className="chip">unknown≠healthy</span>
+            <span className="chip">authentic_pilot=false</span>
             <span className="chip">data_source={dataSource ?? "unknown"}</span>
           </p>
         </header>
@@ -46,6 +51,12 @@ export default function WorkspacePage() {
           <h2>Workspace board</h2>
           {!loading && !view ? (
             <p className="banner warn">unknown — workspace view unavailable</p>
+          ) : null}
+          {view?.empty_projects === true ? (
+            <p className="banner warn">unknown — no project rows (honest empty)</p>
+          ) : null}
+          {view?.empty_knowledge === true ? (
+            <p className="banner warn">unknown — no knowledge rows (honest empty)</p>
           ) : null}
           {view ? (
             <dl className="grid">
@@ -79,6 +90,24 @@ export default function WorkspacePage() {
             UI ≠ canonical · Graph ≠ authority · Unknown ≠ healthy · no PILOT invent
             · WEB APPLICATION ACCEPTED = YES
             {isDemo ? " · demo isolated" : " · LIVE_API read-only"}
+          </p>
+        </section>
+
+        <section className="panel" aria-label="Workspace surface presence">
+          <h2>Surface presence</h2>
+          <p className="flags">
+            {Object.keys(surfaces).length === 0 ? (
+              <span className="chip">surfaces=unknown</span>
+            ) : (
+              Object.entries(surfaces).map(([key, value]) => (
+                <span className="chip" key={key}>
+                  {key}={String(value)}
+                </span>
+              ))
+            )}
+          </p>
+          <p className="disclaimer">
+            Presence flags only · missing surface ≠ healthy · not release certification
           </p>
         </section>
       </main>

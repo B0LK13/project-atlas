@@ -1,17 +1,27 @@
 import { ProdShell } from "../../components/ProdShell";
+import { useOpsReceipts } from "../../hooks/useOpsReceipts";
 import { useReadStatus } from "../../hooks/useReadStatus";
 
 /**
  * Ops Health micro-lens — AS-WEB-OPS-HEALTH-001.
- * Read-only operational and receipt evidence; never a vault writer or authority.
- * UI ≠ canonical · Graph ≠ authority · Unknown ≠ healthy.
+ * LIVE_API health + ops receipt inventory; never fabricates completion/PILOT.
  */
 export default function OpsHealthPage() {
   const { status, error, loading, dataSource } = useReadStatus();
+  const {
+    inventory,
+    error: receiptError,
+    loading: receiptLoading,
+    dataSource: receiptSource,
+  } = useOpsReceipts();
   const health = status?.health;
   const available = health?.available === true;
   const rollup = available ? health?.rollup ?? "unknown" : "unknown";
   const isDemo = dataSource === "demo_stub" || status?.demo_isolated === true;
+  const receiptsDemo =
+    receiptSource === "demo_stub" || inventory?.demo_isolated === true;
+  const receiptAvailable = inventory?.available === true;
+  const receiptRows = inventory?.receipts ?? [];
 
   return (
     <ProdShell>
@@ -22,9 +32,9 @@ export default function OpsHealthPage() {
           </p>
           <h1>Ops health</h1>
           <p className="lede">
-            Read-only operational health and receipt evidence. Absent snapshots
-            render unknown; the browser never fabricates health, receipts, or
-            PILOT estate rows.
+            Read-only operational health and receipt inventory. Absent evidence
+            stays unknown; the browser never fabricates completion, PILOT, or
+            release certification.
           </p>
           <p className="flags" style={{ marginTop: "0.75rem" }}>
             <span className="chip">ui_canonical=false</span>
@@ -66,14 +76,47 @@ export default function OpsHealthPage() {
 
         <section className="panel" aria-label="Receipt evidence">
           <h2>Receipt evidence</h2>
-          <p className="banner warn">
-            unknown — no live receipt adapter is wired in the static shell.
-            Receipt rows and completion claims are not inferred from UI state.
-          </p>
+          {receiptError ? (
+            <p className="banner warn">Receipt adapter error: {receiptError}</p>
+          ) : null}
+          {receiptLoading ? <p className="banner">Loading receipts…</p> : null}
+          {receiptsDemo ? (
+            <p className="banner warn">
+              DEMO STUB — receipt inventory unavailable offline; not inferred from UI
+            </p>
+          ) : null}
+          {!receiptLoading && !receiptAvailable ? (
+            <p className="banner warn">
+              unknown — no ops receipts on disk under generated/ops (honest empty)
+            </p>
+          ) : null}
+          {receiptAvailable ? (
+            <ul className="theme-hub">
+              {receiptRows.slice(0, 20).map((row) => (
+                <li key={row.relative_path ?? row.name}>
+                  <strong>{row.kind ?? "ops"}</strong>
+                  <span>
+                    {row.name ?? "receipt"}
+                    {row.package_id ? ` · ${row.package_id}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <p className="flags">
-            <span className="chip">receipt_source=unavailable</span>
-            <span className="chip">receipt_rows=unknown</span>
+            <span className="chip">
+              receipt_source={inventory?.receipt_source ?? "unavailable"}
+            </span>
+            <span className="chip">
+              receipt_rows={String(inventory?.receipt_rows ?? "unknown")}
+            </span>
+            <span className="chip">
+              completion_claimed={String(inventory?.completion_claimed ?? false)}
+            </span>
             <span className="chip">read_only=true</span>
+          </p>
+          <p className="disclaimer">
+            Inventory only · never completion claim · never PILOT PASS · never release cert
           </p>
         </section>
 

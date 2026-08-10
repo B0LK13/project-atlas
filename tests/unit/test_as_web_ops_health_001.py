@@ -24,13 +24,15 @@ def test_ops_health_route_and_navigation_exist() -> None:
     assert 'to: "/ops"' in nav
 
 
-def test_ops_health_is_receipts_oriented_read_only_stub() -> None:
+def test_ops_health_is_receipts_oriented_read_only_live_adapter() -> None:
     text = PAGE.read_text(encoding="utf-8").lower()
     assert "receipt evidence" in text
-    assert "no live receipt adapter" in text
-    assert "receipt_rows=unknown" in text
+    assert "useopsreceipts" in text
+    assert "completion_claimed" in text
+    assert "receipt_rows=" in text
     assert "read_only=true" in text
     assert "no vault mutation apis" in text
+    assert "honest empty" in text
 
 
 def test_ops_health_enforces_non_authority_invariants() -> None:

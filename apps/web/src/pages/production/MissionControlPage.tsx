@@ -2,12 +2,16 @@ import { ProdShell } from "../../components/ProdShell";
 import { useLiveMission } from "../../hooks/useLiveMissionWorkspace";
 
 /**
- * Mission Control lens — AS-WEB-MISSION-001 / LIVE deepen.
+ * Mission Control lens — AS-WEB-MISSION-001 / LIVE deepen + UX polish.
  * LIVE_API preferred; demo stub isolated; never invents PILOT estate rows.
  */
 export default function MissionControlPage() {
   const { view, error, loading, dataSource } = useLiveMission();
   const isDemo = dataSource === "demo_stub" || view?.demo_isolated === true;
+  const surfaces =
+    view && typeof view.surfaces === "object" && view.surfaces !== null
+      ? (view.surfaces as Record<string, unknown>)
+      : {};
 
   return (
     <ProdShell>
@@ -23,6 +27,7 @@ export default function MissionControlPage() {
             <span className="chip">ui_canonical=false</span>
             <span className="chip">graph_authority=false</span>
             <span className="chip">unknown≠healthy</span>
+            <span className="chip">authentic_pilot=false</span>
             <span className="chip">data_source={dataSource ?? "unknown"}</span>
           </p>
         </header>
@@ -46,6 +51,9 @@ export default function MissionControlPage() {
           <h2>Mission board</h2>
           {!loading && !view ? (
             <p className="banner warn">unknown — mission view unavailable</p>
+          ) : null}
+          {view?.empty_projects === true ? (
+            <p className="banner warn">unknown — no project rows (honest empty)</p>
           ) : null}
           {view ? (
             <dl className="grid">
@@ -75,6 +83,24 @@ export default function MissionControlPage() {
             UI ≠ canonical · Graph ≠ authority · Unknown ≠ healthy · no PILOT invent
             · WEB APPLICATION ACCEPTED = YES
             {isDemo ? " · demo isolated" : " · LIVE_API read-only"}
+          </p>
+        </section>
+
+        <section className="panel" aria-label="Mission surface presence">
+          <h2>Surface presence</h2>
+          <p className="flags">
+            {Object.keys(surfaces).length === 0 ? (
+              <span className="chip">surfaces=unknown</span>
+            ) : (
+              Object.entries(surfaces).map(([key, value]) => (
+                <span className="chip" key={key}>
+                  {key}={String(value)}
+                </span>
+              ))
+            )}
+          </p>
+          <p className="disclaimer">
+            Presence flags only · missing surface ≠ healthy · not release certification
           </p>
         </section>
       </main>
