@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "package_id": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001",
+  "action_id": "action.demo.reality-live.pilot-invent.forbidden",
+  "plane_id": "operational",
+  "kind": "pilot_invent",
+  "status": "rejected_forbidden",
+  "expected_error": "reality-live-pilot-invent-forbidden",
+  "pilot_roots": 0,
+  "invent_pilot_roots": false,
+  "canonical_writes": false,
+  "authority": {
+    "level": "derived",
+    "note": "Collectors must not invent PILOT roots or synthetic estate markers"
+  },
+  "truth_boundary": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B",
+  "_prep_note": "FX-2.2-RL-101 — expected rejection of pilot_invent (allow_pilot_invent=true)"
+}

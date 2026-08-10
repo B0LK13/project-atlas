@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/reality-live-forbidden-action.schema.json",
+  "title": "reality-live-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001 fail-closed action proposal. Reject PILOT invent, LLM authority stamps, conversational sole certifier, Layer B promotion, and release-cert stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-REALITY-LIVE-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "plane_id": {
+      "enum": [
+        "conversational",
+        "documentary",
+        "implementation",
+        "operational",
+        "aggregator"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "pilot_invent",
+        "llm_authority_stamp",
+        "conversational_sole_certifier",
+        "layer_b_promotion",
+        "release_cert_stamp"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "reality-live-pilot-invent-forbidden",
+        "reality-live-llm-authority-forbidden",
+        "reality-live-conversational-sole-certifier-forbidden",
+        "reality-live-layer-b-promotion-forbidden",
+        "reality-live-release-cert-stamp-forbidden"
+      ]
+    },
+    "pilot_roots": { "const": 0 },
+    "invent_pilot_roots": { "const": false },
+    "canonical_writes": { "type": "boolean" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "truth_boundary": {
+      "const": "REALITY-LIVE GAP REPORT ≠ PILOT PASS / ≠ WEB ACCEPTED / ≠ RELEASE CERT / ≠ Layer B"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}

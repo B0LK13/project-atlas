@@ -6,6 +6,9 @@ Status: **fixture corpus only**. Not authentic estate evidence. Not runtime coll
 |---|---|
 | `planes.fixture.json` | Canonical four-plane catalog sample |
 | `collectors.fixture.json` | Sample plane reports + aggregated gap report shape |
+| `negative-pilot-invent.expect.json` | Deepen: PILOT invent rejection (FX-2.2-RL-101) |
+| `negative-llm-authority.expect.json` | Deepen: LLM authority rejection (FX-2.2-RL-102) |
+| `negative-release-cert-stamp.expect.json` | Deepen: release-cert stamp rejection (FX-2.2-RL-103) |
 | `README.md` | This note |
 
 ## Rules
