@@ -4,7 +4,7 @@
 |---|---|
 | Package | **AS-2.2-PREP-STATUS-001** |
 | Class | **PREP ONLY** — status / inventory snapshot (docs-only) |
-| Tip audited | `0d7b6237de89b3016776aaf5c15bc73c3582191c` / TREE `ecf010ebdda6cd3a0fb90b119aff46825a1f6f0a` (INDEX-008 post #223) |
+| Tip audited | `49910083b7b217fa9b5f03b5601876e8b2e5a6b2` / TREE `7ee5dff6314e6916ae6f860cf998d3a12efd1085` (INDEX-009) |
 | Integration index | [`README.md`](README.md) (package rows + entry links) |
 | Charter | [`CHARTER.md`](CHARTER.md) |
 | Maturity draft | [`doc-charter/FEATURE-MATURITY-MATRIX.md`](doc-charter/FEATURE-MATURITY-MATRIX.md) |
@@ -108,6 +108,11 @@ RET-HYBRID (#220), and KCI-engine (#221) deepen packages. Demo VERIFIED remains
 | **DOC-CHARTER** | `AS-2.2-DOC-CHARTER-PREP-001` | [#199](https://github.com/B0LK13/project-atlas/pull/199) | FIXTURE_ONLY |
 | **MEM-DEEPEN** | `AS-2.2-MEM-GOV-DEEPEN-PREP-001` | [#208](https://github.com/B0LK13/project-atlas/pull/208) | FIXTURE_ONLY |
 | **RESEARCH-DEEPEN** | `AS-2.2-RESEARCH-DEEPEN-PREP-001` | [#209](https://github.com/B0LK13/project-atlas/pull/209) | FIXTURE_ONLY |
+| **INTEL-DEEPEN** | `AS-2.2-INTEL-SLICE-DEEPEN-PREP-001` | [#229](https://github.com/B0LK13/project-atlas/pull/229) | FIXTURE_ONLY |
+| **TEMPORAL-DEEPEN** | `AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001` | [#228](https://github.com/B0LK13/project-atlas/pull/228) | FIXTURE_ONLY |
+| **ESTATE-OPS-DEEPEN** | `AS-2.2-ESTATE-OPS-DEEPEN-PREP-001` | [#227](https://github.com/B0LK13/project-atlas/pull/227) | FIXTURE_ONLY |
+| **COMPAT-DEEPEN** | `AS-2.2-COMPAT-PIN-DEEPEN-PREP-001` | [#226](https://github.com/B0LK13/project-atlas/pull/226) | FIXTURE_ONLY |
+| **CHATGPT-LIVE-DEEPEN** | `AS-2.2-CHATGPT-LIVE-DEEPEN-PREP-001` | [#224](https://github.com/B0LK13/project-atlas/pull/224) | FIXTURE_ONLY |
 | **CONFLICT-DEEPEN** | `AS-2.2-CONFLICT-UX-DEEPEN-PREP-001` | [#223](https://github.com/B0LK13/project-atlas/pull/223) | FIXTURE_ONLY |
 | **DOD-DEEPEN** | `AS-2.2-DOD-DEEPEN-PREP-001` | [#210](https://github.com/B0LK13/project-atlas/pull/210) | FIXTURE_ONLY |
 
