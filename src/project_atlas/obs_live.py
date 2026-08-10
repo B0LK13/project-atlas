@@ -44,6 +44,9 @@ def build_live_observability_receipt(
         "provider_live": (ops / "provider").exists(),
         "scheduler": (ops / "scheduler").exists(),
         "autonomy_l3": (ops / "autonomy").exists(),
+        "oai_responses_poc": (ops / "oai-responses-poc").exists(),
+        "authz_audit": (ops / "authz").exists(),
+        "pilot_prep": (ops / "pilot").exists(),
     }
     payload: dict[str, Any] = {
         "schema_version": 1,
