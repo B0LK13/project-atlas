@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/estate-ops-forbidden-action.schema.json",
+  "title": "estate-ops-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-ESTATE-OPS-DEEPEN-PREP-001 fail-closed action proposal. Reject unknown-as-healthy, UI canonical writes, PILOT invent, ops runtime mutation, and LLM authority stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-ESTATE-OPS-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "kind": {
+      "enum": [
+        "unknown_as_healthy",
+        "ui_canonical_write",
+        "pilot_invent",
+        "ops_runtime_mutation",
+        "llm_authority_stamp"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "estate-ops-unknown-as-healthy-forbidden",
+        "estate-ops-ui-canonical-write-forbidden",
+        "estate-ops-pilot-invent-forbidden",
+        "estate-ops-ops-runtime-mutation-forbidden",
+        "estate-ops-llm-authority-forbidden"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "release_certified": { "const": false },
+    "pilot_pass": { "const": false },
+    "canonical_writes": { "const": false },
+    "pilot_roots": { "const": 0 },
+    "truth_boundary": {
+      "const": "ESTATE OPS ≠ UNKNOWN-AS-HEALTHY / ≠ UI-CANONICAL / ≠ OPS RUNTIME / ≠ LLM AUTHORITY"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}
