@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/temporal-ux-forbidden-action.schema.json",
+  "title": "forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001 fail-closed action proposal. Reject wall-clock as-of, silent winners, bitemporal mutation, LLM authority, UI canonical writes, PILOT invent, and release-cert stamps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-TEMPORAL-UX-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "claim_id": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "kind": {
+      "enum": [
+        "wall_clock_as_of",
+        "silent_winner",
+        "bitemporal_mutation",
+        "llm_authority_stamp",
+        "ui_canonical_write",
+        "pilot_invent",
+        "release_cert_stamp"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "temporal-ux-wall-clock-forbidden",
+        "temporal-ux-silent-winner-forbidden",
+        "temporal-ux-bitemporal-mutation-forbidden",
+        "temporal-ux-llm-authority-forbidden",
+        "temporal-ux-ui-canonical-write-forbidden",
+        "temporal-ux-pilot-invent-forbidden",
+        "temporal-ux-release-cert-stamp-forbidden"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "release_certified": { "const": false },
+    "pilot_pass": { "const": false },
+    "canonical_writes": { "const": false },
+    "pilot_roots": { "const": 0 },
+    "truth_boundary": {
+      "const": "TEMPORAL UX ≠ WALL-CLOCK / ≠ SILENT WINNER / ≠ BITEMPORAL MUTATION / ≠ AUTHORITY / ≠ PILOT"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}
