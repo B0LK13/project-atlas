@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/estate-intel-fixture.schema.json",
+  "title": "EstateIntelFixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+        "schema_version",
+        "package_id",
+        "compat_snapshot_id",
+        "fixture_id",
+        "pilot_roots",
+        "estate_pilot_passed",
+        "intel_rows",
+        "authority",
+        "truth_boundary",
+        "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-ESTATE-INTEL-001" },
+    "compat_snapshot_id": { "type": "string", "minLength": 1 },
+
+    "fixture_id": { "type": "string" },
+    "pilot_roots": { "const": 0 },
+    "estate_pilot_passed": { "const": false },
+    "intel_rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["row_id", "evidence_class"],
+        "properties": {
+          "row_id": { "type": "string" },
+          "evidence_class": { "const": "fixture" }
+        }
+      }
+    },
+
+    "authority": {
+      "type": "object",
+      "required": ["level", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": { "type": "string" },
+    "generated": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
