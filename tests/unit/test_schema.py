@@ -24,6 +24,7 @@ from project_atlas.schema import (
 def test_all_expected_schemas_available() -> None:
     assert available_schemas() == [
         "adv-release-cert-report",
+        "agent-eval-shadow-receipt",
         "agentos-phase-transition",
         "agentos-session-envelope",
         "api-surface-registry",
@@ -105,6 +106,7 @@ def test_all_expected_schemas_available() -> None:
         "sync-plan-dry-run",
         "sync-queue-dry-run",
         "sync-receipts-dry-run",
+        "twin-fixture-scenario",
         "twin-projection-fixture",
         "ux-mode-catalog",
         "validation-finding",

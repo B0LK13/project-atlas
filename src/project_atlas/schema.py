@@ -174,6 +174,10 @@ SCHEMA_FILES: dict[str, str] = {
     "chatgpt-capture-receipt": "chatgpt-capture-receipt.schema.json",
     # AS-2.0-ESTATE-INTEL-001 — fixture estate intel (≠ PILOT PASS)
     "estate-intel-fixture": "estate-intel-fixture.schema.json",
+    # AS-2.0-TWIN-FIXTURE-002 — twin fixture scenarios (≠ production)
+    "twin-fixture-scenario": "twin-fixture-scenario.schema.json",
+    # AS-2.0-AGENT-EVAL-001 — agent eval/shadow receipt
+    "agent-eval-shadow-receipt": "agent-eval-shadow-receipt.schema.json",
 }
 
 
