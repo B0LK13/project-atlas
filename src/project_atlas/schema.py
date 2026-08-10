@@ -123,6 +123,8 @@ SCHEMA_FILES: dict[str, str] = {
     "provider-quarantine-envelope": "provider-quarantine-envelope.schema.json",
     # AS-2.0-AGENTOS-001 — governed session envelope (≠ Core authority)
     "agentos-session-envelope": "agentos-session-envelope.schema.json",
+    # AS-2.0-RET-HYBRID-001 — hybrid retrieval plan (lexical + semantic slot disabled)
+    "hybrid-retrieval-plan": "hybrid-retrieval-plan.schema.json",
 }
 
 

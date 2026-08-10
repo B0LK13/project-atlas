@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/hybrid-retrieval-plan.schema.json",
+  "title": "Hybrid Retrieval Plan",
+  "description": "AS-2.0-RET-HYBRID-001 deterministic hybrid retrieval plan. Lexical exact/prefix over AS-RET-001; optional semantic slot DISABLED by default. Plan ≠ embeddings service ≠ authority. Bound to atlas-1.0.0-compat.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "plan_kind",
+    "query",
+    "slots",
+    "results",
+    "semantic_enabled",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-RET-HYBRID-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "plan_kind": { "const": "hybrid_retrieval_plan" },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "mode"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "source",
+            "claim",
+            "concept",
+            "conflict",
+            "authority",
+            "provenance"
+          ]
+        },
+        "value": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["exact", "prefix"] }
+      }
+    },
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lexical_exact", "lexical_prefix", "semantic"],
+      "properties": {
+        "lexical_exact": { "$ref": "#/$defs/slot" },
+        "lexical_prefix": { "$ref": "#/$defs/slot" },
+        "semantic": { "$ref": "#/$defs/semantic_slot" }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["record_type", "record_id", "slot"],
+        "properties": {
+          "record_type": { "type": "string", "minLength": 1 },
+          "record_id": { "type": "string", "minLength": 1 },
+          "slot": { "enum": ["lexical_exact", "lexical_prefix"] }
+        }
+      }
+    },
+    "semantic_enabled": { "const": false },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "HYBRID PLAN ≠ EMBEDDINGS SERVICE / ≠ AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  },
+  "$defs": {
+    "slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "status": { "enum": ["active", "idle"] }
+      }
+    },
+    "semantic_slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status", "reason"],
+      "properties": {
+        "enabled": { "const": false },
+        "status": { "const": "disabled" },
+        "reason": {
+          "const": "semantic-slot-disabled-by-default-no-embeddings-service"
+        }
+      }
+    }
+  }
+}
