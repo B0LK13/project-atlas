@@ -10,15 +10,36 @@ exceptions.
 from __future__ import annotations
 
 import subprocess
+import sys
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 
 #: Failure categories emitted by :func:`run_command`.
 CATEGORY_EXECUTABLE_MISSING = "executable-missing"
 CATEGORY_PERMISSION_DENIED = "permission-denied"
 CATEGORY_TIMEOUT = "timeout"
 CATEGORY_PROCESS_FAILED = "process-failed"
+
+
+def resolve_executable_argv(command: str) -> list[str]:
+    """Return argv for ``command``, prefixing ``sys.executable`` for Python scripts.
+
+    Windows cannot execute shebang scripts as Win32 apps (WinError 193). Detect a
+    ``#!...python...`` shebang on an existing file and invoke it via the active
+    interpreter. Non-Python commands are returned unchanged.
+    """
+    path = Path(command)
+    if not path.is_file():
+        return [command]
+    try:
+        first = path.read_text(encoding="utf-8", errors="ignore").splitlines()[:1]
+    except OSError:
+        return [command]
+    if first and first[0].startswith("#!") and "python" in first[0].lower():
+        return [sys.executable, str(path)]
+    return [command]
 
 
 @dataclass(frozen=True)
@@ -119,7 +140,9 @@ def command_version(
 ) -> str:
     """Best-effort ``<executable> --version`` probe; never raises."""
     result = run_command(
-        [executable, "--version"], timeout_seconds=timeout_seconds, redact=redact
+        [*resolve_executable_argv(executable), "--version"],
+        timeout_seconds=timeout_seconds,
+        redact=redact,
     )
     if result.ok and result.stdout.strip():
         return result.stdout.strip().splitlines()[0][:200]
