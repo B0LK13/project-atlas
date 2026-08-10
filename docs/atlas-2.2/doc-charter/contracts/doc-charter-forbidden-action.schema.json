@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/prep/atlas-2.2/doc-charter-forbidden-action.schema.json",
+  "title": "doc-charter-forbidden-action (PREP STUB — not package data)",
+  "description": "AS-2.2-DOC-CHARTER-DEEPEN-PREP-001 fail-closed action proposal. Reject release-cert stamps, 2.2 unlock stamps, PILOT invent, matrix-cert promotion, runtime mutation, and LLM authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "action_id",
+    "kind",
+    "status",
+    "authority",
+    "truth_boundary",
+    "evidence_class",
+    "authentic_estate",
+    "release_certified",
+    "pilot_pass",
+    "canonical_writes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-DOC-CHARTER-DEEPEN-PREP-001" },
+    "action_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "kind": {
+      "enum": [
+        "release_cert_stamp",
+        "unlock_stamp",
+        "pilot_invent",
+        "matrix_cert_promotion",
+        "runtime_mutation",
+        "llm_authority_stamp"
+      ]
+    },
+    "status": {
+      "enum": ["accepted", "rejected_malformed", "rejected_forbidden"]
+    },
+    "expected_error": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "doc-charter-release-cert-stamp-forbidden",
+        "doc-charter-unlock-stamp-forbidden",
+        "doc-charter-pilot-invent-forbidden",
+        "doc-charter-matrix-cert-promotion-forbidden",
+        "doc-charter-runtime-mutation-forbidden",
+        "doc-charter-llm-authority-forbidden"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level"],
+      "properties": {
+        "level": { "const": "derived" },
+        "note": { "type": "string", "maxLength": 400 }
+      }
+    },
+    "evidence_class": { "const": "fixture-only" },
+    "authentic_estate": { "const": false },
+    "release_certified": { "const": false },
+    "pilot_pass": { "const": false },
+    "canonical_writes": { "const": false },
+    "pilot_roots": { "const": 0 },
+    "truth_boundary": {
+      "const": "DOC CHARTER PREP ≠ RELEASE CERT / ≠ UNLOCK / ≠ PILOT / ≠ MATRIX CERT / ≠ RUNTIME / ≠ LLM AUTHORITY"
+    },
+    "_prep_note": { "type": "string" }
+  }
+}
