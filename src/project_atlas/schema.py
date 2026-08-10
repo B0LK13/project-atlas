@@ -116,6 +116,8 @@ SCHEMA_FILES: dict[str, str] = {
     "kf2-namespace": "kf2-namespace.schema.json",
     "kf2-entity": "kf2-entity.schema.json",
     "kf2-relationship": "kf2-relationship.schema.json",
+    # AS-2.0-FED-001 — operator-declared federation join inventory (consume-only)
+    "federation-join-inventory": "federation-join-inventory.schema.json",
 }
 
 
