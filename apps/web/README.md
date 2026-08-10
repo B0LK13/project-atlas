@@ -10,7 +10,7 @@ Architecture: ADR-008 (stack) · ADR-009 (tokens) · ADR-010 (Command Center).
 - **UI ≠ canonical** — this app never writes Layer B / claims / authority.
 - **Graph ≠ authority** — derived displays only.
 - **Unknown ≠ healthy** — missing OBS snapshot renders as `unknown`.
-- Prototypes are **not** production UI acceptance until governor sign-off.
+- Governor sign-off is recorded; UI ≠ canonical remains normative after acceptance.
 - Vault reads go through `project_atlas.web_api` (Python); the shell may use
   `public/sample-read-status.json` until an HTTP bridge lands.
 
@@ -32,8 +32,8 @@ npm run dev
 | `#/graph` | Graph lens (derived ≠ authority) |
 | `#/ops` | Ops Health + receipt evidence (read-only unknown stub) |
 | `#/command-center` | Command Center modes |
-| `#/mission-control` | Mission Control lens (stub; ACCEPTED=NO) |
-| `#/workspace` | Workspace lens (stub; ACCEPTED=NO) |
+| `#/mission-control` | Mission Control lens (stub; ACCEPTED=YES; UI≠canonical) |
+| `#/workspace` | Workspace lens (stub; ACCEPTED=YES; UI≠canonical) |
 | `#/design-lab/*` | Design-lab themes A–D |
 
 ### Design-lab themes
@@ -65,14 +65,16 @@ python -m pytest tests/unit/test_as_web_001_web_api.py \
   tests/unit/test_as_web_ops_health_001.py -q
 ```
 
-These commands document and exercise evidence; passing them does not certify acceptance.
+These commands document and exercise acceptance evidence under
+`docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md`.
 
 CI: invoke the same `node apps/web/scripts/smoke.mjs` step in the quality
 job when the workflow matrix is healthy. Empty-step CI failures are tracked
-under `CI_INFRA_EXCEPTION` and do **not** alone certify WEB ACCEPTED.
+under `CI_INFRA_EXCEPTION` and do **not** alone overturn WEB ACCEPTED.
 
-**WEB APPLICATION ACCEPTED = NO** until
-`docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` is completed by a governor.
+**WEB APPLICATION ACCEPTED = YES** (governor APPROVED on pinned tip; see
+`docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md`). UI ≠ canonical remains in force.
+RELEASE CERTIFIED remains **NO**.
 
 ## Design tokens
 

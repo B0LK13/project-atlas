@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Package | AS-WEB-ACCEPT-001 through AS-WEB-ACCEPT-005 |
-| Parent | D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 |
-| Tip pin | `ac1cee723f368154334815dade33212e593fc88c` / TREE `e0ed54782830df036cc439fa127ff5a16c5d8915` |
-| **WEB APPLICATION ACCEPTED** | **NO** |
-| Governor sign-off | **PENDING** — see `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
+| Package | AS-WEB-ACCEPT-001 through AS-WEB-ACCEPT-006 (owner-gates closeout) |
+| Parent | D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001 |
+| Tip pin | `8ee65b91871bc04039ffe401a9da3743e4800a8b` / TREE `a2e592a797056935fbec0d8c54033aa3c25a5b06` |
+| **WEB APPLICATION ACCEPTED** | **YES** |
+| Governor sign-off | **APPROVED** — see `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
 
 ## Normative invariants (ADR-008)
 
@@ -14,48 +14,45 @@
 - **Graph ≠ authority**
 - **Unknown ≠ healthy**
 
+Acceptance does **not** make the UI canonical. ADR-008 invariants remain normative.
+
 ## Checklist
 
 | # | Criterion | Evidence | Status |
 |---|---|---|---|
-| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, `/mission-control`, `/workspace`, design-lab) | `apps/web/scripts/smoke.mjs` | automated |
-| 2 | Stub + UI enforce UI≠canonical / Graph≠authority / Unknown≠healthy | sample stub + production pages | automated |
-| 3 | ADR-008 / ADR-009 / ADR-010 present | smoke + unit tests | automated |
-| 4 | `web_api` read-only boundary intact | `web_api/`, tests | automated |
-| 5 | Command Center modes present | CommandCenterPage + smoke | automated |
-| 6 | Design-lab themes retained | design-lab routes + tokens | automated |
-| 7 | Knowledge + Graph production lenses | `/knowledge`, `/graph` + `web_api.knowledge` / `web_api.graph` | automated |
-| 8 | a11y skip-link on production shell | `ProdShell` + CSS `:focus` | automated |
-| 9 | Fixture E2E read bundle (projects/knowledge/graph/health) | `test_as_web_accept_002_*` | automated |
-| 10 | Governor sign-off artifact + tip pin recorded | `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | **open** |
+| 1 | Production shell routes smoke green (`/`, `/projects`, `/knowledge`, `/graph`, `/ops`, `/command-center`, `/mission-control`, `/workspace`, design-lab) | `apps/web/scripts/smoke.mjs` | automated PASS |
+| 2 | Stub + UI enforce UI≠canonical / Graph≠authority / Unknown≠healthy | sample stub + production pages | automated PASS |
+| 3 | ADR-008 / ADR-009 / ADR-010 present | smoke + unit tests | automated PASS |
+| 4 | `web_api` read-only boundary intact | `web_api/`, tests | automated PASS |
+| 5 | Command Center modes present | CommandCenterPage + smoke | automated PASS |
+| 6 | Design-lab themes retained | design-lab routes + tokens | automated PASS |
+| 7 | Knowledge + Graph production lenses | `/knowledge`, `/graph` + `web_api.knowledge` / `web_api.graph` | automated PASS |
+| 8 | a11y skip-link on production shell | `ProdShell` + CSS `:focus` | automated PASS |
+| 9 | Fixture E2E read bundle (projects/knowledge/graph/health) | `test_as_web_accept_002_*` | automated PASS |
+| 10 | Governor sign-off artifact + tip pin recorded | `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | **closed — APPROVED** |
 | 11 | CI / local smoke invocation documented | `apps/web/README.md` | documented |
-| 12 | Mission Control + Workspace lenses (route presence only) | `#/mission-control`, `#/workspace` + smoke/unit | automated — **not** WEB ACCEPTED |
-| 13 | Ops Health receipt micro-lens (read-only unknown stub) | `#/ops` + smoke/unit | automated — **not** WEB ACCEPTED |
+| 12 | Mission Control + Workspace lenses (route presence only) | `#/mission-control`, `#/workspace` + smoke/unit | automated PASS |
+| 13 | Ops Health receipt micro-lens (read-only unknown stub) | `#/ops` + smoke/unit | automated PASS |
 
-## Automated gates (non-certifying)
+## Automated gates (evidence)
 
 ```bash
 node apps/web/scripts/smoke.mjs
-python -m pytest tests/unit/test_as_web_001_web_api.py tests/unit/test_as_web_accept_001_checklist.py tests/unit/test_as_web_accept_002_closeout.py -q
+npm --prefix apps/web run build
+python -m pytest tests/unit/test_as_web_001_web_api.py tests/unit/test_as_web_accept_001_checklist.py tests/unit/test_as_web_accept_002_closeout.py tests/unit/test_as_web_accept_003_signoff_pack.py tests/unit/test_as_web_accept_005_governor_evidence.py -q
 ```
 
-Passing automated gates is necessary but **not sufficient** for WEB APPLICATION ACCEPTED
-while item 10 (governor sign-off) remains open.
+## Explicit claims / non-claims
 
-## Explicit non-claims
-
-- WEB APPLICATION ACCEPTED = **NO**
+- WEB APPLICATION ACCEPTED = **YES**
+- RELEASE CERTIFIED = **NO**
 - PILOT estate rows are not invented by the web shell.
-- REL-001 release certification is out of scope for this package alone.
+- Authentic / production estate PILOT remains separate from WEB acceptance.
 
 ## Changelog
 
 | Date | Change |
 |---|---|
 | 2026-08-09 | Initial checklist draft (ACCEPTED=NO) |
-| 2026-08-09 | WEB-ACCEPT-002: knowledge/graph routes, a11y skip-link, fixture E2E (ACCEPTED=NO) |
-| 2026-08-09 | WEB-ACCEPT-003: governor sign-off template + smoke docs; ACCEPTED remains NO |
-| 2026-08-09 | Mission Control + Workspace routes noted as automated gates only (ACCEPTED=NO) |
-| 2026-08-09 | WEB-ACCEPT-004: refreshed tip pins + Ops Health receipt micro-lens; ACCEPTED remains NO |
-| 2026-08-09 | WEB-ACCEPT-005: governor evidence pack + current MAIN/TREE pins; ACCEPTED remains NO |
-| 2026-08-09 | Refreshed automated evidence pins to current MAIN/TREE; independent governor review remains required (ACCEPTED=NO) |
+| 2026-08-09 | WEB-ACCEPT-002 through WEB-ACCEPT-005 evidence packs (ACCEPTED=NO) |
+| 2026-08-10 | Owner-gates closeout: fresh tip verify + governor APPROVED (ACCEPTED=YES) |

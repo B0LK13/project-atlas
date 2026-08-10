@@ -37,12 +37,12 @@ const PROD = [
   {
     to: "/mission-control",
     title: "Mission Control",
-    blurb: "AS-WEB-MISSION-001 stub — UI≠canonical; ACCEPTED=NO.",
+    blurb: "AS-WEB-MISSION-001 stub — UI≠canonical; ACCEPTED=YES.",
   },
   {
     to: "/workspace",
     title: "Workspace",
-    blurb: "AS-WEB-WORKSPACE-001 stub — UI≠canonical; ACCEPTED=NO.",
+    blurb: "AS-WEB-WORKSPACE-001 stub — UI≠canonical; ACCEPTED=YES.",
   },
 ] as const;
 

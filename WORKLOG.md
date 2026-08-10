@@ -4996,3 +4996,20 @@ OQ-001…019 dispositioned; §98 DRAFT complete; DAG_DRAFT_COMPLETE=YES; DAG_FRE
 ## PRE-RC tip pin final
 Pinned docs/releases/1.0.0 to `59000db2d129ae7f9bb39ba1eaf8e0a80cb246dd` / TREE `1a69405a799fc559653d48e4c7cab3c29036aeeb`. RELEASE CERTIFIED=NO.
 
+
+## Owner gates closeout — WEB#10 + fixture PILOT waiver
+
+**Date:** 2026-08-10
+**Branch:** feat/owner-gates-web10-pilot-waiver
+**Directive:** D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001
+
+### Scope
+- Fresh-verify tip `8ee65b9` / TREE `a2e592a7` (smoke, tsc, prod build, web pytest)
+- Stamp WEB APPLICATION ACCEPTED=YES (governor APPROVED)
+- Record FIXTURE-ONLY CERTIFICATION UNDER OWNER WAIVER (authentic estate PILOT=NO)
+- RELEASE CERTIFIED remains NO
+
+### Gates
+- node apps/web/scripts/smoke.mjs PASS (ACCEPTED=YES)
+- npm run build PASS
+- focused web+pilot pytest PASS

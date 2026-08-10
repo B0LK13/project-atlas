@@ -15,7 +15,8 @@ This index records evidence packages known to exist at the pinned baseline. Incl
 | ADV-004 | `docs/AS-ADV-RELEASE-004-migration-recovery.md`; `tests/unit/test_as_adv_release_004_migration_recovery.py` | Fixture migration/recovery replay with stabilized deterministic-outcome assertions | NONE / NO |
 | SEC-CONT | `docs/AS-SEC-CONT-001-fixture-gates.md`; `docs/AS-SEC-CONT-002-fixture-deepen.md` | Fixture continuous-security gates | NONE / NO |
 | E2E | `tests/integration/test_as_e2e_001_fixture_matrix.py` | Integration fixture matrix | NONE / NO |
-| WEB-ACCEPT | `docs/AS-WEB-ACCEPT-001-checklist.md`; `docs/AS-WEB-ACCEPT-005-governor-evidence.md`; `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | Refreshed automated-evidence tip pins plus pending human-governor boundary | NONE / NO |
+| WEB-ACCEPT | `docs/AS-WEB-ACCEPT-001-checklist.md`; `docs/AS-WEB-ACCEPT-005-governor-evidence.md`; `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` | Governor APPROVED; WEB APPLICATION ACCEPTED=YES on tip `8ee65b9` | WEB ACCEPTED YES; RELEASE still NO |
+| PILOT-WAIVER | `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md` | FIXTURE-ONLY CERTIFICATION UNDER OWNER WAIVER | NOT authentic estate PILOT |
 | TRACK-B-DEEPEN-H | `docs/atlas-2.0/IMPLEMENTATION-READY-GATE.md`; `docs/atlas-2.0/Z-WAVE-INDEX.md` | PREP/PROTOTYPE theme expansion; implementation readiness remains NO | NONE / NO |
 
 ## Use rules

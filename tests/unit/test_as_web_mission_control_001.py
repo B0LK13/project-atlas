@@ -61,9 +61,9 @@ def test_sample_mission_stub_flags_only_no_pilot_invent() -> None:
     assert payload["pilot_estate_rows"] == []
 
 
-def test_web_application_accepted_remains_no() -> None:
+def test_web_application_accepted_is_yes_ui_not_canonical() -> None:
     text = CHECKLIST.read_text(encoding="utf-8")
-    assert "WEB APPLICATION ACCEPTED" in text
-    assert "NO" in text
+    assert "**WEB APPLICATION ACCEPTED** | **YES**" in text
     page = PAGE.read_text(encoding="utf-8")
-    assert "ACCEPTED" in page and "NO" in page
+    assert "APPLICATION ACCEPTED = YES" in page
+    assert "UI ≠ canonical" in page

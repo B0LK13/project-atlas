@@ -75,7 +75,7 @@ export default function OpsHealthPage() {
           <p className="banner warn">Graph ≠ authority — derived edges never pick winners.</p>
           <p className="banner warn">No PILOT estate rows are invented.</p>
           <p className="disclaimer">
-            Read-only lens · no vault mutation APIs · WEB APPLICATION ACCEPTED = NO
+            Read-only lens · no vault mutation APIs · WEB APPLICATION ACCEPTED = YES · UI ≠ canonical
           </p>
         </section>
       </main>

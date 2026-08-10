@@ -3,16 +3,15 @@
 | Field | Value |
 |---|---|
 | Package | AS-WEB-ACCEPT-005 |
-| Parent | D-PROJECT-ATLAS-1.0-MAX-PARALLEL-PLUS-2.0-PREP-001 |
-| Evidence baseline | MAIN `ac1cee723f368154334815dade33212e593fc88c` / TREE `e0ed54782830df036cc439fa127ff5a16c5d8915` |
-| **WEB APPLICATION ACCEPTED** | **NO** |
-| Governor decision | **PENDING** |
+| Parent | D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001 |
+| Evidence baseline | MAIN `8ee65b91871bc04039ffe401a9da3743e4800a8b` / TREE `a2e592a797056935fbec0d8c54033aa3c25a5b06` |
+| **WEB APPLICATION ACCEPTED** | **YES** |
+| Governor decision | **APPROVED** |
 
 ## Purpose
 
-This pack collects reproducible automated evidence for criteria 1-9, 12, and 13.
-It does not complete human governor item 10. Automated PASS results are necessary
-but not sufficient to change the acceptance decision.
+This pack collects reproducible automated evidence for criteria 1-9, 12, and 13
+and records the tip used for the owner-authorized item-10 decision.
 
 ## Automated evidence map
 
@@ -27,8 +26,8 @@ but not sufficient to change the acceptance decision.
 | 7 | Knowledge and Graph production lenses exist | smoke and fixture read-adapter tests | PASS |
 | 8 | Production shell has an accessibility skip-link | smoke source checks | PASS |
 | 9 | Fixture E2E read bundle covers projects, knowledge, graph, and health | `test_as_web_accept_002_closeout.py` | PASS |
-| 12 | Mission Control and Workspace routes preserve non-authority semantics | smoke route, page, and stub checks | PASS (non-certifying) |
-| 13 | Ops Health receipt micro-lens is read-only and honest about unavailable evidence | smoke page and stub checks | PASS (non-certifying) |
+| 12 | Mission Control and Workspace routes preserve non-authority semantics | smoke route, page, and stub checks | PASS |
+| 13 | Ops Health receipt micro-lens is read-only and honest about unavailable evidence | smoke page and stub checks | PASS |
 
 ## Reproduction commands
 
@@ -38,32 +37,34 @@ Run from the repository root at the pinned baseline:
 git rev-parse origin/main
 git rev-parse 'origin/main^{tree}'
 node apps/web/scripts/smoke.mjs
+npm --prefix apps/web run build
 D:\atlas-worktrees\as-core-006-postmerge-verify\.venv\Scripts\python.exe -m pytest tests/unit/test_as_web_001_web_api.py tests/unit/test_as_web_accept_001_checklist.py tests/unit/test_as_web_accept_002_closeout.py tests/unit/test_as_web_accept_003_signoff_pack.py tests/unit/test_as_web_accept_005_governor_evidence.py -q
 ```
 
-Expected pin output:
+Evidence pin (pre-stamp tip used for fresh verify):
 
 ```text
-ac1cee723f368154334815dade33212e593fc88c
-e0ed54782830df036cc439fa127ff5a16c5d8915
+8ee65b91871bc04039ffe401a9da3743e4800a8b
+a2e592a797056935fbec0d8c54033aa3c25a5b06
 ```
 
 Expected gate outcomes:
 
 ```text
-AS-WEB-ACCEPT-004 smoke PASS — ops-health receipts + mission-control + workspace + knowledge/graph + a11y skip + ADRs (ACCEPTED=NO)
+AS-WEB-ACCEPT-004 smoke PASS — … (ACCEPTED=YES after stamp)
 pytest: all selected tests PASS
+npm run build: PASS
 ```
 
 ## Human governor boundary
 
-Criterion 10 remains open in `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md`.
-A human governor must review the evidence, record the reviewed tip and tree, and
-make the decision. This pack supplies no signature and grants no acceptance.
+Criterion 10 is **closed — APPROVED** in `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md`
+under directive `D-PROJECT-ATLAS-1.0-OWNER-GATES-PARALLEL-CLOSEOUT-001` after
+fresh tip verification (prior pin drifted; gates re-run green).
 
-## Explicit non-claims
+## Explicit claims / non-claims
 
-- WEB APPLICATION ACCEPTED = **NO**
-- Governor decision = **PENDING**
+- WEB APPLICATION ACCEPTED = **YES**
+- Governor decision = **APPROVED**
 - RELEASE CERTIFIED = **NO**
-- ESTATE PILOT PASSED = **NO**
+- ESTATE PILOT PASSED (authentic / production) = **NO**
