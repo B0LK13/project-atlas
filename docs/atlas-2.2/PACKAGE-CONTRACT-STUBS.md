@@ -7,7 +7,7 @@ Status: **PREP ONLY**. Stubs are planning traceability — not certified FRs.
 | Stub ID | Theme | Prep status | Post-unlock |
 |---|---|---|---|
 | **AS-2.2-RET-HYBRID-001** | Hybrid Retrieval 2 architecture + fixtures + benchmarks | **ACTIVE PREP** | feeds RET-CTX |
-| AS-2.2-RET-SEMIDX-001 | Semantic index contract (derived, versioned) | reserved | after RET-HYBRID arch |
+| **AS-2.2-RET-SEMIDX-001** / `AS-2.2-RET-SEMIDX-PREP-001` | Semantic index contract (derived, versioned; default-off) | **ACTIVE PREP** | feeds RET-CTX after unlock |
 | AS-2.2-RET-CTX-001 | Hybrid + context pack production path | roadmap READY post-unlock | production |
 | AS-RET2-HYBRID-001 | Alias note — prefer `AS-2.2-RET-HYBRID-001` | superseded naming | — |
 
