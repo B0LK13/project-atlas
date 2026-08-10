@@ -9,10 +9,10 @@
 ## §60 Baseline
 
 ```text
-MAIN = 8ee65b91871bc04039ffe401a9da3743e4800a8b  (pre-stamp evidence tip)
-TREE = a2e592a797056935fbec0d8c54033aa3c25a5b06
-BOARD_EMPTY_EXCEPT_OWNER_HELD = NO (WEB#10 + PILOT waiver cleared)
-OPEN_PRS = owner-gates closeout in flight
+MAIN = 30ed9be3ddda098cf2c56ee24773c957858ea225  (closeout reconciliation baseline)
+TREE = dc2d45ef744cd126c44c00e6ccb088e0a90a5ee0
+BOARD_EMPTY_EXCEPT_OWNER_HELD = NO (WEB#10 + PILOT waiver cleared; RC gates remain)
+OPEN_PRS = release-candidate closeout lanes in flight
 CI_INFRA_EXCEPTION = in force
 ```
 

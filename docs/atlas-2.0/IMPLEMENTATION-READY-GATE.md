@@ -17,8 +17,8 @@ prep-depth signal after deepen-i review.
 | # | Gate | Status |
 |---|---|---|
 | 1 | Atlas 1.0 `RELEASE CERTIFIED = YES` | **NO** (blocked) |
-| 2 | WEB APPLICATION ACCEPTED = YES | **NO** |
-| 3 | ESTATE PILOT PASSED = YES (or explicit fixture-only waiver recorded) | **NO** |
+| 2 | WEB APPLICATION ACCEPTED = YES | **YES** - owner/governor signoff recorded at `docs/AS-WEB-ACCEPT-GOVERNOR-SIGNOFF.md` |
+| 3 | ESTATE PILOT PASSED = YES (or explicit fixture-only waiver recorded) | **YES** - fixture-only owner waiver recorded at `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md`; authentic estate PILOT remains NO |
 | 4 | Package contracts (§98) frozen with FR/INV/schema sketches | **DRAFT complete** / production freeze **NO** — see CONTRACT-FREEZE-CHECKLIST |
 | 5 | DEPENDENCY-DAG reviewed vs 1.0 tip pin | `DAG_DRAFT_COMPLETE=YES` / `DAG_FREEZE=NO` |
 | 6 | Threat model register complete for first 2.0 wave | prep register T-2.0-001…028; production controls **NO** |
@@ -26,6 +26,10 @@ prep-depth signal after deepen-i review.
 | 8 | OpenAI/MCP designs marked PROTOTYPE / no production wiring | **YES** (PROTOTYPE) |
 | 9 | Compatibility snapshot consumer contract drafted | DRAFT yes; freeze **NO** |
 | 10 | Owner authorization to open first 2.0 impl package | **NO** |
+
+## Owner-gates closeout reconciliation (current)
+
+Gates **2** and **3** are now satisfied by the merged owner/governor WEB signoff and explicit fixture-only PILOT waiver. Authentic estate PILOT remains NO. Gate **1** (`RELEASE CERTIFIED`) and gate **10** remain NO, and production freeze/evidence rows **4–9** remain incomplete. Therefore `ATLAS_2_0_IMPLEMENTATION_READY = NO`.
 
 ## Observed prep baseline pin (not release certification)
 
@@ -151,3 +155,4 @@ Only a governor may set `ATLAS_2_0_IMPLEMENTATION_READY = YES` after rows
 | 2026-08-09 | deepen-h: Agent OS / Twin / KCI / Context / Architecture themes + Z15–Z19; READY unchanged NO; prep ≈68% |
 | 2026-08-09 | deepen-i: schema/MCP drafts, Reality Gap, Obsidian, perf/test/migration, DAG freeze draft, threat 025–028, importer fixtures; READY=NO; PREP_COMPLETE_PENDING_1.0_ANCHOR=CANDIDATE; prep ≈82% |
 | 2026-08-09 | deepen-j: OQ dispositions; §98 DRAFT complete; DAG_DRAFT_COMPLETE=YES; PREP_COMPLETE_PENDING_1.0_ANCHOR=YES; AGENT_ELIGIBLE_COUNT=0 except owner; READY=NO |
+| 2026-08-10 | closeout reconciliation: WEB APPLICATION ACCEPTED gate set to YES from owner/governor signoff; 1.0 RELEASE remains NO; 2.0 READY remains NO |
