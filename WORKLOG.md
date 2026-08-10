@@ -5115,19 +5115,22 @@ Bound to atlas-1.0.0-compat. No dual-own of PROV/KCI/RET.
 
 Disposable twin projection fixtures + OpenAI importer fixture harness (parse sample to receipt/quarantine; no live API). Authentic AS-2.0-TWIN-001 remains BLOCKED without authentic PILOT. No dual-own of PROV/KCI/RET/TEMPORAL.
 
-## AS-2.1-L3-JOB-MATRIX-ADV
+## AS-2.1-API-ADV-DEEPEN — LIVE_API adversarial deepen
 
 **Date:** 2026-08-10
-**Branch:** feat/as-2.1-l3-job-matrix-adv
-**Directive:** D-PROJECT-ATLAS-2.1-PRODUCTIONIZATION-001 (Track A ADV/test sole-writer)
-**Evidence:** D:\project-atlas-orphans\atlas-2.1-productionization-001\
+**Branch:** feat/as-2.1-api-adv-deepen
+**Directive:** D-PROJECT-ATLAS-2.1-PRODUCTIONIZATION-001 (Track A / ADV sole-writer)
+**Evidence:** atlas-2.1-productionization-001
+**Baseline:** origin/main `a1e0972` (post #156)
 
 ### Scope
-- Adversarial L3 job-matrix: scope expansion, arm overlap, destructive deny,
-  stale context, receipt mismatch, duplicate dispatch
-- Minimal `autonomy_l3.py` fail-closed guards; L4/L5 remain false
-- ADV-LIVE-SUITE ADV-2.1-23..28; tests/unit/test_as_2_1_l3_job_matrix_adv.py
+- Deepen API ADV: invalid IDs, cross-project isolation, oversized payload, authz bypass, duplicate actions, internal path leakage
+- Suite: `tests/unit/test_as_2_1_api_adv_deepen_001.py` (ADV-2.1-23..28)
+- Harden `api_server`: invalid Content-Length → 400; JSON errors omit parser internals
+- Docs: `docs/atlas-2.1/ADV-LIVE-SUITE.md` rows 23–28
+- Prefer tests/; no Layer-B / PILOT unlock
 
-### Explicit non-claims
-- ATLAS_2_1_RELEASE_CERTIFIED: NO
-- Authentic estate PILOT: NO
+### Gates
+- pytest `test_as_2_1_api_adv_deepen_001` PASS (22)
+- ruff + mypy on touched surfaces PASS
+- `ATLAS_2_1_RELEASE_CERTIFIED = NO`
