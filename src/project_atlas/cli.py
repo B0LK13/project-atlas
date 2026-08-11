@@ -21,7 +21,11 @@ from project_atlas.adv_release_cert import (
     run_fixture_adv_release_certification,
 )
 from project_atlas.api_server import ApiServerError, serve_api
-from project_atlas.authz import AuthzError, elevated_operator
+from project_atlas.authz import (
+    AuthzError,
+    publish_api_session_credentials,
+    require_cli_elevated_operator,
+)
 from project_atlas.autonomy_l3 import AutonomyL3Error, run_bounded_l3_loop
 from project_atlas.backup import (
     BackupError,
@@ -39,12 +43,6 @@ from project_atlas.context_pack import (
     ContextPackError,
     ProvenancePointer,
     build_context_pack,
-)
-from project_atlas.runtime_22 import (
-    Runtime22Error,
-    compile_context as runtime_compile_context,
-    hybrid_retrieve as runtime_hybrid_retrieve,
-    package_to_json as runtime_package_to_json,
 )
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.doctor import render_text as doctor_render_text
@@ -151,6 +149,18 @@ from project_atlas.receipt_revocation import (
     list_revocations,
     receipt_trust_disposition,
     revoke_receipt,
+)
+from project_atlas.runtime_22 import (
+    Runtime22Error,
+)
+from project_atlas.runtime_22 import (
+    compile_context as runtime_compile_context,
+)
+from project_atlas.runtime_22 import (
+    hybrid_retrieve as runtime_hybrid_retrieve,
+)
+from project_atlas.runtime_22 import (
+    package_to_json as runtime_package_to_json,
 )
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.scheduler_live import (
@@ -1374,7 +1384,10 @@ def build_parser() -> argparse.ArgumentParser:
     live_arm.add_argument("--json", action="store_true")
     live_disp = live_sub.add_parser(
         "sched-dispatch",
-        help="Dispatch a supervised job (requires elevated scheduler.dispatch).",
+        help=(
+            "Dispatch a supervised job (requires ATLAS_CLI_ELEVATE_CAPS "
+            "including scheduler.dispatch; no CLI self-grant)."
+        ),
     )
     live_disp.add_argument("--vault", type=Path, required=True)
     live_disp.add_argument("--arm-id", required=True)
@@ -1418,7 +1431,11 @@ def build_parser() -> argparse.ArgumentParser:
     live_perf.add_argument("--json", action="store_true")
     live_l3 = live_sub.add_parser(
         "l3-loop",
-        help="Run bounded L3 policy-to-dispatch loop (requires autonomy.l3 + dispatch).",
+        help=(
+            "Run bounded L3 policy-to-dispatch loop "
+            "(requires ATLAS_CLI_ELEVATE_CAPS including autonomy.l3 and "
+            "scheduler.dispatch; no CLI self-grant)."
+        ),
     )
     live_l3.add_argument("--vault", type=Path, required=True)
     live_l3.add_argument("--policy-id", required=True)
@@ -2691,7 +2708,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _log.error("live api-serve failed: %s", exc)
                 return EXIT_ERROR
             creds = server.atlas_session.credentials
-            # SEC-009: print per-launch credentials to stderr once (not logs).
+            # SEC-009 / SEC-ADV004-B-002: prefer token file; redact when redirected.
             print(
                 f"LIVE_API listening on {args.host}:{args.port}",
                 file=sys.stderr,
@@ -2700,18 +2717,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "SEC-009 session auth required: Authorization: Bearer <token>",
                 file=sys.stderr,
             )
-            print(f"ATLAS_API_READ_TOKEN={creds.read_token}", file=sys.stderr)
-            if creds.privileged_token:
-                print(
-                    f"ATLAS_API_PRIVILEGED_TOKEN={creds.privileged_token}",
-                    file=sys.stderr,
-                )
-            else:
-                print(
-                    "ATLAS_API_PRIVILEGED_TOKEN=(none; start with elevated "
-                    "operator for privileged actions)",
-                    file=sys.stderr,
-                )
+            publish_api_session_credentials(creds)
             try:
                 server.serve_forever()
             except KeyboardInterrupt:
@@ -2767,9 +2773,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         if args.live_command == "sched-dispatch":
             try:
-                op = elevated_operator(
+                # SEC-ADV004-B-001: no CLI self-grant; require ATLAS_CLI_ELEVATE_CAPS.
+                op = require_cli_elevated_operator(
                     "local-operator-dispatch",
-                    extra={"scheduler.dispatch"},
+                    required={"scheduler.dispatch"},
                 )
                 report = dispatch_supervised_job(
                     args.vault,
@@ -2866,9 +2873,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         if args.live_command == "l3-loop":
             try:
-                op = elevated_operator(
+                # SEC-ADV004-B-001: no CLI self-grant; require ATLAS_CLI_ELEVATE_CAPS.
+                op = require_cli_elevated_operator(
                     "local-operator-l3",
-                    extra={"autonomy.l3", "scheduler.dispatch"},
+                    required={"autonomy.l3", "scheduler.dispatch"},
                 )
                 report = run_bounded_l3_loop(
                     args.vault,
