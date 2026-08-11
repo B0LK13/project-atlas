@@ -41,7 +41,9 @@ export default defineConfig({
     // strictPort (blocked on some Windows IV hosts).
     command: `npm run build && npx vite preview --host ${HOST} --port ${PORT} --strictPort`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    // SEC-030: never reuse a foreign/stale server — suite must own the listener.
+    // Escape hatch (unsafe): ATLAS_PW_REUSE=1 for local debugging only.
+    reuseExistingServer: process.env.ATLAS_PW_REUSE === "1",
     timeout: 180_000,
     stdout: "ignore",
     stderr: "pipe",
