@@ -48,7 +48,10 @@ const PROD = [
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
 export default function HomePage() {
-  const { status, error, loading } = useReadStatus();
+  const { status, error, loading, dataSource, livePreferred, liveError } = useReadStatus();
+  // Honest fallback signal: LIVE_API was preferred but unreachable, so the demo
+  // stub below is a fallback (never silently labelled LIVE). See AS-WEB-LIVE-001.
+  const liveFellBackToDemo = livePreferred && dataSource === "demo_stub" && liveError !== null;
 
   return (
     <ProdShell className="theme-ledger">
@@ -70,6 +73,13 @@ export default function HomePage() {
 
         {error ? <p className="banner warn">Read status unavailable: {error}</p> : null}
         {loading ? <p className="banner">Loading read status…</p> : null}
+        {liveFellBackToDemo ? (
+          <p className="banner warn">
+            LIVE_API not reachable ({liveError}) — showing isolated DEMO stub, not
+            live vault. Start “atlas live api-serve” and open this app at
+            http://127.0.0.1:5173 (not localhost) so the API CORS origin matches.
+          </p>
+        ) : null}
         {status ? <ReadStatusPanel status={status} /> : null}
 
         <section className="panel" aria-label="Production shell">
