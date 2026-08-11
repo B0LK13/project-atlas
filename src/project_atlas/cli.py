@@ -40,6 +40,12 @@ from project_atlas.context_pack import (
     ProvenancePointer,
     build_context_pack,
 )
+from project_atlas.runtime_22 import (
+    Runtime22Error,
+    compile_context as runtime_compile_context,
+    hybrid_retrieve as runtime_hybrid_retrieve,
+    package_to_json as runtime_package_to_json,
+)
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.doctor import render_text as doctor_render_text
 from project_atlas.doctor import run_doctor
@@ -1102,6 +1108,55 @@ def build_parser() -> argparse.ArgumentParser:
         help="Vault that receives generated/kci/<id>-compile-receipt.json.",
     )
     kci_receipt.add_argument("--json", action="store_true")
+
+    # AS-2.2-RUNTIME-001 — Hybrid Retrieval + Context Compiler P0 (read-only).
+    runtime_parser = subparsers.add_parser(
+        "runtime",
+        help=(
+            "Atlas 2.2 runtime P0: hybrid retrieval + context compiler "
+            "(AS-2.2-RUNTIME-001; read-only; no LLM authority)."
+        ),
+    )
+    runtime_sub = runtime_parser.add_subparsers(dest="runtime_command", required=True)
+    runtime_hybrid = runtime_sub.add_parser(
+        "hybrid-retrieve",
+        help="Deterministic hybrid retrieval (lexical; semantic forbidden).",
+    )
+    runtime_hybrid.add_argument("--vault", type=Path, required=True)
+    runtime_hybrid.add_argument("--kind", required=True)
+    runtime_hybrid.add_argument("--value", required=True)
+    runtime_hybrid.add_argument(
+        "--mode",
+        choices=("exact", "prefix"),
+        default="exact",
+    )
+    runtime_hybrid.add_argument("--cap", type=int, default=20)
+    runtime_hybrid.add_argument(
+        "--include-graph-slot",
+        action="store_true",
+        help="Attach derived impact-graph summary (GRAPH ≠ AUTHORITY).",
+    )
+    runtime_hybrid.add_argument("--json", action="store_true")
+    runtime_compile = runtime_sub.add_parser(
+        "compile-context",
+        help="Budgeted context compiler P0 from hybrid candidates JSON.",
+    )
+    runtime_compile.add_argument("--vault", type=Path, required=True)
+    runtime_compile.add_argument("--pack-id", required=True)
+    runtime_compile.add_argument(
+        "--candidates",
+        type=Path,
+        required=True,
+        help="JSON file with {candidates:[...]} from hybrid-retrieve.",
+    )
+    runtime_compile.add_argument("--budget", type=int, default=20)
+    runtime_compile.add_argument("--profile-id", default="p0-readonly")
+    runtime_compile.add_argument(
+        "--write",
+        action="store_true",
+        help="Write derived package under generated/context-compiler/.",
+    )
+    runtime_compile.add_argument("--json", action="store_true")
 
     # AS-2.0-CTX-001 — fixture-safe context packs with provenance pointers.
     ctx_parser = subparsers.add_parser(
@@ -2422,6 +2477,62 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK if report["status"] == "accepted" else EXIT_ERROR
         parser.error(  # pragma: no cover
             f"unknown kci command: {args.kci_command}"
+        )
+
+    if args.command == "runtime":
+        if args.runtime_command == "hybrid-retrieve":
+            try:
+                report = runtime_hybrid_retrieve(
+                    args.vault,
+                    kind=args.kind,
+                    value=args.value,
+                    mode=args.mode,
+                    cap=args.cap,
+                    include_graph_slot=bool(args.include_graph_slot),
+                )
+            except Runtime22Error as exc:
+                _log.error("runtime hybrid-retrieve failed: %s", exc)
+                print(f"error: {exc}", file=sys.stderr)
+                return EXIT_ERROR
+            if args.json:
+                print(runtime_package_to_json(report), end="")
+            else:
+                print(f"package_id: {report['package_id']}")
+                print(f"candidates: {report['candidate_count']}")
+                print(f"truncated: {report['truncated']}")
+                print(f"truth_boundary: {report['truth_boundary']}")
+            return EXIT_OK
+        if args.runtime_command == "compile-context":
+            try:
+                raw = json.loads(args.candidates.read_text(encoding="utf-8"))
+                cand = raw.get("candidates") if isinstance(raw, dict) else None
+                if not isinstance(cand, list):
+                    raise Runtime22Error("context-candidates-file-invalid")
+                report = runtime_compile_context(
+                    args.vault,
+                    pack_id=args.pack_id,
+                    candidates=cand,
+                    budget=args.budget,
+                    profile_id=args.profile_id,
+                    write=bool(args.write),
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError, Runtime22Error) as exc:
+                _log.error("runtime compile-context failed: %s", exc)
+                print(f"error: {exc}", file=sys.stderr)
+                return EXIT_ERROR
+            if args.json:
+                print(runtime_package_to_json(report), end="")
+            else:
+                print(f"package_id: {report['package_id']}")
+                print(f"pack_id: {report['pack_id']}")
+                print(f"entries: {report['entry_count']}")
+                print(f"truncated: {report['truncated']}")
+                if report.get("output_path"):
+                    print(f"path: {report['output_path']}")
+                print(f"truth_boundary: {report['truth_boundary']}")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown runtime command: {args.runtime_command}"
         )
 
     if args.command == "context-pack":
