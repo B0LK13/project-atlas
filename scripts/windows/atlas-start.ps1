@@ -453,15 +453,28 @@ function Ensure-WebDependencies {
     }
 
     if ($needsInstall) {
-        Write-Host "Installing apps/web dependencies (npm install; no Playwright)..."
+        $lockFile = Join-Path $WebDir "package-lock.json"
+        # SEC-027: prefer deterministic npm ci when lock is present.
+        $useCi = Test-Path -LiteralPath $lockFile
+        if ($useCi) {
+            Write-Host "Installing apps/web dependencies (npm ci; locked; no Playwright)..."
+        }
+        else {
+            Write-Host "Installing apps/web dependencies (npm install; no lock; no Playwright)..."
+        }
         Push-Location $WebDir
         try {
-            & $Npm.Source install --no-fund --no-audit
+            if ($useCi) {
+                & $Npm.Source ci --no-fund --no-audit
+            }
+            else {
+                & $Npm.Source install --no-fund --no-audit
+            }
             if ($LASTEXITCODE -ne 0) {
                 Write-AtlasProductError `
-                    -What "npm install for apps/web failed." `
-                    -Cause "npm install exited with code $LASTEXITCODE." `
-                    -Action "Check network/proxy and Node version. Do not add Playwright packages for this productization path." `
+                    -What $(if ($useCi) { "npm ci for apps/web failed." } else { "npm install for apps/web failed." }) `
+                    -Cause "$(if ($useCi) { 'npm ci' } else { 'npm install' }) exited with code $LASTEXITCODE." `
+                    -Action "Check network/proxy and Node version. Prefer a committed package-lock.json (SEC-027). Do not add Playwright packages for this productization path." `
                     -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
                     -LogPath $ErrLog
                 exit 1
@@ -474,7 +487,7 @@ function Ensure-WebDependencies {
                     Write-AtlasProductError `
                         -What "apps/web install is missing the Windows Rollup native module." `
                         -Cause "Optional dependency @rollup/rollup-win32-x64-msvc was not present after npm install (known npm optional-deps issue)." `
-                        -Action "From apps/web run: Remove-Item -Recurse -Force node_modules; npm install --include=optional. Do not add Playwright." `
+                        -Action "From apps/web run: Remove-Item -Recurse -Force node_modules; npm ci --include=optional (or npm install --include=optional). Do not add Playwright." `
                         -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
                         -LogPath $ErrLog
                     exit 1

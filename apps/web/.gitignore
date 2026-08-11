@@ -3,7 +3,7 @@ dist/
 .DS_Store
 *.local
 *.tsbuildinfo
-package-lock.json
+# package-lock.json is COMMITTED (SEC-027); do not ignore
 
 # Playwright (AS-WEB-BROWSER-E2E-001) outputs
 test-results/
