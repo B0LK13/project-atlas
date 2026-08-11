@@ -1,0 +1,12 @@
+PASS CaseA PYTHONPATH unset => Ok
+PASS CaseB foreign PYTHONPATH => pythonpath_foreign_shadow
+PASS CaseC tip-local PYTHONPATH => Ok
+PASS CaseD Get-AtlasTipVenvPythonPath
+PASS CaseE venv-aware Scripts dir => C:\Users\Admin\AppData\Local\Programs\Python\Python312\Scripts
+SKIP CaseF (tip .venv not present in this checkout)
+PASS CaseG junction .venv refused (lexical=True final=False isTip=False tipLocal=False)
+PASS CaseH atlas-start refuses PATH atlas fallback (source contract)
+ENV-ISO-SELFTEST PASS
+EXTERNAL_SECURITY_REVALIDATION_REQUIRED=YES
+CODEX_VALIDATED=NO
+CLOSED_IDS=ENV-ISO-001,ENV-ISO-002,CLAUDE-ADV005-002,CLAUDE-ADV005-011

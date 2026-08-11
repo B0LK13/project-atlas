@@ -1,0 +1,10 @@
+LEX=C:\Users\Admin\AppData\Local\Temp\remedi-002-33826efcd96443e3a7eef0ab79559917\repo\.venv\Scripts\python.exe
+FINAL=C:\Users\Admin\AppData\Local\Temp\remedi-002-33826efcd96443e3a7eef0ab79559917\outside-venv\Scripts\python.exe
+LEXICAL_UNDER_REPO=True
+FINAL_UNDER_REPO=False
+IS_TIP_VENV=False
+GET_ATLAS_TIPLOCAL=False
+GET_ATLAS_LABEL=py -3.12
+REFUSE_JUNCTION=True
+PATH_REFUSE_SOURCE=True
+HAS_RETURN_ATLASCMD_SOURCE=False

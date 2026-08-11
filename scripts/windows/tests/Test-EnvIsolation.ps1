@@ -138,6 +138,81 @@ else {
     Write-Host "SKIP CaseF (tip .venv not present in this checkout)"
 }
 
+# --- Case G: CLAUDE-ADV005-002 junction/reparse .venv final path must escape-refuse ---
+$juncProbeRoot = Join-Path $env:TEMP ("atlas-claude-002-{0}" -f [guid]::NewGuid().ToString("N"))
+$outsideVenv = Join-Path $juncProbeRoot "outside-venv"
+$fakeRepo = Join-Path $juncProbeRoot "fake-repo"
+try {
+    New-Item -ItemType Directory -Force -Path $fakeRepo | Out-Null
+    # Minimal real venv outside fake repo (need python.exe for Test-Path + version)
+    $boot = Get-Command py -ErrorAction SilentlyContinue
+    if ($boot) {
+        & py -3.12 -m venv $outsideVenv 2>$null | Out-Null
+    }
+    else {
+        $bootPy = Get-Command python -ErrorAction SilentlyContinue
+        if ($bootPy) { & $bootPy.Source -m venv $outsideVenv 2>$null | Out-Null }
+    }
+    $outsidePy = Join-Path $outsideVenv "Scripts\python.exe"
+    $juncVenv = Join-Path $fakeRepo ".venv"
+    if (Test-Path -LiteralPath $outsidePy) {
+        cmd /c "mklink /J `"$juncVenv`" `"$outsideVenv`"" | Out-Null
+        $lexPy = Join-Path $juncVenv "Scripts\python.exe"
+        $lexUnder = Test-AtlasLexicalPathUnderRoot -Path $lexPy -Root $fakeRepo
+        $finalUnder = Test-AtlasPathUnderRoot -Path $lexPy -Root $fakeRepo
+        $cand = @{
+            Exe      = $lexPy
+            Args     = @()
+            Label    = "tip-venv (.venv\Scripts\python.exe)"
+            TipLocal = $true
+        }
+        $isTip = Test-AtlasInterpreterIsTipVenv -Python $cand -RepoRoot $fakeRepo
+        $sel = Get-AtlasPythonCommand -RepoRoot $fakeRepo
+        $selTip = if ($sel) { [bool]$sel.TipLocal } else { $false }
+        if (-not $lexUnder) {
+            Write-Host "FAIL CaseG expected lexical under fake repo"
+            $failed++
+        }
+        elseif ($finalUnder) {
+            Write-Host "FAIL CaseG expected final path NOT under fake repo (junction escape)"
+            $failed++
+        }
+        elseif ($isTip) {
+            Write-Host "FAIL CaseG Test-AtlasInterpreterIsTipVenv must refuse junction escape"
+            $failed++
+        }
+        elseif ($selTip) {
+            Write-Host "FAIL CaseG Get-AtlasPythonCommand must not TipLocal=true for junction .venv"
+            $failed++
+        }
+        else {
+            Write-Host "PASS CaseG junction .venv refused (lexical=$lexUnder final=$finalUnder isTip=$isTip tipLocal=$selTip)"
+        }
+    }
+    else {
+        Write-Host "SKIP CaseG (could not create outside venv)"
+    }
+}
+finally {
+    if (Test-Path -LiteralPath (Join-Path $fakeRepo ".venv")) {
+        # Remove junction without deleting outside target
+        cmd /c "rmdir `"$(Join-Path $fakeRepo '.venv')`"" | Out-Null
+    }
+    if (Test-Path -LiteralPath $juncProbeRoot) {
+        Remove-Item -Recurse -Force -LiteralPath $juncProbeRoot -ErrorAction SilentlyContinue
+    }
+}
+
+# --- Case H: CLAUDE-ADV005-011 Ensure-AtlasEditableInstall must not PATH-bind (source contract) ---
+$startSrc = Get-Content -LiteralPath (Join-Path $ScriptDir "atlas-start.ps1") -Raw
+if ($startSrc -match 'refusing PATH fallback' -and $startSrc -match 'CLAUDE-ADV005-011') {
+    Write-Host "PASS CaseH atlas-start refuses PATH atlas fallback (source contract)"
+}
+else {
+    Write-Host "FAIL CaseH missing CLAUDE-ADV005-011 PATH refuse in atlas-start.ps1"
+    $failed++
+}
+
 if ($failed -gt 0) {
     Write-Host "ENV-ISO-SELFTEST FAIL count=$failed"
     Write-Host "EXTERNAL_SECURITY_REVALIDATION_REQUIRED=YES"
@@ -147,5 +222,5 @@ if ($failed -gt 0) {
 Write-Host "ENV-ISO-SELFTEST PASS"
 Write-Host "EXTERNAL_SECURITY_REVALIDATION_REQUIRED=YES"
 Write-Host "CODEX_VALIDATED=NO"
-Write-Host "CLOSED_IDS=ENV-ISO-001,ENV-ISO-002"
+Write-Host "CLOSED_IDS=ENV-ISO-001,ENV-ISO-002,CLAUDE-ADV005-002,CLAUDE-ADV005-011"
 exit 0
