@@ -155,19 +155,28 @@ function Invoke-AtlasPython {
         [Parameter(Mandatory = $true)][string[]]$Arguments,
         [string]$WorkingDirectory
     )
+    # Isolate exit code from stdout/stderr. If callers assign `$code = Invoke-AtlasPython ...`,
+    # any success-stream output is captured into $code (Object[]), and `$code -ne 0` becomes a
+    # non-empty filter result (truthy) even when pip succeeded — false "install failed" (C-INSTALL).
     $allArgs = @()
     if ($Python.Args) { $allArgs += $Python.Args }
     $allArgs += $Arguments
+    $invoke = {
+        $output = & $Python.Exe @allArgs 2>&1
+        $code = [int]$LASTEXITCODE
+        foreach ($line in @($output)) {
+            Write-Host ([string]$line)
+        }
+        return $code
+    }
     if ($WorkingDirectory) {
         Push-Location $WorkingDirectory
         try {
-            & $Python.Exe @allArgs
-            return $LASTEXITCODE
+            return (& $invoke)
         }
         finally { Pop-Location }
     }
-    & $Python.Exe @allArgs
-    return $LASTEXITCODE
+    return (& $invoke)
 }
 
 function Wait-AtlasHttpOk {
