@@ -412,3 +412,235 @@ def test_compile_context_no_layer_b_write(tmp_path: Path) -> None:
     assert marker.read_text(encoding="utf-8") == "human\n"
     assert not any(projects.rglob("*-context-compiler.json"))
     assert (vault / "generated" / "context-compiler").is_dir()
+
+
+def _p2_vault(tmp_path: Path) -> Path:
+    """Mini vault with claims, portfolio freshness, and an unresolved conflict."""
+    vault = _mini_vault(tmp_path)
+    portfolio = vault / "generated" / "portfolio"
+    portfolio.mkdir(parents=True)
+    (portfolio / "stale-knowledge.json").write_text(
+        json.dumps(
+            {
+                "sources": [
+                    {"source_id": "a", "freshness": "stale"},
+                    {"source_id": "b", "freshness": "fresh"},
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    conflicts = vault / "review" / "conflicts"
+    conflicts.mkdir(parents=True)
+    (conflicts / "conflicts.json").write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "conflict_id": "conflict-alpha-status",
+                        "state": "unresolved",
+                        "claim_ids": ["claim-alpha"],
+                        "subject": "project",
+                        "field": "status",
+                    }
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return vault
+
+
+def test_compile_context_p2_pipeline_authority_freshness_conflicts(
+    tmp_path: Path,
+) -> None:
+    """P2: authority/freshness/conflicts/relevance/budget with receipt."""
+    vault = _p2_vault(tmp_path)
+    package = compile_context(
+        vault,
+        pack_id="p2-pack",
+        profile_id="p2-readonly",
+        budget=10,
+        candidates=[
+            {
+                "record_type": "claim",
+                "record_id": "claim-alpha",
+                "slot": "lexical_exact",
+                "authority_level": "derived",
+                "provenance": [{"kind": "source", "ref": "sources/a.md"}],
+            },
+            {
+                "record_type": "claim",
+                "record_id": "claim-beta",
+                "slot": "lexical_exact",
+                "authority_level": "inferred",
+                "provenance": [{"kind": "source", "ref": "sources/b.md"}],
+            },
+        ],
+    )
+    assert package["profile_id"] == "p2-readonly"
+    assert package["pipeline"] == [
+        "candidates",
+        "vault_presence",
+        "provenance_gate",
+        "authority",
+        "freshness",
+        "conflicts",
+        "relevance",
+        "budget",
+        "package",
+    ]
+    by_id = {e["record_id"]: e for e in package["entries"]}
+    assert by_id["claim-alpha"]["conflict_state"] == "unresolved"
+    assert by_id["claim-alpha"]["authority_level"] == "conflicting"
+    assert by_id["claim-alpha"]["freshness"] == "stale"
+    assert by_id["claim-alpha"]["reason_included"] == "conflict-sidecar"
+    assert by_id["claim-alpha"]["conflict_ids"] == ["conflict-alpha-status"]
+    assert by_id["claim-beta"]["conflict_state"] == "none"
+    assert by_id["claim-beta"]["authority_level"] == "inferred"
+    assert by_id["claim-beta"]["freshness"] == "fresh"
+    # Relevance: derived/inferred before conflicting.
+    assert [e["record_id"] for e in package["entries"]] == [
+        "claim-beta",
+        "claim-alpha",
+    ]
+    assert package["pipeline_receipt"]["unresolved_conflicts_retained"] == 1
+    assert package["authority"]["llm_authority"] is False
+    assert package["authority"]["estate_facts_invented"] is False
+    validate_record(package, "runtime-context-compiler")
+    again = compile_context(
+        vault,
+        pack_id="p2-pack",
+        profile_id="p2-readonly",
+        budget=10,
+        candidates=[
+            {
+                "record_type": "claim",
+                "record_id": "claim-alpha",
+                "slot": "lexical_exact",
+                "authority_level": "derived",
+                "provenance": [{"kind": "source", "ref": "sources/a.md"}],
+            },
+            {
+                "record_type": "claim",
+                "record_id": "claim-beta",
+                "slot": "lexical_exact",
+                "authority_level": "inferred",
+                "provenance": [{"kind": "source", "ref": "sources/b.md"}],
+            },
+        ],
+    )
+    assert package_to_json(again) == package_to_json(package)
+
+
+def test_compile_context_p2_freshness_launder_fails(tmp_path: Path) -> None:
+    vault = _p2_vault(tmp_path)
+    with pytest.raises(Runtime22Error, match="freshness-launder"):
+        compile_context(
+            vault,
+            pack_id="launder",
+            profile_id="p2-readonly",
+            candidates=[
+                {
+                    "record_type": "claim",
+                    "record_id": "claim-alpha",
+                    "freshness": "fresh",
+                    "provenance": [{"kind": "source", "ref": "sources/a.md"}],
+                }
+            ],
+        )
+
+
+def test_compile_context_p2_budget_overflow_fail(tmp_path: Path) -> None:
+    vault = _p2_vault(tmp_path)
+    with pytest.raises(Runtime22Error, match="budget-overflow"):
+        compile_context(
+            vault,
+            pack_id="overflow",
+            profile_id="p2-readonly",
+            budget=1,
+            on_overflow="fail",
+            candidates=[
+                {
+                    "record_type": "claim",
+                    "record_id": "claim-alpha",
+                    "provenance": [{"kind": "source", "ref": "sources/a.md"}],
+                },
+                {
+                    "record_type": "claim",
+                    "record_id": "claim-beta",
+                    "provenance": [{"kind": "source", "ref": "sources/b.md"}],
+                },
+            ],
+        )
+
+
+def test_compile_context_p2_exclude_unresolved_conflicts(tmp_path: Path) -> None:
+    vault = _p2_vault(tmp_path)
+    package = compile_context(
+        vault,
+        pack_id="no-conflict",
+        profile_id="p2-readonly",
+        include_unresolved_conflicts=False,
+        candidates=[
+            {
+                "record_type": "claim",
+                "record_id": "claim-alpha",
+                "provenance": [{"kind": "source", "ref": "sources/a.md"}],
+            },
+            {
+                "record_type": "claim",
+                "record_id": "claim-beta",
+                "provenance": [{"kind": "source", "ref": "sources/b.md"}],
+            },
+        ],
+    )
+    assert package["entry_count"] == 1
+    assert package["entries"][0]["record_id"] == "claim-beta"
+    assert package["pipeline_receipt"]["conflicts_excluded"] == 1
+    assert package["pipeline_receipt"]["unresolved_conflicts_retained"] == 0
+    validate_record(package, "runtime-context-compiler")
+
+
+def test_compile_context_p2_authority_spoof(tmp_path: Path) -> None:
+    vault = _p2_vault(tmp_path)
+    with pytest.raises(Runtime22Error, match="authority-spoof"):
+        compile_context(
+            vault,
+            pack_id="spoof",
+            profile_id="p2-readonly",
+            candidates=[
+                {
+                    "record_type": "claim",
+                    "record_id": "claim-beta",
+                    "authority_level": "primary",
+                    "provenance": [{"kind": "source", "ref": "sources/b.md"}],
+                }
+            ],
+        )
+
+
+def test_compile_context_p2_unknown_freshness_default(tmp_path: Path) -> None:
+    """Absent portfolio match → freshness unknown (never invent fresh)."""
+    vault = _mini_vault(tmp_path)
+    package = compile_context(
+        vault,
+        pack_id="unknown-fresh",
+        profile_id="p2-readonly",
+        candidates=[
+            {
+                "record_type": "claim",
+                "record_id": "claim-alpha",
+                "freshness": "fresh",
+                "provenance": [{"kind": "source", "ref": "sources/missing.md"}],
+            }
+        ],
+    )
+    assert package["entries"][0]["freshness"] == "unknown"
+    assert package["pipeline_receipt"]["freshness_unknown_count"] == 1

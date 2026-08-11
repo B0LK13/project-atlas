@@ -1149,7 +1149,7 @@ def build_parser() -> argparse.ArgumentParser:
     runtime_hybrid.add_argument("--json", action="store_true")
     runtime_compile = runtime_sub.add_parser(
         "compile-context",
-        help="Budgeted context compiler P0 from hybrid candidates JSON.",
+        help="Budgeted context compiler (P0/P2) from hybrid candidates JSON.",
     )
     runtime_compile.add_argument("--vault", type=Path, required=True)
     runtime_compile.add_argument("--pack-id", required=True)
@@ -1161,6 +1161,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     runtime_compile.add_argument("--budget", type=int, default=20)
     runtime_compile.add_argument("--profile-id", default="p0-readonly")
+    runtime_compile.add_argument(
+        "--on-overflow",
+        choices=("truncate", "fail"),
+        default="truncate",
+        help="Budget overflow policy (P2; truncate or fail-closed).",
+    )
+    runtime_compile.add_argument(
+        "--exclude-unresolved-conflicts",
+        action="store_true",
+        help="P2: drop unresolved-conflict claims instead of retaining sidecars.",
+    )
     runtime_compile.add_argument(
         "--write",
         action="store_true",
@@ -2532,6 +2543,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     budget=args.budget,
                     profile_id=args.profile_id,
                     write=bool(args.write),
+                    on_overflow=args.on_overflow,
+                    include_unresolved_conflicts=not bool(
+                        args.exclude_unresolved_conflicts
+                    ),
                 )
             except (OSError, UnicodeError, json.JSONDecodeError, Runtime22Error) as exc:
                 _log.error("runtime compile-context failed: %s", exc)
