@@ -10,11 +10,13 @@ OperatorProfile (request principal).
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import json
 import os
 import secrets
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final, Literal
@@ -284,10 +286,8 @@ def _token_digest(token: str) -> bytes:
 def _write_token_file(path: Path, token: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(token, encoding="ascii", newline="\n")
-    try:
+    with contextlib.suppress(OSError):
         os.chmod(path, 0o600)
-    except OSError:
-        pass
 
 
 def publish_api_session_credentials(
@@ -301,8 +301,6 @@ def publish_api_session_credentials(
     TTY and no file sink is set, print a redacted marker only (fail-closed
     against world-readable redirect logs).
     """
-    import sys
-
     tty = sys.stderr.isatty() if stderr_isatty is None else stderr_isatty
     token_file = os.environ.get(API_TOKEN_FILE_ENV, "").strip()
     priv_file = os.environ.get(API_PRIVILEGED_TOKEN_FILE_ENV, "").strip()

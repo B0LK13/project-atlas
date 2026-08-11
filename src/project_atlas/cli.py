@@ -44,12 +44,6 @@ from project_atlas.context_pack import (
     ProvenancePointer,
     build_context_pack,
 )
-from project_atlas.runtime_22 import (
-    Runtime22Error,
-    compile_context as runtime_compile_context,
-    hybrid_retrieve as runtime_hybrid_retrieve,
-    package_to_json as runtime_package_to_json,
-)
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.doctor import render_text as doctor_render_text
 from project_atlas.doctor import run_doctor
@@ -155,6 +149,18 @@ from project_atlas.receipt_revocation import (
     list_revocations,
     receipt_trust_disposition,
     revoke_receipt,
+)
+from project_atlas.runtime_22 import (
+    Runtime22Error,
+)
+from project_atlas.runtime_22 import (
+    compile_context as runtime_compile_context,
+)
+from project_atlas.runtime_22 import (
+    hybrid_retrieve as runtime_hybrid_retrieve,
+)
+from project_atlas.runtime_22 import (
+    package_to_json as runtime_package_to_json,
 )
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.scheduler_live import (

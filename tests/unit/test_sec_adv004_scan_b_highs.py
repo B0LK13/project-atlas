@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -62,27 +64,28 @@ def test_cli_elevation_explicit_gate_ok(monkeypatch: pytest.MonkeyPatch) -> None
 def test_live_sched_dispatch_cli_no_self_grant(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """CLI must not mint elevated_operator without env gate."""
     monkeypatch.delenv(CLI_ELEVATE_CAPS_ENV, raising=False)
     vault = tmp_path / "v"
     vault.mkdir()
-    code = main(
-        [
-            "live",
-            "sched-dispatch",
-            "--vault",
-            str(vault),
-            "--arm-id",
-            "arm-1",
-            "--job",
-            "version",
-        ]
-    )
+    with caplog.at_level(logging.ERROR):
+        code = main(
+            [
+                "live",
+                "sched-dispatch",
+                "--vault",
+                str(vault),
+                "--arm-id",
+                "arm-1",
+                "--job",
+                "version",
+            ]
+        )
     assert code == 1
-    err = capsys.readouterr().err
-    assert "authz-cli-elevation-required" in err or "sched-dispatch failed" in err
+    joined = " ".join(record.getMessage() for record in caplog.records)
+    assert "authz-cli-elevation-required" in joined
 
 
 def test_publish_token_redacted_when_not_tty(
@@ -134,8 +137,8 @@ def test_cli_source_has_no_inline_self_grant() -> None:
     cli_path = Path(__file__).resolve().parents[2] / "src" / "project_atlas" / "cli.py"
     text = cli_path.read_text(encoding="utf-8")
     assert "require_cli_elevated_operator" in text
-    # No elevated_operator( ... ) self-grant remains in cli.py.
-    assert "elevated_operator(" not in text
+    # Bare elevated_operator( self-grant must not remain (exclude require_cli_*).
+    assert re.search(r"(?<!require_cli_)elevated_operator\(", text) is None
     assert "from project_atlas.authz import AuthzError, elevated_operator" not in text
 
 
