@@ -347,10 +347,10 @@ def test_sec002_happy_path_promoted_digest_matches_approved(tmp_path: Path) -> N
     )
 
 
-def test_sec002_marker_genesis_mismatch_omits_without_stale_digest(
+def test_sec002_marker_genesis_mismatch_fail_closed_requires_rediscovery(
     tmp_path: Path,
 ) -> None:
-    """Project-marker genesis rewrite must not promote under a stale digest."""
+    """Post-genesis marker drift must fail closed until rediscovery (SEC-002)."""
     source = tmp_path / "source"
     vault = tmp_path / "vault"
     source.mkdir()
@@ -377,9 +377,10 @@ def test_sec002_marker_genesis_mismatch_omits_without_stale_digest(
         )
         == EXIT_OK
     )
-    # Marker on disk now carries allocated project_uuid; replaying the stale
-    # pre-genesis manifest must omit the marker observation (no stale digest)
-    # while still accepting unchanged non-marker sources.
+    assert "project_uuid" in (source / ".atlas-project.yaml").read_text(encoding="utf-8")
+    # Stale pre-genesis manifest must not skip the marker and continue — that
+    # allowed live marker metadata to affect generated records under a stale
+    # digest (PR #267 P1). Require rediscovery instead.
     before = _vault_snapshot(vault)
     assert (
         main(
@@ -393,17 +394,44 @@ def test_sec002_marker_genesis_mismatch_omits_without_stale_digest(
                 str(source),
             ]
         )
-        == EXIT_OK
+        == EXIT_ERROR
     )
-    # Replay may rewrite derived vault state, but must not import marker bytes
-    # under the pre-genesis digest.
-    marker_imports = list(
-        (vault / "sources" / "imported-documents").glob("*atlas-project*")
+    assert _vault_snapshot(vault) == before
+
+
+def test_sec002_marker_metadata_tamper_fail_closed(tmp_path: Path) -> None:
+    """Tampered marker maturity after discover must fail closed (SEC-002 P1)."""
+    source = tmp_path / "source"
+    vault = tmp_path / "vault"
+    source.mkdir()
+    _write_source(
+        source,
+        ".atlas-project.yaml",
+        b"schema_version: 1\nproject:\n  id: marker-proj\nmaturity: draft\n",
     )
-    for path in marker_imports:
-        # If a marker import exists, its digest must match current on-disk
-        # canonical bytes — never the stale pre-genesis digest alone.
-        on_disk = (source / ".atlas-project.yaml").read_bytes()
-        assert path.read_bytes() in {on_disk} or True
-    assert "project_uuid" in (source / ".atlas-project.yaml").read_text(encoding="utf-8")
-    assert before  # sanity: first ingest wrote vault content
+    _write_source(source, "README.md", b"# marker project\n")
+    manifest = tmp_path / "manifest.json"
+    _discover(source, manifest)
+    # Attacker changes marker metadata after discover, same path identity.
+    _write_source(
+        source,
+        ".atlas-project.yaml",
+        b"schema_version: 1\nproject:\n  id: marker-proj\nmaturity: production\n",
+    )
+    _init_vault(vault)
+    before = _vault_snapshot(vault)
+    assert (
+        main(
+            [
+                "ingest",
+                "--manifest",
+                str(manifest),
+                "--vault",
+                str(vault),
+                "--source",
+                str(source),
+            ]
+        )
+        == EXIT_ERROR
+    )
+    assert _vault_snapshot(vault) == before

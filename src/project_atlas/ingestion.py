@@ -541,14 +541,6 @@ def _assert_manifest_source_identities(sources: list[SourceRecord]) -> None:
         by_path[record.path] = record
 
 
-def _is_project_marker_path(relative_path: str) -> bool:
-    """Return True for Atlas project-marker source paths (AS-ID-001 genesis)."""
-    name = PurePosixPath(relative_path.replace("\\", "/")).as_posix()
-    return name == ".atlas-project.yaml" or name.endswith("/.atlas-project.yaml") or (
-        name == ".atlas/project.yaml" or name.endswith("/.atlas/project.yaml")
-    )
-
-
 def _source_path(root: Path, value: str) -> Path:
     """Resolve a manifest source path without permitting traversal."""
     if not value or Path(value).is_absolute() or "\\" in value:
@@ -1379,12 +1371,10 @@ def _ingest(
         )
         actual_size = len(source_bytes)
         if actual_size != source_record.size_bytes or actual_sha256 != approved_sha256:
-            # AS-ID-001 genesis may rewrite project markers after a prior ingest.
-            # Never promote mismatched marker bytes and never retain a stale
-            # digest for them — omit the observation and continue. All other
-            # sources fail closed (CODEX-SEC-002).
-            if _is_project_marker_path(source_record.path):
-                continue
+            # CODEX-SEC-002: always fail closed — including project markers.
+            # AS-ID-001 genesis rewrites require rediscovery so approved
+            # provenance matches on-disk bytes; never skip and re-read live
+            # marker metadata into generated records under a stale digest.
             raise ValueError(
                 "source snapshot does not match approved manifest provenance "
                 f"(path={source_record.path}, "
