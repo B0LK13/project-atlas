@@ -1,21 +1,12 @@
 import { useEffect, useState } from "react";
+import {
+  LiveApiAuthError,
+  liveApiDemoOnly,
+  liveApiFetch,
+} from "../api/liveApi";
 import type { DataSource } from "../types";
 
 /** LIVE_API ops receipt inventory; demo fallback is honest unknown (no invent). */
-
-function envFlag(name: string): string | undefined {
-  const env = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
-  return env?.[name];
-}
-
-function apiBase(): string {
-  return (envFlag("VITE_ATLAS_API_BASE") ?? "http://127.0.0.1:8765").replace(/\/$/, "");
-}
-
-function demoOnly(): boolean {
-  const raw = (envFlag("VITE_ATLAS_DEMO_ONLY") ?? "").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "yes";
-}
 
 export interface OpsReceiptRow {
   kind?: string;
@@ -64,9 +55,9 @@ export function useOpsReceipts(): {
     setLoading(true);
 
     async function load(): Promise<void> {
-      if (!demoOnly()) {
+      if (!liveApiDemoOnly()) {
         try {
-          const resp = await fetch(`${apiBase()}/v1/ops/receipts?limit=50`);
+          const resp = await liveApiFetch("/v1/ops/receipts?limit=50");
           if (resp.ok) {
             const body = (await resp.json()) as OpsReceiptInventory;
             if (!cancelled) {
@@ -81,7 +72,15 @@ export function useOpsReceipts(): {
             }
             return;
           }
-        } catch {
+        } catch (err: unknown) {
+          if (err instanceof LiveApiAuthError) {
+            if (!cancelled) {
+              setError(err.message);
+              setInventory(null);
+              setDataSource(null);
+            }
+            return;
+          }
           // fall through
         }
       }

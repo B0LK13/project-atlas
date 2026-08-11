@@ -183,13 +183,23 @@ function Wait-AtlasHttpOk {
     param(
         [Parameter(Mandatory = $true)][string]$Url,
         [int]$TimeoutSec = 45,
-        [int]$IntervalMs = 500
+        [int]$IntervalMs = 500,
+        # SEC-009: optional per-launch Bearer for LIVE_API health after api-serve mint.
+        [string]$BearerToken = ""
     )
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     $lastErr = $null
+    $headers = @{}
+    if (-not [string]::IsNullOrWhiteSpace($BearerToken)) {
+        $headers["Authorization"] = "Bearer $($BearerToken.Trim())"
+    }
     while ((Get-Date) -lt $deadline) {
         try {
-            $resp = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
+            $resp = if ($headers.Count -gt 0) {
+                Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3 -Headers $headers
+            } else {
+                Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
+            }
             if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 300) {
                 return @{
                     Ok         = $true
@@ -206,6 +216,30 @@ function Wait-AtlasHttpOk {
         Start-Sleep -Milliseconds $IntervalMs
     }
     return @{ Ok = $false; StatusCode = 0; Body = $null; Error = $lastErr }
+}
+
+function Wait-AtlasApiReadToken {
+    <#
+    .SYNOPSIS
+      Parse ATLAS_API_READ_TOKEN from api-serve stderr (SEC-009 per-launch mint).
+      Never logs the token value.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$StderrLogPath,
+        [int]$TimeoutSec = 30,
+        [int]$IntervalMs = 200
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-Path -LiteralPath $StderrLogPath) {
+            $raw = [string](Get-Content -LiteralPath $StderrLogPath -Raw -ErrorAction SilentlyContinue)
+            if ($raw -match '(?m)^ATLAS_API_READ_TOKEN=(\S+)\s*$') {
+                return $Matches[1]
+            }
+        }
+        Start-Sleep -Milliseconds $IntervalMs
+    }
+    return $null
 }
 
 function Wait-AtlasTcpOpen {

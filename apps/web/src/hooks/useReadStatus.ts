@@ -1,22 +1,13 @@
 import { useEffect, useState } from "react";
+import {
+  LiveApiAuthError,
+  liveApiDemoOnly,
+  liveApiFetch,
+} from "../api/liveApi";
 import type { DataSource, ReadStatus } from "../types";
 
 /** AS-2.1-WEB-LIVE-001 deepen: LIVE_API first; demo stub isolated + labelled. */
 const STUB_URL = "/sample-read-status.json";
-
-function envFlag(name: string): string | undefined {
-  const env = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
-  return env?.[name];
-}
-
-function apiBase(): string {
-  return (envFlag("VITE_ATLAS_API_BASE") ?? "http://127.0.0.1:8765").replace(/\/$/, "");
-}
-
-function demoOnly(): boolean {
-  const raw = (envFlag("VITE_ATLAS_DEMO_ONLY") ?? "").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "yes";
-}
 
 function stampDemo(status: ReadStatus): ReadStatus {
   return {
@@ -42,10 +33,9 @@ function stampLive(status: ReadStatus): ReadStatus {
 }
 
 async function loadLiveOrStub(): Promise<{ status: ReadStatus; source: DataSource }> {
-  if (!demoOnly()) {
-    const liveUrl = `${apiBase()}/v1/snapshot`;
+  if (!liveApiDemoOnly()) {
     try {
-      const live = await fetch(liveUrl);
+      const live = await liveApiFetch("/v1/snapshot");
       if (live.ok) {
         const snap = (await live.json()) as {
           health?: { read_status?: ReadStatus };
@@ -55,7 +45,10 @@ async function loadLiveOrStub(): Promise<{ status: ReadStatus; source: DataSourc
           return { status: stampLive(status), source: "live_api" };
         }
       }
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof LiveApiAuthError) {
+        throw err;
+      }
       // fall through to isolated demo stub
     }
   }
@@ -78,7 +71,7 @@ export function useReadStatus(): {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataSource, setDataSource] = useState<DataSource | null>(null);
-  const livePreferred = !demoOnly();
+  const livePreferred = !liveApiDemoOnly();
 
   useEffect(() => {
     let cancelled = false;

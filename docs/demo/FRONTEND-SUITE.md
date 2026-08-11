@@ -69,12 +69,15 @@ over operator memory.
 |---|---|---|
 | `VITE_ATLAS_API_BASE` | `http://127.0.0.1:8765` | LIVE_API base URL (no trailing slash required) |
 | `VITE_ATLAS_DEMO_ONLY` | unset / false | When `1` / `true` / `yes`, live-preferring loaders stay on isolated DEMO stubs (Mission/Workspace remap `live` → `demo`) |
+| `VITE_ATLAS_API_TOKEN` | (unset) | Per-launch LIVE_API **READ** Bearer (SEC-009). Set by `scripts/windows/atlas-start.ps1` from `ATLAS_API_READ_TOKEN`; local-only, never commit, never put in URL/query. Privileged token is not placed in `VITE_`. |
 
 Windows PowerShell examples:
 
 ```powershell
 # LIVE-first (API must be up for LIVE chips)
 $env:VITE_ATLAS_API_BASE = "http://127.0.0.1:8765"
+# Prefer atlas-start.ps1 which sets VITE_ATLAS_API_TOKEN from ATLAS_API_READ_TOKEN (per-launch, local-only).
+# Manual: copy ATLAS_API_READ_TOKEN from api-serve stderr into VITE_ATLAS_API_TOKEN for this shell.
 Remove-Item Env:VITE_ATLAS_DEMO_ONLY -ErrorAction SilentlyContinue
 
 # Force DEMO-only shell (no LIVE claims even if API is reachable)
