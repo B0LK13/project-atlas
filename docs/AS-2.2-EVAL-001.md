@@ -9,7 +9,11 @@ Ship a tip-safe evaluation substrate with:
 
 1. **Public fixtures** for training / autolab config paths.
 2. **Hidden holdouts** isolated so those paths cannot resolve or load them.
-3. **Deterministic scoring hooks** (exact / prefix; objective counts only).
+3. **Scoring capability gate** — `role="scoring"` alone is not authorization;
+   holdout access requires `ATLAS_EVAL_SCORING_CAPABILITY=1` plus a private
+   expected map path (`ATLAS_EVAL_HOLDOUT_EXPECTED_PATH`).
+4. **No plaintext expected in git-tracked holdout bodies** or durable receipts.
+5. **Deterministic scoring hooks** (exact / prefix; objective counts only).
 
 ## Layout
 
@@ -30,6 +34,9 @@ Module: `project_atlas.eval_substrate`
 | Attempt | Result |
 |---|---|
 | training/autolab resolve holdout path | `holdout-isolated:*` |
+| scoring holdout access without capability | `holdout-capability-required` |
+| holdout plaintext in git case body | `holdout-plaintext-forbidden:*` |
+| holdout expected in durable receipt | redacted (`expected_redacted`) |
 | wake ATLAS-OPT-001/002 flags | `opt-gated:*` |
 | RL / Prime / invent-pilot / subjective score | `forbidden-claim:*` |
 | authority promote | `forbidden-claim:promote_authority` |

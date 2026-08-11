@@ -3,6 +3,8 @@
 P0 substrate only:
   - public fixtures + hidden holdouts
   - training/autolab path roles cannot resolve holdouts
+  - scoring holdout access requires explicit capability (role ≠ trust)
+  - holdout expected answers live outside git-tracked case bodies
   - deterministic objective scoring hooks (exact/prefix)
 
 Gated / forbidden here:
@@ -14,9 +16,10 @@ Gated / forbidden here:
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from project_atlas.schema import SchemaValidationError, validate_record
 
@@ -29,6 +32,10 @@ TRUTH_BOUNDARY = (
 PUBLIC_REL = Path("fixtures") / "eval" / "public"
 HOLDOUT_REL = Path("fixtures") / "eval" / "holdouts" / "hidden"
 CONFIG_REL = Path("fixtures") / "eval" / "configs"
+
+# CLAUDE-ADV005-004: role strings are not a trust boundary; explicit gate required.
+EVAL_SCORING_CAPABILITY_ENV: Final[str] = "ATLAS_EVAL_SCORING_CAPABILITY"
+EVAL_HOLDOUT_EXPECTED_PATH_ENV: Final[str] = "ATLAS_EVAL_HOLDOUT_EXPECTED_PATH"
 
 EvalRole = Literal["training", "autolab", "scoring"]
 ScoreMode = Literal["exact", "prefix"]
@@ -59,6 +66,41 @@ _FORBIDDEN_CLAIM_KEYS = frozenset(
 
 class EvalSubstrateError(ValueError):
     """Fail-closed eval substrate error."""
+
+
+def scoring_capability_granted() -> bool:
+    """Return True when explicit holdout scoring capability is armed."""
+    return os.environ.get(EVAL_SCORING_CAPABILITY_ENV, "").strip() == "1"
+
+
+def require_scoring_capability() -> None:
+    """Fail closed unless holdout scoring capability is explicitly granted."""
+    if not scoring_capability_granted():
+        raise EvalSubstrateError("holdout-capability-required")
+
+
+def holdout_expected_path() -> Path | None:
+    """Resolved private expected map path when capability is granted."""
+    if not scoring_capability_granted():
+        return None
+    raw = os.environ.get(EVAL_HOLDOUT_EXPECTED_PATH_ENV, "").strip()
+    if not raw:
+        return None
+    return Path(raw).resolve()
+
+
+def _load_holdout_expected_map(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        raise EvalSubstrateError("holdout-expected-map-missing")
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise EvalSubstrateError("holdout-expected-map-invalid")
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise EvalSubstrateError("holdout-expected-map-invalid")
+        out[key.strip()] = value
+    return out
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -107,13 +149,16 @@ def allowed_case_roots(repo_root: Path, role: EvalRole) -> tuple[Path, ...]:
     """Path roots readable for a given role.
 
     training/autolab → public only.
-    scoring → public + hidden holdouts.
+    scoring without capability → public only (role ≠ trust).
+    scoring with capability → public + hidden holdouts.
     """
     pub = public_root(repo_root)
     if role in {"training", "autolab"}:
         return (pub,)
     if role == "scoring":
-        return (pub, holdout_root(repo_root))
+        if scoring_capability_granted():
+            return (pub, holdout_root(repo_root))
+        return (pub,)
     raise EvalSubstrateError(f"role-unknown:{role}")
 
 
@@ -123,6 +168,8 @@ def assert_path_readable(repo_root: Path, role: EvalRole, path: Path) -> Path:
     allowed = allowed_case_roots(repo_root, role)
     if not any(is_under(resolved, root) for root in allowed):
         if is_under(resolved, holdout_root(repo_root)):
+            if role == "scoring" and not scoring_capability_granted():
+                raise EvalSubstrateError("holdout-capability-required")
             raise EvalSubstrateError(f"holdout-isolated:{role}")
         raise EvalSubstrateError(f"path-outside-eval-roots:{role}")
     return resolved
@@ -147,6 +194,12 @@ def load_role_config(repo_root: Path, role: EvalRole) -> dict[str, Any]:
         candidate = (repo_root.resolve() / item).resolve()
         if role in {"training", "autolab"} and is_under(candidate, hold):
             raise EvalSubstrateError(f"holdout-isolated:{role}-config")
+        if (
+            role == "scoring"
+            and is_under(candidate, hold)
+            and not scoring_capability_granted()
+        ):
+            continue
         assert_path_readable(repo_root, role, candidate)
         resolved_roots.append(candidate)
     out = dict(raw)
@@ -167,8 +220,30 @@ def list_case_files(repo_root: Path, role: EvalRole) -> list[Path]:
     return files
 
 
+def _attach_holdout_expected(
+    payload: dict[str, Any],
+    *,
+    expected_map: dict[str, str],
+) -> dict[str, Any]:
+    case_id = str(payload["case_id"])
+    if "expected" in payload:
+        raise EvalSubstrateError(f"holdout-plaintext-forbidden:{case_id}")
+    try:
+        expected = expected_map[case_id]
+    except KeyError as exc:
+        raise EvalSubstrateError(f"holdout-expected-missing:{case_id}") from exc
+    merged = dict(payload)
+    merged["expected"] = expected
+    return merged
+
+
 def load_cases(repo_root: Path, role: EvalRole) -> list[dict[str, Any]]:
-    """Load eval cases for role; holdouts remain invisible to training/autolab."""
+    """Load eval cases for role; holdouts require explicit scoring capability."""
+    expected_map: dict[str, str] | None = None
+    secrets_path = holdout_expected_path()
+    if role == "scoring" and scoring_capability_granted() and secrets_path is not None:
+        expected_map = _load_holdout_expected_map(secrets_path)
+
     cases: list[dict[str, Any]] = []
     for path in list_case_files(repo_root, role):
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -178,8 +253,12 @@ def load_cases(repo_root: Path, role: EvalRole) -> list[dict[str, Any]]:
         if not case_id:
             raise EvalSubstrateError(f"case-id-missing:{path.name}")
         visibility = str(payload.get("visibility", "public")).strip()
-        if visibility == "holdout" and role != "scoring":
-            raise EvalSubstrateError(f"holdout-isolated:{role}")
+        if visibility == "holdout":
+            if role != "scoring":
+                raise EvalSubstrateError(f"holdout-isolated:{role}")
+            if expected_map is None:
+                raise EvalSubstrateError("holdout-capability-required")
+            payload = _attach_holdout_expected(payload, expected_map=expected_map)
         cases.append(payload)
     return cases
 
@@ -211,9 +290,25 @@ def score_prediction(
     }
 
 
+def _redact_holdout_expected_in_results(
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Strip holdout plaintext from durable receipt rows (CLAUDE-ADV005-003)."""
+    redacted: list[dict[str, Any]] = []
+    for row in results:
+        item = dict(row)
+        if item.get("visibility") == "holdout":
+            item["expected_norm"] = ""
+            item["expected_redacted"] = True
+        redacted.append(item)
+    return redacted
+
+
 def score_cases(
     cases: list[dict[str, Any]],
     predictions: dict[str, str],
+    *,
+    redact_holdout_expected: bool = False,
 ) -> dict[str, Any]:
     """Score a prediction map against cases; deterministic aggregate counts."""
     results: list[dict[str, Any]] = []
@@ -237,6 +332,8 @@ def score_cases(
         results.append(row)
         if one["matched"]:
             matched += 1
+    if redact_holdout_expected:
+        results = _redact_holdout_expected_in_results(results)
     total = len(results)
     return {
         "cases_scored": total,
@@ -262,6 +359,11 @@ def build_eval_score_receipt(
         raise EvalSubstrateError("eval-receipt-id-invalid")
 
     role: EvalRole = "scoring"
+    if include_holdouts:
+        require_scoring_capability()
+        if holdout_expected_path() is None:
+            raise EvalSubstrateError("holdout-expected-map-missing")
+
     # Always enforce config isolation for training/autolab side paths first.
     load_role_config(repo_root, "training")
     load_role_config(repo_root, "autolab")
@@ -279,7 +381,7 @@ def build_eval_score_receipt(
         cases = public_cases
         holdouts_scored = False
 
-    aggregate = score_cases(cases, predictions)
+    aggregate = score_cases(cases, predictions, redact_holdout_expected=True)
     payload: dict[str, Any] = {
         "schema_version": 1,
         "package_id": PACKAGE_ID,

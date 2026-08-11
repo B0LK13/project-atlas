@@ -1,0 +1,5 @@
+REPO=D:\atlas-worktrees\remedi-claude-293
+BRANCH=hotfix/adv005-claude-003-004-010-holdouts
+BASE_TIP=b0d4413cc5591a9cc789101db95b3f2cd3621afe
+PACKAGE=AS-2.2-EVAL-001
+FINDINGS=CLAUDE-ADV005-003,004,010

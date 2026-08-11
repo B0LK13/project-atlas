@@ -2,6 +2,5 @@
   "case_id": "EV-HOLD-002",
   "visibility": "holdout",
   "score_mode": "prefix",
-  "query": "hidden lineage drift probe",
-  "expected": "lineage-"
+  "query": "hidden lineage drift probe"
 }

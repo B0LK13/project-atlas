@@ -2,6 +2,5 @@
   "case_id": "EV-HOLD-001",
   "visibility": "holdout",
   "score_mode": "exact",
-  "query": "hidden authority conflict probe",
-  "expected": "conflict-detected"
+  "query": "hidden authority conflict probe"
 }

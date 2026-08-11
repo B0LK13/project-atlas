@@ -76,3 +76,6 @@ desktop.ini
 
 # Root agent spool (local session residue; do not ignore tracked `.atlas/project.yaml`)
 .atlas-spool/
+
+# AS-2.2-EVAL-001 private holdout expected map (never commit plaintext answers)
+fixtures/eval/holdouts/private/
