@@ -82,7 +82,7 @@ def test_hybrid_plan_exact_lexical_and_semantic_disabled(tmp_path: Path) -> None
     _seed_vault(vault)
 
     plan = build_hybrid_retrieval_plan(
-        vault, kind="concept", value="demo-concept", mode="exact"
+        vault, kind="concept", value="demo-concept", project_id="demo", mode="exact"
     )
 
     assert plan["package_id"] == PACKAGE_ID
@@ -109,7 +109,7 @@ def test_hybrid_plan_prefix_mode(tmp_path: Path) -> None:
     _seed_vault(vault)
 
     plan = build_hybrid_retrieval_plan(
-        vault, kind="concept", value="demo-", mode="prefix"
+        vault, kind="concept", value="demo-", project_id="demo", mode="prefix"
     )
     assert plan["slots"]["lexical_prefix"]["status"] == "active"
     assert plan["slots"]["lexical_exact"]["status"] == "idle"
@@ -123,7 +123,9 @@ def test_hybrid_plan_does_not_write_vault(tmp_path: Path) -> None:
     _seed_vault(vault)
     before = _vault_fingerprint(vault)
 
-    build_hybrid_retrieval_plan(vault, kind="concept", value="demo-concept")
+    build_hybrid_retrieval_plan(
+        vault, kind="concept", value="demo-concept", project_id="demo"
+    )
 
     after = _vault_fingerprint(vault)
     assert after == before
@@ -145,6 +147,7 @@ def test_hybrid_plan_rejects_semantic_enable(tmp_path: Path) -> None:
             vault,
             kind="concept",
             value="demo-concept",
+            project_id="demo",
             enable_semantic=True,
         )
 
@@ -154,7 +157,9 @@ def test_hybrid_plan_rejects_unknown_kind(tmp_path: Path) -> None:
     vault.mkdir()
     _seed_vault(vault)
     with pytest.raises(HybridRetrievalError, match="kind-unsupported"):
-        build_hybrid_retrieval_plan(vault, kind="embedding", value="x")
+        build_hybrid_retrieval_plan(
+            vault, kind="embedding", value="x", project_id="demo"
+        )
 
 
 def test_hybrid_module_does_not_invent_embeddings() -> None:
@@ -163,6 +168,14 @@ def test_hybrid_module_does_not_invent_embeddings() -> None:
     ).lower()
     for forbidden in ("openai", "embedding_model", "vector_store", "nearest_neighbor"):
         assert forbidden not in text
+
+
+def test_hybrid_plan_rejects_missing_project_scope(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _seed_vault(vault)
+    with pytest.raises(HybridRetrievalError, match="project-scope-required"):
+        build_hybrid_retrieval_plan(vault, kind="concept", value="demo-concept", project_id="")
 
 
 def test_hybrid_schema_registered_and_docs() -> None:

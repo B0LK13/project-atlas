@@ -1,0 +1,40 @@
+{
+  "009": {
+    "MAX_QUERY_CHARS": 4096,
+    "MAX_QUERY_TERMS": 256,
+    "api_has_project_id_param": true,
+    "bm25_corpus_size_scoped": 2,
+    "query_project_a_key": {
+      "PROJECT_B_present": false,
+      "result_ids": [
+        "a-auth-gate",
+        "a-other"
+      ]
+    },
+    "query_shared_token": {
+      "PROJECT_B_present": false,
+      "result_ids": [
+        "a-auth-gate"
+      ]
+    },
+    "structural_isolation": true
+  },
+  "013": {
+    "cases": {
+      "distinct_20k": {
+        "accepted": false,
+        "error": "hybrid-retrieval-query-too-many-terms:300",
+        "matches": true
+      },
+      "repeat_50k": {
+        "accepted": false,
+        "error": "hybrid-retrieval-query-too-long:649999",
+        "matches": true
+      }
+    }
+  },
+  "019": {
+    "missing_indexes_type": "HybridRetrievalError",
+    "plan_missing_indexes_type": "HybridRetrievalError"
+  }
+}

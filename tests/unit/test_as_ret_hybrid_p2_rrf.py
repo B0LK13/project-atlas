@@ -136,7 +136,12 @@ def test_hybrid_rrf_fusion_lexical_bm25(tmp_path: Path) -> None:
     _seed_vault(vault)
 
     report = build_hybrid_rrf_fusion(
-        vault, kind="concept", value="auth token", mode="exact", cap=10
+        vault,
+        kind="concept",
+        value="auth token",
+        project_id="demo",
+        mode="exact",
+        cap=10,
     )
 
     assert report["package_id"] == PACKAGE_ID
@@ -165,7 +170,7 @@ def test_hybrid_rrf_exact_lexical_boost(tmp_path: Path) -> None:
     _seed_vault(vault)
 
     report = build_hybrid_rrf_fusion(
-        vault, kind="concept", value="alpha-auth", mode="exact"
+        vault, kind="concept", value="alpha-auth", project_id="demo", mode="exact"
     )
     assert report["slots"]["lexical_exact"]["hit_count"] == 1
     assert report["results"][0]["record_id"] == "alpha-auth"
@@ -177,9 +182,13 @@ def test_hybrid_rrf_empty_query_fail_closed(tmp_path: Path) -> None:
     vault.mkdir()
     _seed_vault(vault)
     with pytest.raises(HybridRetrievalError, match="value-empty"):
-        build_hybrid_rrf_fusion(vault, kind="concept", value="  ")
+        build_hybrid_rrf_fusion(
+            vault, kind="concept", value="  ", project_id="demo"
+        )
     with pytest.raises(HybridRetrievalError, match="value-empty"):
-        build_hybrid_retrieval_plan(vault, kind="concept", value="")
+        build_hybrid_retrieval_plan(
+            vault, kind="concept", value="", project_id="demo"
+        )
 
 
 def test_hybrid_rrf_rejects_semantic_authority(tmp_path: Path) -> None:
@@ -188,7 +197,11 @@ def test_hybrid_rrf_rejects_semantic_authority(tmp_path: Path) -> None:
     _seed_vault(vault)
     with pytest.raises(HybridRetrievalError, match="semantic-slot-not-available"):
         build_hybrid_rrf_fusion(
-            vault, kind="concept", value="auth", enable_semantic=True
+            vault,
+            kind="concept",
+            value="auth",
+            project_id="demo",
+            enable_semantic=True,
         )
 
 
@@ -197,7 +210,9 @@ def test_hybrid_rrf_does_not_write_vault(tmp_path: Path) -> None:
     vault.mkdir()
     _seed_vault(vault)
     before = _vault_fingerprint(vault)
-    build_hybrid_rrf_fusion(vault, kind="concept", value="token")
+    build_hybrid_rrf_fusion(
+        vault, kind="concept", value="token", project_id="demo"
+    )
     assert _vault_fingerprint(vault) == before
 
 
@@ -205,8 +220,16 @@ def test_hybrid_rrf_repeat_run_byte_identical(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
     _seed_vault(vault)
-    a = fusion_to_json(build_hybrid_rrf_fusion(vault, kind="concept", value="auth"))
-    b = fusion_to_json(build_hybrid_rrf_fusion(vault, kind="concept", value="auth"))
+    a = fusion_to_json(
+        build_hybrid_rrf_fusion(
+            vault, kind="concept", value="auth", project_id="demo"
+        )
+    )
+    b = fusion_to_json(
+        build_hybrid_rrf_fusion(
+            vault, kind="concept", value="auth", project_id="demo"
+        )
+    )
     assert a == b
 
 
@@ -223,3 +246,163 @@ def test_vault_retriever_bm25_corpus_sorted(tmp_path: Path) -> None:
 def test_hybrid_rrf_schema_registered() -> None:
     assert "hybrid-retrieval-rrf" in available_schemas()
     assert "hybrid-retrieval-plan" in available_schemas()
+
+
+def _seed_multi_project_vault(vault: Path) -> None:
+    """Two-project fixture mirroring CLAUDE-REPRO-292 (009 cross-project leak)."""
+    indexes = vault / "generated" / "indexes"
+    indexes.mkdir(parents=True)
+    concepts_index = {
+        "by_concept_id": {
+            "a-auth-gate": ["a-auth-gate"],
+            "a-other": ["a-other"],
+            "b-auth-gate": ["b-auth-gate"],
+            "b-other": ["b-other"],
+        },
+        "by_type": {},
+        "by_project_id": {
+            "PROJECT_A": ["a-auth-gate", "a-other"],
+            "PROJECT_B": ["b-auth-gate", "b-other"],
+        },
+        "by_tag": {},
+        "by_relationship_target": {},
+    }
+    (indexes / "concepts.json").write_text(
+        json.dumps(concepts_index, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    for name in (
+        "sources.json",
+        "claims.json",
+        "conflicts.json",
+        "authority.json",
+        "provenance.json",
+    ):
+        (indexes / name).write_text("{}\n", encoding="utf-8", newline="\n")
+
+    concepts_dir = vault / "state" / "concepts"
+    concepts_dir.mkdir(parents=True)
+    (concepts_dir / "PROJECT_A.json").write_text(
+        json.dumps(
+            {
+                "concepts": [
+                    {
+                        "concept_id": "a-auth-gate",
+                        "type": "capability",
+                        "project_id": "PROJECT_A",
+                        "summary": "secretmarker authentication gate",
+                    },
+                    {
+                        "concept_id": "a-other",
+                        "type": "capability",
+                        "project_id": "PROJECT_A",
+                        "summary": "PROJECT_A auxiliary",
+                    },
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    (concepts_dir / "PROJECT_B.json").write_text(
+        json.dumps(
+            {
+                "concepts": [
+                    {
+                        "concept_id": "b-auth-gate",
+                        "type": "capability",
+                        "project_id": "PROJECT_B",
+                        "summary": "secretmarker authentication gate",
+                    },
+                    {
+                        "concept_id": "b-other",
+                        "type": "capability",
+                        "project_id": "PROJECT_B",
+                        "summary": "PROJECT_B auxiliary",
+                    },
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
+def test_hybrid_rrf_project_scope_isolates_cross_project(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _seed_multi_project_vault(vault)
+
+    shared = build_hybrid_rrf_fusion(
+        vault,
+        kind="concept",
+        value="secretmarker authentication",
+        project_id="PROJECT_A",
+    )
+    shared_ids = {item["record_id"] for item in shared["results"]}
+    assert "a-auth-gate" in shared_ids
+    assert "b-auth-gate" not in shared_ids
+
+    keyed = build_hybrid_rrf_fusion(
+        vault, kind="concept", value="PROJECT_A", project_id="PROJECT_A"
+    )
+    keyed_ids = {item["record_id"] for item in keyed["results"]}
+    assert keyed_ids <= {"a-auth-gate", "a-other"}
+    assert "b-auth-gate" not in keyed_ids
+    assert "b-other" not in keyed_ids
+
+    corpus = VaultRetriever(vault).bm25_corpus("concept", project_id="PROJECT_A")
+    assert len(corpus) == 2
+    assert all("a-" in record_id for record_id, _text in corpus)
+
+
+def test_hybrid_rrf_rejects_missing_project_scope(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _seed_vault(vault)
+    with pytest.raises(HybridRetrievalError, match="project-scope-required"):
+        build_hybrid_rrf_fusion(vault, kind="concept", value="auth", project_id="  ")
+
+
+def test_hybrid_rrf_rejects_oversized_query(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _seed_vault(vault)
+    with pytest.raises(HybridRetrievalError, match="query-too-long"):
+        build_hybrid_rrf_fusion(
+            vault,
+            kind="concept",
+            value="secretmarker " * 50000,
+            project_id="demo",
+        )
+
+
+def test_hybrid_rrf_rejects_too_many_query_terms(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _seed_vault(vault)
+    query = " ".join(f"term{n}" for n in range(300))
+    with pytest.raises(HybridRetrievalError, match="query-too-many-terms"):
+        build_hybrid_rrf_fusion(
+            vault, kind="concept", value=query, project_id="demo"
+        )
+
+
+def test_hybrid_rrf_missing_indexes_hybrid_error_contract(tmp_path: Path) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(HybridRetrievalError, match="hybrid-retrieval-substrate"):
+        build_hybrid_rrf_fusion(
+            empty, kind="concept", value="auth", project_id="demo"
+        )
+    with pytest.raises(HybridRetrievalError, match="hybrid-retrieval-substrate"):
+        build_hybrid_retrieval_plan(
+            empty, kind="concept", value="auth", project_id="demo"
+        )

@@ -26,7 +26,7 @@
     "query": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "value", "mode"],
+      "required": ["kind", "value", "mode", "project_id"],
       "properties": {
         "kind": {
           "type": "string",
@@ -40,7 +40,8 @@
           ]
         },
         "value": { "type": "string", "minLength": 1 },
-        "mode": { "enum": ["exact", "prefix"] }
+        "mode": { "enum": ["exact", "prefix"] },
+        "project_id": { "type": "string", "minLength": 1 }
       }
     },
     "slots": {

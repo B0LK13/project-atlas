@@ -19,8 +19,8 @@ from project_atlas.compat_anchor import (
     CompatibilityAnchor,
     require_compatibility_anchor,
 )
-from project_atlas.retrieval import VaultRetriever
-from project_atlas.retrieval_fusion import bm25_rank, ranking_ids, rrf_fuse
+from project_atlas.retrieval import RetrievalResult, VaultRetriever
+from project_atlas.retrieval_fusion import bm25_rank, ranking_ids, rrf_fuse, tokenize
 from project_atlas.schema import SchemaValidationError, validate_record
 
 PACKAGE_ID = "AS-2.0-RET-HYBRID-001"
@@ -34,6 +34,8 @@ TRUTH_BOUNDARY = "HYBRID PLAN ≠ EMBEDDINGS SERVICE / ≠ AUTHORITY"
 SEMANTIC_DISABLED_REASON = "semantic-slot-disabled-by-default-no-embeddings-service"
 DEFAULT_CAP = 20
 MAX_CAP = 100
+MAX_QUERY_CHARS = 4096
+MAX_QUERY_TERMS = 256
 
 RetrievalMode = Literal["exact", "prefix"]
 SUPPORTED_KINDS = frozenset(
@@ -51,6 +53,13 @@ def _semantic_slot() -> dict[str, Any]:
         "status": "disabled",
         "reason": SEMANTIC_DISABLED_REASON,
     }
+
+
+def _require_project_scope(project_id: str) -> str:
+    scope = project_id.strip()
+    if not scope:
+        raise HybridRetrievalError("hybrid-retrieval-project-scope-required")
+    return scope
 
 
 def _require_query(
@@ -74,9 +83,44 @@ def _require_query(
     if not query_value:
         raise HybridRetrievalError("hybrid-retrieval-value-empty")
 
+    if len(query_value) > MAX_QUERY_CHARS:
+        raise HybridRetrievalError(
+            f"hybrid-retrieval-query-too-long:{len(query_value)}"
+        )
+    distinct_terms = len(set(tokenize(query_value)))
+    if distinct_terms > MAX_QUERY_TERMS:
+        raise HybridRetrievalError(
+            f"hybrid-retrieval-query-too-many-terms:{distinct_terms}"
+        )
+
     if mode not in ("exact", "prefix"):
         raise HybridRetrievalError(f"hybrid-retrieval-mode-invalid:{mode}")
     return kind_token, query_value
+
+
+def _hybrid_lookup(
+    retriever: VaultRetriever,
+    kind: str,
+    value: str,
+    *,
+    prefix: bool,
+    project_id: str,
+) -> list[RetrievalResult]:
+    try:
+        return retriever.lookup(
+            kind, value, prefix=prefix, project_id=project_id
+        )
+    except ValueError as exc:
+        raise HybridRetrievalError(f"hybrid-retrieval-substrate:{exc}") from exc
+
+
+def _hybrid_bm25_corpus(
+    retriever: VaultRetriever, kind: str, *, project_id: str
+) -> list[tuple[str, str]]:
+    try:
+        return retriever.bm25_corpus(kind, project_id=project_id)
+    except ValueError as exc:
+        raise HybridRetrievalError(f"hybrid-retrieval-substrate:{exc}") from exc
 
 
 def build_hybrid_retrieval_plan(
@@ -84,6 +128,7 @@ def build_hybrid_retrieval_plan(
     *,
     kind: str,
     value: str,
+    project_id: str,
     mode: RetrievalMode = "exact",
     enable_semantic: bool = False,
     anchor: CompatibilityAnchor | None = None,
@@ -92,16 +137,20 @@ def build_hybrid_retrieval_plan(
 
     Lexical exact/prefix slots execute via :class:`VaultRetriever`. The
     semantic slot stays disabled; requesting it is rejected (no embeddings
-    service in this package).
+    service in this package). ``project_id`` is required — cross-project
+    retrieval is denied by default (fail-closed).
     """
     _ = anchor or require_compatibility_anchor()
     kind_token, query_value = _require_query(
         kind=kind, value=value, mode=mode, enable_semantic=enable_semantic
     )
+    scope = _require_project_scope(project_id)
 
     use_prefix = mode == "prefix"
     retriever = VaultRetriever(vault)
-    hits = retriever.lookup(kind_token, query_value, prefix=use_prefix)
+    hits = _hybrid_lookup(
+        retriever, kind_token, query_value, prefix=use_prefix, project_id=scope
+    )
     slot_name = "lexical_prefix" if use_prefix else "lexical_exact"
 
     results = [
@@ -122,6 +171,7 @@ def build_hybrid_retrieval_plan(
             "kind": kind_token,
             "value": query_value,
             "mode": mode,
+            "project_id": scope,
         },
         "slots": {
             "lexical_exact": {
@@ -155,6 +205,7 @@ def build_hybrid_rrf_fusion(
     *,
     kind: str,
     value: str,
+    project_id: str,
     mode: RetrievalMode = "exact",
     cap: int = DEFAULT_CAP,
     enable_semantic: bool = False,
@@ -162,13 +213,16 @@ def build_hybrid_rrf_fusion(
 ) -> dict[str, Any]:
     """Lexical + BM25 fused via RRF (P2). Semantic remains disabled / non-authority.
 
-    Empty / whitespace queries fail closed. Results are derived rankings over
-    AS-RET-001 substrates — never Layer B writes and never LLM authority.
+    Empty / whitespace queries fail closed. ``project_id`` is required — BM25
+    corpus and lexical hits are scoped to that project (default deny cross-project).
+    Results are derived rankings over AS-RET-001 substrates — never Layer B writes
+    and never LLM authority.
     """
     _ = anchor or require_compatibility_anchor()
     kind_token, query_value = _require_query(
         kind=kind, value=value, mode=mode, enable_semantic=enable_semantic
     )
+    scope = _require_project_scope(project_id)
     if not isinstance(cap, int) or isinstance(cap, bool):
         raise HybridRetrievalError(f"hybrid-retrieval-cap-invalid:{cap!r}")
     if cap < 1 or cap > MAX_CAP:
@@ -177,10 +231,12 @@ def build_hybrid_rrf_fusion(
     use_prefix = mode == "prefix"
     lexical_slot = "lexical_prefix" if use_prefix else "lexical_exact"
     retriever = VaultRetriever(vault)
-    lexical_hits = retriever.lookup(kind_token, query_value, prefix=use_prefix)
+    lexical_hits = _hybrid_lookup(
+        retriever, kind_token, query_value, prefix=use_prefix, project_id=scope
+    )
     lexical_ids = [hit.record_id for hit in lexical_hits]
 
-    corpus = retriever.bm25_corpus(kind_token)
+    corpus = _hybrid_bm25_corpus(retriever, kind_token, project_id=scope)
     bm25_scored = bm25_rank(query_value, corpus)
     bm25_ids = ranking_ids(bm25_scored)
     bm25_scores = {record_id: score for record_id, score in bm25_scored}
@@ -212,6 +268,7 @@ def build_hybrid_rrf_fusion(
             "value": query_value,
             "mode": mode,
             "cap": cap,
+            "project_id": scope,
         },
         "slots": {
             "lexical_exact": {
