@@ -1,0 +1,128 @@
+"""AS-PROD-INSTALL-001 — Windows stranger bootstrap presence + script contracts.
+
+No network. Asserts scripts/docs exist and carry honesty + health tokens.
+Package: PRODUCTIZATION / NOT RELEASE / NOT PILOT.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SCRIPTS = _REPO_ROOT / "scripts" / "windows"
+_DOCS = _REPO_ROOT / "docs" / "productization" / "install"
+
+_REQUIRED_SCRIPTS = (
+    "atlas-start.ps1",
+    "atlas-preflight.ps1",
+    "atlas-stop.ps1",
+    "_AtlasCommon.ps1",
+)
+
+_REQUIRED_DOCS = (
+    "README.md",
+    "STRANGER.md",
+    "OPERATOR.md",
+    "LIMITATIONS.md",
+)
+
+_START_TOKENS = (
+    "STRANGER",
+    "NOT RELEASE",
+    "PRODUCTIZATION",
+    "NOT PILOT",
+    "health",
+    "/v1/meta",
+    "WHAT:",
+    "CAUSE:",
+    "ACTION:",
+    "RETRY:",
+    "pip install -e",
+    "127.0.0.1",
+    ".tmp/productization",
+    "api-serve",
+    "STRANGER_CAN_START_ATLAS",
+)
+
+_PREFLIGHT_TOKENS = (
+    "Python",
+    "npm",
+    "NOT RELEASE",
+    "PRODUCTIZATION",
+    "WHAT:",
+    "CAUSE:",
+    "ACTION:",
+    "RETRY:",
+    ".tmp",
+)
+
+_DOC_TOKENS = (
+    "STRANGER",
+    "NOT RELEASE",
+    "PRODUCTIZATION",
+    "health",
+    "TIME_TO_FIRST_VALUE",
+    "STRANGER_CAN_START_ATLAS",
+)
+
+
+def test_as_prod_install_001_scripts_present() -> None:
+    assert _SCRIPTS.is_dir(), f"missing {_SCRIPTS}"
+    for name in _REQUIRED_SCRIPTS:
+        path = _SCRIPTS / name
+        assert path.is_file(), f"missing script {path}"
+
+
+def test_as_prod_install_001_docs_present() -> None:
+    assert _DOCS.is_dir(), f"missing {_DOCS}"
+    for name in _REQUIRED_DOCS:
+        path = _DOCS / name
+        assert path.is_file(), f"missing doc {path}"
+
+
+def test_as_prod_install_001_start_script_contract() -> None:
+    text = (_SCRIPTS / "atlas-start.ps1").read_text(encoding="utf-8")
+    for token in _START_TOKENS:
+        assert token in text, f"atlas-start.ps1 missing token {token!r}"
+    # Must not claim release/pilot success stamps.
+    assert "RELEASE CERTIFIED = YES" not in text
+    assert "PILOT PASS = YES" not in text
+    assert "ALPHA_READY=YES" not in text
+    # Must not pull Playwright into this path (honesty mentions are OK).
+    lowered = text.lower()
+    assert "npx playwright" not in lowered
+    assert "@playwright" not in lowered
+    assert "playwright install" not in lowered
+    assert "npm install playwright" not in lowered
+    assert "without Playwright" in text or "does **not** add Playwright" in text or "Playwright is intentionally not" in text
+
+
+def test_as_prod_install_001_preflight_script_contract() -> None:
+    text = (_SCRIPTS / "atlas-preflight.ps1").read_text(encoding="utf-8")
+    for token in _PREFLIGHT_TOKENS:
+        assert token in text, f"atlas-preflight.ps1 missing token {token!r}"
+
+
+def test_as_prod_install_001_common_product_error_helper() -> None:
+    text = (_SCRIPTS / "_AtlasCommon.ps1").read_text(encoding="utf-8")
+    assert "Write-AtlasProductError" in text
+    assert "WHAT:" in text
+    assert "CAUSE:" in text
+    assert "ACTION:" in text
+    assert "RETRY:" in text
+    assert "NOT RELEASE" in text
+    assert "Wait-AtlasHttpOk" in text
+
+
+def test_as_prod_install_001_docs_honesty_and_stranger_tokens() -> None:
+    joined = "\n".join(
+        (_DOCS / name).read_text(encoding="utf-8") for name in _REQUIRED_DOCS
+    )
+    for token in _DOC_TOKENS:
+        assert token in joined, f"install docs missing token {token!r}"
+    assert "NOT PILOT" in joined or "NOT PILOT PASS" in joined
+    assert "MSI" in joined
+    assert "winget" in joined.lower() or "winget" in joined
+    stranger = (_DOCS / "STRANGER.md").read_text(encoding="utf-8")
+    assert "atlas-start.ps1" in stranger
+    assert "STRANGER" in stranger
