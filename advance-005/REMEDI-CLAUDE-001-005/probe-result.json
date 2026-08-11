@@ -1,0 +1,42 @@
+{
+  "findings": {
+    "CLAUDE-ADV005-001": {
+      "disposition": "REFUTED",
+      "expected_if_correct": "stale",
+      "freshness_observed": "stale",
+      "laundered": false
+    },
+    "CLAUDE-ADV005-005": {
+      "disposition": "REFUTED",
+      "freshness_order_a_then_b": "stale",
+      "freshness_order_b_then_a": "stale",
+      "order_dependent": false
+    },
+    "CLAUDE-ADV005-012": {
+      "disposition": "REFUTED",
+      "entry_ids": [
+        "claim-beta"
+      ],
+      "receipt_subset": {
+        "conflicts_excluded": 1,
+        "excluded_conflict_ids": [
+          "conflict-alpha-status"
+        ],
+        "excluded_conflicts_detail": [
+          {
+            "claim_ids": [
+              "claim-alpha"
+            ],
+            "conflict_id": "conflict-alpha-status",
+            "excluded_claim_id": "claim-alpha",
+            "field": "status",
+            "subject": "project"
+          }
+        ],
+        "unresolved_conflicts_retained": 0
+      },
+      "silent_winner": false
+    }
+  },
+  "head": "b0d4413cc5591a9cc789101db95b3f2cd3621afe"
+}

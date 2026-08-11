@@ -177,7 +177,35 @@
         },
         "unresolved_conflicts_retained": { "type": "integer", "minimum": 0 },
         "conflicts_excluded": { "type": "integer", "minimum": 0 },
-        "freshness_unknown_count": { "type": "integer", "minimum": 0 }
+        "freshness_unknown_count": { "type": "integer", "minimum": 0 },
+        "excluded_conflict_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "excluded_conflicts_detail": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "conflict_id",
+              "claim_ids",
+              "subject",
+              "field",
+              "excluded_claim_id"
+            ],
+            "properties": {
+              "conflict_id": { "type": "string", "minLength": 1 },
+              "claim_ids": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "subject": { "type": "string" },
+              "field": { "type": "string" },
+              "excluded_claim_id": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
       }
     },
     "authority": {

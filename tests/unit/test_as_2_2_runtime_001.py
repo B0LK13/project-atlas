@@ -603,9 +603,101 @@ def test_compile_context_p2_exclude_unresolved_conflicts(tmp_path: Path) -> None
     )
     assert package["entry_count"] == 1
     assert package["entries"][0]["record_id"] == "claim-beta"
-    assert package["pipeline_receipt"]["conflicts_excluded"] == 1
-    assert package["pipeline_receipt"]["unresolved_conflicts_retained"] == 0
+    receipt = package["pipeline_receipt"]
+    assert receipt["conflicts_excluded"] == 1
+    assert receipt["unresolved_conflicts_retained"] == 0
+    assert receipt["excluded_conflict_ids"] == ["conflict-alpha-status"]
+    assert receipt["excluded_conflicts_detail"] == [
+        {
+            "conflict_id": "conflict-alpha-status",
+            "claim_ids": ["claim-alpha"],
+            "subject": "project",
+            "field": "status",
+            "excluded_claim_id": "claim-alpha",
+        }
+    ]
     validate_record(package, "runtime-context-compiler")
+
+
+def test_compile_context_p2_freshness_conservative_multi_provenance(
+    tmp_path: Path,
+) -> None:
+    """ADV005-001/005: stale supporting evidence wins over unrelated fresh."""
+    vault = _p2_vault(tmp_path)
+    (vault / "generated" / "indexes" / "claims.json").write_text(
+        json.dumps(
+            {
+                "by_claim_id": {
+                    "claim-c": ["claim-c"],
+                    "claim-alpha": ["claim-alpha"],
+                    "claim-beta": ["claim-beta"],
+                },
+                "by_field": {},
+                "by_concept_id": {},
+                "by_source_lineage_id": {},
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    claims = {
+        "claims": [
+            {
+                "claim_id": "claim-c",
+                "field": "status",
+                "provenance": [{"ref": "sources/a.md"}],
+            },
+            *json.loads(
+                (vault / "state" / "claims" / "claims.json").read_text(
+                    encoding="utf-8"
+                )
+            )["claims"],
+        ]
+    }
+    (vault / "state" / "claims" / "claims.json").write_text(
+        json.dumps(claims, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    candidate = {
+        "record_type": "claim",
+        "record_id": "claim-c",
+        "provenance": [
+            {"kind": "source", "ref": "sources/b.md"},
+            {"kind": "source", "ref": "sources/a.md"},
+        ],
+    }
+    laundered = compile_context(
+        vault,
+        pack_id="adv005-001",
+        profile_id="p2-readonly",
+        candidates=[candidate],
+    )
+    assert laundered["entries"][0]["freshness"] == "stale"
+    order_ab = compile_context(
+        vault,
+        pack_id="adv005-005-ab",
+        profile_id="p2-readonly",
+        candidates=[
+            {
+                **candidate,
+                "provenance": [
+                    {"kind": "source", "ref": "sources/a.md"},
+                    {"kind": "source", "ref": "sources/b.md"},
+                ],
+            }
+        ],
+    )
+    order_ba = compile_context(
+        vault,
+        pack_id="adv005-005-ba",
+        profile_id="p2-readonly",
+        candidates=[candidate],
+    )
+    assert order_ab["entries"][0]["freshness"] == "stale"
+    assert order_ba["entries"][0]["freshness"] == "stale"
+    validate_record(laundered, "runtime-context-compiler")
 
 
 def test_compile_context_p2_authority_spoof(tmp_path: Path) -> None:
