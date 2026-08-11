@@ -104,7 +104,7 @@ def _discover_ingest(source: Path, vault: Path, manifest: Path) -> None:
         discover(source),
         manifest,
     )
-    ingest(manifest, vault)
+    ingest(manifest, vault, authorized_source_root=source)
 
 
 def _write_project_marker(source: Path, project_id: str) -> None:
@@ -352,7 +352,7 @@ def _case_renamed(root: Path) -> CaseOutcome:
 
 def _case_ambiguous(root: Path) -> CaseOutcome:
     """Ambiguous lineage decision must fail closed (unresolved), not invent winners."""
-    _source, vault, manifest = _init_pair(root / "ambiguous", "c210-ambiguous")
+    source, vault, manifest = _init_pair(root / "ambiguous", "c210-ambiguous")
     state_path = vault / "state" / "sources.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     sources = list(state.get("sources", []))
@@ -365,7 +365,7 @@ def _case_ambiguous(root: Path) -> CaseOutcome:
     state["sources"] = sources
     state_path.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     try:
-        ingest(manifest, vault)
+        ingest(manifest, vault, authorized_source_root=source)
     except (OSError, ValueError, TypeError) as exc:
         return _pass(
             "ambiguous",
@@ -382,7 +382,7 @@ def _case_ambiguous(root: Path) -> CaseOutcome:
 
 
 def _case_corrupt(root: Path) -> CaseOutcome:
-    _source, vault, manifest = _init_pair(root / "corrupt", "c210-corrupt")
+    source, vault, manifest = _init_pair(root / "corrupt", "c210-corrupt")
     state_path = vault / "state" / "sources.json"
     project = vault / "projects" / "c210-corrupt" / "project.md"
     before = project.read_bytes() if project.is_file() else b""
@@ -392,7 +392,7 @@ def _case_corrupt(root: Path) -> CaseOutcome:
     )
     raised = False
     try:
-        ingest(manifest, vault)
+        ingest(manifest, vault, authorized_source_root=source)
     except (OSError, ValueError, TypeError):
         raised = True
     after = project.read_bytes() if project.is_file() else b""

@@ -42,7 +42,17 @@ def _run_pipeline(source: Path, tmp_path: Path) -> Path:
     vault = tmp_path / "vault"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK

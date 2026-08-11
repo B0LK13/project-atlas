@@ -110,7 +110,17 @@ def _run_pipeline(source: Path, tmp_path: Path, *, reference_date: datetime) -> 
     vault = tmp_path / "vault"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     build_portfolio(vault, reference_date=reference_date)
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
@@ -262,7 +272,20 @@ def test_k007_dedicated_secret_fixture_never_leaks(tmp_path: Path) -> None:
             main(["discover", "--source", str(K007_FIXTURE), "--output", str(manifest)])
             == EXIT_OK
         )
-        assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+        assert (
+            main(
+                [
+                    "ingest",
+                    "--manifest",
+                    str(manifest),
+                    "--vault",
+                    str(vault),
+                    "--source",
+                    str(K007_FIXTURE),
+                ]
+            )
+            == EXIT_OK
+        )
         assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
         build_portfolio(vault, reference_date=_REFERENCE_DATE)
         assert main(["validate", "--vault", str(vault)]) == EXIT_OK
@@ -395,7 +418,20 @@ def test_multi_batch_ingest_manifest_merge_retains_sibling_projects(
 
     manifest_1 = tmp_path / "m1.json"
     assert main(["discover", "--source", str(pilots), "--output", str(manifest_1)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest_1), "--vault", str(vault)]) == EXIT_OK
+    assert (
+        main(
+            [
+                "ingest",
+                "--manifest",
+                str(manifest_1),
+                "--vault",
+                str(vault),
+                "--source",
+                str(pilots),
+            ]
+        )
+        == EXIT_OK
+    )
     combined_manifest = json.loads(
         (vault / "sources" / "manifests" / "source-manifest.json").read_text(encoding="utf-8")
     )
@@ -455,7 +491,20 @@ def test_multi_batch_ingest_manifest_merge_retains_sibling_projects(
         main(["discover", "--source", str(pilots / "nebula"), "--output", str(manifest_2)])
         == EXIT_OK
     )
-    assert main(["ingest", "--manifest", str(manifest_2), "--vault", str(vault)]) == EXIT_OK
+    assert (
+        main(
+            [
+                "ingest",
+                "--manifest",
+                str(manifest_2),
+                "--vault",
+                str(vault),
+                "--source",
+                str(pilots / "nebula"),
+            ]
+        )
+        == EXIT_OK
+    )
 
     merged_manifest = json.loads(
         (vault / "sources" / "manifests" / "source-manifest.json").read_text(encoding="utf-8")

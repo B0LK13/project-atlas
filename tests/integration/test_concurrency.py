@@ -1,6 +1,5 @@
 """AS-CORE-003 concurrency and OCC rollback behavior."""
 
-import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -10,10 +9,21 @@ import pytest
 from project_atlas import ingestion as ingestion_module
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.ingestion import _assert_state_compare_and_swap, ingest
+from project_atlas.source_identity import canonical_source_sha256_bytes
 
 pytestmark = pytest.mark.integration
+
+
 def _sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return canonical_source_sha256_bytes(
+        text.encode("utf-8"), relative_path="DECISION.md"
+    )
+
+
+def _write_lf(path: Path, text: str) -> bytes:
+    payload = text.encode("utf-8")
+    path.write_bytes(payload)
+    return payload
 
 
 def _snapshot(root: Path) -> dict[str, bytes | None]:
@@ -29,11 +39,12 @@ def test_ingestion_occ_rollback(tmp_path: Path) -> None:
     """A mutation of a transaction precondition aborts ingestion before promotion."""
     source = tmp_path / "source"
     source.mkdir()
-    (source / ".atlas-project.yaml").write_text(
-        "schema_version: 1\nproject:\n  id: occ-fixture\n", encoding="utf-8"
+    _write_lf(
+        source / ".atlas-project.yaml",
+        "schema_version: 1\nproject:\n  id: occ-fixture\n",
     )
     text = "# Overview\n- decision: we use OCC {#occ}\n"
-    (source / "DECISION.md").write_text(text, encoding="utf-8")
+    decision_bytes = _write_lf(source / "DECISION.md", text)
 
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(
@@ -50,7 +61,7 @@ def test_ingestion_occ_rollback(tmp_path: Path) -> None:
                         "path": "DECISION.md",
                         "media_type": "text/markdown",
                         "sha256": _sha256(text),
-                        "size_bytes": len(text.encode("utf-8")),
+                        "size_bytes": len(decision_bytes),
                     }
                 ],
             },
@@ -95,7 +106,7 @@ def test_ingestion_occ_rollback(tmp_path: Path) -> None:
     with patch(
         "project_atlas.ingestion._assert_state_compare_and_swap", side_effect=side_effect
     ), pytest.raises(ValueError, match="state changed during transaction"):
-        ingest(manifest_path, vault)
+        ingest(manifest_path, vault, authorized_source_root=source)
 
     # CAS rejects the transaction before promotion begins.
     claims_dir = vault / "state" / "claims"
@@ -113,10 +124,13 @@ def test_ingestion_occ_rollback(tmp_path: Path) -> None:
     assert remaining_locks == lock_files
 
     # A clean retry converges, and replaying that retry is byte-identical.
-    ingest(manifest_path, vault)
-    second_retry = ingest(manifest_path, vault)
+    # Rediscover after genesis so approved marker provenance matches disk.
+    assert main(["discover", "--source", str(source), "--output", str(manifest_path)]) == EXIT_OK
+    ingest(manifest_path, vault, authorized_source_root=source)
+    assert main(["discover", "--source", str(source), "--output", str(manifest_path)]) == EXIT_OK
+    second_retry = ingest(manifest_path, vault, authorized_source_root=source)
     second_snapshot = _snapshot(vault)
-    third_retry = ingest(manifest_path, vault)
+    third_retry = ingest(manifest_path, vault, authorized_source_root=source)
     third_snapshot = _snapshot(vault)
     assert second_retry == third_retry
     assert second_snapshot == third_snapshot
@@ -127,15 +141,16 @@ def test_ingestion_mid_promotion_failure_rolls_back_every_file(tmp_path: Path) -
     """A failure after one canonical replacement restores the full snapshot."""
     source = tmp_path / "source"
     source.mkdir()
-    (source / ".atlas-project.yaml").write_text(
-        "schema_version: 1\nproject:\n  id: promotion-fixture\n", encoding="utf-8"
+    _write_lf(
+        source / ".atlas-project.yaml",
+        "schema_version: 1\nproject:\n  id: promotion-fixture\n",
     )
     document = source / "DECISION.md"
     first_text = "# Overview\n- decision: first value {#promotion}\n"
-    document.write_text(first_text, encoding="utf-8")
+    first_bytes = _write_lf(document, first_text)
     manifest_path = tmp_path / "manifest.json"
 
-    def write_manifest(text: str) -> None:
+    def write_manifest(text: str, payload: bytes) -> None:
         manifest_path.write_text(
             json.dumps(
                 {
@@ -150,7 +165,7 @@ def test_ingestion_mid_promotion_failure_rolls_back_every_file(tmp_path: Path) -
                             "path": "DECISION.md",
                             "media_type": "text/markdown",
                             "sha256": _sha256(text),
-                            "size_bytes": len(text.encode("utf-8")),
+                            "size_bytes": len(payload),
                         }
                     ],
                 },
@@ -160,15 +175,16 @@ def test_ingestion_mid_promotion_failure_rolls_back_every_file(tmp_path: Path) -
             encoding="utf-8",
         )
 
-    write_manifest(first_text)
+    write_manifest(first_text, first_bytes)
     vault = tmp_path / "vault"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    ingest(manifest_path, vault)
+    ingest(manifest_path, vault, authorized_source_root=source)
+    assert main(["discover", "--source", str(source), "--output", str(manifest_path)]) == EXIT_OK
     before = _snapshot(vault)
 
     second_text = "# Overview\n- decision: second value {#promotion}\n"
-    document.write_text(second_text, encoding="utf-8")
-    write_manifest(second_text)
+    second_bytes = _write_lf(document, second_text)
+    write_manifest(second_text, second_bytes)
     original_replace = ingestion_module._replace_path
     staged_promotions = 0
     injected = False
@@ -186,7 +202,7 @@ def test_ingestion_mid_promotion_failure_rolls_back_every_file(tmp_path: Path) -
         "project_atlas.ingestion._replace_path",
         side_effect=fail_second_staged_replace,
     ), pytest.raises(OSError, match="injected mid-promotion failure"):
-        ingest(manifest_path, vault)
+        ingest(manifest_path, vault, authorized_source_root=source)
 
     # The promotion-failure quarantine report is diagnostic evidence, not
     # canonical state; exclude it from the rollback comparison (AS-EXT-001A).
@@ -201,9 +217,9 @@ def test_ingestion_mid_promotion_failure_rolls_back_every_file(tmp_path: Path) -
     assert not list(vault.rglob("*.atlas-backup"))
     assert not list((vault / ".atlas" / "identity-locks").glob("*.lock"))
 
-    first_retry = ingest(manifest_path, vault)
+    first_retry = ingest(manifest_path, vault, authorized_source_root=source)
     retry_snapshot = _snapshot(vault)
-    second_retry = ingest(manifest_path, vault)
+    second_retry = ingest(manifest_path, vault, authorized_source_root=source)
     replay_snapshot = _snapshot(vault)
     assert first_retry == second_retry
     assert retry_snapshot == replay_snapshot

@@ -172,12 +172,14 @@ def test_as_core2_009_ingest_preflight_runs_recovery(tmp_path: Path) -> None:
 
     vault = tmp_path / "vault"
     vault.mkdir()
+    source = tmp_path / "src"
+    source.mkdir()
     manifest = tmp_path / "manifest.json"
     manifest.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "source_root": str(tmp_path / "src"),
+                "source_root": str(source),
                 "duplicates": {},
                 "inventory_sha256": "0" * 64,
                 "sources": [],
@@ -199,7 +201,9 @@ def test_as_core2_009_ingest_preflight_runs_recovery(tmp_path: Path) -> None:
             return_value={"schema_version": 1, "sources": []},
         ),
     ):
-        result = ingestion_module.ingest(manifest, vault)
+        result = ingestion_module.ingest(
+            manifest, vault, authorized_source_root=source
+        )
 
     assert called == [vault.resolve()]
     assert result["schema_version"] == 1

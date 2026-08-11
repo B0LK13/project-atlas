@@ -21,7 +21,17 @@ def _run_pipeline(source: Path, tmp_path: Path) -> Path:
     manifest = tmp_path / "manifest.json"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     build_portfolio(vault, reference_date=_REFERENCE_DATE)
     return vault
@@ -221,7 +231,17 @@ def test_a9_concept_index_sorted_and_replay(tmp_path: Path) -> None:
     assert ids[1:] == sorted(ids[1:])
     # Replay with the same post-allocation manifest (no rediscovery hash churn).
     manifest = tmp_path / "manifest.json"
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     second = concepts_path.read_bytes()
     assert first == second
     assert [item["concept_id"] for item in json.loads(second)["concepts"]] == ids
@@ -273,6 +293,16 @@ def test_malformed_components_fail_closed(tmp_path: Path) -> None:
     manifest = tmp_path / "manifest.json"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
-    code = main(["ingest", "--manifest", str(manifest), "--vault", str(vault)])
+    code = main(
+     [
+         "ingest",
+         "--manifest",
+         str(manifest),
+         "--vault",
+         str(vault),
+         "--source",
+         str(source),
+     ]
+ )
     concepts_path = vault / "state" / "concepts" / "bad-comp.json"
     assert code == EXIT_ERROR or not concepts_path.is_file()

@@ -32,7 +32,17 @@ def test_discover_ingest_indexes_validate_vertical_slice(tmp_path: Path) -> None
     payload = json.loads(manifest.read_text(encoding="utf-8"))
     assert payload["inventory_sha256"]
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
     assert (vault / "projects" / "fixture-atlas" / "project.md").is_file()
@@ -58,9 +68,31 @@ def test_unchanged_replay_has_zero_content_mutations(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
-    assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
+    # Genesis may allocate project_uuid into the source marker; rediscover so the
+    # approved manifest matches on-disk bytes (CODEX-SEC-002 fail-closed).
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     before = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -70,7 +102,17 @@ def test_unchanged_replay_has_zero_content_mutations(tmp_path: Path) -> None:
         path.relative_to(vault).as_posix(): path.stat().st_mtime_ns
         for path in vault.rglob("*") if path.is_file()
     }
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     after = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()

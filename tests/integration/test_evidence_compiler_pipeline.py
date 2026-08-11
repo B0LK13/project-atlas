@@ -50,7 +50,17 @@ def _ingest(source: Path, tmp_path: Path) -> Path:
     vault = tmp_path / "vault"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     return vault
 
 
@@ -102,10 +112,23 @@ def test_mixed_corpus_replay_is_byte_identical(tmp_path: Path) -> None:
     source = _fixture(tmp_path)
     vault = _ingest(source, tmp_path)
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
+    # Genesis may rewrite project markers; rediscover before replay so approved
+    # provenance matches on-disk bytes (CODEX-SEC-002).
+    manifest = tmp_path / "manifest.json"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     # Second run settles claim lifecycle (NEW -> UNCHANGED); the third run is
     # the deterministic replay under test.
-    manifest = tmp_path / "manifest.json"
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
 
     def snapshot() -> dict[str, str]:
@@ -116,7 +139,17 @@ def test_mixed_corpus_replay_is_byte_identical(tmp_path: Path) -> None:
         }
 
     before = snapshot()
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert snapshot() == before
 
@@ -151,7 +184,17 @@ def test_promotion_failure_yields_promotion_failed_outcome(
         original_replace(source_path, destination)
 
     monkeypatch.setattr(ingestion_module, "_replace_path", faulty_replace)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_ERROR
     monkeypatch.setattr(ingestion_module, "_replace_path", original_replace)
 
     # Canonical state is byte-identical to the pre-ingest snapshot (the
@@ -179,6 +222,16 @@ def test_promotion_failure_yields_promotion_failed_outcome(
     assert outcomes.count("PROMOTION_FAILED") == 5
 
     # Recovery: the next successful promotion clears the stale report.
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert not report_path.exists()
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK

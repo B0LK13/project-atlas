@@ -90,7 +90,7 @@ def _pipeline(source: Path, vault: Path, work: Path) -> None:
     work.mkdir(parents=True, exist_ok=True)
     manifest = work / "manifest.json"
     write_manifest(discover(source), manifest)
-    ingest(manifest, vault)
+    ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
 
@@ -204,7 +204,7 @@ def _case_migration_recovery_replay(work: Path) -> dict[str, Any]:
     _seed_source(source)
     create_scaffold(vault)
     write_manifest(discover(source), manifest)
-    ingest(manifest, vault)
+    ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
 
@@ -222,7 +222,7 @@ def _case_migration_recovery_replay(work: Path) -> dict[str, Any]:
 
     recovery = recover_promote_orphans(vault)
     validate(vault)
-    ingest(manifest, vault)
+    ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
     replayed = _stable_plane(_vault_file_bytes(vault))
@@ -275,11 +275,11 @@ def _case_determinism_pipeline(work: Path) -> dict[str, Any]:
     create_scaffold(vault)
     manifest = work / "manifest.json"
     write_manifest(discover(source), manifest)
-    ingest(manifest, vault)
+    ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
     first = _stable_plane(_vault_file_bytes(vault))
-    ingest(manifest, vault)
+    ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
     second = _stable_plane(_vault_file_bytes(vault))
@@ -319,11 +319,11 @@ def _case_clean_clone_replay(work: Path) -> dict[str, Any]:
     create_scaffold(vault_a)
     create_scaffold(vault_b)
 
-    ingest(manifest, vault_a)
+    ingest(manifest, vault_a, authorized_source_root=source)
     build_indexes(vault_a)
     validate(vault_a)
 
-    ingest(manifest, vault_b)
+    ingest(manifest, vault_b, authorized_source_root=source)
     build_indexes(vault_b)
     validate(vault_b)
 
@@ -357,7 +357,11 @@ def _case_perf_baseline_fixture(work: Path) -> dict[str, Any]:
     timings_ms: dict[str, int] = {}
     steps: list[tuple[str, Any]] = [
         ("discover", lambda: write_manifest(discover(source), work / "perf-manifest.json")),
-        ("ingest", lambda: ingest(work / "perf-manifest.json", vault)),
+        ("ingest", lambda: ingest(
+            work / "perf-manifest.json",
+            vault,
+            authorized_source_root=source,
+        )),
         ("build_indexes", lambda: build_indexes(vault)),
         ("validate", lambda: validate(vault)),
     ]
@@ -386,7 +390,7 @@ def _case_perf_budget_smoke(work: Path) -> dict[str, Any]:
     source_bytes = sum(path.stat().st_size for path in source_files)
     create_scaffold(vault)
     write_manifest(discover(source), manifest)
-    ingest(manifest, vault)
+    ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
     stable_summary = _stable_plane_summary(_stable_plane(_vault_file_bytes(vault)))
