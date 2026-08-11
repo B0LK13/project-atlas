@@ -173,12 +173,15 @@ def _load_portfolio_freshness(vault: Path) -> dict[str, str]:
     return labels
 
 
-def _load_unresolved_claim_conflicts(vault: Path) -> dict[str, list[str]]:
-    """Map claim_id → sorted unresolved conflict_ids (no silent winners)."""
+def _load_unresolved_claim_conflicts(
+    vault: Path,
+) -> tuple[dict[str, list[str]], dict[str, dict[str, Any]]]:
+    """Map claim_id → conflict_ids and conflict_id → unresolved record metadata."""
     root = vault / "review" / "conflicts"
     claim_map: dict[str, set[str]] = {}
+    conflict_records: dict[str, dict[str, Any]] = {}
     if not root.is_dir():
-        return {}
+        return {}, {}
     for path in sorted(root.glob("*.json")):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
@@ -199,10 +202,52 @@ def _load_unresolved_claim_conflicts(vault: Path) -> dict[str, list[str]]:
             claim_ids = entry.get("claim_ids")
             if not isinstance(claim_ids, list):
                 continue
-            for cid in claim_ids:
-                if isinstance(cid, str) and cid.strip():
-                    claim_map.setdefault(cid.strip(), set()).add(conflict_id)
-    return {cid: sorted(ids) for cid, ids in sorted(claim_map.items())}
+            sorted_claim_ids = sorted(
+                cid.strip() for cid in claim_ids if isinstance(cid, str) and cid.strip()
+            )
+            if not sorted_claim_ids:
+                continue
+            conflict_records[conflict_id] = {
+                "conflict_id": conflict_id,
+                "claim_ids": sorted_claim_ids,
+                "subject": str(entry.get("subject") or "").strip(),
+                "field": str(entry.get("field") or "").strip(),
+            }
+            for cid in sorted_claim_ids:
+                claim_map.setdefault(cid, set()).add(conflict_id)
+    return (
+        {cid: sorted(ids) for cid, ids in sorted(claim_map.items())},
+        dict(sorted(conflict_records.items())),
+    )
+
+
+def _portfolio_keys_for_ref(ref: str) -> set[str]:
+    """Match bare source_id or trailing path segment used as source_id."""
+    candidates = {ref}
+    if "/" in ref:
+        candidates.add(ref.rsplit("/", 1)[-1])
+        if ref.endswith(".md"):
+            candidates.add(ref.rsplit("/", 1)[-1][: -len(".md")])
+    return candidates
+
+
+def _aggregate_portfolio_freshness(
+    entry: dict[str, Any], *, portfolio: dict[str, str]
+) -> str | None:
+    """Conservative order-independent freshness across all portfolio hits."""
+    observed: list[str] = []
+    matched_keys: set[str] = set()
+    for ptr in entry.get("provenance") or []:
+        if not isinstance(ptr, dict):
+            continue
+        ref = str(ptr.get("ref") or "")
+        for key in _portfolio_keys_for_ref(ref):
+            if key in portfolio and key not in matched_keys:
+                matched_keys.add(key)
+                observed.append(portfolio[key])
+    if not observed:
+        return None
+    return max(observed, key=lambda label: _FRESHNESS_RANK[label])
 
 
 def _freshness_for_entry(
@@ -219,23 +264,7 @@ def _freshness_for_entry(
     else:
         label = None
 
-    observed: str | None = None
-    for ptr in entry.get("provenance") or []:
-        if not isinstance(ptr, dict):
-            continue
-        ref = str(ptr.get("ref") or "")
-        # Match bare source_id or trailing path segment used as source_id.
-        candidates = {ref}
-        if "/" in ref:
-            candidates.add(ref.rsplit("/", 1)[-1])
-            if ref.endswith(".md"):
-                candidates.add(ref.rsplit("/", 1)[-1][: -len(".md")])
-        for key in candidates:
-            if key in portfolio:
-                observed = portfolio[key]
-                break
-        if observed is not None:
-            break
+    observed = _aggregate_portfolio_freshness(entry, portfolio=portfolio)
 
     if observed is None and label is None:
         return "unknown"
@@ -473,12 +502,19 @@ def compile_context(
     retriever = VaultRetriever(vault_path)
     p2 = profile == PROFILE_P2
     portfolio = _load_portfolio_freshness(vault_path) if p2 else {}
-    claim_conflicts = _load_unresolved_claim_conflicts(vault_path) if p2 else {}
+    claim_conflicts: dict[str, list[str]] = {}
+    conflict_records: dict[str, dict[str, Any]] = {}
+    if p2:
+        claim_conflicts, conflict_records = _load_unresolved_claim_conflicts(
+            vault_path
+        )
 
     selected: list[dict[str, Any]] = []
     skipped_malformed = 0
     provenance_elems_dropped = 0
     excluded_conflicts = 0
+    excluded_conflicts_detail: list[dict[str, Any]] = []
+    excluded_conflict_ids_seen: set[str] = set()
     for raw in candidates:
         if not isinstance(raw, dict):
             skipped_malformed += 1
@@ -526,6 +562,20 @@ def compile_context(
             if conflict_ids:
                 if not include_unresolved_conflicts:
                     excluded_conflicts += 1
+                    for conflict_id in conflict_ids:
+                        if conflict_id in excluded_conflict_ids_seen:
+                            continue
+                        excluded_conflict_ids_seen.add(conflict_id)
+                        record = conflict_records.get(conflict_id, {})
+                        excluded_conflicts_detail.append(
+                            {
+                                "conflict_id": conflict_id,
+                                "claim_ids": record.get("claim_ids", conflict_ids),
+                                "subject": record.get("subject", ""),
+                                "field": record.get("field", ""),
+                                "excluded_claim_id": record_id,
+                            }
+                        )
                     continue
                 conflict_state = "unresolved"
             else:
@@ -630,7 +680,7 @@ def compile_context(
         package["include_unresolved_conflicts"] = bool(
             include_unresolved_conflicts
         )
-        package["pipeline_receipt"] = {
+        pipeline_receipt: dict[str, Any] = {
             "candidates_in": len(candidates),
             "items_out": len(ordered),
             "truncated": truncated,
@@ -645,6 +695,14 @@ def compile_context(
                 1 for e in ordered if e.get("freshness") == "unknown"
             ),
         }
+        if excluded_conflicts_detail:
+            pipeline_receipt["excluded_conflicts_detail"] = (
+                excluded_conflicts_detail
+            )
+            pipeline_receipt["excluded_conflict_ids"] = sorted(
+                excluded_conflict_ids_seen
+            )
+        package["pipeline_receipt"] = pipeline_receipt
 
     if write:
         rel = f"generated/context-compiler/{pack_token}-context-compiler.json"
