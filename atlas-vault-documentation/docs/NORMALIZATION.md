@@ -107,7 +107,12 @@ removes or quarantines it.
 ## Troubleshooting
 
 - **`executable-missing`** — install mda-cli or set `--mda-command` /
-  `ATLAS_MDA_COMMAND` / `normalization.command`.
+  `ATLAS_MDA_COMMAND` (operator-trusted). Repository-discovered
+  `normalization.command` is ignored for executable selection
+  (CODEX-SEC-021). An explicitly named config file (`--config` /
+  `ATLAS_AGENT_CONFIG`) may set `normalization.command` only for
+  allowlisted basenames (`mda`, `mda-cli`) or an absolute path bound by
+  `normalization.command_sha256`.
 - **`timeout`** — raise `normalization.timeout`; check provider health.
   Transient failures can be retried with `normalization.retries`.
 - **`missing-output`** — mda-cli exited 0 without writing; inspect its
@@ -119,6 +124,22 @@ removes or quarantines it.
   remove or archive it deliberately.
 - **provider name rejected** — use simple identifiers
   (`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`).
+
+## Trusted executable selection (CODEX-SEC-021)
+
+Property: `UNTRUSTED_REPOSITORY_CONFIG != EXECUTION_AUTHORITY`.
+
+Execution authority for the normalizer comes only from:
+
+1. CLI `--mda-command`;
+2. environment `ATLAS_MDA_COMMAND`;
+3. an explicitly named config file (`--config` / `ATLAS_AGENT_CONFIG`) with
+   allowlisting and digest binding for absolute paths;
+4. the built-in allowlisted default basename `mda`.
+
+Upward-discovered repository YAML must not select the executable.
+`shell=False` is required at the process boundary and is not sufficient
+alone.
 
 Use `--dry-run --json` to inspect the fully resolved command, output
 path, root, and provider without executing anything.

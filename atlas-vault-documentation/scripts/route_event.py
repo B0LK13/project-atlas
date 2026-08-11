@@ -92,7 +92,7 @@ def _emit(payload: dict[str, Any], args: argparse.Namespace, human: str) -> None
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        config, _ = atlas_config.load_config(args.config)
+        config, _, _ = atlas_config.load_config(args.config)
     except atlas_config.ConfigError as exc:
         print(f"ERROR: {capture_event.redact(str(exc))}", file=sys.stderr)
         return EXIT_USAGE

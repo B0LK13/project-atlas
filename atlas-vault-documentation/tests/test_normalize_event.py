@@ -123,16 +123,21 @@ class TestSuccessfulNormalization:
         self, raw_event: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        # Non-execution settings may come from discovered repo config; the
+        # executable must still come from a trusted boundary (CLI here).
         (tmp_path / "atlas-agent.yaml").write_text(
             "normalization:\n"
-            f"  command: {MOCK_MDA}\n"
             "  provider: config-provider\n"
             "  output_mode: sibling\n"
             "  timeout: 10\n",
             encoding="utf-8",
         )
         monkeypatch.chdir(tmp_path)
-        assert normalize_event.main(["--event", str(raw_event), "--json"]) == 0
+        assert normalize_event.main([
+            "--event", str(raw_event),
+            "--mda-command", str(MOCK_MDA),
+            "--json",
+        ]) == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["provenance"]["provider"] == "config-provider"
 
@@ -141,13 +146,16 @@ class TestSuccessfulNormalization:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         (tmp_path / "atlas-agent.yaml").write_text(
-            f"normalization:\n  command: {MOCK_MDA}\n  provider: config-provider\n",
+            "normalization:\n  provider: config-provider\n",
             encoding="utf-8",
         )
         monkeypatch.chdir(tmp_path)
-        assert normalize_event.main(
-            ["--event", str(raw_event), "--provider", "cli-provider", "--json"]
-        ) == 0
+        assert normalize_event.main([
+            "--event", str(raw_event),
+            "--mda-command", str(MOCK_MDA),
+            "--provider", "cli-provider",
+            "--json",
+        ]) == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["provenance"]["provider"] == "cli-provider"
 

@@ -111,7 +111,8 @@ also written next to the raw event as
 
 | Setting | Environment | Config key (`normalization.*`) | Default |
 |---|---|---|---|
-| mda-cli executable | `ATLAS_MDA_COMMAND` | `command` | `mda` |
+| mda-cli executable | `ATLAS_MDA_COMMAND` | `command` (explicit config only; ignored from upward discovery — CODEX-SEC-021) | `mda` |
+| mda-cli digest binding | — | `command_sha256` (required for absolute `command` in explicit config) | — |
 | skill name | `ATLAS_SKILL` | `skill_id` | `atlas-vault-documentation` |
 | skill directory | `ATLAS_SKILL_DIR` | `skill_dir` | this repository's skill dir |
 | provider name | `ATLAS_PROVIDER` | `provider` | `unknown` |

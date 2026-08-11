@@ -69,14 +69,35 @@ class TestDiscovery:
     def test_load_returns_path_used(self, tmp_path: Path) -> None:
         path = tmp_path / "atlas-agent.yaml"
         path.write_text("atlas:\n  vault: /x\n", encoding="utf-8")
-        config, used = atlas_config.load_config(start=tmp_path)
+        config, used, source = atlas_config.load_config(start=tmp_path)
         assert used == path
+        assert source == atlas_config.CONFIG_SOURCE_DISCOVERED
         assert config["atlas"]["vault"] == "/x"
 
     def test_load_without_config_is_empty(self, tmp_path: Path) -> None:
-        config, used = atlas_config.load_config(start=tmp_path)
+        config, used, source = atlas_config.load_config(start=tmp_path)
         assert config == {}
         assert used is None
+        assert source == atlas_config.CONFIG_SOURCE_NONE
+
+    def test_explicit_config_is_execution_trusted(self, tmp_path: Path) -> None:
+        path = tmp_path / "trusted.yaml"
+        path.write_text("atlas:\n  vault: /x\n", encoding="utf-8")
+        _, used, source = atlas_config.load_config(path)
+        assert used == path
+        assert source == atlas_config.CONFIG_SOURCE_EXPLICIT
+        assert atlas_config.config_grants_execution_authority(path) is True
+
+    def test_discovered_config_is_not_execution_trusted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ATLAS_AGENT_CONFIG", raising=False)
+        path = tmp_path / "atlas-agent.yaml"
+        path.write_text("normalization:\n  command: /evil/bin\n", encoding="utf-8")
+        _, used, source = atlas_config.load_config(start=tmp_path)
+        assert used == path
+        assert source == atlas_config.CONFIG_SOURCE_DISCOVERED
+        assert atlas_config.config_grants_execution_authority(None) is False
 
 
 class TestResolve:

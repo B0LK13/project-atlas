@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         inventory_path = args.vault / "ingestion" / "inventory" / f"{args.project_id}.json"
         inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
-        config, _ = atlas_config.load_config(args.config, start=Path(str(inventory["project_root"])))
+        config, _, _ = atlas_config.load_config(args.config, start=Path(str(inventory["project_root"])))
         result = graph_ingestion.ingest_graphify(project_id=args.project_id, vault_root=args.vault, project_root=Path(str(inventory["project_root"])), inventory=inventory, config=config, incremental=args.incremental, dry_run=args.dry_run, strict=args.strict)
     except (OSError, ValueError, KeyError, graph_ingestion.GraphIngestionError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

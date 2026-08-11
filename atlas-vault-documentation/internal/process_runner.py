@@ -5,10 +5,17 @@ module runs it with explicit argument arrays (never a shell), enforces
 timeouts, captures output with secret redaction, and classifies every
 failure into a small, structured taxonomy instead of leaking raw
 exceptions.
+
+CODEX-SEC-021: ``shell=False`` is mandatory but not sufficient. Callers that
+select a normalizer executable must authorize it through
+``internal.trusted_exec`` before building argv. :func:`resolve_executable_argv`
+only performs shebang wrapping for already-authorized absolute script paths;
+it does not grant execution authority.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -24,12 +31,21 @@ CATEGORY_PROCESS_FAILED = "process-failed"
 
 
 def resolve_executable_argv(command: str) -> list[str]:
-    """Return argv for ``command``, prefixing ``sys.executable`` for Python scripts.
+    """Return argv for an *already-authorized* ``command``.
 
-    Windows cannot execute shebang scripts as Win32 apps (WinError 193). Detect a
-    ``#!...python...`` shebang on an existing file and invoke it via the active
-    interpreter. Non-Python commands are returned unchanged.
+    Absolute Python shebang scripts are wrapped with ``sys.executable`` for
+    Win32 compatibility. Relative paths, path traversal, and unexpected
+    interpreter substitution are refused here as defense in depth; primary
+    selection policy lives in ``internal.trusted_exec`` (CODEX-SEC-021).
     """
+    if not command or command != command.strip() or "\x00" in command:
+        raise ValueError(f"refusing unsafe executable command: {command!r}")
+    if command.startswith((".", "~")) or ".." in Path(command).parts:
+        raise ValueError(f"refusing relative/traversing executable: {command!r}")
+    is_absolute = os.path.isabs(command) or command.startswith("/")
+    if not is_absolute and ("/" in command or "\\" in command):
+        raise ValueError(f"refusing non-absolute path-shaped executable: {command!r}")
+
     path = Path(command)
     if not path.is_file():
         return [command]
@@ -37,9 +53,23 @@ def resolve_executable_argv(command: str) -> list[str]:
         first = path.read_text(encoding="utf-8", errors="ignore").splitlines()[:1]
     except OSError:
         return [command]
-    if first and first[0].startswith("#!") and "python" in first[0].lower():
-        return [sys.executable, str(path)]
-    return [command]
+    if not first or not first[0].startswith("#!"):
+        return [command]
+    shebang = first[0]
+    lowered = shebang.lower()
+    if "python" not in lowered:
+        # Unexpected interpreter: do not substitute an alternate runtime.
+        return [command]
+    body = shebang[2:].strip().split()
+    if not body:
+        return [command]
+    interpreter_name = Path(body[0]).name.lower()
+    if interpreter_name == "env":
+        if len(body) < 2 or not Path(body[1]).name.lower().startswith("python"):
+            raise ValueError(f"refusing unexpected env interpreter shebang: {shebang!r}")
+    elif not interpreter_name.startswith("python"):
+        raise ValueError(f"refusing unexpected interpreter shebang: {shebang!r}")
+    return [sys.executable, str(path.resolve())]
 
 
 @dataclass(frozen=True)
@@ -92,6 +122,7 @@ def run_command(
                 text=True,
                 timeout=timeout_seconds,
                 check=False,
+                shell=False,  # mandatory; not sufficient alone (CODEX-SEC-021)
             )
         except FileNotFoundError:
             return ProcessResult(
