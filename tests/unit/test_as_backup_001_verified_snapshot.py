@@ -12,6 +12,10 @@ Does not touch knowledge_compiler, Graph-003, or MODEL-001B surfaces.
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -23,6 +27,7 @@ from project_atlas.backup import (
     create_snapshot,
     find_promote_orphans,
     protected_region_digest,
+    read_vault_logical_id,
     restore_bundle,
     verify_bundle,
 )
@@ -265,6 +270,74 @@ def test_path_safety_rejects_home(tmp_path: Path) -> None:
     vault = _fixture_vault(tmp_path)
     with pytest.raises(BackupError, match="home directory"):
         create_snapshot(vault, Path.home())
+
+
+def test_create_snapshot_refuses_file_symlink_escape(tmp_path: Path) -> None:
+    """SEC-ADV004B-A-001: file symlink → outside bytes must not pack."""
+    vault = _fixture_vault(tmp_path)
+    outside = tmp_path / "outside-secret.md"
+    outside.write_text("FILE_SYMLINK_LEAK_XYZ\n", encoding="utf-8")
+    link = vault / "projects" / "backup-fixture" / "leak.md"
+    try:
+        link.symlink_to(outside)
+    except OSError as exc:  # pragma: no cover - environment without symlink privilege
+        pytest.skip(f"symlink unavailable: {exc}")
+    assert link.is_symlink()
+    assert Path(os.path.realpath(link)) == Path(os.path.realpath(outside))
+    with pytest.raises(BackupError, match="symlink/junction escape"):
+        create_snapshot(vault, tmp_path / "bundle-symlink")
+    assert read_vault_logical_id(vault) == VAULT_LOGICAL_ID
+
+
+def test_create_snapshot_refuses_windows_junction_escape(tmp_path: Path) -> None:
+    """SEC-ADV004B-A-001: Windows dir junction (is_symlink=False) must refuse."""
+    if sys.platform != "win32":
+        pytest.skip("Windows junction vector only")
+
+    vault = _fixture_vault(tmp_path)
+    outside = tmp_path / "outside-tree"
+    outside.mkdir()
+    (outside / "jsecret.md").write_text("JUNCTION_LEAK_XYZ\n", encoding="utf-8")
+    # Replace vault/projects with a junction to outside (Path.is_symlink()==False).
+    projects = vault / "projects"
+    shutil.rmtree(projects)
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(projects), str(outside)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        pytest.skip(f"mklink /J unavailable: {completed.stderr or completed.stdout}")
+    assert projects.is_dir()
+    assert not projects.is_symlink(), "junction must not report as symlink"
+    assert "JUNCTION_LEAK_XYZ" in (projects / "jsecret.md").read_text(encoding="utf-8")
+    real_secret = Path(os.path.realpath(projects / "jsecret.md"))
+    real_vault = Path(os.path.realpath(vault))
+    assert not real_secret.is_relative_to(real_vault)
+    with pytest.raises(BackupError, match="symlink/junction escape"):
+        create_snapshot(vault, tmp_path / "bundle-junction")
+
+
+def test_read_vault_logical_id_refuses_symlinked_identity(tmp_path: Path) -> None:
+    """SEC-ADV004B-A-002: symlinked .atlas/vault.json must not stamp outside id."""
+    vault = _fixture_vault(tmp_path)
+    outside = tmp_path / "evil.json"
+    outside.write_text(
+        json.dumps({"vault_logical_id": "EVIL_OUTSIDE"}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    identity = vault / ".atlas" / "vault.json"
+    identity.unlink()
+    try:
+        identity.symlink_to(outside)
+    except OSError as exc:  # pragma: no cover
+        pytest.skip(f"symlink unavailable: {exc}")
+    assert identity.is_symlink()
+    with pytest.raises(BackupError, match="symlink/reparse escape"):
+        read_vault_logical_id(vault)
+    with pytest.raises(BackupError, match="symlink/reparse escape"):
+        create_snapshot(vault, tmp_path / "bundle-evil-id")
 
 
 def test_cli_snapshot_verify_and_restore(tmp_path: Path) -> None:
