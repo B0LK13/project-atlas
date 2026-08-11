@@ -1,0 +1,4 @@
+# Atlas for ChatGPT (read-only MCP) — isolated integration dependencies.
+# The gateway (atlas_gateway.py) needs only the project-atlas package.
+# The MCP server (server.py) additionally needs the MCP SDK below.
+mcp>=2.0,<3

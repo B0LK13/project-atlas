@@ -1,0 +1,113 @@
+<!doctype html>
+<!--
+  Atlas for ChatGPT — adaptive read-only card (ATLAS-FOR-CHATGPT-READONLY-001).
+  Served as text/html;profile=mcp-app. Renders tool structuredContent as a
+  PROJECT / GRAPH / EVIDENCE / SEARCH card. Read-only display only.
+
+  Trust invariants shown to the user: ATLAS EVIDENCE is visually separated from
+  MODEL INTERPRETATION; GRAPH != AUTHORITY; UNKNOWN != HEALTHY; DEMO_FIXTURE.
+  Reads the MCP Apps bridge result via window.openai.toolOutput (compat) or the
+  ui/notifications/tool-result postMessage bridge.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atlas card</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 12px; }
+      .card { border: 1px solid #8883; border-radius: 10px; padding: 14px; max-width: 560px; }
+      .src { display: inline-block; font: 600 11px monospace; padding: 2px 6px; border-radius: 999px;
+             background: #f0a02033; color: #7a5200; }
+      h2 { margin: 8px 0 4px; font-size: 16px; }
+      .grid { display: grid; grid-template-columns: auto auto; gap: 2px 16px; margin: 8px 0; }
+      .k { color: #6b7280; } .v { font-weight: 600; }
+      .list { margin: 4px 0 0; padding-left: 18px; }
+      .warn { color: #9a3412; }
+      .evidence { border-left: 3px solid #2563eb; padding-left: 8px; margin-top: 8px; }
+      .interp { border-left: 3px dashed #6b7280; padding-left: 8px; margin-top: 8px; color: #6b7280; font-style: italic; }
+      .foot { margin-top: 10px; font: 11px monospace; color: #6b7280; }
+      code { font: 12px monospace; }
+    </style>
+  </head>
+  <body>
+    <div id="root" class="card">Loading Atlas card…</div>
+    <script>
+      function readOutput() {
+        try {
+          if (window.openai && window.openai.toolOutput) return window.openai.toolOutput;
+        } catch (_e) {}
+        return null;
+      }
+      function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+      function chips(list) {
+        if (!list || !list.length) return '<span class="warn">none</span>';
+        return list.map(function (x) { return "<code>" + esc(x) + "</code>"; }).join(" · ");
+      }
+      function row(k, v) { return '<div class="k">' + esc(k) + '</div><div class="v">' + v + "</div>"; }
+
+      function render(out) {
+        var root = document.getElementById("root");
+        if (!out) { root.innerHTML = '<span class="warn">No Atlas tool output available.</span>'; return; }
+        var src = out.source_class || "UNKNOWN";
+        var head = '<span class="src">source: ' + esc(src) + " · not authentic pilot</span>";
+        var html = "";
+
+        if (out.node !== undefined) {
+          // GRAPH card
+          html =
+            head + "<h2>Graph · " + esc(out.node) + "</h2>" +
+            '<div class="grid">' +
+            row("Dependencies", chips(out.dependencies)) +
+            row("Dependents", chips(out.dependents)) +
+            row("Related", chips(out.related_projects)) +
+            "</div>" +
+            '<p class="warn">GRAPH != AUTHORITY — derived relationships never pick claim winners.</p>';
+        } else if (out.project !== undefined && out.concept_count !== undefined) {
+          // PROJECT card
+          html =
+            head + "<h2>Project · " + esc(out.project) + "</h2>" +
+            '<div class="grid">' +
+            row("State", esc(out.state)) +
+            row("Concepts", esc(out.concept_count)) +
+            row("Knowledge", esc(out.knowledge_count)) +
+            row("Conflicts", esc(out.conflict_count)) +
+            row("Evidence", esc(out.evidence_count)) +
+            row("Dependencies", chips(out.dependencies)) +
+            "</div>" +
+            '<div class="evidence"><strong>ATLAS EVIDENCE</strong> — counts + references above are read from the vault.</div>' +
+            '<div class="interp">MODEL INTERPRETATION is separate and is never Atlas authority.</div>' +
+            '<p class="warn">Unknowns: ' + chips(out.unknowns) + " — UNKNOWN != HEALTHY.</p>";
+        } else if (out.results !== undefined) {
+          // SEARCH card
+          var items = (out.results || []).map(function (r) {
+            return '<li><code>' + esc(r.ref) + "</code> — " + esc(r.title || r.id) + "</li>";
+          }).join("");
+          html =
+            head + "<h2>Search · " + esc(out.query) + "</h2>" +
+            '<ul class="list">' + (items || '<li class="warn">no references</li>') + "</ul>" +
+            '<p class="foot">SEARCH RESULT != PROVEN CLAIM (' + esc(out.result_count) + " reference(s))</p>";
+        } else {
+          // EVIDENCE / fetch card
+          html =
+            head + "<h2>" + esc(out.kind || "Atlas object") + " · " + esc(out.id || "") + "</h2>" +
+            '<div class="grid">' + row("Found", out.found ? "yes" : '<span class="warn">UNKNOWN (absent)</span>') + "</div>" +
+            '<div class="evidence"><strong>ATLAS EVIDENCE</strong> — ' + esc(out.note || "reference pointer") + "</div>" +
+            '<div class="interp">EVIDENCE != INTERPRETATION.</div>';
+        }
+
+        html += '<p class="foot">ui_canonical=false · graph_authority=false · llm_output_authority=false · unknown_equals_healthy=false</p>';
+        root.innerHTML = html;
+      }
+
+      render(readOutput());
+      window.addEventListener("message", function (ev) {
+        var d = ev && ev.data;
+        if (d && d.method === "ui/notifications/tool-result" && d.params) {
+          render(d.params.structuredContent || d.params);
+        }
+      });
+    </script>
+  </body>
+</html>
