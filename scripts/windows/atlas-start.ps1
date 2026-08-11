@@ -106,36 +106,114 @@ function Resolve-AtlasScriptsDir {
     return (Join-Path $parent "Scripts")
 }
 
-function Ensure-AtlasEditableInstall {
+function Get-AtlasPipShowField {
+    <#
+    .SYNOPSIS
+      Read one field from `pip show <package>` (e.g. Editable project location).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Python,
+        [Parameter(Mandatory = $true)][string]$Package,
+        [Parameter(Mandatory = $true)][string]$Field
+    )
+    $raw = & $Python.Exe @($Python.Args + @("-m", "pip", "show", $Package)) 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $raw) {
+        return $null
+    }
+    $prefix = "${Field}:"
+    foreach ($line in @($raw)) {
+        $text = [string]$line
+        if ($text.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $text.Substring($prefix.Length).Trim()
+        }
+    }
+    return $null
+}
+
+function Test-AtlasPathUnderRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+    try {
+        $fullPath = [System.IO.Path]::GetFullPath($Path)
+        $fullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd("\", "/")
+        if ($fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+        $prefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
+        return $fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-AtlasCliTipCompatible {
+    <#
+    .SYNOPSIS
+      True when atlas.exe supports `live` and editable install points at RepoRoot.
+      Guards against stale PATH/Scripts atlas.exe from another worktree (I03 CRITICAL).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$AtlasExe,
+        [Parameter(Mandatory = $true)]$Python,
+        [Parameter(Mandatory = $true)][string]$RepoRoot
+    )
+    if (-not (Test-Path -LiteralPath $AtlasExe)) {
+        return @{
+            Ok     = $false
+            Reason = "missing_atlas_exe"
+            Detail = "atlas.exe not found at $AtlasExe"
+        }
+    }
+
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $helpOut = & $AtlasExe "live" "--help" 2>&1 | Out-String
+        $helpCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $prevEap
+    }
+    if ($helpCode -ne 0 -or ($helpOut -match "invalid choice") -or ($helpOut -notmatch "api-serve")) {
+        return @{
+            Ok     = $false
+            Reason = "missing_live_subcommand"
+            Detail = "CLI at $AtlasExe does not support 'atlas live' (stale / tip-incompatible install)."
+        }
+    }
+
+    $editable = Get-AtlasPipShowField -Python $Python -Package "project-atlas" -Field "Editable project location"
+    if (-not $editable) {
+        return @{
+            Ok     = $false
+            Reason = "not_editable_from_repo"
+            Detail = "project-atlas is not an editable install from this checkout ($RepoRoot)."
+        }
+    }
+    if (-not (Test-AtlasPathUnderRoot -Path $editable -Root $RepoRoot)) {
+        return @{
+            Ok     = $false
+            Reason = "editable_wrong_worktree"
+            Detail = "Editable project location '$editable' is not under current RepoRoot '$RepoRoot' (stale CLI from another worktree)."
+        }
+    }
+    return @{
+        Ok     = $true
+        Reason = "ok"
+        Detail = "tip-compatible editable install at $editable"
+    }
+}
+
+function Install-AtlasEditableFromRepo {
     param(
         [Parameter(Mandatory = $true)]$Python,
         [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [Parameter(Mandatory = $true)][string]$ErrLog,
-        [switch]$SkipInstall
+        [Parameter(Mandatory = $true)][string]$ErrLog
     )
-    # Prefer atlas beside the preflight-selected interpreter (avoid PATH atlas from another Python).
-    $scriptsDir = Resolve-AtlasScriptsDir -Python $Python
-    $hint = Join-Path $scriptsDir "atlas.exe"
-    if (Test-Path -LiteralPath $hint) {
-        Write-Host "OK  atlas matched to $($Python.Label): $hint"
-        return $hint
-    }
-
-    $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
-    if ($atlasCmd) {
-        Write-Host "NOTE: PATH atlas $($atlasCmd.Source) is not beside $($Python.Label); will install into selected Python." -ForegroundColor DarkYellow
-    }
-
-    if ($SkipInstall) {
-        Write-AtlasProductError `
-            -What "Atlas CLI ('atlas') is not available for the selected Python." `
-            -Cause "-SkipInstall was set and no atlas.exe was found under $scriptsDir." `
-            -Action "Remove -SkipInstall or run: $($Python.Label) -m pip install -e `".[dev]`" from the repo root, then reopen the shell." `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
-            -LogPath $ErrLog
-        exit 1
-    }
-    Write-Host "Configuring: editable install via $($Python.Label) pip install -e `".[dev]`" ..."
+    Write-Host "Configuring: editable install via $($Python.Label) pip install -e `".[dev]`" from $RepoRoot ..."
     $code = Invoke-AtlasPython -Python $Python -WorkingDirectory $RepoRoot -Arguments @(
         "-m", "pip", "install", "-e", ".[dev]"
     )
@@ -148,14 +226,92 @@ function Ensure-AtlasEditableInstall {
             -LogPath $ErrLog
         exit 1
     }
+}
+
+function Ensure-AtlasEditableInstall {
+    param(
+        [Parameter(Mandatory = $true)]$Python,
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$ErrLog,
+        [switch]$SkipInstall
+    )
+    # Prefer atlas beside the preflight-selected interpreter (avoid PATH atlas from another Python).
+    # Require tip-compatible CLI: `atlas live` + editable Location under current RepoRoot (I03).
+    $scriptsDir = Resolve-AtlasScriptsDir -Python $Python
+    $hint = Join-Path $scriptsDir "atlas.exe"
+    $needsInstall = $true
+    $incompatDetail = $null
+
     if (Test-Path -LiteralPath $hint) {
-        Write-Host "OK  atlas installed at $hint"
-        return $hint
+        $compat = Test-AtlasCliTipCompatible -AtlasExe $hint -Python $Python -RepoRoot $RepoRoot
+        if ($compat.Ok) {
+            Write-Host "OK  atlas tip-compatible for $($Python.Label): $hint"
+            return $hint
+        }
+        $needsInstall = $true
+        $incompatDetail = [string]$compat.Detail
+        Write-Host "NOTE: existing atlas is tip-incompatible ($($compat.Reason)): $incompatDetail" -ForegroundColor DarkYellow
+        Write-Host "      Will reinstall editable package from current RepoRoot unless -SkipInstall." -ForegroundColor DarkYellow
+    }
+    else {
+        $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
+        if ($atlasCmd) {
+            Write-Host "NOTE: PATH atlas $($atlasCmd.Source) is not beside $($Python.Label); will install into selected Python." -ForegroundColor DarkYellow
+        }
+    }
+
+    if ($SkipInstall) {
+        if ($incompatDetail) {
+            Write-AtlasProductError `
+                -What "Atlas CLI is present but tip-incompatible with this checkout (stale CLI / missing live)." `
+                -Cause "$incompatDetail -SkipInstall prevents repair via pip install -e `".[dev]`"." `
+                -Action "Remove -SkipInstall so the launcher reinstalls from $RepoRoot, or manually run: $($Python.Label) -m pip install -e `".[dev]`" from this repo root. Confirm: atlas live --help" `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+                -LogPath $ErrLog
+        }
+        else {
+            Write-AtlasProductError `
+                -What "Atlas CLI ('atlas') is not available for the selected Python." `
+                -Cause "-SkipInstall was set and no atlas.exe was found under $scriptsDir." `
+                -Action "Remove -SkipInstall or run: $($Python.Label) -m pip install -e `".[dev]`" from the repo root, then reopen the shell." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+                -LogPath $ErrLog
+        }
+        exit 1
+    }
+
+    if ($needsInstall) {
+        Install-AtlasEditableFromRepo -Python $Python -RepoRoot $RepoRoot -ErrLog $ErrLog
+    }
+
+    if (Test-Path -LiteralPath $hint) {
+        $compat = Test-AtlasCliTipCompatible -AtlasExe $hint -Python $Python -RepoRoot $RepoRoot
+        if ($compat.Ok) {
+            Write-Host "OK  atlas tip-compatible at $hint"
+            return $hint
+        }
+        Write-AtlasProductError `
+            -What "Install finished but Atlas CLI is still tip-incompatible." `
+            -Cause "$($compat.Detail)" `
+            -Action "Confirm pip targeted this checkout: $($Python.Label) -m pip show project-atlas. Re-run from $RepoRoot. Verify: atlas live --help" `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $ErrLog
+        exit 1
     }
     $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
     if ($atlasCmd) {
-        Write-Host "OK  atlas installed: $($atlasCmd.Source)"
-        return $atlasCmd.Source
+        $compat = Test-AtlasCliTipCompatible -AtlasExe $atlasCmd.Source -Python $Python -RepoRoot $RepoRoot
+        if ($compat.Ok) {
+            Write-Host "OK  atlas tip-compatible: $($atlasCmd.Source)"
+            return $atlasCmd.Source
+        }
+        Write-AtlasProductError `
+            -What "Install finished but PATH atlas is still tip-incompatible." `
+            -Cause "$($compat.Detail)" `
+            -Action "Close and reopen PowerShell so PATH picks up Scripts\atlas.exe from $($Python.Label). Confirm Editable project location is under $RepoRoot." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $ErrLog
+        exit 1
     }
     Write-AtlasProductError `
         -What "Install finished but 'atlas' is still not discoverable." `
@@ -455,10 +611,28 @@ Write-Host "  LIVE_API pid=$($apiProc.pid)"
 
 $apiHealth = Wait-AtlasHttpOk -Url "http://127.0.0.1:$ApiPort/v1/meta" -TimeoutSec 60
 if (-not $apiHealth.Ok) {
+    $apiStderr = ""
+    if (Test-Path -LiteralPath $apiProc.log_stderr) {
+        $apiStderr = [string](Get-Content -LiteralPath $apiProc.log_stderr -Raw -ErrorAction SilentlyContinue)
+    }
+    # I03: stale atlas.exe without `live` produced opaque meta connect failure — name the real cause.
+    if ($apiStderr -match "invalid choice:\s*'live'" -or $apiStderr -match "invalid choice:.*\blive\b") {
+        $stderrOneLine = ($apiStderr.Trim() -replace "\s+", " ")
+        if ($stderrOneLine.Length -gt 240) {
+            $stderrOneLine = $stderrOneLine.Substring(0, 240)
+        }
+        Write-AtlasProductError `
+            -What "LIVE_API failed because the Atlas CLI lacks the 'live' subcommand (stale / tip-incompatible install)." `
+            -Cause "atlas live api-serve was rejected by '$atlasExe'. Typically an editable install from another worktree or an old package without LIVE_API. stderr: $stderrOneLine" `
+            -Action "From this repo root run: $($python.Label) -m pip install -e `".[dev]`" (do not use -SkipInstall), then retry. Confirm: atlas live --help" `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $errLog
+        exit 1
+    }
     Write-AtlasProductError `
         -What "LIVE_API health check failed (/v1/meta)." `
         -Cause $(if ($apiHealth.Error) { $apiHealth.Error } else { "No successful HTTP response within timeout." }) `
-        -Action "Inspect $($apiProc.log_stderr). Confirm vault path and that port $ApiPort is free. API binds 127.0.0.1 only." `
+        -Action "Inspect $($apiProc.log_stderr). Confirm vault path and that port $ApiPort is free. API binds 127.0.0.1 only. If stderr shows invalid choice 'live', reinstall editable CLI from this RepoRoot." `
         -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
         -LogPath $errLog
     exit 1
