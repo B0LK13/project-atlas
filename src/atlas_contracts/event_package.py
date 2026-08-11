@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Literal
 
 import yaml
@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from atlas_contracts.agent_event import AgentEvent, SkillBinding, VaultIdentity
 from atlas_contracts.identity import safe_relative_component
+from atlas_contracts.paths import safe_relative_path
 from atlas_contracts.provenance import ProvenanceRecord
 from atlas_contracts.receipts import PipelineState, ReceiptReference
 from atlas_contracts.versions import ID_PATTERN
@@ -65,11 +66,16 @@ class EventPackageInventory(BaseModel):
 
 
 def _confined(root: Path, relative: str) -> Path:
-    if not relative or "\\" in relative or PurePosixPath(relative).is_absolute():
-        raise PackageValidationError(f"unsafe event package path: {relative!r}")
-    if ".." in PurePosixPath(relative).parts:
-        raise PackageValidationError(f"unsafe event package path: {relative!r}")
-    candidate = (root / relative).resolve()
+    """Join ``relative`` under ``root`` using canonical SEC-004/018 path rules.
+
+    SEC-SCAN-A-002: must reject the same forms ``safe_relative_path`` rejects
+    (drive-relative ``C:…``, ADS/colon segments, absolutes, ``..``, etc.).
+    """
+    try:
+        segments = safe_relative_path(relative, label="event package path")
+    except ValueError as exc:
+        raise PackageValidationError(f"unsafe event package path: {relative!r}") from exc
+    candidate = root.joinpath(*segments).resolve()
     try:
         candidate.relative_to(root.resolve())
     except ValueError as exc:

@@ -22,7 +22,17 @@ class SecretFinding:
 
 
 _PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
-    ("private-key", "high", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
+    # SEC-SCAN-A-021: redact the full PEM block (header + body + footer), not
+    # only the BEGIN line — otherwise key material remains after redact_text.
+    (
+        "private-key",
+        "high",
+        re.compile(
+            r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+            r"[\s\S]*?"
+            r"-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+        ),
+    ),
     ("bearer-token", "high", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}")),
     (
         "api-key-assignment",
