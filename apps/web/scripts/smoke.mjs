@@ -73,6 +73,14 @@ if (!pkg.dependencies?.["react-router-dom"]) {
   console.error("AS-WEB-ACCEPT-001 smoke FAIL — react-router-dom required for client routes");
   process.exit(1);
 }
+// PREP-GUARD: Windows Vite/Rollup builds need the native optional package declared
+// (npm optional-deps bug omits it otherwise → Cannot find module @rollup/rollup-win32-x64-msvc).
+if (!pkg.dependencies?.["@rollup/rollup-win32-x64-msvc"]) {
+  console.error(
+    "AS-WEB-ACCEPT-001 smoke FAIL — declare @rollup/rollup-win32-x64-msvc for Windows builds",
+  );
+  process.exit(1);
+}
 
 const tokens = readFileSync(join(root, "src/tokens.css"), "utf8");
 for (const theme of [
