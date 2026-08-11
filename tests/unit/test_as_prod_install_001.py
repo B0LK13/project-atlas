@@ -50,6 +50,9 @@ _START_TOKENS = (
     "missing_live_subcommand",
     "tip-incompatible",
     "live --help",
+    "ATLAS_CORS_ORIGIN",
+    "cors_origin",
+    "PROD-ADV-011",
 )
 
 _PREFLIGHT_TOKENS = (
@@ -107,6 +110,17 @@ def test_as_prod_install_001_start_script_contract() -> None:
         or "does **not** add Playwright" in text
         or "Playwright is intentionally not" in text
     )
+
+
+def test_as_prod_install_001_cors_matches_webport_contract() -> None:
+    """PROD-ADV-011: launcher must set ATLAS_CORS_ORIGIN from -WebPort and verify meta."""
+    text = (_SCRIPTS / "atlas-start.ps1").read_text(encoding="utf-8")
+    assert 'ATLAS_CORS_ORIGIN = $corsOrigin' in text or '$env:ATLAS_CORS_ORIGIN = $corsOrigin' in text
+    assert 'http://127.0.0.1:$WebPort' in text
+    assert "cors_origin_mismatch" in text
+    assert "PROD-ADV-011" in text
+    # Must not pin CORS solely to literal 5173 after WebPort is known.
+    assert "Starting LIVE_API on 127.0.0.1:$ApiPort (CORS_ORIGIN=$corsOrigin)" in text
 
 
 def test_as_prod_install_001_stale_cli_guard_contract() -> None:

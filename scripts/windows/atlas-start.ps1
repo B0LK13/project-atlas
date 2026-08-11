@@ -777,7 +777,11 @@ if (-not $SkipWeb -and -not (Test-AtlasPortFree -Port $WebPort)) {
 
 try {
 # --- start LIVE_API (loopback only) ---
-Write-Host "Starting LIVE_API on 127.0.0.1:$ApiPort ..."
+# PROD-ADV-011: CORS must match session -WebPort (not hardcoded 5173).
+# Set before api-serve so /v1/meta cors_origin + ACAO headers match the Vite origin.
+$corsOrigin = "http://127.0.0.1:$WebPort"
+$env:ATLAS_CORS_ORIGIN = $corsOrigin
+Write-Host "Starting LIVE_API on 127.0.0.1:$ApiPort (CORS_ORIGIN=$corsOrigin) ..."
 $tokenPath = Join-Path $stateDir "live-api.read.token"
 # SEC-ADV004-B-002: mint into hardened token file; do not rely on stderr dump.
 if (Test-Path -LiteralPath $tokenPath) {
@@ -872,6 +876,31 @@ if (-not $apiBind.Ok) {
     throw "ATLAS_START_ABORT: api_non_loopback_bind"
 }
 Write-Host "OK  API health http://127.0.0.1:$ApiPort/v1/meta (owned by started process; loopback-only)"
+# PROD-ADV-011: fail closed if meta still advertises a CORS origin that is not this session's WebPort.
+try {
+    $metaObj = $apiHealth.Body | ConvertFrom-Json
+    $metaCors = [string]$metaObj.cors_origin
+    if ($metaCors -ne $corsOrigin) {
+        Write-AtlasProductError `
+            -What "LIVE_API /v1/meta cors_origin does not match session WebPort (PROD-ADV-011)." `
+            -Cause "Expected cors_origin='$corsOrigin' (WebPort=$WebPort) but /v1/meta reported '$metaCors'." `
+            -Action "Confirm tip CLI reads ATLAS_CORS_ORIGIN. Reinstall editable Core from this RepoRoot, then retry." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1 -WebPort $WebPort" `
+            -LogPath $errLog
+        throw "ATLAS_START_ABORT: cors_origin_mismatch"
+    }
+    Write-Host "OK  /v1/meta cors_origin matches WebPort ($corsOrigin)"
+}
+catch {
+    if ("$($_.Exception.Message)" -match "^ATLAS_START_ABORT:") { throw }
+    Write-AtlasProductError `
+        -What "LIVE_API health succeeded but /v1/meta cors_origin could not be verified." `
+        -Cause $_.Exception.Message `
+        -Action "Inspect API response body. Confirm tip includes PROD-ADV-011 cors_origin in /v1/meta." `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+        -LogPath $errLog
+    throw "ATLAS_START_ABORT: cors_origin_unverified"
+}
 $env:VITE_ATLAS_API_BASE = "http://127.0.0.1:$ApiPort"
 # Per-launch read Bearer for Vite web child only (not committed; not in URL).
 $env:VITE_ATLAS_API_TOKEN = $apiReadToken
@@ -984,6 +1013,9 @@ Write-AtlasSessionState -PidFile $pidFile -SessionNonce $sessionNonce -Processes
     runtime_root       = $runtimeRoot
     api_url            = "http://127.0.0.1:$ApiPort/v1/meta"
     web_url            = $(if ($SkipWeb) { $null } else { $webUrl })
+    cors_origin        = $corsOrigin
+    api_port           = $ApiPort
+    web_port           = $WebPort
 }
 
 $atlasStartCompleted = $true

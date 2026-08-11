@@ -13,6 +13,7 @@ request principal (OperatorProfile).
 from __future__ import annotations
 
 import json
+import os
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -46,15 +47,49 @@ TRUTH_BOUNDARY = (
     "LIVE_API READ + BOUNDED ACTIONS != AUTHORITY / != LAYER-B WRITE"
 )
 MAX_POST_BYTES = 64_000
-CORS_ORIGIN = "http://127.0.0.1:5173"
+# Default Vite port; productization launcher overrides via ATLAS_CORS_ORIGIN
+# so /v1/meta + Access-Control-Allow-Origin match the session -WebPort
+# (PROD-ADV-011: CORS must not stay pinned at 5173 when WebPort differs).
+DEFAULT_CORS_ORIGIN = "http://127.0.0.1:5173"
+CORS_ORIGIN = DEFAULT_CORS_ORIGIN
 _LOCAL_HOST_RE = re.compile(
     r"^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$",
+    re.IGNORECASE,
+)
+_CORS_ORIGIN_RE = re.compile(
+    r"^http://(127\.0\.0\.1|localhost|\[::1\]):(\d{1,5})$",
     re.IGNORECASE,
 )
 
 
 class ApiServerError(ValueError):
     """Fail-closed API server error."""
+
+
+def resolve_cors_origin(raw: str | None = None) -> str:
+    """Resolve loopback CORS origin for this LIVE_API launch.
+
+    Reads ``ATLAS_CORS_ORIGIN`` when ``raw`` is omitted. Empty/unset → default
+    ``http://127.0.0.1:5173``. Non-loopback or malformed values fail closed.
+    """
+    value = (
+        raw if raw is not None else os.environ.get("ATLAS_CORS_ORIGIN", "")
+    ).strip()
+    if not value:
+        return DEFAULT_CORS_ORIGIN
+    match = _CORS_ORIGIN_RE.fullmatch(value)
+    if match is None:
+        raise ApiServerError("cors-origin-non-local-forbidden")
+    port = int(match.group(2))
+    if port < 1 or port > 65535:
+        raise ApiServerError("cors-origin-non-local-forbidden")
+    host = match.group(1)
+    # Normalize to lowercase host form for stable meta + ACAO headers.
+    if host.lower() == "localhost":
+        return f"http://localhost:{port}"
+    if host.lower() == "[::1]":
+        return f"http://[::1]:{port}"
+    return f"http://127.0.0.1:{port}"
 
 
 class AtlasApiServer(ThreadingHTTPServer):
@@ -89,15 +124,18 @@ def session_credentials(server: ThreadingHTTPServer) -> ApiSessionCredentials:
 def make_handler(
     service: AppService,
     session: ApiSessionStore,
+    *,
+    cors_origin: str | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     """Build a request handler bound to a vault AppService + session store."""
+    allowed_origin = resolve_cors_origin(cors_origin)
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             return
 
         def _cors(self) -> None:
-            self.send_header("Access-Control-Allow-Origin", CORS_ORIGIN)
+            self.send_header("Access-Control-Allow-Origin", allowed_origin)
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header(
                 "Access-Control-Allow-Headers",
@@ -238,7 +276,7 @@ def make_handler(
                     "authz_profile": True,
                     "session_auth": True,
                     "max_post_bytes": MAX_POST_BYTES,
-                    "cors_origin": CORS_ORIGIN,
+                    "cors_origin": allowed_origin,
                     "operator_id": operator.operator_id,
                 },
             }
@@ -348,12 +386,17 @@ def serve_api(
     port: int = 8765,
     operator: OperatorProfile | None = None,
     session: ApiSessionStore | None = None,
+    cors_origin: str | None = None,
 ) -> AtlasApiServer:
     """Create (but do not serve forever) a LIVE_API server instance.
 
     Mints (or accepts) a per-launch session store. Callers must present a
     Bearer credential from ``server.atlas_session.credentials`` on every
     GET/POST (SEC-009).
+
+    ``cors_origin`` / ``ATLAS_CORS_ORIGIN`` must be a loopback http origin
+    matching the session web port when the productization launcher starts
+    Vite on a non-default ``-WebPort`` (PROD-ADV-011).
     """
     require_compatibility_anchor()
     if host not in {"127.0.0.1", "localhost", "::1"}:
@@ -364,7 +407,7 @@ def serve_api(
     store = session or mint_api_session(launch_op)
     # Ensure the read principal can serve api.read.
     store.credentials.read_operator.require("api.read")
-    handler = make_handler(svc, store)
+    handler = make_handler(svc, store, cors_origin=cors_origin)
     server = AtlasApiServer((host, port), handler)
     server.atlas_session = store
     return server
