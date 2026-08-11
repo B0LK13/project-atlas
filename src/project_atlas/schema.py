@@ -125,6 +125,8 @@ SCHEMA_FILES: dict[str, str] = {
     "agentos-session-envelope": "agentos-session-envelope.schema.json",
     # AS-2.0-RET-HYBRID-001 — hybrid retrieval plan (lexical + semantic slot disabled)
     "hybrid-retrieval-plan": "hybrid-retrieval-plan.schema.json",
+    # AS-2.0-RET-HYBRID-001 P2 — Lexical/BM25/RRF fusion (semantic disabled; ≠ authority)
+    "hybrid-retrieval-rrf": "hybrid-retrieval-rrf.schema.json",
     # AS-2.0-KCI-001 — consume-only compile request/receipt (≠ authority)
     "kci-compile-request": "kci-compile-request.schema.json",
     "kci-compile-receipt": "kci-compile-receipt.schema.json",
