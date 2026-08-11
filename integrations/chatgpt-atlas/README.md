@@ -19,13 +19,16 @@ ChatGPT → Atlas ChatGPT app → Apps SDK / MCP → Atlas read-only gateway →
   behavior (`project_atlas.web_api` + generated artifacts). It never duplicates
   Atlas truth logic, never writes, and never imports ingestion/compilation
   writers. Fully unit-tested and usable without the MCP SDK.
-- `server.py` — MCP server (Apps SDK) exposing the gateway as tools. Every tool
-  is `readOnlyHint=true`, `destructiveHint=false`, `openWorldHint=false`, and
-  links the `web/atlas-card.html` widget via `_meta.ui.resourceUri`
-  (+ `openai/outputTemplate` alias).
+- `server.py` — MCP server (Apps SDK) exposing the gateway as tools **and**
+  registering the widget as an MCP resource (`resources/list` +
+  `resources/read`). Every tool is `readOnlyHint=true`,
+  `destructiveHint=false`, `openWorldHint=false`, and links
+  `ui://widget/atlas-card.html` via `_meta.ui.resourceUri`
+  (+ `openai/outputTemplate` alias). **`WRITE_TOOL_COUNT = 0`**.
 - `web/atlas-card.html` — adaptive Apps SDK card (project / graph / evidence /
-  search) reading `window.openai.toolOutput` (MCP Apps bridge). Visually
-  separates **ATLAS EVIDENCE** from **MODEL INTERPRETATION**; shows
+  search) reading `window.openai.toolOutput` (MCP Apps bridge). Served as
+  `text/html;profile=mcp-app` with a strict CSP (`default-src 'none'`).
+  Visually separates **ATLAS EVIDENCE** from **MODEL INTERPRETATION**; shows
   `GRAPH != AUTHORITY` and `UNKNOWN != HEALTHY` without dominating the UX.
 
 Isolation: nothing here modifies security-owned surfaces (`ingestion`,
@@ -42,7 +45,17 @@ control-plane). `SURFACE_OVERLAP = NO OVERLAP`.
 | `atlas_project_status` | project state card | concepts, knowledge, conflicts, evidence, dependencies, unknowns |
 | `atlas_graph_neighbors` | derived relationships | dependencies / dependents / related (GRAPH != AUTHORITY) |
 
-No write/ingest/delete/execute tool is registered.
+No write/ingest/delete/execute tool is registered. `WRITE_TOOL_COUNT = 0`
+(asserted in tests).
+
+## Resources (Apps SDK widget)
+
+| URI | MIME | File |
+| --- | --- | --- |
+| `ui://widget/atlas-card.html` | `text/html;profile=mcp-app` | `web/atlas-card.html` |
+
+Clients resolve `openai/outputTemplate` / `_meta.ui.resourceUri` via
+`resources/read`. CSP meta tag is required and covered by tests.
 
 ## Trust invariants (echoed on every result)
 
@@ -72,8 +85,24 @@ ATLAS_DEMO_VAULT="$PWD/.tmp/live-vault" \
 ```
 
 Point a ChatGPT Apps SDK / MCP client (developer mode) at this stdio server. The
-widget template URI is `ui://widget/atlas-card.html` (serve `web/atlas-card.html`
-as the linked resource).
+widget template URI is `ui://widget/atlas-card.html` (served via MCP
+`resources/read`).
+
+## Runtime honesty — EXTERNAL_BLOCKED
+
+Local pytest + MCP stdio prove the **code and trust invariants**. Live ChatGPT
+Apps SDK / hosted connector runtime may remain **`EXTERNAL_BLOCKED`** (no
+OpenAI org connector registration, developer-mode entitlement, or external
+security revalidation in this package). That does **not** invent a pilot pass:
+
+| Claim | Status |
+| --- | --- |
+| Code + unit/integration tests (DEMO_FIXTURE) | SHIPPED |
+| `WRITE_TOOL_COUNT` | **0** |
+| Live ChatGPT Apps runtime | may be **EXTERNAL_BLOCKED** |
+| `AUTHENTIC_PILOT` / release cert | **FALSE / unchanged** |
+| `EXTERNAL_SECURITY_REVALIDATION_REQUIRED` | **YES** |
+| `CODEX_VALIDATED` | **NO** |
 
 ## Test
 
@@ -82,9 +111,10 @@ PYTHONPATH="src:integrations/chatgpt-atlas" \
   python -m pytest integrations/chatgpt-atlas/tests -q --no-cov
 ```
 
-Covers the directive journeys: list projects; project status; "what depends on
-harbor-api?" (real derived `harbor-portal → harbor-api` edge); conflicts +
-unknowns are honest; unknown project is not fabricated; every tool is read-only.
+Covers: widget `resources/list`+`resources/read` + CSP; `WRITE_TOOL_COUNT=0`;
+list projects; project status; "what depends on harbor-api?" (real derived
+`harbor-portal → harbor-api` edge); conflicts + unknowns honest; unknown project
+not fabricated; evidence/receipt index keys; every tool read-only.
 
 ## Scope boundaries
 

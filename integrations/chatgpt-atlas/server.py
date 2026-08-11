@@ -4,7 +4,9 @@ Exposes the isolated read-only Atlas gateway as MCP tools for the ChatGPT Apps
 SDK. Every tool is annotated READ ONLY (``readOnlyHint=true``,
 ``destructiveHint=false``, ``openWorldHint=false``) and links a widget template
 via ``_meta.ui.resourceUri`` (+ the ``openai/outputTemplate`` compatibility
-alias). No write tool is registered.
+alias). The widget HTML is registered as an MCP resource so Apps SDK clients
+can ``resources/read`` ``ui://widget/atlas-card.html``. No write tool is
+registered (``WRITE_TOOL_COUNT = 0``).
 
 Data source is the Phase-A DEMO_FIXTURE vault, provided read-only via the
 ``ATLAS_DEMO_VAULT`` environment variable. Never point this at an authentic
@@ -21,13 +23,21 @@ from __future__ import annotations
 import asyncio
 import os
 from pathlib import Path
+from typing import Any
 
 import atlas_gateway as gw
 import mcp.server.stdio
 import mcp.types as types
 from mcp.server.lowlevel import Server
+from mcp.server.lowlevel.helper_types import ReadResourceContents
+from pydantic import AnyUrl
 
 SERVER_NAME = "atlas-chatgpt-readonly"
+WIDGET_URI = "ui://widget/atlas-card.html"
+WIDGET_MIME = "text/html;profile=mcp-app"
+WIDGET_PATH = Path(__file__).resolve().parent / "web" / "atlas-card.html"
+# Explicit invariant for validators / evidence packs.
+WRITE_TOOL_COUNT = 0
 SERVER_INSTRUCTIONS = (
     "Atlas read-only gateway over a DEMO_FIXTURE estate. Tools only retrieve "
     "information; they never write, mutate, ingest, delete, or execute. Preserve "
@@ -64,6 +74,37 @@ def build_tools() -> list[types.Tool]:
     return [_tool_descriptor(name, spec) for name, spec in gw.TOOL_SPECS.items()]
 
 
+def write_tool_count() -> int:
+    """Count registered tools whose name implies mutation. Must stay 0."""
+    forbidden = ("write", "ingest", "delete", "mutate", "create", "update", "run", "execute")
+    return sum(1 for t in build_tools() if any(verb in t.name.lower() for verb in forbidden))
+
+
+def load_widget_html() -> str:
+    """Load the Apps SDK card HTML (CSP + GRAPH != AUTHORITY cues included)."""
+    if not WIDGET_PATH.is_file():
+        raise FileNotFoundError(f"missing widget template: {WIDGET_PATH}")
+    return WIDGET_PATH.read_text(encoding="utf-8")
+
+
+def build_resources() -> list[types.Resource]:
+    """MCP resources advertised to Apps SDK clients (widget only)."""
+    html = load_widget_html()
+    return [
+        types.Resource(
+            uri=WIDGET_URI,
+            name="atlas-card",
+            title="Atlas read-only card",
+            description=(
+                "Adaptive DEMO_FIXTURE project/graph/evidence/search card. "
+                "Read-only display; GRAPH != AUTHORITY; not authentic pilot."
+            ),
+            mimeType=WIDGET_MIME,
+            size=len(html.encode("utf-8")),
+        )
+    ]
+
+
 def to_call_result(result: gw.ToolResult) -> types.CallToolResult:
     return types.CallToolResult(
         content=[types.TextContent(type="text", text=result.content)],
@@ -86,12 +127,17 @@ def vault_from_env() -> Path:
 
 
 def build_server(vault: Path) -> Server:
-    async def on_list_tools(_ctx: object, _params: object) -> types.ListToolsResult:
-        return types.ListToolsResult(tools=build_tools())
+    """Build the read-only MCP server with tools + widget resource handlers."""
+    server = Server(SERVER_NAME, instructions=SERVER_INSTRUCTIONS)
 
-    async def on_call_tool(_ctx: object, params: types.CallToolRequestParams) -> types.CallToolResult:
+    @server.list_tools()
+    async def _list_tools() -> list[types.Tool]:
+        return build_tools()
+
+    @server.call_tool(validate_input=True)
+    async def _call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
         try:
-            result = gw.call_tool(vault, params.name, dict(params.arguments or {}))
+            result = gw.call_tool(vault, name, dict(arguments or {}))
         except gw.GatewayError as exc:
             return types.CallToolResult(
                 content=[types.TextContent(type="text", text=f"error: {exc}")],
@@ -99,12 +145,17 @@ def build_server(vault: Path) -> Server:
             )
         return to_call_result(result)
 
-    return Server(
-        SERVER_NAME,
-        instructions=SERVER_INSTRUCTIONS,
-        on_list_tools=on_list_tools,
-        on_call_tool=on_call_tool,
-    )
+    @server.list_resources()
+    async def _list_resources() -> list[types.Resource]:
+        return build_resources()
+
+    @server.read_resource()
+    async def _read_resource(uri: AnyUrl) -> list[ReadResourceContents]:
+        if str(uri) != WIDGET_URI:
+            raise ValueError(f"unknown resource URI: {uri}")
+        return [ReadResourceContents(content=load_widget_html(), mime_type=WIDGET_MIME)]
+
+    return server
 
 
 async def _main() -> None:
