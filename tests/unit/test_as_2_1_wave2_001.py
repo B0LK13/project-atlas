@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import serve_api
+from project_atlas.api_server import serve_api, session_credentials
 from project_atlas.ask_atlas_live import ask_atlas_live
 from project_atlas.authz import AuthzError, elevated_operator
 from project_atlas.chatgpt_bridge import bridge_chatgpt_export
@@ -113,8 +113,14 @@ def test_api_ask_and_actions(tmp_path: Path) -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+        read_auth = session_credentials(server).auth_headers()
+        priv_auth = session_credentials(server).auth_headers(privileged=True)
         with urlopen(
-            f"http://{host}:{port}/v1/ask?q={quote('beta')}", timeout=2
+            Request(
+                f"http://{host}:{port}/v1/ask?q={quote('beta')}",
+                headers=read_auth,
+            ),
+            timeout=2,
         ) as resp:
             ask = json.loads(resp.read().decode("utf-8"))
         assert ask["live_ask"] is True
@@ -127,7 +133,7 @@ def test_api_ask_and_actions(tmp_path: Path) -> None:
                     "payload": {},
                 }
             ).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", **priv_auth},
             method="POST",
         )
         with urlopen(req, timeout=2) as resp:

@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import serve_api
+from project_atlas.api_server import serve_api, session_credentials
 from project_atlas.authz import elevated_operator
 from project_atlas.mcp_server import invoke_mcp_tool, list_mcp_tools
 from project_atlas.perf_baselines import run_perf_baselines
@@ -39,21 +39,27 @@ def test_api_obs_authz_and_limits(tmp_path: Path) -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        with urlopen(f"http://{host}:{port}/v1/meta", timeout=2) as resp:
+        auth = session_credentials(server).auth_headers()
+        with urlopen(Request(f"http://{host}:{port}/v1/meta", headers=auth), timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
         assert meta["obs_live"] is True
         assert meta["authz_profile"] is True
-        with urlopen(f"http://{host}:{port}/v1/obs", timeout=2) as resp:
+        with urlopen(Request(f"http://{host}:{port}/v1/obs", headers=auth), timeout=2) as resp:
             obs = json.loads(resp.read().decode("utf-8"))
         assert obs["authority_plane"] == "none"
-        with urlopen(f"http://{host}:{port}/v1/authz", timeout=2) as resp:
+        with urlopen(Request(f"http://{host}:{port}/v1/authz", headers=auth), timeout=2) as resp:
             authz = json.loads(resp.read().decode("utf-8"))
         assert authz["authority"] is False
         assert "api.read" in authz["capabilities"]
-        with urlopen(f"http://{host}:{port}/v1/projects?limit=1", timeout=2) as resp:
+        with urlopen(
+            Request(f"http://{host}:{port}/v1/projects?limit=1", headers=auth), timeout=2
+        ) as resp:
             projects = json.loads(resp.read().decode("utf-8"))
         assert projects["limit"] == 1
-        bad = Request(f"http://{host}:{port}/v1/meta", headers={"Host": "evil.example"})
+        bad = Request(
+            f"http://{host}:{port}/v1/meta",
+            headers={"Host": "evil.example", **auth},
+        )
         from urllib.error import HTTPError
 
         with pytest.raises(HTTPError) as excinfo:

@@ -4,6 +4,10 @@ Serves AppService JSON over HTTP. Default bind 127.0.0.1 only.
 GET is read-only. POST /v1/actions records reconstructable web actions only
 (never Layer B). Requires authz api.read / web.action as applicable.
 Hardened: localhost CORS, Host gate, POST size cap, obs/authz/mcp routes.
+
+SEC-009: loopback / Host binding is defense-in-depth only. Every GET/POST
+requires a high-entropy per-launch Bearer credential bound to an explicit
+request principal (OperatorProfile).
 """
 
 from __future__ import annotations
@@ -17,7 +21,14 @@ from urllib.parse import parse_qs, urlparse
 
 from project_atlas.app_service import AppService, open_app_service
 from project_atlas.ask_atlas_live import AskAtlasLiveError, ask_atlas_live
-from project_atlas.authz import OperatorProfile, default_operator
+from project_atlas.authz import (
+    ApiAuthError,
+    ApiSessionCredentials,
+    ApiSessionStore,
+    OperatorProfile,
+    default_operator,
+    mint_api_session,
+)
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.obs_live import build_live_observability_receipt
@@ -46,6 +57,12 @@ class ApiServerError(ValueError):
     """Fail-closed API server error."""
 
 
+class AtlasApiServer(ThreadingHTTPServer):
+    """Threading HTTP server carrying the per-launch API session store."""
+
+    atlas_session: ApiSessionStore
+
+
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
@@ -61,11 +78,19 @@ def _parse_limit(qs: dict[str, list[str]], *, default: int = 100) -> int:
     return value
 
 
+def session_credentials(server: ThreadingHTTPServer) -> ApiSessionCredentials:
+    """Return the per-launch credentials attached to a LIVE_API server."""
+    store = getattr(server, "atlas_session", None)
+    if not isinstance(store, ApiSessionStore):
+        raise ApiServerError("api-session-missing")
+    return store.credentials
+
+
 def make_handler(
     service: AppService,
-    operator: OperatorProfile,
+    session: ApiSessionStore,
 ) -> type[BaseHTTPRequestHandler]:
-    """Build a request handler bound to a vault AppService."""
+    """Build a request handler bound to a vault AppService + session store."""
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
@@ -74,7 +99,10 @@ def make_handler(
         def _cors(self) -> None:
             self.send_header("Access-Control-Allow-Origin", CORS_ORIGIN)
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header(
+                "Access-Control-Allow-Headers",
+                "Content-Type, Authorization",
+            )
             self.send_header("Vary", "Origin")
 
         def _send(self, code: int, payload: dict[str, Any]) -> None:
@@ -94,7 +122,16 @@ def make_handler(
                 return True
             return bool(_LOCAL_HOST_RE.fullmatch(host))
 
+        def _authenticate(self) -> OperatorProfile | None:
+            """Resolve request principal; send 401 and return None on failure."""
+            try:
+                return session.resolve_bearer(self.headers.get("Authorization"))
+            except ApiAuthError as exc:
+                self._send(401, {"error": str(exc), "package_id": PACKAGE_ID})
+                return None
+
         def do_OPTIONS(self) -> None:
+            # CORS preflight: Host gate only (browsers omit Authorization).
             if not self._host_ok():
                 self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
                 return
@@ -106,6 +143,9 @@ def make_handler(
         def do_GET(self) -> None:
             if not self._host_ok():
                 self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
+                return
+            operator = self._authenticate()
+            if operator is None:
                 return
             try:
                 operator.require("api.read")
@@ -196,6 +236,7 @@ def make_handler(
                     "mission_live": True,
                     "workspace_live": True,
                     "authz_profile": True,
+                    "session_auth": True,
                     "max_post_bytes": MAX_POST_BYTES,
                     "cors_origin": CORS_ORIGIN,
                     "operator_id": operator.operator_id,
@@ -212,6 +253,9 @@ def make_handler(
         def do_POST(self) -> None:
             if not self._host_ok():
                 self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
+                return
+            operator = self._authenticate()
+            if operator is None:
                 return
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"
@@ -279,9 +323,19 @@ def make_handler(
             self._send(200, {"accepted": True, "transaction": txn})
 
         def do_PUT(self) -> None:
+            if not self._host_ok():
+                self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
+                return
+            if self._authenticate() is None:
+                return
             self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
 
         def do_DELETE(self) -> None:
+            if not self._host_ok():
+                self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
+                return
+            if self._authenticate() is None:
+                return
             self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
 
     return Handler
@@ -293,13 +347,24 @@ def serve_api(
     host: str = "127.0.0.1",
     port: int = 8765,
     operator: OperatorProfile | None = None,
-) -> ThreadingHTTPServer:
-    """Create (but do not serve forever) a LIVE_API server instance."""
+    session: ApiSessionStore | None = None,
+) -> AtlasApiServer:
+    """Create (but do not serve forever) a LIVE_API server instance.
+
+    Mints (or accepts) a per-launch session store. Callers must present a
+    Bearer credential from ``server.atlas_session.credentials`` on every
+    GET/POST (SEC-009).
+    """
     require_compatibility_anchor()
     if host not in {"127.0.0.1", "localhost", "::1"}:
         raise ApiServerError("api-bind-non-local-forbidden")
     svc = open_app_service(vault)
-    op = operator or default_operator()
-    op.require("api.read")
-    handler = make_handler(svc, op)
-    return ThreadingHTTPServer((host, port), handler)
+    launch_op = operator or default_operator()
+    launch_op.require("api.read")
+    store = session or mint_api_session(launch_op)
+    # Ensure the read principal can serve api.read.
+    store.credentials.read_operator.require("api.read")
+    handler = make_handler(svc, store)
+    server = AtlasApiServer((host, port), handler)
+    server.atlas_session = store
+    return server

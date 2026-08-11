@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import MAX_POST_BYTES, serve_api
+from project_atlas.api_server import MAX_POST_BYTES, serve_api, session_credentials
 from project_atlas.authz import OperatorProfile, default_operator, elevated_operator
 from project_atlas.web_actions import load_action_ledger
 
@@ -30,6 +30,17 @@ def _start(vault: Path, *, operator: OperatorProfile | None = None) -> tuple[Any
     return server, str(host), int(port)
 
 
+def _read_auth(server: Any) -> dict[str, str]:
+    return session_credentials(server).auth_headers()
+
+
+def _priv_auth(server: Any) -> dict[str, str]:
+    creds = session_credentials(server)
+    if creds.privileged_token is None:
+        return creds.auth_headers()
+    return creds.auth_headers(privileged=True)
+
+
 def _post(
     host: str,
     port: int,
@@ -37,13 +48,14 @@ def _post(
     *,
     headers: dict[str, str] | None = None,
     path: str = "/v1/actions",
+    auth: dict[str, str] | None = None,
 ) -> tuple[int, dict[str, Any]]:
     if isinstance(payload, dict):
         raw = json.dumps(payload).encode("utf-8")
-        hdrs = {"Content-Type": "application/json", **(headers or {})}
+        hdrs = {"Content-Type": "application/json", **(auth or {}), **(headers or {})}
     else:
         raw = payload
-        hdrs = {"Content-Type": "application/json", **(headers or {})}
+        hdrs = {"Content-Type": "application/json", **(auth or {}), **(headers or {})}
         if "Content-Length" not in hdrs:
             hdrs["Content-Length"] = str(len(raw))
     req = Request(
@@ -67,8 +79,10 @@ def _get(
     path: str,
     *,
     headers: dict[str, str] | None = None,
+    auth: dict[str, str] | None = None,
 ) -> tuple[int, dict[str, Any]]:
-    req = Request(f"http://{host}:{port}{path}", headers=headers or {})
+    hdrs = {**(auth or {}), **(headers or {})}
+    req = Request(f"http://{host}:{port}{path}", headers=hdrs)
     try:
         with urlopen(req, timeout=2) as resp:
             return int(resp.status), json.loads(resp.read().decode("utf-8"))
@@ -112,6 +126,7 @@ def test_adv_api_rejects_invalid_action_ids(tmp_path: Path, bad_id: str) -> None
             host,
             port,
             {"action_id": bad_id, "action_type": "refresh-status", "payload": {}},
+            auth=_priv_auth(server),
         )
         assert code == 400
         assert "web-action-id-invalid" in body["error"]
@@ -134,6 +149,7 @@ def test_adv_api_rejects_forbidden_action_type(tmp_path: Path) -> None:
                 "action_type": "promote-claim",
                 "payload": {},
             },
+            auth=_priv_auth(server),
         )
         assert code == 400
         assert "web-action-type-forbidden" in body["error"]
@@ -154,7 +170,7 @@ def test_adv_api_cross_project_lists_only_vault_relative_paths(
     (foreign / "projects" / "gamma").mkdir(parents=True)
     server, host, port = _start(vault)
     try:
-        code, body = _get(host, port, "/v1/projects")
+        code, body = _get(host, port, "/v1/projects", auth=_read_auth(server))
         assert code == 200
         ids = {row["project_id"] for row in body["projects"]}
         assert ids == {"alpha", "beta"}
@@ -186,6 +202,7 @@ def test_adv_api_cross_project_authority_payload_rejected(tmp_path: Path) -> Non
                     "action_type": "acknowledge-finding",
                     "payload": forbidden,
                 },
+                auth=_priv_auth(server),
             )
             assert code == 400
             assert "web-action-authority-fields-forbidden" in body["error"]
@@ -212,6 +229,7 @@ def test_adv_api_oversized_payload_exact_boundary(tmp_path: Path) -> None:
         try:
             conn.putrequest("POST", "/v1/actions")
             conn.putheader("Content-Type", "application/json")
+            conn.putheader("Authorization", _priv_auth(server)["Authorization"])
             conn.putheader("Content-Length", str(MAX_POST_BYTES + 1))
             conn.endheaders()
             conn.send(b"{}")
@@ -239,6 +257,7 @@ def test_adv_api_invalid_content_length_fail_closed(tmp_path: Path) -> None:
             port,
             b'{"action_id":"act-cl","action_type":"refresh-status"}',
             headers={"Content-Length": "not-a-number"},
+            auth=_priv_auth(server),
         )
         assert code == 400
         assert "content-length-invalid" in body["error"]
@@ -263,6 +282,7 @@ def test_adv_api_default_operator_cannot_post_actions(tmp_path: Path) -> None:
                 "action_type": "refresh-status",
                 "payload": {},
             },
+            auth=_read_auth(server),
         )
         assert code == 400
         assert "authz-denied:web.action" in body["error"]
@@ -292,13 +312,11 @@ def test_adv_api_header_spoof_does_not_elevate(tmp_path: Path) -> None:
             },
             headers=spoof_headers,
         )
-        assert code == 400
-        # Either authz deny or authority-field forbid — never accepted.
+        # SEC-009: forged Bearer is auth-invalid (not capability elevation).
+        assert code == 401
+        assert body["error"] == "auth-invalid"
         assert body.get("accepted") is not True
-        err = body["error"]
-        assert "authz-denied" in err or "authority-fields-forbidden" in err
-        code_put, body_put = _get(host, port, "/v1/authz")
-        # GET uses spoof-unaware profile; confirm write still false.
+        code_put, body_put = _get(host, port, "/v1/authz", auth=_read_auth(server))
         assert code_put == 200
         assert body_put["authority"] is False
         assert body_put["write_enabled"] is False
@@ -320,6 +338,7 @@ def test_adv_api_non_action_writes_forbidden(tmp_path: Path) -> None:
                 port,
                 {"action_id": "w1", "action_type": "refresh-status"},
                 path=path,
+                auth=_priv_auth(server),
             )
             assert code == 405
             assert body["error"] == "writes-forbidden"
@@ -328,7 +347,10 @@ def test_adv_api_non_action_writes_forbidden(tmp_path: Path) -> None:
                 f"http://{host}:{port}/v1/actions",
                 data=b"{}",
                 method=method,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    **_priv_auth(server),
+                },
             )
             with pytest.raises(HTTPError) as excinfo:
                 urlopen(req, timeout=2)
@@ -353,10 +375,10 @@ def test_adv_api_duplicate_action_id_rejected(tmp_path: Path) -> None:
             "action_type": "refresh-status",
             "payload": {},
         }
-        code1, body1 = _post(host, port, first)
+        code1, body1 = _post(host, port, first, auth=_priv_auth(server))
         assert code1 == 200
         assert body1["accepted"] is True
-        code2, body2 = _post(host, port, first)
+        code2, body2 = _post(host, port, first, auth=_priv_auth(server))
         assert code2 == 400
         assert "web-action-id-duplicate" in body2["error"]
         ledger = load_action_ledger(vault)
@@ -389,7 +411,7 @@ def test_adv_api_traversal_404_does_not_leak_filesystem(
             "/v1/../outside-secret.txt",
         ]
         for path in probes:
-            code, body = _get(host, port, path)
+            code, body = _get(host, port, path, auth=_read_auth(server))
             assert code == 404
             assert body["error"] == "not-found"
             dumped = json.dumps(body, sort_keys=True)
@@ -416,13 +438,14 @@ def test_adv_api_error_bodies_omit_absolute_vault_path(tmp_path: Path) -> None:
             host,
             port,
             b"{not-json",
+            auth=_priv_auth(server),
         )
         assert code == 400
         dumped = json.dumps(body)
         assert abs_vault not in dumped
         assert "generated/ops/web-actions" not in dumped
 
-        code2, body2 = _get(host, port, "/v1/snapshot")
+        code2, body2 = _get(host, port, "/v1/snapshot", auth=_read_auth(server))
         assert code2 == 200
         dumped2 = json.dumps(body2)
         assert abs_vault not in dumped2

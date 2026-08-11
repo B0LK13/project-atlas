@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import ApiServerError, serve_api
+from project_atlas.api_server import ApiServerError, serve_api, session_credentials
 from project_atlas.authz import write_authz_audit_receipt
 from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.openai_responses_poc import (
@@ -66,13 +66,16 @@ def test_api_actions_ledger_and_mcp_tools(tmp_path: Path) -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        with urlopen(f"http://{host}:{port}/v1/actions", timeout=2) as resp:
+        auth = session_credentials(server).auth_headers()
+        with urlopen(Request(f"http://{host}:{port}/v1/actions", headers=auth), timeout=2) as resp:
             ledger = json.loads(resp.read().decode("utf-8"))
         assert ledger["transactions"] == []
-        with urlopen(f"http://{host}:{port}/v1/mcp/tools", timeout=2) as resp:
+        with urlopen(
+            Request(f"http://{host}:{port}/v1/mcp/tools", headers=auth), timeout=2
+        ) as resp:
             tools = json.loads(resp.read().decode("utf-8"))
         assert tools["write_tools"] == []
-        with urlopen(f"http://{host}:{port}/v1/meta", timeout=2) as resp:
+        with urlopen(Request(f"http://{host}:{port}/v1/meta", headers=auth), timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
         assert meta["max_post_bytes"] > 0
     finally:
@@ -88,11 +91,16 @@ def test_api_rejects_oversized_post(tmp_path: Path) -> None:
     thread.start()
     try:
         body = b'{"action_id":"x","action_type":"refresh-status"}' + (b"a" * 70_000)
+        auth = session_credentials(server).auth_headers()
         req = Request(
             f"http://{host}:{port}/v1/actions",
             data=body,
             method="POST",
-            headers={"Content-Type": "application/json", "Content-Length": str(len(body))},
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+                **auth,
+            },
         )
         from urllib.error import HTTPError, URLError
 
