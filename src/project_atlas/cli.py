@@ -1133,6 +1133,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Deterministic hybrid retrieval (lexical; semantic forbidden).",
     )
     runtime_hybrid.add_argument("--vault", type=Path, required=True)
+    runtime_hybrid.add_argument(
+        "--project",
+        required=True,
+        dest="project_id",
+        help="Project scope (required; cross-project retrieval is denied).",
+    )
     runtime_hybrid.add_argument("--kind", required=True)
     runtime_hybrid.add_argument("--value", required=True)
     runtime_hybrid.add_argument(
@@ -1152,6 +1158,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Budgeted context compiler (P0/P2) from hybrid candidates JSON.",
     )
     runtime_compile.add_argument("--vault", type=Path, required=True)
+    runtime_compile.add_argument(
+        "--project",
+        required=True,
+        dest="project_id",
+        help="Project scope (required; out-of-scope candidates fail closed).",
+    )
     runtime_compile.add_argument("--pack-id", required=True)
     runtime_compile.add_argument(
         "--candidates",
@@ -2514,6 +2526,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.vault,
                     kind=args.kind,
                     value=args.value,
+                    project_id=args.project_id,
                     mode=args.mode,
                     cap=args.cap,
                     include_graph_slot=bool(args.include_graph_slot),
@@ -2540,6 +2553,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.vault,
                     pack_id=args.pack_id,
                     candidates=cand,
+                    project_id=args.project_id,
                     budget=args.budget,
                     profile_id=args.profile_id,
                     write=bool(args.write),
