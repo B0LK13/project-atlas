@@ -126,6 +126,12 @@ function Invoke-AtlasStartAbortCleanup {
     )
     $summary = Stop-AtlasVerifiedSession -Processes @($ProcessRecords.ToArray()) -SessionNonce $SessionNonce
     Write-Host "ORPHAN_PROCESS_COUNT=$($summary.ORPHAN_PROCESS_COUNT) (session=$SessionNonce)" -ForegroundColor $(if ($summary.ORPHAN_PROCESS_COUNT -eq 0) { "Green" } else { "Red" })
+    $stateDir = Split-Path -Parent $PidFile
+    $tokenPath = Join-Path $stateDir "live-api.read.token"
+    if (Test-Path -LiteralPath $tokenPath) {
+        try { icacls $tokenPath /grant:r "${env:USERNAME}:(F)" | Out-Null } catch { }
+        Remove-Item -LiteralPath $tokenPath -Force -ErrorAction SilentlyContinue
+    }
     if ($summary.ORPHAN_PROCESS_COUNT -eq 0 -and (Test-Path -LiteralPath $PidFile)) {
         Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
     }
@@ -692,11 +698,23 @@ if ([string]::IsNullOrWhiteSpace($apiReadToken)) {
     throw "ATLAS_START_ABORT: missing ATLAS_API_READ_TOKEN"
 }
 $tokenPath = Join-Path $stateDir "live-api.read.token"
+# Wave B / SEC-009: a prior abort can leave this file with a read-only ACL that
+# blocks Set-Content ("Access to the path ... is denied"). Reset then rewrite.
+if (Test-Path -LiteralPath $tokenPath) {
+    try {
+        icacls $tokenPath /grant:r "${env:USERNAME}:(F)" | Out-Null
+    }
+    catch { }
+    Remove-Item -LiteralPath $tokenPath -Force -ErrorAction SilentlyContinue
+}
 Set-Content -LiteralPath $tokenPath -Value $apiReadToken -NoNewline -Encoding ascii
 try {
+    # Keep modify for current user so restart/retry can rewrite the token file.
+    # Do not world-readable; strip inheritance.
     icacls $tokenPath /inheritance:r | Out-Null
-    icacls $tokenPath /grant:r "${env:USERNAME}:(R)" | Out-Null
-} catch {
+    icacls $tokenPath /grant:r "${env:USERNAME}:(M)" | Out-Null
+}
+catch {
     # Best-effort ACL; token remains local under state dir (not the repo).
 }
 
