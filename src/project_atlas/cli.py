@@ -41,6 +41,9 @@ from project_atlas.context_pack import (
     build_context_pack,
 )
 from project_atlas.discovery import discover, write_manifest
+from project_atlas.doctor import render_text as doctor_render_text
+from project_atlas.doctor import run_doctor
+from project_atlas.doctor import to_dict as doctor_to_dict
 from project_atlas.domain.knowledge_query import KnowledgeQueryErrorCode, QueryShape
 from project_atlas.event_retention import (
     RetentionError,
@@ -252,6 +255,23 @@ def build_parser() -> argparse.ArgumentParser:
         "validate", help="Validate Vault structure, provenance links and safety (FR-012)."
     )
     validate_parser.add_argument("--vault", type=Path, required=True)
+
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Diagnose the Atlas environment and, optionally, a Vault (PROD-DOCTOR-001).",
+    )
+    doctor_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help="Optional Vault directory to include in the checks.",
+    )
+    doctor_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit a machine-readable JSON report to stdout (sorted keys).",
+    )
 
     accept_graph_parser = subparsers.add_parser(
         "accept-graph",
@@ -1412,6 +1432,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"agent events: {result.get('events_ingested', 0)}")
         print(f"quarantined events: {result.get('events_quarantined', 0)}")
         return EXIT_OK
+
+    if args.command == "doctor":
+        doctor_report = run_doctor(config, args.vault)
+        if args.as_json:
+            print(json.dumps(doctor_to_dict(doctor_report), indent=2, sort_keys=True))
+        else:
+            print(doctor_render_text(doctor_report))
+        return EXIT_OK if doctor_report.ok else EXIT_ERROR
 
     if args.command == "build-indexes":
         try:
