@@ -30,7 +30,17 @@ def test_in_batch_deletion_drops_snapshot_row(tmp_path: Path) -> None:
 
     manifest_1 = tmp_path / "m1.json"
     assert main(["discover", "--source", str(pilots), "--output", str(manifest_1)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest_1), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest_1),
+            "--vault",
+            str(vault),
+            "--source",
+            str(pilots),
+        ]
+    ) == EXIT_OK
 
     before = json.loads(
         (vault / "sources" / "manifests" / "source-manifest.json").read_text(encoding="utf-8")
@@ -45,7 +55,17 @@ def test_in_batch_deletion_drops_snapshot_row(tmp_path: Path) -> None:
 
     manifest_2 = tmp_path / "m2.json"
     assert main(["discover", "--source", str(pilots), "--output", str(manifest_2)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest_2), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest_2),
+            "--vault",
+            str(vault),
+            "--source",
+            str(pilots),
+        ]
+    ) == EXIT_OK
 
     after = json.loads(
         (vault / "sources" / "manifests" / "source-manifest.json").read_text(encoding="utf-8")
@@ -71,13 +91,33 @@ def test_identical_ingest_replay_is_byte_stable_for_merged_snapshot(tmp_path: Pa
 
     manifest = tmp_path / "m.json"
     assert main(["discover", "--source", str(pilots), "--output", str(manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(pilots),
+        ]
+    ) == EXIT_OK
 
     snapshot_path = vault / "sources" / "manifests" / "source-manifest.json"
     report_path = vault / "generated" / "reports" / "ingestion-report.json"
     first_snapshot = snapshot_path.read_bytes()
     first_report = report_path.read_bytes()
 
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(pilots),
+        ]
+    ) == EXIT_OK
     assert snapshot_path.read_bytes() == first_snapshot
     assert report_path.read_bytes() == first_report

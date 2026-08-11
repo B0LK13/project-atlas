@@ -46,7 +46,17 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 def test_claims_conflicts_authority_and_provenance_are_project_outputs(tmp_path: Path) -> None:
     _source, manifest, vault = _fixture(tmp_path)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     claims = json.loads((vault / "state/claims/claims-fixture.json").read_text())
     conflicts = json.loads((vault / "review/conflicts/claims-fixture.json").read_text())
     status = json.loads(
@@ -64,24 +74,64 @@ def test_claims_conflicts_authority_and_provenance_are_project_outputs(tmp_path:
 
 def test_invalid_claim_lifecycle_state_fails_without_mutation(tmp_path: Path) -> None:
     _source, manifest, vault = _fixture(tmp_path)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     state_path = vault / "state/claim-lifecycle/claims-fixture.json"
     state_path.write_text('{"schema_version": 999, "claims": []}\n', encoding="utf-8")
     before = _snapshot(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_ERROR
     assert _snapshot(vault) == before
 
 
 def test_unchanged_claim_replay_has_no_new_receipt_or_writes(tmp_path: Path) -> None:
     _source, manifest, vault = _fixture(tmp_path)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     before = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in vault.rglob("*")
         if path.is_file()
     }
     receipts_before = sorted((vault / "receipts/claims").glob("*.json"))
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     lifecycle = json.loads(
         (vault / "state/claim-lifecycle/claims-fixture.json").read_text()
     )
@@ -92,7 +142,17 @@ def test_unchanged_claim_replay_has_no_new_receipt_or_writes(tmp_path: Path) -> 
         if path.is_file()
     }
     receipts_before = sorted((vault / "receipts/claims").glob("*.json"))
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     after = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in vault.rglob("*")
@@ -310,10 +370,30 @@ def test_multi_project_lifecycle_failure_has_zero_mutations_then_retries_once(
     bad_state.parent.mkdir(parents=True, exist_ok=True)
     bad_state.write_text('{"schema_version": 999, "claims": []}\n')
     before = _snapshot(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_ERROR
     assert _snapshot(vault) == before
     bad_state.unlink()
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     claims = [
         json.loads(path.read_text())["claims"]
         for path in sorted((vault / "state/claims").glob("*.json"))

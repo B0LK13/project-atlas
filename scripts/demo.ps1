@@ -131,7 +131,7 @@ function Invoke-InitVault {
     atlas discover --source $fixture --output $manifest
     if ($LASTEXITCODE -ne 0) { throw "atlas discover failed ($LASTEXITCODE)" }
 
-    atlas ingest --manifest $manifest --vault $VaultPath
+    atlas ingest --manifest $manifest --vault $VaultPath --source $fixture
     if ($LASTEXITCODE -ne 0) { throw "atlas ingest failed ($LASTEXITCODE)" }
 
     atlas build-indexes --vault $VaultPath

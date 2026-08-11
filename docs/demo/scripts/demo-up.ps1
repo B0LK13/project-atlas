@@ -222,7 +222,7 @@ if ($WithApi) {
     $manifest = Join-Path $RuntimeRoot "manifest.json"
     & atlas discover --source $DemoFixtureRoot --output $manifest
     if ($LASTEXITCODE -ne 0) { throw "atlas discover failed against DEMO_FIXTURE" }
-    & atlas ingest --manifest $manifest --vault $VaultDir
+    & atlas ingest --manifest $manifest --vault $VaultDir --source $DemoFixtureRoot
     if ($LASTEXITCODE -ne 0) { throw "atlas ingest failed for DEMO vault" }
     & atlas build-indexes --vault $VaultDir
     if ($LASTEXITCODE -ne 0) { throw "atlas build-indexes failed for DEMO vault" }

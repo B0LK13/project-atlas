@@ -65,6 +65,40 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _canonical_text_sha256(payload: bytes) -> str:
+    """SHA-256 of text-source bytes with CRLF normalized to LF (AS-ID-001)."""
+    digest = hashlib.sha256()
+    pending_cr = False
+    view = memoryview(payload)
+    offset = 0
+    while offset < len(view):
+        end = min(offset + _HASH_CHUNK_SIZE, len(view))
+        chunk = bytes(view[offset:end])
+        offset = end
+        if pending_cr:
+            chunk = b"\r" + chunk
+            pending_cr = False
+        if chunk.endswith(b"\r"):
+            chunk = chunk[:-1]
+            pending_cr = True
+        digest.update(chunk.replace(b"\r\n", b"\n"))
+    if pending_cr:
+        digest.update(b"\r")
+    return digest.hexdigest()
+
+
+def canonical_source_sha256_bytes(payload: bytes, *, relative_path: str) -> str:
+    """Canonical SHA-256 of an already-read source snapshot (CODEX-SEC-002).
+
+    Matches ``canonical_source_sha256`` without re-reading mutable filesystem
+    content after the stable snapshot was taken.
+    """
+    suffix = Path(relative_path).suffix.lower()
+    if suffix not in TEXT_SOURCE_EXTENSIONS:
+        return sha256_bytes(payload)
+    return _canonical_text_sha256(payload)
+
+
 def canonical_source_sha256(path: Path) -> str:
     """Stream the canonical source bytes into SHA-256.
 

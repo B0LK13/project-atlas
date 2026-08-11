@@ -361,7 +361,7 @@ function Build-DemoFixtureVault {
                 -LogPath $ErrLog
             exit 1
         }
-        & $AtlasExe ingest --manifest $manifest --vault $VaultDir
+        & $AtlasExe ingest --manifest $manifest --vault $VaultDir --source $FixtureRoot
         if ($LASTEXITCODE -ne 0) {
             Write-AtlasProductError `
                 -What "Failed to ingest DEMO_FIXTURE into disposable vault." `

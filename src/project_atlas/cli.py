@@ -232,6 +232,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ingest_parser.add_argument("--manifest", type=Path, required=True)
     ingest_parser.add_argument("--vault", type=Path, required=True)
+    ingest_parser.add_argument(
+        "--source",
+        type=Path,
+        required=True,
+        help=(
+            "Authorized source root (CODEX-SEC-001). Must resolve to the same "
+            "directory recorded in the manifest; the manifest cannot self-authorize."
+        ),
+    )
 
     indexes_parser = subparsers.add_parser(
         "build-indexes", help="Build deterministic lexical indexes under generated/ (FR-010)."
@@ -1423,7 +1432,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "ingest":
         try:
-            result = ingest(args.manifest, args.vault)
+            result = ingest(
+                args.manifest,
+                args.vault,
+                authorized_source_root=args.source,
+            )
         except (OSError, ValueError, KeyError, TypeError) as exc:
             _log.error("ingest failed: %s", exc)
             return EXIT_ERROR

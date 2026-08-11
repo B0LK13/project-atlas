@@ -53,7 +53,7 @@ from project_atlas.semantic_compiler import compile_project_record, render_proje
 from project_atlas.source_identity import (
     ProjectIdentityLock,
     ProjectUuidProvider,
-    canonical_source_sha256,
+    canonical_source_sha256_bytes,
     production_project_uuid,
     validate_project_uuid,
 )
@@ -472,6 +472,8 @@ class _PreparedRecord(NamedTuple):
     source_path: Path
     destination: Path
     text: str
+    source_bytes: bytes
+    content_sha256: str
 
 
 class _PreparedEvent(NamedTuple):
@@ -488,6 +490,55 @@ def _inside(root: Path, candidate: Path) -> Path:
     except ValueError as exc:
         raise ValueError(f"destination escapes Vault root: {candidate}") from exc
     return resolved_candidate
+
+
+def _resolve_authorized_source_root(
+    authorized_source_root: Path, manifest_source_root: str
+) -> Path:
+    """Bind filesystem reads to an independently authorized root (CODEX-SEC-001).
+
+    The manifest ``source_root`` claim is never authority. Ingest may proceed only
+    when the operator-supplied authorized root resolves to the same directory the
+    manifest records; any substitution or arbitrary readable path fails closed.
+    """
+    authorized = authorized_source_root.expanduser().resolve()
+    if not authorized.is_dir() or authorized.is_symlink():
+        raise ValueError(
+            "authorized source root must be an existing non-symlink directory: "
+            f"{authorized_source_root}"
+        )
+    claimed = Path(str(manifest_source_root)).expanduser().resolve()
+    if claimed != authorized:
+        raise ValueError(
+            "manifest source_root is not authorized "
+            f"(claimed={claimed}, authorized={authorized})"
+        )
+    return authorized
+
+
+def _assert_manifest_source_identities(sources: list[SourceRecord]) -> None:
+    """Fail closed on duplicate or conflicting source identities (CODEX-SEC-002)."""
+    by_id: dict[str, SourceRecord] = {}
+    by_path: dict[str, SourceRecord] = {}
+    for record in sources:
+        prior_id = by_id.get(record.source_id)
+        if prior_id is not None:
+            raise ValueError(
+                f"duplicate source identity in manifest: {record.source_id}"
+            )
+        by_id[record.source_id] = record
+        prior_path = by_path.get(record.path)
+        if prior_path is not None:
+            if (
+                prior_path.source_id != record.source_id
+                or prior_path.sha256 != record.sha256
+                or prior_path.size_bytes != record.size_bytes
+            ):
+                raise ValueError(
+                    f"conflicting source identity for path: {record.path}"
+                )
+            raise ValueError(f"duplicate source identity in manifest: {record.path}")
+        by_path[record.path] = record
 
 
 def _source_path(root: Path, value: str) -> Path:
@@ -1270,12 +1321,22 @@ def _ingest(
     manifest_path: Path,
     vault: Path,
     *,
+    authorized_source_root: Path,
     uuid_provider: ProjectUuidProvider = production_project_uuid,
 ) -> dict[str, Any]:
-    """Ingest eligible manifest records and create provenance-backed notes."""
+    """Ingest eligible manifest records and create provenance-backed notes.
+
+    CODEX-SEC-001 / CODEX-SEC-002: filesystem access is bound to an independently
+    authorized source root. Source bytes are snapshotted once, identity/size/
+    SHA-256 are recomputed from that snapshot, compared to the approved
+    manifest, then the exact verified bytes are promoted. Mismatch fails closed.
+    """
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     sources = _manifest_records(manifest)
-    root = Path(str(manifest["source_root"])).resolve()
+    _assert_manifest_source_identities(sources)
+    root = _resolve_authorized_source_root(
+        authorized_source_root, str(manifest["source_root"])
+    )
     vault = vault.expanduser().resolve()
     expected_vault = _vault_identity(vault)
     expected_skill = _trusted_skill(vault)
@@ -1300,10 +1361,28 @@ def _ingest(
         if source_record.exclusion_reason or not source_record.sha256:
             continue
         source = _source_path(root, source_record.path)
-        if not source.is_file():
+        if not source.is_file() or source.is_symlink():
             raise ValueError(f"manifest source is missing: {source_record.path}")
+        # Stable snapshot — never re-read mutable content after this point.
+        source_bytes = source.read_bytes()
+        approved_sha256 = str(source_record.sha256)
+        actual_sha256 = canonical_source_sha256_bytes(
+            source_bytes, relative_path=source_record.path
+        )
+        actual_size = len(source_bytes)
+        if actual_size != source_record.size_bytes or actual_sha256 != approved_sha256:
+            # CODEX-SEC-002: always fail closed — including project markers.
+            # AS-ID-001 genesis rewrites require rediscovery so approved
+            # provenance matches on-disk bytes; never skip and re-read live
+            # marker metadata into generated records under a stale digest.
+            raise ValueError(
+                "source snapshot does not match approved manifest provenance "
+                f"(path={source_record.path}, "
+                f"approved_sha256={approved_sha256}, actual_sha256={actual_sha256}, "
+                f"approved_size={source_record.size_bytes}, actual_size={actual_size})"
+            )
         try:
-            text = source.read_text(encoding="utf-8")
+            text = source_bytes.decode("utf-8")
         except UnicodeError as exc:
             raise ValueError(f"manifest source is not valid UTF-8: {source_record.path}") from exc
         secret_findings = scan_text(text)
@@ -1341,8 +1420,24 @@ def _ingest(
             vault,
             vault / "sources" / "imported-documents" / f"{source_record.source_id}{suffix}",
         )
-        prepared.append(_PreparedRecord(source_record, source, destination, text))
-    for source_record, source, destination, text in prepared:
+        prepared.append(
+            _PreparedRecord(
+                source_record,
+                source,
+                destination,
+                text,
+                source_bytes,
+                actual_sha256,
+            )
+        )
+    for (
+        source_record,
+        _source_path_obj,
+        destination,
+        text,
+        source_bytes,
+        content_sha256,
+    ) in prepared:
         classification, method = _classify(source_record.path, text)
         # AS-E-006: stamp EXT classification_rule onto SourceRecord without
         # rewriting EXT-001A precedence (consume classify_source only).
@@ -1358,7 +1453,7 @@ def _ingest(
             "classification": classification,
             "classification_method": stamped.classification_method or "",
             "source": f"../../sources/imported-documents/{destination.name}",
-            "sha256": source_record.sha256 or "",
+            "sha256": content_sha256,
             "text": text,
         }
         entry.update(_project_context(root, source_record.path, project))
@@ -1371,15 +1466,10 @@ def _ingest(
             "classification_method": stamped.classification_method or "",
         }
         projects.setdefault(project, []).append(entry)
-        source_bytes = source.read_bytes()
-        manifest_hash = canonical_source_sha256(source)
-        # A project-UUID allocation may update the marker after discovery.  Do
-        # not copy that stale-manifest mutation as a source observation; the
-        # next discovery will carry the authoritative hash.
-        source_matches_manifest = manifest_hash == str(source_record.sha256)
-        if (source_matches_manifest or source_record.path != ".atlas-project.yaml") and (
-            not destination.exists() or destination.read_bytes() != source_bytes
-        ):
+        if not destination.exists() or destination.read_bytes() != source_bytes:
+            # Promote exact verified snapshot bytes only (CODEX-SEC-002).
+            # content_sha256 was recomputed from source_bytes and matched the
+            # approved manifest digest before this plan entry was created.
             write_plan[destination] = source_bytes
     prepared_events: list[_PreparedEvent] = []
     seen_event_ids: dict[str, dict[str, str]] = {}
@@ -2034,9 +2124,14 @@ def ingest(
     manifest_path: Path,
     vault: Path,
     *,
+    authorized_source_root: Path,
     uuid_provider: ProjectUuidProvider = production_project_uuid,
 ) -> dict[str, Any]:
-    """Run ingestion under Core-local project identity guards."""
+    """Run ingestion under Core-local project identity guards.
+
+    ``authorized_source_root`` is required (CODEX-SEC-001). The manifest must not
+    self-authorize filesystem access.
+    """
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     sources = _manifest_records(manifest)
     projects = sorted(
@@ -2055,4 +2150,9 @@ def ingest(
             stack.enter_context(
                 ProjectIdentityLock(vault / ".atlas" / "identity-locks" / f"{lock_key}.lock")
             )
-        return _ingest(manifest_path, vault, uuid_provider=uuid_provider)
+        return _ingest(
+            manifest_path,
+            vault,
+            authorized_source_root=authorized_source_root,
+            uuid_provider=uuid_provider,
+        )

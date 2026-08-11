@@ -91,7 +91,17 @@ def _run_core_pipeline(source: Path, tmp_path: Path) -> Path:
     vault = tmp_path / "vault"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
     return vault
@@ -195,14 +205,39 @@ def test_unchanged_replay_is_byte_identical(tmp_path: Path) -> None:
     source = _fixture_adversarial_project(tmp_path)
     vault = _run_core_pipeline(source, tmp_path)
     manifest = tmp_path / "manifest.json"
-    # Stabilize the project marker and claim lifecycle states before measuring.
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    # Genesis may rewrite the project marker; rediscover so approved provenance
+    # matches on-disk bytes before measuring idempotent replay (SEC-002).
+    assert main(
+        ["discover", "--source", str(source), "--output", str(manifest)]
+    ) == EXIT_OK
+    # Stabilize claim lifecycle states before measuring.
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     before = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in vault.rglob("*") if path.is_file()
     }
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     after = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()

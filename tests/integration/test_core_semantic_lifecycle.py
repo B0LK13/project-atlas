@@ -37,7 +37,17 @@ def _workflow(tmp_path: Path) -> tuple[Path, Path, Path]:
     vault = tmp_path / "vault"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
     return source, manifest, vault
@@ -56,7 +66,17 @@ def test_rich_project_record_secret_report_and_human_region(tmp_path: Path) -> N
         + "\n## Human notes\n\nKeep this text.\n",
         encoding="utf-8",
     )
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert "Keep this text." in project.read_text(encoding="utf-8")
     assert source.is_dir()
 
@@ -66,7 +86,17 @@ def test_removed_source_is_retained_as_lifecycle_state(tmp_path: Path) -> None:
     (source / "ARCHITECTURE.md").unlink()
     next_manifest = tmp_path / "manifest-2.json"
     assert main(["discover", "--source", str(source), "--output", str(next_manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(next_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(next_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     state = json.loads((vault / "state" / "sources.json").read_text(encoding="utf-8"))
     assert any(item["source_change_state"] == "deleted" for item in state["sources"])
 
@@ -77,7 +107,17 @@ def test_malformed_generated_markers_fail_closed(tmp_path: Path) -> None:
     before = project.read_bytes()
     project.write_text("<!-- atlas:generated:start -->\nuser text\n", encoding="utf-8")
     malformed = project.read_bytes()
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) != EXIT_OK
     assert project.read_bytes() == malformed
     assert project.read_bytes() != before
 
@@ -89,9 +129,29 @@ def test_unchanged_ingestion_has_zero_filesystem_writes(tmp_path: Path) -> None:
         vault / "state" / "sources.json",
         vault / "generated" / "reports" / "ingestion-report.json",
     ]
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     before = {path: (path.read_bytes(), os.stat(path).st_mtime_ns) for path in tracked}
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     after = {path: (path.read_bytes(), os.stat(path).st_mtime_ns) for path in tracked}
     assert after == before
 
@@ -105,7 +165,17 @@ def test_corrupt_source_state_fails_closed_before_ingestion_writes(tmp_path: Pat
     )
     project = vault / "projects" / "semantic-fixture" / "project.md"
     before = project.read_bytes()
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) != EXIT_OK
     assert project.read_bytes() == before
 
 
@@ -116,11 +186,31 @@ def test_deleted_source_then_immediate_noop_remains_valid_and_zero_write(
     (source / "ARCHITECTURE.md").unlink()
     deleted_manifest = tmp_path / "deleted.json"
     assert main(["discover", "--source", str(source), "--output", str(deleted_manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(deleted_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     state = json.loads((vault / "state/sources.json").read_text())
     assert any(item["source_change_state"] == "deleted" for item in state["sources"])
     before = _snapshot(vault)
-    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(deleted_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert _snapshot(vault) == before
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
 
@@ -133,12 +223,42 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
         main(["discover", "--source", str(source), "--output", str(modified_manifest)])
         == EXIT_OK
     )
-    assert main(["ingest", "--manifest", str(modified_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(modified_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     modified_state = json.loads((vault / "state/sources.json").read_text())
     assert any(item["source_change_state"] == "modified" for item in modified_state["sources"])
-    assert main(["ingest", "--manifest", str(modified_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(modified_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     stable = _snapshot(vault)
-    assert main(["ingest", "--manifest", str(modified_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(modified_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert _snapshot(vault) == stable
 
     (source / "ARCHITECTURE.md").unlink()
@@ -147,7 +267,17 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
         main(["discover", "--source", str(source), "--output", str(deleted_manifest)])
         == EXIT_OK
     )
-    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(deleted_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     deleted_state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
     architecture_lineage = next(
         item["source_lineage_id"]
@@ -165,7 +295,17 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
         if item["path"] == "ARCHITECTURE.md":
             item["source_lineage_id"] = architecture_lineage
     restored_manifest.write_text(json.dumps(restored_payload), encoding="utf-8")
-    assert main(["ingest", "--manifest", str(restored_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(restored_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     restored_state = json.loads((vault / "state/sources.json").read_text())
     assert any(item["source_change_state"] == "restored" for item in restored_state["sources"])
 
@@ -176,7 +316,17 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
         == EXIT_OK
     )
     assert (
-        main(["ingest", "--manifest", str(rename_deleted), "--vault", str(vault)])
+        main(
+            [
+                "ingest",
+                "--manifest",
+                str(rename_deleted),
+                "--vault",
+                str(vault),
+                "--source",
+                str(source),
+            ]
+        )
         == EXIT_OK
     )
     (source / "ARCHITECTURE-renamed.md").write_text(
@@ -192,7 +342,17 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
         if item["path"] == "ARCHITECTURE-renamed.md":
             item["source_lineage_id"] = architecture_lineage
     renamed_manifest.write_text(json.dumps(renamed_payload), encoding="utf-8")
-    assert main(["ingest", "--manifest", str(renamed_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(renamed_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     renamed_state = json.loads((vault / "state/sources.json").read_text())
     assert any(
         item["source_change_state"] == "restored-elsewhere"
@@ -228,7 +388,17 @@ def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(
         item["lifecycle"] = legacy_value
         legacy.append(item)
     state_path.write_text(json.dumps({"schema_version": 1, "sources": legacy}), encoding="utf-8")
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     repaired = json.loads(state_path.read_text())
     assert all("lifecycle" not in item for item in repaired["sources"])
     assert all(item["compatibility_repaired"] for item in repaired["sources"])
@@ -238,7 +408,17 @@ def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(
     migration_receipts = list((vault / "receipts/source-lineage").glob("migration-*.json"))
     assert len(migration_receipts) == len(repaired["sources"])
     before_replay = _snapshot(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert _snapshot(vault) == before_replay
     assert len(list((vault / "receipts/source-lineage").glob("migration-*.json"))) == len(
         repaired["sources"]
@@ -253,7 +433,17 @@ def test_unknown_legacy_lifecycle_rejected_without_mutation(tmp_path: Path) -> N
     before = _snapshot(vault)
     state_path.write_text(json.dumps(state), encoding="utf-8")
     after_corruption = _snapshot(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_ERROR
     assert _snapshot(vault) == after_corruption
     assert before != after_corruption
 
@@ -272,7 +462,17 @@ def test_failed_genesis_leaves_marker_and_allocation_receipt_absent(tmp_path: Pa
     project.parent.mkdir(parents=True, exist_ok=True)
     project.write_text("<!-- atlas:generated:start -->\n", encoding="utf-8")
     original_marker = marker.read_bytes()
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_ERROR
     assert marker.read_bytes() == original_marker
     assert not list((vault / "receipts/source-lineage").glob("project-*.json"))
 
@@ -289,7 +489,17 @@ def test_project_directory_move_preserves_persisted_uuid(tmp_path: Path) -> None
     source.rename(moved)
     moved_manifest = tmp_path / "moved.json"
     assert main(["discover", "--source", str(moved), "--output", str(moved_manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(moved_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(moved_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     moved_marker = moved / ".atlas-project.yaml"
     assert f"project_uuid: {first_uuid}" in moved_marker.read_text(encoding="utf-8")
     registry = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
@@ -309,7 +519,17 @@ def test_same_run_file_directory_move_preserves_lineage(tmp_path: Path) -> None:
     (source / "README.md").rename(moved_dir / "README.md")
     moved_manifest = tmp_path / "file-move.json"
     assert main(["discover", "--source", str(source), "--output", str(moved_manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(moved_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(moved_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     after = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
     moved = next(item for item in after["sources"] if item["current_path"] == "docs/README.md")
     assert moved["source_lineage_id"] == original
@@ -328,7 +548,17 @@ def test_public_same_path_explicit_new_generation_uses_resolution(
     (source / "ARCHITECTURE.md").unlink()
     deleted_manifest = tmp_path / "deleted-slot.json"
     assert main(["discover", "--source", str(source), "--output", str(deleted_manifest)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(deleted_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(deleted_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     deleted_state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
     old = next(
         item for item in deleted_state["sources"] if item["source_id"] == original["source_id"]
@@ -351,7 +581,17 @@ def test_public_same_path_explicit_new_generation_uses_resolution(
         "reason": "explicit same-path new logical source",
     }
     recreated_manifest.write_text(json.dumps(recreated_payload), encoding="utf-8")
-    assert main(["ingest", "--manifest", str(recreated_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(recreated_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
     current = next(
         item
@@ -369,7 +609,17 @@ def test_public_same_path_explicit_new_generation_uses_resolution(
     assert len(list((vault / "receipts/source-lineage").glob("generation-*.json"))) == 1
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
     before = _snapshot(vault)
-    assert main(["ingest", "--manifest", str(recreated_manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(recreated_manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert _snapshot(vault) == before
 
 
@@ -384,7 +634,17 @@ def test_public_same_path_explicit_new_generation_uses_highest_retired_generatio
     (source / "ARCHITECTURE.md").unlink()
     first_deleted = tmp_path / "first-deleted.json"
     assert main(["discover", "--source", str(source), "--output", str(first_deleted)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(first_deleted), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(first_deleted),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     for content, index in ((b"# Second generation\n", 2), (b"# Third generation\n", 3)):
         (source / "ARCHITECTURE.md").write_bytes(content)
         manifest = tmp_path / f"generation-{index}.json"
@@ -406,7 +666,17 @@ def test_public_same_path_explicit_new_generation_uses_highest_retired_generatio
                     "reason": "explicit successive same-path generation",
                 }
         manifest.write_text(json.dumps(payload), encoding="utf-8")
-        assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+        assert main(
+            [
+                "ingest",
+                "--manifest",
+                str(manifest),
+                "--vault",
+                str(vault),
+                "--source",
+                str(source),
+            ]
+        ) == EXIT_OK
         state = json.loads((vault / "state/sources.json").read_text(encoding="utf-8"))
         assert max(item["lineage_generation"] for item in state["sources"]) == index
         if index == 2:
@@ -417,7 +687,17 @@ def test_public_same_path_explicit_new_generation_uses_highest_retired_generatio
                 == EXIT_OK
             )
             assert (
-                main(["ingest", "--manifest", str(retire_manifest), "--vault", str(vault)])
+                main(
+                    [
+                        "ingest",
+                        "--manifest",
+                        str(retire_manifest),
+                        "--vault",
+                        str(vault),
+                        "--source",
+                        str(source),
+                    ]
+                )
                 == EXIT_OK
             )
 
@@ -437,7 +717,7 @@ def test_independent_projects_receive_distinct_project_uuids(tmp_path: Path) -> 
     write_manifest(discover(source), manifest)
     vault = tmp_path / "vault"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert ingest(manifest, vault)["ok"] is True
+    assert ingest(manifest, vault, authorized_source_root=source)["ok"] is True
     uuids = {
         line.split(":", 1)[1].strip()
         for directory in (first, second)
@@ -465,13 +745,13 @@ def test_project_uuid_genesis_is_injected_once_and_replay_is_zero_write(tmp_path
         calls += 1
         return expected
 
-    assert ingest(manifest, vault, uuid_provider=provider)["ok"] is True
+    assert ingest(manifest, vault, authorized_source_root=source, uuid_provider=provider)["ok"] is True
     assert calls == 1
     assert f"project_uuid: {expected}" in marker.read_text(encoding="utf-8")
     allocation_receipts = list((vault / "receipts/source-lineage").glob("project-*.json"))
     assert len(allocation_receipts) == 1
     before = _snapshot(vault)
-    assert ingest(manifest, vault, uuid_provider=lambda: (_ for _ in ()).throw(AssertionError()))[
+    assert ingest(manifest, vault, authorized_source_root=source, uuid_provider=lambda: (_ for _ in ()).throw(AssertionError()))[
         "ok"
     ] is True
     assert _snapshot(vault) == before
@@ -499,7 +779,7 @@ def test_concurrent_project_initializers_have_one_uuid_receipt(tmp_path: Path) -
 
     def try_ingest(_index):
         try:
-            return ingest(manifest, vault, uuid_provider=provider)
+            return ingest(manifest, vault, authorized_source_root=source, uuid_provider=provider)
         except (ValueError, PermissionError):
             return {"ok": False}
 
@@ -585,7 +865,7 @@ def test_duplicate_active_project_uuid_fails_before_promotion(tmp_path: Path) ->
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     before = _snapshot(vault)
     with pytest.raises(ValueError, match="duplicate active project_uuid"):
-        ingest(manifest, vault)
+        ingest(manifest, vault, authorized_source_root=source)
     assert _snapshot(vault) == before
 
 
@@ -607,11 +887,31 @@ def test_malformed_marker_in_one_project_aborts_before_other_project_writes(
     vault = tmp_path / "vault"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     target = vault / "projects" / "project-b" / "project.md"
     target.write_text("<!-- atlas:generated:start -->\n", encoding="utf-8")
     imported_before = sorted((vault / "sources" / "imported-documents").iterdir())
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) != EXIT_OK
     assert sorted((vault / "sources" / "imported-documents").iterdir()) == imported_before
 
 
@@ -635,7 +935,17 @@ def test_cross_project_preflight_preserves_vault_until_marker_is_fixed(
     vault = tmp_path / "vault"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
 
     (first / "NOTES.md").write_text("# Newly added\n", encoding="utf-8")
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
@@ -647,7 +957,17 @@ def test_cross_project_preflight_preserves_vault_until_marker_is_fixed(
         if path.is_file()
     }
 
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) != EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) != EXIT_OK
     after = {
         path.relative_to(vault): path.read_bytes()
         for path in vault.rglob("*")
@@ -660,7 +980,17 @@ def test_cross_project_preflight_preserves_vault_until_marker_is_fixed(
         + "<!-- atlas:generated:end -->\n",
         encoding="utf-8",
     )
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     notes_record = next(
         item
         for item in json.loads(manifest.read_text())["sources"]

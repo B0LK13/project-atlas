@@ -15,7 +15,17 @@ def _run_workflow(source: Path, tmp_path: Path) -> dict[str, object]:
     vault = tmp_path / "vault"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
     return json.loads(

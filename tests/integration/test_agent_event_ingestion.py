@@ -136,7 +136,17 @@ def test_public_event_package_workflow_and_projections(tmp_path: Path) -> None:
     assert len(payload["agent_events"]) == 5
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
     activity = vault / "projects" / "integrated-atlas-project" / "activity.md"
@@ -182,7 +192,17 @@ def test_pending_malformed_and_traversal_packages_are_explicitly_quarantined(
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     quarantine = vault / "quarantine" / "agent-events" / "index.json"
     assert quarantine.is_file()
     text = quarantine.read_text(encoding="utf-8")
@@ -214,7 +234,17 @@ def test_conflicting_duplicate_event_id_is_not_canonical(tmp_path: Path) -> None
     assert sum(item["status"] == "conflicting" for item in payload["agent_events"]) == 2
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert "conflicting duplicate" in (
         vault / "quarantine" / "agent-events" / "index.json"
     ).read_text(encoding="utf-8")
@@ -227,17 +257,47 @@ def test_repeated_identical_package_replay_is_idempotent(tmp_path: Path) -> None
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     before = {
         path.relative_to(vault).as_posix(): (path.read_bytes(), path.stat().st_mtime_ns)
         for path in vault.rglob("*")
         if path.is_file()
     }
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
     after = {
@@ -266,7 +326,17 @@ def test_hash_mismatch_is_quarantined_at_ingestion_boundary(tmp_path: Path) -> N
     )
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     quarantine = vault / "quarantine" / "agent-events" / "index.json"
     assert "event.md hash mismatch" in quarantine.read_text(encoding="utf-8")
     assert "AE-implementation" not in (
@@ -282,7 +352,17 @@ def test_wrong_vault_identity_is_quarantined_without_canonical_event_write(
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault, vault_id="wrong-vault")
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     quarantine = vault / "quarantine" / "agent-events" / "index.json"
     assert "Vault identity does not match" in quarantine.read_text(encoding="utf-8")
     activity = vault / "projects" / "integrated-atlas-project" / "activity.md"
@@ -300,7 +380,17 @@ def test_handcrafted_event_inventory_project_traversal_cannot_escape_vault(
     manifest.write_text(json.dumps(payload), encoding="utf-8")
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     assert not (tmp_path / "outside-event-state").exists()
     assert (vault / "quarantine" / "agent-events" / "index.json").is_file()
 
@@ -310,7 +400,17 @@ def test_missing_vault_identity_keeps_events_out_of_canonical_projection(tmp_pat
     manifest = tmp_path / "manifest.json"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     quarantine = vault / "quarantine" / "agent-events" / "index.json"
     assert "target Vault identity is unavailable" in quarantine.read_text(encoding="utf-8")
     activity = vault / "projects" / "integrated-atlas-project" / "activity.md"
@@ -334,7 +434,17 @@ def test_skill_hash_mismatch_is_quarantined_against_trusted_policy(tmp_path: Pat
     event_json.write_text(json.dumps(payload), encoding="utf-8")
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     _write_vault_identity(vault)
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     quarantine = vault / "quarantine" / "agent-events" / "index.json"
     assert "skill binding does not match trusted skill policy" in quarantine.read_text(
         encoding="utf-8"
