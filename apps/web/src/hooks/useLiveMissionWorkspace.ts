@@ -1,26 +1,18 @@
 import { useEffect, useState } from "react";
 import type { LensModeId } from "../components/LensModeSwitcher";
+import {
+  LiveApiAuthError,
+  liveApiDemoOnly,
+  liveApiFetch,
+} from "../api/liveApi";
 import type { DataSource } from "../types";
 
 /**
  * AS-2.1-WEB-MISSION-WORKSPACE-UX — LIVE-first lens loader.
  * Explicit LIVE / DEMO / FIXTURE modes; never invents PILOT estate rows.
  * Exclusion: apps/web only — does not edit API server or shared schema roots.
+ * SEC-009: LIVE path uses liveApiFetch (Bearer READ token).
  */
-
-function envFlag(name: string): string | undefined {
-  const env = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
-  return env?.[name];
-}
-
-function apiBase(): string {
-  return (envFlag("VITE_ATLAS_API_BASE") ?? "http://127.0.0.1:8765").replace(/\/$/, "");
-}
-
-function demoOnlyEnv(): boolean {
-  const raw = (envFlag("VITE_ATLAS_DEMO_ONLY") ?? "").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "yes";
-}
 
 export interface LensView {
   rollup?: string;
@@ -82,7 +74,7 @@ async function loadLens(
   view: LensView;
   source: DataSource;
 }> {
-  const effective: LensModeId = demoOnlyEnv() && mode === "live" ? "demo" : mode;
+  const effective: LensModeId = liveApiDemoOnly() && mode === "live" ? "demo" : mode;
 
   if (effective === "fixture") {
     const stub = await fetchJson(fixtureUrl);
@@ -96,7 +88,7 @@ async function loadLens(
 
   // LIVE-first: no silent demo fallback — unavailable stays unknown.
   try {
-    const resp = await fetch(`${apiBase()}${path}`);
+    const resp = await liveApiFetch(path);
     if (!resp.ok) {
       throw new Error(`LIVE_API HTTP ${resp.status}`);
     }
@@ -114,6 +106,9 @@ async function loadLens(
       source: "live_api",
     };
   } catch (err: unknown) {
+    if (err instanceof LiveApiAuthError) {
+      throw err;
+    }
     const detail = err instanceof Error ? err.message : "LIVE_API unavailable";
     throw new Error(
       `${detail} — choose DEMO or FIXTURE mode (no silent invent)`,

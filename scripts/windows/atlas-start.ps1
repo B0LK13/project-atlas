@@ -609,7 +609,27 @@ $apiProc = Start-TrackedProcess -Name "live-api" -FilePath $atlasExe `
 [void]$processRecords.Add($apiProc)
 Write-Host "  LIVE_API pid=$($apiProc.pid)"
 
-$apiHealth = Wait-AtlasHttpOk -Url "http://127.0.0.1:$ApiPort/v1/meta" -TimeoutSec 60
+# SEC-009: capture per-launch read token from api-serve stderr (never print value).
+$apiReadToken = Wait-AtlasApiReadToken -StderrLogPath $apiProc.log_stderr -TimeoutSec 45
+if ([string]::IsNullOrWhiteSpace($apiReadToken)) {
+    Write-AtlasProductError `
+        -What "LIVE_API started but did not publish ATLAS_API_READ_TOKEN." `
+        -Cause "api-serve stderr did not contain ATLAS_API_READ_TOKEN= within timeout (SEC-009 session mint)." `
+        -Action "Inspect $($apiProc.log_stderr). Confirm tip CLI includes SEC-009 session auth. Do not disable auth or hardcode tokens." `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+        -LogPath $errLog
+    exit 1
+}
+$tokenPath = Join-Path $stateDir "live-api.read.token"
+Set-Content -LiteralPath $tokenPath -Value $apiReadToken -NoNewline -Encoding ascii
+try {
+    icacls $tokenPath /inheritance:r | Out-Null
+    icacls $tokenPath /grant:r "${env:USERNAME}:(R)" | Out-Null
+} catch {
+    # Best-effort ACL; token remains local under state dir (not the repo).
+}
+
+$apiHealth = Wait-AtlasHttpOk -Url "http://127.0.0.1:$ApiPort/v1/meta" -TimeoutSec 60 -BearerToken $apiReadToken
 if (-not $apiHealth.Ok) {
     $apiStderr = ""
     if (Test-Path -LiteralPath $apiProc.log_stderr) {
@@ -648,6 +668,9 @@ if (-not (Test-AtlasProcessOwnsPort -RootPid $apiProc.pid -Port $ApiPort -HostNa
 }
 Write-Host "OK  API health http://127.0.0.1:$ApiPort/v1/meta (owned by started process)"
 $env:VITE_ATLAS_API_BASE = "http://127.0.0.1:$ApiPort"
+# Per-launch read Bearer for Vite web child only (not committed; not in URL).
+$env:VITE_ATLAS_API_TOKEN = $apiReadToken
+Write-Host "OK  LIVE_API session read token captured for Web (VITE_ATLAS_API_TOKEN; value not logged)"
 
 $webUrl = "http://127.0.0.1:$WebPort/"
 
