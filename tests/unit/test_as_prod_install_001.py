@@ -145,6 +145,9 @@ def test_as_prod_install_001_common_product_error_helper() -> None:
     assert "Wait-AtlasHttpOk" in text
     assert "Test-AtlasPortFree" in text
     assert "Test-AtlasProcessOwnsPort" in text
+    # PROD-ADV-009: ownership must walk npm -> vite grandchildren, not direct children only.
+    assert "Get-AtlasDescendantProcessIds" in text
+    assert "MaxDepth" in text
     # Invoke-AtlasPython must not leak pip stdout into the returned exit code
     # (PowerShell assignment capture → false install failure).
     assert "Isolate exit code from stdout/stderr" in text
