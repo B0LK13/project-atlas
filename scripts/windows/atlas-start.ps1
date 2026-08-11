@@ -527,7 +527,7 @@ New-Item -ItemType Directory -Force -Path $stateDir, $logDir | Out-Null
 $sessionNonce = New-AtlasSessionNonce
 Write-Host "Session nonce: $sessionNonce"
 if (Test-Path -LiteralPath $pidFile) {
-    Write-Host "Prior productization state found — stopping verified prior session (orphan cleanup)..."
+    Write-Host "Prior productization state found - stopping verified prior session (orphan cleanup)..."
     try {
         $prior = Get-Content -Raw -LiteralPath $pidFile | ConvertFrom-Json
         $priorNonce = ""
@@ -892,7 +892,7 @@ catch {
 }
 finally {
     if (-not $atlasStartCompleted) {
-        Write-Host "SEC-026: start incomplete — cleaning verified session processes..." -ForegroundColor Yellow
+        Write-Host "SEC-026: start incomplete - cleaning verified session processes..." -ForegroundColor Yellow
         $cleanup = Invoke-AtlasStartAbortCleanup -ProcessRecords $processRecords -SessionNonce $sessionNonce -PidFile $pidFile
         if ($cleanup.ORPHAN_PROCESS_COUNT -ne 0) {
             Write-Host "SEC-026 FAIL: ORPHAN_PROCESS_COUNT=$($cleanup.ORPHAN_PROCESS_COUNT)" -ForegroundColor Red
