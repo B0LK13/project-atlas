@@ -145,6 +145,11 @@ def test_as_prod_install_001_common_product_error_helper() -> None:
     assert "Wait-AtlasHttpOk" in text
     assert "Test-AtlasPortFree" in text
     assert "Test-AtlasProcessOwnsPort" in text
+    # Invoke-AtlasPython must not leak pip stdout into the returned exit code
+    # (PowerShell assignment capture → false install failure).
+    assert "Isolate exit code from stdout/stderr" in text
+    assert "[int]$LASTEXITCODE" in text
+    assert "Write-Host" in text
 
 
 def test_as_prod_install_001_docs_include_adv_findings_when_present() -> None:
