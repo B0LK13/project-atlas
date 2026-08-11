@@ -70,7 +70,8 @@ def test_live_sched_dispatch_cli_no_self_grant(
     monkeypatch.delenv(CLI_ELEVATE_CAPS_ENV, raising=False)
     vault = tmp_path / "v"
     vault.mkdir()
-    with caplog.at_level(logging.ERROR):
+    # project_atlas configure_logging sets propagate=False; capture that namespace.
+    with caplog.at_level(logging.ERROR, logger="project_atlas"):
         code = main(
             [
                 "live",
