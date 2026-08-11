@@ -853,7 +853,7 @@ if (-not $SkipWeb) {
     if (-not (Test-AtlasProcessOwnsPort -RootPid $webProc.pid -Port $WebPort -HostName "127.0.0.1")) {
         Write-AtlasProductError `
             -What "Web port $WebPort is open but not owned by the started web process." `
-            -Cause "TCP connect succeeded, yet Get-NetTCPConnection Listen owner is not pid $($webProc.pid) or its child (foreign/stale listener)." `
+            -Cause "TCP connect succeeded, yet Get-NetTCPConnection Listen owner is not pid $($webProc.pid) or a descendant in its process tree (foreign/stale listener)." `
             -Action "Stop foreign listeners on $WebPort, then retry with a free -WebPort. Do not claim STRANGER_CAN_START_ATLAS from a borrowed web health response." `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1 -WebPort FREE_PORT" `
             -LogPath $errLog

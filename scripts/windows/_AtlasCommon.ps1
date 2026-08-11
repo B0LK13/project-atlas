@@ -345,10 +345,51 @@ function Test-AtlasPortFree {
     return $true
 }
 
+function Get-AtlasDescendantProcessIds {
+    <#
+    .SYNOPSIS
+      BFS process-tree walk under $RootPid (PROD-ADV-009: npm run dev -> vite grandchild).
+      Caps breadth/depth so a runaway tree cannot hang the launcher.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][int]$RootPid,
+        [int]$MaxDepth = 8,
+        [int]$MaxNodes = 256
+    )
+    $found = New-Object "System.Collections.Generic.List[int]"
+    $seen = New-Object "System.Collections.Generic.HashSet[int]"
+    $queue = New-Object "System.Collections.Generic.Queue[object]"
+    $queue.Enqueue(@{ Pid = $RootPid; Depth = 0 })
+    [void]$seen.Add($RootPid)
+    while ($queue.Count -gt 0 -and $found.Count -lt $MaxNodes) {
+        $node = $queue.Dequeue()
+        $curPid = [int]$node.Pid
+        $depth = [int]$node.Depth
+        if ($curPid -ne $RootPid) {
+            [void]$found.Add($curPid)
+        }
+        if ($depth -ge $MaxDepth) {
+            continue
+        }
+        try {
+            Get-CimInstance Win32_Process -Filter "ParentProcessId=$curPid" -ErrorAction SilentlyContinue |
+                ForEach-Object {
+                    $child = [int]$_.ProcessId
+                    if ($seen.Add($child)) {
+                        $queue.Enqueue(@{ Pid = $child; Depth = ($depth + 1) })
+                    }
+                }
+        }
+        catch { }
+    }
+    return @($found.ToArray())
+}
+
 function Test-AtlasProcessOwnsPort {
     <#
     .SYNOPSIS
-      True when the Listen owner for Host:Port is $RootPid or a descendant (Windows atlas.exe -> python child).
+      True when the Listen owner for Host:Port is $RootPid or a descendant
+      (Windows: atlas.exe -> python; npm run dev -> node/vite grandchildren — PROD-ADV-009).
     #>
     param(
         [Parameter(Mandatory = $true)][int]$RootPid,
@@ -363,11 +404,9 @@ function Test-AtlasProcessOwnsPort {
     }
     $allowed = New-Object "System.Collections.Generic.HashSet[int]"
     [void]$allowed.Add($RootPid)
-    try {
-        Get-CimInstance Win32_Process -Filter "ParentProcessId=$RootPid" -ErrorAction SilentlyContinue |
-            ForEach-Object { [void]$allowed.Add([int]$_.ProcessId) }
+    foreach ($desc in @(Get-AtlasDescendantProcessIds -RootPid $RootPid)) {
+        [void]$allowed.Add([int]$desc)
     }
-    catch { }
 
     foreach ($c in $listeners) {
         $addr = [string]$c.LocalAddress
@@ -650,16 +689,17 @@ function Stop-AtlasVerifiedProcess {
         }
     }
 
-    # Children: only after parent identity verified. Kill direct children of this pid.
+    # Descendants: only after parent identity verified (PROD-ADV-010: npm->vite depth).
+    # Stop deepest first so parents do not leave re-parented listeners.
     try {
-        Get-CimInstance Win32_Process -Filter "ParentProcessId=$procId" -ErrorAction SilentlyContinue |
-            ForEach-Object {
-                $childPid = [int]$_.ProcessId
-                if (-not $Quiet) {
-                    Write-Host "  stopping verified-parent child pid=$childPid $($_.Name)"
-                }
-                Stop-Process -Id $childPid -Force -ErrorAction SilentlyContinue
+        $descendants = @(Get-AtlasDescendantProcessIds -RootPid $procId)
+        [array]::Reverse($descendants)
+        foreach ($childPid in $descendants) {
+            if (-not $Quiet) {
+                Write-Host "  stopping verified-parent descendant pid=$childPid"
             }
+            Stop-Process -Id $childPid -Force -ErrorAction SilentlyContinue
+        }
     }
     catch { }
 
