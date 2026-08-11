@@ -257,6 +257,7 @@ function Ensure-AtlasTipLocalVenv {
     .SYNOPSIS
       ENV-ISO-002: ensure tip-local .venv exists; never mutate a shared global env.
       Uses a bootstrap interpreter (py -3.12 / PATH python) only to create .venv.
+      Refuses junction/reparse .venv whose final target escapes RepoRoot (CLAUDE-ADV005-002).
     #>
     param(
         [Parameter(Mandatory = $true)]$BootstrapPython,
@@ -265,11 +266,24 @@ function Ensure-AtlasTipLocalVenv {
         [switch]$SkipInstall
     )
     $tipPyPath = Get-AtlasTipVenvPythonPath -RepoRoot $RepoRoot
+    $venvDir = Join-Path $RepoRoot ".venv"
     if (Test-Path -LiteralPath $tipPyPath) {
         $existing = Get-AtlasPythonCommand -RepoRoot $RepoRoot
         if ($existing -and (Test-AtlasInterpreterIsTipVenv -Python $existing -RepoRoot $RepoRoot)) {
             Write-Host "OK  tip-local interpreter: $($existing.Label)"
             return $existing
+        }
+        # Lexical tip python exists but final FS target is outside RepoRoot (junction bypass).
+        if (-not (Test-AtlasPathUnderRoot -Path $tipPyPath -Root $RepoRoot)) {
+            $finalHint = $tipPyPath
+            try { $finalHint = Resolve-AtlasFinalPath -Path $tipPyPath } catch { }
+            Write-AtlasProductError `
+                -What "Refusing tip .venv whose final filesystem target escapes RepoRoot (CLAUDE-ADV005-002 / ENV-ISO-002)." `
+                -Cause "Lexical path '$tipPyPath' exists under tip, but final path '$finalHint' is not under '$RepoRoot' (junction/reparse escape)." `
+                -Action "Remove the junction/reparse at $venvDir and create a real tip-local venv: py -3.12 -m venv .venv ; .\.venv\Scripts\python.exe -m pip install -e `".[dev]`" from $RepoRoot." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+                -LogPath $ErrLog
+            exit 1
         }
     }
 
@@ -284,7 +298,6 @@ function Ensure-AtlasTipLocalVenv {
     }
 
     Write-Host "Configuring: tip-local .venv via $($BootstrapPython.Label) -m venv .venv (no global editable rewrite)..."
-    $venvDir = Join-Path $RepoRoot ".venv"
     $code = Invoke-AtlasPython -Python $BootstrapPython -WorkingDirectory $RepoRoot -Arguments @(
         "-m", "venv", ".venv"
     )
@@ -365,12 +378,22 @@ function Ensure-AtlasEditableInstall {
 
     # Prefer atlas beside the tip-venv interpreter (Resolve-AtlasScriptsDir is venv-aware).
     # Require tip-compatible CLI: `atlas live` + editable Location + import under RepoRoot (I03/ENV-ISO).
+    # CLAUDE-ADV005-011: never bind foreign PATH atlas.exe for live serve — tip .venv Scripts only.
     $scriptsDir = Resolve-AtlasScriptsDir -Python $Python
     $hint = Join-Path $scriptsDir "atlas.exe"
     $needsInstall = $true
     $incompatDetail = $null
 
     if (Test-Path -LiteralPath $hint) {
+        if (-not (Test-AtlasPathUnderRoot -Path $hint -Root $RepoRoot)) {
+            Write-AtlasProductError `
+                -What "Refusing atlas.exe whose final filesystem target escapes RepoRoot (CLAUDE-ADV005-002)." `
+                -Cause "Candidate '$hint' final path is not under '$RepoRoot'." `
+                -Action "Remove junction/reparse under tip .venv and reinstall: .\.venv\Scripts\python.exe -m pip install -e `".[dev]`" from $RepoRoot." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+                -LogPath $ErrLog
+            exit 1
+        }
         $compat = Test-AtlasCliTipCompatible -AtlasExe $hint -Python $Python -RepoRoot $RepoRoot
         if ($compat.Ok) {
             Write-Host "OK  atlas tip-compatible for $($Python.Label): $hint"
@@ -393,7 +416,7 @@ function Ensure-AtlasEditableInstall {
     else {
         $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
         if ($atlasCmd) {
-            Write-Host "NOTE: PATH atlas $($atlasCmd.Source) is not beside $($Python.Label); will install into tip .venv only." -ForegroundColor DarkYellow
+            Write-Host "NOTE: PATH atlas $($atlasCmd.Source) is not tip .venv Scripts; refusing foreign PATH bind (CLAUDE-ADV005-011). Will install into tip .venv only." -ForegroundColor DarkYellow
         }
     }
 
@@ -422,6 +445,15 @@ function Ensure-AtlasEditableInstall {
     }
 
     if (Test-Path -LiteralPath $hint) {
+        if (-not (Test-AtlasPathUnderRoot -Path $hint -Root $RepoRoot)) {
+            Write-AtlasProductError `
+                -What "Refusing atlas.exe whose final filesystem target escapes RepoRoot (CLAUDE-ADV005-002)." `
+                -Cause "Post-install candidate '$hint' final path is not under '$RepoRoot'." `
+                -Action "Remove junction/reparse under tip .venv and reinstall from $RepoRoot." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+                -LogPath $ErrLog
+            exit 1
+        }
         $compat = Test-AtlasCliTipCompatible -AtlasExe $hint -Python $Python -RepoRoot $RepoRoot
         if ($compat.Ok) {
             Write-Host "OK  atlas tip-compatible at $hint"
@@ -435,24 +467,13 @@ function Ensure-AtlasEditableInstall {
             -LogPath $ErrLog
         exit 1
     }
+
+    # CLAUDE-ADV005-011: fail closed — never fall back to foreign PATH atlas.exe for live serve.
     $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
-    if ($atlasCmd) {
-        $compat = Test-AtlasCliTipCompatible -AtlasExe $atlasCmd.Source -Python $Python -RepoRoot $RepoRoot
-        if ($compat.Ok) {
-            Write-Host "OK  atlas tip-compatible: $($atlasCmd.Source)"
-            return $atlasCmd.Source
-        }
-        Write-AtlasProductError `
-            -What "Install finished but PATH atlas is still tip-incompatible." `
-            -Cause "$($compat.Detail)" `
-            -Action "Prefer tip .venv Scripts ahead of global PATH. Confirm Editable project location is under $RepoRoot and PYTHONPATH has no foreign project_atlas shadow." `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
-            -LogPath $ErrLog
-        exit 1
-    }
+    $pathDetail = if ($atlasCmd) { " PATH atlas is '$($atlasCmd.Source)' (foreign; refused)." } else { "" }
     Write-AtlasProductError `
-        -What "Install finished but 'atlas' is still not discoverable." `
-        -Cause "pip reported success but no atlas.exe was found under $scriptsDir or on PATH." `
+        -What "Install finished but tip .venv Scripts\atlas.exe is still missing (refusing PATH fallback)." `
+        -Cause "pip reported success but no atlas.exe was found under $scriptsDir.$pathDetail" `
         -Action "Confirm tip .venv Scripts contains atlas.exe. Do not install into a shared global Python. Confirm: .\.venv\Scripts\python.exe -m pip show project-atlas" `
         -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
         -LogPath $ErrLog
