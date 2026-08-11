@@ -43,6 +43,10 @@ class VaultRetriever:
         """Look up records by an indexed exact or prefix value."""
         if kind not in self._INDEX_KEYS:
             raise ValueError(f"unsupported retrieval kind: {kind}")
+        # Empty / whitespace-only queries fail closed: prefix="" would match every
+        # indexed key and is not a deterministic lexical retrieval contract (AS-RET-001).
+        if not value or not value.strip():
+            raise ValueError("retrieval value must be non-empty")
         index = self._load_index(kind)
         matching_keys = [
             key
