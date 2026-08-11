@@ -616,9 +616,20 @@ function Stop-AtlasVerifiedSession {
             continue
         }
         $result = Stop-AtlasVerifiedProcess -Record $procInfo -Quiet:$Quiet
-        if ($result.FailClosed) { $failClosed++ }
-        if ($result.Orphan) { $orphan++ }
-        elseif ($result.Stopped) {
+        $fc = $false
+        $orph = $false
+        $stopped = $false
+        if ($null -ne $result) {
+            $fcProp = $result.PSObject.Properties["FailClosed"]
+            if ($null -ne $fcProp -and $fcProp.Value) { $fc = [bool]$fcProp.Value }
+            $orProp = $result.PSObject.Properties["Orphan"]
+            if ($null -ne $orProp -and $orProp.Value) { $orph = [bool]$orProp.Value }
+            $stProp = $result.PSObject.Properties["Stopped"]
+            if ($null -ne $stProp -and $stProp.Value) { $stopped = [bool]$stProp.Value }
+        }
+        if ($fc) { $failClosed++ }
+        if ($orph) { $orphan++ }
+        elseif ($stopped) {
             Start-Sleep -Milliseconds 100
             if (Get-Process -Id ([int]$procInfo.pid) -ErrorAction SilentlyContinue) {
                 $orphan++
