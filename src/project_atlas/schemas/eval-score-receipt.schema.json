@@ -60,8 +60,24 @@
           "mode": { "type": "string", "enum": ["exact", "prefix"] },
           "matched": { "type": "boolean" },
           "expected_norm": { "type": "string" },
-          "predicted_norm": { "type": "string" }
-        }
+          "predicted_norm": { "type": "string" },
+          "expected_redacted": { "type": "boolean", "const": true }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "visibility": { "const": "holdout" } },
+              "required": ["visibility"]
+            },
+            "then": {
+              "required": ["expected_redacted"],
+              "properties": {
+                "expected_norm": { "const": "" },
+                "expected_redacted": { "const": true }
+              }
+            }
+          }
+        ]
       }
     },
     "config_roots": {

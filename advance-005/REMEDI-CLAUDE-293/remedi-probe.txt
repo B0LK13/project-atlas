@@ -1,0 +1,27 @@
+=== IDENTITY ===
+REPO=D:\atlas-worktrees\remedi-claude-293
+HEAD_SHA=b0d4413cc5591a9cc789101db95b3f2cd3621afe
+
+=== 010: git-tracked holdout bodies ===
+git_tracked_holdouts=fixtures/eval/holdouts/hidden/ACCESS.md;fixtures/eval/holdouts/hidden/cases/EV-HOLD-001-exact.json;fixtures/eval/holdouts/hidden/cases/EV-HOLD-002-prefix.json
+holdout_case_has_expected_field=False
+holdout_plaintext_expected=[absent]
+
+=== 004: role-not-trust ===
+load_cases_scoring_without_cap=['EV-PUB-001', 'EV-PUB-002']
+load_cases_scoring_with_cap=['EV-HOLD-001', 'EV-HOLD-002', 'EV-PUB-001', 'EV-PUB-002']
+holdout_expected_loaded=conflict-detected
+
+=== 003: receipt redaction ===
+holdout_rows_expected_norm=['', '']
+holdout_rows_expected_redacted=[True, True]
+ARTIFACT_CONTAINS_holdout_expected_norm=False
+ARTIFACT_CONTAINS_conflict-detected_in_expected_norm=False
+
+=== BOUNDARY SUMMARY ===
+PLAINTEXT_EXPECTED_IN_HOLDOUT_FILES=NO
+PLAINTEXT_EXPECTED_IN_GENERATED_RECEIPT=NO
+SCORING_CAPABILITY_GATE=YES
+HIDDEN_HOLDOUT_ISOLATION=PARTIAL_TOWARD_PASS
+EVALUATOR_READY_FOR_AUTOLAB=NO
+ATLAS_OPT_WAKE_GATE=CLOSED
