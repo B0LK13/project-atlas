@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+# CODEX-SEC-004/014/017/018: single canonical implementation lives in paths.py.
+from atlas_contracts.paths import (
+    ensure_under_root,
+    join_under_root,
+    resolve_under_root,
+    safe_relative_component,
+    safe_relative_path,
+)
 
-
-def safe_relative_component(value: str, *, label: str) -> str:
-    """Validate one logical identifier before it is used in a path."""
-    if not value or value in {".", ".."} or "/" in value or "\\" in value:
-        raise ValueError(f"unsafe {label}: {value!r}")
-    if Path(value).is_absolute() or "\x00" in value:
-        raise ValueError(f"unsafe {label}: {value!r}")
-    return value
+__all__ = [
+    "ensure_under_root",
+    "join_under_root",
+    "resolve_under_root",
+    "safe_relative_component",
+    "safe_relative_path",
+]
