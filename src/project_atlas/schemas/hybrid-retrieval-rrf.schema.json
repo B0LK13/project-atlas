@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/hybrid-retrieval-rrf.schema.json",
+  "title": "Hybrid Retrieval RRF Fusion Report",
+  "description": "AS-2.0-RET-HYBRID-001 P2 Lexical/BM25/RRF fusion over AS-RET-001. Semantic slot DISABLED. Derived ≠ embeddings ≠ authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "artifact_kind",
+    "query",
+    "slots",
+    "fusion",
+    "results",
+    "result_count",
+    "truncated",
+    "semantic_enabled",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.0-RET-HYBRID-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "artifact_kind": { "const": "hybrid-retrieval-rrf" },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "mode", "cap"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "source",
+            "claim",
+            "concept",
+            "conflict",
+            "authority",
+            "provenance"
+          ]
+        },
+        "value": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["exact", "prefix"] },
+        "cap": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lexical_exact", "lexical_prefix", "bm25", "semantic"],
+      "properties": {
+        "lexical_exact": { "$ref": "#/$defs/counted_slot" },
+        "lexical_prefix": { "$ref": "#/$defs/counted_slot" },
+        "bm25": { "$ref": "#/$defs/counted_slot" },
+        "semantic": { "$ref": "#/$defs/semantic_slot" }
+      }
+    },
+    "fusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "k", "lists"],
+      "properties": {
+        "method": { "const": "rrf" },
+        "k": { "const": 60 },
+        "lists": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "enum": ["lexical_exact", "lexical_prefix", "bm25"]
+          }
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "record_type",
+          "record_id",
+          "rrf_score",
+          "ranks",
+          "authority_level"
+        ],
+        "properties": {
+          "record_type": { "type": "string", "minLength": 1 },
+          "record_id": { "type": "string", "minLength": 1 },
+          "rrf_score": { "type": "number" },
+          "ranks": {
+            "type": "object",
+            "additionalProperties": { "type": "integer", "minimum": 1 }
+          },
+          "bm25_score": { "type": ["number", "null"] },
+          "authority_level": { "const": "derived" }
+        }
+      }
+    },
+    "result_count": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" },
+    "semantic_enabled": { "const": false },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "llm_authority"],
+      "properties": {
+        "level": { "const": "derived" },
+        "llm_authority": { "const": false },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "HYBRID PLAN ≠ EMBEDDINGS SERVICE / ≠ AUTHORITY"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  },
+  "$defs": {
+    "counted_slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status", "hit_count"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "status": { "enum": ["active", "idle"] },
+        "hit_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "semantic_slot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "status", "reason"],
+      "properties": {
+        "enabled": { "const": false },
+        "status": { "const": "disabled" },
+        "reason": {
+          "const": "semantic-slot-disabled-by-default-no-embeddings-service"
+        }
+      }
+    }
+  }
+}

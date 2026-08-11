@@ -81,6 +81,20 @@ class VaultRetriever:
         """Explicit alias for :meth:`lookup` for callers building query APIs."""
         return self.lookup(kind, value, prefix=prefix)
 
+    def bm25_corpus(self, kind: str) -> list[tuple[str, str]]:
+        """Return deterministic ``(record_id, document_text)`` pairs for BM25.
+
+        Document text is derived from the record id plus string leaves in the
+        record (sorted walk). Derived / regenerable — not Layer B authority.
+        """
+        if kind not in self._INDEX_KEYS:
+            raise ValueError(f"unsupported retrieval kind: {kind}")
+        records = self._records(kind)
+        corpus: list[tuple[str, str]] = []
+        for record_id in sorted(records):
+            corpus.append((record_id, _record_document_text(record_id, records[record_id])))
+        return corpus
+
     def _load_index(self, kind: str) -> dict[str, list[str]]:
         index_name = {
             "provenance": "provenance",
@@ -152,3 +166,25 @@ class VaultRetriever:
         if not path.is_file():
             return default
         return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _record_document_text(record_id: str, record: dict[str, Any]) -> str:
+    """Flatten record string leaves into a stable BM25 document (NFR-001)."""
+    parts: list[str] = [record_id]
+
+    def _walk(node: Any) -> None:
+        if isinstance(node, str):
+            token = node.strip()
+            if token:
+                parts.append(token)
+            return
+        if isinstance(node, dict):
+            for key in sorted(node):
+                _walk(node[key])
+            return
+        if isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(record)
+    return " ".join(parts)
