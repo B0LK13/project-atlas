@@ -57,8 +57,9 @@ def test_openai_import_rejects_secret_payload(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
     dirty = tmp_path / "dirty.md"
+    secret = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
     dirty.write_text(
-        "# dirty\n\n```text\nUser: api_key = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'\n"
+        f"# dirty\n\n```text\nUser: api_key = '{secret}'\n"
         "Assistant: redacted\n```\n",
         encoding="utf-8",
     )
@@ -71,6 +72,21 @@ def test_openai_import_rejects_secret_payload(tmp_path: Path) -> None:
     assert report["status"] == "parsed-rejected-secret"
     assert report["secret_scan"]["findings_count"] >= 1
     assert report["live_api"] is False
+    # CODEX-SEC-006: raw secret must be ABSENT from receipt + vault artifacts.
+    assert secret not in json.dumps(report, sort_keys=True)
+    receipt_blob = (
+        vault / "generated" / "ops" / "openai-import-fixtures" / "dirty-1.json"
+    ).read_text(encoding="utf-8")
+    assert secret not in receipt_blob
+    assert all(turn["text"] == "[redacted]" for turn in report["turns"])
+    qblob = (
+        vault
+        / "generated"
+        / "ops"
+        / "provider-quarantine"
+        / "oai-import-dirty-1.json"
+    ).read_text(encoding="utf-8")
+    assert secret not in qblob
 
 
 def test_openai_import_parse_only_skips_quarantine(tmp_path: Path) -> None:

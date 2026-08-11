@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -72,16 +73,24 @@ def test_quarantine_rejects_when_adapters_disabled(tmp_path: Path) -> None:
 def test_quarantine_rejects_secrets_when_enabled(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
+    secret = "ABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
     report = quarantine_provider_output(
         vault,
         envelope_id="env-2",
         adapter_id="openai-assist",
-        payload_text="api_key = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ012345'",
+        payload_text=f"api_key = '{secret}'",
         adapters_enabled=True,
     )
     assert report["status"] == "rejected-secret"
     assert report["secret_scan"]["findings_count"] >= 1
     assert "api-key-assignment" in report["secret_scan"]["finding_kinds"]
+    # CODEX-SEC-006: metadata-only evidence; raw secret ABSENT.
+    assert secret not in json.dumps(report, sort_keys=True)
+    blob = (
+        vault / "generated" / "ops" / "provider-quarantine" / "env-2.json"
+    ).read_text(encoding="utf-8")
+    assert secret not in blob
+    assert "payload_text" not in report
 
 
 def test_quarantine_accepts_clean_payload_when_enabled(tmp_path: Path) -> None:

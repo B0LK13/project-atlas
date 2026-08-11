@@ -48,7 +48,7 @@ from project_atlas.lineage import (
 )
 from project_atlas.quarantine import scan_text as scan_injection
 from project_atlas.schema import validate_record
-from project_atlas.secrets import scan_text
+from project_atlas.secrets import redact_text, scan_text
 from project_atlas.semantic_compiler import compile_project_record, render_project_record
 from project_atlas.source_identity import (
     ProjectIdentityLock,
@@ -626,9 +626,11 @@ def _event_link(project: str, event_id: str) -> str:
 def _event_line(entry: dict[str, str]) -> str:
     package_link = f"[{entry['event_id']}]({entry['source']})"
     work_package = entry.get("work_package_id") or "unknown"
+    # CODEX-SEC-006 / NFR-004: summaries are redacted before persistence/render.
+    summary = redact_text(entry.get("summary") or "")
     return (
         f"- {package_link} — `{entry['event_type']}` — session `{entry['session_id']}` — "
-        f"work package `{work_package}` — {entry['summary']}"
+        f"work package `{work_package}` — {summary}"
     )
 
 
@@ -1521,6 +1523,33 @@ def _ingest(
                 raise PackageValidationError(
                     "event package skill binding does not match trusted skill policy"
                 )
+            # CODEX-SEC-006: DETECT → ABORT → metadata-only. Never persist raw
+            # secret-bearing agent-event packages or summaries.
+            event_probe = package.envelope.event
+            secret_blobs = [event_probe.summary]
+            event_md_path = root / package.package_path / "event.md"
+            if event_md_path.is_file():
+                with suppress(OSError, UnicodeError):
+                    secret_blobs.append(event_md_path.read_text(encoding="utf-8"))
+            event_secret_findings = [
+                finding
+                for blob in secret_blobs
+                for finding in scan_text(blob)
+            ]
+            if event_secret_findings:
+                kinds = sorted({item.pattern for item in event_secret_findings})
+                state_record["status"] = "rejected-secret"
+                state_record["errors"] = [
+                    "secret findings in agent event; raw content not persisted"
+                ]
+                state_record["secret_scan"] = {
+                    "findings_count": len(event_secret_findings),
+                    "content_redacted": True,
+                    "finding_kinds": kinds,
+                }
+                event_state.setdefault(state_project, []).append(state_record)
+                quarantined_events.append(state_record)
+                continue
         except (PackageValidationError, OSError, ValueError) as exc:
             state_record["status"] = "rejected"
             state_record["errors"] = [str(exc)]
@@ -1562,7 +1591,7 @@ def _ingest(
             "event_type": event.event_type.value,
             "session_id": event.session_id,
             "work_package_id": event.work_package_id or "",
-            "summary": event.summary,
+            "summary": redact_text(event.summary),
             "timestamp": event.timestamp.isoformat(),
             "source": _event_link(package.project_id, package.event_id),
             "receipt_id": package.receipt.receipt_id,

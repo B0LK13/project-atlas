@@ -155,6 +155,7 @@ def quarantine_provider_output(
         finding_kinds = sorted({item.pattern for item in findings})
         status = "rejected-secret" if findings_count else "quarantined"
 
+    # CODEX-SEC-006: envelope is metadata + digest only — never embed payload_text.
     digest = hashlib.sha256(payload_text.encode("utf-8")).hexdigest()
     payload: dict[str, Any] = {
         "schema_version": 1,

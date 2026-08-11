@@ -21,7 +21,7 @@ from project_atlas.compat_anchor import (
 )
 from project_atlas.provider_adapters import quarantine_provider_output
 from project_atlas.schema import SchemaValidationError, validate_record
-from project_atlas.secrets import scan_text
+from project_atlas.secrets import REDACTED_PLACEHOLDER, scan_text
 
 PACKAGE_ID = "AS-2.0-OAI-IMPORT-001"
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
@@ -231,10 +231,14 @@ def build_openai_import_fixture_receipt(
     findings = scan_text(payload_text)
     findings_count = len(findings)
     finding_kinds = sorted({item.pattern for item in findings})
+    # CODEX-SEC-006: DETECT → ABORT/REDACT → metadata-only. Never persist raw
+    # turns after a secret hit (anti-pattern: persist raw + content_redacted=true).
+    secret_rejected = findings_count > 0
 
     quarantine_envelope: dict[str, Any] | None = None
     if quarantine:
         # Consume AS-2.0-PROV-001 quarantine only — do not dual-own PROV surfaces.
+        # Quarantine helper persists metadata + payload digest only (never raw text).
         envelope = quarantine_provider_output(
             vault,
             envelope_id=f"oai-import-{rid}",
@@ -255,11 +259,12 @@ def build_openai_import_fixture_receipt(
         "parsed-rejected-secret",
         "parsed-only",
     ]
-    if findings_count or (
+    if secret_rejected or (
         quarantine_envelope is not None
         and quarantine_envelope["status"] == "rejected-secret"
     ):
         status = "parsed-rejected-secret"
+        secret_rejected = True
     elif (
         quarantine_envelope is not None
         and quarantine_envelope["status"] == "quarantined"
@@ -267,6 +272,13 @@ def build_openai_import_fixture_receipt(
         status = "parsed-quarantined"
     else:
         status = "parsed-only"
+
+    if secret_rejected:
+        persisted_turns: list[dict[str, Any]] = [
+            {"role": turn.role, "text": REDACTED_PLACEHOLDER} for turn in turns
+        ]
+    else:
+        persisted_turns = [turn.as_dict() for turn in turns]
 
     receipt: dict[str, Any] = {
         "schema_version": 1,
@@ -278,7 +290,7 @@ def build_openai_import_fixture_receipt(
         "live_api": False,
         "sample_path": str(sample.as_posix()),
         "turn_count": len(turns),
-        "turns": [turn.as_dict() for turn in turns],
+        "turns": persisted_turns,
         "payload_sha256": digest,
         "secret_scan": {
             "findings_count": findings_count,
