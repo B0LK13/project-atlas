@@ -1,4 +1,4 @@
-"""AS-2.2-RUNTIME-001 — Hybrid Retrieval + Context Compiler P0 (read-only).
+"""AS-2.2-RUNTIME-001 — Hybrid Retrieval + Context Compiler (read-only deepen).
 
 Production runtime (not PREP): deterministic multi-slot retrieval fusion and a
 budgeted context package with provenance pointers. Never invents estate facts,
@@ -7,6 +7,14 @@ never enables semantic/LLM authority, never mutates Layer B.
 Truth boundaries:
   HYBRID RETRIEVAL ≠ AUTHORITY / ≠ EMBEDDINGS
   CONTEXT COMPILER ≠ ESTATE FACTS / ≠ PILOT / ≠ LLM AUTHORITY
+
+Input hygiene (P1 deepen / RUNTIME-ADV remedi):
+  - Malformed candidate rows (non-dict / missing ids) are skipped, counted.
+  - Vault-absent invented records fail closed (RT-ADV-001) — never package
+    invented IDs under ``estate_facts_invented=false``.
+  - Empty / missing provenance after sanitize fails closed (RT-ADV-004).
+  - Provenance elems must be ``{kind, ref}`` with safe relative refs; others drop.
+  - Duplicate ``entry_id`` values collapse before budget (first-wins by sort).
 """
 
 from __future__ import annotations
@@ -28,6 +36,11 @@ TRUTH_COMPILER = "CONTEXT COMPILER ≠ ESTATE FACTS / ≠ PILOT / ≠ LLM AUTHOR
 DEFAULT_CAP = 20
 MAX_CAP = 100
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+_PROV_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$")
+_PROV_KINDS = frozenset(
+    {"source", "receipt", "index", "claim", "concept", "other"}
+)
+_GRAPH_NOTE = "GRAPH ≠ AUTHORITY — summary only; never promotes winners"
 
 RetrievalMode = Literal["exact", "prefix"]
 SUPPORTED_KINDS = frozenset(
@@ -37,6 +50,59 @@ SUPPORTED_KINDS = frozenset(
 
 class Runtime22Error(ValueError):
     """Fail-closed AS-2.2-RUNTIME-001 error."""
+
+
+def _require_int_in_range(label: str, value: object, lo: int, hi: int) -> int:
+    """Reject bool/float/str; require inclusive int range (fail-closed)."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise Runtime22Error(f"{label}-invalid:{value!r}")
+    if value < lo or value > hi:
+        raise Runtime22Error(f"{label}-invalid:{value}")
+    return value
+
+
+def _sanitize_provenance(raw: object) -> tuple[list[dict[str, str]], int]:
+    """Keep only safe ``{kind, ref}`` pointers; count dropped elems.
+
+    Non-list input → ``([], 0)``; callers must fail closed when empty
+    after sanitize (RT-ADV-004). Never invent replacement pointers.
+    """
+    if not isinstance(raw, list):
+        return [], 0
+    cleaned: list[dict[str, str]] = []
+    dropped = 0
+    for item in raw:
+        if not isinstance(item, dict):
+            dropped += 1
+            continue
+        kind = str(item.get("kind") or "").strip()
+        ref = str(item.get("ref") or "").strip()
+        if kind not in _PROV_KINDS:
+            dropped += 1
+            continue
+        if (
+            not ref
+            or ".." in ref
+            or ref.startswith(("/", "\\"))
+            or not _PROV_REF_RE.fullmatch(ref)
+        ):
+            dropped += 1
+            continue
+        cleaned.append({"kind": kind, "ref": ref})
+    return cleaned, dropped
+
+
+def _record_present_in_vault(
+    retriever: VaultRetriever, record_type: str, record_id: str
+) -> bool:
+    """True when ``record_id`` resolves via AS-RET-001 lexical indexes."""
+    if record_type not in SUPPORTED_KINDS:
+        return False
+    try:
+        hits = retriever.lookup(record_type, record_id, prefix=False)
+    except ValueError:
+        return False
+    return any(hit.record_id == record_id for hit in hits)
 
 
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -63,6 +129,7 @@ def hybrid_retrieve(
     """Run P0 hybrid retrieval: lexical (+ optional derived graph summary).
 
     Semantic slot remains disabled; requesting it fails closed.
+    Graph narrative fields are fixed constants (GRAPH ≠ AUTHORITY).
     """
     require_compatibility_anchor()
     if enable_semantic:
@@ -81,8 +148,7 @@ def hybrid_retrieve(
     if mode not in ("exact", "prefix"):
         raise Runtime22Error(f"hybrid-mode-invalid:{mode}")
 
-    if cap < 1 or cap > MAX_CAP:
-        raise Runtime22Error(f"hybrid-cap-invalid:{cap}")
+    cap_n = _require_int_in_range("hybrid-cap", cap, 1, MAX_CAP)
 
     vault_path = vault.expanduser().resolve()
     retriever = VaultRetriever(vault_path)
@@ -92,25 +158,28 @@ def hybrid_retrieve(
 
     candidates: list[dict[str, Any]] = []
     for hit in lexical_hits:
-            provenance_ptrs: list[dict[str, str]] = [
-                {
-                    "kind": "index",
-                    "ref": f"generated/indexes/{hit.record_type}",
-                }
-            ]
-            for item in hit.provenance[:3]:
-                ref = item.get("ref") or item.get("source_id") or item.get("path")
-                if ref:
-                    provenance_ptrs.append({"kind": "source", "ref": str(ref)})
-            candidates.append(
-                {
-                    "record_type": hit.record_type,
-                    "record_id": hit.record_id,
-                    "slot": slot_name,
-                    "authority_level": "derived",
-                    "provenance": provenance_ptrs,
-                }
-            )
+        provenance_ptrs: list[dict[str, str]] = [
+            {
+                "kind": "index",
+                "ref": f"generated/indexes/{hit.record_type}",
+            }
+        ]
+        for item in hit.provenance[:3]:
+            ref = item.get("ref") or item.get("source_id") or item.get("path")
+            if ref:
+                safe, _dropped = _sanitize_provenance(
+                    [{"kind": "source", "ref": str(ref)}]
+                )
+                provenance_ptrs.extend(safe)
+        candidates.append(
+            {
+                "record_type": hit.record_type,
+                "record_id": hit.record_id,
+                "slot": slot_name,
+                "authority_level": "derived",
+                "provenance": provenance_ptrs,
+            }
+        )
 
     # Deterministic fuse: sort + dedupe by (record_type, record_id), then cap.
     fused: dict[tuple[str, str], dict[str, Any]] = {}
@@ -119,8 +188,8 @@ def hybrid_retrieve(
         if key not in fused:
             fused[key] = item
     ordered = [fused[k] for k in sorted(fused.keys())]
-    truncated = len(ordered) > cap
-    ordered = ordered[:cap]
+    truncated = len(ordered) > cap_n
+    ordered = ordered[:cap_n]
 
     graph_slot: dict[str, Any] = {
         "enabled": include_graph_slot,
@@ -129,12 +198,19 @@ def hybrid_retrieve(
     }
     if include_graph_slot:
         summary = impact_graph_summary(vault_path)
+        # Counts only — never echo attacker-controlled note/truth_boundary.
+        safe_summary = {
+            "available": bool(summary.get("available")),
+            "node_count": int(summary.get("node_count") or 0),
+            "edge_count": int(summary.get("edge_count") or 0),
+            "graph_authority": False,
+        }
         graph_slot = {
             "enabled": True,
-            "status": "active" if summary.get("available") else "absent",
+            "status": "active" if safe_summary["available"] else "absent",
             "graph_authority": False,
-            "summary": summary,
-            "note": "GRAPH ≠ AUTHORITY — summary only; never promotes winners",
+            "summary": safe_summary,
+            "note": _GRAPH_NOTE,
         }
 
     return {
@@ -146,7 +222,7 @@ def hybrid_retrieve(
             "kind": kind_token,
             "value": query_value,
             "mode": mode,
-            "cap": cap,
+            "cap": cap_n,
         },
         "slots": {
             "lexical_exact": {
@@ -188,8 +264,10 @@ def compile_context(
 ) -> dict[str, Any]:
     """Compile a budgeted context package from hybrid candidates (P0).
 
-    Pipeline (fixed): candidates → authority stamp → budget → package.
-    Invent flags / unknown profiles / semantic elevation fail closed.
+    Pipeline (fixed): candidates → vault presence → provenance gate →
+    authority stamp → budget → package.
+    Invented vault-absent IDs and empty provenance fail closed
+    (RT-ADV-001 / RT-ADV-004). Unknown profiles / semantic elevation fail closed.
     """
     require_compatibility_anchor()
     pack_token = pack_id.strip()
@@ -200,22 +278,48 @@ def compile_context(
     if profile != "p0-readonly":
         raise Runtime22Error(f"context-compiler-profile-unknown:{profile}")
 
-    if budget < 1 or budget > MAX_CAP:
-        raise Runtime22Error(f"context-budget-invalid:{budget}")
+    budget_n = _require_int_in_range("context-budget", budget, 1, MAX_CAP)
 
     if not isinstance(candidates, list):
         raise Runtime22Error("context-candidates-invalid")
 
+    vault_path = vault.expanduser().resolve()
+    retriever = VaultRetriever(vault_path)
+
     selected: list[dict[str, Any]] = []
+    skipped_malformed = 0
+    provenance_elems_dropped = 0
     for raw in candidates:
         if not isinstance(raw, dict):
+            skipped_malformed += 1
             continue
         record_type = str(raw.get("record_type") or "").strip()
         record_id = str(raw.get("record_id") or "").strip()
         if not record_type or not record_id:
+            skipped_malformed += 1
             continue
         if raw.get("authority_level") not in (None, "derived", "none"):
             raise Runtime22Error("context-compiler-authority-spoof")
+        # RT-ADV-001: refuse invented vault-absent records (never stamp honesty lie).
+        if not _record_present_in_vault(retriever, record_type, record_id):
+            raise Runtime22Error(
+                f"context-compiler-record-absent:{record_type}:{record_id}"
+            )
+        # RT-ADV-004: refuse missing/empty provenance (no invented backfill).
+        if "provenance" not in raw or raw.get("provenance") is None:
+            raise Runtime22Error(
+                f"context-compiler-provenance-missing:{record_type}:{record_id}"
+            )
+        if not isinstance(raw.get("provenance"), list):
+            raise Runtime22Error(
+                f"context-compiler-provenance-invalid:{record_type}:{record_id}"
+            )
+        prov, dropped = _sanitize_provenance(raw.get("provenance"))
+        provenance_elems_dropped += dropped
+        if not prov:
+            raise Runtime22Error(
+                f"context-compiler-provenance-empty:{record_type}:{record_id}"
+            )
         selected.append(
             {
                 "entry_id": f"{record_type}:{record_id}",
@@ -223,15 +327,21 @@ def compile_context(
                 "record_id": record_id,
                 "slot": str(raw.get("slot") or "unknown"),
                 "authority_level": "derived",
-                "provenance": raw.get("provenance")
-                if isinstance(raw.get("provenance"), list)
-                else [],
+                "provenance": prov,
             }
         )
 
+    # Deterministic dedupe by entry_id before budget (sorted first-wins).
     selected.sort(key=lambda e: e["entry_id"])
-    truncated = len(selected) > budget
-    selected = selected[:budget]
+    fused_entries: dict[str, dict[str, Any]] = {}
+    for entry in selected:
+        eid = str(entry["entry_id"])
+        if eid not in fused_entries:
+            fused_entries[eid] = entry
+    duplicates_collapsed = len(selected) - len(fused_entries)
+    ordered = [fused_entries[k] for k in sorted(fused_entries.keys())]
+    truncated = len(ordered) > budget_n
+    ordered = ordered[:budget_n]
 
     package: dict[str, Any] = {
         "schema_version": 1,
@@ -240,12 +350,20 @@ def compile_context(
         "compat_snapshot_id": SNAPSHOT_ID,
         "pack_id": pack_token,
         "profile_id": profile,
-        "budget": budget,
-        "entries": selected,
-        "entry_count": len(selected),
+        "budget": budget_n,
+        "entries": ordered,
+        "entry_count": len(ordered),
         "truncated": truncated,
+        "input_hygiene": {
+            "skipped_malformed": skipped_malformed,
+            "duplicates_collapsed": duplicates_collapsed,
+            "provenance_elems_dropped": provenance_elems_dropped,
+            "empty_provenance_policy": "refuse",
+        },
         "pipeline": [
             "candidates",
+            "vault_presence",
+            "provenance_gate",
             "authority_stamp",
             "budget",
             "package",
@@ -255,20 +373,19 @@ def compile_context(
             "llm_authority": False,
             "pilot": False,
             "estate_facts_invented": False,
+            "candidates_caller_supplied": True,
         },
         "truth_boundary": TRUTH_COMPILER,
         "generated": {"by": "project-atlas"},
     }
 
     if write:
-        out = (
-            vault.expanduser().resolve()
-            / "generated"
-            / "context-compiler"
-            / f"{pack_token}-context-compiler.json"
-        )
+        rel = f"generated/context-compiler/{pack_token}-context-compiler.json"
+        out = vault_path / Path(rel)
+        # On-disk artifact omits output_path (host-portable bytes).
         _atomic_write_json(out, package)
-        package = {**package, "output_path": str(out.as_posix())}
+        # Return uses vault-relative POSIX path only (not host-absolute).
+        package = {**package, "output_path": rel}
 
     return package
 
