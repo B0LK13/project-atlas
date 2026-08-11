@@ -73,7 +73,7 @@ journey that was previously captured only as a manual screen recording
 
 ```bash
 cd apps/web
-npm run test:e2e            # starts/reuses the Vite dev server on :5173
+npm run test:e2e            # builds + vite preview on :4173 (override: PLAYWRIGHT_WEB_PORT)
 ```
 
 Playwright's Chromium is provisioned by the environment install (`npx playwright
