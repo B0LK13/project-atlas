@@ -2,11 +2,11 @@
   "artifacts": {
     "apps/web/package-lock.json": {
       "bytes": 63465,
-      "sha256": "5a3d5b96d85bb90902dc07ca859c34d3a0012ad460c2111abdb549b5f6687f07"
+      "sha256": "8f2d644fd339a93be3664110ec002a3554920b8132893a4dd455ac53ec61d839"
     },
     "apps/web/package.json": {
       "bytes": 749,
-      "sha256": "7725257e407eb58357338415cf261aa2a020b6723b263a0edad43b0b3246022d"
+      "sha256": "ef7652e1e527591d1faa201c26728035b36c753b6fd1f04e84cc5881a9e4a828"
     },
     "pyproject.toml": {
       "bytes": 1735,
