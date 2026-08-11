@@ -52,3 +52,11 @@ powershell -NoProfile -File scripts\windows\atlas-start.ps1 -ApiPort 8765 -WebPo
 ## Limitations
 
 See [LIMITATIONS.md](./LIMITATIONS.md). This path does not ship MSI/winget/signing and must not be labeled RELEASE or PILOT PASS.
+
+## SEC-009 Web ↔ LIVE_API credential (local-only)
+
+tlas-start.ps1 captures the per-launch ATLAS_API_READ_TOKEN printed by
+tlas live api-serve on stderr and propagates it to the Vite process as
+VITE_ATLAS_API_TOKEN (READ scope only). The token is local to that launch —
+not committed, not placed in URLs, and not a privileged credential. Auth stays
+required; do not disable SEC-009 for demos.

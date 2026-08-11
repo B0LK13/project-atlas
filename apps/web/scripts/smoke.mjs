@@ -280,6 +280,67 @@ for (const needle of ["LensModeId", "fixture", "demo", "live", "no silent invent
   }
 }
 
+
+// E2E-003 / SEC-009: Web ↔ LIVE_API Bearer helper (no hardcoded tokens)
+const liveApiPath = join(root, "src/api/liveApi.ts");
+if (!existsSync(liveApiPath)) {
+  console.error("E2E-003 smoke FAIL — missing src/api/liveApi.ts");
+  process.exit(1);
+}
+const liveApi = readFileSync(liveApiPath, "utf8");
+for (const needle of [
+  "VITE_ATLAS_API_TOKEN",
+  "Authorization",
+  "Bearer",
+  "liveApiFetch",
+  "LiveApiAuthError",
+  "Do not disable auth",
+]) {
+  if (!liveApi.includes(needle)) {
+    console.error(`E2E-003 smoke FAIL — liveApi.ts missing ${needle}`);
+    process.exit(1);
+  }
+}
+if (/Bearer\s+[A-Za-z0-9_\-]{16,}/.test(liveApi)) {
+  console.error("E2E-003 smoke FAIL — liveApi.ts must not hardcode Bearer secrets");
+  process.exit(1);
+}
+for (const hookRel of [
+  "src/hooks/useLiveGraph.ts",
+  "src/hooks/useLiveKnowledge.ts",
+  "src/hooks/useLiveMissionWorkspace.ts",
+  "src/hooks/useOpsReceipts.ts",
+  "src/hooks/useReadStatus.ts",
+]) {
+  const body = readFileSync(join(root, hookRel), "utf8");
+  if (!body.includes("liveApiFetch") && !body.includes('../api/liveApi')) {
+    console.error(`E2E-003 smoke FAIL — ${hookRel} must use liveApi helper`);
+    process.exit(1);
+  }
+  if (/Authorization:\s*`?Bearer\s+[A-Za-z0-9_\-]{16,}/.test(body)) {
+    console.error(`E2E-003 smoke FAIL — ${hookRel} must not hardcode Bearer secrets`);
+    process.exit(1);
+  }
+}
+const startPs1 = readFileSync(
+  join(repoRoot, "scripts", "windows", "atlas-start.ps1"),
+  "utf8",
+);
+for (const needle of [
+  "ATLAS_API_READ_TOKEN",
+  "VITE_ATLAS_API_TOKEN",
+  "Wait-AtlasApiReadToken",
+]) {
+  if (!startPs1.includes(needle)) {
+    console.error(`E2E-003 smoke FAIL — atlas-start.ps1 missing ${needle}`);
+    process.exit(1);
+  }
+}
+if (startPs1.includes("VITE_ATLAS_API_PRIVILEGED") || startPs1.includes("PRIVILEGED_TOKEN=$")) {
+  console.error("E2E-003 smoke FAIL — privileged token must not be placed in VITE_");
+  process.exit(1);
+}
+
 console.log(
   "AS-WEB-ACCEPT-004 + AS-2.1-WEB-MISSION-WORKSPACE-UX smoke PASS — LIVE/DEMO/FIXTURE modes visible (ACCEPTED=YES; no PILOT invent)",
 );
