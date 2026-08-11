@@ -2579,7 +2579,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             except (ApiServerError, AuthzError, CompatAnchorError, OSError, ValueError) as exc:
                 _log.error("live api-serve failed: %s", exc)
                 return EXIT_ERROR
-            _log.info("LIVE_API listening on %s:%s", args.host, args.port)
+            creds = server.atlas_session.credentials
+            # SEC-009: print per-launch credentials to stderr once (not logs).
+            print(
+                f"LIVE_API listening on {args.host}:{args.port}",
+                file=sys.stderr,
+            )
+            print(
+                "SEC-009 session auth required: Authorization: Bearer <token>",
+                file=sys.stderr,
+            )
+            print(f"ATLAS_API_READ_TOKEN={creds.read_token}", file=sys.stderr)
+            if creds.privileged_token:
+                print(
+                    f"ATLAS_API_PRIVILEGED_TOKEN={creds.privileged_token}",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "ATLAS_API_PRIVILEGED_TOKEN=(none; start with elevated "
+                    "operator for privileged actions)",
+                    file=sys.stderr,
+                )
             try:
                 server.serve_forever()
             except KeyboardInterrupt:

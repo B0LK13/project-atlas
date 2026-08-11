@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import serve_api
+from project_atlas.api_server import serve_api, session_credentials
 from project_atlas.authz import elevated_operator
 from project_atlas.autonomy_l3 import (
     AutonomyL3Error,
@@ -53,10 +53,13 @@ def test_api_ops_receipts_route(tmp_path: Path) -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        with urlopen(f"http://{host}:{port}/v1/meta", timeout=2) as resp:
+        auth = session_credentials(server).auth_headers()
+        with urlopen(Request(f"http://{host}:{port}/v1/meta", headers=auth), timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
         assert meta["ops_receipts"] is True
-        with urlopen(f"http://{host}:{port}/v1/ops/receipts", timeout=2) as resp:
+        with urlopen(
+            Request(f"http://{host}:{port}/v1/ops/receipts", headers=auth), timeout=2
+        ) as resp:
             inv = json.loads(resp.read().decode("utf-8"))
         assert inv["completion_claimed"] is False
     finally:

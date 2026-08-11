@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import serve_api
+from project_atlas.api_server import serve_api, session_credentials
 from project_atlas.app_service import open_app_service
 from project_atlas.authz import AuthzError, default_operator, elevated_operator
 from project_atlas.mcp_server import McpServerError, invoke_mcp_tool
@@ -45,7 +45,9 @@ def test_api_server_health(tmp_path: Path) -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        with urlopen(f"http://{host}:{port}/v1/meta", timeout=2) as resp:
+        hdrs = session_credentials(server).auth_headers()
+        req = Request(f"http://{host}:{port}/v1/meta", headers=hdrs)
+        with urlopen(req, timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
         assert meta["live_api"] is True
         assert meta["write_enabled"] is False

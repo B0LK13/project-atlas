@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import threading
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import serve_api
+from project_atlas.api_server import serve_api, session_credentials
 from project_atlas.authz import elevated_operator
 from project_atlas.autonomy_l3 import (
     AutonomyL3Error,
@@ -42,14 +42,19 @@ def test_api_mission_workspace_routes(tmp_path: Path) -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        with urlopen(f"http://{host}:{port}/v1/meta", timeout=2) as resp:
+        auth = session_credentials(server).auth_headers()
+        with urlopen(Request(f"http://{host}:{port}/v1/meta", headers=auth), timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
         assert meta["mission_live"] is True
         assert meta["workspace_live"] is True
-        with urlopen(f"http://{host}:{port}/v1/mission", timeout=2) as resp:
+        with urlopen(
+            Request(f"http://{host}:{port}/v1/mission", headers=auth), timeout=2
+        ) as resp:
             mission = json.loads(resp.read().decode("utf-8"))
         assert mission["pilot_estate_rows"] == []
-        with urlopen(f"http://{host}:{port}/v1/workspace", timeout=2) as resp:
+        with urlopen(
+            Request(f"http://{host}:{port}/v1/workspace", headers=auth), timeout=2
+        ) as resp:
             workspace = json.loads(resp.read().decode("utf-8"))
         assert workspace["authentic_pilot"] is False
     finally:

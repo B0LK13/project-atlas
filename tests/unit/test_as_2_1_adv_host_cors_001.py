@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from project_atlas.api_server import CORS_ORIGIN, serve_api
+from project_atlas.api_server import CORS_ORIGIN, serve_api, session_credentials
 
 
 def test_adv_options_cors_headers(tmp_path: Path) -> None:
@@ -32,6 +32,9 @@ def test_adv_options_cors_headers(tmp_path: Path) -> None:
             methods = resp.headers.get("Access-Control-Allow-Methods", "")
             assert "GET" in methods
             assert "POST" in methods
+            allow_headers = resp.headers.get("Access-Control-Allow-Headers", "")
+            assert "Authorization" in allow_headers
+            assert "Content-Type" in allow_headers
     finally:
         server.shutdown()
 
@@ -65,9 +68,10 @@ def test_adv_local_host_with_port_allowed(tmp_path: Path) -> None:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+        auth = session_credentials(server).auth_headers()
         req = Request(
             f"http://{host}:{port}/v1/meta",
-            headers={"Host": f"127.0.0.1:{port}"},
+            headers={"Host": f"127.0.0.1:{port}", **auth},
         )
         with urlopen(req, timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
