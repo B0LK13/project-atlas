@@ -32,10 +32,11 @@ def check(root: Path, session_id: str) -> dict[str, Any]:
     if not state.get("preflight", {}).get("ok"):
         errors.append("preflight did not pass")
     readiness = state.get("preflight", {}).get("readiness", {})
-    if readiness.get("authorized") is False:
+    # SEC-015: missing readiness authorization defaults to DENY, never legacy True.
+    if readiness.get("authorized") is not True:
         errors.append("adapter rehearsal readiness is not authorized")
     acknowledged = bool(ack and ack.get("sha256") == state.get("skill", {}).get("sha256"))
-    adapter_ready = state.get("preflight", {}).get("readiness", {}).get("authorized", True)
+    adapter_ready = readiness.get("authorized") is True
     result = {"ok": not errors, "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"), "skill": {**state.get("skill", {}), "resolved": True, "hash_verified": acknowledged, "acknowledged": acknowledged}, "context": {"project_resolved": bool(state.get("session", {}).get("project_id")), "vault_verified": bool(state.get("vault", {}).get("vault_id")), "session_registered": True, "adapter_ready": adapter_ready}, "commands": commands, "pipeline": {"capture": True, "normalize": True, "verify": True, "route": True, "receipt": True, "postflight": True}, "offline": {"spool_available": bool(state.get("preflight", {}).get("spool", {}).get("available"))}, "capability": {"level": level, "name": LEVELS[level], "declared": sorted(declared)}, "ready": not errors, "errors": errors}
     state["capability"] = result
     session.save(root, state)

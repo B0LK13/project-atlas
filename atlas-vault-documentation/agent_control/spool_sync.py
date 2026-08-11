@@ -25,7 +25,7 @@ def synchronize(spool_root: Path, vault_root: Path, mda_command: str) -> dict[st
     state = json.loads(state_files[0].read_text(encoding="utf-8"))
     if state.get("skill_acknowledgement", {}).get("sha256") != state.get("skill", {}).get("sha256"):
         raise ValueError("spool skill acknowledgement mismatch")
-    if state.get("preflight", {}).get("readiness", {}).get("authorized") is False:
+    if state.get("preflight", {}).get("readiness", {}).get("authorized") is not True:
         raise ValueError("spool adapter readiness is not authorized")
     if not events:
         existing_path = vault_root / ".atlas" / "sessions" / state_files[0].name

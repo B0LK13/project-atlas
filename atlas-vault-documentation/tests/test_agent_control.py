@@ -17,11 +17,41 @@ from agent_control import agent_identity, bootstrap, capability, event_client, p
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _readiness_registry(path: Path, *, skill_version: str, skill_sha256: str, adapters: tuple[str, ...] = ("generic-cli-v1", "ide-agent-v1", "background-agent-v1", "remote-agent-v1")) -> Path:
+    lines = ["schema_version: 1", "adapters:"]
+    for adapter_id in adapters:
+        lines.extend(
+            [
+                f"  {adapter_id}:",
+                f"    skill_version: {skill_version}",
+                f"    skill_sha256: {skill_sha256}",
+                "    rehearsal_status: passed",
+                "    revoked: false",
+            ]
+        )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
 def _project_and_vault(tmp_path: Path) -> tuple[Path, Path]:
     project = tmp_path / "project"
     vault = tmp_path / "vault"
     (project / ".atlas").mkdir(parents=True)
-    (project / ".atlas" / "project.yaml").write_text("schema_version: 1\nproject:\n  id: control-fixture\n  name: Control Fixture\ndocumentation:\n  require_receipt: true\n  strict: true\nvault:\n  required_vault_id: atlas-main\n", encoding="utf-8")
+    skill = skill_loader.load(ROOT / "skill")
+    registry = _readiness_registry(tmp_path / "readiness.yaml", skill_version=skill.version, skill_sha256=skill.sha256)
+    (project / ".atlas" / "project.yaml").write_text(
+        "schema_version: 1\n"
+        "project:\n"
+        "  id: control-fixture\n"
+        "  name: Control Fixture\n"
+        "documentation:\n"
+        "  require_receipt: true\n"
+        "  strict: true\n"
+        f"  readiness_registry: {registry}\n"
+        "vault:\n"
+        "  required_vault_id: atlas-main\n",
+        encoding="utf-8",
+    )
     (vault / ".atlas").mkdir(parents=True)
     (vault / ".atlas" / "vault.json").write_text(json.dumps({"schema_version": 1, "vault_id": "atlas-main", "vault_uuid": "fixture-uuid"}), encoding="utf-8")
     return project, vault
@@ -61,6 +91,9 @@ def test_managed_session_requires_validation_and_completion_then_issues_receipt(
     final_state["pipeline"].update(normalized=5, verified=5, routed=5)
     receipt = receipt_gate.issue(vault, final_state)
     assert receipt["skill"]["verified"] is True
+    assert receipt["is_authority"] is False
+    assert receipt["receipt_is_authority"] is False
+    assert receipt["authority_role"] == "evidence-only"
     assert (vault / ".atlas" / "receipts" / f"{receipt['receipt_id']}.json").is_file()
 
 
