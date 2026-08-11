@@ -44,6 +44,12 @@ _START_TOKENS = (
     "STRANGER_CAN_START_ATLAS",
     "Test-AtlasPortFree",
     "Test-AtlasProcessOwnsPort",
+    "Test-AtlasCliTipCompatible",
+    "Ensure-AtlasEditableInstall",
+    "Editable project location",
+    "missing_live_subcommand",
+    "tip-incompatible",
+    "live --help",
 )
 
 _PREFLIGHT_TOKENS = (
@@ -96,7 +102,30 @@ def test_as_prod_install_001_start_script_contract() -> None:
     assert "@playwright" not in lowered
     assert "playwright install" not in lowered
     assert "npm install playwright" not in lowered
-    assert "without Playwright" in text or "does **not** add Playwright" in text or "Playwright is intentionally not" in text
+    assert (
+        "without Playwright" in text
+        or "does **not** add Playwright" in text
+        or "Playwright is intentionally not" in text
+    )
+
+
+def test_as_prod_install_001_stale_cli_guard_contract() -> None:
+    """I03 CRITICAL: refuse stale atlas.exe; reinstall from RepoRoot; name missing live."""
+    text = (_SCRIPTS / "atlas-start.ps1").read_text(encoding="utf-8")
+    assert "function Test-AtlasCliTipCompatible" in text
+    assert "function Get-AtlasPipShowField" in text
+    assert "function Install-AtlasEditableFromRepo" in text
+    assert "editable_wrong_worktree" in text
+    assert "not_editable_from_repo" in text
+    assert "tip-incompatible" in text
+    assert "invalid choice" in text
+    # SkipInstall must surface structured product error for incompatible CLI.
+    assert "SkipInstall prevents repair" in text
+    # Must not short-circuit on any existing atlas.exe without tip checks.
+    assert "OK  atlas matched to" not in text
+    assert "OK  atlas tip-compatible" in text
+    # Health-path product error must name missing live, not only meta connect.
+    assert "lacks the 'live' subcommand" in text
 
 
 def test_as_prod_install_001_preflight_script_contract() -> None:
