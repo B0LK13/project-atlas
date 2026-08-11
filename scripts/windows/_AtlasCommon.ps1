@@ -327,3 +327,379 @@ function Test-AtlasProcessOwnsPort {
     }
     return $false
 }
+
+# --- SEC-025 / SEC-026 / SEC-029: process identity + loopback bind proofs ---
+
+function New-AtlasSessionNonce {
+    <#
+    .SYNOPSIS
+      Opaque per-launch session nonce (SEC-025/026). Bound into every process record.
+    #>
+    return [guid]::NewGuid().ToString("N")
+}
+
+function Get-AtlasListeningPortsForPid {
+    param([Parameter(Mandatory = $true)][int]$ProcessId)
+    $ports = New-Object "System.Collections.Generic.List[int]"
+    try {
+        $listeners = @(Get-NetTCPConnection -OwningProcess $ProcessId -State Listen -ErrorAction SilentlyContinue)
+    }
+    catch {
+        $listeners = @()
+    }
+    foreach ($c in $listeners) {
+        $p = [int]$c.LocalPort
+        if (-not $ports.Contains($p)) { [void]$ports.Add($p) }
+    }
+    return @($ports.ToArray() | Sort-Object)
+}
+
+function Get-AtlasLiveProcessIdentity {
+    <#
+    .SYNOPSIS
+      Snapshot live Windows process fields used for SEC-025 verify-before-kill.
+    #>
+    param([Parameter(Mandatory = $true)][int]$ProcessId)
+    try {
+        $proc = Get-Process -Id $ProcessId -ErrorAction Stop
+    }
+    catch {
+        return $null
+    }
+    $cim = $null
+    try {
+        $cim = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId" -ErrorAction SilentlyContinue
+    }
+    catch { }
+    $creation = $null
+    if ($proc.StartTime) {
+        $creation = $proc.StartTime.ToUniversalTime().ToString("o")
+    }
+    elseif ($cim -and $cim.CreationDate) {
+        $creation = ([System.Management.ManagementDateTimeConverter]::ToDateTime($cim.CreationDate)).ToUniversalTime().ToString("o")
+    }
+    $exe = $null
+    if ($cim -and $cim.ExecutablePath) { $exe = [string]$cim.ExecutablePath }
+    elseif ($proc.Path) { $exe = [string]$proc.Path }
+    $cmdline = $null
+    if ($cim -and $null -ne $cim.CommandLine) { $cmdline = [string]$cim.CommandLine }
+    $parent = $null
+    if ($cim -and $null -ne $cim.ParentProcessId) { $parent = [int]$cim.ParentProcessId }
+    return [pscustomobject]@{
+        pid              = $ProcessId
+        creation_date    = $creation
+        executable_path  = $exe
+        command_line     = $cmdline
+        parent_pid       = $parent
+        ports            = @(Get-AtlasListeningPortsForPid -ProcessId $ProcessId)
+        process_name     = [string]$proc.ProcessName
+    }
+}
+
+function New-AtlasProcessIdentityRecord {
+    <#
+    .SYNOPSIS
+      Build a durable process identity record immediately after spawn (SEC-025/026).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][int]$ProcessId,
+        [Parameter(Mandatory = $true)][string]$SessionNonce,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string]$ArgumentList,
+        [int[]]$ExpectedPorts = @(),
+        [string]$LogStdout = "",
+        [string]$LogStderr = ""
+    )
+    # Brief settle so StartTime / CIM are queryable after Start-Process.
+    Start-Sleep -Milliseconds 50
+    $live = Get-AtlasLiveProcessIdentity -ProcessId $ProcessId
+    $creation = $null
+    $exe = $FilePath
+    $cmdline = ("{0} {1}" -f $FilePath, $ArgumentList).Trim()
+    $parent = $null
+    $ports = @($ExpectedPorts)
+    if ($live) {
+        if ($live.creation_date) { $creation = $live.creation_date }
+        if ($live.executable_path) { $exe = $live.executable_path }
+        if ($live.command_line) { $cmdline = $live.command_line }
+        if ($null -ne $live.parent_pid) { $parent = [int]$live.parent_pid }
+        if ($live.ports -and $live.ports.Count -gt 0) { $ports = @($live.ports) }
+    }
+    return [pscustomobject]@{
+        identity_schema   = "atlas-process-identity/v1"
+        name              = $Name
+        pid               = $ProcessId
+        creation_date     = $creation
+        executable_path   = $exe
+        command_line      = $cmdline
+        working_directory = [System.IO.Path]::GetFullPath($WorkingDirectory)
+        session_nonce     = $SessionNonce
+        ports             = @($ports)
+        parent_pid        = $parent
+        spawn_file_path   = $FilePath
+        spawn_arguments   = $ArgumentList
+        log_stdout        = $LogStdout
+        log_stderr        = $LogStderr
+        provisional       = $true
+    }
+}
+
+function Test-AtlasProcessIdentityMatch {
+    <#
+    .SYNOPSIS
+      Verify live process matches recorded identity. Mismatch => fail-closed (no kill).
+    #>
+    param([Parameter(Mandatory = $true)]$Record)
+
+    function Get-AtlasRecordProp {
+        param($Obj, [string]$Name)
+        if ($null -eq $Obj) { return $null }
+        $prop = $Obj.PSObject.Properties[$Name]
+        if ($null -eq $prop) { return $null }
+        return $prop.Value
+    }
+
+    $procId = [int](Get-AtlasRecordProp $Record "pid")
+    if ($procId -le 0) {
+        return @{ Ok = $false; Reason = "pid_missing"; Detail = "record lacks pid" }
+    }
+    $live = Get-AtlasLiveProcessIdentity -ProcessId $procId
+    if (-not $live) {
+        return @{ Ok = $false; Reason = "process_gone"; Detail = "pid=$procId not running" }
+    }
+
+    $recCreation = Get-AtlasRecordProp $Record "creation_date"
+    if ($recCreation -and $live.creation_date) {
+        try {
+            $recDt = [datetime]::Parse([string]$recCreation, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+            $liveDt = [datetime]::Parse($live.creation_date, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+            if ([math]::Abs(($recDt - $liveDt).TotalSeconds) -gt 1.0) {
+                return @{
+                    Ok     = $false
+                    Reason = "creation_date_mismatch"
+                    Detail = "recorded=$recCreation live=$($live.creation_date) (possible PID reuse)"
+                }
+            }
+        }
+        catch {
+            return @{ Ok = $false; Reason = "creation_date_parse"; Detail = $_.Exception.Message }
+        }
+    }
+    elseif ($recCreation -and -not $live.creation_date) {
+        return @{ Ok = $false; Reason = "creation_date_missing_live"; Detail = "cannot verify StartTime" }
+    }
+
+    $recExe = Get-AtlasRecordProp $Record "executable_path"
+    if ($recExe -and $live.executable_path) {
+        $a = [System.IO.Path]::GetFullPath([string]$recExe)
+        $b = [System.IO.Path]::GetFullPath([string]$live.executable_path)
+        if (-not $a.Equals($b, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return @{
+                Ok     = $false
+                Reason = "executable_path_mismatch"
+                Detail = "recorded=$a live=$b"
+            }
+        }
+    }
+
+    $recCl = Get-AtlasRecordProp $Record "command_line"
+    if ($recCl -and $live.command_line) {
+        $recClS = ([string]$recCl).Trim()
+        $liveCl = ([string]$live.command_line).Trim()
+        if (-not $recClS.Equals($liveCl, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $recLeaf = [System.IO.Path]::GetFileName(($recClS -split '\s+')[0].Trim('"'))
+            $liveLeaf = [System.IO.Path]::GetFileName(($liveCl -split '\s+')[0].Trim('"'))
+            if (-not $recLeaf.Equals($liveLeaf, [System.StringComparison]::OrdinalIgnoreCase)) {
+                return @{
+                    Ok     = $false
+                    Reason = "command_line_mismatch"
+                    Detail = "recorded exe leaf=$recLeaf live=$liveLeaf"
+                }
+            }
+        }
+    }
+
+    $recParent = Get-AtlasRecordProp $Record "parent_pid"
+    if ($null -ne $recParent -and $null -ne $live.parent_pid) {
+        if ([int]$recParent -ne [int]$live.parent_pid) {
+            return @{
+                Ok     = $false
+                Reason = "parent_pid_mismatch"
+                Detail = "recorded=$recParent live=$($live.parent_pid)"
+            }
+        }
+    }
+
+    $nonce = Get-AtlasRecordProp $Record "session_nonce"
+    if ([string]::IsNullOrWhiteSpace([string]$nonce)) {
+        return @{ Ok = $false; Reason = "session_nonce_missing"; Detail = "legacy pid-only record; refuse kill" }
+    }
+
+    return @{ Ok = $true; Reason = "match"; Detail = "identity verified for pid=$procId"; Live = $live }
+}
+
+function Stop-AtlasVerifiedProcess {
+    <#
+    .SYNOPSIS
+      SEC-025: verify identity then Stop-Process. On mismatch: FAIL CLOSED, no kill.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Record,
+        [switch]$Quiet
+    )
+    $name = [string]$Record.name
+    $procId = [int]$Record.pid
+    $match = Test-AtlasProcessIdentityMatch -Record $Record
+    if (-not $match.Ok) {
+        if ($match.Reason -eq "process_gone") {
+            if (-not $Quiet) {
+                Write-Host "  pid=$procId already gone ($name)" -ForegroundColor DarkYellow
+            }
+            return @{ Stopped = $false; Verified = $false; Reason = $match.Reason; Orphan = $false }
+        }
+        Write-AtlasProductError `
+            -What "Refusing to stop process '$name' (pid=$procId): identity mismatch (SEC-025 fail-closed)." `
+            -Cause "$($match.Reason): $($match.Detail)" `
+            -Action "Inspect the live process manually. Do not force-kill by PID alone. Re-run atlas-stop only against a matching atlas-pids.json session." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1"
+        return @{ Stopped = $false; Verified = $false; Reason = $match.Reason; Orphan = $true; FailClosed = $true }
+    }
+
+    if (-not $Quiet) {
+        Write-Host "Stopping $name pid=$procId (identity verified)..."
+    }
+    try {
+        Stop-Process -Id $procId -Force -ErrorAction Stop
+    }
+    catch {
+        if (-not $Quiet) {
+            Write-Host "  Stop-Process pid=${procId}: $($_.Exception.Message)" -ForegroundColor DarkYellow
+        }
+    }
+
+    # Children: only after parent identity verified. Kill direct children of this pid.
+    try {
+        Get-CimInstance Win32_Process -Filter "ParentProcessId=$procId" -ErrorAction SilentlyContinue |
+            ForEach-Object {
+                $childPid = [int]$_.ProcessId
+                if (-not $Quiet) {
+                    Write-Host "  stopping verified-parent child pid=$childPid $($_.Name)"
+                }
+                Stop-Process -Id $childPid -Force -ErrorAction SilentlyContinue
+            }
+    }
+    catch { }
+
+    return @{ Stopped = $true; Verified = $true; Reason = "ok"; Orphan = $false }
+}
+
+function Stop-AtlasVerifiedSession {
+    <#
+    .SYNOPSIS
+      Stop all recorded session processes with SEC-025 verify-before-kill.
+      Returns ORPHAN_PROCESS_COUNT for SEC-026 (verified session members still alive after stop attempt).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Processes,
+        [string]$SessionNonce = "",
+        [switch]$Quiet
+    )
+    $orphan = 0
+    $failClosed = 0
+    foreach ($procInfo in @($Processes)) {
+        if ($SessionNonce -and $procInfo.session_nonce -and ([string]$procInfo.session_nonce -ne $SessionNonce)) {
+            if (-not $Quiet) {
+                Write-Host "  skip pid=$($procInfo.pid) (session_nonce mismatch; foreign session)" -ForegroundColor DarkYellow
+            }
+            continue
+        }
+        $result = Stop-AtlasVerifiedProcess -Record $procInfo -Quiet:$Quiet
+        if ($result.FailClosed) { $failClosed++ }
+        if ($result.Orphan) { $orphan++ }
+        elseif ($result.Stopped) {
+            Start-Sleep -Milliseconds 100
+            if (Get-Process -Id ([int]$procInfo.pid) -ErrorAction SilentlyContinue) {
+                $orphan++
+            }
+        }
+    }
+    return @{
+        ORPHAN_PROCESS_COUNT = $orphan
+        FAIL_CLOSED_COUNT    = $failClosed
+    }
+}
+
+function Write-AtlasSessionState {
+    <#
+    .SYNOPSIS
+      Persist provisional/final session process identities (SEC-026 immediate bind).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$PidFile,
+        [Parameter(Mandatory = $true)][string]$SessionNonce,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Processes,
+        [hashtable]$Extra = @{}
+    )
+    $payload = [ordered]@{
+        package_id            = "AS-PROD-INSTALL-001"
+        identity_schema       = "atlas-process-identity/v1"
+        session_nonce         = $SessionNonce
+        productization        = $true
+        release_certified     = $false
+        pilot_pass            = $false
+        not_release           = $true
+        processes             = @($Processes)
+    }
+    foreach ($k in $Extra.Keys) {
+        $payload[$k] = $Extra[$k]
+    }
+    $dir = Split-Path -Parent $PidFile
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    }
+    $payload | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $PidFile -Encoding UTF8
+}
+
+function Assert-AtlasLoopbackOnly {
+    <#
+    .SYNOPSIS
+      SEC-029: FAIL if any Listen on Port is bound to 0.0.0.0 or :: (non-loopback all-interfaces).
+      Pass when listeners are only 127.0.0.1 / ::1 (or no listener yet).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][int]$Port,
+        [string]$Label = "service"
+    )
+    try {
+        $listeners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    }
+    catch {
+        $listeners = @()
+    }
+    $bad = @()
+    $ok = @()
+    foreach ($c in $listeners) {
+        $addr = [string]$c.LocalAddress
+        if ($addr -eq "0.0.0.0" -or $addr -eq "::") {
+            $bad += "pid=$($c.OwningProcess) addr=$addr port=$Port"
+        }
+        elseif ($addr -eq "127.0.0.1" -or $addr -eq "::1") {
+            $ok += "pid=$($c.OwningProcess) addr=$addr"
+        }
+        else {
+            # Other specific addresses — treat as non-default; fail closed for productization bind.
+            $bad += "pid=$($c.OwningProcess) addr=$addr port=$Port (non-loopback)"
+        }
+    }
+    if ($bad.Count -gt 0) {
+        return @{
+            Ok      = $false
+            Detail  = "$Label port $Port has non-loopback listener(s): $($bad -join '; ')"
+            Bad     = $bad
+            OkBinds = $ok
+        }
+    }
+    return @{ Ok = $true; Detail = "$Label port $Port loopback-only (or unbound)"; Bad = @(); OkBinds = $ok }
+}

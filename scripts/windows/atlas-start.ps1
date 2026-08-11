@@ -71,12 +71,20 @@ $ScriptDir = $PSScriptRoot
 . (Join-Path $ScriptDir "_AtlasCommon.ps1")
 
 function Start-TrackedProcess {
+    <#
+    .SYNOPSIS
+      Spawn a process and immediately bind SEC-025 provisional identity (SEC-026).
+    #>
     param(
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][string]$FilePath,
         [Parameter(Mandatory = $true)][string]$ArgumentList,
         [Parameter(Mandatory = $true)][string]$WorkingDirectory,
-        [Parameter(Mandatory = $true)][string]$StateDir
+        [Parameter(Mandatory = $true)][string]$StateDir,
+        [Parameter(Mandatory = $true)][string]$SessionNonce,
+        [Parameter(Mandatory = $true)][string]$PidFile,
+        [Parameter(Mandatory = $true)]$ProcessRecords,
+        [int[]]$ExpectedPorts = @()
     )
     $logOut = Join-Path $StateDir "$Name.stdout.log"
     $logErr = Join-Path $StateDir "$Name.stderr.log"
@@ -87,12 +95,41 @@ function Start-TrackedProcess {
         -WindowStyle Hidden `
         -RedirectStandardOutput $logOut `
         -RedirectStandardError $logErr
-    return [pscustomobject]@{
-        name       = $Name
-        pid        = $proc.Id
-        log_stdout = $logOut
-        log_stderr = $logErr
+    $record = New-AtlasProcessIdentityRecord `
+        -Name $Name `
+        -ProcessId $proc.Id `
+        -SessionNonce $SessionNonce `
+        -WorkingDirectory $WorkingDirectory `
+        -FilePath $FilePath `
+        -ArgumentList $ArgumentList `
+        -ExpectedPorts $ExpectedPorts `
+        -LogStdout $logOut `
+        -LogStderr $logErr
+    [void]$ProcessRecords.Add($record)
+    # SEC-026: provisional identity on disk immediately after spawn (crash-safe).
+    Write-AtlasSessionState -PidFile $PidFile -SessionNonce $SessionNonce -Processes @($ProcessRecords.ToArray()) -Extra @{
+        claim = "PROVISIONAL_SESSION"
+        note  = "Provisional identities after spawn; not yet health-complete"
     }
+    return $record
+}
+
+function Invoke-AtlasStartAbortCleanup {
+    <#
+    .SYNOPSIS
+      SEC-026: on failed start, stop only verified session processes; report orphans.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$ProcessRecords,
+        [Parameter(Mandatory = $true)][string]$SessionNonce,
+        [Parameter(Mandatory = $true)][string]$PidFile
+    )
+    $summary = Stop-AtlasVerifiedSession -Processes @($ProcessRecords.ToArray()) -SessionNonce $SessionNonce
+    Write-Host "ORPHAN_PROCESS_COUNT=$($summary.ORPHAN_PROCESS_COUNT) (session=$SessionNonce)" -ForegroundColor $(if ($summary.ORPHAN_PROCESS_COUNT -eq 0) { "Green" } else { "Red" })
+    if ($summary.ORPHAN_PROCESS_COUNT -eq 0 -and (Test-Path -LiteralPath $PidFile)) {
+        Remove-Item -LiteralPath $PidFile -Force -ErrorAction SilentlyContinue
+    }
+    return $summary
 }
 
 function Resolve-AtlasScriptsDir {
@@ -473,6 +510,26 @@ $pidFile = Join-Path $stateDir "atlas-pids.json"
 $defaultVault = Join-Path $runtimeRoot "vault"
 New-Item -ItemType Directory -Force -Path $stateDir, $logDir | Out-Null
 
+# SEC-026: every start binds a fresh session nonce; clean prior verified session first.
+$sessionNonce = New-AtlasSessionNonce
+Write-Host "Session nonce: $sessionNonce"
+if (Test-Path -LiteralPath $pidFile) {
+    Write-Host "Prior productization state found — stopping verified prior session (orphan cleanup)..."
+    try {
+        $prior = Get-Content -Raw -LiteralPath $pidFile | ConvertFrom-Json
+        $priorNonce = ""
+        if ($prior.session_nonce) { $priorNonce = [string]$prior.session_nonce }
+        if ($prior.processes) {
+            $priorSummary = Stop-AtlasVerifiedSession -Processes @($prior.processes) -SessionNonce $priorNonce
+            Write-Host "Prior ORPHAN_PROCESS_COUNT=$($priorSummary.ORPHAN_PROCESS_COUNT)"
+        }
+    }
+    catch {
+        Write-Host "WARN: could not clean prior state: $($_.Exception.Message)" -ForegroundColor DarkYellow
+    }
+    Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+}
+
 # Refuse inventing authentic estate via env
 if ($env:AUTHENTIC_ESTATE_ROOT -and $env:AUTHENTIC_ESTATE_ROOT.Trim().Length -gt 0 -and -not $Vault) {
     Write-Host "NOTE: AUTHENTIC_ESTATE_ROOT is set but this launcher will not invent estate from it." -ForegroundColor DarkYellow
@@ -580,6 +637,7 @@ Write-Host "Runtime    : $runtimeRoot"
 Write-Host ""
 
 $processRecords = New-Object System.Collections.Generic.List[object]
+$atlasStartCompleted = $false
 
 # --- refuse occupied ports (avoid false-positive health against a foreign listener) ---
 if (-not (Test-AtlasPortFree -Port $ApiPort)) {
@@ -601,13 +659,15 @@ if (-not $SkipWeb -and -not (Test-AtlasPortFree -Port $WebPort)) {
     exit 1
 }
 
+try {
 # --- start LIVE_API (loopback only) ---
 Write-Host "Starting LIVE_API on 127.0.0.1:$ApiPort ..."
 $apiArgs = "live api-serve --vault `"$vaultPath`" --host 127.0.0.1 --port $ApiPort"
 $apiProc = Start-TrackedProcess -Name "live-api" -FilePath $atlasExe `
-    -ArgumentList $apiArgs -WorkingDirectory $repoRoot -StateDir $stateDir
-[void]$processRecords.Add($apiProc)
-Write-Host "  LIVE_API pid=$($apiProc.pid)"
+    -ArgumentList $apiArgs -WorkingDirectory $repoRoot -StateDir $stateDir `
+    -SessionNonce $sessionNonce -PidFile $pidFile -ProcessRecords $processRecords `
+    -ExpectedPorts @($ApiPort)
+Write-Host "  LIVE_API pid=$($apiProc.pid) (provisional identity bound)"
 
 # SEC-009: capture per-launch read token from api-serve stderr (never print value).
 $apiReadToken = Wait-AtlasApiReadToken -StderrLogPath $apiProc.log_stderr -TimeoutSec 45
@@ -618,7 +678,7 @@ if ([string]::IsNullOrWhiteSpace($apiReadToken)) {
         -Action "Inspect $($apiProc.log_stderr). Confirm tip CLI includes SEC-009 session auth. Do not disable auth or hardcode tokens." `
         -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
         -LogPath $errLog
-    exit 1
+    throw "ATLAS_START_ABORT: missing ATLAS_API_READ_TOKEN"
 }
 $tokenPath = Join-Path $stateDir "live-api.read.token"
 Set-Content -LiteralPath $tokenPath -Value $apiReadToken -NoNewline -Encoding ascii
@@ -647,7 +707,7 @@ if (-not $apiHealth.Ok) {
             -Action "From this repo root run: $($python.Label) -m pip install -e `".[dev]`" (do not use -SkipInstall), then retry. Confirm: atlas live --help" `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
             -LogPath $errLog
-        exit 1
+        throw "ATLAS_START_ABORT: stale_cli_no_live"
     }
     Write-AtlasProductError `
         -What "LIVE_API health check failed (/v1/meta)." `
@@ -655,7 +715,7 @@ if (-not $apiHealth.Ok) {
         -Action "Inspect $($apiProc.log_stderr). Confirm vault path and that port $ApiPort is free. API binds 127.0.0.1 only. If stderr shows invalid choice 'live', reinstall editable CLI from this RepoRoot." `
         -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
         -LogPath $errLog
-    exit 1
+    throw "ATLAS_START_ABORT: api_health_failed"
 }
 if (-not (Test-AtlasProcessOwnsPort -RootPid $apiProc.pid -Port $ApiPort -HostName "127.0.0.1")) {
     Write-AtlasProductError `
@@ -664,9 +724,19 @@ if (-not (Test-AtlasProcessOwnsPort -RootPid $apiProc.pid -Port $ApiPort -HostNa
         -Action "Stop foreign listeners on $ApiPort, then retry with a free -ApiPort. Do not claim STRANGER_CAN_START_ATLAS from a borrowed health response." `
         -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1 -ApiPort <free-port>" `
         -LogPath $errLog
-    exit 1
+    throw "ATLAS_START_ABORT: foreign_api_listener"
 }
-Write-Host "OK  API health http://127.0.0.1:$ApiPort/v1/meta (owned by started process)"
+$apiBind = Assert-AtlasLoopbackOnly -Port $ApiPort -Label "LIVE_API"
+if (-not $apiBind.Ok) {
+    Write-AtlasProductError `
+        -What "LIVE_API is listening on a non-loopback address (SEC-029 fail-closed)." `
+        -Cause $apiBind.Detail `
+        -Action "Ensure api-serve uses --host 127.0.0.1 only. Do not bind 0.0.0.0." `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+        -LogPath $errLog
+    throw "ATLAS_START_ABORT: api_non_loopback_bind"
+}
+Write-Host "OK  API health http://127.0.0.1:$ApiPort/v1/meta (owned by started process; loopback-only)"
 $env:VITE_ATLAS_API_BASE = "http://127.0.0.1:$ApiPort"
 # Per-launch read Bearer for Vite web child only (not committed; not in URL).
 $env:VITE_ATLAS_API_TOKEN = $apiReadToken
@@ -685,7 +755,7 @@ if (-not $SkipWeb) {
             -Action "Reinstall Node.js LTS, then retry. Playwright is intentionally not installed by this path." `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
             -LogPath $errLog
-        exit 1
+        throw "ATLAS_START_ABORT: npm_missing"
     }
     $webDir = Join-Path $repoRoot "apps\web"
     if (-not (Test-Path -LiteralPath (Join-Path $webDir "package.json"))) {
@@ -695,15 +765,16 @@ if (-not $SkipWeb) {
             -Action "Sync the repository so apps/web exists. Do not add Playwright via this installer." `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
             -LogPath $errLog
-        exit 1
+        throw "ATLAS_START_ABORT: web_package_missing"
     }
     Ensure-WebDependencies -Npm $npm -WebDir $webDir -ErrLog $errLog
     Write-Host "Starting web (npm run dev) on 127.0.0.1:$WebPort ..."
     $webArgs = "run dev -- --host 127.0.0.1 --port $WebPort"
     $webProc = Start-TrackedProcess -Name "web" -FilePath $npm.Source `
-        -ArgumentList $webArgs -WorkingDirectory $webDir -StateDir $stateDir
-    [void]$processRecords.Add($webProc)
-    Write-Host "  Web pid=$($webProc.pid)"
+        -ArgumentList $webArgs -WorkingDirectory $webDir -StateDir $stateDir `
+        -SessionNonce $sessionNonce -PidFile $pidFile -ProcessRecords $processRecords `
+        -ExpectedPorts @($WebPort)
+    Write-Host "  Web pid=$($webProc.pid) (provisional identity bound)"
 
     $tcpOk = Wait-AtlasTcpOpen -HostName "127.0.0.1" -Port $WebPort -TimeoutSec 90
     if (-not $tcpOk) {
@@ -729,38 +800,52 @@ if (-not $SkipWeb) {
             -Action "Inspect $($webProc.log_stderr). If Rollup native is missing, delete apps/web/node_modules and retry. Free the port or pass -WebPort. Stop with atlas-stop.ps1." `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
             -LogPath $errLog
-        exit 1
+        throw "ATLAS_START_ABORT: web_port_timeout"
+    }
+    $webBind = Assert-AtlasLoopbackOnly -Port $WebPort -Label "web"
+    if (-not $webBind.Ok) {
+        Write-AtlasProductError `
+            -What "Web shell is listening on a non-loopback address (SEC-029 fail-closed)." `
+            -Cause $webBind.Detail `
+            -Action "Ensure Vite uses --host 127.0.0.1 only. Do not bind 0.0.0.0." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $errLog
+        throw "ATLAS_START_ABORT: web_non_loopback_bind"
     }
     # Prefer HTTP health when Vite answers
     $webHealth = Wait-AtlasHttpOk -Url $webUrl -TimeoutSec 30
     if ($webHealth.Ok) {
-        Write-Host "OK  Web health $webUrl"
+        Write-Host "OK  Web health $webUrl (loopback-only)"
     }
     else {
         Write-Host "OK  Web port open (HTTP probe soft-fail: $($webHealth.Error))" -ForegroundColor DarkYellow
     }
 }
 
-$started = [ordered]@{
-    package_id            = "AS-PROD-INSTALL-001"
-    productization        = $true
-    release_certified     = $false
-    pilot_pass            = $false
-    not_release           = $true
-    stranger_can_start    = $true
-    claim                 = "STRANGER_CAN_START_ATLAS"
-    note                  = "PRODUCTIZATION local start - NOT RELEASE - NOT PILOT"
-    vault_mode            = $vaultMode
-    vault_path            = $vaultPath
-    runtime_root          = $runtimeRoot
-    api_url               = "http://127.0.0.1:$ApiPort/v1/meta"
-    web_url               = $(if ($SkipWeb) { $null } else { $webUrl })
-    processes             = @($processRecords.ToArray())
+# Refresh ports on identity records after bind.
+foreach ($rec in @($processRecords.ToArray())) {
+    $livePorts = @(Get-AtlasListeningPortsForPid -ProcessId ([int]$rec.pid))
+    if ($livePorts.Count -gt 0) {
+        $rec.ports = $livePorts
+    }
+    $rec.provisional = $false
 }
-$started | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $pidFile -Encoding UTF8
+
+Write-AtlasSessionState -PidFile $pidFile -SessionNonce $sessionNonce -Processes @($processRecords.ToArray()) -Extra @{
+    stranger_can_start = $true
+    claim              = "STRANGER_CAN_START_ATLAS"
+    note               = "PRODUCTIZATION local start - NOT RELEASE - NOT PILOT"
+    vault_mode         = $vaultMode
+    vault_path         = $vaultPath
+    runtime_root       = $runtimeRoot
+    api_url            = "http://127.0.0.1:$ApiPort/v1/meta"
+    web_url            = $(if ($SkipWeb) { $null } else { $webUrl })
+}
+
+$atlasStartCompleted = $true
 
 Write-Host ""
-Write-Host "State written: $pidFile"
+Write-Host "State written: $pidFile (session_nonce=$sessionNonce)"
 Write-Host "Stop with:  powershell -NoProfile -File scripts\windows\atlas-stop.ps1"
 Write-Host ""
 Write-Host "HONEST STATUS:" -ForegroundColor Yellow
@@ -786,4 +871,21 @@ if (-not $SkipWeb -and -not $SkipBrowser) {
 
 Write-Host ""
 Write-Host "TIME_TO_FIRST_VALUE target: <=15 minutes for a prepared Windows stranger machine." -ForegroundColor Cyan
+}
+catch {
+    if ("$($_.Exception.Message)" -notmatch "^ATLAS_START_ABORT:") {
+        Write-Host "START ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    }
+}
+finally {
+    if (-not $atlasStartCompleted) {
+        Write-Host "SEC-026: start incomplete — cleaning verified session processes..." -ForegroundColor Yellow
+        $cleanup = Invoke-AtlasStartAbortCleanup -ProcessRecords $processRecords -SessionNonce $sessionNonce -PidFile $pidFile
+        if ($cleanup.ORPHAN_PROCESS_COUNT -ne 0) {
+            Write-Host "SEC-026 FAIL: ORPHAN_PROCESS_COUNT=$($cleanup.ORPHAN_PROCESS_COUNT)" -ForegroundColor Red
+            exit 1
+        }
+        exit 1
+    }
+}
 exit 0
