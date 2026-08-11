@@ -112,10 +112,96 @@ function Test-PathWritable {
     }
 }
 
-function Test-AtlasPathUnderRoot {
+function Initialize-AtlasNativePathHelper {
     <#
     .SYNOPSIS
-      True when Path resolves under Root (ENV-ISO tip-identity helper).
+      Load Win32 GetFinalPathNameByHandleW once (CLAUDE-ADV005-002).
+    #>
+    if (-not ("AtlasNativePath" -as [type])) {
+        Add-Type -TypeDefinition @"
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class AtlasNativePath {
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr CreateFileW(
+        string lpFileName, uint dwDesiredAccess, uint dwShareMode,
+        IntPtr lpSecurityAttributes, uint dwCreationDisposition,
+        uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool CloseHandle(IntPtr hObject);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern uint GetFinalPathNameByHandleW(
+        IntPtr hFile, StringBuilder lpszFilePath, uint cchFilePath, uint dwFlags);
+    const uint FILE_SHARE_READ = 1, FILE_SHARE_WRITE = 2, FILE_SHARE_DELETE = 4;
+    const uint OPEN_EXISTING = 3;
+    const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
+    public static string GetFinalPath(string path) {
+        IntPtr h = CreateFileW(
+            path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            IntPtr.Zero, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, IntPtr.Zero);
+        if (h == new IntPtr(-1)) {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        try {
+            var sb = new StringBuilder(512);
+            uint n = GetFinalPathNameByHandleW(h, sb, (uint)sb.Capacity, 0);
+            if (n == 0) {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            if (n >= sb.Capacity) {
+                sb.EnsureCapacity((int)n + 1);
+                n = GetFinalPathNameByHandleW(h, sb, (uint)sb.Capacity, 0);
+                if (n == 0) {
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+                }
+            }
+            string s = sb.ToString();
+            if (s.StartsWith(@"\\?\", StringComparison.Ordinal)) {
+                s = s.Substring(4);
+            }
+            if (s.StartsWith(@"UNC\", StringComparison.OrdinalIgnoreCase)) {
+                s = "\\\\" + s.Substring(4);
+            }
+            return s;
+        }
+        finally {
+            CloseHandle(h);
+        }
+    }
+}
+"@
+    }
+}
+
+function Resolve-AtlasFinalPath {
+    <#
+    .SYNOPSIS
+      Final filesystem target (junction/symlink/reparse) via GetFinalPathNameByHandleW.
+      Falls back to GetFullPath when the path does not exist (CLAUDE-ADV005-002).
+    #>
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $lexical = [System.IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $lexical)) {
+        return $lexical
+    }
+    try {
+        Initialize-AtlasNativePathHelper
+        $final = [AtlasNativePath]::GetFinalPath($lexical)
+        return [System.IO.Path]::GetFullPath($final)
+    }
+    catch {
+        # Fail closed for identity checks: if we cannot resolve, treat as unresolved lexical
+        # only when callers compare; prefer throwing via Test-* returning false.
+        throw
+    }
+}
+
+function Test-AtlasLexicalPathUnderRoot {
+    <#
+    .SYNOPSIS
+      Lexical (GetFullPath only) containment — does not follow junctions.
     #>
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -124,6 +210,31 @@ function Test-AtlasPathUnderRoot {
     try {
         $fullPath = [System.IO.Path]::GetFullPath($Path)
         $fullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd("\", "/")
+        if ($fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+        $prefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
+        return $fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-AtlasPathUnderRoot {
+    <#
+    .SYNOPSIS
+      True when Path's final FS target is under Root's final FS target
+      (ENV-ISO tip-identity; CLAUDE-ADV005-002 GetFinalPathName/realpath).
+      Lexical GetFullPath alone is insufficient against junction/reparse bypass.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+    try {
+        $fullPath = Resolve-AtlasFinalPath -Path $Path
+        $fullRoot = (Resolve-AtlasFinalPath -Path $Root).TrimEnd("\", "/")
         if ($fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
             return $true
         }
@@ -164,7 +275,8 @@ function Get-AtlasPythonCommand {
       Prefer tip-local .venv\Scripts\python.exe when RepoRoot is known (ENV-ISO-002),
       else py -3.12 launcher, else python/python3. Returns hashtable or $null.
 
-      TipLocal=$true when the selected interpreter lives under RepoRoot\.venv.
+      TipLocal=$true only when the interpreter's final FS target is under RepoRoot
+      and the lexical path is under RepoRoot\.venv (CLAUDE-ADV005-002).
       Global interpreters are never preferred over an existing tip .venv.
     #>
     param(
@@ -175,11 +287,15 @@ function Get-AtlasPythonCommand {
         $tipPy = Get-AtlasTipVenvPythonPath -RepoRoot $RepoRoot
         if (Test-Path -LiteralPath $tipPy) {
             if (Test-AtlasPythonVersionAtLeast312 -Exe $tipPy) {
-                return @{
+                $candidate = @{
                     Exe      = $tipPy
                     Args     = @()
                     Label    = "tip-venv (.venv\Scripts\python.exe)"
                     TipLocal = $true
+                }
+                # Refuse junction/reparse .venv whose final target escapes RepoRoot.
+                if (Test-AtlasInterpreterIsTipVenv -Python $candidate -RepoRoot $RepoRoot) {
+                    return $candidate
                 }
             }
         }
@@ -214,19 +330,22 @@ function Get-AtlasPythonCommand {
 function Test-AtlasInterpreterIsTipVenv {
     <#
     .SYNOPSIS
-      True when Python.Exe resolves under <RepoRoot>\.venv (ENV-ISO-002).
+      True when Python.Exe is tip-local (ENV-ISO-002 / CLAUDE-ADV005-002):
+      lexical path under <RepoRoot>\.venv AND final FS target under RepoRoot.
+      TipLocal flag alone is never trusted (junction bypass).
     #>
     param(
         [Parameter(Mandatory = $true)]$Python,
         [Parameter(Mandatory = $true)][string]$RepoRoot
     )
-    if ($null -ne $Python.TipLocal -and [bool]$Python.TipLocal) {
-        return $true
-    }
     try {
-        $exe = [System.IO.Path]::GetFullPath([string]$Python.Exe)
-        $venvRoot = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".venv"))
-        return (Test-AtlasPathUnderRoot -Path $exe -Root $venvRoot)
+        $exe = [string]$Python.Exe
+        $venvLex = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".venv"))
+        if (-not (Test-AtlasLexicalPathUnderRoot -Path $exe -Root $venvLex)) {
+            return $false
+        }
+        # Final target must stay under RepoRoot (not junction target outside tip).
+        return (Test-AtlasPathUnderRoot -Path $exe -Root $RepoRoot)
     }
     catch {
         return $false
