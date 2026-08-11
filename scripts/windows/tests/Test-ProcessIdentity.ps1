@@ -64,6 +64,21 @@ else {
     Write-Host "PASS CaseC legacy refuse => $($leg.Reason)"
 }
 
+# --- Case C2: pid+nonce only (forged) => refuse (SEC-ADV004-A-001) ---
+$minimal = [pscustomobject]@{
+    name          = "minimal"
+    pid           = $PID
+    session_nonce = $nonce
+}
+$minMatch = Test-AtlasProcessIdentityMatch -Record $minimal
+if ($minMatch.Ok) {
+    Write-Host "FAIL CaseC2 minimal pid+nonce must refuse"
+    $failed++
+}
+else {
+    Write-Host "PASS CaseC2 minimal refuse => $($minMatch.Reason)"
+}
+
 # --- Case D: loopback assert helper exists ---
 $bind = Assert-AtlasLoopbackOnly -Port 1 -Label "probe"
 if (-not $bind.ContainsKey("Ok")) {

@@ -454,26 +454,24 @@ function Ensure-WebDependencies {
 
     if ($needsInstall) {
         $lockFile = Join-Path $WebDir "package-lock.json"
-        # SEC-027: prefer deterministic npm ci when lock is present.
-        $useCi = Test-Path -LiteralPath $lockFile
-        if ($useCi) {
-            Write-Host "Installing apps/web dependencies (npm ci; locked; no Playwright)..."
+        # SEC-027: require committed lock + npm ci (fail closed; no unbound npm install).
+        if (-not (Test-Path -LiteralPath $lockFile)) {
+            Write-AtlasProductError `
+                -What "apps/web/package-lock.json is missing; refusing unbound npm install." `
+                -Cause "SEC-027 requires a committed lockfile for deterministic third-party installs." `
+                -Action "Restore package-lock.json from the repository tip, then retry." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+                -LogPath $ErrLog
+            exit 1
         }
-        else {
-            Write-Host "Installing apps/web dependencies (npm install; no lock; no Playwright)..."
-        }
+        Write-Host "Installing apps/web dependencies (npm ci; locked; no Playwright)..."
         Push-Location $WebDir
         try {
-            if ($useCi) {
-                & $Npm.Source ci --no-fund --no-audit
-            }
-            else {
-                & $Npm.Source install --no-fund --no-audit
-            }
+            & $Npm.Source ci --no-fund --no-audit
             if ($LASTEXITCODE -ne 0) {
                 Write-AtlasProductError `
-                    -What $(if ($useCi) { "npm ci for apps/web failed." } else { "npm install for apps/web failed." }) `
-                    -Cause "$(if ($useCi) { 'npm ci' } else { 'npm install' }) exited with code $LASTEXITCODE." `
+                    -What "npm ci for apps/web failed." `
+                    -Cause "npm ci exited with code $LASTEXITCODE." `
                     -Action "Check network/proxy and Node version. Prefer a committed package-lock.json (SEC-027). Do not add Playwright packages for this productization path." `
                     -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
                     -LogPath $ErrLog
@@ -486,8 +484,8 @@ function Ensure-WebDependencies {
                 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $rollupNative)) {
                     Write-AtlasProductError `
                         -What "apps/web install is missing the Windows Rollup native module." `
-                        -Cause "Optional dependency @rollup/rollup-win32-x64-msvc was not present after npm install (known npm optional-deps issue)." `
-                        -Action "From apps/web run: Remove-Item -Recurse -Force node_modules; npm ci --include=optional (or npm install --include=optional). Do not add Playwright." `
+                        -Cause "Optional dependency @rollup/rollup-win32-x64-msvc was not present after npm ci (known npm optional-deps issue)." `
+                        -Action "From apps/web run: Remove-Item -Recurse -Force node_modules; npm ci --include=optional. Do not add Playwright." `
                         -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
                         -LogPath $ErrLog
                     exit 1
@@ -527,7 +525,7 @@ New-Item -ItemType Directory -Force -Path $stateDir, $logDir | Out-Null
 $sessionNonce = New-AtlasSessionNonce
 Write-Host "Session nonce: $sessionNonce"
 if (Test-Path -LiteralPath $pidFile) {
-    Write-Host "Prior productization state found — stopping verified prior session (orphan cleanup)..."
+    Write-Host "Prior productization state found - stopping verified prior session (orphan cleanup)..."
     try {
         $prior = Get-Content -Raw -LiteralPath $pidFile | ConvertFrom-Json
         $priorNonce = ""
@@ -815,6 +813,15 @@ if (-not $SkipWeb) {
             -LogPath $errLog
         throw "ATLAS_START_ABORT: web_port_timeout"
     }
+    if (-not (Test-AtlasProcessOwnsPort -RootPid $webProc.pid -Port $WebPort -HostName "127.0.0.1")) {
+        Write-AtlasProductError `
+            -What "Web port $WebPort is open but not owned by the started web process." `
+            -Cause "TCP connect succeeded, yet Get-NetTCPConnection Listen owner is not pid $($webProc.pid) or its child (foreign/stale listener)." `
+            -Action "Stop foreign listeners on $WebPort, then retry with a free -WebPort. Do not claim STRANGER_CAN_START_ATLAS from a borrowed web health response." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1 -WebPort FREE_PORT" `
+            -LogPath $errLog
+        throw "ATLAS_START_ABORT: foreign_web_listener"
+    }
     $webBind = Assert-AtlasLoopbackOnly -Port $WebPort -Label "web"
     if (-not $webBind.Ok) {
         Write-AtlasProductError `
@@ -892,7 +899,7 @@ catch {
 }
 finally {
     if (-not $atlasStartCompleted) {
-        Write-Host "SEC-026: start incomplete — cleaning verified session processes..." -ForegroundColor Yellow
+        Write-Host "SEC-026: start incomplete - cleaning verified session processes..." -ForegroundColor Yellow
         $cleanup = Invoke-AtlasStartAbortCleanup -ProcessRecords $processRecords -SessionNonce $sessionNonce -PidFile $pidFile
         if ($cleanup.ORPHAN_PROCESS_COUNT -ne 0) {
             Write-Host "SEC-026 FAIL: ORPHAN_PROCESS_COUNT=$($cleanup.ORPHAN_PROCESS_COUNT)" -ForegroundColor Red

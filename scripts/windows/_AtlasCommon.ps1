@@ -471,65 +471,83 @@ function Test-AtlasProcessIdentityMatch {
     }
 
     $recCreation = Get-AtlasRecordProp $Record "creation_date"
-    if ($recCreation -and $live.creation_date) {
-        try {
-            $recDt = [datetime]::Parse([string]$recCreation, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-            $liveDt = [datetime]::Parse($live.creation_date, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
-            if ([math]::Abs(($recDt - $liveDt).TotalSeconds) -gt 1.0) {
-                return @{
-                    Ok     = $false
-                    Reason = "creation_date_mismatch"
-                    Detail = "recorded=$recCreation live=$($live.creation_date) (possible PID reuse)"
-                }
+    if ([string]::IsNullOrWhiteSpace([string]$recCreation)) {
+        return @{ Ok = $false; Reason = "creation_date_missing"; Detail = "refuse kill without recorded creation_date (SEC-025)" }
+    }
+    if (-not $live.creation_date) {
+        return @{ Ok = $false; Reason = "creation_date_missing_live"; Detail = "cannot verify StartTime" }
+    }
+    try {
+        $recDt = [datetime]::Parse([string]$recCreation, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        $liveDt = [datetime]::Parse($live.creation_date, $null, [System.Globalization.DateTimeStyles]::RoundtripKind)
+        if ([math]::Abs(($recDt - $liveDt).TotalSeconds) -gt 1.0) {
+            return @{
+                Ok     = $false
+                Reason = "creation_date_mismatch"
+                Detail = "recorded=$recCreation live=$($live.creation_date) (possible PID reuse)"
             }
         }
-        catch {
-            return @{ Ok = $false; Reason = "creation_date_parse"; Detail = $_.Exception.Message }
-        }
     }
-    elseif ($recCreation -and -not $live.creation_date) {
-        return @{ Ok = $false; Reason = "creation_date_missing_live"; Detail = "cannot verify StartTime" }
+    catch {
+        return @{ Ok = $false; Reason = "creation_date_parse"; Detail = $_.Exception.Message }
     }
 
     $recExe = Get-AtlasRecordProp $Record "executable_path"
-    if ($recExe -and $live.executable_path) {
-        $a = [System.IO.Path]::GetFullPath([string]$recExe)
-        $b = [System.IO.Path]::GetFullPath([string]$live.executable_path)
-        if (-not $a.Equals($b, [System.StringComparison]::OrdinalIgnoreCase)) {
-            return @{
-                Ok     = $false
-                Reason = "executable_path_mismatch"
-                Detail = "recorded=$a live=$b"
-            }
+    if ([string]::IsNullOrWhiteSpace([string]$recExe)) {
+        return @{ Ok = $false; Reason = "executable_path_missing"; Detail = "refuse kill without recorded executable_path (SEC-025)" }
+    }
+    if (-not $live.executable_path) {
+        return @{ Ok = $false; Reason = "executable_path_missing_live"; Detail = "cannot verify ExecutablePath" }
+    }
+    $a = [System.IO.Path]::GetFullPath([string]$recExe)
+    $b = [System.IO.Path]::GetFullPath([string]$live.executable_path)
+    if (-not $a.Equals($b, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return @{
+            Ok     = $false
+            Reason = "executable_path_mismatch"
+            Detail = "recorded=$a live=$b"
         }
     }
 
     $recCl = Get-AtlasRecordProp $Record "command_line"
-    if ($recCl -and $live.command_line) {
-        $recClS = ([string]$recCl).Trim()
-        $liveCl = ([string]$live.command_line).Trim()
-        if (-not $recClS.Equals($liveCl, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $recLeaf = [System.IO.Path]::GetFileName(($recClS -split '\s+')[0].Trim('"'))
-            $liveLeaf = [System.IO.Path]::GetFileName(($liveCl -split '\s+')[0].Trim('"'))
-            if (-not $recLeaf.Equals($liveLeaf, [System.StringComparison]::OrdinalIgnoreCase)) {
-                return @{
-                    Ok     = $false
-                    Reason = "command_line_mismatch"
-                    Detail = "recorded exe leaf=$recLeaf live=$liveLeaf"
-                }
+    if ([string]::IsNullOrWhiteSpace([string]$recCl)) {
+        return @{ Ok = $false; Reason = "command_line_missing"; Detail = "refuse kill without recorded command_line (SEC-025)" }
+    }
+    if (-not $live.command_line) {
+        return @{ Ok = $false; Reason = "command_line_missing_live"; Detail = "cannot verify CommandLine" }
+    }
+    $recClS = ([string]$recCl).Trim()
+    $liveCl = ([string]$live.command_line).Trim()
+    if (-not $recClS.Equals($liveCl, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $recLeaf = [System.IO.Path]::GetFileName(($recClS -split '\s+')[0].Trim('"'))
+        $liveLeaf = [System.IO.Path]::GetFileName(($liveCl -split '\s+')[0].Trim('"'))
+        if (-not $recLeaf.Equals($liveLeaf, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return @{
+                Ok     = $false
+                Reason = "command_line_mismatch"
+                Detail = "recorded exe leaf=$recLeaf live=$liveLeaf"
             }
         }
     }
 
     $recParent = Get-AtlasRecordProp $Record "parent_pid"
-    if ($null -ne $recParent -and $null -ne $live.parent_pid) {
-        if ([int]$recParent -ne [int]$live.parent_pid) {
-            return @{
-                Ok     = $false
-                Reason = "parent_pid_mismatch"
-                Detail = "recorded=$recParent live=$($live.parent_pid)"
-            }
+    if ($null -eq $recParent -or [string]::IsNullOrWhiteSpace([string]$recParent)) {
+        return @{ Ok = $false; Reason = "parent_pid_missing"; Detail = "refuse kill without recorded parent_pid (SEC-025)" }
+    }
+    if ($null -eq $live.parent_pid) {
+        return @{ Ok = $false; Reason = "parent_pid_missing_live"; Detail = "cannot verify ParentProcessId" }
+    }
+    if ([int]$recParent -ne [int]$live.parent_pid) {
+        return @{
+            Ok     = $false
+            Reason = "parent_pid_mismatch"
+            Detail = "recorded=$recParent live=$($live.parent_pid)"
         }
+    }
+
+    $recWd = Get-AtlasRecordProp $Record "working_directory"
+    if ([string]::IsNullOrWhiteSpace([string]$recWd)) {
+        return @{ Ok = $false; Reason = "working_directory_missing"; Detail = "refuse kill without recorded working_directory (SEC-025)" }
     }
 
     $nonce = Get-AtlasRecordProp $Record "session_nonce"
@@ -616,9 +634,20 @@ function Stop-AtlasVerifiedSession {
             continue
         }
         $result = Stop-AtlasVerifiedProcess -Record $procInfo -Quiet:$Quiet
-        if ($result.FailClosed) { $failClosed++ }
-        if ($result.Orphan) { $orphan++ }
-        elseif ($result.Stopped) {
+        $fc = $false
+        $orph = $false
+        $stopped = $false
+        if ($null -ne $result) {
+            $fcProp = $result.PSObject.Properties["FailClosed"]
+            if ($null -ne $fcProp -and $fcProp.Value) { $fc = [bool]$fcProp.Value }
+            $orProp = $result.PSObject.Properties["Orphan"]
+            if ($null -ne $orProp -and $orProp.Value) { $orph = [bool]$orProp.Value }
+            $stProp = $result.PSObject.Properties["Stopped"]
+            if ($null -ne $stProp -and $stProp.Value) { $stopped = [bool]$stProp.Value }
+        }
+        if ($fc) { $failClosed++ }
+        if ($orph) { $orphan++ }
+        elseif ($stopped) {
             Start-Sleep -Milliseconds 100
             if (Get-Process -Id ([int]$procInfo.pid) -ErrorAction SilentlyContinue) {
                 $orphan++
