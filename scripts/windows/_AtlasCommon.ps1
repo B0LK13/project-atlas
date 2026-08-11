@@ -112,41 +112,239 @@ function Test-PathWritable {
     }
 }
 
+function Test-AtlasPathUnderRoot {
+    <#
+    .SYNOPSIS
+      True when Path resolves under Root (ENV-ISO tip-identity helper).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Root
+    )
+    try {
+        $fullPath = [System.IO.Path]::GetFullPath($Path)
+        $fullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd("\", "/")
+        if ($fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+        $prefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
+        return $fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-AtlasPythonVersionAtLeast312 {
+    param(
+        [Parameter(Mandatory = $true)][string]$Exe,
+        [string[]]$Args = @()
+    )
+    $verOut = & $Exe @($Args + @("-c", "import sys; print('%d.%d'%sys.version_info[:2])")) 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $verOut) { return $false }
+    $parts = ([string]$verOut).Trim().Split(".")
+    if ($parts.Count -lt 2) { return $false }
+    $major = [int]$parts[0]
+    $minor = [int]$parts[1]
+    return ($major -gt 3 -or ($major -eq 3 -and $minor -ge 12))
+}
+
+function Get-AtlasTipVenvPythonPath {
+    <#
+    .SYNOPSIS
+      Tip-local interpreter path: <RepoRoot>\.venv\Scripts\python.exe (ENV-ISO-002).
+    #>
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+    return [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".venv\Scripts\python.exe"))
+}
+
 function Get-AtlasPythonCommand {
     <#
     .SYNOPSIS
-      Prefer py -3.12 launcher, else python, else python3. Returns hashtable or $null.
+      Prefer tip-local .venv\Scripts\python.exe when RepoRoot is known (ENV-ISO-002),
+      else py -3.12 launcher, else python/python3. Returns hashtable or $null.
+
+      TipLocal=$true when the selected interpreter lives under RepoRoot\.venv.
+      Global interpreters are never preferred over an existing tip .venv.
     #>
+    param(
+        [string]$RepoRoot = ""
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        $tipPy = Get-AtlasTipVenvPythonPath -RepoRoot $RepoRoot
+        if (Test-Path -LiteralPath $tipPy) {
+            if (Test-AtlasPythonVersionAtLeast312 -Exe $tipPy) {
+                return @{
+                    Exe      = $tipPy
+                    Args     = @()
+                    Label    = "tip-venv (.venv\Scripts\python.exe)"
+                    TipLocal = $true
+                }
+            }
+        }
+    }
+
     $py = Get-Command py -ErrorAction SilentlyContinue
     if ($py) {
-        $verOut = & py -3.12 -c "import sys; print('%d.%d'%sys.version_info[:2])" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $verOut) {
+        if (Test-AtlasPythonVersionAtLeast312 -Exe $py.Source -Args @("-3.12")) {
             return @{
-                Exe  = $py.Source
-                Args = @("-3.12")
-                Label = "py -3.12"
+                Exe      = $py.Source
+                Args     = @("-3.12")
+                Label    = "py -3.12"
+                TipLocal = $false
             }
         }
     }
     foreach ($name in @("python", "python3")) {
         $cmd = Get-Command $name -ErrorAction SilentlyContinue
         if (-not $cmd) { continue }
-        $verOut = & $cmd.Source -c "import sys; print('%d.%d'%sys.version_info[:2])" 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $verOut) { continue }
-        $parts = $verOut.Trim().Split(".")
-        if ($parts.Count -ge 2) {
-            $major = [int]$parts[0]
-            $minor = [int]$parts[1]
-            if ($major -gt 3 -or ($major -eq 3 -and $minor -ge 12)) {
-                return @{
-                    Exe   = $cmd.Source
-                    Args  = @()
-                    Label = $name
-                }
+        if (Test-AtlasPythonVersionAtLeast312 -Exe $cmd.Source) {
+            return @{
+                Exe      = $cmd.Source
+                Args     = @()
+                Label    = $name
+                TipLocal = $false
             }
         }
     }
     return $null
+}
+
+function Test-AtlasInterpreterIsTipVenv {
+    <#
+    .SYNOPSIS
+      True when Python.Exe resolves under <RepoRoot>\.venv (ENV-ISO-002).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Python,
+        [Parameter(Mandatory = $true)][string]$RepoRoot
+    )
+    if ($null -ne $Python.TipLocal -and [bool]$Python.TipLocal) {
+        return $true
+    }
+    try {
+        $exe = [System.IO.Path]::GetFullPath([string]$Python.Exe)
+        $venvRoot = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".venv"))
+        return (Test-AtlasPathUnderRoot -Path $exe -Root $venvRoot)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Resolve-AtlasScriptsDir {
+    <#
+    .SYNOPSIS
+      Resolve Scripts dir for atlas.exe beside the selected interpreter.
+      Venv layout: sys.executable already lives in Scripts/ (or bin/) — do not
+      append another Scripts segment (ENV-ISO / stranger tip-venv UX).
+    #>
+    param([Parameter(Mandatory = $true)]$Python)
+    $exeDirOut = & $Python.Exe @($Python.Args + @("-c", "import sys,os; print(os.path.dirname(sys.executable))")) 2>$null
+    if ($LASTEXITCODE -eq 0 -and $exeDirOut) {
+        $exeDir = ([string]$exeDirOut).Trim()
+        $leaf = Split-Path -Leaf $exeDir
+        if ($leaf.Equals("Scripts", [System.StringComparison]::OrdinalIgnoreCase) -or
+            $leaf.Equals("bin", [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $exeDir
+        }
+        return (Join-Path $exeDir "Scripts")
+    }
+    $parent = Split-Path $Python.Exe -Parent
+    $parentLeaf = Split-Path -Leaf $parent
+    if ($parentLeaf.Equals("Scripts", [System.StringComparison]::OrdinalIgnoreCase) -or
+        $parentLeaf.Equals("bin", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $parent
+    }
+    return (Join-Path $parent "Scripts")
+}
+
+function Test-AtlasPythonPathTipSafe {
+    <#
+    .SYNOPSIS
+      Fail-closed when PYTHONPATH can shadow project_atlas from outside RepoRoot (ENV-ISO-001).
+    #>
+    param([Parameter(Mandatory = $true)][string]$RepoRoot)
+
+    $pp = [string]$env:PYTHONPATH
+    if ([string]::IsNullOrWhiteSpace($pp)) {
+        return @{ Ok = $true; Reason = "ok"; Detail = "PYTHONPATH unset" }
+    }
+    $foreign = New-Object "System.Collections.Generic.List[string]"
+    foreach ($raw in $pp.Split([System.IO.Path]::PathSeparator)) {
+        $entry = ([string]$raw).Trim().Trim('"')
+        if ([string]::IsNullOrWhiteSpace($entry)) { continue }
+        try {
+            $full = [System.IO.Path]::GetFullPath($entry)
+        }
+        catch {
+            continue
+        }
+        $initCandidates = @(
+            (Join-Path $full "project_atlas\__init__.py"),
+            (Join-Path $full "project_atlas\__init__.pyc")
+        )
+        $hasPkg = $false
+        foreach ($c in $initCandidates) {
+            if (Test-Path -LiteralPath $c) { $hasPkg = $true; break }
+        }
+        if (-not $hasPkg) { continue }
+        if (-not (Test-AtlasPathUnderRoot -Path $full -Root $RepoRoot)) {
+            [void]$foreign.Add($full)
+        }
+    }
+    if ($foreign.Count -gt 0) {
+        return @{
+            Ok     = $false
+            Reason = "pythonpath_foreign_shadow"
+            Detail = ("PYTHONPATH entries shadow project_atlas outside RepoRoot: {0}" -f ($foreign -join "; "))
+        }
+    }
+    return @{ Ok = $true; Reason = "ok"; Detail = "PYTHONPATH has no foreign project_atlas shadow" }
+}
+
+function Test-AtlasImportLocationTipSafe {
+    <#
+    .SYNOPSIS
+      Fail-closed when importable project_atlas.__file__ is not under RepoRoot (ENV-ISO-001).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$Python,
+        [Parameter(Mandatory = $true)][string]$RepoRoot
+    )
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $modOut = & $Python.Exe @($Python.Args + @(
+            "-c",
+            "import project_atlas; print(project_atlas.__file__)"
+        )) 2>$null
+        $code = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $prevEap
+    }
+    if ($code -ne 0 -or -not $modOut) {
+        return @{
+            Ok     = $false
+            Reason = "import_unavailable"
+            Detail = "project_atlas could not be imported by $($Python.Label)"
+        }
+    }
+    $modFile = ([string]$modOut).Trim()
+    if (-not (Test-AtlasPathUnderRoot -Path $modFile -Root $RepoRoot)) {
+        return @{
+            Ok     = $false
+            Reason = "import_wrong_worktree"
+            Detail = "project_atlas.__file__='$modFile' is not under RepoRoot '$RepoRoot' (PYTHONPATH / foreign editable shadow)."
+        }
+    }
+    return @{
+        Ok     = $true
+        Reason = "ok"
+        Detail = "project_atlas imports from $modFile"
+    }
 }
 
 function Invoke-AtlasPython {
