@@ -14,7 +14,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agent_control import bootstrap, capability, doctor, event_client, postflight, preflight, readiness, receipt_gate, repository_gate, session, skill_ack, skill_compiler, skill_loader, spool_sync, vault_identity  # noqa: E402
+from agent_control import authority, bootstrap, capability, doctor, event_client, postflight, preflight, readiness, receipt_gate, repository_gate, session, skill_ack, skill_compiler, skill_loader, spool_sync, vault_identity  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOT = ROOT / "skills" / "atlas-governed-work"
@@ -65,10 +65,27 @@ def main(argv: list[str] | None = None) -> int:
     promote_parser.add_argument("--adapter-id", required=True)
     promote_parser.add_argument("--rehearsal-id", required=True)
     promote_parser.add_argument("--receipt", type=Path, required=True)
+    promote_parser.add_argument("--authority-grant", type=Path, required=True, help="Independently issued authority grant (SEC-016/019)")
+    promote_parser.add_argument("--authority-store", type=Path, help="Authority store root for revocation checks")
     promote_parser.add_argument("--skill-id", default="atlas-governed-work")
     promote_parser.add_argument("--skill-version", required=True)
     promote_parser.add_argument("--skill-sha256", required=True)
     promote_parser.add_argument("--json", action="store_true", dest="json_output")
+    issue_auth = sub.add_parser("issue-authority")
+    issue_auth.add_argument("--store", type=Path, required=True)
+    issue_auth.add_argument("--purpose", default=authority.PURPOSE_PROMOTE_READINESS)
+    issue_auth.add_argument("--adapter-id", required=True)
+    issue_auth.add_argument("--skill-id", default="atlas-governed-work")
+    issue_auth.add_argument("--skill-version", required=True)
+    issue_auth.add_argument("--skill-sha256", required=True)
+    issue_auth.add_argument("--issuer-id", required=True, help="Independent issuer identity (must not equal requester)")
+    issue_auth.add_argument("--requester-id", help="Optional bound requester; must differ from issuer")
+    issue_auth.add_argument("--evidence-receipt-id", help="Optional bound receipt id (evidence only, not authority)")
+    issue_auth.add_argument("--json", action="store_true", dest="json_output")
+    revoke_auth = sub.add_parser("revoke-authority")
+    revoke_auth.add_argument("--store", type=Path, required=True)
+    revoke_auth.add_argument("--grant-id", required=True)
+    revoke_auth.add_argument("--json", action="store_true", dest="json_output")
     gate_parser = sub.add_parser("repository-gate")
     gate_parser.add_argument("--project-id", required=True)
     gate_parser.add_argument("--changed-file", action="append", default=[])
@@ -177,14 +194,68 @@ def main(argv: list[str] | None = None) -> int:
             result = spool_sync.synchronize(args.spool_root, args.vault_root, args.mda_command)
             _json(result, args.json_output)
             return 0
+        if args.command == "issue-authority":
+            # GRANT issuance is a separate privileged step from REQUEST/EXECUTION.
+            result = authority.issue_grant(
+                store=args.store,
+                purpose=args.purpose,
+                adapter_id=args.adapter_id,
+                skill_id=args.skill_id,
+                skill_version=args.skill_version,
+                skill_sha256=args.skill_sha256,
+                issuer_id=args.issuer_id,
+                requester_id=args.requester_id,
+                evidence_receipt_id=args.evidence_receipt_id,
+            )
+            _json(result, args.json_output)
+            return 0
+        if args.command == "revoke-authority":
+            result = authority.revoke_grant(store=args.store, grant_id=args.grant_id)
+            _json(result, args.json_output)
+            return 0
         if args.command == "promote-readiness":
+            # SEC-016: receipt is evidence only. SEC-019: selecting promote must not
+            # create the authority that approves itself — require independent GRANT.
             receipt = json.loads(args.receipt.read_text(encoding="utf-8"))
+            if receipt.get("is_authority") is True or receipt.get("receipt_is_authority") is True:
+                raise ValueError("self-asserted receipt is not authority")
             pipeline = receipt.get("pipeline", {})
-            if receipt.get("receipt_type") not in {"atlas-agent-session", "atlas-governed-work-rehearsal"} or receipt.get("validation", {}).get("receipt") != "passed" or not receipt.get("capability", {}).get("ready") or receipt.get("skill", {}).get("id") != args.skill_id or receipt.get("skill", {}).get("version") != args.skill_version or receipt.get("skill", {}).get("sha256") != args.skill_sha256 or receipt.get("pipeline", {}).get("pending_spool", 0) != 0 or not (pipeline.get("captured") == pipeline.get("normalized") == pipeline.get("verified") == pipeline.get("routed")):
-                raise ValueError("readiness promotion requires a validated agent-session receipt")
+            if (
+                receipt.get("receipt_type") not in {"atlas-agent-session", "atlas-governed-work-rehearsal"}
+                or receipt.get("validation", {}).get("receipt") != "passed"
+                or not receipt.get("capability", {}).get("ready")
+                or receipt.get("skill", {}).get("id") != args.skill_id
+                or receipt.get("skill", {}).get("version") != args.skill_version
+                or receipt.get("skill", {}).get("sha256") != args.skill_sha256
+                or receipt.get("pipeline", {}).get("pending_spool", 0) != 0
+                or not (pipeline.get("captured") == pipeline.get("normalized") == pipeline.get("verified") == pipeline.get("routed"))
+            ):
+                raise ValueError("readiness promotion requires a validated agent-session receipt as evidence")
+            requester_id = str(receipt.get("agent", {}).get("agent_id") or "")
+            grant = authority.verify_grant(
+                args.authority_grant,
+                purpose=authority.PURPOSE_PROMOTE_READINESS,
+                adapter_id=args.adapter_id,
+                skill_id=args.skill_id,
+                skill_version=args.skill_version,
+                skill_sha256=args.skill_sha256,
+                requester_id=requester_id or None,
+                evidence_receipt_id=str(receipt.get("receipt_id") or "") or None,
+                store=args.authority_store,
+            )
             import hashlib
+
             receipt_sha256 = hashlib.sha256(args.receipt.read_bytes()).hexdigest()
-            result = readiness.promote(args.registry, args.adapter_id, args.skill_id, args.skill_version, args.skill_sha256, args.rehearsal_id, receipt_sha256)
+            result = readiness.promote(
+                args.registry,
+                args.adapter_id,
+                args.skill_id,
+                args.skill_version,
+                args.skill_sha256,
+                args.rehearsal_id,
+                receipt_sha256,
+                authority_grant=grant,
+            )
             _json(result, args.json_output)
             return 0
         if args.command == "repository-gate":

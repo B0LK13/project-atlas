@@ -59,7 +59,8 @@ def run(*, project_root: Path, vault_root: Path | None, agent_type: str, agent_v
     readiness_path_value = documentation.get("readiness_registry")
     readiness_path = Path(str(readiness_path_value)).expanduser() if readiness_path_value else None
     readiness_report = readiness.check(readiness_path, str(adapter["adapter_id"]), skill.version, skill.sha256)
-    if readiness_path is not None and not readiness_report["authorized"]:
+    # SEC-015: missing / unauthorized readiness always fails closed (no legacy allow).
+    if not readiness_report["authorized"]:
         raise ValueError(f"adapter is not ready for governed work: {readiness_report['reason']}")
     spool = project_root / ".atlas-spool"
     spool.mkdir(parents=True, exist_ok=True)

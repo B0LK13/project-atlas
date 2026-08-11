@@ -42,8 +42,9 @@ def main() -> int:
         (project / ".atlas").mkdir(parents=True)
         (vault / ".atlas").mkdir(parents=True)
         (vault / ".atlas" / "vault.json").write_text(json.dumps({"vault_id": "atlas-rehearsal", "vault_uuid": "rehearsal-uuid"}), encoding="utf-8")
-        (project / ".atlas" / "project.yaml").write_text("schema_version: 1\nproject:\n  id: governed-work-rehearsal\n  name: Governed Work Rehearsal\nvault:\n  required_vault_id: atlas-rehearsal\n  required_vault_uuid: rehearsal-uuid\ndocumentation:\n  skill_id: atlas-governed-work\n  strict: true\n", encoding="utf-8")
-        env = dict(os.environ, ATLAS_MDA_COMMAND=str(MDA))
+        (project / ".atlas" / "project.yaml").write_text(f"schema_version: 1\nproject:\n  id: governed-work-rehearsal\n  name: Governed Work Rehearsal\nvault:\n  required_vault_id: atlas-rehearsal\n  required_vault_uuid: rehearsal-uuid\ndocumentation:\n  skill_id: atlas-governed-work\n  readiness_registry: {REGISTRY}\n  strict: true\n", encoding="utf-8")
+        env = dict(os.environ, ATLAS_MDA_COMMAND=str(MDA), ATLAS_AUTHORITY_ISSUER_KEY="certification-authority-issuer-key-32b-min")
+        authority_store = base / "authority"
         _, bootstrap, _ = command("bootstrap", "--project-root", str(project), "--vault-root", str(vault), "--task-id", "AS-SKILL-001", env=env)
         assert bootstrap is not None
         bootstrap_data = bootstrap
@@ -58,8 +59,75 @@ def main() -> int:
         assert receipt is not None
         receipt_data = receipt
         rehearsal_id = str(receipt_data["rehearsal"]["rehearsal_id"])
-        promotion = command("promote-readiness", "--registry", str(REGISTRY), "--adapter-id", "generic-cli-v1", "--rehearsal-id", rehearsal_id, "--receipt", str(vault / ".atlas" / "receipts" / f"{receipt_data['receipt_id']}.json"), "--skill-id", skill_manifest["id"], "--skill-version", skill_manifest["version"], "--skill-sha256", skill_manifest["sha256"], env=env)[1]
-        promotion_replay = command("promote-readiness", "--registry", str(REGISTRY), "--adapter-id", "generic-cli-v1", "--rehearsal-id", rehearsal_id, "--receipt", str(vault / ".atlas" / "receipts" / f"{receipt_data['receipt_id']}.json"), "--skill-id", skill_manifest["id"], "--skill-version", skill_manifest["version"], "--skill-sha256", skill_manifest["sha256"], env=env)[1]
+        requester_id = str(receipt_data.get("agent", {}).get("agent_id") or "rehearsal-agent")
+        _, grant, _ = command(
+            "issue-authority",
+            "--store",
+            str(authority_store),
+            "--purpose",
+            "promote-readiness",
+            "--adapter-id",
+            "generic-cli-v1",
+            "--skill-id",
+            skill_manifest["id"],
+            "--skill-version",
+            skill_manifest["version"],
+            "--skill-sha256",
+            skill_manifest["sha256"],
+            "--issuer-id",
+            "certification-issuer",
+            "--requester-id",
+            requester_id,
+            "--evidence-receipt-id",
+            str(receipt_data["receipt_id"]),
+            env=env,
+        )
+        assert grant is not None
+        grant_path = authority_store / "grants" / f"{grant['grant_id']}.json"
+        promotion = command(
+            "promote-readiness",
+            "--registry",
+            str(REGISTRY),
+            "--adapter-id",
+            "generic-cli-v1",
+            "--rehearsal-id",
+            rehearsal_id,
+            "--receipt",
+            str(vault / ".atlas" / "receipts" / f"{receipt_data['receipt_id']}.json"),
+            "--authority-grant",
+            str(grant_path),
+            "--authority-store",
+            str(authority_store),
+            "--skill-id",
+            skill_manifest["id"],
+            "--skill-version",
+            skill_manifest["version"],
+            "--skill-sha256",
+            skill_manifest["sha256"],
+            env=env,
+        )[1]
+        promotion_replay = command(
+            "promote-readiness",
+            "--registry",
+            str(REGISTRY),
+            "--adapter-id",
+            "generic-cli-v1",
+            "--rehearsal-id",
+            rehearsal_id,
+            "--receipt",
+            str(vault / ".atlas" / "receipts" / f"{receipt_data['receipt_id']}.json"),
+            "--authority-grant",
+            str(grant_path),
+            "--authority-store",
+            str(authority_store),
+            "--skill-id",
+            skill_manifest["id"],
+            "--skill-version",
+            skill_manifest["version"],
+            "--skill-sha256",
+            skill_manifest["sha256"],
+            env=env,
+        )[1]
 
         negative: list[dict[str, object]] = []
         wrong_vault = base / "wrong-vault"
@@ -76,8 +144,16 @@ def main() -> int:
         altered = dict(receipt_data)
         altered["skill"] = {**altered["skill"], "sha256": "0" * 64}
         mismatch.write_text(json.dumps(altered), encoding="utf-8")
-        result = subprocess.run([sys.executable, str(CLI), "promote-readiness", "--registry", str(REGISTRY), "--adapter-id", "generic-cli-v1", "--rehearsal-id", rehearsal_id, "--receipt", str(mismatch), "--skill-id", skill_manifest["id"], "--skill-version", skill_manifest["version"], "--skill-sha256", skill_manifest["sha256"], "--json"], env=env, capture_output=True, text=True, check=False)
+        result = subprocess.run([sys.executable, str(CLI), "promote-readiness", "--registry", str(REGISTRY), "--adapter-id", "generic-cli-v1", "--rehearsal-id", rehearsal_id, "--receipt", str(mismatch), "--authority-grant", str(grant_path), "--authority-store", str(authority_store), "--skill-id", skill_manifest["id"], "--skill-version", skill_manifest["version"], "--skill-sha256", skill_manifest["sha256"], "--json"], env=env, capture_output=True, text=True, check=False)
         negative.append({"probe_id": "NG-receipt-skill-mismatch", "expected": "rejected", "actual": "rejected" if result.returncode else "accepted", "canonical_mutations": 0, "receipt_issued": False, "passed": result.returncode != 0})
+        receipt_only = subprocess.run([sys.executable, str(CLI), "promote-readiness", "--registry", str(REGISTRY), "--adapter-id", "generic-cli-v1", "--rehearsal-id", rehearsal_id, "--receipt", str(vault / ".atlas" / "receipts" / f"{receipt_data['receipt_id']}.json"), "--skill-id", skill_manifest["id"], "--skill-version", skill_manifest["version"], "--skill-sha256", skill_manifest["sha256"], "--json"], env=env, capture_output=True, text=True, check=False)
+        negative.append({"probe_id": "NG-receipt-only-no-authority-grant", "expected": "rejected", "actual": "rejected" if receipt_only.returncode else "accepted", "canonical_mutations": 0, "receipt_issued": False, "passed": receipt_only.returncode != 0})
+        # Create project without readiness_registry to assert SEC-015 deny.
+        no_ready = base / "no-ready"
+        (no_ready / ".atlas").mkdir(parents=True)
+        (no_ready / ".atlas" / "project.yaml").write_text("schema_version: 1\nproject:\n  id: no-ready\n  name: No Ready\nvault:\n  required_vault_id: atlas-rehearsal\n  required_vault_uuid: rehearsal-uuid\ndocumentation:\n  skill_id: atlas-governed-work\n  strict: true\n", encoding="utf-8")
+        missing_ready = subprocess.run([sys.executable, str(CLI), "bootstrap", "--project-root", str(no_ready), "--vault-root", str(vault), "--json"], env=env, capture_output=True, text=True, check=False)
+        negative.append({"probe_id": "NG-missing-readiness-config", "expected": "rejected", "actual": "rejected" if missing_ready.returncode else "accepted", "canonical_mutations": 0, "receipt_issued": False, "passed": missing_ready.returncode != 0})
         stale = cast(dict[str, Any], yaml.safe_load(REGISTRY.read_text(encoding="utf-8")))
         stale["adapters"]["generic-cli-v1"]["skill_sha256"] = "1" * 64
         stale_path = base / "stale.yaml"
