@@ -22,6 +22,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+from atlas_contracts.identity import ensure_under_root
 from project_atlas.logging import get_logger
 
 _log = get_logger("scaffold")
@@ -259,15 +260,21 @@ def create_scaffold(output: Path, *, dry_run: bool = False) -> ScaffoldPlan:
         return plan
 
     for directory in plan.directories:
-        # Defence in depth: never write outside the vault root.
+        # Defence in depth: containment checked immediately before mkdir (SEC-004/018).
         target = resolved.joinpath(*PurePosixPath(directory).parts)
-        if not target.resolve(strict=False).is_relative_to(resolved):
-            raise ScaffoldError(f"refusing to create directory outside vault root: {directory}")
+        try:
+            ensure_under_root(resolved, target, label="scaffold directory")
+        except ValueError as exc:
+            raise ScaffoldError(
+                f"refusing to create directory outside vault root: {directory}"
+            ) from exc
         target.mkdir(parents=True, exist_ok=True)
     for relative, content in plan.files:
         target = resolved.joinpath(*PurePosixPath(relative).parts)
-        if not target.resolve(strict=False).is_relative_to(resolved):
-            raise ScaffoldError(f"refusing to write outside vault root: {relative}")
+        try:
+            ensure_under_root(resolved, target, label="scaffold file")
+        except ValueError as exc:
+            raise ScaffoldError(f"refusing to write outside vault root: {relative}") from exc
         _write_atomic(target, content)
 
     _log.info(

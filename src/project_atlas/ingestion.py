@@ -21,7 +21,11 @@ from atlas_contracts.event_package import (
     PackageValidationError,
     load_event_package,
 )
-from atlas_contracts.identity import safe_relative_component
+from atlas_contracts.identity import (
+    ensure_under_root,
+    resolve_under_root,
+    safe_relative_component,
+)
 from project_atlas.backup import find_promote_orphans, parse_promote_orphan_name
 from project_atlas.classification import apply_classification_method, classify_source
 from project_atlas.compilation import (
@@ -482,14 +486,11 @@ class _PreparedEvent(NamedTuple):
 
 
 def _inside(root: Path, candidate: Path) -> Path:
-    """Resolve a candidate and reject paths escaping ``root``."""
-    resolved_root = root.resolve()
-    resolved_candidate = Path(candidate).resolve()
+    """Resolve a candidate and reject paths escaping ``root`` (SEC-004/014/017/018)."""
     try:
-        resolved_candidate.relative_to(resolved_root)
+        return ensure_under_root(root, candidate, label="destination")
     except ValueError as exc:
         raise ValueError(f"destination escapes Vault root: {candidate}") from exc
-    return resolved_candidate
 
 
 def _resolve_authorized_source_root(
@@ -543,12 +544,10 @@ def _assert_manifest_source_identities(sources: list[SourceRecord]) -> None:
 
 def _source_path(root: Path, value: str) -> Path:
     """Resolve a manifest source path without permitting traversal."""
-    if not value or Path(value).is_absolute() or "\\" in value:
-        raise ValueError(f"unsafe manifest source path: {value!r}")
-    parts = Path(value).parts
-    if ".." in parts:
-        raise ValueError(f"unsafe manifest source path: {value!r}")
-    return _inside(root, root / value)
+    try:
+        return resolve_under_root(root, value, label="manifest source path")
+    except ValueError as exc:
+        raise ValueError(f"unsafe manifest source path: {value!r}") from exc
 
 
 def _manifest_records(manifest: object) -> list[SourceRecord]:
@@ -1446,6 +1445,8 @@ def _ingest(
         classification_audits[stamped.source_id] = stamped
         source_id = source_record.source_id
         project = source_record.likely_project or "unknown-project"
+        # SEC-004/014/018: validate before any Path join (Windows C:foo discards root).
+        safe_relative_component(project, label="likely_project")
         entry: dict[str, Any] = {
             "source_id": source_id,
             "source_lineage_id": source_record.source_lineage_id or "",
@@ -2035,6 +2036,7 @@ def _ingest(
         ).encode()
     project_candidates: dict[str, tuple[CompilationCandidate, ...]] = {}
     for project, entries in sorted(projects.items()):
+        safe_relative_component(project, label="likely_project")
         knowledge = compile_knowledge(
             project,
             entries,

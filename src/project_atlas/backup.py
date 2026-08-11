@@ -21,6 +21,7 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
+from atlas_contracts.identity import ensure_under_root, resolve_under_root
 from project_atlas.schema import validate_record
 
 SCHEMA_MANIFEST = "atlas.backup.manifest.v1"
@@ -317,10 +318,11 @@ def _iter_files(root: Path) -> Iterator[tuple[PurePosixPath, Path]]:
 
 
 def _assert_inside(root: Path, target: Path) -> None:
-    resolved_root = root.resolve()
-    resolved_target = target.resolve(strict=False)
-    if not resolved_target.is_relative_to(resolved_root):
-        raise BackupError(f"refusing path outside root: {target}")
+    """Containment check immediately before sensitive open/write (SEC-004/017/018)."""
+    try:
+        ensure_under_root(root, target, label="backup path")
+    except ValueError as exc:
+        raise BackupError(f"refusing path outside root: {target}") from exc
 
 
 def validate_protected_markers(text: str, *, path: str) -> None:
@@ -694,7 +696,14 @@ def restore_bundle(
             raise BackupError(f"unknown domain during restore: {domain_raw}")
         domain: DomainId = domain_raw  # narrowed by DOMAIN_DIR membership
         rel = str(member["path"])
-        src = root / "domains" / DOMAIN_DIR[domain] / PurePosixPath(rel)
+        try:
+            src = resolve_under_root(
+                root / "domains" / DOMAIN_DIR[domain],
+                rel,
+                label="backup member",
+            )
+        except ValueError as exc:
+            raise BackupError(f"refusing path outside root: {rel}") from exc
         _assert_inside(root, src)
         data = src.read_bytes()
         actual = _sha256_bytes(data)
@@ -704,7 +713,10 @@ def restore_bundle(
         # CP-prefixed paths restore under vault root without the cp/ prefix when
         # the path is cp/routing/... → routing/...
         dest_rel = rel[3:] if rel.startswith("cp/") else rel
-        dest = target.joinpath(*PurePosixPath(dest_rel).parts)
+        try:
+            dest = resolve_under_root(target, dest_rel, label="restore destination")
+        except ValueError as exc:
+            raise BackupError(f"refusing path outside root: {dest_rel}") from exc
         _assert_inside(target, dest)
         if domain == "D2" and dest.suffix.lower() == ".md":
             validate_protected_markers(data.decode("utf-8"), path=dest_rel)
