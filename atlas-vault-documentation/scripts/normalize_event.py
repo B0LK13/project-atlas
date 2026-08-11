@@ -21,16 +21,20 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import atlas_config  # noqa: E402
-import capture_event  # noqa: E402
-import check_documentation  # noqa: E402
-from internal import normalization  # noqa: E402
+import atlas_config
+import capture_event
+import check_documentation
+from internal import normalization
+from internal.trusted_exec import (
+    TrustedExecError,
+    resolve_normalization_command,
+)
 
 EXIT_OK = 0
 EXIT_USAGE = 2
@@ -71,8 +75,15 @@ def _bool(value: object, default: bool) -> bool:
 def _resolve_settings(
     args: argparse.Namespace,
 ) -> tuple[normalization.NormalizationSettings, dict[str, Any]]:
-    config, _ = atlas_config.load_config(args.config)
+    config, _, config_source = atlas_config.load_config(args.config)
     section = "normalization"
+    # CODEX-SEC-021: only operator-named config (CLI/--config or ATLAS_AGENT_CONFIG)
+    # may participate in executable selection. Upward-discovered repo YAML must
+    # never grant EXECUTION_AUTHORITY via normalization.command.
+    exec_config_trusted = config_source in (
+        atlas_config.CONFIG_SOURCE_EXPLICIT,
+        atlas_config.CONFIG_SOURCE_ENV,
+    )
 
     skill_dir_value = atlas_config.resolve(
         args.skill_dir, "ATLAS_SKILL_DIR", config, section, "skill_dir"
@@ -120,13 +131,18 @@ def _resolve_settings(
         atlas_config.config_value(config, section, "record_command"), True
     )
 
+    try:
+        trusted = resolve_normalization_command(
+            cli_value=args.mda_command,
+            config=config,
+            config_grants_execution=exec_config_trusted,
+        )
+    except TrustedExecError as exc:
+        raise atlas_config.ConfigError(str(exc)) from exc
+
     return (
         normalization.NormalizationSettings(
-            mda_command=str(
-                atlas_config.resolve(
-                    args.mda_command, "ATLAS_MDA_COMMAND", config, section, "command", "mda"
-                )
-            ),
+            mda_command=trusted.command,
             skill=str(skill),
             skill_dir=Path(skill_dir_value).expanduser() if skill_dir_value else DEFAULT_SKILL_DIR,
             provider=str(provider),

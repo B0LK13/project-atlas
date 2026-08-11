@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", dest="json_output")
     args = parser.parse_args(argv)
     try:
-        config, _ = atlas_config.load_config(args.config, start=args.project_root)
+        config, _, _ = atlas_config.load_config(args.config, start=args.project_root)
         project = project_discovery.discover_projects(args.project_root, project_root=args.project_root)[0]
         result = ingestion_orchestrator.ingest_project(
             project, vault_root=args.vault, config=config, incremental=args.incremental,

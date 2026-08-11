@@ -23,7 +23,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", dest="json_output")
     args = parser.parse_args(argv)
     try:
-        config, _ = atlas_config.load_config(args.config, start=args.project_root)
+        config, _, _ = atlas_config.load_config(args.config, start=args.project_root)
         project_id = args.project_id or project_discovery.discover_projects(args.project_root, project_root=args.project_root)[0].project_id
         inventory = document_inventory.inventory_project(args.project_root, project_id=project_id, config=config)
         args.output.parent.mkdir(parents=True, exist_ok=True)

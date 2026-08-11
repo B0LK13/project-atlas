@@ -238,7 +238,7 @@ tags:
 
 def _resolve_settings(args: argparse.Namespace) -> dict[str, object]:
     """Apply CLI > environment > config file > default to every setting."""
-    config, _ = atlas_config.load_config(args.config)
+    config, _, _ = atlas_config.load_config(args.config)
     vault = atlas_config.resolve(args.vault, "ATLAS_VAULT", config, "atlas", "vault")
     spool = atlas_config.resolve(args.spool, "ATLAS_SPOOL", config, "atlas", "spool")
     settings: dict[str, object] = {

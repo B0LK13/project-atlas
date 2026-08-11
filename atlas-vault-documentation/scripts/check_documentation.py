@@ -133,7 +133,7 @@ def _as_bool(value: object) -> bool:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        config, _ = atlas_config.load_config(args.config)
+        config, _, _ = atlas_config.load_config(args.config)
     except atlas_config.ConfigError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

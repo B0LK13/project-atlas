@@ -23,17 +23,36 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 CONFIG_FILENAMES = ("atlas-agent.yaml", ".atlas-agent.yaml", ".atlas/agent.yaml")
 
 #: Environment variable pointing at an explicit configuration file.
 CONFIG_ENV_VAR = "ATLAS_AGENT_CONFIG"
 
+#: Config load provenance. Only ``explicit`` / ``env`` grant execution authority
+#: for normalizer executable selection (CODEX-SEC-021).
+CONFIG_SOURCE_EXPLICIT = "explicit"
+CONFIG_SOURCE_ENV = "env"
+CONFIG_SOURCE_DISCOVERED = "discovered"
+CONFIG_SOURCE_NONE = "none"
+
 
 class ConfigError(ValueError):
     """Raised when a configuration file cannot be found or parsed."""
+
+
+def config_grants_execution_authority(explicit: Path | None = None) -> bool:
+    """True when the operator named the config (CLI ``--config`` or env).
+
+    Upward-discovered repository configuration never grants execution
+    authority for selecting a normalizer executable (CODEX-SEC-021).
+    """
+    if explicit is not None:
+        return True
+    return bool(str(os.environ.get(CONFIG_ENV_VAR, "")).strip())
 
 
 def find_config(start: Path) -> Path | None:
@@ -114,29 +133,49 @@ def parse_config_text(text: str) -> dict[str, dict[str, Any]]:
 
 def load_config(
     explicit: Path | None = None, *, start: Path | None = None
-) -> tuple[dict[str, dict[str, Any]], Path | None]:
-    """Load configuration; returns ``(config, path_used)``.
+) -> tuple[dict[str, dict[str, Any]], Path | None, str]:
+    """Load configuration; returns ``(config, path_used, source)``.
 
     Resolution order: ``explicit`` argument, then the
     ``ATLAS_AGENT_CONFIG`` environment variable, then upward discovery
     from ``start`` (default: current working directory). An explicitly
     named file (argument or environment) must exist; a missing
     discovered file simply yields an empty configuration.
+
+    ``source`` is one of ``explicit``, ``env``, ``discovered``, or ``none``.
+    Only ``explicit`` / ``env`` are execution-authoritative for selecting a
+    normalizer executable (CODEX-SEC-021); ``discovered`` must not grant
+    ``normalization.command`` authority.
     """
-    named = explicit
-    env_named = os.environ.get(CONFIG_ENV_VAR)
-    if named is None and env_named:
-        named = Path(env_named)
-    if named is not None:
-        path = named.expanduser()
+    if explicit is not None:
+        path = explicit.expanduser()
         if not path.is_file():
             raise ConfigError(f"configuration file not found: {path}")
-        return parse_config_text(path.read_text(encoding="utf-8")), path
+        return (
+            parse_config_text(path.read_text(encoding="utf-8")),
+            path,
+            CONFIG_SOURCE_EXPLICIT,
+        )
+
+    env_named = os.environ.get(CONFIG_ENV_VAR)
+    if env_named:
+        path = Path(env_named).expanduser()
+        if not path.is_file():
+            raise ConfigError(f"configuration file not found: {path}")
+        return (
+            parse_config_text(path.read_text(encoding="utf-8")),
+            path,
+            CONFIG_SOURCE_ENV,
+        )
 
     discovered = find_config(start or Path.cwd())
     if discovered is None:
-        return {}, None
-    return parse_config_text(discovered.read_text(encoding="utf-8")), discovered
+        return {}, None, CONFIG_SOURCE_NONE
+    return (
+        parse_config_text(discovered.read_text(encoding="utf-8")),
+        discovered,
+        CONFIG_SOURCE_DISCOVERED,
+    )
 
 
 def config_value(
