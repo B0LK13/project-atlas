@@ -1,0 +1,8 @@
+{
+  "role": "autolab",
+  "package_id": "AS-2.2-EVAL-001",
+  "case_roots": [
+    "fixtures/eval/public"
+  ],
+  "notes": "Holdouts must not appear in autolab path manifests."
+}

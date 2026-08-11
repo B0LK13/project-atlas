@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/eval-score-receipt.schema.json",
+  "title": "EvalScoreReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "receipt_id",
+    "role",
+    "holdouts_scored",
+    "holdout_case_count",
+    "public_case_count",
+    "authority_promoted",
+    "score_subjective",
+    "opt_woken",
+    "rl_enabled",
+    "prime_enabled",
+    "cases_scored",
+    "cases_matched",
+    "cases_missed",
+    "results",
+    "config_roots",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-EVAL-001" },
+    "receipt_id": { "type": "string", "minLength": 1 },
+    "role": { "const": "scoring" },
+    "holdouts_scored": { "type": "boolean" },
+    "holdout_case_count": { "type": "integer", "minimum": 0 },
+    "public_case_count": { "type": "integer", "minimum": 0 },
+    "authority_promoted": { "const": false },
+    "score_subjective": { "const": false },
+    "opt_woken": { "const": false },
+    "rl_enabled": { "const": false },
+    "prime_enabled": { "const": false },
+    "cases_scored": { "type": "integer", "minimum": 0 },
+    "cases_matched": { "type": "integer", "minimum": 0 },
+    "cases_missed": { "type": "integer", "minimum": 0 },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "visibility",
+          "mode",
+          "matched",
+          "expected_norm",
+          "predicted_norm"
+        ],
+        "properties": {
+          "case_id": { "type": "string", "minLength": 1 },
+          "visibility": { "type": "string", "enum": ["public", "holdout"] },
+          "mode": { "type": "string", "enum": ["exact", "prefix"] },
+          "matched": { "type": "boolean" },
+          "expected_norm": { "type": "string" },
+          "predicted_norm": { "type": "string" }
+        }
+      }
+    },
+    "config_roots": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "truth_boundary": { "type": "string", "minLength": 1 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
