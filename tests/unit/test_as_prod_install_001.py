@@ -42,6 +42,8 @@ _START_TOKENS = (
     ".tmp/productization",
     "api-serve",
     "STRANGER_CAN_START_ATLAS",
+    "Test-AtlasPortFree",
+    "Test-AtlasProcessOwnsPort",
 )
 
 _PREFLIGHT_TOKENS = (
@@ -112,6 +114,23 @@ def test_as_prod_install_001_common_product_error_helper() -> None:
     assert "RETRY:" in text
     assert "NOT RELEASE" in text
     assert "Wait-AtlasHttpOk" in text
+    assert "Test-AtlasPortFree" in text
+    assert "Test-AtlasProcessOwnsPort" in text
+
+
+def test_as_prod_install_001_docs_include_adv_findings_when_present() -> None:
+    """ADV findings doc is optional on tip; when present must keep honesty tokens."""
+    adv = _DOCS / "ADV-FINDINGS.md"
+    if not adv.is_file():
+        return
+    text = adv.read_text(encoding="utf-8")
+    assert "PROD-FINDING-" in text
+    assert "STRANGER_CAN_START_ATLAS" in text
+    assert "NOT RELEASE" in text
+    assert "PRODUCTIZATION" in text
+    assert "RELEASE CERTIFIED = YES" not in text
+    assert "PILOT PASS = YES" not in text
+    assert "ALPHA_READY=YES" not in text
 
 
 def test_as_prod_install_001_docs_honesty_and_stranger_tokens() -> None:
