@@ -1,0 +1,7 @@
+{
+  "case_id": "EV-PUB-001",
+  "visibility": "public",
+  "score_mode": "exact",
+  "query": "atlas validate vault",
+  "expected": "validate-ok"
+}

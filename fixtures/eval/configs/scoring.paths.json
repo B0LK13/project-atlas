@@ -1,0 +1,9 @@
+{
+  "role": "scoring",
+  "package_id": "AS-2.2-EVAL-001",
+  "case_roots": [
+    "fixtures/eval/public",
+    "fixtures/eval/holdouts/hidden"
+  ],
+  "notes": "Scoring may load hidden holdouts; OPT remains gated."
+}
