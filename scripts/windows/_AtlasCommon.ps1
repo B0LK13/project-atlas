@@ -224,3 +224,63 @@ function Wait-AtlasTcpOpen {
     }
     return $false
 }
+
+function Test-AtlasPortFree {
+    <#
+    .SYNOPSIS
+      Return $true when no listener is bound on 127.0.0.1 (or ::1) for the port.
+      Used before start to avoid false-positive health against a foreign process.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][int]$Port
+    )
+    try {
+        $listeners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    }
+    catch {
+        $listeners = @()
+    }
+    foreach ($c in $listeners) {
+        $addr = [string]$c.LocalAddress
+        if ($addr -eq "127.0.0.1" -or $addr -eq "::1" -or $addr -eq "0.0.0.0" -or $addr -eq "::") {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-AtlasProcessOwnsPort {
+    <#
+    .SYNOPSIS
+      True when the Listen owner for Host:Port is $RootPid or a descendant (Windows atlas.exe -> python child).
+    #>
+    param(
+        [Parameter(Mandatory = $true)][int]$RootPid,
+        [Parameter(Mandatory = $true)][int]$Port,
+        [string]$HostName = "127.0.0.1"
+    )
+    try {
+        $listeners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    }
+    catch {
+        return $false
+    }
+    $allowed = New-Object "System.Collections.Generic.HashSet[int]"
+    [void]$allowed.Add($RootPid)
+    try {
+        Get-CimInstance Win32_Process -Filter "ParentProcessId=$RootPid" -ErrorAction SilentlyContinue |
+            ForEach-Object { [void]$allowed.Add([int]$_.ProcessId) }
+    }
+    catch { }
+
+    foreach ($c in $listeners) {
+        $addr = [string]$c.LocalAddress
+        if ($HostName -and $addr -ne $HostName -and $addr -ne "0.0.0.0" -and $addr -ne "::") {
+            continue
+        }
+        if ($allowed.Contains([int]$c.OwningProcess)) {
+            return $true
+        }
+    }
+    return $false
+}

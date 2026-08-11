@@ -95,6 +95,17 @@ function Start-TrackedProcess {
     }
 }
 
+function Resolve-AtlasScriptsDir {
+    param([Parameter(Mandatory = $true)]$Python)
+    # py.exe launcher -> resolve real interpreter home via -c
+    $homeOut = & $Python.Exe @($Python.Args + @("-c", "import sys,os; print(os.path.dirname(sys.executable))")) 2>$null
+    if ($LASTEXITCODE -eq 0 -and $homeOut) {
+        return (Join-Path ([string]$homeOut).Trim() "Scripts")
+    }
+    $parent = Split-Path $Python.Exe -Parent
+    return (Join-Path $parent "Scripts")
+}
+
 function Ensure-AtlasEditableInstall {
     param(
         [Parameter(Mandatory = $true)]$Python,
@@ -102,21 +113,29 @@ function Ensure-AtlasEditableInstall {
         [Parameter(Mandatory = $true)][string]$ErrLog,
         [switch]$SkipInstall
     )
+    # Prefer atlas beside the preflight-selected interpreter (avoid PATH atlas from another Python).
+    $scriptsDir = Resolve-AtlasScriptsDir -Python $Python
+    $hint = Join-Path $scriptsDir "atlas.exe"
+    if (Test-Path -LiteralPath $hint) {
+        Write-Host "OK  atlas matched to $($Python.Label): $hint"
+        return $hint
+    }
+
     $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
     if ($atlasCmd) {
-        Write-Host "OK  atlas on PATH: $($atlasCmd.Source)"
-        return $atlasCmd.Source
+        Write-Host "NOTE: PATH atlas $($atlasCmd.Source) is not beside $($Python.Label); will install into selected Python." -ForegroundColor DarkYellow
     }
+
     if ($SkipInstall) {
         Write-AtlasProductError `
-            -What "Atlas CLI ('atlas') is not on PATH." `
-            -Cause "-SkipInstall was set and no atlas console script was found." `
-            -Action "Remove -SkipInstall or run: pip install -e `".[dev]`" from the repo root, then reopen the shell." `
+            -What "Atlas CLI ('atlas') is not available for the selected Python." `
+            -Cause "-SkipInstall was set and no atlas.exe was found under $scriptsDir." `
+            -Action "Remove -SkipInstall or run: $($Python.Label) -m pip install -e `".[dev]`" from the repo root, then reopen the shell." `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
             -LogPath $ErrLog
         exit 1
     }
-    Write-Host "Configuring: editable install pip install -e `".[dev]`" ..."
+    Write-Host "Configuring: editable install via $($Python.Label) pip install -e `".[dev]`" ..."
     $code = Invoke-AtlasPython -Python $Python -WorkingDirectory $RepoRoot -Arguments @(
         "-m", "pip", "install", "-e", ".[dev]"
     )
@@ -129,24 +148,22 @@ function Ensure-AtlasEditableInstall {
             -LogPath $ErrLog
         exit 1
     }
-    $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
-    if (-not $atlasCmd) {
-        # Prefer Scripts next to the interpreter when PATH was not refreshed.
-        $hint = Join-Path (Split-Path $Python.Exe -Parent) "Scripts\atlas.exe"
-        if (Test-Path -LiteralPath $hint) {
-            Write-Host "OK  atlas at $hint (PATH not refreshed; using absolute path)"
-            return $hint
-        }
-        Write-AtlasProductError `
-            -What "Install finished but 'atlas' is still not discoverable." `
-            -Cause "pip reported success but no atlas.exe was found on PATH or beside the Python Scripts directory." `
-            -Action "Close and reopen PowerShell so PATH updates, or add Python Scripts to PATH. Confirm: python -m pip show project-atlas" `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
-            -LogPath $ErrLog
-        exit 1
+    if (Test-Path -LiteralPath $hint) {
+        Write-Host "OK  atlas installed at $hint"
+        return $hint
     }
-    Write-Host "OK  atlas installed: $($atlasCmd.Source)"
-    return $atlasCmd.Source
+    $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
+    if ($atlasCmd) {
+        Write-Host "OK  atlas installed: $($atlasCmd.Source)"
+        return $atlasCmd.Source
+    }
+    Write-AtlasProductError `
+        -What "Install finished but 'atlas' is still not discoverable." `
+        -Cause "pip reported success but no atlas.exe was found under $scriptsDir or on PATH." `
+        -Action "Close and reopen PowerShell so PATH updates, or add Python Scripts to PATH. Confirm: $($Python.Label) -m pip show project-atlas" `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+        -LogPath $ErrLog
+    exit 1
 }
 
 function Build-DemoFixtureVault {
@@ -164,56 +181,63 @@ function Build-DemoFixtureVault {
     if (Test-Path -LiteralPath $VaultDir) {
         Remove-Item -Recurse -Force $VaultDir
     }
-    & $AtlasExe init --output $VaultDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-AtlasProductError `
-            -What "Failed to initialize disposable productization vault." `
-            -Cause "atlas init exited with code $LASTEXITCODE." `
-            -Action "Inspect Core install (atlas version). Ensure VaultDir under .tmp/productization is empty/writable." `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
-            -LogPath $ErrLog
-        exit 1
+    # Run atlas CLI with repo WorkingDirectory so [tool.atlas] / config resolve from this checkout.
+    Push-Location $RepoRoot
+    try {
+        & $AtlasExe init --output $VaultDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-AtlasProductError `
+                -What "Failed to initialize disposable productization vault." `
+                -Cause "atlas init exited with code $LASTEXITCODE." `
+                -Action "Inspect Core install (atlas version). Ensure VaultDir under .tmp/productization is empty/writable." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
+                -LogPath $ErrLog
+            exit 1
+        }
+        $manifest = Join-Path $RuntimeRoot "manifest.json"
+        & $AtlasExe discover --source $FixtureRoot --output $manifest
+        if ($LASTEXITCODE -ne 0) {
+            Write-AtlasProductError `
+                -What "Failed to discover DEMO_FIXTURE sources." `
+                -Cause "atlas discover exited with code $LASTEXITCODE against $FixtureRoot." `
+                -Action "Confirm fixtures exist under tests/fixtures/demo/estate or fixtures/demo/estate." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
+                -LogPath $ErrLog
+            exit 1
+        }
+        & $AtlasExe ingest --manifest $manifest --vault $VaultDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-AtlasProductError `
+                -What "Failed to ingest DEMO_FIXTURE into disposable vault." `
+                -Cause "atlas ingest exited with code $LASTEXITCODE." `
+                -Action "Read ingest logs; fix fixture corpus; do not substitute authentic estate without an explicit operator vault path." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
+                -LogPath $ErrLog
+            exit 1
+        }
+        & $AtlasExe build-indexes --vault $VaultDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-AtlasProductError `
+                -What "Failed to build indexes for disposable vault." `
+                -Cause "atlas build-indexes exited with code $LASTEXITCODE." `
+                -Action "Re-run after a clean .tmp/productization/vault or report Core index errors." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
+                -LogPath $ErrLog
+            exit 1
+        }
+        & $AtlasExe validate --vault $VaultDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-AtlasProductError `
+                -What "Disposable vault failed validation." `
+                -Cause "atlas validate exited with code $LASTEXITCODE." `
+                -Action "Treat as a Core/fixture issue. Do not claim STRANGER_CAN_START_ATLAS until validate passes." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
+                -LogPath $ErrLog
+            exit 1
+        }
     }
-    $manifest = Join-Path $RuntimeRoot "manifest.json"
-    & $AtlasExe discover --source $FixtureRoot --output $manifest
-    if ($LASTEXITCODE -ne 0) {
-        Write-AtlasProductError `
-            -What "Failed to discover DEMO_FIXTURE sources." `
-            -Cause "atlas discover exited with code $LASTEXITCODE against $FixtureRoot." `
-            -Action "Confirm fixtures exist under tests/fixtures/demo/estate or fixtures/demo/estate." `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
-            -LogPath $ErrLog
-        exit 1
-    }
-    & $AtlasExe ingest --manifest $manifest --vault $VaultDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-AtlasProductError `
-            -What "Failed to ingest DEMO_FIXTURE into disposable vault." `
-            -Cause "atlas ingest exited with code $LASTEXITCODE." `
-            -Action "Read ingest logs; fix fixture corpus; do not substitute authentic estate without an explicit operator vault path." `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
-            -LogPath $ErrLog
-        exit 1
-    }
-    & $AtlasExe build-indexes --vault $VaultDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-AtlasProductError `
-            -What "Failed to build indexes for disposable vault." `
-            -Cause "atlas build-indexes exited with code $LASTEXITCODE." `
-            -Action "Re-run after a clean .tmp/productization/vault or report Core index errors." `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
-            -LogPath $ErrLog
-        exit 1
-    }
-    & $AtlasExe validate --vault $VaultDir
-    if ($LASTEXITCODE -ne 0) {
-        Write-AtlasProductError `
-            -What "Disposable vault failed validation." `
-            -Cause "atlas validate exited with code $LASTEXITCODE." `
-            -Action "Treat as a Core/fixture issue. Do not claim STRANGER_CAN_START_ATLAS until validate passes." `
-            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
-            -LogPath $ErrLog
-        exit 1
+    finally {
+        Pop-Location
     }
     Write-Host "OK  DEMO_FIXTURE disposable vault ready (PRODUCTIZATION only)"
 }
@@ -401,6 +425,26 @@ Write-Host ""
 
 $processRecords = New-Object System.Collections.Generic.List[object]
 
+# --- refuse occupied ports (avoid false-positive health against a foreign listener) ---
+if (-not (Test-AtlasPortFree -Port $ApiPort)) {
+    Write-AtlasProductError `
+        -What "API port $ApiPort is already in use on loopback." `
+        -Cause "A listener is already bound on 127.0.0.1:$ApiPort (or 0.0.0.0:$ApiPort). Starting another api-serve would risk false health against the foreign process." `
+        -Action "Stop the other process (powershell -NoProfile -File scripts\windows\atlas-stop.ps1 if it was this launcher), or pass -ApiPort <free-port>." `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1 -ApiPort <free-port>" `
+        -LogPath $errLog
+    exit 1
+}
+if (-not $SkipWeb -and -not (Test-AtlasPortFree -Port $WebPort)) {
+    Write-AtlasProductError `
+        -What "Web port $WebPort is already in use on loopback." `
+        -Cause "A listener is already bound on 127.0.0.1:$WebPort (or 0.0.0.0:$WebPort)." `
+        -Action "Free the port or pass -WebPort <free-port>. Stop prior productization sessions with atlas-stop.ps1." `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1 -WebPort <free-port>" `
+        -LogPath $errLog
+    exit 1
+}
+
 # --- start LIVE_API (loopback only) ---
 Write-Host "Starting LIVE_API on 127.0.0.1:$ApiPort ..."
 $apiArgs = "live api-serve --vault `"$vaultPath`" --host 127.0.0.1 --port $ApiPort"
@@ -419,7 +463,16 @@ if (-not $apiHealth.Ok) {
         -LogPath $errLog
     exit 1
 }
-Write-Host "OK  API health http://127.0.0.1:$ApiPort/v1/meta"
+if (-not (Test-AtlasProcessOwnsPort -RootPid $apiProc.pid -Port $ApiPort -HostName "127.0.0.1")) {
+    Write-AtlasProductError `
+        -What "LIVE_API health succeeded but the listener on port $ApiPort is not our started process." `
+        -Cause "HTTP /v1/meta responded, yet Get-NetTCPConnection Listen owner is not pid $($apiProc.pid) or its child (foreign/stale Atlas on the same port)." `
+        -Action "Stop foreign listeners on $ApiPort, then retry with a free -ApiPort. Do not claim STRANGER_CAN_START_ATLAS from a borrowed health response." `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1 -ApiPort <free-port>" `
+        -LogPath $errLog
+    exit 1
+}
+Write-Host "OK  API health http://127.0.0.1:$ApiPort/v1/meta (owned by started process)"
 $env:VITE_ATLAS_API_BASE = "http://127.0.0.1:$ApiPort"
 
 $webUrl = "http://127.0.0.1:$WebPort/"
