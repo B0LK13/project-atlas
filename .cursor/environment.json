@@ -4,7 +4,7 @@
   "terminals": [
     {
       "name": "web-dev-server",
-      "command": "npm --prefix apps/web run dev -- --host"
+      "command": "npm --prefix apps/web run dev -- --host 127.0.0.1"
     }
   ],
   "ports": [5173]
