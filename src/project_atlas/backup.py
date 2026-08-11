@@ -234,6 +234,58 @@ def classify_cp_path(relative: str) -> DomainId | None:
     return "D4"
 
 
+def _require_under_root_no_reparse(
+    root: Path,
+    candidate: Path,
+    *,
+    kind: Literal["source", "identity"],
+) -> Path:
+    """Fail closed on symlink / junction / reparse escapes (SEC-ADV004B-A-001/002).
+
+    Windows directory junctions report ``Path.is_symlink() is False``; containment
+    must use ``os.path.realpath`` (via ``ensure_under_root``) before any read.
+    File symlinks are refused even when a platform realpath quirk would miss them.
+    """
+    if candidate.is_symlink():
+        if kind == "identity":
+            raise BackupError(
+                "refusing vault identity outside vault root "
+                f"(symlink/reparse escape): {candidate}"
+            )
+        raise BackupError(
+            "refusing snapshot source outside root "
+            f"(symlink/junction escape): {candidate}"
+        )
+    try:
+        safe = ensure_under_root(root, candidate, label=f"backup {kind}")
+    except ValueError as exc:
+        if kind == "identity":
+            raise BackupError(
+                "refusing vault identity outside vault root "
+                f"(symlink/reparse escape): {candidate}"
+            ) from exc
+        raise BackupError(
+            "refusing snapshot source outside root "
+            f"(symlink/junction escape): {candidate}"
+        ) from exc
+    # Belt: compare realpath containment explicitly (junction / reparse).
+    real_root = Path(os.path.realpath(root))
+    real_candidate = Path(os.path.realpath(candidate))
+    try:
+        real_candidate.relative_to(real_root)
+    except ValueError as exc:
+        if kind == "identity":
+            raise BackupError(
+                "refusing vault identity outside vault root "
+                f"(symlink/reparse escape): {candidate}"
+            ) from exc
+        raise BackupError(
+            "refusing snapshot source outside root "
+            f"(symlink/junction escape): {candidate}"
+        ) from exc
+    return safe
+
+
 def read_vault_logical_id(vault: Path) -> str:
     """Return stable vault logical identity (FR-005 / FR-013).
 
@@ -241,15 +293,12 @@ def read_vault_logical_id(vault: Path) -> str:
     realpath escapes the vault root before stamping MANIFEST/META identity.
     """
     identity_path = vault / ".atlas" / "vault.json"
-    if not identity_path.is_file():
+    if not identity_path.exists():
         raise BackupError(f"missing vault identity: {identity_path}")
-    try:
-        safe_identity = ensure_under_root(vault, identity_path, label="vault identity")
-    except ValueError as exc:
-        raise BackupError(
-            "refusing vault identity outside vault root "
-            f"(symlink/reparse escape): {identity_path}"
-        ) from exc
+    # Gate before read_text — is_file() follows symlinks and would hide escapes.
+    safe_identity = _require_under_root_no_reparse(vault, identity_path, kind="identity")
+    if not safe_identity.is_file():
+        raise BackupError(f"missing vault identity: {identity_path}")
     try:
         raw = json.loads(safe_identity.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -317,12 +366,15 @@ def collect_identity_samples(vault: Path) -> dict[str, Any]:
 def _iter_files(root: Path) -> Iterator[tuple[PurePosixPath, Path]]:
     """Yield relative member paths under ``root``.
 
-    SEC-ADV004B-A-001: every candidate is gated with ``ensure_under_root``
-    (realpath / Windows reparse) before the caller may ``read_bytes``. File
-    symlinks and directory junctions that escape the approved root fail closed.
+    SEC-ADV004B-A-001: every candidate is gated with realpath containment
+    (``ensure_under_root`` + explicit symlink refuse) before the caller may
+    ``read_bytes``. File symlinks and directory junctions that escape the
+    approved root fail closed — ``Path.is_symlink()`` alone misses junctions.
     """
-    root = root.resolve()
+    root = Path(os.path.realpath(root))
     for path in sorted(root.rglob("*")):
+        # File symlinks report is_file() True after follow; junctions do not
+        # set is_symlink() on the directory — realpath gate below catches both.
         if not path.is_file():
             continue
         try:
@@ -331,13 +383,7 @@ def _iter_files(root: Path) -> Iterator[tuple[PurePosixPath, Path]]:
             raise BackupError(f"path escapes root {root}: {path}") from exc
         if _is_ephemeral(relative):
             continue
-        try:
-            safe = ensure_under_root(root, path, label="backup source")
-        except ValueError as exc:
-            raise BackupError(
-                "refusing snapshot source outside root "
-                f"(symlink/junction escape): {relative}"
-            ) from exc
+        safe = _require_under_root_no_reparse(root, path, kind="source")
         yield relative, safe
 
 
