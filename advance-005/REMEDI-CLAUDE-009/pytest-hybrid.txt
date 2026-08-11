@@ -1,0 +1,161 @@
+..........................                                               [100%]
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.13.14-final-0 _______________
+
+Name                                                 Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------------------
+src\project_atlas\__init__.py                            2      0   100%
+src\project_atlas\adv_release_cert.py                  223    223     0%   11-510
+src\project_atlas\agent_eval_shadow.py                  34     34     0%   6-81
+src\project_atlas\agentos.py                            48     48     0%   7-122
+src\project_atlas\agentos_transitions.py                35     35     0%   7-102
+src\project_atlas\api_server.py                        230    230     0%   13-413
+src\project_atlas\api_surface_registry.py               33     33     0%   6-84
+src\project_atlas\app_service.py                        34     34     0%   7-79
+src\project_atlas\ask_atlas_live.py                     31     31     0%   7-65
+src\project_atlas\authority_evaluator.py                96     96     0%   7-420
+src\project_atlas\authority_registry.py                 29     29     0%   11-85
+src\project_atlas\authority_roles.py                    41     41     0%   7-105
+src\project_atlas\authz.py                             148    148     0%   11-377
+src\project_atlas\autonomy_l3.py                       150    150     0%   10-320
+src\project_atlas\autonomy_levels.py                    35     35     0%   6-87
+src\project_atlas\backup.py                            526    526     0%   11-908
+src\project_atlas\bitemporal.py                        131    131     0%   9-287
+src\project_atlas\chatgpt_bridge.py                     42     42     0%   7-104
+src\project_atlas\chatgpt_capture.py                    32     32     0%   6-78
+src\project_atlas\claim_identity.py                    130    130     0%   9-381
+src\project_atlas\classification.py                     64     64     0%   28-244
+src\project_atlas\cli.py                              1308   1308     0%   10-2918
+src\project_atlas\collab_live.py                        76     76     0%   7-156
+src\project_atlas\collaboration_stubs.py                33     33     0%   6-82
+src\project_atlas\compat_anchor.py                      70     14    80%   48, 79, 82-83, 85, 88-89, 96, 98, 100, 102, 104, 106, 108
+src\project_atlas\compilation.py                        52     52     0%   42-179
+src\project_atlas\compile_cache.py                     194    194     0%   15-472
+src\project_atlas\config.py                             55     55     0%   14-120
+src\project_atlas\conflict_projections.py              101    101     0%   8-200
+src\project_atlas\context_pack.py                       82     82     0%   7-154
+src\project_atlas\context_pack_composition.py           33     33     0%   7-89
+src\project_atlas\discovery.py                         121    121     0%   3-214
+src\project_atlas\doctor.py                             86     86     0%   17-166
+src\project_atlas\domain\__init__.py                    16     16     0%   8-99
+src\project_atlas\domain\authority_semantics.py         53     53     0%   7-85
+src\project_atlas\domain\claims.py                      63     63     0%   7-107
+src\project_atlas\domain\concepts.py                    59     59     0%   8-103
+src\project_atlas\domain\conflicts.py                   39     39     0%   7-65
+src\project_atlas\domain\diagnostics.py                 47     47     0%   10-76
+src\project_atlas\domain\findings.py                    13     13     0%   7-28
+src\project_atlas\domain\knowledge_query.py            145    145     0%   14-249
+src\project_atlas\domain\parser_output.py               61     61     0%   20-121
+src\project_atlas\domain\relationships.py               17     17     0%   7-34
+src\project_atlas\domain\semantic.py                   120    120     0%   3-175
+src\project_atlas\domain\semantic_subject.py            96     96     0%   11-191
+src\project_atlas\domain\source_registry.py             69     69     0%   3-98
+src\project_atlas\domain\sources.py                     67     67     0%   8-115
+src\project_atlas\domain\temporal.py                    59     59     0%   7-95
+src\project_atlas\domain\vocabulary.py                 140    140     0%   8-219
+src\project_atlas\estate_intel_fixture.py               35     35     0%   6-85
+src\project_atlas\eval_substrate.py                    162    162     0%   14-311
+src\project_atlas\event_retention.py                   241    241     0%   21-472
+src\project_atlas\event_tombstones.py                  177    177     0%   16-365
+src\project_atlas\evidence_compiler.py                 210    210     0%   23-841
+src\project_atlas\evidence_profiles.py                  84     84     0%   23-246
+src\project_atlas\explain_graph_sidecars.py            165    165     0%   11-432
+src\project_atlas\explain_receipts.py                  118    118     0%   8-310
+src\project_atlas\federation.py                         79     79     0%   7-151
+src\project_atlas\federation_lens.py                    38     38     0%   6-84
+src\project_atlas\final_cert_pilot.py                   36     36     0%   7-68
+src\project_atlas\graph_acceptance.py                  267    267     0%   10-468
+src\project_atlas\graph_projections.py                 327    327     0%   17-660
+src\project_atlas\graph_quarantine.py                  318    318     0%   17-767
+src\project_atlas\graph_relationships.py               448    448     0%   14-959
+src\project_atlas\graph_resolution.py                  561    561     0%   11-1172
+src\project_atlas\hybrid_retrieval.py                  108      9    92%   97, 122-123, 198-199, 227, 229, 313-314
+src\project_atlas\impact_graph.py                      130    130     0%   14-269
+src\project_atlas\indexes.py                           180    180     0%   3-313
+src\project_atlas\ingestion.py                        1103   1103     0%   3-2192
+src\project_atlas\kci.py                                68     68     0%   8-171
+src\project_atlas\kf2_fabric.py                        124    124     0%   7-268
+src\project_atlas\kf2_inventory.py                      30     30     0%   6-77
+src\project_atlas\knowledge_ci_harness.py               33     33     0%   6-84
+src\project_atlas\knowledge_compiler.py                779    779     0%   3-2141
+src\project_atlas\knowledge_inbox.py                    35     35     0%   6-81
+src\project_atlas\knowledge_query.py                   318    318     0%   14-824
+src\project_atlas\lifecycle_cert.py                    245    245     0%   12-486
+src\project_atlas\lineage.py                           255    255     0%   3-661
+src\project_atlas\locator_migration.py                  95     95     0%   18-235
+src\project_atlas\logging.py                            42     42     0%   13-87
+src\project_atlas\mcp_registry.py                       58     58     0%   7-167
+src\project_atlas\mcp_server.py                         71     71     0%   10-177
+src\project_atlas\migrations\__init__.py                 0      0   100%
+src\project_atlas\migrations\claim_v2_migration.py     245    245     0%   8-505
+src\project_atlas\obs_live.py                           26     26     0%   10-114
+src\project_atlas\obs_perf.py                           29     29     0%   8-76
+src\project_atlas\obsidian_ux.py                        50     50     0%   7-115
+src\project_atlas\obsidian_workspace.py                 33     33     0%   6-79
+src\project_atlas\okf_renderer.py                       18     18     0%   3-76
+src\project_atlas\openai_import_path.py                 35     35     0%   6-82
+src\project_atlas\openai_import_real.py                 52     52     0%   8-113
+src\project_atlas\openai_importer_fixtures.py          175    175     0%   8-326
+src\project_atlas\openai_responses_poc.py              157    157     0%   9-347
+src\project_atlas\ops_events.py                        249    249     0%   19-470
+src\project_atlas\ops_health.py                        384    384     0%   13-1050
+src\project_atlas\ops_receipts.py                       72     72     0%   10-136
+src\project_atlas\ops_report.py                        226    226     0%   17-455
+src\project_atlas\parser_registry.py                    27     27     0%   9-90
+src\project_atlas\perf_baselines.py                     85     85     0%   11-224
+src\project_atlas\pilot_auth_prep.py                   106    106     0%   8-276
+src\project_atlas\portfolio.py                         205    205     0%   23-523
+src\project_atlas\provider_adapters.py                  83     83     0%   8-194
+src\project_atlas\provider_live.py                      39     39     0%   7-100
+src\project_atlas\quarantine.py                         48     48     0%   10-380
+src\project_atlas\query_plan.py                        161    161     0%   11-400
+src\project_atlas\reality_gap.py                        52     52     0%   7-181
+src\project_atlas\reality_gap_ui.py                     33     33     0%   6-82
+src\project_atlas\receipt_revocation.py                215    215     0%   15-428
+src\project_atlas\retrieval.py                         118     17    86%   52, 56, 77, 85-89, 93, 105, 127, 144-145, 157-160, 185, 195
+src\project_atlas\retrieval_fusion.py                   62      5    92%   49, 60, 67, 91, 100
+src\project_atlas\runtime_22.py                        307    307     0%   27-662
+src\project_atlas\scaffold.py                           97     97     0%   17-290
+src\project_atlas\scale_harness.py                      33     33     0%   6-82
+src\project_atlas\scheduler_dry_run.py                  33     33     0%   6-82
+src\project_atlas\scheduler_live.py                     71     71     0%   8-148
+src\project_atlas\schema.py                             37      4    89%   236-237, 254-255
+src\project_atlas\schema_compat.py                     145    145     0%   14-328
+src\project_atlas\secrets.py                            17     17     0%   8-75
+src\project_atlas\security_adv.py                       33     33     0%   6-83
+src\project_atlas\security_continuous.py                36     36     0%   6-82
+src\project_atlas\semantic_compiler.py                  31     31     0%   3-149
+src\project_atlas\semantic_migration.py                 54     54     0%   8-185
+src\project_atlas\source_identity.py                   143    143     0%   3-217
+src\project_atlas\status_dimensions.py                  62     62     0%   14-123
+src\project_atlas\subject_derivation.py                136    136     0%   15-282
+src\project_atlas\sync_plan.py                         125    125     0%   12-222
+src\project_atlas\sync_production.py                    38     38     0%   7-94
+src\project_atlas\sync_queue.py                         75     75     0%   8-144
+src\project_atlas\sync_receipts.py                      74     74     0%   8-139
+src\project_atlas\temporal_evaluator.py                267    267     0%   7-769
+src\project_atlas\temporal_evidence.py                 138    138     0%   6-207
+src\project_atlas\twin_fixture_scenarios.py             33     33     0%   6-82
+src\project_atlas\twin_fixtures.py                      58     58     0%   8-142
+src\project_atlas\twin_production.py                    38     38     0%   8-103
+src\project_atlas\ux_mode_catalog.py                    33     33     0%   8-115
+src\project_atlas\validation.py                        598    598     0%   9-1012
+src\project_atlas\verify_profile.py                     59     59     0%   20-181
+src\project_atlas\web_actions.py                        62     62     0%   7-136
+src\project_atlas\web_api\__init__.py                    6      6     0%   13-26
+src\project_atlas\web_api\graph.py                      27     27     0%   7-48
+src\project_atlas\web_api\health.py                     65     65     0%   7-130
+src\project_atlas\web_api\knowledge.py                  35     35     0%   8-61
+src\project_atlas\web_api\projects.py                   31     31     0%   8-62
+src\project_atlas\web_ask_atlas.py                      33     33     0%   6-79
+src\project_atlas\web_mission_workspace.py              24     24     0%   7-71
+src\project_atlas\web_surface_catalog.py                33     33     0%   6-83
+src\project_atlas\workspace_registry.py                 97     97     0%   9-207
+src\project_atlas\xproj_duplicates.py                  316    316     0%   20-688
+src\project_atlas\xproj_edges.py                       312    312     0%   16-835
+src\project_atlas\xproj_indexes.py                     270    270     0%   14-647
+src\project_atlas\xproj_registry.py                    363    363     0%   15-861
+src\project_atlas\yaml_structured.py                   166    166     0%   37-323
+----------------------------------------------------------------------------------
+TOTAL                                                19905  19557     2%
+Coverage XML written to file coverage.xml

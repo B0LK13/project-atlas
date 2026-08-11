@@ -39,7 +39,14 @@ class VaultRetriever:
     def __init__(self, vault: Path) -> None:
         self.vault = vault.expanduser().resolve()
 
-    def lookup(self, kind: str, value: str, *, prefix: bool = False) -> list[RetrievalResult]:
+    def lookup(
+        self,
+        kind: str,
+        value: str,
+        *,
+        prefix: bool = False,
+        project_id: str | None = None,
+    ) -> list[RetrievalResult]:
         """Look up records by an indexed exact or prefix value."""
         if kind not in self._INDEX_KEYS:
             raise ValueError(f"unsupported retrieval kind: {kind}")
@@ -61,11 +68,15 @@ class VaultRetriever:
             }
         )
         records = self._records(kind)
-        return [
+        hits = [
             self._result(kind, record_id, records[record_id])
             for record_id in record_ids
             if record_id in records
         ]
+        if project_id is None:
+            return hits
+        scope = project_id.strip()
+        return [hit for hit in hits if _in_project_scope(kind, hit.record, scope)]
 
     def search(
         self, value: str, *, kind: str | None = None, prefix: bool = False
@@ -81,18 +92,25 @@ class VaultRetriever:
         """Explicit alias for :meth:`lookup` for callers building query APIs."""
         return self.lookup(kind, value, prefix=prefix)
 
-    def bm25_corpus(self, kind: str) -> list[tuple[str, str]]:
+    def bm25_corpus(
+        self, kind: str, *, project_id: str | None = None
+    ) -> list[tuple[str, str]]:
         """Return deterministic ``(record_id, document_text)`` pairs for BM25.
 
         Document text is derived from the record id plus string leaves in the
         record (sorted walk). Derived / regenerable — not Layer B authority.
+        When ``project_id`` is set, only records in that project scope are included.
         """
         if kind not in self._INDEX_KEYS:
             raise ValueError(f"unsupported retrieval kind: {kind}")
         records = self._records(kind)
+        scope = project_id.strip() if project_id is not None else None
         corpus: list[tuple[str, str]] = []
         for record_id in sorted(records):
-            corpus.append((record_id, _record_document_text(record_id, records[record_id])))
+            record = records[record_id]
+            if scope is not None and not _in_project_scope(kind, record, scope):
+                continue
+            corpus.append((record_id, _record_document_text(record_id, record)))
         return corpus
 
     def _load_index(self, kind: str) -> dict[str, list[str]]:
@@ -166,6 +184,20 @@ class VaultRetriever:
         if not path.is_file():
             return default
         return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _record_scope_id(kind: str, record: dict[str, Any]) -> str | None:
+    """Extract project scope from a record; ``None`` when unknown (fail-closed)."""
+    field = "project_uuid" if kind == "source" else "project_id"
+    value = record.get(field)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _in_project_scope(kind: str, record: dict[str, Any], project_id: str) -> bool:
+    scope_id = _record_scope_id(kind, record)
+    return scope_id == project_id if scope_id is not None else False
 
 
 def _record_document_text(record_id: str, record: dict[str, Any]) -> str:
