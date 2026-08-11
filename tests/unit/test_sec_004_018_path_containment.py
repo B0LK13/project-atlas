@@ -205,24 +205,29 @@ def test_ingest_rejects_unsafe_likely_project_ids(
     tmp_path: Path, likely_project: str
 ) -> None:
     """Public ingest boundary: unsafe project ids never create paths (SEC-014)."""
+    from project_atlas.source_identity import canonical_source_sha256_bytes
+
     source_root = tmp_path / "source"
     vault = tmp_path / "vault"
     source_root.mkdir()
     document = source_root / "README.md"
-    document.write_text("# Controlled source\n", encoding="utf-8")
+    payload = b"# Controlled source\n"
+    document.write_bytes(payload)
     manifest = tmp_path / "crafted-manifest.json"
     manifest.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "source_root": str(source_root),
+                "source_root": str(source_root.resolve()),
                 "sources": [
                     {
                         "source_id": "source-safe",
                         "path": "README.md",
                         "media_type": "text/markdown",
-                        "sha256": hashlib.sha256(document.read_bytes()).hexdigest(),
-                        "size_bytes": document.stat().st_size,
+                        "sha256": canonical_source_sha256_bytes(
+                            payload, relative_path="README.md"
+                        ),
+                        "size_bytes": len(payload),
                         "modified_at": "2026-08-01T00:00:00Z",
                         "likely_project": likely_project,
                         "classification_state": "unclassified",
@@ -236,6 +241,19 @@ def test_ingest_rejects_unsafe_likely_project_ids(
         encoding="utf-8",
     )
     assert main(["init", "--output", str(vault)]) == EXIT_OK
-    assert main(["ingest", "--manifest", str(manifest), "--vault", str(vault)]) == EXIT_ERROR
+    assert (
+        main(
+            [
+                "ingest",
+                "--manifest",
+                str(manifest),
+                "--vault",
+                str(vault),
+                "--source",
+                str(source_root),
+            ]
+        )
+        == EXIT_ERROR
+    )
     # Drive-relative join must not materialize outside the vault tree.
     assert not (tmp_path / "foo").exists()
