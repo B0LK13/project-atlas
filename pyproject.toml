@@ -38,6 +38,7 @@ testpaths = ["tests"]
 addopts = "-q --cov=project_atlas --cov-report=term-missing --cov-report=xml --no-cov-on-fail"
 markers = [
     "integration: end-to-end and cross-component tests",
+    "security_regression: Alpha security regression suite seed / class guards (S08)",
 ]
 
 [tool.ruff]
