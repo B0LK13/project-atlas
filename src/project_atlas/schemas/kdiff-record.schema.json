@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/kdiff-record.schema.json",
+  "title": "Knowledge Diff Record (T1 -> T2)",
+  "description": "AS-2.2-KDIFF-001 read-only knowledge diff between two declared valid-time reference points. Reports per subject+field what changed: added / removed / value / authority / freshness / conflict, plus honest unresolved deltas. Derived projection over persisted Core state; never authority, never a Layer B mutation, never wall-clock now.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "artifact_kind",
+    "scope",
+    "t1_valid_time",
+    "t2_valid_time",
+    "status",
+    "added",
+    "removed",
+    "value_changed",
+    "authority_changed",
+    "freshness_changed",
+    "conflict_changed",
+    "unresolved_delta",
+    "change_count",
+    "caps",
+    "truncated",
+    "inspected_artifacts",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-KDIFF-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "artifact_kind": { "const": "kdiff-record" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "const": "project" },
+        "id": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "t1_valid_time": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "t2_valid_time": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "knowledge_compilation_id": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "status": {
+      "enum": ["ok", "partial", "rejected_malformed"]
+    },
+    "added": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "to_claim_id"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "to_claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "value_sketch": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "removed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "from_claim_id"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "from_claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "value_sketch": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "value_changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "from_claim_id", "to_claim_id"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "from_claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "to_claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "from_value_sketch": { "type": "string", "maxLength": 240 },
+          "to_value_sketch": { "type": "string", "maxLength": 240 }
+        }
+      }
+    },
+    "authority_changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "subject",
+          "field",
+          "from_role",
+          "to_role",
+          "from_disposition",
+          "to_disposition"
+        ],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "from_role": { "type": "string", "minLength": 1 },
+          "to_role": { "type": "string", "minLength": 1 },
+          "from_disposition": { "type": ["string", "null"] },
+          "to_disposition": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "freshness_changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "from_freshness", "to_freshness"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "from_freshness": { "enum": ["fresh", "stale", "unknown"] },
+          "to_freshness": { "enum": ["fresh", "stale", "unknown"] }
+        }
+      }
+    },
+    "conflict_changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "from_state", "to_state"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "from_state": { "enum": ["unresolved", "none", "unknown"] },
+          "to_state": { "enum": ["unresolved", "none", "unknown"] },
+          "conflict_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "unresolved_delta": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["subject", "field", "reason"],
+        "properties": {
+          "subject": { "type": "string", "minLength": 1 },
+          "field": { "type": "string", "minLength": 1 },
+          "reason": {
+            "enum": [
+              "unresolved_overlap",
+              "unresolved_incomplete",
+              "temporal-data-missing",
+              "rejected_malformed"
+            ]
+          }
+        }
+      }
+    },
+    "change_count": { "type": "integer", "minimum": 0 },
+    "caps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subject_cap"],
+      "properties": {
+        "subject_cap": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "truncated": { "type": "boolean" },
+    "inspected_artifacts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "llm_authority"],
+      "properties": {
+        "level": { "const": "derived" },
+        "llm_authority": { "const": false },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "KDIFF T1\u2192T2 \u2260 AUTHORITY / \u2260 WALL-CLOCK NOW / \u2260 LAYER B MUTATION"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}
