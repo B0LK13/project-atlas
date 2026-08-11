@@ -1,13 +1,12 @@
 """SECURITY ALPHA S08 — executable security regression suite SEED.
 
-Thin presence guards only. Full adversarial suites live in remedi PRs
-(#261-#265, #267) which are now on main — seed exercises those suites
-(SECURITY_TESTS_SKIPPED → 0 for landed classes).
-
-These tests:
-- always validate the in-repo class registry is complete
-- require remedi primary tests to be present for every registered class
-- assert remedi suites declare their finding IDs (CODEX-SEC-* or SEC-*)
+Full adversarial suites live in remedi PRs (#261-#265, #267) now on main.
+This seed:
+- validates the in-repo class registry is complete
+- requires remedi primary tests to be present for every registered class
+- asserts remedi suites declare their finding IDs (CODEX-SEC-* or SEC-*)
+- **executes** each registered primary suite (subprocess pytest) so a docstring
+  ID alone cannot satisfy the guard (SECURITY_TESTS_SKIPPED → 0)
 
 Never claims Codex validation complete.
 Status of this seed: SECURITY_REGRESSION_SEED · AWAITING_CODEX_VALIDATION.
@@ -15,6 +14,9 @@ Status of this seed: SECURITY_REGRESSION_SEED · AWAITING_CODEX_VALIDATION.
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -60,6 +62,43 @@ def _missing_reason(item: SecurityRegressionClass) -> str:
     )
 
 
+def _run_primary_suite(primary: Path) -> None:
+    """Execute the registered remedi suite; fail if any test fails/errors."""
+    env = os.environ.copy()
+    src = str(REPO_ROOT / "src")
+    existing = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = os.pathsep.join(p for p in (src, existing) if p)
+
+    # Control-plane suites live outside tests/ and use their own conftest.
+    cwd = REPO_ROOT
+    if "atlas-vault-documentation" in primary.as_posix():
+        cwd = REPO_ROOT / "atlas-vault-documentation"
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        str(primary),
+        "-q",
+        "--tb=line",
+        "--no-cov",
+    ]
+    proc = subprocess.run(
+        cmd,
+        cwd=cwd,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, (
+        f"primary suite failed for {primary.as_posix()} "
+        f"(exit={proc.returncode})\n"
+        f"stdout:\n{proc.stdout[-4000:]}\n"
+        f"stderr:\n{proc.stderr[-4000:]}"
+    )
+
+
 def test_security_regression_registry_covers_required_classes() -> None:
     """Seed invariant: every Alpha regression class remains registered."""
     expected = {
@@ -95,7 +134,7 @@ def test_security_regression_registry_covers_required_classes() -> None:
 def test_security_regression_class_exercises_remedi_suite(
     item: SecurityRegressionClass,
 ) -> None:
-    """Require remedi suite presence + finding-ID declaration (no skip when on main)."""
+    """Presence + finding-ID declaration + execute registered remedi suite."""
     primary = _primary_present(item.primary_tests)
     assert primary is not None, _missing_reason(item)
 
@@ -105,6 +144,7 @@ def test_security_regression_class_exercises_remedi_suite(
         f"{primary.as_posix()} must declare finding IDs {missing} "
         f"(SECURITY_REGRESSION_SEED guard for {item.class_id})"
     )
+    _run_primary_suite(primary)
 
 
 def test_security_regression_seed_status_banner() -> None:
