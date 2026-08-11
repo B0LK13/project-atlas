@@ -205,7 +205,12 @@ def test_unchanged_replay_is_byte_identical(tmp_path: Path) -> None:
     source = _fixture_adversarial_project(tmp_path)
     vault = _run_core_pipeline(source, tmp_path)
     manifest = tmp_path / "manifest.json"
-    # Stabilize the project marker and claim lifecycle states before measuring.
+    # Genesis may rewrite the project marker; rediscover so approved provenance
+    # matches on-disk bytes before measuring idempotent replay (SEC-002).
+    assert main(
+        ["discover", "--source", str(source), "--output", str(manifest)]
+    ) == EXIT_OK
+    # Stabilize claim lifecycle states before measuring.
     assert main(
         [
             "ingest",
