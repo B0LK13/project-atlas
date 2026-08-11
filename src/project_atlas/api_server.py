@@ -231,6 +231,7 @@ def make_handler(
                     "actions_enabled": True,
                     "live_api": True,
                     "ask_atlas_live": True,
+                    "ask_atlas_2": True,
                     "obs_live": True,
                     "ops_receipts": True,
                     "mission_live": True,
