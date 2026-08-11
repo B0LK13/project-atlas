@@ -226,6 +226,51 @@ def search(vault: Path, query: str, project_scope: str | None = None, limit: int
     return _seal(structured, note)
 
 
+def _load_knowledge_document(vault: Path, answer_id: str) -> dict[str, Any] | None:
+    """Load a bounded knowledge answer document (value + provenance pointers).
+
+    Caps nested lists; never dumps unbounded vault inventory. Returns None when
+    the answer file is absent or malformed.
+    """
+    path = vault / "generated" / "answers" / f"{answer_id}.json"
+    raw = _load_json_object(path)
+    if not raw:
+        return None
+    # Keep a provenance-bearing but bounded representation for ChatGPT inspection.
+    value = raw.get("value")
+    if isinstance(value, str) and len(value) > 4_096:
+        value = value[:4_096] + "…[truncated]"
+    provenance = raw.get("provenance") or raw.get("sources") or []
+    if not isinstance(provenance, list):
+        provenance = []
+    provenance, prov_trunc = _bound_items(
+        [p for p in provenance if isinstance(p, dict)],
+        limit=MAX_RESULTS,
+    )
+    return {
+        "answer_id": str(raw.get("answer_id") or answer_id),
+        "subject": raw.get("subject"),
+        "field": raw.get("field"),
+        "value": value,
+        "has_value": value is not None,
+        "provenance": provenance,
+        "truncated": prov_trunc,
+        "path": f"generated/answers/{answer_id}.json",
+        "note": "Knowledge document pointer — evidence is not interpretation; not authority.",
+    }
+
+
+def _knowledge_matches_project(answer: dict[str, Any], project_id: str) -> bool:
+    """Best-effort project scope: subject/path/answer_id contain the project id."""
+    needle = project_id.lower()
+    haystack = " ".join(
+        str(part)
+        for part in (answer.get("answer_id"), answer.get("subject"), answer.get("field"), answer.get("path"))
+        if part
+    ).lower()
+    return needle in haystack
+
+
 def fetch(vault: Path, ref: str) -> ToolResult:
     """Return the complete Atlas representation for a reference. READ ONLY."""
     if not isinstance(ref, str) or ":" not in ref:
@@ -240,43 +285,81 @@ def fetch(vault: Path, ref: str) -> ToolResult:
     if kind == "knowledge":
         for answer in list_knowledge_answers(vault):
             if answer["answer_id"] == ident:
+                doc = _load_knowledge_document(vault, ident) or {
+                    **answer,
+                    "note": "Summary only — full answer document absent.",
+                }
                 return _seal(
-                    {"kind": "knowledge", "found": True, "answer": answer, **INVARIANTS},
+                    {"kind": "knowledge", "found": True, "answer": doc, **INVARIANTS},
                     f"Knowledge reference {ident} (DEMO_FIXTURE). Evidence is not interpretation.",
                 )
         return _not_found("knowledge", ident)
 
-    if kind in {"claim", "conflict", "evidence", "receipt"}:
-        index_name = {
-            "claim": "claims",
-            "conflict": "conflicts",
-            "evidence": "provenance",
-            "receipt": "authority",
-        }[kind]
-        index = _load_index(vault, index_name)
+    if kind in {"claim", "conflict"}:
+        index = _load_index(vault, {"claim": "claims", "conflict": "conflicts"}[kind])
         ids = index.get("ids")
         present = isinstance(ids, list) and ident in ids
-        # Never dump vault-wide lineage inventory for a single evidence id.
-        # Only surface the evidence id itself when it is a lineage key.
-        lineages: list[str] = []
-        lineages_truncated = False
-        if kind == "evidence":
-            by_lineage = index.get("by_source_lineage_id")
-            if isinstance(by_lineage, dict) and ident in by_lineage:
-                lineages, lineages_truncated = _bound_items([ident])
         structured = {
             "kind": kind,
             "id": ident,
             "found": present,
-            "provenance_lineages": lineages,
-            "truncated": lineages_truncated,
-            "note": "Reference/evidence pointer only — not a proven claim or interpretation."
+            "note": "Reference pointer only — not a proven claim or interpretation."
             if present
             else "UNKNOWN — not present in DEMO_FIXTURE indexes.",
             **INVARIANTS,
         }
         narration = (
             f"{kind} {ident}: {'present' if present else 'UNKNOWN (absent)'} in DEMO_FIXTURE."
+        )
+        return _seal(structured, narration)
+
+    if kind == "evidence":
+        # Production provenance.json has by_source_lineage_id / by_receipt_id, not ids.
+        index = _load_index(vault, "provenance")
+        by_lineage = index.get("by_source_lineage_id")
+        present = isinstance(by_lineage, dict) and ident in by_lineage
+        lineages: list[str] = []
+        lineages_truncated = False
+        if present:
+            # Never dump vault-wide lineage inventory for a single evidence id.
+            lineages, lineages_truncated = _bound_items([ident])
+        structured = {
+            "kind": "evidence",
+            "id": ident,
+            "found": present,
+            "provenance_lineages": lineages,
+            "truncated": lineages_truncated,
+            "note": "Reference/evidence pointer only — not a proven claim or interpretation."
+            if present
+            else "UNKNOWN — not present in DEMO_FIXTURE provenance lineages.",
+            **INVARIANTS,
+        }
+        narration = (
+            f"evidence {ident}: {'present' if present else 'UNKNOWN (absent)'} in DEMO_FIXTURE."
+        )
+        return _seal(structured, narration)
+
+    if kind == "receipt":
+        # Receipts live under provenance by_receipt_id (not authority.ids).
+        index = _load_index(vault, "provenance")
+        by_receipt = index.get("by_receipt_id")
+        present = isinstance(by_receipt, dict) and ident in by_receipt
+        linked, linked_trunc = _bound_items(
+            list(by_receipt.get(ident, [])) if present and isinstance(by_receipt, dict) else []
+        )
+        structured = {
+            "kind": "receipt",
+            "id": ident,
+            "found": present,
+            "linked_record_ids": linked,
+            "truncated": linked_trunc,
+            "note": "Receipt pointer only — not a proven claim or interpretation."
+            if present
+            else "UNKNOWN — receipt id absent from DEMO_FIXTURE provenance.",
+            **INVARIANTS,
+        }
+        narration = (
+            f"receipt {ident}: {'present' if present else 'UNKNOWN (absent)'} in DEMO_FIXTURE."
         )
         return _seal(structured, narration)
 
@@ -304,7 +387,9 @@ def atlas_project_status(vault: Path, project_id: str) -> ToolResult:
     if project_id not in projects:
         return _not_found("project", project_id)
 
-    knowledge = [a for a in list_knowledge_answers(vault)]
+    knowledge = [
+        a for a in list_knowledge_answers(vault) if _knowledge_matches_project(a, project_id)
+    ]
     knowledge_count = len(knowledge)
     concept_count = _count_for_project(vault, "concepts", project_id)
     conflict_count = _count_for_project(vault, "conflicts", project_id)
