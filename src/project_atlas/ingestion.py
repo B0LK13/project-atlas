@@ -502,7 +502,15 @@ def _resolve_authorized_source_root(
     when the operator-supplied authorized root resolves to the same directory the
     manifest records; any substitution or arbitrary readable path fails closed.
     """
-    authorized = authorized_source_root.expanduser().resolve()
+    # SEC-SCAN-A-014: check symlink *before* resolve — resolve() dereferences
+    # and makes a subsequent is_symlink() check always false on the target.
+    expanded = authorized_source_root.expanduser()
+    if expanded.is_symlink() or not expanded.is_dir():
+        raise ValueError(
+            "authorized source root must be an existing non-symlink directory: "
+            f"{authorized_source_root}"
+        )
+    authorized = expanded.resolve()
     if not authorized.is_dir() or authorized.is_symlink():
         raise ValueError(
             "authorized source root must be an existing non-symlink directory: "
