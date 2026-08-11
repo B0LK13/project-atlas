@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://project-atlas.local/schemas/runtime-context-compiler.schema.json",
   "title": "AS-2.2 Runtime Context Compiler Package",
-  "description": "AS-2.2-RUNTIME-001 budgeted context package. Derived-only; empty provenance preserved honestly (never invent sources); no LLM authority; no Layer B writes.",
+  "description": "AS-2.2-RUNTIME-001 budgeted context package (P0/P2). Derived-only; empty provenance refused; no LLM authority; no Layer B writes.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -31,8 +31,13 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{0,63}$"
     },
-    "profile_id": { "const": "p0-readonly" },
+    "profile_id": {
+      "type": "string",
+      "enum": ["p0-readonly", "p2-readonly"]
+    },
     "budget": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "on_overflow": { "type": "string", "enum": ["truncate", "fail"] },
+    "include_unresolved_conflicts": { "type": "boolean" },
     "entries": {
       "type": "array",
       "items": {
@@ -51,7 +56,47 @@
           "record_type": { "type": "string", "minLength": 1 },
           "record_id": { "type": "string", "minLength": 1 },
           "slot": { "type": "string" },
-          "authority_level": { "const": "derived" },
+          "authority_level": {
+            "type": "string",
+            "enum": [
+              "primary",
+              "validated-execution",
+              "maintained",
+              "derived",
+              "generated",
+              "inferred",
+              "pending",
+              "conflicting",
+              "rejected"
+            ]
+          },
+          "freshness": {
+            "type": "string",
+            "enum": ["fresh", "stale", "unknown"]
+          },
+          "conflict_state": {
+            "type": "string",
+            "enum": ["none", "unresolved", "excluded"]
+          },
+          "conflict_ids": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "reason_included": {
+            "type": "string",
+            "enum": [
+              "task-match",
+              "profile-prefer",
+              "authority-primary",
+              "authority-validated",
+              "authority-maintained",
+              "freshness-current",
+              "conflict-sidecar",
+              "budget-retained",
+              "explicit-candidate"
+            ]
+          },
+          "relevance_rank": { "type": "integer", "minimum": 0 },
           "provenance": {
             "type": "array",
             "minItems": 1,
@@ -101,14 +146,39 @@
     },
     "pipeline": {
       "type": "array",
-      "const": [
-        "candidates",
-        "vault_presence",
-        "provenance_gate",
-        "authority_stamp",
-        "budget",
-        "package"
-      ]
+      "items": { "type": "string" },
+      "minItems": 6
+    },
+    "pipeline_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidates_in",
+        "items_out",
+        "truncated",
+        "overflow",
+        "unresolved_conflicts_retained",
+        "conflicts_excluded",
+        "freshness_unknown_count"
+      ],
+      "properties": {
+        "candidates_in": { "type": "integer", "minimum": 0 },
+        "items_out": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" },
+        "overflow": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["occurred", "dropped_count", "policy"],
+          "properties": {
+            "occurred": { "type": "boolean" },
+            "dropped_count": { "type": "integer", "minimum": 0 },
+            "policy": { "type": "string", "enum": ["truncate", "fail", "none"] }
+          }
+        },
+        "unresolved_conflicts_retained": { "type": "integer", "minimum": 0 },
+        "conflicts_excluded": { "type": "integer", "minimum": 0 },
+        "freshness_unknown_count": { "type": "integer", "minimum": 0 }
+      }
     },
     "authority": {
       "type": "object",
@@ -141,5 +211,49 @@
       "type": "string",
       "pattern": "^generated/context-compiler/[a-z][a-z0-9-]{0,63}-context-compiler\\.json$"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "profile_id": { "const": "p0-readonly" } } },
+      "then": {
+        "properties": {
+          "pipeline": {
+            "const": [
+              "candidates",
+              "vault_presence",
+              "provenance_gate",
+              "authority_stamp",
+              "budget",
+              "package"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "profile_id": { "const": "p2-readonly" } } },
+      "then": {
+        "required": [
+          "on_overflow",
+          "include_unresolved_conflicts",
+          "pipeline_receipt"
+        ],
+        "properties": {
+          "pipeline": {
+            "const": [
+              "candidates",
+              "vault_presence",
+              "provenance_gate",
+              "authority",
+              "freshness",
+              "conflicts",
+              "relevance",
+              "budget",
+              "package"
+            ]
+          }
+        }
+      }
+    }
+  ]
 }
