@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/runtime-hybrid-retrieval.schema.json",
+  "title": "AS-2.2 Runtime Hybrid Retrieval Report",
+  "description": "AS-2.2-RUNTIME-001 hybrid retrieval. Lexical fusion only; semantic slot disabled; graph summary counts-only (GRAPH ≠ AUTHORITY).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "artifact_kind",
+    "compat_snapshot_id",
+    "query",
+    "slots",
+    "candidates",
+    "candidate_count",
+    "truncated",
+    "authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-RUNTIME-001" },
+    "artifact_kind": { "const": "runtime-hybrid-retrieval" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "query": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "mode", "cap"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "source",
+            "claim",
+            "concept",
+            "conflict",
+            "authority",
+            "provenance"
+          ]
+        },
+        "value": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "enum": ["exact", "prefix"] },
+        "cap": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "slots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lexical_exact", "lexical_prefix", "graph", "semantic"],
+      "properties": {
+        "lexical_exact": { "type": "object" },
+        "lexical_prefix": { "type": "object" },
+        "graph": {
+          "type": "object",
+          "properties": {
+            "graph_authority": { "const": false }
+          }
+        },
+        "semantic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "status", "reason"],
+          "properties": {
+            "enabled": { "const": false },
+            "status": { "const": "disabled" },
+            "reason": { "const": "semantic-disabled-no-llm-authority" }
+          }
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "record_type",
+          "record_id",
+          "slot",
+          "authority_level",
+          "provenance"
+        ],
+        "properties": {
+          "record_type": { "type": "string" },
+          "record_id": { "type": "string" },
+          "slot": { "type": "string" },
+          "authority_level": { "const": "derived" },
+          "provenance": { "type": "array" }
+        }
+      }
+    },
+    "candidate_count": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "llm_authority", "note"],
+      "properties": {
+        "level": { "const": "derived" },
+        "llm_authority": { "const": false },
+        "note": { "type": "string" }
+      }
+    },
+    "truth_boundary": {
+      "const": "HYBRID RETRIEVAL ≠ AUTHORITY / ≠ EMBEDDINGS"
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  }
+}

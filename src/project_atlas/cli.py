@@ -21,7 +21,11 @@ from project_atlas.adv_release_cert import (
     run_fixture_adv_release_certification,
 )
 from project_atlas.api_server import ApiServerError, serve_api
-from project_atlas.authz import AuthzError, elevated_operator
+from project_atlas.authz import (
+    AuthzError,
+    publish_api_session_credentials,
+    require_cli_elevated_operator,
+)
 from project_atlas.autonomy_l3 import AutonomyL3Error, run_bounded_l3_loop
 from project_atlas.backup import (
     BackupError,
@@ -145,6 +149,18 @@ from project_atlas.receipt_revocation import (
     list_revocations,
     receipt_trust_disposition,
     revoke_receipt,
+)
+from project_atlas.runtime_22 import (
+    Runtime22Error,
+)
+from project_atlas.runtime_22 import (
+    compile_context as runtime_compile_context,
+)
+from project_atlas.runtime_22 import (
+    hybrid_retrieve as runtime_hybrid_retrieve,
+)
+from project_atlas.runtime_22 import (
+    package_to_json as runtime_package_to_json,
 )
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.scheduler_live import (
@@ -1103,6 +1119,55 @@ def build_parser() -> argparse.ArgumentParser:
     )
     kci_receipt.add_argument("--json", action="store_true")
 
+    # AS-2.2-RUNTIME-001 — Hybrid Retrieval + Context Compiler P0 (read-only).
+    runtime_parser = subparsers.add_parser(
+        "runtime",
+        help=(
+            "Atlas 2.2 runtime P0: hybrid retrieval + context compiler "
+            "(AS-2.2-RUNTIME-001; read-only; no LLM authority)."
+        ),
+    )
+    runtime_sub = runtime_parser.add_subparsers(dest="runtime_command", required=True)
+    runtime_hybrid = runtime_sub.add_parser(
+        "hybrid-retrieve",
+        help="Deterministic hybrid retrieval (lexical; semantic forbidden).",
+    )
+    runtime_hybrid.add_argument("--vault", type=Path, required=True)
+    runtime_hybrid.add_argument("--kind", required=True)
+    runtime_hybrid.add_argument("--value", required=True)
+    runtime_hybrid.add_argument(
+        "--mode",
+        choices=("exact", "prefix"),
+        default="exact",
+    )
+    runtime_hybrid.add_argument("--cap", type=int, default=20)
+    runtime_hybrid.add_argument(
+        "--include-graph-slot",
+        action="store_true",
+        help="Attach derived impact-graph summary (GRAPH ≠ AUTHORITY).",
+    )
+    runtime_hybrid.add_argument("--json", action="store_true")
+    runtime_compile = runtime_sub.add_parser(
+        "compile-context",
+        help="Budgeted context compiler P0 from hybrid candidates JSON.",
+    )
+    runtime_compile.add_argument("--vault", type=Path, required=True)
+    runtime_compile.add_argument("--pack-id", required=True)
+    runtime_compile.add_argument(
+        "--candidates",
+        type=Path,
+        required=True,
+        help="JSON file with {candidates:[...]} from hybrid-retrieve.",
+    )
+    runtime_compile.add_argument("--budget", type=int, default=20)
+    runtime_compile.add_argument("--profile-id", default="p0-readonly")
+    runtime_compile.add_argument(
+        "--write",
+        action="store_true",
+        help="Write derived package under generated/context-compiler/.",
+    )
+    runtime_compile.add_argument("--json", action="store_true")
+
     # AS-2.0-CTX-001 — fixture-safe context packs with provenance pointers.
     ctx_parser = subparsers.add_parser(
         "context-pack",
@@ -1319,7 +1384,10 @@ def build_parser() -> argparse.ArgumentParser:
     live_arm.add_argument("--json", action="store_true")
     live_disp = live_sub.add_parser(
         "sched-dispatch",
-        help="Dispatch a supervised job (requires elevated scheduler.dispatch).",
+        help=(
+            "Dispatch a supervised job (requires ATLAS_CLI_ELEVATE_CAPS "
+            "including scheduler.dispatch; no CLI self-grant)."
+        ),
     )
     live_disp.add_argument("--vault", type=Path, required=True)
     live_disp.add_argument("--arm-id", required=True)
@@ -1363,7 +1431,11 @@ def build_parser() -> argparse.ArgumentParser:
     live_perf.add_argument("--json", action="store_true")
     live_l3 = live_sub.add_parser(
         "l3-loop",
-        help="Run bounded L3 policy-to-dispatch loop (requires autonomy.l3 + dispatch).",
+        help=(
+            "Run bounded L3 policy-to-dispatch loop "
+            "(requires ATLAS_CLI_ELEVATE_CAPS including autonomy.l3 and "
+            "scheduler.dispatch; no CLI self-grant)."
+        ),
     )
     live_l3.add_argument("--vault", type=Path, required=True)
     live_l3.add_argument("--policy-id", required=True)
@@ -2424,6 +2496,62 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"unknown kci command: {args.kci_command}"
         )
 
+    if args.command == "runtime":
+        if args.runtime_command == "hybrid-retrieve":
+            try:
+                report = runtime_hybrid_retrieve(
+                    args.vault,
+                    kind=args.kind,
+                    value=args.value,
+                    mode=args.mode,
+                    cap=args.cap,
+                    include_graph_slot=bool(args.include_graph_slot),
+                )
+            except Runtime22Error as exc:
+                _log.error("runtime hybrid-retrieve failed: %s", exc)
+                print(f"error: {exc}", file=sys.stderr)
+                return EXIT_ERROR
+            if args.json:
+                print(runtime_package_to_json(report), end="")
+            else:
+                print(f"package_id: {report['package_id']}")
+                print(f"candidates: {report['candidate_count']}")
+                print(f"truncated: {report['truncated']}")
+                print(f"truth_boundary: {report['truth_boundary']}")
+            return EXIT_OK
+        if args.runtime_command == "compile-context":
+            try:
+                raw = json.loads(args.candidates.read_text(encoding="utf-8"))
+                cand = raw.get("candidates") if isinstance(raw, dict) else None
+                if not isinstance(cand, list):
+                    raise Runtime22Error("context-candidates-file-invalid")
+                report = runtime_compile_context(
+                    args.vault,
+                    pack_id=args.pack_id,
+                    candidates=cand,
+                    budget=args.budget,
+                    profile_id=args.profile_id,
+                    write=bool(args.write),
+                )
+            except (OSError, UnicodeError, json.JSONDecodeError, Runtime22Error) as exc:
+                _log.error("runtime compile-context failed: %s", exc)
+                print(f"error: {exc}", file=sys.stderr)
+                return EXIT_ERROR
+            if args.json:
+                print(runtime_package_to_json(report), end="")
+            else:
+                print(f"package_id: {report['package_id']}")
+                print(f"pack_id: {report['pack_id']}")
+                print(f"entries: {report['entry_count']}")
+                print(f"truncated: {report['truncated']}")
+                if report.get("output_path"):
+                    print(f"path: {report['output_path']}")
+                print(f"truth_boundary: {report['truth_boundary']}")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown runtime command: {args.runtime_command}"
+        )
+
     if args.command == "context-pack":
         if args.context_pack_command == "build":
             try:
@@ -2580,7 +2708,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _log.error("live api-serve failed: %s", exc)
                 return EXIT_ERROR
             creds = server.atlas_session.credentials
-            # SEC-009: print per-launch credentials to stderr once (not logs).
+            # SEC-009 / SEC-ADV004-B-002: prefer token file; redact when redirected.
             print(
                 f"LIVE_API listening on {args.host}:{args.port}",
                 file=sys.stderr,
@@ -2589,18 +2717,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "SEC-009 session auth required: Authorization: Bearer <token>",
                 file=sys.stderr,
             )
-            print(f"ATLAS_API_READ_TOKEN={creds.read_token}", file=sys.stderr)
-            if creds.privileged_token:
-                print(
-                    f"ATLAS_API_PRIVILEGED_TOKEN={creds.privileged_token}",
-                    file=sys.stderr,
-                )
-            else:
-                print(
-                    "ATLAS_API_PRIVILEGED_TOKEN=(none; start with elevated "
-                    "operator for privileged actions)",
-                    file=sys.stderr,
-                )
+            publish_api_session_credentials(creds)
             try:
                 server.serve_forever()
             except KeyboardInterrupt:
@@ -2656,9 +2773,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         if args.live_command == "sched-dispatch":
             try:
-                op = elevated_operator(
+                # SEC-ADV004-B-001: no CLI self-grant; require ATLAS_CLI_ELEVATE_CAPS.
+                op = require_cli_elevated_operator(
                     "local-operator-dispatch",
-                    extra={"scheduler.dispatch"},
+                    required={"scheduler.dispatch"},
                 )
                 report = dispatch_supervised_job(
                     args.vault,
@@ -2755,9 +2873,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         if args.live_command == "l3-loop":
             try:
-                op = elevated_operator(
+                # SEC-ADV004-B-001: no CLI self-grant; require ATLAS_CLI_ELEVATE_CAPS.
+                op = require_cli_elevated_operator(
                     "local-operator-l3",
-                    extra={"autonomy.l3", "scheduler.dispatch"},
+                    required={"autonomy.l3", "scheduler.dispatch"},
                 )
                 report = run_bounded_l3_loop(
                     args.vault,

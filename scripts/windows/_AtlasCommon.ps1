@@ -218,23 +218,76 @@ function Wait-AtlasHttpOk {
     return @{ Ok = $false; StatusCode = 0; Body = $null; Error = $lastErr }
 }
 
+function Protect-AtlasSensitiveFile {
+    <#
+    .SYNOPSIS
+      SEC-ADV004-B-002 / Wave B: strip inheritance; current user modify only.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+    try {
+        icacls $Path /inheritance:r | Out-Null
+        icacls $Path /grant:r "${env:USERNAME}:(M)" | Out-Null
+    }
+    catch {
+        # Best-effort ACL; caller may still scrub secrets from content.
+    }
+}
+
+function Clear-AtlasSecretFromLog {
+    <#
+    .SYNOPSIS
+      Replace a known secret span in a log file, then harden ACL.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$LogPath,
+        [Parameter(Mandatory = $true)][string]$Secret
+    )
+    if ([string]::IsNullOrWhiteSpace($Secret)) { return }
+    if (-not (Test-Path -LiteralPath $LogPath)) { return }
+    try {
+        $raw = [string](Get-Content -LiteralPath $LogPath -Raw -ErrorAction Stop)
+        if ($raw.Contains($Secret)) {
+            $scrubbed = $raw.Replace($Secret, "[redacted]")
+            Set-Content -LiteralPath $LogPath -Value $scrubbed -NoNewline -Encoding utf8
+        }
+    }
+    catch { }
+    Protect-AtlasSensitiveFile -Path $LogPath
+}
+
 function Wait-AtlasApiReadToken {
     <#
     .SYNOPSIS
-      Parse ATLAS_API_READ_TOKEN from api-serve stderr (SEC-009 per-launch mint).
+      Capture per-launch READ token (SEC-009). Prefer TokenFilePath
+      (ATLAS_API_TOKEN_FILE); fall back to non-redacted stderr line.
       Never logs the token value.
     #>
     param(
         [Parameter(Mandatory = $true)][string]$StderrLogPath,
+        [string]$TokenFilePath = "",
         [int]$TimeoutSec = 30,
         [int]$IntervalMs = 200
     )
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     while ((Get-Date) -lt $deadline) {
+        if (-not [string]::IsNullOrWhiteSpace($TokenFilePath) -and (Test-Path -LiteralPath $TokenFilePath)) {
+            $fromFile = [string](Get-Content -LiteralPath $TokenFilePath -Raw -ErrorAction SilentlyContinue)
+            if (-not [string]::IsNullOrWhiteSpace($fromFile)) {
+                return $fromFile.Trim()
+            }
+        }
         if (Test-Path -LiteralPath $StderrLogPath) {
             $raw = [string](Get-Content -LiteralPath $StderrLogPath -Raw -ErrorAction SilentlyContinue)
             if ($raw -match '(?m)^ATLAS_API_READ_TOKEN=(\S+)\s*$') {
-                return $Matches[1]
+                $candidate = $Matches[1]
+                if ($candidate -notmatch '^\[redacted') {
+                    return $candidate
+                }
             }
         }
         Start-Sleep -Milliseconds $IntervalMs
