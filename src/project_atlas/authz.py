@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,6 +22,11 @@ from typing import Any, Final, Literal
 from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_anchor
 
 PACKAGE_ID = "AS-2.1-AUTHZ-001"
+# SEC-ADV004-B-001 / CODEX-SEC-019 spirit: CLI elevation is never self-granted.
+CLI_ELEVATE_CAPS_ENV: Final[str] = "ATLAS_CLI_ELEVATE_CAPS"
+# SEC-ADV004-B-002: preferred sink for per-launch READ bearer (not stderr logs).
+API_TOKEN_FILE_ENV: Final[str] = "ATLAS_API_TOKEN_FILE"
+API_PRIVILEGED_TOKEN_FILE_ENV: Final[str] = "ATLAS_API_PRIVILEGED_TOKEN_FILE"
 Capability = Literal[
     "api.read",
     "web.read",
@@ -196,6 +202,37 @@ def elevated_operator(
     return OperatorProfile(operator_id=operator_id, capabilities=frozenset(caps))
 
 
+def require_cli_elevated_operator(
+    operator_id: str,
+    *,
+    required: set[Capability] | frozenset[Capability],
+) -> OperatorProfile:
+    """Fail-closed CLI elevation gate (SEC-ADV004-B-001).
+
+    LIVE CLI must not mint privileged caps inline. Operators set
+    ``ATLAS_CLI_ELEVATE_CAPS`` to an explicit comma-separated allow-list
+    covering every required capability; otherwise elevation is refused.
+    """
+    needed = frozenset(required)
+    if not needed:
+        return default_operator(operator_id)
+    unknown = needed - ALL_CAPABILITIES
+    if unknown:
+        raise AuthzError(f"authz-unknown-capability:{sorted(unknown)[0]}")
+    raw = os.environ.get(CLI_ELEVATE_CAPS_ENV, "").strip()
+    if not raw:
+        raise AuthzError(
+            "authz-cli-elevation-required:" + ",".join(sorted(needed))
+        )
+    granted = {part.strip() for part in raw.split(",") if part.strip()}
+    missing = sorted(cap for cap in needed if cap not in granted)
+    if missing:
+        raise AuthzError(
+            "authz-cli-elevation-incomplete:" + ",".join(missing)
+        )
+    return elevated_operator(operator_id, extra=set(needed))
+
+
 def read_only_operator(operator_id: str = "api-read") -> OperatorProfile:
     """Return a read-only API principal (no privileged / mutating caps)."""
     return OperatorProfile(operator_id=operator_id, capabilities=READ_ONLY_CAPABILITIES)
@@ -242,6 +279,71 @@ def mint_api_session(
 
 def _token_digest(token: str) -> bytes:
     return hashlib.sha256(token.encode("utf-8")).digest()
+
+
+def _write_token_file(path: Path, token: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(token, encoding="ascii", newline="\n")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def publish_api_session_credentials(
+    creds: ApiSessionCredentials,
+    *,
+    stderr_isatty: bool | None = None,
+) -> None:
+    """Publish SEC-009 session credentials without dumping into shared logs.
+
+    SEC-ADV004-B-002: prefer ``ATLAS_API_TOKEN_FILE``; when stderr is not a
+    TTY and no file sink is set, print a redacted marker only (fail-closed
+    against world-readable redirect logs).
+    """
+    import sys
+
+    tty = sys.stderr.isatty() if stderr_isatty is None else stderr_isatty
+    token_file = os.environ.get(API_TOKEN_FILE_ENV, "").strip()
+    priv_file = os.environ.get(API_PRIVILEGED_TOKEN_FILE_ENV, "").strip()
+
+    if token_file:
+        _write_token_file(Path(token_file), creds.read_token)
+        print(f"ATLAS_API_READ_TOKEN_FILE={token_file}", file=sys.stderr)
+        print("ATLAS_API_READ_TOKEN=[redacted]", file=sys.stderr)
+    elif tty:
+        print(f"ATLAS_API_READ_TOKEN={creds.read_token}", file=sys.stderr)
+    else:
+        print(
+            "ATLAS_API_READ_TOKEN=[redacted; set ATLAS_API_TOKEN_FILE to capture]",
+            file=sys.stderr,
+        )
+
+    if creds.privileged_token:
+        if priv_file:
+            _write_token_file(Path(priv_file), creds.privileged_token)
+            print(
+                f"ATLAS_API_PRIVILEGED_TOKEN_FILE={priv_file}",
+                file=sys.stderr,
+            )
+            print("ATLAS_API_PRIVILEGED_TOKEN=[redacted]", file=sys.stderr)
+        elif tty:
+            print(
+                f"ATLAS_API_PRIVILEGED_TOKEN={creds.privileged_token}",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "ATLAS_API_PRIVILEGED_TOKEN=[redacted; set "
+                "ATLAS_API_PRIVILEGED_TOKEN_FILE to capture]",
+                file=sys.stderr,
+            )
+    else:
+        print(
+            "ATLAS_API_PRIVILEGED_TOKEN=(none; start with elevated "
+            "operator for privileged actions)",
+            file=sys.stderr,
+        )
 
 
 def write_authz_audit_receipt(

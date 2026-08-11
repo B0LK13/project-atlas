@@ -88,6 +88,13 @@ function Start-TrackedProcess {
     )
     $logOut = Join-Path $StateDir "$Name.stdout.log"
     $logErr = Join-Path $StateDir "$Name.stderr.log"
+    # Pre-create redirect targets so Wave-B ACL can attach before secrets land.
+    New-Item -ItemType File -Path $logOut -Force -ErrorAction SilentlyContinue | Out-Null
+    New-Item -ItemType File -Path $logErr -Force -ErrorAction SilentlyContinue | Out-Null
+    if ($Name -eq "live-api") {
+        Protect-AtlasSensitiveFile -Path $logOut
+        Protect-AtlasSensitiveFile -Path $logErr
+    }
     $proc = Start-Process -FilePath $FilePath `
         -ArgumentList $ArgumentList `
         -WorkingDirectory $WorkingDirectory `
@@ -95,6 +102,11 @@ function Start-TrackedProcess {
         -WindowStyle Hidden `
         -RedirectStandardOutput $logOut `
         -RedirectStandardError $logErr
+    # Re-assert ACL after Start-Process open/truncate (SEC-ADV004-B-002).
+    if ($Name -eq "live-api") {
+        Protect-AtlasSensitiveFile -Path $logOut
+        Protect-AtlasSensitiveFile -Path $logErr
+    }
     $record = New-AtlasProcessIdentityRecord `
         -Name $Name `
         -ProcessId $proc.Id `
@@ -679,27 +691,8 @@ if (-not $SkipWeb -and -not (Test-AtlasPortFree -Port $WebPort)) {
 try {
 # --- start LIVE_API (loopback only) ---
 Write-Host "Starting LIVE_API on 127.0.0.1:$ApiPort ..."
-$apiArgs = "live api-serve --vault `"$vaultPath`" --host 127.0.0.1 --port $ApiPort"
-$apiProc = Start-TrackedProcess -Name "live-api" -FilePath $atlasExe `
-    -ArgumentList $apiArgs -WorkingDirectory $repoRoot -StateDir $stateDir `
-    -SessionNonce $sessionNonce -PidFile $pidFile -ProcessRecords $processRecords `
-    -ExpectedPorts @($ApiPort)
-Write-Host "  LIVE_API pid=$($apiProc.pid) (provisional identity bound)"
-
-# SEC-009: capture per-launch read token from api-serve stderr (never print value).
-$apiReadToken = Wait-AtlasApiReadToken -StderrLogPath $apiProc.log_stderr -TimeoutSec 45
-if ([string]::IsNullOrWhiteSpace($apiReadToken)) {
-    Write-AtlasProductError `
-        -What "LIVE_API started but did not publish ATLAS_API_READ_TOKEN." `
-        -Cause "api-serve stderr did not contain ATLAS_API_READ_TOKEN= within timeout (SEC-009 session mint)." `
-        -Action "Inspect $($apiProc.log_stderr). Confirm tip CLI includes SEC-009 session auth. Do not disable auth or hardcode tokens." `
-        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
-        -LogPath $errLog
-    throw "ATLAS_START_ABORT: missing ATLAS_API_READ_TOKEN"
-}
 $tokenPath = Join-Path $stateDir "live-api.read.token"
-# Wave B / SEC-009: a prior abort can leave this file with a read-only ACL that
-# blocks Set-Content ("Access to the path ... is denied"). Reset then rewrite.
+# SEC-ADV004-B-002: mint into hardened token file; do not rely on stderr dump.
 if (Test-Path -LiteralPath $tokenPath) {
     try {
         icacls $tokenPath /grant:r "${env:USERNAME}:(F)" | Out-Null
@@ -707,16 +700,42 @@ if (Test-Path -LiteralPath $tokenPath) {
     catch { }
     Remove-Item -LiteralPath $tokenPath -Force -ErrorAction SilentlyContinue
 }
-Set-Content -LiteralPath $tokenPath -Value $apiReadToken -NoNewline -Encoding ascii
-try {
-    # Keep modify for current user so restart/retry can rewrite the token file.
-    # Do not world-readable; strip inheritance.
-    icacls $tokenPath /inheritance:r | Out-Null
-    icacls $tokenPath /grant:r "${env:USERNAME}:(M)" | Out-Null
+$env:ATLAS_API_TOKEN_FILE = $tokenPath
+$apiArgs = "live api-serve --vault `"$vaultPath`" --host 127.0.0.1 --port $ApiPort"
+$apiProc = Start-TrackedProcess -Name "live-api" -FilePath $atlasExe `
+    -ArgumentList $apiArgs -WorkingDirectory $repoRoot -StateDir $stateDir `
+    -SessionNonce $sessionNonce -PidFile $pidFile -ProcessRecords $processRecords `
+    -ExpectedPorts @($ApiPort)
+Write-Host "  LIVE_API pid=$($apiProc.pid) (provisional identity bound)"
+
+# SEC-009: capture per-launch read token (prefer token file; never print value).
+$apiReadToken = Wait-AtlasApiReadToken `
+    -StderrLogPath $apiProc.log_stderr `
+    -TokenFilePath $tokenPath `
+    -TimeoutSec 45
+if ([string]::IsNullOrWhiteSpace($apiReadToken)) {
+    Write-AtlasProductError `
+        -What "LIVE_API started but did not publish ATLAS_API_READ_TOKEN." `
+        -Cause "api-serve did not write ATLAS_API_TOKEN_FILE / non-redacted stderr within timeout (SEC-009 session mint)." `
+        -Action "Inspect $($apiProc.log_stderr) and $tokenPath. Confirm tip CLI includes SEC-009 session auth. Do not disable auth or hardcode tokens." `
+        -Retry "powershell -NoProfile -File scripts\windows\atlas-stop.ps1; powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+        -LogPath $errLog
+    throw "ATLAS_START_ABORT: missing ATLAS_API_READ_TOKEN"
 }
-catch {
-    # Best-effort ACL; token remains local under state dir (not the repo).
+# Ensure durable token file content + ACL (Wave B / SEC-ADV004-B-002).
+if (-not (Test-Path -LiteralPath $tokenPath) -or `
+    ([string](Get-Content -LiteralPath $tokenPath -Raw -ErrorAction SilentlyContinue)).Trim() -ne $apiReadToken) {
+    if (Test-Path -LiteralPath $tokenPath) {
+        try { icacls $tokenPath /grant:r "${env:USERNAME}:(F)" | Out-Null } catch { }
+        Remove-Item -LiteralPath $tokenPath -Force -ErrorAction SilentlyContinue
+    }
+    Set-Content -LiteralPath $tokenPath -Value $apiReadToken -NoNewline -Encoding ascii
 }
+Protect-AtlasSensitiveFile -Path $tokenPath
+# Scrub any accidental full-token stderr residue and harden stderr ACL.
+Clear-AtlasSecretFromLog -LogPath $apiProc.log_stderr -Secret $apiReadToken
+Protect-AtlasSensitiveFile -Path $apiProc.log_stderr
+Protect-AtlasSensitiveFile -Path $apiProc.log_stdout
 
 $apiHealth = Wait-AtlasHttpOk -Url "http://127.0.0.1:$ApiPort/v1/meta" -TimeoutSec 60 -BearerToken $apiReadToken
 if (-not $apiHealth.Ok) {
