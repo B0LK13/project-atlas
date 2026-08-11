@@ -6,6 +6,7 @@ trust invariants, and never fabricate absent evidence.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import atlas_gateway as gw
@@ -105,3 +106,41 @@ def test_call_tool_dispatch_and_unknown(demo_vault: Path) -> None:
 def test_search_limit_is_bounded(demo_vault: Path) -> None:
     result = gw.search(demo_vault, "", limit=2)
     assert result.structured_content["result_count"] <= 2
+
+
+def test_evidence_fetch_bounds_oversized_provenance_lineages(tmp_path: Path) -> None:
+    """VAL-269-A B1: evidence fetch must not dump unbounded vault-wide lineages."""
+    vault = tmp_path / "vault"
+    idx = vault / "generated" / "indexes"
+    idx.mkdir(parents=True)
+    huge = {
+        "by_source_lineage_id": {f"lin-{i:05d}": ["harbor-api"] for i in range(5000)},
+        "ids": ["e1"],
+    }
+    (idx / "provenance.json").write_text(json.dumps(huge), encoding="utf-8")
+
+    result = gw.fetch(vault, "evidence:e1")
+    sc = result.structured_content
+    lineages = sc.get("provenance_lineages") or []
+    assert sc["found"] is True
+    assert len(lineages) <= gw.MAX_RESULTS
+    # Must not leak the vault-wide lineage catalog for a single evidence id.
+    assert set(lineages).isdisjoint({f"lin-{i:05d}" for i in range(5000)})
+    payload = json.dumps(sc, sort_keys=True).encode("utf-8")
+    assert len(payload) <= gw.MAX_RESPONSE_BYTES
+    assert sc.get("error") != "response_too_large"
+
+
+def test_seal_fail_closed_on_oversized_structured_content() -> None:
+    """Hard byte budget replaces oversized payloads (no mid-object leak)."""
+    oversized = {
+        "blob": "x" * (gw.MAX_RESPONSE_BYTES + 1024),
+        **gw.INVARIANTS,
+    }
+    sealed = gw._seal(oversized, "should not leak")
+    sc = sealed.structured_content
+    assert sc["error"] == "response_too_large"
+    assert sc["truncated"] is True
+    assert "blob" not in sc
+    assert "xxxx" not in sealed.content
+    assert len(json.dumps(sc, sort_keys=True).encode("utf-8")) <= gw.MAX_RESPONSE_BYTES

@@ -18,9 +18,11 @@ def test_build_tools_are_read_only_with_widget_templates() -> None:
     assert names == {"search", "fetch", "atlas_project_status", "atlas_graph_neighbors"}
     for tool in tools:
         assert tool.annotations is not None
-        assert tool.annotations.read_only_hint is True, tool.name
-        assert tool.annotations.destructive_hint is False, tool.name
-        assert tool.annotations.open_world_hint is False, tool.name
+        # Prefer wire aliases (readOnlyHint); SDK field names vary by version.
+        ann = tool.annotations.model_dump(by_alias=True)
+        assert ann.get("readOnlyHint") is True, tool.name
+        assert ann.get("destructiveHint") is False, tool.name
+        assert ann.get("openWorldHint") is False, tool.name
         dumped = tool.model_dump(by_alias=True, exclude_none=True)
         meta = dumped["_meta"]
         assert meta["openai/outputTemplate"].startswith("ui://widget/"), tool.name

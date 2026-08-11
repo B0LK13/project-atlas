@@ -29,6 +29,9 @@ from project_atlas.web_api import (
 
 SOURCE_CLASS = "DEMO_FIXTURE"
 MAX_RESULTS = 50
+# Hard ceiling on serialized structuredContent (UTF-8). Oversized payloads are
+# fail-closed — replaced with a bounded stub, never truncated mid-object with leaks.
+MAX_RESPONSE_BYTES = 65_536
 
 # Section 37 — trust invariants echoed on every ChatGPT-facing result.
 INVARIANTS: dict[str, Any] = {
@@ -64,6 +67,35 @@ def _clamp_limit(limit: int | None) -> int:
     except (TypeError, ValueError) as exc:
         raise GatewayError(f"limit must be an integer: {limit!r}") from exc
     return max(1, min(MAX_RESULTS, value))
+
+
+def _bound_items(items: list[Any], *, limit: int = MAX_RESULTS) -> tuple[list[Any], bool]:
+    """Cap list length; return (capped_items, truncated)."""
+    if len(items) <= limit:
+        return list(items), False
+    return list(items[:limit]), True
+
+
+def _seal(
+    structured: dict[str, Any],
+    content: str,
+    meta: dict[str, Any] | None = None,
+) -> ToolResult:
+    """Enforce hard response-size budget; fail closed without leaking oversized data."""
+    payload = json.dumps(structured, sort_keys=True, default=str)
+    if len(payload.encode("utf-8")) <= MAX_RESPONSE_BYTES:
+        return ToolResult(structured, content, meta or {})
+    sealed = {
+        "error": "response_too_large",
+        "truncated": True,
+        "note": "Result exceeded hard size budget; withheld to prevent over-share.",
+        **INVARIANTS,
+    }
+    return ToolResult(
+        sealed,
+        "UNKNOWN — response exceeded size budget (fail closed).",
+        meta or {},
+    )
 
 
 def _load_index(vault: Path, name: str) -> dict[str, Any]:
@@ -179,8 +211,7 @@ def search(vault: Path, query: str, project_scope: str | None = None, limit: int
                 }
             )
 
-    truncated = len(results) > cap
-    results = results[:cap]
+    results, truncated = _bound_items(results, limit=cap)
     structured = {
         "query": query,
         "result_count": len(results),
@@ -192,7 +223,7 @@ def search(vault: Path, query: str, project_scope: str | None = None, limit: int
         f"Found {len(results)} Atlas reference(s) for {query!r} in the DEMO_FIXTURE estate. "
         "Search results are references, not proven claims."
     )
-    return ToolResult(structured, note)
+    return _seal(structured, note)
 
 
 def fetch(vault: Path, ref: str) -> ToolResult:
@@ -209,7 +240,7 @@ def fetch(vault: Path, ref: str) -> ToolResult:
     if kind == "knowledge":
         for answer in list_knowledge_answers(vault):
             if answer["answer_id"] == ident:
-                return ToolResult(
+                return _seal(
                     {"kind": "knowledge", "found": True, "answer": answer, **INVARIANTS},
                     f"Knowledge reference {ident} (DEMO_FIXTURE). Evidence is not interpretation.",
                 )
@@ -225,17 +256,20 @@ def fetch(vault: Path, ref: str) -> ToolResult:
         index = _load_index(vault, index_name)
         ids = index.get("ids")
         present = isinstance(ids, list) and ident in ids
-        prov = _load_index(vault, "provenance")
-        lineages: list[str] = (
-            sorted(str(k) for k in (prov.get("by_source_lineage_id") or {}))
-            if kind == "evidence"
-            else []
-        )
+        # Never dump vault-wide lineage inventory for a single evidence id.
+        # Only surface the evidence id itself when it is a lineage key.
+        lineages: list[str] = []
+        lineages_truncated = False
+        if kind == "evidence":
+            by_lineage = index.get("by_source_lineage_id")
+            if isinstance(by_lineage, dict) and ident in by_lineage:
+                lineages, lineages_truncated = _bound_items([ident])
         structured = {
             "kind": kind,
             "id": ident,
             "found": present,
             "provenance_lineages": lineages,
+            "truncated": lineages_truncated,
             "note": "Reference/evidence pointer only — not a proven claim or interpretation."
             if present
             else "UNKNOWN — not present in DEMO_FIXTURE indexes.",
@@ -244,14 +278,20 @@ def fetch(vault: Path, ref: str) -> ToolResult:
         narration = (
             f"{kind} {ident}: {'present' if present else 'UNKNOWN (absent)'} in DEMO_FIXTURE."
         )
-        return ToolResult(structured, narration)
+        return _seal(structured, narration)
 
     raise GatewayError(f"unsupported ref type: {kind!r}")
 
 
 def _not_found(kind: str, ident: str) -> ToolResult:
-    return ToolResult(
-        {"kind": kind, "id": ident, "found": False, "note": "UNKNOWN — absent in DEMO_FIXTURE.", **INVARIANTS},
+    return _seal(
+        {
+            "kind": kind,
+            "id": ident,
+            "found": False,
+            "note": "UNKNOWN — absent in DEMO_FIXTURE.",
+            **INVARIANTS,
+        },
         f"{kind} {ident} is UNKNOWN (absent) in the DEMO_FIXTURE estate — not fabricated.",
     )
 
@@ -270,9 +310,13 @@ def atlas_project_status(vault: Path, project_id: str) -> ToolResult:
     conflict_count = _count_for_project(vault, "conflicts", project_id)
     evidence_count = _evidence_count(vault, project_id)
     edges = _dependency_edges(vault)
-    dependencies = edges.get(project_id, [])
-    dependents = sorted(pid for pid, targets in edges.items() if project_id in targets)
-    unknowns = _unknowns(vault, project_id, knowledge_count, conflict_count)
+    dependencies, deps_trunc = _bound_items(edges.get(project_id, []))
+    dependents, dent_trunc = _bound_items(
+        sorted(pid for pid, targets in edges.items() if project_id in targets)
+    )
+    unknowns, unk_trunc = _bound_items(
+        _unknowns(vault, project_id, knowledge_count, conflict_count)
+    )
 
     structured = {
         "project": project_id,
@@ -285,6 +329,7 @@ def atlas_project_status(vault: Path, project_id: str) -> ToolResult:
         "dependencies": dependencies,
         "dependents": dependents,
         "unknowns": unknowns,
+        "truncated": deps_trunc or dent_trunc or unk_trunc,
         **INVARIANTS,
     }
     narration = (
@@ -293,7 +338,7 @@ def atlas_project_status(vault: Path, project_id: str) -> ToolResult:
         f"{evidence_count} evidence lineage(s), depends on {dependencies or 'none'}. "
         f"UNKNOWNs: {unknowns or 'none'}. Model narration is not Atlas authority."
     )
-    return ToolResult(structured, narration, meta={"project_id": project_id})
+    return _seal(structured, narration, meta={"project_id": project_id})
 
 
 def atlas_graph_neighbors(vault: Path, project_id: str) -> ToolResult:
@@ -303,14 +348,17 @@ def atlas_graph_neighbors(vault: Path, project_id: str) -> ToolResult:
     if project_id not in set(_project_ids(vault)):
         return _not_found("project", project_id)
     edges = _dependency_edges(vault)
-    dependencies = edges.get(project_id, [])
-    dependents = sorted(pid for pid, targets in edges.items() if project_id in targets)
-    related = sorted(set(dependencies) | set(dependents))
+    full_deps = edges.get(project_id, [])
+    full_dents = sorted(pid for pid, targets in edges.items() if project_id in targets)
+    dependencies, deps_trunc = _bound_items(full_deps)
+    dependents, dent_trunc = _bound_items(full_dents)
+    related, rel_trunc = _bound_items(sorted(set(full_deps) | set(full_dents)))
     structured = {
         "node": project_id,
         "dependencies": dependencies,
         "dependents": dependents,
         "related_projects": related,
+        "truncated": deps_trunc or dent_trunc or rel_trunc,
         "edge_source": "portfolio/dependency-report.json (derived projection)",
         "note": "GRAPH != AUTHORITY — derived relationships never pick claim winners.",
         **INVARIANTS,
@@ -319,7 +367,7 @@ def atlas_graph_neighbors(vault: Path, project_id: str) -> ToolResult:
         f"{project_id} derived neighbors (DEMO_FIXTURE): depends on {dependencies or 'none'}; "
         f"depended on by {dependents or 'none'}. Graph is derived, not authority."
     )
-    return ToolResult(structured, narration, meta={"project_id": project_id})
+    return _seal(structured, narration, meta={"project_id": project_id})
 
 
 # --------------------------------------------------------------------------- #
