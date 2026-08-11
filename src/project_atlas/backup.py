@@ -235,12 +235,23 @@ def classify_cp_path(relative: str) -> DomainId | None:
 
 
 def read_vault_logical_id(vault: Path) -> str:
-    """Return stable vault logical identity (FR-005 / FR-013)."""
+    """Return stable vault logical identity (FR-005 / FR-013).
+
+    SEC-ADV004B-A-002: refuse symlinked / reparse ``.atlas/vault.json`` whose
+    realpath escapes the vault root before stamping MANIFEST/META identity.
+    """
     identity_path = vault / ".atlas" / "vault.json"
     if not identity_path.is_file():
         raise BackupError(f"missing vault identity: {identity_path}")
     try:
-        raw = json.loads(identity_path.read_text(encoding="utf-8"))
+        safe_identity = ensure_under_root(vault, identity_path, label="vault identity")
+    except ValueError as exc:
+        raise BackupError(
+            "refusing vault identity outside vault root "
+            f"(symlink/reparse escape): {identity_path}"
+        ) from exc
+    try:
+        raw = json.loads(safe_identity.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise BackupError(f"unreadable vault identity: {identity_path}: {exc}") from exc
     if not isinstance(raw, dict):
@@ -304,6 +315,12 @@ def collect_identity_samples(vault: Path) -> dict[str, Any]:
 
 
 def _iter_files(root: Path) -> Iterator[tuple[PurePosixPath, Path]]:
+    """Yield relative member paths under ``root``.
+
+    SEC-ADV004B-A-001: every candidate is gated with ``ensure_under_root``
+    (realpath / Windows reparse) before the caller may ``read_bytes``. File
+    symlinks and directory junctions that escape the approved root fail closed.
+    """
     root = root.resolve()
     for path in sorted(root.rglob("*")):
         if not path.is_file():
@@ -314,7 +331,14 @@ def _iter_files(root: Path) -> Iterator[tuple[PurePosixPath, Path]]:
             raise BackupError(f"path escapes root {root}: {path}") from exc
         if _is_ephemeral(relative):
             continue
-        yield relative, path
+        try:
+            safe = ensure_under_root(root, path, label="backup source")
+        except ValueError as exc:
+            raise BackupError(
+                "refusing snapshot source outside root "
+                f"(symlink/junction escape): {relative}"
+            ) from exc
+        yield relative, safe
 
 
 def _assert_inside(root: Path, target: Path) -> None:
