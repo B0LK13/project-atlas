@@ -44,12 +44,17 @@ Repository status (short)
   integrity, log redaction) — see `docs/security/REGRESSION-SUITE-SEED.md`.
   This reflects **internal multi-agent validation only**; no external
   security certification has been obtained.
-- `ATLAS_2_1_RELEASE_CERTIFIED = NO` — the authentic estate PILOT gate
-  remains owner-blocked (see `docs/atlas-2.1/KNOWN-GAPS.md`, gap I).
-- Atlas 2.2 knowledge-intelligence packages (`docs/atlas-2.2/`) are
-  **PREP ONLY**: docs/contracts/fixtures with zero runtime mutation of
-  `knowledge_compiler` / `retrieval`. `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED
-  = NO`. Do not read a PREP package as an implemented feature.
+- STATUS AT LAST DOC REALIGNMENT: `ATLAS_2_1_RELEASE_CERTIFIED = NO`,
+  authentic estate PILOT owner-blocked (see `docs/atlas-2.1/KNOWN-GAPS.md`,
+  gap I). This is a point-in-time gate value — VERIFY AGAINST CURRENT MAIN
+  rather than carrying it forward as permanent.
+- Atlas 2.2 (`docs/atlas-2.2/`) contains extensive PREP contracts and may
+  also contain newer runtime implementation as `main` advances. PREP
+  documents are never evidence of implementation — and, symmetrically, a
+  runtime module is not "PREP" merely because its associated 2.2 package
+  documentation began as PREP. Consult `docs/atlas-2.2/README.md` plus the
+  current runtime/code and gate state (`docs/atlas-2.2/PREP-STATUS.md`)
+  before asserting any 2.2 capability is, or is not, implemented.
 - Tests: unit & integration tests present; run `python -m pytest` for the
   current count — do not treat any specific number in these docs as current
   without re-running (LAST NARRATIVE UPDATE: WORKLOG.md, tail).

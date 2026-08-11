@@ -29,9 +29,12 @@ checkout, the following are implemented:
   (read-only MCP), `agentos.py`/`authz.py`/`scheduler_live.py`/`autonomy_l3.py`
   (Agent OS), `chatgpt_bridge.py`/`chatgpt_capture.py` (ChatGPT integration),
   `obs_live.py`/`obs_perf.py`/`ops_receipts.py` (observability), `doctor.py`
-  (productization), and Atlas-2.2 knowledge-intelligence PREP modules
-  (`hybrid_retrieval.py`, `context_pack*.py`, `kci.py`, etc. — PREP status,
-  not necessarily production-wired; see `docs/atlas-2.2/README.md`).
+  (productization), and modules tied to Atlas 2.2 knowledge-intelligence
+  packages (`hybrid_retrieval.py`, `context_pack*.py`, `kci.py`, etc.) whose
+  package documentation under `docs/atlas-2.2/` began as PREP. A module's
+  presence in `src/` is not itself evidence of PREP status or of
+  production-wiring in either direction — check current code and
+  `docs/atlas-2.2/README.md`'s gate state before asserting either.
   Do not treat this list as exhaustive or as a maturity claim — for
   capability-by-capability maturity, read
   `docs/atlas-2.1/FEATURE-MATURITY-MATRIX.md`, not this file.
@@ -56,10 +59,17 @@ checkout, the following are implemented:
 - `.github/workflows/atlas-documentation-gate.yml` — receipt-gated documentation gate triggered manually.
 - `WORKLOG.md` — execution log per work package; `docs/adr/` — architectural decision records.
 
-None of the above upgrades `ATLAS_2_1_RELEASE_CERTIFIED` (still `NO`) or
-unlocks Atlas 2.2 intelligence packages (still PREP ONLY, still
-`ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED = NO`). See
-`docs/atlas-2.1/KNOWN-GAPS.md` and `docs/atlas-2.2/PREP-STATUS.md`.
+STATUS AT LAST DOC REALIGNMENT: `ATLAS_2_1_RELEASE_CERTIFIED = NO` (see
+`docs/atlas-2.1/KNOWN-GAPS.md`). VERIFY AGAINST CURRENT MAIN before relying
+on this gate value — it moves as work lands.
+
+Atlas 2.2 (`docs/atlas-2.2/`) contains extensive PREP contracts and may also
+contain newer runtime implementation as `main` advances. PREP documents are
+never evidence of implementation, and a runtime module is not "PREP" merely
+because its originating 2.2 package documentation began as PREP. Consult
+`docs/atlas-2.2/README.md` plus current runtime/code and gate state
+(`docs/atlas-2.2/PREP-STATUS.md`) before asserting a 2.2 capability is, or
+is not, implemented.
 
 Planning documents (authoritative specification):
 
