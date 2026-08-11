@@ -86,13 +86,13 @@ try {
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     $checks.productization_tmp = $runtimeRoot
 
-    # --- Python 3.12+ ---
-    $python = Get-AtlasPythonCommand
+    # --- Python 3.12+ (prefer tip-local .venv when present; ENV-ISO-002) ---
+    $python = Get-AtlasPythonCommand -RepoRoot $repoRoot
     if (-not $python) {
         Write-AtlasProductError `
             -What "Python 3.12+ is required for Atlas Core." `
-            -Cause "Neither 'py -3.12' nor python/python3 reporting 3.12+ was found on PATH." `
-            -Action "Install Python 3.12+ from https://www.python.org/downloads/ (enable 'Add python.exe to PATH' / py launcher)." `
+            -Cause "Neither tip-local .venv\Scripts\python.exe, 'py -3.12', nor python/python3 reporting 3.12+ was found." `
+            -Action "Install Python 3.12+ from https://www.python.org/downloads/ (enable 'Add python.exe to PATH' / py launcher). Prefer a tip-local venv: py -3.12 -m venv .venv" `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-preflight.ps1" `
             -LogPath $errLog
         $checks.failed_check = "python"
@@ -100,9 +100,14 @@ try {
         exit 1
     }
     $verLine = & $python.Exe @($python.Args + @("-c", "import sys; print(sys.version.split()[0])"))
-    $checks.python = @{ label = $python.Label; version = "$verLine"; exe = $python.Exe }
+    $checks.python = @{
+        label     = $python.Label
+        version   = "$verLine"
+        exe       = $python.Exe
+        tip_local = [bool](Test-AtlasInterpreterIsTipVenv -Python $python -RepoRoot $repoRoot)
+    }
     $checks.python_ok = $true
-    Write-Host "OK  Python $($checks.python.version) via $($python.Label)"
+    Write-Host "OK  Python $($checks.python.version) via $($python.Label) (tip_local=$($checks.python.tip_local))"
 
     # --- Node / npm ---
     $node = Get-Command node -ErrorAction SilentlyContinue

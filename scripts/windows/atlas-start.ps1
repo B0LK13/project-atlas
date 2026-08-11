@@ -7,7 +7,7 @@
   PRODUCTIZATION path (NOT RELEASE / NOT PILOT):
   1) honesty banner
   2) preflight (Python 3.12+, Node/npm, repo root, writable .tmp)
-  3) editable Core install if needed (pip install -e ".[dev]")
+  3) tip-local .venv + editable Core install if needed (never rewrite shared global Scripts)
   4) configure vault: DEMO_FIXTURE bootstrap under .tmp/productization OR operator vault path
   5) start atlas live api-serve on 127.0.0.1 (bounded)
   6) start apps/web (npm run dev) without Playwright
@@ -150,17 +150,6 @@ function Invoke-AtlasStartAbortCleanup {
     return $summary
 }
 
-function Resolve-AtlasScriptsDir {
-    param([Parameter(Mandatory = $true)]$Python)
-    # py.exe launcher -> resolve real interpreter home via -c
-    $homeOut = & $Python.Exe @($Python.Args + @("-c", "import sys,os; print(os.path.dirname(sys.executable))")) 2>$null
-    if ($LASTEXITCODE -eq 0 -and $homeOut) {
-        return (Join-Path ([string]$homeOut).Trim() "Scripts")
-    }
-    $parent = Split-Path $Python.Exe -Parent
-    return (Join-Path $parent "Scripts")
-}
-
 function Get-AtlasPipShowField {
     <#
     .SYNOPSIS
@@ -185,30 +174,12 @@ function Get-AtlasPipShowField {
     return $null
 }
 
-function Test-AtlasPathUnderRoot {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][string]$Root
-    )
-    try {
-        $fullPath = [System.IO.Path]::GetFullPath($Path)
-        $fullRoot = [System.IO.Path]::GetFullPath($Root).TrimEnd("\", "/")
-        if ($fullPath.Equals($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            return $true
-        }
-        $prefix = $fullRoot + [System.IO.Path]::DirectorySeparatorChar
-        return $fullPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
-    }
-    catch {
-        return $false
-    }
-}
-
 function Test-AtlasCliTipCompatible {
     <#
     .SYNOPSIS
-      True when atlas.exe supports `live` and editable install points at RepoRoot.
-      Guards against stale PATH/Scripts atlas.exe from another worktree (I03 CRITICAL).
+      True when atlas.exe supports `live`, editable install points at RepoRoot,
+      PYTHONPATH cannot shadow a foreign project_atlas, and import __file__ is under tip
+      (I03 + ENV-ISO-001 fail-closed tip identity).
     #>
     param(
         [Parameter(Mandatory = $true)][string]$AtlasExe,
@@ -220,6 +191,15 @@ function Test-AtlasCliTipCompatible {
             Ok     = $false
             Reason = "missing_atlas_exe"
             Detail = "atlas.exe not found at $AtlasExe"
+        }
+    }
+
+    $ppSafe = Test-AtlasPythonPathTipSafe -RepoRoot $RepoRoot
+    if (-not $ppSafe.Ok) {
+        return @{
+            Ok     = $false
+            Reason = [string]$ppSafe.Reason
+            Detail = [string]$ppSafe.Detail
         }
     }
 
@@ -255,11 +235,81 @@ function Test-AtlasCliTipCompatible {
             Detail = "Editable project location '$editable' is not under current RepoRoot '$RepoRoot' (stale CLI from another worktree)."
         }
     }
+
+    $importSafe = Test-AtlasImportLocationTipSafe -Python $Python -RepoRoot $RepoRoot
+    if (-not $importSafe.Ok) {
+        return @{
+            Ok     = $false
+            Reason = [string]$importSafe.Reason
+            Detail = [string]$importSafe.Detail
+        }
+    }
+
     return @{
         Ok     = $true
         Reason = "ok"
-        Detail = "tip-compatible editable install at $editable"
+        Detail = "tip-compatible editable install at $editable; $($importSafe.Detail)"
     }
+}
+
+function Ensure-AtlasTipLocalVenv {
+    <#
+    .SYNOPSIS
+      ENV-ISO-002: ensure tip-local .venv exists; never mutate a shared global env.
+      Uses a bootstrap interpreter (py -3.12 / PATH python) only to create .venv.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]$BootstrapPython,
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$ErrLog,
+        [switch]$SkipInstall
+    )
+    $tipPyPath = Get-AtlasTipVenvPythonPath -RepoRoot $RepoRoot
+    if (Test-Path -LiteralPath $tipPyPath) {
+        $existing = Get-AtlasPythonCommand -RepoRoot $RepoRoot
+        if ($existing -and (Test-AtlasInterpreterIsTipVenv -Python $existing -RepoRoot $RepoRoot)) {
+            Write-Host "OK  tip-local interpreter: $($existing.Label)"
+            return $existing
+        }
+    }
+
+    if ($SkipInstall) {
+        Write-AtlasProductError `
+            -What "Tip-local .venv is required for isolated Atlas start (ENV-ISO-002)." `
+            -Cause "No usable tip-local interpreter at $tipPyPath and -SkipInstall prevents creating it." `
+            -Action "Create a tip venv then install: py -3.12 -m venv .venv ; .\.venv\Scripts\python.exe -m pip install -e `".[dev]`" from $RepoRoot. Do not pip-install into a shared global Python." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $ErrLog
+        exit 1
+    }
+
+    Write-Host "Configuring: tip-local .venv via $($BootstrapPython.Label) -m venv .venv (no global editable rewrite)..."
+    $venvDir = Join-Path $RepoRoot ".venv"
+    $code = Invoke-AtlasPython -Python $BootstrapPython -WorkingDirectory $RepoRoot -Arguments @(
+        "-m", "venv", ".venv"
+    )
+    if ($code -ne 0 -or -not (Test-Path -LiteralPath $tipPyPath)) {
+        Write-AtlasProductError `
+            -What "Failed to create tip-local .venv for isolated Atlas start." `
+            -Cause "$($BootstrapPython.Label) -m venv .venv exited with code $code (expected $tipPyPath)." `
+            -Action "From $RepoRoot run: $($BootstrapPython.Label) -m venv .venv. Ensure the directory is writable. Do not use a shared global editable install across worktrees." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $ErrLog
+        exit 1
+    }
+
+    $tip = Get-AtlasPythonCommand -RepoRoot $RepoRoot
+    if (-not $tip -or -not (Test-AtlasInterpreterIsTipVenv -Python $tip -RepoRoot $RepoRoot)) {
+        Write-AtlasProductError `
+            -What "Tip-local .venv was created but could not be selected." `
+            -Cause "Get-AtlasPythonCommand did not return tip-venv after creating $venvDir." `
+            -Action "Confirm $tipPyPath exists and is Python 3.12+. Re-run start from $RepoRoot." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $ErrLog
+        exit 1
+    }
+    Write-Host "OK  tip-local .venv ready: $($tip.Label)"
+    return $tip
 }
 
 function Install-AtlasEditableFromRepo {
@@ -290,8 +340,31 @@ function Ensure-AtlasEditableInstall {
         [Parameter(Mandatory = $true)][string]$ErrLog,
         [switch]$SkipInstall
     )
-    # Prefer atlas beside the preflight-selected interpreter (avoid PATH atlas from another Python).
-    # Require tip-compatible CLI: `atlas live` + editable Location under current RepoRoot (I03).
+    # ENV-ISO-002: editable install / atlas.exe must live in tip .venv only —
+    # never rewrite shared global Scripts\atlas.exe across worktrees.
+    if (-not (Test-AtlasInterpreterIsTipVenv -Python $Python -RepoRoot $RepoRoot)) {
+        Write-AtlasProductError `
+            -What "Refusing editable install into a non-tip interpreter (ENV-ISO-002 fail-closed)." `
+            -Cause "Selected Python '$($Python.Label)' ($($Python.Exe)) is not under $RepoRoot\.venv. Shared global editables contaminate sibling worktrees and contend on Scripts\atlas.exe." `
+            -Action "Use tip-local isolation only: py -3.12 -m venv .venv ; .\.venv\Scripts\python.exe -m pip install -e `".[dev]`" from $RepoRoot. Re-run atlas-start so Get-AtlasPythonCommand prefers .venv\Scripts." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $ErrLog
+        exit 1
+    }
+
+    $ppSafe = Test-AtlasPythonPathTipSafe -RepoRoot $RepoRoot
+    if (-not $ppSafe.Ok) {
+        Write-AtlasProductError `
+            -What "PYTHONPATH shadows project_atlas from outside this tip (ENV-ISO-001 fail-closed)." `
+            -Cause "$($ppSafe.Detail)" `
+            -Action "Unset or rewrite PYTHONPATH so no entry outside $RepoRoot provides project_atlas (e.g. remove sibling worktree \src paths). Tip identity must not rely on I03 editable Location alone." `
+            -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+            -LogPath $ErrLog
+        exit 1
+    }
+
+    # Prefer atlas beside the tip-venv interpreter (Resolve-AtlasScriptsDir is venv-aware).
+    # Require tip-compatible CLI: `atlas live` + editable Location + import under RepoRoot (I03/ENV-ISO).
     $scriptsDir = Resolve-AtlasScriptsDir -Python $Python
     $hint = Join-Path $scriptsDir "atlas.exe"
     $needsInstall = $true
@@ -306,12 +379,21 @@ function Ensure-AtlasEditableInstall {
         $needsInstall = $true
         $incompatDetail = [string]$compat.Detail
         Write-Host "NOTE: existing atlas is tip-incompatible ($($compat.Reason)): $incompatDetail" -ForegroundColor DarkYellow
-        Write-Host "      Will reinstall editable package from current RepoRoot unless -SkipInstall." -ForegroundColor DarkYellow
+        if ($compat.Reason -eq "pythonpath_foreign_shadow" -or $compat.Reason -eq "import_wrong_worktree") {
+            Write-AtlasProductError `
+                -What "Atlas tip identity failed closed on import/PYTHONPATH shadow (ENV-ISO-001)." `
+                -Cause "$incompatDetail" `
+                -Action "Clear foreign PYTHONPATH entries pointing at sibling worktrees, then retry. Do not rely on editable Location alone." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
+                -LogPath $ErrLog
+            exit 1
+        }
+        Write-Host "      Will reinstall editable package into tip .venv from current RepoRoot unless -SkipInstall." -ForegroundColor DarkYellow
     }
     else {
         $atlasCmd = Get-Command atlas -ErrorAction SilentlyContinue
         if ($atlasCmd) {
-            Write-Host "NOTE: PATH atlas $($atlasCmd.Source) is not beside $($Python.Label); will install into selected Python." -ForegroundColor DarkYellow
+            Write-Host "NOTE: PATH atlas $($atlasCmd.Source) is not beside $($Python.Label); will install into tip .venv only." -ForegroundColor DarkYellow
         }
     }
 
@@ -320,15 +402,15 @@ function Ensure-AtlasEditableInstall {
             Write-AtlasProductError `
                 -What "Atlas CLI is present but tip-incompatible with this checkout (stale CLI / missing live)." `
                 -Cause "$incompatDetail -SkipInstall prevents repair via pip install -e `".[dev]`"." `
-                -Action "Remove -SkipInstall so the launcher reinstalls from $RepoRoot, or manually run: $($Python.Label) -m pip install -e `".[dev]`" from this repo root. Confirm: atlas live --help" `
+                -Action "Remove -SkipInstall so the launcher reinstalls into tip .venv from $RepoRoot, or manually run: .\.venv\Scripts\python.exe -m pip install -e `".[dev]`" from this repo root. Confirm: atlas live --help" `
                 -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
                 -LogPath $ErrLog
         }
         else {
             Write-AtlasProductError `
-                -What "Atlas CLI ('atlas') is not available for the selected Python." `
+                -What "Atlas CLI ('atlas') is not available for the tip-local .venv." `
                 -Cause "-SkipInstall was set and no atlas.exe was found under $scriptsDir." `
-                -Action "Remove -SkipInstall or run: $($Python.Label) -m pip install -e `".[dev]`" from the repo root, then reopen the shell." `
+                -Action "Remove -SkipInstall or run: .\.venv\Scripts\python.exe -m pip install -e `".[dev]`" from the repo root, then reopen the shell." `
                 -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
                 -LogPath $ErrLog
         }
@@ -348,7 +430,7 @@ function Ensure-AtlasEditableInstall {
         Write-AtlasProductError `
             -What "Install finished but Atlas CLI is still tip-incompatible." `
             -Cause "$($compat.Detail)" `
-            -Action "Confirm pip targeted this checkout: $($Python.Label) -m pip show project-atlas. Re-run from $RepoRoot. Verify: atlas live --help" `
+            -Action "Confirm pip targeted tip .venv: .\.venv\Scripts\python.exe -m pip show project-atlas. Clear foreign PYTHONPATH. Re-run from $RepoRoot. Verify: atlas live --help" `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
             -LogPath $ErrLog
         exit 1
@@ -363,7 +445,7 @@ function Ensure-AtlasEditableInstall {
         Write-AtlasProductError `
             -What "Install finished but PATH atlas is still tip-incompatible." `
             -Cause "$($compat.Detail)" `
-            -Action "Close and reopen PowerShell so PATH picks up Scripts\atlas.exe from $($Python.Label). Confirm Editable project location is under $RepoRoot." `
+            -Action "Prefer tip .venv Scripts ahead of global PATH. Confirm Editable project location is under $RepoRoot and PYTHONPATH has no foreign project_atlas shadow." `
             -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
             -LogPath $ErrLog
         exit 1
@@ -371,7 +453,7 @@ function Ensure-AtlasEditableInstall {
     Write-AtlasProductError `
         -What "Install finished but 'atlas' is still not discoverable." `
         -Cause "pip reported success but no atlas.exe was found under $scriptsDir or on PATH." `
-        -Action "Close and reopen PowerShell so PATH updates, or add Python Scripts to PATH. Confirm: $($Python.Label) -m pip show project-atlas" `
+        -Action "Confirm tip .venv Scripts contains atlas.exe. Do not install into a shared global Python. Confirm: .\.venv\Scripts\python.exe -m pip show project-atlas" `
         -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1" `
         -LogPath $ErrLog
     exit 1
@@ -578,8 +660,12 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-$python = Get-AtlasPythonCommand
-if (-not $python) {
+$bootstrapPython = Get-AtlasPythonCommand -RepoRoot $repoRoot
+if (-not $bootstrapPython) {
+    # Tip .venv may be absent; allow global bootstrap candidate without RepoRoot preference.
+    $bootstrapPython = Get-AtlasPythonCommand
+}
+if (-not $bootstrapPython) {
     Write-AtlasProductError `
         -What "Python 3.12+ disappeared after preflight." `
         -Cause "Get-AtlasPythonCommand returned null unexpectedly." `
@@ -589,6 +675,7 @@ if (-not $python) {
     exit 1
 }
 
+$python = Ensure-AtlasTipLocalVenv -BootstrapPython $bootstrapPython -RepoRoot $repoRoot -ErrLog $errLog -SkipInstall:$SkipInstall
 $atlasExe = Ensure-AtlasEditableInstall -Python $python -RepoRoot $repoRoot -ErrLog $errLog -SkipInstall:$SkipInstall
 
 # --- vault configure ---

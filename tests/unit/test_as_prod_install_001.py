@@ -153,6 +153,37 @@ def test_as_prod_install_001_common_product_error_helper() -> None:
     assert "Isolate exit code from stdout/stderr" in text
     assert "[int]$LASTEXITCODE" in text
     assert "Write-Host" in text
+    # ENV-ISO-002: tip-local .venv preference + venv-aware Scripts resolution.
+    assert "Get-AtlasTipVenvPythonPath" in text
+    assert "tip-venv (.venv\\Scripts\\python.exe)" in text or "tip-venv" in text
+    assert "TipLocal" in text
+    assert "function Resolve-AtlasScriptsDir" in text
+    assert 'leaf.Equals("Scripts"' in text or 'Equals("Scripts"' in text
+    assert "Test-AtlasPythonPathTipSafe" in text
+    assert "pythonpath_foreign_shadow" in text
+    assert "Test-AtlasImportLocationTipSafe" in text
+    assert "import_wrong_worktree" in text
+
+
+def test_as_prod_install_001_env_iso_start_fail_closed_contract() -> None:
+    """ENV-ISO-001/002: tip .venv prefer; no global rewrite; PYTHONPATH/import fail-closed."""
+    start = (_SCRIPTS / "atlas-start.ps1").read_text(encoding="utf-8")
+    common = (_SCRIPTS / "_AtlasCommon.ps1").read_text(encoding="utf-8")
+    assert "Ensure-AtlasTipLocalVenv" in start
+    assert "Get-AtlasPythonCommand -RepoRoot" in start
+    assert "Refusing editable install into a non-tip interpreter" in start
+    assert "ENV-ISO-002" in start
+    assert "ENV-ISO-001" in start
+    assert "pythonpath_foreign_shadow" in start or "pythonpath_foreign_shadow" in common
+    assert "import_wrong_worktree" in start or "import_wrong_worktree" in common
+    assert "no global editable rewrite" in start
+    # Must not keep the old Scripts\\Scripts footgun as sole resolver in start.
+    assert "function Resolve-AtlasScriptsDir" not in start
+    assert "function Resolve-AtlasScriptsDir" in common
+    assert "function Test-AtlasPathUnderRoot" in common
+    preflight = (_SCRIPTS / "atlas-preflight.ps1").read_text(encoding="utf-8")
+    assert "Get-AtlasPythonCommand -RepoRoot" in preflight
+    assert "tip_local" in preflight
 
 
 def test_as_prod_install_001_docs_include_adv_findings_when_present() -> None:
