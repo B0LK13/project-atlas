@@ -24,8 +24,35 @@ Key principles
 Repository status (short)
 - Core pipeline implemented: `discover` → `ingest` → `build-indexes` →
   `validate`.
-- Tests: unit & integration tests present; documented passing results in
-  `WORKLOG.md`.
+- A 2.1 live productization layer is implemented on top of Core: local-bind
+  HTTP API (`api_server.py`), a read-only MCP server (`mcp_server.py`), Agent
+  OS session/authz/scheduler modules, and a web app (`apps/web/`, Vite +
+  React + Playwright e2e). See `docs/atlas-2.1/FEATURE-MATURITY-MATRIX.md`
+  for the capability-by-capability maturity table (LIVE_PRODUCTION /
+  LIVE_READ_ONLY / BOUNDED / FIXTURE / EXPERIMENTAL). `main` has advanced
+  past that matrix's last-indexed tip; treat individual rows as directional,
+  not current, without re-checking code.
+- An Atlas-for-ChatGPT read-only MCP bridge exists as a separate gateway
+  under `integrations/chatgpt-atlas/` plus in-package `chatgpt_bridge.py` /
+  `chatgpt_capture.py` — a P0 read-only surface, not a general write
+  integration.
+- A Windows productization CLI has landed: install, onboarding, and
+  `atlas doctor` flows — see `docs/productization/install/` and
+  `docs/productization/onboard/`.
+- A security remediation wave has landed on `main` (provenance/trusted-exec,
+  path/secrets/API-auth hardening, Windows process handling, dependency
+  integrity, log redaction) — see `docs/security/REGRESSION-SUITE-SEED.md`.
+  This reflects **internal multi-agent validation only**; no external
+  security certification has been obtained.
+- `ATLAS_2_1_RELEASE_CERTIFIED = NO` — the authentic estate PILOT gate
+  remains owner-blocked (see `docs/atlas-2.1/KNOWN-GAPS.md`, gap I).
+- Atlas 2.2 knowledge-intelligence packages (`docs/atlas-2.2/`) are
+  **PREP ONLY**: docs/contracts/fixtures with zero runtime mutation of
+  `knowledge_compiler` / `retrieval`. `ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED
+  = NO`. Do not read a PREP package as an implemented feature.
+- Tests: unit & integration tests present; run `python -m pytest` for the
+  current count — do not treat any specific number in these docs as current
+  without re-running (LAST NARRATIVE UPDATE: WORKLOG.md, tail).
 - `atlas-vault-documentation/` is a sibling deliverable (governed agent
   control-plane) and is intentionally excluded from the main lint/type scope.
 
@@ -139,6 +166,12 @@ Where to find authoritative docs (read first)
   requirements (PRP = product requirements prompt)
 - docs/acceptance-test.md — acceptance tests (AT-001..AT-020)
 - docs/backlog.md — executable backlog, Epics and checkboxes
+- docs/atlas-2.1/README.md — 2.1 live productionization index (API/MCP/Web/
+  Agent OS maturity, known gaps, threat-model delta)
+- docs/atlas-2.2/README.md — 2.2 knowledge-intelligence PREP index (PREP
+  ONLY; not implemented)
+- docs/productization/ — Windows install/onboarding/doctor flows
+- docs/security/ — security regression suite seed
 - WORKLOG.md — completed work-package evidence and exact validation outputs
 - atlas-vault-documentation/ — governed agent control surface and skill
 

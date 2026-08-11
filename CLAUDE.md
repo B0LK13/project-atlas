@@ -19,6 +19,16 @@ sibling deliverable (`atlas-vault-documentation/`). Check `WORKLOG.md`
 (tail) for the current work-package status and `docs/backlog.md` for
 what's checked off.
 
+Beyond Core, `src/project_atlas/` also carries a 2.1 live productization
+layer (`api_server.py`, `mcp_server.py`, Agent OS session/authz/scheduler
+modules, `chatgpt_bridge.py`), a separate web app (`apps/web/`), a
+standalone ChatGPT MCP gateway (`integrations/chatgpt-atlas/`), and Atlas
+2.2 knowledge-intelligence PREP modules (docs/contracts/fixtures only —
+not production-wired). Before assuming a capability doesn't exist, check
+`docs/atlas-2.1/FEATURE-MATURITY-MATRIX.md`; before assuming a 2.2 PREP
+module is a shipped feature, check `docs/atlas-2.2/README.md` — PREP ≠
+implemented.
+
 ## Commands
 
 ```bash

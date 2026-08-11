@@ -16,16 +16,50 @@ Core principles (from `docs/plan.md` and `docs/prp.md`):
 
 ## Current repository state
 
-The repository has grown well beyond the original WP-001 foundation. As of `main` at the current checkout, the following are implemented:
+The repository has grown well beyond the original WP-001 foundation, and beyond
+the original Core-only pipeline described below. As of `main` at the current
+checkout, the following are implemented:
 
 - Full Core pipeline: `atlas discover` → `atlas ingest` → `atlas build-indexes` → `atlas validate`.
-- `src/project_atlas/` — installable Python 3.12+ package (src layout) with CLI, config, logging, scaffold, discovery, ingestion, indexing, validation, schema validation, secrets scanning, knowledge compilation, semantic compilation, durable lineage, and domain models.
+- `src/project_atlas/` — installable Python 3.12+ package (src layout). It now
+  spans 130+ modules: the original CLI/config/logging/scaffold/discovery/
+  ingestion/indexing/validation/secrets/knowledge-compilation/semantic-
+  compilation/lineage/domain surface, **plus** a 2.1 live productization
+  layer added on top — `api_server.py` (local-bind HTTP API), `mcp_server.py`
+  (read-only MCP), `agentos.py`/`authz.py`/`scheduler_live.py`/`autonomy_l3.py`
+  (Agent OS), `chatgpt_bridge.py`/`chatgpt_capture.py` (ChatGPT integration),
+  `obs_live.py`/`obs_perf.py`/`ops_receipts.py` (observability), `doctor.py`
+  (productization), and Atlas-2.2 knowledge-intelligence PREP modules
+  (`hybrid_retrieval.py`, `context_pack*.py`, `kci.py`, etc. — PREP status,
+  not necessarily production-wired; see `docs/atlas-2.2/README.md`).
+  Do not treat this list as exhaustive or as a maturity claim — for
+  capability-by-capability maturity, read
+  `docs/atlas-2.1/FEATURE-MATURITY-MATRIX.md`, not this file.
+- `apps/web/` — a separate web app (Vite + React + TypeScript, Playwright
+  e2e under `apps/web/e2e/`) consuming the live API/MCP surfaces.
+- `integrations/chatgpt-atlas/` — a standalone read-only ChatGPT MCP gateway
+  (own `server.py`, tests, and README), separate from the in-package
+  `chatgpt_bridge.py`.
 - `src/atlas_contracts/` — shared subsystem contracts for agent events, event packages, provenance, receipts, identity, and versions.
 - `atlas-vault-documentation/` — separate sibling deliverable that implements the governed agent documentation skill and control plane (`AS-CTRL-001`, `AS-SKILL-001`). It has its own tests, scripts, schemas, references, and skill manifest; it is intentionally excluded from the main package's ruff/mypy scope.
-- `tests/unit/` and `tests/integration/` — 149 tests passing on `main`.
+- A security remediation wave has landed on `main` (provenance/trusted-exec,
+  path/secrets/API-auth hardening, Windows process handling, dependency
+  integrity, log redaction). This is internal multi-agent validation, not an
+  external security certification — none has been obtained. See
+  `docs/security/REGRESSION-SUITE-SEED.md`.
+- A Windows productization CLI (install / onboarding / `atlas doctor`) has
+  landed — see `docs/productization/install/` and `docs/productization/onboard/`.
+- `tests/unit/` and `tests/integration/` — run `python -m pytest` for the
+  current count; do not carry forward any specific number as current without
+  re-running (see `WORKLOG.md` tail for the last logged evidence run).
 - `.github/workflows/ci.yml` — ruff, mypy, pytest, CLI smoke.
 - `.github/workflows/atlas-documentation-gate.yml` — receipt-gated documentation gate triggered manually.
 - `WORKLOG.md` — execution log per work package; `docs/adr/` — architectural decision records.
+
+None of the above upgrades `ATLAS_2_1_RELEASE_CERTIFIED` (still `NO`) or
+unlocks Atlas 2.2 intelligence packages (still PREP ONLY, still
+`ATLAS_2_2_INTELLIGENCE_IMPLEMENTATION_UNLOCKED = NO`). See
+`docs/atlas-2.1/KNOWN-GAPS.md` and `docs/atlas-2.2/PREP-STATUS.md`.
 
 Planning documents (authoritative specification):
 
