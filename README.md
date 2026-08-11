@@ -34,27 +34,36 @@ Repository status (short)
   not current, without re-checking code.
 - An Atlas-for-ChatGPT read-only MCP bridge exists as a separate gateway
   under `integrations/chatgpt-atlas/` plus in-package `chatgpt_bridge.py` /
-  `chatgpt_capture.py` — a P0 read-only surface, not a general write
-  integration.
+  `chatgpt_capture.py` — an Apps-SDK P0 read-only surface (widget resource
+  registration, CSP, `outputTemplate`). `WRITE_TOOL_COUNT = 0` is an
+  invariant here: no write/ingest/delete/execute tool is registered, and
+  this is not a general write integration.
 - A Windows productization CLI has landed: install, onboarding, and
   `atlas doctor` flows — see `docs/productization/install/` and
   `docs/productization/onboard/`.
 - A security remediation wave has landed on `main` (provenance/trusted-exec,
   path/secrets/API-auth hardening, Windows process handling, dependency
-  integrity, log redaction) — see `docs/security/REGRESSION-SUITE-SEED.md`.
-  This reflects **internal multi-agent validation only**; no external
-  security certification has been obtained.
+  integrity, log redaction, backup/snapshot symlink and junction-escape
+  refusal, CLI privilege-elevation and API-token-handling hardening) — see
+  `docs/security/REGRESSION-SUITE-SEED.md`. This reflects **internal
+  multi-agent validation only**; external security revalidation remains
+  outstanding unless a specific commit or doc states otherwise for that
+  finding.
 - STATUS AT LAST DOC REALIGNMENT: `ATLAS_2_1_RELEASE_CERTIFIED = NO`,
   authentic estate PILOT owner-blocked (see `docs/atlas-2.1/KNOWN-GAPS.md`,
   gap I). This is a point-in-time gate value — VERIFY AGAINST CURRENT MAIN
   rather than carrying it forward as permanent.
-- Atlas 2.2 (`docs/atlas-2.2/`) contains extensive PREP contracts and may
-  also contain newer runtime implementation as `main` advances. PREP
-  documents are never evidence of implementation — and, symmetrically, a
-  runtime module is not "PREP" merely because its associated 2.2 package
-  documentation began as PREP. Consult `docs/atlas-2.2/README.md` plus the
-  current runtime/code and gate state (`docs/atlas-2.2/PREP-STATUS.md`)
-  before asserting any 2.2 capability is, or is not, implemented.
+- Atlas 2.2 (`docs/atlas-2.2/`) now contains initial production runtime
+  implementation for Hybrid Retrieval and the Context Compiler
+  (`AS-2.2-RUNTIME-001`, `src/project_atlas/runtime_22.py` — read-only,
+  fail-closed on vault-absent records and empty provenance, no LLM/semantic
+  authority), alongside additional packages that remain PREP-only
+  (docs/contracts/fixtures, no runtime). PREP documentation is not evidence
+  that a capability is implemented, and a shipped module is not evidence
+  that an entire 2.2 area is unlocked — verify individual capability
+  maturity against current runtime/code and the canonical
+  `docs/atlas-2.2/README.md` / `docs/atlas-2.2/PREP-STATUS.md` before
+  asserting either way.
 - Tests: unit & integration tests present; run `python -m pytest` for the
   current count — do not treat any specific number in these docs as current
   without re-running (LAST NARRATIVE UPDATE: WORKLOG.md, tail).

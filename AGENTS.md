@@ -29,11 +29,12 @@ checkout, the following are implemented:
   (read-only MCP), `agentos.py`/`authz.py`/`scheduler_live.py`/`autonomy_l3.py`
   (Agent OS), `chatgpt_bridge.py`/`chatgpt_capture.py` (ChatGPT integration),
   `obs_live.py`/`obs_perf.py`/`ops_receipts.py` (observability), `doctor.py`
-  (productization), and modules tied to Atlas 2.2 knowledge-intelligence
-  packages (`hybrid_retrieval.py`, `context_pack*.py`, `kci.py`, etc.) whose
-  package documentation under `docs/atlas-2.2/` began as PREP. A module's
-  presence in `src/` is not itself evidence of PREP status or of
-  production-wiring in either direction — check current code and
+  (productization), `runtime_22.py` (`AS-2.2-RUNTIME-001` — production
+  runtime, read-only, fail-closed on vault-absent records/empty provenance;
+  see below), and other modules tied to Atlas 2.2 knowledge-intelligence
+  packages whose package documentation under `docs/atlas-2.2/` began as
+  PREP. A module's presence in `src/` is not itself evidence of PREP status
+  or of production-wiring in either direction — check current code and
   `docs/atlas-2.2/README.md`'s gate state before asserting either.
   Do not treat this list as exhaustive or as a maturity claim — for
   capability-by-capability maturity, read
@@ -42,13 +43,18 @@ checkout, the following are implemented:
   e2e under `apps/web/e2e/`) consuming the live API/MCP surfaces.
 - `integrations/chatgpt-atlas/` — a standalone read-only ChatGPT MCP gateway
   (own `server.py`, tests, and README), separate from the in-package
-  `chatgpt_bridge.py`.
+  `chatgpt_bridge.py`. Implements Apps-SDK P0 (widget resource
+  registration, CSP, `outputTemplate`); `WRITE_TOOL_COUNT = 0` — no write/
+  ingest/delete/execute tool is registered.
 - `src/atlas_contracts/` — shared subsystem contracts for agent events, event packages, provenance, receipts, identity, and versions.
 - `atlas-vault-documentation/` — separate sibling deliverable that implements the governed agent documentation skill and control plane (`AS-CTRL-001`, `AS-SKILL-001`). It has its own tests, scripts, schemas, references, and skill manifest; it is intentionally excluded from the main package's ruff/mypy scope.
 - A security remediation wave has landed on `main` (provenance/trusted-exec,
   path/secrets/API-auth hardening, Windows process handling, dependency
-  integrity, log redaction). This is internal multi-agent validation, not an
-  external security certification — none has been obtained. See
+  integrity, log redaction, backup/snapshot symlink and junction-escape
+  refusal, CLI privilege-elevation and API-token-handling hardening). This
+  is internal multi-agent validation, not an external security
+  certification — external revalidation remains outstanding unless a
+  specific commit or doc states otherwise for that finding. See
   `docs/security/REGRESSION-SUITE-SEED.md`.
 - A Windows productization CLI (install / onboarding / `atlas doctor`) has
   landed — see `docs/productization/install/` and `docs/productization/onboard/`.
@@ -63,13 +69,16 @@ STATUS AT LAST DOC REALIGNMENT: `ATLAS_2_1_RELEASE_CERTIFIED = NO` (see
 `docs/atlas-2.1/KNOWN-GAPS.md`). VERIFY AGAINST CURRENT MAIN before relying
 on this gate value — it moves as work lands.
 
-Atlas 2.2 (`docs/atlas-2.2/`) contains extensive PREP contracts and may also
-contain newer runtime implementation as `main` advances. PREP documents are
-never evidence of implementation, and a runtime module is not "PREP" merely
-because its originating 2.2 package documentation began as PREP. Consult
-`docs/atlas-2.2/README.md` plus current runtime/code and gate state
-(`docs/atlas-2.2/PREP-STATUS.md`) before asserting a 2.2 capability is, or
-is not, implemented.
+Atlas 2.2 (`docs/atlas-2.2/`) now contains initial production runtime
+implementation for Hybrid Retrieval and the Context Compiler
+(`AS-2.2-RUNTIME-001`, `src/project_atlas/runtime_22.py`) alongside
+additional PREP-only packages (docs/contracts/fixtures, no runtime). PREP
+documentation is not evidence that a capability is implemented, and a
+shipped runtime module is not evidence that the rest of Atlas 2.2 is
+unlocked — verify individual capability maturity against current
+runtime/code and canonical Atlas 2.2 documentation
+(`docs/atlas-2.2/README.md`, `docs/atlas-2.2/PREP-STATUS.md`) before
+asserting either way.
 
 Planning documents (authoritative specification):
 

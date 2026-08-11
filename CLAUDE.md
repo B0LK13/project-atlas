@@ -22,16 +22,17 @@ what's checked off.
 Beyond Core, `src/project_atlas/` also carries a 2.1 live productization
 layer (`api_server.py`, `mcp_server.py`, Agent OS session/authz/scheduler
 modules, `chatgpt_bridge.py`), a separate web app (`apps/web/`), a
-standalone ChatGPT MCP gateway (`integrations/chatgpt-atlas/`), and modules
-tied to Atlas 2.2 knowledge-intelligence packages whose docs under
-`docs/atlas-2.2/` began as PREP. Atlas 2.2 contains extensive PREP contracts
-and may also contain newer runtime implementation as `main` advances — PREP
-documents are never evidence of implementation, and a module's presence in
-`src/` is not itself evidence of PREP status or production-wiring either
-way. Before assuming a capability doesn't exist, check
-`docs/atlas-2.1/FEATURE-MATURITY-MATRIX.md`; before asserting a 2.2
-capability is (or isn't) implemented, check `docs/atlas-2.2/README.md` plus
-current runtime/code and gate state.
+standalone Apps-SDK ChatGPT MCP gateway (`integrations/chatgpt-atlas/`,
+`WRITE_TOOL_COUNT = 0`), and `runtime_22.py` (`AS-2.2-RUNTIME-001`) — Atlas
+2.2's initial production runtime for Hybrid Retrieval and the Context
+Compiler (read-only, fail-closed on vault-absent records/empty provenance).
+Atlas 2.2 also still contains extensive PREP-only packages under
+`docs/atlas-2.2/`. PREP documentation is never evidence of implementation,
+and a shipped runtime module is not evidence that the rest of Atlas 2.2 is
+unlocked — verify each way independently. Before assuming a capability
+doesn't exist, check `docs/atlas-2.1/FEATURE-MATURITY-MATRIX.md`; before
+asserting a 2.2 capability is (or isn't) implemented, check
+`docs/atlas-2.2/README.md` plus current runtime/code and gate state.
 
 ## Commands
 
