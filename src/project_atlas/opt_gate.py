@@ -282,6 +282,69 @@ def _sha256_payload(payload: Any) -> str:
     return _sha256_text(canonical_dumps(payload))
 
 
+def canonical_honesty_catalog(catalog: Mapping[str, Any]) -> dict[str, Any]:
+    """Deterministic semantic view of the honesty catalog used by evaluation.
+
+    Ordering of cases and of id lists is not meaningful. Non-semantic metadata
+    (schema_version, package_id, version) is omitted. Do not use repr().
+    """
+    raw_foreign = catalog.get("foreign_evidence_ids", [])
+    foreign = sorted(
+        {str(item) for item in raw_foreign if isinstance(item, str)}
+        if isinstance(raw_foreign, list)
+        else set()
+    )
+    raw_cases = catalog.get("cases", [])
+    case_count = len(raw_cases) if isinstance(raw_cases, list) else -1
+    cases_out: list[dict[str, Any]] = []
+    if isinstance(raw_cases, list):
+        for case in raw_cases:
+            if not isinstance(case, dict):
+                cases_out.append({"malformed": True})
+                continue
+            evidence = case.get("canonical_evidence_ids", [])
+            allowed = case.get("allowed_project_ids", [])
+            cases_out.append(
+                {
+                    "allowed_project_ids": sorted(
+                        {str(item) for item in allowed if isinstance(item, str)}
+                        if isinstance(allowed, list)
+                        else set()
+                    ),
+                    "canonical_evidence_ids": sorted(
+                        {str(item) for item in evidence if isinstance(item, str)}
+                        if isinstance(evidence, list)
+                        else set()
+                    ),
+                    "case_id": str(case.get("case_id", "")),
+                    "expected_status": str(case.get("expected_status", "")),
+                    "project_id": str(case.get("project_id", "")),
+                }
+            )
+    cases_out.sort(key=lambda row: (str(row.get("case_id", "")), canonical_dumps(row)))
+    return {
+        "case_count": case_count,
+        "cases": cases_out,
+        "foreign_evidence_ids": foreign,
+    }
+
+
+def honesty_catalog_object_digest(catalog: Mapping[str, Any]) -> str:
+    """Stable SHA-256 of evaluation-consumed honesty-catalog semantics."""
+    return _sha256_payload(canonical_honesty_catalog(catalog))
+
+
+def _sealed_thresholds(thresholds: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "holdout_non_regression": bool(thresholds.get("holdout_non_regression")),
+        "min_public_matched_delta": int(thresholds["min_public_matched_delta"]),
+        "min_public_rate_improvement_millis": int(
+            thresholds["min_public_rate_improvement_millis"]
+        ),
+        "require_holdout_scored": bool(thresholds.get("require_holdout_scored")),
+    }
+
+
 def _file_digest(path: Path) -> str | None:
     if not path.is_file():
         return None
@@ -493,7 +556,8 @@ def _component_digests(
         "scoring_policy": scoring_file,
         "hard_gate_policy": gates_file,
         "thresholds": thresh_file,
-        "honesty_catalog": catalog_file,
+        "honesty_catalog_file": catalog_file,
+        "honesty_catalog_object": honesty_catalog_object_digest(policies.honesty_catalog),
         "experiment_schema": experiment_schema,
         "baseline_configuration": _sha256_payload(baseline_configuration),
         "scoring_policy_object": _sha256_payload(policies.scoring),
@@ -533,7 +597,12 @@ def seal_experiment(
 
 
 def verify_sealed_envelope(envelope: SealedEnvelope) -> bool:
-    """Re-hash sealed files and in-memory policy snapshots. Drift → False."""
+    """Re-hash sealed files and in-memory policy snapshots. Drift → False.
+
+    Independently recomputes the honesty-catalog *object* digest from the
+    current in-memory catalog and compares it to the sealed value. In-place
+    mutation of UNKNOWN/CONFLICT/evidence semantics cannot keep seal_valid.
+    """
     try:
         current = _component_digests(
             repo_root=envelope.repo_root,
@@ -547,6 +616,12 @@ def verify_sealed_envelope(envelope: SealedEnvelope) -> bool:
             baseline_configuration=envelope.baseline_configuration,
         )
     except OptGateError:
+        return False
+    sealed_object = envelope.component_digests.get("honesty_catalog_object")
+    live_object = honesty_catalog_object_digest(envelope.honesty_catalog)
+    if not isinstance(sealed_object, str) or live_object != sealed_object:
+        return False
+    if current.get("honesty_catalog_object") != sealed_object:
         return False
     return (
         current == envelope.component_digests
@@ -976,6 +1051,7 @@ def build_experiment_receipt(
             "seed": seed,
         }
     )
+    decision_thresholds = _sealed_thresholds(envelope.thresholds)
     payload: dict[str, Any] = {
         "schema_version": 1,
         "package_id": PACKAGE_ID,
@@ -999,6 +1075,12 @@ def build_experiment_receipt(
         "hard_gate_policy_digest": envelope.component_digests["hard_gate_policy"],
         "threshold_version": envelope.threshold_version,
         "threshold_digest": envelope.component_digests["thresholds"],
+        "threshold_object_digest": _sha256_payload(decision_thresholds),
+        "thresholds": decision_thresholds,
+        "honesty_catalog_file_digest": envelope.component_digests["honesty_catalog_file"],
+        "honesty_catalog_object_digest": envelope.component_digests[
+            "honesty_catalog_object"
+        ],
         "seed": seed,
         "hard_gate_outcomes": {name: gate_outcomes[name] for name in REQUIRED_HARD_GATES},
         "public_quality": {
@@ -1053,6 +1135,18 @@ def verify_experiment_receipt(payload: Mapping[str, Any]) -> None:
     holdout = payload["holdout_aggregate"]
     if not isinstance(public_quality, dict) or not isinstance(holdout, dict):
         raise OptGateError("receipt-invalid")
+    raw_thr = payload.get("thresholds")
+    if not isinstance(raw_thr, dict):
+        raise OptGateError("threshold-missing")
+    try:
+        sealed_thr = _sealed_thresholds(raw_thr)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise OptGateError("threshold-missing") from exc
+    if payload.get("threshold_object_digest") != _sha256_payload(sealed_thr):
+        raise OptGateError("receipt-invalid")
+    catalog_object_digest = payload.get("honesty_catalog_object_digest")
+    if not isinstance(catalog_object_digest, str) or len(catalog_object_digest) != 64:
+        raise OptGateError("receipt-invalid")
     recomputed, reason, considered = decide_promotion(
         experiment_valid=bool(payload["experiment_valid"]),
         seal_valid=bool(payload["seal_valid"]),
@@ -1066,10 +1160,7 @@ def verify_experiment_receipt(payload: Mapping[str, Any]) -> None:
         holdout_candidate=(
             _score_counts_from(holdout.get("candidate")) if holdout.get("scored") else None
         ),
-        thresholds={
-            "min_public_matched_delta": 0,
-            "min_public_rate_improvement_millis": 0,
-        },
+        thresholds=sealed_thr,
     )
     # Forged promotion_decision must not survive, even if the digest was rewritten.
     if payload.get("promotion_decision") == "PROMOTE_ELIGIBLE" and recomputed != "PROMOTE_ELIGIBLE":
@@ -1367,8 +1458,10 @@ __all__ = [
     "SealedEnvelope",
     "arm_output",
     "build_experiment_receipt",
+    "canonical_honesty_catalog",
     "decide_promotion",
     "evaluate_hard_gates",
+    "honesty_catalog_object_digest",
     "load_opt_gate_policies",
     "run_governed_experiment",
     "seal_experiment",

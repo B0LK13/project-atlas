@@ -5202,3 +5202,35 @@ candidate blocked; Windows Phase C blocked.
 - EVALUATOR_STABLE: not declared here (independent evaluator after merge)
 - CODEX_VALIDATED: NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
+
+## AS-OPT-GATE-001 IV remediation — honesty catalog object seal
+
+**Date:** 2026-08-12
+**Branch:** cursor/opt-gate-experiment-boundary-592a
+**PR:** #321 (same PR; no second remediation PR)
+**Directive:** D-PROJECT-ATLAS-OPT-GATE-REMEDIATE-030
+**Validated failing HEAD:** `450abfd7445b8dd429003c396479f62523f4fb67`
+**Validated failing TREE:** `73f9f46498016c93be93e28daee4815c6d2206cb`
+**Base:** `754bb266fa2d2ff39089c4e587c9b90eacd841fd`
+
+### Defects
+- OPT-GATE-SEAL-HOLDOUT-CATALOG-OBJECT-DIGEST-MISSING: seal hashed honesty-catalog
+  file bytes only; in-memory `SealedEnvelope.honesty_catalog` mutation could keep
+  `seal_valid = True` while vacating UNKNOWN/CONFLICT or expanding evidence.
+- Receipt threshold binding: `verify_experiment_receipt` recomputed promotion
+  with hardcoded `min_public_matched_delta=0`, so a quality-threshold REJECT
+  could be forged to `PROMOTE_ELIGIBLE` after digest rewrite.
+
+### Fix
+- Canonical semantic digest of evaluation-consumed honesty catalog; bind both
+  `honesty_catalog_file` and `honesty_catalog_object` at seal; verify recomputes
+  the live object digest every time.
+- Persist sealed decision thresholds + `threshold_object_digest` on the receipt;
+  verify recomputes with those bound values.
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- No AutoLab / OPT wake / retrieval-prompt-model mutation / merge / deploy
+- EVALUATOR_STABLE: not declared
+- CODEX_VALIDATED: NO
+- PR_321_CERTIFIED_MERGE_ELIGIBLE: not claimed here (independent IV)

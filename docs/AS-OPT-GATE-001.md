@@ -56,9 +56,21 @@ At experiment start the engine digests:
 - evaluator implementation (`eval_substrate`, scoring broker, this module, schemas)
 - public + regression evaluation dataset
 - holdout broker contract + hidden holdout *metadata* (never expected answers)
-- scoring policy, hard-gate policy, thresholds, honesty catalog
+- scoring policy, hard-gate policy, thresholds (file bytes and in-memory object)
+- honesty catalog **file bytes** (`honesty_catalog_file`) **and** the
+  evaluation-consumed in-memory catalog (`honesty_catalog_object`)
 - experiment receipt schema
 - baseline configuration
+
+The honesty-catalog object digest is a deterministic canonical SHA-256 of the
+semantics consumed by hard-gate evaluation (case ids, expected honesty state,
+canonical evidence, allowed projects, foreign evidence). Case/id ordering is
+not meaningful. Non-semantic metadata (`schema_version`, `package_id`,
+`version`) is omitted. `verify_sealed_envelope` independently recomputes this
+digest from the live `SealedEnvelope.honesty_catalog` object. In-place
+mutation after seal (vacating UNKNOWN/CONFLICT, expanding evidence, replacing
+the catalog object) yields `seal_valid = False` and therefore
+`INVALID_EXPERIMENT` — never `PROMOTE_ELIGIBLE`.
 
 Candidate configuration may contain only `candidate_id`, optional `label` /
 `seed`, and allowlisted `parameters`. If any sealed file or policy snapshot
@@ -90,6 +102,15 @@ Durable JSON under `generated/ops/opt-gate/` (optional vault write). Semantic
 content is deterministic: no wall-clock, `generated.by` only, `sort_keys=True`.
 Holdout section is bounded aggregates only — no expected answers, no per-row
 match flags, no private case bodies.
+
+Receipts persist the sealed decision thresholds (`min_public_matched_delta`,
+`min_public_rate_improvement_millis`, `holdout_non_regression`,
+`require_holdout_scored`) plus `threshold_object_digest`.
+`verify_experiment_receipt` recomputes the promotion decision with those
+bound thresholds — it must not substitute hardcoded zeros. Forged
+`PROMOTE_ELIGIBLE` on a quality-threshold REJECT cannot verify, even if
+`receipt_digest` is rewritten. Receipts also carry
+`honesty_catalog_file_digest` and `honesty_catalog_object_digest`.
 
 ## OPT
 

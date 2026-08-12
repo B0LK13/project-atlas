@@ -330,13 +330,14 @@ _Status: implementation complete on `feat/as-web-003-production-shell`; awaiting
 
 ## AS-OPT-GATE-001 — Governed experiment and promotion boundary
 
-_Status: implementation complete on `cursor/opt-gate-experiment-boundary-592a`. Directive `D-PROJECT-ATLAS-OPT-GATE-027`. Reuses AS-2.2-EVAL-001 + AS-2.2-EVAL-BROKER-001. Does **not** wake Atlas-OPT, AutoLab, RL, or Prime. `ATLAS_OPT_WAKE_GATE = CLOSED`._
+_Status: IV remediation on `cursor/opt-gate-experiment-boundary-592a` (PR #321). Directives `D-PROJECT-ATLAS-OPT-GATE-027` + `D-PROJECT-ATLAS-OPT-GATE-REMEDIATE-030`. Reuses AS-2.2-EVAL-001 + AS-2.2-EVAL-BROKER-001. Does **not** wake Atlas-OPT, AutoLab, RL, or Prime. `ATLAS_OPT_WAKE_GATE = CLOSED`._
 
 - [x] OPTGATE-001 Typed hard-gate contract (PASS/FAIL only; gates precede score)
 - [x] OPTGATE-002 Sealed experiment envelope + mid-run immutability verify
 - [x] OPTGATE-003 Privacy-safe reconstructable experiment receipt
 - [x] OPTGATE-004 Promotion engine (`PROMOTE_ELIGIBLE` / `REJECT` / `INVALID_EXPERIMENT`)
 - [x] OPTGATE-005 Anti-gaming A–G + fail-closed + security IV tests
+- [x] OPTGATE-007 Honesty-catalog object seal + receipt threshold binding (IV remediate-030)
 - [ ] OPTGATE-006 Governor review and merge to `main`
 
 

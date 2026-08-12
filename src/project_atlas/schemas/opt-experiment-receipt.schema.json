@@ -28,6 +28,10 @@
     "hard_gate_policy_digest",
     "threshold_version",
     "threshold_digest",
+    "threshold_object_digest",
+    "thresholds",
+    "honesty_catalog_file_digest",
+    "honesty_catalog_object_digest",
     "seed",
     "hard_gate_outcomes",
     "public_quality",
@@ -97,6 +101,25 @@
     "hard_gate_policy_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "threshold_version": { "type": "string", "minLength": 1 },
     "threshold_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "threshold_object_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_public_matched_delta",
+        "min_public_rate_improvement_millis",
+        "holdout_non_regression",
+        "require_holdout_scored"
+      ],
+      "properties": {
+        "min_public_matched_delta": { "type": "integer" },
+        "min_public_rate_improvement_millis": { "type": "integer" },
+        "holdout_non_regression": { "const": true },
+        "require_holdout_scored": { "const": true }
+      }
+    },
+    "honesty_catalog_file_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "honesty_catalog_object_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "seed": { "type": ["integer", "null"] },
     "hard_gate_outcomes": {
       "type": "object",
