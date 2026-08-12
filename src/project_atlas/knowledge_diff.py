@@ -237,7 +237,11 @@ def _load_windows(
         windows = raw.get("windows")
         if not isinstance(windows, list):
             continue
-        inspected.append(path.relative_to(root).as_posix())
+        # Project scope: only record a catalog as inspected when it actually
+        # contributed a window for this project. Listing a sibling project's
+        # catalog filename is not a data leak, but it needlessly discloses that
+        # a sibling catalog exists; keep the provenance list scope-tight.
+        contributed = False
         for entry in windows:
             if not isinstance(entry, dict):
                 continue
@@ -266,6 +270,9 @@ def _load_windows(
                 evidence_kind=_coerce_evidence_kind(evidence_kind),
             )
             by_key.setdefault((info.subject, info.field), []).append(window)
+            contributed = True
+        if contributed:
+            inspected.append(path.relative_to(root).as_posix())
     for key in by_key:
         by_key[key].sort(key=lambda w: (w.claim_id, w.valid_from))
     return by_key
