@@ -18,8 +18,10 @@ import os
 from pathlib import Path
 from typing import Any
 
+from atlas_contracts.identity import safe_relative_component
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.session_capture import (
+    SessionCaptureError,
     capture_session,
     list_captures,
     render_captures_markdown,
@@ -48,9 +50,10 @@ def _write_atomic(path: Path, content: bytes) -> None:
 
 
 def _safe_project_id(project_id: str) -> str:
-    if not project_id or project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
-        raise AgentHandoffError(f"unsafe project id: {project_id!r}")
-    return project_id
+    try:
+        return safe_relative_component(project_id, label="project id")
+    except ValueError as exc:
+        raise AgentHandoffError(str(exc)) from exc
 
 
 def _render_context_markdown(
@@ -186,13 +189,16 @@ def create_handoff(
     capture_report: dict[str, Any] | None = None
     if auto_capture:
         summary = (note or "").strip() or f"Handoff created for project {project_id}"
-        capture_report = capture_session(
-            vault,
-            project_id,
-            summary=summary,
-            kind="handoff",
-            source="handoff-auto",
-        )
+        try:
+            capture_report = capture_session(
+                vault,
+                project_id,
+                summary=summary,
+                kind="handoff",
+                source="handoff-auto",
+            )
+        except SessionCaptureError as exc:
+            raise AgentHandoffError(f"auto session capture failed: {exc}") from exc
     context = export_agent_context(vault, project_id, refresh_brief=refresh_brief)
     # Deterministic handoff id from content hash (no wall-clock).
     seed = json.dumps(context, sort_keys=True, separators=(",", ":")).encode("utf-8")

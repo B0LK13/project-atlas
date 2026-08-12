@@ -575,7 +575,8 @@ def build_parser() -> argparse.ArgumentParser:
     capture_record.add_argument("--unknown", action="append", default=[], dest="unknowns")
     capture_record.add_argument("--json", action="store_true", dest="as_json")
     capture_list = capture_sub.add_parser(
-        "list", help="List recent session captures for a vault/project."
+        "list",
+        help="List session captures (deterministic capture_id order; not time-based).",
     )
     capture_list.add_argument("--vault", type=Path, required=True)
     capture_list.add_argument("--project", default=None)

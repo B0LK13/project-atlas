@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from atlas_contracts.identity import safe_relative_component
+
 PACKAGE_ID = "AS-CODER-ALPHA-CAPTURE-001"
 GENERATOR_ID = "atlas-coder-alpha-capture-001"
 CAPTURE_DIR = Path("generated") / "ops" / "session-captures"
@@ -35,9 +37,10 @@ def _write_atomic(path: Path, content: bytes) -> None:
 
 
 def _safe_project_id(project_id: str) -> str:
-    if not project_id or project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
-        raise SessionCaptureError(f"unsafe project id: {project_id!r}")
-    return project_id
+    try:
+        return safe_relative_component(project_id, label="project id")
+    except ValueError as exc:
+        raise SessionCaptureError(str(exc)) from exc
 
 
 def _normalize_list(values: list[str] | None) -> list[str]:
@@ -151,7 +154,10 @@ def list_captures(
     project_id: str | None = None,
     limit: int = 20,
 ) -> list[dict[str, Any]]:
-    """List session captures newest-first by capture_id (deterministic)."""
+    """List session captures in deterministic reverse ``capture_id`` order.
+
+    Ordering is lexicographic on content-hash ids (no wall-clock recency).
+    """
     vault = vault.expanduser().resolve()
     if not vault.is_dir():
         raise SessionCaptureError(f"vault is not a directory: {vault}")
