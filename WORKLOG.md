@@ -5425,3 +5425,21 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - ATLAS_OPT_WAKE_GATE: CLOSED
 - not a kdiff temporal authority claim
 - CODEX_VALIDATED: NO
+
+## D-036 overnight — DECISIONS + UNKNOWN + BRIEF
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-OVERNIGHT-036
+**Branch:** cursor/coder-alpha-decisions-unknown-d036
+**Base:** main @ `bccc6bb`
+
+### Packages
+- AS-CODER-ALPHA-DECISIONS-001 (`atlas decisions`)
+- AS-CODER-ALPHA-UNKNOWN-001 (`atlas unknown`)
+- AS-CODER-ALPHA-BRIEF-001 (`atlas brief`)
+- Auto-materialized by `atlas connect`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- UNKNOWN stays UNKNOWN; no fabricated stack/decisions
+- CODEX_VALIDATED: NO

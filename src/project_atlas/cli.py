@@ -151,11 +151,17 @@ from project_atlas.overview import OverviewError, materialize_overview_lenses
 from project_atlas.perf_baselines import PerfBaselineError, run_perf_baselines
 from project_atlas.pilot_auth_prep import PilotAuthPrepError, write_pilot_prep_report
 from project_atlas.portfolio import build_portfolio
+from project_atlas.project_brief import ProjectBriefError, materialize_project_briefs
 from project_atlas.project_changed import (
     ProjectChangedError,
     materialize_changed_lenses,
 )
+from project_atlas.project_decisions import (
+    ProjectDecisionsError,
+    materialize_decisions_lenses,
+)
 from project_atlas.project_state import ProjectStateError, materialize_state_lenses
+from project_atlas.project_unknown import ProjectUnknownError, materialize_unknown_lenses
 from project_atlas.provider_adapters import (
     ProviderAdapter,
     ProviderError,
@@ -442,6 +448,52 @@ def build_parser() -> argparse.ArgumentParser:
         dest="as_json",
         help="Emit the changed receipt JSON to stdout (sorted keys).",
     )
+
+    decisions_parser = subparsers.add_parser(
+        "decisions",
+        help=(
+            "Materialize Decision memory derived lenses "
+            "(AS-CODER-ALPHA-DECISIONS-001; lens!=authority)."
+        ),
+    )
+    decisions_parser.add_argument("--vault", type=Path, required=True)
+    decisions_parser.add_argument(
+        "--project", action="append", dest="projects", default=None
+    )
+    decisions_parser.add_argument(
+        "--json", action="store_true", dest="as_json"
+    )
+
+    unknown_parser = subparsers.add_parser(
+        "unknown",
+        help=(
+            "Materialize Unknown/conflict honesty lenses "
+            "(AS-CODER-ALPHA-UNKNOWN-001; lens!=authority)."
+        ),
+    )
+    unknown_parser.add_argument("--vault", type=Path, required=True)
+    unknown_parser.add_argument(
+        "--project", action="append", dest="projects", default=None
+    )
+    unknown_parser.add_argument("--json", action="store_true", dest="as_json")
+
+    brief_parser = subparsers.add_parser(
+        "brief",
+        help=(
+            "Emit a unified Coder Alpha project brief from derived lenses "
+            "(AS-CODER-ALPHA-BRIEF-001; UNKNOWN stays UNKNOWN)."
+        ),
+    )
+    brief_parser.add_argument("--vault", type=Path, required=True)
+    brief_parser.add_argument(
+        "--project", action="append", dest="projects", default=None
+    )
+    brief_parser.add_argument(
+        "--no-refresh",
+        action="store_true",
+        help="Do not rematerialize underlying lenses before briefing.",
+    )
+    brief_parser.add_argument("--json", action="store_true", dest="as_json")
 
     accept_graph_parser = subparsers.add_parser(
         "accept-graph",
@@ -1845,6 +1897,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 changed_answers = report.get("changed_answers") or []
                 if changed_answers:
                     print(f"  changed:  {', '.join(changed_answers)}")
+                decisions_answers = report.get("decisions_answers") or []
+                if decisions_answers:
+                    print(f"  decisions:{', '.join(decisions_answers)}")
+                unknown_answers = report.get("unknown_answers") or []
+                if unknown_answers:
+                    print(f"  unknown:  {', '.join(unknown_answers)}")
+                brief_paths = report.get("brief_paths") or []
+                if brief_paths:
+                    print(f"  brief:    {', '.join(brief_paths)}")
         return EXIT_OK
 
     if args.command == "overview":
@@ -1927,6 +1988,69 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('rollup')}/{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "decisions":
+        try:
+            report = materialize_decisions_lenses(
+                args.vault, project_ids=args.projects
+            )
+        except (ProjectDecisionsError, OSError) as exc:
+            _log.error("decisions failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas decisions [{report.get('status', 'ok')}]")
+            for lens in report.get("lenses") or []:
+                print(
+                    f"  {lens.get('project_id')}: "
+                    f"[{lens.get('status')}] {lens.get('summary') or 'UNKNOWN'}"
+                )
+        return EXIT_OK
+
+    if args.command == "unknown":
+        try:
+            report = materialize_unknown_lenses(
+                args.vault, project_ids=args.projects
+            )
+        except (ProjectUnknownError, OSError) as exc:
+            _log.error("unknown failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas unknown [{report.get('status', 'ok')}]")
+            for lens in report.get("lenses") or []:
+                print(
+                    f"  {lens.get('project_id')}: "
+                    f"[{lens.get('rollup')}] {lens.get('summary') or 'UNKNOWN'}"
+                )
+        return EXIT_OK
+
+    if args.command == "brief":
+        try:
+            report = materialize_project_briefs(
+                args.vault,
+                project_ids=args.projects,
+                refresh=not args.no_refresh,
+            )
+        except (ProjectBriefError, OSError, ValueError) as exc:
+            _log.error("brief failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas brief [{report.get('status', 'ok')}]")
+            for brief in report.get("briefs") or []:
+                print(f"  project:  {brief.get('project_id')}")
+                print(f"  purpose:  {brief.get('purpose')}")
+                print(f"  stack:    {brief.get('tech_stack')}")
+                print(f"  state:    {brief.get('current_state')}")
+                print(f"  changed:  {brief.get('recent_meaningful_changes')}")
+                print(f"  decisions:{brief.get('important_decisions')}")
+                print(f"  unknown:  {brief.get('unknown_or_conflicting')}")
+                print(f"  next:     {'; '.join(brief.get('suggested_next_work') or [])}")
         return EXIT_OK
 
     if args.command == "build-indexes":
