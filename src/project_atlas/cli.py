@@ -204,6 +204,11 @@ from project_atlas.schema_compat import (
     migrate_dry_run,
     scan_compat,
 )
+from project_atlas.session_capture import (
+    SessionCaptureError,
+    capture_session,
+    list_captures,
+)
 from project_atlas.twin_fixtures import (
     TwinFixtureError,
     TwinProjectRow,
@@ -532,6 +537,11 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_create.add_argument("--project", required=True)
     handoff_create.add_argument("--note", default=None)
     handoff_create.add_argument("--no-refresh", action="store_true")
+    handoff_create.add_argument(
+        "--no-capture",
+        action="store_true",
+        help="Skip semi-auto session capture on handoff create.",
+    )
     handoff_create.add_argument("--json", action="store_true", dest="as_json")
     handoff_resume = handoff_sub.add_parser(
         "resume", help="Resume from latest or named handoff pack."
@@ -539,6 +549,39 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--vault", type=Path, required=True)
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
+
+    capture_parser = subparsers.add_parser(
+        "capture",
+        help=(
+            "Record or list meaningful session captures "
+            "(AS-CODER-ALPHA-CAPTURE-001; ops receipt!=authority)."
+        ),
+    )
+    capture_sub = capture_parser.add_subparsers(dest="capture_command", required=True)
+    capture_record = capture_sub.add_parser(
+        "record", help="Record an explicit meaningful session capture."
+    )
+    capture_record.add_argument("--vault", type=Path, required=True)
+    capture_record.add_argument("--project", required=True)
+    capture_record.add_argument("--summary", required=True)
+    capture_record.add_argument(
+        "--kind",
+        default="milestone",
+        choices=sorted(["milestone", "decision", "blocker", "note", "handoff"]),
+    )
+    capture_record.add_argument("--decision", action="append", default=[])
+    capture_record.add_argument("--change", action="append", default=[])
+    capture_record.add_argument("--next", action="append", default=[], dest="next_work")
+    capture_record.add_argument("--unknown", action="append", default=[], dest="unknowns")
+    capture_record.add_argument("--json", action="store_true", dest="as_json")
+    capture_list = capture_sub.add_parser(
+        "list",
+        help="List session captures (deterministic capture_id order; not time-based).",
+    )
+    capture_list.add_argument("--vault", type=Path, required=True)
+    capture_list.add_argument("--project", default=None)
+    capture_list.add_argument("--limit", type=int, default=20)
+    capture_list.add_argument("--json", action="store_true", dest="as_json")
 
     accept_graph_parser = subparsers.add_parser(
         "accept-graph",
@@ -2126,10 +2169,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.project,
                     note=args.note,
                     refresh_brief=not args.no_refresh,
+                    auto_capture=not args.no_capture,
                 )
             else:
                 report = resume_handoff(args.vault, handoff_id=args.handoff_id)
-        except (AgentHandoffError, OSError, ValueError) as exc:
+        except (AgentHandoffError, SessionCaptureError, OSError, ValueError) as exc:
             _log.error("handoff failed: %s", exc)
             return EXIT_ERROR
         if args.as_json:
@@ -2139,6 +2183,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  handoff:  {report.get('handoff_id')}")
             print(f"  path:     {report.get('path')}")
             print(f"  context:  {report.get('context_markdown')}")
+            capture = report.get("session_capture") or {}
+            if capture:
+                print(f"  capture:  {capture.get('capture_id')}")
         else:
             print(f"atlas handoff resume [{report.get('status', 'resumed')}]")
             print(f"  handoff:  {report.get('handoff_id')}")
@@ -2147,6 +2194,54 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  context:  {context.get('markdown_path')}")
             for item in report.get("resume_instructions") or []:
                 print(f"  - {item}")
+        return EXIT_OK
+
+    if args.command == "capture":
+        try:
+            if args.capture_command == "record":
+                report = capture_session(
+                    args.vault,
+                    args.project,
+                    summary=args.summary,
+                    kind=args.kind,
+                    decisions=args.decision,
+                    changes=args.change,
+                    next_work=args.next_work,
+                    unknowns=args.unknowns,
+                    source="explicit",
+                )
+            else:
+                report = {
+                    "schema_version": 1,
+                    "package": "AS-CODER-ALPHA-CAPTURE-001",
+                    "status": "ok",
+                    "captures": list_captures(
+                        args.vault,
+                        project_id=args.project,
+                        limit=args.limit,
+                    ),
+                }
+        except (SessionCaptureError, OSError, ValueError) as exc:
+            _log.error("capture failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        elif args.capture_command == "record":
+            print(f"atlas capture record [{report.get('status', 'ok')}]")
+            print(f"  capture:  {report.get('capture_id')}")
+            print(f"  project:  {report.get('project_id')}")
+            print(f"  path:     {report.get('path')}")
+            print("  next: atlas context / atlas handoff create to surface session memory")
+        else:
+            captures = report.get("captures") or []
+            print(f"atlas capture list [{len(captures)}]")
+            if not captures:
+                print("  UNKNOWN (no session captures yet)")
+            for item in captures:
+                print(
+                    f"  - {item.get('capture_id')} [{item.get('kind')}] "
+                    f"{item.get('summary')}"
+                )
         return EXIT_OK
 
     if args.command == "build-indexes":
