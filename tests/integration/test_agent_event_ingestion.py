@@ -400,6 +400,11 @@ def test_missing_vault_identity_keeps_events_out_of_canonical_projection(tmp_pat
     manifest = tmp_path / "manifest.json"
     assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(["init", "--output", str(vault)]) == EXIT_OK
+    # AS-DEMO-2.2-RECOVERY-ID-001: init now mints identity; strip it to exercise
+    # the still-required ingest fail-closed path for an absent Vault identity.
+    identity = vault / ".atlas" / "vault.json"
+    assert identity.is_file()
+    identity.unlink()
     assert main(
         [
             "ingest",
