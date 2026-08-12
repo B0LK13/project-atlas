@@ -5310,3 +5310,23 @@ candidate blocked; Windows Phase C blocked.
 - Runtime `ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE = YES`;
   `OPEN_ELIGIBLE` governance-only (AutoLab not activated).
 - `CODEX_VALIDATED = NO`; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`.
+
+## D-PROJECT-ATLAS-CODER-ALPHA-035 Phase 2 — Journey capability audit
+
+**Date:** 2026-08-12
+**Branch:** cursor/coder-alpha-035-d036
+**Base:** main @ `322f55b56162bf324b8e5b19fb9759dffd0c7518`
+**Status:** complete (audit only; no product implementation in this package)
+
+### Plan
+Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-plane surfaces. Classify each step exactly one of IMPLEMENTED | PARTIAL | MISSING | DEMO_ONLY | NOT_PRODUCTIZED with evidence paths. No status inflation; DEMO_FIXTURE ≠ productization.
+
+### Results
+- Evidence: `docs/evidence/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.md`
+- Artifact: `/opt/cursor/artifacts/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.md`
+- Hard MISSING: `atlas connect .`, `atlas handoff`, productized "what should I do next?"
+- Top dogfood gaps: (1) one-command connect+compile, (2) auto-materialize ask/knowledge plane from Core (DEMO-FINDING-001), (3) Cursor context + handoff + default session capture
+
+### Explicit non-claims
+- No AUTHENTIC_PILOT / RELEASE CERTIFIED / ALPHA_READY claimed
+- No connect/handoff implementation shipped in this package
