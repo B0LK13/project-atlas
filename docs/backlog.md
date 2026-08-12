@@ -340,5 +340,6 @@ _Status: **MERGED** via PR `#321` (`c0ebd46` on `main`). Directives `D-PROJECT-A
 - [x] OPTGATE-007 Honesty-catalog object seal + receipt threshold binding (IV remediate-030)
 - [x] OPTGATE-008 Sealed anchors required to certify `PROMOTE_ELIGIBLE` (closes threshold-downgrade redigest)
 - [x] OPTGATE-006 Independent IV PASS + merge to `main`
+- [x] OPTGATE-009 Post-merge evaluator reassessment (D-032): `EVALUATOR_STABLE = YES`; wake recommendation `OPEN_ELIGIBLE` (governance only — runtime `ATLAS_OPT_WAKE_GATE` remains `CLOSED`; AutoLab not activated)
 
 

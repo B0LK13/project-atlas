@@ -30,7 +30,7 @@ Sealed Golden Demo pin (ancestor of current `main`, not always HEAD):
 `ATLAS_DEMO_2_2_PORTABLE_CANDIDATE=PASS`, `WINDOWS_DEMO_SEAL=PASS`,
 `ATLAS_DEMO_2_2_WORKING=YES`, `WINDOWS_STRANGER_PHASE_C=PASS`.
 AS-OPT-GATE-001 is merged (`#321` / `project_atlas.opt_gate`);
-`ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE` is not yet reassessed.
+`ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE = YES` (post-merge reassessment); wake remains `CLOSED` / governance `OPEN_ELIGIBLE` only.
 
 Truth boundaries (must remain explicit): `PREP != IMPLEMENTED`,
 `DEMO_FIXTURE != AUTHENTIC_PILOT`, `DEMO != RELEASE`,

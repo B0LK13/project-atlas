@@ -5264,3 +5264,22 @@ candidate blocked; Windows Phase C blocked.
 - EVALUATOR_STABLE: not declared
 - CODEX_VALIDATED: NO
 - PR_321_CERTIFIED_MERGE_ELIGIBLE: not claimed here (independent IV)
+
+## D-032 autonomous E2E — OPT-GATE merge + docs + evaluator reassessment
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CLOUD-AUTONOMOUS-E2E-032
+
+### Completed
+- AS-OPT-GATE-001 remediated (sealed promote anchors), independent IV PASS at
+  `ef6b911` / `d14f01ed`, merged PR `#321` as `c0ebd46`.
+- Docs reconcile PR `#315` merged as `3602a5d`.
+- Demo-delta LOW hardening PR `#314` IV PASS at `f4344cf`, merged as `d0dd341`.
+- Post-merge evaluator reassessment: `EVALUATOR_STABLE = YES`;
+  wake recommendation `OPEN_ELIGIBLE` (governance). Runtime
+  `ATLAS_OPT_WAKE_GATE` remains `CLOSED`. AutoLab not activated.
+
+### Non-claims
+- CODEX_VALIDATED = NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
+- OPEN_ELIGIBLE != AutoLab / != OPT loops / != merge/deploy authority

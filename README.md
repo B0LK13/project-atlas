@@ -63,7 +63,7 @@ Repository status (short)
   - `ATLAS_DEMO_2_2_WORKING = YES`
   - `WINDOWS_STRANGER_PHASE_C = PASS`
 - AS-OPT-GATE-001 merged (`#321`): governed experiment/promotion boundary;
-  `ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE` not yet reassessed.
+  `ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE = YES`; wake remains `CLOSED` (OPEN_ELIGIBLE governance only).
 
 Truth boundaries (do not overclaim)
 - `PREP != IMPLEMENTED`
