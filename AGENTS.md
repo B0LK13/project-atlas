@@ -18,11 +18,15 @@ Core principles (from `docs/plan.md` and `docs/prp.md`):
 
 The repository has grown well beyond the original WP-001 foundation. As of `main` at the current checkout, the following are implemented:
 
-- Full Core pipeline: `atlas discover` → `atlas ingest` → `atlas build-indexes` → `atlas validate`.
-- `src/project_atlas/` — installable Python 3.12+ package (src layout) with CLI, config, logging, scaffold, discovery, ingestion, indexing, validation, schema validation, secrets scanning, knowledge compilation, semantic compilation, durable lineage, and domain models.
+- Full Core pipeline: `atlas discover` → `atlas ingest` → `atlas build-indexes` → `atlas build-portfolio` → `atlas validate`, with read-only read/query lenses layered on top (`atlas query`, `atlas ask2`, `atlas kdiff`).
+- Shipped read/query and ops surface beyond the original Core slice: `build-portfolio` (derived portfolio intelligence plus an AS-2.0-TEMPORAL-001 bitemporal validity catalog under `generated/ops/bitemporal/`), `doctor` (PROD-DOCTOR-001 environment/vault diagnostics), `ask2` (Ask Atlas 2: project-scoped hybrid retrieval + a p2 read-only context compiler that returns known/unknown/conflict honestly and never invents authority), `kdiff` (Knowledge Diff / Time Machine: read-only as-of reads + T1→T2 diffs over document-declared valid-time), `snapshot`/`restore` (backup/recovery), and a read-only LIVE_API (`live api-serve` on 127.0.0.1) exposing `/v1/conflicts` and `/v1/kdiff`; a Web `#/time-machine` page lives under `apps/web`.
+- Golden demo fixture `tests/fixtures/demo/estate/harbor-api` carries a real unresolved datastore conflict (PostgreSQL 15 vs 16) and real bitemporal Time Machine states, exercised by `tests/integration/test_as_demo_2_2_golden_fixture.py`.
+- Recovery: the RECOVERY_GATE passes (backup/restore byte-complete plus derived rebuild). Eval security: an out-of-process holdout scoring broker keeps hidden-holdout scoring isolated.
+- Atlas 2.2 maturity is tracked per-capability in `docs/atlas-2.2/PACKAGE-MATURITY.json` (`prep-frozen` vs `implementation-unlocked`). Preserve the truth boundaries: PREP ≠ IMPLEMENTED, INTERNAL VALIDATION ≠ EXTERNAL CERTIFICATION (`CODEX_VALIDATED = NO`; external security revalidation still required), DEMO_FIXTURE ≠ AUTHENTIC_PILOT, DEMO ≠ RELEASE, UI ≠ CANONICAL. The 2.2 demo status is PORTABLE DEMO = PASS, WINDOWS SEAL = PENDING (Local-owned) — *not* a claim that `ATLAS_DEMO_2_2_WORKING = YES`; the project remains not release-certified.
+- `src/project_atlas/` — installable Python 3.12+ package (src layout) with CLI, config, logging, scaffold, discovery, ingestion, indexing, portfolio, validation, schema validation, secrets scanning, knowledge compilation, semantic compilation, durable lineage, bitemporal/knowledge-diff readers, Ask Atlas 2, backup/restore, LIVE_API, and domain models.
 - `src/atlas_contracts/` — shared subsystem contracts for agent events, event packages, provenance, receipts, identity, and versions.
 - `atlas-vault-documentation/` — separate sibling deliverable that implements the governed agent documentation skill and control plane (`AS-CTRL-001`, `AS-SKILL-001`). It has its own tests, scripts, schemas, references, and skill manifest; it is intentionally excluded from the main package's ruff/mypy scope.
-- `tests/unit/` and `tests/integration/` — 149 tests passing on `main`.
+- `tests/unit/` and `tests/integration/` — 2,200+ tests across the two suites on `main`.
 - `.github/workflows/ci.yml` — ruff, mypy, pytest, CLI smoke.
 - `.github/workflows/atlas-documentation-gate.yml` — receipt-gated documentation gate triggered manually.
 - `WORKLOG.md` — execution log per work package; `docs/adr/` — architectural decision records.
@@ -51,7 +55,9 @@ When implementing, treat these documents as the authoritative specification. The
 | `discovery.py` | `atlas discover`; streaming SHA-256, project markers, agent-event inventory. |
 | `ingestion.py` | `atlas ingest`; manifest validation, source ingestion, agent-event quarantine, identity locks, write plan. |
 | `indexes.py` | `atlas build-indexes`. |
+| `portfolio.py` | `atlas build-portfolio`; derived portfolio intelligence under `generated/portfolio/` (AS-MVP-001); also triggers the bitemporal validity-catalog derivation. |
 | `validation.py` | `atlas validate`; link checking, OKF frontmatter, provenance hash validation. |
+| `doctor.py` | `atlas doctor`; environment and optional Vault diagnostics with a `--json` machine report (PROD-DOCTOR-001). |
 | `knowledge_compiler.py` | `AS-CORE-003`: claim extraction, authority, conflicts, reviews, lifecycle. |
 | `semantic_compiler.py` | `AS-CORE-002`: project record compilation, OKF rendering. |
 | `lineage.py` | `AS-ID-001`: source-lineage identity, v1→v2 registry migration. |
@@ -61,6 +67,13 @@ When implementing, treat these documents as the authoritative specification. The
 | `logging.py` | Structured stderr-only logging. |
 | `okf_renderer.py` | OKF note rendering helpers. |
 | `retrieval.py` | `AS-RET-001`: read-only deterministic lexical exact/prefix retrieval. |
+| `ask2.py` | `atlas ask2` (`AS-2.2-ASK2-001`): read-only answer lens over project-scoped hybrid retrieval + p2 context compiler; UNKNOWN stays UNKNOWN; model ≠ authority; no writes. |
+| `knowledge_diff.py` | `atlas kdiff` (`AS-2.2-KDIFF-001`): read-only as-of reads + T1→T2 diffs over document-declared valid-time; graph ≠ authority; no canonical writes. |
+| `bitemporal.py` | `AS-2.0-TEMPORAL-001`: validity-window evaluation (`evaluate_as_of`) and catalog writer; fail-closed overlap/malformed/wall-clock handling. |
+| `bitemporal_catalog.py` | Derives the `AS-2.0-TEMPORAL-001` validity catalog under `generated/ops/bitemporal/` from persisted claims + document-declared valid-time (consumed by `kdiff`); invoked by `build-portfolio`. |
+| `backup.py` | `atlas snapshot`/`restore` (`AS-BACKUP-001`): byte-complete recovery bundles; operational durability ≠ project authority. |
+| `api_server.py` / `app_service.py` | Read-only LIVE_API (`atlas live api-serve`, 127.0.0.1), including the `/v1/conflicts` and `/v1/kdiff` projections. |
+| `web_api/conflicts.py` | Read-only `/v1/conflicts` projection served by the LIVE_API. |
 | `domain/` | Pydantic v2 domain models and controlled vocabularies. Import from `project_atlas.domain`, not submodules. |
 | `schemas/` | Shipped JSON schemas (package data). |
 
@@ -96,7 +109,7 @@ The canonical skill lifecycle is: `bootstrap → preflight → session-start →
 - **Core dependencies:** `pydantic` v2, `PyYAML`, `jsonschema`.
 - **Dev dependencies:** `pytest`, `ruff`, `mypy`, `types-PyYAML`.
 - **Build:** `setuptools>=68` with `src` layout; console script `atlas = "project_atlas.cli:main"`.
-- **CLI:** `atlas` command with subcommands `version`, `init`, `discover`, `ingest`, `build-indexes`, `validate`.
+- **CLI:** `atlas` command with subcommands including `version`, `init`, `discover`, `ingest`, `build-indexes`, `build-portfolio`, `validate`, `doctor`, `query`, `ask2`, `kdiff`, `snapshot`/`restore`, and `live api-serve` (LIVE_API); run `atlas --help` for the full surface.
 - **Linting/typing:** `ruff` and `mypy` (strict mode) configured in `pyproject.toml`; scope is limited to `src/**/*.py` and `tests/**/*.py`.
 - **Schemas:** JSON schemas validating domain records and contracts, shipped as package data under `src/project_atlas/schemas/` and `src/atlas_contracts/schemas/` and exercised via `project_atlas.schema.validate_record`.
 - **Logging:** structured logging in `project_atlas.logging` (console and JSON formats, stderr only).
@@ -131,7 +144,13 @@ atlas init --output .tmp/vault
 atlas discover --source <project-root> --output .tmp/manifest.json
 atlas ingest --manifest .tmp/manifest.json --vault .tmp/vault
 atlas build-indexes --vault .tmp/vault
+atlas build-portfolio --vault .tmp/vault   # derived portfolio + bitemporal validity catalog
 atlas validate --vault .tmp/vault
+
+# read-only lenses (never mutate the Vault)
+atlas ask2 --vault .tmp/vault --project <project-id> --question "..."
+atlas kdiff --vault .tmp/vault --project <project-id> --as-of <valid-time>
+atlas doctor --vault .tmp/vault --json
 ```
 
 Governed agent session (control plane):

@@ -12,12 +12,18 @@ deterministic. See `AGENTS.md` for the full principles and core narrative
 preservation, no subjective trust scores) — this file focuses on commands and
 architecture, not repeating that narrative.
 
-The certified Core pipeline is implemented: `discover` → `ingest` →
-`build-indexes` → `validate`. The repository also contains shared Atlas
-contracts (`src/atlas_contracts/`) and the governed agent control-plane
+The Core pipeline is implemented: `discover` → `ingest` → `build-indexes` →
+`build-portfolio` → `validate`, with read-only read/query lenses layered on
+top (`query`, `ask2`, `kdiff`) plus `doctor`, `snapshot`/`restore`, and a
+read-only LIVE_API (`live api-serve`). The repository also contains shared
+Atlas contracts (`src/atlas_contracts/`) and the governed agent control-plane
 sibling deliverable (`atlas-vault-documentation/`). Check `WORKLOG.md`
 (tail) for the current work-package status and `docs/backlog.md` for
-what's checked off.
+what's checked off. Atlas 2.2 capabilities are unlocked per-capability
+(`docs/atlas-2.2/PACKAGE-MATURITY.json`: `prep-frozen` vs
+`implementation-unlocked`); PREP ≠ IMPLEMENTED and the project is not
+release-certified (`CODEX_VALIDATED = NO`; external revalidation still
+required).
 
 ## Commands
 
@@ -38,7 +44,14 @@ atlas init --output <dir> [--dry-run]                       # create a vault sca
 atlas discover --source <project-root> --output <manifest.json>
 atlas ingest --manifest <manifest.json> --vault <vault-dir>
 atlas build-indexes --vault <vault-dir>
+atlas build-portfolio --vault <vault-dir>                   # derived portfolio + bitemporal catalog
 atlas validate --vault <vault-dir>
+
+atlas doctor [--vault <vault-dir>] [--json]                 # environment/vault diagnostics
+atlas ask2 --vault <dir> --project <p> --question "..."     # Ask Atlas 2 (read-only)
+atlas kdiff --vault <dir> --project <p> [--as-of T | --from T1 --to T2]   # Knowledge Diff / Time Machine
+atlas snapshot ... / atlas restore ...                       # backup & recovery bundles
+atlas live api-serve                                         # read-only LIVE_API (127.0.0.1)
 ```
 
 `.github/workflows/ci.yml` is the authoritative gate sequence: ruff → mypy →
@@ -73,6 +86,29 @@ asserting `index.md` and `00-system/vault-charter.md` exist).
   drift rejection.
 - `retrieval.py` — read-only exact/prefix lookup over generated lexical
   indexes (AS-RET-001); never mutates the Vault.
+- `portfolio.py` — `atlas build-portfolio`: derived portfolio intelligence
+  under `generated/portfolio/` (AS-MVP-001); also triggers the bitemporal
+  validity-catalog derivation.
+- `doctor.py` — `atlas doctor`: environment and optional Vault diagnostics,
+  with a `--json` machine-readable report (PROD-DOCTOR-001).
+- `ask2.py` — `atlas ask2` (AS-2.2-ASK2-001): read-only answer lens over
+  project-scoped hybrid retrieval + a p2 read-only context compiler; returns
+  known/unknown/conflict honestly; UNKNOWN stays UNKNOWN; model ≠ authority;
+  never writes.
+- `knowledge_diff.py` — `atlas kdiff` (AS-2.2-KDIFF-001): read-only as-of reads
+  and T1→T2 diffs over document-declared valid-time; graph ≠ authority; no
+  canonical writes.
+- `bitemporal.py` / `bitemporal_catalog.py` — AS-2.0-TEMPORAL-001 validity-window
+  evaluation and the catalog writer. `bitemporal_catalog.py` derives the
+  `generated/ops/bitemporal/` catalog (from persisted claims + document-declared
+  valid-time) that the `kdiff` reader consumes, and is rebuilt by
+  `build-portfolio`.
+- `backup.py` — `atlas snapshot`/`restore` (AS-BACKUP-001): byte-complete
+  recovery bundles; operational durability ≠ project authority.
+- `api_server.py` / `app_service.py` / `web_api/` — read-only LIVE_API
+  (`atlas live api-serve`, 127.0.0.1) including the `/v1/conflicts` and
+  `/v1/kdiff` projections (`web_api/conflicts.py`); a Web `#/time-machine` page
+  lives under `apps/web`.
 - `knowledge_compiler.py` — deterministic claim extraction, authority
   precedence, conflict detection, review queue generation, and lifecycle
   transition enforcement (AS-CORE-003).

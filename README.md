@@ -23,11 +23,40 @@ Key principles
 
 Repository status (short)
 - Core pipeline implemented: `discover` → `ingest` → `build-indexes` →
-  `validate`.
-- Tests: unit & integration tests present; documented passing results in
+  `build-portfolio` → `validate`, with read-only read/query lenses layered on
+  top (`query`, `ask2`, `kdiff`).
+- Shipped beyond the original Core slice: `build-portfolio` (derived portfolio
+  intelligence plus an AS-2.0-TEMPORAL-001 bitemporal validity catalog under
+  `generated/ops/bitemporal/`), `doctor` (environment/vault diagnostics),
+  Ask Atlas 2 (`ask2` — project-scoped hybrid retrieval + a read-only context
+  compiler that answers known/unknown/conflict honestly and never invents
+  authority), Knowledge Diff / Time Machine (`kdiff` — read-only as-of reads
+  and T1→T2 diffs over document-declared valid-time), `snapshot`/`restore`
+  (backup/recovery), and a read-only LIVE_API (`live api-serve`, bound to
+  127.0.0.1) exposing `/v1/conflicts` and `/v1/kdiff` (with a Web
+  `#/time-machine` page under `apps/web`).
+- A golden demo fixture (`tests/fixtures/demo/estate/harbor-api`) carries a
+  real unresolved datastore conflict (PostgreSQL 15 vs 16) and real bitemporal
+  Time Machine states; it is exercised by
+  `tests/integration/test_as_demo_2_2_golden_fixture.py`.
+- Tests: comprehensive unit & integration suites (2,200+ tests across
+  `tests/unit/` and `tests/integration/`); documented passing results in
   `WORKLOG.md`.
 - `atlas-vault-documentation/` is a sibling deliverable (governed agent
   control-plane) and is intentionally excluded from the main lint/type scope.
+
+Truth boundaries (do not overclaim)
+- PREP ≠ IMPLEMENTED. Atlas 2.2 is unlocked per-capability, not as a blanket:
+  `docs/atlas-2.2/PACKAGE-MATURITY.json` classifies each package as
+  `prep-frozen` (docs/contracts/fixtures only) or `implementation-unlocked`
+  (authorized merged runtime).
+- INTERNAL VALIDATION ≠ EXTERNAL CERTIFICATION (`CODEX_VALIDATED = NO`;
+  external security revalidation is still required).
+- DEMO_FIXTURE ≠ AUTHENTIC_PILOT; DEMO ≠ RELEASE (not release-certified);
+  UI ≠ CANONICAL.
+- Atlas 2.2 demo status: PORTABLE DEMO = PASS, WINDOWS SEAL = PENDING
+  (Local-owned). This is *not* a claim that `ATLAS_DEMO_2_2_WORKING = YES`; the
+  project remains pre-1.0 and not release-certified.
 
 Quickstart (developer)
 1. Create and activate Python 3.12 venv:
@@ -66,7 +95,16 @@ Core CLI workflow
 - atlas discover --source <project-root> --output <manifest.json>
 - atlas ingest --manifest <manifest.json> --vault <vault-dir>
 - atlas build-indexes --vault <vault-dir>
+- atlas build-portfolio --vault <vault-dir>  # derived portfolio + bitemporal validity catalog
 - atlas validate --vault <vault-dir>
+
+Read & query lenses (read-only; never mutate the Vault)
+- atlas query ... / atlas ask2 --vault <dir> --project <p> --question "..."
+- atlas kdiff --vault <dir> --project <p> [--as-of T | --from T1 --to T2]
+- atlas doctor [--vault <dir>] [--json]      # environment/vault diagnostics
+- atlas snapshot ... / atlas restore ...     # backup & recovery bundles
+- atlas live api-serve                        # read-only LIVE_API on 127.0.0.1
+- Run `atlas --help` for the full subcommand surface.
 
 Development notes & conventions
 - Language: Python 3.12+, packaged in `src/project_atlas`.
