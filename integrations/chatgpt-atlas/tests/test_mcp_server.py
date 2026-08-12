@@ -42,7 +42,8 @@ def test_widget_resource_registered_with_csp() -> None:
     assert len(resources) == 1
     resource = resources[0]
     assert str(resource.uri) == srv.WIDGET_URI
-    assert resource.mimeType == srv.WIDGET_MIME
+    # mcp SDK drift: the field is `mime_type` (wire alias `mimeType`).
+    assert resource.mime_type == srv.WIDGET_MIME
     html = srv.load_widget_html()
     assert "Content-Security-Policy" in html
     assert "default-src 'none'" in html
@@ -84,7 +85,7 @@ async def test_server_handlers_list_and_read_widget(demo_vault: Path) -> None:
     )
     contents = read_result.root.contents  # type: ignore[attr-defined]
     assert len(contents) == 1
-    assert contents[0].mimeType == srv.WIDGET_MIME
+    assert contents[0].mime_type == srv.WIDGET_MIME
     assert "Content-Security-Policy" in contents[0].text
     assert "GRAPH != AUTHORITY" in contents[0].text
 
