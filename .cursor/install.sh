@@ -31,6 +31,14 @@ fi
 # Guard: refuse to continue if the venv interpreter is older than 3.12.
 .venv/bin/python -c 'import sys; assert sys.version_info >= (3, 12), sys.version'
 
+# Node/npm required for apps/web (idempotent; NodeSource 22.x on Ubuntu).
+if ! command -v npm >/dev/null 2>&1; then
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+  sudo apt-get install -y --no-install-recommends nodejs
+fi
+node -v >/dev/null
+npm -v >/dev/null
+
 # THIRD_PARTY web deps: committed lockfile required (SEC-027/028).
 if [ ! -f apps/web/package-lock.json ]; then
   echo "ERROR: apps/web/package-lock.json missing (SEC-027). Refusing unbound npm install." >&2
