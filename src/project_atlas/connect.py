@@ -243,7 +243,13 @@ def connect_project(
     if not skip_validate:
         steps.append("validate")
     steps.extend(
-        ["materialize_overview", "materialize_state", "write_bind", "write_receipt"]
+        [
+            "materialize_overview",
+            "materialize_state",
+            "materialize_changed",
+            "write_bind",
+            "write_receipt",
+        ]
     )
 
     report: dict[str, Any] = {
@@ -259,6 +265,7 @@ def connect_project(
         "projects": [],
         "overview_answers": [],
         "state_answers": [],
+        "changed_answers": [],
         "marker_created": False,
         "vault_created": False,
         "vault_id": None,
@@ -335,10 +342,12 @@ def connect_project(
         # AS-CODER-ALPHA-OVERVIEW-001 / STATE-001: derived lenses for Knowledge
         # + Ask-live after connect (DEMO-FINDING-001 partial).
         from project_atlas.overview import materialize_overview_lenses
+        from project_atlas.project_changed import materialize_changed_lenses
         from project_atlas.project_state import materialize_state_lenses
 
         overview = materialize_overview_lenses(vault_path)
         state = materialize_state_lenses(vault_path)
+        changed = materialize_changed_lenses(vault_path, manifest=manifest)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ConnectError(str(exc)) from exc
 
@@ -350,6 +359,8 @@ def connect_project(
     }
     report["overview_answers"] = overview.get("answers_written", [])
     report["state_answers"] = state.get("answers_written", [])
+    report["changed_answers"] = changed.get("answers_written", [])
+    report["changed_delta"] = changed.get("delta", {})
 
     bind_path = _write_bind(
         project_root,

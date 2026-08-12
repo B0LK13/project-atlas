@@ -5406,3 +5406,21 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Documentation did not block product work
 - CODEX_VALIDATED: NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
+
+## D-037 overnight — AS-CODER-ALPHA-CHANGED-001
+
+**Date:** 2026-08-12
+**Directive:** D-035 / D-036 / D-037
+**Branch:** cursor/coder-alpha-changed-001-d036
+**Base:** main @ `a90773d`
+
+### Package
+- `atlas changed --vault <vault>`
+- Module: `src/project_atlas/project_changed.py`
+- Connect rotates `generated/ops/connect-inventory.json` and emits `ans-changed-*`
+- First connect: baseline/UNKNOWN history; second+: added/removed/modified
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- not a kdiff temporal authority claim
+- CODEX_VALIDATED: NO

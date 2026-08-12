@@ -1,0 +1,309 @@
+"""AS-CODER-ALPHA-CHANGED-001 — What Changed derived lens from connect inventory.
+
+Compares the previous connect active-source inventory to the current one and
+emits a non-authoritative ``generated/answers/ans-changed-<project>.json``
+lens. Defaults to last-connect → now (no tribal kdiff flags required).
+
+Honesty:
+- lens != Layer B authority; UI != canonical
+- first connect has no prior baseline → UNKNOWN/baseline, not invented history
+- no wall-clock timestamps (NFR-001 / ADR-001)
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+PACKAGE_ID = "AS-CODER-ALPHA-CHANGED-001"
+GENERATOR_ID = "atlas-coder-alpha-changed-001"
+ANSWERS_RELATIVE = Path("generated") / "answers"
+INVENTORY_RELATIVE = Path("generated") / "ops" / "connect-inventory.json"
+PREV_INVENTORY_RELATIVE = Path("generated") / "ops" / "connect-inventory.prev.json"
+
+
+class ProjectChangedError(ValueError):
+    """Fail-closed what-changed lens error."""
+
+
+def _write_atomic(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp.write_bytes(content)
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _list_projects(vault: Path) -> list[str]:
+    root = vault / "projects"
+    if not root.is_dir():
+        return []
+    return sorted(
+        path.name
+        for path in root.iterdir()
+        if path.is_dir() and not path.name.startswith(".")
+    )
+
+
+def _safe_project_id(project_id: str) -> str:
+    if not project_id or project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
+        raise ProjectChangedError(f"unsafe project id: {project_id!r}")
+    return project_id
+
+
+def inventory_from_manifest(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Build a deterministic active-source inventory from a discover manifest."""
+    sources = manifest.get("sources")
+    rows: list[dict[str, str]] = []
+    if isinstance(sources, list):
+        for row in sources:
+            if not isinstance(row, dict):
+                continue
+            if row.get("exclusion_reason"):
+                continue
+            path = row.get("path")
+            digest = row.get("sha256")
+            project = row.get("likely_project") or "unknown-project"
+            if not isinstance(path, str) or not isinstance(digest, str):
+                continue
+            rows.append(
+                {
+                    "path": path,
+                    "sha256": digest,
+                    "project_id": str(project),
+                }
+            )
+    rows.sort(key=lambda item: item["path"])
+    by_path = {item["path"]: item["sha256"] for item in rows}
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.connect-inventory.v1",
+        "package": PACKAGE_ID,
+        "sources": rows,
+        "by_path": by_path,
+        "generated": {"by": GENERATOR_ID},
+    }
+
+
+def diff_inventories(
+    previous: dict[str, Any] | None,
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    """Compute added/removed/modified paths between inventories."""
+    prev_map = previous.get("by_path") if isinstance(previous, dict) else None
+    if not isinstance(prev_map, dict):
+        prev_map = {}
+    curr_map = current.get("by_path")
+    if not isinstance(curr_map, dict):
+        curr_map = {}
+    prev_paths = {str(key) for key in prev_map}
+    curr_paths = {str(key) for key in curr_map}
+    added = sorted(curr_paths - prev_paths)
+    removed = sorted(prev_paths - curr_paths)
+    modified = sorted(
+        path
+        for path in sorted(prev_paths & curr_paths)
+        if prev_map.get(path) != curr_map.get(path)
+    )
+    return {
+        "added": added,
+        "removed": removed,
+        "modified": modified,
+        "unchanged": len(prev_paths & curr_paths) - len(modified),
+        "prior_baseline": bool(previous),
+    }
+
+
+def _project_paths(paths: list[str], project_id: str, inventory: dict[str, Any]) -> list[str]:
+    rows = inventory.get("sources")
+    if not isinstance(rows, list):
+        return [path for path in paths if path]
+    owned = {
+        str(row.get("path"))
+        for row in rows
+        if isinstance(row, dict) and str(row.get("project_id")) == project_id
+    }
+    # Also include pathless matches by prefix project id folder conventions.
+    return [path for path in paths if path in owned or path.split("/", 1)[0] == project_id]
+
+
+def build_changed_lens(
+    vault: Path,
+    project_id: str,
+    *,
+    previous: dict[str, Any] | None,
+    current: dict[str, Any],
+    delta: dict[str, Any],
+) -> dict[str, Any]:
+    """Build one derived what-changed lens for ``project_id``."""
+    project_id = _safe_project_id(project_id)
+    inspected = [
+        INVENTORY_RELATIVE.as_posix(),
+        PREV_INVENTORY_RELATIVE.as_posix(),
+        f"projects/{project_id}/project.md",
+    ]
+    added = _project_paths(list(delta.get("added") or []), project_id, current)
+    removed = _project_paths(list(delta.get("removed") or []), project_id, previous or {})
+    modified = _project_paths(list(delta.get("modified") or []), project_id, current)
+
+    if not delta.get("prior_baseline"):
+        status = "unknown"
+        rollup = "baseline"
+        summary = "No prior connect inventory; baseline established (UNKNOWN history)."
+        value = None
+        notes = [
+            "First connect baseline; not an invented change history",
+            "lens!=Layer-B-authority",
+            "UI!=canonical",
+            "UNKNOWN!=healthy",
+        ]
+    else:
+        total = len(added) + len(removed) + len(modified)
+        status = "derived"
+        rollup = "changed" if total else "unchanged"
+        summary = (
+            f"rollup={rollup}; added={len(added)}; removed={len(removed)}; "
+            f"modified={len(modified)}"
+        )
+        value = summary
+        notes = [
+            "Derived from last-connect → now active-source inventory diff",
+            "lens!=Layer-B-authority",
+            "UI!=canonical",
+            "not a kdiff temporal authority claim",
+        ]
+
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.changed-lens.v1",
+        "package": PACKAGE_ID,
+        "answer_id": f"ans-changed-{project_id}",
+        "subject": project_id,
+        "field": "what_changed",
+        "title": "What changed?",
+        "summary": summary,
+        "value": value,
+        "status": status,
+        "authority": "derived-lens",
+        "layer": "C",
+        "project_id": project_id,
+        "rollup": rollup,
+        "delta": {
+            "added": added[:50],
+            "removed": removed[:50],
+            "modified": modified[:50],
+            "added_count": len(added),
+            "removed_count": len(removed),
+            "modified_count": len(modified),
+            "truncated": len(added) > 50 or len(removed) > 50 or len(modified) > 50,
+        },
+        "inspected_artifacts": inspected,
+        "notes": notes,
+        "generated": {"by": GENERATOR_ID},
+    }
+
+
+def rotate_and_diff_inventory(
+    vault: Path,
+    manifest: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
+    """Write current inventory, keep previous, return (current, delta, previous)."""
+    vault = vault.expanduser().resolve()
+    current = inventory_from_manifest(manifest)
+    inv_path = vault / INVENTORY_RELATIVE
+    prev_path = vault / PREV_INVENTORY_RELATIVE
+    previous = _read_json(inv_path)
+    if inv_path.is_file():
+        # Preserve prior baseline for diff/receipt inspection.
+        _write_atomic(prev_path, inv_path.read_bytes())
+    _write_atomic(
+        inv_path,
+        (json.dumps(current, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
+    delta = diff_inventories(previous, current)
+    return current, delta, previous
+
+
+def materialize_changed_lenses(
+    vault: Path,
+    *,
+    manifest: dict[str, Any] | None = None,
+    project_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Materialize what-changed lenses; optionally rotate inventory from manifest."""
+    vault = vault.expanduser().resolve()
+    if not vault.is_dir():
+        raise ProjectChangedError(f"vault is not a directory: {vault}")
+
+    previous: dict[str, Any] | None
+    current: dict[str, Any]
+    if manifest is not None:
+        current, delta, previous = rotate_and_diff_inventory(vault, manifest)
+    else:
+        loaded = _read_json(vault / INVENTORY_RELATIVE)
+        previous = _read_json(vault / PREV_INVENTORY_RELATIVE)
+        if loaded is None:
+            raise ProjectChangedError(
+                "missing connect inventory; run atlas connect or pass a manifest"
+            )
+        current = loaded
+        delta = diff_inventories(previous, current)
+
+    selected = project_ids if project_ids is not None else _list_projects(vault)
+    written: list[str] = []
+    lenses: list[dict[str, Any]] = []
+    for project_id in selected:
+        lens = build_changed_lens(
+            vault,
+            project_id,
+            previous=previous,
+            current=current,
+            delta=delta,
+        )
+        lenses.append(lens)
+        answer_id = str(lens["answer_id"])
+        path = vault / ANSWERS_RELATIVE / f"{answer_id}.json"
+        _write_atomic(
+            path,
+            (json.dumps(lens, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+        )
+        written.append(path.relative_to(vault).as_posix())
+
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.changed-receipt.v1",
+        "package": PACKAGE_ID,
+        "status": "ok",
+        "vault": vault.as_posix(),
+        "projects": list(selected),
+        "answers_written": written,
+        "lenses": lenses,
+        "delta": {
+            "added_count": len(delta.get("added") or []),
+            "removed_count": len(delta.get("removed") or []),
+            "modified_count": len(delta.get("modified") or []),
+            "prior_baseline": bool(delta.get("prior_baseline")),
+        },
+        "generated": {"by": GENERATOR_ID},
+        "honesty": {
+            "authentic_pilot": False,
+            "release_certified": False,
+            "atlas_opt_wake_gate": "CLOSED",
+            "lens_is_authority": False,
+        },
+    }

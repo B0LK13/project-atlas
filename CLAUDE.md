@@ -70,6 +70,7 @@ atlas validate --vault <vault-dir>
 atlas connect [source] [--vault <dir>]                      # Coder Alpha bind+compile
 atlas overview --vault <vault-dir> [--project <id>]         # Project Overview lens
 atlas state --vault <vault-dir> [--project <id>]            # Current State lens
+atlas changed --vault <vault-dir> [--project <id>]          # What Changed lens
 
 atlas doctor [--vault <vault-dir>] [--json]                 # environment/vault diagnostics
 atlas ask2 --vault <dir> --project <p> --question "..."     # Ask Atlas 2 (read-only)
