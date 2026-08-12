@@ -5152,3 +5152,31 @@ Disposable twin projection fixtures + OpenAI importer fixture harness (parse sam
 - ATLAS_2_1_RELEASE_CERTIFIED: NO
 - Authentic estate PILOT: NO / NOT AUTHENTIC PILOT PASS
 - No invented .atlas-project.yaml outside committed fixtures
+
+## AS-DEMO-2.2-RECOVERY-ID-001 — vault identity for recovery-capable fresh vaults
+
+**Date:** 2026-08-12
+**Branch:** cursor/demo-recovery-vault-identity-0a28
+**Directive:** D-PROJECT-ATLAS-CLOUD-DEMO-RECOVERY-019
+**Base:** origin/main `5a979caa4b48ce52b60e1474285b5297eaf3d1fd` / TREE `e836577291e3a67ad199468860a94d08c6c98bf0`
+
+### Defect
+Normal documented stranger/demo bootstrap (`atlas init` → discover → ingest →
+build-indexes → build-portfolio → validate) left `.atlas/vault.json` absent, so
+`atlas snapshot` failed closed with `missing vault identity`. Portable demo
+candidate blocked; Windows Phase C blocked.
+
+### Fix
+- Canonical writer `project_atlas.vault_identity.ensure_vault_identity` (reuses
+  `atlas_agent install` semantics; no second identity system).
+- `atlas init` / `create_scaffold` establishes identity automatically
+  (default `vault_id=atlas-main`); dry-run does not mint.
+- Existing matching identity preserved byte-for-byte; mismatch/malformed/symlink
+  escape fail closed; snapshot remains non-minting.
+- `atlas_agent.py install` now calls the Core writer.
+- Docs/demo launchers reconciled: no manual identity repair for strangers.
+
+### Gates
+- unit + integration AS-DEMO-2.2-RECOVERY-ID-* PASS
+- ruff + mypy on touched surfaces PASS
+- Snapshot trust properties preserved (no weaken)

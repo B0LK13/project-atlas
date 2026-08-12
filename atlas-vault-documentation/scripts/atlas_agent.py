@@ -8,7 +8,6 @@ import json
 import os
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -130,15 +129,14 @@ def main(argv: list[str] | None = None) -> int:
             _json({"ok": not errors, "errors": errors}, args.json_output)
             return 0 if not errors else 1
         if args.command == "install":
+            # AS-DEMO-2.2-RECOVERY-ID-001: reuse Core canonical writer (no second mint path).
+            from project_atlas.vault_identity import VaultIdentityError, ensure_vault_identity
+
             root = args.vault_root.resolve()
-            marker = root / ".atlas" / "vault.json"
-            marker.parent.mkdir(parents=True, exist_ok=True)
-            if marker.is_file():
-                identity = vault_identity.read(root)
-                if identity.vault_id != args.vault_id:
-                    raise ValueError("existing Vault ID differs")
-            else:
-                marker.write_text(json.dumps({"schema_version": 1, "vault_id": args.vault_id, "vault_uuid": str(uuid.uuid4()), "name": "Atlas Vault"}, indent=2) + "\n", encoding="utf-8")
+            try:
+                ensure_vault_identity(root, vault_id=args.vault_id)
+            except VaultIdentityError as exc:
+                raise ValueError(str(exc)) from exc
             _json({"ok": True, "vault_id": args.vault_id, "root": str(root)}, getattr(args, "json_output", False))
             return 0
         if args.command == "init-project":

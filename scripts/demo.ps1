@@ -20,6 +20,7 @@
 .PARAMETER InitVault
   Run atlas init → discover → ingest → build-indexes → validate against
   tests/fixtures/demo into .tmp/demo-vault.
+  atlas init also mints .atlas/vault.json (AS-DEMO-2.2-RECOVERY-ID-001).
 
 .PARAMETER SmokeApi
   GET a small set of local health/project routes (best-effort; skips missing).

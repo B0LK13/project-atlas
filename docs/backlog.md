@@ -153,6 +153,9 @@ independent verification passes and the branch is merged to `main`._
   `feat/as-core-ops-001-promote-accounting` — governor review required; not
   self-certified.)
 - [x] AS-BACKUP-001 Verified Atlas Snapshot (fixture restore; cold D1-D4+D6; ops durability ≠ authority)
+- [x] AS-DEMO-2.2-RECOVERY-ID-001 Fresh product bootstrap establishes canonical
+  `.atlas/vault.json` so stranger/demo pipelines are recovery-capable without
+  weakening snapshot/restore identity trust (D-PROJECT-ATLAS-CLOUD-DEMO-RECOVERY-019)
 - [x] CORE-SEC-001 Implement content-based secret detection and redaction for
   pilot ingestion. Filename-only sensitive-file detection must not be treated
   as sufficient for real-project ingestion.
