@@ -41,6 +41,7 @@ from project_atlas.compat_anchor import (
     load_compatibility_anchor,
 )
 from project_atlas.config import load_config
+from project_atlas.connect import ConnectError, connect_project
 from project_atlas.context_pack import (
     ContextEntry,
     ContextPackError,
@@ -308,6 +309,51 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit a machine-readable JSON report to stdout (sorted keys).",
+    )
+
+    connect_parser = subparsers.add_parser(
+        "connect",
+        help=(
+            "Bind a project root to a Vault and run Core compile "
+            "(AS-CODER-ALPHA-CONNECT-001; never claims AUTHENTIC_PILOT)."
+        ),
+    )
+    connect_parser.add_argument(
+        "source",
+        nargs="?",
+        type=Path,
+        default=Path("."),
+        help="Project root to connect (default: current directory).",
+    )
+    connect_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Vault directory (default: .atlas/connect.json bind, else "
+            "<project>/.atlas-vault)."
+        ),
+    )
+    connect_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report the connect plan without writing anything.",
+    )
+    connect_parser.add_argument(
+        "--portfolio",
+        action="store_true",
+        help="Also run build-portfolio after indexes (optional).",
+    )
+    connect_parser.add_argument(
+        "--skip-validate",
+        action="store_true",
+        help="Skip atlas validate at the end of connect (not recommended).",
+    )
+    connect_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the connect receipt JSON to stdout (sorted keys).",
     )
 
     accept_graph_parser = subparsers.add_parser(
@@ -1670,6 +1716,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             print(doctor_render_text(doctor_report))
         return EXIT_OK if doctor_report.ok else EXIT_ERROR
+
+    if args.command == "connect":
+        try:
+            report = connect_project(
+                args.source,
+                vault=args.vault,
+                dry_run=args.dry_run,
+                include_portfolio=args.portfolio,
+                skip_validate=args.skip_validate,
+                excludes=config.discovery.exclude_globs,
+                max_file_size=config.discovery.max_file_size_bytes,
+            )
+        except (ConnectError, OSError) as exc:
+            _log.error("connect failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            status = report.get("status", "connected")
+            print(f"atlas connect [{status}]")
+            print(f"  project:   {report.get('project_root')}")
+            print(f"  vault:     {report.get('vault')}")
+            print(f"  vault_id:  {report.get('vault_id')}")
+            print(f"  projects:  {', '.join(report.get('projects') or []) or '(none)'}")
+            print(f"  documents: {report.get('documents_ingested', 0)}")
+            print(f"  bind:      {report.get('bind_path')}")
+            print(f"  receipt:   {report.get('receipt_path')}")
+            if status == "connected":
+                print(
+                    "  next: atlas ask2 --vault <vault> --project <id> "
+                    "--question 'What is this project?'"
+                )
+        return EXIT_OK
 
     if args.command == "build-indexes":
         try:

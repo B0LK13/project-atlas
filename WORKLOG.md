@@ -5310,3 +5310,56 @@ candidate blocked; Windows Phase C blocked.
 - Runtime `ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE = YES`;
   `OPEN_ELIGIBLE` governance-only (AutoLab not activated).
 - `CODEX_VALIDATED = NO`; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`.
+
+## D-PROJECT-ATLAS-CODER-ALPHA-035 Phase 2 — Journey capability audit
+
+**Date:** 2026-08-12
+**Branch:** cursor/coder-alpha-035-d036
+**Base:** main @ `322f55b56162bf324b8e5b19fb9759dffd0c7518`
+**Status:** complete (audit only; no product implementation in this package)
+
+### Plan
+Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-plane surfaces. Classify each step exactly one of IMPLEMENTED | PARTIAL | MISSING | DEMO_ONLY | NOT_PRODUCTIZED with evidence paths. No status inflation; DEMO_FIXTURE ≠ productization.
+
+### Results
+- Evidence: `docs/evidence/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.md`
+- Artifact: `/opt/cursor/artifacts/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.md`
+- Hard MISSING (at audit time): `atlas connect .`, `atlas handoff`, productized "what should I do next?"
+- Top dogfood gaps (at audit time): (1) one-command connect+compile, (2) auto-materialize ask/knowledge plane from Core (DEMO-FINDING-001), (3) Cursor context + handoff + default session capture
+- Note: `atlas connect` subsequently shipped as AS-CODER-ALPHA-CONNECT-001 on this branch; journey audit table updated accordingly.
+
+### Explicit non-claims
+- No AUTHENTIC_PILOT / RELEASE CERTIFIED / ALPHA_READY claimed
+- No handoff implementation shipped in the Phase-2 audit package
+
+## D-CODER-ALPHA-035 — Product rebase + AS-CODER-ALPHA-CONNECT-001
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-035
+**Branch:** cursor/coder-alpha-035-d036
+
+### Rebase
+- North star: persistent brain for AI-native projects (Knowledge / Context / Truth).
+- Roadmap reconcile + journey gap + backlog + dogfood contract:
+  `docs/CODER-ALPHA-035-REBASE.md`
+- Phase 2 evidence: `docs/evidence/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.md`
+
+### Executed package
+- **AS-CODER-ALPHA-CONNECT-001**: `atlas connect [source]`
+  - Module: `src/project_atlas/connect.py`
+  - CLI wired in `src/project_atlas/cli.py`
+  - Tests: `tests/unit/test_as_coder_alpha_connect_001.py`
+  - Chain: ensure vault → marker → discover → ingest → SEC-002 rediscover →
+    ingest → build-indexes → validate; bind `.atlas/connect.json`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- No AutoLab / authentic pilot / INT-013 / AS-GH-002
+- CODEX_VALIDATED: NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
+
+### CONNECT-001 remediation (pre-merge)
+- Marker now writes `project.id` slug + `project.name` (fixes `unknown-project`).
+- `DEFAULT_EXCLUDES` includes `.atlas-vault` / `.atlas` (path-part exclusion).
+- Connect receipt `documents_discovered` counts active (non-excluded) sources only.
+- Regression: rediscover active paths must not include in-tree vault/bind paths.

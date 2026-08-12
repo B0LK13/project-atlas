@@ -28,6 +28,9 @@ SENSITIVE_NAMES = {".env", "credentials.json", "secrets.pem", "id_rsa", "id_ed25
 DEFAULT_EXCLUDES = {
     ".git", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache",
     ".mypy_cache", ".ruff_cache", "dist", "build", ".tmp",
+    # Coder Alpha / local dogfood: in-tree vault + bind metadata must never
+    # re-enter discovery as project sources (AS-CODER-ALPHA-CONNECT-001).
+    ".atlas-vault", ".atlas",
 }
 
 # AS-CORE-003: static media-type map. mimetypes.guess_type() depends on the
