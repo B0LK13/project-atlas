@@ -126,6 +126,9 @@ Honesty stamps on every dogfood claim: `DEMO_FIXTURE != AUTHENTIC_PILOT`; UI ≠
 
 ## Phase 5 — Execution pointer
 
-First package: **`AS-CODER-ALPHA-CONNECT-001`** (`atlas connect .`).
+Shipped on `main`: CONNECT-001, OVERVIEW-001.  
+Next: **`AS-CODER-ALPHA-STATE-001`** (with D-037 north-star anchor) → CHANGED / DECISIONS / UNKNOWN → handoff/context.
+
+Durable product anchor: `docs/product/CODER-ALPHA-NORTH-STAR.md` (D-037).
 
 Standing D-032 autonomous merge authorization applies to routine certified merges. Escalate only genuine owner boundaries (authentic pilot, INT-013, AS-GH-002, OPT wake, external security).
