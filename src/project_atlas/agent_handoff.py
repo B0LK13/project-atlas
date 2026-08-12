@@ -254,6 +254,19 @@ def create_handoff(
     }
 
 
+def _resolve_handoff_pack_path(vault: Path, rel: str) -> Path:
+    """Resolve a handoff pack path fail-closed under ``HANDOFF_DIR`` (AT-013)."""
+    if not isinstance(rel, str) or not rel.strip():
+        raise AgentHandoffError("handoff path must be a non-empty relative string")
+    if rel.startswith("/") or "\\" in rel or ".." in Path(rel).parts:
+        raise AgentHandoffError(f"unsafe handoff path: {rel!r}")
+    handoff_root = (vault / HANDOFF_DIR).resolve()
+    candidate = (vault / rel).resolve()
+    if not candidate.is_relative_to(handoff_root):
+        raise AgentHandoffError(f"handoff path escapes handoff directory: {rel!r}")
+    return candidate
+
+
 def resume_handoff(
     vault: Path,
     *,
@@ -264,7 +277,9 @@ def resume_handoff(
     if handoff_id:
         if "/" in handoff_id or "\\" in handoff_id or handoff_id in {".", ".."}:
             raise AgentHandoffError(f"unsafe handoff id: {handoff_id!r}")
-        path = vault / HANDOFF_DIR / f"{handoff_id}.json"
+        path = _resolve_handoff_pack_path(
+            vault, (HANDOFF_DIR / f"{handoff_id}.json").as_posix()
+        )
     else:
         latest = vault / HANDOFF_DIR / "latest.json"
         if not latest.is_file():
@@ -276,7 +291,7 @@ def resume_handoff(
         rel = pointer.get("path") if isinstance(pointer, dict) else None
         if not isinstance(rel, str):
             raise AgentHandoffError("handoff latest pointer missing path")
-        path = vault / rel
+        path = _resolve_handoff_pack_path(vault, rel)
     if not path.is_file():
         raise AgentHandoffError(f"handoff pack missing: {path}")
     try:

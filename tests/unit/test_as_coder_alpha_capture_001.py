@@ -5,10 +5,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from project_atlas.agent_handoff import create_handoff, export_agent_context
+import pytest
+
+from project_atlas.agent_handoff import (
+    AgentHandoffError,
+    create_handoff,
+    export_agent_context,
+    resume_handoff,
+)
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.connect import connect_project
-from project_atlas.session_capture import capture_session, list_captures
+from project_atlas.session_capture import (
+    SessionCaptureError,
+    capture_session,
+    list_captures,
+)
 
 
 def _seed(root: Path) -> Path:
@@ -113,3 +124,55 @@ def test_cli_capture_record_and_list(tmp_path: Path) -> None:
         )
         == EXIT_OK
     )
+
+
+def test_capture_fail_closed_inputs(tmp_path: Path) -> None:
+    project = _seed(tmp_path / "capture-safety")
+    vault = Path(connect_project(project)["vault"])
+    with pytest.raises(SessionCaptureError):
+        capture_session(vault, "capture-safety", summary="   ")
+    with pytest.raises(SessionCaptureError):
+        capture_session(vault, "capture-safety", summary="ok", kind="invented")
+    with pytest.raises(SessionCaptureError):
+        capture_session(vault, "../escape", summary="ok")
+    with pytest.raises(SessionCaptureError):
+        capture_session(tmp_path / "missing-vault", "capture-safety", summary="ok")
+
+
+def test_resume_handoff_rejects_traversal_pointer(tmp_path: Path) -> None:
+    project = _seed(tmp_path / "pointer-fixture")
+    vault = Path(connect_project(project)["vault"])
+    create_handoff(
+        vault,
+        "pointer-fixture",
+        note="safe",
+        refresh_brief=False,
+        auto_capture=False,
+    )
+    outside = tmp_path / "outside-pack.json"
+    outside.write_text(
+        json.dumps({"handoff_id": "evil", "project_id": "pointer-fixture"}),
+        encoding="utf-8",
+    )
+    latest = vault / "generated" / "ops" / "handoffs" / "latest.json"
+    for bad_path in (
+        "../../outside-pack.json",
+        str(outside),
+        "generated\\ops\\handoffs\\x.json",
+    ):
+        latest.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "handoff_id": "evil",
+                    "path": bad_path,
+                    "project_id": "pointer-fixture",
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(AgentHandoffError):
+            resume_handoff(vault)

@@ -2,7 +2,7 @@
 
 **Directive:** D-PROJECT-ATLAS-CODER-ALPHA-OVERNIGHT-036  
 **Package:** AS-CODER-ALPHA-CAPTURE-001  
-**Result:** PASS (local gates before PR)
+**Result:** PASS after IV remediation (path-safe handoff resume)
 
 ## Acceptance checked
 
@@ -13,6 +13,8 @@
 - `atlas handoff create` semi-auto captures by default (`--no-capture` opt-out).
 - No wall-clock `generated_at`; UNKNOWN honesty stamps present.
 - Captures are ops receipts, not Layer B authority.
+- Independent IV F1 remediated: `resume_handoff` rejects `..`, absolute, and
+  backslash pointer paths before reading outside `generated/ops/handoffs/`.
 
 ## Commands
 
