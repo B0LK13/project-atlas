@@ -361,7 +361,7 @@ def build_parser() -> argparse.ArgumentParser:
         "overview",
         help=(
             "Materialize Project Overview derived answer lenses from Core "
-            "(AS-CODER-ALPHA-OVERVIEW-001; lens≠authority)."
+            "(AS-CODER-ALPHA-OVERVIEW-001; lens!=authority)."
         ),
     )
     overview_parser.add_argument(
