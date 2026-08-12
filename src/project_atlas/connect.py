@@ -250,6 +250,7 @@ def connect_project(
             "materialize_decisions",
             "materialize_unknown",
             "materialize_brief",
+            "materialize_obsidian",
             "write_bind",
             "write_receipt",
         ]
@@ -272,6 +273,7 @@ def connect_project(
         "decisions_answers": [],
         "unknown_answers": [],
         "brief_paths": [],
+        "obsidian_notes": [],
         "marker_created": False,
         "vault_created": False,
         "vault_id": None,
