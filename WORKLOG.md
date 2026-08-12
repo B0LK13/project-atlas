@@ -5443,3 +5443,20 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - ATLAS_OPT_WAKE_GATE: CLOSED
 - UNKNOWN stays UNKNOWN; no fabricated stack/decisions
 - CODEX_VALIDATED: NO
+
+## D-036 overnight — CONTEXT-001 + HANDOFF-001
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-OVERNIGHT-036
+**Branch:** cursor/coder-alpha-context-handoff-d036
+**Base:** main @ `bd65c88`
+
+### Packages
+- AS-CODER-ALPHA-CONTEXT-001 (`atlas context`)
+- AS-CODER-ALPHA-HANDOFF-001 (`atlas handoff create|resume`)
+- Module: `src/project_atlas/agent_handoff.py`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- no invented estate facts; UNKNOWN stays UNKNOWN
+- CODEX_VALIDATED: NO

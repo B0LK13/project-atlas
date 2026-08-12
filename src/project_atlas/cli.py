@@ -20,6 +20,12 @@ from project_atlas.adv_release_cert import (
     AdvReleaseCertError,
     run_fixture_adv_release_certification,
 )
+from project_atlas.agent_handoff import (
+    AgentHandoffError,
+    create_handoff,
+    export_agent_context,
+    resume_handoff,
+)
 from project_atlas.api_server import ApiServerError, serve_api
 from project_atlas.ask2 import Ask2Error, ask_atlas_2
 from project_atlas.ask2 import answer_to_json as ask2_answer_to_json
@@ -494,6 +500,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not rematerialize underlying lenses before briefing.",
     )
     brief_parser.add_argument("--json", action="store_true", dest="as_json")
+
+    context_parser = subparsers.add_parser(
+        "context",
+        help=(
+            "Export paste-ready agent context from the project brief "
+            "(AS-CODER-ALPHA-CONTEXT-001; lens!=authority)."
+        ),
+    )
+    context_parser.add_argument("--vault", type=Path, required=True)
+    context_parser.add_argument("--project", required=True)
+    context_parser.add_argument(
+        "--no-refresh",
+        action="store_true",
+        help="Do not refresh the underlying brief/lenses.",
+    )
+    context_parser.add_argument("--json", action="store_true", dest="as_json")
+
+    handoff_parser = subparsers.add_parser(
+        "handoff",
+        help=(
+            "Create or resume an agent handoff pack "
+            "(AS-CODER-ALPHA-HANDOFF-001)."
+        ),
+    )
+    handoff_sub = handoff_parser.add_subparsers(dest="handoff_command", required=True)
+    handoff_create = handoff_sub.add_parser(
+        "create", help="Create a durable handoff pack for another agent."
+    )
+    handoff_create.add_argument("--vault", type=Path, required=True)
+    handoff_create.add_argument("--project", required=True)
+    handoff_create.add_argument("--note", default=None)
+    handoff_create.add_argument("--no-refresh", action="store_true")
+    handoff_create.add_argument("--json", action="store_true", dest="as_json")
+    handoff_resume = handoff_sub.add_parser(
+        "resume", help="Resume from latest or named handoff pack."
+    )
+    handoff_resume.add_argument("--vault", type=Path, required=True)
+    handoff_resume.add_argument("--handoff-id", default=None)
+    handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
     accept_graph_parser = subparsers.add_parser(
         "accept-graph",
@@ -2051,6 +2096,57 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"  decisions:{brief.get('important_decisions')}")
                 print(f"  unknown:  {brief.get('unknown_or_conflicting')}")
                 print(f"  next:     {'; '.join(brief.get('suggested_next_work') or [])}")
+        return EXIT_OK
+
+    if args.command == "context":
+        try:
+            report = export_agent_context(
+                args.vault,
+                args.project,
+                refresh_brief=not args.no_refresh,
+            )
+        except (AgentHandoffError, OSError, ValueError) as exc:
+            _log.error("context failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas context [{report.get('status', 'ok')}]")
+            print(f"  project:  {report.get('project_id')}")
+            print(f"  markdown: {report.get('markdown_path')}")
+            print(f"  json:     {report.get('json_path')}")
+            print("  next: paste markdown into Cursor/Claude/Codex/ChatGPT")
+        return EXIT_OK
+
+    if args.command == "handoff":
+        try:
+            if args.handoff_command == "create":
+                report = create_handoff(
+                    args.vault,
+                    args.project,
+                    note=args.note,
+                    refresh_brief=not args.no_refresh,
+                )
+            else:
+                report = resume_handoff(args.vault, handoff_id=args.handoff_id)
+        except (AgentHandoffError, OSError, ValueError) as exc:
+            _log.error("handoff failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        elif args.handoff_command == "create":
+            print(f"atlas handoff create [{report.get('status', 'ok')}]")
+            print(f"  handoff:  {report.get('handoff_id')}")
+            print(f"  path:     {report.get('path')}")
+            print(f"  context:  {report.get('context_markdown')}")
+        else:
+            print(f"atlas handoff resume [{report.get('status', 'resumed')}]")
+            print(f"  handoff:  {report.get('handoff_id')}")
+            print(f"  project:  {report.get('project_id')}")
+            context = report.get("context") or {}
+            print(f"  context:  {context.get('markdown_path')}")
+            for item in report.get("resume_instructions") or []:
+                print(f"  - {item}")
         return EXIT_OK
 
     if args.command == "build-indexes":
