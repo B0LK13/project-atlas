@@ -19,6 +19,11 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
+from project_atlas.session_capture import (
+    capture_session,
+    list_captures,
+    render_captures_markdown,
+)
 
 PACKAGE_CONTEXT = "AS-CODER-ALPHA-CONTEXT-001"
 PACKAGE_HANDOFF = "AS-CODER-ALPHA-HANDOFF-001"
@@ -48,7 +53,10 @@ def _safe_project_id(project_id: str) -> str:
     return project_id
 
 
-def _render_context_markdown(brief: dict[str, Any]) -> str:
+def _render_context_markdown(
+    brief: dict[str, Any],
+    captures: list[dict[str, Any]] | None = None,
+) -> str:
     next_work = brief.get("suggested_next_work") or []
     evidence = brief.get("evidence_links") or []
     lines = [
@@ -87,6 +95,8 @@ def _render_context_markdown(brief: dict[str, Any]) -> str:
         lines.extend(f"- {item}" for item in next_work)
     else:
         lines.append("- UNKNOWN")
+    lines.extend(["", "## Session memory (captures)"])
+    lines.extend(render_captures_markdown(captures or []))
     lines.extend(["", "## Evidence links"])
     if isinstance(evidence, list) and evidence:
         lines.extend(f"- `{item}`" for item in evidence[:40])
@@ -121,13 +131,15 @@ def export_agent_context(
     except ProjectBriefError as exc:
         raise AgentHandoffError(str(exc)) from exc
 
-    markdown = _render_context_markdown(brief)
+    captures = list_captures(vault, project_id=project_id, limit=8)
+    markdown = _render_context_markdown(brief, captures=captures)
     payload = {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.agent-context.v1",
         "package": PACKAGE_CONTEXT,
         "project_id": project_id,
         "brief": brief,
+        "session_captures": captures,
         "markdown": markdown,
         "generated": {"by": GENERATOR_ID},
         "honesty": {
@@ -162,11 +174,26 @@ def create_handoff(
     *,
     note: str | None = None,
     refresh_brief: bool = True,
+    auto_capture: bool = True,
 ) -> dict[str, Any]:
-    """Create a durable handoff pack another agent can resume from."""
-    context = export_agent_context(vault, project_id, refresh_brief=refresh_brief)
+    """Create a durable handoff pack another agent can resume from.
+
+    When ``auto_capture`` is true (default), also writes a semi-auto session
+    capture so the next agent sees session memory without a separate ritual.
+    """
     vault = vault.expanduser().resolve()
     project_id = _safe_project_id(project_id)
+    capture_report: dict[str, Any] | None = None
+    if auto_capture:
+        summary = (note or "").strip() or f"Handoff created for project {project_id}"
+        capture_report = capture_session(
+            vault,
+            project_id,
+            summary=summary,
+            kind="handoff",
+            source="handoff-auto",
+        )
+    context = export_agent_context(vault, project_id, refresh_brief=refresh_brief)
     # Deterministic handoff id from content hash (no wall-clock).
     seed = json.dumps(context, sort_keys=True, separators=(",", ":")).encode("utf-8")
     handoff_id = "handoff-" + hashlib.sha256(seed).hexdigest()[:16]
@@ -177,11 +204,12 @@ def create_handoff(
         "handoff_id": handoff_id,
         "project_id": project_id,
         "context": context,
+        "session_capture": capture_report,
         "resume_instructions": [
             f"Read `{context['markdown_path']}` before coding",
             "Treat UNKNOWN as UNKNOWN; do not invent architecture/decisions",
             "Prefer vault Truth Core over chat memory",
-            "After meaningful work, re-run atlas connect and atlas handoff create",
+            "After meaningful work, run atlas capture record then atlas handoff create",
         ],
         "operator_note": note,
         "generated": {"by": GENERATOR_ID},
@@ -221,6 +249,7 @@ def create_handoff(
         "latest_path": latest.relative_to(vault).as_posix(),
         "project_id": project_id,
         "context_markdown": context["markdown_path"],
+        "session_capture": capture_report,
         "generated": {"by": GENERATOR_ID},
     }
 

@@ -5460,3 +5460,22 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - ATLAS_OPT_WAKE_GATE: CLOSED
 - no invented estate facts; UNKNOWN stays UNKNOWN
 - CODEX_VALIDATED: NO
+
+## D-036 overnight — CAPTURE-001
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-OVERNIGHT-036
+**Branch:** cursor/coder-alpha-capture-001-d036
+**Base:** main @ `2fee379`
+
+### Packages
+- AS-CODER-ALPHA-CAPTURE-001 (`atlas capture record|list`)
+- Semi-auto capture on `atlas handoff create` (default; `--no-capture` opt-out)
+- Session memory surfaced in `atlas context`
+- Module: `src/project_atlas/session_capture.py`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- ops receipt != Layer B authority
+- UNKNOWN stays UNKNOWN
+- CODEX_VALIDATED: NO
