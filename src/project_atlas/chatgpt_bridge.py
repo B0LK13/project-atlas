@@ -21,6 +21,11 @@ from project_atlas.secrets import scan_text
 PACKAGE_ID = "AS-2.1-CHATGPT-BRIDGE-001"
 TRUTH_BOUNDARY = "CHATGPT BRIDGE != LIVE CHATGPT API / != AUTHORITY / LLM!=AUTHORITY"
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+# D-INTEGRATE-007A §12: bound the on-disk export read so an oversized file
+# cannot exhaust memory. Mirrors the sibling openai_import_real.py ceiling:
+# check st_size before read_text and re-check the decoded UTF-8 length after,
+# failing closed on oversize. Read-only, bounded, project-scoped.
+MAX_EXPORT_BYTES = 2_000_000
 
 
 class ChatgptBridgeError(ValueError):
@@ -55,7 +60,12 @@ def bridge_chatgpt_export(
     src = export_path.resolve()
     if not src.is_file():
         raise ChatgptBridgeError("chatgpt-export-missing")
+    size = src.stat().st_size
+    if size <= 0 or size > MAX_EXPORT_BYTES:
+        raise ChatgptBridgeError("chatgpt-export-size-out-of-range")
     text = src.read_text(encoding="utf-8")
+    if len(text.encode("utf-8")) > MAX_EXPORT_BYTES:
+        raise ChatgptBridgeError("chatgpt-export-size-out-of-range")
     if scan_text(text):
         raise ChatgptBridgeError("chatgpt-export-secret-findings")
     turns = parse_chat_export(text)

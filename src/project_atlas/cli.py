@@ -21,6 +21,8 @@ from project_atlas.adv_release_cert import (
     run_fixture_adv_release_certification,
 )
 from project_atlas.api_server import ApiServerError, serve_api
+from project_atlas.ask2 import Ask2Error, ask_atlas_2
+from project_atlas.ask2 import answer_to_json as ask2_answer_to_json
 from project_atlas.authz import (
     AuthzError,
     publish_api_session_credentials,
@@ -88,6 +90,15 @@ from project_atlas.kf2_fabric import (
     register_namespace,
     register_relationship,
 )
+from project_atlas.knowledge_diff import (
+    AS_OF_KIND,
+    DEFAULT_SUBJECT_CAP,
+    KnowledgeDiffError,
+    diff_knowledge,
+    read_as_of,
+)
+from project_atlas.knowledge_diff import diff_to_json as kdiff_diff_to_json
+from project_atlas.knowledge_diff import snapshot_to_json as kdiff_snapshot_to_json
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
@@ -1199,6 +1210,95 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write derived package under generated/context-compiler/.",
     )
     runtime_compile.add_argument("--json", action="store_true")
+
+    # AS-2.2-KDIFF-001 — Knowledge Diff / Time Machine P0 (read-only; project-scoped).
+    kdiff_parser = subparsers.add_parser(
+        "kdiff",
+        help=(
+            "Knowledge Diff / Time Machine P0: read-only as-of read + T1->T2 diff "
+            "(AS-2.2-KDIFF-001; project-scoped; derived != authority; no writes)."
+        ),
+    )
+    kdiff_parser.add_argument("--vault", type=Path, required=True)
+    kdiff_parser.add_argument(
+        "--project",
+        type=str,
+        required=True,
+        help="Project scope (REQUIRED; fail-closed).",
+    )
+    kdiff_parser.add_argument(
+        "--as-of",
+        type=str,
+        default=None,
+        dest="as_of",
+        help="Declared valid-time for an as-of read (mutually exclusive with --from/--to).",
+    )
+    kdiff_parser.add_argument(
+        "--from",
+        type=str,
+        default=None,
+        dest="from_ref",
+        help="T1 declared valid-time for a T1->T2 diff.",
+    )
+    kdiff_parser.add_argument(
+        "--to",
+        type=str,
+        default=None,
+        dest="to_ref",
+        help="T2 declared valid-time for a T1->T2 diff.",
+    )
+    kdiff_parser.add_argument(
+        "--compilation-id",
+        type=str,
+        default=None,
+        dest="compilation_id",
+        help="Optional knowledge-compilation boundary (binds knowledge-time).",
+    )
+    kdiff_parser.add_argument(
+        "--subject-cap",
+        type=int,
+        default=None,
+        dest="subject_cap",
+        help="Bound subject+field fanout (default 500; max 5000).",
+    )
+    kdiff_parser.add_argument("--json", action="store_true")
+    # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler).
+    ask2_parser = subparsers.add_parser(
+        "ask2",
+        help=(
+            "Ask Atlas 2 read-only answer lens over project-scoped hybrid "
+            "retrieval + p2-readonly context compiler (AS-2.2-ASK2-001; "
+            "UNKNOWN stays UNKNOWN; UI != canonical; model != authority)."
+        ),
+    )
+    ask2_parser.add_argument("--vault", type=Path, required=True)
+    ask2_parser.add_argument("--question", type=str, required=True)
+    ask2_parser.add_argument(
+        "--project",
+        type=str,
+        required=True,
+        help="Project scope (structurally required; no cross-project answers).",
+    )
+    ask2_parser.add_argument(
+        "--kind",
+        action="append",
+        default=None,
+        dest="kind_args",
+        help="Record kind to probe (repeatable; default: concept, claim).",
+    )
+    ask2_parser.add_argument(
+        "--mode",
+        choices=("exact", "prefix"),
+        default="exact",
+    )
+    ask2_parser.add_argument("--budget", type=int, default=20)
+    ask2_parser.add_argument("--cap", type=int, default=20)
+    ask2_parser.add_argument(
+        "--no-legacy-scan",
+        action="store_true",
+        help="Disable the subordinate legacy substring compatibility scan.",
+    )
+    ask2_parser.add_argument("--json", action="store_true")
 
     # AS-2.0-CTX-001 — fixture-safe context packs with provenance pointers.
     ctx_parser = subparsers.add_parser(
@@ -2590,6 +2690,84 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(  # pragma: no cover
             f"unknown runtime command: {args.runtime_command}"
         )
+
+    if args.command == "kdiff":
+        as_of: str | None = args.as_of
+        from_ref: str | None = args.from_ref
+        to_ref: str | None = args.to_ref
+        subject_cap = args.subject_cap if args.subject_cap is not None else DEFAULT_SUBJECT_CAP
+        if as_of is not None and (from_ref is not None or to_ref is not None):
+            _log.error("kdiff --as-of is mutually exclusive with --from/--to")
+            return EXIT_ERROR
+        try:
+            if as_of is not None:
+                report = read_as_of(
+                    args.vault,
+                    project_id=args.project,
+                    as_of_valid_time=as_of,
+                    knowledge_compilation_id=args.compilation_id,
+                    subject_cap=subject_cap,
+                )
+                serialize = kdiff_snapshot_to_json
+            elif from_ref is not None and to_ref is not None:
+                report = diff_knowledge(
+                    args.vault,
+                    project_id=args.project,
+                    t1=from_ref,
+                    t2=to_ref,
+                    knowledge_compilation_id=args.compilation_id,
+                    subject_cap=subject_cap,
+                )
+                serialize = kdiff_diff_to_json
+            else:
+                _log.error("kdiff requires either --as-of or both --from and --to")
+                return EXIT_ERROR
+        except KnowledgeDiffError as exc:
+            _log.error("kdiff failed: %s", exc)
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+        if args.json:
+            print(serialize(report), end="")
+        else:
+            print(f"package_id: {report['package_id']}")
+            print(f"artifact_kind: {report['artifact_kind']}")
+            print(f"status: {report['status']}")
+            if report["artifact_kind"] == AS_OF_KIND:
+                print(f"cells: {report['cell_count']}")
+                print(f"unresolved: {len(report['unresolved'])}")
+            else:
+                print(f"changes: {report['change_count']}")
+                print(f"unresolved_delta: {len(report['unresolved_delta'])}")
+            print(f"truncated: {report['truncated']}")
+            print(f"truth_boundary: {report['truth_boundary']}")
+        return EXIT_OK
+    if args.command == "ask2":
+        kinds = tuple(args.kind_args) if args.kind_args else ("concept", "claim")
+        try:
+            answer = ask_atlas_2(
+                args.vault,
+                question=args.question,
+                project_id=args.project,
+                kinds=kinds,
+                mode=args.mode,
+                budget=args.budget,
+                retrieval_cap=args.cap,
+                legacy_scan=not bool(args.no_legacy_scan),
+            )
+        except Ask2Error as exc:
+            _log.error("ask2 failed: %s", exc)
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+        if args.json:
+            print(ask2_answer_to_json(answer), end="")
+        else:
+            print(f"status: {answer['status']}")
+            print(f"evidence: {answer['evidence_count']}")
+            print(f"freshness: {answer['FRESHNESS']['aggregate']}")
+            print(f"conflicts: {answer['CONFLICTS']['unresolved_count']}")
+            print(f"legacy_subordinate_matches: {answer['legacy_compatibility']['match_count']}")
+            print(f"truth_boundary: {answer['truth_boundary']}")
+        return EXIT_OK
 
     if args.command == "context-pack":
         if args.context_pack_command == "build":

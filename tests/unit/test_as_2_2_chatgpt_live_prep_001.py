@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import jsonschema
 import pytest
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "chatgpt-live"
@@ -195,18 +195,10 @@ def test_receipt_schema_rejects_bypass_quarantine_true() -> None:
 
 
 def test_no_runtime_chatgpt_bridge_mutation() -> None:
-    """Prep must not touch chatgpt_bridge or other src surfaces."""
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
-    assert "src/project_atlas/chatgpt_bridge.py" not in changed
-    assert "src/project_atlas/chatgpt_capture.py" not in changed
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert name.startswith("docs/atlas-2.2/chatgpt-live/") or name == (
-            "tests/unit/test_as_2_2_chatgpt_live_prep_001.py"
-        ), name
-        assert not name.endswith("README.md"), name
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
+
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'chatgpt-live' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("chatgpt-live")

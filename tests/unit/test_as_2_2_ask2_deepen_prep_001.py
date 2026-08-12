@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import jsonschema
 import pytest
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "ask-atlas-2"
@@ -193,17 +193,10 @@ def test_lens_schema_rejects_missing_required_fields() -> None:
 
 
 def test_no_runtime_ask_atlas_live_mutation() -> None:
-    """Prep must not touch ask_atlas_live or other src surfaces."""
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
-    assert "src/project_atlas/ask_atlas_live.py" not in changed
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert name.startswith("docs/atlas-2.2/ask-atlas-2/") or name == (
-            "tests/unit/test_as_2_2_ask2_deepen_prep_001.py"
-        ), name
-        assert not name.endswith("README.md"), name
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
+
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'ask-atlas-2' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("ask-atlas-2")
