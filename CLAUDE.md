@@ -74,6 +74,8 @@ atlas changed --vault <vault-dir> [--project <id>]          # What Changed lens
 atlas decisions --vault <vault-dir> [--project <id>]        # Decision memory lens
 atlas unknown --vault <vault-dir> [--project <id>]          # Unknown/conflict lens
 atlas brief --vault <vault-dir> [--project <id>]            # Unified project brief
+atlas context --vault <vault-dir> --project <id>            # Agent context export
+atlas handoff create|resume --vault <vault-dir> ...         # Cross-agent handoff
 
 atlas doctor [--vault <vault-dir>] [--json]                 # environment/vault diagnostics
 atlas ask2 --vault <dir> --project <p> --question "..."     # Ask Atlas 2 (read-only)
