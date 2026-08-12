@@ -2,7 +2,7 @@
 
 **Directive:** D-PROJECT-ATLAS-CODER-ALPHA-OVERNIGHT-036  
 **Package:** AS-CODER-ALPHA-HUMAN-LOOP-001  
-**Result:** PASS (local gates before PR)
+**Result:** PASS after IV remediation (unknown lens uses live pending queue)
 
 ## Acceptance checked
 
