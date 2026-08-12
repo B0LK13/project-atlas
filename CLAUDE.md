@@ -71,6 +71,9 @@ atlas connect [source] [--vault <dir>]                      # Coder Alpha bind+c
 atlas overview --vault <vault-dir> [--project <id>]         # Project Overview lens
 atlas state --vault <vault-dir> [--project <id>]            # Current State lens
 atlas changed --vault <vault-dir> [--project <id>]          # What Changed lens
+atlas decisions --vault <vault-dir> [--project <id>]        # Decision memory lens
+atlas unknown --vault <vault-dir> [--project <id>]          # Unknown/conflict lens
+atlas brief --vault <vault-dir> [--project <id>]            # Unified project brief
 
 atlas doctor [--vault <vault-dir>] [--json]                 # environment/vault diagnostics
 atlas ask2 --vault <dir> --project <p> --question "..."     # Ask Atlas 2 (read-only)

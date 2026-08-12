@@ -247,6 +247,9 @@ def connect_project(
             "materialize_overview",
             "materialize_state",
             "materialize_changed",
+            "materialize_decisions",
+            "materialize_unknown",
+            "materialize_brief",
             "write_bind",
             "write_receipt",
         ]
@@ -266,6 +269,9 @@ def connect_project(
         "overview_answers": [],
         "state_answers": [],
         "changed_answers": [],
+        "decisions_answers": [],
+        "unknown_answers": [],
+        "brief_paths": [],
         "marker_created": False,
         "vault_created": False,
         "vault_id": None,
@@ -339,15 +345,21 @@ def connect_project(
             run_build_portfolio(vault_path)
         if not skip_validate:
             validate(vault_path)
-        # AS-CODER-ALPHA-OVERVIEW-001 / STATE-001: derived lenses for Knowledge
-        # + Ask-live after connect (DEMO-FINDING-001 partial).
+        # Coder Alpha derived lenses for Knowledge/Ask-live + project brief.
         from project_atlas.overview import materialize_overview_lenses
+        from project_atlas.project_brief import materialize_project_briefs
         from project_atlas.project_changed import materialize_changed_lenses
+        from project_atlas.project_decisions import materialize_decisions_lenses
         from project_atlas.project_state import materialize_state_lenses
+        from project_atlas.project_unknown import materialize_unknown_lenses
 
         overview = materialize_overview_lenses(vault_path)
         state = materialize_state_lenses(vault_path)
         changed = materialize_changed_lenses(vault_path, manifest=manifest)
+        decisions = materialize_decisions_lenses(vault_path)
+        unknown = materialize_unknown_lenses(vault_path)
+        # refresh=False: lenses just written above.
+        brief = materialize_project_briefs(vault_path, refresh=False)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ConnectError(str(exc)) from exc
 
@@ -361,6 +373,9 @@ def connect_project(
     report["state_answers"] = state.get("answers_written", [])
     report["changed_answers"] = changed.get("answers_written", [])
     report["changed_delta"] = changed.get("delta", {})
+    report["decisions_answers"] = decisions.get("answers_written", [])
+    report["unknown_answers"] = unknown.get("answers_written", [])
+    report["brief_paths"] = brief.get("briefs_written", [])
 
     bind_path = _write_bind(
         project_root,
