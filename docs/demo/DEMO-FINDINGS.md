@@ -26,6 +26,7 @@ CRITICAL or HIGH open items **block** `TECHNICAL_DEMO_VERIFIED=YES`.
 | Observation | After `discover → ingest → build-indexes → validate`, `generated/answers/` is absent. AppService/MCP knowledge lists are empty until operator materializes answer JSON. Ask live matches only `answer_id`/`subject`/`field`/`path` (no title/summary in listing rows), so natural-language “PostgreSQL” queries miss even when answers exist. |
 | Impact | Audience Ask prompts need either seeded demo answer lens files or subject-token queries (`harbor-database`, `project-b`). |
 | Mitigation used | Throwaway vault seeded with conflict/dependency answer lens files derived from conflict index + claims (**null value**, conflict status; not an invented winner). |
+| Partial remediations | Listing exposes `title`/`summary`/`value_text`; Ask live + MCP NL match use those fields when answer files exist. Pipeline still does **not** auto-emit `generated/answers/` (operator/demo seed remains required). |
 | Release note | Does not unblock release; authentic pilot still required for RC. |
 
 ### DEMO-FINDING-002 — MEDIUM — Dual DEMO_FIXTURE estates diverge on conflict extraction

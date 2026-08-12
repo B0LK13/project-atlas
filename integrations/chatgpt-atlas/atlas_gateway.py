@@ -196,7 +196,17 @@ def search(vault: Path, query: str, project_scope: str | None = None, limit: int
 
     for answer in list_knowledge_answers(vault):
         haystack = " ".join(
-            str(part) for part in (answer.get("answer_id"), answer.get("subject"), answer.get("field")) if part
+            str(part)
+            for part in (
+                answer.get("answer_id"),
+                answer.get("subject"),
+                answer.get("field"),
+                answer.get("title"),
+                answer.get("summary"),
+                answer.get("value_text"),
+                answer.get("path"),
+            )
+            if part
         ).lower()
         if project_scope and project_scope.lower() not in haystack:
             continue
@@ -206,7 +216,9 @@ def search(vault: Path, query: str, project_scope: str | None = None, limit: int
                     "type": "knowledge",
                     "id": answer["answer_id"],
                     "project_id": None,
-                    "title": answer.get("subject") or answer["answer_id"],
+                    "title": answer.get("title")
+                    or answer.get("subject")
+                    or answer["answer_id"],
                     "ref": f"knowledge:{answer['answer_id']}",
                 }
             )
@@ -265,7 +277,14 @@ def _knowledge_matches_project(answer: dict[str, Any], project_id: str) -> bool:
     needle = project_id.lower()
     haystack = " ".join(
         str(part)
-        for part in (answer.get("answer_id"), answer.get("subject"), answer.get("field"), answer.get("path"))
+        for part in (
+            answer.get("answer_id"),
+            answer.get("subject"),
+            answer.get("field"),
+            answer.get("path"),
+            answer.get("title"),
+            answer.get("summary"),
+        )
         if part
     ).lower()
     return needle in haystack

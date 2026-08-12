@@ -52,8 +52,11 @@ def ask_atlas_live(
         for k in knowledge
         if q_lower in str(k.get("subject") or "").lower()
         or q_lower in str(k.get("answer_id") or "").lower()
+        or q_lower in str(k.get("field") or "").lower()
+        or q_lower in str(k.get("path") or "").lower()
         or q_lower in str(k.get("title") or "").lower()
         or q_lower in str(k.get("summary") or "").lower()
+        or q_lower in str(k.get("value_text") or "").lower()
     ]
     vault_health = health.get("vault_health") or {}
     health_hits: list[str] = []

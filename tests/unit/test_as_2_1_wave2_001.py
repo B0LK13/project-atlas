@@ -101,6 +101,35 @@ def test_ask_atlas_live(tmp_path: Path) -> None:
     assert report["matches"]["projects"][0]["project_id"] == "alpha"
 
 
+def test_ask_atlas_live_matches_knowledge_title(tmp_path: Path) -> None:
+    """DEMO-FINDING-001 residual: NL tokens match listing title/summary/value_text."""
+    vault = tmp_path / "v"
+    (vault / "projects" / "harbor-database").mkdir(parents=True)
+    answers = vault / "generated" / "answers"
+    answers.mkdir(parents=True)
+    (answers / "ans-postgres-conflict.json").write_text(
+        json.dumps(
+            {
+                "answer_id": "ans-postgres-conflict",
+                "subject": "harbor-database",
+                "field": "engine_version",
+                "title": "PostgreSQL version conflict",
+                "summary": "Unresolved 15 vs 16",
+                "value": None,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    report = ask_atlas_live(vault, query="PostgreSQL")
+    assert report["live_ask"] is True
+    knowledge = report["matches"]["knowledge"]
+    assert len(knowledge) == 1
+    assert knowledge[0]["answer_id"] == "ans-postgres-conflict"
+    assert knowledge[0]["title"] == "PostgreSQL version conflict"
+
+
 def test_api_ask_and_actions(tmp_path: Path) -> None:
     vault = tmp_path / "v"
     (vault / "projects" / "beta").mkdir(parents=True)

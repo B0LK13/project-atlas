@@ -32,12 +32,22 @@ def test_as_web_accept_002_knowledge_lists_answers(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     _write(
         vault / "generated" / "answers" / "a1.json",
-        {"answer_id": "ans-1", "subject": "proj", "field": "status", "value": "active"},
+        {
+            "answer_id": "ans-1",
+            "subject": "proj",
+            "field": "status",
+            "title": "PostgreSQL version conflict",
+            "summary": "Unresolved 15 vs 16 lens",
+            "value": "active",
+        },
     )
     rows = list_knowledge_answers(vault)
     assert len(rows) == 1
     assert rows[0]["answer_id"] == "ans-1"
     assert rows[0]["has_value"] is True
+    assert rows[0]["title"] == "PostgreSQL version conflict"
+    assert rows[0]["summary"] == "Unresolved 15 vs 16 lens"
+    assert rows[0]["value_text"] == "active"
 
 
 def test_as_web_accept_002_graph_absent_unknown(tmp_path: Path) -> None:
