@@ -11,6 +11,7 @@ import OpsHealthPage from "./pages/production/OpsHealthPage";
 import CommandCenterPage from "./pages/production/CommandCenterPage";
 import MissionControlPage from "./pages/production/MissionControlPage";
 import WorkspacePage from "./pages/production/WorkspacePage";
+import TimeMachinePage from "./pages/production/TimeMachinePage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/mission-control" element={<MissionControlPage />} />
       <Route path="/workspace" element={<WorkspacePage />} />
+      <Route path="/time-machine" element={<TimeMachinePage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />
       <Route path="/design-lab/cartograph-quiet" element={<CartographQuietPage />} />

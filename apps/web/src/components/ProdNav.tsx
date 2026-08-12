@@ -4,6 +4,7 @@ const PROD_LINKS = [
   { to: "/", label: "Home", end: true },
   { to: "/projects", label: "Projects" },
   { to: "/knowledge", label: "Knowledge" },
+  { to: "/time-machine", label: "Time Machine" },
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
   { to: "/command-center", label: "Command Center" },
