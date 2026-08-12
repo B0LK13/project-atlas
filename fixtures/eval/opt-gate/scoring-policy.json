@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "version": "AS-OPT-GATE-001-SCORING-1",
+  "package_id": "AS-OPT-GATE-001",
+  "public_scorer": "project_atlas.eval_substrate.score_cases",
+  "holdout_scorer": "project_atlas.scoring_broker.ScoringBrokerSession.submit",
+  "caller_supplied_scores_accepted": false,
+  "subjective_scores_accepted": false
+}

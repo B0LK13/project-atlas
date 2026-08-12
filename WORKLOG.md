@@ -5180,3 +5180,87 @@ candidate blocked; Windows Phase C blocked.
 - unit + integration AS-DEMO-2.2-RECOVERY-ID-* PASS
 - ruff + mypy on touched surfaces PASS
 - Snapshot trust properties preserved (no weaken)
+
+## AS-OPT-GATE-001 — governed experiment and promotion boundary
+
+**Date:** 2026-08-12
+**Branch:** cursor/opt-gate-experiment-boundary-592a
+**Directive:** D-PROJECT-ATLAS-OPT-GATE-027
+**Base:** origin/main `754bb266fa2d2ff39089c4e587c9b90eacd841fd` / TREE `c481c1aa6ba408a16b176d5326f209d6a76b6c42`
+
+### Scope
+- Hard-gate contract (nine PASS/FAIL gates; UNKNOWN never counts as PASS)
+- Sealed experiment envelope + mid-run digest verify
+- Privacy-safe experiment receipt (no holdout expected answers)
+- Promotion engine: PROMOTE_ELIGIBLE / REJECT / INVALID_EXPERIMENT
+- Anti-gaming A-G, fail-closed, and security IV tests
+- Reuses `eval_substrate.score_cases` + out-of-process scoring broker
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- No AutoLab / OPT loops / retrieval-prompt-model mutation / merge / deploy
+- EVALUATOR_STABLE: not declared here (independent evaluator after merge)
+- CODEX_VALIDATED: NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
+
+## AS-OPT-GATE-001 IV remediation — honesty catalog object seal
+
+**Date:** 2026-08-12
+**Branch:** cursor/opt-gate-experiment-boundary-592a
+**PR:** #321 (same PR; no second remediation PR)
+**Directive:** D-PROJECT-ATLAS-OPT-GATE-REMEDIATE-030
+**Validated failing HEAD:** `450abfd7445b8dd429003c396479f62523f4fb67`
+**Validated failing TREE:** `73f9f46498016c93be93e28daee4815c6d2206cb`
+**Base:** `754bb266fa2d2ff39089c4e587c9b90eacd841fd`
+
+### Defects
+- OPT-GATE-SEAL-HOLDOUT-CATALOG-OBJECT-DIGEST-MISSING: seal hashed honesty-catalog
+  file bytes only; in-memory `SealedEnvelope.honesty_catalog` mutation could keep
+  `seal_valid = True` while vacating UNKNOWN/CONFLICT or expanding evidence.
+- Receipt threshold binding: `verify_experiment_receipt` recomputed promotion
+  with hardcoded `min_public_matched_delta=0`, so a quality-threshold REJECT
+  could be forged to `PROMOTE_ELIGIBLE` after digest rewrite.
+
+### Fix
+- Canonical semantic digest of evaluation-consumed honesty catalog; bind both
+  `honesty_catalog_file` and `honesty_catalog_object` at seal; verify recomputes
+  the live object digest every time.
+- Persist sealed decision thresholds + `threshold_object_digest` on the receipt;
+  verify recomputes with those bound values.
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- No AutoLab / OPT wake / retrieval-prompt-model mutation / merge / deploy
+- EVALUATOR_STABLE: not declared
+- CODEX_VALIDATED: NO
+- PR_321_CERTIFIED_MERGE_ELIGIBLE: not claimed here (independent IV)
+
+## AS-OPT-GATE-001 IV remediation — receipt threshold downgrade binding
+
+**Date:** 2026-08-12
+**Branch:** cursor/opt-gate-experiment-boundary-592a
+**PR:** #321
+**Directive:** D-PROJECT-ATLAS-CLOUD-AUTONOMOUS-E2E-032 (closes D-031 residual)
+**Prior IV failing HEAD:** `726fa0506c3a72c09235566ed5fec8077afad245`
+**Prior IV failing TREE:** `635031840d9f3b87bc0ce1b3f2a021ff919503fb`
+
+### Defect
+- OPT-GATE-RECEIPT-THRESHOLD-DOWNGRADE-REDIGEST: `verify_experiment_receipt`
+  trusted caller-supplied `receipt["thresholds"]`. A REJECT receipt under
+  sealed non-zero thresholds could be rewritten to zero thresholds, digests
+  recomputed, `PROMOTE_ELIGIBLE` set, and verification accepted.
+
+### Fix
+- Persist `envelope_digest`; bind run_identity to envelope + threshold/honesty
+  object digests.
+- `PROMOTE_ELIGIBLE` verification requires sealed experiment anchors
+  (`sealed_envelope` or explicit sealed digests). Threshold substitution /
+  zero-downgrade + redigest fails closed against those anchors.
+- Session execute always verifies with the live sealed envelope.
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- No AutoLab / OPT wake / merge / deploy
+- EVALUATOR_STABLE: not declared
+- CODEX_VALIDATED: NO
+- PR_321_CERTIFIED_MERGE_ELIGIBLE: not claimed here (independent IV)

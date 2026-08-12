@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/opt-experiment-receipt.schema.json",
+  "title": "OptExperimentReceipt",
+  "description": "AS-OPT-GATE-001 governed experiment receipt. Reconstructs the promotion decision without private holdout expected answers, raw holdout cases, or scoring secrets. additionalProperties:false fails closed against leakage and forged extra fields. Semantic content is deterministic (no wall-clock).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "receipt_schema_version",
+    "experiment_id",
+    "run_identity",
+    "repository_head",
+    "repository_tree",
+    "baseline_configuration",
+    "baseline_configuration_digest",
+    "candidate_configuration",
+    "candidate_configuration_digest",
+    "evaluator_version",
+    "evaluator_digest",
+    "public_dataset_digest",
+    "holdout_broker_version",
+    "holdout_broker_digest",
+    "scoring_policy_version",
+    "scoring_policy_digest",
+    "hard_gate_policy_version",
+    "hard_gate_policy_digest",
+    "threshold_version",
+    "threshold_digest",
+    "threshold_object_digest",
+    "thresholds",
+    "envelope_digest",
+    "honesty_catalog_file_digest",
+    "honesty_catalog_object_digest",
+    "seed",
+    "hard_gate_outcomes",
+    "public_quality",
+    "holdout_aggregate",
+    "non_regression",
+    "promotion_decision",
+    "decision_reason",
+    "quality_score_considered",
+    "experiment_valid",
+    "seal_valid",
+    "scoring_authority",
+    "opt_woken",
+    "atlas_opt_wake_gate",
+    "authority_promoted",
+    "rl_enabled",
+    "prime_enabled",
+    "truth_boundary",
+    "generated",
+    "receipt_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-OPT-GATE-001" },
+    "receipt_schema_version": { "const": 1 },
+    "experiment_id": { "type": "string", "minLength": 1, "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+    "run_identity": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "repository_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "repository_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "baseline_configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline_id"],
+      "properties": {
+        "baseline_id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "seed": { "type": ["integer", "null"] },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "integer", "boolean", "null"] }
+        }
+      }
+    },
+    "baseline_configuration_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "candidate_configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id"],
+      "properties": {
+        "candidate_id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "seed": { "type": ["integer", "null"] },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "integer", "boolean", "null"] }
+        }
+      }
+    },
+    "candidate_configuration_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "evaluator_version": { "type": "string", "minLength": 1 },
+    "evaluator_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "public_dataset_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "holdout_broker_version": { "type": "string", "minLength": 1 },
+    "holdout_broker_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "scoring_policy_version": { "type": "string", "minLength": 1 },
+    "scoring_policy_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "hard_gate_policy_version": { "type": "string", "minLength": 1 },
+    "hard_gate_policy_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "threshold_version": { "type": "string", "minLength": 1 },
+    "threshold_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "threshold_object_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "min_public_matched_delta",
+        "min_public_rate_improvement_millis",
+        "holdout_non_regression",
+        "require_holdout_scored"
+      ],
+      "properties": {
+        "min_public_matched_delta": { "type": "integer" },
+        "min_public_rate_improvement_millis": { "type": "integer" },
+        "holdout_non_regression": { "const": true },
+        "require_holdout_scored": { "const": true }
+      }
+    },
+    "envelope_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "honesty_catalog_file_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "honesty_catalog_object_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "seed": { "type": ["integer", "null"] },
+    "hard_gate_outcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "security",
+        "provenance_integrity",
+        "authority_integrity",
+        "unknown_honesty",
+        "conflict_honesty",
+        "evidence_integrity",
+        "determinism",
+        "project_isolation",
+        "holdout_isolation"
+      ],
+      "properties": {
+        "security": { "enum": ["PASS", "FAIL"] },
+        "provenance_integrity": { "enum": ["PASS", "FAIL"] },
+        "authority_integrity": { "enum": ["PASS", "FAIL"] },
+        "unknown_honesty": { "enum": ["PASS", "FAIL"] },
+        "conflict_honesty": { "enum": ["PASS", "FAIL"] },
+        "evidence_integrity": { "enum": ["PASS", "FAIL"] },
+        "determinism": { "enum": ["PASS", "FAIL"] },
+        "project_isolation": { "enum": ["PASS", "FAIL"] },
+        "holdout_isolation": { "enum": ["PASS", "FAIL"] }
+      }
+    },
+    "public_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "candidate"],
+      "properties": {
+        "baseline": { "$ref": "#/$defs/scoreCounts" },
+        "candidate": { "$ref": "#/$defs/scoreCounts" }
+      }
+    },
+    "holdout_aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "candidate", "scored"],
+      "properties": {
+        "baseline": { "$ref": "#/$defs/scoreCounts" },
+        "candidate": { "$ref": "#/$defs/scoreCounts" },
+        "scored": { "type": "boolean" }
+      }
+    },
+    "non_regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "holdout",
+        "security",
+        "provenance",
+        "authority",
+        "unknown_honesty",
+        "conflict_honesty"
+      ],
+      "properties": {
+        "holdout": { "type": "boolean" },
+        "security": { "type": "boolean" },
+        "provenance": { "type": "boolean" },
+        "authority": { "type": "boolean" },
+        "unknown_honesty": { "type": "boolean" },
+        "conflict_honesty": { "type": "boolean" }
+      }
+    },
+    "promotion_decision": {
+      "enum": ["PROMOTE_ELIGIBLE", "REJECT", "INVALID_EXPERIMENT"]
+    },
+    "decision_reason": { "type": "string", "minLength": 1 },
+    "quality_score_considered": { "type": "boolean" },
+    "experiment_valid": { "type": "boolean" },
+    "seal_valid": { "type": "boolean" },
+    "scoring_authority": { "const": "engine" },
+    "opt_woken": { "const": false },
+    "atlas_opt_wake_gate": { "const": "CLOSED" },
+    "authority_promoted": { "const": false },
+    "rl_enabled": { "const": false },
+    "prime_enabled": { "const": false },
+    "truth_boundary": { "type": "string", "minLength": 1 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    },
+    "receipt_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "scoreCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cases_scored", "cases_matched", "cases_missed"],
+      "properties": {
+        "cases_scored": { "type": "integer", "minimum": 0 },
+        "cases_matched": { "type": "integer", "minimum": 0 },
+        "cases_missed": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
