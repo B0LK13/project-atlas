@@ -272,6 +272,7 @@ def test_case_known_packages_present_record(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="known",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=candidates,
         budget=20,
@@ -303,6 +304,7 @@ def test_case_unknown_returns_nothing_and_refuses_invention(tmp_path: Path) -> N
         compile_context(
             vault,
             pack_id="unknown",
+            project_id=PROJECT_A,
             profile_id="p2-readonly",
             candidates=[
                 {
@@ -337,6 +339,7 @@ def test_case_multi_field_distinct_fields_same_subject(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="multi-field",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=candidates,
         budget=20,
@@ -360,6 +363,7 @@ def test_case_conflict_retained_and_excludable(tmp_path: Path) -> None:
     retained = compile_context(
         vault,
         pack_id="conflict-keep",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=candidates,
         budget=20,
@@ -374,6 +378,7 @@ def test_case_conflict_retained_and_excludable(tmp_path: Path) -> None:
     excluded = compile_context(
         vault,
         pack_id="conflict-drop",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         include_unresolved_conflicts=False,
         candidates=candidates,
@@ -395,6 +400,7 @@ def test_case_stale_freshness_from_portfolio(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="stale",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=_scoped_candidates(vault, "claim-stale-metric", PROJECT_A),
         budget=20,
@@ -415,6 +421,7 @@ def test_case_freshness_unknown_never_invents_fresh(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="fresh-unknown",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=candidates,
         budget=20,
@@ -477,6 +484,7 @@ def test_case_authority_difference_orders_by_full_rank(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="authority-diff",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=candidates,
         budget=20,
@@ -504,6 +512,7 @@ def test_case_authority_difference_rejects_upward_spoof(
         compile_context(
             vault,
             pack_id="spoof",
+            project_id=PROJECT_A,
             profile_id="p2-readonly",
             candidates=[
                 {
@@ -528,12 +537,18 @@ def test_case_graph_only_is_summary_and_never_authority(tmp_path: Path) -> None:
     """
     vault = _matrix_vault(tmp_path)
     without_graph = hybrid_retrieve(
-        vault, kind="claim", value="claim-known-", mode="prefix", cap=20
+        vault,
+        kind="claim",
+        value="claim-known-",
+        project_id=PROJECT_A,
+        mode="prefix",
+        cap=20,
     )
     with_graph = hybrid_retrieve(
         vault,
         kind="claim",
         value="claim-known-",
+        project_id=PROJECT_A,
         mode="prefix",
         cap=20,
         include_graph_slot=True,
@@ -556,6 +571,7 @@ def test_case_graph_only_is_summary_and_never_authority(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="graph-only",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=with_graph["candidates"],
         budget=20,
@@ -605,6 +621,7 @@ def test_case_high_fanout_dedupe_and_cap(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="high-fanout",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=candidates,
         budget=MAX_CAP,
@@ -635,6 +652,7 @@ def test_case_budget_overflow_truncates_or_fails_closed(tmp_path: Path) -> None:
     truncated = compile_context(
         vault,
         pack_id="overflow-truncate",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=candidates,
         budget=5,
@@ -650,6 +668,7 @@ def test_case_budget_overflow_truncates_or_fails_closed(tmp_path: Path) -> None:
         compile_context(
             vault,
             pack_id="overflow-fail",
+            project_id=PROJECT_A,
             profile_id="p2-readonly",
             candidates=candidates,
             budget=5,
@@ -666,6 +685,7 @@ def test_case_malformed_input_hygiene_and_query_bounds(tmp_path: Path) -> None:
     package = compile_context(
         vault,
         pack_id="malformed",
+        project_id=PROJECT_A,
         profile_id="p2-readonly",
         candidates=[
             "not-a-dict",  # type: ignore[list-item]
@@ -706,6 +726,7 @@ def test_case_malformed_input_hygiene_and_query_bounds(tmp_path: Path) -> None:
         compile_context(
             vault,
             pack_id="bad-budget",
+            project_id=PROJECT_A,
             profile_id="p2-readonly",
             candidates=[],
             budget=3.5,  # type: ignore[arg-type]
@@ -726,6 +747,7 @@ def test_case_replay_determinism_byte_identical(tmp_path: Path) -> None:
         package = compile_context(
             vault,
             pack_id="replay",
+            project_id=PROJECT_A,
             profile_id="p2-readonly",
             candidates=candidates,
             budget=20,
