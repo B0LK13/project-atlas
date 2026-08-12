@@ -61,8 +61,12 @@ def test_review_decide_accept_and_unknown_drop(tmp_path: Path) -> None:
             encoding="utf-8"
         )
     )
-    # Count of pending should exclude the decided entry.
-    assert unknown["signals"]["pending_reviews"] >= 0
+    pending_left = sum(
+        1
+        for entry in pending["entries"]
+        if isinstance(entry, dict) and entry.get("status") == "pending"
+    )
+    assert unknown["signals"]["pending_reviews"] == pending_left
 
     with pytest.raises(HumanLoopError):
         apply_review_decision(
