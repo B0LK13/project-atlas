@@ -78,6 +78,7 @@ atlas context --vault <vault-dir> --project <id>            # Agent context expo
 atlas handoff create|resume --vault <vault-dir> ...         # Cross-agent handoff
 atlas capture record|list --vault <vault-dir> ...           # Session capture defaults
 atlas obsidian project --vault <vault-dir> [--project <id>] # Living Obsidian projection
+atlas review decide --vault <vault-dir> --project <id> ...  # Human decisions -> Truth Core
 
 atlas doctor [--vault <vault-dir>] [--json]                 # environment/vault diagnostics
 atlas ask2 --vault <dir> --project <p> --question "..."     # Ask Atlas 2 (read-only)

@@ -50,6 +50,7 @@ from project_atlas.domain import (
     RelationType,
     ReviewCategory,
     ReviewEntry,
+    ReviewEntryStatus,
     ReviewState,
     Severity,
     VerificationMetadata,
@@ -1365,6 +1366,9 @@ def _apply_lifecycle(
             }
         except (ValidationError, TypeError) as exc:
             raise ValueError(f"invalid claim lifecycle state: {state_path}") from exc
+    from project_atlas.human_loop import rejected_claim_ids
+
+    human_rejects = rejected_claim_ids(vault, project)
     current_ids = {claim.claim_id for claim in claims}
     conflict_ids = conflict_ids or {}
     policy = _lifecycle_policy(vault)
@@ -1448,9 +1452,25 @@ def _apply_lifecycle(
             _require_lifecycle_transition(state, ClaimLifecycle.STALE)
             state = ClaimLifecycle.STALE
             reason = policy["reference"]
+        # HUMAN-LOOP-001: sticky human reject after normal inference.
+        if claim.claim_id in human_rejects and state is not ClaimLifecycle.REJECTED:
+            from_state = state
+            _require_lifecycle_transition(from_state, ClaimLifecycle.REJECTED)
+            state = ClaimLifecycle.REJECTED
+            rejection_reason = human_rejects[claim.claim_id]
+            reason = rejection_reason
         if prior:
             observation_count += 1 if state is not prior_state else 0
-        claim = claim.model_copy(update={"lifecycle": state})
+        claim = claim.model_copy(
+            update={
+                "lifecycle": state,
+                **(
+                    {"verification": ReviewState.REJECTED}
+                    if state is ClaimLifecycle.REJECTED
+                    else {}
+                ),
+            }
+        )
         if state is not ClaimLifecycle.REJECTED:
             output.append(claim)
         transition_steps: list[tuple[ClaimLifecycle, ClaimLifecycle, str]] = list(history_bridge)
@@ -1694,6 +1714,17 @@ def compile_knowledge(
         if (value := item.get("observed_at") or item.get("timestamp"))
     ]
     observed_at = max(observed_values) if observed_values else None
+    # AS-CODER-ALPHA-HUMAN-LOOP-001: honor accept dispositions as verified claims.
+    from project_atlas.human_loop import accepted_claim_ids
+
+    human_accepts = accepted_claim_ids(vault, project)
+    if human_accepts:
+        claims = [
+            claim.model_copy(update={"verification": ReviewState.VERIFIED})
+            if claim.claim_id in human_accepts
+            else claim
+            for claim in claims
+        ]
     claims, lifecycle, original_lifecycle_bytes = _apply_lifecycle(
         project, claims, vault, conflict_ids=conflict_ids, observed_at=observed_at
     )
@@ -1735,6 +1766,9 @@ def compile_knowledge(
         compilation_id=compilation_id,
     )
     reviews = _review(project, claims, conflicts, authoritative_states)
+    from project_atlas.human_loop import rejected_claim_ids as _rejected_claim_ids
+
+    human_rejected_subjects = _rejected_claim_ids(vault, project)
     reviews.extend(
         ReviewEntry(
             review_id=f"review-{_digest(f'{project}|lifecycle|{record.claim_id}')[:20]}",
@@ -1751,11 +1785,39 @@ def compile_knowledge(
             ClaimLifecycle.STALE,
             ClaimLifecycle.REJECTED,
         }
+        # HUMAN-LOOP-001: do not re-queue human-rejected claims as pending.
+        and not (
+            record.lifecycle is ClaimLifecycle.REJECTED
+            and record.claim_id in human_rejected_subjects
+        )
     )
+    # HUMAN-LOOP-001: stamp durable dispositions onto regenerated review entries.
+    from project_atlas.human_loop import disposition_index
+
+    dispositions = disposition_index(vault, project)
+    stamped: list[ReviewEntry] = []
+    for item in reviews:
+        disposition = dispositions.get(item.review_id)
+        if disposition is None:
+            stamped.append(item)
+            continue
+        status_value = str(disposition.get("status") or "resolved")
+        try:
+            entry_status = ReviewEntryStatus(status_value)
+        except ValueError:
+            entry_status = (
+                ReviewEntryStatus.REJECTED
+                if disposition.get("decision") == "reject"
+                else ReviewEntryStatus.RESOLVED
+            )
+        stamped.append(item.model_copy(update={"status": entry_status}))
     reviews = sorted(
-        {item.review_id: item for item in reviews}.values(),
+        {item.review_id: item for item in stamped}.values(),
         key=lambda item: item.review_id,
     )
+    # Only pending entries remain in the pending queue projection.
+    pending_reviews = [item for item in reviews if item.status is ReviewEntryStatus.PENDING]
+    reviews = pending_reviews
     project_concept = _concept(
         project, claims, entries, open_conflicts=len(conflicts)
     )

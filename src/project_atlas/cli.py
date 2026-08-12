@@ -85,6 +85,7 @@ from project_atlas.graph_resolution import (
     resolve_from_acceptance,
     write_resolution_outputs,
 )
+from project_atlas.human_loop import HumanLoopError, apply_review_decision
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.kci import (
@@ -607,6 +608,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not refresh underlying brief/lenses before projecting.",
     )
     obsidian_project.add_argument("--json", action="store_true", dest="as_json")
+
+    review_parser = subparsers.add_parser(
+        "review",
+        help=(
+            "Human review decisions into Truth Core "
+            "(AS-CODER-ALPHA-HUMAN-LOOP-001; fail-closed)."
+        ),
+    )
+    review_sub = review_parser.add_subparsers(dest="review_command", required=True)
+    review_decide = review_sub.add_parser(
+        "decide", help="Accept or reject one pending review entry."
+    )
+    review_decide.add_argument("--vault", type=Path, required=True)
+    review_decide.add_argument("--project", required=True)
+    review_decide.add_argument("--review-id", required=True)
+    review_decide.add_argument(
+        "--decision",
+        required=True,
+        choices=["accept", "reject"],
+    )
+    review_decide.add_argument("--reason", required=True)
+    review_decide.add_argument(
+        "--winner-claim-id",
+        default=None,
+        help="Required for conflict accept; no silent winners.",
+    )
+    review_decide.add_argument("--json", action="store_true", dest="as_json")
 
     accept_graph_parser = subparsers.add_parser(
         "accept-graph",
@@ -2290,6 +2318,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"  note: {path}")
             print(f"  receipt: {report.get('receipt_path')}")
             print("  next: open generated/obsidian/projects/ in Obsidian (plugin!=shipped)")
+        return EXIT_OK
+
+    if args.command == "review":
+        try:
+            report = apply_review_decision(
+                args.vault,
+                project_id=args.project,
+                review_id=args.review_id,
+                decision=args.decision,
+                reason=args.reason,
+                winner_claim_id=args.winner_claim_id,
+            )
+        except (HumanLoopError, OSError, ValueError) as exc:
+            _log.error("review decide failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            decision = report.get("decision") or {}
+            print(f"atlas review decide [{report.get('status', 'ok')}]")
+            print(f"  review:   {decision.get('review_id')}")
+            print(f"  decision: {decision.get('decision')}")
+            print(f"  status:   {decision.get('status')}")
+            print(f"  receipt:  {report.get('receipt_path')}")
+            print("  next: atlas unknown --vault <vault> | re-run atlas connect to recompile")
         return EXIT_OK
 
     if args.command == "build-indexes":

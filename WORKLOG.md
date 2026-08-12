@@ -5498,3 +5498,21 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - ATLAS_OPT_WAKE_GATE: CLOSED
 - derived projection != Layer B authority
 - CODEX_VALIDATED: NO
+
+## D-036 overnight — HUMAN-LOOP-001
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-OVERNIGHT-036
+**Branch:** cursor/coder-alpha-human-loop-001-d036
+**Base:** main @ `176c6c3`
+
+### Packages
+- AS-CODER-ALPHA-HUMAN-LOOP-001 (`atlas review decide`)
+- Durable dispositions under `state/human-decisions/`
+- Compile honors accept/reject so reconnect does not resurrect decided items
+- Module: `src/project_atlas/human_loop.py`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- no silent conflict winners
+- CODEX_VALIDATED: NO

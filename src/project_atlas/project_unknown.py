@@ -73,7 +73,15 @@ def _entry_count(payload: dict[str, Any] | None) -> int:
     if not payload:
         return 0
     entries = payload.get("entries")
-    return len(entries) if isinstance(entries, list) else 0
+    if not isinstance(entries, list):
+        return 0
+    # HUMAN-LOOP-001: decided reviews (resolved/rejected) are not pending UNKNOWN.
+    pending = [
+        entry
+        for entry in entries
+        if isinstance(entry, dict) and str(entry.get("status") or "pending") == "pending"
+    ]
+    return len(pending)
 
 
 def _parse_status_counts(text: str) -> dict[str, int]:
@@ -150,10 +158,13 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
             if isinstance(semantic, dict) and isinstance(semantic.get("lifecycle"), str):
                 lifecycle = semantic["lifecycle"] or "unknown"
 
-    pending_count = max(
-        _entry_count(pending),
-        status_counts.get("claims awaiting review", 0),
-    )
+    # HUMAN-LOOP-001: pending queue is authoritative for human-decided reviews.
+    # Do not let stale knowledge-status.md "claims awaiting review" resurrect
+    # counts after atlas review decide (status report refreshes only on compile).
+    if pending is not None:
+        pending_count = _entry_count(pending)
+    else:
+        pending_count = status_counts.get("claims awaiting review", 0)
     conflict_count = max(
         _entry_count(conflicts),
         status_counts.get("unresolved conflicts", 0),
