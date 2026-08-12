@@ -288,7 +288,9 @@ def test_session_execute_after_catalog_mutation_is_invalid_experiment() -> None:
 # --- RECEIPT THRESHOLD BINDING ---------------------------------------------------
 
 
-def _receipt_with_delta(*, min_delta: int, public_candidate_matched: int) -> dict:
+def _receipt_with_delta(
+    *, min_delta: int, public_candidate_matched: int
+) -> tuple[dict, SealedEnvelope]:
     policies = load_opt_gate_policies(POLICY_ROOT)
     thresholds = copy.deepcopy(policies.thresholds)
     thresholds["min_public_matched_delta"] = min_delta
@@ -301,7 +303,7 @@ def _receipt_with_delta(*, min_delta: int, public_candidate_matched: int) -> dic
     outcomes = {name: "PASS" for name in REQUIRED_HARD_GATES}
     decision = "PROMOTE_ELIGIBLE" if public_candidate_matched - 4 >= min_delta else "REJECT"
     reason = "all-conditions-met" if decision == "PROMOTE_ELIGIBLE" else "quality-threshold-not-met"
-    return build_experiment_receipt(
+    receipt = build_experiment_receipt(
         experiment_id="exp-threshold-bind",
         repo_head=REPO_HEAD,
         repo_tree=REPO_TREE,
@@ -320,17 +322,20 @@ def _receipt_with_delta(*, min_delta: int, public_candidate_matched: int) -> dic
         experiment_valid=True,
         seal_valid=True,
     )
+    return receipt, envelope
 
 
 def test_receipt_persists_sealed_thresholds_and_object_digest() -> None:
-    receipt = _receipt_with_delta(min_delta=1, public_candidate_matched=4)
+    receipt, envelope = _receipt_with_delta(min_delta=1, public_candidate_matched=4)
     assert receipt["thresholds"]["min_public_matched_delta"] == 1
     assert receipt["thresholds"]["holdout_non_regression"] is True
     assert receipt["thresholds"]["require_holdout_scored"] is True
     assert len(receipt["threshold_object_digest"]) == 64
     assert len(receipt["honesty_catalog_file_digest"]) == 64
     assert len(receipt["honesty_catalog_object_digest"]) == 64
-    verify_experiment_receipt(receipt)
+    assert len(receipt["envelope_digest"]) == 64
+    assert receipt["envelope_digest"] == envelope.envelope_digest
+    verify_experiment_receipt(receipt, sealed_envelope=envelope)
 
 
 def test_forged_promote_with_quality_threshold_reject_fails_verify() -> None:
@@ -339,27 +344,64 @@ def test_forged_promote_with_quality_threshold_reject_fails_verify() -> None:
     Previously verify_experiment_receipt recomputed with hardcoded min_delta=0,
     so forging promotion_decision + receipt_digest succeeded.
     """
-    receipt = _receipt_with_delta(min_delta=1, public_candidate_matched=4)
+    receipt, envelope = _receipt_with_delta(min_delta=1, public_candidate_matched=4)
     assert receipt["promotion_decision"] == "REJECT"
     assert receipt["thresholds"]["min_public_matched_delta"] == 1
-    verify_experiment_receipt(receipt)
+    verify_experiment_receipt(receipt, sealed_envelope=envelope)
 
     receipt["promotion_decision"] = "PROMOTE_ELIGIBLE"
     receipt["decision_reason"] = "all-conditions-met"
     receipt["receipt_digest"] = _receipt_digest_for(receipt)
     with pytest.raises(OptGateError, match="receipt-invalid"):
-        verify_experiment_receipt(receipt)
+        verify_experiment_receipt(receipt, sealed_envelope=envelope)
 
 
 def test_forged_threshold_object_digest_fails_verify() -> None:
-    receipt = _receipt_with_delta(min_delta=1, public_candidate_matched=4)
+    receipt, envelope = _receipt_with_delta(min_delta=1, public_candidate_matched=4)
     receipt["threshold_object_digest"] = "0" * 64
     receipt["receipt_digest"] = _receipt_digest_for(receipt)
+    with pytest.raises(OptGateError, match="receipt-invalid"):
+        verify_experiment_receipt(receipt, sealed_envelope=envelope)
+
+
+def test_happy_path_receipt_with_matching_thresholds_still_verifies() -> None:
+    receipt, envelope = _receipt_with_delta(min_delta=0, public_candidate_matched=4)
+    assert receipt["promotion_decision"] == "PROMOTE_ELIGIBLE"
+    verify_experiment_receipt(receipt, sealed_envelope=envelope)
+
+
+def test_promote_without_sealed_anchors_fails_closed() -> None:
+    """PROMOTE_ELIGIBLE cannot be certified from a self-contained forged receipt."""
+    receipt, _envelope = _receipt_with_delta(min_delta=0, public_candidate_matched=4)
+    assert receipt["promotion_decision"] == "PROMOTE_ELIGIBLE"
     with pytest.raises(OptGateError, match="receipt-invalid"):
         verify_experiment_receipt(receipt)
 
 
-def test_happy_path_receipt_with_matching_thresholds_still_verifies() -> None:
-    receipt = _receipt_with_delta(min_delta=0, public_candidate_matched=4)
-    assert receipt["promotion_decision"] == "PROMOTE_ELIGIBLE"
-    verify_experiment_receipt(receipt)
+def test_zero_threshold_downgrade_redigest_fails_with_sealed_anchors() -> None:
+    """D-031: rewriting thresholds to zero + redigest must not verify as PROMOTE."""
+    from project_atlas.opt_gate import _sealed_thresholds, _sha256_payload
+
+    receipt, envelope = _receipt_with_delta(min_delta=5, public_candidate_matched=4)
+    assert receipt["promotion_decision"] == "REJECT"
+    assert receipt["thresholds"]["min_public_matched_delta"] == 5
+
+    receipt["thresholds"] = {
+        "holdout_non_regression": True,
+        "min_public_matched_delta": 0,
+        "min_public_rate_improvement_millis": 0,
+        "require_holdout_scored": True,
+    }
+    receipt["threshold_object_digest"] = _sha256_payload(
+        _sealed_thresholds(receipt["thresholds"])
+    )
+    receipt["threshold_digest"] = "c" * 64
+    receipt["promotion_decision"] = "PROMOTE_ELIGIBLE"
+    receipt["decision_reason"] = "all-conditions-met"
+    receipt["quality_score_considered"] = True
+    receipt["receipt_digest"] = _receipt_digest_for(receipt)
+
+    with pytest.raises(OptGateError, match="receipt-invalid"):
+        verify_experiment_receipt(receipt, sealed_envelope=envelope)
+    with pytest.raises(OptGateError, match="receipt-invalid"):
+        verify_experiment_receipt(receipt)

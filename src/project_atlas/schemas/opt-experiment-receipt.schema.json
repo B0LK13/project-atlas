@@ -30,6 +30,7 @@
     "threshold_digest",
     "threshold_object_digest",
     "thresholds",
+    "envelope_digest",
     "honesty_catalog_file_digest",
     "honesty_catalog_object_digest",
     "seed",
@@ -118,6 +119,7 @@
         "require_holdout_scored": { "const": true }
       }
     },
+    "envelope_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "honesty_catalog_file_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "honesty_catalog_object_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "seed": { "type": ["integer", "null"] },

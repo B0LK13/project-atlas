@@ -1039,6 +1039,9 @@ def build_experiment_receipt(
     seal_valid: bool,
 ) -> dict[str, Any]:
     """Build a deterministic, privacy-safe experiment receipt."""
+    decision_thresholds = _sealed_thresholds(envelope.thresholds)
+    threshold_object_digest = _sha256_payload(decision_thresholds)
+    honesty_object_digest = envelope.component_digests["honesty_catalog_object"]
     run_identity = _sha256_payload(
         {
             "experiment_id": experiment_id,
@@ -1048,10 +1051,12 @@ def build_experiment_receipt(
                 "baseline_configuration"
             ],
             "candidate_configuration_digest": _sha256_payload(candidate_configuration),
+            "envelope_digest": envelope.envelope_digest,
+            "threshold_object_digest": threshold_object_digest,
+            "honesty_catalog_object_digest": honesty_object_digest,
             "seed": seed,
         }
     )
-    decision_thresholds = _sealed_thresholds(envelope.thresholds)
     payload: dict[str, Any] = {
         "schema_version": 1,
         "package_id": PACKAGE_ID,
@@ -1075,12 +1080,11 @@ def build_experiment_receipt(
         "hard_gate_policy_digest": envelope.component_digests["hard_gate_policy"],
         "threshold_version": envelope.threshold_version,
         "threshold_digest": envelope.component_digests["thresholds"],
-        "threshold_object_digest": _sha256_payload(decision_thresholds),
+        "threshold_object_digest": threshold_object_digest,
         "thresholds": decision_thresholds,
+        "envelope_digest": envelope.envelope_digest,
         "honesty_catalog_file_digest": envelope.component_digests["honesty_catalog_file"],
-        "honesty_catalog_object_digest": envelope.component_digests[
-            "honesty_catalog_object"
-        ],
+        "honesty_catalog_object_digest": honesty_object_digest,
         "seed": seed,
         "hard_gate_outcomes": {name: gate_outcomes[name] for name in REQUIRED_HARD_GATES},
         "public_quality": {
@@ -1115,8 +1119,21 @@ def build_experiment_receipt(
     return payload
 
 
-def verify_experiment_receipt(payload: Mapping[str, Any]) -> None:
-    """Fail closed on schema mismatch, digest forgery, or inconsistent decision."""
+def verify_experiment_receipt(
+    payload: Mapping[str, Any],
+    *,
+    sealed_envelope: SealedEnvelope | None = None,
+    sealed_threshold_object_digest: str | None = None,
+    sealed_honesty_catalog_object_digest: str | None = None,
+    sealed_envelope_digest: str | None = None,
+) -> None:
+    """Fail closed on schema mismatch, digest forgery, or inconsistent decision.
+
+    ``PROMOTE_ELIGIBLE`` requires sealed experiment anchors (envelope digests).
+    Threshold/honesty values embedded in the receipt alone are not sufficient to
+    certify promotion — otherwise a REJECT receipt can be downgraded to zero
+    thresholds, digests rewritten, and falsely verified as PROMOTE_ELIGIBLE.
+    """
     if not isinstance(payload, dict):
         raise OptGateError("receipt-invalid")
     try:
@@ -1139,14 +1156,64 @@ def verify_experiment_receipt(payload: Mapping[str, Any]) -> None:
     if not isinstance(raw_thr, dict):
         raise OptGateError("threshold-missing")
     try:
-        sealed_thr = _sealed_thresholds(raw_thr)
+        receipt_thr = _sealed_thresholds(raw_thr)
     except (KeyError, TypeError, ValueError) as exc:
         raise OptGateError("threshold-missing") from exc
-    if payload.get("threshold_object_digest") != _sha256_payload(sealed_thr):
+    if payload.get("threshold_object_digest") != _sha256_payload(receipt_thr):
         raise OptGateError("receipt-invalid")
     catalog_object_digest = payload.get("honesty_catalog_object_digest")
     if not isinstance(catalog_object_digest, str) or len(catalog_object_digest) != 64:
         raise OptGateError("receipt-invalid")
+    envelope_digest = payload.get("envelope_digest")
+    if not isinstance(envelope_digest, str) or len(envelope_digest) != 64:
+        raise OptGateError("receipt-invalid")
+
+    if sealed_envelope is not None:
+        sealed_threshold_object_digest = _sha256_payload(
+            _sealed_thresholds(sealed_envelope.thresholds)
+        )
+        sealed_honesty_catalog_object_digest = sealed_envelope.component_digests[
+            "honesty_catalog_object"
+        ]
+        sealed_envelope_digest = sealed_envelope.envelope_digest
+
+    decision = payload.get("promotion_decision")
+    if decision == "PROMOTE_ELIGIBLE":
+        if (
+            not isinstance(sealed_threshold_object_digest, str)
+            or len(sealed_threshold_object_digest) != 64
+            or not isinstance(sealed_honesty_catalog_object_digest, str)
+            or len(sealed_honesty_catalog_object_digest) != 64
+            or not isinstance(sealed_envelope_digest, str)
+            or len(sealed_envelope_digest) != 64
+        ):
+            # Fail closed: promotion cannot be certified from a self-forged receipt.
+            raise OptGateError("receipt-invalid")
+        if payload.get("threshold_object_digest") != sealed_threshold_object_digest:
+            raise OptGateError("receipt-invalid")
+        if _sha256_payload(receipt_thr) != sealed_threshold_object_digest:
+            raise OptGateError("receipt-invalid")
+        if catalog_object_digest != sealed_honesty_catalog_object_digest:
+            raise OptGateError("receipt-invalid")
+        if envelope_digest != sealed_envelope_digest:
+            raise OptGateError("receipt-invalid")
+    elif sealed_threshold_object_digest is not None:
+        # When anchors are supplied for non-promote receipts, they must still match.
+        if payload.get("threshold_object_digest") != sealed_threshold_object_digest:
+            raise OptGateError("receipt-invalid")
+        if _sha256_payload(receipt_thr) != sealed_threshold_object_digest:
+            raise OptGateError("receipt-invalid")
+        if (
+            isinstance(sealed_honesty_catalog_object_digest, str)
+            and catalog_object_digest != sealed_honesty_catalog_object_digest
+        ):
+            raise OptGateError("receipt-invalid")
+        if (
+            isinstance(sealed_envelope_digest, str)
+            and envelope_digest != sealed_envelope_digest
+        ):
+            raise OptGateError("receipt-invalid")
+
     recomputed, reason, considered = decide_promotion(
         experiment_valid=bool(payload["experiment_valid"]),
         seal_valid=bool(payload["seal_valid"]),
@@ -1160,7 +1227,7 @@ def verify_experiment_receipt(payload: Mapping[str, Any]) -> None:
         holdout_candidate=(
             _score_counts_from(holdout.get("candidate")) if holdout.get("scored") else None
         ),
-        thresholds=sealed_thr,
+        thresholds=receipt_thr,
     )
     # Forged promotion_decision must not survive, even if the digest was rewritten.
     if payload.get("promotion_decision") == "PROMOTE_ELIGIBLE" and recomputed != "PROMOTE_ELIGIBLE":
@@ -1364,7 +1431,7 @@ class GovernedExperimentSession:
         )
         try:
             validate_record(receipt, SCHEMA_KIND)
-            verify_experiment_receipt(receipt)
+            verify_experiment_receipt(receipt, sealed_envelope=self.envelope)
         except (SchemaValidationError, OptGateError):
             receipt["promotion_decision"] = "INVALID_EXPERIMENT"
             receipt["decision_reason"] = "receipt-schema-mismatch"

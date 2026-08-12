@@ -5234,3 +5234,33 @@ candidate blocked; Windows Phase C blocked.
 - EVALUATOR_STABLE: not declared
 - CODEX_VALIDATED: NO
 - PR_321_CERTIFIED_MERGE_ELIGIBLE: not claimed here (independent IV)
+
+## AS-OPT-GATE-001 IV remediation — receipt threshold downgrade binding
+
+**Date:** 2026-08-12
+**Branch:** cursor/opt-gate-experiment-boundary-592a
+**PR:** #321
+**Directive:** D-PROJECT-ATLAS-CLOUD-AUTONOMOUS-E2E-032 (closes D-031 residual)
+**Prior IV failing HEAD:** `726fa0506c3a72c09235566ed5fec8077afad245`
+**Prior IV failing TREE:** `635031840d9f3b87bc0ce1b3f2a021ff919503fb`
+
+### Defect
+- OPT-GATE-RECEIPT-THRESHOLD-DOWNGRADE-REDIGEST: `verify_experiment_receipt`
+  trusted caller-supplied `receipt["thresholds"]`. A REJECT receipt under
+  sealed non-zero thresholds could be rewritten to zero thresholds, digests
+  recomputed, `PROMOTE_ELIGIBLE` set, and verification accepted.
+
+### Fix
+- Persist `envelope_digest`; bind run_identity to envelope + threshold/honesty
+  object digests.
+- `PROMOTE_ELIGIBLE` verification requires sealed experiment anchors
+  (`sealed_envelope` or explicit sealed digests). Threshold substitution /
+  zero-downgrade + redigest fails closed against those anchors.
+- Session execute always verifies with the live sealed envelope.
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- No AutoLab / OPT wake / merge / deploy
+- EVALUATOR_STABLE: not declared
+- CODEX_VALIDATED: NO
+- PR_321_CERTIFIED_MERGE_ELIGIBLE: not claimed here (independent IV)

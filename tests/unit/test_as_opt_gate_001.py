@@ -270,7 +270,7 @@ def test_receipt_schema_and_digest_roundtrip() -> None:
         seal_valid=True,
     )
     validate_record(receipt, "opt-experiment-receipt")
-    verify_experiment_receipt(receipt)
+    verify_experiment_receipt(receipt, sealed_envelope=envelope)
     text = json.dumps(receipt, sort_keys=True)
     assert "expected" not in receipt["holdout_aggregate"]
     assert "EV-HOLD-101" not in text
@@ -313,6 +313,8 @@ def test_forged_promote_decision_rejected() -> None:
     )
     receipt["promotion_decision"] = "PROMOTE_ELIGIBLE"
     receipt["receipt_digest"] = _receipt_digest_for(receipt)
+    with pytest.raises(OptGateError, match="receipt-invalid"):
+        verify_experiment_receipt(receipt, sealed_envelope=envelope)
     with pytest.raises(OptGateError, match="receipt-invalid"):
         verify_experiment_receipt(receipt)
 

@@ -226,10 +226,10 @@ def test_tampered_tree_does_not_verify_as_promote() -> None:
         experiment_valid=True,
         seal_valid=True,
     )
-    verify_experiment_receipt(receipt)
+    verify_experiment_receipt(receipt, sealed_envelope=envelope)
     receipt["repository_tree"] = "c" * 40
     with pytest.raises(OptGateError, match="receipt-invalid"):
-        verify_experiment_receipt(receipt)
+        verify_experiment_receipt(receipt, sealed_envelope=envelope)
 
 
 def test_no_opt_wake_on_happy_invalid_path() -> None:

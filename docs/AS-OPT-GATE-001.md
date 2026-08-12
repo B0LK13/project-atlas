@@ -105,12 +105,15 @@ match flags, no private case bodies.
 
 Receipts persist the sealed decision thresholds (`min_public_matched_delta`,
 `min_public_rate_improvement_millis`, `holdout_non_regression`,
-`require_holdout_scored`) plus `threshold_object_digest`.
-`verify_experiment_receipt` recomputes the promotion decision with those
-bound thresholds — it must not substitute hardcoded zeros. Forged
-`PROMOTE_ELIGIBLE` on a quality-threshold REJECT cannot verify, even if
-`receipt_digest` is rewritten. Receipts also carry
-`honesty_catalog_file_digest` and `honesty_catalog_object_digest`.
+`require_holdout_scored`) plus `threshold_object_digest`, `envelope_digest`,
+`honesty_catalog_file_digest`, and `honesty_catalog_object_digest`.
+`verify_experiment_receipt` recomputes the promotion decision with the bound
+thresholds — it must not substitute hardcoded zeros.
+
+`PROMOTE_ELIGIBLE` certification requires the sealed experiment anchors
+(envelope / threshold-object / honesty-object digests). A REJECT receipt
+cannot be threshold-downgraded to zeros with recomputed digests and then
+verified as `PROMOTE_ELIGIBLE`, with or without rewriting `receipt_digest`.
 
 ## OPT
 
