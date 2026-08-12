@@ -5283,3 +5283,30 @@ candidate blocked; Windows Phase C blocked.
 - CODEX_VALIDATED = NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
 - OPEN_ELIGIBLE != AutoLab / != OPT loops / != merge/deploy authority
+
+## D-032 — Cloud env setup + CI restore closed
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CLOUD-AUTONOMOUS-E2E-032
+
+### Environment (personal DB-managed)
+- Dashboard: https://cursor.com/dashboard/cloud-agents/environments/e/134a0342-94f7-11f1-ba66-0e7d0216e441
+- Post-Save `environmentVersionPublicId`: `5d0209fb-9660-11f1-ba66-0e7d0216e441`
+- Default-boot fresh agent: `build.resolution=resolved`, start-user clean (absent),
+  Node 22 + `.venv` + `atlas` + `DEP_INTEGRITY=PASS`
+- Artifact: `/opt/cursor/artifacts/D-032-env-setup-complete.md`
+- Note: pinning stale AGENT draft builds can still surface historical polluted
+  `start-user` text; default/SYSTEM boot is authoritative after Save.
+
+### CI
+- Product CI restored and merged: PR `#327` → `11e95a4` on `main`
+  (SEC-002 rediscover, prep-guard shallow clone, OAI PEM fixture, env-iso casing).
+- Post-merge CI run `31636271990`: success.
+
+### Board
+- `BOARD_EMPTY_EXCEPT_OWNER_HELD` for portable cloud work: authentic pilot /
+  INT-013 / AS-GH-002 / AS-MVP-001 merge authorization / governor-required
+  tip branches remain owner-held.
+- Runtime `ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE = YES`;
+  `OPEN_ELIGIBLE` governance-only (AutoLab not activated).
+- `CODEX_VALIDATED = NO`; `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`.
