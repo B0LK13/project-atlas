@@ -45,7 +45,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 
 def test_claims_conflicts_authority_and_provenance_are_project_outputs(tmp_path: Path) -> None:
-    _source, manifest, vault = _fixture(tmp_path)
+    source, manifest, vault = _fixture(tmp_path)
     assert main(
         [
             "ingest",
@@ -73,7 +73,7 @@ def test_claims_conflicts_authority_and_provenance_are_project_outputs(tmp_path:
 
 
 def test_invalid_claim_lifecycle_state_fails_without_mutation(tmp_path: Path) -> None:
-    _source, manifest, vault = _fixture(tmp_path)
+    source, manifest, vault = _fixture(tmp_path)
     assert main(
         [
             "ingest",
@@ -103,7 +103,7 @@ def test_invalid_claim_lifecycle_state_fails_without_mutation(tmp_path: Path) ->
 
 
 def test_unchanged_claim_replay_has_no_new_receipt_or_writes(tmp_path: Path) -> None:
-    _source, manifest, vault = _fixture(tmp_path)
+    source, manifest, vault = _fixture(tmp_path)
     assert main(
         [
             "ingest",
@@ -115,6 +115,8 @@ def test_unchanged_claim_replay_has_no_new_receipt_or_writes(tmp_path: Path) -> 
             str(source),
         ]
     ) == EXIT_OK
+    # SEC-002: rediscover after marker genesis before replay ingests.
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     before = {
         path.relative_to(vault).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in vault.rglob("*")
@@ -361,7 +363,7 @@ def test_conflict_stale_restore_and_rejection_paths(tmp_path: Path) -> None:
 def test_multi_project_lifecycle_failure_has_zero_mutations_then_retries_once(
     tmp_path: Path,
 ) -> None:
-    _source, manifest, vault = _fixture(tmp_path)
+    source, manifest, vault = _fixture(tmp_path)
     payload = json.loads(manifest.read_text())
     payload["sources"][0]["likely_project"] = "aaa-first"
     payload["sources"][1]["likely_project"] = "zzz-second"

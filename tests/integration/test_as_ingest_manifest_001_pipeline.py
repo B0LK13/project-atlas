@@ -103,6 +103,20 @@ def test_identical_ingest_replay_is_byte_stable_for_merged_snapshot(tmp_path: Pa
         ]
     ) == EXIT_OK
 
+    # SEC-002: rediscover after genesis, then baseline + replay must be byte-stable.
+    assert main(["discover", "--source", str(pilots), "--output", str(manifest)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(pilots),
+        ]
+    ) == EXIT_OK
+
     snapshot_path = vault / "sources" / "manifests" / "source-manifest.json"
     report_path = vault / "generated" / "reports" / "ingestion-report.json"
     first_snapshot = snapshot_path.read_bytes()

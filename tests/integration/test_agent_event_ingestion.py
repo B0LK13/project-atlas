@@ -270,6 +270,8 @@ def test_repeated_identical_package_replay_is_idempotent(tmp_path: Path) -> None
     ) == EXIT_OK
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
     assert main(["validate", "--vault", str(vault)]) == EXIT_OK
+    # SEC-002: rediscover after marker genesis before replay ingest.
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
     assert main(
         [
             "ingest",

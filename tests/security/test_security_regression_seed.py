@@ -42,11 +42,10 @@ def _primary_present(paths: tuple[str, ...]) -> Path | None:
 
 def _finding_declared(body: str, finding_id: str) -> bool:
     """Accept full CODEX-SEC-NNN or abbreviated SEC-NNN forms in remedi suites."""
-    if finding_id in body:
-        return True
-    if finding_id.startswith("CODEX-") and finding_id.removeprefix("CODEX-") in body:
-        return True
-    return False
+    abbreviated = finding_id.removeprefix("CODEX-")
+    return finding_id in body or (
+        finding_id.startswith("CODEX-") and abbreviated in body
+    )
 
 
 def _missing_reason(item: SecurityRegressionClass) -> str:
