@@ -75,21 +75,41 @@ def test_docs_and_schema_registered() -> None:
     assert "eval-score-receipt" in available_schemas()
 
 
-def test_training_and_autolab_see_public_only() -> None:
+#: Non-hidden cases every role may read (public + retired-holdout regression).
+NON_HIDDEN_IDS = {"EV-PUB-001", "EV-PUB-002", "EV-REG-001", "EV-REG-002"}
+
+
+def test_training_and_autolab_see_non_hidden_only() -> None:
     training = load_cases(REPO_ROOT, "training")
     autolab = load_cases(REPO_ROOT, "autolab")
-    assert {c["case_id"] for c in training} == {"EV-PUB-001", "EV-PUB-002"}
-    assert {c["case_id"] for c in autolab} == {"EV-PUB-001", "EV-PUB-002"}
+    assert {c["case_id"] for c in training} == NON_HIDDEN_IDS
+    assert {c["case_id"] for c in autolab} == NON_HIDDEN_IDS
     roles: tuple[Literal["training", "autolab"], ...] = ("training", "autolab")
     for role in roles:
         ids = {p.name for p in list_case_files(REPO_ROOT, role)}
         assert not any(name.startswith("EV-HOLD-") for name in ids)
 
 
-def test_scoring_without_capability_is_public_only() -> None:
+def test_scoring_without_capability_is_non_hidden_only() -> None:
     assert not scoring_capability_granted()
     cases = load_cases(REPO_ROOT, "scoring")
-    assert {c["case_id"] for c in cases} == {"EV-PUB-001", "EV-PUB-002"}
+    assert {c["case_id"] for c in cases} == NON_HIDDEN_IDS
+    assert not any(str(c["case_id"]).startswith("EV-HOLD-") for c in cases)
+
+
+def test_retired_holdouts_are_public_regression_not_hidden() -> None:
+    """D-ULTRA-RESUME-010 §8: EV-HOLD-001/002 retired to PUBLIC regression."""
+    for role in ("training", "autolab", "scoring"):
+        cases = load_cases(REPO_ROOT, role)  # type: ignore[arg-type]
+        retired = {c["case_id"]: c for c in cases if c.get("case_class") == "regression"}
+        assert set(retired) == {"EV-REG-001", "EV-REG-002"}
+        for case in retired.values():
+            assert case["visibility"] == "public"
+            assert case["visibility"] != "holdout"
+            assert "retired_from" in case
+    # The retired case files must not live under the hidden holdout root.
+    hidden_names = {p.name for p in (holdout_root(REPO_ROOT) / "cases").glob("*.json")}
+    assert not any(name.startswith("EV-HOLD-00") for name in hidden_names)
 
 
 def test_scoring_sees_holdouts_with_capability(
@@ -98,10 +118,10 @@ def test_scoring_sees_holdouts_with_capability(
     cases = load_cases(REPO_ROOT, "scoring")
     ids = {c["case_id"] for c in cases}
     assert "EV-PUB-001" in ids
-    assert "EV-HOLD-001" in ids
-    assert "EV-HOLD-002" in ids
-    hold = next(c for c in cases if c["case_id"] == "EV-HOLD-001")
-    assert hold["expected"] == scoring_capability["EV-HOLD-001"]
+    assert "EV-HOLD-101" in ids
+    assert "EV-HOLD-102" in ids
+    hold = next(c for c in cases if c["case_id"] == "EV-HOLD-101")
+    assert hold["expected"] == scoring_capability["EV-HOLD-101"]
 
 
 def test_holdout_git_case_files_have_no_plaintext_expected() -> None:
@@ -111,7 +131,7 @@ def test_holdout_git_case_files_have_no_plaintext_expected() -> None:
 
 
 def test_holdout_path_blocked_for_training_autolab() -> None:
-    hidden = holdout_root(REPO_ROOT) / "cases" / "EV-HOLD-001-exact.json"
+    hidden = holdout_root(REPO_ROOT) / "cases" / "EV-HOLD-101-exact.json"
     assert hidden.is_file()
     with pytest.raises(EvalSubstrateError, match="holdout-isolated:training"):
         assert_path_readable(REPO_ROOT, "training", hidden)
@@ -120,7 +140,7 @@ def test_holdout_path_blocked_for_training_autolab() -> None:
 
 
 def test_holdout_path_requires_capability_for_scoring() -> None:
-    hidden = holdout_root(REPO_ROOT) / "cases" / "EV-HOLD-001-exact.json"
+    hidden = holdout_root(REPO_ROOT) / "cases" / "EV-HOLD-101-exact.json"
     with pytest.raises(EvalSubstrateError, match="holdout-capability-required"):
         assert_path_readable(REPO_ROOT, "scoring", hidden)
 
@@ -215,8 +235,10 @@ def test_score_receipt_with_holdouts(
     )
     assert receipt["holdouts_scored"] is True
     assert receipt["holdout_case_count"] == 2
-    assert receipt["cases_scored"] == 4
-    assert receipt["cases_matched"] == 4
+    # public(2) + retired-holdout regression(2) + hidden holdout(2) = 6.
+    assert receipt["public_case_count"] == 4
+    assert receipt["cases_scored"] == 6
+    assert receipt["cases_matched"] == 6
     assert receipt["holdout_cases_scored"] == 2
     assert receipt["holdout_cases_matched"] == 2
     holdout_rows = [r for r in receipt["results"] if r["visibility"] == "holdout"]

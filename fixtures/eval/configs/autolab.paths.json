@@ -2,7 +2,8 @@
   "role": "autolab",
   "package_id": "AS-2.2-EVAL-001",
   "case_roots": [
-    "fixtures/eval/public"
+    "fixtures/eval/public",
+    "fixtures/eval/regression"
   ],
-  "notes": "Holdouts must not appear in autolab path manifests."
+  "notes": "Public + retired-holdout regression cases only; hidden holdouts must not appear in autolab path manifests."
 }

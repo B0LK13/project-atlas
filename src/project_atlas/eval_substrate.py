@@ -30,6 +30,9 @@ TRUTH_BOUNDARY = (
 )
 
 PUBLIC_REL = Path("fixtures") / "eval" / "public"
+# D-ULTRA-RESUME-010 §8: retired (compromised) holdouts live here as PUBLIC
+# regression cases — never under HOLDOUT_REL, so no role treats them as hidden.
+REGRESSION_REL = Path("fixtures") / "eval" / "regression"
 HOLDOUT_REL = Path("fixtures") / "eval" / "holdouts" / "hidden"
 CONFIG_REL = Path("fixtures") / "eval" / "configs"
 
@@ -154,6 +157,16 @@ def public_root(repo_root: Path) -> Path:
     return (repo_root.resolve() / PUBLIC_REL).resolve()
 
 
+def regression_root(repo_root: Path) -> Path:
+    """Retired-holdout PUBLIC regression cases (D-ULTRA-RESUME-010 §8).
+
+    These cases are non-hidden: readable by every role and carrying plaintext
+    ``expected`` answers (already public in git history). They are NOT under
+    :func:`holdout_root`, so they never receive a private expected answer.
+    """
+    return (repo_root.resolve() / REGRESSION_REL).resolve()
+
+
 def is_under(path: Path, parent: Path) -> bool:
     try:
         path.resolve().relative_to(parent.resolve())
@@ -165,17 +178,18 @@ def is_under(path: Path, parent: Path) -> bool:
 def allowed_case_roots(repo_root: Path, role: EvalRole) -> tuple[Path, ...]:
     """Path roots readable for a given role.
 
-    training/autolab → public only.
-    scoring without capability → public only (role ≠ trust).
-    scoring with capability → public + hidden holdouts.
+    training/autolab → public + retired-holdout regression cases.
+    scoring without capability → public + regression (role ≠ trust).
+    scoring with capability → public + regression + hidden holdouts.
     """
     pub = public_root(repo_root)
+    reg = regression_root(repo_root)
     if role in {"training", "autolab"}:
-        return (pub,)
+        return (pub, reg)
     if role == "scoring":
         if scoring_capability_granted():
-            return (pub, holdout_root(repo_root))
-        return (pub,)
+            return (pub, reg, holdout_root(repo_root))
+        return (pub, reg)
     raise EvalSubstrateError(f"role-unknown:{role}")
 
 

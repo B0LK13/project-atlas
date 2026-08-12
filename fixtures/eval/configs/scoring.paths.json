@@ -3,7 +3,8 @@
   "package_id": "AS-2.2-EVAL-001",
   "case_roots": [
     "fixtures/eval/public",
+    "fixtures/eval/regression",
     "fixtures/eval/holdouts/hidden"
   ],
-  "notes": "Scoring may load hidden holdouts; OPT remains gated."
+  "notes": "Scoring may load hidden holdouts (capability-gated); public + regression always visible; OPT remains gated."
 }
