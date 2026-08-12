@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import jsonschema
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "doc-charter"
@@ -166,17 +166,10 @@ def test_matrix_markdown_lists_landed_prep_packages() -> None:
 
 
 def test_no_runtime_mutation() -> None:
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert not name.startswith("apps/"), name
-        assert name.startswith("docs/atlas-2.2/") or name in {
-            "tests/unit/test_as_2_2_doc_charter_prep_001.py",
-            "tests/unit/test_as_2_2_doc_charter_deepen_prep_001.py",
-        }, name
-        assert not name.endswith("README.md"), name
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
+
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'doc-charter' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("doc-charter")

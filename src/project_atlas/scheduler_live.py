@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 import time
@@ -23,6 +24,16 @@ TRUTH_BOUNDARY = "LIVE_SUPERVISED_SCHEDULER != UNSUPERVISED AUTONOMY / != AUTHOR
 JobKind = Literal["validate", "build-indexes", "version"]
 DEFAULT_TIMEOUT_S = 120
 MAX_TIMEOUT_S = 600
+
+# arm_id is interpolated into generated/ops/scheduler/{arm_id}-*.json; require a
+# bare safe token so it can never steer a receipt read/write outside that dir.
+_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+
+
+def _require_arm_id(arm_id: str) -> str:
+    if not isinstance(arm_id, str) or not _ID_RE.match(arm_id):
+        raise SchedulerLiveError("scheduler-arm-id-invalid")
+    return arm_id
 
 
 class SchedulerLiveError(ValueError):
@@ -58,6 +69,7 @@ def arm_scheduler(
     require_compatibility_anchor()
     op = operator or default_operator()
     op.require("scheduler.arm")
+    arm_id = _require_arm_id(arm_id)
     if default_timeout_s < 1 or default_timeout_s > MAX_TIMEOUT_S:
         raise SchedulerLiveError("scheduler-timeout-out-of-range")
     payload = {
@@ -88,6 +100,7 @@ def dispatch_supervised_job(
     require_compatibility_anchor()
     op = operator or default_operator()
     op.require("scheduler.dispatch")
+    arm_id = _require_arm_id(arm_id)
     arm_path = vault / "generated" / "ops" / "scheduler" / f"{arm_id}-arm.json"
     if not arm_path.is_file():
         raise SchedulerLiveError("scheduler-not-armed")

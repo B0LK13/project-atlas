@@ -258,6 +258,9 @@ def run_bounded_l3_loop(
     arm_id = str(policy.get("arm_id") or "")
     if not arm_id:
         raise AutonomyL3Error("autonomy-l3-arm-id-missing")
+    if not _ID_RE.fullmatch(arm_id):
+        # Fail-closed: arm_id is interpolated into a scheduler receipt path.
+        raise AutonomyL3Error("autonomy-l3-arm-id-invalid")
     _assert_arm_receipt(vault, arm_id=arm_id, policy=policy)
     max_jobs = _assert_policy_scope(policy)
     timeout_s = int(policy.get("job_timeout_s") or 120)

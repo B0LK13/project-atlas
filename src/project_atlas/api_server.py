@@ -3,7 +3,8 @@
 Serves AppService JSON over HTTP. Default bind 127.0.0.1 only.
 GET is read-only. POST /v1/actions records reconstructable web actions only
 (never Layer B). Requires authz api.read / web.action as applicable.
-Hardened: localhost CORS, Host gate, POST size cap, obs/authz/mcp routes.
+Hardened: localhost CORS, Host gate, POST size cap, per-connection read
+timeout (slowloris, D-INTEGRATE-007A §11), obs/authz/mcp routes.
 
 SEC-009: loopback / Host binding is defense-in-depth only. Every GET/POST
 requires a high-entropy per-launch Bearer credential bound to an explicit
@@ -47,6 +48,14 @@ TRUTH_BOUNDARY = (
     "LIVE_API READ + BOUNDED ACTIONS != AUTHORITY / != LAYER-B WRITE"
 )
 MAX_POST_BYTES = 64_000
+# D-INTEGRATE-007A §11 (SLOWLORIS): stdlib BaseHTTPRequestHandler.timeout is
+# None by default, and Bearer auth is only enforced AFTER the request line and
+# headers are fully parsed. A client that opens a socket and dribbles a partial
+# request (no header terminator) would otherwise hold a worker thread forever.
+# A bounded per-connection read timeout caps how long any thread can block on a
+# slow/partial request; on timeout stdlib closes the connection (availability
+# defense-in-depth only, loopback + Bearer + existing guards stay intact).
+READ_TIMEOUT_SECONDS = 10.0
 # Default Vite port; productization launcher overrides via ATLAS_CORS_ORIGIN
 # so /v1/meta + Access-Control-Allow-Origin match the session -WebPort
 # (PROD-ADV-011: CORS must not stay pinned at 5173 when WebPort differs).
@@ -126,11 +135,23 @@ def make_handler(
     session: ApiSessionStore,
     *,
     cors_origin: str | None = None,
+    read_timeout: float = READ_TIMEOUT_SECONDS,
 ) -> type[BaseHTTPRequestHandler]:
-    """Build a request handler bound to a vault AppService + session store."""
+    """Build a request handler bound to a vault AppService + session store.
+
+    ``read_timeout`` (D-INTEGRATE-007A §11) is the per-connection socket read
+    timeout in seconds applied while stdlib parses the request line/headers,
+    before Bearer auth runs. It bounds slowloris-style partial-request holds so
+    a slow client cannot pin a worker thread indefinitely.
+    """
     allowed_origin = resolve_cors_origin(cors_origin)
 
     class Handler(BaseHTTPRequestHandler):
+        # Socket read timeout: stdlib StreamRequestHandler.setup() applies this
+        # to the connection, and handle_one_request() catches the resulting
+        # TimeoutError, closing the connection instead of blocking forever.
+        timeout = read_timeout
+
         def log_message(self, format: str, *args: object) -> None:
             return
 
@@ -387,6 +408,7 @@ def serve_api(
     operator: OperatorProfile | None = None,
     session: ApiSessionStore | None = None,
     cors_origin: str | None = None,
+    read_timeout: float = READ_TIMEOUT_SECONDS,
 ) -> AtlasApiServer:
     """Create (but do not serve forever) a LIVE_API server instance.
 
@@ -407,7 +429,9 @@ def serve_api(
     store = session or mint_api_session(launch_op)
     # Ensure the read principal can serve api.read.
     store.credentials.read_operator.require("api.read")
-    handler = make_handler(svc, store, cors_origin=cors_origin)
+    handler = make_handler(
+        svc, store, cors_origin=cors_origin, read_timeout=read_timeout
+    )
     server = AtlasApiServer((host, port), handler)
     server.atlas_session = store
     return server

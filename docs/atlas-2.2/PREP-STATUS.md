@@ -12,6 +12,16 @@
 | Roadmap crosswalk | [`roadmap-crosswalk/CROSSWALK.md`](roadmap-crosswalk/CROSSWALK.md) (`AS-2.2-ROADMAP-CROSSWALK-PREP-001`) |
 | Production mutation | **NONE** |
 
+> **Capability-maturity reconciliation (D-INTEGRATE-007A).** The authoritative
+> per-package maturity is now [`PACKAGE-MATURITY.json`](PACKAGE-MATURITY.json).
+> The 2.2 prep branch-scope guard tests key on that file instead of a blanket
+> "no `src/` on any 2.2 branch" rule (which red-flagged every legitimate feature
+> branch shipping 2.2 runtime code). A `prep-frozen` package still forbids
+> mutation of its own production surface (DENY); an `implementation-unlocked`
+> capability may legitimately mutate its surface (ALLOW). Unlock is **SELECTIVE**
+> (per-capability, evidence-driven), not a blanket 2.2 unlock. The "Runtime
+> modules touched: 0" figures below are the historical pre-unlock snapshot.
+
 ## Unlock gates (normative)
 
 ```text

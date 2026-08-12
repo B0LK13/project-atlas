@@ -24,6 +24,24 @@ NEVER         = EPHEMERAL (.*.atlas-stage / .*.atlas-backup / TMP)
 CERTIFY       = cold path (no D5) → rebuild indexes → atlas validate green
 ```
 
+## Completeness contract (RECOVERY_GATE=PASS)
+
+The cold bundle captures **all** persisted, non-ephemeral vault content so a
+restore reproduces the full vault byte-for-byte, except the declared
+derived-regenerable warm plane D5 (`generated/`, rebuilt via
+`atlas build-indexes` / `atlas build-portfolio`). `classify_vault_path` maps
+every top-level area to a domain, including the OKF category directories
+(`capabilities/`, `decisions/`, `infrastructure/`, `standards/`,
+`technologies/`) and root `log.md` → **D2**, and knowledge-compile receipts
+(`receipts/claims/*.json`) → **D3** (integrity proofs travelling with the state
+plane; not control-plane D4). `create_snapshot` **fails closed** on any
+persisted, non-ephemeral file it cannot classify — a bundle that would silently
+omit content is refused rather than written (root cause of the earlier F1
+omission). Empty structural scaffold directories carry no member bytes;
+`restore --scaffold` re-lays the deterministic `atlas init` skeleton onto the
+empty target before members are restored, giving full structural parity without
+tripping the empty-target guard.
+
 ## Certification (fixture only)
 
 ```text

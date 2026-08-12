@@ -135,10 +135,17 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-2.2-RUNTIME-001 — hybrid retrieve + context compiler (derived; ≠ LLM authority)
     "runtime-hybrid-retrieval": "runtime-hybrid-retrieval.schema.json",
     "runtime-context-compiler": "runtime-context-compiler.schema.json",
+    # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler;
+    # derived; UNKNOWN stays UNKNOWN; legacy matches subordinate; ≠ authority)
+    "ask-atlas-2-answer": "ask-atlas-2-answer-lens.schema.json",
     # AS-2.0-TEMPORAL-001 — bitemporal claim validity windows (deepens AS-CORE-005)
     "claim-validity-window": "claim-validity-window.schema.json",
     "claim-validity-catalog": "claim-validity-catalog.schema.json",
     "bitemporal-as-of-result": "bitemporal-as-of-result.schema.json",
+    # AS-2.2-KDIFF-001 — Knowledge Diff / Time Machine P0 (read-only as-of + T1->T2 diff;
+    # derived ≠ authority; consumes AS-2.0-TEMPORAL-001 + AS-CORE state; never writes)
+    "kdiff-as-of-snapshot": "kdiff-as-of-snapshot.schema.json",
+    "kdiff-record": "kdiff-record.schema.json",
     # AS-2.0-REALITY-GAP-001 — fixture-only reality-gap inventory (≠ PILOT / estate)
     "reality-gap-inventory": "reality-gap-inventory.schema.json",
     # AS-2.0-TWIN-FIXTURE-001 — disposable twin projections (≠ TWIN production / PILOT)

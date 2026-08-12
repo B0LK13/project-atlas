@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import jsonschema
 import pytest
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "estate-ops"
@@ -169,26 +169,10 @@ def test_forbidden_action_schema_rejects_canonical_writes_true() -> None:
 
 
 def test_no_production_mutation_paths_in_prep_tree() -> None:
-    """Prep must not touch shared production mutation surfaces."""
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
-    forbidden = [
-        "src/project_atlas/ops_health.py",
-        "src/project_atlas/ops_events.py",
-        "src/project_atlas/knowledge_compiler.py",
-        "docs/atlas-2.2/README.md",
-    ]
-    for rel in forbidden:
-        assert rel not in changed
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert not name.startswith("apps/"), name
-        assert not name.endswith("README.md"), name
-        assert name.startswith("docs/atlas-2.2/estate-ops/") or name in {
-            "tests/unit/test_as_2_2_estate_ops_deepen_prep_001.py",
-            "tests/unit/test_as_2_2_estate_ops_prep_001.py",
-        }, name
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
+
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'estate-ops' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("estate-ops")

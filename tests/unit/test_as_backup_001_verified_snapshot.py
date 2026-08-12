@@ -22,6 +22,7 @@ import pytest
 
 from project_atlas.backup import (
     BackupError,
+    classify_vault_path,
     collect_identity_samples,
     compare_member_digests,
     create_snapshot,
@@ -364,3 +365,198 @@ def test_cli_snapshot_verify_and_restore(tmp_path: Path) -> None:
     )
     assert (target / ".atlas" / "vault.json").is_file()
     assert main(["restore", "--bundle", str(bundle), "--output", str(target)]) == 1
+
+
+# --------------------------------------------------------------------------- #
+# RECOVERY_GATE=PASS — full-vault semantic-completeness (F1 regression guard).
+#
+# Before this contract fix, classify_vault_path returned None for the top-level
+# OKF category directories (capabilities/ decisions/ infrastructure/ standards/
+# technologies/), the root log.md, and receipts/claims/*.json, so those
+# populated, non-ephemeral paths were SILENTLY dropped from every cold bundle
+# and were ABSENT after restore (RECOVERY_GATE=PARTIAL / F1). These tests fail
+# closed on any such omission.
+# --------------------------------------------------------------------------- #
+
+_EPHEMERAL_MARKERS = (".atlas-stage", ".atlas-backup")
+
+
+def _persisted_cold_files(root: Path) -> dict[str, bytes]:
+    """All persisted, non-ephemeral files EXCEPT warm derived D5 (generated/).
+
+    This is exactly the content the cold bundle contract guarantees to
+    reproduce byte-for-byte after restore.
+    """
+    out: dict[str, bytes] = {}
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        parts = rel.split("/")
+        if any(seg in {".tmp", "__pycache__", ".git"} for seg in parts):
+            continue
+        if path.name.endswith(_EPHEMERAL_MARKERS):
+            continue
+        if rel.startswith("generated/"):
+            continue
+        out[rel] = path.read_bytes()
+    return out
+
+
+def _semantic_fingerprint(files: dict[str, bytes]) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    for rel in sorted(files):
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(hashlib.sha256(files[rel]).hexdigest().encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
+
+
+def _full_okf_fixture_vault(tmp_path: Path) -> Path:
+    """Cold-certifiable vault populated across ALL OKF category planes.
+
+    Extends the canonical fixture with Layer-B concept notes under every OKF
+    category directory plus a knowledge-compile receipt under receipts/claims/,
+    matching what the certified discover→ingest→build pipeline persists.
+    """
+    vault = _fixture_vault(tmp_path)
+    # Layer-B concept notes under each OKF category directory (D2).
+    _write(
+        vault / "capabilities" / "auth.md",
+        "# Capability: Auth\n\nSource-backed capability note.\n",
+    )
+    _write(
+        vault / "technologies" / "frameworks" / "fastapi.md",
+        "# Technology: FastAPI\n\nSource-backed technology note.\n",
+    )
+    _write(
+        vault / "infrastructure" / "hosts" / "edge.md",
+        "# Host: edge\n\nSource-backed infrastructure note.\n",
+    )
+    _write(
+        vault / "decisions" / "cross-project" / "adr-db.md",
+        "# Decision: DB\n\nSource-backed decision note.\n",
+    )
+    _write(
+        vault / "standards" / "logging.md",
+        "# Standard: logging\n\nSource-backed standard note.\n",
+    )
+    # Knowledge-compile receipt (receipts/claims/*.json) — travels with D3.
+    _write(
+        vault / "receipts" / "claims" / "backup-fixture-abc123.json",
+        {
+            "schema_version": 1,
+            "receipt_type": "claims-compile",
+            "project_id": "backup-fixture",
+            "claims": 1,
+            "state_sha256": "c" * 64,
+        },
+    )
+    return vault
+
+
+def test_okf_category_dirs_log_and_receipts_classify_to_cold_domains() -> None:
+    """F1 unit guard: the previously-dropped paths now map to cold domains."""
+    assert classify_vault_path("capabilities/auth.md") == "D2"
+    assert classify_vault_path("decisions/cross-project/adr-db.md") == "D2"
+    assert classify_vault_path("infrastructure/hosts/edge.md") == "D2"
+    assert classify_vault_path("standards/logging.md") == "D2"
+    assert classify_vault_path("technologies/frameworks/fastapi.md") == "D2"
+    assert classify_vault_path("log.md") == "D2"
+    assert classify_vault_path("receipts/claims/proj-abc.json") == "D3"
+    # generated/ stays warm-derived (D5), .atlas config stays D6.
+    assert classify_vault_path("generated/indexes/sources.json") == "D5"
+    assert classify_vault_path(".atlas/vault.json") == "D6"
+
+
+def test_full_vault_semantic_completeness_after_restore(tmp_path: Path) -> None:
+    """RECOVERY_GATE core: every cold (non-D5) persisted file reproduces
+    byte-for-byte after snapshot→restore. Would FAIL pre-fix (OKF dirs,
+    log.md, receipts/claims all absent after restore)."""
+    vault = _full_okf_fixture_vault(tmp_path)
+    original = _persisted_cold_files(vault)
+    # The exact paths F1 used to drop must be present in the source vault.
+    f1_paths = {
+        "log.md",
+        "capabilities/auth.md",
+        "decisions/cross-project/adr-db.md",
+        "infrastructure/hosts/edge.md",
+        "standards/logging.md",
+        "technologies/frameworks/fastapi.md",
+        "receipts/claims/backup-fixture-abc123.json",
+    }
+    assert f1_paths <= set(original)
+
+    bundle = tmp_path / "bundle"
+    create_snapshot(vault, bundle, include_d5=False)
+    verify_bundle(bundle)
+
+    target = tmp_path / "restored"
+    restore_bundle(bundle, target, tier="T3", expected_vault_logical_id=VAULT_LOGICAL_ID)
+    restored = _persisted_cold_files(target)
+
+    # No cold, non-ephemeral file may be absent or altered (fail-closed on F1).
+    missing = sorted(set(original) - set(restored))
+    assert not missing, f"F1 regression: cold content dropped by backup: {missing}"
+    for rel in sorted(original):
+        assert restored[rel] == original[rel], f"byte drift after restore: {rel}"
+
+    # Semantic fingerprint of contract-guaranteed content matches the original.
+    assert _semantic_fingerprint(original) == _semantic_fingerprint(
+        {k: restored[k] for k in original}
+    )
+
+
+def test_restore_scaffold_flag_gives_structural_parity(tmp_path: Path) -> None:
+    """Empty-target/scaffold tension resolution: scaffold=True yields the full
+    structural skeleton (incl. empty OKF subdirs) AND byte-complete content,
+    without weakening the empty-target guard."""
+    vault = _full_okf_fixture_vault(tmp_path)
+    original = _persisted_cold_files(vault)
+    bundle = tmp_path / "bundle"
+    create_snapshot(vault, bundle, include_d5=False)
+
+    target = tmp_path / "restored-scaffold"
+    restore_bundle(
+        bundle,
+        target,
+        tier="T3",
+        expected_vault_logical_id=VAULT_LOGICAL_ID,
+        scaffold=True,
+    )
+    # Structural scaffold directories that carry no member bytes are present.
+    for structural in (
+        "infrastructure/networks",
+        "technologies/databases",
+        "decisions/cross-project",
+        "generated/dashboards",
+        "templates",
+    ):
+        assert (target / structural).is_dir(), f"missing scaffold dir: {structural}"
+    # Captured content still wins over scaffold defaults, byte-for-byte.
+    restored = _persisted_cold_files(target)
+    for rel in sorted(original):
+        assert restored[rel] == original[rel], f"scaffold clobbered content: {rel}"
+
+    # The empty-target guard is NOT weakened by the scaffold option.
+    dirty = tmp_path / "dirty-scaffold"
+    dirty.mkdir()
+    (dirty / "stale.txt").write_text("nope", encoding="utf-8")
+    with pytest.raises(BackupError, match="non-empty"):
+        restore_bundle(bundle, dirty, tier="T3", scaffold=True)
+
+
+def test_create_snapshot_fail_closed_on_unclassified_content(tmp_path: Path) -> None:
+    """Fail-closed completeness: an unclassified persisted vault file must abort
+    the whole bundle rather than be silently omitted (root-cause of F1)."""
+    vault = _fixture_vault(tmp_path)
+    # A brand-new, unrecognised top-level content area.
+    _write(vault / "novel-plane" / "note.md", "# Novel content plane\n")
+    with pytest.raises(BackupError, match="unclassified persisted vault content"):
+        create_snapshot(vault, tmp_path / "bundle-unclassified")
+    # No partial bundle survives the fail-closed abort (no-partial-output).
+    partial = tmp_path / "bundle-unclassified"
+    assert not partial.exists() or not any(partial.iterdir())
