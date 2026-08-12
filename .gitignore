@@ -77,6 +77,12 @@ desktop.ini
 # Root agent spool (local session residue; do not ignore tracked `.atlas/project.yaml`)
 .atlas-spool/
 
+# AS-CODER-ALPHA-CONNECT-001 local dogfood bind + in-tree default vault
+.atlas-vault/
+.atlas/connect.json
+**/.atlas-vault/
+**/.atlas/connect.json
+
 # AS-2.2-EVAL-001 private holdout expected map (never commit plaintext answers).
 # Documented operator-local location (docs/AS-2.2-EVAL-001.md,
 # fixtures/eval/holdouts/hidden/ACCESS.md):

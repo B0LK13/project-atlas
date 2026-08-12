@@ -342,4 +342,21 @@ _Status: **MERGED** via PR `#321` (`c0ebd46` on `main`). Directives `D-PROJECT-A
 - [x] OPTGATE-006 Independent IV PASS + merge to `main`
 - [x] OPTGATE-009 Post-merge evaluator reassessment (D-032): `EVALUATOR_STABLE = YES`; wake recommendation `OPEN_ELIGIBLE` (governance only — runtime `ATLAS_OPT_WAKE_GATE` remains `CLOSED`; AutoLab not activated)
 
+## Coder Alpha (D-PROJECT-ATLAS-CODER-ALPHA-035)
+
+_North star: persistent brain for AI-native projects. See `docs/CODER-ALPHA-035-REBASE.md`._
+
+- [x] AS-CODER-ALPHA-CONNECT-001 `atlas connect .` one-command bind+compile
+- [ ] AS-CODER-ALPHA-OVERVIEW-001 Project Overview lens
+- [ ] AS-CODER-ALPHA-STATE-001 Current State lens
+- [ ] AS-CODER-ALPHA-CHANGED-001 What Changed defaults
+- [ ] AS-CODER-ALPHA-DECISIONS-001 Decision memory
+- [ ] AS-CODER-ALPHA-UNKNOWN-001 Unknown/conflict bundle
+- [ ] AS-CODER-ALPHA-CAPTURE-001 Session capture defaults
+- [ ] AS-CODER-ALPHA-HANDOFF-001 `atlas handoff` create/resume
+- [ ] AS-CODER-ALPHA-CONTEXT-001 Agent context export
+- [ ] AS-CODER-ALPHA-OBSIDIAN-001 Living Obsidian projection
+- [ ] AS-CODER-ALPHA-HUMAN-LOOP-001 Human decisions → Truth Core
+- [ ] AS-CODER-ALPHA-WEB-001 Web Knowledge UX on Core
+- [ ] AS-CODER-ALPHA-TRUTH-UX-001 Evidence/conflict/UNKNOWN inspection
 
