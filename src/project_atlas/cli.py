@@ -151,6 +151,10 @@ from project_atlas.overview import OverviewError, materialize_overview_lenses
 from project_atlas.perf_baselines import PerfBaselineError, run_perf_baselines
 from project_atlas.pilot_auth_prep import PilotAuthPrepError, write_pilot_prep_report
 from project_atlas.portfolio import build_portfolio
+from project_atlas.project_changed import (
+    ProjectChangedError,
+    materialize_changed_lenses,
+)
 from project_atlas.project_state import ProjectStateError, materialize_state_lenses
 from project_atlas.provider_adapters import (
     ProviderAdapter,
@@ -410,6 +414,33 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the state receipt JSON to stdout (sorted keys).",
+    )
+
+    changed_parser = subparsers.add_parser(
+        "changed",
+        help=(
+            "Materialize What Changed derived answer lenses from last-connect "
+            "inventory (AS-CODER-ALPHA-CHANGED-001; lens!=authority)."
+        ),
+    )
+    changed_parser.add_argument(
+        "--vault",
+        type=Path,
+        required=True,
+        help="Vault directory containing generated/ops connect inventory.",
+    )
+    changed_parser.add_argument(
+        "--project",
+        action="append",
+        dest="projects",
+        default=None,
+        help="Limit to one project id (repeatable). Default: all projects/.",
+    )
+    changed_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the changed receipt JSON to stdout (sorted keys).",
     )
 
     accept_graph_parser = subparsers.add_parser(
@@ -1811,6 +1842,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 state_answers = report.get("state_answers") or []
                 if state_answers:
                     print(f"  state:    {', '.join(state_answers)}")
+                changed_answers = report.get("changed_answers") or []
+                if changed_answers:
+                    print(f"  changed:  {', '.join(changed_answers)}")
         return EXIT_OK
 
     if args.command == "overview":
@@ -1852,6 +1886,39 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"atlas state [{report.get('status', 'ok')}]")
             print(f"  vault:    {report.get('vault')}")
             print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
+            for path in report.get("answers_written") or []:
+                print(f"  answer:   {path}")
+            for lens in report.get("lenses") or []:
+                summary = lens.get("summary") or "UNKNOWN"
+                print(
+                    f"  {lens.get('project_id')}: "
+                    f"[{lens.get('rollup')}/{lens.get('status')}] {summary}"
+                )
+        return EXIT_OK
+
+    if args.command == "changed":
+        try:
+            report = materialize_changed_lenses(
+                args.vault,
+                project_ids=args.projects,
+            )
+        except (ProjectChangedError, OSError) as exc:
+            _log.error("changed failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas changed [{report.get('status', 'ok')}]")
+            print(f"  vault:    {report.get('vault')}")
+            print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
+            delta = report.get("delta") or {}
+            print(
+                "  delta:    "
+                f"added={delta.get('added_count', 0)} "
+                f"removed={delta.get('removed_count', 0)} "
+                f"modified={delta.get('modified_count', 0)} "
+                f"prior={delta.get('prior_baseline')}"
+            )
             for path in report.get("answers_written") or []:
                 print(f"  answer:   {path}")
             for lens in report.get("lenses") or []:
