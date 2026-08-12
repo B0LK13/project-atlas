@@ -173,10 +173,39 @@ def find_promote_orphans(root: Path) -> list[str]:
     return found
 
 
+#: Layer-B vault content directories (concept notes + navigation). This MUST
+#: enumerate every top-level OKF category area emitted by the scaffold
+#: (``project_atlas.scaffold.DIRECTORIES``) so cold bundles are byte-complete
+#: (BACKUP-001-FR-002). Prior to the RECOVERY_GATE fix the OKF category dirs
+#: (capabilities/decisions/infrastructure/standards/technologies) were absent
+#: here and their populated notes were silently dropped from every bundle (F1).
+_D2_VAULT_DIRS: frozenset[str] = frozenset(
+    {
+        "projects",
+        "00-system",
+        "01-portfolio",
+        "templates",
+        "review",
+        # OKF category areas (Layer B canonical concept notes).
+        "capabilities",
+        "infrastructure",
+        "technologies",
+        "decisions",
+        "standards",
+    }
+)
+
+#: Top-level vault-root files that are navigation / Layer-B content (D2).
+_D2_VAULT_FILES: frozenset[str] = frozenset({"index.md", "README.md", "log.md"})
+
+
 def classify_vault_path(relative: str) -> DomainId | None:
     """Map a vault-relative POSIX path to a primary backup domain.
 
-    Returns None for paths that are intentionally omitted (unknown / skip).
+    Returns a cold/warm domain for every persisted, non-ephemeral vault path.
+    ``None`` means "this path is not recognised vault content"; callers that
+    build cold bundles MUST fail closed on ``None`` rather than silently
+    omitting the bytes (BACKUP-001-FR-002 completeness contract).
     """
     rel = _posix(relative).lstrip("/")
     if not rel or rel in {".", "./"}:
@@ -196,11 +225,16 @@ def classify_vault_path(relative: str) -> DomainId | None:
         # sources/index.md and similar live as vault navigation (D2).
         return "D2"
 
-    if head in {"projects", "00-system", "01-portfolio", "templates", "review"}:
+    if head in _D2_VAULT_DIRS:
         return "D2"
-    if head in {"index.md", "README.md"}:
+    if head in _D2_VAULT_FILES:
         return "D2"
     if head == "state":
+        return "D3"
+    if head == "receipts":
+        # Knowledge-compile receipts (receipts/claims/*.json) are integrity
+        # proofs produced alongside D3 state; they travel with the state plane
+        # (restore tier T2+) and are NOT control-plane (D4) receipts.
         return "D3"
     if head == "routing":
         return "D4"
@@ -474,7 +508,17 @@ def create_snapshot(
     for relative, path in _iter_files(vault_root):
         domain = classify_vault_path(relative.as_posix())
         if domain is None:
-            continue
+            # Fail-closed completeness contract (BACKUP-001-FR-002): a
+            # persisted, non-ephemeral vault file with no domain would be
+            # silently dropped from the cold bundle — that is the F1 defect
+            # that degraded restore. Refuse the whole bundle instead so a new,
+            # unclassified content type can never be lost. Declared exclusions
+            # (EPHEMERAL, filtered in _iter_files; warm D5 below) are explicit,
+            # never silent.
+            raise BackupError(
+                "refusing incomplete cold bundle: unclassified persisted vault "
+                f"content would be omitted (BACKUP-001-FR-002): {relative.as_posix()}"
+            )
         if domain == "D5" and not include_d5:
             continue
         if domain == "D4" and cp is not None:
@@ -714,10 +758,23 @@ def restore_bundle(
     tier: RestoreTier = "T3",
     expected_vault_logical_id: str | None = None,
     allow_nonempty: bool = False,
+    scaffold: bool = False,
 ) -> dict[str, Any]:
     """Restore a verified bundle onto an empty disposable target (FR-004…013).
 
     Never silently heals digest / identity / marker failures.
+
+    Empty-target / scaffold tension (fail-closed resolution): restore always
+    demands an EMPTY target (the guard below is unchanged). Scaffold parity —
+    the full ``atlas init`` directory skeleton, including structural OKF
+    subdirectories that carry no member bytes — cannot be obtained by running
+    ``atlas init`` first, because that would leave the target non-empty and
+    the guard would (correctly) refuse. ``scaffold=True`` composes the
+    deterministic scaffold *into* restore: the empty-target guard is evaluated
+    first, then the scaffold skeleton is laid onto the still-approved empty
+    target, then verified bundle members overwrite any scaffold defaults with
+    the authoritative captured bytes. This never weakens the empty-target,
+    wrong-mount, digest, or marker guards.
     """
     verified = verify_bundle(bundle)
     root = _resolve_safe_root(bundle, label="bundle")
@@ -752,6 +809,18 @@ def restore_bundle(
             )
         if not allow_nonempty:
             raise BackupError("refusing restore onto existing vault without allow_nonempty")
+
+    if scaffold:
+        # Lay the deterministic vault skeleton onto the (guard-approved empty)
+        # target before member restore. Bundle members overwrite scaffold
+        # defaults byte-for-byte, so captured content always wins. Import
+        # locally to avoid a module import cycle (scaffold has no backup dep).
+        from project_atlas.scaffold import ScaffoldError, create_scaffold
+
+        try:
+            create_scaffold(target)
+        except ScaffoldError as exc:
+            raise BackupError(f"restore scaffold failed: {exc}") from exc
 
     allowed = set(_tier_domains(tier))
     members = [m for m in manifest["members"] if isinstance(m, dict) and m.get("domain") in allowed]

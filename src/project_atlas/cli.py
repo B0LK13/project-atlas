@@ -734,6 +734,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Refuse restore when bundle vault_logical_id disagrees (RS-06).",
     )
+    restore_parser.add_argument(
+        "--scaffold",
+        action="store_true",
+        help=(
+            "Lay the deterministic vault scaffold onto the empty target before "
+            "restoring members, giving full structural parity without a "
+            "separate `atlas init` that would trip the empty-target guard."
+        ),
+    )
 
     # AS-INT-009 — raw package / receipt retention (operational; not authority).
     retention_parser = subparsers.add_parser(
@@ -2257,6 +2266,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.output,
                 tier=args.tier,
                 expected_vault_logical_id=args.expect_vault_logical_id,
+                scaffold=args.scaffold,
             )
         except (BackupError, OSError, ValueError, TypeError) as exc:
             _log.error("restore failed: %s", exc)
