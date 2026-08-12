@@ -242,7 +242,7 @@ def connect_project(
         steps.append("build_portfolio")
     if not skip_validate:
         steps.append("validate")
-    steps.extend(["write_bind", "write_receipt"])
+    steps.extend(["materialize_overview", "write_bind", "write_receipt"])
 
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -255,6 +255,7 @@ def connect_project(
         "documents_discovered": 0,
         "documents_ingested": 0,
         "projects": [],
+        "overview_answers": [],
         "marker_created": False,
         "vault_created": False,
         "vault_id": None,
@@ -328,6 +329,11 @@ def connect_project(
             run_build_portfolio(vault_path)
         if not skip_validate:
             validate(vault_path)
+        # AS-CODER-ALPHA-OVERVIEW-001: materialize derived overview lenses so
+        # Knowledge/Ask-live are not empty after connect (DEMO-FINDING-001).
+        from project_atlas.overview import materialize_overview_lenses
+
+        overview = materialize_overview_lenses(vault_path)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ConnectError(str(exc)) from exc
 
@@ -337,6 +343,7 @@ def connect_project(
         "projects": index_result.get("projects"),
         "sources": index_result.get("sources"),
     }
+    report["overview_answers"] = overview.get("answers_written", [])
 
     bind_path = _write_bind(
         project_root,

@@ -5363,3 +5363,23 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - `DEFAULT_EXCLUDES` includes `.atlas-vault` / `.atlas` (path-part exclusion).
 - Connect receipt `documents_discovered` counts active (non-excluded) sources only.
 - Regression: rediscover active paths must not include in-tree vault/bind paths.
+
+## D-CODER-ALPHA-035 — AS-CODER-ALPHA-OVERVIEW-001
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-035
+**Branch:** cursor/coder-alpha-overview-001-d036
+**Base:** main @ `9423dd5` (CONNECT-001 merged)
+
+### Package
+- `atlas overview --vault <vault> [--project id]`
+- Module: `src/project_atlas/overview.py`
+- Auto-runs at end of `atlas connect` (DEMO-FINDING-001 partial close)
+- Writes derived `generated/answers/ans-overview-<project>.json` (lens≠authority)
+- Tests: `tests/unit/test_as_coder_alpha_overview_001.py`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- lens ≠ Layer B; UI ≠ canonical
+- CODEX_VALIDATED: NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
