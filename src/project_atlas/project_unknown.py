@@ -73,7 +73,15 @@ def _entry_count(payload: dict[str, Any] | None) -> int:
     if not payload:
         return 0
     entries = payload.get("entries")
-    return len(entries) if isinstance(entries, list) else 0
+    if not isinstance(entries, list):
+        return 0
+    # HUMAN-LOOP-001: decided reviews (resolved/rejected) are not pending UNKNOWN.
+    pending = [
+        entry
+        for entry in entries
+        if isinstance(entry, dict) and str(entry.get("status") or "pending") == "pending"
+    ]
+    return len(pending)
 
 
 def _parse_status_counts(text: str) -> dict[str, int]:
