@@ -35,6 +35,7 @@ from project_atlas.backup import (
     restore_bundle,
     verify_bundle,
 )
+from project_atlas.bitemporal_catalog import build_bitemporal_catalogs
 from project_atlas.compat_anchor import (
     CompatAnchorError,
     load_compatibility_anchor,
@@ -1670,11 +1671,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "build-portfolio":
         try:
             result = build_portfolio(args.vault)
+            # AS-2.0-TEMPORAL-001 / AS-2.2-KDIFF-001: derive the validity-window
+            # catalog the shipped Time Machine reader consumes, from persisted
+            # claims + document-declared valid-time. Derived (D5) and rebuilt on
+            # every build, so it survives backup/restore via regeneration.
+            catalog = build_bitemporal_catalogs(args.vault)
         except (OSError, ValueError) as exc:
             _log.error("build-portfolio failed: %s", exc)
             return EXIT_ERROR
         print(f"portfolio built for {result['projects']} projects")
         print(f"outputs: {', '.join(result['outputs'])}")
+        print(
+            "bitemporal catalogs: "
+            f"{catalog['catalog_count']} ({catalog['window_count']} windows)"
+        )
         return EXIT_OK
 
     if args.command == "migrate-v2":
