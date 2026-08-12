@@ -18,8 +18,19 @@ import re
 from pathlib import Path
 from typing import Any, TypedDict
 
+from project_atlas.secrets import scan_text
+
 # Project ids index vault-relative paths; keep them bare safe tokens.
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+
+# NFR-004 defence-in-depth: never echo a secret-shaped claim value to a UI
+# reader, even though ingestion quarantines secret-bearing sources upstream.
+# Mirrors the kdiff surface (`knowledge_diff._value_sketch`).
+_REDACTED_CLAIM = "[redacted: secret-shaped value]"
+
+
+def _safe_claim_value(value: str) -> str:
+    return _REDACTED_CLAIM if scan_text(value) else value
 
 
 class ConflictClaimRow(TypedDict):
@@ -70,7 +81,7 @@ def list_project_conflicts(vault: Path, project_id: str) -> dict[str, Any]:
                     if isinstance(claim, dict):
                         claims.append(
                             {
-                                "claim": str(claim.get("claim") or ""),
+                                "claim": _safe_claim_value(str(claim.get("claim") or "")),
                                 "source_id": (
                                     str(claim["source_id"])
                                     if claim.get("source_id")

@@ -229,6 +229,51 @@ def test_app_service_rejects_unsafe_project_id(golden_vault: Path) -> None:
         svc.conflicts("../etc")
 
 
+def test_kdiff_inspected_artifacts_are_project_scoped(golden_vault: Path) -> None:
+    # Hardening: a sibling project's read must not disclose the harbor-api
+    # validity-catalog filename in its inspected_artifacts provenance list.
+    svc = open_app_service(golden_vault)
+    api = svc.kdiff_as_of(PROJECT, T2)["inspected_artifacts"]
+    assert any("bitemporal" in a for a in api)  # own catalog still listed
+    for other in OTHER_PROJECTS:
+        listed = svc.kdiff_as_of(other, T2)["inspected_artifacts"]
+        assert not any("harbor-api-validity" in a for a in listed), (other, listed)
+
+
+def test_conflict_projection_redacts_secret_shaped_values(tmp_path: Path) -> None:
+    # NFR-004 defence-in-depth: even if a secret-shaped value reached a persisted
+    # conflict (ingestion quarantines such sources upstream), the read projection
+    # must never echo it verbatim — mirroring the kdiff value-sketch surface.
+    from project_atlas.web_api.conflicts import list_project_conflicts
+
+    conflicts_dir = tmp_path / "review" / "conflicts"
+    conflicts_dir.mkdir(parents=True)
+    (conflicts_dir / "harbor-api.json").write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "conflict_id": "conflict-secret",
+                        "subject": "doc:x",
+                        "field": "runtime",
+                        "conflict_type": "materially-incompatible",
+                        "claims": [
+                            {"claim": "AKIAIOSFODNN7EXAMPLE", "source_id": "s1"},
+                            {"claim": "PostgreSQL 15", "source_id": "s2"},
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = list_project_conflicts(tmp_path, "harbor-api")
+    values = [c["claim"] for c in result["conflicts"][0]["claims"]]
+    assert "AKIAIOSFODNN7EXAMPLE" not in values
+    assert any("redacted" in v for v in values)
+    assert "PostgreSQL 15" in values  # non-secret value passes through
+
+
 # ---------------------------------------------------------------------------
 # MUTATION / NEGATIVE PROOF (§15) — acceptance depends on fixture semantics
 # ---------------------------------------------------------------------------
