@@ -56,12 +56,18 @@ def test_graph_neighbors_real_relationship(demo_vault: Path) -> None:
 
 def test_conflicts_and_unknowns_are_honest(demo_vault: Path) -> None:
     # Journey: "What conflicts?" / "What don't we know?" -> honest, never fabricated.
-    result = gw.atlas_project_status(demo_vault, "harbor-api")
-    sc = result.structured_content
-    # This corpus has no compiler-detected conflicts: report 0 + explicit unknown.
-    assert sc["conflict_count"] == 0
-    assert "no_detected_conflicts" in sc["unknowns"]
-    assert "no_compiled_answers" in sc["unknowns"]
+    # harbor-api carries the golden unresolved datastore conflict (PostgreSQL 15
+    # vs 16, AS-DEMO-2.2-001): it is surfaced honestly, never hidden and never
+    # silently resolved, so it is NOT reported as "no_detected_conflicts".
+    api = gw.atlas_project_status(demo_vault, "harbor-api").structured_content
+    assert api["conflict_count"] == 1
+    assert "no_detected_conflicts" not in api["unknowns"]
+    assert "no_compiled_answers" in api["unknowns"]
+    # harbor-ops has no compiler-detected conflict: report 0 + explicit unknown.
+    ops = gw.atlas_project_status(demo_vault, "harbor-ops").structured_content
+    assert ops["conflict_count"] == 0
+    assert "no_detected_conflicts" in ops["unknowns"]
+    assert "no_compiled_answers" in ops["unknowns"]
 
 
 def test_unknown_project_is_not_fabricated(demo_vault: Path) -> None:

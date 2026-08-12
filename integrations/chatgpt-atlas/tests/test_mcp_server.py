@@ -11,7 +11,6 @@ pytest.importorskip("mcp")
 import atlas_gateway as gw
 import mcp.types as types
 import server as srv
-from pydantic import AnyUrl
 
 
 def test_write_tool_count_is_zero() -> None:
@@ -42,7 +41,8 @@ def test_widget_resource_registered_with_csp() -> None:
     assert len(resources) == 1
     resource = resources[0]
     assert str(resource.uri) == srv.WIDGET_URI
-    assert resource.mimeType == srv.WIDGET_MIME
+    # mcp SDK drift: the field is `mime_type` (wire alias `mimeType`).
+    assert resource.mime_type == srv.WIDGET_MIME
     html = srv.load_widget_html()
     assert "Content-Security-Policy" in html
     assert "default-src 'none'" in html
@@ -53,15 +53,17 @@ def test_widget_resource_registered_with_csp() -> None:
 
 @pytest.mark.asyncio
 async def test_server_handlers_list_and_read_widget(demo_vault: Path) -> None:
+    """mcp 2.0: handlers are constructor ``on_*`` callables, not decorator maps."""
     server = srv.build_server(demo_vault)
-    assert types.ListToolsRequest in server.request_handlers
-    assert types.CallToolRequest in server.request_handlers
-    assert types.ListResourcesRequest in server.request_handlers
-    assert types.ReadResourceRequest in server.request_handlers
+    assert server.get_request_handler("tools/list") is not None
+    assert server.get_request_handler("tools/call") is not None
+    assert server.get_request_handler("resources/list") is not None
+    assert server.get_request_handler("resources/read") is not None
 
-    list_tools = server.request_handlers[types.ListToolsRequest]
-    tools_result = await list_tools(types.ListToolsRequest(method="tools/list", params=None))
-    tools = tools_result.root.tools  # type: ignore[attr-defined]
+    list_tools = server.get_request_handler("tools/list")
+    assert list_tools is not None
+    tools_result = await list_tools.handler(None, None)
+    tools = tools_result.tools  # type: ignore[attr-defined]
     assert {t.name for t in tools} == {
         "search",
         "fetch",
@@ -70,21 +72,19 @@ async def test_server_handlers_list_and_read_widget(demo_vault: Path) -> None:
     }
     assert srv.write_tool_count() == 0
 
-    list_res = server.request_handlers[types.ListResourcesRequest]
-    res_result = await list_res(types.ListResourcesRequest(method="resources/list", params=None))
-    resources = res_result.root.resources  # type: ignore[attr-defined]
+    list_res = server.get_request_handler("resources/list")
+    assert list_res is not None
+    res_result = await list_res.handler(None, None)
+    resources = res_result.resources  # type: ignore[attr-defined]
     assert any(str(r.uri) == srv.WIDGET_URI for r in resources)
 
-    read_res = server.request_handlers[types.ReadResourceRequest]
-    read_result = await read_res(
-        types.ReadResourceRequest(
-            method="resources/read",
-            params=types.ReadResourceRequestParams(uri=AnyUrl(srv.WIDGET_URI)),
-        )
-    )
-    contents = read_result.root.contents  # type: ignore[attr-defined]
+    read_res = server.get_request_handler("resources/read")
+    assert read_res is not None
+    read_params = types.ReadResourceRequestParams(uri=srv.WIDGET_URI)
+    read_result = await read_res.handler(None, read_params)
+    contents = read_result.contents  # type: ignore[attr-defined]
     assert len(contents) == 1
-    assert contents[0].mimeType == srv.WIDGET_MIME
+    assert contents[0].mime_type == srv.WIDGET_MIME
     assert "Content-Security-Policy" in contents[0].text
     assert "GRAPH != AUTHORITY" in contents[0].text
 
