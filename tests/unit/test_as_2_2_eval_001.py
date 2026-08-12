@@ -24,16 +24,44 @@ from project_atlas.eval_substrate import (
 from project_atlas.schema import available_schemas, validate_record
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-HOLDOUT_EXPECTED_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "eval_holdout_expected.json"
+
+
+def _generate_holdout_expected(repo_root: Path) -> dict[str, str]:
+    """Synthesize a private expected map at runtime from holdout metadata.
+
+    The real holdout answers are operator-held secrets and must never live in the
+    repo tree — not as a committed fixture and not as a hardcoded test literal
+    (W2: HIDDEN_HOLDOUT_ISOLATION). The substrate is generic: it scores
+    predictions against whatever private map the capability points at, so the
+    tests invent their own deterministic expected values keyed by case id. No
+    real answer string is embedded anywhere.
+    """
+    expected: dict[str, str] = {}
+    for path in sorted((holdout_root(repo_root) / "cases").glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        case_id = str(payload["case_id"])
+        expected[case_id] = f"holdout-answer-{case_id.lower()}"
+    return expected
 
 
 @pytest.fixture
-def scoring_capability(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(EVAL_SCORING_CAPABILITY_ENV, "1")
-    monkeypatch.setenv(
-        EVAL_HOLDOUT_EXPECTED_PATH_ENV,
-        str(HOLDOUT_EXPECTED_FIXTURE),
+def scoring_capability(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> dict[str, str]:
+    """Arm scoring capability against a runtime-generated, gitignored map.
+
+    Returns the generated expected map so tests assert via the map, not literals.
+    """
+    expected = _generate_holdout_expected(REPO_ROOT)
+    private_dir = tmp_path / "private"
+    private_dir.mkdir()
+    map_path = private_dir / "eval_holdout_expected.json"
+    map_path.write_text(
+        json.dumps(expected, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    monkeypatch.setenv(EVAL_SCORING_CAPABILITY_ENV, "1")
+    monkeypatch.setenv(EVAL_HOLDOUT_EXPECTED_PATH_ENV, str(map_path))
+    return expected
 
 
 @pytest.fixture(autouse=True)
@@ -64,14 +92,16 @@ def test_scoring_without_capability_is_public_only() -> None:
     assert {c["case_id"] for c in cases} == {"EV-PUB-001", "EV-PUB-002"}
 
 
-def test_scoring_sees_holdouts_with_capability(scoring_capability: None) -> None:
+def test_scoring_sees_holdouts_with_capability(
+    scoring_capability: dict[str, str],
+) -> None:
     cases = load_cases(REPO_ROOT, "scoring")
     ids = {c["case_id"] for c in cases}
     assert "EV-PUB-001" in ids
     assert "EV-HOLD-001" in ids
     assert "EV-HOLD-002" in ids
     hold = next(c for c in cases if c["case_id"] == "EV-HOLD-001")
-    assert hold["expected"] == "conflict-detected"
+    assert hold["expected"] == scoring_capability["EV-HOLD-001"]
 
 
 def test_holdout_git_case_files_have_no_plaintext_expected() -> None:
@@ -164,30 +194,39 @@ def test_score_receipt_public_only(tmp_path: Path) -> None:
 
 def test_score_receipt_with_holdouts(
     tmp_path: Path,
-    scoring_capability: None,
+    scoring_capability: dict[str, str],
 ) -> None:
     vault = tmp_path / "v"
     vault.mkdir()
+    # Build predictions from the runtime-generated expected map so no real answer
+    # literal appears in the test. Exact -> exact match; prefix -> extend it.
+    cases = load_cases(REPO_ROOT, "scoring")
+    predictions: dict[str, str] = {}
+    for case in cases:
+        cid = str(case["case_id"])
+        exp = str(case["expected"])
+        predictions[cid] = exp if case.get("score_mode") == "exact" else exp + "-ext"
     receipt = build_eval_score_receipt(
         vault,
         record_id="eval-hold",
         repo_root=REPO_ROOT,
-        predictions={
-            "EV-PUB-001": "validate-ok",
-            "EV-PUB-002": "discover-x",
-            "EV-HOLD-001": "conflict-detected",
-            "EV-HOLD-002": "lineage-stable",
-        },
+        predictions=predictions,
         include_holdouts=True,
     )
     assert receipt["holdouts_scored"] is True
     assert receipt["holdout_case_count"] == 2
     assert receipt["cases_scored"] == 4
     assert receipt["cases_matched"] == 4
+    assert receipt["holdout_cases_scored"] == 2
+    assert receipt["holdout_cases_matched"] == 2
     holdout_rows = [r for r in receipt["results"] if r["visibility"] == "holdout"]
     assert holdout_rows
     for row in holdout_rows:
-        assert row["expected_norm"] == ""
+        # Per-row holdout answer signal must be fully dropped (W2 hardening):
+        # predicted_norm/matched/expected_norm reconstruct the answer key.
+        assert "predicted_norm" not in row
+        assert "matched" not in row
+        assert "expected_norm" not in row
         assert row["expected_redacted"] is True
     validate_record(receipt, "eval-score-receipt")
 

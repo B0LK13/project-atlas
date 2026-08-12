@@ -27,7 +27,7 @@
     "query": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "value", "mode", "cap"],
+      "required": ["kind", "value", "mode", "cap", "project_id"],
       "properties": {
         "kind": {
           "type": "string",
@@ -42,7 +42,8 @@
         },
         "value": { "type": "string", "minLength": 1 },
         "mode": { "type": "string", "enum": ["exact", "prefix"] },
-        "cap": { "type": "integer", "minimum": 1, "maximum": 100 }
+        "cap": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "project_id": { "type": "string", "minLength": 1 }
       }
     },
     "slots": {

@@ -32,7 +32,9 @@ from pathlib import Path
 from typing import Any, Literal
 
 from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_anchor
-from project_atlas.retrieval import VaultRetriever
+from project_atlas.hybrid_retrieval import MAX_QUERY_CHARS, MAX_QUERY_TERMS
+from project_atlas.retrieval import VaultRetriever, _in_project_scope
+from project_atlas.retrieval_fusion import tokenize
 from project_atlas.web_api.graph import impact_graph_summary
 
 PACKAGE_ID = "AS-2.2-RUNTIME-001"
@@ -97,6 +99,33 @@ class Runtime22Error(ValueError):
     """Fail-closed AS-2.2-RUNTIME-001 error."""
 
 
+def _require_project_scope(project_id: str, *, token: str) -> str:
+    """Require a non-empty project scope (fail-closed; default-deny cross-project).
+
+    Mirrors :func:`project_atlas.hybrid_retrieval._require_project_scope` so the
+    runtime surface enforces the same project-scope contract as the AS-2.0
+    hybrid surface (CLAUDE-009 cross-project leak remediation).
+    """
+    scope = project_id.strip()
+    if not scope:
+        raise Runtime22Error(token)
+    return scope
+
+
+def _require_query_bounds(value: str, *, label: str) -> None:
+    """Reject over-length / too-many-term queries (reuses AS-2.0 bounds).
+
+    Bounds mirror :data:`hybrid_retrieval.MAX_QUERY_CHARS` /
+    :data:`hybrid_retrieval.MAX_QUERY_TERMS` so the runtime query path is
+    consistent with the AS-2.0 hybrid surface (CLAUDE-013 residual).
+    """
+    if len(value) > MAX_QUERY_CHARS:
+        raise Runtime22Error(f"{label}-query-too-long:{len(value)}")
+    distinct_terms = len(set(tokenize(value)))
+    if distinct_terms > MAX_QUERY_TERMS:
+        raise Runtime22Error(f"{label}-query-too-many-terms:{distinct_terms}")
+
+
 def _require_int_in_range(label: str, value: object, lo: int, hi: int) -> int:
     """Reject bool/float/str; require inclusive int range (fail-closed)."""
     if isinstance(value, bool) or not isinstance(value, int):
@@ -137,17 +166,35 @@ def _sanitize_provenance(raw: object) -> tuple[list[dict[str, str]], int]:
     return cleaned, dropped
 
 
-def _record_present_in_vault(
-    retriever: VaultRetriever, record_type: str, record_id: str
-) -> bool:
-    """True when ``record_id`` resolves via AS-RET-001 lexical indexes."""
+def _record_presence(
+    retriever: VaultRetriever,
+    record_type: str,
+    record_id: str,
+    *,
+    project_id: str,
+) -> tuple[bool, bool]:
+    """Return ``(present_anywhere, in_project_scope)`` for a record.
+
+    Presence resolves via AS-RET-001 lexical indexes. Scope membership reuses
+    :func:`retrieval._in_project_scope` (fail-closed on records lacking a
+    project id), so a record that exists only in a sibling project is present
+    but out of scope — the caller must fail closed (CLAUDE-009).
+    """
     if record_type not in SUPPORTED_KINDS:
-        return False
+        return False, False
     try:
         hits = retriever.lookup(record_type, record_id, prefix=False)
     except ValueError:
-        return False
-    return any(hit.record_id == record_id for hit in hits)
+        return False, False
+    present = False
+    in_scope = False
+    for hit in hits:
+        if hit.record_id != record_id:
+            continue
+        present = True
+        if _in_project_scope(hit.record_type, hit.record, project_id):
+            in_scope = True
+    return present, in_scope
 
 
 def _load_portfolio_freshness(vault: Path) -> dict[str, str]:
@@ -328,6 +375,7 @@ def hybrid_retrieve(
     *,
     kind: str,
     value: str,
+    project_id: str,
     mode: RetrievalMode = "exact",
     cap: int = DEFAULT_CAP,
     include_graph_slot: bool = False,
@@ -337,12 +385,18 @@ def hybrid_retrieve(
 
     Semantic slot remains disabled; requesting it fails closed.
     Graph narrative fields are fixed constants (GRAPH ≠ AUTHORITY).
+    ``project_id`` is required — cross-project retrieval is denied by default
+    (fail-closed), mirroring the AS-2.0 hybrid surface (CLAUDE-009).
     """
     require_compatibility_anchor()
     if enable_semantic:
         raise Runtime22Error(
             "semantic-slot-forbidden:AS-2.2-RUNTIME-001-no-llm-authority"
         )
+
+    scope = _require_project_scope(
+        project_id, token="runtime-hybrid-project-scope-required"
+    )
 
     kind_token = kind.strip()
     if kind_token not in SUPPORTED_KINDS:
@@ -351,6 +405,7 @@ def hybrid_retrieve(
     query_value = value.strip()
     if not query_value:
         raise Runtime22Error("hybrid-value-empty")
+    _require_query_bounds(query_value, label="hybrid")
 
     if mode not in ("exact", "prefix"):
         raise Runtime22Error(f"hybrid-mode-invalid:{mode}")
@@ -360,7 +415,9 @@ def hybrid_retrieve(
     vault_path = vault.expanduser().resolve()
     retriever = VaultRetriever(vault_path)
     use_prefix = mode == "prefix"
-    lexical_hits = retriever.lookup(kind_token, query_value, prefix=use_prefix)
+    lexical_hits = retriever.lookup(
+        kind_token, query_value, prefix=use_prefix, project_id=scope
+    )
     slot_name = "lexical_prefix" if use_prefix else "lexical_exact"
 
     candidates: list[dict[str, Any]] = []
@@ -430,6 +487,7 @@ def hybrid_retrieve(
             "value": query_value,
             "mode": mode,
             "cap": cap_n,
+            "project_id": scope,
         },
         "slots": {
             "lexical_exact": {
@@ -465,6 +523,7 @@ def compile_context(
     *,
     pack_id: str,
     candidates: list[Any],
+    project_id: str,
     budget: int = DEFAULT_CAP,
     profile_id: str = PROFILE_P0,
     write: bool = False,
@@ -480,8 +539,15 @@ def compile_context(
     relevance before budget. Invented vault-absent IDs and empty provenance
     fail closed (RT-ADV-001 / RT-ADV-004). Unknown profiles / authority spoof /
     freshness laundering / hard budget overflow fail closed.
+
+    ``project_id`` is required — every candidate must resolve inside that
+    project scope; records from a sibling project fail closed (default-deny
+    cross-project, CLAUDE-009).
     """
     require_compatibility_anchor()
+    scope = _require_project_scope(
+        project_id, token="runtime-context-project-scope-required"
+    )
     pack_token = pack_id.strip()
     if not _ID_RE.fullmatch(pack_token):
         raise Runtime22Error(f"context-pack-id-invalid:{pack_id!r}")
@@ -525,9 +591,17 @@ def compile_context(
             skipped_malformed += 1
             continue
         # RT-ADV-001: refuse invented vault-absent records (never stamp honesty lie).
-        if not _record_present_in_vault(retriever, record_type, record_id):
+        # CLAUDE-009: refuse records that resolve only in a sibling project scope.
+        present, in_scope = _record_presence(
+            retriever, record_type, record_id, project_id=scope
+        )
+        if not present:
             raise Runtime22Error(
                 f"context-compiler-record-absent:{record_type}:{record_id}"
+            )
+        if not in_scope:
+            raise Runtime22Error(
+                f"context-compiler-project-scope-mismatch:{record_type}:{record_id}"
             )
         # RT-ADV-004: refuse missing/empty provenance (no invented backfill).
         if "provenance" not in raw or raw.get("provenance") is None:
@@ -652,6 +726,7 @@ def compile_context(
         "artifact_kind": COMPILER_KIND,
         "compat_snapshot_id": SNAPSHOT_ID,
         "pack_id": pack_token,
+        "project_id": scope,
         "profile_id": profile,
         "budget": budget_n,
         "entries": ordered,

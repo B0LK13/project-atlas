@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,11 +13,35 @@ from project_atlas.runtime_22 import (
     COMPILER_KIND,
     PACKAGE_ID,
     Runtime22Error,
-    compile_context,
-    hybrid_retrieve,
     package_to_json,
 )
+from project_atlas.runtime_22 import (
+    compile_context as _compile_context,
+)
+from project_atlas.runtime_22 import (
+    hybrid_retrieve as _hybrid_retrieve,
+)
 from project_atlas.schema import validate_record
+
+# CLAUDE-009: the runtime surface is now project-scoped (default-deny cross
+# project). All fixture records carry this project id. These thin wrappers
+# default the (now required) project scope so the pre-existing behavioural
+# assertions keep exercising the scoped contract without per-call churn; the
+# fail-closed / leak-isolation contract itself is covered explicitly in
+# test_as_2_2_runtime_scope_001.py.
+PROJECT_A = "proj-alpha"
+
+
+def hybrid_retrieve(
+    vault: Path, *, project_id: str = PROJECT_A, **kwargs: Any
+) -> dict[str, Any]:
+    return _hybrid_retrieve(vault, project_id=project_id, **kwargs)
+
+
+def compile_context(
+    vault: Path, *, project_id: str = PROJECT_A, **kwargs: Any
+) -> dict[str, Any]:
+    return _compile_context(vault, project_id=project_id, **kwargs)
 
 
 def _mini_vault(tmp_path: Path) -> Path:
@@ -38,11 +63,13 @@ def _mini_vault(tmp_path: Path) -> Path:
             {
                 "claim_id": "claim-alpha",
                 "field": "status",
+                "project_id": PROJECT_A,
                 "provenance": [{"ref": "sources/a.md"}],
             },
             {
                 "claim_id": "claim-beta",
                 "field": "owner",
+                "project_id": PROJECT_A,
                 "provenance": [{"ref": "sources/b.md"}],
             },
         ]
@@ -364,6 +391,7 @@ def test_compile_context_output_contract_golden(tmp_path: Path) -> None:
             "skipped_malformed": 0,
         },
         "pack_id": "golden-pack",
+        "project_id": PROJECT_A,
         "package_id": PACKAGE_ID,
         "pipeline": [
             "candidates",
@@ -647,6 +675,7 @@ def test_compile_context_p2_freshness_conservative_multi_provenance(
             {
                 "claim_id": "claim-c",
                 "field": "status",
+                "project_id": PROJECT_A,
                 "provenance": [{"ref": "sources/a.md"}],
             },
             *json.loads(
