@@ -20,13 +20,16 @@ The repository has grown well beyond the original WP-001 foundation. As of `main
 
 - Full Core pipeline: `atlas discover` → `atlas ingest` → `atlas build-indexes` → `atlas build-portfolio` → `atlas validate`, with read-only read/query lenses layered on top (`atlas query`, `atlas ask2`, `atlas kdiff`).
 - Shipped read/query and ops surface beyond the original Core slice: `build-portfolio` (derived portfolio intelligence plus an AS-2.0-TEMPORAL-001 bitemporal validity catalog under `generated/ops/bitemporal/`), `doctor` (PROD-DOCTOR-001 environment/vault diagnostics), `ask2` (Ask Atlas 2: project-scoped hybrid retrieval + a p2 read-only context compiler that returns known/unknown/conflict honestly and never invents authority), `kdiff` (Knowledge Diff / Time Machine: read-only as-of reads + T1→T2 diffs over document-declared valid-time), `snapshot`/`restore` (backup/recovery), and a read-only LIVE_API (`live api-serve` on 127.0.0.1) exposing `/v1/conflicts` and `/v1/kdiff`; a Web `#/time-machine` page lives under `apps/web`.
+- Product maturity truth: Atlas 1.0 is complete; Atlas 2.0 is release-certified; Atlas 2.1 is the live productization layer (including read-only MCP and ChatGPT bridge surfaces under explicit truth boundaries); Atlas 2.2 is no longer PREP-only overall and is tracked per-package (`prep-frozen` vs `implementation-unlocked`) in `docs/atlas-2.2/PACKAGE-MATURITY.json`.
 - Golden demo fixture `tests/fixtures/demo/estate/harbor-api` carries a real unresolved datastore conflict (PostgreSQL 15 vs 16) and real bitemporal Time Machine states, exercised by `tests/integration/test_as_demo_2_2_golden_fixture.py`.
 - Recovery: the RECOVERY_GATE passes (backup/restore byte-complete plus derived rebuild). Eval security: an out-of-process holdout scoring broker keeps hidden-holdout scoring isolated.
-- Atlas 2.2 maturity is tracked per-capability in `docs/atlas-2.2/PACKAGE-MATURITY.json` (`prep-frozen` vs `implementation-unlocked`). Preserve the truth boundaries: PREP ≠ IMPLEMENTED, INTERNAL VALIDATION ≠ EXTERNAL CERTIFICATION (`CODEX_VALIDATED = NO`; external security revalidation still required), DEMO_FIXTURE ≠ AUTHENTIC_PILOT, DEMO ≠ RELEASE, UI ≠ CANONICAL. The 2.2 demo status is PORTABLE DEMO = PASS, WINDOWS SEAL = PENDING (Local-owned) — *not* a claim that `ATLAS_DEMO_2_2_WORKING = YES`; the project remains not release-certified.
+- Recovery identity contract (runtime truth): `atlas init` establishes canonical vault identity (`.atlas/vault.json`), `snapshot` remains non-minting, and `restore` preserves identity. Linux uses the POSIX dirfd-safe identity path; Windows uses the platform-specific atomic path introduced by `#320`. Internal implementations differ, identity contract is the same.
+- Final Golden Demo pin (current `main`): `FINAL_DEMO_HEAD=754bb266fa2d2ff39089c4e587c9b90eacd841fd`, `FINAL_DEMO_TREE=c481c1aa6ba408a16b176d5326f209d6a76b6c42`, `ATLAS_DEMO_2_2_PORTABLE_CANDIDATE=PASS`, `WINDOWS_DEMO_SEAL=PASS`, `ATLAS_DEMO_2_2_WORKING=YES`, `WINDOWS_STRANGER_PHASE_C=PASS`.
+- Preserve truth boundaries exactly: `PREP != IMPLEMENTED`, `DEMO_FIXTURE != AUTHENTIC_PILOT`, `DEMO != RELEASE`, `UI != CANONICAL TRUTH`, `MODEL OUTPUT != AUTHORITY`, `CODEX_VALIDATED = NO`, `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`. `ATLAS_DEMO_2_2_WORKING = YES` means Golden Product Vertical Slice pass (portable + Windows stranger); it does **not** mean `AUTHENTIC_PILOT = PASS`, `EXTERNAL_SECURITY_CERTIFICATION = PASS`, or `COMMERCIAL_GA = YES`.
 - `src/project_atlas/` — installable Python 3.12+ package (src layout) with CLI, config, logging, scaffold, discovery, ingestion, indexing, portfolio, validation, schema validation, secrets scanning, knowledge compilation, semantic compilation, durable lineage, bitemporal/knowledge-diff readers, Ask Atlas 2, backup/restore, LIVE_API, and domain models.
 - `src/atlas_contracts/` — shared subsystem contracts for agent events, event packages, provenance, receipts, identity, and versions.
 - `atlas-vault-documentation/` — separate sibling deliverable that implements the governed agent documentation skill and control plane (`AS-CTRL-001`, `AS-SKILL-001`). It has its own tests, scripts, schemas, references, and skill manifest; it is intentionally excluded from the main package's ruff/mypy scope.
-- `tests/unit/` and `tests/integration/` — 2,200+ tests across the two suites on `main`.
+- `tests/unit/` and `tests/integration/` — comprehensive test coverage across the two suites on `main`.
 - `.github/workflows/ci.yml` — ruff, mypy, pytest, CLI smoke.
 - `.github/workflows/atlas-documentation-gate.yml` — receipt-gated documentation gate triggered manually.
 - `WORKLOG.md` — execution log per work package; `docs/adr/` — architectural decision records.
@@ -69,11 +72,14 @@ When implementing, treat these documents as the authoritative specification. The
 | `retrieval.py` | `AS-RET-001`: read-only deterministic lexical exact/prefix retrieval. |
 | `ask2.py` | `atlas ask2` (`AS-2.2-ASK2-001`): read-only answer lens over project-scoped hybrid retrieval + p2 context compiler; UNKNOWN stays UNKNOWN; model ≠ authority; no writes. |
 | `knowledge_diff.py` | `atlas kdiff` (`AS-2.2-KDIFF-001`): read-only as-of reads + T1→T2 diffs over document-declared valid-time; graph ≠ authority; no canonical writes. |
+| `runtime_22.py` | `AS-2.2` runtime package: hybrid retrieval and context compiler runtime primitives used by Ask Atlas 2 and related read paths. |
 | `bitemporal.py` | `AS-2.0-TEMPORAL-001`: validity-window evaluation (`evaluate_as_of`) and catalog writer; fail-closed overlap/malformed/wall-clock handling. |
 | `bitemporal_catalog.py` | Derives the `AS-2.0-TEMPORAL-001` validity catalog under `generated/ops/bitemporal/` from persisted claims + document-declared valid-time (consumed by `kdiff`); invoked by `build-portfolio`. |
 | `backup.py` | `atlas snapshot`/`restore` (`AS-BACKUP-001`): byte-complete recovery bundles; operational durability ≠ project authority. |
 | `api_server.py` / `app_service.py` | Read-only LIVE_API (`atlas live api-serve`, 127.0.0.1), including the `/v1/conflicts` and `/v1/kdiff` projections. |
 | `web_api/conflicts.py` | Read-only `/v1/conflicts` projection served by the LIVE_API. |
+| `mcp_server.py` / `mcp_registry.py` | AS-2.1 read-only MCP bridge surface: allow-listed read tools only, fail-closed parsing, no vault writes. |
+| `chatgpt_bridge.py` / `chatgpt_capture.py` | AS-2.1 ChatGPT bridge surface: export/capture into quarantine with explicit truth boundary (`LLM output != authority`), no canonical authority promotion. |
 | `domain/` | Pydantic v2 domain models and controlled vocabularies. Import from `project_atlas.domain`, not submodules. |
 | `schemas/` | Shipped JSON schemas (package data). |
 

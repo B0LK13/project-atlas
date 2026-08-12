@@ -22,6 +22,11 @@ Key principles
   quarantine are enforced.
 
 Repository status (short)
+- Release and maturity reality:
+  - **Atlas 1.0 complete**
+  - **Atlas 2.0 release-certified**
+  - **Atlas 2.1 live productization layer** (including read-only MCP and ChatGPT bridge surfaces in Core runtime boundaries)
+  - **Atlas 2.2 no longer PREP-only overall**: runtime capabilities are implemented and shipped per-package (`prep-frozen` vs `implementation-unlocked` in `docs/atlas-2.2/PACKAGE-MATURITY.json`).
 - Core pipeline implemented: `discover` → `ingest` → `build-indexes` →
   `build-portfolio` → `validate`, with read-only read/query lenses layered on
   top (`query`, `ask2`, `kdiff`).
@@ -39,24 +44,37 @@ Repository status (short)
   real unresolved datastore conflict (PostgreSQL 15 vs 16) and real bitemporal
   Time Machine states; it is exercised by
   `tests/integration/test_as_demo_2_2_golden_fixture.py`.
-- Tests: comprehensive unit & integration suites (2,200+ tests across
-  `tests/unit/` and `tests/integration/`); documented passing results in
+- Tests: comprehensive unit and integration suites (`tests/unit/`,
+  `tests/integration`); documented passing results in
   `WORKLOG.md`.
 - `atlas-vault-documentation/` is a sibling deliverable (governed agent
   control-plane) and is intentionally excluded from the main lint/type scope.
+- Recovery/identity runtime contract:
+  - `atlas init` establishes canonical Vault identity in `.atlas/vault.json`.
+  - `snapshot` remains non-minting.
+  - `restore` preserves identity (does not rotate/mint).
+  - Linux uses the POSIX dirfd-safe identity write path.
+  - Windows uses the platform-specific atomic identity path introduced by `#320`.
+- Final Golden Demo pin (current `main`):
+  - `FINAL_DEMO_HEAD = 754bb266fa2d2ff39089c4e587c9b90eacd841fd`
+  - `FINAL_DEMO_TREE = c481c1aa6ba408a16b176d5326f209d6a76b6c42`
+  - `ATLAS_DEMO_2_2_PORTABLE_CANDIDATE = PASS`
+  - `WINDOWS_DEMO_SEAL = PASS`
+  - `ATLAS_DEMO_2_2_WORKING = YES`
+  - `WINDOWS_STRANGER_PHASE_C = PASS`
 
 Truth boundaries (do not overclaim)
-- PREP ≠ IMPLEMENTED. Atlas 2.2 is unlocked per-capability, not as a blanket:
-  `docs/atlas-2.2/PACKAGE-MATURITY.json` classifies each package as
-  `prep-frozen` (docs/contracts/fixtures only) or `implementation-unlocked`
-  (authorized merged runtime).
-- INTERNAL VALIDATION ≠ EXTERNAL CERTIFICATION (`CODEX_VALIDATED = NO`;
-  external security revalidation is still required).
-- DEMO_FIXTURE ≠ AUTHENTIC_PILOT; DEMO ≠ RELEASE (not release-certified);
-  UI ≠ CANONICAL.
-- Atlas 2.2 demo status: PORTABLE DEMO = PASS, WINDOWS SEAL = PENDING
-  (Local-owned). This is *not* a claim that `ATLAS_DEMO_2_2_WORKING = YES`; the
-  project remains pre-1.0 and not release-certified.
+- `PREP != IMPLEMENTED`
+- `DEMO_FIXTURE != AUTHENTIC_PILOT`
+- `DEMO != RELEASE`
+- `UI != CANONICAL TRUTH`
+- `MODEL OUTPUT != AUTHORITY`
+- `CODEX_VALIDATED = NO`
+- `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`
+- `ATLAS_DEMO_2_2_WORKING = YES` means the Golden Product Vertical Slice
+  passed portable and Windows stranger validation; it does **not** mean
+  `AUTHENTIC_PILOT = PASS`, `EXTERNAL_SECURITY_CERTIFICATION = PASS`, or
+  `COMMERCIAL_GA = YES`.
 
 Quickstart (developer)
 1. Create and activate Python 3.12 venv:
@@ -146,7 +164,7 @@ Governance navigation
 - `SECURITY.md` — vulnerability reporting limitations (no invented contacts)
 - `SUPPORT.md` — support boundaries for this private repository
 - `CODE_OF_CONDUCT.md` — conduct expectations and enforcement limitation
-- `VERSIONING.md` / `RELEASING.md` — pre-1.0 version and release authorization
+- `VERSIONING.md` / `RELEASING.md` — version and release authorization
 - `.github/ISSUE_TEMPLATE/` — structured issue forms (security → `SECURITY.md`)
 - `docs/adr/ADR-006-github-repository-governance-baseline.md` — architecture
 
@@ -164,7 +182,7 @@ Contributing & branch policy
   verified — see `GOVERNANCE.md`.
 
 Security & vulnerability handling
-- This pre-1.0 project has no published external private vulnerability intake.
+- This project has no published external private vulnerability intake.
   Do not open public issues with sensitive vulnerability details. Follow
   `SECURITY.md`.
 - Confirm path-safety, secret detection, and protected-region enforcement before
