@@ -3,6 +3,10 @@
 Lists schema-shaped answer JSON under ``generated/answers/`` when present.
 Missing directory → empty list (unknown inventory, never invented claims).
 Never compiles knowledge and never writes Layer B.
+
+DEMO-FINDING-001 residual: expose title/summary/value_text so Ask live and
+MCP NL matchers can use fields already present on answer lens files (listing
+must not invent winners or Layer B claims).
 """
 
 from __future__ import annotations
@@ -15,12 +19,15 @@ ANSWERS_RELATIVE = Path("generated") / "answers"
 
 
 class KnowledgeAnswerSummary(TypedDict):
-    """Non-authoritative answer listing row for UI display."""
+    """Non-authoritative answer listing row for UI display and live match."""
 
     answer_id: str
     path: str
     subject: str | None
     field: str | None
+    title: str | None
+    summary: str | None
+    value_text: str | None
     has_value: bool
 
 
@@ -32,6 +39,22 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     return raw if isinstance(raw, dict) else None
+
+
+def _optional_str(payload: dict[str, Any], *keys: str) -> str | None:
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _value_text(payload: dict[str, Any]) -> str | None:
+    """Bounded display/match text from value when it is a plain string."""
+    value = payload.get("value")
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
 
 
 def list_knowledge_answers(vault: Path) -> list[KnowledgeAnswerSummary]:
@@ -53,8 +76,11 @@ def list_knowledge_answers(vault: Path) -> list[KnowledgeAnswerSummary]:
             {
                 "answer_id": answer_id,
                 "path": f"generated/answers/{entry.name}",
-                "subject": str(payload["subject"]) if payload.get("subject") else None,
-                "field": str(payload["field"]) if payload.get("field") else None,
+                "subject": _optional_str(payload, "subject"),
+                "field": _optional_str(payload, "field"),
+                "title": _optional_str(payload, "title", "question"),
+                "summary": _optional_str(payload, "summary", "notes"),
+                "value_text": _value_text(payload),
                 "has_value": payload.get("value") is not None,
             }
         )
