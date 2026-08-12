@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from project_atlas.app_service import AppService, open_app_service
+from project_atlas.app_service import AppService, AppServiceError, open_app_service
 from project_atlas.ask_atlas_live import AskAtlasLiveError, ask_atlas_live
 from project_atlas.authz import (
     ApiAuthError,
@@ -264,6 +264,34 @@ def make_handler(
                 except ValueError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/conflicts":
+                project = (qs.get("project") or [""])[0]
+                try:
+                    self._send(200, service.conflicts(project))
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/kdiff":
+                project = (qs.get("project") or [""])[0]
+                as_of = (qs.get("as_of") or qs.get("as-of") or [""])[0]
+                t1 = (qs.get("from") or [""])[0]
+                t2 = (qs.get("to") or [""])[0]
+                try:
+                    if as_of:
+                        self._send(200, service.kdiff_as_of(project, as_of))
+                    elif t1 and t2:
+                        self._send(200, service.kdiff_diff(project, t1, t2))
+                    else:
+                        self._send(
+                            400,
+                            {
+                                "error": "kdiff-requires-as_of-or-from-and-to",
+                                "package_id": PACKAGE_ID,
+                            },
+                        )
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             routes: dict[str, Any] = {
                 "/health": lambda: service.health(),
                 "/v1/health": lambda: service.health(),
@@ -294,6 +322,8 @@ def make_handler(
                     "ops_receipts": True,
                     "mission_live": True,
                     "workspace_live": True,
+                    "conflicts_live": True,
+                    "kdiff_live": True,
                     "authz_profile": True,
                     "session_auth": True,
                     "max_post_bytes": MAX_POST_BYTES,

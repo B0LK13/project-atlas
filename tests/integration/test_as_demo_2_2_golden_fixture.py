@@ -32,6 +32,7 @@ from pathlib import Path
 
 import pytest
 
+from project_atlas.app_service import AppServiceError, open_app_service
 from project_atlas.ask2 import ask_atlas_2
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.knowledge_diff import diff_knowledge, read_as_of
@@ -197,6 +198,35 @@ def test_kdiff_and_ask_are_project_isolated(golden_vault: Path) -> None:
     for entry in report.get("EVIDENCE", []):
         assert entry.get("record_id", "").find("harbor-ops") == -1
         assert entry.get("record_id", "").find("harbor-portal") == -1
+
+
+# ---------------------------------------------------------------------------
+# WEB / LIVE read projection (§16-18) — API can expose conflict + Time Machine
+# ---------------------------------------------------------------------------
+
+
+def test_app_service_exposes_conflict_and_kdiff(golden_vault: Path) -> None:
+    svc = open_app_service(golden_vault)
+    conflicts = svc.conflicts(PROJECT)
+    assert conflicts["conflict_count"] == 1
+    entry = conflicts["conflicts"][0]
+    assert entry["subject"] == KDIFF_SUBJECT
+    assert entry["field"] == KDIFF_FIELD
+    assert {c["claim"] for c in entry["claims"]} == {T1_VALUE, T2_VALUE}
+
+    at_t1 = svc.kdiff_as_of(PROJECT, T1)
+    cell = _cells_by_key(at_t1)[(KDIFF_SUBJECT, KDIFF_FIELD)]
+    assert cell["value_sketch"] == T1_VALUE
+
+    diff = svc.kdiff_diff(PROJECT, T1, T2)
+    value_changed = {(d["subject"], d["field"]) for d in diff["value_changed"]}
+    assert (KDIFF_SUBJECT, KDIFF_FIELD) in value_changed
+
+
+def test_app_service_rejects_unsafe_project_id(golden_vault: Path) -> None:
+    svc = open_app_service(golden_vault)
+    with pytest.raises(AppServiceError):
+        svc.conflicts("../etc")
 
 
 # ---------------------------------------------------------------------------
