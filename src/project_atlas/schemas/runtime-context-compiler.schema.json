@@ -11,6 +11,7 @@
     "artifact_kind",
     "compat_snapshot_id",
     "pack_id",
+    "project_id",
     "profile_id",
     "budget",
     "entries",
@@ -31,6 +32,7 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{0,63}$"
     },
+    "project_id": { "type": "string", "minLength": 1 },
     "profile_id": {
       "type": "string",
       "enum": ["p0-readonly", "p2-readonly"]
