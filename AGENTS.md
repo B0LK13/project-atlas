@@ -4,6 +4,8 @@ Guidance for AI coding agents working in this repository. Written for a reader w
 
 ## Project overview
 
+**Current product direction (Coder Alpha):** Project Atlas is the persistent brain for AI-native projects (Knowledge / Context / Truth). Owner precedence and dogfood contract: `docs/product/CODER-ALPHA-NORTH-STAR.md` (D-037). Historical roadmaps are input to reconciliation, not authority to override owner product priority.
+
 **Project Atlas** is a local-first, source-backed "project knowledge compiler". It scans approved documentation sources, classifies and normalizes them, extracts evidence-backed concepts, and generates a structured Obsidian vault following an internal **Open Knowledge Format (OKF)** profile. The output is both a human-readable portfolio operating system and an agent-readable knowledge substrate.
 
 Core principles (from `docs/plan.md` and `docs/prp.md`):
@@ -18,7 +20,8 @@ Core principles (from `docs/plan.md` and `docs/prp.md`):
 
 The repository has grown well beyond the original WP-001 foundation. As of `main` at the current checkout, the following are implemented:
 
-- Full Core pipeline: `atlas discover` → `atlas ingest` → `atlas build-indexes` → `atlas build-portfolio` → `atlas validate`, with read-only read/query lenses layered on top (`atlas query`, `atlas ask2`, `atlas kdiff`).
+- Coder Alpha dogfood entry: `atlas connect` → overview/state derived lenses (`atlas overview`, `atlas state`); see Coder Alpha backlog in `docs/backlog.md`.
+- Full Core pipeline: `atlas discover` → `atlas ingest` → `atlas build-indexes` → `atlas build-portfolio` → `atlas validate`, with read-only read/query lenses layered on top (`atlas query`, `atlas ask2`, `atlas kdiff`, `atlas overview`, `atlas state`).
 - Shipped read/query and ops surface beyond the original Core slice: `build-portfolio` (derived portfolio intelligence plus an AS-2.0-TEMPORAL-001 bitemporal validity catalog under `generated/ops/bitemporal/`), `doctor` (PROD-DOCTOR-001 environment/vault diagnostics), `ask2` (Ask Atlas 2: project-scoped hybrid retrieval + a p2 read-only context compiler that returns known/unknown/conflict honestly and never invents authority), `kdiff` (Knowledge Diff / Time Machine: read-only as-of reads + T1→T2 diffs over document-declared valid-time), `snapshot`/`restore` (backup/recovery), and a read-only LIVE_API (`live api-serve` on 127.0.0.1) exposing `/v1/conflicts` and `/v1/kdiff`; a Web `#/time-machine` page lives under `apps/web`.
 - Product maturity truth: Atlas 1.0 is complete; Atlas 2.0 is release-certified; Atlas 2.1 is the live productization layer (including read-only MCP and ChatGPT bridge surfaces under explicit truth boundaries); Atlas 2.2 is no longer PREP-only overall and is tracked per-package (`prep-frozen` vs `implementation-unlocked`) in `docs/atlas-2.2/PACKAGE-MATURITY.json`.
 - Golden demo fixture `tests/fixtures/demo/estate/harbor-api` carries a real unresolved datastore conflict (PostgreSQL 15 vs 16) and real bitemporal Time Machine states, exercised by `tests/integration/test_as_demo_2_2_golden_fixture.py`.

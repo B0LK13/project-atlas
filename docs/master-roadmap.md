@@ -5,6 +5,13 @@
 **Program status:** Atlas Core vertical slice merged and certified through AS-RET-001; AS-CORE-002, AS-CORE-003, AS-ID-001, AS-SPEC-004, AS-INT-001, and AS-RET-001 are certified.
 **Target state:** Governed, evidence-backed project intelligence system built on an Obsidian-compatible Atlas Vault
 
+> **D-037 documentation precedence:** This master roadmap is **Level-4 historical
+> execution planning** — input to reconciliation, **not** authority to override
+> current owner product priority. Current product direction:
+> `docs/product/CODER-ALPHA-NORTH-STAR.md` (Coder Alpha: persistent brain for
+> AI-native projects). Package classifications (KEEP / REFRAME / SUPERSEDE /
+> DEFER / EXTERNAL_BLOCKED): `docs/CODER-ALPHA-035-REBASE.md`.
+
 ---
 
 # 1. Executive Vision

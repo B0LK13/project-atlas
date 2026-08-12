@@ -5383,3 +5383,26 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - lens ≠ Layer B; UI ≠ canonical
 - CODEX_VALIDATED: NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
+
+## D-037 — DOC-ANCHOR + AS-CODER-ALPHA-STATE-001
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-DOC-ANCHOR-037 (+ D-035/D-036)
+**Branch:** cursor/coder-alpha-doc-anchor-037-d036
+**Base:** main @ `47b08ae`
+
+### Documentation (bounded)
+- Durable north star: `docs/product/CODER-ALPHA-NORTH-STAR.md`
+- Minimal pointers: README.md, AGENTS.md, CLAUDE.md, docs/master-roadmap.md, docs/backlog.md
+- Historical planning marked Level-4 INPUT (KEEP/REFRAME/SUPERSEDE/DEFER/EXTERNAL_BLOCKED); no history rewrite
+
+### Product slice
+- **AS-CODER-ALPHA-STATE-001**: `atlas state` + connect auto-materialize
+- Module: `src/project_atlas/project_state.py`
+- Tests: `tests/unit/test_as_coder_alpha_state_001.py`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- Documentation did not block product work
+- CODEX_VALIDATED: NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
