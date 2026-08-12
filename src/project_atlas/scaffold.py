@@ -24,6 +24,11 @@ from pathlib import Path, PurePosixPath
 
 from atlas_contracts.identity import ensure_under_root
 from project_atlas.logging import get_logger
+from project_atlas.vault_identity import (
+    DEFAULT_VAULT_ID,
+    VaultIdentityError,
+    ensure_vault_identity,
+)
 
 _log = get_logger("scaffold")
 
@@ -240,8 +245,18 @@ def _write_atomic(path: Path, content: str) -> None:
         raise
 
 
-def create_scaffold(output: Path, *, dry_run: bool = False) -> ScaffoldPlan:
-    """Create (or, with ``dry_run``, only plan) the vault scaffold at ``output``."""
+def create_scaffold(
+    output: Path,
+    *,
+    dry_run: bool = False,
+    vault_id: str = DEFAULT_VAULT_ID,
+) -> ScaffoldPlan:
+    """Create (or, with ``dry_run``, only plan) the vault scaffold at ``output``.
+
+    AS-DEMO-2.2-RECOVERY-ID-001: a successful (non-dry-run) init also ensures a
+    canonical ``.atlas/vault.json`` via ``ensure_vault_identity`` so fresh
+    product vaults are recovery-capable without a manual identity step.
+    """
     resolved = validate_output_path(output)
     plan = build_plan(resolved)
 
@@ -253,6 +268,10 @@ def create_scaffold(output: Path, *, dry_run: bool = False) -> ScaffoldPlan:
         return plan
 
     if _is_atlas_vault(resolved):
+        try:
+            ensure_vault_identity(resolved, vault_id=vault_id)
+        except VaultIdentityError as exc:
+            raise ScaffoldError(str(exc)) from exc
         _log.info(
             "vault scaffold already exists; init is a no-op",
             extra={"context": {"root": str(resolved)}},
@@ -277,6 +296,11 @@ def create_scaffold(output: Path, *, dry_run: bool = False) -> ScaffoldPlan:
             raise ScaffoldError(f"refusing to write outside vault root: {relative}") from exc
         _write_atomic(target, content)
 
+    try:
+        identity = ensure_vault_identity(resolved, vault_id=vault_id)
+    except VaultIdentityError as exc:
+        raise ScaffoldError(str(exc)) from exc
+
     _log.info(
         "vault scaffold created",
         extra={
@@ -284,6 +308,7 @@ def create_scaffold(output: Path, *, dry_run: bool = False) -> ScaffoldPlan:
                 "root": str(resolved),
                 "directories": len(plan.directories),
                 "files": len(plan.files),
+                "vault_id": identity.vault_id,
             }
         },
     )

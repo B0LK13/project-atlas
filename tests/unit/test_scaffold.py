@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from project_atlas.scaffold import (
     create_scaffold,
     validate_output_path,
 )
+from project_atlas.vault_identity import DEFAULT_VAULT_ID
 
 EXPECTED_TOP_LEVEL = {
     "00-system",
@@ -47,6 +49,13 @@ def test_scaffold_creates_expected_contract(tmp_path: Path) -> None:
     assert (root / "index.md").is_file()
     assert (root / "00-system" / "vault-charter.md").is_file()
     assert (root / "00-system" / "taxonomy.md").is_file()
+    # AS-DEMO-2.2-RECOVERY-ID-001: fresh init establishes recovery identity.
+    identity_path = root / ".atlas" / "vault.json"
+    assert identity_path.is_file()
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    assert identity["vault_id"] == DEFAULT_VAULT_ID
+    assert identity["vault_uuid"]
+    assert identity["schema_version"] == 1
 
 
 def test_scaffold_output_is_byte_identical_across_runs(tmp_path: Path) -> None:
@@ -113,6 +122,9 @@ def test_init_is_idempotent_for_existing_atlas_vault(tmp_path: Path) -> None:
     root = tmp_path / "vault"
     create_scaffold(root)
     marker = root / "README.md"
+    identity = root / ".atlas" / "vault.json"
     before = marker.read_bytes(), marker.stat().st_mtime_ns
+    identity_before = identity.read_bytes()
     create_scaffold(root)
     assert (marker.read_bytes(), marker.stat().st_mtime_ns) == before
+    assert identity.read_bytes() == identity_before

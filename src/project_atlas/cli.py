@@ -478,6 +478,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Report what would be created without writing anything.",
     )
+    init_parser.add_argument(
+        "--vault-id",
+        default=None,
+        help=(
+            "Logical Vault ID stamped into .atlas/vault.json during init "
+            "(AS-DEMO-2.2-RECOVERY-ID-001). Defaults to atlas-main. "
+            "Existing matching identity is preserved; mismatched identity fails closed."
+        ),
+    )
 
     # AS-OBS-001 / AS-OBS-002 / AS-OBS-003 - operational observability (ops plane only).
     ops_parser = subparsers.add_parser(
@@ -1605,8 +1614,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "init":
+        from project_atlas.vault_identity import DEFAULT_VAULT_ID
+
+        vault_id = args.vault_id or DEFAULT_VAULT_ID
         try:
-            plan = create_scaffold(args.output, dry_run=args.dry_run)
+            plan = create_scaffold(args.output, dry_run=args.dry_run, vault_id=vault_id)
         except (ScaffoldError, OSError) as exc:
             _log.error("init failed: %s", exc)
             return EXIT_ERROR

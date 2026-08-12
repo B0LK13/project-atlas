@@ -54,9 +54,12 @@ $Vault    = Join-Path $PWD ".tmp\demo-vault"
 $Manifest = Join-Path $PWD ".tmp\demo-manifest.json"
 
 atlas init --output $Vault
+# AS-DEMO-2.2-RECOVERY-ID-001: init mints .atlas/vault.json automatically
+# (default vault_id=atlas-main). No manual identity repair. Snapshot-ready.
 atlas discover --source $DemoRoot --output $Manifest
-atlas ingest --manifest $Manifest --vault $Vault
+atlas ingest --manifest $Manifest --vault $Vault --source $DemoRoot
 atlas build-indexes --vault $Vault
+atlas build-portfolio --vault $Vault
 atlas validate --vault $Vault
 ```
 
