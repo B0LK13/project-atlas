@@ -13,7 +13,16 @@ Ship a tip-safe evaluation substrate with:
    holdout access requires `ATLAS_EVAL_SCORING_CAPABILITY=1` plus a private
    expected map path (`ATLAS_EVAL_HOLDOUT_EXPECTED_PATH`).
 4. **No plaintext expected in git-tracked holdout bodies** or durable receipts.
+   Durable receipts drop per-row holdout `predicted_norm` / `matched` /
+   `expected_norm` (those reconstruct the answer key); holdout outcome survives
+   only as summary aggregate counts.
 5. **Deterministic scoring hooks** (exact / prefix; objective counts only).
+
+> **Advisory gate, not a trust boundary.** `ATLAS_EVAL_SCORING_CAPABILITY=1` is a
+> process-local env var and is self-elevatable by a same-process adversary. It
+> prevents accidental holdout exposure but is not an authorization boundary. A
+> true out-of-process capability broker is a tracked follow-up (out of scope
+> here).
 
 ## Layout
 
@@ -36,7 +45,7 @@ Module: `project_atlas.eval_substrate`
 | training/autolab resolve holdout path | `holdout-isolated:*` |
 | scoring holdout access without capability | `holdout-capability-required` |
 | holdout plaintext in git case body | `holdout-plaintext-forbidden:*` |
-| holdout expected in durable receipt | redacted (`expected_redacted`) |
+| holdout answer signal in durable receipt | per-row `predicted_norm`/`matched`/`expected_norm` dropped; only `expected_redacted` marker + summary aggregates kept |
 | wake ATLAS-OPT-001/002 flags | `opt-gated:*` |
 | RL / Prime / invent-pilot / subjective score | `forbidden-claim:*` |
 | authority promote | `forbidden-claim:promote_authority` |

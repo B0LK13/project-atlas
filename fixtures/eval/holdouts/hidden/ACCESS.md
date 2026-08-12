@@ -14,5 +14,7 @@ gitignored) and are loaded only when both of the following are set:
 Calling `load_cases(..., "scoring")` without the capability gate returns the
 public-only view — **role strings are not a trust boundary**.
 
-Generated score receipts redact holdout `expected_norm` (durable artifacts must
-not persist secret answers).
+Generated score receipts drop per-row holdout answer signal — `predicted_norm`,
+`matched`, and `expected_norm` are omitted (each reconstructs the private answer
+key), leaving only a `expected_redacted` marker plus summary-level aggregate
+counts. Durable artifacts must not persist or reconstruct secret answers.
