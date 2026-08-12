@@ -85,6 +85,9 @@ This runs `atlas init` / `discover` / `ingest` / `build-indexes` / `validate` in
 `.tmp/as-demo-2.1-001/vault` from **DEMO_FIXTURE sources only**, then
 `atlas live api-serve` on `127.0.0.1:8765`.
 
+`atlas init` automatically establishes `.atlas/vault.json` (AS-DEMO-2.2-RECOVERY-ID-001)
+so the disposable vault is recovery-capable — no manual identity repair.
+
 Transport may be LIVE_API, but the vault content remains DEMO_FIXTURE-derived -
 still **NOT** authentic pilot and **NOT** RELEASE CERTIFIED. Pilot remains **DORMANT**.
 
