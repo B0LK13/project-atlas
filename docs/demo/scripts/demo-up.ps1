@@ -226,6 +226,10 @@ if ($WithApi) {
     if ($LASTEXITCODE -ne 0) { throw "atlas ingest failed for DEMO vault" }
     & atlas build-indexes --vault $VaultDir
     if ($LASTEXITCODE -ne 0) { throw "atlas build-indexes failed for DEMO vault" }
+    # build-portfolio also derives the bitemporal validity catalog under
+    # generated/ops/bitemporal/ that the KDiff / Time Machine lens consumes.
+    & atlas build-portfolio --vault $VaultDir
+    if ($LASTEXITCODE -ne 0) { throw "atlas build-portfolio failed for DEMO vault" }
     & atlas validate --vault $VaultDir
     if ($LASTEXITCODE -ne 0) { throw "atlas validate failed for DEMO vault" }
 

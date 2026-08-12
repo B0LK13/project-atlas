@@ -11,9 +11,15 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.knowledge_diff import (
+    KnowledgeDiffError,
+    diff_knowledge,
+    read_as_of,
+)
 from project_atlas.web_api import (
     impact_graph_summary,
     list_knowledge_answers,
+    list_project_conflicts,
     list_projects,
     read_status,
     read_vault_health,
@@ -60,6 +66,29 @@ class AppService:
         out = dict(summary)
         out["authority"] = "derived"
         return out
+
+    def conflicts(self, project_id: str) -> dict[str, Any]:
+        """Unresolved conflicts for one project (read-only; no resolution)."""
+        try:
+            return list_project_conflicts(self.vault, project_id)
+        except ValueError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def kdiff_as_of(self, project_id: str, as_of: str) -> dict[str, Any]:
+        """Time Machine as-of read (AS-2.2-KDIFF-001; read-only, ≠ authority)."""
+        try:
+            return read_as_of(
+                self.vault, project_id=project_id, as_of_valid_time=as_of
+            )
+        except KnowledgeDiffError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def kdiff_diff(self, project_id: str, t1: str, t2: str) -> dict[str, Any]:
+        """Time Machine T1→T2 diff (AS-2.2-KDIFF-001; read-only, ≠ authority)."""
+        try:
+            return diff_knowledge(self.vault, project_id=project_id, t1=t1, t2=t2)
+        except KnowledgeDiffError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

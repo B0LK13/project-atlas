@@ -539,6 +539,18 @@ function Build-DemoFixtureVault {
                 -LogPath $ErrLog
             exit 1
         }
+        # build-portfolio also derives the bitemporal validity catalog the
+        # KDiff / Time Machine lens reads (generated/ops/bitemporal/).
+        & $AtlasExe build-portfolio --vault $VaultDir
+        if ($LASTEXITCODE -ne 0) {
+            Write-AtlasProductError `
+                -What "Failed to build portfolio for disposable vault." `
+                -Cause "atlas build-portfolio exited with code $LASTEXITCODE." `
+                -Action "Re-run after a clean .tmp/productization/vault or report Core portfolio errors." `
+                -Retry "powershell -NoProfile -File scripts\windows\atlas-start.ps1 -UseDemoFixture" `
+                -LogPath $ErrLog
+            exit 1
+        }
         & $AtlasExe validate --vault $VaultDir
         if ($LASTEXITCODE -ne 0) {
             Write-AtlasProductError `
