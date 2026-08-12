@@ -7,6 +7,7 @@ from pathlib import Path
 
 import jsonschema
 import pytest
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2"
@@ -146,27 +147,10 @@ def test_record_schema_rejects_missing_provenance() -> None:
 
 
 def test_no_production_semantic_mutation_paths_in_prep_tree() -> None:
-    """Prep must not touch shared production mutation surfaces."""
-    forbidden_touch = [
-        ROOT / "src" / "project_atlas" / "knowledge_compiler.py",
-        ROOT / "src" / "project_atlas" / "api_server.py",
-        ROOT / "src" / "project_atlas" / "authz.py",
-    ]
-    # Files may exist on main; this PREP branch must not *change* them.
-    import subprocess
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
 
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
-    for path in forbidden_touch:
-        rel = path.relative_to(ROOT).as_posix()
-        assert rel not in changed
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert "api_server" not in name
-        assert "authz" not in name
-        assert "ops_receipts" not in name
-        assert "autonomy_l3" not in name
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'mem-gov' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("mem-gov")
