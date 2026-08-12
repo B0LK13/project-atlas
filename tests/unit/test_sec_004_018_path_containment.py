@@ -7,7 +7,6 @@ names, symlink/reparse escapes, and separator traversal must fail closed.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import sys

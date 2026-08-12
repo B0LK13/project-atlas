@@ -80,7 +80,8 @@ def test_oai_rejects_secrets(tmp_path: Path) -> None:
     vault.mkdir()
     export = tmp_path / "chat-export.md"
     export.write_text(
-        "User: key\nAssistant: -----BEGIN RSA PRIVATE KEY-----\nMII\n",
+        "User: key\nAssistant: -----BEGIN RSA PRIVATE KEY-----\nMII\n"
+        "-----END RSA PRIVATE KEY-----\n",
         encoding="utf-8",
     )
     with pytest.raises(OpenAIRealImportError, match="secret-findings"):

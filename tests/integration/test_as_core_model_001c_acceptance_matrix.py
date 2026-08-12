@@ -224,13 +224,25 @@ def test_a9_concept_index_sorted_and_replay(tmp_path: Path) -> None:
     )
     vault = _run_pipeline(source, tmp_path)
     concepts_path = vault / "state" / "concepts" / "replay-demo.json"
-    first = concepts_path.read_bytes()
-    concepts = json.loads(first.decode("utf-8"))
+    concepts = json.loads(concepts_path.read_text(encoding="utf-8"))
     ids = [item["concept_id"] for item in concepts["concepts"]]
     assert ids[0] == "replay-demo"
     assert ids[1:] == sorted(ids[1:])
-    # Replay with the same post-allocation manifest (no rediscovery hash churn).
+    # SEC-002: rediscover post-genesis, refresh baseline, then replay byte-stable.
     manifest = tmp_path / "manifest.json"
+    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
+    first = concepts_path.read_bytes()
     assert main(
         [
             "ingest",

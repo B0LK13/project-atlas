@@ -66,6 +66,8 @@ def test_rich_project_record_secret_report_and_human_region(tmp_path: Path) -> N
         + "\n## Human notes\n\nKeep this text.\n",
         encoding="utf-8",
     )
+    # SEC-002: rediscover after marker genesis.
+    write_manifest(discover(source), manifest)
     assert main(
         [
             "ingest",
@@ -102,7 +104,7 @@ def test_removed_source_is_retained_as_lifecycle_state(tmp_path: Path) -> None:
 
 
 def test_malformed_generated_markers_fail_closed(tmp_path: Path) -> None:
-    _source, manifest, vault = _workflow(tmp_path)
+    source, manifest, vault = _workflow(tmp_path)
     project = vault / "projects" / "semantic-fixture" / "project.md"
     before = project.read_bytes()
     project.write_text("<!-- atlas:generated:start -->\nuser text\n", encoding="utf-8")
@@ -123,12 +125,14 @@ def test_malformed_generated_markers_fail_closed(tmp_path: Path) -> None:
 
 
 def test_unchanged_ingestion_has_zero_filesystem_writes(tmp_path: Path) -> None:
-    _source, manifest, vault = _workflow(tmp_path)
+    source, manifest, vault = _workflow(tmp_path)
     tracked = [
         vault / "projects" / "semantic-fixture" / "project.md",
         vault / "state" / "sources.json",
         vault / "generated" / "reports" / "ingestion-report.json",
     ]
+    # SEC-002: rediscover + baseline ingest, then replay must be zero-write.
+    write_manifest(discover(source), manifest)
     assert main(
         [
             "ingest",
@@ -157,7 +161,7 @@ def test_unchanged_ingestion_has_zero_filesystem_writes(tmp_path: Path) -> None:
 
 
 def test_corrupt_source_state_fails_closed_before_ingestion_writes(tmp_path: Path) -> None:
-    _source, manifest, vault = _workflow(tmp_path)
+    source, manifest, vault = _workflow(tmp_path)
     state_path = vault / "state" / "sources.json"
     state_path.write_text(
         json.dumps({"schema_version": 999, "sources": [{"source_id": "source-bad"}]}),
@@ -376,7 +380,20 @@ def test_modified_restore_and_rename_source_states_are_separate(tmp_path: Path) 
 def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(
     tmp_path: Path,
 ) -> None:
-    _source, manifest, vault = _workflow(tmp_path)
+    source, manifest, vault = _workflow(tmp_path)
+    # SEC-002: refresh digests after marker genesis and establish a clean baseline.
+    write_manifest(discover(source), manifest)
+    assert main(
+        [
+            "ingest",
+            "--manifest",
+            str(manifest),
+            "--vault",
+            str(vault),
+            "--source",
+            str(source),
+        ]
+    ) == EXIT_OK
     state_path = vault / "state/sources.json"
     state = json.loads(state_path.read_text())
     legacy = []
@@ -426,7 +443,7 @@ def test_known_legacy_source_lifecycle_values_are_repaired_with_receipt(
 
 
 def test_unknown_legacy_lifecycle_rejected_without_mutation(tmp_path: Path) -> None:
-    _source, manifest, vault = _workflow(tmp_path)
+    source, manifest, vault = _workflow(tmp_path)
     state_path = vault / "state/sources.json"
     state = json.loads(state_path.read_text())
     state["sources"][0]["lifecycle"] = "invented-state"
@@ -497,7 +514,7 @@ def test_project_directory_move_preserves_persisted_uuid(tmp_path: Path) -> None
             "--vault",
             str(vault),
             "--source",
-            str(source),
+            str(moved),
         ]
     ) == EXIT_OK
     moved_marker = moved / ".atlas-project.yaml"
@@ -745,15 +762,52 @@ def test_project_uuid_genesis_is_injected_once_and_replay_is_zero_write(tmp_path
         calls += 1
         return expected
 
-    assert ingest(manifest, vault, authorized_source_root=source, uuid_provider=provider)["ok"] is True
+    assert (
+        ingest(manifest, vault, authorized_source_root=source, uuid_provider=provider)[
+            "ok"
+        ]
+        is True
+    )
     assert calls == 1
     assert f"project_uuid: {expected}" in marker.read_text(encoding="utf-8")
     allocation_receipts = list((vault / "receipts/source-lineage").glob("project-*.json"))
     assert len(allocation_receipts) == 1
+
+    def _fail_uuid() -> str:
+        raise AssertionError("uuid provider must not run on replay")
+
+    # SEC-002: stale pre-genesis manifest must fail closed.
+    with pytest.raises(ValueError, match="approved manifest provenance"):
+        ingest(
+            manifest,
+            vault,
+            authorized_source_root=source,
+            uuid_provider=_fail_uuid,
+        )
+    write_manifest(discover(source), manifest)
+    # Post-rediscovery baseline ingest may refresh hash-derived artifacts once.
+    assert (
+        ingest(
+            manifest,
+            vault,
+            authorized_source_root=source,
+            uuid_provider=_fail_uuid,
+        )["ok"]
+        is True
+    )
     before = _snapshot(vault)
-    assert ingest(manifest, vault, authorized_source_root=source, uuid_provider=lambda: (_ for _ in ()).throw(AssertionError()))[
-        "ok"
-    ] is True
+    assert (
+        ingest(
+            manifest,
+            vault,
+            authorized_source_root=source,
+            uuid_provider=_fail_uuid,
+        )["ok"]
+        is True
+    )
+    assert calls == 1
+    assert len(list((vault / "receipts/source-lineage").glob("project-*.json"))) == 1
+    assert f"project_uuid: {expected}" in marker.read_text(encoding="utf-8")
     assert _snapshot(vault) == before
 
 
@@ -824,6 +878,8 @@ def test_public_multiprocess_initializers_have_one_committed_uuid(tmp_path: Path
         str(manifest),
         "--vault",
         str(vault),
+        "--source",
+        str(source),
     ]
     processes = [
         subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

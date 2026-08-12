@@ -45,7 +45,7 @@ def test_env_iso_start_refuses_global_editable_rewrite() -> None:
     assert "Test-AtlasPythonPathTipSafe" in text
     assert "Test-AtlasImportLocationTipSafe" in text
     # Repair path must target tip .venv, not shared global Scripts.
-    assert "will install into tip .venv only" in text
+    assert "Will install into tip .venv only" in text
     assert "Will reinstall editable package into tip .venv" in text
 
 

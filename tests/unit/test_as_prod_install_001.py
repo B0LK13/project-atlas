@@ -115,7 +115,10 @@ def test_as_prod_install_001_start_script_contract() -> None:
 def test_as_prod_install_001_cors_matches_webport_contract() -> None:
     """PROD-ADV-011: launcher must set ATLAS_CORS_ORIGIN from -WebPort and verify meta."""
     text = (_SCRIPTS / "atlas-start.ps1").read_text(encoding="utf-8")
-    assert 'ATLAS_CORS_ORIGIN = $corsOrigin' in text or '$env:ATLAS_CORS_ORIGIN = $corsOrigin' in text
+    assert (
+        "ATLAS_CORS_ORIGIN = $corsOrigin" in text
+        or "$env:ATLAS_CORS_ORIGIN = $corsOrigin" in text
+    )
     assert 'http://127.0.0.1:$WebPort' in text
     assert "cors_origin_mismatch" in text
     assert "PROD-ADV-011" in text

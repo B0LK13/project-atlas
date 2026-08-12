@@ -86,10 +86,17 @@ def _seed_source(source: Path) -> None:
     )
 
 
+def _discover_to(manifest: Path, source: Path) -> None:
+    write_manifest(discover(source), manifest)
+
+
 def _pipeline(source: Path, vault: Path, work: Path) -> None:
     work.mkdir(parents=True, exist_ok=True)
     manifest = work / "manifest.json"
-    write_manifest(discover(source), manifest)
+    _discover_to(manifest, source)
+    ingest(manifest, vault, authorized_source_root=source)
+    # SEC-002: first ingest may allocate project_uuid into the marker.
+    _discover_to(manifest, source)
     ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
@@ -203,7 +210,10 @@ def _case_migration_recovery_replay(work: Path) -> dict[str, Any]:
     manifest = work / "manifest.json"
     _seed_source(source)
     create_scaffold(vault)
-    write_manifest(discover(source), manifest)
+    _discover_to(manifest, source)
+    ingest(manifest, vault, authorized_source_root=source)
+    # SEC-002: rediscover after marker genesis before baseline/replay ingests.
+    _discover_to(manifest, source)
     ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
@@ -274,7 +284,10 @@ def _case_determinism_pipeline(work: Path) -> dict[str, Any]:
     vault = work / "vault-det"
     create_scaffold(vault)
     manifest = work / "manifest.json"
-    write_manifest(discover(source), manifest)
+    _discover_to(manifest, source)
+    ingest(manifest, vault, authorized_source_root=source)
+    # SEC-002: rediscover after genesis, then baseline + replay must be byte-stable.
+    _discover_to(manifest, source)
     ingest(manifest, vault, authorized_source_root=source)
     build_indexes(vault)
     validate(vault)
@@ -312,7 +325,12 @@ def _case_clean_clone_replay(work: Path) -> dict[str, Any]:
     source = work / "src-clone"
     _seed_source(source)
     manifest = work / "shared-manifest.json"
-    write_manifest(discover(source), manifest)
+    vault_genesis = work / "vault-genesis"
+    create_scaffold(vault_genesis)
+    _discover_to(manifest, source)
+    ingest(manifest, vault_genesis, authorized_source_root=source)
+    # SEC-002: rediscover post-genesis so both clean clones share one digest.
+    _discover_to(manifest, source)
 
     vault_a = work / "vault-a"
     vault_b = work / "vault-b"
