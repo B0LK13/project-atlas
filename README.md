@@ -55,13 +55,15 @@ Repository status (short)
   - `restore` preserves identity (does not rotate/mint).
   - Linux uses the POSIX dirfd-safe identity write path.
   - Windows uses the platform-specific atomic identity path introduced by `#320`.
-- Final Golden Demo pin (current `main`):
+- Sealed Golden Demo pin (ancestor of current `main`, not always HEAD):
   - `FINAL_DEMO_HEAD = 754bb266fa2d2ff39089c4e587c9b90eacd841fd`
   - `FINAL_DEMO_TREE = c481c1aa6ba408a16b176d5326f209d6a76b6c42`
   - `ATLAS_DEMO_2_2_PORTABLE_CANDIDATE = PASS`
   - `WINDOWS_DEMO_SEAL = PASS`
   - `ATLAS_DEMO_2_2_WORKING = YES`
   - `WINDOWS_STRANGER_PHASE_C = PASS`
+- AS-OPT-GATE-001 merged (`#321`): governed experiment/promotion boundary;
+  `ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE` not yet reassessed.
 
 Truth boundaries (do not overclaim)
 - `PREP != IMPLEMENTED`
@@ -69,6 +71,7 @@ Truth boundaries (do not overclaim)
 - `DEMO != RELEASE`
 - `UI != CANONICAL TRUTH`
 - `MODEL OUTPUT != AUTHORITY`
+- `PROMOTE_ELIGIBLE != MERGED/DEPLOYED/AUTHORITATIVE`
 - `CODEX_VALIDATED = NO`
 - `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`
 - `ATLAS_DEMO_2_2_WORKING = YES` means the Golden Product Vertical Slice

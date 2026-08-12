@@ -24,14 +24,18 @@ what's checked off. Atlas 2.2 capabilities are unlocked per-capability
 `implementation-unlocked`). Product maturity truth: Atlas 1.0 complete,
 Atlas 2.0 release-certified, Atlas 2.1 live productization layer (including
 read-only MCP/ChatGPT bridge surfaces), Atlas 2.2 no longer PREP-only overall.
-Final demo pin on current `main`: `754bb266fa2d2ff39089c4e587c9b90eacd841fd`
+Sealed Golden Demo pin (ancestor of current `main`, not always HEAD):
+`754bb266fa2d2ff39089c4e587c9b90eacd841fd`
 (`c481c1aa6ba408a16b176d5326f209d6a76b6c42`), with
 `ATLAS_DEMO_2_2_PORTABLE_CANDIDATE=PASS`, `WINDOWS_DEMO_SEAL=PASS`,
 `ATLAS_DEMO_2_2_WORKING=YES`, `WINDOWS_STRANGER_PHASE_C=PASS`.
+AS-OPT-GATE-001 is merged (`#321` / `project_atlas.opt_gate`);
+`ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE` is not yet reassessed.
 
 Truth boundaries (must remain explicit): `PREP != IMPLEMENTED`,
 `DEMO_FIXTURE != AUTHENTIC_PILOT`, `DEMO != RELEASE`,
 `UI != CANONICAL TRUTH`, `MODEL OUTPUT != AUTHORITY`,
+`PROMOTE_ELIGIBLE != MERGED/DEPLOYED/AUTHORITATIVE`,
 `CODEX_VALIDATED = NO`, `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`.
 `ATLAS_DEMO_2_2_WORKING = YES` means the Golden Product Vertical Slice passed
 portable + Windows stranger validation only; it is not a claim that
