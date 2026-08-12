@@ -147,6 +147,7 @@ from project_atlas.ops_report import (
     emit_ops_report,
     report_to_json,
 )
+from project_atlas.overview import OverviewError, materialize_overview_lenses
 from project_atlas.perf_baselines import PerfBaselineError, run_perf_baselines
 from project_atlas.pilot_auth_prep import PilotAuthPrepError, write_pilot_prep_report
 from project_atlas.portfolio import build_portfolio
@@ -354,6 +355,33 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the connect receipt JSON to stdout (sorted keys).",
+    )
+
+    overview_parser = subparsers.add_parser(
+        "overview",
+        help=(
+            "Materialize Project Overview derived answer lenses from Core "
+            "(AS-CODER-ALPHA-OVERVIEW-001; lens≠authority)."
+        ),
+    )
+    overview_parser.add_argument(
+        "--vault",
+        type=Path,
+        required=True,
+        help="Vault directory containing projects/ and generated/.",
+    )
+    overview_parser.add_argument(
+        "--project",
+        action="append",
+        dest="projects",
+        default=None,
+        help="Limit to one project id (repeatable). Default: all projects/.",
+    )
+    overview_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the overview receipt JSON to stdout (sorted keys).",
     )
 
     accept_graph_parser = subparsers.add_parser(
@@ -1745,8 +1773,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  receipt:   {report.get('receipt_path')}")
             if status == "connected":
                 print(
-                    "  next: atlas ask2 --vault <vault> --project <id> "
+                    "  next: atlas overview --vault <vault> "
+                    "| atlas ask2 --vault <vault> --project <id> "
                     "--question 'What is this project?'"
+                )
+                answers = report.get("overview_answers") or []
+                if answers:
+                    print(f"  overview: {', '.join(answers)}")
+        return EXIT_OK
+
+    if args.command == "overview":
+        try:
+            report = materialize_overview_lenses(
+                args.vault,
+                project_ids=args.projects,
+            )
+        except (OverviewError, OSError) as exc:
+            _log.error("overview failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas overview [{report.get('status', 'ok')}]")
+            print(f"  vault:    {report.get('vault')}")
+            print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
+            for path in report.get("answers_written") or []:
+                print(f"  answer:   {path}")
+            for lens in report.get("lenses") or []:
+                summary = lens.get("summary") or "UNKNOWN"
+                print(
+                    f"  {lens.get('project_id')}: [{lens.get('status')}] {summary}"
                 )
         return EXIT_OK
 

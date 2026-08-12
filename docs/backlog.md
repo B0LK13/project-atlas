@@ -347,7 +347,7 @@ _Status: **MERGED** via PR `#321` (`c0ebd46` on `main`). Directives `D-PROJECT-A
 _North star: persistent brain for AI-native projects. See `docs/CODER-ALPHA-035-REBASE.md`._
 
 - [x] AS-CODER-ALPHA-CONNECT-001 `atlas connect .` one-command bind+compile
-- [ ] AS-CODER-ALPHA-OVERVIEW-001 Project Overview lens
+- [x] AS-CODER-ALPHA-OVERVIEW-001 Project Overview lens
 - [ ] AS-CODER-ALPHA-STATE-001 Current State lens
 - [ ] AS-CODER-ALPHA-CHANGED-001 What Changed defaults
 - [ ] AS-CODER-ALPHA-DECISIONS-001 Decision memory

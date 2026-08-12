@@ -57,8 +57,8 @@ Full table: `docs/evidence/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.
 
 | Step | Status |
 |---|---|
-| Fresh project | PARTIAL |
-| `atlas connect .` | **MISSING** → execution target |
+| Fresh project | PARTIAL (connect shipped) |
+| `atlas connect .` | **IMPLEMENTED** (AS-CODER-ALPHA-CONNECT-001 on main) |
 | Understands project | PARTIAL |
 | Knowledge / Obsidian | PARTIAL |
 | What is this / changed / decisions / unknown | PARTIAL |
