@@ -142,6 +142,10 @@ SCHEMA_FILES: dict[str, str] = {
     "claim-validity-window": "claim-validity-window.schema.json",
     "claim-validity-catalog": "claim-validity-catalog.schema.json",
     "bitemporal-as-of-result": "bitemporal-as-of-result.schema.json",
+    # AS-2.2-KDIFF-001 — Knowledge Diff / Time Machine P0 (read-only as-of + T1->T2 diff;
+    # derived ≠ authority; consumes AS-2.0-TEMPORAL-001 + AS-CORE state; never writes)
+    "kdiff-as-of-snapshot": "kdiff-as-of-snapshot.schema.json",
+    "kdiff-record": "kdiff-record.schema.json",
     # AS-2.0-REALITY-GAP-001 — fixture-only reality-gap inventory (≠ PILOT / estate)
     "reality-gap-inventory": "reality-gap-inventory.schema.json",
     # AS-2.0-TWIN-FIXTURE-001 — disposable twin projections (≠ TWIN production / PILOT)

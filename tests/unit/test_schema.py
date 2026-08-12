@@ -76,6 +76,8 @@ def test_all_expected_schemas_available() -> None:
         "impact-graph",
         "kci-compile-receipt",
         "kci-compile-request",
+        "kdiff-as-of-snapshot",
+        "kdiff-record",
         "kf2-entity",
         "kf2-fabric-inventory",
         "kf2-namespace",
