@@ -4,8 +4,18 @@
   "terminals": [
     {
       "name": "web-dev-server",
-      "command": "npm --prefix apps/web run dev -- --host 127.0.0.1"
+      "command": "npm --prefix apps/web run dev -- --host 127.0.0.1",
+      "description": "Project Atlas Web development server"
     }
   ],
-  "ports": [5173]
+  "ports": [
+    {
+      "name": "web",
+      "port": 5173
+    },
+    {
+      "name": "atlas-api",
+      "port": 8000
+    }
+  ]
 }
