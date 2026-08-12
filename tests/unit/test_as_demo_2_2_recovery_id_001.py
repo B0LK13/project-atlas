@@ -82,9 +82,12 @@ def test_ensure_fails_closed_on_malformed_identity(tmp_path: Path, payload: str)
     assert marker.read_bytes() == before
 
 
+@pytest.mark.skipif(
+    os.name == "nt" or not hasattr(os, "O_DIRECTORY"),
+    reason="VI-001 dirfd renameat TOCTOU containment is POSIX-only",
+)
 def test_write_atomic_survives_parent_symlink_swap(tmp_path: Path) -> None:
     """VI-001: concurrent .atlas → symlink swap must not escape the vault."""
-    import os
     from unittest import mock
 
     from project_atlas import vault_identity as vi
@@ -143,6 +146,10 @@ def test_ensure_fails_closed_on_symlinked_identity(tmp_path: Path) -> None:
         read_vault_identity(vault)
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="POSIX directory mode bits do not deny writes on Windows NTFS",
+)
 def test_ensure_fails_closed_on_unwritable_identity_path(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
