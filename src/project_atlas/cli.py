@@ -124,6 +124,10 @@ from project_atlas.lifecycle_cert import (
 from project_atlas.logging import configure_logging, get_logger
 from project_atlas.mcp_server import McpServerError, invoke_mcp_tool
 from project_atlas.migrations.claim_v2_migration import migrate_v2
+from project_atlas.obsidian_projection import (
+    ObsidianProjectionError,
+    materialize_obsidian_projection,
+)
 from project_atlas.openai_import_real import (
     OpenAIRealImportError,
     import_openai_export,
@@ -582,6 +586,27 @@ def build_parser() -> argparse.ArgumentParser:
     capture_list.add_argument("--project", default=None)
     capture_list.add_argument("--limit", type=int, default=20)
     capture_list.add_argument("--json", action="store_true", dest="as_json")
+
+    obsidian_parser = subparsers.add_parser(
+        "obsidian",
+        help=(
+            "Materialize living Obsidian projections from Core "
+            "(AS-CODER-ALPHA-OBSIDIAN-001; derived!=plugin!=authority)."
+        ),
+    )
+    obsidian_sub = obsidian_parser.add_subparsers(dest="obsidian_command", required=True)
+    obsidian_project = obsidian_sub.add_parser(
+        "project",
+        help="Write living project Markdown under generated/obsidian/projects/.",
+    )
+    obsidian_project.add_argument("--vault", type=Path, required=True)
+    obsidian_project.add_argument("--project", default=None)
+    obsidian_project.add_argument(
+        "--no-refresh",
+        action="store_true",
+        help="Do not refresh underlying brief/lenses before projecting.",
+    )
+    obsidian_project.add_argument("--json", action="store_true", dest="as_json")
 
     accept_graph_parser = subparsers.add_parser(
         "accept-graph",
@@ -1994,6 +2019,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 brief_paths = report.get("brief_paths") or []
                 if brief_paths:
                     print(f"  brief:    {', '.join(brief_paths)}")
+                obsidian_notes = report.get("obsidian_notes") or []
+                if obsidian_notes:
+                    print(f"  obsidian: {', '.join(obsidian_notes)}")
         return EXIT_OK
 
     if args.command == "overview":
@@ -2242,6 +2270,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  - {item.get('capture_id')} [{item.get('kind')}] "
                     f"{item.get('summary')}"
                 )
+        return EXIT_OK
+
+    if args.command == "obsidian":
+        try:
+            report = materialize_obsidian_projection(
+                args.vault,
+                project_id=args.project,
+                refresh_brief=not args.no_refresh,
+            )
+        except (ObsidianProjectionError, OSError, ValueError) as exc:
+            _log.error("obsidian projection failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas obsidian project [{report.get('status', 'ok')}]")
+            for path in report.get("notes_written") or []:
+                print(f"  note: {path}")
+            print(f"  receipt: {report.get('receipt_path')}")
+            print("  next: open generated/obsidian/projects/ in Obsidian (plugin!=shipped)")
         return EXIT_OK
 
     if args.command == "build-indexes":

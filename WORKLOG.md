@@ -5479,3 +5479,22 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - ops receipt != Layer B authority
 - UNKNOWN stays UNKNOWN
 - CODEX_VALIDATED: NO
+
+## D-036 overnight — OBSIDIAN-001
+
+**Date:** 2026-08-12
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-OVERNIGHT-036
+**Branch:** cursor/coder-alpha-obsidian-001-d036
+**Base:** main @ `316dd3b`
+
+### Packages
+- AS-CODER-ALPHA-OBSIDIAN-001 (`atlas obsidian project`)
+- Living Markdown under `generated/obsidian/projects/<id>/project-living.md`
+- Auto-materialized by `atlas connect`; HUMAN regions preserved
+- Module: `src/project_atlas/obsidian_projection.py`
+
+### Explicit non-claims
+- Not an Obsidian plugin/clone
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- derived projection != Layer B authority
+- CODEX_VALIDATED: NO

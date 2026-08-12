@@ -250,6 +250,7 @@ def connect_project(
             "materialize_decisions",
             "materialize_unknown",
             "materialize_brief",
+            "materialize_obsidian",
             "write_bind",
             "write_receipt",
         ]
@@ -272,6 +273,7 @@ def connect_project(
         "decisions_answers": [],
         "unknown_answers": [],
         "brief_paths": [],
+        "obsidian_notes": [],
         "marker_created": False,
         "vault_created": False,
         "vault_id": None,
@@ -360,6 +362,9 @@ def connect_project(
         unknown = materialize_unknown_lenses(vault_path)
         # refresh=False: lenses just written above.
         brief = materialize_project_briefs(vault_path, refresh=False)
+        from project_atlas.obsidian_projection import materialize_obsidian_projection
+
+        obsidian = materialize_obsidian_projection(vault_path, refresh_brief=False)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ConnectError(str(exc)) from exc
 
@@ -376,6 +381,7 @@ def connect_project(
     report["decisions_answers"] = decisions.get("answers_written", [])
     report["unknown_answers"] = unknown.get("answers_written", [])
     report["brief_paths"] = brief.get("briefs_written", [])
+    report["obsidian_notes"] = obsidian.get("notes_written", [])
 
     bind_path = _write_bind(
         project_root,
