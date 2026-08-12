@@ -271,6 +271,7 @@ def test_case_known_packages_present_record(tmp_path: Path) -> None:
     assert len(candidates) == 1
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="known",
         profile_id="p2-readonly",
         candidates=candidates,
@@ -302,6 +303,7 @@ def test_case_unknown_returns_nothing_and_refuses_invention(tmp_path: Path) -> N
     with pytest.raises(Runtime22Error, match="record-absent"):
         compile_context(
             vault,
+            project_id=PROJECT_A,
             pack_id="unknown",
             profile_id="p2-readonly",
             candidates=[
@@ -336,6 +338,7 @@ def test_case_multi_field_distinct_fields_same_subject(tmp_path: Path) -> None:
 
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="multi-field",
         profile_id="p2-readonly",
         candidates=candidates,
@@ -359,6 +362,7 @@ def test_case_conflict_retained_and_excludable(tmp_path: Path) -> None:
 
     retained = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="conflict-keep",
         profile_id="p2-readonly",
         candidates=candidates,
@@ -373,6 +377,7 @@ def test_case_conflict_retained_and_excludable(tmp_path: Path) -> None:
 
     excluded = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="conflict-drop",
         profile_id="p2-readonly",
         include_unresolved_conflicts=False,
@@ -394,6 +399,7 @@ def test_case_stale_freshness_from_portfolio(tmp_path: Path) -> None:
     vault = _matrix_vault(tmp_path)
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="stale",
         profile_id="p2-readonly",
         candidates=_scoped_candidates(vault, "claim-stale-metric", PROJECT_A),
@@ -414,6 +420,7 @@ def test_case_freshness_unknown_never_invents_fresh(tmp_path: Path) -> None:
     candidates[0]["freshness"] = "fresh"
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="fresh-unknown",
         profile_id="p2-readonly",
         candidates=candidates,
@@ -476,6 +483,7 @@ def test_case_authority_difference_orders_by_full_rank(tmp_path: Path) -> None:
     ]
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="authority-diff",
         profile_id="p2-readonly",
         candidates=candidates,
@@ -503,6 +511,7 @@ def test_case_authority_difference_rejects_upward_spoof(
     with pytest.raises(Runtime22Error, match="authority-spoof"):
         compile_context(
             vault,
+            project_id=PROJECT_A,
             pack_id="spoof",
             profile_id="p2-readonly",
             candidates=[
@@ -528,7 +537,12 @@ def test_case_graph_only_is_summary_and_never_authority(tmp_path: Path) -> None:
     """
     vault = _matrix_vault(tmp_path)
     without_graph = hybrid_retrieve(
-        vault, kind="claim", value="claim-known-", mode="prefix", cap=20
+        vault,
+        kind="claim",
+        value="claim-known-",
+        mode="prefix",
+        cap=20,
+        project_id=PROJECT_A,
     )
     with_graph = hybrid_retrieve(
         vault,
@@ -536,6 +550,7 @@ def test_case_graph_only_is_summary_and_never_authority(tmp_path: Path) -> None:
         value="claim-known-",
         mode="prefix",
         cap=20,
+        project_id=PROJECT_A,
         include_graph_slot=True,
     )
     # Enabling the graph slot adds exactly zero retrieval candidates.
@@ -555,6 +570,7 @@ def test_case_graph_only_is_summary_and_never_authority(tmp_path: Path) -> None:
     # The compiled package over graph-active retrieval stays derived-only.
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="graph-only",
         profile_id="p2-readonly",
         candidates=with_graph["candidates"],
@@ -604,6 +620,7 @@ def test_case_high_fanout_dedupe_and_cap(tmp_path: Path) -> None:
     candidates.append(dict(candidates[0]))  # exact duplicate row
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="high-fanout",
         profile_id="p2-readonly",
         candidates=candidates,
@@ -634,6 +651,7 @@ def test_case_budget_overflow_truncates_or_fails_closed(tmp_path: Path) -> None:
 
     truncated = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="overflow-truncate",
         profile_id="p2-readonly",
         candidates=candidates,
@@ -649,6 +667,7 @@ def test_case_budget_overflow_truncates_or_fails_closed(tmp_path: Path) -> None:
     with pytest.raises(Runtime22Error, match="budget-overflow"):
         compile_context(
             vault,
+            project_id=PROJECT_A,
             pack_id="overflow-fail",
             profile_id="p2-readonly",
             candidates=candidates,
@@ -665,6 +684,7 @@ def test_case_malformed_input_hygiene_and_query_bounds(tmp_path: Path) -> None:
     vault = _matrix_vault(tmp_path)
     package = compile_context(
         vault,
+        project_id=PROJECT_A,
         pack_id="malformed",
         profile_id="p2-readonly",
         candidates=[
@@ -705,6 +725,7 @@ def test_case_malformed_input_hygiene_and_query_bounds(tmp_path: Path) -> None:
     with pytest.raises(Runtime22Error, match="context-budget-invalid"):
         compile_context(
             vault,
+            project_id=PROJECT_A,
             pack_id="bad-budget",
             profile_id="p2-readonly",
             candidates=[],
@@ -725,6 +746,7 @@ def test_case_replay_determinism_byte_identical(tmp_path: Path) -> None:
         )
         package = compile_context(
             vault,
+            project_id=PROJECT_A,
             pack_id="replay",
             profile_id="p2-readonly",
             candidates=candidates,
