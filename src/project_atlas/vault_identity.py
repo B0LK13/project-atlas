@@ -79,6 +79,15 @@ def _require_identity_path_contained(vault_root: Path, marker: Path) -> Path:
     return safe
 
 
+def _dirfd_identity_write_supported() -> bool:
+    """POSIX renameat containment needs O_DIRECTORY; Windows has neither.
+
+    On Windows, ``os.O_DIRECTORY`` is absent and opening a directory with
+    ``O_RDONLY`` raises ``PermissionError``, so the Linux dirfd path cannot run.
+    """
+    return hasattr(os, "O_DIRECTORY")
+
+
 def _open_identity_dir_fd(vault_root: Path, atlas_dir: Path) -> int:
     """Open ``.atlas`` with O_DIRECTORY|O_NOFOLLOW for renameat containment."""
     if atlas_dir.is_symlink():
@@ -93,7 +102,13 @@ def _open_identity_dir_fd(vault_root: Path, atlas_dir: Path) -> int:
             "refusing vault identity outside vault root "
             f"(symlink/reparse escape): {atlas_dir}"
         ) from exc
-    flags = os.O_RDONLY | os.O_DIRECTORY
+    o_directory = getattr(os, "O_DIRECTORY", None)
+    if o_directory is None:
+        raise VaultIdentityError(
+            "refusing vault identity outside vault root "
+            f"(symlink/reparse escape): {atlas_dir}"
+        )
+    flags = os.O_RDONLY | int(o_directory)
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if nofollow:
         flags |= nofollow
@@ -121,7 +136,7 @@ def _open_identity_dir_fd(vault_root: Path, atlas_dir: Path) -> int:
     return dir_fd
 
 
-def _write_atomic(vault_root: Path, path: Path, content: str) -> None:
+def _write_atomic_posix_dirfd(vault_root: Path, path: Path, content: str) -> None:
     """Atomically write identity using dirfd + renameat (closes VI-001 TOCTOU).
 
     Opening the parent with ``O_NOFOLLOW`` and renaming via that dirfd means a
@@ -170,6 +185,61 @@ def _write_atomic(vault_root: Path, path: Path, content: str) -> None:
     finally:
         with contextlib.suppress(OSError):
             os.close(dir_fd)
+
+
+def _write_atomic_windows(vault_root: Path, path: Path, content: str) -> None:
+    """Windows atomic identity write (no O_DIRECTORY / dirfd).
+
+    Containment relies on pre/post symlink+realpath checks and ``os.replace``.
+    Dirfd renameat is unavailable on Win32; do not invent a second identity
+    format — same ``vault.json`` bytes contract as POSIX.
+    """
+    atlas_dir = path.parent
+    atlas_dir.mkdir(parents=True, exist_ok=True)
+    _require_identity_path_contained(vault_root, path)
+    if atlas_dir.is_symlink() or path.is_symlink():
+        raise VaultIdentityError(
+            "refusing vault identity outside vault root "
+            f"(symlink/reparse escape): {path}"
+        )
+    fd, tmp_abs = tempfile.mkstemp(
+        dir=atlas_dir, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    tmp_path = Path(tmp_abs)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(content)
+        if atlas_dir.is_symlink() or path.is_symlink() or tmp_path.is_symlink():
+            raise VaultIdentityError(
+                "refusing vault identity outside vault root "
+                f"(symlink/reparse escape): {path}"
+            )
+        _require_identity_path_contained(vault_root, path)
+        _require_identity_path_contained(vault_root, tmp_path)
+        os.replace(tmp_path, path)
+        tmp_path = Path()  # published; skip cleanup
+        safe = _require_identity_path_contained(vault_root, path)
+        if not safe.is_file() or safe.read_text(encoding="utf-8") != content:
+            raise VaultIdentityError(
+                "refusing vault identity outside vault root "
+                f"(symlink/reparse escape): {path}"
+            )
+    except OSError as exc:
+        raise VaultIdentityError(
+            f"unable to write vault identity: {path} ({exc})"
+        ) from exc
+    finally:
+        if tmp_path.parts:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
+
+
+def _write_atomic(vault_root: Path, path: Path, content: str) -> None:
+    """Atomically write ``.atlas/vault.json`` with platform-appropriate safety."""
+    if _dirfd_identity_write_supported():
+        _write_atomic_posix_dirfd(vault_root, path, content)
+    else:
+        _write_atomic_windows(vault_root, path, content)
 
 
 def _validate_vault_id(vault_id: str) -> str:
