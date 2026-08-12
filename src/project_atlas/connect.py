@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
+from atlas_contracts.identity import safe_relative_component
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
@@ -31,7 +33,8 @@ BIND_RELATIVE = Path(".atlas") / "connect.json"
 MANIFEST_RELATIVE = Path("generated") / "ops" / "connect-manifest.json"
 RECEIPT_RELATIVE = Path("generated") / "ops" / "connect-receipt.json"
 
-# Keep the in-tree default vault and local bind metadata out of discovery.
+# Defense-in-depth globs (DEFAULT_EXCLUDES already drops `.atlas-vault` / `.atlas`
+# by path part). Keep patterns for nested / alternate layouts.
 _CONNECT_EXCLUDES = [
     ".git/**",
     ".venv/**",
@@ -41,6 +44,27 @@ _CONNECT_EXCLUDES = [
     ".atlas-vault/**",
     ".atlas-inbox/**",
 ]
+
+_SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+
+
+def _yaml_scalar(value: str) -> str:
+    """Quote a YAML scalar when unsafe as a plain string."""
+    if not value or any(ch in value for ch in ":#{}[],&*?|>!%@`'\"\\") or value != value.strip():
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return value
+
+
+def project_slug_from_dirname(name: str) -> str:
+    """Derive a safe ``project.id`` slug from a directory name (AT-013)."""
+    raw = (name or "").strip().lower()
+    slug = _SLUG_NON_ALNUM.sub("-", raw).strip("-")
+    if not slug:
+        slug = "project"
+    if slug[0].isdigit():
+        slug = f"p-{slug}"
+    return safe_relative_component(slug, label="project.id")
 
 
 class ConnectError(ValueError):
@@ -105,20 +129,38 @@ def resolve_vault_path(project_root: Path, vault: Path | None) -> Path:
 def _ensure_project_marker(project_root: Path) -> bool:
     """Create a minimal marker when absent so ingest can allocate ``project_uuid``.
 
-    Does not invent UUIDs here — genesis remains ingestion's job (SEC-002).
-    Returns True when a marker was written.
+    Writes both ``project.id`` (slug used as vault project key) and
+    ``project.name`` (display). Does not invent UUIDs here — genesis remains
+    ingestion's job (SEC-002). Returns True when a marker was written.
     """
     for name in (".atlas-project.yaml", ".atlas-project.yml"):
         if (project_root / name).is_file():
             return False
-    name = project_root.name.strip() or "project"
+    display = project_root.name.strip() or "project"
+    project_id = project_slug_from_dirname(display)
     content = (
         "schema_version: 1\n"
         "project:\n"
-        f"  name: {name}\n"
+        f"  id: {_yaml_scalar(project_id)}\n"
+        f"  name: {_yaml_scalar(display)}\n"
     )
     _write_atomic(project_root / ".atlas-project.yaml", content.encode("utf-8"))
     return True
+
+
+def _active_source_count(manifest: dict[str, Any]) -> int:
+    """Count discover records that are eligible for ingest (not excluded)."""
+    sources = manifest.get("sources")
+    if not isinstance(sources, list):
+        return 0
+    count = 0
+    for row in sources:
+        if not isinstance(row, dict):
+            continue
+        if row.get("exclusion_reason"):
+            continue
+        count += 1
+    return count
 
 
 def _vault_rel_or_abs(project_root: Path, vault: Path) -> str:
@@ -258,7 +300,7 @@ def connect_project(
             max_file_size=max_file_size,
         )
         write_manifest(manifest, manifest_path)
-        report["documents_discovered"] = len(manifest.get("sources", []))
+        report["documents_discovered"] = _active_source_count(manifest)
 
         ingest(
             manifest_path,
@@ -272,7 +314,7 @@ def connect_project(
             max_file_size=max_file_size,
         )
         write_manifest(manifest, manifest_path)
-        report["documents_discovered"] = len(manifest.get("sources", []))
+        report["documents_discovered"] = _active_source_count(manifest)
 
         second = ingest(
             manifest_path,

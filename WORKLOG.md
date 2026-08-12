@@ -5324,12 +5324,13 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 ### Results
 - Evidence: `docs/evidence/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.md`
 - Artifact: `/opt/cursor/artifacts/D-PROJECT-ATLAS-CODER-ALPHA-035-phase2-journey-audit.md`
-- Hard MISSING: `atlas connect .`, `atlas handoff`, productized "what should I do next?"
-- Top dogfood gaps: (1) one-command connect+compile, (2) auto-materialize ask/knowledge plane from Core (DEMO-FINDING-001), (3) Cursor context + handoff + default session capture
+- Hard MISSING (at audit time): `atlas connect .`, `atlas handoff`, productized "what should I do next?"
+- Top dogfood gaps (at audit time): (1) one-command connect+compile, (2) auto-materialize ask/knowledge plane from Core (DEMO-FINDING-001), (3) Cursor context + handoff + default session capture
+- Note: `atlas connect` subsequently shipped as AS-CODER-ALPHA-CONNECT-001 on this branch; journey audit table updated accordingly.
 
 ### Explicit non-claims
 - No AUTHENTIC_PILOT / RELEASE CERTIFIED / ALPHA_READY claimed
-- No connect/handoff implementation shipped in this package
+- No handoff implementation shipped in the Phase-2 audit package
 
 ## D-CODER-ALPHA-035 — Product rebase + AS-CODER-ALPHA-CONNECT-001
 
@@ -5356,3 +5357,9 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - No AutoLab / authentic pilot / INT-013 / AS-GH-002
 - CODEX_VALIDATED: NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES
+
+### CONNECT-001 remediation (pre-merge)
+- Marker now writes `project.id` slug + `project.name` (fixes `unknown-project`).
+- `DEFAULT_EXCLUDES` includes `.atlas-vault` / `.atlas` (path-part exclusion).
+- Connect receipt `documents_discovered` counts active (non-excluded) sources only.
+- Regression: rediscover active paths must not include in-tree vault/bind paths.

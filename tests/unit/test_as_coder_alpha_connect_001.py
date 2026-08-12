@@ -13,8 +13,10 @@ from project_atlas.connect import (
     DEFAULT_VAULT_DIRNAME,
     ConnectError,
     connect_project,
+    project_slug_from_dirname,
     resolve_vault_path,
 )
+from project_atlas.discovery import discover
 
 
 def _seed_project(root: Path) -> Path:
@@ -75,17 +77,32 @@ def test_connect_dry_run_reports_plan_without_writes(tmp_path: Path) -> None:
 
 
 def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
-    project = _seed_project(tmp_path / "proj")
+    project = _seed_project(tmp_path / "my-cool-app")
+    expected_id = project_slug_from_dirname(project.name)
     first = connect_project(project)
     assert first["status"] == "connected"
     assert first["documents_ingested"] >= 1
-    assert first["projects"]
+    assert first["documents_discovered"] >= 1
+    assert first["projects"] == [expected_id]
+    assert "unknown-project" not in first["projects"]
     vault = Path(first["vault"])
     assert (vault / "index.md").is_file()
     assert (project / BIND_RELATIVE).is_file()
     assert (vault / "generated" / "ops" / "connect-receipt.json").is_file()
-    project_id = first["projects"][0]
-    assert (vault / "projects" / project_id / "project.md").is_file()
+    assert (vault / "projects" / expected_id / "project.md").is_file()
+    marker = (project / ".atlas-project.yaml").read_text(encoding="utf-8")
+    assert f"id: {expected_id}" in marker
+
+    # Rediscover must not treat in-tree vault files as active sources.
+    rediscovered = discover(project)
+    active = [
+        row["path"]
+        for row in rediscovered["sources"]
+        if not row.get("exclusion_reason")
+    ]
+    assert all(".atlas-vault/" not in path for path in active)
+    assert all(not path.startswith(".atlas/") for path in active)
+    assert first["documents_discovered"] == len(active)
 
     second = connect_project(project)
     assert second["status"] == "connected"
@@ -97,6 +114,12 @@ def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
     # No wall-clock timestamps in bind/receipt (NFR-001).
     assert "generated_at" not in bind
     assert "at" not in bind.get("generated", {})
+
+
+def test_project_slug_from_dirname_is_safe() -> None:
+    assert project_slug_from_dirname("My Cool App") == "my-cool-app"
+    assert project_slug_from_dirname("123-start") == "p-123-start"
+    assert project_slug_from_dirname("@@@") == "project"
 
 
 def test_cli_connect_help_exits_zero() -> None:

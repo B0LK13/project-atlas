@@ -12,7 +12,7 @@
 
 - **IMPLEMENTED** — real product path exists on Core/web/control-plane for authentic (non-fixture-only) use, with concrete modules/commands.
 - **PARTIAL** — substantive substrate exists, but the journey step is incomplete, multi-command tribal, dual-path, or not dogfood-ready.
-- **MISSING** — named journey command/surface absent (`atlas connect`, `atlas handoff`, Cursor auto-context).
+- **MISSING** — named journey command/surface absent (`atlas handoff`, Cursor auto-context). `atlas connect` shipped under AS-CODER-ALPHA-CONNECT-001.
 - **DEMO_ONLY** — works only / primarily over DEMO_FIXTURE or demo stubs; not authentic productization.
 - **NOT_PRODUCTIZED** — contract/scaffold/registry/stub exists; not a stranger-usable product flow.
 
@@ -22,7 +22,7 @@
 
 | # | Step | Status | Evidence (exists) | Absence / gap |
 |---|---|---|---|---|
-| 1 | FRESH PROJECT | **PARTIAL** | `atlas init` → `src/project_atlas/scaffold.py`, CLI `init` in `src/project_atlas/cli.py`; `atlas doctor` → `src/project_atlas/doctor.py`; productization onboard `docs/productization/onboard/FIRST-RUN.md`, `scripts/windows/atlas-onboard.ps1` / `atlas-start.ps1`; control-plane `atlas_agent.py init-project` writes `.atlas/project.yaml` | No single bind+compile entry; stranger path is Windows/DEMO_FIXTURE-oriented (`docs/productization/install/LIMITATIONS.md`); authentic fresh-project dogfood still multi-step |
+| 1 | FRESH PROJECT | **PARTIAL** | `atlas connect .` binds+compiles a fresh tree; `atlas init` → `scaffold.py`; `atlas doctor` → `doctor.py`; onboard docs + Windows scripts; control-plane `atlas_agent.py init-project` writes `.atlas/project.yaml` | Stranger path still Windows/DEMO_FIXTURE-oriented in older onboard docs (`docs/productization/install/LIMITATIONS.md`); post-connect knowledge lenses not auto-populated |
 | 2 | `atlas connect .` | **IMPLEMENTED** *(AS-CODER-ALPHA-CONNECT-001)* | `atlas connect` → `src/project_atlas/connect.py` + CLI in `cli.py`; bind at `.atlas/connect.json`; default vault `<project>/.atlas-vault`; Core chain with SEC-002 rediscover | Post-connect knowledge/ask auto-materialization and Cursor injection remain later backlog items |
 | 3 | Atlas understands project | **PARTIAL** | Core compile on ingest: `src/project_atlas/ingestion.py` calls `compile_knowledge` + `compile_project_record` → `projects/<id>/project.md`, claims/concepts/conflicts; pipeline `discover`→`ingest`→`build-indexes`→`build-portfolio`→`validate` proven in `tests/integration/test_as_demo_2_2_golden_fixture.py` | Operator must run multi-command choreography; `generated/answers/` **not** auto-emitted after Core pipeline (`docs/demo/DEMO-FINDINGS.md` DEMO-FINDING-001; `src/project_atlas/web_api/knowledge.py`) |
 | 4 | Human opens Atlas Knowledge / Obsidian | **PARTIAL** | Obsidian-compatible vault scaffold (`scaffold.py` dirs + Markdown); web Knowledge lens `apps/web/src/pages/production/KnowledgePage.tsx` + nav `ProdNav.tsx`; LIVE_API `atlas live api-serve` → `src/project_atlas/api_server.py` `/v1/knowledge` | Obsidian modules are **non-plugin registries only**: `src/project_atlas/obsidian_ux.py`, `obsidian_workspace.py` (`plugin_shipped: false`); Knowledge UI empty unless operator seeds `generated/answers/`; demo stub fallback when API down |
@@ -45,6 +45,7 @@
 
 | Surface | Path / command | Journey role |
 |---|---|---|
+| CLI connect | `atlas connect` | Steps 1–3 (bind+compile) |
 | CLI Core pipeline | `atlas init\|discover\|ingest\|build-indexes\|build-portfolio\|validate` | Steps 1,3,16 |
 | CLI ask / query / diff / context | `atlas ask2`, `atlas query`, `atlas kdiff`, `atlas context-pack`, `atlas runtime` | Steps 5–8,10 |
 | CLI live | `atlas live api-serve`, `atlas live mcp-invoke` | Steps 4,5,8,10 |
@@ -70,4 +71,4 @@
 
 - This audit does **not** claim `AUTHENTIC_PILOT = PASS`, `RELEASE CERTIFIED`, or `ALPHA_READY`.
 - Golden DEMO_FIXTURE Ask/KDiff PASS (`tests/integration/test_as_demo_2_2_golden_fixture.py`) proves Core contracts on fixtures — **not** stranger daily dogfood productization.
-- `TECHNICAL_DEMO_VERIFIED` / web ACCEPTED labels elsewhere do not upgrade MISSING `connect`/`handoff` steps.
+- `TECHNICAL_DEMO_VERIFIED` / web ACCEPTED labels elsewhere do not upgrade MISSING `handoff` or NOT_PRODUCTIZED Cursor injection.
