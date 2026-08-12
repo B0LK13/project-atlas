@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
+**Coder Alpha north star:** persistent brain for AI-native projects — see
+`docs/product/CODER-ALPHA-NORTH-STAR.md` (D-037). Historical roadmap priority
+is not current owner priority.
+
 Project Atlas is a local-first "project knowledge compiler": it scans approved
 documentation sources and generates a structured Obsidian vault following an
 internal Open Knowledge Format (OKF) profile — evidence-backed, offline,
@@ -14,12 +18,12 @@ architecture, not repeating that narrative.
 
 The Core pipeline is implemented: `discover` → `ingest` → `build-indexes` →
 `build-portfolio` → `validate`, with read-only read/query lenses layered on
-top (`query`, `ask2`, `kdiff`) plus `doctor`, `snapshot`/`restore`, and a
-read-only LIVE_API (`live api-serve`). The repository also contains shared
-Atlas contracts (`src/atlas_contracts/`) and the governed agent control-plane
-sibling deliverable (`atlas-vault-documentation/`). Check `WORKLOG.md`
-(tail) for the current work-package status and `docs/backlog.md` for
-what's checked off. Atlas 2.2 capabilities are unlocked per-capability
+top (`query`, `ask2`, `kdiff`, `overview`, `state`) plus `connect`, `doctor`,
+`snapshot`/`restore`, and a read-only LIVE_API (`live api-serve`). The
+repository also contains shared Atlas contracts (`src/atlas_contracts/`) and
+the governed agent control-plane sibling deliverable
+(`atlas-vault-documentation/`). Check `WORKLOG.md` (tail) for the current
+work-package status and `docs/backlog.md` for what's checked off. Atlas 2.2 capabilities are unlocked per-capability
 (`docs/atlas-2.2/PACKAGE-MATURITY.json`: `prep-frozen` vs
 `implementation-unlocked`). Product maturity truth: Atlas 1.0 complete,
 Atlas 2.0 release-certified, Atlas 2.1 live productization layer (including
@@ -63,6 +67,9 @@ atlas ingest --manifest <manifest.json> --vault <vault-dir>
 atlas build-indexes --vault <vault-dir>
 atlas build-portfolio --vault <vault-dir>                   # derived portfolio + bitemporal catalog
 atlas validate --vault <vault-dir>
+atlas connect [source] [--vault <dir>]                      # Coder Alpha bind+compile
+atlas overview --vault <vault-dir> [--project <id>]         # Project Overview lens
+atlas state --vault <vault-dir> [--project <id>]            # Current State lens
 
 atlas doctor [--vault <vault-dir>] [--json]                 # environment/vault diagnostics
 atlas ask2 --vault <dir> --project <p> --question "..."     # Ask Atlas 2 (read-only)

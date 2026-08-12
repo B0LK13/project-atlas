@@ -1,5 +1,10 @@
 # Project Atlas
 
+**Coder Alpha north star:** Project Atlas is the persistent brain for AI-native
+projects — Knowledge (Obsidian/Web), Context (agents), and Truth (evidence /
+provenance / conflicts / UNKNOWN). Primary promise: never explain your project
+to an AI twice. See `docs/product/CODER-ALPHA-NORTH-STAR.md` (D-037).
+
 Project Atlas is a local-first, source-backed "project knowledge compiler" that
 ingests approved documentation and evidence, extracts provenance-backed
 concepts, and emits a deterministic, agent- and human-readable vault in an
@@ -27,9 +32,11 @@ Repository status (short)
   - **Atlas 2.0 release-certified**
   - **Atlas 2.1 live productization layer** (including read-only MCP and ChatGPT bridge surfaces in Core runtime boundaries)
   - **Atlas 2.2 no longer PREP-only overall**: runtime capabilities are implemented and shipped per-package (`prep-frozen` vs `implementation-unlocked` in `docs/atlas-2.2/PACKAGE-MATURITY.json`).
+- Coder Alpha entry path: `atlas connect .` (bind+compile) then derived
+  overview/state lenses under `generated/answers/` (lens != authority).
 - Core pipeline implemented: `discover` → `ingest` → `build-indexes` →
   `build-portfolio` → `validate`, with read-only read/query lenses layered on
-  top (`query`, `ask2`, `kdiff`).
+  top (`query`, `ask2`, `kdiff`, `overview`, `state`).
 - Shipped beyond the original Core slice: `build-portfolio` (derived portfolio
   intelligence plus an AS-2.0-TEMPORAL-001 bitemporal validity catalog under
   `generated/ops/bitemporal/`), `doctor` (environment/vault diagnostics),

@@ -342,13 +342,16 @@ _Status: **MERGED** via PR `#321` (`c0ebd46` on `main`). Directives `D-PROJECT-A
 - [x] OPTGATE-006 Independent IV PASS + merge to `main`
 - [x] OPTGATE-009 Post-merge evaluator reassessment (D-032): `EVALUATOR_STABLE = YES`; wake recommendation `OPEN_ELIGIBLE` (governance only — runtime `ATLAS_OPT_WAKE_GATE` remains `CLOSED`; AutoLab not activated)
 
-## Coder Alpha (D-PROJECT-ATLAS-CODER-ALPHA-035)
+## Coder Alpha (D-PROJECT-ATLAS-CODER-ALPHA-035 / D-037)
 
-_North star: persistent brain for AI-native projects. See `docs/CODER-ALPHA-035-REBASE.md`._
+_North star: persistent brain for AI-native projects. Durable anchor:
+`docs/product/CODER-ALPHA-NORTH-STAR.md`. Rebase table:
+`docs/CODER-ALPHA-035-REBASE.md`. Historical roadmap/backlog items below
+Epic K remain evidence; they do not override Coder Alpha owner priority._
 
 - [x] AS-CODER-ALPHA-CONNECT-001 `atlas connect .` one-command bind+compile
 - [x] AS-CODER-ALPHA-OVERVIEW-001 Project Overview lens
-- [ ] AS-CODER-ALPHA-STATE-001 Current State lens
+- [x] AS-CODER-ALPHA-STATE-001 Current State lens
 - [ ] AS-CODER-ALPHA-CHANGED-001 What Changed defaults
 - [ ] AS-CODER-ALPHA-DECISIONS-001 Decision memory
 - [ ] AS-CODER-ALPHA-UNKNOWN-001 Unknown/conflict bundle
