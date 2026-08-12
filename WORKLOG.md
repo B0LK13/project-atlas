@@ -5180,3 +5180,25 @@ candidate blocked; Windows Phase C blocked.
 - unit + integration AS-DEMO-2.2-RECOVERY-ID-* PASS
 - ruff + mypy on touched surfaces PASS
 - Snapshot trust properties preserved (no weaken)
+
+## AS-OPT-GATE-001 — governed experiment and promotion boundary
+
+**Date:** 2026-08-12
+**Branch:** cursor/opt-gate-experiment-boundary-592a
+**Directive:** D-PROJECT-ATLAS-OPT-GATE-027
+**Base:** origin/main `754bb266fa2d2ff39089c4e587c9b90eacd841fd` / TREE `c481c1aa6ba408a16b176d5326f209d6a76b6c42`
+
+### Scope
+- Hard-gate contract (nine PASS/FAIL gates; UNKNOWN never counts as PASS)
+- Sealed experiment envelope + mid-run digest verify
+- Privacy-safe experiment receipt (no holdout expected answers)
+- Promotion engine: PROMOTE_ELIGIBLE / REJECT / INVALID_EXPERIMENT
+- Anti-gaming A-G, fail-closed, and security IV tests
+- Reuses `eval_substrate.score_cases` + out-of-process scoring broker
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- No AutoLab / OPT loops / retrieval-prompt-model mutation / merge / deploy
+- EVALUATOR_STABLE: not declared here (independent evaluator after merge)
+- CODEX_VALIDATED: NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED: YES

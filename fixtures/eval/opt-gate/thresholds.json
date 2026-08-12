@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "version": "AS-OPT-GATE-001-THRESHOLDS-1",
+  "package_id": "AS-OPT-GATE-001",
+  "min_public_matched_delta": 0,
+  "min_public_rate_improvement_millis": 0,
+  "holdout_non_regression": true,
+  "require_holdout_scored": true
+}

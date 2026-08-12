@@ -9,3 +9,5 @@
   trust boundary is the out-of-process broker (`project_atlas.scoring_broker`).
 - `configs/*.paths.json` — role path manifests exercised by
   `project_atlas.eval_substrate`.
+- `opt-gate/` — AS-OPT-GATE-001 sealed scoring / hard-gate / threshold /
+  honesty-catalog policies (public; not holdout answers).

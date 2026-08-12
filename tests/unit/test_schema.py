@@ -96,6 +96,7 @@ def test_all_expected_schemas_available() -> None:
         "ops-event-stream",
         "ops-health-snapshot",
         "ops-report",
+        "opt-experiment-receipt",
         "parser-output",
         "provenance-reference",
         "provider-adapter-registry",
