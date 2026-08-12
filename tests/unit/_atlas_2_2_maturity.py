@@ -74,13 +74,51 @@ def branch_changes(root: Path = ROOT, *, include_worktree: bool = True) -> set[s
 
     Worktree (uncommitted) changes are folded in so the guard is meaningful for
     local verification before push, matching the strictest legacy guard.
+
+    Shallow CI checkouts often lack ``origin/main``; attempt a depth-1 fetch,
+    then fall back to an empty committed delta so guards still evaluate the
+    worktree without hard-failing on missing merge-base history.
     """
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=root,
-        text=True,
+    changed: set[str] = set()
+    base_ok = (
+        subprocess.run(
+            ["git", "rev-parse", "--verify", "origin/main"],
+            cwd=root,
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
     )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
+    if not base_ok:
+        subprocess.run(
+            ["git", "fetch", "--depth", "1", "origin", "main"],
+            cwd=root,
+            capture_output=True,
+            check=False,
+        )
+        base_ok = (
+            subprocess.run(
+                ["git", "rev-parse", "--verify", "origin/main"],
+                cwd=root,
+                capture_output=True,
+                check=False,
+            ).returncode
+            == 0
+        )
+    if base_ok:
+        diff = subprocess.run(
+            ["git", "diff", "--name-only", "origin/main...HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if diff.returncode == 0:
+            changed = {
+                line.strip().replace("\\", "/")
+                for line in diff.stdout.splitlines()
+                if line.strip()
+            }
     if include_worktree:
         status = subprocess.check_output(
             ["git", "status", "--porcelain"],
