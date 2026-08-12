@@ -12,12 +12,35 @@ deterministic. See `AGENTS.md` for the full principles and core narrative
 preservation, no subjective trust scores) — this file focuses on commands and
 architecture, not repeating that narrative.
 
-The certified Core pipeline is implemented: `discover` → `ingest` →
-`build-indexes` → `validate`. The repository also contains shared Atlas
-contracts (`src/atlas_contracts/`) and the governed agent control-plane
+The Core pipeline is implemented: `discover` → `ingest` → `build-indexes` →
+`build-portfolio` → `validate`, with read-only read/query lenses layered on
+top (`query`, `ask2`, `kdiff`) plus `doctor`, `snapshot`/`restore`, and a
+read-only LIVE_API (`live api-serve`). The repository also contains shared
+Atlas contracts (`src/atlas_contracts/`) and the governed agent control-plane
 sibling deliverable (`atlas-vault-documentation/`). Check `WORKLOG.md`
 (tail) for the current work-package status and `docs/backlog.md` for
-what's checked off.
+what's checked off. Atlas 2.2 capabilities are unlocked per-capability
+(`docs/atlas-2.2/PACKAGE-MATURITY.json`: `prep-frozen` vs
+`implementation-unlocked`). Product maturity truth: Atlas 1.0 complete,
+Atlas 2.0 release-certified, Atlas 2.1 live productization layer (including
+read-only MCP/ChatGPT bridge surfaces), Atlas 2.2 no longer PREP-only overall.
+Sealed Golden Demo pin (ancestor of current `main`, not always HEAD):
+`754bb266fa2d2ff39089c4e587c9b90eacd841fd`
+(`c481c1aa6ba408a16b176d5326f209d6a76b6c42`), with
+`ATLAS_DEMO_2_2_PORTABLE_CANDIDATE=PASS`, `WINDOWS_DEMO_SEAL=PASS`,
+`ATLAS_DEMO_2_2_WORKING=YES`, `WINDOWS_STRANGER_PHASE_C=PASS`.
+AS-OPT-GATE-001 is merged (`#321` / `project_atlas.opt_gate`);
+`ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE` is not yet reassessed.
+
+Truth boundaries (must remain explicit): `PREP != IMPLEMENTED`,
+`DEMO_FIXTURE != AUTHENTIC_PILOT`, `DEMO != RELEASE`,
+`UI != CANONICAL TRUTH`, `MODEL OUTPUT != AUTHORITY`,
+`PROMOTE_ELIGIBLE != MERGED/DEPLOYED/AUTHORITATIVE`,
+`CODEX_VALIDATED = NO`, `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`.
+`ATLAS_DEMO_2_2_WORKING = YES` means the Golden Product Vertical Slice passed
+portable + Windows stranger validation only; it is not a claim that
+`AUTHENTIC_PILOT = PASS`, `EXTERNAL_SECURITY_CERTIFICATION = PASS`, or
+`COMMERCIAL_GA = YES`.
 
 ## Commands
 
@@ -38,7 +61,14 @@ atlas init --output <dir> [--dry-run]                       # create a vault sca
 atlas discover --source <project-root> --output <manifest.json>
 atlas ingest --manifest <manifest.json> --vault <vault-dir>
 atlas build-indexes --vault <vault-dir>
+atlas build-portfolio --vault <vault-dir>                   # derived portfolio + bitemporal catalog
 atlas validate --vault <vault-dir>
+
+atlas doctor [--vault <vault-dir>] [--json]                 # environment/vault diagnostics
+atlas ask2 --vault <dir> --project <p> --question "..."     # Ask Atlas 2 (read-only)
+atlas kdiff --vault <dir> --project <p> [--as-of T | --from T1 --to T2]   # Knowledge Diff / Time Machine
+atlas snapshot ... / atlas restore ...                       # backup & recovery bundles
+atlas live api-serve                                         # read-only LIVE_API (127.0.0.1)
 ```
 
 `.github/workflows/ci.yml` is the authoritative gate sequence: ruff → mypy →
@@ -73,6 +103,41 @@ asserting `index.md` and `00-system/vault-charter.md` exist).
   drift rejection.
 - `retrieval.py` — read-only exact/prefix lookup over generated lexical
   indexes (AS-RET-001); never mutates the Vault.
+- `portfolio.py` — `atlas build-portfolio`: derived portfolio intelligence
+  under `generated/portfolio/` (AS-MVP-001); also triggers the bitemporal
+  validity-catalog derivation.
+- `doctor.py` — `atlas doctor`: environment and optional Vault diagnostics,
+  with a `--json` machine-readable report (PROD-DOCTOR-001).
+- `ask2.py` — `atlas ask2` (AS-2.2-ASK2-001): read-only answer lens over
+  project-scoped hybrid retrieval + a p2 read-only context compiler; returns
+  known/unknown/conflict honestly; UNKNOWN stays UNKNOWN; model ≠ authority;
+  never writes.
+- `knowledge_diff.py` — `atlas kdiff` (AS-2.2-KDIFF-001): read-only as-of reads
+  and T1→T2 diffs over document-declared valid-time; graph ≠ authority; no
+  canonical writes.
+- `runtime_22.py` — AS-2.2 runtime package: hybrid retrieval and context
+  compiler runtime primitives used by Ask Atlas 2 and related read paths.
+- `bitemporal.py` / `bitemporal_catalog.py` — AS-2.0-TEMPORAL-001 validity-window
+  evaluation and the catalog writer. `bitemporal_catalog.py` derives the
+  `generated/ops/bitemporal/` catalog (from persisted claims + document-declared
+  valid-time) that the `kdiff` reader consumes, and is rebuilt by
+  `build-portfolio`.
+- `backup.py` — `atlas snapshot`/`restore` (AS-BACKUP-001): byte-complete
+  recovery bundles; operational durability ≠ project authority.
+- `vault_identity.py` — canonical Vault identity bootstrap/preservation
+  (`.atlas/vault.json`): `atlas init` establishes identity; `snapshot` remains
+  non-minting and `restore` preserves identity. Linux uses the POSIX dirfd-safe
+  path and Windows uses the platform-specific atomic path introduced by `#320`.
+- `api_server.py` / `app_service.py` / `web_api/` — read-only LIVE_API
+  (`atlas live api-serve`, 127.0.0.1) including the `/v1/conflicts` and
+  `/v1/kdiff` projections (`web_api/conflicts.py`); a Web `#/time-machine` page
+  lives under `apps/web`.
+- `mcp_server.py` / `mcp_registry.py` — AS-2.1 read-only MCP bridge surface:
+  allow-listed read tools only; unknown/write/path-traversal requests fail
+  closed.
+- `chatgpt_bridge.py` / `chatgpt_capture.py` — AS-2.1 ChatGPT bridge surface:
+  export/capture into quarantine with explicit truth boundary
+  (`LLM output != authority`).
 - `knowledge_compiler.py` — deterministic claim extraction, authority
   precedence, conflict detection, review queue generation, and lifecycle
   transition enforcement (AS-CORE-003).

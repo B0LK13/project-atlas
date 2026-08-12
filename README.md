@@ -22,12 +22,62 @@ Key principles
   quarantine are enforced.
 
 Repository status (short)
+- Release and maturity reality:
+  - **Atlas 1.0 complete**
+  - **Atlas 2.0 release-certified**
+  - **Atlas 2.1 live productization layer** (including read-only MCP and ChatGPT bridge surfaces in Core runtime boundaries)
+  - **Atlas 2.2 no longer PREP-only overall**: runtime capabilities are implemented and shipped per-package (`prep-frozen` vs `implementation-unlocked` in `docs/atlas-2.2/PACKAGE-MATURITY.json`).
 - Core pipeline implemented: `discover` → `ingest` → `build-indexes` →
-  `validate`.
-- Tests: unit & integration tests present; documented passing results in
+  `build-portfolio` → `validate`, with read-only read/query lenses layered on
+  top (`query`, `ask2`, `kdiff`).
+- Shipped beyond the original Core slice: `build-portfolio` (derived portfolio
+  intelligence plus an AS-2.0-TEMPORAL-001 bitemporal validity catalog under
+  `generated/ops/bitemporal/`), `doctor` (environment/vault diagnostics),
+  Ask Atlas 2 (`ask2` — project-scoped hybrid retrieval + a read-only context
+  compiler that answers known/unknown/conflict honestly and never invents
+  authority), Knowledge Diff / Time Machine (`kdiff` — read-only as-of reads
+  and T1→T2 diffs over document-declared valid-time), `snapshot`/`restore`
+  (backup/recovery), and a read-only LIVE_API (`live api-serve`, bound to
+  127.0.0.1) exposing `/v1/conflicts` and `/v1/kdiff` (with a Web
+  `#/time-machine` page under `apps/web`).
+- A golden demo fixture (`tests/fixtures/demo/estate/harbor-api`) carries a
+  real unresolved datastore conflict (PostgreSQL 15 vs 16) and real bitemporal
+  Time Machine states; it is exercised by
+  `tests/integration/test_as_demo_2_2_golden_fixture.py`.
+- Tests: comprehensive unit and integration suites (`tests/unit/`,
+  `tests/integration`); documented passing results in
   `WORKLOG.md`.
 - `atlas-vault-documentation/` is a sibling deliverable (governed agent
   control-plane) and is intentionally excluded from the main lint/type scope.
+- Recovery/identity runtime contract:
+  - `atlas init` establishes canonical Vault identity in `.atlas/vault.json`.
+  - `snapshot` remains non-minting.
+  - `restore` preserves identity (does not rotate/mint).
+  - Linux uses the POSIX dirfd-safe identity write path.
+  - Windows uses the platform-specific atomic identity path introduced by `#320`.
+- Sealed Golden Demo pin (ancestor of current `main`, not always HEAD):
+  - `FINAL_DEMO_HEAD = 754bb266fa2d2ff39089c4e587c9b90eacd841fd`
+  - `FINAL_DEMO_TREE = c481c1aa6ba408a16b176d5326f209d6a76b6c42`
+  - `ATLAS_DEMO_2_2_PORTABLE_CANDIDATE = PASS`
+  - `WINDOWS_DEMO_SEAL = PASS`
+  - `ATLAS_DEMO_2_2_WORKING = YES`
+  - `WINDOWS_STRANGER_PHASE_C = PASS`
+- AS-OPT-GATE-001 merged (`#321`): governed experiment/promotion boundary;
+  `ATLAS_OPT_WAKE_GATE = CLOSED`; `EVALUATOR_STABLE` not yet reassessed.
+
+Truth boundaries (do not overclaim)
+- `PREP != IMPLEMENTED`
+- `DEMO_FIXTURE != AUTHENTIC_PILOT`
+- `DEMO != RELEASE`
+- `UI != CANONICAL TRUTH`
+- `MODEL OUTPUT != AUTHORITY`
+- `PROMOTE_ELIGIBLE != MERGED/DEPLOYED/AUTHORITATIVE`
+- `CODEX_VALIDATED = NO`
+- `EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES`
+- `ATLAS_DEMO_2_2_WORKING = YES` means the Golden Product Vertical Slice
+  passed portable and Windows stranger validation; it does **not** mean
+  `AUTHENTIC_PILOT = PASS`, `EXTERNAL_SECURITY_CERTIFICATION = PASS`, or
+  `COMMERCIAL_GA = YES`.
 
 Quickstart (developer)
 1. Create and activate Python 3.12 venv:
@@ -66,7 +116,16 @@ Core CLI workflow
 - atlas discover --source <project-root> --output <manifest.json>
 - atlas ingest --manifest <manifest.json> --vault <vault-dir>
 - atlas build-indexes --vault <vault-dir>
+- atlas build-portfolio --vault <vault-dir>  # derived portfolio + bitemporal validity catalog
 - atlas validate --vault <vault-dir>
+
+Read & query lenses (read-only; never mutate the Vault)
+- atlas query ... / atlas ask2 --vault <dir> --project <p> --question "..."
+- atlas kdiff --vault <dir> --project <p> [--as-of T | --from T1 --to T2]
+- atlas doctor [--vault <dir>] [--json]      # environment/vault diagnostics
+- atlas snapshot ... / atlas restore ...     # backup & recovery bundles
+- atlas live api-serve                        # read-only LIVE_API on 127.0.0.1
+- Run `atlas --help` for the full subcommand surface.
 
 Development notes & conventions
 - Language: Python 3.12+, packaged in `src/project_atlas`.
@@ -108,7 +167,7 @@ Governance navigation
 - `SECURITY.md` — vulnerability reporting limitations (no invented contacts)
 - `SUPPORT.md` — support boundaries for this private repository
 - `CODE_OF_CONDUCT.md` — conduct expectations and enforcement limitation
-- `VERSIONING.md` / `RELEASING.md` — pre-1.0 version and release authorization
+- `VERSIONING.md` / `RELEASING.md` — version and release authorization
 - `.github/ISSUE_TEMPLATE/` — structured issue forms (security → `SECURITY.md`)
 - `docs/adr/ADR-006-github-repository-governance-baseline.md` — architecture
 
@@ -126,7 +185,7 @@ Contributing & branch policy
   verified — see `GOVERNANCE.md`.
 
 Security & vulnerability handling
-- This pre-1.0 project has no published external private vulnerability intake.
+- This project has no published external private vulnerability intake.
   Do not open public issues with sensitive vulnerability details. Follow
   `SECURITY.md`.
 - Confirm path-safety, secret detection, and protected-region enforcement before
