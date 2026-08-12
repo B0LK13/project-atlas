@@ -5156,15 +5156,11 @@ Disposable twin projection fixtures + OpenAI importer fixture harness (parse sam
 ## AS-DEMO-2.2-RECOVERY-ID-001 — vault identity for recovery-capable fresh vaults
 
 **Date:** 2026-08-12
-<<<<<<< HEAD
-**Branch:** cursor/demo-recovery-vault-identity-0a28
+**Branch:** cursor/demo-recovery-vault-identity-0a28 (PR #317 integration vehicle)
 **Directive:** D-PROJECT-ATLAS-CLOUD-DEMO-RECOVERY-019
-**Base:** origin/main `5a979caa4b48ce52b60e1474285b5297eaf3d1fd` / TREE `e836577291e3a67ad199468860a94d08c6c98bf0`
-=======
-**Branch:** cursor/vault-identity-bootstrap-d036
-**Directive:** D-PROJECT-ATLAS-CLOUD-DEMO-RECOVERY-019
-**Base:** origin/main `63f7b022f5f28633260cbfab8576726d89d98686` / TREE `ce59514670ba14a05b3fbdbf8596e91c894dc038`
->>>>>>> origin/main
+**Base (original #317):** origin/main `5a979caa4b48ce52b60e1474285b5297eaf3d1fd` / TREE `e836577291e3a67ad199468860a94d08c6c98bf0`
+**Reconciled onto:** origin/main `753be2f35db4e16f0f8560563c507cf77132b637` / TREE `5575920ac16e36eb6dcd4d37f03165be812c2a4c`
+**Note:** Product writer identical to merged tip; no second implementation.
 
 ### Defect
 Normal documented stranger/demo bootstrap (`atlas init` → discover → ingest →
