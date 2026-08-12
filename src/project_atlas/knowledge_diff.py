@@ -34,6 +34,7 @@ Truth boundaries:
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -55,6 +56,12 @@ from project_atlas.runtime_22 import (
 )
 from project_atlas.schema import SchemaValidationError, validate_record
 from project_atlas.secrets import scan_text
+
+# Shared identifier grammar (matches api_surface_registry / autonomy_l3): a
+# project_id is interpolated into vault-relative paths, so it must be a bare safe
+# token, never a traversal / absolute fragment. Fail-closed defence-in-depth even
+# though kdiff is CLI-only (no network/API/MCP caller).
+_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
 PACKAGE_ID = "AS-2.2-KDIFF-001"
 AS_OF_KIND = "kdiff-as-of-snapshot"
@@ -163,6 +170,9 @@ def _validate_project_id(project_id: str) -> str:
     if not token:
         # Fail-closed: project scope is REQUIRED (like the AS-2.0 read surfaces).
         raise KnowledgeDiffError("kdiff-project-scope-required")
+    if not _ID_RE.match(token):
+        # Fail-closed: reject traversal/absolute fragments before any path build.
+        raise KnowledgeDiffError("kdiff-project-id-invalid")
     return token
 
 
