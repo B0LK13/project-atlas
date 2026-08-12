@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import jsonschema
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "estate-ops"
@@ -175,23 +175,10 @@ def test_adr_documents_prep_boundary() -> None:
 
 
 def test_no_runtime_ops_mutation() -> None:
-    """Prep must not touch ops_health or other src surfaces."""
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
 
-    assert "src/project_atlas/ops_health.py" not in changed
-    assert "src/project_atlas/ops_events.py" not in changed
-    allowed_tests = {
-        "tests/unit/test_as_2_2_estate_ops_prep_001.py",
-        "tests/unit/test_as_2_2_estate_ops_deepen_prep_001.py",
-    }
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert not name.startswith("apps/"), name
-        assert name.startswith("docs/atlas-2.2/estate-ops/") or name in allowed_tests, name
-        assert not name.endswith("README.md"), name
-        assert name != "docs/atlas-2.2/README.md"
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'estate-ops' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("estate-ops")

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
+
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "intel-slice"
@@ -172,33 +173,10 @@ def test_fixture_plan_lists_all_payloads() -> None:
 
 
 def test_no_runtime_mutation_in_branch_diff() -> None:
-    """Prep must not touch src / apps / README under intel-slice."""
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {
-        line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()
-    }
-    # Uncommitted work also counts for local verification before push.
-    status = subprocess.check_output(
-        ["git", "status", "--porcelain"],
-        cwd=ROOT,
-        text=True,
-    )
-    for line in status.splitlines():
-        path = line[3:].strip().replace("\\", "/")
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1]
-        if path:
-            changed.add(path)
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
 
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert not name.startswith("apps/"), name
-        assert name.startswith("docs/atlas-2.2/intel-slice/") or name in {
-            "tests/unit/test_as_2_2_intel_slice_prep_001.py",
-            "tests/unit/test_as_2_2_intel_slice_deepen_prep_001.py",
-        }, name
-        assert not name.endswith("README.md"), name
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'intel-slice' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("intel-slice")

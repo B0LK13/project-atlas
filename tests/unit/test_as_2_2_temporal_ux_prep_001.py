@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import jsonschema
 import pytest
+from _atlas_2_2_maturity import assert_prep_branch_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 PREP = ROOT / "docs" / "atlas-2.2" / "temporal-ux"
@@ -155,19 +155,10 @@ def test_card_schema_rejects_missing_window() -> None:
 
 
 def test_no_runtime_bitemporal_mutation() -> None:
-    """Prep must not touch bitemporal or other src surfaces."""
-    diff = subprocess.check_output(
-        ["git", "diff", "--name-only", "origin/main...HEAD"],
-        cwd=ROOT,
-        text=True,
-    )
-    changed = {line.strip().replace("\\", "/") for line in diff.splitlines() if line.strip()}
-    assert "src/project_atlas/bitemporal.py" not in changed
-    assert "src/project_atlas/temporal_evaluator.py" not in changed
-    for name in changed:
-        assert not name.startswith("src/"), name
-        assert name.startswith("docs/atlas-2.2/temporal-ux/") or name == (
-            "tests/unit/test_as_2_2_temporal_ux_prep_001.py"
-        ), name
-        assert not name.endswith("README.md"), name
-        assert name != "docs/atlas-2.2/README.md"
+    """Capability-maturity-scoped 2.2 prep guard (D-INTEGRATE-007A).
+
+    Keyed on docs/atlas-2.2/PACKAGE-MATURITY.json: 'temporal-ux' must not
+    mutate its production surface while prep-frozen; an implementation-
+    unlocked capability may legitimately mutate its own surface.
+    """
+    assert_prep_branch_scope("temporal-ux")
