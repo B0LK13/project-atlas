@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/ask-atlas-2-answer.schema.json",
+  "title": "Ask Atlas 2 Answer Contract",
+  "description": "AS-2.2-ASK2-001 read-only answer lens over project-scoped hybrid retrieval + p2-readonly context compiler. Derived; UNKNOWN stays UNKNOWN; legacy matches subordinate; never authority / canonical write.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "compat_snapshot_id",
+    "artifact_kind",
+    "question",
+    "project_id",
+    "kinds_probed",
+    "status",
+    "ANSWER",
+    "EVIDENCE",
+    "evidence_count",
+    "AUTHORITY",
+    "FRESHNESS",
+    "CONFLICTS",
+    "UNKNOWN",
+    "legacy_compatibility",
+    "retrieval",
+    "context",
+    "canonical_write",
+    "ui_truth",
+    "graph_authority",
+    "llm_authority",
+    "truth_boundary",
+    "generated"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-2.2-ASK2-001" },
+    "compat_snapshot_id": { "const": "atlas-1.0.0-compat" },
+    "artifact_kind": { "const": "ask-atlas-2-answer" },
+    "question": { "type": "string", "minLength": 1 },
+    "project_id": { "type": "string", "minLength": 1 },
+    "kinds_probed": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": [
+          "source",
+          "claim",
+          "concept",
+          "conflict",
+          "authority",
+          "provenance"
+        ]
+      }
+    },
+    "status": { "enum": ["known", "unknown", "conflict"] },
+    "ANSWER": { "type": "null" },
+    "EVIDENCE": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/evidence_entry" }
+    },
+    "evidence_count": { "type": "integer", "minimum": 0 },
+    "AUTHORITY": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "source", "llm_authority", "graph_authority", "note"],
+      "properties": {
+        "level": { "const": "derived" },
+        "source": { "const": "core-context-compiler" },
+        "llm_authority": { "const": false },
+        "graph_authority": { "const": false },
+        "note": { "type": "string" }
+      }
+    },
+    "FRESHNESS": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aggregate", "fresh_count", "stale_count", "unknown_count"],
+      "properties": {
+        "aggregate": { "enum": ["fresh", "stale", "unknown"] },
+        "fresh_count": { "type": "integer", "minimum": 0 },
+        "stale_count": { "type": "integer", "minimum": 0 },
+        "unknown_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "CONFLICTS": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unresolved_count", "conflict_ids", "retained_as_sidecars"],
+      "properties": {
+        "unresolved_count": { "type": "integer", "minimum": 0 },
+        "conflict_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "retained_as_sidecars": { "type": "boolean" }
+      }
+    },
+    "UNKNOWN": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["is_unknown", "reasons"],
+      "properties": {
+        "is_unknown": { "type": "boolean" },
+        "reasons": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "legacy_compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authoritative", "subordinate", "match_count", "matches", "note"],
+      "properties": {
+        "authoritative": { "const": false },
+        "subordinate": { "const": true },
+        "match_count": { "type": "integer", "minimum": 0 },
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["record_type", "record_id", "source"],
+            "properties": {
+              "record_type": { "type": "string" },
+              "record_id": { "type": "string" },
+              "source": { "enum": ["legacy-substring", "external"] }
+            }
+          }
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "engine",
+        "project_scoped",
+        "semantic_enabled",
+        "mode",
+        "kinds",
+        "result_count",
+        "candidate_count"
+      ],
+      "properties": {
+        "engine": { "const": "lexical-bm25-rrf" },
+        "project_scoped": { "const": true },
+        "semantic_enabled": { "const": false },
+        "mode": { "enum": ["exact", "prefix"] },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "result_count": { "type": "integer", "minimum": 0 },
+        "candidate_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pack_id", "profile_id", "entry_count", "pipeline", "truncated"],
+      "properties": {
+        "pack_id": { "type": "string", "minLength": 1 },
+        "profile_id": { "const": "p2-readonly" },
+        "entry_count": { "type": "integer", "minimum": 0 },
+        "pipeline": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "canonical_write": { "const": false },
+    "ui_truth": { "const": false },
+    "graph_authority": { "const": false },
+    "llm_authority": { "const": false },
+    "truth_boundary": { "type": "string", "minLength": 1 },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": { "by": { "const": "project-atlas" } }
+    }
+  },
+  "$defs": {
+    "evidence_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_id",
+        "record_type",
+        "record_id",
+        "slot",
+        "authority_level",
+        "freshness",
+        "conflict_state",
+        "reason_included",
+        "relevance_rank",
+        "provenance"
+      ],
+      "properties": {
+        "entry_id": { "type": "string", "minLength": 1 },
+        "record_type": { "type": "string", "minLength": 1 },
+        "record_id": { "type": "string", "minLength": 1 },
+        "slot": { "type": "string" },
+        "authority_level": {
+          "type": "string",
+          "enum": [
+            "derived",
+            "generated",
+            "inferred",
+            "conflicting"
+          ]
+        },
+        "freshness": { "enum": ["fresh", "stale", "unknown"] },
+        "conflict_state": { "enum": ["none", "unresolved"] },
+        "reason_included": { "type": "string" },
+        "relevance_rank": { "type": "integer", "minimum": 0 },
+        "provenance": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "ref"],
+            "properties": {
+              "kind": {
+                "enum": ["source", "receipt", "index", "claim", "concept", "other"]
+              },
+              "ref": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "conflict_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

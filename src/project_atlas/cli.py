@@ -21,6 +21,8 @@ from project_atlas.adv_release_cert import (
     run_fixture_adv_release_certification,
 )
 from project_atlas.api_server import ApiServerError, serve_api
+from project_atlas.ask2 import Ask2Error, ask_atlas_2
+from project_atlas.ask2 import answer_to_json as ask2_answer_to_json
 from project_atlas.authz import (
     AuthzError,
     publish_api_session_credentials,
@@ -1251,6 +1253,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bound subject+field fanout (default 500; max 5000).",
     )
     kdiff_parser.add_argument("--json", action="store_true")
+    # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler).
+    ask2_parser = subparsers.add_parser(
+        "ask2",
+        help=(
+            "Ask Atlas 2 read-only answer lens over project-scoped hybrid "
+            "retrieval + p2-readonly context compiler (AS-2.2-ASK2-001; "
+            "UNKNOWN stays UNKNOWN; UI != canonical; model != authority)."
+        ),
+    )
+    ask2_parser.add_argument("--vault", type=Path, required=True)
+    ask2_parser.add_argument("--question", type=str, required=True)
+    ask2_parser.add_argument(
+        "--project",
+        type=str,
+        required=True,
+        help="Project scope (structurally required; no cross-project answers).",
+    )
+    ask2_parser.add_argument(
+        "--kind",
+        action="append",
+        default=None,
+        dest="kind_args",
+        help="Record kind to probe (repeatable; default: concept, claim).",
+    )
+    ask2_parser.add_argument(
+        "--mode",
+        choices=("exact", "prefix"),
+        default="exact",
+    )
+    ask2_parser.add_argument("--budget", type=int, default=20)
+    ask2_parser.add_argument("--cap", type=int, default=20)
+    ask2_parser.add_argument(
+        "--no-legacy-scan",
+        action="store_true",
+        help="Disable the subordinate legacy substring compatibility scan.",
+    )
+    ask2_parser.add_argument("--json", action="store_true")
 
     # AS-2.0-CTX-001 — fixture-safe context packs with provenance pointers.
     ctx_parser = subparsers.add_parser(
@@ -2691,6 +2730,33 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"unresolved_delta: {len(report['unresolved_delta'])}")
             print(f"truncated: {report['truncated']}")
             print(f"truth_boundary: {report['truth_boundary']}")
+        return EXIT_OK
+    if args.command == "ask2":
+        kinds = tuple(args.kind_args) if args.kind_args else ("concept", "claim")
+        try:
+            answer = ask_atlas_2(
+                args.vault,
+                question=args.question,
+                project_id=args.project,
+                kinds=kinds,
+                mode=args.mode,
+                budget=args.budget,
+                retrieval_cap=args.cap,
+                legacy_scan=not bool(args.no_legacy_scan),
+            )
+        except Ask2Error as exc:
+            _log.error("ask2 failed: %s", exc)
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+        if args.json:
+            print(ask2_answer_to_json(answer), end="")
+        else:
+            print(f"status: {answer['status']}")
+            print(f"evidence: {answer['evidence_count']}")
+            print(f"freshness: {answer['FRESHNESS']['aggregate']}")
+            print(f"conflicts: {answer['CONFLICTS']['unresolved_count']}")
+            print(f"legacy_subordinate_matches: {answer['legacy_compatibility']['match_count']}")
+            print(f"truth_boundary: {answer['truth_boundary']}")
         return EXIT_OK
 
     if args.command == "context-pack":

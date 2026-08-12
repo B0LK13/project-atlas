@@ -135,6 +135,9 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-2.2-RUNTIME-001 — hybrid retrieve + context compiler (derived; ≠ LLM authority)
     "runtime-hybrid-retrieval": "runtime-hybrid-retrieval.schema.json",
     "runtime-context-compiler": "runtime-context-compiler.schema.json",
+    # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler;
+    # derived; UNKNOWN stays UNKNOWN; legacy matches subordinate; ≠ authority)
+    "ask-atlas-2-answer": "ask-atlas-2-answer-lens.schema.json",
     # AS-2.0-TEMPORAL-001 — bitemporal claim validity windows (deepens AS-CORE-005)
     "claim-validity-window": "claim-validity-window.schema.json",
     "claim-validity-catalog": "claim-validity-catalog.schema.json",

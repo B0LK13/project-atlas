@@ -28,6 +28,7 @@ def test_all_expected_schemas_available() -> None:
         "agentos-phase-transition",
         "agentos-session-envelope",
         "api-surface-registry",
+        "ask-atlas-2-answer",
         "authority-record",
         "autonomy-level-catalog",
         "backup-manifest",
