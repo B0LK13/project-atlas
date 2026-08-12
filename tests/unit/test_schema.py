@@ -111,6 +111,7 @@ def test_all_expected_schemas_available() -> None:
         "scale-harness-plan",
         "scheduler-dry-run",
         "schema-compat-report",
+        "scoring-broker-result",
         "security-adv-matrix",
         "security-continuous-receipt",
         "semantic-records",

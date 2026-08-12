@@ -1,0 +1,11 @@
+{
+  "case_id": "EV-REG-001",
+  "visibility": "public",
+  "case_class": "regression",
+  "score_mode": "exact",
+  "query": "hidden authority conflict probe",
+  "expected": "conflict-detected",
+  "retired_from": "EV-HOLD-001",
+  "compromised_holdout": true,
+  "notes": "RETIRED holdout (D-ULTRA-RESUME-010 \u00a78): expected answer is recoverable from git history and therefore no longer provides hidden-evaluation value. Kept only as a PUBLIC regression case; it MUST NOT be scored as a hidden holdout."
+}

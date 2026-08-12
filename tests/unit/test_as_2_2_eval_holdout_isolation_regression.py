@@ -71,14 +71,15 @@ def test_no_committed_receipt_reconstructs_holdout_answers() -> None:
     assert offenders == [], f"receipt(s) reconstruct holdout answers: {offenders}"
 
 
-def test_scoring_without_capability_exposes_public_only(
+def test_scoring_without_capability_exposes_non_hidden_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """load_cases('scoring') without capability yields the public view only."""
+    """load_cases('scoring') without capability yields the non-hidden view only."""
     monkeypatch.delenv(EVAL_SCORING_CAPABILITY_ENV, raising=False)
     monkeypatch.delenv(EVAL_HOLDOUT_EXPECTED_PATH_ENV, raising=False)
     assert not scoring_capability_granted()
     cases = load_cases(REPO_ROOT, "scoring")
     ids = {c["case_id"] for c in cases}
-    assert ids == {"EV-PUB-001", "EV-PUB-002"}
+    # public + retired-holdout regression cases; never a live hidden holdout.
+    assert ids == {"EV-PUB-001", "EV-PUB-002", "EV-REG-001", "EV-REG-002"}
     assert not any(str(cid).startswith("EV-HOLD-") for cid in ids)

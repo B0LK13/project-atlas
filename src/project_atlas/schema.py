@@ -192,6 +192,8 @@ SCHEMA_FILES: dict[str, str] = {
     "agent-eval-shadow-receipt": "agent-eval-shadow-receipt.schema.json",
     # AS-2.2-EVAL-001 — eval substrate score receipt (hidden holdouts)
     "eval-score-receipt": "eval-score-receipt.schema.json",
+    # AS-2.2-EVAL-BROKER-001 — bounded out-of-process scoring broker result
+    "scoring-broker-result": "scoring-broker-result.schema.json",
     # AS-2.0-OAI-IMPORT-002 — OAI import path (fixtures if no export)
     "openai-import-path-receipt": "openai-import-path-receipt.schema.json",
     # AS-2.0-REALITY-GAP-UI-001 — Reality Gap UI catalog

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/scoring-broker-result.schema.json",
+  "title": "ScoringBrokerResult",
+  "description": "Bounded result returned by the out-of-process scoring broker (AS-2.2-EVAL-BROKER-001, D-ULTRA-RESUME-010 §8). It MUST NEVER carry expected answers, private/real case ids, private case contents, filesystem locations, scoring credentials, or per-case comparison output. additionalProperties:false fails closed against accidental answer leakage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ok",
+    "schema",
+    "metrics",
+    "hard_gates",
+    "opaque_case_ids",
+    "receipt_digest",
+    "attempts_remaining"
+  ],
+  "properties": {
+    "ok": { "const": true },
+    "schema": { "const": "scoring-broker-result" },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cases_scored", "cases_matched", "cases_missed"],
+      "properties": {
+        "cases_scored": { "type": "integer", "minimum": 0 },
+        "cases_matched": { "type": "integer", "minimum": 0 },
+        "cases_missed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "hard_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["all_cases_predicted", "all_matched", "budget_ok"],
+      "properties": {
+        "all_cases_predicted": { "type": "boolean" },
+        "all_matched": { "type": "boolean" },
+        "budget_ok": { "type": "boolean" }
+      }
+    },
+    "opaque_case_ids": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[0-9a-f]{32}$" }
+    },
+    "receipt_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "attempts_remaining": { "type": "integer", "minimum": 0 }
+  }
+}
