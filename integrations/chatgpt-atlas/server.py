@@ -29,8 +29,6 @@ import atlas_gateway as gw
 import mcp.server.stdio
 import mcp.types as types
 from mcp.server.lowlevel import Server
-from mcp.server.lowlevel.helper_types import ReadResourceContents
-from pydantic import AnyUrl
 
 SERVER_NAME = "atlas-chatgpt-readonly"
 WIDGET_URI = "ui://widget/atlas-card.html"
@@ -127,17 +125,20 @@ def vault_from_env() -> Path:
 
 
 def build_server(vault: Path) -> Server:
-    """Build the read-only MCP server with tools + widget resource handlers."""
-    server = Server(SERVER_NAME, instructions=SERVER_INSTRUCTIONS)
+    """Build the read-only MCP server with tools + widget resource handlers.
 
-    @server.list_tools()
-    async def _list_tools() -> list[types.Tool]:
-        return build_tools()
+    mcp>=2.0 registers handlers via ``on_*`` constructor kwargs (decorator
+    ``Server.list_tools`` / ``call_tool`` APIs were removed).
+    """
 
-    @server.call_tool(validate_input=True)
-    async def _call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResult:
+    async def on_list_tools(_ctx: Any, _params: Any) -> types.ListToolsResult:
+        return types.ListToolsResult(tools=build_tools())
+
+    async def on_call_tool(_ctx: Any, params: Any) -> types.CallToolResult:
         try:
-            result = gw.call_tool(vault, name, dict(arguments or {}))
+            result = gw.call_tool(
+                vault, str(params.name), dict(params.arguments or {})
+            )
         except gw.GatewayError as exc:
             return types.CallToolResult(
                 content=[types.TextContent(type="text", text=f"error: {exc}")],
@@ -145,17 +146,31 @@ def build_server(vault: Path) -> Server:
             )
         return to_call_result(result)
 
-    @server.list_resources()
-    async def _list_resources() -> list[types.Resource]:
-        return build_resources()
+    async def on_list_resources(_ctx: Any, _params: Any) -> types.ListResourcesResult:
+        return types.ListResourcesResult(resources=build_resources())
 
-    @server.read_resource()
-    async def _read_resource(uri: AnyUrl) -> list[ReadResourceContents]:
+    async def on_read_resource(_ctx: Any, params: Any) -> types.ReadResourceResult:
+        uri = params.uri
         if str(uri) != WIDGET_URI:
             raise ValueError(f"unknown resource URI: {uri}")
-        return [ReadResourceContents(content=load_widget_html(), mime_type=WIDGET_MIME)]
+        return types.ReadResourceResult(
+            contents=[
+                types.TextResourceContents(
+                    uri=uri,
+                    mimeType=WIDGET_MIME,
+                    text=load_widget_html(),
+                )
+            ]
+        )
 
-    return server
+    return Server(
+        SERVER_NAME,
+        instructions=SERVER_INSTRUCTIONS,
+        on_list_tools=on_list_tools,
+        on_call_tool=on_call_tool,
+        on_list_resources=on_list_resources,
+        on_read_resource=on_read_resource,
+    )
 
 
 async def _main() -> None:
