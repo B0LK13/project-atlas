@@ -15,7 +15,7 @@
     },
     {
       "name": "atlas-api",
-      "port": 8000
+      "port": 8765
     }
   ]
 }
