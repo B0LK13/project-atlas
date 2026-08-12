@@ -330,7 +330,7 @@ _Status: implementation complete on `feat/as-web-003-production-shell`; awaiting
 
 ## AS-OPT-GATE-001 — Governed experiment and promotion boundary
 
-_Status: **MERGED** via PR `#321` (`c0ebd46` on `main`). Directives `D-PROJECT-ATLAS-OPT-GATE-027` + `D-PROJECT-ATLAS-OPT-GATE-REMEDIATE-030` + D-031 residual closed under `D-PROJECT-ATLAS-CLOUD-AUTONOMOUS-E2E-032`. Reuses AS-2.2-EVAL-001 + AS-2.2-EVAL-BROKER-001. Does **not** wake Atlas-OPT, AutoLab, RL, or Prime. `ATLAS_OPT_WAKE_GATE = CLOSED`. `EVALUATOR_STABLE = NOT_YET_REASSESSED`._
+_Status: **MERGED** via PR `#321` (`c0ebd46` on `main`). Directives `D-PROJECT-ATLAS-OPT-GATE-027` + `D-PROJECT-ATLAS-OPT-GATE-REMEDIATE-030` + D-031 residual closed under `D-PROJECT-ATLAS-CLOUD-AUTONOMOUS-E2E-032`. Reuses AS-2.2-EVAL-001 + AS-2.2-EVAL-BROKER-001. Does **not** wake Atlas-OPT, AutoLab, RL, or Prime. `ATLAS_OPT_WAKE_GATE = CLOSED` (runtime). `EVALUATOR_STABLE = YES`; wake recommendation `OPEN_ELIGIBLE` (governance only; AutoLab not activated)._
 
 - [x] OPTGATE-001 Typed hard-gate contract (PASS/FAIL only; gates precede score)
 - [x] OPTGATE-002 Sealed experiment envelope + mid-run immutability verify
@@ -340,5 +340,6 @@ _Status: **MERGED** via PR `#321` (`c0ebd46` on `main`). Directives `D-PROJECT-A
 - [x] OPTGATE-007 Honesty-catalog object seal + receipt threshold binding (IV remediate-030)
 - [x] OPTGATE-008 Sealed anchors required to certify `PROMOTE_ELIGIBLE` (closes threshold-downgrade redigest)
 - [x] OPTGATE-006 Independent IV PASS + merge to `main`
+- [x] OPTGATE-009 Post-merge evaluator reassessment (D-032): `EVALUATOR_STABLE = YES`; wake recommendation `OPEN_ELIGIBLE` (governance only — runtime `ATLAS_OPT_WAKE_GATE` remains `CLOSED`; AutoLab not activated)
 
 
