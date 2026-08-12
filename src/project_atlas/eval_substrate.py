@@ -69,12 +69,29 @@ class EvalSubstrateError(ValueError):
 
 
 def scoring_capability_granted() -> bool:
-    """Return True when explicit holdout scoring capability is armed."""
+    """Return True when explicit holdout scoring capability is armed.
+
+    ADVISORY GATE — NOT AN AUTHORIZATION BOUNDARY. This reads a process-local
+    environment variable (``ATLAS_EVAL_SCORING_CAPABILITY``). It raises the bar
+    over role strings ("role ≠ trust", CLAUDE-ADV005-004) and prevents accidental
+    holdout exposure on training/autolab paths, but a same-process adversary can
+    trivially self-elevate by setting the env var (``os.environ[...] = "1"``).
+    It therefore does NOT defend against in-process code that wants the answers.
+
+    A true trust boundary requires an out-of-process capability broker (separate
+    privilege domain that holds the private expected map and only returns
+    aggregate scores). That broker is a tracked follow-up and is intentionally
+    out of scope for this forward fix — do not mistake this gate for it.
+    """
     return os.environ.get(EVAL_SCORING_CAPABILITY_ENV, "").strip() == "1"
 
 
 def require_scoring_capability() -> None:
-    """Fail closed unless holdout scoring capability is explicitly granted."""
+    """Fail closed unless holdout scoring capability is explicitly granted.
+
+    See :func:`scoring_capability_granted` — this is an ADVISORY gate, not an
+    authorization boundary against a same-process adversary.
+    """
     if not scoring_capability_granted():
         raise EvalSubstrateError("holdout-capability-required")
 
@@ -293,14 +310,30 @@ def score_prediction(
 def _redact_holdout_expected_in_results(
     results: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Strip holdout plaintext from durable receipt rows (CLAUDE-ADV005-003)."""
+    """Drop per-row holdout answer signal from durable receipt rows.
+
+    CLAUDE-ADV005-003 hardening (W2: HIDDEN_HOLDOUT_ISOLATION). Redacting only
+    ``expected_norm`` was insufficient: ``predicted_norm`` plus ``matched`` still
+    reconstructs the private answer key. On a matched exact holdout case,
+    ``predicted_norm`` *is* the expected answer; on a matched prefix case it is a
+    superstring of the answer. So for holdout rows we OMIT ``predicted_norm``,
+    ``matched`` and ``expected_norm`` entirely and keep only the case id, mode,
+    and a ``expected_redacted`` marker. Holdout scoring outcome survives only as
+    summary-level aggregate counts, which do not reveal any answer string.
+    """
     redacted: list[dict[str, Any]] = []
     for row in results:
-        item = dict(row)
-        if item.get("visibility") == "holdout":
-            item["expected_norm"] = ""
-            item["expected_redacted"] = True
-        redacted.append(item)
+        if row.get("visibility") == "holdout":
+            redacted.append(
+                {
+                    "case_id": row["case_id"],
+                    "visibility": "holdout",
+                    "mode": row["mode"],
+                    "expected_redacted": True,
+                }
+            )
+        else:
+            redacted.append(dict(row))
     return redacted
 
 
@@ -310,9 +343,16 @@ def score_cases(
     *,
     redact_holdout_expected: bool = False,
 ) -> dict[str, Any]:
-    """Score a prediction map against cases; deterministic aggregate counts."""
+    """Score a prediction map against cases; deterministic aggregate counts.
+
+    When ``redact_holdout_expected`` is set, per-row holdout answer signal is
+    stripped from ``results`` (see :func:`_redact_holdout_expected_in_results`);
+    holdout outcome is preserved only in the summary-level aggregate counts.
+    """
     results: list[dict[str, Any]] = []
     matched = 0
+    holdout_scored = 0
+    holdout_matched = 0
     for case in sorted(cases, key=lambda c: str(c.get("case_id", ""))):
         case_id = str(case["case_id"])
         mode = str(case.get("score_mode", "exact"))
@@ -324,6 +364,7 @@ def score_cases(
         one = score_prediction(
             expected=expected, predicted=predicted, mode=score_mode
         )
+        is_holdout = case.get("visibility", "public") == "holdout"
         row = {
             "case_id": case_id,
             "visibility": case.get("visibility", "public"),
@@ -332,6 +373,10 @@ def score_cases(
         results.append(row)
         if one["matched"]:
             matched += 1
+        if is_holdout:
+            holdout_scored += 1
+            if one["matched"]:
+                holdout_matched += 1
     if redact_holdout_expected:
         results = _redact_holdout_expected_in_results(results)
     total = len(results)
@@ -339,6 +384,8 @@ def score_cases(
         "cases_scored": total,
         "cases_matched": matched,
         "cases_missed": total - matched,
+        "holdout_cases_scored": holdout_scored,
+        "holdout_cases_matched": holdout_matched,
         "results": results,
     }
 
@@ -398,6 +445,8 @@ def build_eval_score_receipt(
         "cases_scored": aggregate["cases_scored"],
         "cases_matched": aggregate["cases_matched"],
         "cases_missed": aggregate["cases_missed"],
+        "holdout_cases_scored": aggregate["holdout_cases_scored"],
+        "holdout_cases_matched": aggregate["holdout_cases_matched"],
         "results": aggregate["results"],
         "config_roots": scoring_cfg.get("case_roots", []),
         "truth_boundary": TRUTH_BOUNDARY,

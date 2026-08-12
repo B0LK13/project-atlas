@@ -20,6 +20,8 @@
     "cases_scored",
     "cases_matched",
     "cases_missed",
+    "holdout_cases_scored",
+    "holdout_cases_matched",
     "results",
     "config_roots",
     "truth_boundary",
@@ -41,19 +43,14 @@
     "cases_scored": { "type": "integer", "minimum": 0 },
     "cases_matched": { "type": "integer", "minimum": 0 },
     "cases_missed": { "type": "integer", "minimum": 0 },
+    "holdout_cases_scored": { "type": "integer", "minimum": 0 },
+    "holdout_cases_matched": { "type": "integer", "minimum": 0 },
     "results": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "case_id",
-          "visibility",
-          "mode",
-          "matched",
-          "expected_norm",
-          "predicted_norm"
-        ],
+        "required": ["case_id", "visibility", "mode"],
         "properties": {
           "case_id": { "type": "string", "minLength": 1 },
           "visibility": { "type": "string", "enum": ["public", "holdout"] },
@@ -66,14 +63,25 @@
         "allOf": [
           {
             "if": {
+              "properties": { "visibility": { "const": "public" } },
+              "required": ["visibility"]
+            },
+            "then": {
+              "required": ["matched", "expected_norm", "predicted_norm"]
+            }
+          },
+          {
+            "if": {
               "properties": { "visibility": { "const": "holdout" } },
               "required": ["visibility"]
             },
             "then": {
               "required": ["expected_redacted"],
               "properties": {
-                "expected_norm": { "const": "" },
-                "expected_redacted": { "const": true }
+                "expected_redacted": { "const": true },
+                "matched": false,
+                "predicted_norm": false,
+                "expected_norm": false
               }
             }
           }
