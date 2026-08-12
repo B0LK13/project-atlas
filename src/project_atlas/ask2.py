@@ -308,6 +308,7 @@ def ask_atlas_2(
             vault,
             pack_id=pack_id,
             candidates=candidates,
+            project_id=scope,
             budget=budget,
             profile_id=PROFILE_P2,
             on_overflow="truncate",
