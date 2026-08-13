@@ -5516,3 +5516,24 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - ATLAS_OPT_WAKE_GATE: CLOSED
 - no silent conflict winners
 - CODEX_VALIDATED: NO
+
+## D-038 — WEB-001 + TRUTH-UX-001
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-038
+**Branch:** cursor/coder-alpha-web-001-d038
+
+### Packages
+- AS-CODER-ALPHA-WEB-001 (`GET /v1/brief`, Knowledge UX on Core brief/lenses)
+- AS-CODER-ALPHA-TRUTH-UX-001 (evidence / pending / conflicts / human decisions panel)
+- Dogfood remediation: default-exclude `fixtures` from discovery/connect; tracked root `.atlas-project.yaml` as `project-atlas`
+
+### Explicit non-claims
+- ATLAS_OPT_WAKE_GATE: CLOSED
+- UI != canonical; confidence_theatre=false
+- CODEX_VALIDATED: NO
+
+### Follow-up remediation (same branch)
+- Overview README authority ranking prefers root README/AGENTS/plan over deps/apps nests
+- Brief tech_stack falls back to root pyproject.toml requires-python + deps
+- Connect excludes deps/** and advance-005/**

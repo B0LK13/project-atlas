@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { ProdShell } from "../../components/ProdShell";
 import { useReadStatus } from "../../hooks/useReadStatus";
 
@@ -16,6 +17,7 @@ export default function ProjectsPage() {
           <p className="lede">
             Read-only project inventory. LIVE_API preferred; demo stub isolated.
             Missing evidence stays unknown — never invented estate rows.
+            Open Knowledge for the one-minute project brief.
           </p>
         </header>
 
@@ -33,12 +35,23 @@ export default function ProjectsPage() {
             <p className="banner warn">unknown — no project rows in read-status</p>
           ) : (
             <ul className="theme-hub">
-              {projects.map((project) => (
-                <li key={project.project_id ?? project.path ?? JSON.stringify(project)}>
-                  <strong>{project.project_id ?? "unnamed"}</strong>
-                  <span>{project.path ?? "path unknown"}</span>
-                </li>
-              ))}
+              {projects.map((project) => {
+                const id = project.project_id ?? "unnamed";
+                return (
+                  <li key={project.project_id ?? project.path ?? JSON.stringify(project)}>
+                    <strong>
+                      {project.project_id ? (
+                        <Link to={`/knowledge?project=${encodeURIComponent(id)}`}>
+                          {id}
+                        </Link>
+                      ) : (
+                        id
+                      )}
+                    </strong>
+                    <span>{project.path ?? "path unknown"} · open Knowledge brief</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <p className="disclaimer">

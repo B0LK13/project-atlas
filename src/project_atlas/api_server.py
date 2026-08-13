@@ -239,8 +239,36 @@ def make_handler(
                 except ApiServerError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                     return
-                knowledge = service.knowledge()[:limit]
-                self._send(200, {"knowledge": knowledge, "limit": limit})
+                project_filter = (qs.get("project") or [""])[0] or None
+                try:
+                    knowledge = service.knowledge(project_filter)[:limit]
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                    return
+                self._send(
+                    200,
+                    {
+                        "knowledge": knowledge,
+                        "limit": limit,
+                        "project": project_filter,
+                    },
+                )
+                return
+            if path == "/v1/brief":
+                project = (qs.get("project") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "brief-requires-project",
+                            "package_id": PACKAGE_ID,
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.brief(project))
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
             if path == "/v1/actions/recent":
                 try:
@@ -324,6 +352,8 @@ def make_handler(
                     "workspace_live": True,
                     "conflicts_live": True,
                     "kdiff_live": True,
+                    "brief_live": True,
+                    "truth_ux_live": True,
                     "authz_profile": True,
                     "session_auth": True,
                     "max_post_bytes": MAX_POST_BYTES,

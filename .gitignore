@@ -82,6 +82,9 @@ desktop.ini
 .atlas/connect.json
 **/.atlas-vault/
 **/.atlas/connect.json
+# Root marker is tracked as project-atlas identity; ignore accidental
+# connect-generated markers only under nested workdirs if present.
+**/.atlas/connect-bind.json
 
 # AS-2.2-EVAL-001 private holdout expected map (never commit plaintext answers).
 # Documented operator-local location (docs/AS-2.2-EVAL-001.md,
