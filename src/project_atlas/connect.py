@@ -200,7 +200,13 @@ def resolve_vault_path(project_root: Path, vault: Path | None) -> Path:
                     "re-run `atlas connect .` or pass --vault explicitly"
                 )
             return candidate
-    return (root / DEFAULT_VAULT_DIRNAME).resolve()
+    default_vault = (root / DEFAULT_VAULT_DIRNAME).resolve()
+    if not default_vault.is_relative_to(root):
+        raise ConnectError(
+            "default vault path resolves outside project root; refuse symlink escape — "
+            "pass --vault explicitly after connect"
+        )
+    return default_vault
 
 
 def _ensure_project_marker(project_root: Path) -> bool:
