@@ -324,10 +324,21 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             )
         else:
             secret_rows = []
-        manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
-        inspected.append(manifest_path.relative_to(vault).as_posix())
-        _manifest_status, manifest_payload = _read_json(manifest_path)
-        source_projects, path_projects = _manifest_project_indexes(manifest_payload)
+        # Prefer durable vault source-manifest (multi-project) over last-writer
+        # connect-manifest so sibling reconnects cannot erase another project's
+        # quarantine ownership (D-050 IV / shared-vault false CLEAR).
+        durable_path = vault / "sources" / "manifests" / "source-manifest.json"
+        connect_path = vault / "generated" / "ops" / "connect-manifest.json"
+        inspected.append(durable_path.relative_to(vault).as_posix())
+        inspected.append(connect_path.relative_to(vault).as_posix())
+        durable_status, durable_payload = _read_json(durable_path)
+        connect_status, connect_payload = _read_json(connect_path)
+        ownership_payload = (
+            durable_payload
+            if durable_status == "ok" and isinstance(durable_payload, dict)
+            else connect_payload if connect_status == "ok" else None
+        )
+        source_projects, path_projects = _manifest_project_indexes(ownership_payload)
         scoped_rows = [
             row
             for row in secret_rows
@@ -347,10 +358,10 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
                     reason_code="SECRET_OWNERSHIP_UNKNOWN",
                     why=(
                         f"{len(secret_rows)} secret-quarantine finding(s) present "
-                        "but connect-manifest ownership indexes are unavailable"
+                        "but ownership indexes are unavailable"
                     ),
                     impact="Cannot attribute quarantine to this project; not CLEAR",
-                    action="Re-run atlas connect to restore connect-manifest ownership",
+                    action="Re-run atlas connect to restore source-manifest ownership",
                     evidence=[secrets_path.relative_to(vault).as_posix()],
                 )
             )

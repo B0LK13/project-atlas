@@ -185,6 +185,27 @@ def test_r4_failed_connect_does_not_mutate_manifest(tmp_path: Path) -> None:
     )
 
 
+def test_r3_shared_vault_secret_attention_survives_sibling(tmp_path: Path) -> None:
+    """Sibling reconnect must not CLEAR another project's SECRET_QUARANTINE."""
+    shared = tmp_path / "shared-vault"
+    alpha = tmp_path / "alpha-sec"
+    beta = tmp_path / "beta-sec"
+    alpha.mkdir()
+    beta.mkdir()
+    (alpha / "docs").mkdir()
+    _write(alpha / "README.md", "# Alpha\n\nPurpose.\n")
+    _write(
+        alpha / "docs" / "credentials.md",
+        'aws_access_key_id = "AKIAIOSFODNN7EXAMPLE"\n',
+    )
+    _write(beta / "README.md", "# Beta\n\nPurpose.\n")
+    ra = connect_project(alpha, vault=shared)
+    connect_project(beta, vault=shared)
+    att = classify_attention(shared, str(ra["bound_project_id"]))
+    assert att["rollup"] != "CLEAR"
+    assert any(item.get("reason_code") == "SECRET_QUARANTINE" for item in att["items"])
+
+
 def test_r5_generic_architecture_md_extracts_slots(tmp_path: Path) -> None:
     root = tmp_path / "arch-generic"
     root.mkdir()

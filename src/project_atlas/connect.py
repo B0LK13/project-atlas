@@ -548,29 +548,11 @@ def connect_project(
     manifest_path = vault_path / MANIFEST_RELATIVE
     staging_manifest = vault_path / STAGING_MANIFEST_RELATIVE
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    # D-050 R4: never mutate the committed connect-manifest until the full
-    # connect candidate is validated. Failed sibling connects must leave prior
-    # ownership / quarantine evidence intact.
-    prior_manifest: bytes | None = None
-    if manifest_path.is_file():
-        try:
-            prior_manifest = manifest_path.read_bytes()
-        except OSError:
-            prior_manifest = None
-    manifest_committed = False
-
+    # D-050 R4: mutate candidate inventory on a staging path; promote to the
+    # committed connect-manifest only after ingest+validate succeed.
     def _discard_staging() -> None:
         with contextlib.suppress(OSError):
             staging_manifest.unlink(missing_ok=True)
-
-    def _restore_committed_manifest() -> None:
-        """Restore pre-connect manifest bytes after a post-commit failure."""
-        if prior_manifest is None:
-            with contextlib.suppress(OSError):
-                manifest_path.unlink(missing_ok=True)
-            return
-        with contextlib.suppress(OSError):
-            _write_atomic(manifest_path, prior_manifest)
 
     try:
         manifest = discover(
@@ -608,10 +590,11 @@ def connect_project(
         if not skip_validate:
             validate(vault_path)
 
-        # Commit ownership/manifest only after ingest+validate succeeded.
+        # Commit connect-manifest only after ingest+validate succeeded (D-050 R4).
+        # Do not roll this back later: ingest already promoted vault ownership, and
+        # restoring a prior manifest would desync quarantine/lineage indexes.
         staging_bytes = staging_manifest.read_bytes()
         _write_atomic(manifest_path, staging_bytes)
-        manifest_committed = True
         _discard_staging()
 
         # Coder Alpha derived lenses for Knowledge/Ask-live + project brief.
@@ -636,13 +619,9 @@ def connect_project(
         obsidian = materialize_obsidian_projection(vault_path, refresh_brief=False)
     except ConnectError:
         _discard_staging()
-        if manifest_committed:
-            _restore_committed_manifest()
         raise
     except (OSError, ValueError, KeyError, TypeError) as exc:
         _discard_staging()
-        if manifest_committed:
-            _restore_committed_manifest()
         raise ConnectError(str(exc)) from exc
 
     report["documents_ingested"] = int(second.get("documents_ingested", 0))
@@ -680,7 +659,7 @@ def connect_project(
         receipt_path = _write_receipt(vault_path, report)
         report["receipt_path"] = receipt_path.as_posix()
     except (OSError, ValueError, TypeError) as exc:
-        _restore_committed_manifest()
+        # Manifest already matches promoted ingest; do not roll it back.
         raise ConnectError(str(exc)) from exc
     report["status"] = "connected"
     return report

@@ -167,9 +167,13 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
     diagnostic = "ok"
 
     manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
+    durable_path = vault / "sources" / "manifests" / "source-manifest.json"
     inspected.append(manifest_path.relative_to(vault).as_posix())
+    inspected.append(durable_path.relative_to(vault).as_posix())
     manifest_status, manifest_raw = _read_json(manifest_path)
+    durable_status, durable_raw = _read_json(durable_path)
     artifact_status["connect-manifest"] = manifest_status
+    artifact_status["source-manifest"] = durable_status
     if manifest_status == "unreadable":
         diagnostic = "unreadable"
         rows.append(
@@ -183,7 +187,13 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
             )
         )
     manifest = manifest_raw if isinstance(manifest_raw, dict) else None
-    source_projects, path_projects = _manifest_project_indexes(manifest)
+    # Ownership for quarantine/secret scoping: durable multi-project source-manifest
+    # wins over last-writer connect-manifest (D-050 shared-vault isolation).
+    if durable_status == "ok" and isinstance(durable_raw, dict):
+        ownership = durable_raw
+    else:
+        ownership = manifest
+    source_projects, path_projects = _manifest_project_indexes(ownership)
     sources = manifest.get("sources") if isinstance(manifest, dict) else None
     if isinstance(sources, list):
         for entry in sources:
