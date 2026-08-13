@@ -920,7 +920,7 @@ def test_duplicate_active_project_uuid_fails_before_promotion(tmp_path: Path) ->
     vault = tmp_path / "vault"
     assert main(["init", "--output", str(vault)]) == EXIT_OK
     before = _snapshot(vault)
-    with pytest.raises(ValueError, match="PROJECT_IDENTITY_CONFLICT|duplicate active project_uuid"):
+    with pytest.raises(ValueError, match=r"PROJECT_IDENTITY_CONFLICT"):
         ingest(manifest, vault, authorized_source_root=source)
     assert _snapshot(vault) == before
 
