@@ -189,12 +189,17 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
     manifest = manifest_raw if isinstance(manifest_raw, dict) else None
     # Ownership for quarantine/secret scoping: durable multi-project source-manifest
     # wins over last-writer connect-manifest (D-050 shared-vault isolation).
+    ownership: dict[str, Any] | None
+    ownership_evidence = manifest_path.relative_to(vault).as_posix()
     if durable_status == "ok" and isinstance(durable_raw, dict):
         ownership = durable_raw
+        ownership_evidence = durable_path.relative_to(vault).as_posix()
     else:
         ownership = manifest
     source_projects, path_projects = _manifest_project_indexes(ownership)
-    sources = manifest.get("sources") if isinstance(manifest, dict) else None
+    # Enumerate exclusions from durable multi-project inventory when available.
+    # connect-manifest is last-writer single-root and drops sibling exclusions (D-050).
+    sources = ownership.get("sources") if isinstance(ownership, dict) else None
     if isinstance(sources, list):
         for entry in sources:
             if not isinstance(entry, dict):
@@ -216,7 +221,7 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
                     status="excluded",
                     pipeline_stage="discover",
                     reason_code=str(reason),
-                    evidence=manifest_path.relative_to(vault).as_posix(),
+                    evidence=ownership_evidence,
                     next_action="Adjust includes/excludes or move docs outside excluded trees",
                 )
             )

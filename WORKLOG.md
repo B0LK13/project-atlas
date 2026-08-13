@@ -5,6 +5,31 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+
+## D-052 — D-050 residual HIGH remediation (R2–R5) + IV follow-ups
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-052
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+**PR:** #345
+
+### Batch
+- R2: collision-safe project.id = human slug + root_identity_fingerprint
+- R3: project-scoped compatibility source_id + lineage path-active continuity
+- R4: staging connect-manifest; promote only after ingest+validate success
+- R5: generic ARCHITECTURE.md slot extraction (deterministic, provenance-backed)
+
+### Independent IV remediations
+- Do not roll back connect-manifest after successful ingest
+- Secret/quarantine ownership from durable `sources/manifests/source-manifest.json`
+- Enumerate discover exclusions from durable source-manifest (shared-vault sibling must not erase sibling exclusions)
+
+### Gates held
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL`
+- `D_049_EXECUTION_GATE = CLOSED`
+- `D_042_EXECUTION_GATE = CLOSED`
+- Freeze one tip for Local residual-first Windows IV only after R2–R5 + IV PASS + CI green
+
 ## WP-001 — Repository Foundation and Domain Model
 
 **Status:** complete

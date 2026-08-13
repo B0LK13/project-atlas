@@ -18,6 +18,7 @@ from project_atlas.connect import (
 )
 from project_atlas.domain.claims import ID_PATTERN
 from project_atlas.project_architecture import build_architecture_lens
+from project_atlas.source_health import explain_source_health
 
 
 def _marker_id(root: Path) -> str:
@@ -204,6 +205,30 @@ def test_r3_shared_vault_secret_attention_survives_sibling(tmp_path: Path) -> No
     att = classify_attention(shared, str(ra["bound_project_id"]))
     assert att["rollup"] != "CLEAR"
     assert any(item.get("reason_code") == "SECRET_QUARANTINE" for item in att["items"])
+
+
+def test_r3_shared_vault_exclusions_survive_sibling(tmp_path: Path) -> None:
+    """Sibling connect must not erase another project's durable exclusions."""
+    shared = tmp_path / "shared-vault"
+    alpha = tmp_path / "alpha-excl"
+    beta = tmp_path / "beta-excl"
+    alpha.mkdir()
+    beta.mkdir()
+    _write(alpha / "README.md", "# Alpha\n\nPurpose.\n")
+    (alpha / "__pycache__").mkdir()
+    _write(alpha / "__pycache__" / "note.md", "cached note\n")
+    _write(beta / "README.md", "# Beta\n\nPurpose.\n")
+    ra = connect_project(alpha, vault=shared)
+    project_a = str(ra["bound_project_id"])
+    before = explain_source_health(shared, project_a)
+    assert before["counts"].get("excluded", 0) >= 1
+    connect_project(beta, vault=shared)
+    after = explain_source_health(shared, project_a)
+    assert after["counts"].get("excluded", 0) >= 1
+    assert any(
+        row.get("status") == "excluded" and "__pycache__" in str(row.get("source") or "")
+        for row in after["sources"]
+    )
 
 
 def test_r5_generic_architecture_md_extracts_slots(tmp_path: Path) -> None:
