@@ -276,11 +276,14 @@ def _layer_pipeline(text: str) -> str | None:
     meanings: dict[str, str] = {}
     for label in ("a", "b", "c"):
         # Prefer explicit headings: "## Layer A - Source evidence"
+        layer_token = label
+
+        def _layer_heading(title: str, *, lab: str = layer_token) -> bool:
+            return bool(re.search(rf"\blayer\s*{lab}\b", title, flags=re.IGNORECASE))
+
         heading_lines = _capture_section(
             text,
-            lambda title, lab=label: bool(
-                re.search(rf"\blayer\s*{lab}\b", title, flags=re.IGNORECASE)
-            ),
+            _layer_heading,
             max_lines=2,
         )
         if heading_lines:
