@@ -156,6 +156,56 @@ def test_bind_foreign_project_root_rejected(tmp_path: Path) -> None:
         resolve_bound_vault(attacker)
 
 
+def test_explicit_vault_ignores_bind_project_id(tmp_path: Path) -> None:
+    """D-047 IV: --vault override must not keep bind project_id scoping."""
+    root = tmp_path / "cwd-proj"
+    root.mkdir()
+    other = tmp_path / "other-vault"
+    (other / "projects" / "only-other").mkdir(parents=True)
+    bind_vault = root / ".atlas-vault"
+    (bind_vault / "projects" / "bound-proj").mkdir(parents=True)
+    (root / ".atlas").mkdir()
+    (root / ".atlas" / "connect.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_root": root.resolve().as_posix(),
+                "vault": ".atlas-vault",
+                "project_id": "bound-proj",
+                "project_ids": ["bound-proj"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert resolve_bound_project_id(root) == "bound-proj"
+    assert resolve_bound_project_id(root, vault=other) == "only-other"
+
+
+def test_unreadable_pending_state_unknown_agree(tmp_path: Path) -> None:
+    """D-047 IV: unreadable pending must not diverge state vs unknown counts."""
+    vault = tmp_path / "vault"
+    pending = vault / "review" / "pending" / "proj.json"
+    pending.parent.mkdir(parents=True)
+    pending.write_text("{broken", encoding="utf-8")
+    status = vault / "projects" / "proj" / "knowledge-status.md"
+    status.parent.mkdir(parents=True)
+    status.write_text(
+        "| Signal | Count |\n| --- | --- |\n| claims awaiting review | 9 |\n",
+        encoding="utf-8",
+    )
+    state = build_state_lens(vault, "proj")
+    unknown = build_unknown_lens(vault, "proj")
+    assert int((state.get("signals") or {}).get("pending_reviews") or 0) == int(
+        (unknown.get("signals") or {}).get("pending_reviews") or 0
+    )
+    assert "pending-queue-unreadable" in " ".join(state.get("notes") or [])
+    assert "pending-queue-unreadable" in " ".join(unknown.get("notes") or [])
+    assert int((unknown.get("signals") or {}).get("pending_reviews") or 0) != 9
+
+
 def test_attention_unreadable_is_incomplete(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     path = vault / "review" / "pending" / "proj.json"

@@ -126,6 +126,7 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
     project_note = vault / "projects" / project_id / "project.md"
 
     pending = _read_json(pending_path)
+    pending_unreadable = pending_path.is_file() and pending is None
     conflicts = _read_json(conflicts_path)
     if pending_path.is_file():
         inspected.append(pending_path.relative_to(vault).as_posix())
@@ -161,7 +162,10 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
     # HUMAN-LOOP-001: pending queue is authoritative for human-decided reviews.
     # Do not let stale knowledge-status.md "claims awaiting review" resurrect
     # counts after atlas review decide (status report refreshes only on compile).
-    if pending is not None:
+    # D-047 IV: unreadable pending must match state (no stale fallback → mismatch).
+    if pending_unreadable:
+        pending_count = 0
+    elif pending is not None:
         pending_count = _entry_count(pending)
     else:
         pending_count = status_counts.get("claims awaiting review", 0)
@@ -189,6 +193,8 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if absent_coverage:
         unknowns.append("coverage_absent=" + ",".join(absent_coverage[:8]))
 
+    if pending_unreadable:
+        unknowns.append("pending_queue=unreadable")
     if conflict_count or sources_failed:
         rollup = "conflict"
     elif pending_count or stale or withheld:
@@ -199,7 +205,7 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
         rollup = "clear"
 
     if unknowns:
-        status = "derived"
+        status = "unknown" if pending_unreadable else "derived"
         summary = f"rollup={rollup}; " + "; ".join(unknowns)
         value = summary
     else:
@@ -214,6 +220,8 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "UNKNOWN!=healthy",
         "rollup!=trust-score",
     ]
+    if pending_unreadable:
+        notes.append("pending-queue-unreadable; not CLEAR; not stale knowledge-status")
 
     return {
         "schema_version": 1,

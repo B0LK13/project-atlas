@@ -276,13 +276,26 @@ def resolve_bound_project_id(
     """Resolve a single project id for stranger CLI commands (fail closed).
 
     Ambiguous multi-project vaults without an explicit ``--project`` raise.
+    When ``vault`` is an explicit override that differs from the bind vault,
+    bind ``project_id`` is ignored and resolution uses that vault's projects
+    (D-047 IV — no cross-vault project scoping).
     """
     if requested is not None and str(requested).strip():
         return safe_relative_component(str(requested).strip(), label="project id")
     root = (cwd or Path.cwd()).expanduser().resolve()
+    explicit_vault = vault.expanduser().resolve() if vault is not None else None
     bind = _read_bind(root)
+    use_bind_project = False
     if bind is not None:
-        _require_bind_owns_root(bind, root)
+        if not _bind_owns_root(bind, root):
+            # Stolen/copied bind: only allow recovery via explicit --vault.
+            if explicit_vault is None:
+                _require_bind_owns_root(bind, root)
+        else:
+            bind_vault = resolve_vault_path(root, None)
+            if explicit_vault is None or explicit_vault == bind_vault:
+                use_bind_project = True
+    if use_bind_project and bind is not None:
         bound = bind.get("project_id")
         if isinstance(bound, str) and bound.strip():
             return safe_relative_component(bound.strip(), label="project id")
@@ -300,7 +313,7 @@ def resolve_bound_project_id(
                     "ambiguous project_ids in connect bind; pass --project explicitly "
                     f"(candidates: {', '.join(ids)})"
                 )
-    vault_path = vault or resolve_bound_vault(root)
+    vault_path = explicit_vault or resolve_bound_vault(root)
     projects = _list_vault_projects(vault_path)
     if len(projects) == 1:
         return projects[0]
