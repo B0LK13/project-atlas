@@ -479,12 +479,18 @@ def _refuse_stale_or_foreign_bind(
         return
     path = _live_api_bind_path(vault)
     connect_host = "127.0.0.1" if host in {"localhost", "127.0.0.1"} else host
-    family = socket.AF_INET6 if connect_host == "::1" else socket.AF_INET
+    family = socket.AF_INET6 if ":" in connect_host else socket.AF_INET
     probe = socket.socket(family, socket.SOCK_STREAM)
     try:
         probe.settimeout(0.35)
-        err = probe.connect_ex((connect_host, int(port)))
-    except OSError:
+        # AF_INET6 requires (host, port, flowinfo, scopeid); AF_INET is 2-tuple.
+        address: tuple[Any, ...]
+        if family == socket.AF_INET6:
+            address = (connect_host, int(port), 0, 0)
+        else:
+            address = (connect_host, int(port))
+        err = probe.connect_ex(address)
+    except (OSError, TypeError):
         err = 1
     finally:
         probe.close()

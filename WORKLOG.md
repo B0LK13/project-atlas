@@ -5643,6 +5643,7 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Bind `project_root` must match cwd; default vault refuses symlink escape outside root
 - Explicit `--vault` ignores bind `project_id` (no cross-vault project scoping)
 - Unreadable pending queue: state/unknown agree; no stale knowledge-status resurrection
+- Review remediation: ASCII/ID_PATTERN-safe Unicode slugs; shared-vault bind primary; IPv6 API probe tuple
 
 ### Gates
 - `CODER_ALPHA_ACCEPTANCE = PARTIAL` (Cloud ≠ Local Windows substitute)

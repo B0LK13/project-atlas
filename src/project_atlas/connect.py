@@ -20,8 +20,11 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from atlas_contracts.identity import safe_relative_component
 from project_atlas.discovery import discover, write_manifest
+from project_atlas.domain.claims import ID_PATTERN
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.scaffold import ScaffoldError, create_scaffold
@@ -69,26 +72,41 @@ def _yaml_scalar(value: str) -> str:
 def project_slug_from_dirname(name: str) -> str:
     """Derive a safe ``project.id`` slug from a directory name (AT-013 / D-044).
 
-    Preserves Unicode letters (e.g. CJK) so distinct non-ASCII names do not
-    silently collide on the ASCII fallback ``project``. Empty/symbol-only names
-    use a deterministic content hash suffix.
+    Must satisfy domain ``ID_PATTERN`` (ASCII ``[A-Za-z0-9._-]``). Non-ASCII
+    directory names keep collision resistance via a deterministic content hash
+    while the original dirname remains display ``project.name`` in the marker.
+    Unicode letters are casefolded before ASCII extraction (Windows FS honesty).
     """
     raw = unicodedata.normalize("NFKC", (name or "").strip())
-    chars: list[str] = []
-    for ch in raw:
-        if ch.isascii():
-            chars.append(ch.lower() if ch.isalnum() else "-")
+    folded = raw.casefold()
+    ascii_chars: list[str] = []
+    has_non_ascii_alnum = False
+    for ch in folded:
+        if ch.isascii() and ch.isalnum():
+            ascii_chars.append(ch)
+        elif ch.isascii():
+            ascii_chars.append("-")
         elif ch.isalnum():
-            chars.append(ch)
+            has_non_ascii_alnum = True
+            ascii_chars.append("-")
         else:
-            chars.append("-")
-    slug = _SLUG_DASHES.sub("-", "".join(chars)).strip("-")
-    if not slug:
-        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+            ascii_chars.append("-")
+    ascii_slug = _SLUG_DASHES.sub("-", "".join(ascii_chars)).strip("-")
+    # Hash the casefolded form so Windows case-insensitive FS gets stable IDs.
+    digest = hashlib.sha256(folded.encode("utf-8")).hexdigest()[:12]
+    if has_non_ascii_alnum:
+        slug = f"{ascii_slug}-{digest}" if ascii_slug else f"project-{digest}"
+    elif ascii_slug:
+        slug = ascii_slug
+    else:
         slug = f"project-{digest}"
-    elif slug[0].isdigit():
+    if slug[0].isdigit():
         slug = f"p-{slug}"
-    return safe_relative_component(slug, label="project.id")
+    slug = safe_relative_component(slug, label="project.id")
+    if not re.fullmatch(ID_PATTERN, slug):
+        # Defence in depth — never emit a slug ingestion cannot accept.
+        slug = f"project-{digest}"
+    return slug
 
 
 class ConnectError(ValueError):
@@ -216,15 +234,47 @@ def _vault_rel_or_abs(project_root: Path, vault: Path) -> str:
         return vault.resolve().as_posix()
 
 
+def _marker_project_id(project_root: Path) -> str | None:
+    """Return marker ``project.id`` when present and ID-grammar-safe."""
+    for name in (".atlas-project.yaml", ".atlas-project.yml"):
+        marker = project_root / name
+        if not marker.is_file():
+            continue
+        try:
+            raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            return None
+        if not isinstance(raw, dict):
+            return None
+        project = raw.get("project")
+        candidate = None
+        if isinstance(project, dict):
+            candidate = project.get("id")
+        if not isinstance(candidate, str) or not candidate.strip():
+            candidate = raw.get("project_id")
+        if isinstance(candidate, str) and re.fullmatch(ID_PATTERN, candidate.strip()):
+            return candidate.strip()
+    return None
+
+
 def _write_bind(
     project_root: Path,
     vault: Path,
     vault_id: str,
     *,
     project_ids: list[str] | None = None,
+    primary_project_id: str | None = None,
 ) -> Path:
     projects = sorted({str(item) for item in (project_ids or []) if str(item).strip()})
-    primary: str | None = projects[0] if len(projects) == 1 else None
+    primary: str | None = None
+    if (
+        isinstance(primary_project_id, str)
+        and primary_project_id.strip()
+        and primary_project_id.strip() in projects
+    ):
+        primary = primary_project_id.strip()
+    elif len(projects) == 1:
+        primary = projects[0]
     payload = {
         "schema_version": 1,
         "schema": "atlas.connect.bind.v1",
@@ -529,13 +579,21 @@ def connect_project(
     report["brief_paths"] = brief.get("briefs_written", [])
     report["obsidian_notes"] = obsidian.get("notes_written", [])
 
+    # Prefer this source root's marker project.id as bind primary so shared-vault
+    # connects do not immediately become stranger-CLI ambiguous (Codex P2).
+    primary = _marker_project_id(project_root)
+    vault_projects = list(report["projects"] or [])
+    if primary is None and len(vault_projects) == 1:
+        primary = vault_projects[0]
     bind_path = _write_bind(
         project_root,
         vault_path,
         str(report["vault_id"] or ""),
-        project_ids=list(report["projects"] or []),
+        project_ids=vault_projects,
+        primary_project_id=primary,
     )
     report["bind_path"] = bind_path.as_posix()
+    report["bound_project_id"] = primary
     receipt_path = _write_receipt(vault_path, report)
     report["receipt_path"] = receipt_path.as_posix()
     report["status"] = "connected"

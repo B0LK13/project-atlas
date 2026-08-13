@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -316,17 +317,64 @@ def test_decision_heading_theatre_regression(tmp_path: Path) -> None:
 
 
 def test_unicode_project_slug_no_collision() -> None:
+    from project_atlas.domain.claims import ID_PATTERN
+
     a = project_slug_from_dirname("文档一")
     b = project_slug_from_dirname("文档二")
     assert a != b
     assert a != "project"
     assert b != "project"
+    assert re.fullmatch(ID_PATTERN, a)
+    assert re.fullmatch(ID_PATTERN, b)
     emoji = project_slug_from_dirname("🚀🚀")
     assert emoji.startswith("project-")
+    assert re.fullmatch(ID_PATTERN, emoji)
     mixed = project_slug_from_dirname("Atlas文档")
-    assert "atlas" in mixed.lower() or "文档" in mixed
+    assert mixed.lower().startswith("atlas-")
+    assert re.fullmatch(ID_PATTERN, mixed)
+    # Casefold Unicode letters so Windows case-insensitive FS stays stable.
+    assert project_slug_from_dirname("ÅBC") == project_slug_from_dirname("åbc")
     assert project_slug_from_dirname("My Cool App") == "my-cool-app"
     assert project_slug_from_dirname("@@@").startswith("project-")
+
+
+def test_cjk_connect_ingests_with_ascii_project_id(tmp_path: Path) -> None:
+    """Codex P1: CJK dirname must connect without ID_PATTERN rejection."""
+    root = tmp_path / "文档一"
+    root.mkdir()
+    (root / "README.md").write_text("# CJK\n\nPurpose.\n", encoding="utf-8")
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    primary = report.get("bound_project_id")
+    assert isinstance(primary, str) and primary
+    from project_atlas.domain.claims import ID_PATTERN
+
+    assert re.fullmatch(ID_PATTERN, primary)
+    assert (vault / "projects" / primary).is_dir()
+    bind = json.loads((root / ".atlas" / "connect.json").read_text(encoding="utf-8"))
+    assert bind.get("project_id") == primary
+
+
+def test_shared_vault_bind_keeps_connected_primary(tmp_path: Path) -> None:
+    """Codex P2: multi-project vault inventory must not clear bind project_id."""
+    from project_atlas.connect import _write_bind
+
+    root = tmp_path / "alpha-root"
+    root.mkdir()
+    vault = tmp_path / "shared-vault"
+    (vault / "projects" / "alpha-root").mkdir(parents=True)
+    (vault / "projects" / "legacy-other").mkdir(parents=True)
+    bind_path = _write_bind(
+        root,
+        vault,
+        "atlas-main",
+        project_ids=["alpha-root", "legacy-other"],
+        primary_project_id="alpha-root",
+    )
+    bind = json.loads(bind_path.read_text(encoding="utf-8"))
+    assert bind.get("project_id") == "alpha-root"
+    assert set(bind.get("project_ids") or []) == {"alpha-root", "legacy-other"}
+    assert resolve_bound_project_id(root, vault=vault) == "alpha-root"
 
 
 def test_architecture_root_md_is_ranked() -> None:
