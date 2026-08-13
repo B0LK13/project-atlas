@@ -338,10 +338,8 @@ def build_project_brief(
                 evidence.append(item)
 
     tech_stack = _extract_stack_blurb(vault, project_id)
-    architecture = _extract_architecture_blurb(vault, project_id)
     # D-039: never echo purpose/overview as architecture. Absent evidence → UNKNOWN.
-    if architecture is None and "architecture" in coverage_absent:
-        architecture = None
+    architecture = _extract_architecture_blurb(vault, project_id)
 
     brief = {
         "schema_version": 1,
