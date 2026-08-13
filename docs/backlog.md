@@ -372,4 +372,8 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-V2 Decide → rematerialize → no pending resurrection
 - [x] AS-CODER-ALPHA-SOURCE-HEALTH-001 Source failure explainability (`atlas source-health`)
 - [x] AS-CODER-ALPHA-DECISIONS-002 Decision status labels (active/superseded/…)
+- [x] AS-CODER-ALPHA-DECISIONS-003 ACTIVE_GOVERNING authority gate
+- [x] AS-CODER-ALPHA-ATTENTION-002 care_about triage + source-failure collapse
+- [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
+- [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
 

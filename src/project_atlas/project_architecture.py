@@ -57,9 +57,18 @@ _FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
 _LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _STAGE_RE = re.compile(r"^#+\s*Stage\s+\d+\s+[-\u2013\u2014]\s*(.+?)\s*$", re.IGNORECASE)
-_MODULE_NAME_RE = re.compile(r"`([^`]+?\.(?:py|md|json|yaml|yml))`")
-_BARE_MODULE_NAME_RE = re.compile(r"\b[\w./-]+?\.(?:py|md|json|yaml|yml)\b")
+# Prefer fenced identifiers so underscores survive Markdown cleanup.
+_MODULE_NAME_RE = re.compile(r"`([^`]+?\.py)`")
+_BARE_PY_MODULE_RE = re.compile(r"\b[\w./-]+?\.py\b")
 _TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$")
+_NON_PACKAGE_MODULE_PREFIXES = (
+    "docs/",
+    "fixtures/",
+    "tests/",
+    "deps/",
+    "apps/",
+    "integrations/",
+)
 
 
 class ProjectArchitectureError(ValueError):
@@ -122,7 +131,7 @@ def _manifest_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
 
 def _architecture_rank(path: str) -> tuple[int, int, str] | None:
     """Select architecture-authority candidates without inferring slot values."""
-    posix = path.replace("\\", "/").lstrip("./")
+    posix = path.replace("\\", "/").removeprefix("./")
     lower = posix.lower()
     depth = posix.count("/")
     # Demo / fixture architecture docs are not repository authority.
@@ -268,6 +277,49 @@ def _join(parts: list[str], *, max_chars: int = _SLOT_MAX_CHARS) -> str | None:
     return text
 
 
+def _dedupe_major_components(text: str) -> str:
+    """Deduplicate ``*.py`` module names without dropping non-module prose.
+
+    AGENTS/CLAUDE merges often repeat the same Core modules; plan.md may also
+    contribute prose components. Rebuild only the module portion (D-043 review).
+    """
+    modules: list[str] = []
+    seen_mod: set[str] = set()
+    for match in _BARE_PY_MODULE_RE.finditer(text):
+        name = match.group(0)
+        if not _is_package_module(name):
+            continue
+        key = name.lower()
+        if key in seen_mod:
+            continue
+        seen_mod.add(key)
+        modules.append(name)
+    if not modules:
+        return text
+
+    prose_parts: list[str] = []
+    seen_prose: set[str] = set()
+    for part in text.split("; "):
+        residual = part
+        for name in sorted(modules, key=len, reverse=True):
+            residual = re.sub(re.escape(name), " ", residual, flags=re.IGNORECASE)
+        residual = re.sub(r"(?i)\bcore package modules\b\s*:?\s*", " ", residual)
+        residual = re.sub(r"[\s,|/]+", " ", residual).strip(" :-")
+        if not residual:
+            continue
+        key = residual.lower()
+        if key in seen_prose:
+            continue
+        seen_prose.add(key)
+        prose_parts.append(residual)
+
+    module_bit = "Core package modules: " + ", ".join(modules[:12])
+    merged = "; ".join([*prose_parts, module_bit]) if prose_parts else module_bit
+    if len(merged) > _SLOT_MAX_CHARS:
+        return merged[: _SLOT_MAX_CHARS - 3].rstrip() + "..."
+    return merged
+
+
 def _layer_pipeline(text: str) -> str | None:
     """Derive Layer A/B/C meanings from source prose — never hard-code Atlas semantics."""
     lower = text.lower()
@@ -352,33 +404,65 @@ def _module_rows(text: str) -> list[str]:
                 in_component_section = False
         if not in_component_section:
             continue
-        if not _MODULE_NAME_RE.search(line):
+        # Keep raw line so fenced ``module.py`` identifiers retain underscores
+        # for downstream component extraction (D-043 factual fidelity).
+        if not (_MODULE_NAME_RE.search(line) or _BARE_PY_MODULE_RE.search(line)):
             continue
-        cleaned = _clean_line(line)
-        if cleaned:
-            rows.append(cleaned)
+        if line.strip():
+            rows.append(line.rstrip())
         if len(rows) >= 10:
             break
     return rows
 
 
+def _is_package_module(name: str) -> bool:
+    """Accept Core Python modules only — never docs/markers as components."""
+    posix = name.replace("\\", "/").removeprefix("./")
+    lower = posix.lower()
+    if not lower.endswith(".py"):
+        return False
+    if any(lower.startswith(prefix) for prefix in _NON_PACKAGE_MODULE_PREFIXES):
+        return False
+    basename = Path(posix).name
+    return bool(basename.endswith(".py") and basename.count(".") == 1)
+
+
 def _component_summary(module_rows: list[str]) -> str | None:
+    """Collect exact ``*.py`` module identifiers from package-layout rows.
+
+    Root cause fix for Fresh Agent V2 error #1/#2 (D-043):
+    - do not treat docs/plan.md or atlas-project.yaml as Core modules
+    - preserve underscores by reading fenced names before Markdown cleanup
+    """
     modules: list[str] = []
+    seen: set[str] = set()
     for row in module_rows:
-        for match in _MODULE_NAME_RE.finditer(row):
-            modules.append(match.group(1))
-        for match in _BARE_MODULE_NAME_RE.finditer(row):
-            modules.append(match.group(0))
-    modules = _unique(modules)
+        # Prefer backtick-captured names from the raw row text before cleanup.
+        candidates = [match.group(1) for match in _MODULE_NAME_RE.finditer(row)]
+        if not candidates:
+            cleaned = _clean_line(row)
+            candidates = [match.group(0) for match in _BARE_PY_MODULE_RE.finditer(cleaned)]
+        for name in candidates:
+            if not _is_package_module(name):
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            modules.append(name)
+        if len(modules) >= 12:
+            break
     if not modules:
         return None
-    return _join(["Core package modules: " + ", ".join(modules[:12])])
+    return "Core package modules: " + ", ".join(modules[:12])
 
 
 def _responsibility_summary(module_rows: list[str]) -> str | None:
     if not module_rows:
         return None
-    return _join(module_rows[:5])
+    cleaned_rows = [_clean_line(row) for row in module_rows]
+    cleaned_rows = [row for row in cleaned_rows if row]
+    return _join(cleaned_rows[:5])
 
 
 def _surface_terms(text: str) -> list[str]:
@@ -593,7 +677,7 @@ def _agents_or_claude_slots(text: str) -> dict[str, str]:
 
 
 def _slots_from_source(path: str, text: str) -> dict[str, str]:
-    lower = path.replace("\\", "/").lstrip("./").lower()
+    lower = path.replace("\\", "/").removeprefix("./").lower()
     if lower == "docs/plan.md" or lower.endswith("/plan.md"):
         return _plan_slots(text)
     return _agents_or_claude_slots(text)
@@ -665,6 +749,10 @@ def build_architecture_lens(vault: Path, project_id: str) -> dict[str, Any]:
         slot: _join(collected[slot], max_chars=_SLOT_MAX_CHARS) or _UNKNOWN
         for slot in ARCHITECTURE_SLOTS
     }
+    # Deduplicate Core module identifiers across AGENTS/CLAUDE merges while
+    # preserving non-module prose components from plan / architecture docs.
+    if slots.get("major_components") not in {None, _UNKNOWN}:
+        slots["major_components"] = _dedupe_major_components(slots["major_components"])
     summary = _render_summary(slots)
     status = "derived" if summary else "unknown"
 

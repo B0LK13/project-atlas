@@ -291,9 +291,68 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             item["why_it_matters"] = "Sample pending item requiring disposition"
             items.append(item)
 
+    # Collapse repetitive SOURCE_FAILURE noise while preserving exact counts
+    # and inspectability (D-043). Failures are not hidden.
+    source_failures = [item for item in items if item.get("level") == "SOURCE_FAILURE"]
+    if len(source_failures) > 5:
+        items = [item for item in items if item.get("level") != "SOURCE_FAILURE"]
+        sample_subjects = [
+            str(item.get("subject_id") or "")
+            for item in source_failures[:5]
+            if item.get("subject_id")
+        ]
+        items.append(
+            _item(
+                level="SOURCE_FAILURE",
+                kind="compile_failure_rollup",
+                reason_code="source-failure-volume",
+                why=(
+                    f"{len(source_failures)} source compile failures "
+                    "(collapsed for triage; exact count preserved)"
+                ),
+                impact="Many sources unavailable; claims may be incomplete",
+                action=(
+                    "Run atlas source-health --project "
+                    f"{project_id} to inspect reason codes; "
+                    "repair highest-authority sources first"
+                ),
+                evidence=[outcomes_path.relative_to(vault).as_posix()],
+                subject_id=";".join(sample_subjects)[:200] or None,
+            )
+        )
+        # Keep a small inspectable sample of individual failures.
+        for item in source_failures[:3]:
+            items.append(item)
+
     order = {name: index for index, name in enumerate(LEVELS)}
     items.sort(key=lambda row: (order.get(str(row["level"]), 99), str(row.get("subject_id"))))
     rollup = str(items[0]["level"]) if items else "CLEAR"
+
+    # Default presentation: 3-10 things the user should actually care about.
+    # Cap BLOCKING samples so ACTION_REQUIRED / NEEDS_HUMAN_REVIEW remain visible.
+    care_about: list[dict[str, Any]] = []
+    for level, limit in (
+        ("BLOCKING", 5),
+        ("ACTION_REQUIRED", 3),
+        ("NEEDS_HUMAN_REVIEW", 2),
+    ):
+        level_items = [item for item in items if item.get("level") == level]
+        care_about.extend(level_items[:limit])
+    if len(care_about) < 3:
+        for item in items:
+            if item in care_about:
+                continue
+            if item.get("level") in {"LOW_VALUE_NOISE"}:
+                continue
+            care_about.append(item)
+            if len(care_about) >= 3:
+                break
+    care_about = care_about[:10]
+
+    level_counts: dict[str, int] = {}
+    for item in items:
+        level = str(item.get("level") or "UNKNOWN")
+        level_counts[level] = level_counts.get(level, 0) + 1
 
     return {
         "schema_version": 1,
@@ -302,6 +361,10 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         "project_id": project_id,
         "rollup": rollup,
         "item_count": len(items),
+        "level_counts": level_counts,
+        "source_failure_total": len(source_failures),
+        "care_about": care_about,
+        "care_about_count": len(care_about),
         "items": items,
         "inspected_artifacts": inspected,
         "generated": {"by": GENERATOR_ID},
@@ -311,6 +374,7 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             "confidence_theatre": False,
             "lens_is_authority": False,
             "unknown_is_valid": True,
+            "failures_hidden": False,
         },
         "truth_boundary": "ATTENTION LENS != AUTHORITY / UI != CANONICAL",
     }
