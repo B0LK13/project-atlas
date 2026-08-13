@@ -5556,3 +5556,24 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - CODEX_VALIDATED = NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
 - ATLAS_OPT_WAKE_GATE = CLOSED
+
+## D-040 — attention / source-health / positive-delta
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-040
+**Branch:** cursor/coder-alpha-040-delta-hygiene-d039
+
+### Packages
+- AS-CODER-ALPHA-CHANGED-002b positive-delta proof (add/mod/remove; .atlas-vault churn excluded)
+- AS-CODER-ALPHA-ATTENTION-001 (`atlas attention`)
+- AS-CODER-ALPHA-SOURCE-HEALTH-001 (`atlas source-health`)
+- AS-CODER-ALPHA-DECISIONS-002 status labels on decision lens
+
+### Explicit non-claims
+- DEMO_FIXTURE != AUTHENTIC_PILOT
+- DEMO != RELEASE
+- UI != CANONICAL_TRUTH
+- MODEL_OUTPUT != AUTHORITY
+- CODEX_VALIDATED = NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
+- ATLAS_OPT_WAKE_GATE = CLOSED

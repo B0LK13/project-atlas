@@ -21,6 +21,34 @@ GENERATOR_ID = "atlas-coder-alpha-decisions-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.+?)\s*$", re.MULTILINE)
 _DECISION_PATH_HINTS = ("decision", "adr", "rfc")
+_NON_DECISION_HINTS = (
+    "implementation note",
+    "changelog",
+    "release notes",
+    "todo",
+    "scratch",
+)
+
+
+def _classify_decision_status(title: str, *, kind: str, path: str = "") -> str:
+    """Deterministic decision status label (no confidence score)."""
+    lower = title.strip().lower()
+    path_l = path.lower()
+    if any(hint in lower for hint in _NON_DECISION_HINTS):
+        return "NON_DECISION"
+    if "superseded" in lower or "obsolete" in lower:
+        return "SUPERSEDED"
+    if "rejected" in lower or "declined" in lower:
+        return "REJECTED"
+    if "proposed" in lower or "open question" in lower or "wip" in lower:
+        return "OPEN_PROPOSED"
+    if "historical" in lower or "archive" in path_l:
+        return "HISTORICAL"
+    if kind == "claim" or "adr" in path_l or kind == "project-note":
+        return "ACTIVE_GOVERNING"
+    if kind == "imported-heading":
+        return "HISTORICAL" if "receipt" in path_l else "OPEN_PROPOSED"
+    return "IMPLEMENTATION_NOTE"
 
 
 class ProjectDecisionsError(ValueError):
@@ -126,12 +154,17 @@ def _decision_headings_from_imports(vault: Path, project_id: str) -> list[dict[s
         except OSError:
             continue
         for title in _headings(text)[:8]:
+            status = _classify_decision_status(title, kind="imported-heading", path=path)
+            if status == "NON_DECISION":
+                continue
             found.append(
                 {
                     "title": title,
                     "source": imported.relative_to(vault).as_posix(),
                     "kind": "imported-heading",
                     "path": path,
+                    "status": status,
+                    "authority": "imported-heading",
                 }
             )
     return found[:20]
@@ -154,11 +187,14 @@ def _decision_claims(vault: Path, project_id: str) -> list[dict[str, str]]:
         title = str(claim.get("value") or claim.get("normalized_text") or claim.get("field") or "")
         if not title.strip():
             continue
+        status = _classify_decision_status(title, kind="claim")
         out.append(
             {
                 "title": title.strip()[:200],
                 "claim_id": str(claim.get("claim_id") or ""),
                 "kind": "claim",
+                "status": status,
+                "authority": "claim",
             }
         )
     return out[:20]
@@ -174,11 +210,16 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if note.is_file():
         inspected.append(note.relative_to(vault).as_posix())
         for title in _decision_headings_from_note(note):
+            status = _classify_decision_status(title, kind="project-note")
+            if status == "NON_DECISION":
+                continue
             decisions.append(
                 {
                     "title": title,
                     "source": note.relative_to(vault).as_posix(),
                     "kind": "project-note",
+                    "status": status,
+                    "authority": "project-note",
                 }
             )
 
@@ -204,13 +245,26 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
 
     if unique:
         status = "derived"
-        titles = [item["title"] for item in unique[:8]]
-        summary = f"decisions={len(unique)}; " + "; ".join(titles)
+        active = [item for item in unique if item.get("status") == "ACTIVE_GOVERNING"]
+        focus = active or [
+            item
+            for item in unique
+            if item.get("status") not in {"NON_DECISION", "HISTORICAL", "SUPERSEDED"}
+        ]
+        focus = focus or unique
+        titles = [
+            f"{item['title']} [{item.get('status', 'UNKNOWN')}]" for item in focus[:8]
+        ]
+        summary = (
+            f"decisions={len(unique)}; active_governing={len(active)}; "
+            + "; ".join(titles)
+        )
         if len(summary) > 480:
             summary = summary[:479].rstrip() + "…"
         value = summary
         notes = [
             "Derived from decisions note + decision claims + ADR/decision source headings",
+            "status labels are deterministic classifiers, not confidence scores",
             "lens!=Layer-B-authority",
             "UI!=canonical",
             "not a ranked trust score",

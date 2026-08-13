@@ -29,6 +29,7 @@ from project_atlas.agent_handoff import (
 from project_atlas.api_server import ApiServerError, serve_api
 from project_atlas.ask2 import Ask2Error, ask_atlas_2
 from project_atlas.ask2 import answer_to_json as ask2_answer_to_json
+from project_atlas.attention_hygiene import AttentionHygieneError, classify_attention
 from project_atlas.authz import (
     AuthzError,
     publish_api_session_credentials,
@@ -214,6 +215,7 @@ from project_atlas.session_capture import (
     capture_session,
     list_captures,
 )
+from project_atlas.source_health import SourceHealthError, explain_source_health
 from project_atlas.twin_fixtures import (
     TwinFixtureError,
     TwinProjectRow,
@@ -492,6 +494,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--project", action="append", dest="projects", default=None
     )
     unknown_parser.add_argument("--json", action="store_true", dest="as_json")
+
+    attention_parser = subparsers.add_parser(
+        "attention",
+        help=(
+            "Classify unresolved Truth attention without confidence theatre "
+            "(AS-CODER-ALPHA-ATTENTION-001; lens!=authority)."
+        ),
+    )
+    attention_parser.add_argument("--vault", type=Path, required=True)
+    attention_parser.add_argument("--project", required=True)
+    attention_parser.add_argument("--json", action="store_true", dest="as_json")
+
+    source_health_parser = subparsers.add_parser(
+        "source-health",
+        help=(
+            "Explain excluded/quarantined/failed sources "
+            "(AS-CODER-ALPHA-SOURCE-HEALTH-001; no secret echo)."
+        ),
+    )
+    source_health_parser.add_argument("--vault", type=Path, required=True)
+    source_health_parser.add_argument("--project", default=None)
+    source_health_parser.add_argument("--json", action="store_true", dest="as_json")
 
     brief_parser = subparsers.add_parser(
         "brief",
@@ -2169,6 +2193,40 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('rollup')}] {lens.get('summary') or 'UNKNOWN'}"
+                )
+        return EXIT_OK
+
+    if args.command == "attention":
+        try:
+            report = classify_attention(args.vault, args.project)
+        except (AttentionHygieneError, OSError, ValueError) as exc:
+            _log.error("attention failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas attention [{report.get('rollup', 'UNKNOWN')}]")
+            for item in (report.get("items") or [])[:12]:
+                print(
+                    f"  [{item.get('level')}] {item.get('reason_code')}: "
+                    f"{item.get('what_to_do')}"
+                )
+        return EXIT_OK
+
+    if args.command == "source-health":
+        try:
+            report = explain_source_health(args.vault, args.project)
+        except (SourceHealthError, OSError, ValueError) as exc:
+            _log.error("source-health failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas source-health [count={report.get('source_count', 0)}]")
+            for row in (report.get("sources") or [])[:12]:
+                print(
+                    f"  [{row.get('status')}/{row.get('pipeline_stage')}] "
+                    f"{row.get('source')}: {row.get('reason_code')}"
                 )
         return EXIT_OK
 
