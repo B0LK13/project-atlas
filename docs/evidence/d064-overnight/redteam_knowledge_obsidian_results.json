@@ -1,0 +1,119 @@
+{
+  "all_scenarios_pass": true,
+  "authorized_root": "/tmp/d064-redteam/knowledge-obsidian",
+  "counters": {
+    "CROSS_PROJECT_KNOWLEDGE_LEAK": 0,
+    "KNOWLEDGE_SILENT_PROJECT_ASSIGNMENT": 0,
+    "OBSIDIAN_AUTO_INGEST": 0
+  },
+  "counts": {
+    "connected": 0,
+    "ignored": 2,
+    "knowledge": 4,
+    "projects": 2,
+    "required_review": 4
+  },
+  "honesty": {
+    "DISCOVER_NE_INGEST": true,
+    "invariant": "DISCOVER != INGEST != TRUST != AUTHORITY"
+  },
+  "knowledge_summary": [
+    {
+      "kind": "knowledge",
+      "knowledge_relation": "KNOWLEDGE_UNMATCHED",
+      "matched_project_id": null,
+      "name": "alpha",
+      "required_review": false
+    },
+    {
+      "kind": "obsidian_vault",
+      "knowledge_relation": "KNOWLEDGE_UNMATCHED",
+      "matched_project_id": null,
+      "name": "alpha-beta-shared-notes",
+      "required_review": true
+    },
+    {
+      "kind": "knowledge",
+      "knowledge_relation": "KNOWLEDGE_PROJECT_MATCHED",
+      "matched_project_id": "alpha",
+      "name": "research",
+      "required_review": false
+    },
+    {
+      "kind": "obsidian_vault",
+      "knowledge_relation": "KNOWLEDGE_UNMATCHED",
+      "matched_project_id": null,
+      "name": "personal-brain",
+      "required_review": true
+    }
+  ],
+  "label": "D064_OVERNIGHT_REDTEAM_KNOWLEDGE_OBSIDIAN",
+  "package_id": "AS-CODER-ALPHA-KNOWLEDGE-ESTATE-DISCOVERY-001",
+  "scan": {
+    "dirs_visited": 10,
+    "knowledge_limit_reached": false,
+    "max_depth": 8,
+    "max_knowledge_candidates": 500,
+    "max_project_candidates": 500,
+    "permission_errors": [],
+    "project_limit_reached": false,
+    "scan_complete": true,
+    "truncation_reason": null
+  },
+  "scan_seconds": 0.005746,
+  "scenarios": {
+    "nested_research_under_project": {
+      "expect": "KNOWLEDGE_PROJECT_MATCHED",
+      "found": true,
+      "knowledge_relation": "KNOWLEDGE_PROJECT_MATCHED",
+      "matched_project_id": "alpha",
+      "pass": true,
+      "path_name": "research",
+      "required_review": false
+    },
+    "obsidian_multi_project_dirname": {
+      "expect": "not silently assigned to a single project; required_review; dirname mentions alpha and beta",
+      "found": true,
+      "kind": "obsidian_vault",
+      "knowledge_relation": "KNOWLEDGE_UNMATCHED",
+      "match_evidence": [
+        {
+          "detail": "Obsidian vault discovered; not silently assigned to a project",
+          "kind": "obsidian_unassigned",
+          "weight": "weak"
+        }
+      ],
+      "match_state": "UNMATCHED",
+      "matched_project_id": null,
+      "note": "When dirname contains multiple vault project ids, current implementation returns KNOWLEDGE_UNMATCHED (fail-closed) rather than KNOWLEDGE_AMBIGUOUS \u2014 still not silent assignment.",
+      "pass": true,
+      "path_name": "alpha-beta-shared-notes",
+      "required_review": true
+    },
+    "personal_obsidian_not_wholesale": {
+      "expect": {
+        "kind": "obsidian_vault",
+        "no_ingest": true,
+        "not_auto_assigned": true,
+        "required_review": true
+      },
+      "found": true,
+      "kind": "obsidian_vault",
+      "knowledge_relation": "KNOWLEDGE_UNMATCHED",
+      "matched_project_id": null,
+      "pass": true,
+      "path_name": "personal-brain",
+      "required_review": true,
+      "vault_projects_after": [
+        "alpha",
+        "beta"
+      ],
+      "vault_projects_before": [
+        "alpha",
+        "beta"
+      ],
+      "vault_projects_unchanged": true
+    }
+  },
+  "vault": "/tmp/d064-redteam/vault"
+}

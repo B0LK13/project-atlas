@@ -1,0 +1,76 @@
+{
+  "CONNECTED_WITHOUT_DURABLE_BIND_PROOF": 0,
+  "CROSS_PROJECT_LEAKS": 0,
+  "FALSE_CONNECTED_MATCHES": 0,
+  "FALSE_EXACT_MATCHES": 0,
+  "HIGH_FINDINGS": [],
+  "PROJECT_UUID_COALESCING": 0,
+  "SILENT_IDENTITY_MERGES": 0,
+  "cases": [
+    {
+      "detail": "match=EXACT mid=alpha prove_connected=False why=['matched alpha but no durable bind/source-root ownership proves this candidate root is currently connected']; discover category=DISCOVERED_PROJECTS lifecycle=PROJECT_MATCHED match_state=EXACT",
+      "name": "01_same_id_same_uuid_exact_not_connected_without_bind",
+      "pass": true
+    },
+    {
+      "detail": "match=CONFLICTING kinds=['same_id_different_uuid'] discover=CONFLICTING category=AMBIGUOUS_MATCHES matched_uuid=33333333-3333-4333-8333-333333333333",
+      "name": "02_same_id_different_uuid_conflicting",
+      "pass": true
+    },
+    {
+      "detail": "match=CONFLICTING kinds=['different_id_same_uuid', 'same_id_different_uuid'] discover=CONFLICTING matched_id=None",
+      "name": "03_different_id_same_uuid_conflicting",
+      "pass": true
+    },
+    {
+      "detail": "match=EXACT evidence=['atlas_project_id', 'uuid_absent'] prove_connected=False; discover evidence=['atlas_project_id', 'uuid_absent'] category=DISCOVERED_PROJECTS",
+      "name": "04_missing_uuid_matching_id_exact_uuid_absent",
+      "pass": true
+    },
+    {
+      "detail": "match=CONFLICTING kinds=['invalid_project_uuid', 'same_id_invalid_uuid'] discover=CONFLICTING uuid_status=invalid",
+      "name": "05_invalid_uuid_conflicting_not_silent_absent",
+      "pass": true
+    },
+    {
+      "detail": "copy category=DISCOVERED_PROJECTS lifecycle=PROJECT_MATCHED match=EXACT prove=False why=['matched alpha but no durable bind/source-root ownership proves this candidate root is currently connected']; owner category=CONNECTED why_connected=['candidate root equals governed bind/source root for alpha']",
+      "name": "06_copied_marker_unrelated_root_never_connected",
+      "pass": true
+    },
+    {
+      "detail": "category=CONNECTED lifecycle=CONNECTED match=EXACT why_connected=['candidate root equals governed bind/source root for alpha'] prove=True prove_why=['candidate root equals governed bind/source root for alpha']",
+      "name": "07_live_connect_json_bind_connected_with_why",
+      "pass": true
+    },
+    {
+      "detail": "n=2 candidate_ids=['project-2307f39c0bdcdd92', 'project-810097a7cd46a628'] matched_uuids={None}",
+      "name": "08_same_basename_different_roots_distinct_candidate_ids",
+      "pass": true
+    },
+    {
+      "detail": "fp_match=LIKELY mid=svc-app evidence=['package_name_as_id']; discover_match=LIKELY",
+      "name": "09_same_package_name_only_not_exact",
+      "pass": true
+    },
+    {
+      "detail": "fp_match=LIKELY mid=svc-app evidence=['directory_name']; discover_match=LIKELY category=DISCOVERED_PROJECTS",
+      "name": "10_directory_name_only_likely_not_exact",
+      "pass": true
+    },
+    {
+      "detail": "fp_match=CONFLICTING kinds=['git_remote_vs_marker_id']; discover_beta=CONFLICTING conflicts=[{'kind': 'git_remote_vs_marker_id', 'detail': 'git remote matches alpha but marker/matched id is beta', 'weight': 'conflict'}]",
+      "name": "11_git_remote_vs_marker_id_conflict",
+      "pass": true
+    },
+    {
+      "detail": "fp_match=CONFLICTING kinds=['marker_invalid']; discover=CONFLICTING marker_status=invalid required_review=True",
+      "name": "12_malformed_marker_conflicting",
+      "pass": true
+    },
+    {
+      "detail": "chmod_ok=True fp_match=CONFLICTING kinds=['marker_unreadable']; discover=CONFLICTING marker_status=unreadable required_review=True required_action=Resolve identity conflict (UUID/id ownership) before connect; do not unify projects",
+      "name": "13_unreadable_marker_conflicting_or_required_review",
+      "pass": true
+    }
+  ]
+}

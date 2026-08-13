@@ -296,6 +296,9 @@ def _under_authorized(path: Path, authorized: Path) -> bool:
         return True
     except ValueError:
         return False
+    except (OSError, RuntimeError):
+        # Symlink loops / unresolvable paths are not "inside" the root.
+        return False
 
 
 def _is_reparse_or_symlink(entry: Path) -> bool:
@@ -317,12 +320,16 @@ def _is_reparse_or_symlink(entry: Path) -> bool:
 
 
 def _reparse_escape(entry: Path, authorized: Path) -> bool:
-    """True when a reparse/symlink target resolves outside authorized root."""
+    """True when a reparse/symlink target resolves outside authorized root.
+
+    Symlink loops and unresolvable reparse targets are treated as escapes
+    (ignored, not crashed) — D-064 overnight IV.
+    """
     if not _is_reparse_or_symlink(entry):
         return False
     try:
         target = entry.resolve(strict=False)
-    except OSError:
+    except (OSError, RuntimeError):
         return True
     return not _under_authorized(target, authorized)
 
@@ -360,6 +367,31 @@ def _read_json_object(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def sanitize_git_remote_url(url: str) -> str:
+    """Strip credential userinfo from git remotes (D-064 secret hygiene).
+
+    Discovery may use remotes as fingerprint evidence, but must never echo
+    passwords / tokens embedded in URLs into reports, CLI, API, or Web.
+    """
+    from urllib.parse import urlsplit, urlunsplit
+
+    raw = url.strip()
+    if not raw:
+        return raw
+    if "://" in raw:
+        parts = urlsplit(raw)
+        if parts.username is None and parts.password is None:
+            return raw
+        host = parts.hostname or ""
+        if parts.port is not None:
+            host = f"{host}:{parts.port}"
+        return urlunsplit(
+            (parts.scheme, host, parts.path, parts.query, parts.fragment)
+        )
+    # scp-like forms rarely embed passwords; leave unchanged.
+    return raw
+
+
 def _git_remote_url(directory: Path) -> str | None:
     """Read git remote without executing git (config parse only)."""
     config = directory / ".git" / "config"
@@ -388,7 +420,10 @@ def _git_remote_url(directory: Path) -> str | None:
             origin_url = url
         elif section and section.startswith("remote ") and any_url is None:
             any_url = url
-    return origin_url or any_url
+    chosen = origin_url or any_url
+    if chosen is None:
+        return None
+    return sanitize_git_remote_url(chosen)
 
 
 def _package_name(directory: Path) -> str | None:
@@ -1337,7 +1372,7 @@ def discover_estate(
         current, depth = stack.pop()
         try:
             current_resolved = current.resolve(strict=False)
-        except OSError:
+        except (OSError, RuntimeError):
             ignored.append({"path": current.as_posix(), "reason": "unresolvable_path"})
             continue
         key = canonical_path_key(current_resolved)
@@ -1967,6 +2002,7 @@ __all__ = [
     "prove_connected",
     "refuse_dangerous_authorized_root",
     "review_candidates",
+    "sanitize_git_remote_url",
     "write_discovery_cache",
     "write_discovery_report",
 ]

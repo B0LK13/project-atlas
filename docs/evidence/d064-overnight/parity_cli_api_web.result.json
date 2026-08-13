@@ -1,0 +1,120 @@
+{
+  "api_candidate_ids": [
+    "obsidian_vault-cfaff79cafe81664",
+    "project-21b890e1f7571e19",
+    "project-bfbfcb087c61d950"
+  ],
+  "api_match_state_counts": {
+    "EXACT": 1,
+    "UNMATCHED": 2
+  },
+  "cli_candidate_ids": [
+    "obsidian_vault-cfaff79cafe81664",
+    "project-21b890e1f7571e19",
+    "project-bfbfcb087c61d950"
+  ],
+  "cli_match_state_counts": {
+    "EXACT": 1,
+    "UNMATCHED": 2
+  },
+  "connected_sample": {
+    "project-bfbfcb087c61d950": {
+      "candidate_id": "project-bfbfcb087c61d950",
+      "category": "CONNECTED",
+      "conflicting_evidence": [],
+      "match_state": "EXACT",
+      "required_review": false,
+      "scan_complete": true,
+      "truncation_reason": null,
+      "why_connected": [
+        "candidate root equals governed bind/source root for alpha"
+      ],
+      "why_matched": [
+        "atlas_project_uuid: marker uuid matches governed project alpha",
+        "atlas_project_id: marker project.id equals governed project alpha"
+      ]
+    }
+  },
+  "counters": {
+    "API_WEB_DISCOVERY_SEMANTIC_DRIFT": 0,
+    "UI_RECLASSIFICATION": 0
+  },
+  "counts": {
+    "api": {
+      "connected": 1,
+      "ignored": 3,
+      "knowledge": 1,
+      "projects": 2,
+      "required_review": 1
+    },
+    "cli": {
+      "connected": 1,
+      "ignored": 3,
+      "knowledge": 1,
+      "projects": 2,
+      "required_review": 1
+    },
+    "mismatches": [],
+    "view": {
+      "connected": 1,
+      "ignored": 3,
+      "knowledge": 1,
+      "projects": 2,
+      "required_review": 1
+    }
+  },
+  "fixture": {
+    "authorized_root": "/tmp/d064-parity-xk2rknk0/estate",
+    "expected": {
+      "connected_project": "alpha",
+      "obsidian": "personal-notes",
+      "unmatched_project": "lonely-tool"
+    },
+    "vault": "/tmp/d064-parity-xk2rknk0/vault"
+  },
+  "package_id": "AS-CODER-ALPHA-KNOWLEDGE-ESTATE-DISCOVERY-001",
+  "pass": true,
+  "scan": {
+    "api": {
+      "dirs_visited": 7,
+      "knowledge_limit_reached": false,
+      "max_depth": 8,
+      "max_knowledge_candidates": 500,
+      "max_project_candidates": 500,
+      "permission_errors": [],
+      "project_limit_reached": false,
+      "scan_complete": true,
+      "truncation_reason": null
+    },
+    "cli": {
+      "dirs_visited": 7,
+      "knowledge_limit_reached": false,
+      "max_depth": 8,
+      "max_knowledge_candidates": 500,
+      "max_project_candidates": 500,
+      "permission_errors": [],
+      "project_limit_reached": false,
+      "scan_complete": true,
+      "truncation_reason": null
+    },
+    "view": {
+      "knowledge_limit_reached": false,
+      "permission_errors": [],
+      "project_limit_reached": false,
+      "scan_complete": true,
+      "truncation_reason": null
+    }
+  },
+  "schema": "d064-overnight-parity-cli-api-web-v1",
+  "semantic_drifts": [],
+  "ui_reclassification_events": [],
+  "view_candidate_ids": [
+    "obsidian_vault-cfaff79cafe81664",
+    "project-21b890e1f7571e19",
+    "project-bfbfcb087c61d950"
+  ],
+  "view_match_state_counts": {
+    "EXACT": 1,
+    "UNMATCHED": 2
+  }
+}
