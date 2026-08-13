@@ -11,8 +11,9 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 PACKAGE_ID = "AS-CODER-ALPHA-ARCH-002"
 GENERATOR_ID = "atlas-coder-alpha-architecture-002"
@@ -55,7 +56,7 @@ _SLOT_MAX_CHARS = 320
 _FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
 _LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
-_STAGE_RE = re.compile(r"^#+\s*Stage\s+\d+\s+[—-]\s*(.+?)\s*$", re.IGNORECASE)
+_STAGE_RE = re.compile(r"^#+\s*Stage\s+\d+\s+[-\u2013\u2014]\s*(.+?)\s*$", re.IGNORECASE)
 _MODULE_NAME_RE = re.compile(r"`([^`]+?\.(?:py|md|json|yaml|yml))`")
 _BARE_MODULE_NAME_RE = re.compile(r"\b[\w./-]+?\.(?:py|md|json|yaml|yml)\b")
 _TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$")
@@ -151,7 +152,7 @@ def _clean_line(line: str) -> str:
         text = ": ".join(cells)
     text = re.sub(r"^\s{0,3}#{1,6}\s+", "", text)
     text = re.sub(r"^\s*(?:[-*+]|\d+\.)\s+", "", text)
-    text = text.replace("→", "->").replace("—", "-").replace("–", "-")
+    text = text.replace("\u2192", "->").replace("\u2014", "-").replace("\u2013", "-")
     text = _LINK_RE.sub(r"\1", text)
     for marker in ("**", "__", "`", "_"):
         text = text.replace(marker, "")
@@ -287,7 +288,10 @@ def _module_rows(text: str) -> list[str]:
         level = _heading_level(line)
         if title is not None and level is not None:
             lower = title.lower()
-            if any(token in lower for token in ("code organization", "architecture", "package layout")):
+            if any(
+                token in lower
+                for token in ("code organization", "architecture", "package layout")
+            ):
                 in_component_section = True
                 section_level = level
                 continue

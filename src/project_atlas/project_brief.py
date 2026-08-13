@@ -14,7 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.overview import materialize_overview_lenses
-from project_atlas.project_architecture import _manifest_source_rows, materialize_architecture_lenses
+from project_atlas.project_architecture import (
+    _manifest_source_rows,
+    materialize_architecture_lenses,
+)
 from project_atlas.project_changed import ProjectChangedError, materialize_changed_lenses
 from project_atlas.project_decisions import materialize_decisions_lenses
 from project_atlas.project_state import materialize_state_lenses
