@@ -146,3 +146,67 @@ FRESH_AGENT_TASK_START = FAIL
 - No new features implemented.
 - Handoff success for pack creation: YES (`handoff-56743f61920059e8`).
 - `CODEX_VALIDATED = NO`.
+
+---
+
+## REVISED scores (post attention/source-health embed in agent context)
+
+**Re-score trigger:** Agent context now embeds Attention + Source health sections (`AS-CODER-ALPHA-ATTENTION-001`, `AS-CODER-ALPHA-SOURCE-HEALTH-001`). Pack-only re-read of:
+
+- `generated/ops/agent-context/project-atlas.md`
+- `generated/ops/agent-context/project-atlas.json`
+- `generated/ops/project-brief-project-atlas.json`
+- `generated/answers/ans-architecture-project-atlas.json`
+
+### Bounded task (pack-only, revised)
+
+**Task:** Locate where `atlas attention` is implemented and state its package id.  
+**Pack-only answer:** `src/project_atlas/attention_hygiene.py` · package `AS-CODER-ALPHA-ATTENTION-001` (CLI `atlas attention`).  
+**FRESH_AGENT_TASK_START = PASS**
+
+### Q7 re-check (attention)
+
+Problems requiring action are explicit in context Attention section: rollup=`BLOCKING`; item_count=274; top items are unresolved competing claims in `review/conflicts` (matter=canonical field untrusted until disposition; do=`atlas review decide`). Aligns with brief rollup (conflicts=10, pending_reviews=316, sources_failed=258, coverage_absent=…). **Score remains PASS** (richer evidence).
+
+### Q8 re-check (source failures + why)
+
+Yes — `compile_failed=258` (also compile_partial=3, excluded=10903, quarantined=9; source_count=11173). **Why now in pack:** reason code `compile_failed` / status `FAILED` — “Knowledge compile marked this source FAILED”; next=inspect diagnostics and repair source structure/metadata; sample paths include `.cursor/environment.json`, `apps/web/index.html`, `apps/web/package.json`, etc. Package `AS-CODER-ALPHA-SOURCE-HEALTH-001` · `src/project_atlas/source_health.py`. **Score: PARTIAL → PASS** (count + reason codes/paths answerable from pack; deeper root-cause still via diagnostics).
+
+### Revised scored metrics
+
+```
+FRESH_AGENT_CONTEXT_SUFFICIENCY = PARTIAL
+  # Improved: attention package/path + source-health why now in agent context.
+  # Still insufficient for precise architecture inventory and clean decision titles.
+
+FRESH_AGENT_FACTUAL_ERRORS = 3
+  1. Architecture major_components treats docs/plan.md / atlas-project.yaml as "Core package modules"
+  2. Module/path mangling in pack: knowledgecompiler.py; src/projectatlas/ (missing underscore)
+  3. Decision lens noise promoted into brief as ACTIVE_GOVERNING ("Context", "Consequences", "Decision", "Migration and validation")
+
+FRESH_AGENT_MISSING_CONTEXT =
+  - Clean governing decision inventory (without section-header noise)
+  - Non-truncated architecture slots / complete component responsibilities
+  - Meaningful change history (baseline UNKNOWN — expected)
+  - Explicit sibling boundary detail for atlas-vault-documentation/ control plane
+  # REMOVED vs V2 baseline: attention package/path; source-failure why (now embedded)
+
+FRESH_AGENT_REEXPLANATION_REQUIRED = YES
+  # Owner/repo browse still required for architecture precision and decision-title cleanup.
+  # No longer required for attention locate or source-failure why (embedded in context).
+
+FRESH_AGENT_TASK_START = PASS
+  # Bounded task answerable from agent-context alone:
+  # attention_hygiene.py + AS-CODER-ALPHA-ATTENTION-001
+
+CODER_ALPHA_ACCEPTANCE = NOT_CLAIMED
+  # Do not invent PASS; architecture/decision noise and REEXPLANATION_REQUIRED=YES remain.
+```
+
+### Revised question scorecard (delta)
+
+| # | Question | Prior | Revised | Notes |
+|---|---|---|---|---|
+| 7 | Problems needing attention | PASS | PASS | Attention section adds BLOCKING items + package id |
+| 8 | Sources failing + why | PARTIAL | PASS | Source-health reason codes/paths in context |
+| — | Bounded attention locate | FAIL | PASS | Pack names `attention_hygiene.py` + `AS-CODER-ALPHA-ATTENTION-001` |
