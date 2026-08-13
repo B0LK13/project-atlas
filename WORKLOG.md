@@ -5603,3 +5603,40 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - CODEX_VALIDATED = NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
 - ATLAS_OPT_WAKE_GATE = CLOSED
+
+## D-043 — Coder Alpha PASS-blocker closeout
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-043
+**Merged:** #343 → `ef1c4a6a16a5bf7d05c76120e65c555d70f387e5`
+
+### Result
+`CODER_ALPHA_ACCEPTANCE = PASS`
+`D_042_EXECUTION_GATE = OPEN`
+
+### Cleared blockers
+- Decision signal (ACTIVE_GOVERNING authority gate)
+- Agent factual fidelity (exact modules / underscores)
+- Attention triage (`care_about`)
+- Architecture usefulness + fidelity
+- Semantic What Changed (`know_about`)
+- Fresh Agent Challenge V3: factual_errors=0, reexplanation=NO, task_start=PASS
+
+### Honesty
+- DEMO_FIXTURE != AUTHENTIC_PILOT
+- ATLAS_OPT_WAKE_GATE = CLOSED
+- CODEX_VALIDATED = NO
+
+## D-042 — Conversational Capture (started)
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CONVERSATIONAL-CAPTURE-042
+**Branch:** cursor/coder-alpha-042-conversational-capture-d036
+
+### Scope (vertical slice)
+- AS-CODER-ALPHA-CAPTURE-002 conversational plane receipts
+- `atlas capture conversation`
+- Default conversational boundary capture on `atlas context` (opt-out `--no-capture`)
+- Optional `atlas ask2 --capture`
+- Truth: conversational ≠ authority / ≠ sole certifier / ≠ Layer B
+

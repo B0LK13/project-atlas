@@ -212,6 +212,8 @@ from project_atlas.schema_compat import (
 )
 from project_atlas.session_capture import (
     SessionCaptureError,
+    capture_context_export,
+    capture_conversation,
     capture_session,
     list_captures,
 )
@@ -549,6 +551,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not refresh the underlying brief/lenses.",
     )
+    context_parser.add_argument(
+        "--no-capture",
+        action="store_true",
+        help="Skip conversational session-boundary capture on context export (D-042).",
+    )
     context_parser.add_argument("--json", action="store_true", dest="as_json")
 
     handoff_parser = subparsers.add_parser(
@@ -582,8 +589,8 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
-            "Record or list meaningful session captures "
-            "(AS-CODER-ALPHA-CAPTURE-001; ops receipt!=authority)."
+            "Record or list meaningful/conversational session captures "
+            "(AS-CODER-ALPHA-CAPTURE-001/002; ops receipt!=authority)."
         ),
     )
     capture_sub = capture_parser.add_subparsers(dest="capture_command", required=True)
@@ -596,13 +603,46 @@ def build_parser() -> argparse.ArgumentParser:
     capture_record.add_argument(
         "--kind",
         default="milestone",
-        choices=sorted(["milestone", "decision", "blocker", "note", "handoff"]),
+        choices=sorted(
+            ["milestone", "decision", "blocker", "note", "handoff", "conversation"]
+        ),
     )
     capture_record.add_argument("--decision", action="append", default=[])
     capture_record.add_argument("--change", action="append", default=[])
     capture_record.add_argument("--next", action="append", default=[], dest="next_work")
     capture_record.add_argument("--unknown", action="append", default=[], dest="unknowns")
     capture_record.add_argument("--json", action="store_true", dest="as_json")
+    capture_conversation_parser = capture_sub.add_parser(
+        "conversation",
+        help=(
+            "Record a conversational-plane capture "
+            "(AS-CODER-ALPHA-CAPTURE-002; dialogue≠authority)."
+        ),
+    )
+    capture_conversation_parser.add_argument("--vault", type=Path, required=True)
+    capture_conversation_parser.add_argument("--project", required=True)
+    capture_conversation_parser.add_argument("--summary", required=True)
+    capture_conversation_parser.add_argument(
+        "--turn",
+        action="append",
+        default=[],
+        help="Conversation turn as role:text (user|assistant|system|tool).",
+    )
+    capture_conversation_parser.add_argument("--question", default=None)
+    capture_conversation_parser.add_argument("--answer", default=None)
+    capture_conversation_parser.add_argument("--decision", action="append", default=[])
+    capture_conversation_parser.add_argument(
+        "--next", action="append", default=[], dest="next_work"
+    )
+    capture_conversation_parser.add_argument(
+        "--unknown", action="append", default=[], dest="unknowns"
+    )
+    capture_conversation_parser.add_argument(
+        "--source",
+        default="conversational",
+        choices=sorted(["conversational", "ask2", "context-export", "explicit", "semi-auto"]),
+    )
+    capture_conversation_parser.add_argument("--json", action="store_true", dest="as_json")
     capture_list = capture_sub.add_parser(
         "list",
         help="List session captures (deterministic capture_id order; not time-based).",
@@ -1658,6 +1698,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable the subordinate legacy substring compatibility scan.",
     )
+    ask2_parser.add_argument(
+        "--capture",
+        action="store_true",
+        help=(
+            "Record Ask2 Q/A as a conversational-plane capture "
+            "(AS-CODER-ALPHA-CAPTURE-002; dialogue≠authority)."
+        ),
+    )
     ask2_parser.add_argument("--json", action="store_true")
 
     # AS-2.0-CTX-001 — fixture-safe context packs with provenance pointers.
@@ -2270,12 +2318,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "context":
         try:
+            capture_report = None
+            if not args.no_capture:
+                capture_report = capture_context_export(args.vault, args.project)
             report = export_agent_context(
                 args.vault,
                 args.project,
                 refresh_brief=not args.no_refresh,
             )
-        except (AgentHandoffError, OSError, ValueError) as exc:
+            if capture_report is not None:
+                report["session_capture"] = capture_report
+        except (AgentHandoffError, SessionCaptureError, OSError, ValueError) as exc:
             _log.error("context failed: %s", exc)
             return EXIT_ERROR
         if args.as_json:
@@ -2285,6 +2338,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             print(f"  markdown: {report.get('markdown_path')}")
             print(f"  json:     {report.get('json_path')}")
+            capture = report.get("session_capture") or {}
+            if capture:
+                print(f"  capture:  {capture.get('capture_id')} [conversation]")
             print("  next: paste markdown into Cursor/Claude/Codex/ChatGPT")
         return EXIT_OK
 
@@ -2337,6 +2393,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                     unknowns=args.unknowns,
                     source="explicit",
                 )
+            elif args.capture_command == "conversation":
+                turns: list[dict[str, str]] = []
+                if args.question:
+                    turns.append({"role": "user", "text": str(args.question)})
+                if args.answer:
+                    turns.append({"role": "assistant", "text": str(args.answer)})
+                for raw in args.turn or []:
+                    text = str(raw)
+                    if ":" not in text:
+                        raise SessionCaptureError(
+                            "turn must be role:text (user|assistant|system|tool)"
+                        )
+                    role, body = text.split(":", 1)
+                    turns.append({"role": role.strip(), "text": body.strip()})
+                report = capture_conversation(
+                    args.vault,
+                    args.project,
+                    summary=args.summary,
+                    turns=turns,
+                    decisions=args.decision,
+                    next_work=args.next_work,
+                    unknowns=args.unknowns or None,
+                    source=args.source,
+                )
             else:
                 report = {
                     "schema_version": 1,
@@ -2359,14 +2439,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             print(f"  path:     {report.get('path')}")
             print("  next: atlas context / atlas handoff create to surface session memory")
+        elif args.capture_command == "conversation":
+            print(f"atlas capture conversation [{report.get('status', 'ok')}]")
+            print(f"  capture:  {report.get('capture_id')}")
+            print(f"  plane:    {report.get('plane')}")
+            print(f"  turns:    {report.get('turn_count')}")
+            print(f"  path:     {report.get('path')}")
+            print("  truth:    conversational ops memory ≠ authority")
         else:
             captures = report.get("captures") or []
             print(f"atlas capture list [{len(captures)}]")
             if not captures:
                 print("  UNKNOWN (no session captures yet)")
             for item in captures:
+                plane = item.get("plane") or "session"
+                kind = item.get("kind")
+                label = f"{kind}/conversational" if plane == "conversational" else kind
                 print(
-                    f"  - {item.get('capture_id')} [{item.get('kind')}] "
+                    f"  - {item.get('capture_id')} [{label}] "
                     f"{item.get('summary')}"
                 )
         return EXIT_OK
@@ -3525,6 +3615,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error("ask2 failed: %s", exc)
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_ERROR
+        if args.capture:
+            try:
+                # Persist Q + bounded status summary only — never invent an answer body.
+                answer_text = (
+                    f"status={answer.get('status')}; "
+                    f"evidence={answer.get('evidence_count')}; "
+                    f"truth_boundary={answer.get('truth_boundary')}"
+                )
+                capture_conversation(
+                    args.vault,
+                    args.project,
+                    summary=f"Ask2: {args.question}"[:200],
+                    turns=[
+                        {"role": "user", "text": str(args.question)},
+                        {"role": "assistant", "text": answer_text},
+                    ],
+                    source="ask2",
+                    unknowns=["Ask2 capture is conversational ops memory, not authority"],
+                )
+            except SessionCaptureError as exc:
+                _log.error("ask2 conversational capture failed: %s", exc)
+                print(f"error: {exc}", file=sys.stderr)
+                return EXIT_ERROR
         if args.json:
             print(ask2_answer_to_json(answer), end="")
         else:
@@ -3534,6 +3647,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"conflicts: {answer['CONFLICTS']['unresolved_count']}")
             print(f"legacy_subordinate_matches: {answer['legacy_compatibility']['match_count']}")
             print(f"truth_boundary: {answer['truth_boundary']}")
+            if args.capture:
+                print("capture: conversational ops memory recorded")
         return EXIT_OK
 
     if args.command == "context-pack":

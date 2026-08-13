@@ -376,4 +376,6 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-ATTENTION-002 care_about triage + source-failure collapse
 - [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
+- [x] AS-CODER-ALPHA-DECISIONS-003 / ATTENTION-002 / CHANGED-003 / ARCH-FIDELITY closeout (D-043 PASS)
+- [ ] AS-CODER-ALPHA-CAPTURE-002 Conversational capture (D-042; dialogue≠authority)
 
