@@ -145,6 +145,99 @@ def _stack_from_pyproject(vault: Path, project_id: str) -> str | None:
     return None
 
 
+def _architecture_rank(path: str) -> tuple[int, int, str] | None:
+    """Prefer plan/AGENTS architecture docs over nested READMEs (D-039)."""
+    posix = path.replace("\\", "/").lstrip("./")
+    lower = posix.lower()
+    depth = posix.count("/")
+    if lower in {"docs/plan.md", "docs/prp.md"}:
+        return (0, depth, posix)
+    if lower in {"agents.md", "claude.md"}:
+        return (1, depth, posix)
+    if lower.endswith("/plan.md") or lower.endswith("/architecture.md"):
+        return (2, depth, posix)
+    if Path(posix).name.lower() in {"readme.md", "readme.txt", "readme"}:
+        return None
+    return None
+
+
+def _architecture_from_text(path: str, text: str, *, max_chars: int = 480) -> str | None:
+    """Pull a concrete architecture blurb from plan/AGENTS prose."""
+    body = text
+    lines = [line.rstrip() for line in body.splitlines()]
+    # Prefer an explicit architecture heading when present.
+    capture = False
+    buf: list[str] = []
+    heading_hit = False
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.lower()
+        if lower.startswith("#") and any(
+            token in lower
+            for token in (
+                "architect",
+                "three-layer",
+                "core architectural",
+                "package layout",
+            )
+        ):
+            capture = True
+            heading_hit = True
+            buf = []
+            continue
+        if capture and stripped.startswith("#"):
+            break
+        if capture and stripped and not stripped.startswith("```"):
+            buf.append(stripped)
+            if sum(len(part) for part in buf) >= max_chars:
+                break
+    if heading_hit and buf:
+        text_out = " ".join(buf)
+        return text_out[: max_chars - 1].rstrip() + "…" if len(text_out) > max_chars else text_out
+
+    # AGENTS/CLAUDE fallback: three-layer + pipeline signals without inventing.
+    signals: list[str] = []
+    for line in lines:
+        stripped = line.strip().lstrip("-").strip()
+        lower = stripped.lower()
+        pipeline = "discover" in lower and "ingest" in lower and "validate" in lower
+        if "three-layer" in lower or "layer a" in lower or "okf" in lower or pipeline:
+            signals.append(stripped)
+        if len(signals) >= 3:
+            break
+    if signals:
+        text_out = " ".join(signals)
+        return text_out[: max_chars - 1].rstrip() + "…" if len(text_out) > max_chars else text_out
+    return None
+
+
+def _extract_architecture_blurb(vault: Path, project_id: str) -> str | None:
+    """Best-effort architecture summary from plan.md / AGENTS.md evidence."""
+    candidates: list[tuple[tuple[int, int, str], dict[str, Any]]] = []
+    for row in _manifest_source_rows(vault, project_id):
+        path = str(row.get("path") or "")
+        rank = _architecture_rank(path)
+        if rank is None:
+            continue
+        candidates.append((rank, row))
+    for _rank, row in sorted(candidates, key=lambda item: item[0]):
+        source_id = str(row.get("source_id") or "")
+        path = str(row.get("path") or "")
+        if not source_id:
+            continue
+        imported = vault / "sources" / "imported-documents" / f"{source_id}.md"
+        if not imported.is_file():
+            continue
+        try:
+            text = imported.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        blurb = _architecture_from_text(path, text)
+        if blurb:
+            return blurb
+    return None
+
+
 def _extract_stack_blurb(vault: Path, project_id: str) -> str | None:
     """Best-effort stack from README ## Stack, else root pyproject.toml."""
     readme_rows: list[tuple[int, dict[str, Any]]] = []
@@ -245,6 +338,10 @@ def build_project_brief(
                 evidence.append(item)
 
     tech_stack = _extract_stack_blurb(vault, project_id)
+    architecture = _extract_architecture_blurb(vault, project_id)
+    # D-039: never echo purpose/overview as architecture. Absent evidence → UNKNOWN.
+    if architecture is None and "architecture" in coverage_absent:
+        architecture = None
 
     brief = {
         "schema_version": 1,
@@ -254,11 +351,7 @@ def build_project_brief(
         "project_identity": project_id,
         "purpose": _field(overview) or "UNKNOWN",
         "tech_stack": tech_stack or "UNKNOWN",
-        "architecture_summary": (
-            "UNKNOWN"
-            if "architecture" in coverage_absent
-            else (_field(overview) or "UNKNOWN")
-        ),
+        "architecture_summary": architecture or "UNKNOWN",
         "current_state": _field(state) or "UNKNOWN",
         "recent_meaningful_changes": _field(changed) or "UNKNOWN",
         "important_decisions": _field(decisions) or "UNKNOWN",
