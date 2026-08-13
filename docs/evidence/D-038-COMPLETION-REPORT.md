@@ -8,7 +8,7 @@ CURRENT_MAIN = 8dd8878379806841c80bbc23f82a70b711cc7274
 CURRENT_TREE = 705d4f7248cd34a95cd1870fca53552f469ba2d2
 ```
 
-(Pre-merge certified tip: `008c3d22b91fd8c1b2a56a6e041bc8da1f5e2fef` / tree `705d4f72…`)
+(Pre-merge certified tip: `008c3d22b91fd8c1b2a56a6e041bc8da1f5e2fef` / tree `705d4f7248cd34a95cd1870fca53552f469ba2d2`)
 
 ## Package status
 
@@ -28,7 +28,7 @@ CURRENT_TREE = 705d4f7248cd34a95cd1870fca53552f469ba2d2
 | REEXPLANATION_RATE | 0 for fresh-agent Q1–Q5 |
 | HANDOFF_SUCCESS | PASS (create + resume) |
 | WRONG_CONTEXT_FINDINGS | 1 HIGH fixed (nested README purpose); residual: noisy decisions rollup |
-| STALE_CONTEXT_FINDINGS | 0 (first-connect baseline honest) |
+| STALE_CONTEXT_FINDINGS | NOT_MEASURED (second-connect comparison not yet executed) |
 | MISSING_CONTEXT_FINDINGS | architecture depth; coverage_absent categories; 272 failed sources |
 | OBSIDIAN_USEFULNESS | USEFUL (same brief projection) |
 | WEB_USEFULNESS | USEFUL (one-minute Knowledge + Truth panel) |
@@ -61,7 +61,14 @@ Why not full PASS: Atlas now understands/connects the real repo, Web/Obsidian/CL
 3. Architecture lens from plan.md / AGENTS (not README echo)
 4. Keep ATLAS_OPT_WAKE_GATE CLOSED
 
-## Non-claims
-- ATLAS_OPT_WAKE_GATE: CLOSED
-- CODEX_VALIDATED: NO
-- DEMO_FIXTURE != AUTHENTIC_PILOT
+## Non-claims / truth-boundary stamps
+
+```
+DEMO_FIXTURE != AUTHENTIC_PILOT
+DEMO != RELEASE
+UI != CANONICAL_TRUTH
+MODEL_OUTPUT != AUTHORITY
+CODEX_VALIDATED = NO
+EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
+ATLAS_OPT_WAKE_GATE = CLOSED
+```
