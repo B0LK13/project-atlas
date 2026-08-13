@@ -363,4 +363,6 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-001 Human decisions → Truth Core
 - [x] AS-CODER-ALPHA-WEB-001 Web Knowledge UX on Core
 - [x] AS-CODER-ALPHA-TRUTH-UX-001 Evidence/conflict/UNKNOWN inspection
+- [x] AS-CODER-ALPHA-ARCH-001 Architecture summary from plan/AGENTS (≠ purpose echo)
+- [x] AS-CODER-ALPHA-CHANGED-002 Second-connect What Changed / stale-context measure
 

@@ -5537,3 +5537,22 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Overview README authority ranking prefers root README/AGENTS/plan over deps/apps nests
 - Brief tech_stack falls back to root pyproject.toml requires-python + deps
 - Connect excludes deps/** and advance-005/**
+
+## D-039 — ARCH-001 + CHANGED-002
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-039 (post D-038 critical path)
+**Branch:** cursor/coder-alpha-039-arch-changed-d039
+
+### Packages
+- AS-CODER-ALPHA-ARCH-001: architecture_summary from plan.md/AGENTS (never purpose echo)
+- AS-CODER-ALPHA-CHANGED-002: second-connect probe measured STALE_CONTEXT_FINDINGS=0 (rollup=unchanged)
+
+### Explicit non-claims
+- DEMO_FIXTURE != AUTHENTIC_PILOT
+- DEMO != RELEASE
+- UI != CANONICAL_TRUTH
+- MODEL_OUTPUT != AUTHORITY
+- CODEX_VALIDATED = NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
+- ATLAS_OPT_WAKE_GATE = CLOSED
