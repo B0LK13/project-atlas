@@ -93,6 +93,29 @@ def _project_id(path: Path, root: Path) -> str | None:
     return _project_context(path, root)[0]
 
 
+def _compatibility_source_id(
+    *,
+    canonical_relative: str,
+    project_id: str | None,
+    root: Path,
+) -> str:
+    """Mint a vault-unique compatibility ``source_id`` (D-050 R3).
+
+    Path-only IDs collide when multiple project roots share a vault and the same
+    relative paths (``README.md``). Scope by governed ``project.id`` when the
+    marker is present; otherwise by a stable fingerprint of the discover root.
+    Durable lineage remains ``source_lineage_id`` (project UUID + path + SHA).
+    """
+    if isinstance(project_id, str) and project_id.strip():
+        material = f"project:{project_id.strip()}|{canonical_relative}"
+    else:
+        root_fp = hashlib.sha256(
+            root.resolve().as_posix().casefold().encode("utf-8")
+        ).hexdigest()[:16]
+        material = f"root:{root_fp}|{canonical_relative}"
+    return "source-" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
 def _excluded(relative: str, path: Path, *, excludes: list[str]) -> str | None:
     if any(part in DEFAULT_EXCLUDES for part in PurePosixPath(relative).parts):
         return "default-excluded-directory"
@@ -171,10 +194,14 @@ def discover(
         if reason is None and stat.st_size > max_file_size:
             reason = "oversized"
         canonical_relative = canonicalize_project_path(relative)
-        source_id = "source-" + hashlib.sha256(canonical_relative.encode("utf-8")).hexdigest()[:16]
         digest = None if reason == "sensitive-metadata-only" else _sha256(path)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
         project_id, project_uuid = _project_context(path, root)
+        source_id = _compatibility_source_id(
+            canonical_relative=canonical_relative,
+            project_id=project_id,
+            root=root,
+        )
         source_record = SourceRecord(
             source_id=source_id,
             project_uuid=project_uuid,

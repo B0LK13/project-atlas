@@ -12,6 +12,7 @@ claim AUTHENTIC_PILOT / RELEASE. Deterministic receipts omit wall-clock times
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -36,6 +37,7 @@ GENERATOR_ID = "atlas-coder-alpha-connect-001"
 DEFAULT_VAULT_DIRNAME = ".atlas-vault"
 BIND_RELATIVE = Path(".atlas") / "connect.json"
 MANIFEST_RELATIVE = Path("generated") / "ops" / "connect-manifest.json"
+STAGING_MANIFEST_RELATIVE = Path("generated") / "ops" / ".connect-manifest.staging.json"
 RECEIPT_RELATIVE = Path("generated") / "ops" / "connect-receipt.json"
 
 # Defense-in-depth globs (DEFAULT_EXCLUDES already drops `.atlas-vault` / `.atlas`
@@ -69,13 +71,30 @@ def _yaml_scalar(value: str) -> str:
     return value
 
 
-def project_slug_from_dirname(name: str) -> str:
-    """Derive a safe ``project.id`` slug from a directory name (AT-013 / D-044).
+def root_identity_fingerprint(project_root: Path) -> str:
+    """Stable 8-hex disambiguator for a canonical project root (D-050 R2).
+
+    Derived from the resolved, casefolded POSIX path so the same physical root
+    reconnects to the same auto-generated project.id across process restarts
+    without depending on discovery order. Distinct roots stay distinct even
+    when display-name normalization is lossy (``Foo Bar`` vs ``Foo_Bar``).
+    """
+    canon = project_root.expanduser().resolve().as_posix().casefold()
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:8]
+
+
+def project_slug_from_dirname(name: str, *, project_root: Path | None = None) -> str:
+    """Derive a safe ``project.id`` slug from a directory name (AT-013 / D-044/D-050).
 
     Must satisfy domain ``ID_PATTERN`` (ASCII ``[A-Za-z0-9._-]``). Non-ASCII
     directory names keep collision resistance via a deterministic content hash
     while the original dirname remains display ``project.name`` in the marker.
     Unicode letters are casefolded before ASCII extraction (Windows FS honesty).
+
+    When ``project_root`` is provided (connect auto-marker path), a stable root
+    fingerprint is appended so lossy slug normalization cannot silently collide
+    distinct project roots (D-050 R2). Existing explicit markers are never
+    rewritten by this helper.
     """
     raw = unicodedata.normalize("NFKC", (name or "").strip())
     folded = raw.casefold()
@@ -100,12 +119,17 @@ def project_slug_from_dirname(name: str) -> str:
         slug = ascii_slug
     else:
         slug = f"project-{digest}"
+    if project_root is not None:
+        slug = f"{slug}-{root_identity_fingerprint(project_root)}"
     if slug[0].isdigit():
         slug = f"p-{slug}"
     slug = safe_relative_component(slug, label="project.id")
     if not re.fullmatch(ID_PATTERN, slug):
         # Defence in depth — never emit a slug ingestion cannot accept.
-        slug = f"project-{digest}"
+        fallback = digest
+        if project_root is not None:
+            fallback = f"{digest}{root_identity_fingerprint(project_root)}"
+        slug = f"project-{fallback}"
     return slug
 
 
@@ -220,7 +244,7 @@ def _ensure_project_marker(project_root: Path) -> bool:
         if (project_root / name).is_file():
             return False
     display = project_root.name.strip() or "project"
-    project_id = project_slug_from_dirname(display)
+    project_id = project_slug_from_dirname(display, project_root=project_root)
     content = (
         "schema_version: 1\n"
         "project:\n"
@@ -522,7 +546,31 @@ def connect_project(
     report["marker_created"] = _ensure_project_marker(project_root)
 
     manifest_path = vault_path / MANIFEST_RELATIVE
+    staging_manifest = vault_path / STAGING_MANIFEST_RELATIVE
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    # D-050 R4: never mutate the committed connect-manifest until the full
+    # connect candidate is validated. Failed sibling connects must leave prior
+    # ownership / quarantine evidence intact.
+    prior_manifest: bytes | None = None
+    if manifest_path.is_file():
+        try:
+            prior_manifest = manifest_path.read_bytes()
+        except OSError:
+            prior_manifest = None
+    manifest_committed = False
+
+    def _discard_staging() -> None:
+        with contextlib.suppress(OSError):
+            staging_manifest.unlink(missing_ok=True)
+
+    def _restore_committed_manifest() -> None:
+        """Restore pre-connect manifest bytes after a post-commit failure."""
+        if prior_manifest is None:
+            with contextlib.suppress(OSError):
+                manifest_path.unlink(missing_ok=True)
+            return
+        with contextlib.suppress(OSError):
+            _write_atomic(manifest_path, prior_manifest)
 
     try:
         manifest = discover(
@@ -530,11 +578,11 @@ def connect_project(
             excludes=merged_excludes,
             max_file_size=max_file_size,
         )
-        write_manifest(manifest, manifest_path)
+        write_manifest(manifest, staging_manifest)
         report["documents_discovered"] = _active_source_count(manifest)
 
         ingest(
-            manifest_path,
+            staging_manifest,
             vault_path,
             authorized_source_root=project_root,
         )
@@ -544,11 +592,11 @@ def connect_project(
             excludes=merged_excludes,
             max_file_size=max_file_size,
         )
-        write_manifest(manifest, manifest_path)
+        write_manifest(manifest, staging_manifest)
         report["documents_discovered"] = _active_source_count(manifest)
 
         second = ingest(
-            manifest_path,
+            staging_manifest,
             vault_path,
             authorized_source_root=project_root,
         )
@@ -559,6 +607,13 @@ def connect_project(
             run_build_portfolio(vault_path)
         if not skip_validate:
             validate(vault_path)
+
+        # Commit ownership/manifest only after ingest+validate succeeded.
+        staging_bytes = staging_manifest.read_bytes()
+        _write_atomic(manifest_path, staging_bytes)
+        manifest_committed = True
+        _discard_staging()
+
         # Coder Alpha derived lenses for Knowledge/Ask-live + project brief.
         from project_atlas.overview import materialize_overview_lenses
         from project_atlas.project_architecture import materialize_architecture_lenses
@@ -579,7 +634,15 @@ def connect_project(
         from project_atlas.obsidian_projection import materialize_obsidian_projection
 
         obsidian = materialize_obsidian_projection(vault_path, refresh_brief=False)
+    except ConnectError:
+        _discard_staging()
+        if manifest_committed:
+            _restore_committed_manifest()
+        raise
     except (OSError, ValueError, KeyError, TypeError) as exc:
+        _discard_staging()
+        if manifest_committed:
+            _restore_committed_manifest()
         raise ConnectError(str(exc)) from exc
 
     report["documents_ingested"] = int(second.get("documents_ingested", 0))
@@ -604,16 +667,20 @@ def connect_project(
     vault_projects = list(report["projects"] or [])
     if primary is None and len(vault_projects) == 1:
         primary = vault_projects[0]
-    bind_path = _write_bind(
-        project_root,
-        vault_path,
-        str(report["vault_id"] or ""),
-        project_ids=vault_projects,
-        primary_project_id=primary,
-    )
-    report["bind_path"] = bind_path.as_posix()
-    report["bound_project_id"] = primary
-    receipt_path = _write_receipt(vault_path, report)
-    report["receipt_path"] = receipt_path.as_posix()
+    try:
+        bind_path = _write_bind(
+            project_root,
+            vault_path,
+            str(report["vault_id"] or ""),
+            project_ids=vault_projects,
+            primary_project_id=primary,
+        )
+        report["bind_path"] = bind_path.as_posix()
+        report["bound_project_id"] = primary
+        receipt_path = _write_receipt(vault_path, report)
+        report["receipt_path"] = receipt_path.as_posix()
+    except (OSError, ValueError, TypeError) as exc:
+        _restore_committed_manifest()
+        raise ConnectError(str(exc)) from exc
     report["status"] = "connected"
     return report

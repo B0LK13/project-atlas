@@ -64,13 +64,15 @@ def test_plan_agents_claude_fill_structured_architecture_slots(tmp_path: Path) -
         encoding="utf-8",
     )
 
-    vault = Path(connect_project(root)["vault"])
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     lens = json.loads(
-        (vault / "generated" / "answers" / "ans-architecture-atlas-arch.json").read_text(
+        (vault / "generated" / "answers" / f"ans-architecture-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
-    brief = build_project_brief(vault, "atlas-arch", refresh=False)
+    brief = build_project_brief(vault, project_id, refresh=False)
 
     assert lens["status"] == "derived"
     assert lens["package"] == "AS-CODER-ALPHA-ARCH-002"
@@ -109,9 +111,11 @@ def test_layer_meanings_come_from_source_not_hardcoded_atlas(tmp_path: Path) -> 
         "## Layer C - Persistence\n\nDatabase and object storage.\n",
         encoding="utf-8",
     )
-    vault = Path(connect_project(root)["vault"])
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     lens = json.loads(
-        (vault / "generated" / "answers" / "ans-architecture-layer-other.json").read_text(
+        (vault / "generated" / "answers" / f"ans-architecture-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -148,10 +152,12 @@ def test_demo_architecture_and_filename_cli_not_surface_authority(tmp_path: Path
         "- `cli.py` — argparse entry only; no surface prose here.\n",
         encoding="utf-8",
     )
-    vault = Path(connect_project(root)["vault"])
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     lens = json.loads(
         (
-            vault / "generated" / "answers" / "ans-architecture-arch-demo-noise.json"
+            vault / "generated" / "answers" / f"ans-architecture-{project_id}.json"
         ).read_text(encoding="utf-8")
     )
     assert "docs/demo/ARCHITECTURE.md" not in (lens.get("evidence") or [])
@@ -169,16 +175,18 @@ def test_readme_only_keeps_architecture_unknown(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    vault = Path(connect_project(root)["vault"])
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     lens = json.loads(
         (
             vault
             / "generated"
             / "answers"
-            / "ans-architecture-readme-only-arch.json"
+            / f"ans-architecture-{project_id}.json"
         ).read_text(encoding="utf-8")
     )
-    brief = build_project_brief(vault, "readme-only-arch", refresh=False)
+    brief = build_project_brief(vault, project_id, refresh=False)
 
     assert lens["status"] == "unknown"
     assert lens["summary"] is None

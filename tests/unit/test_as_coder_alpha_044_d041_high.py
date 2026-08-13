@@ -420,11 +420,13 @@ def test_architecture_coverage_not_present_when_lens_unknown(tmp_path: Path) -> 
     (root / "ARCHITECTURE.md").write_text(
         "# Architecture\n\nNo extractable Core module table.\n", encoding="utf-8"
     )
-    vault = Path(connect_project(root)["vault"])
-    lens = build_architecture_lens(vault, "arch-cov")
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
+    lens = build_architecture_lens(vault, project_id)
     # First connect write must already reconcile (architecture before overview).
     overview = json.loads(
-        (vault / "generated" / "answers" / "ans-overview-arch-cov.json").read_text(
+        (vault / "generated" / "answers" / f"ans-overview-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -445,8 +447,10 @@ def test_brief_pending_matches_unknown_after_decide(tmp_path: Path) -> None:
         "# Pend Loop\n\nPurpose.\n\n## Stack\n\nPython.\n",
         encoding="utf-8",
     )
-    vault = Path(connect_project(root)["vault"])
-    pending_path = vault / "review" / "pending" / "pend-loop.json"
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
+    pending_path = vault / "review" / "pending" / f"{project_id}.json"
     pending_path.parent.mkdir(parents=True, exist_ok=True)
     _write(
         pending_path,
@@ -470,27 +474,27 @@ def test_brief_pending_matches_unknown_after_decide(tmp_path: Path) -> None:
         },
     )
     # Stale knowledge-status would previously resurrect decided pending counts.
-    status = vault / "projects" / "pend-loop" / "knowledge-status.md"
+    status = vault / "projects" / project_id / "knowledge-status.md"
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(
         "| Signal | Count |\n| --- | --- |\n| claims awaiting review | 9 |\n",
         encoding="utf-8",
     )
-    before_unknown = build_unknown_lens(vault, "pend-loop")
-    before_state = build_state_lens(vault, "pend-loop")
+    before_unknown = build_unknown_lens(vault, project_id)
+    before_state = build_state_lens(vault, project_id)
     before_n = int((before_unknown.get("signals") or {}).get("pending_reviews") or 0)
     assert before_n == 2
     assert int((before_state.get("signals") or {}).get("pending_reviews") or 0) == 2
     apply_review_decision(
         vault,
-        project_id="pend-loop",
+        project_id=project_id,
         review_id="review-d044-1",
         decision="accept",
         reason="Owner verified for D-044 consistency",
     )
-    unknown = build_unknown_lens(vault, "pend-loop")
-    state = build_state_lens(vault, "pend-loop")
-    brief = build_project_brief(vault, "pend-loop", refresh=False)
+    unknown = build_unknown_lens(vault, project_id)
+    state = build_state_lens(vault, project_id)
+    brief = build_project_brief(vault, project_id, refresh=False)
     after_n = int((unknown.get("signals") or {}).get("pending_reviews") or 0)
     assert after_n == 1
     assert int((state.get("signals") or {}).get("pending_reviews") or 0) == 1

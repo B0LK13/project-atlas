@@ -79,7 +79,7 @@ def test_connect_dry_run_reports_plan_without_writes(tmp_path: Path) -> None:
 
 def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
     project = _seed_project(tmp_path / "my-cool-app")
-    expected_id = project_slug_from_dirname(project.name)
+    expected_id = project_slug_from_dirname(project.name, project_root=project)
     first = connect_project(project)
     assert first["status"] == "connected"
     assert first["documents_ingested"] >= 1

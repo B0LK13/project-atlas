@@ -5630,6 +5630,24 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Local Windows stranger revalidation required before PASS
 - AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 after correctness proof
 
+## D-050 / D-052 — Residual HIGH remediation batch for #345
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-052
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+
+### Local D-050 input consumed (exact tip 8a58db8)
+- R2 slug collision FAIL → collision-safe project.id via root fingerprint
+- R3 shared-vault source identity FAIL → project-scoped compatibility source_id
+- R4 failed-connect manifest mutation FAIL → staging manifest + commit-on-success
+- R5 generic ARCHITECTURE.md extraction FAIL → heading-based slot capture + data_stores
+
+### Gates held
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL`
+- `D_049_EXECUTION_GATE = CLOSED`
+- `D_042_EXECUTION_GATE = CLOSED`
+- Local revalidation only after one frozen remediation HEAD
+
 ## D-047 — Cloud closeout / Local-IV coordination for #345
 
 **Date:** 2026-08-13
