@@ -47,6 +47,10 @@ _CONNECT_EXCLUDES = [
     "fixtures/**",
     "**/fixtures/**",
     "tests/fixtures/**",
+    # Nested package / vendor trees pollute root-project overview purpose.
+    "deps/**",
+    "advance-005/**",
+    "coverage.xml",
 ]
 
 _SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")

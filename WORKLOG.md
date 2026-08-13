@@ -5532,3 +5532,8 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - ATLAS_OPT_WAKE_GATE: CLOSED
 - UI != canonical; confidence_theatre=false
 - CODEX_VALIDATED: NO
+
+### Follow-up remediation (same branch)
+- Overview README authority ranking prefers root README/AGENTS/plan over deps/apps nests
+- Brief tech_stack falls back to root pyproject.toml requires-python + deps
+- Connect excludes deps/** and advance-005/**

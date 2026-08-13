@@ -72,28 +72,94 @@ def _field(lens: dict[str, Any] | None, key: str = "summary") -> str | None:
     return None
 
 
-def _extract_stack_blurb(vault: Path, project_id: str) -> str | None:
-    """Best-effort Stack section from imported README evidence only."""
+def _manifest_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
     manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
     if not manifest_path.is_file():
-        return None
+        return []
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
-        return None
+        return []
     rows = manifest.get("sources") if isinstance(manifest, dict) else None
     if not isinstance(rows, list):
-        return None
+        return []
+    selected: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict) or row.get("exclusion_reason"):
             continue
         likely = str(row.get("likely_project") or "unknown-project")
         if likely not in {project_id, "unknown-project"}:
             continue
-        path = str(row.get("path") or "")
+        selected.append(row)
+    return selected
+
+
+def _stack_from_pyproject(vault: Path, project_id: str) -> str | None:
+    """Derive a concrete stack label from root ``pyproject.toml`` when present."""
+    for row in _manifest_source_rows(vault, project_id):
+        path = str(row.get("path") or "").replace("\\", "/")
         source_id = str(row.get("source_id") or "")
+        if path.lower() != "pyproject.toml" or not source_id:
+            continue
+        imported = vault / "sources" / "imported-documents" / f"{source_id}.md"
+        # toml may be stored as imported document text
+        if not imported.is_file():
+            # some ingests keep original extension via adjacent path; try basename
+            alt = vault / "sources" / "imported-documents" / f"{source_id}.toml"
+            imported = alt if alt.is_file() else imported
+        if not imported.is_file():
+            continue
+        try:
+            text = imported.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        requires = None
+        deps: list[str] = []
+        in_deps = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("requires-python"):
+                requires = stripped.split("=", 1)[-1].strip().strip('"').strip("'")
+            if stripped.startswith("dependencies"):
+                in_deps = True
+                continue
+            if in_deps:
+                if stripped.startswith("["):
+                    in_deps = False
+                    continue
+                if stripped.startswith("]"):
+                    in_deps = False
+                    continue
+                token = stripped.strip(",").strip('"').strip("'")
+                if token and not token.startswith("#"):
+                    name = token.split(">=")[0].split("==")[0].split("[")[0].strip()
+                    if name:
+                        deps.append(name)
+        parts: list[str] = []
+        if requires:
+            parts.append(f"Python {requires}")
+        if deps:
+            parts.append(", ".join(deps[:6]))
+        if parts:
+            return " · ".join(parts)[:240]
+    return None
+
+
+def _extract_stack_blurb(vault: Path, project_id: str) -> str | None:
+    """Best-effort stack from README ## Stack, else root pyproject.toml."""
+    readme_rows: list[tuple[int, dict[str, Any]]] = []
+    for row in _manifest_source_rows(vault, project_id):
+        path = str(row.get("path") or "").replace("\\", "/")
         if Path(path).name.lower() not in {"readme.md", "readme.txt", "readme"}:
             continue
+        depth = path.count("/")
+        # Prefer root README over nested package READMEs.
+        priority = 0 if depth == 0 else 1 + depth
+        if path.startswith(("deps/", "apps/", "integrations/")):
+            priority += 10
+        readme_rows.append((priority, row))
+    for _priority, row in sorted(readme_rows, key=lambda item: item[0]):
+        source_id = str(row.get("source_id") or "")
         if not source_id:
             continue
         imported = vault / "sources" / "imported-documents" / f"{source_id}.md"
@@ -117,7 +183,7 @@ def _extract_stack_blurb(vault: Path, project_id: str) -> str | None:
                 buf.append(stripped)
         if buf:
             return " ".join(buf)[:240]
-    return None
+    return _stack_from_pyproject(vault, project_id)
 
 
 def build_project_brief(

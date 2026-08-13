@@ -103,6 +103,31 @@ def _first_prose_blurb(markdown: str, *, max_chars: int = 480) -> str | None:
     return text
 
 
+def _source_authority_rank(path: str) -> tuple[int, int, str]:
+    """Prefer project-root identity docs over nested package READMEs (D-038).
+
+    Lower tuple sorts first. Root README/AGENTS/plan beat deps/apps nests so
+    monorepo dogfood does not describe Atlas as a nested research package.
+    """
+    posix = path.replace("\\", "/").lstrip("./")
+    name = Path(posix).name.lower()
+    depth = posix.count("/")
+    if posix.lower() in {"readme.md", "readme.txt", "readme"}:
+        return (0, 0, posix)
+    if posix.lower() in {"agents.md", "claude.md"}:
+        return (0, 1, posix)
+    if posix.lower() in {"docs/plan.md", "docs/prp.md", "docs/product/coder-alpha-north-star.md"}:
+        return (0, 2, posix)
+    if name in {"readme.md", "readme.txt", "readme"}:
+        # Deprioritize vendored / nested package READMEs.
+        if posix.startswith(("deps/", "node_modules/", "apps/", "integrations/")):
+            return (3, depth, posix)
+        return (1, depth, posix)
+    if name in {"agents.md", "plan.md", "prp.md"}:
+        return (2, depth, posix)
+    return (9, depth, posix)
+
+
 def _readme_blurb(vault: Path, semantic: dict[str, Any] | None) -> tuple[str | None, list[str]]:
     inspected: list[str] = []
     if not isinstance(semantic, dict):
@@ -110,6 +135,7 @@ def _readme_blurb(vault: Path, semantic: dict[str, Any] | None) -> tuple[str | N
     sources = semantic.get("sources")
     if not isinstance(sources, list):
         return None, inspected
+    candidates: list[tuple[tuple[int, int, str], str, str]] = []
     for row in sources:
         if not isinstance(row, dict):
             continue
@@ -117,8 +143,11 @@ def _readme_blurb(vault: Path, semantic: dict[str, Any] | None) -> tuple[str | N
         source_id = str(row.get("source_id") or "")
         if not path or not source_id:
             continue
-        if Path(path).name.lower() not in {"readme.md", "readme.txt", "readme"}:
+        rank = _source_authority_rank(path)
+        if rank[0] >= 9:
             continue
+        candidates.append((rank, path, source_id))
+    for _rank, path, source_id in sorted(candidates, key=lambda item: item[0]):
         imported = vault / "sources" / "imported-documents" / f"{source_id}.md"
         inspected.append(imported.relative_to(vault).as_posix())
         if not imported.is_file():
@@ -129,6 +158,7 @@ def _readme_blurb(vault: Path, semantic: dict[str, Any] | None) -> tuple[str | N
             continue
         blurb = _first_prose_blurb(text)
         if blurb:
+            inspected.append(f"selected:{path}")
             return blurb, inspected
     return None, inspected
 

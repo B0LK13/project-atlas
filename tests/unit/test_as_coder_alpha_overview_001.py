@@ -42,6 +42,54 @@ def test_overview_materializes_after_connect_and_matches_ask_live(tmp_path: Path
     assert any(row.get("answer_id") == "ans-overview-harbor-portal" for row in knowledge)
 
 
+def test_overview_prefers_root_readme_over_nested(tmp_path: Path) -> None:
+    """D-038 dogfood: nested package READMEs must not win purpose/overview."""
+    vault = tmp_path / "vault"
+    project_id = "project-atlas"
+    note = vault / "projects" / project_id / "project.md"
+    note.parent.mkdir(parents=True)
+    sources = [
+        {
+            "path": "deps/README.md",
+            "source_id": "source-deps",
+        },
+        {
+            "path": "apps/web/README.md",
+            "source_id": "source-web",
+        },
+        {
+            "path": "README.md",
+            "source_id": "source-root",
+        },
+    ]
+    note.write_text(
+        "---\ntype: Project\ntitle: project-atlas\n---\n\n# project-atlas\n\n"
+        "<!-- atlas:generated:start -->\n## Semantic record\n\n```json\n"
+        + json.dumps({"project_id": project_id, "sources": sources, "coverage": []})
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    imported = vault / "sources" / "imported-documents"
+    imported.mkdir(parents=True)
+    (imported / "source-deps.md").write_text(
+        "# Research workspace\n\nNested deps package only.\n",
+        encoding="utf-8",
+    )
+    (imported / "source-web.md").write_text(
+        "# Web shell\n\nFrontend package README.\n",
+        encoding="utf-8",
+    )
+    (imported / "source-root.md").write_text(
+        "# Project Atlas\n\nPersistent brain for AI-native projects.\n",
+        encoding="utf-8",
+    )
+    lens = build_overview_lens(vault, project_id)
+    assert lens["status"] == "derived"
+    assert "Project Atlas" in (lens["value"] or "")
+    assert "Research workspace" not in (lens["value"] or "")
+    assert any(item.endswith("selected:README.md") for item in lens["inspected_artifacts"])
+
+
 def test_overview_unknown_without_readme_prose(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     project_id = "empty-proj"
