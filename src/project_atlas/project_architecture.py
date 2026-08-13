@@ -709,6 +709,21 @@ def build_architecture_lens(vault: Path, project_id: str) -> dict[str, Any]:
         slot: _join(collected[slot], max_chars=_SLOT_MAX_CHARS) or _UNKNOWN
         for slot in ARCHITECTURE_SLOTS
     }
+    # Deduplicate Core module identifiers across AGENTS/CLAUDE merges.
+    if slots.get("major_components") not in {None, _UNKNOWN}:
+        modules: list[str] = []
+        seen_mod: set[str] = set()
+        for match in _BARE_PY_MODULE_RE.finditer(slots["major_components"]):
+            name = match.group(0)
+            if not _is_package_module(name):
+                continue
+            key = name.lower()
+            if key in seen_mod:
+                continue
+            seen_mod.add(key)
+            modules.append(name)
+        if modules:
+            slots["major_components"] = "Core package modules: " + ", ".join(modules[:12])
     summary = _render_summary(slots)
     status = "derived" if summary else "unknown"
 

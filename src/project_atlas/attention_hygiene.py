@@ -329,10 +329,16 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
     rollup = str(items[0]["level"]) if items else "CLEAR"
 
     # Default presentation: 3-10 things the user should actually care about.
-    care_levels = {"BLOCKING", "ACTION_REQUIRED", "NEEDS_HUMAN_REVIEW"}
-    care_about = [item for item in items if item.get("level") in care_levels][:10]
+    # Cap BLOCKING samples so ACTION_REQUIRED / NEEDS_HUMAN_REVIEW remain visible.
+    care_about: list[dict[str, Any]] = []
+    for level, limit in (
+        ("BLOCKING", 5),
+        ("ACTION_REQUIRED", 3),
+        ("NEEDS_HUMAN_REVIEW", 2),
+    ):
+        level_items = [item for item in items if item.get("level") == level]
+        care_about.extend(level_items[:limit])
     if len(care_about) < 3:
-        # Fill remaining slots with highest-priority non-noise items.
         for item in items:
             if item in care_about:
                 continue
@@ -341,6 +347,7 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             care_about.append(item)
             if len(care_about) >= 3:
                 break
+    care_about = care_about[:10]
 
     level_counts: dict[str, int] = {}
     for item in items:

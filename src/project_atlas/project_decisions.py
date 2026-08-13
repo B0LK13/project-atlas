@@ -45,6 +45,25 @@ _SECTION_HEADER_NOISE = frozenset(
         "see also",
         "next steps",
         "changelog",
+        "cli integration",
+        "current state",
+        "dependency and capability reports",
+        "determinism",
+        "canonical-state boundary",
+        "implementation",
+        "motivation",
+        "problem",
+        "proposal",
+        "goals",
+        "non-goals",
+        "scope",
+        "out of scope",
+        "future work",
+        "open questions",
+        "security",
+        "testing",
+        "rollout",
+        "compatibility",
     }
 )
 _NON_DECISION_HINTS = (
@@ -78,15 +97,20 @@ def _is_section_header_noise(title: str) -> bool:
 
 
 def _looks_like_formal_decision(title: str, *, path: str = "") -> bool:
-    """True when title/path evidence supports a governing decision statement."""
+    """True when title evidence supports a governing decision statement.
+
+    Path alone is insufficient — ADR files contain many structural headings
+    that must not become ACTIVE_GOVERNING (D-043).
+    """
+    if _is_section_header_noise(title):
+        return False
     if _ADR_TITLE_RE.search(title):
         return True
-    path_l = path.lower()
-    if "/adr" in path_l or path_l.endswith(".adr.md") or "adr-" in Path(path_l).name:
-        # ADR body headings that are not section noise can be governing.
-        return not _is_section_header_noise(title)
     lower = title.strip().lower()
-    if lower.startswith(("decide ", "decision:", "we will ", "adopt ", "use ")):
+    # Numbered decision bullets common in ADR bodies.
+    if re.match(r"^\d+\.\s+\S+", title.strip()) and len(lower.split()) >= 4:
+        return True
+    if lower.startswith(("decide ", "decision:", "we will ", "adopt ", "use ", "prefer ")):
         return True
     if "prefer " in lower or "must " in lower or "shall " in lower:
         return len(lower.split()) >= 4
@@ -153,10 +177,13 @@ def _classify_decision_status(
             return "ACTIVE_GOVERNING"
         return "OPEN_PROPOSED"
 
-    # ADR / formal decision records.
+    # ADR / formal decision records — only ADR-titled or formal decision prose.
     if "adr" in path_l or kind == "adr-heading":
         if _looks_like_formal_decision(title, path=path):
             return "ACTIVE_GOVERNING"
+        if _is_section_header_noise(title):
+            return "NON_DECISION"
+        # Other ADR headings are structural, not governing decisions.
         return "NON_DECISION"
 
     # Project decisions note: only formal-looking titles govern.
