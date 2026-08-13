@@ -56,6 +56,14 @@ Invariant held: `DISCOVER != INGEST != TRUST != AUTHORITY`
 .venv/bin/python -m mypy src/project_atlas/estate_discovery.py src/project_atlas/web_api/discovery.py
 ```
 
+### Dogfood + independent IV (follow-up)
+
+- Bounded multi-project estate: recall 3/3, false matches 0, escapes detected/blocked, EXACT ledger match, Obsidian found, discover did not mutate vault.
+- CONFLICTING copied-UUID connect refused; Obsidian connect refused.
+- Real fixture estate `atlas-vault-documentation/tests/fixtures`: 9 projects / 5 knowledge / 0 escapes.
+- Evidence: `docs/evidence/D-049-WAVE1-DOGFOOD-IV.md`
+- Added unit coverage for CONFLICTING + Obsidian connect refusal.
+
 ## D-057 — Copied project_uuid identity corruption
 
 **Date:** 2026-08-13

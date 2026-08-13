@@ -11,6 +11,7 @@ import pytest
 from project_atlas.cli import main
 from project_atlas.estate_discovery import (
     EstateDiscoveryError,
+    connect_discovered_candidate,
     discover_estate,
     match_fingerprint,
     refuse_dangerous_authorized_root,
@@ -267,3 +268,66 @@ def test_discover_does_not_ingest(tmp_path: Path) -> None:
     vault.mkdir()
     discover_estate(tmp_path / "estate", vault=vault)
     assert list(vault.iterdir()) == [] or not (vault / "projects").exists()
+
+
+def test_conflicting_candidate_connect_refused(tmp_path: Path) -> None:
+    """Lane C: copied UUID + different project.id must not silently unify."""
+    estate = tmp_path / "estate"
+    owner = estate / "owner"
+    impostor = estate / "impostor"
+    uuid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    _write(
+        owner / ".atlas-project.yaml",
+        f"project:\n  id: owner\nproject_uuid: {uuid}\n",
+    )
+    _write(owner / "README.md", "# owner\n")
+    (owner / ".git").mkdir(parents=True)
+    _write(
+        impostor / ".atlas-project.yaml",
+        f"project:\n  id: impostor\nproject_uuid: {uuid}\n",
+    )
+    _write(impostor / "README.md", "# impostor\n")
+    (impostor / ".git").mkdir(parents=True)
+
+    vault = tmp_path / "vault"
+    (vault / "projects" / "owner").mkdir(parents=True)
+    _write(
+        vault / "projects" / "owner" / "project.md",
+        f"---\nproject_uuid: {uuid}\n---\n",
+    )
+    _write(
+        vault / "generated" / "ops" / "project-uuid-allocations.json",
+        json.dumps({"allocations": {uuid: {"project_id": "owner"}}}),
+    )
+
+    report = discover_estate(estate, vault=vault)
+    conflict = [
+        p
+        for p in report["candidates"]["projects"]
+        if Path(p["path"]).name == "impostor"
+    ]
+    assert conflict, "impostor candidate missing"
+    assert conflict[0]["match_state"] == "CONFLICTING"
+    assert conflict[0]["required_review"] is True
+    with pytest.raises(EstateDiscoveryError, match="CONFLICTING"):
+        connect_discovered_candidate(
+            report, conflict[0]["candidate_id"], vault=vault, dry_run=True
+        )
+
+
+def test_obsidian_connect_refused_without_policy(tmp_path: Path) -> None:
+    estate = tmp_path / "estate" / "notes"
+    (estate / ".obsidian").mkdir(parents=True)
+    _write(estate / ".obsidian" / "app.json", "{}\n")
+    _write(estate / "a.md", "a\n")
+    _write(estate / "b.md", "b\n")
+    _write(estate / "c.md", "c\n")
+    report = discover_estate(tmp_path / "estate")
+    obs = [
+        k
+        for k in report["candidates"]["knowledge"]
+        if k.get("kind") == "obsidian_vault"
+    ]
+    assert obs
+    with pytest.raises(EstateDiscoveryError, match="non-project"):
+        connect_discovered_candidate(report, obs[0]["candidate_id"], dry_run=True)
