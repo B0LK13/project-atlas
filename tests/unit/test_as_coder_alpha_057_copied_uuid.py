@@ -194,6 +194,30 @@ def test_j_k_r2_r3_regressions_still_pass(tmp_path: Path) -> None:
     )
 
 
+def test_deleted_allocation_receipt_still_blocks_copied_uuid(tmp_path: Path) -> None:
+    """Receipt deletion must not reopen UUID coalescing via durable lineage."""
+    shared = tmp_path / "vault"
+    alpha = tmp_path / "alpha-receiptless"
+    sibling = tmp_path / "sibling-receiptless"
+    alpha.mkdir()
+    sibling.mkdir()
+    _write(alpha / "README.md", "# Alpha\n\nalpha-body\n")
+    connect_project(alpha, vault=shared)
+    uuid = yaml.safe_load((alpha / ".atlas-project.yaml").read_text(encoding="utf-8"))[
+        "project_uuid"
+    ]
+    receipt = next(
+        (shared / "receipts" / "source-lineage").glob("project-*-allocation.json")
+    )
+    receipt.unlink()
+    registry_before = (shared / "state" / "sources.json").read_bytes()
+    _marker(sibling, "sibling-receiptless", uuid)
+    _write(sibling / "README.md", "# Sibling\n\nsibling-body\n")
+    with pytest.raises(ConnectError, match="PROJECT_IDENTITY_CONFLICT"):
+        connect_project(sibling, vault=shared)
+    assert (shared / "state" / "sources.json").read_bytes() == registry_before
+
+
 def test_malformed_yaml_marker_controlled_error(tmp_path: Path) -> None:
     root = tmp_path / "bad-marker"
     root.mkdir()

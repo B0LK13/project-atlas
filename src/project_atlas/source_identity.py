@@ -215,7 +215,7 @@ def load_allocation_uuid_owners(vault: Path) -> dict[str, str]:
     """Return ``project_uuid → project.id`` from durable allocation receipts.
 
     D-057: receipts are the canonical one-owner registry for UUID cardinality.
-    Conflicting receipts for the same UUID raise immediately.
+    Conflicting or unreadable allocation receipts fail closed.
     """
     owners: dict[str, str] = {}
     receipt_dir = vault.expanduser().resolve() / "receipts" / "source-lineage"
@@ -224,22 +224,31 @@ def load_allocation_uuid_owners(vault: Path) -> dict[str, str]:
     for path in sorted(receipt_dir.glob("project-*-allocation.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            continue
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: unreadable allocation receipt: "
+                f"{path.name}"
+            ) from exc
         if not isinstance(payload, dict):
-            continue
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: invalid allocation receipt: "
+                f"{path.name}"
+            )
         if payload.get("receipt_type") != "project-identity-allocation":
             continue
         project = payload.get("project")
         raw_uuid = payload.get("project_uuid")
         if not isinstance(project, str) or not project.strip():
-            continue
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: allocation receipt missing project: "
+                f"{path.name}"
+            )
         if not isinstance(raw_uuid, str) or not raw_uuid.strip():
-            continue
-        try:
-            project_uuid = validate_project_uuid(raw_uuid.strip())
-        except ValueError:
-            continue
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: allocation receipt missing project_uuid: "
+                f"{path.name}"
+            )
+        project_uuid = validate_project_uuid(raw_uuid.strip())
         owner = project.strip()
         existing = owners.get(project_uuid)
         if existing is not None and existing != owner:
@@ -272,6 +281,8 @@ def assert_project_uuid_one_owner(
     project_identity: dict[str, str],
     *,
     planned_receipts: dict[str, str] | None = None,
+    previous_registry: list[dict[str, object]] | None = None,
+    incoming_source_ids: dict[str, set[str]] | None = None,
 ) -> None:
     """Fail closed when UUID↔project.id cardinality is violated (D-057).
 
@@ -282,6 +293,10 @@ def assert_project_uuid_one_owner(
 
     ``planned_receipts`` maps ``project.id → project_uuid`` for receipts in the
     current write plan (not yet on disk).
+
+    When allocation receipts are missing, durable lineage in
+    ``previous_registry`` still blocks a new project.id from claiming a UUID
+    unless incoming ``source_id``s already continue under that UUID.
     """
     by_uuid: dict[str, list[str]] = {}
     for project, project_uuid in project_identity.items():
@@ -302,6 +317,26 @@ def assert_project_uuid_one_owner(
 
     uuid_owners = load_allocation_uuid_owners(vault)
     id_owners = load_allocation_project_uuids(vault)
+
+    registry_source_ids: dict[str, set[str]] = {}
+    for item in previous_registry or []:
+        raw_uuid = item.get("canonical_project_id")
+        source_id = item.get("source_id")
+        if not isinstance(raw_uuid, str) or not isinstance(source_id, str):
+            continue
+        try:
+            registry_uuid = validate_project_uuid(raw_uuid)
+        except ValueError:
+            continue
+        registry_source_ids.setdefault(registry_uuid, set()).add(source_id)
+
+    def _lineage_blocks_new_claim(project: str, project_uuid: str) -> bool:
+        prior_ids = registry_source_ids.get(project_uuid) or set()
+        if not prior_ids:
+            return False
+        incoming = (incoming_source_ids or {}).get(project) or set()
+        return not bool(incoming & prior_ids)
+
     for project, project_uuid in (planned_receipts or {}).items():
         existing_uuid_owner = uuid_owners.get(project_uuid)
         if existing_uuid_owner is not None and existing_uuid_owner != project:
@@ -318,6 +353,15 @@ def assert_project_uuid_one_owner(
                 f"project_id={project} "
                 f"existing_project_uuid={existing_id_uuid} "
                 f"incoming_project_uuid={project_uuid}"
+            )
+        # Planned receipt must not steal a UUID that already has durable lineage
+        # under a different continuity set (deleted-receipt bypass).
+        if existing_uuid_owner is None and _lineage_blocks_new_claim(project, project_uuid):
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project_uuid={project_uuid} "
+                "existing_project_id=(durable-lineage) "
+                f"incoming_project_id={project}"
             )
         uuid_owners[project_uuid] = project
         id_owners[project] = project_uuid
@@ -338,6 +382,15 @@ def assert_project_uuid_one_owner(
                 f"project_id={project} "
                 f"existing_project_uuid={prior_uuid} "
                 f"incoming_project_uuid={project_uuid}"
+            )
+        if claimed_owner is None and prior_uuid is None and _lineage_blocks_new_claim(
+            project, project_uuid
+        ):
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project_uuid={project_uuid} "
+                "existing_project_id=(durable-lineage) "
+                f"incoming_project_id={project}"
             )
 
 

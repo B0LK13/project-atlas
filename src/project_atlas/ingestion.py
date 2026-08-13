@@ -1651,17 +1651,25 @@ def _ingest(
         if _allocated:
             allocated_projects.add(project)
     planned_receipts: dict[str, str] = {}
+    incoming_source_ids: dict[str, set[str]] = {}
     for project, project_uuid in project_identity.items():
         receipt_path = (
             vault / "receipts" / "source-lineage" / f"project-{project}-allocation.json"
         )
         if receipt_path in write_plan or project in allocated_projects:
             planned_receipts[project] = project_uuid
-    # D-057: same-batch + durable allocation cardinality before lineage coalesce.
+        incoming_source_ids[project] = {
+            str(entry["source_id"])
+            for entry in projects.get(project, [])
+            if entry.get("source_id")
+        }
+    # D-057: same-batch + durable allocation/lineage cardinality before coalesce.
     assert_project_uuid_one_owner(
         vault,
         project_identity,
         planned_receipts=planned_receipts,
+        previous_registry=previous_registry,
+        incoming_source_ids=incoming_source_ids,
     )
     previous_by_source_id = {
         str(item.get("source_id")): str(item.get("canonical_project_id"))
