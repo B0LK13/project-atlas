@@ -1,5 +1,9 @@
 # D-063 — Local D-049 revalidation freeze
 
+> **SUPERSEDED (D-064):** This freeze tip is `INVALIDATED_BY_EVIDENCE`.  
+> Local must validate the superseding tip in `docs/evidence/D-064-SUPERSEDING-FREEZE.md`  
+> (`0509287` / `728f3af4`). Historical content below is retained for audit.
+
 **Directive:** D-PROJECT-ATLAS-CLOUD-KNOWLEDGE-ESTATE-DISCOVERY-063  
 **PR:** https://github.com/B0LK13/project-atlas/pull/346
 
