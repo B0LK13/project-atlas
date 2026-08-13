@@ -136,7 +136,10 @@ def _architecture_rank(path: str) -> tuple[int, int, str] | None:
         return (2, depth, posix)
     if lower == "docs/atlas-2.0/architecture.md":
         return (3, depth, posix)
-    # Nested product-slice ARCHITECTURE.md files are secondary evidence only.
+    # Nested product-slice ARCHITECTURE.md (atlas-2.2/*, etc.) dilute Core
+    # architecture with optional surfaces — exclude from authority merge.
+    if "/atlas-2.2/" in lower or "/atlas-2.1/" in lower:
+        return None
     if lower.endswith("/architecture.md") and lower.startswith("docs/"):
         return (5, depth, posix)
     if lower.endswith("/plan.md"):
@@ -589,7 +592,9 @@ def build_architecture_lens(vault: Path, project_id: str) -> dict[str, Any]:
     evidence: list[str] = []
     inspected: list[str] = []
 
-    for _rank, source_path, source_id in _candidate_sources(vault, project_id):
+    # Primary authorities (rank 0-3) always merge; secondary (4+) only fill
+    # still-empty slots so nested docs cannot dominate Core architecture.
+    for rank, source_path, source_id in _candidate_sources(vault, project_id):
         imported = _imported_document_path(vault, source_id)
         inspected.append(imported.relative_to(vault).as_posix())
         if not imported.is_file():
@@ -600,11 +605,14 @@ def build_architecture_lens(vault: Path, project_id: str) -> dict[str, Any]:
             continue
         source_slots = _slots_from_source(source_path, text)
         used_source = False
+        secondary = rank[0] >= 4
         for slot, value in source_slots.items():
             if slot not in collected:
                 continue
             cleaned = _clean_line(value)
             if not cleaned or cleaned == _UNKNOWN:
+                continue
+            if secondary and collected[slot]:
                 continue
             collected[slot].append(cleaned)
             used_source = True
