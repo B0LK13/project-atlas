@@ -5,7 +5,56 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-062 — Coder Alpha PASS + D-049 execution unlock (wave 1)
 
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-062
+**Branch:** cursor/d049-knowledge-estate-discovery-d036
+**Capability:** AS-CODER-ALPHA-KNOWLEDGE-ESTATE-DISCOVERY-001
+
+### Reconciliation (no contradictory repo reality)
+
+```
+CODER_ALPHA_ACCEPTANCE = PASS
+CODER_ALPHA_ACCEPTANCE_HEAD = 072f1395ee310a876e93d633264f3ece43cecc3c
+CODER_ALPHA_ACCEPTANCE_TREE = ad29628bbf7552ebe8b4a71b0192d3004129375f
+CODER_ALPHA_HIGH_OPEN = 0
+D_049_EXECUTION_GATE = OPEN
+D_042_EXECUTION_GATE = CLOSED
+```
+
+Evidence receipts (governance only; no production-semantic mutation for the seal):
+
+- `docs/evidence/D-062-CODER-ALPHA-ACCEPTANCE.md`
+- `docs/evidence/D-062-CODER-ALPHA-ACCEPTANCE-RECEIPT.yaml`
+
+Lifecycle: MERGED → POST-MERGE VERIFIED → EXACT-MAIN WINDOWS ACCEPTED → CLOSED.  
+Historical FAIL/PARTIAL evidence retained. Provenance D-041…D-062 preserved.
+
+### D-049 wave 1 implementation (started immediately after gate open)
+
+Lanes in this commit:
+
+| Lane | Status |
+|---|---|
+| A filesystem discovery | IN_PROGRESS → code landed |
+| B project fingerprinting | IN_PROGRESS → code landed |
+| C project isolation | IN_PROGRESS → no silent merge / conflict fail-closed |
+| D Obsidian discovery | IN_PROGRESS → detect `.obsidian`, no ingest |
+| E ignore / safety policy | IN_PROGRESS → ignores + symlink escape |
+| F CLI | IN_PROGRESS → `atlas discover --root` / review / connect |
+| G Web discovery | IN_PROGRESS → `/v1/discovery` + `/discovery` page |
+| H incremental foundation | IN_PROGRESS → cache sidecar (not optimization-first) |
+
+Invariant held: `DISCOVER != INGEST != TRUST != AUTHORITY`
+
+### Plan / commands (IV)
+
+```bash
+.venv/bin/python -m pytest tests/unit/test_as_coder_alpha_049_estate_discovery.py
+.venv/bin/python -m ruff check src/project_atlas/estate_discovery.py src/project_atlas/cli.py src/project_atlas/web_api/discovery.py
+.venv/bin/python -m mypy src/project_atlas/estate_discovery.py src/project_atlas/web_api/discovery.py
+```
 
 ## D-057 — Copied project_uuid identity corruption
 
@@ -23,7 +72,7 @@ Local D-055 found: distinct project.id copying another project's project_uuid wa
 - Explicit marker UUIDs claim allocation receipts when absent
 - Malformed `.atlas-project.yaml` → `INVALID_PROJECT_MARKER` (no YAML traceback)
 
-### Gates held
+### Gates held (historical — superseded by D-062 PASS)
 - `CODER_ALPHA_ACCEPTANCE = PARTIAL`
 - `D_049_EXECUTION_GATE = CLOSED`
 - `D_042_EXECUTION_GATE = CLOSED`

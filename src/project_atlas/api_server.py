@@ -237,6 +237,10 @@ def make_handler(
                 projects = service.projects()[:limit]
                 self._send(200, {"projects": projects, "limit": limit})
                 return
+            if path == "/v1/discovery":
+                # D-049 Lane G — categorized estate discovery (read-only projection).
+                self._send(200, service.estate_discovery())
+                return
             if path == "/v1/knowledge":
                 try:
                     limit = _parse_limit(qs)
@@ -357,6 +361,7 @@ def make_handler(
                     "conflicts_live": True,
                     "kdiff_live": True,
                     "brief_live": True,
+                    "discovery_live": True,
                     "truth_ux_live": True,
                     "authz_profile": True,
                     "session_auth": True,

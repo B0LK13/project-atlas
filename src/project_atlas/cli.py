@@ -14,6 +14,7 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from project_atlas import __version__
 from project_atlas.adv_release_cert import (
@@ -65,6 +66,18 @@ from project_atlas.doctor import render_text as doctor_render_text
 from project_atlas.doctor import run_doctor
 from project_atlas.doctor import to_dict as doctor_to_dict
 from project_atlas.domain.knowledge_query import KnowledgeQueryErrorCode, QueryShape
+from project_atlas.estate_discovery import (
+    INCREMENTAL_CACHE_RELATIVE,
+    REPORT_RELATIVE,
+    EstateDiscoveryError,
+    connect_discovered_candidate,
+    discover_estate,
+    format_discovery_human,
+    load_discovery_cache,
+    review_candidates,
+    write_discovery_cache,
+    write_discovery_report,
+)
 from project_atlas.event_retention import (
     RetentionError,
     apply_event_retention,
@@ -347,10 +360,112 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     discover_parser = subparsers.add_parser(
-        "discover", help="Discover source documents into a manifest (FR-002)."
+        "discover",
+        help=(
+            "Discover sources (FR-002) or scan a bounded knowledge estate (D-049). "
+            "Legacy: --source + --output. Estate: --root / review / connect."
+        ),
     )
-    discover_parser.add_argument("--source", type=Path, required=True)
-    discover_parser.add_argument("--output", type=Path, required=True)
+    discover_parser.add_argument(
+        "--source",
+        type=Path,
+        default=None,
+        help="FR-002 source root for manifest discovery (requires --output).",
+    )
+    discover_parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="FR-002 manifest output path, or estate report path with --root.",
+    )
+    discover_parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Authorized root for knowledge estate discovery (D-049). Never home/FS root.",
+    )
+    discover_parser.add_argument(
+        "--projects",
+        action="store_true",
+        help="Estate mode: only project candidates.",
+    )
+    discover_parser.add_argument(
+        "--knowledge",
+        action="store_true",
+        help="Estate mode: only knowledge / Obsidian candidates.",
+    )
+    discover_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help="Optional vault for matching existing Atlas project identities.",
+    )
+    discover_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="discover_json",
+        help="Emit estate discovery JSON on stdout.",
+    )
+    discover_sub = discover_parser.add_subparsers(
+        dest="discover_command", required=False
+    )
+    discover_review = discover_sub.add_parser(
+        "review",
+        help="List estate discovery candidates that require human review (D-049).",
+    )
+    discover_review.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Authorized root (default: cwd if safe).",
+    )
+    discover_review.add_argument("--vault", type=Path, default=None)
+    discover_review.add_argument(
+        "--report",
+        type=Path,
+        default=None,
+        help="Reuse an existing estate-discovery-report.json instead of rescanning.",
+    )
+    discover_review.add_argument(
+        "--json",
+        action="store_true",
+        dest="discover_json",
+    )
+    discover_connect = discover_sub.add_parser(
+        "connect",
+        help=(
+            "Connect an accepted project candidate (explicit; discovery alone "
+            "never ingests)."
+        ),
+    )
+    discover_connect.add_argument(
+        "--candidate",
+        required=True,
+        help="candidate_id from atlas discover / discover review.",
+    )
+    discover_connect.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Authorized root used to (re)build the discovery report.",
+    )
+    discover_connect.add_argument("--vault", type=Path, default=None)
+    discover_connect.add_argument(
+        "--report",
+        type=Path,
+        default=None,
+        help="Existing estate-discovery-report.json.",
+    )
+    discover_connect.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Plan connect without writing.",
+    )
+    discover_connect.add_argument(
+        "--json",
+        action="store_true",
+        dest="discover_json",
+    )
 
     ingest_parser = subparsers.add_parser(
         "ingest", help="Ingest a source manifest into an OKF Vault (FR-005-FR-008)."
@@ -2054,20 +2169,133 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "discover":
+        discover_command = getattr(args, "discover_command", None)
+        # FR-002 legacy source-manifest path (unchanged contract).
+        if (
+            discover_command is None
+            and getattr(args, "source", None) is not None
+            and getattr(args, "output", None) is not None
+            and getattr(args, "root", None) is None
+        ):
+            try:
+                manifest = discover(
+                    args.source,
+                    excludes=config.discovery.exclude_globs,
+                    max_file_size=config.discovery.max_file_size_bytes,
+                )
+                write_manifest(manifest, args.output)
+            except (OSError, ValueError) as exc:
+                _log.error("discover failed: %s", exc)
+                return EXIT_ERROR
+            print(f"discovered {len(manifest['sources'])} sources")
+            print(f"agent event packages: {len(manifest.get('agent_events', []))}")
+            print(f"manifest: {args.output}")
+            return EXIT_OK
+
+        # D-049 knowledge estate discovery.
         try:
-            manifest = discover(
-                args.source,
-                excludes=config.discovery.exclude_globs,
-                max_file_size=config.discovery.max_file_size_bytes,
-            )
-            write_manifest(manifest, args.output)
-        except (OSError, ValueError) as exc:
+            report_path = getattr(args, "report", None)
+            root_arg = getattr(args, "root", None)
+            vault_arg = getattr(args, "vault", None)
+            as_json = bool(getattr(args, "discover_json", False))
+
+            def _load_or_scan() -> dict[str, Any]:
+                if report_path is not None:
+                    raw = Path(report_path).read_text(encoding="utf-8")
+                    data = json.loads(raw)
+                    if not isinstance(data, dict):
+                        raise EstateDiscoveryError("report must be a JSON object")
+                    return data
+                root = Path(root_arg) if root_arg is not None else Path.cwd()
+                include_projects = True
+                include_knowledge = True
+                if getattr(args, "projects", False) and not getattr(
+                    args, "knowledge", False
+                ):
+                    include_knowledge = False
+                if getattr(args, "knowledge", False) and not getattr(
+                    args, "projects", False
+                ):
+                    include_projects = False
+                cache: dict[str, Any] | None = None
+                if vault_arg is not None:
+                    cache = load_discovery_cache(
+                        Path(vault_arg) / INCREMENTAL_CACHE_RELATIVE
+                    )
+                return discover_estate(
+                    root,
+                    vault=Path(vault_arg) if vault_arg is not None else None,
+                    include_projects=include_projects,
+                    include_knowledge=include_knowledge,
+                    prior_cache=cache,
+                )
+
+            if discover_command == "review":
+                report = _load_or_scan()
+                rows = review_candidates(report)
+                if as_json:
+                    print(json.dumps({"review": rows}, indent=2, sort_keys=True))
+                else:
+                    if not rows:
+                        print("No discovery candidates require review.")
+                    else:
+                        print(f"{len(rows)} candidate(s) require review:")
+                        for row in rows:
+                            print(
+                                f"  - {row.get('candidate_id')} "
+                                f"[{row.get('match_state')}] {row.get('path')}"
+                            )
+                            why = row.get("why_matched") or []
+                            if why:
+                                print(f"      why: {why[0]}")
+                return EXIT_OK
+
+            if discover_command == "connect":
+                report = _load_or_scan()
+                result = connect_discovered_candidate(
+                    report,
+                    args.candidate,
+                    vault=Path(vault_arg) if vault_arg is not None else None,
+                    dry_run=bool(getattr(args, "dry_run", False)),
+                )
+                if as_json:
+                    print(json.dumps(result, indent=2, sort_keys=True, default=str))
+                else:
+                    print(
+                        f"connected candidate {args.candidate} "
+                        f"(explicit connect; discovery alone never ingests)"
+                    )
+                return EXIT_OK
+
+            # Default estate scan: atlas discover [--root] [--projects|--knowledge]
+            if getattr(args, "source", None) is not None and getattr(
+                args, "output", None
+            ) is None:
+                raise EstateDiscoveryError(
+                    "FR-002 discover requires both --source and --output; "
+                    "for estate discovery use --root (or omit flags to scan cwd)"
+                )
+            report = _load_or_scan()
+            out = getattr(args, "output", None)
+            if out is None and vault_arg is not None:
+                out = Path(vault_arg) / REPORT_RELATIVE
+            if out is not None:
+                write_discovery_report(report, Path(out))
+                if vault_arg is not None:
+                    write_discovery_cache(
+                        report, Path(vault_arg) / INCREMENTAL_CACHE_RELATIVE
+                    )
+            if as_json:
+                printable = {k: v for k, v in report.items() if not k.startswith("_")}
+                print(json.dumps(printable, indent=2, sort_keys=True))
+            else:
+                print(format_discovery_human(report), end="")
+                if out is not None:
+                    print(f"report: {out}")
+            return EXIT_OK
+        except (OSError, ValueError, json.JSONDecodeError, EstateDiscoveryError) as exc:
             _log.error("discover failed: %s", exc)
             return EXIT_ERROR
-        print(f"discovered {len(manifest['sources'])} sources")
-        print(f"agent event packages: {len(manifest.get('agent_events', []))}")
-        print(f"manifest: {args.output}")
-        return EXIT_OK
 
     if args.command == "ingest":
         try:

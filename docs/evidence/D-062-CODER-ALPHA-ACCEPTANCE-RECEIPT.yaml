@@ -1,0 +1,60 @@
+schema_version: 1
+receipt_type: coder-alpha-acceptance
+directive_id: D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-062
+work_package_id: AS-CODER-ALPHA-ACCEPTANCE-062
+status: pass
+acceptance:
+  CODER_ALPHA_ACCEPTANCE: PASS
+  CODER_ALPHA_ACCEPTANCE_HEAD: 072f1395ee310a876e93d633264f3ece43cecc3c
+  CODER_ALPHA_ACCEPTANCE_TREE: ad29628bbf7552ebe8b4a71b0192d3004129375f
+  CODER_ALPHA_HIGH_OPEN: 0
+  ACCEPTANCE_TARGET_STALE: NO
+  MANUAL_REEXPLANATION_REQUIRED: NO
+  PERFORMANCE_BLOCKER: NO
+authoritative_main:
+  POST_MERGE_MAIN: 072f1395ee310a876e93d633264f3ece43cecc3c
+  POST_MERGE_TREE: ad29628bbf7552ebe8b4a71b0192d3004129375f
+  PR_345: MERGED
+lifecycle:
+  state: CLOSED
+  path:
+    - MERGED
+    - POST-MERGE VERIFIED
+    - EXACT-MAIN WINDOWS ACCEPTED
+    - CLOSED
+provenance:
+  - D-041
+  - D-044
+  - D-046
+  - D-048
+  - D-050
+  - D-052
+  - D-055
+  - D-057
+  - D-058
+  - D-059
+  - D-060
+  - D-061
+  - D-062
+reconciled_planes:
+  cloud_exact_head_iv: PASS
+  cloud_ci: PASS
+  source_lineage: PASS
+  control_plane: PASS
+  local_premerge_windows_iv: PASS
+  cloud_post_merge: PASS
+  local_exact_main_stranger_user: PASS
+  fresh_agent: PASS
+hard_counters:
+  CROSS_PROJECT_LEAK: 0
+  PROJECT_ID_COLLISION: 0
+  COPIED_UUID_COALESCING: 0
+  HIGH_STILL_OPEN: 0
+  NEW_HIGH: 0
+gates:
+  D_049_EXECUTION_GATE: OPEN
+  D_042_EXECUTION_GATE: CLOSED
+capability_unlocked: AS-CODER-ALPHA-KNOWLEDGE-ESTATE-DISCOVERY-001
+production_semantics_mutated: false
+historical_fail_partial_erased: false
+invariant: DISCOVER != INGEST != TRUST != AUTHORITY

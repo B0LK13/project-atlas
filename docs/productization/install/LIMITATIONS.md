@@ -19,7 +19,9 @@
 - MSI / MSIX installers
 - winget publication
 - Code signing / SmartScreen reputation
-- Authentic estate discovery or inventing pilot roots
+- Inventing pilot roots or silent whole-disk / home surveillance (D-049 estate
+  discovery requires an explicit authorized `--root`; install scripts still do
+  not invent roots)
 - Playwright / browser E2E dependency install (owned elsewhere; do not add here)
 - Core `atlas doctor` product matrix (owned by sibling PROD-DOCTOR lane)
 - Setting `ALPHA_READY=YES` or release/pilot certificates
