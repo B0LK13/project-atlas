@@ -27,6 +27,10 @@ _NON_DECISION_HINTS = (
     "release notes",
     "todo",
     "scratch",
+    "release certified",
+    "accepted = yes",
+    "receipt.md",
+    "signed receipt",
 )
 
 
@@ -66,6 +70,12 @@ def _classify_decision_status(
         return "OPEN_PROPOSED"
     if "historical" in lower or "archive" in path_l:
         return "HISTORICAL"
+    # Certification / receipt theatre is not a governing product decision.
+    if any(
+        token in path_l
+        for token in ("/receipt", "receipt.md", "/demo/", "fixtures/")
+    ):
+        return "NON_DECISION" if kind == "imported-heading" else "HISTORICAL"
     if kind == "claim" or "adr" in path_l or kind == "project-note":
         return "ACTIVE_GOVERNING"
     if kind == "imported-heading":

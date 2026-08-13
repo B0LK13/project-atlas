@@ -5583,3 +5583,23 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - CODEX_VALIDATED = NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
 - ATLAS_OPT_WAKE_GATE = CLOSED
+
+## D-040 — ARCH-002 + cross-surface consistency
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-040
+**Branch:** cursor/coder-alpha-040-arch-consistency-d039
+
+### Packages
+- AS-CODER-ALPHA-ARCH-002 structured architecture lens (`ans-architecture-*`)
+- Cross-surface consistency integration test (disk/web/Obsidian/agent context)
+- Human Truth Loop V2 integration test (decide → rematerialize → no resurrection)
+
+### Explicit non-claims
+- DEMO_FIXTURE != AUTHENTIC_PILOT
+- DEMO != RELEASE
+- UI != CANONICAL_TRUTH
+- MODEL_OUTPUT != AUTHORITY
+- CODEX_VALIDATED = NO
+- EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
+- ATLAS_OPT_WAKE_GATE = CLOSED

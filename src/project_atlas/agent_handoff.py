@@ -12,6 +12,7 @@ Outputs (under vault):
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -56,9 +57,79 @@ def _safe_project_id(project_id: str) -> str:
         raise AgentHandoffError(str(exc)) from exc
 
 
+def _render_attention_section(attention: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Attention (what requires action)"]
+    if not attention:
+        lines.append("UNKNOWN")
+        return lines
+    lines.append(f"rollup={attention.get('rollup', 'UNKNOWN')}")
+    lines.append(
+        "package=`AS-CODER-ALPHA-ATTENTION-001` "
+        "implementation=`src/project_atlas/attention_hygiene.py` "
+        "CLI=`atlas attention`"
+    )
+    items = attention.get("items") if isinstance(attention, dict) else None
+    if not isinstance(items, list) or not items:
+        lines.append("- CLEAR / no attention items")
+        return lines
+    for item in items[:8]:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- [{item.get('level')}] {item.get('why_seeing_this')} "
+            f"| matter={item.get('why_it_matters')} "
+            f"| do={item.get('what_to_do')} "
+            f"| evidence={', '.join(item.get('evidence') or [])}"
+        )
+    if int(attention.get("item_count") or 0) > 8:
+        lines.append(f"- … {attention['item_count'] - 8} more (run atlas attention)")
+    return lines
+
+
+def _render_source_health_section(health: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Source health (failures / exclusions)"]
+    if not health:
+        lines.append("UNKNOWN")
+        return lines
+    lines.append(
+        "package=`AS-CODER-ALPHA-SOURCE-HEALTH-001` "
+        "implementation=`src/project_atlas/source_health.py` "
+        "CLI=`atlas source-health`"
+    )
+    raw_counts = health.get("counts")
+    counts: dict[str, Any] = raw_counts if isinstance(raw_counts, dict) else {}
+    lines.append(
+        f"source_count={health.get('source_count', 0)}; "
+        + ", ".join(f"{key}={counts[key]}" for key in sorted(counts))
+    )
+    raw_rows = health.get("sources")
+    rows: list[Any] = raw_rows if isinstance(raw_rows, list) else []
+    # Prefer actionable failures over exclusion noise.
+    preferred = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and str(row.get("status") or "")
+        in {"compile_failed", "promotion_failed", "quarantined", "compile_partial"}
+    ]
+    sample = preferred[:6] or [row for row in rows if isinstance(row, dict)][:6]
+    for row in sample:
+        lines.append(
+            f"- {row.get('source')} | {row.get('status')} | "
+            f"{row.get('reason_code')} | {row.get('human_explanation')} | "
+            f"next={row.get('suggested_next_action')}"
+        )
+    if not sample:
+        lines.append("- no failed/excluded sources in scoped report")
+    return lines
+
+
 def _render_context_markdown(
     brief: dict[str, Any],
     captures: list[dict[str, Any]] | None = None,
+    *,
+    attention: dict[str, Any] | None = None,
+    source_health: dict[str, Any] | None = None,
 ) -> str:
     next_work = brief.get("suggested_next_work") or []
     evidence = brief.get("evidence_links") or []
@@ -98,6 +169,8 @@ def _render_context_markdown(
         lines.extend(f"- {item}" for item in next_work)
     else:
         lines.append("- UNKNOWN")
+    lines.extend(_render_attention_section(attention))
+    lines.extend(_render_source_health_section(source_health))
     lines.extend(["", "## Session memory (captures)"])
     lines.extend(render_captures_markdown(captures or []))
     lines.extend(["", "## Evidence links"])
@@ -135,13 +208,39 @@ def export_agent_context(
         raise AgentHandoffError(str(exc)) from exc
 
     captures = list_captures(vault, project_id=project_id, limit=8)
-    markdown = _render_context_markdown(brief, captures=captures)
+    # Project shared Core classifiers — do not re-implement analysis here.
+    attention: dict[str, Any] | None = None
+    source_health: dict[str, Any] | None = None
+    with contextlib.suppress(Exception):
+        from project_atlas.attention_hygiene import classify_attention
+
+        attention = classify_attention(vault, project_id)
+    with contextlib.suppress(Exception):
+        from project_atlas.source_health import explain_source_health
+
+        source_health = explain_source_health(vault, project_id)
+    markdown = _render_context_markdown(
+        brief,
+        captures=captures,
+        attention=attention,
+        source_health=source_health,
+    )
     payload = {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.agent-context.v1",
         "package": PACKAGE_CONTEXT,
         "project_id": project_id,
         "brief": brief,
+        "attention": {
+            "rollup": (attention or {}).get("rollup"),
+            "item_count": (attention or {}).get("item_count"),
+            "package": "AS-CODER-ALPHA-ATTENTION-001",
+        },
+        "source_health": {
+            "source_count": (source_health or {}).get("source_count"),
+            "counts": (source_health or {}).get("counts"),
+            "package": "AS-CODER-ALPHA-SOURCE-HEALTH-001",
+        },
         "session_captures": captures,
         "markdown": markdown,
         "generated": {"by": GENERATOR_ID},
