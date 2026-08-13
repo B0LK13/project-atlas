@@ -6,12 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
-from project_atlas.agent_handoff import export_agent_context
-from project_atlas.connect import connect_project
-from project_atlas.obsidian_projection import materialize_obsidian_projection, project_note_path
-from project_atlas.web_api.brief import read_project_brief
-
 from tests.integration.d040_cross_surface import (
     FIELD_SET,
     assert_fields_match_authority,
@@ -19,6 +13,11 @@ from tests.integration.d040_cross_surface import (
     load_disk_brief,
     parse_obsidian_brief_fields,
 )
+
+from project_atlas.agent_handoff import export_agent_context
+from project_atlas.connect import connect_project
+from project_atlas.obsidian_projection import materialize_obsidian_projection, project_note_path
+from project_atlas.web_api.brief import read_project_brief
 
 pytestmark = pytest.mark.integration
 
