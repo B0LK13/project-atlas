@@ -468,6 +468,23 @@ def _live_api_bind_path(vault: Path) -> Path:
     return vault.expanduser().resolve() / "generated" / "ops" / "live-api-bind.json"
 
 
+def _loopback_probe_targets(host: str) -> list[tuple[int, str]]:
+    """Return ``(address_family, connect_host)`` targets for dual-stack probes."""
+    import socket
+
+    normalized = host.strip().lower()
+    if normalized in {"localhost", "127.0.0.1", "::1"}:
+        # Localhost may resolve to either family; probe both loopbacks so an
+        # existing ::1 listener cannot be dual-bound via 127.0.0.1 (D-044 B5).
+        return [
+            (socket.AF_INET, "127.0.0.1"),
+            (socket.AF_INET6, "::1"),
+        ]
+    if ":" in host:
+        return [(socket.AF_INET6, host)]
+    return [(socket.AF_INET, host)]
+
+
 def _refuse_stale_or_foreign_bind(
     vault: Path, *, host: str, port: int, vault_id: str
 ) -> None:
@@ -478,23 +495,26 @@ def _refuse_stale_or_foreign_bind(
         # Ephemeral test binds — OS assigns a free port; no dual-bind risk.
         return
     path = _live_api_bind_path(vault)
-    connect_host = "127.0.0.1" if host in {"localhost", "127.0.0.1"} else host
-    family = socket.AF_INET6 if ":" in connect_host else socket.AF_INET
-    probe = socket.socket(family, socket.SOCK_STREAM)
-    try:
-        probe.settimeout(0.35)
-        # AF_INET6 requires (host, port, flowinfo, scopeid); AF_INET is 2-tuple.
-        address: tuple[Any, ...]
-        if family == socket.AF_INET6:
-            address = (connect_host, int(port), 0, 0)
-        else:
-            address = (connect_host, int(port))
-        err = probe.connect_ex(address)
-    except (OSError, TypeError):
-        err = 1
-    finally:
-        probe.close()
-    if err != 0:
+    in_use = False
+    for family, connect_host in _loopback_probe_targets(host):
+        probe = socket.socket(family, socket.SOCK_STREAM)
+        try:
+            probe.settimeout(0.35)
+            # AF_INET6 requires (host, port, flowinfo, scopeid); AF_INET is 2-tuple.
+            address: tuple[Any, ...]
+            if family == socket.AF_INET6:
+                address = (connect_host, int(port), 0, 0)
+            else:
+                address = (connect_host, int(port))
+            err = probe.connect_ex(address)
+        except (OSError, TypeError):
+            err = 1
+        finally:
+            probe.close()
+        if err == 0:
+            in_use = True
+            break
+    if not in_use:
         return
     # Port already accepting connections — refuse dual/foreign bind.
     if not path.is_file():

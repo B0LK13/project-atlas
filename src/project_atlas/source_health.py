@@ -191,13 +191,14 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
     # wins over last-writer connect-manifest (D-050 shared-vault isolation).
     ownership: dict[str, Any] | None
     ownership_evidence = manifest_path.relative_to(vault).as_posix()
-    # Unreadable durable inventory must fail closed — never fall back to
-    # last-writer connect-manifest ownership (shared-vault false CLEAR).
-    if durable_status == "unreadable":
-        ownership = None
-        ownership_evidence = durable_path.relative_to(vault).as_posix()
-    elif durable_status == "ok" and isinstance(durable_raw, dict):
+    # Project-scoped ownership requires durable multi-project inventory.
+    # Absent/unreadable durable must fail closed — never trust last-writer
+    # connect-manifest alone (shared-vault false CLEAR).
+    if durable_status == "ok" and isinstance(durable_raw, dict):
         ownership = durable_raw
+        ownership_evidence = durable_path.relative_to(vault).as_posix()
+    elif project_id is not None:
+        ownership = None
         ownership_evidence = durable_path.relative_to(vault).as_posix()
     else:
         ownership = manifest
@@ -251,29 +252,46 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
         secrets.get("findings") if isinstance(secrets, dict) else None
     )
     if isinstance(secret_rows, list):
-        for finding in secret_rows:
-            if not isinstance(finding, dict):
-                continue
-            if not _finding_matches_project(
-                finding,
-                project_id=project_id,
-                source_projects=source_projects,
-                path_projects=path_projects,
-            ):
-                if project_id is not None:
-                    unscoped_omitted += 1
-                continue
+        dict_findings = [row for row in secret_rows if isinstance(row, dict)]
+        if (
+            project_id is not None
+            and dict_findings
+            and not source_projects
+            and not path_projects
+        ):
+            # Findings exist but ownership cannot be scoped — never false CLEAR.
             rows.append(
                 _row(
-                    source=str(finding.get("path") or "UNKNOWN"),
-                    source_id=str(finding.get("source_id") or "") or None,
-                    status="quarantined",
+                    source="sources/manifests/source-manifest.json",
+                    status="unknown",
                     pipeline_stage="ingest",
-                    reason_code="SECRET_QUARANTINE",
-                    evidence=secrets_path.relative_to(vault).as_posix(),
-                    next_action="Remove/redact credentials and re-run atlas connect",
+                    reason_code="SECRET_OWNERSHIP_UNKNOWN",
+                    evidence=ownership_evidence,
+                    next_action="Re-run atlas connect to restore source-manifest ownership",
                 )
             )
+        else:
+            for finding in dict_findings:
+                if not _finding_matches_project(
+                    finding,
+                    project_id=project_id,
+                    source_projects=source_projects,
+                    path_projects=path_projects,
+                ):
+                    if project_id is not None:
+                        unscoped_omitted += 1
+                    continue
+                rows.append(
+                    _row(
+                        source=str(finding.get("path") or "UNKNOWN"),
+                        source_id=str(finding.get("source_id") or "") or None,
+                        status="quarantined",
+                        pipeline_stage="ingest",
+                        reason_code="SECRET_QUARANTINE",
+                        evidence=secrets_path.relative_to(vault).as_posix(),
+                        next_action="Remove/redact credentials and re-run atlas connect",
+                    )
+                )
 
     injection_path = vault / "generated" / "reports" / "injection-findings.json"
     inspected.append(injection_path.relative_to(vault).as_posix())

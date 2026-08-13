@@ -543,6 +543,41 @@ def test_live_api_dual_bind_fail_closed(tmp_path: Path) -> None:
         server.shutdown()
 
 
+def test_live_api_dual_stack_loopback_probe_fail_closed(tmp_path: Path) -> None:
+    """IPv6 ::1 listener must block a 127.0.0.1 dual-bind attempt (D-044 B5)."""
+    import socket
+    import threading
+    import time
+
+    from project_atlas.api_server import ApiServerError, serve_api
+    from project_atlas.scaffold import create_scaffold
+
+    v1 = tmp_path / "api-v6"
+    v2 = tmp_path / "api-v4"
+    create_scaffold(v1)
+    create_scaffold(v2)
+    try:
+        server = serve_api(v1, host="::1", port=18767)
+    except (OSError, ApiServerError) as exc:
+        pytest.skip(f"IPv6 loopback unavailable: {exc}")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    time.sleep(0.2)
+    try:
+        # Confirm ::1 is actually accepting before asserting the dual-stack gate.
+        probe = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        try:
+            probe.settimeout(0.35)
+            if probe.connect_ex(("::1", 18767, 0, 0)) != 0:
+                pytest.skip("IPv6 ::1 listener not reachable")
+        finally:
+            probe.close()
+        with pytest.raises(ApiServerError, match="api-bind-"):
+            serve_api(v2, host="127.0.0.1", port=18767)
+    finally:
+        server.shutdown()
+
+
 def test_positively_inspected_clear(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     _write(vault / "review" / "conflicts" / "proj.json", {"entries": []})

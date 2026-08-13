@@ -332,17 +332,16 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         inspected.append(durable_path.relative_to(vault).as_posix())
         inspected.append(connect_path.relative_to(vault).as_posix())
         durable_status, durable_payload = _read_json(durable_path)
-        connect_status, connect_payload = _read_json(connect_path)
-        # Unreadable durable inventory must fail closed (never fall back to
-        # last-writer connect-manifest ownership — shared-vault false CLEAR).
-        if durable_status == "unreadable":
-            ownership_payload = None
-        elif durable_status == "ok" and isinstance(durable_payload, dict):
+        # Honesty: inspect connect-manifest presence, but never use it as
+        # project-scoped ownership authority (last-writer / shared-vault).
+        _read_json(connect_path)
+        # Attention is always project-scoped: quarantine attribution requires
+        # durable multi-project inventory. Absent/unreadable durable must fail
+        # closed — never trust last-writer connect-manifest (false CLEAR).
+        if durable_status == "ok" and isinstance(durable_payload, dict):
             ownership_payload = durable_payload
         else:
-            ownership_payload = (
-                connect_payload if connect_status == "ok" else None
-            )
+            ownership_payload = None
         source_projects, path_projects = _manifest_project_indexes(ownership_payload)
         scoped_rows = [
             row

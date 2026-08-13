@@ -25,6 +25,8 @@ exact commands run, exact results, deviations, and remaining risks.
 - Enumerate discover exclusions from durable source-manifest (shared-vault sibling must not erase sibling exclusions)
 - path_active source_id migration must not be blocked by retired same-path history (active continuity bridge)
 - Unreadable durable source-manifest fails closed (no last-writer ownership fallback → false CLEAR)
+- Absent durable source-manifest also fails closed for project-scoped secret ownership
+- LIVE_API dual-stack loopback probe (127.0.0.1 and ::1) before bind
 - Regenerated K-004/K-005 goldens for namespaced compatibility source_ids
 - Lens/CLI tests use `bound_project_id` (collision-safe identity)
 

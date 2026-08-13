@@ -274,7 +274,30 @@ def test_r3_unreadable_durable_manifest_fail_closed_attention(tmp_path: Path) ->
     att = classify_attention(shared, str(ra["bound_project_id"]))
     assert att["rollup"] != "CLEAR"
     codes = {item.get("reason_code") for item in att["items"]}
-    assert "SECRET_OWNERSHIP_UNKNOWN" in codes or "SECRET_QUARANTINE" in codes
+    assert "SECRET_OWNERSHIP_UNKNOWN" in codes
+
+
+def test_r3_absent_durable_manifest_fail_closed_attention(tmp_path: Path) -> None:
+    """Absent source-manifest must not fall back to last-writer ownership."""
+    shared = tmp_path / "shared-vault"
+    alpha = tmp_path / "alpha-absent"
+    beta = tmp_path / "beta-absent"
+    alpha.mkdir()
+    beta.mkdir()
+    (alpha / "docs").mkdir()
+    _write(alpha / "README.md", "# Alpha\n\nPurpose.\n")
+    _write(
+        alpha / "docs" / "credentials.md",
+        'aws_access_key_id = "AKIAIOSFODNN7EXAMPLE"\n',
+    )
+    _write(beta / "README.md", "# Beta\n\nPurpose.\n")
+    ra = connect_project(alpha, vault=shared)
+    connect_project(beta, vault=shared)
+    durable = shared / "sources" / "manifests" / "source-manifest.json"
+    durable.unlink()
+    att = classify_attention(shared, str(ra["bound_project_id"]))
+    assert att["rollup"] != "CLEAR"
+    codes = {item.get("reason_code") for item in att["items"]}
     assert "SECRET_OWNERSHIP_UNKNOWN" in codes
 
 
