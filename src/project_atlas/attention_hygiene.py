@@ -290,6 +290,13 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
                 )
 
     # SECRET_QUARANTINE must never disappear into a false CLEAR (D-041/D-044).
+    # Scoped attention must not import other projects' quarantine rows (D-047 IV /
+    # CROSS_PROJECT_LEAK) — reuse source-health ownership indexes.
+    from project_atlas.source_health import (
+        _finding_matches_project,
+        _manifest_project_indexes,
+    )
+
     secrets_path = vault / "generated" / "reports" / "secret-findings.json"
     inspected.append(secrets_path.relative_to(vault).as_posix())
     secrets_status, secrets_payload = _read_json_any(secrets_path)
@@ -307,19 +314,53 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         )
     elif secrets_status == "ok":
         if isinstance(secrets_payload, list):
-            secret_rows = secrets_payload
+            secret_rows = [row for row in secrets_payload if isinstance(row, dict)]
         elif isinstance(secrets_payload, dict):
             raw_findings = secrets_payload.get("findings")
-            secret_rows = raw_findings if isinstance(raw_findings, list) else []
+            secret_rows = (
+                [row for row in raw_findings if isinstance(row, dict)]
+                if isinstance(raw_findings, list)
+                else []
+            )
         else:
             secret_rows = []
-        if secret_rows:
+        manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
+        inspected.append(manifest_path.relative_to(vault).as_posix())
+        _manifest_status, manifest_payload = _read_json(manifest_path)
+        source_projects, path_projects = _manifest_project_indexes(manifest_payload)
+        scoped_rows = [
+            row
+            for row in secret_rows
+            if _finding_matches_project(
+                row,
+                project_id=project_id,
+                source_projects=source_projects,
+                path_projects=path_projects,
+            )
+        ]
+        if secret_rows and not source_projects and not path_projects:
+            # Findings exist but ownership cannot be scoped — never false CLEAR.
+            items.append(
+                _item(
+                    level="INCOMPLETE",
+                    kind="secret_quarantine_unscoped",
+                    reason_code="SECRET_OWNERSHIP_UNKNOWN",
+                    why=(
+                        f"{len(secret_rows)} secret-quarantine finding(s) present "
+                        "but connect-manifest ownership indexes are unavailable"
+                    ),
+                    impact="Cannot attribute quarantine to this project; not CLEAR",
+                    action="Re-run atlas connect to restore connect-manifest ownership",
+                    evidence=[secrets_path.relative_to(vault).as_posix()],
+                )
+            )
+        elif scoped_rows:
             items.append(
                 _item(
                     level="ACTION_REQUIRED",
                     kind="secret_quarantine",
                     reason_code="SECRET_QUARANTINE",
-                    why=f"{len(secret_rows)} secret-quarantine finding(s) recorded",
+                    why=f"{len(scoped_rows)} secret-quarantine finding(s) recorded",
                     impact="Credential-bearing sources must be repaired before trust",
                     action="Remove/redact credentials and re-run atlas connect",
                     evidence=[secrets_path.relative_to(vault).as_posix()],

@@ -299,6 +299,8 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
     ) == "decide" and getattr(args, "project", None) in {None, ""}:
         args.project = resolve_bound_project_id(vault=getattr(args, "vault", None))
     # Optional multi-project lists: if omitted and bind has one project, scope to it.
+    # Ambiguous bind/vault must fail closed (D-047 IV) — never swallow ConnectError
+    # into a silent vault-wide scan.
     if getattr(args, "command", None) in {
         "overview",
         "state",
@@ -311,13 +313,10 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
     }:
         projects = getattr(args, "projects", None)
         if projects is None and getattr(args, "project", None) in {None, ""}:
-            try:
-                only = resolve_bound_project_id(vault=getattr(args, "vault", None))
-            except ConnectError:
-                only = None
-            if only and hasattr(args, "projects"):
+            only = resolve_bound_project_id(vault=getattr(args, "vault", None))
+            if hasattr(args, "projects"):
                 args.projects = [only]
-            elif only and hasattr(args, "project"):
+            elif hasattr(args, "project"):
                 args.project = only
 
 

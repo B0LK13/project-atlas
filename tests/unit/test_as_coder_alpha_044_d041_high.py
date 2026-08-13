@@ -42,12 +42,118 @@ def test_attention_empty_vault_is_unknown_not_clear(tmp_path: Path) -> None:
 def test_attention_secret_quarantine_not_clear(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     _write(
+        vault / "generated" / "ops" / "connect-manifest.json",
+        {
+            "sources": [
+                {
+                    "path": "docs/secrets.env",
+                    "source_id": "src-1",
+                    "likely_project": "proj",
+                }
+            ]
+        },
+    )
+    _write(
         vault / "generated" / "reports" / "secret-findings.json",
         [{"path": "docs/secrets.env", "source_id": "src-1"}],
     )
     report = classify_attention(vault, "proj")
     assert report["rollup"] != "CLEAR"
     assert any(item["reason_code"] == "SECRET_QUARANTINE" for item in report["items"])
+
+
+def test_attention_secret_quarantine_scoped_no_cross_project_leak(tmp_path: Path) -> None:
+    """D-047 IV: scoped attention must not inherit another project's secrets."""
+    vault = tmp_path / "vault"
+    _write(
+        vault / "generated" / "ops" / "connect-manifest.json",
+        {
+            "sources": [
+                {
+                    "path": "docs/a.md",
+                    "source_id": "src-a",
+                    "likely_project": "alpha",
+                },
+                {
+                    "path": "docs/b.env",
+                    "source_id": "src-b",
+                    "likely_project": "beta",
+                },
+            ]
+        },
+    )
+    _write(
+        vault / "generated" / "reports" / "secret-findings.json",
+        {"findings": [{"path": "docs/b.env", "source_id": "src-b"}]},
+    )
+    # Positive inspection artifacts for alpha so leak would show as ACTION_REQUIRED.
+    _write(vault / "review" / "conflicts" / "alpha.json", {"entries": []})
+    _write(vault / "review" / "pending" / "alpha.json", {"entries": []})
+    _write(vault / "state" / "compilation-outcomes" / "alpha.json", {"candidates": []})
+    alpha = classify_attention(vault, "alpha")
+    beta = classify_attention(vault, "beta")
+    assert not any(item["reason_code"] == "SECRET_QUARANTINE" for item in alpha["items"])
+    assert alpha["rollup"] == "CLEAR"
+    assert any(item["reason_code"] == "SECRET_QUARANTINE" for item in beta["items"])
+    assert beta["rollup"] == "ACTION_REQUIRED"
+
+
+def test_stranger_defaults_ambiguous_bind_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-047 IV: ambiguous project_ids must not silently become vault-wide."""
+    root = tmp_path / "multi"
+    root.mkdir()
+    vault = root / ".atlas-vault"
+    (vault / "projects" / "alpha").mkdir(parents=True)
+    (vault / "projects" / "beta").mkdir(parents=True)
+    bind = root / ".atlas" / "connect.json"
+    bind.parent.mkdir(parents=True)
+    bind.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_root": root.resolve().as_posix(),
+                "vault": ".atlas-vault",
+                "project_ids": ["alpha", "beta"],
+                "project_id": None,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(root)
+    assert main(["brief", "--json"]) != EXIT_OK
+
+
+def test_bind_foreign_project_root_rejected(tmp_path: Path) -> None:
+    """D-047 IV: stolen/copied bind must not redirect stranger CLI."""
+    victim = tmp_path / "victim"
+    attacker = tmp_path / "attacker"
+    victim.mkdir()
+    attacker.mkdir()
+    foreign_vault = tmp_path / "foreign-vault"
+    foreign_vault.mkdir()
+    (attacker / ".atlas").mkdir()
+    (attacker / ".atlas" / "connect.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_root": victim.resolve().as_posix(),
+                "vault": foreign_vault.resolve().as_posix(),
+                "project_id": "victim-proj",
+                "project_ids": ["victim-proj"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConnectError, match="project_root"):
+        resolve_bound_vault(attacker)
 
 
 def test_attention_unreadable_is_incomplete(tmp_path: Path) -> None:
@@ -187,23 +293,20 @@ def test_architecture_coverage_not_present_when_lens_unknown(tmp_path: Path) -> 
     )
     vault = Path(connect_project(root)["vault"])
     lens = build_architecture_lens(vault, "arch-cov")
-    # If lens remains unknown, overview/brief must not claim architecture PRESENT.
+    # First connect write must already reconcile (architecture before overview).
+    overview = json.loads(
+        (vault / "generated" / "answers" / "ans-overview-arch-cov.json").read_text(
+            encoding="utf-8"
+        )
+    )
     if lens.get("status") == "unknown":
-        overview = json.loads(
-            (vault / "generated" / "answers" / "ans-overview-arch-cov.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        # Rematerialize overview after architecture answer exists.
-        from project_atlas.overview import materialize_overview_lenses
-
-        materialize_overview_lenses(vault, project_ids=["arch-cov"])
-        overview = json.loads(
-            (vault / "generated" / "answers" / "ans-overview-arch-cov.json").read_text(
-                encoding="utf-8"
-            )
-        )
         assert overview.get("coverage", {}).get("architecture") != "present"
+    else:
+        assert overview.get("coverage", {}).get("architecture") in {
+            "present",
+            "partial",
+            "absent",
+        }
 
 
 def test_brief_pending_matches_unknown_after_decide(tmp_path: Path) -> None:

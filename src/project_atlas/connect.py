@@ -133,21 +133,43 @@ def _read_bind(project_root: Path) -> dict[str, Any] | None:
     return raw
 
 
+def _bind_owns_root(bind: dict[str, Any], project_root: Path) -> bool:
+    """True when bind ``project_root`` matches the caller's resolved cwd/root."""
+    recorded = bind.get("project_root")
+    if not isinstance(recorded, str) or not recorded.strip():
+        return False
+    try:
+        return Path(recorded).expanduser().resolve() == project_root.resolve()
+    except OSError:
+        return False
+
+
+def _require_bind_owns_root(bind: dict[str, Any], project_root: Path) -> None:
+    """Fail closed when a bind file was copied/stolen from another tree (D-047 IV)."""
+    if not _bind_owns_root(bind, project_root):
+        raise ConnectError(
+            "connect bind project_root does not match current directory; "
+            "re-run `atlas connect .` or pass --vault/--project explicitly"
+        )
+
+
 def resolve_vault_path(project_root: Path, vault: Path | None) -> Path:
     """Resolve vault path: ``--vault`` > bind file > ``<project>/.atlas-vault``."""
     if vault is not None:
         return vault.expanduser().resolve()
-    bind = _read_bind(project_root)
+    root = project_root.expanduser().resolve()
+    bind = _read_bind(root)
     if bind is not None:
+        _require_bind_owns_root(bind, root)
         bound = bind.get("vault")
         if isinstance(bound, str) and bound.strip():
             candidate = Path(bound)
             if not candidate.is_absolute():
-                candidate = (project_root / candidate).resolve()
+                candidate = (root / candidate).resolve()
             else:
                 candidate = candidate.resolve()
             return candidate
-    return (project_root / DEFAULT_VAULT_DIRNAME).resolve()
+    return (root / DEFAULT_VAULT_DIRNAME).resolve()
 
 
 def _ensure_project_marker(project_root: Path) -> bool:
@@ -228,12 +250,20 @@ def resolve_bound_vault(cwd: Path | None = None) -> Path:
     bind = _read_bind(root)
     if bind is None:
         # Fall back to default vault dir when present after connect.
+        # Refuse symlink escape outside the project root (D-047 IV).
         candidate = root / DEFAULT_VAULT_DIRNAME
         if candidate.is_dir():
-            return candidate.resolve()
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(root):
+                raise ConnectError(
+                    "default vault path resolves outside project root; "
+                    "refuse symlink escape — pass --vault explicitly after connect"
+                )
+            return resolved
         raise ConnectError(
             "no connect bind found; run `atlas connect .` or pass --vault explicitly"
         )
+    _require_bind_owns_root(bind, root)
     return resolve_vault_path(root, None)
 
 
@@ -252,6 +282,7 @@ def resolve_bound_project_id(
     root = (cwd or Path.cwd()).expanduser().resolve()
     bind = _read_bind(root)
     if bind is not None:
+        _require_bind_owns_root(bind, root)
         bound = bind.get("project_id")
         if isinstance(bound, str) and bound.strip():
             return safe_relative_component(bound.strip(), label="project id")
@@ -339,8 +370,10 @@ def connect_project(
         steps.append("validate")
     steps.extend(
         [
-            "materialize_overview",
+            # Architecture before overview so D-044 A3 coverage reconciliation sees
+            # ans-architecture-* on the first connect write (D-047 IV).
             "materialize_architecture",
+            "materialize_overview",
             "materialize_state",
             "materialize_changed",
             "materialize_decisions",
@@ -453,8 +486,8 @@ def connect_project(
         from project_atlas.project_state import materialize_state_lenses
         from project_atlas.project_unknown import materialize_unknown_lenses
 
-        overview = materialize_overview_lenses(vault_path)
         architecture = materialize_architecture_lenses(vault_path)
+        overview = materialize_overview_lenses(vault_path)
         state = materialize_state_lenses(vault_path)
         changed = materialize_changed_lenses(vault_path, manifest=manifest)
         decisions = materialize_decisions_lenses(vault_path)

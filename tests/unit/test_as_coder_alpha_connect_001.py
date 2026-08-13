@@ -48,6 +48,7 @@ def test_resolve_vault_prefers_explicit_and_bind(tmp_path: Path) -> None:
         json.dumps(
             {
                 "schema_version": 1,
+                "project_root": project.resolve().as_posix(),
                 "vault": "../bound-vault",
                 "vault_id": "atlas-main",
             },

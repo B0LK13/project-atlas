@@ -5630,3 +5630,21 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Local Windows stranger revalidation required before PASS
 - AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 after correctness proof
 
+## D-047 — Cloud closeout / Local-IV coordination for #345
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-047
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+
+### Independent IV findings remediated (tip drift vs Local D-046 prior HEAD)
+- Attention `SECRET_QUARANTINE` scoped by connect-manifest ownership (CROSS_PROJECT_LEAK)
+- Stranger CLI no longer swallows ambiguous-project `ConnectError` into vault-wide scans
+- Connect materializes architecture before overview so A3 coverage reconciles on first write
+- Bind `project_root` must match cwd; default vault refuses symlink escape outside root
+
+### Gates
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL` (Cloud ≠ Local Windows substitute)
+- `D_042_EXECUTION_GATE = CLOSED`
+- Local D-046 must revalidate the **new** exact HEAD before merge (prior tip stale)
+- INCREMENTAL-CONNECT remains analysis-only until post-merge Local HIGH gate
+
