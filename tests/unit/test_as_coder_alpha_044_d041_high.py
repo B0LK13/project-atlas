@@ -42,18 +42,17 @@ def test_attention_empty_vault_is_unknown_not_clear(tmp_path: Path) -> None:
 
 def test_attention_secret_quarantine_not_clear(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
-    _write(
-        vault / "generated" / "ops" / "connect-manifest.json",
-        {
-            "sources": [
-                {
-                    "path": "docs/secrets.env",
-                    "source_id": "src-1",
-                    "likely_project": "proj",
-                }
-            ]
-        },
-    )
+    ownership = {
+        "sources": [
+            {
+                "path": "docs/secrets.env",
+                "source_id": "src-1",
+                "likely_project": "proj",
+            }
+        ]
+    }
+    _write(vault / "generated" / "ops" / "connect-manifest.json", ownership)
+    _write(vault / "sources" / "manifests" / "source-manifest.json", ownership)
     _write(
         vault / "generated" / "reports" / "secret-findings.json",
         [{"path": "docs/secrets.env", "source_id": "src-1"}],
@@ -66,23 +65,22 @@ def test_attention_secret_quarantine_not_clear(tmp_path: Path) -> None:
 def test_attention_secret_quarantine_scoped_no_cross_project_leak(tmp_path: Path) -> None:
     """D-047 IV: scoped attention must not inherit another project's secrets."""
     vault = tmp_path / "vault"
-    _write(
-        vault / "generated" / "ops" / "connect-manifest.json",
-        {
-            "sources": [
-                {
-                    "path": "docs/a.md",
-                    "source_id": "src-a",
-                    "likely_project": "alpha",
-                },
-                {
-                    "path": "docs/b.env",
-                    "source_id": "src-b",
-                    "likely_project": "beta",
-                },
-            ]
-        },
-    )
+    ownership = {
+        "sources": [
+            {
+                "path": "docs/a.md",
+                "source_id": "src-a",
+                "likely_project": "alpha",
+            },
+            {
+                "path": "docs/b.env",
+                "source_id": "src-b",
+                "likely_project": "beta",
+            },
+        ]
+    }
+    _write(vault / "generated" / "ops" / "connect-manifest.json", ownership)
+    _write(vault / "sources" / "manifests" / "source-manifest.json", ownership)
     _write(
         vault / "generated" / "reports" / "secret-findings.json",
         {"findings": [{"path": "docs/b.env", "source_id": "src-b"}]},
@@ -261,31 +259,30 @@ def test_source_health_unreadable_not_healthy(tmp_path: Path) -> None:
 
 def test_source_health_unknown_project_not_leaked(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
-    _write(
-        vault / "generated" / "ops" / "connect-manifest.json",
-        {
-            "sources": [
-                {
-                    "path": "docs/a.md",
-                    "source_id": "src-a",
-                    "likely_project": "alpha",
-                    "exclusion_reason": "configured-exclusion",
-                },
-                {
-                    "path": "docs/orphan.md",
-                    "source_id": "src-orphan",
-                    "likely_project": "unknown-project",
-                    "exclusion_reason": "configured-exclusion",
-                },
-                {
-                    "path": "docs/b.md",
-                    "source_id": "src-b",
-                    "likely_project": "beta",
-                    "exclusion_reason": "configured-exclusion",
-                },
-            ]
-        },
-    )
+    ownership = {
+        "sources": [
+            {
+                "path": "docs/a.md",
+                "source_id": "src-a",
+                "likely_project": "alpha",
+                "exclusion_reason": "configured-exclusion",
+            },
+            {
+                "path": "docs/orphan.md",
+                "source_id": "src-orphan",
+                "likely_project": "unknown-project",
+                "exclusion_reason": "configured-exclusion",
+            },
+            {
+                "path": "docs/b.md",
+                "source_id": "src-b",
+                "likely_project": "beta",
+                "exclusion_reason": "configured-exclusion",
+            },
+        ]
+    }
+    _write(vault / "generated" / "ops" / "connect-manifest.json", ownership)
+    _write(vault / "sources" / "manifests" / "source-manifest.json", ownership)
     _write(
         vault / "generated" / "reports" / "secret-findings.json",
         {

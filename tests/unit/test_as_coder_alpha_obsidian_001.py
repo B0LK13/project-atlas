@@ -26,8 +26,10 @@ def _seed(root: Path) -> Path:
 
 def test_obsidian_living_note_and_human_preserve(tmp_path: Path) -> None:
     project = _seed(tmp_path / "obs-fixture")
-    vault = Path(connect_project(project)["vault"])
-    note = project_note_path(vault, "obs-fixture")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    note = project_note_path(vault, project_id)
     assert note.is_file()
     text = note.read_text(encoding="utf-8")
     assert "Living knowledge" in text
@@ -41,7 +43,7 @@ def test_obsidian_living_note_and_human_preserve(tmp_path: Path) -> None:
     )
     note.write_text(humanized, encoding="utf-8")
     report = materialize_obsidian_projection(
-        vault, project_id="obs-fixture", refresh_brief=False
+        vault, project_id=project_id, refresh_brief=False
     )
     assert report["status"] == "ok"
     refreshed = note.read_text(encoding="utf-8")
@@ -51,19 +53,23 @@ def test_obsidian_living_note_and_human_preserve(tmp_path: Path) -> None:
 
 def test_obsidian_fail_closed_malformed_markers(tmp_path: Path) -> None:
     project = _seed(tmp_path / "obs-bad")
-    vault = Path(connect_project(project)["vault"])
-    note = project_note_path(vault, "obs-bad")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    note = project_note_path(vault, project_id)
     note.write_text(
         note.read_text(encoding="utf-8") + "\n<!-- BEGIN HUMAN: notes -->\n",
         encoding="utf-8",
     )
     with pytest.raises(ObsidianProjectionError):
-        materialize_obsidian_projection(vault, project_id="obs-bad", refresh_brief=False)
+        materialize_obsidian_projection(vault, project_id=project_id, refresh_brief=False)
 
 
 def test_cli_obsidian_project(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-obs")
-    vault = Path(connect_project(project)["vault"])
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
     assert (
         main(
             [
@@ -72,7 +78,7 @@ def test_cli_obsidian_project(tmp_path: Path) -> None:
                 "--vault",
                 str(vault),
                 "--project",
-                "cli-obs",
+                project_id,
                 "--no-refresh",
                 "--json",
             ]
