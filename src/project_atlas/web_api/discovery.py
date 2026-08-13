@@ -2,6 +2,7 @@
 
 Exposes categorized discovery results. Never invents estate rows and never
 ingests. UI categories answer: "What did Atlas find that I should care about?"
+No UI-side matching — projects the same report semantics as CLI/API.
 """
 
 from __future__ import annotations
@@ -51,6 +52,14 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
                 "knowledge": 0,
                 "ignored": 0,
                 "required_review": 0,
+                "connected": 0,
+            },
+            "scan": {
+                "scan_complete": False,
+                "truncation_reason": "report_absent",
+                "project_limit_reached": False,
+                "knowledge_limit_reached": False,
+                "permission_errors": [],
             },
             "categories": empty_categories,
             "primary_question": "What did Atlas find that I should care about?",
@@ -67,6 +76,8 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
     merged = {key: list(categories.get(key) or []) for key in empty_categories}
     counts_raw = report.get("counts")
     counts: dict[str, Any] = counts_raw if isinstance(counts_raw, dict) else {}
+    scan_raw = report.get("scan")
+    scan: dict[str, Any] = scan_raw if isinstance(scan_raw, dict) else {}
     return {
         "package_id": PACKAGE_ID,
         "truth_boundary": TRUTH_BOUNDARY,
@@ -77,9 +88,22 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
             "knowledge": int(counts.get("knowledge") or 0),
             "ignored": int(counts.get("ignored") or 0),
             "required_review": int(counts.get("required_review") or 0),
+            "connected": int(counts.get("connected") or 0),
+        },
+        "scan": {
+            "scan_complete": bool(scan.get("scan_complete", True)),
+            "truncation_reason": scan.get("truncation_reason"),
+            "project_limit_reached": bool(scan.get("project_limit_reached", False)),
+            "knowledge_limit_reached": bool(
+                scan.get("knowledge_limit_reached", False)
+            ),
+            "permission_errors": list(scan.get("permission_errors") or []),
         },
         "categories": merged,
         "primary_question": "What did Atlas find that I should care about?",
         "invariant": report.get("invariant", TRUTH_BOUNDARY),
         "security": report.get("security"),
+        "discovery_identity_source_of_truth": report.get(
+            "discovery_identity_source_of_truth"
+        ),
     }

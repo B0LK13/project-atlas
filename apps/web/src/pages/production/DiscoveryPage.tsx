@@ -27,6 +27,7 @@ export default function DiscoveryPage() {
   const { view, error, loading, dataSource } = useEstateDiscovery();
   const isDemo = dataSource === "demo_stub" || view?.demo_isolated === true;
   const categories = view?.categories;
+  const scanIncomplete = view?.present && view.scan?.scan_complete === false;
 
   return (
     <ProdShell>
@@ -56,16 +57,28 @@ export default function DiscoveryPage() {
           </p>
         ) : null}
 
+        {scanIncomplete ? (
+          <p className="banner warn">
+            SCAN INCOMPLETE
+            {view?.scan?.truncation_reason
+              ? `: ${view.scan.truncation_reason}`
+              : ""}{" "}
+            — results are partial, not a complete estate inventory.
+          </p>
+        ) : null}
+
         {view?.present ? (
           <section className="panel" aria-label="Discovery summary">
             <h2>Summary</h2>
             <p>
               Root: {view.authorized_root ?? "unknown"} · projects{" "}
               {view.counts?.projects ?? 0} · knowledge {view.counts?.knowledge ?? 0} ·
-              review {view.counts?.required_review ?? 0}
+              review {view.counts?.required_review ?? 0} · connected{" "}
+              {view.counts?.connected ?? 0}
             </p>
             <p className="disclaimer">
-              DISCOVER ≠ INGEST ≠ TRUST ≠ AUTHORITY · UI ≠ canonical
+              DISCOVER ≠ INGEST ≠ TRUST ≠ AUTHORITY · UI ≠ canonical · LIKELY ≠
+              CONNECTED
             </p>
           </section>
         ) : null}
@@ -102,6 +115,18 @@ export default function DiscoveryPage() {
                       </span>
                       {row.why_matched?.[0] ? (
                         <span>why: {row.why_matched[0]}</span>
+                      ) : null}
+                      {row.why_connected?.[0] ? (
+                        <span>connected: {row.why_connected[0]}</span>
+                      ) : null}
+                      {row.conflicting_evidence?.[0]?.detail ? (
+                        <span>
+                          conflict: {row.conflicting_evidence[0].kind}:{" "}
+                          {row.conflicting_evidence[0].detail}
+                        </span>
+                      ) : null}
+                      {row.required_action ? (
+                        <span>action: {row.required_action}</span>
                       ) : null}
                     </li>
                   ))}

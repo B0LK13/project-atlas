@@ -5,6 +5,35 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-063 — D-049 Wave 1 truth hardening (production candidate)
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-KNOWLEDGE-ESTATE-DISCOVERY-063
+**Branch:** cursor/d049-knowledge-estate-discovery-d036
+**PR:** #346
+
+### Mission
+Harden Wave 1 into a truth-safe / isolation-safe / Windows-aware production
+candidate before Local freeze. No D-049 acceptance claim yet.
+
+### Hardening
+- Identity contradiction matrix (same-id/diff-uuid, diff-id/same-uuid, invalid UUID)
+- CONNECTED requires durable bind/source-root ownership + `why_connected`
+- Governed SoT: allocation receipts + connect bind/manifest/receipt (not speculative JSON)
+- Real STRONG_EVIDENCE via live git remote/package from bind roots
+- Knowledge relations (nested / Obsidian / unmatched) without ingest
+- Reparse/junction no-descend; platform path identity; truncation honesty
+- Cache never used for skip; stale-report connect TOCTOU fail-closed
+- Review actionable; Web/API scan + conflict parity
+
+### Gates held
+```
+CODER_ALPHA_ACCEPTANCE = PASS
+D_049_EXECUTION_GATE = OPEN
+D_049_ACCEPTANCE = NOT_YET_EVALUATED
+D_042_EXECUTION_GATE = CLOSED
+```
+
 ## D-062 — Coder Alpha PASS + D-049 execution unlock (wave 1)
 
 **Date:** 2026-08-13

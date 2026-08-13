@@ -14,6 +14,12 @@ export type DiscoveryCategoryKey =
   | "IGNORED"
   | "CONNECTED";
 
+export interface DiscoveryEvidenceRow {
+  kind?: string;
+  detail?: string;
+  weight?: string;
+}
+
 export interface DiscoveryCandidateRow {
   candidate_id?: string;
   kind?: string;
@@ -22,7 +28,12 @@ export interface DiscoveryCandidateRow {
   match_state?: string;
   category?: string;
   why_matched?: string[];
+  why_connected?: string[];
+  match_evidence?: DiscoveryEvidenceRow[];
+  conflicting_evidence?: DiscoveryEvidenceRow[];
   required_review?: boolean;
+  required_action?: string | null;
+  knowledge_relation?: string | null;
 }
 
 export interface EstateDiscoveryView {
@@ -35,6 +46,14 @@ export interface EstateDiscoveryView {
     knowledge?: number;
     ignored?: number;
     required_review?: number;
+    connected?: number;
+  };
+  scan?: {
+    scan_complete?: boolean;
+    truncation_reason?: string | null;
+    project_limit_reached?: boolean;
+    knowledge_limit_reached?: boolean;
+    permission_errors?: unknown[];
   };
   categories: Record<DiscoveryCategoryKey, DiscoveryCandidateRow[]>;
   primary_question?: string;
@@ -52,6 +71,10 @@ const EMPTY: EstateDiscoveryView = {
     UNMATCHED_KNOWLEDGE: [],
     IGNORED: [],
     CONNECTED: [],
+  },
+  scan: {
+    scan_complete: false,
+    truncation_reason: "report_absent",
   },
   primary_question: "What did Atlas find that I should care about?",
   note: "No discovery report loaded.",
@@ -84,7 +107,11 @@ export function useEstateDiscovery(): {
         return;
       }
       try {
-        const payload = await liveApiFetch<EstateDiscoveryView>("/v1/discovery");
+        const resp = await liveApiFetch("/v1/discovery");
+        if (!resp.ok) {
+          throw new Error(`discovery HTTP ${resp.status}`);
+        }
+        const payload = (await resp.json()) as EstateDiscoveryView;
         if (cancelled) return;
         setView({
           ...EMPTY,
@@ -92,6 +119,10 @@ export function useEstateDiscovery(): {
           categories: {
             ...EMPTY.categories,
             ...(payload.categories ?? {}),
+          },
+          scan: {
+            ...EMPTY.scan,
+            ...(payload.scan ?? {}),
           },
           data_source: "live_api",
           demo_isolated: false,

@@ -208,17 +208,23 @@ def test_cli_discover_review(
     )
     vault = tmp_path / "vault"
     (vault / "projects" / "other").mkdir(parents=True)
-    # Plant allocation so uuid conflicts with a different owner id.
-    alloc = vault / "generated" / "ops" / "project-uuid-allocations.json"
+    # Plant governed allocation receipt so uuid conflicts with a different owner id.
     _write(
-        alloc,
+        vault
+        / "receipts"
+        / "source-lineage"
+        / "project-other-allocation.json",
         json.dumps(
             {
-                "allocations": {
-                    "33333333-3333-4333-8333-333333333333": {"project_id": "other"}
-                }
-            }
-        ),
+                "schema_version": 1,
+                "receipt_type": "project-identity-allocation",
+                "project": "other",
+                "project_uuid": "33333333-3333-4333-8333-333333333333",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
     )
     report = discover_estate(estate, vault=vault)
     report_path = tmp_path / "report.json"
@@ -296,8 +302,21 @@ def test_conflicting_candidate_connect_refused(tmp_path: Path) -> None:
         f"---\nproject_uuid: {uuid}\n---\n",
     )
     _write(
-        vault / "generated" / "ops" / "project-uuid-allocations.json",
-        json.dumps({"allocations": {uuid: {"project_id": "owner"}}}),
+        vault
+        / "receipts"
+        / "source-lineage"
+        / "project-owner-allocation.json",
+        json.dumps(
+            {
+                "schema_version": 1,
+                "receipt_type": "project-identity-allocation",
+                "project": "owner",
+                "project_uuid": uuid,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
     )
 
     report = discover_estate(estate, vault=vault)

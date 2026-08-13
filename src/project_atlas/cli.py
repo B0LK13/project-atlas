@@ -2248,6 +2248,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                             why = row.get("why_matched") or []
                             if why:
                                 print(f"      why: {why[0]}")
+                            conflicts = row.get("conflicting_evidence") or []
+                            for conflict in conflicts[:5]:
+                                if isinstance(conflict, dict):
+                                    print(
+                                        f"      conflict: {conflict.get('kind')}: "
+                                        f"{conflict.get('detail')}"
+                                    )
+                            required_action = row.get("required_action")
+                            if isinstance(required_action, str) and required_action:
+                                print(f"      action: {required_action}")
                 return EXIT_OK
 
             if discover_command == "connect":
