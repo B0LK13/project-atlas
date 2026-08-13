@@ -10,11 +10,11 @@ from __future__ import annotations
 import contextlib
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
 
 from project_atlas.overview import materialize_overview_lenses
+from project_atlas.project_architecture import _manifest_source_rows, materialize_architecture_lenses
 from project_atlas.project_changed import ProjectChangedError, materialize_changed_lenses
 from project_atlas.project_decisions import materialize_decisions_lenses
 from project_atlas.project_state import materialize_state_lenses
@@ -73,28 +73,6 @@ def _field(lens: dict[str, Any] | None, key: str = "summary") -> str | None:
     return None
 
 
-def _manifest_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
-    manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
-    if not manifest_path.is_file():
-        return []
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return []
-    rows = manifest.get("sources") if isinstance(manifest, dict) else None
-    if not isinstance(rows, list):
-        return []
-    selected: list[dict[str, Any]] = []
-    for row in rows:
-        if not isinstance(row, dict) or row.get("exclusion_reason"):
-            continue
-        likely = str(row.get("likely_project") or "unknown-project")
-        if likely not in {project_id, "unknown-project"}:
-            continue
-        selected.append(row)
-    return selected
-
-
 def _stack_from_pyproject(vault: Path, project_id: str) -> str | None:
     """Derive a concrete stack label from root ``pyproject.toml`` when present."""
     for row in _manifest_source_rows(vault, project_id):
@@ -144,136 +122,6 @@ def _stack_from_pyproject(vault: Path, project_id: str) -> str | None:
         if parts:
             return " · ".join(parts)[:240]
     return None
-
-
-def _architecture_rank(path: str) -> tuple[int, int, str] | None:
-    """Prefer plan/AGENTS architecture docs over nested READMEs (D-039)."""
-    posix = path.replace("\\", "/").lstrip("./")
-    lower = posix.lower()
-    depth = posix.count("/")
-    if lower in {"docs/plan.md", "docs/prp.md"}:
-        return (0, depth, posix)
-    if lower in {"agents.md", "claude.md"}:
-        return (1, depth, posix)
-    if lower.endswith("/plan.md") or lower.endswith("/architecture.md"):
-        return (2, depth, posix)
-    if Path(posix).name.lower() in {"readme.md", "readme.txt", "readme"}:
-        return None
-    return None
-
-
-def _heading_level(line: str) -> int | None:
-    """Return ATX heading level for ``# Title`` lines; else None."""
-    match = re.match(r"^(#{1,6})\s+\S", line.strip())
-    if not match:
-        return None
-    return len(match.group(1))
-
-
-def _is_architecture_heading(line: str) -> bool:
-    lower = line.strip().lower()
-    if not lower.startswith("#"):
-        return False
-    return any(
-        token in lower
-        for token in (
-            "architect",
-            "three-layer",
-            "core architectural",
-            "package layout",
-        )
-    )
-
-
-def _is_architecture_signal(line: str) -> bool:
-    """Require concrete architecture signals — not bare OKF/ops mentions."""
-    lower = line.strip().lstrip("-").strip().lower()
-    if not lower:
-        return False
-    if "three-layer" in lower or "layer a" in lower or "layer b" in lower:
-        return True
-    if "package layout" in lower or "src layout" in lower:
-        return True
-    if "discover" in lower and "ingest" in lower and "validate" in lower:
-        return True
-    return "architecture" in lower and any(
-        token in lower for token in ("vault", "pipeline", "component", "layer")
-    )
-
-
-def _architecture_from_text(text: str, *, max_chars: int = 480) -> str | None:
-    """Pull a concrete architecture blurb from plan/AGENTS prose."""
-    lines = [line.rstrip() for line in text.splitlines()]
-    # Prefer an explicit architecture heading when present.
-    capture = False
-    buf: list[str] = []
-    heading_hit = False
-    section_level = 0
-    for line in lines:
-        stripped = line.strip()
-        level = _heading_level(stripped)
-        if level is not None and _is_architecture_heading(stripped):
-            capture = True
-            heading_hit = True
-            section_level = level
-            buf = []
-            continue
-        if capture and level is not None and level <= section_level:
-            # Stop only at same-or-higher heading; keep ### subsections.
-            break
-        if capture and stripped and not stripped.startswith("```"):
-            if level is not None:
-                # Keep subsection titles as structural cues.
-                buf.append(stripped.lstrip("#").strip())
-            else:
-                buf.append(stripped)
-            if sum(len(part) for part in buf) >= max_chars:
-                break
-    if heading_hit and buf:
-        text_out = " ".join(buf)
-        return text_out[: max_chars - 1].rstrip() + "…" if len(text_out) > max_chars else text_out
-
-    # AGENTS/CLAUDE fallback: architectural signals only (no bare OKF tokens).
-    signals: list[str] = []
-    for line in lines:
-        stripped = line.strip().lstrip("-").strip()
-        if _is_architecture_signal(stripped):
-            signals.append(stripped)
-        if len(signals) >= 3:
-            break
-    if signals:
-        text_out = " ".join(signals)
-        return text_out[: max_chars - 1].rstrip() + "…" if len(text_out) > max_chars else text_out
-    return None
-
-
-def _extract_architecture_blurb(
-    vault: Path, project_id: str
-) -> tuple[str | None, str | None]:
-    """Return ``(architecture_summary, evidence_path)`` from plan/AGENTS."""
-    candidates: list[tuple[tuple[int, int, str], dict[str, Any]]] = []
-    for row in _manifest_source_rows(vault, project_id):
-        path = str(row.get("path") or "")
-        rank = _architecture_rank(path)
-        if rank is None:
-            continue
-        candidates.append((rank, row))
-    for _rank, row in sorted(candidates, key=lambda item: item[0]):
-        source_id = str(row.get("source_id") or "")
-        path = str(row.get("path") or "")
-        if not source_id:
-            continue
-        imported = vault / "sources" / "imported-documents" / f"{source_id}.md"
-        if not imported.is_file():
-            continue
-        try:
-            text = imported.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        blurb = _architecture_from_text(text)
-        if blurb:
-            return blurb, path
-    return None, None
 
 
 def _extract_stack_blurb(vault: Path, project_id: str) -> str | None:
@@ -329,6 +177,7 @@ def build_project_brief(
     vault = vault.expanduser().resolve()
     if refresh:
         materialize_overview_lenses(vault, project_ids=[project_id])
+        materialize_architecture_lenses(vault, project_ids=[project_id])
         materialize_state_lenses(vault, project_ids=[project_id])
         # changed without manifest uses existing inventory pair
         with contextlib.suppress(ProjectChangedError, OSError, ValueError):
@@ -337,6 +186,7 @@ def build_project_brief(
         materialize_unknown_lenses(vault, project_ids=[project_id])
 
     overview = _load_answer(vault, f"ans-overview-{project_id}")
+    architecture = _load_answer(vault, f"ans-architecture-{project_id}")
     state = _load_answer(vault, f"ans-state-{project_id}")
     changed = _load_answer(vault, f"ans-changed-{project_id}")
     decisions = _load_answer(vault, f"ans-decisions-{project_id}")
@@ -376,10 +226,11 @@ def build_project_brief(
                 evidence.append(item)
 
     tech_stack = _extract_stack_blurb(vault, project_id)
-    # D-039: never echo purpose/overview as architecture. Absent evidence → UNKNOWN.
-    architecture, architecture_evidence = _extract_architecture_blurb(vault, project_id)
-    if architecture_evidence and architecture_evidence not in evidence:
-        evidence.append(architecture_evidence)
+    architecture_evidence = (architecture or {}).get("evidence")
+    if isinstance(architecture_evidence, list):
+        for item in architecture_evidence:
+            if isinstance(item, str) and item not in evidence:
+                evidence.append(item)
 
     brief = {
         "schema_version": 1,
@@ -389,7 +240,7 @@ def build_project_brief(
         "project_identity": project_id,
         "purpose": _field(overview) or "UNKNOWN",
         "tech_stack": tech_stack or "UNKNOWN",
-        "architecture_summary": architecture or "UNKNOWN",
+        "architecture_summary": _field(architecture) or "UNKNOWN",
         "current_state": _field(state) or "UNKNOWN",
         "recent_meaningful_changes": _field(changed) or "UNKNOWN",
         "important_decisions": _field(decisions) or "UNKNOWN",
@@ -399,6 +250,7 @@ def build_project_brief(
         "evidence_links": evidence[:40],
         "lenses": {
             "overview": (overview or {}).get("answer_id"),
+            "architecture": (architecture or {}).get("answer_id"),
             "state": (state or {}).get("answer_id"),
             "changed": (changed or {}).get("answer_id"),
             "decisions": (decisions or {}).get("answer_id"),

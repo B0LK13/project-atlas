@@ -253,6 +253,7 @@ def connect_project(
     steps.extend(
         [
             "materialize_overview",
+            "materialize_architecture",
             "materialize_state",
             "materialize_changed",
             "materialize_decisions",
@@ -276,6 +277,7 @@ def connect_project(
         "documents_ingested": 0,
         "projects": [],
         "overview_answers": [],
+        "architecture_answers": [],
         "state_answers": [],
         "changed_answers": [],
         "decisions_answers": [],
@@ -357,6 +359,7 @@ def connect_project(
             validate(vault_path)
         # Coder Alpha derived lenses for Knowledge/Ask-live + project brief.
         from project_atlas.overview import materialize_overview_lenses
+        from project_atlas.project_architecture import materialize_architecture_lenses
         from project_atlas.project_brief import materialize_project_briefs
         from project_atlas.project_changed import materialize_changed_lenses
         from project_atlas.project_decisions import materialize_decisions_lenses
@@ -364,6 +367,7 @@ def connect_project(
         from project_atlas.project_unknown import materialize_unknown_lenses
 
         overview = materialize_overview_lenses(vault_path)
+        architecture = materialize_architecture_lenses(vault_path)
         state = materialize_state_lenses(vault_path)
         changed = materialize_changed_lenses(vault_path, manifest=manifest)
         decisions = materialize_decisions_lenses(vault_path)
@@ -383,6 +387,7 @@ def connect_project(
         "sources": index_result.get("sources"),
     }
     report["overview_answers"] = overview.get("answers_written", [])
+    report["architecture_answers"] = architecture.get("answers_written", [])
     report["state_answers"] = state.get("answers_written", [])
     report["changed_answers"] = changed.get("answers_written", [])
     report["changed_delta"] = changed.get("delta", {})

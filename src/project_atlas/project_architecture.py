@@ -1,0 +1,648 @@
+"""AS-CODER-ALPHA-ARCH-002 — structured architecture answer lens.
+
+Builds a non-authoritative architecture lens from imported architecture-bearing
+docs selected through the connect manifest. Extraction is content-based: source
+paths select candidate authority, but slot values are filled only from headings
+and prose signals. README files are not architecture authority.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from pathlib import Path
+from typing import Any, Callable
+
+PACKAGE_ID = "AS-CODER-ALPHA-ARCH-002"
+GENERATOR_ID = "atlas-coder-alpha-architecture-002"
+ANSWERS_RELATIVE = Path("generated") / "answers"
+
+ARCHITECTURE_SLOTS: tuple[str, ...] = (
+    "system_purpose",
+    "major_components",
+    "component_responsibilities",
+    "data_flow",
+    "control_flow",
+    "trust_boundaries",
+    "human_agent_interaction",
+    "runtime_surfaces",
+    "knowledge_pipeline",
+    "web_cli_mcp_obsidian",
+    "key_integrations",
+    "important_arch_decisions",
+    "known_gaps",
+)
+
+_UNKNOWN = "UNKNOWN"
+_SUMMARY_MAX_CHARS = 720
+_SLOT_MAX_CHARS = 320
+_FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
+_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+_STAGE_RE = re.compile(r"^#+\s*Stage\s+\d+\s+[—-]\s*(.+?)\s*$", re.IGNORECASE)
+_MODULE_NAME_RE = re.compile(r"`([^`]+?\.(?:py|md|json|yaml|yml))`")
+_TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$")
+
+
+class ProjectArchitectureError(ValueError):
+    """Fail-closed architecture lens error."""
+
+
+def _write_atomic(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp.write_bytes(content)
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+
+def _list_projects(vault: Path) -> list[str]:
+    root = vault / "projects"
+    if not root.is_dir():
+        return []
+    return sorted(
+        path.name for path in root.iterdir() if path.is_dir() and not path.name.startswith(".")
+    )
+
+
+def _safe_project_id(project_id: str) -> str:
+    if not project_id or project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
+        raise ProjectArchitectureError(f"unsafe project id: {project_id!r}")
+    return project_id
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+def _manifest_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
+    manifest = _read_json(vault / "generated" / "ops" / "connect-manifest.json")
+    if not manifest:
+        return []
+    rows = manifest.get("sources")
+    if not isinstance(rows, list):
+        return []
+    selected: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict) or row.get("exclusion_reason"):
+            continue
+        likely = str(row.get("likely_project") or "unknown-project")
+        if likely not in {project_id, "unknown-project"}:
+            continue
+        selected.append(row)
+    return selected
+
+
+def _architecture_rank(path: str) -> tuple[int, int, str] | None:
+    """Select architecture-authority candidates without inferring slot values."""
+    posix = path.replace("\\", "/").lstrip("./")
+    lower = posix.lower()
+    depth = posix.count("/")
+    if lower == "docs/plan.md":
+        return (0, depth, posix)
+    if lower in {"agents.md", "claude.md"}:
+        return (1, depth, posix)
+    if lower == "docs/prp.md":
+        return (2, depth, posix)
+    if lower.endswith("/plan.md") or lower.endswith("/architecture.md"):
+        return (3, depth, posix)
+    if Path(posix).name.lower() in {"readme.md", "readme.txt", "readme"}:
+        return None
+    return None
+
+
+def _imported_document_path(vault: Path, source_id: str) -> Path:
+    return vault / "sources" / "imported-documents" / f"{source_id}.md"
+
+
+def _clean_line(line: str) -> str:
+    text = line.strip()
+    if not text or text.startswith("```") or _TABLE_SEPARATOR_RE.match(text):
+        return ""
+    if text.startswith("|") and text.endswith("|"):
+        cells = [cell.strip() for cell in text.strip("|").split("|")]
+        cells = [cell for cell in cells if cell and set(cell) - {"-", ":"}]
+        text = ": ".join(cells)
+    text = re.sub(r"^\s{0,3}#{1,6}\s+", "", text)
+    text = re.sub(r"^\s*(?:[-*+]|\d+\.)\s+", "", text)
+    text = text.replace("→", "->").replace("—", "-").replace("–", "-")
+    text = _LINK_RE.sub(r"\1", text)
+    for marker in ("**", "__", "`", "_"):
+        text = text.replace(marker, "")
+    text = re.sub(r"\s+", " ", text).strip(" ;")
+    return text
+
+
+def _clean_text(text: str) -> str:
+    return _FRONTMATTER_RE.sub("", text, count=1)
+
+
+def _heading_level(line: str) -> int | None:
+    match = _HEADING_RE.match(line.strip())
+    if not match:
+        return None
+    return len(match.group(1))
+
+
+def _heading_title(line: str) -> str | None:
+    match = _HEADING_RE.match(line.strip())
+    if not match:
+        return None
+    return _clean_line(match.group(2))
+
+
+def _capture_section(
+    text: str,
+    heading_predicate: Callable[[str], bool],
+    *,
+    max_lines: int = 12,
+) -> list[str]:
+    lines = _clean_text(text).splitlines()
+    capture = False
+    level_start = 0
+    out: list[str] = []
+    for line in lines:
+        title = _heading_title(line)
+        level = _heading_level(line)
+        if title is not None and level is not None and heading_predicate(title.lower()):
+            capture = True
+            level_start = level
+            out = []
+            continue
+        if capture and title is not None and level is not None and level <= level_start:
+            break
+        if not capture:
+            continue
+        cleaned = _clean_line(line)
+        if cleaned:
+            out.append(cleaned)
+        if len(out) >= max_lines:
+            break
+    return out
+
+
+def _first_signal_lines(
+    text: str,
+    tokens: tuple[str, ...],
+    *,
+    max_lines: int = 4,
+    banned: tuple[str, ...] = (),
+) -> list[str]:
+    found: list[str] = []
+    for line in _clean_text(text).splitlines():
+        cleaned = _clean_line(line)
+        if not cleaned:
+            continue
+        lower = cleaned.lower()
+        if any(token in lower for token in banned):
+            continue
+        if any(token in lower for token in tokens):
+            found.append(cleaned)
+        if len(found) >= max_lines:
+            break
+    return found
+
+
+def _unique(parts: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for part in parts:
+        cleaned = _clean_line(part)
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(cleaned)
+    return out
+
+
+def _join(parts: list[str], *, max_chars: int = _SLOT_MAX_CHARS) -> str | None:
+    unique = _unique(parts)
+    if not unique:
+        return None
+    text = "; ".join(unique)
+    if len(text) > max_chars:
+        return text[: max_chars - 3].rstrip() + "..."
+    return text
+
+
+def _layer_pipeline(text: str) -> str | None:
+    lower = text.lower()
+    if not all(token in lower for token in ("layer a", "layer b", "layer c")):
+        return None
+    return (
+        "Three-layer vault: Layer A source evidence; Layer B canonical OKF knowledge; "
+        "Layer C portfolio intelligence."
+    )
+
+
+def _stage_pipeline(text: str) -> str | None:
+    stages: list[str] = []
+    for line in _clean_text(text).splitlines():
+        match = _STAGE_RE.match(line.strip())
+        if not match:
+            continue
+        stage = _clean_line(match.group(1))
+        if stage:
+            stages.append(stage)
+    if len(stages) < 3:
+        return None
+    return "Evidence pipeline stages: " + " -> ".join(stages[:6])
+
+
+def _module_rows(text: str) -> list[str]:
+    rows: list[str] = []
+    in_component_section = False
+    section_level = 0
+    for line in _clean_text(text).splitlines():
+        title = _heading_title(line)
+        level = _heading_level(line)
+        if title is not None and level is not None:
+            lower = title.lower()
+            if any(token in lower for token in ("code organization", "architecture", "package layout")):
+                in_component_section = True
+                section_level = level
+                continue
+            if in_component_section and level <= section_level:
+                in_component_section = False
+        if not in_component_section:
+            continue
+        if not _MODULE_NAME_RE.search(line):
+            continue
+        cleaned = _clean_line(line)
+        if cleaned:
+            rows.append(cleaned)
+        if len(rows) >= 10:
+            break
+    return rows
+
+
+def _component_summary(module_rows: list[str]) -> str | None:
+    modules: list[str] = []
+    for row in module_rows:
+        for match in _MODULE_NAME_RE.finditer(row):
+            modules.append(match.group(1))
+    modules = _unique(modules)
+    if not modules:
+        return None
+    return _join(["Core package modules: " + ", ".join(modules[:12])])
+
+
+def _responsibility_summary(module_rows: list[str]) -> str | None:
+    if not module_rows:
+        return None
+    return _join(module_rows[:5])
+
+
+def _terms_present(text: str, terms: tuple[str, ...]) -> list[str]:
+    lower = text.lower()
+    present: list[str] = []
+    for term in terms:
+        if term.lower() in lower:
+            present.append(term)
+    return present
+
+
+def _surface_summary(text: str) -> str | None:
+    lines = _first_signal_lines(
+        text,
+        ("cli", "live_api", "api-serve", "web ", "mcp", "obsidian", "chatgpt bridge"),
+        max_lines=4,
+    )
+    if not lines:
+        return None
+    return _join(lines)
+
+
+def _web_cli_mcp_obsidian_summary(text: str) -> str | None:
+    terms = _terms_present(text, ("CLI", "Web", "MCP", "Obsidian"))
+    if not terms:
+        return None
+    lines = _first_signal_lines(text, ("cli", "web ", "mcp", "obsidian"), max_lines=3)
+    prefix = "Mentioned surfaces: " + ", ".join(terms)
+    return _join([prefix, *lines])
+
+
+def _plan_slots(text: str) -> dict[str, str]:
+    slots: dict[str, str] = {}
+    purpose = _first_signal_lines(
+        text,
+        ("project atlas converts", "knowledge compiler", "knowledge control plane"),
+        max_lines=2,
+    )
+    value = _join(purpose)
+    if value:
+        slots["system_purpose"] = value
+
+    layer_value = _layer_pipeline(text)
+    if layer_value:
+        slots["knowledge_pipeline"] = layer_value
+        slots["important_arch_decisions"] = "Core architectural decision: " + layer_value
+
+    stage_value = _stage_pipeline(text)
+    if stage_value:
+        slots["data_flow"] = stage_value
+
+    component_lines = _capture_section(
+        text,
+        lambda title: "component" in title,
+        max_lines=5,
+    )
+    component_value = _join(component_lines)
+    if component_value:
+        slots["major_components"] = component_value
+
+    human_agent = _first_signal_lines(
+        text,
+        ("humans and ai agents", "human navigation", "ai agents", "human-readable"),
+        max_lines=3,
+    )
+    human_agent_value = _join(human_agent)
+    if human_agent_value:
+        slots["human_agent_interaction"] = human_agent_value
+
+    integrations = _capture_section(
+        text,
+        lambda title: "discovery" in title or "strong recommendation" in title,
+        max_lines=9,
+    )
+    integrations_value = _join(
+        [
+            line
+            for line in integrations
+            if any(
+                token in line.lower()
+                for token in (
+                    "git repositories",
+                    "google drive",
+                    "markdown vaults",
+                    "pdfs",
+                    "word documents",
+                    "obsidian",
+                    "static sites",
+                    "ai agents",
+                )
+            )
+        ]
+    )
+    if integrations_value:
+        slots["key_integrations"] = integrations_value
+
+    web_value = _web_cli_mcp_obsidian_summary(text)
+    if web_value:
+        slots["web_cli_mcp_obsidian"] = web_value
+    return slots
+
+
+def _agents_or_claude_slots(text: str) -> dict[str, str]:
+    slots: dict[str, str] = {}
+    purpose = _first_signal_lines(
+        text,
+        ("project atlas is a local-first", "project knowledge compiler", "source-backed"),
+        max_lines=2,
+    )
+    value = _join(purpose)
+    if value:
+        slots["system_purpose"] = value
+
+    module_rows = _module_rows(text)
+    component_value = _component_summary(module_rows)
+    if component_value:
+        slots["major_components"] = component_value
+    responsibility_value = _responsibility_summary(module_rows)
+    if responsibility_value:
+        slots["component_responsibilities"] = responsibility_value
+
+    control = _first_signal_lines(
+        text,
+        ("core pipeline", "discover", "ingest", "build-indexes", "validate"),
+        max_lines=3,
+    )
+    control_value = _join(
+        [line for line in control if "discover" in line.lower() and "ingest" in line.lower()]
+    )
+    if control_value:
+        slots["control_flow"] = control_value
+
+    trust = _first_signal_lines(
+        text,
+        (
+            "no claim without",
+            "truth boundaries",
+            "model_output",
+            "model output",
+            "read-only",
+            "fail-closed",
+            "protected paths",
+            "lens != authority",
+            "lens≠",
+        ),
+        max_lines=5,
+    )
+    trust_value = _join(trust)
+    if trust_value:
+        slots["trust_boundaries"] = trust_value
+
+    human_agent = _first_signal_lines(
+        text,
+        ("human-readable", "agent-readable", "humans and agents", "managed atlas agents"),
+        max_lines=3,
+    )
+    human_agent_value = _join(human_agent)
+    if human_agent_value:
+        slots["human_agent_interaction"] = human_agent_value
+
+    surface_value = _surface_summary(text)
+    if surface_value:
+        slots["runtime_surfaces"] = surface_value
+
+    web_value = _web_cli_mcp_obsidian_summary(text)
+    if web_value:
+        slots["web_cli_mcp_obsidian"] = web_value
+
+    integrations = _first_signal_lines(
+        text,
+        ("shared contracts", "mcp bridge", "chatgpt bridge", "google drive"),
+        max_lines=4,
+    )
+    integrations_value = _join(integrations)
+    if integrations_value:
+        slots["key_integrations"] = integrations_value
+
+    decisions = _first_signal_lines(
+        text,
+        ("src layout", "separate sibling deliverable", "package layout", "read-only mcp"),
+        max_lines=4,
+    )
+    decisions_value = _join(decisions)
+    if decisions_value:
+        slots["important_arch_decisions"] = decisions_value
+
+    gaps = _first_signal_lines(
+        text,
+        ("out of scope", "known gaps", "missing", "not implemented"),
+        max_lines=3,
+    )
+    gaps_value = _join(gaps)
+    if gaps_value:
+        slots["known_gaps"] = gaps_value
+    return slots
+
+
+def _slots_from_source(path: str, text: str) -> dict[str, str]:
+    lower = path.replace("\\", "/").lstrip("./").lower()
+    if lower == "docs/plan.md" or lower.endswith("/plan.md"):
+        return _plan_slots(text)
+    return _agents_or_claude_slots(text)
+
+
+def _render_summary(slots: dict[str, str]) -> str | None:
+    filled = [
+        f"{slot.upper()}: {value}"
+        for slot, value in slots.items()
+        if isinstance(value, str) and value != _UNKNOWN
+    ]
+    if not filled:
+        return None
+    summary = "; ".join(filled)
+    if len(summary) > _SUMMARY_MAX_CHARS:
+        return summary[: _SUMMARY_MAX_CHARS - 3].rstrip() + "..."
+    return summary
+
+
+def _candidate_sources(vault: Path, project_id: str) -> list[tuple[tuple[int, int, str], str, str]]:
+    candidates: list[tuple[tuple[int, int, str], str, str]] = []
+    for row in _manifest_source_rows(vault, project_id):
+        path = str(row.get("path") or "")
+        rank = _architecture_rank(path)
+        source_id = str(row.get("source_id") or "")
+        if rank is None or not source_id:
+            continue
+        candidates.append((rank, path, source_id))
+    return sorted(candidates, key=lambda item: item[0])
+
+
+def build_architecture_lens(vault: Path, project_id: str) -> dict[str, Any]:
+    """Build one structured architecture lens for ``project_id`` (no disk writes)."""
+    project_id = _safe_project_id(project_id)
+    vault = vault.expanduser().resolve()
+    collected: dict[str, list[str]] = {slot: [] for slot in ARCHITECTURE_SLOTS}
+    evidence: list[str] = []
+    inspected: list[str] = []
+
+    for _rank, source_path, source_id in _candidate_sources(vault, project_id):
+        imported = _imported_document_path(vault, source_id)
+        inspected.append(imported.relative_to(vault).as_posix())
+        if not imported.is_file():
+            continue
+        try:
+            text = imported.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        source_slots = _slots_from_source(source_path, text)
+        used_source = False
+        for slot, value in source_slots.items():
+            if slot not in collected:
+                continue
+            cleaned = _clean_line(value)
+            if not cleaned or cleaned == _UNKNOWN:
+                continue
+            collected[slot].append(cleaned)
+            used_source = True
+        if used_source and source_path not in evidence:
+            evidence.append(source_path)
+
+    slots = {
+        slot: _join(collected[slot], max_chars=_SLOT_MAX_CHARS) or _UNKNOWN
+        for slot in ARCHITECTURE_SLOTS
+    }
+    summary = _render_summary(slots)
+    status = "derived" if summary else "unknown"
+
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.architecture-lens.v1",
+        "package": PACKAGE_ID,
+        "answer_id": f"ans-architecture-{project_id}",
+        "subject": project_id,
+        "field": "architecture",
+        "title": "What is the architecture?",
+        "summary": summary,
+        "value": summary,
+        "slots": slots,
+        "status": status,
+        "authority": "derived-lens",
+        "layer": "C",
+        "project_id": project_id,
+        "evidence": evidence,
+        "inspected_artifacts": inspected,
+        "generated": {"by": GENERATOR_ID},
+        "honesty": {
+            "authentic_pilot": False,
+            "release_certified": False,
+            "atlas_opt_wake_gate": "CLOSED",
+            "lens_is_authority": False,
+            "fabricated_fields": False,
+            "unknown_is_valid": True,
+            "confidence_scores": False,
+        },
+        "notes": [
+            "Derived from imported architecture-bearing docs selected through connect-manifest",
+            "README is not architecture authority",
+            "source path selects candidate docs only; slots require content signals",
+            "UNKNOWN when unsupported",
+            "MODEL_OUTPUT!=AUTHORITY",
+        ],
+    }
+
+
+def materialize_architecture_lenses(
+    vault: Path,
+    *,
+    project_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Write architecture answer lenses under ``generated/answers/``."""
+    vault = vault.expanduser().resolve()
+    if not vault.is_dir():
+        raise ProjectArchitectureError(f"vault is not a directory: {vault}")
+    selected = project_ids if project_ids is not None else _list_projects(vault)
+    written: list[str] = []
+    lenses: list[dict[str, Any]] = []
+    for project_id in selected:
+        lens = build_architecture_lens(vault, project_id)
+        lenses.append(lens)
+        path = vault / ANSWERS_RELATIVE / f"{lens['answer_id']}.json"
+        _write_atomic(
+            path,
+            (json.dumps(lens, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+        )
+        written.append(path.relative_to(vault).as_posix())
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.architecture-receipt.v1",
+        "package": PACKAGE_ID,
+        "status": "ok",
+        "vault": vault.as_posix(),
+        "projects": list(selected),
+        "answers_written": written,
+        "lenses": lenses,
+        "generated": {"by": GENERATOR_ID},
+        "honesty": {
+            "authentic_pilot": False,
+            "release_certified": False,
+            "atlas_opt_wake_gate": "CLOSED",
+            "lens_is_authority": False,
+        },
+    }
