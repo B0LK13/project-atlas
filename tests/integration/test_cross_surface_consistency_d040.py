@@ -41,8 +41,8 @@ def _seed(root: Path) -> Path:
 
 def test_cross_surface_brief_fields_match_disk_authority(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cross-surface-fixture")
-    project_id = "cross-surface-fixture"
     report = connect_project(project)
+    project_id = str(report["bound_project_id"])
     vault = Path(report["vault"])
     assert report["status"] == "connected"
 

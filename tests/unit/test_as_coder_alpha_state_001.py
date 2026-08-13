@@ -25,11 +25,12 @@ def test_state_materializes_after_connect(tmp_path: Path) -> None:
     project = _seed(tmp_path / "state-fixture")
     report = connect_project(project)
     vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     answers = report.get("state_answers") or []
-    assert any("ans-state-state-fixture.json" in path for path in answers)
+    assert any(f"ans-state-{project_id}.json" in path for path in answers)
 
     rows = list_knowledge_answers(vault)
-    state_row = next(row for row in rows if row["answer_id"] == "ans-state-state-fixture")
+    state_row = next(row for row in rows if row["answer_id"] == f"ans-state-{project_id}")
     assert state_row["title"] == "What is the current state?"
     assert state_row["summary"]
     assert "rollup=" in (state_row["summary"] or "")
@@ -37,7 +38,7 @@ def test_state_materializes_after_connect(tmp_path: Path) -> None:
 
     live = ask_atlas_live(vault, query="current state")
     knowledge = live["matches"]["knowledge"]
-    assert any(row.get("answer_id") == "ans-state-state-fixture" for row in knowledge)
+    assert any(row.get("answer_id") == f"ans-state-{project_id}" for row in knowledge)
 
 
 def test_state_rollup_attention_on_conflicts(tmp_path: Path) -> None:
@@ -93,10 +94,11 @@ def test_cli_state_writes_lens(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-state")
     connected = connect_project(project)
     vault = Path(connected["vault"])
-    answer = vault / "generated" / "answers" / "ans-state-cli-state.json"
+    project_id = str(connected["bound_project_id"])
+    answer = vault / "generated" / "answers" / f"ans-state-{project_id}.json"
     answer.unlink()
     assert (
-        main(["state", "--vault", str(vault), "--project", "cli-state", "--json"])
+        main(["state", "--vault", str(vault), "--project", project_id, "--json"])
         == EXIT_OK
     )
     assert answer.is_file()

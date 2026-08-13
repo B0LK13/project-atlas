@@ -22,12 +22,13 @@ def test_first_connect_establishes_baseline_unknown_history(tmp_path: Path) -> N
     project = _seed(tmp_path / "chg-base")
     report = connect_project(project)
     vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     answers = report.get("changed_answers") or []
-    assert any("ans-changed-chg-base.json" in path for path in answers)
+    assert any(f"ans-changed-{project_id}.json" in path for path in answers)
     assert report.get("changed_delta", {}).get("prior_baseline") is False
 
     payload = json.loads(
-        (vault / "generated" / "answers" / "ans-changed-chg-base.json").read_text(
+        (vault / "generated" / "answers" / f"ans-changed-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -39,7 +40,8 @@ def test_first_connect_establishes_baseline_unknown_history(tmp_path: Path) -> N
 
 def test_second_connect_reports_added_and_modified(tmp_path: Path) -> None:
     project = _seed(tmp_path / "chg-delta", body="v1")
-    connect_project(project)
+    first = connect_project(project)
+    project_id = str(first["bound_project_id"])
     (project / "README.md").write_text(
         "# Changed Fixture\n\nv2 modified\n",
         encoding="utf-8",
@@ -52,7 +54,7 @@ def test_second_connect_reports_added_and_modified(tmp_path: Path) -> None:
     assert second.get("changed_delta", {}).get("modified_count", 0) >= 1
 
     payload = json.loads(
-        (vault / "generated" / "answers" / "ans-changed-chg-delta.json").read_text(
+        (vault / "generated" / "answers" / f"ans-changed-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -63,10 +65,10 @@ def test_second_connect_reports_added_and_modified(tmp_path: Path) -> None:
     assert "README.md" in payload["delta"]["modified"]
 
     rows = list_knowledge_answers(vault)
-    assert any(row["answer_id"] == "ans-changed-chg-delta" for row in rows)
+    assert any(row["answer_id"] == f"ans-changed-{project_id}" for row in rows)
     live = ask_atlas_live(vault, query="What changed?")
     assert any(
-        row.get("answer_id") == "ans-changed-chg-delta"
+        row.get("answer_id") == f"ans-changed-{project_id}"
         for row in live["matches"]["knowledge"]
     )
 
@@ -80,6 +82,7 @@ def test_second_connect_reports_removed_and_self_churn_not_dominating(
     (project / "GONE.md").write_text("# Gone\n\nremove me\n", encoding="utf-8")
     first = connect_project(project)
     vault = Path(first["vault"])
+    project_id = str(first["bound_project_id"])
     assert first.get("changed_delta", {}).get("prior_baseline") is False
 
     (project / "README.md").write_text("# Changed Fixture\n\nv2\n", encoding="utf-8")
@@ -92,7 +95,7 @@ def test_second_connect_reports_removed_and_self_churn_not_dominating(
     second = connect_project(project)
     assert second.get("changed_delta", {}).get("prior_baseline") is True
     payload = json.loads(
-        (vault / "generated" / "answers" / "ans-changed-chg-remove.json").read_text(
+        (vault / "generated" / "answers" / f"ans-changed-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -115,10 +118,11 @@ def test_cli_changed_reads_existing_inventory(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-chg")
     connected = connect_project(project)
     vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
     assert (
-        main(["changed", "--vault", str(vault), "--project", "cli-chg", "--json"])
+        main(["changed", "--vault", str(vault), "--project", project_id, "--json"])
         == EXIT_OK
     )
-    report = materialize_changed_lenses(vault, project_ids=["cli-chg"])
+    report = materialize_changed_lenses(vault, project_ids=[project_id])
     assert report["package"] == "AS-CODER-ALPHA-CHANGED-001"
     assert "generated_at" not in report

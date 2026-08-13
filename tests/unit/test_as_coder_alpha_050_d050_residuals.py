@@ -17,6 +17,7 @@ from project_atlas.connect import (
     root_identity_fingerprint,
 )
 from project_atlas.domain.claims import ID_PATTERN
+from project_atlas.lineage import build_project_registry
 from project_atlas.project_architecture import build_architecture_lens
 from project_atlas.source_health import explain_source_health
 
@@ -205,6 +206,76 @@ def test_r3_shared_vault_secret_attention_survives_sibling(tmp_path: Path) -> No
     att = classify_attention(shared, str(ra["bound_project_id"]))
     assert att["rollup"] != "CLEAR"
     assert any(item.get("reason_code") == "SECRET_QUARANTINE" for item in att["items"])
+
+
+def test_r3_path_active_source_id_migration_with_retired_history() -> None:
+    """Active path continuity must survive source_id renames even with retired history."""
+    project_uuid = "00000000-0000-4000-8000-000000000050"
+    initial = build_project_registry(
+        project_uuid,
+        [{"source_id": "source-old-compat", "path": "README.md", "sha256": "a" * 64}],
+        [],
+    )
+    deleted = build_project_registry(project_uuid, [], initial)
+    resolution = {
+        "outcome": "create_new_generation",
+        "authority": "curator_approved",
+        "candidate_lineage_ids": [initial[0]["source_lineage_id"]],
+        "reason": "new generation after delete",
+    }
+    regenerated = build_project_registry(
+        project_uuid,
+        [
+            {
+                "source_id": "source-gen2",
+                "path": "README.md",
+                "sha256": "b" * 64,
+                "lineage_resolution": resolution,
+            }
+        ],
+        deleted,
+    )
+    active = next(item for item in regenerated if item["source_id"] == "source-gen2")
+    migrated = build_project_registry(
+        project_uuid,
+        [
+            {
+                "source_id": "project:demo|README.md",
+                "path": "README.md",
+                "sha256": "b" * 64,
+            }
+        ],
+        regenerated,
+    )
+    adopted = next(item for item in migrated if item["path"] == "README.md"
+                   and item["source_change_state"] != "deleted")
+    assert adopted["source_lineage_id"] == active["source_lineage_id"]
+    assert adopted["source_id"] == "project:demo|README.md"
+
+
+def test_r3_unreadable_durable_manifest_fail_closed_attention(tmp_path: Path) -> None:
+    """Unreadable source-manifest must not fall back to last-writer ownership."""
+    shared = tmp_path / "shared-vault"
+    alpha = tmp_path / "alpha-unreadable"
+    beta = tmp_path / "beta-unreadable"
+    alpha.mkdir()
+    beta.mkdir()
+    (alpha / "docs").mkdir()
+    _write(alpha / "README.md", "# Alpha\n\nPurpose.\n")
+    _write(
+        alpha / "docs" / "credentials.md",
+        'aws_access_key_id = "AKIAIOSFODNN7EXAMPLE"\n',
+    )
+    _write(beta / "README.md", "# Beta\n\nPurpose.\n")
+    ra = connect_project(alpha, vault=shared)
+    connect_project(beta, vault=shared)
+    durable = shared / "sources" / "manifests" / "source-manifest.json"
+    durable.write_text("{not-json", encoding="utf-8")
+    att = classify_attention(shared, str(ra["bound_project_id"]))
+    assert att["rollup"] != "CLEAR"
+    codes = {item.get("reason_code") for item in att["items"]}
+    assert "SECRET_OWNERSHIP_UNKNOWN" in codes or "SECRET_QUARANTINE" in codes
+    assert "SECRET_OWNERSHIP_UNKNOWN" in codes
 
 
 def test_r3_shared_vault_exclusions_survive_sibling(tmp_path: Path) -> None:

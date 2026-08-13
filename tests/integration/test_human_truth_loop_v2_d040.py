@@ -50,8 +50,9 @@ def _first_pending_review_id(vault: Path, project_id: str) -> str:
 
 def test_human_decision_survives_unknown_and_brief_rematerialize(tmp_path: Path) -> None:
     project = _seed(tmp_path / "human-truth-v2")
-    project_id = "human-truth-v2"
-    vault = Path(connect_project(project)["vault"])
+    report = connect_project(project)
+    project_id = str(report["bound_project_id"])
+    vault = Path(report["vault"])
 
     before_pending = _pending_count(vault, project_id)
     assert before_pending >= 1

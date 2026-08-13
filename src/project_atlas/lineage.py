@@ -383,8 +383,9 @@ def build_project_registry(
         # D-050 R3: compatibility source_id algorithm may change (path-only →
         # project-scoped). Preserve durable lineage by uniquely matching the
         # active prior record at the same canonical path within this project.
-        # Do not auto-adopt when retired generations also occupy the slot —
-        # that remains an explicit-resolution / fail-closed path.
+        # Retired generations at the same path do NOT block this bridge — path
+        # reoccupation without an active record remains fail-closed below via
+        # path_candidates + explicit resolution.
         if source_record is None:
             path_active = [
                 record
@@ -394,18 +395,7 @@ def build_project_registry(
                 not in {SourceChangeState.DELETED, SourceChangeState.RESTORED_ELSEWHERE}
                 and record.current_path == path
             ]
-            retired_same_path = [
-                record
-                for record in prior
-                if record.source_lineage_id not in used_lineages
-                and record.source_change_state
-                in {SourceChangeState.DELETED, SourceChangeState.RESTORED_ELSEWHERE}
-                and (
-                    record.current_path == path
-                    or any(history.path == path for history in record.path_history)
-                )
-            ]
-            if len(path_active) == 1 and not retired_same_path:
+            if len(path_active) == 1:
                 source_record = path_active[0]
         if (
             source_record is not None

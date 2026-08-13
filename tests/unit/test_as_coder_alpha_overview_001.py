@@ -25,13 +25,14 @@ def test_overview_materializes_after_connect_and_matches_ask_live(tmp_path: Path
     project = _seed(tmp_path / "harbor-portal")
     report = connect_project(project)
     vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     answers = report.get("overview_answers") or []
     assert answers
-    assert any("ans-overview-harbor-portal.json" in path for path in answers)
+    assert any(f"ans-overview-{project_id}.json" in path for path in answers)
 
     rows = list_knowledge_answers(vault)
     assert rows
-    overview = next(row for row in rows if row["answer_id"] == "ans-overview-harbor-portal")
+    overview = next(row for row in rows if row["answer_id"] == f"ans-overview-{project_id}")
     assert overview["title"] == "What is this project?"
     assert overview["summary"]
     assert "Harbor Portal" in (overview["summary"] or "")
@@ -39,7 +40,7 @@ def test_overview_materializes_after_connect_and_matches_ask_live(tmp_path: Path
 
     live = ask_atlas_live(vault, query="What is this project?")
     knowledge = live["matches"]["knowledge"]
-    assert any(row.get("answer_id") == "ans-overview-harbor-portal" for row in knowledge)
+    assert any(row.get("answer_id") == f"ans-overview-{project_id}" for row in knowledge)
 
 
 def test_overview_prefers_root_readme_over_nested(tmp_path: Path) -> None:
@@ -111,11 +112,12 @@ def test_cli_overview_writes_lens(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-ov")
     connected = connect_project(project)
     vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
     # Remove auto-written answer then regenerate via CLI.
-    answer = vault / "generated" / "answers" / "ans-overview-cli-ov.json"
+    answer = vault / "generated" / "answers" / f"ans-overview-{project_id}.json"
     answer.unlink()
     assert (
-        main(["overview", "--vault", str(vault), "--project", "cli-ov", "--json"])
+        main(["overview", "--vault", str(vault), "--project", project_id, "--json"])
         == EXIT_OK
     )
     assert answer.is_file()

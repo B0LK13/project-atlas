@@ -333,11 +333,16 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         inspected.append(connect_path.relative_to(vault).as_posix())
         durable_status, durable_payload = _read_json(durable_path)
         connect_status, connect_payload = _read_json(connect_path)
-        ownership_payload = (
-            durable_payload
-            if durable_status == "ok" and isinstance(durable_payload, dict)
-            else connect_payload if connect_status == "ok" else None
-        )
+        # Unreadable durable inventory must fail closed (never fall back to
+        # last-writer connect-manifest ownership — shared-vault false CLEAR).
+        if durable_status == "unreadable":
+            ownership_payload = None
+        elif durable_status == "ok" and isinstance(durable_payload, dict):
+            ownership_payload = durable_payload
+        else:
+            ownership_payload = (
+                connect_payload if connect_status == "ok" else None
+            )
         source_projects, path_projects = _manifest_project_indexes(ownership_payload)
         scoped_rows = [
             row

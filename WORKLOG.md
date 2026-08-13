@@ -23,6 +23,10 @@ exact commands run, exact results, deviations, and remaining risks.
 - Do not roll back connect-manifest after successful ingest
 - Secret/quarantine ownership from durable `sources/manifests/source-manifest.json`
 - Enumerate discover exclusions from durable source-manifest (shared-vault sibling must not erase sibling exclusions)
+- path_active source_id migration must not be blocked by retired same-path history (active continuity bridge)
+- Unreadable durable source-manifest fails closed (no last-writer ownership fallback → false CLEAR)
+- Regenerated K-004/K-005 goldens for namespaced compatibility source_ids
+- Lens/CLI tests use `bound_project_id` (collision-safe identity)
 
 ### Gates held
 - `CODER_ALPHA_ACCEPTANCE = PARTIAL`

@@ -191,7 +191,12 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
     # wins over last-writer connect-manifest (D-050 shared-vault isolation).
     ownership: dict[str, Any] | None
     ownership_evidence = manifest_path.relative_to(vault).as_posix()
-    if durable_status == "ok" and isinstance(durable_raw, dict):
+    # Unreadable durable inventory must fail closed — never fall back to
+    # last-writer connect-manifest ownership (shared-vault false CLEAR).
+    if durable_status == "unreadable":
+        ownership = None
+        ownership_evidence = durable_path.relative_to(vault).as_posix()
+    elif durable_status == "ok" and isinstance(durable_raw, dict):
         ownership = durable_raw
         ownership_evidence = durable_path.relative_to(vault).as_posix()
     else:

@@ -267,6 +267,13 @@ def test_multiple_retired_generations_at_one_slot_fail_closed() -> None:
         [{"source_id": "source-old", "path": "slot.md", "sha256": "a" * 64}],
         [],
     )[0]
+    first_deleted = SourceLineageRecord(
+        **{
+            **first,
+            "source_change_state": "deleted",
+            "document_lifecycle": "historical",
+        }
+    ).model_dump(mode="json")
     second = SourceLineageRecord(
         **{
             **first,
@@ -281,7 +288,7 @@ def test_multiple_retired_generations_at_one_slot_fail_closed() -> None:
         build_project_registry(
             project_uuid,
             [{"source_id": "source-new", "path": "slot.md", "sha256": "a" * 64}],
-            [first, second],
+            [first_deleted, second],
         )
 
 

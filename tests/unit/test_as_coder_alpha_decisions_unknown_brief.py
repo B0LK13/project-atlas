@@ -30,13 +30,14 @@ def test_connect_emits_decisions_unknown_and_brief(tmp_path: Path) -> None:
     project = _seed(tmp_path / "brief-fixture")
     report = connect_project(project)
     vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
 
-    assert any("ans-decisions-brief-fixture.json" in p for p in report["decisions_answers"])
-    assert any("ans-unknown-brief-fixture.json" in p for p in report["unknown_answers"])
-    assert any("project-brief-brief-fixture.json" in p for p in report["brief_paths"])
+    assert any(f"ans-decisions-{project_id}.json" in p for p in report["decisions_answers"])
+    assert any(f"ans-unknown-{project_id}.json" in p for p in report["unknown_answers"])
+    assert any(f"project-brief-{project_id}.json" in p for p in report["brief_paths"])
 
     decisions = json.loads(
-        (vault / "generated" / "answers" / "ans-decisions-brief-fixture.json").read_text(
+        (vault / "generated" / "answers" / f"ans-decisions-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -47,7 +48,7 @@ def test_connect_emits_decisions_unknown_and_brief(tmp_path: Path) -> None:
     assert "Local-first" in titles
 
     unknown = json.loads(
-        (vault / "generated" / "answers" / "ans-unknown-brief-fixture.json").read_text(
+        (vault / "generated" / "answers" / f"ans-unknown-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -55,11 +56,11 @@ def test_connect_emits_decisions_unknown_and_brief(tmp_path: Path) -> None:
     assert "lifecycle=unknown" in " ".join(unknown["signals"]["unknown_items"])
 
     brief = json.loads(
-        (vault / "generated" / "ops" / "project-brief-brief-fixture.json").read_text(
+        (vault / "generated" / "ops" / f"project-brief-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
-    assert brief["project_identity"] == "brief-fixture"
+    assert brief["project_identity"] == project_id
     assert brief["purpose"] != "UNKNOWN"
     assert "Python" in brief["tech_stack"]
     assert brief["important_decisions"] != "UNKNOWN"
@@ -68,25 +69,37 @@ def test_connect_emits_decisions_unknown_and_brief(tmp_path: Path) -> None:
     assert brief["honesty"]["fabricated_fields"] is False
 
     ids = {row["answer_id"] for row in list_knowledge_answers(vault)}
-    assert "ans-decisions-brief-fixture" in ids
-    assert "ans-unknown-brief-fixture" in ids
+    assert f"ans-decisions-{project_id}" in ids
+    assert f"ans-unknown-{project_id}" in ids
     live = ask_atlas_live(vault, query="What decisions matter?")
     assert any(
-        row.get("answer_id") == "ans-decisions-brief-fixture"
+        row.get("answer_id") == f"ans-decisions-{project_id}"
         for row in live["matches"]["knowledge"]
     )
 
 
 def test_cli_brief_and_decisions(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-brief")
-    vault = Path(connect_project(project)["vault"])
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
     assert main(["decisions", "--vault", str(vault), "--json"]) == EXIT_OK
     assert main(["unknown", "--vault", str(vault), "--json"]) == EXIT_OK
     assert (
-        main(["brief", "--vault", str(vault), "--project", "cli-brief", "--no-refresh", "--json"])
+        main(
+            [
+                "brief",
+                "--vault",
+                str(vault),
+                "--project",
+                project_id,
+                "--no-refresh",
+                "--json",
+            ]
+        )
         == EXIT_OK
     )
-    receipt = materialize_project_briefs(vault, project_ids=["cli-brief"], refresh=False)
+    receipt = materialize_project_briefs(vault, project_ids=[project_id], refresh=False)
     assert receipt["package"] == "AS-CODER-ALPHA-BRIEF-001"
     assert "generated_at" not in receipt
 
@@ -97,15 +110,18 @@ def test_decisions_unknown_without_decision_docs(tmp_path: Path) -> None:
     (root / "README.md").write_text("# Sparse\n\nNo decisions file.\n", encoding="utf-8")
     report = connect_project(root)
     vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     decisions = json.loads(
-        (vault / "generated" / "answers" / "ans-decisions-sparse.json").read_text(
+        (vault / "generated" / "answers" / f"ans-decisions-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
     assert decisions["status"] == "unknown"
     assert decisions["value"] is None
     brief = json.loads(
-        (vault / "generated" / "ops" / "project-brief-sparse.json").read_text(encoding="utf-8")
+        (vault / "generated" / "ops" / f"project-brief-{project_id}.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert brief["important_decisions"] == "UNKNOWN"
     next_work = brief["suggested_next_work"]

@@ -6,13 +6,13 @@
           "freshness": "stale",
           "modified_at": "2024-01-01T00:00:00Z",
           "path": "black-agency-os/README.md",
-          "source_id": "source-2f21be84650ee544"
+          "source_id": "source-393059d91a5155e8"
         },
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
           "path": "black-agency-os/.atlas-project.yaml",
-          "source_id": "source-f957a8696c944439"
+          "source_id": "source-e7e6f6b00f48f523"
         }
       ],
       "stale_count": 1
@@ -22,26 +22,26 @@
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
-          "path": "dark-factory/.atlas-project.yaml",
-          "source_id": "source-6c2c2750b90ec80e"
-        },
-        {
-          "freshness": "fresh",
-          "modified_at": "2026-07-01T00:00:00Z",
           "path": "dark-factory/ROADMAP-A.md",
-          "source_id": "source-72cc54b5bbb51100"
+          "source_id": "source-5e69f09b1bbedd2f"
         },
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
           "path": "dark-factory/DEPENDENCIES.md",
-          "source_id": "source-9d5242805e847081"
+          "source_id": "source-6d9d988ba4d0b0d5"
         },
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
           "path": "dark-factory/ROADMAP-B.md",
-          "source_id": "source-ae9735601b961a96"
+          "source_id": "source-d25bc44223b4a562"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "dark-factory/.atlas-project.yaml",
+          "source_id": "source-f586ab5bbfc1f5e9"
         }
       ],
       "stale_count": 0
@@ -51,38 +51,38 @@
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/.atlas-project.yaml",
+          "source_id": "source-02760b0ad38eedc9"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
           "path": "nebula/SECURITY.md",
-          "source_id": "source-91edccfd96cd3ed9"
-        },
-        {
-          "freshness": "fresh",
-          "modified_at": "2026-07-01T00:00:00Z",
-          "path": "nebula/DEPENDENCIES.md",
-          "source_id": "source-9503426f3e30ddc2"
-        },
-        {
-          "freshness": "fresh",
-          "modified_at": "2026-07-01T00:00:00Z",
-          "path": "nebula/README.md",
-          "source_id": "source-9846e67d77f21fe4"
+          "source_id": "source-1a590ffa5b6f369a"
         },
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
           "path": "nebula/VALIDATION.md",
-          "source_id": "source-ac7bb322452ca74f"
+          "source_id": "source-4f3080175416a795"
         },
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
           "path": "nebula/ARCHITECTURE.md",
-          "source_id": "source-c016b662c159a54e"
+          "source_id": "source-7e8b95d2670704bf"
         },
         {
           "freshness": "fresh",
           "modified_at": "2026-07-01T00:00:00Z",
-          "path": "nebula/.atlas-project.yaml",
-          "source_id": "source-cba361415ae9c90e"
+          "path": "nebula/README.md",
+          "source_id": "source-9fc070623c2a55d3"
+        },
+        {
+          "freshness": "fresh",
+          "modified_at": "2026-07-01T00:00:00Z",
+          "path": "nebula/DEPENDENCIES.md",
+          "source_id": "source-cad2cec8ea1fe8d6"
         }
       ],
       "stale_count": 0
