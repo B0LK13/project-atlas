@@ -33,6 +33,21 @@ ARCHITECTURE_SLOTS: tuple[str, ...] = (
     "important_arch_decisions",
     "known_gaps",
 )
+_SUMMARY_SLOT_ORDER: tuple[str, ...] = (
+    "knowledge_pipeline",
+    "important_arch_decisions",
+    "major_components",
+    "component_responsibilities",
+    "data_flow",
+    "control_flow",
+    "trust_boundaries",
+    "runtime_surfaces",
+    "web_cli_mcp_obsidian",
+    "human_agent_interaction",
+    "key_integrations",
+    "known_gaps",
+    "system_purpose",
+)
 
 _UNKNOWN = "UNKNOWN"
 _SUMMARY_MAX_CHARS = 720
@@ -42,6 +57,7 @@ _LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _STAGE_RE = re.compile(r"^#+\s*Stage\s+\d+\s+[—-]\s*(.+?)\s*$", re.IGNORECASE)
 _MODULE_NAME_RE = re.compile(r"`([^`]+?\.(?:py|md|json|yaml|yml))`")
+_BARE_MODULE_NAME_RE = re.compile(r"\b[\w./-]+?\.(?:py|md|json|yaml|yml)\b")
 _TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$")
 
 
@@ -294,6 +310,8 @@ def _component_summary(module_rows: list[str]) -> str | None:
     for row in module_rows:
         for match in _MODULE_NAME_RE.finditer(row):
             modules.append(match.group(1))
+        for match in _BARE_MODULE_NAME_RE.finditer(row):
+            modules.append(match.group(0))
     modules = _unique(modules)
     if not modules:
         return None
@@ -350,6 +368,11 @@ def _plan_slots(text: str) -> dict[str, str]:
     if layer_value:
         slots["knowledge_pipeline"] = layer_value
         slots["important_arch_decisions"] = "Core architectural decision: " + layer_value
+    else:
+        three_layer = _first_signal_lines(text, ("three-layer vault", "three-layer"), max_lines=2)
+        three_layer_value = _join(three_layer)
+        if three_layer_value:
+            slots["important_arch_decisions"] = "Core architectural decision: " + three_layer_value
 
     stage_value = _stage_pipeline(text)
     if stage_value:
@@ -362,7 +385,7 @@ def _plan_slots(text: str) -> dict[str, str]:
     )
     component_value = _join(component_lines)
     if component_value:
-        slots["major_components"] = component_value
+        slots["major_components"] = "Components: " + component_value
 
     human_agent = _first_signal_lines(
         text,
@@ -511,7 +534,8 @@ def _slots_from_source(path: str, text: str) -> dict[str, str]:
 def _render_summary(slots: dict[str, str]) -> str | None:
     filled = [
         f"{slot.upper()}: {value}"
-        for slot, value in slots.items()
+        for slot in _SUMMARY_SLOT_ORDER
+        for value in [slots.get(slot, _UNKNOWN)]
         if isinstance(value, str) and value != _UNKNOWN
     ]
     if not filled:
