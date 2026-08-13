@@ -281,12 +281,47 @@ def _manifest_sources(vault: Path) -> list[dict[str, Any]]:
     return [row for row in rows if isinstance(row, dict) and not row.get("exclusion_reason")]
 
 
+def _claims_by_id(vault: Path, project_id: str) -> dict[str, dict[str, Any]]:
+    payload = _read_json(vault / "state" / "claims" / f"{project_id}.json")
+    if not payload:
+        return {}
+    claims = payload.get("claims")
+    if not isinstance(claims, list):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        claim_id = str(claim.get("claim_id") or "").strip()
+        if claim_id:
+            out[claim_id] = claim
+    return out
+
+
+def _is_decision_bearing_claim(claim: dict[str, Any]) -> bool:
+    claim_type = str(claim.get("claim_type") or "").strip().lower()
+    field = str(claim.get("field") or "").strip().lower()
+    return claim_type == "decision" or "decision" in claim_type or field == "decision"
+
+
+def _claim_decision_title(claim: dict[str, Any]) -> str:
+    return str(
+        claim.get("value") or claim.get("normalized_text") or claim.get("field") or ""
+    ).strip()
+
+
 def _human_disposition_decisions(vault: Path, project_id: str) -> list[dict[str, str]]:
-    """Load accepted human dispositions as governing decision evidence."""
+    """Load accepted human dispositions as governing decision evidence.
+
+    Only decision-bearing reviews promote to ACTIVE_GOVERNING. Accept/reject of
+    tech-stack or other non-decision claims must not pollute governing status
+    with bare ``review_id`` labels (D-043 review P1).
+    """
     path = vault / "state" / "human-decisions" / f"{project_id}.json"
     payload = _read_json(path)
     if not payload:
         return []
+    claims = _claims_by_id(vault, project_id)
     out: list[dict[str, str]] = []
     for entry in payload.get("decisions") or []:
         if not isinstance(entry, dict):
@@ -294,16 +329,29 @@ def _human_disposition_decisions(vault: Path, project_id: str) -> list[dict[str,
         decision = str(entry.get("decision") or "").lower()
         if decision not in {"accept", "accepted"}:
             continue
-        title = str(
-            entry.get("summary")
-            or entry.get("note")
-            or entry.get("claim_id")
-            or entry.get("review_id")
-            or ""
-        ).strip()
-        if not title:
-            continue
-        if _is_section_header_noise(title):
+
+        category = str(entry.get("category") or "").strip().lower()
+        subject_id = str(entry.get("subject_id") or "").strip()
+        winner = str(entry.get("winner_claim_id") or "").strip()
+        claim_id = ""
+        if category == "conflict" and winner:
+            claim_id = winner
+        elif category in {"pending-claim", "low-confidence"} and subject_id:
+            claim_id = subject_id
+
+        title = ""
+        if claim_id:
+            claim = claims.get(claim_id)
+            if claim is None or not _is_decision_bearing_claim(claim):
+                continue
+            title = _claim_decision_title(claim)
+        else:
+            # Explicit owner notes only — never promote bare review_id.
+            title = str(entry.get("summary") or entry.get("note") or "").strip()
+            if not title or not _looks_like_formal_decision(title):
+                continue
+
+        if not title or _is_section_header_noise(title):
             continue
         out.append(
             {
@@ -432,7 +480,7 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
         inspected.append(manifest_path.relative_to(vault).as_posix())
     decisions.extend(_decision_headings_from_imports(vault, project_id))
 
-    # Deduplicate by normalized title; prefer higher-authority statuses.
+    # Deduplicate by normalized title; prefer higher status, then authority.
     status_rank = {
         "ACTIVE_GOVERNING": 0,
         "OPEN_PROPOSED": 1,
@@ -442,6 +490,14 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "REJECTED": 5,
         "NON_DECISION": 6,
     }
+    authority_rank = {
+        "human-disposition": 0,
+        "owner-disposition": 0,
+        "adr": 1,
+        "claim": 2,
+        "project-note": 3,
+        "imported-heading": 4,
+    }
     best: dict[str, dict[str, str]] = {}
     for item in decisions:
         key = item["title"].strip().lower()
@@ -449,14 +505,20 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
         if prior is None:
             best[key] = item
             continue
-        if status_rank.get(item.get("status", ""), 9) < status_rank.get(
-            prior.get("status", ""), 9
-        ):
+        item_status = status_rank.get(item.get("status", ""), 9)
+        prior_status = status_rank.get(prior.get("status", ""), 9)
+        if item_status < prior_status:
+            best[key] = item
+            continue
+        if item_status == prior_status and authority_rank.get(
+            item.get("authority", ""), 9
+        ) < authority_rank.get(prior.get("authority", ""), 9):
             best[key] = item
     unique = sorted(
         best.values(),
         key=lambda item: (
             status_rank.get(str(item.get("status")), 9),
+            authority_rank.get(str(item.get("authority")), 9),
             item["title"].lower(),
         ),
     )

@@ -9,6 +9,7 @@ from project_atlas.connect import connect_project
 from project_atlas.project_architecture import (
     _clean_line,
     _component_summary,
+    _dedupe_major_components,
     _module_rows,
 )
 from project_atlas.project_brief import build_project_brief
@@ -88,6 +89,9 @@ def test_semantic_changed_narrative_classes_paths() -> None:
     assert _semantic_class_for_path("README.md") == "project_state_change"
     assert _semantic_class_for_path("docs/implementation-roadmap.md") == "next_work_change"
     assert _semantic_class_for_path(".atlas-vault/index.md") is None
+    # removeprefix("./") must not strip leading ".." (character-set lstrip would).
+    assert _semantic_class_for_path("./docs/plan.md") == "project_state_change"
+    assert _semantic_class_for_path("../docs/plan.md") is None
     narrative = _semantic_narrative(
         added=["docs/DECISIONS.md"],
         removed=["docs/plan.md"],
@@ -98,6 +102,94 @@ def test_semantic_changed_narrative_classes_paths() -> None:
     assert narrative["project_state_change_count"] == 1
     assert narrative["next_work_change_count"] == 1
     assert any("decision_change" in signal for signal in narrative["signals"])
+
+
+def test_major_components_preserves_prose_while_deduping_modules() -> None:
+    merged = (
+        "ingestion engine; query service; "
+        "Core package modules: cli.py, knowledge_compiler.py; "
+        "Core package modules: cli.py, validation.py"
+    )
+    out = _dedupe_major_components(merged)
+    assert "ingestion engine" in out
+    assert "query service" in out
+    assert "knowledge_compiler.py" in out
+    assert "validation.py" in out
+    assert out.count("cli.py") == 1
+    assert out.count("Core package modules:") == 1
+
+
+def test_human_disposition_only_promotes_decision_claims(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    project = "proj"
+    (vault / "state" / "human-decisions").mkdir(parents=True)
+    (vault / "state" / "claims").mkdir(parents=True)
+    (vault / "state" / "human-decisions" / f"{project}.json").write_text(
+        json.dumps(
+            {
+                "decisions": [
+                    {
+                        "review_id": "review-tech-stack",
+                        "decision": "accept",
+                        "category": "pending-claim",
+                        "subject_id": "claim-stack",
+                        "reason": "looks fine",
+                    },
+                    {
+                        "review_id": "review-decision",
+                        "decision": "accept",
+                        "category": "pending-claim",
+                        "subject_id": "claim-decision",
+                        "reason": "owner accepted",
+                    },
+                    {
+                        "review_id": "review-orphan",
+                        "decision": "accept",
+                        "category": "pending-claim",
+                        "subject_id": "claim-missing",
+                        "reason": "no claim row",
+                    },
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (vault / "state" / "claims" / f"{project}.json").write_text(
+        json.dumps(
+            {
+                "claims": [
+                    {
+                        "claim_id": "claim-stack",
+                        "claim_type": "tech_stack",
+                        "value": "Python 3.12",
+                        "verification": "accepted",
+                    },
+                    {
+                        "claim_id": "claim-decision",
+                        "claim_type": "decision",
+                        "value": "Prefer package data schemas",
+                        "verification": "accepted",
+                    },
+                ]
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    lens = build_decisions_lens(vault, project)
+    active = [
+        item for item in (lens.get("decisions") or []) if item.get("status") == "ACTIVE_GOVERNING"
+    ]
+    titles = {item["title"] for item in active}
+    assert "Prefer package data schemas" in titles
+    assert "Python 3.12" not in titles
+    assert "review-tech-stack" not in titles
+    assert "review-orphan" not in titles
 
 
 def test_second_connect_semantic_summary(tmp_path: Path) -> None:

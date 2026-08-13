@@ -131,7 +131,7 @@ def _manifest_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
 
 def _architecture_rank(path: str) -> tuple[int, int, str] | None:
     """Select architecture-authority candidates without inferring slot values."""
-    posix = path.replace("\\", "/").lstrip("./")
+    posix = path.replace("\\", "/").removeprefix("./")
     lower = posix.lower()
     depth = posix.count("/")
     # Demo / fixture architecture docs are not repository authority.
@@ -277,6 +277,49 @@ def _join(parts: list[str], *, max_chars: int = _SLOT_MAX_CHARS) -> str | None:
     return text
 
 
+def _dedupe_major_components(text: str) -> str:
+    """Deduplicate ``*.py`` module names without dropping non-module prose.
+
+    AGENTS/CLAUDE merges often repeat the same Core modules; plan.md may also
+    contribute prose components. Rebuild only the module portion (D-043 review).
+    """
+    modules: list[str] = []
+    seen_mod: set[str] = set()
+    for match in _BARE_PY_MODULE_RE.finditer(text):
+        name = match.group(0)
+        if not _is_package_module(name):
+            continue
+        key = name.lower()
+        if key in seen_mod:
+            continue
+        seen_mod.add(key)
+        modules.append(name)
+    if not modules:
+        return text
+
+    prose_parts: list[str] = []
+    seen_prose: set[str] = set()
+    for part in text.split("; "):
+        residual = part
+        for name in sorted(modules, key=len, reverse=True):
+            residual = re.sub(re.escape(name), " ", residual, flags=re.IGNORECASE)
+        residual = re.sub(r"(?i)\bcore package modules\b\s*:?\s*", " ", residual)
+        residual = re.sub(r"[\s,|/]+", " ", residual).strip(" :-")
+        if not residual:
+            continue
+        key = residual.lower()
+        if key in seen_prose:
+            continue
+        seen_prose.add(key)
+        prose_parts.append(residual)
+
+    module_bit = "Core package modules: " + ", ".join(modules[:12])
+    merged = "; ".join([*prose_parts, module_bit]) if prose_parts else module_bit
+    if len(merged) > _SLOT_MAX_CHARS:
+        return merged[: _SLOT_MAX_CHARS - 3].rstrip() + "..."
+    return merged
+
+
 def _layer_pipeline(text: str) -> str | None:
     """Derive Layer A/B/C meanings from source prose — never hard-code Atlas semantics."""
     lower = text.lower()
@@ -374,14 +417,11 @@ def _module_rows(text: str) -> list[str]:
 
 def _is_package_module(name: str) -> bool:
     """Accept Core Python modules only — never docs/markers as components."""
-    posix = name.replace("\\", "/").lstrip("./")
+    posix = name.replace("\\", "/").removeprefix("./")
     lower = posix.lower()
     if not lower.endswith(".py"):
         return False
     if any(lower.startswith(prefix) for prefix in _NON_PACKAGE_MODULE_PREFIXES):
-        return False
-    # Reject project markers / non-module noise.
-    if lower.endswith((".yaml", ".yml", ".md", ".json", ".toml")):
         return False
     basename = Path(posix).name
     return bool(basename.endswith(".py") and basename.count(".") == 1)
@@ -637,7 +677,7 @@ def _agents_or_claude_slots(text: str) -> dict[str, str]:
 
 
 def _slots_from_source(path: str, text: str) -> dict[str, str]:
-    lower = path.replace("\\", "/").lstrip("./").lower()
+    lower = path.replace("\\", "/").removeprefix("./").lower()
     if lower == "docs/plan.md" or lower.endswith("/plan.md"):
         return _plan_slots(text)
     return _agents_or_claude_slots(text)
@@ -709,21 +749,10 @@ def build_architecture_lens(vault: Path, project_id: str) -> dict[str, Any]:
         slot: _join(collected[slot], max_chars=_SLOT_MAX_CHARS) or _UNKNOWN
         for slot in ARCHITECTURE_SLOTS
     }
-    # Deduplicate Core module identifiers across AGENTS/CLAUDE merges.
+    # Deduplicate Core module identifiers across AGENTS/CLAUDE merges while
+    # preserving non-module prose components from plan / architecture docs.
     if slots.get("major_components") not in {None, _UNKNOWN}:
-        modules: list[str] = []
-        seen_mod: set[str] = set()
-        for match in _BARE_PY_MODULE_RE.finditer(slots["major_components"]):
-            name = match.group(0)
-            if not _is_package_module(name):
-                continue
-            key = name.lower()
-            if key in seen_mod:
-                continue
-            seen_mod.add(key)
-            modules.append(name)
-        if modules:
-            slots["major_components"] = "Core package modules: " + ", ".join(modules[:12])
+        slots["major_components"] = _dedupe_major_components(slots["major_components"])
     summary = _render_summary(slots)
     status = "derived" if summary else "unknown"
 

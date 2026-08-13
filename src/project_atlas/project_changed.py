@@ -149,7 +149,7 @@ def _semantic_class_for_path(path: str) -> str | None:
     classifier only answers what a user should actually know about — not every
     file touch. Returns None when the path is operational churn.
     """
-    posix = path.replace("\\", "/").lstrip("./").lower()
+    posix = path.replace("\\", "/").removeprefix("./").lower()
     name = Path(posix).name
     # Operational / generated noise never becomes semantic project change.
     if any(
