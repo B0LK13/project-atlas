@@ -5641,6 +5641,8 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Stranger CLI no longer swallows ambiguous-project `ConnectError` into vault-wide scans
 - Connect materializes architecture before overview so A3 coverage reconciles on first write
 - Bind `project_root` must match cwd; default vault refuses symlink escape outside root
+- Explicit `--vault` ignores bind `project_id` (no cross-vault project scoping)
+- Unreadable pending queue: state/unknown agree; no stale knowledge-status resurrection
 
 ### Gates
 - `CODER_ALPHA_ACCEPTANCE = PARTIAL` (Cloud ≠ Local Windows substitute)
