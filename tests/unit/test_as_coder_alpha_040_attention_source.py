@@ -67,6 +67,14 @@ def test_classify_decision_status_labels() -> None:
         )
         == "REJECTED"
     )
+    assert (
+        _classify_decision_status(
+            "YES — RELEASE CERTIFIED",
+            kind="imported-heading",
+            path="docs/RECEIPT.md",
+        )
+        == "NON_DECISION"
+    )
 
 
 def test_attention_action_required_for_authority_pending(tmp_path: Path) -> None:

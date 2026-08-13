@@ -125,14 +125,22 @@ def _architecture_rank(path: str) -> tuple[int, int, str] | None:
     posix = path.replace("\\", "/").lstrip("./")
     lower = posix.lower()
     depth = posix.count("/")
+    # Demo / fixture architecture docs are not repository authority.
+    if lower.startswith(("docs/demo/", "fixtures/", "deps/")):
+        return None
     if lower == "docs/plan.md":
         return (0, depth, posix)
     if lower in {"agents.md", "claude.md"}:
         return (1, depth, posix)
     if lower == "docs/prp.md":
         return (2, depth, posix)
-    if lower.endswith("/plan.md") or lower.endswith("/architecture.md"):
+    if lower == "docs/atlas-2.0/architecture.md":
         return (3, depth, posix)
+    # Nested product-slice ARCHITECTURE.md files are secondary evidence only.
+    if lower.endswith("/architecture.md") and lower.startswith("docs/"):
+        return (5, depth, posix)
+    if lower.endswith("/plan.md"):
+        return (4, depth, posix)
     if Path(posix).name.lower() in {"readme.md", "readme.txt", "readme"}:
         return None
     return None
@@ -328,19 +336,30 @@ def _responsibility_summary(module_rows: list[str]) -> str | None:
     return _join(module_rows[:5])
 
 
-def _terms_present(text: str, terms: tuple[str, ...]) -> list[str]:
-    lower = text.lower()
-    present: list[str] = []
-    for term in terms:
-        if term.lower() in lower:
-            present.append(term)
-    return present
+def _surface_terms(text: str) -> list[str]:
+    """Detect CLI/Web/MCP/Obsidian surface mentions — not bare filenames."""
+    scrubbed = text.lower()
+    scrubbed = re.sub(r"`[^`]+`", " ", scrubbed)
+    scrubbed = re.sub(r"\b[\w./-]+\.(?:py|md|json|ya?ml|toml)\b", " ", scrubbed)
+    found: list[str] = []
+    for term, label in (
+        (r"\bcli\b", "CLI"),
+        (r"\bweb\b", "Web"),
+        (r"\bmcp\b", "MCP"),
+        (r"\bobsidian\b", "Obsidian"),
+    ):
+        if re.search(term, scrubbed):
+            found.append(label)
+    return found
 
 
 def _surface_summary(text: str) -> str | None:
+    # Require surface vocabulary outside filename tokens.
+    if not _surface_terms(text):
+        return None
     lines = _first_signal_lines(
         text,
-        ("cli", "live_api", "api-serve", "web ", "mcp", "obsidian", "chatgpt bridge"),
+        ("cli ", " cli", "live_api", "api-serve", "web ", " mcp", "obsidian", "chatgpt bridge"),
         max_lines=4,
     )
     if not lines:
@@ -349,12 +368,12 @@ def _surface_summary(text: str) -> str | None:
 
 
 def _web_cli_mcp_obsidian_summary(text: str) -> str | None:
-    terms = _terms_present(text, ("CLI", "Web", "MCP", "Obsidian"))
+    terms = _surface_terms(text)
     if not terms:
         return None
-    lines = _first_signal_lines(text, ("cli", "web ", "mcp", "obsidian"), max_lines=3)
+    lines = _first_signal_lines(text, ("cli ", " web", " mcp", "obsidian"), max_lines=3)
     prefix = "Mentioned surfaces: " + ", ".join(terms)
-    return _join([prefix, *lines])
+    return _join([prefix, *lines]) if lines else prefix
 
 
 def _plan_slots(text: str) -> dict[str, str]:

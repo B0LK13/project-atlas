@@ -97,6 +97,36 @@ def test_plan_agents_claude_fill_structured_architecture_slots(tmp_path: Path) -
     assert "CLAUDE.md" in brief["evidence_links"]
 
 
+def test_demo_architecture_and_filename_cli_not_surface_authority(tmp_path: Path) -> None:
+    root = tmp_path / "arch-demo-noise"
+    (root / "docs" / "demo").mkdir(parents=True)
+    (root / "README.md").write_text("# Arch Demo Noise\n\nPurpose.\n", encoding="utf-8")
+    (root / "docs" / "plan.md").write_text(
+        "# Plan\n\n## 2. Core architectural decision\n\n"
+        "I recommend a **three-layer vault**.\n",
+        encoding="utf-8",
+    )
+    (root / "docs" / "demo" / "ARCHITECTURE.md").write_text(
+        "# Demo Architecture\n\n"
+        "Mentioned surfaces: CLI, Web, MCP, Obsidian (demo theatre).\n",
+        encoding="utf-8",
+    )
+    (root / "AGENTS.md").write_text(
+        "# Agents\n\n"
+        "- `cli.py` — argparse entry only; no surface prose here.\n",
+        encoding="utf-8",
+    )
+    vault = Path(connect_project(root)["vault"])
+    lens = json.loads(
+        (
+            vault / "generated" / "answers" / "ans-architecture-arch-demo-noise.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert "docs/demo/ARCHITECTURE.md" not in (lens.get("evidence") or [])
+    # Filename-only cli.py must not invent CLI/Web/MCP/Obsidian surfaces.
+    assert lens["slots"]["web_cli_mcp_obsidian"] == "UNKNOWN"
+
+
 def test_readme_only_keeps_architecture_unknown(tmp_path: Path) -> None:
     root = tmp_path / "readme-only-arch"
     root.mkdir()
