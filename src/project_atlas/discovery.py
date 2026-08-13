@@ -67,10 +67,24 @@ def _project_context(path: Path, root: Path) -> tuple[str | None, str | None]:
     while True:
         for marker in (current / ".atlas-project.yaml", current / ".atlas" / "project.yaml"):
             if marker.is_file():
-                data = yaml.safe_load(marker.read_text(encoding="utf-8")) or {}
-                project_data = data.get("project") if isinstance(data, dict) else None
+                try:
+                    data = yaml.safe_load(marker.read_text(encoding="utf-8"))
+                except (OSError, UnicodeError, yaml.YAMLError) as exc:
+                    # D-057: controlled fail-closed — no raw YAML traceback.
+                    raise ValueError(
+                        f"INVALID_PROJECT_MARKER: invalid project marker YAML: "
+                        f"{marker.relative_to(root)}"
+                    ) from exc
+                if data is None:
+                    data = {}
+                if not isinstance(data, dict):
+                    raise ValueError(
+                        f"INVALID_PROJECT_MARKER: project marker must be an object: "
+                        f"{marker.relative_to(root)}"
+                    )
+                project_data = data.get("project")
                 value = project_data.get("id") if isinstance(project_data, dict) else None
-                raw_uuid = data.get("project_uuid") if isinstance(data, dict) else None
+                raw_uuid = data.get("project_uuid")
                 project_uuid = None
                 if raw_uuid is not None:
                     project_uuid = validate_project_uuid(str(raw_uuid))

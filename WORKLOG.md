@@ -6,6 +6,29 @@ exact commands run, exact results, deviations, and remaining risks.
 ---
 
 
+
+## D-057 — Copied project_uuid identity corruption
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-057
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+**PR:** #345
+
+### Defect
+Local D-055 found: distinct project.id copying another project's project_uuid was accepted by `atlas connect`, coalescing source lineage under one UUID.
+
+### Fix
+- Durable one-owner registry via allocation receipts (`project_uuid → project.id`)
+- `assert_project_uuid_one_owner` enforced at connect preflight and ingest before lineage
+- Explicit marker UUIDs claim allocation receipts when absent
+- Malformed `.atlas-project.yaml` → `INVALID_PROJECT_MARKER` (no YAML traceback)
+
+### Gates held
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL`
+- `D_049_EXECUTION_GATE = CLOSED`
+- `D_042_EXECUTION_GATE = CLOSED`
+- Freeze one new tip for Local residual IV (copied-UUID + R2–R5 smoke)
+
 ## D-052 — D-050 residual HIGH remediation (R2–R5) + IV follow-ups
 
 **Date:** 2026-08-13

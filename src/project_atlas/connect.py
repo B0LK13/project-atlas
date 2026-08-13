@@ -29,6 +29,10 @@ from project_atlas.domain.claims import ID_PATTERN
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.scaffold import ScaffoldError, create_scaffold
+from project_atlas.source_identity import (
+    assert_project_uuid_one_owner,
+    validate_project_uuid,
+)
 from project_atlas.validation import validate
 from project_atlas.vault_identity import VaultIdentityError, read_vault_identity
 
@@ -277,27 +281,64 @@ def _vault_rel_or_abs(project_root: Path, vault: Path) -> str:
         return vault.resolve().as_posix()
 
 
-def _marker_project_id(project_root: Path) -> str | None:
-    """Return marker ``project.id`` when present and ID-grammar-safe."""
+def _read_project_marker(project_root: Path) -> tuple[Path, dict[str, Any]]:
+    """Load the root project marker or raise a controlled ConnectError (D-057)."""
     for name in (".atlas-project.yaml", ".atlas-project.yml"):
         marker = project_root / name
         if not marker.is_file():
             continue
         try:
             raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, yaml.YAMLError):
-            return None
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise ConnectError(
+                f"INVALID_PROJECT_MARKER: invalid project marker YAML: {marker.name}"
+            ) from exc
+        if raw is None:
+            raw = {}
         if not isinstance(raw, dict):
-            return None
-        project = raw.get("project")
-        candidate = None
-        if isinstance(project, dict):
-            candidate = project.get("id")
-        if not isinstance(candidate, str) or not candidate.strip():
-            candidate = raw.get("project_id")
-        if isinstance(candidate, str) and re.fullmatch(ID_PATTERN, candidate.strip()):
-            return candidate.strip()
+            raise ConnectError(
+                f"INVALID_PROJECT_MARKER: project marker must be an object: {marker.name}"
+            )
+        return marker, raw
+    raise ConnectError("INVALID_PROJECT_MARKER: project marker not found")
+
+
+def _marker_project_id(project_root: Path) -> str | None:
+    """Return marker ``project.id`` when present and ID-grammar-safe."""
+    try:
+        _marker, raw = _read_project_marker(project_root)
+    except ConnectError:
+        return None
+    project = raw.get("project")
+    candidate = None
+    if isinstance(project, dict):
+        candidate = project.get("id")
+    if not isinstance(candidate, str) or not candidate.strip():
+        candidate = raw.get("project_id")
+    if isinstance(candidate, str) and re.fullmatch(ID_PATTERN, candidate.strip()):
+        return candidate.strip()
     return None
+
+
+def _assert_marker_uuid_ownership(project_root: Path, vault: Path) -> None:
+    """Fail closed before discover/ingest when marker UUID contradicts vault ownership."""
+    try:
+        _marker, raw = _read_project_marker(project_root)
+    except ConnectError as exc:
+        if "not found" in str(exc):
+            return
+        raise
+    project = raw.get("project")
+    project_id = project.get("id") if isinstance(project, dict) else None
+    if not isinstance(project_id, str) or not project_id.strip():
+        project_id = raw.get("project_id")
+    raw_uuid = raw.get("project_uuid")
+    if not isinstance(project_id, str) or not project_id.strip():
+        return
+    if raw_uuid is None:
+        return
+    project_uuid = validate_project_uuid(str(raw_uuid))
+    assert_project_uuid_one_owner(vault, {project_id.strip(): project_uuid})
 
 
 def _write_bind(
@@ -544,6 +585,11 @@ def connect_project(
         raise ConnectError(f"vault identity unavailable after scaffold: {exc}") from exc
 
     report["marker_created"] = _ensure_project_marker(project_root)
+    # D-057: reject copied UUID / contradictory identity before discover/ingest.
+    try:
+        _assert_marker_uuid_ownership(project_root, vault_path)
+    except ValueError as exc:
+        raise ConnectError(str(exc)) from exc
 
     manifest_path = vault_path / MANIFEST_RELATIVE
     staging_manifest = vault_path / STAGING_MANIFEST_RELATIVE

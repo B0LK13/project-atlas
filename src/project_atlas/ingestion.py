@@ -57,6 +57,7 @@ from project_atlas.semantic_compiler import compile_project_record, render_proje
 from project_atlas.source_identity import (
     ProjectIdentityLock,
     ProjectUuidProvider,
+    assert_project_uuid_one_owner,
     canonical_source_sha256_bytes,
     production_project_uuid,
     validate_project_uuid,
@@ -949,12 +950,9 @@ def _prepare_project_identity(
         raise ValueError(f"project marker must be an object: {marker}")
     raw_uuid = data.get("project_uuid")
     allocated = raw_uuid is None
-    if allocated:
-        project_uuid = validate_project_uuid(uuid_provider())
-        data["project_uuid"] = project_uuid
-        updated = yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode("utf-8")
-        write_plan[marker] = updated
-        receipt = vault / "receipts" / "source-lineage" / f"project-{project}-allocation.json"
+    receipt = vault / "receipts" / "source-lineage" / f"project-{project}-allocation.json"
+
+    def _plan_allocation_receipt(project_uuid: str) -> None:
         if receipt.is_file():
             raise ValueError(f"project UUID allocation receipt already exists: {receipt}")
         write_plan[receipt] = (
@@ -970,8 +968,20 @@ def _prepare_project_identity(
             )
             + "\n"
         ).encode("utf-8")
+
+    if allocated:
+        project_uuid = validate_project_uuid(uuid_provider())
+        data["project_uuid"] = project_uuid
+        updated = yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode("utf-8")
+        write_plan[marker] = updated
+        _plan_allocation_receipt(project_uuid)
     else:
         project_uuid = validate_project_uuid(str(raw_uuid))
+        # D-057: durable one-owner claim for explicit marker UUIDs so a later
+        # root cannot copy the UUID under a contradictory project.id.
+        if not receipt.is_file() and receipt not in write_plan:
+            _plan_allocation_receipt(project_uuid)
+            allocated = True
     return project_uuid, marker, original, allocated
 
 
@@ -1640,22 +1650,19 @@ def _ingest(
         identity_markers[project] = marker
         if _allocated:
             allocated_projects.add(project)
-    by_uuid: dict[str, list[str]] = {}
+    planned_receipts: dict[str, str] = {}
     for project, project_uuid in project_identity.items():
-        by_uuid.setdefault(project_uuid, []).append(project)
-    duplicate_uuids = {
-        project_uuid: owners
-        for project_uuid, owners in by_uuid.items()
-        if len(owners) > 1
-    }
-    if duplicate_uuids:
-        raise ValueError(
-            "duplicate active project_uuid values: "
-            + ", ".join(
-                f"{project_uuid} ({', '.join(sorted(owners))})"
-                for project_uuid, owners in sorted(duplicate_uuids.items())
-            )
+        receipt_path = (
+            vault / "receipts" / "source-lineage" / f"project-{project}-allocation.json"
         )
+        if receipt_path in write_plan or project in allocated_projects:
+            planned_receipts[project] = project_uuid
+    # D-057: same-batch + durable allocation cardinality before lineage coalesce.
+    assert_project_uuid_one_owner(
+        vault,
+        project_identity,
+        planned_receipts=planned_receipts,
+    )
     previous_by_source_id = {
         str(item.get("source_id")): str(item.get("canonical_project_id"))
         for item in previous_registry

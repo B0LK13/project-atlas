@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import json
 import os
 import re
 import time
@@ -208,6 +209,136 @@ class ProjectIdentityLock:
 
 
 ProjectUuidProvider = Callable[[], str]
+
+
+def load_allocation_uuid_owners(vault: Path) -> dict[str, str]:
+    """Return ``project_uuid → project.id`` from durable allocation receipts.
+
+    D-057: receipts are the canonical one-owner registry for UUID cardinality.
+    Conflicting receipts for the same UUID raise immediately.
+    """
+    owners: dict[str, str] = {}
+    receipt_dir = vault.expanduser().resolve() / "receipts" / "source-lineage"
+    if not receipt_dir.is_dir():
+        return owners
+    for path in sorted(receipt_dir.glob("project-*-allocation.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if payload.get("receipt_type") != "project-identity-allocation":
+            continue
+        project = payload.get("project")
+        raw_uuid = payload.get("project_uuid")
+        if not isinstance(project, str) or not project.strip():
+            continue
+        if not isinstance(raw_uuid, str) or not raw_uuid.strip():
+            continue
+        try:
+            project_uuid = validate_project_uuid(raw_uuid.strip())
+        except ValueError:
+            continue
+        owner = project.strip()
+        existing = owners.get(project_uuid)
+        if existing is not None and existing != owner:
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project_uuid {project_uuid} has conflicting allocation owners "
+                f"{existing!r} and {owner!r}"
+            )
+        owners[project_uuid] = owner
+    return owners
+
+
+def load_allocation_project_uuids(vault: Path) -> dict[str, str]:
+    """Return ``project.id → project_uuid`` from durable allocation receipts."""
+    mapping: dict[str, str] = {}
+    for project_uuid, project in load_allocation_uuid_owners(vault).items():
+        existing = mapping.get(project)
+        if existing is not None and existing != project_uuid:
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project.id {project!r} has conflicting allocation UUIDs "
+                f"{existing!r} and {project_uuid!r}"
+            )
+        mapping[project] = project_uuid
+    return mapping
+
+
+def assert_project_uuid_one_owner(
+    vault: Path,
+    project_identity: dict[str, str],
+    *,
+    planned_receipts: dict[str, str] | None = None,
+) -> None:
+    """Fail closed when UUID↔project.id cardinality is violated (D-057).
+
+    Invariants:
+    - one ``project_uuid`` maps to at most one durable ``project.id``
+    - one durable ``project.id`` maps to at most one ``project_uuid``
+    Ordinary connect must not infer rename/migration from conflicting markers.
+
+    ``planned_receipts`` maps ``project.id → project_uuid`` for receipts in the
+    current write plan (not yet on disk).
+    """
+    by_uuid: dict[str, list[str]] = {}
+    for project, project_uuid in project_identity.items():
+        by_uuid.setdefault(project_uuid, []).append(project)
+    duplicate_uuids = {
+        project_uuid: owners
+        for project_uuid, owners in by_uuid.items()
+        if len(owners) > 1
+    }
+    if duplicate_uuids:
+        raise ValueError(
+            "PROJECT_IDENTITY_CONFLICT: duplicate active project_uuid values: "
+            + ", ".join(
+                f"{project_uuid} ({', '.join(sorted(owners))})"
+                for project_uuid, owners in sorted(duplicate_uuids.items())
+            )
+        )
+
+    uuid_owners = load_allocation_uuid_owners(vault)
+    id_owners = load_allocation_project_uuids(vault)
+    for project, project_uuid in (planned_receipts or {}).items():
+        existing_uuid_owner = uuid_owners.get(project_uuid)
+        if existing_uuid_owner is not None and existing_uuid_owner != project:
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project_uuid={project_uuid} "
+                f"existing_project_id={existing_uuid_owner} "
+                f"incoming_project_id={project}"
+            )
+        existing_id_uuid = id_owners.get(project)
+        if existing_id_uuid is not None and existing_id_uuid != project_uuid:
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project_id={project} "
+                f"existing_project_uuid={existing_id_uuid} "
+                f"incoming_project_uuid={project_uuid}"
+            )
+        uuid_owners[project_uuid] = project
+        id_owners[project] = project_uuid
+
+    for project, project_uuid in sorted(project_identity.items()):
+        claimed_owner = uuid_owners.get(project_uuid)
+        if claimed_owner is not None and claimed_owner != project:
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project_uuid={project_uuid} "
+                f"existing_project_id={claimed_owner} "
+                f"incoming_project_id={project}"
+            )
+        prior_uuid = id_owners.get(project)
+        if prior_uuid is not None and prior_uuid != project_uuid:
+            raise ValueError(
+                "PROJECT_IDENTITY_CONFLICT: "
+                f"project_id={project} "
+                f"existing_project_uuid={prior_uuid} "
+                f"incoming_project_uuid={project_uuid}"
+            )
 
 
 @contextlib.contextmanager
