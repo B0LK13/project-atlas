@@ -26,8 +26,10 @@ def _seed(root: Path) -> Path:
 
 def test_context_export_and_handoff_roundtrip(tmp_path: Path) -> None:
     project = _seed(tmp_path / "handoff-fixture")
-    vault = Path(connect_project(project)["vault"])
-    ctx = export_agent_context(vault, "handoff-fixture", refresh_brief=False)
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    ctx = export_agent_context(vault, project_id, refresh_brief=False)
     assert ctx["status"] == "ok"
     md = vault / ctx["markdown_path"]
     assert md.is_file()
@@ -44,7 +46,7 @@ def test_context_export_and_handoff_roundtrip(tmp_path: Path) -> None:
     assert payload["attention"]["package"] == "AS-CODER-ALPHA-ATTENTION-001"
     assert payload["source_health"]["package"] == "AS-CODER-ALPHA-SOURCE-HEALTH-001"
 
-    created = create_handoff(vault, "handoff-fixture", note="overnight", refresh_brief=False)
+    created = create_handoff(vault, project_id, note="overnight", refresh_brief=False)
     assert created["handoff_id"].startswith("handoff-")
     assert (vault / created["path"]).is_file()
     assert (vault / created["latest_path"]).is_file()
@@ -52,14 +54,16 @@ def test_context_export_and_handoff_roundtrip(tmp_path: Path) -> None:
     resumed = resume_handoff(vault)
     assert resumed["status"] == "resumed"
     assert resumed["handoff_id"] == created["handoff_id"]
-    assert resumed["project_id"] == "handoff-fixture"
+    assert resumed["project_id"] == project_id
     assert resumed.get("operator_note") == "overnight"
     assert "generated_at" not in resumed
 
 
 def test_cli_context_and_handoff(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-handoff")
-    vault = Path(connect_project(project)["vault"])
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
     assert (
         main(
             [
@@ -67,7 +71,7 @@ def test_cli_context_and_handoff(tmp_path: Path) -> None:
                 "--vault",
                 str(vault),
                 "--project",
-                "cli-handoff",
+                project_id,
                 "--no-refresh",
                 "--json",
             ]
@@ -82,7 +86,7 @@ def test_cli_context_and_handoff(tmp_path: Path) -> None:
                 "--vault",
                 str(vault),
                 "--project",
-                "cli-handoff",
+                project_id,
                 "--no-refresh",
                 "--json",
             ]
@@ -93,4 +97,4 @@ def test_cli_context_and_handoff(tmp_path: Path) -> None:
     latest = json.loads(
         (vault / "generated" / "ops" / "handoffs" / "latest.json").read_text(encoding="utf-8")
     )
-    assert latest["project_id"] == "cli-handoff"
+    assert latest["project_id"] == project_id

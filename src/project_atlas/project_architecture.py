@@ -28,6 +28,7 @@ ARCHITECTURE_SLOTS: tuple[str, ...] = (
     "trust_boundaries",
     "human_agent_interaction",
     "runtime_surfaces",
+    "data_stores",
     "knowledge_pipeline",
     "web_cli_mcp_obsidian",
     "key_integrations",
@@ -43,6 +44,7 @@ _SUMMARY_SLOT_ORDER: tuple[str, ...] = (
     "control_flow",
     "trust_boundaries",
     "runtime_surfaces",
+    "data_stores",
     "web_cli_mcp_obsidian",
     "human_agent_interaction",
     "key_integrations",
@@ -140,6 +142,9 @@ def _architecture_rank(path: str) -> tuple[int, int, str] | None:
     if lower == "docs/plan.md":
         return (0, depth, posix)
     if lower in {"agents.md", "claude.md"}:
+        return (1, depth, posix)
+    # Root ARCHITECTURE.md is authoritative estate evidence (D-041/D-044).
+    if lower == "architecture.md":
         return (1, depth, posix)
     if lower == "docs/prp.md":
         return (2, depth, posix)
@@ -676,10 +681,91 @@ def _agents_or_claude_slots(text: str) -> dict[str, str]:
     return slots
 
 
+def _generic_architecture_slots(text: str) -> dict[str, str]:
+    """Extract architecture slots from generic architecture documents (D-050 R5).
+
+    Bounded heading/section capture only — never invents missing facts and never
+    treats README prose as architecture authority.
+    """
+    slots: dict[str, str] = {}
+
+    def _fill(
+        slot: str,
+        predicate: Callable[[str], bool],
+        *,
+        prefix: str = "",
+        max_lines: int = 8,
+    ) -> None:
+        if slot in slots:
+            return
+        lines = _capture_section(text, predicate, max_lines=max_lines)
+        value = _join(lines)
+        if value:
+            slots[slot] = f"{prefix}{value}" if prefix else value
+
+    _fill(
+        "major_components",
+        lambda title: "component" in title and "responsibil" not in title,
+        prefix="Components: ",
+    )
+    _fill(
+        "component_responsibilities",
+        lambda title: "responsibil" in title,
+    )
+    _fill(
+        "runtime_surfaces",
+        lambda title: title == "runtime"
+        or title.startswith("runtime ")
+        or "runtime surface" in title,
+    )
+    _fill(
+        "data_stores",
+        lambda title: "data store" in title
+        or title in {"persistence", "storage", "data stores"},
+    )
+    _fill(
+        "data_flow",
+        lambda title: "data flow" in title or title == "dataflow",
+    )
+    _fill(
+        "control_flow",
+        lambda title: "control flow" in title or title == "controlflow",
+    )
+    _fill(
+        "trust_boundaries",
+        lambda title: "trust boundary" in title
+        or title in {"boundaries", "boundary", "trust boundaries"},
+    )
+    _fill(
+        "system_purpose",
+        lambda title: title in {"purpose", "overview", "summary", "system purpose"},
+        max_lines=3,
+    )
+    _fill(
+        "important_arch_decisions",
+        lambda title: "decision" in title or "architecture decision" in title,
+        prefix="Architecture decision: ",
+        max_lines=5,
+    )
+    _fill(
+        "known_gaps",
+        lambda title: "gap" in title or "out of scope" in title or "limitation" in title,
+        max_lines=4,
+    )
+    return slots
+
+
 def _slots_from_source(path: str, text: str) -> dict[str, str]:
     lower = path.replace("\\", "/").removeprefix("./").lower()
     if lower == "docs/plan.md" or lower.endswith("/plan.md"):
         return _plan_slots(text)
+    basename = Path(lower).name
+    if basename == "architecture.md" or lower.endswith("/architecture.md"):
+        # Generic architecture docs first; AGENTS/CLAUDE-shaped signals fill gaps.
+        slots = _generic_architecture_slots(text)
+        for key, value in _agents_or_claude_slots(text).items():
+            slots.setdefault(key, value)
+        return slots
     return _agents_or_claude_slots(text)
 
 

@@ -96,13 +96,23 @@ def _parse_status_counts(text: str) -> dict[str, int]:
     return counts
 
 
-def _entry_count(payload: dict[str, Any] | None) -> int:
+def _entry_count(payload: dict[str, Any] | None, *, pending_only: bool = False) -> int:
+    """Count review entries; optionally only unresolved pending rows (D-044)."""
     if not payload:
         return 0
     entries = payload.get("entries")
-    if isinstance(entries, list):
+    if not isinstance(entries, list):
+        return 0
+    if not pending_only:
         return len(entries)
-    return 0
+    count = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        status = str(entry.get("status") or "pending")
+        if status in {"pending", "in-review", ""}:
+            count += 1
+    return count
 
 
 def _rollup(
@@ -159,6 +169,7 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
             raise ProjectStateError(f"unreadable knowledge-status: {status_path}: {exc}") from exc
 
     pending_payload = _read_json(pending_path)
+    pending_unreadable = pending_path.is_file() and pending_payload is None
     if pending_path.is_file():
         inspected.append(pending_path.relative_to(vault).as_posix())
     conflicts_payload = _read_json(conflicts_path)
@@ -167,10 +178,20 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if current_state_path.is_file():
         inspected.append(current_state_path.relative_to(vault).as_posix())
 
-    pending_reviews = max(
-        _entry_count(pending_payload),
-        status_counts.get("claims awaiting review", 0),
-    )
+    # Prefer live pending-queue status after human dispositions (D-044 B3).
+    # knowledge-status.md can lag until reconnect; never resurrect decided rows.
+    # Unreadable pending file: do not claim 0 as authoritative and do not fall
+    # back to stale knowledge-status (D-047 IV / BRIEF_PENDING_MISMATCH).
+    queue_pending = _entry_count(pending_payload, pending_only=True)
+    if pending_unreadable:
+        pending_reviews = 0
+    elif pending_path.is_file():
+        pending_reviews = queue_pending
+    else:
+        pending_reviews = max(
+            queue_pending,
+            status_counts.get("claims awaiting review", 0),
+        )
     unresolved_conflicts = max(
         _entry_count(conflicts_payload),
         status_counts.get("unresolved conflicts", 0),
@@ -202,6 +223,12 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
     summary = "; ".join(summary_bits)
     value = summary if status_present or lifecycle is not None else None
     status = "derived" if value is not None else "unknown"
+    if pending_unreadable:
+        status = "unknown"
+        summary = f"{summary}; pending_queue=unreadable" if value is not None else (
+            "pending_queue=unreadable"
+        )
+        value = summary
 
     notes = [
         "Derived from knowledge-status + review queues + project lifecycle",
@@ -210,6 +237,8 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "rollup!=trust-score",
         "UNKNOWN!=healthy",
     ]
+    if pending_unreadable:
+        notes.append("pending-queue-unreadable; not CLEAR; not stale knowledge-status")
     if rollup == "unknown":
         notes.append("lifecycle/status insufficient; rollup stays UNKNOWN")
 

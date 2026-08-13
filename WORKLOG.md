@@ -5,6 +5,60 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+
+
+## D-057 — Copied project_uuid identity corruption
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-057
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+**PR:** #345
+
+### Defect
+Local D-055 found: distinct project.id copying another project's project_uuid was accepted by `atlas connect`, coalescing source lineage under one UUID.
+
+### Fix
+- Durable one-owner registry via allocation receipts (`project_uuid → project.id`)
+- `assert_project_uuid_one_owner` enforced at connect preflight and ingest before lineage
+- Explicit marker UUIDs claim allocation receipts when absent
+- Malformed `.atlas-project.yaml` → `INVALID_PROJECT_MARKER` (no YAML traceback)
+
+### Gates held
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL`
+- `D_049_EXECUTION_GATE = CLOSED`
+- `D_042_EXECUTION_GATE = CLOSED`
+- Freeze one new tip for Local residual IV (copied-UUID + R2–R5 smoke)
+
+## D-052 — D-050 residual HIGH remediation (R2–R5) + IV follow-ups
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-052
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+**PR:** #345
+
+### Batch
+- R2: collision-safe project.id = human slug + root_identity_fingerprint
+- R3: project-scoped compatibility source_id + lineage path-active continuity
+- R4: staging connect-manifest; promote only after ingest+validate success
+- R5: generic ARCHITECTURE.md slot extraction (deterministic, provenance-backed)
+
+### Independent IV remediations
+- Do not roll back connect-manifest after successful ingest
+- Secret/quarantine ownership from durable `sources/manifests/source-manifest.json`
+- Enumerate discover exclusions from durable source-manifest (shared-vault sibling must not erase sibling exclusions)
+- path_active source_id migration must not be blocked by retired same-path history (active continuity bridge)
+- Unreadable durable source-manifest fails closed (no last-writer ownership fallback → false CLEAR)
+- Absent durable source-manifest also fails closed for project-scoped secret ownership
+- LIVE_API dual-stack loopback probe (127.0.0.1 and ::1) before bind
+- Regenerated K-004/K-005 goldens for namespaced compatibility source_ids
+- Lens/CLI tests use `bound_project_id` (collision-safe identity)
+
+### Gates held
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL`
+- `D_049_EXECUTION_GATE = CLOSED`
+- `D_042_EXECUTION_GATE = CLOSED`
+- Freeze one tip for Local residual-first Windows IV only after R2–R5 + IV PASS + CI green
+
 ## WP-001 — Repository Foundation and Domain Model
 
 **Status:** complete
@@ -5603,3 +5657,69 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - CODEX_VALIDATED = NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
 - ATLAS_OPT_WAKE_GATE = CLOSED
+
+## D-044 — D-041 Local evidence intake / D-043 gate correction
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-044
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+
+### Gate correction
+- #343 already merged before D-044 arrived; do not certify PASS from Fresh Agent V3 alone
+- #344 D-042 closed: `D_042_EXECUTION_GATE = CLOSED`
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL` while HIGH findings open / pending Local Windows revalidation
+
+### Remediations in this branch
+- A1 attention: CLEAR only after positive inspection; UNKNOWN/INCOMPLETE otherwise
+- A2 stranger CLI defaults from `.atlas/connect.json` bind (fail closed on ambiguity)
+- A3 architecture coverage reconciled with lens UNKNOWN; root ARCHITECTURE.md ranked
+- A4 decision heading theatre regression (Status/Decision/Consequences)
+- B1 source-health UNREADABLE != HEALTHY + summary/actionable/noise grouping
+- B2 unknown-project isolation (no leak into scoped project reports)
+- B3 brief/state/unknown pending consistency after review decide
+- B4 Unicode/CJK collision-safe project slugs
+- B5 LIVE_API dual-bind fail-closed (`allow_reuse_address=False` + port probe)
+
+### Follow-on
+- Local Windows stranger revalidation required before PASS
+- AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 after correctness proof
+
+## D-050 / D-052 — Residual HIGH remediation batch for #345
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-052
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+
+### Local D-050 input consumed (exact tip 8a58db8)
+- R2 slug collision FAIL → collision-safe project.id via root fingerprint
+- R3 shared-vault source identity FAIL → project-scoped compatibility source_id
+- R4 failed-connect manifest mutation FAIL → staging manifest + commit-on-success
+- R5 generic ARCHITECTURE.md extraction FAIL → heading-based slot capture + data_stores
+
+### Gates held
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL`
+- `D_049_EXECUTION_GATE = CLOSED`
+- `D_042_EXECUTION_GATE = CLOSED`
+- Local revalidation only after one frozen remediation HEAD
+
+## D-047 — Cloud closeout / Local-IV coordination for #345
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CLOUD-CODER-ALPHA-047
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+
+### Independent IV findings remediated (tip drift vs Local D-046 prior HEAD)
+- Attention `SECRET_QUARANTINE` scoped by connect-manifest ownership (CROSS_PROJECT_LEAK)
+- Stranger CLI no longer swallows ambiguous-project `ConnectError` into vault-wide scans
+- Connect materializes architecture before overview so A3 coverage reconciles on first write
+- Bind `project_root` must match cwd; default vault refuses symlink escape outside root
+- Explicit `--vault` ignores bind `project_id` (no cross-vault project scoping)
+- Unreadable pending queue: state/unknown agree; no stale knowledge-status resurrection
+- Review remediation: ASCII/ID_PATTERN-safe Unicode slugs; shared-vault bind primary; IPv6 API probe tuple
+
+### Gates
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL` (Cloud ≠ Local Windows substitute)
+- `D_042_EXECUTION_GATE = CLOSED`
+- Local D-046 must revalidate the **new** exact HEAD before merge (prior tip stale)
+- INCREMENTAL-CONNECT remains analysis-only until post-merge Local HIGH gate
+

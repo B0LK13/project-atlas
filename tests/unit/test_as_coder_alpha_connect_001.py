@@ -48,6 +48,7 @@ def test_resolve_vault_prefers_explicit_and_bind(tmp_path: Path) -> None:
         json.dumps(
             {
                 "schema_version": 1,
+                "project_root": project.resolve().as_posix(),
                 "vault": "../bound-vault",
                 "vault_id": "atlas-main",
             },
@@ -78,7 +79,7 @@ def test_connect_dry_run_reports_plan_without_writes(tmp_path: Path) -> None:
 
 def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
     project = _seed_project(tmp_path / "my-cool-app")
-    expected_id = project_slug_from_dirname(project.name)
+    expected_id = project_slug_from_dirname(project.name, project_root=project)
     first = connect_project(project)
     assert first["status"] == "connected"
     assert first["documents_ingested"] >= 1
@@ -119,7 +120,8 @@ def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
 def test_project_slug_from_dirname_is_safe() -> None:
     assert project_slug_from_dirname("My Cool App") == "my-cool-app"
     assert project_slug_from_dirname("123-start") == "p-123-start"
-    assert project_slug_from_dirname("@@@") == "project"
+    assert project_slug_from_dirname("@@@").startswith("project-")
+    assert project_slug_from_dirname("文档一") != project_slug_from_dirname("文档二")
 
 
 def test_cli_connect_help_exits_zero() -> None:

@@ -268,25 +268,24 @@ def test_attention_classifies_conflict_and_pending(tmp_path: Path) -> None:
 
 def test_source_health_explains_exclusions(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
-    _write(
-        vault / "generated" / "ops" / "connect-manifest.json",
-        {
-            "sources": [
-                {
-                    "path": "fixtures/demo/README.md",
-                    "source_id": "source-x",
-                    "likely_project": "proj",
-                    "exclusion_reason": "default-excluded-directory",
-                },
-                {
-                    "path": "README.md",
-                    "source_id": "source-y",
-                    "likely_project": "proj",
-                    "exclusion_reason": None,
-                },
-            ]
-        },
-    )
+    sources = {
+        "sources": [
+            {
+                "path": "fixtures/demo/README.md",
+                "source_id": "source-x",
+                "likely_project": "proj",
+                "exclusion_reason": "default-excluded-directory",
+            },
+            {
+                "path": "README.md",
+                "source_id": "source-y",
+                "likely_project": "proj",
+                "exclusion_reason": None,
+            },
+        ]
+    }
+    _write(vault / "generated" / "ops" / "connect-manifest.json", sources)
+    _write(vault / "sources" / "manifests" / "source-manifest.json", sources)
     report = explain_source_health(vault, "proj")
     assert report["source_count"] == 1
     row = report["sources"][0]
@@ -298,23 +297,22 @@ def test_source_health_explains_exclusions(tmp_path: Path) -> None:
 
 def test_source_health_scopes_quarantine_and_reads_source_path(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
-    _write(
-        vault / "generated" / "ops" / "connect-manifest.json",
-        {
-            "sources": [
-                {
-                    "path": "docs/a.md",
-                    "source_id": "src-a",
-                    "likely_project": "proj-a",
-                },
-                {
-                    "path": "docs/b.md",
-                    "source_id": "src-b",
-                    "likely_project": "proj-b",
-                },
-            ]
-        },
-    )
+    ownership = {
+        "sources": [
+            {
+                "path": "docs/a.md",
+                "source_id": "src-a",
+                "likely_project": "proj-a",
+            },
+            {
+                "path": "docs/b.md",
+                "source_id": "src-b",
+                "likely_project": "proj-b",
+            },
+        ]
+    }
+    _write(vault / "generated" / "ops" / "connect-manifest.json", ownership)
+    _write(vault / "sources" / "manifests" / "source-manifest.json", ownership)
     _write(
         vault / "generated" / "reports" / "secret-findings.json",
         {
@@ -368,9 +366,11 @@ def test_cli_attention_and_source_health(tmp_path: Path) -> None:
     project = tmp_path / "cli-att"
     project.mkdir()
     (project / "README.md").write_text("# CLI Att\n\nbody\n", encoding="utf-8")
-    vault = Path(connect_project(project)["vault"])
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
     assert (
-        main(["attention", "--vault", str(vault), "--project", "cli-att", "--json"])
+        main(["attention", "--vault", str(vault), "--project", project_id, "--json"])
         == EXIT_OK
     )
     assert (
@@ -380,7 +380,7 @@ def test_cli_attention_and_source_health(tmp_path: Path) -> None:
                 "--vault",
                 str(vault),
                 "--project",
-                "cli-att",
+                project_id,
                 "--json",
             ]
         )

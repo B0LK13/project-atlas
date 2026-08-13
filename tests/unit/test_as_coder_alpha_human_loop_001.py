@@ -37,11 +37,13 @@ def _first_pending_review_id(vault: Path, project_id: str) -> str:
 
 def test_review_decide_accept_and_unknown_drop(tmp_path: Path) -> None:
     project = _seed(tmp_path / "human-loop")
-    vault = Path(connect_project(project)["vault"])
-    review_id = _first_pending_review_id(vault, "human-loop")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    review_id = _first_pending_review_id(vault, project_id)
     report = apply_review_decision(
         vault,
-        project_id="human-loop",
+        project_id=project_id,
         review_id=review_id,
         decision="accept",
         reason="Owner verified claim from DECISIONS.md",
@@ -52,12 +54,12 @@ def test_review_decide_accept_and_unknown_drop(tmp_path: Path) -> None:
     )
     assert disposition["decisions"]
     pending = json.loads(
-        (vault / "review" / "pending" / "human-loop.json").read_text(encoding="utf-8")
+        (vault / "review" / "pending" / f"{project_id}.json").read_text(encoding="utf-8")
     )
     decided = next(e for e in pending["entries"] if e["review_id"] == review_id)
     assert decided["status"] == "resolved"
     unknown = json.loads(
-        (vault / "generated" / "answers" / "ans-unknown-human-loop.json").read_text(
+        (vault / "generated" / "answers" / f"ans-unknown-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -71,7 +73,7 @@ def test_review_decide_accept_and_unknown_drop(tmp_path: Path) -> None:
     with pytest.raises(HumanLoopError):
         apply_review_decision(
             vault,
-            project_id="human-loop",
+            project_id=project_id,
             review_id=review_id,
             decision="accept",
             reason="duplicate",
@@ -80,11 +82,13 @@ def test_review_decide_accept_and_unknown_drop(tmp_path: Path) -> None:
 
 def test_review_decide_fail_closed(tmp_path: Path) -> None:
     project = _seed(tmp_path / "loop-safety")
-    vault = Path(connect_project(project)["vault"])
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
     with pytest.raises(HumanLoopError):
         apply_review_decision(
             vault,
-            project_id="loop-safety",
+            project_id=project_id,
             review_id="review-does-not-exist",
             decision="accept",
             reason="nope",
@@ -101,8 +105,10 @@ def test_review_decide_fail_closed(tmp_path: Path) -> None:
 
 def test_cli_review_decide(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-loop")
-    vault = Path(connect_project(project)["vault"])
-    review_id = _first_pending_review_id(vault, "cli-loop")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    review_id = _first_pending_review_id(vault, project_id)
     assert (
         main(
             [
@@ -111,7 +117,7 @@ def test_cli_review_decide(tmp_path: Path) -> None:
                 "--vault",
                 str(vault),
                 "--project",
-                "cli-loop",
+                project_id,
                 "--review-id",
                 review_id,
                 "--decision",
@@ -131,7 +137,7 @@ def test_cli_review_decide(tmp_path: Path) -> None:
                 "--vault",
                 str(vault),
                 "--project",
-                "cli-loop",
+                project_id,
                 "--review-id",
                 "missing-review",
                 "--decision",

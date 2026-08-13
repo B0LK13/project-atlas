@@ -380,6 +380,23 @@ def build_project_registry(
             ),
             source_records[0] if len(source_records) == 1 else None,
         )
+        # D-050 R3: compatibility source_id algorithm may change (path-only →
+        # project-scoped). Preserve durable lineage by uniquely matching the
+        # active prior record at the same canonical path within this project.
+        # Retired generations at the same path do NOT block this bridge — path
+        # reoccupation without an active record remains fail-closed below via
+        # path_candidates + explicit resolution.
+        if source_record is None:
+            path_active = [
+                record
+                for record in prior
+                if record.source_lineage_id not in used_lineages
+                and record.source_change_state
+                not in {SourceChangeState.DELETED, SourceChangeState.RESTORED_ELSEWHERE}
+                and record.current_path == path
+            ]
+            if len(path_active) == 1:
+                source_record = path_active[0]
         if (
             source_record is not None
             and source_record.source_change_state
@@ -432,6 +449,8 @@ def build_project_registry(
             current.append(
                 source_record.model_copy(
                     update={
+                        # Adopt current compatibility source_id (namespacing migration).
+                        "source_id": source_id,
                         "current_path": path,
                         "path_history": history,
                         "current_content_sha256": digest,

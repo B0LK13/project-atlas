@@ -23,8 +23,26 @@ LEVELS = (
     "STALE",
     "SUPERSEDED",
     "DUPLICATE",
+    "INCOMPLETE",
+    "UNKNOWN",
     "INFORMATIONAL",
     "LOW_VALUE_NOISE",
+)
+# Rollup precedence (lowest index wins). CLEAR is never inferred from absence.
+_ROLLUP_ORDER = (
+    "BLOCKING",
+    "ACTION_REQUIRED",
+    "NEEDS_HUMAN_REVIEW",
+    "SOURCE_FAILURE",
+    "CONFLICT",
+    "STALE",
+    "SUPERSEDED",
+    "DUPLICATE",
+    "INCOMPLETE",
+    "UNKNOWN",
+    "INFORMATIONAL",
+    "LOW_VALUE_NOISE",
+    "CLEAR",
 )
 
 
@@ -50,6 +68,19 @@ def _read_json(path: Path) -> tuple[str, dict[str, Any] | None]:
     if not isinstance(raw, dict):
         return "unreadable", None
     return "ok", raw
+
+
+def _read_json_any(path: Path) -> tuple[str, dict[str, Any] | list[Any] | None]:
+    """Like ``_read_json`` but accepts top-level object or array (secret-findings)."""
+    if not path.is_file():
+        return "absent", None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return "unreadable", None
+    if isinstance(raw, (dict, list)):
+        return "ok", raw
+    return "unreadable", None
 
 
 def _item(
@@ -258,6 +289,99 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
                     )
                 )
 
+    # SECRET_QUARANTINE must never disappear into a false CLEAR (D-041/D-044).
+    # Scoped attention must not import other projects' quarantine rows (D-047 IV /
+    # CROSS_PROJECT_LEAK) — reuse source-health ownership indexes.
+    from project_atlas.source_health import (
+        _finding_matches_project,
+        _manifest_project_indexes,
+    )
+
+    secrets_path = vault / "generated" / "reports" / "secret-findings.json"
+    inspected.append(secrets_path.relative_to(vault).as_posix())
+    secrets_status, secrets_payload = _read_json_any(secrets_path)
+    if secrets_status == "unreadable":
+        items.append(
+            _item(
+                level="INCOMPLETE",
+                kind="artifact_unreadable",
+                reason_code="ARTIFACT_UNREADABLE",
+                why="secret-findings artifact exists but could not be parsed",
+                impact="Quarantine attention may be incomplete; not CLEAR",
+                action="Repair secret-findings JSON (metadata only; never echo secrets)",
+                evidence=[secrets_path.relative_to(vault).as_posix()],
+            )
+        )
+    elif secrets_status == "ok":
+        if isinstance(secrets_payload, list):
+            secret_rows = [row for row in secrets_payload if isinstance(row, dict)]
+        elif isinstance(secrets_payload, dict):
+            raw_findings = secrets_payload.get("findings")
+            secret_rows = (
+                [row for row in raw_findings if isinstance(row, dict)]
+                if isinstance(raw_findings, list)
+                else []
+            )
+        else:
+            secret_rows = []
+        # Prefer durable vault source-manifest (multi-project) over last-writer
+        # connect-manifest so sibling reconnects cannot erase another project's
+        # quarantine ownership (D-050 IV / shared-vault false CLEAR).
+        durable_path = vault / "sources" / "manifests" / "source-manifest.json"
+        connect_path = vault / "generated" / "ops" / "connect-manifest.json"
+        inspected.append(durable_path.relative_to(vault).as_posix())
+        inspected.append(connect_path.relative_to(vault).as_posix())
+        durable_status, durable_payload = _read_json(durable_path)
+        # Honesty: inspect connect-manifest presence, but never use it as
+        # project-scoped ownership authority (last-writer / shared-vault).
+        _read_json(connect_path)
+        # Attention is always project-scoped: quarantine attribution requires
+        # durable multi-project inventory. Absent/unreadable durable must fail
+        # closed — never trust last-writer connect-manifest (false CLEAR).
+        if durable_status == "ok" and isinstance(durable_payload, dict):
+            ownership_payload = durable_payload
+        else:
+            ownership_payload = None
+        source_projects, path_projects = _manifest_project_indexes(ownership_payload)
+        scoped_rows = [
+            row
+            for row in secret_rows
+            if _finding_matches_project(
+                row,
+                project_id=project_id,
+                source_projects=source_projects,
+                path_projects=path_projects,
+            )
+        ]
+        if secret_rows and not source_projects and not path_projects:
+            # Findings exist but ownership cannot be scoped — never false CLEAR.
+            items.append(
+                _item(
+                    level="INCOMPLETE",
+                    kind="secret_quarantine_unscoped",
+                    reason_code="SECRET_OWNERSHIP_UNKNOWN",
+                    why=(
+                        f"{len(secret_rows)} secret-quarantine finding(s) present "
+                        "but ownership indexes are unavailable"
+                    ),
+                    impact="Cannot attribute quarantine to this project; not CLEAR",
+                    action="Re-run atlas connect to restore source-manifest ownership",
+                    evidence=[secrets_path.relative_to(vault).as_posix()],
+                )
+            )
+        elif scoped_rows:
+            items.append(
+                _item(
+                    level="ACTION_REQUIRED",
+                    kind="secret_quarantine",
+                    reason_code="SECRET_QUARANTINE",
+                    why=f"{len(scoped_rows)} secret-quarantine finding(s) recorded",
+                    impact="Credential-bearing sources must be repaired before trust",
+                    action="Remove/redact credentials and re-run atlas connect",
+                    evidence=[secrets_path.relative_to(vault).as_posix()],
+                )
+            )
+
     # Cap low-value noise: collapse huge pending queues into summary item.
     # Preserve ACTION_REQUIRED / STALE / SUPERSEDED classifications — never
     # demote competing-authority rows to NEEDS_HUMAN_REVIEW on rollup.
@@ -326,7 +450,59 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
 
     order = {name: index for index, name in enumerate(LEVELS)}
     items.sort(key=lambda row: (order.get(str(row["level"]), 99), str(row.get("subject_id"))))
-    rollup = str(items[0]["level"]) if items else "CLEAR"
+
+    # D-044 / D-041: CLEAR only when relevant review/compile state was positively
+    # inspected. Absent or unreadable artifacts must never collapse to CLEAR.
+    key_statuses = {
+        "conflicts": conflicts_status,
+        "pending": pending_status,
+        "outcomes": outcomes_status,
+    }
+    unreadable = [name for name, status in key_statuses.items() if status == "unreadable"]
+    absent = [name for name, status in key_statuses.items() if status == "absent"]
+    inspected_ok = [name for name, status in key_statuses.items() if status == "ok"]
+
+    if unreadable:
+        items.append(
+            _item(
+                level="INCOMPLETE",
+                kind="inspection_incomplete",
+                reason_code="ARTIFACT_UNREADABLE",
+                why=(
+                    "One or more attention artifacts exist but could not be parsed: "
+                    + ",".join(unreadable)
+                ),
+                impact="Attention state is incomplete; do not treat as CLEAR",
+                action="Repair JSON encoding/structure or re-run atlas connect",
+                evidence=inspected[:3],
+            )
+        )
+    elif not inspected_ok:
+        # Empty vault / failed-connect leftover / never compiled for this project.
+        items.append(
+            _item(
+                level="UNKNOWN",
+                kind="inspection_unknown",
+                reason_code="STATE_UNINSPECTED",
+                why=(
+                    "No readable review/compile attention artifacts for this project "
+                    f"({', '.join(absent) or 'none'})"
+                ),
+                impact="Atlas has not positively verified a clear attention state",
+                action="Run atlas connect (or compile) then re-check atlas attention",
+                evidence=inspected[:3],
+            )
+        )
+
+    rollup_rank = {name: index for index, name in enumerate(_ROLLUP_ORDER)}
+    if items:
+        rollup = min(
+            (str(item.get("level") or "UNKNOWN") for item in items),
+            key=lambda level: rollup_rank.get(level, 99),
+        )
+    else:
+        # All key artifacts readable and empty → positively inspected CLEAR.
+        rollup = "CLEAR" if len(inspected_ok) == 3 else "UNKNOWN"
 
     # Default presentation: 3-10 things the user should actually care about.
     # Cap BLOCKING samples so ACTION_REQUIRED / NEEDS_HUMAN_REVIEW remain visible.
@@ -368,6 +544,12 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         "items": items,
         "inspected_artifacts": inspected,
         "generated": {"by": GENERATOR_ID},
+        "inspection": {
+            "conflicts": conflicts_status,
+            "pending": pending_status,
+            "outcomes": outcomes_status,
+            "positively_inspected": len(inspected_ok) == 3 and not unreadable,
+        },
         "honesty": {
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
@@ -375,6 +557,7 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             "lens_is_authority": False,
             "unknown_is_valid": True,
             "failures_hidden": False,
+            "clear_requires_positive_inspection": True,
         },
         "truth_boundary": "ATTENTION LENS != AUTHORITY / UI != CANONICAL",
     }

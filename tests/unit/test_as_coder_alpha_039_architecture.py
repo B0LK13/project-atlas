@@ -28,8 +28,10 @@ def test_architecture_prefers_plan_over_readme_purpose(tmp_path: Path) -> None:
         "### Layer A — Source evidence\n\nOriginal documentation.\n",
         encoding="utf-8",
     )
-    vault = Path(connect_project(root)["vault"])
-    brief = build_project_brief(vault, "project-atlas", refresh=True)
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
+    brief = build_project_brief(vault, project_id, refresh=True)
     assert brief["purpose"].startswith("Project Atlas")
     assert brief["architecture_summary"] != brief["purpose"]
     assert "three-layer" in brief["architecture_summary"].lower()
@@ -43,9 +45,11 @@ def test_architecture_unknown_without_plan_or_agents(tmp_path: Path) -> None:
         "# Readme Only\n\nPurpose prose must not become architecture.\n",
         encoding="utf-8",
     )
-    vault = Path(connect_project(root)["vault"])
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     brief = json.loads(
-        (vault / "generated" / "ops" / "project-brief-readme-only.json").read_text(
+        (vault / "generated" / "ops" / f"project-brief-{project_id}.json").read_text(
             encoding="utf-8"
         )
     )
@@ -63,8 +67,10 @@ def test_architecture_evidence_path_and_subsection_capture(tmp_path: Path) -> No
         "## Operations\n\nRun the OKF validator nightly.\n",
         encoding="utf-8",
     )
-    vault = Path(connect_project(root)["vault"])
-    brief = build_project_brief(vault, "arch-ev", refresh=True)
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
+    brief = build_project_brief(vault, project_id, refresh=True)
     assert brief["architecture_summary"] != "UNKNOWN"
     assert "Components" in brief["architecture_summary"]
     assert "Core CLI" in brief["architecture_summary"]
@@ -80,6 +86,8 @@ def test_bare_okf_ops_line_is_not_architecture(tmp_path: Path) -> None:
         "# Agents\n\n- Run the OKF validator before merge.\n",
         encoding="utf-8",
     )
-    vault = Path(connect_project(root)["vault"])
-    brief = build_project_brief(vault, "okf-noise", refresh=True)
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
+    brief = build_project_brief(vault, project_id, refresh=True)
     assert brief["architecture_summary"] == "UNKNOWN"

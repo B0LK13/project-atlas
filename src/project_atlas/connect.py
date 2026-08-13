@@ -12,17 +12,27 @@ claim AUTHENTIC_PILOT / RELEASE. Deterministic receipts omit wall-clock times
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import os
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from atlas_contracts.identity import safe_relative_component
 from project_atlas.discovery import discover, write_manifest
+from project_atlas.domain.claims import ID_PATTERN
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.scaffold import ScaffoldError, create_scaffold
+from project_atlas.source_identity import (
+    assert_project_uuid_one_owner,
+    validate_project_uuid,
+)
 from project_atlas.validation import validate
 from project_atlas.vault_identity import VaultIdentityError, read_vault_identity
 
@@ -31,6 +41,7 @@ GENERATOR_ID = "atlas-coder-alpha-connect-001"
 DEFAULT_VAULT_DIRNAME = ".atlas-vault"
 BIND_RELATIVE = Path(".atlas") / "connect.json"
 MANIFEST_RELATIVE = Path("generated") / "ops" / "connect-manifest.json"
+STAGING_MANIFEST_RELATIVE = Path("generated") / "ops" / ".connect-manifest.staging.json"
 RECEIPT_RELATIVE = Path("generated") / "ops" / "connect-receipt.json"
 
 # Defense-in-depth globs (DEFAULT_EXCLUDES already drops `.atlas-vault` / `.atlas`
@@ -53,7 +64,7 @@ _CONNECT_EXCLUDES = [
     "coverage.xml",
 ]
 
-_SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_SLUG_DASHES = re.compile(r"-+")
 
 
 def _yaml_scalar(value: str) -> str:
@@ -64,15 +75,66 @@ def _yaml_scalar(value: str) -> str:
     return value
 
 
-def project_slug_from_dirname(name: str) -> str:
-    """Derive a safe ``project.id`` slug from a directory name (AT-013)."""
-    raw = (name or "").strip().lower()
-    slug = _SLUG_NON_ALNUM.sub("-", raw).strip("-")
-    if not slug:
-        slug = "project"
+def root_identity_fingerprint(project_root: Path) -> str:
+    """Stable 8-hex disambiguator for a canonical project root (D-050 R2).
+
+    Derived from the resolved, casefolded POSIX path so the same physical root
+    reconnects to the same auto-generated project.id across process restarts
+    without depending on discovery order. Distinct roots stay distinct even
+    when display-name normalization is lossy (``Foo Bar`` vs ``Foo_Bar``).
+    """
+    canon = project_root.expanduser().resolve().as_posix().casefold()
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()[:8]
+
+
+def project_slug_from_dirname(name: str, *, project_root: Path | None = None) -> str:
+    """Derive a safe ``project.id`` slug from a directory name (AT-013 / D-044/D-050).
+
+    Must satisfy domain ``ID_PATTERN`` (ASCII ``[A-Za-z0-9._-]``). Non-ASCII
+    directory names keep collision resistance via a deterministic content hash
+    while the original dirname remains display ``project.name`` in the marker.
+    Unicode letters are casefolded before ASCII extraction (Windows FS honesty).
+
+    When ``project_root`` is provided (connect auto-marker path), a stable root
+    fingerprint is appended so lossy slug normalization cannot silently collide
+    distinct project roots (D-050 R2). Existing explicit markers are never
+    rewritten by this helper.
+    """
+    raw = unicodedata.normalize("NFKC", (name or "").strip())
+    folded = raw.casefold()
+    ascii_chars: list[str] = []
+    has_non_ascii_alnum = False
+    for ch in folded:
+        if ch.isascii() and ch.isalnum():
+            ascii_chars.append(ch)
+        elif ch.isascii():
+            ascii_chars.append("-")
+        elif ch.isalnum():
+            has_non_ascii_alnum = True
+            ascii_chars.append("-")
+        else:
+            ascii_chars.append("-")
+    ascii_slug = _SLUG_DASHES.sub("-", "".join(ascii_chars)).strip("-")
+    # Hash the casefolded form so Windows case-insensitive FS gets stable IDs.
+    digest = hashlib.sha256(folded.encode("utf-8")).hexdigest()[:12]
+    if has_non_ascii_alnum:
+        slug = f"{ascii_slug}-{digest}" if ascii_slug else f"project-{digest}"
+    elif ascii_slug:
+        slug = ascii_slug
+    else:
+        slug = f"project-{digest}"
+    if project_root is not None:
+        slug = f"{slug}-{root_identity_fingerprint(project_root)}"
     if slug[0].isdigit():
         slug = f"p-{slug}"
-    return safe_relative_component(slug, label="project.id")
+    slug = safe_relative_component(slug, label="project.id")
+    if not re.fullmatch(ID_PATTERN, slug):
+        # Defence in depth — never emit a slug ingestion cannot accept.
+        fallback = digest
+        if project_root is not None:
+            fallback = f"{digest}{root_identity_fingerprint(project_root)}"
+        slug = f"project-{fallback}"
+    return slug
 
 
 class ConnectError(ValueError):
@@ -117,21 +179,62 @@ def _read_bind(project_root: Path) -> dict[str, Any] | None:
     return raw
 
 
+def _bind_owns_root(bind: dict[str, Any], project_root: Path) -> bool:
+    """True when bind ``project_root`` matches the caller's resolved cwd/root."""
+    recorded = bind.get("project_root")
+    if not isinstance(recorded, str) or not recorded.strip():
+        return False
+    try:
+        return Path(recorded).expanduser().resolve() == project_root.resolve()
+    except OSError:
+        return False
+
+
+def _require_bind_owns_root(bind: dict[str, Any], project_root: Path) -> None:
+    """Fail closed when a bind file was copied/stolen from another tree (D-047 IV)."""
+    if not _bind_owns_root(bind, project_root):
+        raise ConnectError(
+            "connect bind project_root does not match current directory; "
+            "re-run `atlas connect .` or pass --vault/--project explicitly"
+        )
+
+
 def resolve_vault_path(project_root: Path, vault: Path | None) -> Path:
     """Resolve vault path: ``--vault`` > bind file > ``<project>/.atlas-vault``."""
     if vault is not None:
         return vault.expanduser().resolve()
-    bind = _read_bind(project_root)
+    root = project_root.expanduser().resolve()
+    bind = _read_bind(root)
     if bind is not None:
+        _require_bind_owns_root(bind, root)
         bound = bind.get("vault")
         if isinstance(bound, str) and bound.strip():
-            candidate = Path(bound)
+            bound_text = bound.strip().replace("\\", "/")
+            candidate = Path(bound_text)
             if not candidate.is_absolute():
-                candidate = (project_root / candidate).resolve()
+                candidate = (root / candidate).resolve()
             else:
                 candidate = candidate.resolve()
+            # Relative bind vaults without ``..`` must stay inside project root
+            # after resolve() (blocks `.atlas-vault` → symlink escape; D-047 IV).
+            # Explicit ``../other`` or absolute out-of-tree binds remain allowed.
+            if (
+                not Path(bound_text).is_absolute()
+                and ".." not in Path(bound_text).parts
+                and not candidate.is_relative_to(root)
+            ):
+                raise ConnectError(
+                    "bind vault resolves outside project root; refuse symlink escape — "
+                    "re-run `atlas connect .` or pass --vault explicitly"
+                )
             return candidate
-    return (project_root / DEFAULT_VAULT_DIRNAME).resolve()
+    default_vault = (root / DEFAULT_VAULT_DIRNAME).resolve()
+    if not default_vault.is_relative_to(root):
+        raise ConnectError(
+            "default vault path resolves outside project root; refuse symlink escape — "
+            "pass --vault explicitly after connect"
+        )
+    return default_vault
 
 
 def _ensure_project_marker(project_root: Path) -> bool:
@@ -145,7 +248,7 @@ def _ensure_project_marker(project_root: Path) -> bool:
         if (project_root / name).is_file():
             return False
     display = project_root.name.strip() or "project"
-    project_id = project_slug_from_dirname(display)
+    project_id = project_slug_from_dirname(display, project_root=project_root)
     content = (
         "schema_version: 1\n"
         "project:\n"
@@ -178,7 +281,84 @@ def _vault_rel_or_abs(project_root: Path, vault: Path) -> str:
         return vault.resolve().as_posix()
 
 
-def _write_bind(project_root: Path, vault: Path, vault_id: str) -> Path:
+def _read_project_marker(project_root: Path) -> tuple[Path, dict[str, Any]]:
+    """Load the root project marker or raise a controlled ConnectError (D-057)."""
+    for name in (".atlas-project.yaml", ".atlas-project.yml"):
+        marker = project_root / name
+        if not marker.is_file():
+            continue
+        try:
+            raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError) as exc:
+            raise ConnectError(
+                f"INVALID_PROJECT_MARKER: invalid project marker YAML: {marker.name}"
+            ) from exc
+        if raw is None:
+            raw = {}
+        if not isinstance(raw, dict):
+            raise ConnectError(
+                f"INVALID_PROJECT_MARKER: project marker must be an object: {marker.name}"
+            )
+        return marker, raw
+    raise ConnectError("INVALID_PROJECT_MARKER: project marker not found")
+
+
+def _marker_project_id(project_root: Path) -> str | None:
+    """Return marker ``project.id`` when present and ID-grammar-safe."""
+    try:
+        _marker, raw = _read_project_marker(project_root)
+    except ConnectError:
+        return None
+    project = raw.get("project")
+    candidate = None
+    if isinstance(project, dict):
+        candidate = project.get("id")
+    if not isinstance(candidate, str) or not candidate.strip():
+        candidate = raw.get("project_id")
+    if isinstance(candidate, str) and re.fullmatch(ID_PATTERN, candidate.strip()):
+        return candidate.strip()
+    return None
+
+
+def _assert_marker_uuid_ownership(project_root: Path, vault: Path) -> None:
+    """Fail closed before discover/ingest when marker UUID contradicts vault ownership."""
+    try:
+        _marker, raw = _read_project_marker(project_root)
+    except ConnectError as exc:
+        if "not found" in str(exc):
+            return
+        raise
+    project = raw.get("project")
+    project_id = project.get("id") if isinstance(project, dict) else None
+    if not isinstance(project_id, str) or not project_id.strip():
+        project_id = raw.get("project_id")
+    raw_uuid = raw.get("project_uuid")
+    if not isinstance(project_id, str) or not project_id.strip():
+        return
+    if raw_uuid is None:
+        return
+    project_uuid = validate_project_uuid(str(raw_uuid))
+    assert_project_uuid_one_owner(vault, {project_id.strip(): project_uuid})
+
+
+def _write_bind(
+    project_root: Path,
+    vault: Path,
+    vault_id: str,
+    *,
+    project_ids: list[str] | None = None,
+    primary_project_id: str | None = None,
+) -> Path:
+    projects = sorted({str(item) for item in (project_ids or []) if str(item).strip()})
+    primary: str | None = None
+    if (
+        isinstance(primary_project_id, str)
+        and primary_project_id.strip()
+        and primary_project_id.strip() in projects
+    ):
+        primary = primary_project_id.strip()
+    elif len(projects) == 1:
+        primary = projects[0]
     payload = {
         "schema_version": 1,
         "schema": "atlas.connect.bind.v1",
@@ -186,6 +366,8 @@ def _write_bind(project_root: Path, vault: Path, vault_id: str) -> Path:
         "project_root": project_root.resolve().as_posix(),
         "vault": _vault_rel_or_abs(project_root, vault),
         "vault_id": vault_id,
+        "project_ids": projects,
+        "project_id": primary,
         "generated": {"by": GENERATOR_ID},
     }
     path = project_root / BIND_RELATIVE
@@ -194,6 +376,89 @@ def _write_bind(project_root: Path, vault: Path, vault_id: str) -> Path:
         (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8"),
     )
     return path
+
+
+def resolve_bound_vault(cwd: Path | None = None) -> Path:
+    """Resolve vault from ``.atlas/connect.json`` under ``cwd`` (fail closed)."""
+    root = (cwd or Path.cwd()).expanduser().resolve()
+    bind = _read_bind(root)
+    if bind is None:
+        # Fall back to default vault dir when present after connect.
+        # Refuse symlink escape outside the project root (D-047 IV).
+        candidate = root / DEFAULT_VAULT_DIRNAME
+        if candidate.is_dir():
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(root):
+                raise ConnectError(
+                    "default vault path resolves outside project root; "
+                    "refuse symlink escape — pass --vault explicitly after connect"
+                )
+            return resolved
+        raise ConnectError(
+            "no connect bind found; run `atlas connect .` or pass --vault explicitly"
+        )
+    _require_bind_owns_root(bind, root)
+    return resolve_vault_path(root, None)
+
+
+def resolve_bound_project_id(
+    cwd: Path | None = None,
+    *,
+    vault: Path | None = None,
+    requested: str | None = None,
+) -> str:
+    """Resolve a single project id for stranger CLI commands (fail closed).
+
+    Ambiguous multi-project vaults without an explicit ``--project`` raise.
+    When ``vault`` is an explicit override that differs from the bind vault,
+    bind ``project_id`` is ignored and resolution uses that vault's projects
+    (D-047 IV — no cross-vault project scoping).
+    """
+    if requested is not None and str(requested).strip():
+        return safe_relative_component(str(requested).strip(), label="project id")
+    root = (cwd or Path.cwd()).expanduser().resolve()
+    explicit_vault = vault.expanduser().resolve() if vault is not None else None
+    bind = _read_bind(root)
+    use_bind_project = False
+    if bind is not None:
+        if not _bind_owns_root(bind, root):
+            # Stolen/copied bind: only allow recovery via explicit --vault.
+            if explicit_vault is None:
+                _require_bind_owns_root(bind, root)
+        else:
+            bind_vault = resolve_vault_path(root, None)
+            if explicit_vault is None or explicit_vault == bind_vault:
+                use_bind_project = True
+    if use_bind_project and bind is not None:
+        bound = bind.get("project_id")
+        if isinstance(bound, str) and bound.strip():
+            return safe_relative_component(bound.strip(), label="project id")
+        bound_ids = bind.get("project_ids")
+        if isinstance(bound_ids, list):
+            ids = [
+                safe_relative_component(str(item).strip(), label="project id")
+                for item in bound_ids
+                if isinstance(item, str) and item.strip()
+            ]
+            if len(ids) == 1:
+                return ids[0]
+            if len(ids) > 1:
+                raise ConnectError(
+                    "ambiguous project_ids in connect bind; pass --project explicitly "
+                    f"(candidates: {', '.join(ids)})"
+                )
+    vault_path = explicit_vault or resolve_bound_vault(root)
+    projects = _list_vault_projects(vault_path)
+    if len(projects) == 1:
+        return projects[0]
+    if not projects:
+        raise ConnectError(
+            "no projects found in vault; run `atlas connect .` or pass --project"
+        )
+    raise ConnectError(
+        "ambiguous vault projects; pass --project explicitly "
+        f"(candidates: {', '.join(projects)})"
+    )
 
 
 def _write_receipt(vault: Path, report: dict[str, Any]) -> Path:
@@ -252,8 +517,10 @@ def connect_project(
         steps.append("validate")
     steps.extend(
         [
-            "materialize_overview",
+            # Architecture before overview so D-044 A3 coverage reconciliation sees
+            # ans-architecture-* on the first connect write (D-047 IV).
             "materialize_architecture",
+            "materialize_overview",
             "materialize_state",
             "materialize_changed",
             "materialize_decisions",
@@ -318,9 +585,20 @@ def connect_project(
         raise ConnectError(f"vault identity unavailable after scaffold: {exc}") from exc
 
     report["marker_created"] = _ensure_project_marker(project_root)
+    # D-057: reject copied UUID / contradictory identity before discover/ingest.
+    try:
+        _assert_marker_uuid_ownership(project_root, vault_path)
+    except ValueError as exc:
+        raise ConnectError(str(exc)) from exc
 
     manifest_path = vault_path / MANIFEST_RELATIVE
+    staging_manifest = vault_path / STAGING_MANIFEST_RELATIVE
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    # D-050 R4: mutate candidate inventory on a staging path; promote to the
+    # committed connect-manifest only after ingest+validate succeed.
+    def _discard_staging() -> None:
+        with contextlib.suppress(OSError):
+            staging_manifest.unlink(missing_ok=True)
 
     try:
         manifest = discover(
@@ -328,11 +606,11 @@ def connect_project(
             excludes=merged_excludes,
             max_file_size=max_file_size,
         )
-        write_manifest(manifest, manifest_path)
+        write_manifest(manifest, staging_manifest)
         report["documents_discovered"] = _active_source_count(manifest)
 
         ingest(
-            manifest_path,
+            staging_manifest,
             vault_path,
             authorized_source_root=project_root,
         )
@@ -342,11 +620,11 @@ def connect_project(
             excludes=merged_excludes,
             max_file_size=max_file_size,
         )
-        write_manifest(manifest, manifest_path)
+        write_manifest(manifest, staging_manifest)
         report["documents_discovered"] = _active_source_count(manifest)
 
         second = ingest(
-            manifest_path,
+            staging_manifest,
             vault_path,
             authorized_source_root=project_root,
         )
@@ -357,6 +635,14 @@ def connect_project(
             run_build_portfolio(vault_path)
         if not skip_validate:
             validate(vault_path)
+
+        # Commit connect-manifest only after ingest+validate succeeded (D-050 R4).
+        # Do not roll this back later: ingest already promoted vault ownership, and
+        # restoring a prior manifest would desync quarantine/lineage indexes.
+        staging_bytes = staging_manifest.read_bytes()
+        _write_atomic(manifest_path, staging_bytes)
+        _discard_staging()
+
         # Coder Alpha derived lenses for Knowledge/Ask-live + project brief.
         from project_atlas.overview import materialize_overview_lenses
         from project_atlas.project_architecture import materialize_architecture_lenses
@@ -366,8 +652,8 @@ def connect_project(
         from project_atlas.project_state import materialize_state_lenses
         from project_atlas.project_unknown import materialize_unknown_lenses
 
-        overview = materialize_overview_lenses(vault_path)
         architecture = materialize_architecture_lenses(vault_path)
+        overview = materialize_overview_lenses(vault_path)
         state = materialize_state_lenses(vault_path)
         changed = materialize_changed_lenses(vault_path, manifest=manifest)
         decisions = materialize_decisions_lenses(vault_path)
@@ -377,7 +663,11 @@ def connect_project(
         from project_atlas.obsidian_projection import materialize_obsidian_projection
 
         obsidian = materialize_obsidian_projection(vault_path, refresh_brief=False)
+    except ConnectError:
+        _discard_staging()
+        raise
     except (OSError, ValueError, KeyError, TypeError) as exc:
+        _discard_staging()
         raise ConnectError(str(exc)) from exc
 
     report["documents_ingested"] = int(second.get("documents_ingested", 0))
@@ -396,13 +686,26 @@ def connect_project(
     report["brief_paths"] = brief.get("briefs_written", [])
     report["obsidian_notes"] = obsidian.get("notes_written", [])
 
-    bind_path = _write_bind(
-        project_root,
-        vault_path,
-        str(report["vault_id"] or ""),
-    )
-    report["bind_path"] = bind_path.as_posix()
-    receipt_path = _write_receipt(vault_path, report)
-    report["receipt_path"] = receipt_path.as_posix()
+    # Prefer this source root's marker project.id as bind primary so shared-vault
+    # connects do not immediately become stranger-CLI ambiguous (Codex P2).
+    primary = _marker_project_id(project_root)
+    vault_projects = list(report["projects"] or [])
+    if primary is None and len(vault_projects) == 1:
+        primary = vault_projects[0]
+    try:
+        bind_path = _write_bind(
+            project_root,
+            vault_path,
+            str(report["vault_id"] or ""),
+            project_ids=vault_projects,
+            primary_project_id=primary,
+        )
+        report["bind_path"] = bind_path.as_posix()
+        report["bound_project_id"] = primary
+        receipt_path = _write_receipt(vault_path, report)
+        report["receipt_path"] = receipt_path.as_posix()
+    except (OSError, ValueError, TypeError) as exc:
+        # Manifest already matches promoted ingest; do not roll it back.
+        raise ConnectError(str(exc)) from exc
     report["status"] = "connected"
     return report

@@ -199,7 +199,9 @@ def test_second_connect_semantic_summary(tmp_path: Path) -> None:
     (root / "docs" / "plan.md").write_text(
         "# Plan\n\n## Architecture\n\nThree-layer vault.\n", encoding="utf-8"
     )
-    vault = Path(connect_project(root)["vault"])
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
     (root / "docs" / "DECISIONS.md").write_text(
         "# Decisions\n\n## ADR-010 Adopt semantic changed narrative\n\nAccepted.\n",
         encoding="utf-8",
@@ -209,7 +211,7 @@ def test_second_connect_semantic_summary(tmp_path: Path) -> None:
         "# Sem Proj\n\nPurpose updated.\n\n## Stack\n\nPython.\n", encoding="utf-8"
     )
     connect_project(root, vault=vault)
-    brief = build_project_brief(vault, "sem-proj", refresh=True)
+    brief = build_project_brief(vault, project_id, refresh=True)
     changed = str(brief.get("recent_meaningful_changes") or "")
     assert "know_about=" in changed
     assert "decision_change" in changed
