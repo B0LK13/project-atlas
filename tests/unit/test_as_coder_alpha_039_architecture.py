@@ -51,3 +51,35 @@ def test_architecture_unknown_without_plan_or_agents(tmp_path: Path) -> None:
     )
     assert brief["purpose"] != "UNKNOWN"
     assert brief["architecture_summary"] == "UNKNOWN"
+
+
+def test_architecture_evidence_path_and_subsection_capture(tmp_path: Path) -> None:
+    root = tmp_path / "arch-ev"
+    (root / "docs").mkdir(parents=True)
+    (root / "README.md").write_text("# Arch Ev\n\nPurpose only.\n", encoding="utf-8")
+    (root / "docs" / "plan.md").write_text(
+        "# Plan\n\n## Architecture\n\n### Components\n\n"
+        "Core CLI and Truth Core compile pipeline.\n\n"
+        "## Operations\n\nRun the OKF validator nightly.\n",
+        encoding="utf-8",
+    )
+    vault = Path(connect_project(root)["vault"])
+    brief = build_project_brief(vault, "arch-ev", refresh=True)
+    assert brief["architecture_summary"] != "UNKNOWN"
+    assert "Components" in brief["architecture_summary"]
+    assert "Core CLI" in brief["architecture_summary"]
+    assert "docs/plan.md" in (brief.get("evidence_links") or [])
+    assert "OKF validator" not in brief["architecture_summary"]
+
+
+def test_bare_okf_ops_line_is_not_architecture(tmp_path: Path) -> None:
+    root = tmp_path / "okf-noise"
+    root.mkdir()
+    (root / "README.md").write_text("# OKF Noise\n\nPurpose.\n", encoding="utf-8")
+    (root / "AGENTS.md").write_text(
+        "# Agents\n\n- Run the OKF validator before merge.\n",
+        encoding="utf-8",
+    )
+    vault = Path(connect_project(root)["vault"])
+    brief = build_project_brief(vault, "okf-noise", refresh=True)
+    assert brief["architecture_summary"] == "UNKNOWN"

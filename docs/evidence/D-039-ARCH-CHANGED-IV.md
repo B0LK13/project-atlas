@@ -39,3 +39,12 @@ CODEX_VALIDATED = NO
 EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
 ATLAS_OPT_WAKE_GATE = CLOSED
 ```
+
+
+## Review remediations (tip after IV)
+
+Addressed Copilot/Codex findings before merge:
+1. Architecture evidence path appended to brief `evidence_links`
+2. Bare OKF ops mentions no longer qualify as architecture
+3. Architecture section capture continues through `###` subsections
+4. Unused path arg removed from `_architecture_from_text`
