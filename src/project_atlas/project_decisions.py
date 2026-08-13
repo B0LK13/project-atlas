@@ -1,10 +1,12 @@
-"""AS-CODER-ALPHA-DECISIONS-001 — Decision memory derived lens from Core.
+"""AS-CODER-ALPHA-DECISIONS-001/003 — Decision memory derived lens from Core.
 
 Surfaces important decisions from:
 - Layer B ``projects/<id>/decisions.md`` headings (when present)
-- Layer A imported decision/ADR docs (heading harvest)
+- Layer A imported ADR/formal decision docs (heading harvest)
 - persisted claims with ``claim_type == decision``
+- durable human dispositions under ``state/human-decisions/``
 
+ACTIVE_GOVERNING requires defensible authority evidence (D-043).
 Honesty: lens != authority; UNKNOWN when no decision evidence exists.
 """
 
@@ -20,7 +22,31 @@ PACKAGE_ID = "AS-CODER-ALPHA-DECISIONS-001"
 GENERATOR_ID = "atlas-coder-alpha-decisions-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.+?)\s*$", re.MULTILINE)
+_ADR_TITLE_RE = re.compile(r"\bADR[- ]?\d+\b", re.IGNORECASE)
 _DECISION_PATH_HINTS = ("decision", "adr", "rfc")
+_SECTION_HEADER_NOISE = frozenset(
+    {
+        "context",
+        "consequences",
+        "decision",
+        "status",
+        "background",
+        "summary",
+        "overview",
+        "notes",
+        "references",
+        "related",
+        "migration and validation",
+        "options",
+        "alternatives",
+        "rationale",
+        "discussion",
+        "appendix",
+        "see also",
+        "next steps",
+        "changelog",
+    }
+)
 _NON_DECISION_HINTS = (
     "implementation note",
     "changelog",
@@ -34,6 +60,39 @@ _NON_DECISION_HINTS = (
 )
 
 
+def _is_section_header_noise(title: str) -> bool:
+    lowered = title.strip().lower().rstrip(":")
+    if lowered in _SECTION_HEADER_NOISE:
+        return True
+    # Single-token structural headings are not governing decisions.
+    return " " not in lowered and lowered in {
+        "context",
+        "consequences",
+        "decision",
+        "status",
+        "background",
+        "summary",
+        "options",
+        "rationale",
+    }
+
+
+def _looks_like_formal_decision(title: str, *, path: str = "") -> bool:
+    """True when title/path evidence supports a governing decision statement."""
+    if _ADR_TITLE_RE.search(title):
+        return True
+    path_l = path.lower()
+    if "/adr" in path_l or path_l.endswith(".adr.md") or "adr-" in Path(path_l).name:
+        # ADR body headings that are not section noise can be governing.
+        return not _is_section_header_noise(title)
+    lower = title.strip().lower()
+    if lower.startswith(("decide ", "decision:", "we will ", "adopt ", "use ")):
+        return True
+    if "prefer " in lower or "must " in lower or "shall " in lower:
+        return len(lower.split()) >= 4
+    return False
+
+
 def _classify_decision_status(
     title: str,
     *,
@@ -41,14 +100,17 @@ def _classify_decision_status(
     path: str = "",
     lifecycle: str | None = None,
     verification: str | None = None,
+    authority: str | None = None,
 ) -> str:
     """Deterministic decision status label (no confidence score).
 
-    Structured claim lifecycle/verification wins over title heuristics when
-    present (AGENTS.md: objective signals, not prose theatre).
+    ACTIVE_GOVERNING requires defensible authority evidence (D-043):
+    owner disposition, accepted human review, ADR/formal decision, or
+    verified decision claim — not bare headings/receipts/status prose.
     """
     life = (lifecycle or "").strip().lower()
     ver = (verification or "").strip().lower()
+    auth = (authority or "").strip().lower()
     if life in {"superseded", "stale", "stale-or-superseded"}:
         return "SUPERSEDED"
     if life in {"rejected"} or ver in {"rejected"}:
@@ -60,6 +122,8 @@ def _classify_decision_status(
 
     lower = title.strip().lower()
     path_l = path.lower()
+    if _is_section_header_noise(title):
+        return "NON_DECISION"
     if any(hint in lower for hint in _NON_DECISION_HINTS):
         return "NON_DECISION"
     if "superseded" in lower or "obsolete" in lower:
@@ -72,14 +136,41 @@ def _classify_decision_status(
         return "HISTORICAL"
     # Certification / receipt theatre is not a governing product decision.
     if any(
-        token in path_l
-        for token in ("/receipt", "receipt.md", "/demo/", "fixtures/")
+        token in path_l for token in ("/receipt", "receipt.md", "/demo/", "fixtures/", "worklog")
     ):
-        return "NON_DECISION" if kind == "imported-heading" else "HISTORICAL"
-    if kind == "claim" or "adr" in path_l or kind == "project-note":
+        return "NON_DECISION"
+
+    # Explicit human / owner dispositions are governing when accepted.
+    if auth in {"human-disposition", "owner-disposition"} or kind == "human-disposition":
         return "ACTIVE_GOVERNING"
+
+    # Verified / accepted decision claims are governing (verification is the
+    # authority evidence). Unverified claims need formal shape (ADR/etc.).
+    if kind == "claim":
+        if ver in {"verified", "accepted"}:
+            return "ACTIVE_GOVERNING"
+        if _ADR_TITLE_RE.search(title) or _looks_like_formal_decision(title, path=path):
+            return "ACTIVE_GOVERNING"
+        return "OPEN_PROPOSED"
+
+    # ADR / formal decision records.
+    if "adr" in path_l or kind == "adr-heading":
+        if _looks_like_formal_decision(title, path=path):
+            return "ACTIVE_GOVERNING"
+        return "NON_DECISION"
+
+    # Project decisions note: only formal-looking titles govern.
+    if kind == "project-note":
+        if _looks_like_formal_decision(title, path=path):
+            return "ACTIVE_GOVERNING"
+        return "OPEN_PROPOSED"
+
+    # Generic imported headings default to proposed, never auto-governing.
     if kind == "imported-heading":
-        return "HISTORICAL" if "receipt" in path_l else "OPEN_PROPOSED"
+        if _looks_like_formal_decision(title, path=path):
+            return "ACTIVE_GOVERNING"
+        return "OPEN_PROPOSED"
+
     return "IMPLEMENTATION_NOTE"
 
 
@@ -163,6 +254,43 @@ def _manifest_sources(vault: Path) -> list[dict[str, Any]]:
     return [row for row in rows if isinstance(row, dict) and not row.get("exclusion_reason")]
 
 
+def _human_disposition_decisions(vault: Path, project_id: str) -> list[dict[str, str]]:
+    """Load accepted human dispositions as governing decision evidence."""
+    path = vault / "state" / "human-decisions" / f"{project_id}.json"
+    payload = _read_json(path)
+    if not payload:
+        return []
+    out: list[dict[str, str]] = []
+    for entry in payload.get("decisions") or []:
+        if not isinstance(entry, dict):
+            continue
+        decision = str(entry.get("decision") or "").lower()
+        if decision not in {"accept", "accepted"}:
+            continue
+        title = str(
+            entry.get("summary")
+            or entry.get("note")
+            or entry.get("claim_id")
+            or entry.get("review_id")
+            or ""
+        ).strip()
+        if not title:
+            continue
+        if _is_section_header_noise(title):
+            continue
+        out.append(
+            {
+                "title": title[:200],
+                "kind": "human-disposition",
+                "status": "ACTIVE_GOVERNING",
+                "authority": "human-disposition",
+                "path": path.relative_to(vault).as_posix(),
+                "source": path.relative_to(vault).as_posix(),
+            }
+        )
+    return out[:20]
+
+
 def _decision_headings_from_imports(vault: Path, project_id: str) -> list[dict[str, str]]:
     """Harvest decision-like headings from imported Layer A docs."""
     rows = _manifest_sources(vault)
@@ -185,18 +313,19 @@ def _decision_headings_from_imports(vault: Path, project_id: str) -> list[dict[s
             text = imported.read_text(encoding="utf-8")
         except OSError:
             continue
-        for title in _headings(text)[:8]:
-            status = _classify_decision_status(title, kind="imported-heading", path=path)
+        kind = "adr-heading" if "adr" in path_l else "imported-heading"
+        for title in _headings(text)[:12]:
+            status = _classify_decision_status(title, kind=kind, path=path)
             if status == "NON_DECISION":
                 continue
             found.append(
                 {
                     "title": title,
                     "source": imported.relative_to(vault).as_posix(),
-                    "kind": "imported-heading",
+                    "kind": kind,
                     "path": path,
                     "status": status,
-                    "authority": "imported-heading",
+                    "authority": "adr" if kind == "adr-heading" else "imported-heading",
                 }
             )
     return found[:20]
@@ -244,6 +373,11 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
     inspected: list[str] = []
     decisions: list[dict[str, str]] = []
 
+    human_path = vault / "state" / "human-decisions" / f"{project_id}.json"
+    if human_path.is_file():
+        inspected.append(human_path.relative_to(vault).as_posix())
+    decisions.extend(_human_disposition_decisions(vault, project_id))
+
     note = vault / "projects" / project_id / "decisions.md"
     if note.is_file():
         inspected.append(note.relative_to(vault).as_posix())
@@ -271,15 +405,34 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
         inspected.append(manifest_path.relative_to(vault).as_posix())
     decisions.extend(_decision_headings_from_imports(vault, project_id))
 
-    # Deduplicate by normalized title.
-    seen: set[str] = set()
-    unique: list[dict[str, str]] = []
+    # Deduplicate by normalized title; prefer higher-authority statuses.
+    status_rank = {
+        "ACTIVE_GOVERNING": 0,
+        "OPEN_PROPOSED": 1,
+        "IMPLEMENTATION_NOTE": 2,
+        "HISTORICAL": 3,
+        "SUPERSEDED": 4,
+        "REJECTED": 5,
+        "NON_DECISION": 6,
+    }
+    best: dict[str, dict[str, str]] = {}
     for item in decisions:
         key = item["title"].strip().lower()
-        if key in seen:
+        prior = best.get(key)
+        if prior is None:
+            best[key] = item
             continue
-        seen.add(key)
-        unique.append(item)
+        if status_rank.get(item.get("status", ""), 9) < status_rank.get(
+            prior.get("status", ""), 9
+        ):
+            best[key] = item
+    unique = sorted(
+        best.values(),
+        key=lambda item: (
+            status_rank.get(str(item.get("status")), 9),
+            item["title"].lower(),
+        ),
+    )
 
     if unique:
         status = "derived"
@@ -287,7 +440,7 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
         focus = active or [
             item
             for item in unique
-            if item.get("status") not in {"NON_DECISION", "HISTORICAL", "SUPERSEDED"}
+            if item.get("status") not in {"NON_DECISION", "HISTORICAL", "SUPERSEDED", "REJECTED"}
         ]
         focus = focus or unique
         titles = [
@@ -301,7 +454,8 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
             summary = summary[:479].rstrip() + "…"
         value = summary
         notes = [
-            "Derived from decisions note + decision claims + ADR/decision source headings",
+            "ACTIVE_GOVERNING requires ADR/formal/human-disposition/verified claim evidence",
+            "section headers / receipts / release labels are NON_DECISION",
             "status labels are deterministic classifiers, not confidence scores",
             "lens!=Layer-B-authority",
             "UI!=canonical",
@@ -334,6 +488,9 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "project_id": project_id,
         "decisions": unique[:20],
         "decision_count": len(unique),
+        "active_governing_count": len(
+            [item for item in unique if item.get("status") == "ACTIVE_GOVERNING"]
+        ),
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},

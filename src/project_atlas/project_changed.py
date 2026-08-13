@@ -142,6 +142,128 @@ def _project_paths(paths: list[str], project_id: str, inventory: dict[str, Any])
     return [path for path in paths if path in owned or path.split("/", 1)[0] == project_id]
 
 
+def _semantic_class_for_path(path: str) -> str | None:
+    """Map a source path to a higher-level semantic change class (D-043).
+
+    Inventory diffs remain authoritative for add/mod/remove counts. This
+    classifier only answers what a user should actually know about — not every
+    file touch. Returns None when the path is operational churn.
+    """
+    posix = path.replace("\\", "/").lstrip("./").lower()
+    name = Path(posix).name
+    # Operational / generated noise never becomes semantic project change.
+    if any(
+        token in posix
+        for token in (
+            ".atlas-vault",
+            "node_modules/",
+            "__pycache__/",
+            ".git/",
+            "coverage",
+            "/dist/",
+            "/build/",
+        )
+    ):
+        return None
+    if any(
+        hint in posix
+        for hint in (
+            "/adr",
+            "decisions.md",
+            "/decision",
+            "docs/decisions",
+        )
+    ) or name.startswith("adr-"):
+        return "decision_change"
+    if name in {"agents.md", "claude.md", "readme.md"} or posix in {
+        "docs/plan.md",
+        "docs/prp.md",
+        "docs/product/coder-alpha-north-star.md",
+    }:
+        return "project_state_change"
+    if any(
+        hint in posix
+        for hint in (
+            "roadmap",
+            "backlog",
+            "todo",
+            "next-work",
+            "implementation-roadmap",
+            "master-roadmap",
+        )
+    ):
+        return "next_work_change"
+    if posix.startswith("docs/") and name.endswith(".md"):
+        return "project_state_change"
+    return None
+
+
+def _semantic_narrative(
+    *,
+    added: list[str],
+    removed: list[str],
+    modified: list[str],
+) -> dict[str, Any]:
+    """Build a bounded semantic change narrative from inventory path classes."""
+    buckets: dict[str, list[dict[str, str]]] = {
+        "decision_change": [],
+        "project_state_change": [],
+        "next_work_change": [],
+    }
+    for action, paths in (
+        ("added", added),
+        ("removed", removed),
+        ("modified", modified),
+    ):
+        for path in paths:
+            klass = _semantic_class_for_path(path)
+            if klass is None:
+                continue
+            buckets[klass].append({"path": path, "action": action})
+
+    signals: list[str] = []
+    if buckets["decision_change"]:
+        sample = buckets["decision_change"][0]
+        signals.append(
+            f"decision_change: {sample['action']} {sample['path']} "
+            f"(+{len(buckets['decision_change']) - 1} more)"
+            if len(buckets["decision_change"]) > 1
+            else f"decision_change: {sample['action']} {sample['path']}"
+        )
+    if buckets["project_state_change"]:
+        sample = buckets["project_state_change"][0]
+        signals.append(
+            f"project_state_change: {sample['action']} {sample['path']}"
+            + (
+                f" (+{len(buckets['project_state_change']) - 1} more)"
+                if len(buckets["project_state_change"]) > 1
+                else ""
+            )
+        )
+    if buckets["next_work_change"]:
+        sample = buckets["next_work_change"][0]
+        signals.append(
+            f"next_work_change: {sample['action']} {sample['path']}"
+            + (
+                f" (+{len(buckets['next_work_change']) - 1} more)"
+                if len(buckets["next_work_change"]) > 1
+                else ""
+            )
+        )
+
+    meaningful = bool(signals)
+    return {
+        "meaningful": meaningful,
+        "signals": signals[:6],
+        "decision_change_count": len(buckets["decision_change"]),
+        "project_state_change_count": len(buckets["project_state_change"]),
+        "next_work_change_count": len(buckets["next_work_change"]),
+        "examples": {
+            key: value[:8] for key, value in buckets.items() if value
+        },
+    }
+
+
 def build_changed_lens(
     vault: Path,
     project_id: str,
@@ -160,6 +282,7 @@ def build_changed_lens(
     added = _project_paths(list(delta.get("added") or []), project_id, current)
     removed = _project_paths(list(delta.get("removed") or []), project_id, previous or {})
     modified = _project_paths(list(delta.get("modified") or []), project_id, current)
+    semantic = _semantic_narrative(added=added, removed=removed, modified=modified)
 
     if not delta.get("prior_baseline"):
         status = "unknown"
@@ -176,13 +299,23 @@ def build_changed_lens(
         total = len(added) + len(removed) + len(modified)
         status = "derived"
         rollup = "changed" if total else "unchanged"
-        summary = (
+        inventory_bit = (
             f"rollup={rollup}; added={len(added)}; removed={len(removed)}; "
             f"modified={len(modified)}"
         )
+        if semantic["meaningful"]:
+            summary = inventory_bit + "; know_about=" + "; ".join(semantic["signals"])
+        elif total:
+            summary = (
+                inventory_bit
+                + "; know_about=inventory-only (no decision/state/next-work signal)"
+            )
+        else:
+            summary = inventory_bit
         value = summary
         notes = [
             "Derived from last-connect → now active-source inventory diff",
+            "semantic signals are path-class narratives, not invented history",
             "lens!=Layer-B-authority",
             "UI!=canonical",
             "not a kdiff temporal authority claim",
@@ -212,6 +345,7 @@ def build_changed_lens(
             "modified_count": len(modified),
             "truncated": len(added) > 50 or len(removed) > 50 or len(modified) > 50,
         },
+        "semantic": semantic,
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},

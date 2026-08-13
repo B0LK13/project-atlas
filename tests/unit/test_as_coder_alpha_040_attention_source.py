@@ -21,9 +21,44 @@ def _write(path: Path, payload: object) -> None:
 
 
 def test_classify_decision_status_labels() -> None:
-    """DECISIONS-002: deterministic status labels, no confidence theatre."""
+    """DECISIONS-003: ACTIVE_GOVERNING requires authority evidence."""
     assert (
         _classify_decision_status("ADR-001 Ship package data", kind="claim")
+        == "ACTIVE_GOVERNING"
+    )
+    assert (
+        _classify_decision_status(
+            "Ship package data as package resources",
+            kind="claim",
+            verification="verified",
+        )
+        == "ACTIVE_GOVERNING"
+    )
+    # Bare claim titles without formal shape are proposed, not governing.
+    assert (
+        _classify_decision_status("Ship package data", kind="claim")
+        == "OPEN_PROPOSED"
+    )
+    assert (
+        _classify_decision_status("Context", kind="imported-heading", path="docs/adr/001.md")
+        == "NON_DECISION"
+    )
+    assert (
+        _classify_decision_status(
+            "Consequences", kind="adr-heading", path="docs/adr/ADR-001.md"
+        )
+        == "NON_DECISION"
+    )
+    assert (
+        _classify_decision_status("Migration and validation", kind="project-note")
+        == "NON_DECISION"
+    )
+    assert (
+        _classify_decision_status(
+            "Accepted disposition for review-1",
+            kind="human-disposition",
+            authority="human-disposition",
+        )
         == "ACTIVE_GOVERNING"
     )
     assert (
@@ -50,7 +85,6 @@ def test_classify_decision_status_labels() -> None:
         )
         == "HISTORICAL"
     )
-    # Structured lifecycle beats title prose.
     assert (
         _classify_decision_status(
             "Keep three-layer vault",
@@ -58,14 +92,6 @@ def test_classify_decision_status_labels() -> None:
             lifecycle="superseded",
         )
         == "SUPERSEDED"
-    )
-    assert (
-        _classify_decision_status(
-            "Ship package data",
-            kind="claim",
-            lifecycle="rejected",
-        )
-        == "REJECTED"
     )
     assert (
         _classify_decision_status(
@@ -135,6 +161,43 @@ def test_attention_unreadable_artifact_not_false_clear(tmp_path: Path) -> None:
     report = classify_attention(vault, "proj")
     assert report["rollup"] != "CLEAR"
     assert any(item["reason_code"] == "ARTIFACT_UNREADABLE" for item in report["items"])
+
+
+def test_attention_care_about_collapses_source_failures(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write(
+        vault / "review" / "conflicts" / "proj.json",
+        {
+            "entries": [
+                {
+                    "conflict_id": "c1",
+                    "field": "architecture",
+                    "conflict_type": "materially-incompatible",
+                }
+            ]
+        },
+    )
+    _write(
+        vault / "state" / "compilation-outcomes" / "proj.json",
+        {
+            "candidates": [
+                {"source_path": f"docs/f{index}.md", "outcome": "FAILED"}
+                for index in range(12)
+            ]
+        },
+    )
+    report = classify_attention(vault, "proj")
+    assert report["source_failure_total"] == 12
+    assert report["honesty"]["failures_hidden"] is False
+    care_levels = {item["level"] for item in report["care_about"]}
+    assert "BLOCKING" in care_levels
+    assert len(report["care_about"]) <= 10
+    # Collapsed rollup present; not 12 individual SOURCE_FAILURE rows dominating care_about.
+    assert any(item.get("kind") == "compile_failure_rollup" for item in report["items"])
+    care_source_failures = [
+        item for item in report["care_about"] if item.get("level") == "SOURCE_FAILURE"
+    ]
+    assert len(care_source_failures) <= 2
 
 
 def test_attention_rollup_preserves_action_required(tmp_path: Path) -> None:

@@ -2206,10 +2206,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
         else:
             print(f"atlas attention [{report.get('rollup', 'UNKNOWN')}]")
-            for item in (report.get("items") or [])[:12]:
+            care = report.get("care_about") or []
+            print(f"care_about ({len(care)}):")
+            for item in care:
                 print(
                     f"  [{item.get('level')}] {item.get('reason_code')}: "
-                    f"{item.get('what_to_do')}"
+                    f"{item.get('why_seeing_this')} → {item.get('what_to_do')}"
+                )
+            counts = report.get("level_counts") or {}
+            if counts:
+                print(
+                    "counts: "
+                    + ", ".join(f"{key}={counts[key]}" for key in sorted(counts))
+                )
+            if report.get("source_failure_total"):
+                print(
+                    f"source_failure_total={report.get('source_failure_total')} "
+                    "(collapsed in care_about; inspect via atlas source-health)"
                 )
         return EXIT_OK
 

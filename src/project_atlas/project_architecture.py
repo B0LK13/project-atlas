@@ -57,9 +57,18 @@ _FRONTMATTER_RE = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
 _LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _STAGE_RE = re.compile(r"^#+\s*Stage\s+\d+\s+[-\u2013\u2014]\s*(.+?)\s*$", re.IGNORECASE)
-_MODULE_NAME_RE = re.compile(r"`([^`]+?\.(?:py|md|json|yaml|yml))`")
-_BARE_MODULE_NAME_RE = re.compile(r"\b[\w./-]+?\.(?:py|md|json|yaml|yml)\b")
+# Prefer fenced identifiers so underscores survive Markdown cleanup.
+_MODULE_NAME_RE = re.compile(r"`([^`]+?\.py)`")
+_BARE_PY_MODULE_RE = re.compile(r"\b[\w./-]+?\.py\b")
 _TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$")
+_NON_PACKAGE_MODULE_PREFIXES = (
+    "docs/",
+    "fixtures/",
+    "tests/",
+    "deps/",
+    "apps/",
+    "integrations/",
+)
 
 
 class ProjectArchitectureError(ValueError):
@@ -352,33 +361,68 @@ def _module_rows(text: str) -> list[str]:
                 in_component_section = False
         if not in_component_section:
             continue
-        if not _MODULE_NAME_RE.search(line):
+        # Keep raw line so fenced ``module.py`` identifiers retain underscores
+        # for downstream component extraction (D-043 factual fidelity).
+        if not (_MODULE_NAME_RE.search(line) or _BARE_PY_MODULE_RE.search(line)):
             continue
-        cleaned = _clean_line(line)
-        if cleaned:
-            rows.append(cleaned)
+        if line.strip():
+            rows.append(line.rstrip())
         if len(rows) >= 10:
             break
     return rows
 
 
+def _is_package_module(name: str) -> bool:
+    """Accept Core Python modules only — never docs/markers as components."""
+    posix = name.replace("\\", "/").lstrip("./")
+    lower = posix.lower()
+    if not lower.endswith(".py"):
+        return False
+    if any(lower.startswith(prefix) for prefix in _NON_PACKAGE_MODULE_PREFIXES):
+        return False
+    # Reject project markers / non-module noise.
+    if lower.endswith((".yaml", ".yml", ".md", ".json", ".toml")):
+        return False
+    basename = Path(posix).name
+    return bool(basename.endswith(".py") and basename.count(".") == 1)
+
+
 def _component_summary(module_rows: list[str]) -> str | None:
+    """Collect exact ``*.py`` module identifiers from package-layout rows.
+
+    Root cause fix for Fresh Agent V2 error #1/#2 (D-043):
+    - do not treat docs/plan.md or atlas-project.yaml as Core modules
+    - preserve underscores by reading fenced names before Markdown cleanup
+    """
     modules: list[str] = []
+    seen: set[str] = set()
     for row in module_rows:
-        for match in _MODULE_NAME_RE.finditer(row):
-            modules.append(match.group(1))
-        for match in _BARE_MODULE_NAME_RE.finditer(row):
-            modules.append(match.group(0))
-    modules = _unique(modules)
+        # Prefer backtick-captured names from the raw row text before cleanup.
+        candidates = [match.group(1) for match in _MODULE_NAME_RE.finditer(row)]
+        if not candidates:
+            cleaned = _clean_line(row)
+            candidates = [match.group(0) for match in _BARE_PY_MODULE_RE.finditer(cleaned)]
+        for name in candidates:
+            if not _is_package_module(name):
+                continue
+            key = name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            modules.append(name)
+        if len(modules) >= 12:
+            break
     if not modules:
         return None
-    return _join(["Core package modules: " + ", ".join(modules[:12])])
+    return "Core package modules: " + ", ".join(modules[:12])
 
 
 def _responsibility_summary(module_rows: list[str]) -> str | None:
     if not module_rows:
         return None
-    return _join(module_rows[:5])
+    cleaned_rows = [_clean_line(row) for row in module_rows]
+    cleaned_rows = [row for row in cleaned_rows if row]
+    return _join(cleaned_rows[:5])
 
 
 def _surface_terms(text: str) -> list[str]:

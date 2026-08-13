@@ -68,11 +68,20 @@ def _render_attention_section(attention: dict[str, Any] | None) -> list[str]:
         "implementation=`src/project_atlas/attention_hygiene.py` "
         "CLI=`atlas attention`"
     )
-    items = attention.get("items") if isinstance(attention, dict) else None
+    care = attention.get("care_about") if isinstance(attention, dict) else None
+    items = care if isinstance(care, list) and care else (
+        attention.get("items") if isinstance(attention, dict) else None
+    )
     if not isinstance(items, list) or not items:
         lines.append("- CLEAR / no attention items")
         return lines
-    for item in items[:8]:
+    lines.append(f"care_about_count={len(items)}")
+    if attention.get("source_failure_total"):
+        lines.append(
+            f"source_failure_total={attention.get('source_failure_total')} "
+            "(not hidden; collapsed for triage)"
+        )
+    for item in items[:10]:
         if not isinstance(item, dict):
             continue
         lines.append(
@@ -81,8 +90,6 @@ def _render_attention_section(attention: dict[str, Any] | None) -> list[str]:
             f"| do={item.get('what_to_do')} "
             f"| evidence={', '.join(item.get('evidence') or [])}"
         )
-    if int(attention.get("item_count") or 0) > 8:
-        lines.append(f"- … {attention['item_count'] - 8} more (run atlas attention)")
     return lines
 
 
