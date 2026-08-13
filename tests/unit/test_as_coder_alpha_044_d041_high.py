@@ -129,6 +129,37 @@ def test_stranger_defaults_ambiguous_bind_fails_closed(
     assert main(["brief", "--json"]) != EXIT_OK
 
 
+def test_bind_relative_vault_symlink_escape_rejected(tmp_path: Path) -> None:
+    """D-047 IV: bind `.atlas-vault` must not follow a symlink outside root."""
+    root = tmp_path / "proj"
+    foreign = tmp_path / "foreign-vault"
+    root.mkdir()
+    foreign.mkdir()
+    link = root / ".atlas-vault"
+    try:
+        link.symlink_to(foreign, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink not permitted in this environment")
+    (root / ".atlas").mkdir()
+    (root / ".atlas" / "connect.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_root": root.resolve().as_posix(),
+                "vault": ".atlas-vault",
+                "project_id": "proj",
+                "project_ids": ["proj"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ConnectError, match="symlink escape"):
+        resolve_bound_vault(root)
+
+
 def test_bind_foreign_project_root_rejected(tmp_path: Path) -> None:
     """D-047 IV: stolen/copied bind must not redirect stranger CLI."""
     victim = tmp_path / "victim"

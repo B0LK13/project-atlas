@@ -181,11 +181,24 @@ def resolve_vault_path(project_root: Path, vault: Path | None) -> Path:
         _require_bind_owns_root(bind, root)
         bound = bind.get("vault")
         if isinstance(bound, str) and bound.strip():
-            candidate = Path(bound)
+            bound_text = bound.strip().replace("\\", "/")
+            candidate = Path(bound_text)
             if not candidate.is_absolute():
                 candidate = (root / candidate).resolve()
             else:
                 candidate = candidate.resolve()
+            # Relative bind vaults without ``..`` must stay inside project root
+            # after resolve() (blocks `.atlas-vault` → symlink escape; D-047 IV).
+            # Explicit ``../other`` or absolute out-of-tree binds remain allowed.
+            if (
+                not Path(bound_text).is_absolute()
+                and ".." not in Path(bound_text).parts
+                and not candidate.is_relative_to(root)
+            ):
+                raise ConnectError(
+                    "bind vault resolves outside project root; refuse symlink escape — "
+                    "re-run `atlas connect .` or pass --vault explicitly"
+                )
             return candidate
     return (root / DEFAULT_VAULT_DIRNAME).resolve()
 
