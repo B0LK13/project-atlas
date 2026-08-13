@@ -119,7 +119,8 @@ def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
 def test_project_slug_from_dirname_is_safe() -> None:
     assert project_slug_from_dirname("My Cool App") == "my-cool-app"
     assert project_slug_from_dirname("123-start") == "p-123-start"
-    assert project_slug_from_dirname("@@@") == "project"
+    assert project_slug_from_dirname("@@@").startswith("project-")
+    assert project_slug_from_dirname("文档一") != project_slug_from_dirname("文档二")
 
 
 def test_cli_connect_help_exits_zero() -> None:

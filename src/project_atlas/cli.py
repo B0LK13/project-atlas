@@ -48,7 +48,12 @@ from project_atlas.compat_anchor import (
     load_compatibility_anchor,
 )
 from project_atlas.config import load_config
-from project_atlas.connect import ConnectError, connect_project
+from project_atlas.connect import (
+    ConnectError,
+    connect_project,
+    resolve_bound_project_id,
+    resolve_bound_vault,
+)
 from project_atlas.context_pack import (
     ContextEntry,
     ContextPackError,
@@ -254,6 +259,68 @@ EXIT_ERROR = 1
 _log = get_logger("cli")
 
 
+
+def _apply_stranger_defaults(args: argparse.Namespace) -> None:
+    """Resolve omitted --vault/--project from local connect bind (D-044 A2).
+
+    Ambiguous multi-project resolution fails closed via ConnectError.
+    """
+    if getattr(args, "vault", None) is None and getattr(args, "command", None) in {
+        "overview",
+        "state",
+        "changed",
+        "decisions",
+        "unknown",
+        "attention",
+        "source-health",
+        "brief",
+        "context",
+        "handoff",
+        "capture",
+        "obsidian",
+        "review",
+    }:
+        args.vault = resolve_bound_vault()
+    # Single-project commands
+    if getattr(args, "command", None) in {"attention", "context"} and getattr(
+        args, "project", None
+    ) in {None, ""}:
+        args.project = resolve_bound_project_id(vault=getattr(args, "vault", None))
+    if getattr(args, "command", None) == "handoff" and getattr(
+        args, "handoff_command", None
+    ) == "create" and getattr(args, "project", None) in {None, ""}:
+        args.project = resolve_bound_project_id(vault=getattr(args, "vault", None))
+    if getattr(args, "command", None) == "capture" and getattr(
+        args, "capture_command", None
+    ) in {"record", "conversation"} and getattr(args, "project", None) in {None, ""}:
+        args.project = resolve_bound_project_id(vault=getattr(args, "vault", None))
+    if getattr(args, "command", None) == "review" and getattr(
+        args, "review_command", None
+    ) == "decide" and getattr(args, "project", None) in {None, ""}:
+        args.project = resolve_bound_project_id(vault=getattr(args, "vault", None))
+    # Optional multi-project lists: if omitted and bind has one project, scope to it.
+    if getattr(args, "command", None) in {
+        "overview",
+        "state",
+        "changed",
+        "decisions",
+        "unknown",
+        "brief",
+        "source-health",
+        "obsidian",
+    }:
+        projects = getattr(args, "projects", None)
+        if projects is None and getattr(args, "project", None) in {None, ""}:
+            try:
+                only = resolve_bound_project_id(vault=getattr(args, "vault", None))
+            except ConnectError:
+                only = None
+            if only and hasattr(args, "projects"):
+                args.projects = [only]
+            elif only and hasattr(args, "project"):
+                args.project = only
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="atlas",
@@ -396,8 +463,8 @@ def build_parser() -> argparse.ArgumentParser:
     overview_parser.add_argument(
         "--vault",
         type=Path,
-        required=True,
-        help="Vault directory containing projects/ and generated/.",
+        default=None,
+        help="Vault directory (default: .atlas/connect.json bind / .atlas-vault).",
     )
     overview_parser.add_argument(
         "--project",
@@ -423,8 +490,8 @@ def build_parser() -> argparse.ArgumentParser:
     state_parser.add_argument(
         "--vault",
         type=Path,
-        required=True,
-        help="Vault directory containing projects/ and generated/.",
+        default=None,
+        help="Vault directory (default: .atlas/connect.json bind / .atlas-vault).",
     )
     state_parser.add_argument(
         "--project",
@@ -450,8 +517,8 @@ def build_parser() -> argparse.ArgumentParser:
     changed_parser.add_argument(
         "--vault",
         type=Path,
-        required=True,
-        help="Vault directory containing generated/ops connect inventory.",
+        default=None,
+        help="Vault directory (default: .atlas/connect.json bind / .atlas-vault).",
     )
     changed_parser.add_argument(
         "--project",
@@ -474,7 +541,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(AS-CODER-ALPHA-DECISIONS-001; lens!=authority)."
         ),
     )
-    decisions_parser.add_argument("--vault", type=Path, required=True)
+    decisions_parser.add_argument("--vault", type=Path, default=None)
     decisions_parser.add_argument(
         "--project", action="append", dest="projects", default=None
     )
@@ -489,7 +556,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(AS-CODER-ALPHA-UNKNOWN-001; lens!=authority)."
         ),
     )
-    unknown_parser.add_argument("--vault", type=Path, required=True)
+    unknown_parser.add_argument("--vault", type=Path, default=None)
     unknown_parser.add_argument(
         "--project", action="append", dest="projects", default=None
     )
@@ -502,8 +569,8 @@ def build_parser() -> argparse.ArgumentParser:
             "(AS-CODER-ALPHA-ATTENTION-001; lens!=authority)."
         ),
     )
-    attention_parser.add_argument("--vault", type=Path, required=True)
-    attention_parser.add_argument("--project", required=True)
+    attention_parser.add_argument("--vault", type=Path, default=None)
+    attention_parser.add_argument("--project", default=None)
     attention_parser.add_argument("--json", action="store_true", dest="as_json")
 
     source_health_parser = subparsers.add_parser(
@@ -513,7 +580,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(AS-CODER-ALPHA-SOURCE-HEALTH-001; no secret echo)."
         ),
     )
-    source_health_parser.add_argument("--vault", type=Path, required=True)
+    source_health_parser.add_argument("--vault", type=Path, default=None)
     source_health_parser.add_argument("--project", default=None)
     source_health_parser.add_argument("--json", action="store_true", dest="as_json")
 
@@ -524,7 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
             "(AS-CODER-ALPHA-BRIEF-001; UNKNOWN stays UNKNOWN)."
         ),
     )
-    brief_parser.add_argument("--vault", type=Path, required=True)
+    brief_parser.add_argument("--vault", type=Path, default=None)
     brief_parser.add_argument(
         "--project", action="append", dest="projects", default=None
     )
@@ -542,8 +609,8 @@ def build_parser() -> argparse.ArgumentParser:
             "(AS-CODER-ALPHA-CONTEXT-001; lens!=authority)."
         ),
     )
-    context_parser.add_argument("--vault", type=Path, required=True)
-    context_parser.add_argument("--project", required=True)
+    context_parser.add_argument("--vault", type=Path, default=None)
+    context_parser.add_argument("--project", default=None)
     context_parser.add_argument(
         "--no-refresh",
         action="store_true",
@@ -562,8 +629,8 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_create = handoff_sub.add_parser(
         "create", help="Create a durable handoff pack for another agent."
     )
-    handoff_create.add_argument("--vault", type=Path, required=True)
-    handoff_create.add_argument("--project", required=True)
+    handoff_create.add_argument("--vault", type=Path, default=None)
+    handoff_create.add_argument("--project", default=None)
     handoff_create.add_argument("--note", default=None)
     handoff_create.add_argument("--no-refresh", action="store_true")
     handoff_create.add_argument(
@@ -575,7 +642,7 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume = handoff_sub.add_parser(
         "resume", help="Resume from latest or named handoff pack."
     )
-    handoff_resume.add_argument("--vault", type=Path, required=True)
+    handoff_resume.add_argument("--vault", type=Path, default=None)
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
@@ -590,8 +657,8 @@ def build_parser() -> argparse.ArgumentParser:
     capture_record = capture_sub.add_parser(
         "record", help="Record an explicit meaningful session capture."
     )
-    capture_record.add_argument("--vault", type=Path, required=True)
-    capture_record.add_argument("--project", required=True)
+    capture_record.add_argument("--vault", type=Path, default=None)
+    capture_record.add_argument("--project", default=None)
     capture_record.add_argument("--summary", required=True)
     capture_record.add_argument(
         "--kind",
@@ -607,7 +674,7 @@ def build_parser() -> argparse.ArgumentParser:
         "list",
         help="List session captures (deterministic capture_id order; not time-based).",
     )
-    capture_list.add_argument("--vault", type=Path, required=True)
+    capture_list.add_argument("--vault", type=Path, default=None)
     capture_list.add_argument("--project", default=None)
     capture_list.add_argument("--limit", type=int, default=20)
     capture_list.add_argument("--json", action="store_true", dest="as_json")
@@ -624,7 +691,7 @@ def build_parser() -> argparse.ArgumentParser:
         "project",
         help="Write living project Markdown under generated/obsidian/projects/.",
     )
-    obsidian_project.add_argument("--vault", type=Path, required=True)
+    obsidian_project.add_argument("--vault", type=Path, default=None)
     obsidian_project.add_argument("--project", default=None)
     obsidian_project.add_argument(
         "--no-refresh",
@@ -644,8 +711,8 @@ def build_parser() -> argparse.ArgumentParser:
     review_decide = review_sub.add_parser(
         "decide", help="Accept or reject one pending review entry."
     )
-    review_decide.add_argument("--vault", type=Path, required=True)
-    review_decide.add_argument("--project", required=True)
+    review_decide.add_argument("--vault", type=Path, default=None)
+    review_decide.add_argument("--project", default=None)
     review_decide.add_argument("--review-id", required=True)
     review_decide.add_argument(
         "--decision",
@@ -1947,6 +2014,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    try:
+        _apply_stranger_defaults(args)
+    except ConnectError as exc:
+        _log.error("%s", exc)
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_ERROR
 
     try:
         config = load_config(args.config)
@@ -2235,8 +2308,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.as_json:
             print(json.dumps(report, indent=2, sort_keys=True))
         else:
-            print(f"atlas source-health [count={report.get('source_count', 0)}]")
-            for row in (report.get("sources") or [])[:12]:
+            summary = report.get("summary") or {}
+            print(
+                f"atlas source-health [{report.get('health_state', 'UNKNOWN')}] "
+                f"action_required={summary.get('action_required', 0)} "
+                f"excluded_informational={summary.get('excluded_informational', 0)}"
+            )
+            print("ACTIONABLE:")
+            for code, count in sorted((report.get("reason_counts") or {}).items()):
+                print(f"  {code:24} {count}")
+            if report.get("noise_groups"):
+                print("EXCLUDED / INFORMATIONAL:")
+                for group, count in sorted((report.get("noise_groups") or {}).items()):
+                    print(f"  {group:24} {count}")
+            for row in (report.get("actionable") or report.get("sources") or [])[:12]:
                 print(
                     f"  [{row.get('status')}/{row.get('pipeline_stage')}] "
                     f"{row.get('source')}: {row.get('reason_code')}"

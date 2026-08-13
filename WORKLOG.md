@@ -5603,3 +5603,30 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - CODEX_VALIDATED = NO
 - EXTERNAL_SECURITY_REVALIDATION_REQUIRED = YES
 - ATLAS_OPT_WAKE_GATE = CLOSED
+
+## D-044 — D-041 Local evidence intake / D-043 gate correction
+
+**Date:** 2026-08-13
+**Directive:** D-PROJECT-ATLAS-CODER-ALPHA-044
+**Branch:** cursor/coder-alpha-044-d041-high-fixes-d036
+
+### Gate correction
+- #343 already merged before D-044 arrived; do not certify PASS from Fresh Agent V3 alone
+- #344 D-042 closed: `D_042_EXECUTION_GATE = CLOSED`
+- `CODER_ALPHA_ACCEPTANCE = PARTIAL` while HIGH findings open / pending Local Windows revalidation
+
+### Remediations in this branch
+- A1 attention: CLEAR only after positive inspection; UNKNOWN/INCOMPLETE otherwise
+- A2 stranger CLI defaults from `.atlas/connect.json` bind (fail closed on ambiguity)
+- A3 architecture coverage reconciled with lens UNKNOWN; root ARCHITECTURE.md ranked
+- A4 decision heading theatre regression (Status/Decision/Consequences)
+- B1 source-health UNREADABLE != HEALTHY + summary/actionable/noise grouping
+- B2 unknown-project isolation (no leak into scoped project reports)
+- B3 brief/state/unknown pending consistency after review decide
+- B4 Unicode/CJK collision-safe project slugs
+- B5 LIVE_API dual-bind fail-closed (`allow_reuse_address=False` + port probe)
+
+### Follow-on
+- Local Windows stranger revalidation required before PASS
+- AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 after correctness proof
+

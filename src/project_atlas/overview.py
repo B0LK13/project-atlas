@@ -220,6 +220,16 @@ def build_overview_lens(vault: Path, project_id: str) -> dict[str, Any]:
     blurb, readme_inspected = _readme_blurb(vault, semantic)
     inspected.extend(readme_inspected)
     coverage = _coverage_summary(semantic)
+    # D-044 A3: coverage PRESENT must not contradict architecture lens UNKNOWN.
+    arch_path = vault / "generated" / "answers" / f"ans-architecture-{project_id}.json"
+    if arch_path.is_file() and coverage.get("architecture") in {"present", "partial"}:
+        try:
+            arch_payload = json.loads(arch_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            arch_payload = None
+        if isinstance(arch_payload, dict) and arch_payload.get("status") == "unknown":
+            coverage["architecture"] = "absent"
+            inspected.append(arch_path.relative_to(vault).as_posix())
     present = sorted(key for key, state in coverage.items() if state in {"present", "partial"})
     absent = sorted(key for key, state in coverage.items() if state == "absent")
 

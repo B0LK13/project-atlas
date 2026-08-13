@@ -141,6 +141,9 @@ def _architecture_rank(path: str) -> tuple[int, int, str] | None:
         return (0, depth, posix)
     if lower in {"agents.md", "claude.md"}:
         return (1, depth, posix)
+    # Root ARCHITECTURE.md is authoritative estate evidence (D-041/D-044).
+    if lower == "architecture.md":
+        return (1, depth, posix)
     if lower == "docs/prp.md":
         return (2, depth, posix)
     if lower == "docs/atlas-2.0/architecture.md":

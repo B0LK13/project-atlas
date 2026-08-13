@@ -201,10 +201,14 @@ def apply_review_decision(
         (json.dumps(record, indent=2, sort_keys=True) + "\n").encode("utf-8"),
     )
 
-    # Refresh honesty lens so pending counts drop immediately.
+    # Refresh honesty + state + brief so pending counts agree everywhere (D-044 B3).
+    from project_atlas.project_brief import materialize_project_briefs
+    from project_atlas.project_state import materialize_state_lenses
     from project_atlas.project_unknown import materialize_unknown_lenses
 
     materialize_unknown_lenses(vault, project_ids=[project_id])
+    materialize_state_lenses(vault, project_ids=[project_id])
+    materialize_project_briefs(vault, project_ids=[project_id], refresh=False)
 
     return {
         "schema_version": 1,

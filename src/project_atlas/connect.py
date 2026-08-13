@@ -12,9 +12,11 @@ claim AUTHENTIC_PILOT / RELEASE. Deterministic receipts omit wall-clock times
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -53,7 +55,7 @@ _CONNECT_EXCLUDES = [
     "coverage.xml",
 ]
 
-_SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_SLUG_DASHES = re.compile(r"-+")
 
 
 def _yaml_scalar(value: str) -> str:
@@ -65,12 +67,26 @@ def _yaml_scalar(value: str) -> str:
 
 
 def project_slug_from_dirname(name: str) -> str:
-    """Derive a safe ``project.id`` slug from a directory name (AT-013)."""
-    raw = (name or "").strip().lower()
-    slug = _SLUG_NON_ALNUM.sub("-", raw).strip("-")
+    """Derive a safe ``project.id`` slug from a directory name (AT-013 / D-044).
+
+    Preserves Unicode letters (e.g. CJK) so distinct non-ASCII names do not
+    silently collide on the ASCII fallback ``project``. Empty/symbol-only names
+    use a deterministic content hash suffix.
+    """
+    raw = unicodedata.normalize("NFKC", (name or "").strip())
+    chars: list[str] = []
+    for ch in raw:
+        if ch.isascii():
+            chars.append(ch.lower() if ch.isalnum() else "-")
+        elif ch.isalnum():
+            chars.append(ch)
+        else:
+            chars.append("-")
+    slug = _SLUG_DASHES.sub("-", "".join(chars)).strip("-")
     if not slug:
-        slug = "project"
-    if slug[0].isdigit():
+        digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+        slug = f"project-{digest}"
+    elif slug[0].isdigit():
         slug = f"p-{slug}"
     return safe_relative_component(slug, label="project.id")
 
@@ -178,7 +194,15 @@ def _vault_rel_or_abs(project_root: Path, vault: Path) -> str:
         return vault.resolve().as_posix()
 
 
-def _write_bind(project_root: Path, vault: Path, vault_id: str) -> Path:
+def _write_bind(
+    project_root: Path,
+    vault: Path,
+    vault_id: str,
+    *,
+    project_ids: list[str] | None = None,
+) -> Path:
+    projects = sorted({str(item) for item in (project_ids or []) if str(item).strip()})
+    primary: str | None = projects[0] if len(projects) == 1 else None
     payload = {
         "schema_version": 1,
         "schema": "atlas.connect.bind.v1",
@@ -186,6 +210,8 @@ def _write_bind(project_root: Path, vault: Path, vault_id: str) -> Path:
         "project_root": project_root.resolve().as_posix(),
         "vault": _vault_rel_or_abs(project_root, vault),
         "vault_id": vault_id,
+        "project_ids": projects,
+        "project_id": primary,
         "generated": {"by": GENERATOR_ID},
     }
     path = project_root / BIND_RELATIVE
@@ -194,6 +220,67 @@ def _write_bind(project_root: Path, vault: Path, vault_id: str) -> Path:
         (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8"),
     )
     return path
+
+
+def resolve_bound_vault(cwd: Path | None = None) -> Path:
+    """Resolve vault from ``.atlas/connect.json`` under ``cwd`` (fail closed)."""
+    root = (cwd or Path.cwd()).expanduser().resolve()
+    bind = _read_bind(root)
+    if bind is None:
+        # Fall back to default vault dir when present after connect.
+        candidate = root / DEFAULT_VAULT_DIRNAME
+        if candidate.is_dir():
+            return candidate.resolve()
+        raise ConnectError(
+            "no connect bind found; run `atlas connect .` or pass --vault explicitly"
+        )
+    return resolve_vault_path(root, None)
+
+
+def resolve_bound_project_id(
+    cwd: Path | None = None,
+    *,
+    vault: Path | None = None,
+    requested: str | None = None,
+) -> str:
+    """Resolve a single project id for stranger CLI commands (fail closed).
+
+    Ambiguous multi-project vaults without an explicit ``--project`` raise.
+    """
+    if requested is not None and str(requested).strip():
+        return safe_relative_component(str(requested).strip(), label="project id")
+    root = (cwd or Path.cwd()).expanduser().resolve()
+    bind = _read_bind(root)
+    if bind is not None:
+        bound = bind.get("project_id")
+        if isinstance(bound, str) and bound.strip():
+            return safe_relative_component(bound.strip(), label="project id")
+        bound_ids = bind.get("project_ids")
+        if isinstance(bound_ids, list):
+            ids = [
+                safe_relative_component(str(item).strip(), label="project id")
+                for item in bound_ids
+                if isinstance(item, str) and item.strip()
+            ]
+            if len(ids) == 1:
+                return ids[0]
+            if len(ids) > 1:
+                raise ConnectError(
+                    "ambiguous project_ids in connect bind; pass --project explicitly "
+                    f"(candidates: {', '.join(ids)})"
+                )
+    vault_path = vault or resolve_bound_vault(root)
+    projects = _list_vault_projects(vault_path)
+    if len(projects) == 1:
+        return projects[0]
+    if not projects:
+        raise ConnectError(
+            "no projects found in vault; run `atlas connect .` or pass --project"
+        )
+    raise ConnectError(
+        "ambiguous vault projects; pass --project explicitly "
+        f"(candidates: {', '.join(projects)})"
+    )
 
 
 def _write_receipt(vault: Path, report: dict[str, Any]) -> Path:
@@ -400,6 +487,7 @@ def connect_project(
         project_root,
         vault_path,
         str(report["vault_id"] or ""),
+        project_ids=list(report["projects"] or []),
     )
     report["bind_path"] = bind_path.as_posix()
     receipt_path = _write_receipt(vault_path, report)

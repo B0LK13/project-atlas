@@ -104,7 +104,11 @@ def resolve_cors_origin(raw: str | None = None) -> str:
 class AtlasApiServer(ThreadingHTTPServer):
     """Threading HTTP server carrying the per-launch API session store."""
 
+    # D-044 B5: never silently share an occupied port with another Atlas vault.
+    allow_reuse_address = False
     atlas_session: ApiSessionStore
+    atlas_vault_id: str | None = None
+    atlas_bind_path: Path | None = None
 
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
@@ -460,6 +464,79 @@ def make_handler(
     return Handler
 
 
+def _live_api_bind_path(vault: Path) -> Path:
+    return vault.expanduser().resolve() / "generated" / "ops" / "live-api-bind.json"
+
+
+def _refuse_stale_or_foreign_bind(
+    vault: Path, *, host: str, port: int, vault_id: str
+) -> None:
+    """Fail closed when another LIVE_API appears to own the endpoint (D-044 B5)."""
+    import socket
+
+    if int(port) == 0:
+        # Ephemeral test binds — OS assigns a free port; no dual-bind risk.
+        return
+    path = _live_api_bind_path(vault)
+    connect_host = "127.0.0.1" if host in {"localhost", "127.0.0.1"} else host
+    family = socket.AF_INET6 if connect_host == "::1" else socket.AF_INET
+    probe = socket.socket(family, socket.SOCK_STREAM)
+    try:
+        probe.settimeout(0.35)
+        err = probe.connect_ex((connect_host, int(port)))
+    except OSError:
+        err = 1
+    finally:
+        probe.close()
+    if err != 0:
+        return
+    # Port already accepting connections — refuse dual/foreign bind.
+    if not path.is_file():
+        raise ApiServerError(f"api-bind-port-in-use:{host}:{port}:no-bind-receipt")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ApiServerError(
+            f"api-bind-port-in-use:{host}:{port}:unreadable-bind"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise ApiServerError(f"api-bind-port-in-use:{host}:{port}:invalid-bind")
+    if str(payload.get("vault_id") or "") != vault_id:
+        raise ApiServerError(
+            f"api-bind-foreign-vault:{host}:{port}:owner={payload.get('vault_id')!r}"
+        )
+    raise ApiServerError(f"api-bind-already-serving:{host}:{port}:{vault_id}")
+
+
+def _write_live_api_bind(
+    vault: Path, *, host: str, port: int, vault_id: str, pid: int
+) -> Path:
+    path = _live_api_bind_path(vault)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "schema": "atlas.live-api.bind.v1",
+        "package": PACKAGE_ID,
+        "host": host,
+        "port": int(port),
+        "vault_id": vault_id,
+        "pid": int(pid),
+        "generated": {"by": "project-atlas-api-server"},
+        "honesty": {
+            "allow_reuse_address": False,
+            "dual_bind_forbidden": True,
+        },
+    }
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    tmp.replace(path)
+    return path
+
+
 def serve_api(
     vault: Path,
     *,
@@ -479,11 +556,26 @@ def serve_api(
     ``cors_origin`` / ``ATLAS_CORS_ORIGIN`` must be a loopback http origin
     matching the session web port when the productization launcher starts
     Vite on a non-default ``-WebPort`` (PROD-ADV-011).
+
+    D-044 B5: refuse occupied / foreign vault binds (no dual LIVE_API ambiguity).
     """
+    import os
+
     require_compatibility_anchor()
     if host not in {"127.0.0.1", "localhost", "::1"}:
         raise ApiServerError("api-bind-non-local-forbidden")
+    vault = vault.expanduser().resolve()
     svc = open_app_service(vault)
+    vault_id = str(getattr(svc, "vault_id", None) or "")
+    if not vault_id:
+        # Best-effort identity for bind ownership.
+        try:
+            from project_atlas.vault_identity import read_vault_identity
+
+            vault_id = read_vault_identity(vault).vault_id
+        except Exception:
+            vault_id = vault.as_posix()
+    _refuse_stale_or_foreign_bind(vault, host=host, port=port, vault_id=vault_id)
     launch_op = operator or default_operator()
     launch_op.require("api.read")
     store = session or mint_api_session(launch_op)
@@ -492,6 +584,13 @@ def serve_api(
     handler = make_handler(
         svc, store, cors_origin=cors_origin, read_timeout=read_timeout
     )
-    server = AtlasApiServer((host, port), handler)
+    try:
+        server = AtlasApiServer((host, port), handler)
+    except OSError as exc:
+        raise ApiServerError(f"api-bind-unavailable:{host}:{port}:{exc}") from exc
     server.atlas_session = store
+    server.atlas_vault_id = vault_id
+    server.atlas_bind_path = _write_live_api_bind(
+        vault, host=host, port=port, vault_id=vault_id, pid=os.getpid()
+    )
     return server
