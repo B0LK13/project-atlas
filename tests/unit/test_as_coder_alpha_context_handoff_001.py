@@ -35,6 +35,14 @@ def test_context_export_and_handoff_roundtrip(tmp_path: Path) -> None:
     assert "Project identity" in text
     assert "UNKNOWN stays UNKNOWN" in text
     assert "Python" in text
+    assert "## Attention (what requires action)" in text
+    assert "AS-CODER-ALPHA-ATTENTION-001" in text
+    assert "attention_hygiene.py" in text
+    assert "## Source health (failures / exclusions)" in text
+    assert "AS-CODER-ALPHA-SOURCE-HEALTH-001" in text
+    payload = json.loads((vault / ctx["json_path"]).read_text(encoding="utf-8"))
+    assert payload["attention"]["package"] == "AS-CODER-ALPHA-ATTENTION-001"
+    assert payload["source_health"]["package"] == "AS-CODER-ALPHA-SOURCE-HEALTH-001"
 
     created = create_handoff(vault, "handoff-fixture", note="overnight", refresh_brief=False)
     assert created["handoff_id"].startswith("handoff-")
