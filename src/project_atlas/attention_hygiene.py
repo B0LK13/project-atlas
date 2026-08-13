@@ -117,11 +117,24 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             continue
         pending_count += 1
         category = str(entry.get("category") or entry.get("reason") or "pending-claim")
+        cat_l = category.lower()
         level = "NEEDS_HUMAN_REVIEW"
-        if "stale" in category.lower():
+        if "stale" in cat_l:
             level = "STALE"
-        elif "superseded" in category.lower():
+        elif "superseded" in cat_l:
             level = "SUPERSEDED"
+        elif any(
+            token in cat_l
+            for token in (
+                "authority",
+                "competing",
+                "action-required",
+                "blocking",
+                "disposition",
+            )
+        ):
+            # Concrete disposition needed — not mere informational pending.
+            level = "ACTION_REQUIRED"
         items.append(
             _item(
                 level=level,
@@ -146,9 +159,12 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         if outcome.upper() not in {"FAILED", "PROMOTION_FAILED"}:
             continue
         failed += 1
+        # Promotion failures need an explicit repair action; plain FAILED is
+        # source-health noise until triage.
+        level = "ACTION_REQUIRED" if outcome.upper() == "PROMOTION_FAILED" else "SOURCE_FAILURE"
         items.append(
             _item(
-                level="SOURCE_FAILURE",
+                level=level,
                 kind="compile_failure",
                 reason_code=outcome,
                 why="Source candidate failed during knowledge compile",
@@ -160,7 +176,10 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         )
 
     # Cap low-value noise: collapse huge pending queues into summary item.
+    # Preserve ACTION_REQUIRED / STALE / SUPERSEDED classifications — never
+    # demote competing-authority rows to NEEDS_HUMAN_REVIEW on rollup.
     if pending_count > 20:
+        pending_items = [item for item in items if item["kind"] == "pending_review"]
         items = [item for item in items if item["kind"] != "pending_review"]
         items.append(
             _item(
@@ -173,29 +192,17 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
                 evidence=[pending_path.relative_to(vault).as_posix()],
             )
         )
-        # Keep a sample of first 5 pending for actionability.
-        sample = 0
-        for entry in (pending or {}).get("entries") or []:
-            if not isinstance(entry, dict):
-                continue
-            status = str(entry.get("status") or "pending")
-            if status not in {"pending", "in-review", ""}:
-                continue
-            items.append(
-                _item(
-                    level="NEEDS_HUMAN_REVIEW",
-                    kind="pending_review",
-                    reason_code=str(entry.get("category") or "pending-claim"),
-                    why=str(entry.get("reason") or "Claim requires human verification"),
-                    impact="Sample pending item requiring disposition",
-                    action="atlas review decide",
-                    evidence=[pending_path.relative_to(vault).as_posix()],
-                    subject_id=str(entry.get("review_id") or ""),
-                )
+        # Prefer ACTION_REQUIRED samples, then fill remaining slots in order.
+        priority = {"ACTION_REQUIRED": 0, "STALE": 1, "SUPERSEDED": 2, "NEEDS_HUMAN_REVIEW": 3}
+        pending_items.sort(
+            key=lambda row: (
+                priority.get(str(row["level"]), 9),
+                str(row.get("subject_id") or ""),
             )
-            sample += 1
-            if sample >= 5:
-                break
+        )
+        for item in pending_items[:5]:
+            item["impact"] = "Sample pending item requiring disposition"
+            items.append(item)
 
     order = {name: index for index, name in enumerate(LEVELS)}
     items.sort(key=lambda row: (order.get(str(row["level"]), 99), str(row.get("subject_id"))))

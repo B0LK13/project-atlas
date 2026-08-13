@@ -8,6 +8,7 @@ from pathlib import Path
 from project_atlas.attention_hygiene import classify_attention
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.connect import connect_project
+from project_atlas.project_decisions import _classify_decision_status
 from project_atlas.source_health import explain_source_health
 
 
@@ -17,6 +18,108 @@ def _write(path: Path, payload: object) -> None:
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     else:
         path.write_text(str(payload), encoding="utf-8")
+
+
+def test_classify_decision_status_labels() -> None:
+    """DECISIONS-002: deterministic status labels, no confidence theatre."""
+    assert (
+        _classify_decision_status("ADR-001 Ship package data", kind="claim")
+        == "ACTIVE_GOVERNING"
+    )
+    assert (
+        _classify_decision_status("Superseded: old vault layout", kind="claim")
+        == "SUPERSEDED"
+    )
+    assert (
+        _classify_decision_status("Rejected proposal for cloud sync", kind="claim")
+        == "REJECTED"
+    )
+    assert (
+        _classify_decision_status("Proposed: optional MCP surface", kind="imported-heading")
+        == "OPEN_PROPOSED"
+    )
+    assert (
+        _classify_decision_status("Implementation note: wire CLI", kind="project-note")
+        == "NON_DECISION"
+    )
+    assert (
+        _classify_decision_status(
+            "Historical decision on hashing",
+            kind="imported-heading",
+            path="docs/archive/old.md",
+        )
+        == "HISTORICAL"
+    )
+
+
+def test_attention_action_required_for_authority_pending(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write(
+        vault / "review" / "pending" / "proj.json",
+        {
+            "entries": [
+                {
+                    "review_id": "r-auth",
+                    "status": "pending",
+                    "category": "competing-authority",
+                    "reason": "competing authority claims",
+                }
+            ]
+        },
+    )
+    report = classify_attention(vault, "proj")
+    pending_levels = {
+        item["level"] for item in report["items"] if item["kind"] == "pending_review"
+    }
+    assert pending_levels == {"ACTION_REQUIRED"}
+
+
+def test_attention_action_required_for_promotion_failed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write(
+        vault / "state" / "compilation-outcomes" / "proj.json",
+        {
+            "candidates": [
+                {
+                    "source_id": "src-1",
+                    "outcome": "PROMOTION_FAILED",
+                }
+            ]
+        },
+    )
+    report = classify_attention(vault, "proj")
+    levels = {item["level"] for item in report["items"]}
+    assert "ACTION_REQUIRED" in levels
+
+
+def test_attention_rollup_preserves_action_required(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    entries = [
+        {
+            "review_id": f"r-{index}",
+            "status": "pending",
+            "category": "pending-claim",
+            "reason": "noise",
+        }
+        for index in range(22)
+    ]
+    entries.append(
+        {
+            "review_id": "r-auth-late",
+            "status": "pending",
+            "category": "competing-authority",
+            "reason": "competing authority claims",
+        }
+    )
+    _write(vault / "review" / "pending" / "proj.json", {"entries": entries})
+    report = classify_attention(vault, "proj")
+    levels = {item["level"] for item in report["items"]}
+    assert "LOW_VALUE_NOISE" in levels
+    assert "ACTION_REQUIRED" in levels
+    assert any(
+        item["subject_id"] == "r-auth-late" and item["level"] == "ACTION_REQUIRED"
+        for item in report["items"]
+    )
 
 
 def test_attention_classifies_conflict_and_pending(tmp_path: Path) -> None:
