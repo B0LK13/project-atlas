@@ -28,6 +28,9 @@ REASON_HUMAN = {
     "SECRET_QUARANTINE": "Likely secret patterns detected; source quarantined before import.",
     "INJECTION_QUARANTINE": "Prompt-injection cues detected; source quarantined.",
     "FAILED": "Knowledge compile marked this source FAILED.",
+    "PARTIAL_CANDIDATE": (
+        "Source produced a partial candidate; some claims withheld pending repair."
+    ),
     "PROMOTION_FAILED": "Candidate existed but promotion into Truth failed.",
     "UNCLASSIFIED": "Failure recorded without a known reason code.",
 }
@@ -76,6 +79,55 @@ def _row(
     }
 
 
+def _manifest_project_indexes(
+    manifest: dict[str, Any] | None,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return ``(source_id→project, path→project)`` from connect-manifest."""
+    by_id: dict[str, str] = {}
+    by_path: dict[str, str] = {}
+    if not isinstance(manifest, dict):
+        return by_id, by_path
+    sources = manifest.get("sources")
+    if not isinstance(sources, list):
+        return by_id, by_path
+    for entry in sources:
+        if not isinstance(entry, dict):
+            continue
+        likely = str(entry.get("likely_project") or "unknown-project")
+        source_id = str(entry.get("source_id") or "")
+        path = str(entry.get("path") or "").replace("\\", "/")
+        if source_id:
+            by_id[source_id] = likely
+        if path:
+            by_path[path] = likely
+    return by_id, by_path
+
+
+def _finding_matches_project(
+    finding: dict[str, Any],
+    *,
+    project_id: str | None,
+    source_projects: dict[str, str],
+    path_projects: dict[str, str],
+) -> bool:
+    """Scope quarantine findings to ``project_id`` when requested.
+
+    Fail closed: unmapped findings are omitted from project-scoped reports
+    so shared-vault noise from other projects cannot leak in.
+    """
+    if project_id is None:
+        return True
+    source_id = str(finding.get("source_id") or "")
+    if source_id and source_id in source_projects:
+        likely = source_projects[source_id]
+        return likely in {project_id, "unknown-project"}
+    path = str(finding.get("path") or finding.get("source_path") or "").replace("\\", "/")
+    if path and path in path_projects:
+        likely = path_projects[path]
+        return likely in {project_id, "unknown-project"}
+    return False
+
+
 def explain_source_health(vault: Path, project_id: str | None = None) -> dict[str, Any]:
     """Explain failed/excluded/quarantined sources (read-only, no secrets)."""
     vault = vault.expanduser().resolve()
@@ -89,7 +141,9 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
 
     manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
     inspected.append(manifest_path.relative_to(vault).as_posix())
-    manifest = _read_json(manifest_path)
+    manifest_raw = _read_json(manifest_path)
+    manifest = manifest_raw if isinstance(manifest_raw, dict) else None
+    source_projects, path_projects = _manifest_project_indexes(manifest)
     sources = manifest.get("sources") if isinstance(manifest, dict) else None
     if isinstance(sources, list):
         for entry in sources:
@@ -123,6 +177,13 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
         for finding in secret_rows:
             if not isinstance(finding, dict):
                 continue
+            if not _finding_matches_project(
+                finding,
+                project_id=project_id,
+                source_projects=source_projects,
+                path_projects=path_projects,
+            ):
+                continue
             rows.append(
                 _row(
                     source=str(finding.get("path") or "UNKNOWN"),
@@ -142,6 +203,13 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
     if isinstance(inj_findings, list):
         for finding in inj_findings:
             if not isinstance(finding, dict):
+                continue
+            if not _finding_matches_project(
+                finding,
+                project_id=project_id,
+                source_projects=source_projects,
+                path_projects=path_projects,
+            ):
                 continue
             rows.append(
                 _row(
@@ -173,7 +241,10 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
             rows.append(
                 _row(
                     source=str(
-                        candidate.get("path") or candidate.get("source_id") or "UNKNOWN"
+                        candidate.get("source_path")
+                        or candidate.get("path")
+                        or candidate.get("source_id")
+                        or "UNKNOWN"
                     ),
                     source_id=str(candidate.get("source_id") or "") or None,
                     status=(
@@ -185,6 +256,36 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
                     next_action="Inspect diagnostics and repair source structure/metadata",
                 )
             )
+
+        promo_path = vault / "quarantine" / "promotion-failures" / "index.json"
+        inspected.append(promo_path.relative_to(vault).as_posix())
+        promo = _read_json(promo_path)
+        if isinstance(promo, dict):
+            for project_row in promo.get("projects") or []:
+                if not isinstance(project_row, dict):
+                    continue
+                if str(project_row.get("project_id") or "") != project_id:
+                    continue
+                for candidate in project_row.get("candidates") or []:
+                    if not isinstance(candidate, dict):
+                        continue
+                    outcome = str(candidate.get("outcome") or "")
+                    if outcome.upper() != "PROMOTION_FAILED":
+                        continue
+                    rows.append(
+                        _row(
+                            source=str(candidate.get("source_path") or "UNKNOWN"),
+                            source_id=str(candidate.get("source_id") or "") or None,
+                            status="promotion_failed",
+                            pipeline_stage="promote",
+                            reason_code="PROMOTION_FAILED",
+                            evidence=promo_path.relative_to(vault).as_posix(),
+                            next_action=(
+                                "Resolve promotion fault and re-run atlas connect/ingest; "
+                                "canonical state was rolled back"
+                            ),
+                        )
+                    )
 
     rows.sort(key=lambda row: (row["pipeline_stage"], row["status"], row["source"]))
     counts: dict[str, int] = {}

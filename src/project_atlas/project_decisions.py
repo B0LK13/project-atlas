@@ -30,8 +30,30 @@ _NON_DECISION_HINTS = (
 )
 
 
-def _classify_decision_status(title: str, *, kind: str, path: str = "") -> str:
-    """Deterministic decision status label (no confidence score)."""
+def _classify_decision_status(
+    title: str,
+    *,
+    kind: str,
+    path: str = "",
+    lifecycle: str | None = None,
+    verification: str | None = None,
+) -> str:
+    """Deterministic decision status label (no confidence score).
+
+    Structured claim lifecycle/verification wins over title heuristics when
+    present (AGENTS.md: objective signals, not prose theatre).
+    """
+    life = (lifecycle or "").strip().lower()
+    ver = (verification or "").strip().lower()
+    if life in {"superseded", "stale", "stale-or-superseded"}:
+        return "SUPERSEDED"
+    if life in {"rejected"} or ver in {"rejected"}:
+        return "REJECTED"
+    if life in {"contradicted"}:
+        return "OPEN_PROPOSED"
+    if ver in {"pending", "conflicting"}:
+        return "OPEN_PROPOSED"
+
     lower = title.strip().lower()
     path_l = path.lower()
     if any(hint in lower for hint in _NON_DECISION_HINTS):
@@ -187,7 +209,12 @@ def _decision_claims(vault: Path, project_id: str) -> list[dict[str, str]]:
         title = str(claim.get("value") or claim.get("normalized_text") or claim.get("field") or "")
         if not title.strip():
             continue
-        status = _classify_decision_status(title, kind="claim")
+        status = _classify_decision_status(
+            title,
+            kind="claim",
+            lifecycle=str(claim.get("lifecycle") or "") or None,
+            verification=str(claim.get("verification") or "") or None,
+        )
         out.append(
             {
                 "title": title.strip()[:200],
@@ -195,6 +222,7 @@ def _decision_claims(vault: Path, project_id: str) -> list[dict[str, str]]:
                 "kind": "claim",
                 "status": status,
                 "authority": "claim",
+                "lifecycle": str(claim.get("lifecycle") or ""),
             }
         )
     return out[:20]

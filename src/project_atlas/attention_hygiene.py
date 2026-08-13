@@ -39,14 +39,17 @@ def _safe_project_id(project_id: str) -> str:
         raise AttentionHygieneError(str(exc)) from exc
 
 
-def _read_json(path: Path) -> dict[str, Any] | None:
+def _read_json(path: Path) -> tuple[str, dict[str, Any] | None]:
+    """Return ``(status, payload)`` where status is absent|ok|unreadable."""
     if not path.is_file():
-        return None
+        return "absent", None
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
-        return None
-    return raw if isinstance(raw, dict) else None
+        return "unreadable", None
+    if not isinstance(raw, dict):
+        return "unreadable", None
+    return "ok", raw
 
 
 def _item(
@@ -73,6 +76,26 @@ def _item(
     }
 
 
+def _pending_level(category: str) -> str:
+    cat_l = category.lower()
+    if "stale" in cat_l:
+        return "STALE"
+    if "superseded" in cat_l:
+        return "SUPERSEDED"
+    if any(
+        token in cat_l
+        for token in (
+            "authority",
+            "competing",
+            "action-required",
+            "blocking",
+            "disposition",
+        )
+    ):
+        return "ACTION_REQUIRED"
+    return "NEEDS_HUMAN_REVIEW"
+
+
 def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
     """Classify unresolved attention for one project (read-only)."""
     vault = vault.expanduser().resolve()
@@ -84,14 +107,24 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
 
     conflicts_path = vault / "review" / "conflicts" / f"{project_id}.json"
     inspected.append(conflicts_path.relative_to(vault).as_posix())
-    conflicts = _read_json(conflicts_path)
+    conflicts_status, conflicts = _read_json(conflicts_path)
+    if conflicts_status == "unreadable":
+        items.append(
+            _item(
+                level="INFORMATIONAL",
+                kind="artifact_unreadable",
+                reason_code="ARTIFACT_UNREADABLE",
+                why="review/conflicts artifact exists but could not be parsed",
+                impact="Attention may be incomplete; do not treat as CLEAR",
+                action="Repair JSON or re-run atlas connect / compile",
+                evidence=[conflicts_path.relative_to(vault).as_posix()],
+            )
+        )
     for entry in (conflicts or {}).get("entries") or []:
         if not isinstance(entry, dict):
             continue
         ctype = str(entry.get("conflict_type") or "unknown")
-        level = "DUPLICATE" if ctype == "duplicate-source" else "CONFLICT"
-        if level == "CONFLICT":
-            level = "BLOCKING"
+        level = "DUPLICATE" if ctype == "duplicate-source" else "BLOCKING"
         items.append(
             _item(
                 level=level,
@@ -107,7 +140,19 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
 
     pending_path = vault / "review" / "pending" / f"{project_id}.json"
     inspected.append(pending_path.relative_to(vault).as_posix())
-    pending = _read_json(pending_path)
+    pending_status, pending = _read_json(pending_path)
+    if pending_status == "unreadable":
+        items.append(
+            _item(
+                level="INFORMATIONAL",
+                kind="artifact_unreadable",
+                reason_code="ARTIFACT_UNREADABLE",
+                why="review/pending artifact exists but could not be parsed",
+                impact="Attention may be incomplete; do not treat as CLEAR",
+                action="Repair JSON or re-run atlas connect / compile",
+                evidence=[pending_path.relative_to(vault).as_posix()],
+            )
+        )
     pending_count = 0
     for entry in (pending or {}).get("entries") or []:
         if not isinstance(entry, dict):
@@ -117,27 +162,9 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             continue
         pending_count += 1
         category = str(entry.get("category") or entry.get("reason") or "pending-claim")
-        cat_l = category.lower()
-        level = "NEEDS_HUMAN_REVIEW"
-        if "stale" in cat_l:
-            level = "STALE"
-        elif "superseded" in cat_l:
-            level = "SUPERSEDED"
-        elif any(
-            token in cat_l
-            for token in (
-                "authority",
-                "competing",
-                "action-required",
-                "blocking",
-                "disposition",
-            )
-        ):
-            # Concrete disposition needed — not mere informational pending.
-            level = "ACTION_REQUIRED"
         items.append(
             _item(
-                level=level,
+                level=_pending_level(category),
                 kind="pending_review",
                 reason_code=category,
                 why=str(entry.get("reason") or "Claim requires human verification"),
@@ -150,18 +177,32 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
 
     outcomes_path = vault / "state" / "compilation-outcomes" / f"{project_id}.json"
     inspected.append(outcomes_path.relative_to(vault).as_posix())
-    outcomes = _read_json(outcomes_path)
-    failed = 0
+    outcomes_status, outcomes = _read_json(outcomes_path)
+    if outcomes_status == "unreadable":
+        items.append(
+            _item(
+                level="INFORMATIONAL",
+                kind="artifact_unreadable",
+                reason_code="ARTIFACT_UNREADABLE",
+                why="compilation-outcomes artifact exists but could not be parsed",
+                impact="Source-failure attention may be incomplete",
+                action="Repair JSON or re-run knowledge compile",
+                evidence=[outcomes_path.relative_to(vault).as_posix()],
+            )
+        )
     for candidate in (outcomes or {}).get("candidates") or []:
         if not isinstance(candidate, dict):
             continue
         outcome = str(candidate.get("outcome") or "")
         if outcome.upper() not in {"FAILED", "PROMOTION_FAILED"}:
             continue
-        failed += 1
-        # Promotion failures need an explicit repair action; plain FAILED is
-        # source-health noise until triage.
         level = "ACTION_REQUIRED" if outcome.upper() == "PROMOTION_FAILED" else "SOURCE_FAILURE"
+        subject = str(
+            candidate.get("source_path")
+            or candidate.get("source_id")
+            or candidate.get("candidate_id")
+            or ""
+        )
         items.append(
             _item(
                 level=level,
@@ -171,9 +212,51 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
                 impact="Claims from this source are unavailable or withheld",
                 action="Open diagnostics and repair or replace the source",
                 evidence=[outcomes_path.relative_to(vault).as_posix()],
-                subject_id=str(candidate.get("source_id") or candidate.get("candidate_id") or ""),
+                subject_id=subject,
             )
         )
+
+    # Real PROMOTION_FAILED is recorded in quarantine after canonical rollback
+    # (ingestion._quarantine_promotion_failure) — not left in compilation-outcomes.
+    promo_path = vault / "quarantine" / "promotion-failures" / "index.json"
+    inspected.append(promo_path.relative_to(vault).as_posix())
+    promo_status, promo = _read_json(promo_path)
+    if promo_status == "unreadable":
+        items.append(
+            _item(
+                level="INFORMATIONAL",
+                kind="artifact_unreadable",
+                reason_code="ARTIFACT_UNREADABLE",
+                why="promotion-failures quarantine exists but could not be parsed",
+                impact="Promotion-failure attention may be incomplete",
+                action="Inspect quarantine/promotion-failures/index.json",
+                evidence=[promo_path.relative_to(vault).as_posix()],
+            )
+        )
+    elif promo_status == "ok" and isinstance(promo, dict):
+        for project_row in promo.get("projects") or []:
+            if not isinstance(project_row, dict):
+                continue
+            if str(project_row.get("project_id") or "") != project_id:
+                continue
+            for candidate in project_row.get("candidates") or []:
+                if not isinstance(candidate, dict):
+                    continue
+                outcome = str(candidate.get("outcome") or "")
+                if outcome.upper() != "PROMOTION_FAILED":
+                    continue
+                items.append(
+                    _item(
+                        level="ACTION_REQUIRED",
+                        kind="promotion_failure",
+                        reason_code="PROMOTION_FAILED",
+                        why="Canonical promotion failed and rolled back",
+                        impact="Truth Core not updated for this project's candidates",
+                        action="Resolve promotion fault and re-run atlas connect/ingest",
+                        evidence=[promo_path.relative_to(vault).as_posix()],
+                        subject_id=str(candidate.get("source_path") or ""),
+                    )
+                )
 
     # Cap low-value noise: collapse huge pending queues into summary item.
     # Preserve ACTION_REQUIRED / STALE / SUPERSEDED classifications — never
@@ -192,8 +275,12 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
                 evidence=[pending_path.relative_to(vault).as_posix()],
             )
         )
-        # Prefer ACTION_REQUIRED samples, then fill remaining slots in order.
-        priority = {"ACTION_REQUIRED": 0, "STALE": 1, "SUPERSEDED": 2, "NEEDS_HUMAN_REVIEW": 3}
+        priority = {
+            "ACTION_REQUIRED": 0,
+            "STALE": 1,
+            "SUPERSEDED": 2,
+            "NEEDS_HUMAN_REVIEW": 3,
+        }
         pending_items.sort(
             key=lambda row: (
                 priority.get(str(row["level"]), 9),
@@ -201,7 +288,7 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             )
         )
         for item in pending_items[:5]:
-            item["impact"] = "Sample pending item requiring disposition"
+            item["why_it_matters"] = "Sample pending item requiring disposition"
             items.append(item)
 
     order = {name: index for index, name in enumerate(LEVELS)}
