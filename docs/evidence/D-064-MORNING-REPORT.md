@@ -11,8 +11,8 @@ PR_STATE = OPEN
 PR_DRAFT = YES
 BRANCH = cursor/d049-knowledge-estate-discovery-d036
 
-BRANCH_TIP = 2243af63b8bf3722206c9045573a8e12ba80cd05
-BRANCH_TIP_TREE = 656d40c2d18328bb0e9658fce0b462b96866e83d
+BRANCH_TIP = 4cf4347c30f5fa2395594d993cbb80da2a8d8079
+BRANCH_TIP_TREE = 5ef77b2f75dee7e38269d8b60eb403e0d1d2c546
 
 PRIOR_FROZEN_HEAD = 9c71cc2c71779678f79037c0c279390355015d63
 PRIOR_FROZEN_TREE = 10539a861dc9a5b32ebf00862d6710a66f3725cd
@@ -104,7 +104,8 @@ MYPY = PASS (estate_discovery)
 WEB_TYPECHECK = PASS
 WEB_BUILD = PASS
 CI = PASS (https://github.com/B0LK13/project-atlas/actions/runs/31743617530
-         ubuntu 3.12 + 3.13 + windows 3.12 on tip df23f34)
+         ubuntu 3.12 + 3.13 + windows 3.12; green on freeze-docs tip df23f34;
+         later commits are evidence-only BRANCH_TIP alignment)
 
 INDEPENDENT_IV = PASS
 HIGH_OPEN = 0
