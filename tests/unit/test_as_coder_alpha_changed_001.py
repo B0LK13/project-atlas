@@ -71,6 +71,46 @@ def test_second_connect_reports_added_and_modified(tmp_path: Path) -> None:
     )
 
 
+def test_second_connect_reports_removed_and_self_churn_not_dominating(
+    tmp_path: Path,
+) -> None:
+    """D-040 positive-delta: add/mod/remove detected; .atlas* churn excluded."""
+    project = _seed(tmp_path / "chg-remove", body="v1")
+    (project / "KEEP.md").write_text("# Keep\n\nstay\n", encoding="utf-8")
+    (project / "GONE.md").write_text("# Gone\n\nremove me\n", encoding="utf-8")
+    first = connect_project(project)
+    vault = Path(first["vault"])
+    assert first.get("changed_delta", {}).get("prior_baseline") is False
+
+    (project / "README.md").write_text("# Changed Fixture\n\nv2\n", encoding="utf-8")
+    (project / "NEW.md").write_text("# New\n\nadded\n", encoding="utf-8")
+    (project / "GONE.md").unlink()
+    # Operational noise that must not dominate meaningful delta classification.
+    (project / ".atlas-vault").mkdir(exist_ok=True)
+    (project / ".atlas-vault" / "noise.md").write_text("vault noise\n", encoding="utf-8")
+
+    second = connect_project(project)
+    assert second.get("changed_delta", {}).get("prior_baseline") is True
+    payload = json.loads(
+        (vault / "generated" / "answers" / "ans-changed-chg-remove.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert payload["rollup"] == "changed"
+    assert "NEW.md" in payload["delta"]["added"]
+    assert "README.md" in payload["delta"]["modified"]
+    assert "GONE.md" in payload["delta"]["removed"]
+    # Atlas vault outputs under DEFAULT_EXCLUDES must not appear as project changes.
+    assert not any(
+        path.startswith(".atlas-vault/")
+        for path in (
+            payload["delta"]["added"]
+            + payload["delta"]["removed"]
+            + payload["delta"]["modified"]
+        )
+    )
+
+
 def test_cli_changed_reads_existing_inventory(tmp_path: Path) -> None:
     project = _seed(tmp_path / "cli-chg")
     connected = connect_project(project)
