@@ -16,7 +16,7 @@
       "KNOWLEDGE_CANDIDATES": 0,
       "PROJECT_CANDIDATES": 3,
       "SCAN_COMPLETE": true,
-      "SCAN_SECONDS": 0.016437,
+      "SCAN_SECONDS": 0.01496,
       "TOTAL_DIRECTORIES": 100,
       "TRUNCATION": {
         "dirs_visited": 77,
@@ -40,7 +40,7 @@
       "KNOWLEDGE_CANDIDATES": 0,
       "PROJECT_CANDIDATES": 8,
       "SCAN_COMPLETE": true,
-      "SCAN_SECONDS": 0.155734,
+      "SCAN_SECONDS": 0.145524,
       "TOTAL_DIRECTORIES": 1000,
       "TRUNCATION": {
         "dirs_visited": 825,
@@ -69,7 +69,7 @@
       "KNOWLEDGE_CANDIDATES": 0,
       "PROJECT_CANDIDATES": 15,
       "SCAN_COMPLETE": true,
-      "SCAN_SECONDS": 0.723242,
+      "SCAN_SECONDS": 0.701522,
       "TOTAL_DIRECTORIES": 5000,
       "TRUNCATION": {
         "dirs_visited": 4125,
@@ -106,7 +106,7 @@
     "KNOWLEDGE_CANDIDATES": 0,
     "PROJECT_CANDIDATES": 5,
     "SCAN_COMPLETE": false,
-    "SCAN_SECONDS": 0.007403,
+    "SCAN_SECONDS": 0.007088,
     "TOTAL_DIRECTORIES": 48,
     "TRUNCATION": {
       "dirs_visited": 37,

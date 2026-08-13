@@ -9,7 +9,7 @@
     "knowledge_count_total": 7,
     "obsidian_count_total": 1,
     "recall_mean": 1.0,
-    "time_seconds_total": 0.016096
+    "time_seconds_total": 0.014281
   },
   "authenticity": "NOT_AUTHENTIC_USER_ESTATE",
   "base": "/tmp/d064-estates",
@@ -74,7 +74,7 @@
         "scan_complete": true,
         "truncation_reason": null
       },
-      "time_seconds": 0.002906
+      "time_seconds": 0.002609
     },
     {
       "PROJECTS_EXPECTED": [
@@ -144,7 +144,7 @@
         "scan_complete": true,
         "truncation_reason": null
       },
-      "time_seconds": 0.004017
+      "time_seconds": 0.003425
     },
     {
       "PROJECTS_EXPECTED": [
@@ -206,7 +206,7 @@
         "scan_complete": true,
         "truncation_reason": null
       },
-      "time_seconds": 0.003195
+      "time_seconds": 0.002961
     },
     {
       "PROJECTS_EXPECTED": [
@@ -264,7 +264,7 @@
         "scan_complete": true,
         "truncation_reason": null
       },
-      "time_seconds": 0.001402
+      "time_seconds": 0.001222
     },
     {
       "PROJECTS_EXPECTED": [
@@ -322,7 +322,7 @@
         "scan_complete": true,
         "truncation_reason": null
       },
-      "time_seconds": 0.004576
+      "time_seconds": 0.004064
     }
   ],
   "honesty": {

@@ -43,7 +43,7 @@
       "pass": true
     },
     {
-      "detail": "n=2 candidate_ids=['project-2307f39c0bdcdd92', 'project-810097a7cd46a628'] matched_uuids={None}",
+      "detail": "n=2 candidate_ids=['project-245ae377ea80a102', 'project-c8a5349478349a49'] matched_uuids={None}",
       "name": "08_same_basename_different_roots_distinct_candidate_ids",
       "pass": true
     },

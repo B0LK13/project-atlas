@@ -6,7 +6,7 @@
       "label": "change_uuid"
     },
     "discover_delete_path_connect": {
-      "error": "candidate path no longer exists: /tmp/d064-stale-epm611wf/estate/alpha",
+      "error": "candidate path no longer exists: /tmp/d064-stale-0_lm2lab/estate/alpha",
       "failed_closed": true,
       "label": "delete_path"
     },
