@@ -361,6 +361,6 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CONTEXT-001 Agent context export
 - [x] AS-CODER-ALPHA-OBSIDIAN-001 Living Obsidian projection
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-001 Human decisions → Truth Core
-- [ ] AS-CODER-ALPHA-WEB-001 Web Knowledge UX on Core
-- [ ] AS-CODER-ALPHA-TRUTH-UX-001 Evidence/conflict/UNKNOWN inspection
+- [x] AS-CODER-ALPHA-WEB-001 Web Knowledge UX on Core
+- [x] AS-CODER-ALPHA-TRUTH-UX-001 Evidence/conflict/UNKNOWN inspection
 

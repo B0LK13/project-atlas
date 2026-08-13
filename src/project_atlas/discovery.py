@@ -31,6 +31,11 @@ DEFAULT_EXCLUDES = {
     # Coder Alpha / local dogfood: in-tree vault + bind metadata must never
     # re-enter discovery as project sources (AS-CODER-ALPHA-CONNECT-001).
     ".atlas-vault", ".atlas",
+    # Dogfood/real estates: fixture corpora must not masquerade as live projects
+    # when connecting a repository root (AS-CODER-ALPHA-WEB-001 dogfood).
+    # Discovering a fixture directory itself as --source remains valid because
+    # "fixtures" is then the root, not a relative path part.
+    "fixtures",
 }
 
 # AS-CORE-003: static media-type map. mimetypes.guess_type() depends on the

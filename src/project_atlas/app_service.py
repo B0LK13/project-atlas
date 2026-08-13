@@ -17,10 +17,13 @@ from project_atlas.knowledge_diff import (
     read_as_of,
 )
 from project_atlas.web_api import (
+    WebBriefError,
+    filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
     list_project_conflicts,
     list_projects,
+    read_project_brief,
     read_status,
     read_vault_health,
 )
@@ -58,8 +61,19 @@ class AppService:
     def projects(self) -> list[dict[str, Any]]:
         return [dict(row) for row in list_projects(self.vault)]
 
-    def knowledge(self) -> list[dict[str, Any]]:
-        return [dict(row) for row in list_knowledge_answers(self.vault)]
+    def knowledge(self, project_id: str | None = None) -> list[dict[str, Any]]:
+        rows = [dict(row) for row in list_knowledge_answers(self.vault)]
+        try:
+            return filter_knowledge_by_project(rows, project_id)
+        except WebBriefError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def brief(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha project brief + Truth UX projection (read-only)."""
+        try:
+            return read_project_brief(self.vault, project_id)
+        except WebBriefError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def graph_summary(self) -> dict[str, Any]:
         summary = impact_graph_summary(self.vault)

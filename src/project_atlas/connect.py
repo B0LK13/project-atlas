@@ -43,6 +43,10 @@ _CONNECT_EXCLUDES = [
     ".atlas/**",
     ".atlas-vault/**",
     ".atlas-inbox/**",
+    # Keep fixture estates out of real-repo dogfood connects.
+    "fixtures/**",
+    "**/fixtures/**",
+    "tests/fixtures/**",
 ]
 
 _SLUG_NON_ALNUM = re.compile(r"[^a-z0-9]+")

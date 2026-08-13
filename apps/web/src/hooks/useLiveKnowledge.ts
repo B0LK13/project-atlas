@@ -6,17 +6,19 @@ import {
 } from "../api/liveApi";
 import type { DataSource } from "../types";
 
-/** AS-2.1-WEB-LIVE deepen: LIVE_API knowledge first; demo-isolated empty fallback. */
+/** AS-2.1-WEB-LIVE / AS-CODER-ALPHA-WEB-001: LIVE_API knowledge; optional project filter. */
 
 export interface KnowledgeRow {
   subject?: string;
   answer_id?: string;
   title?: string;
   summary?: string;
+  field?: string;
+  value_text?: string;
   [key: string]: unknown;
 }
 
-export function useLiveKnowledge(): {
+export function useLiveKnowledge(projectId?: string | null): {
   knowledge: KnowledgeRow[];
   error: string | null;
   loading: boolean;
@@ -34,7 +36,11 @@ export function useLiveKnowledge(): {
     async function load(): Promise<void> {
       if (!liveApiDemoOnly()) {
         try {
-          const resp = await liveApiFetch("/v1/knowledge?limit=100");
+          const qs = new URLSearchParams({ limit: "100" });
+          if (projectId) {
+            qs.set("project", projectId);
+          }
+          const resp = await liveApiFetch(`/v1/knowledge?${qs.toString()}`);
           if (resp.ok) {
             const body = (await resp.json()) as { knowledge?: KnowledgeRow[] };
             if (!cancelled) {
@@ -80,7 +86,7 @@ export function useLiveKnowledge(): {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId]);
 
   return { knowledge, error, loading, dataSource };
 }
