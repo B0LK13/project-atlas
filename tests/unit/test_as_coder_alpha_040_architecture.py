@@ -97,6 +97,38 @@ def test_plan_agents_claude_fill_structured_architecture_slots(tmp_path: Path) -
     assert "CLAUDE.md" in brief["evidence_links"]
 
 
+def test_layer_meanings_come_from_source_not_hardcoded_atlas(tmp_path: Path) -> None:
+    root = tmp_path / "layer-other"
+    (root / "docs").mkdir(parents=True)
+    (root / "README.md").write_text("# Layer Other\n\nPurpose.\n", encoding="utf-8")
+    (root / "docs" / "plan.md").write_text(
+        "# Plan\n\n## Core architectural decision\n\n"
+        "We use Layer A, Layer B, and Layer C.\n\n"
+        "## Layer A - Presentation UI\n\nBrowser clients and forms.\n\n"
+        "## Layer B - API services\n\nHTTP handlers and auth.\n\n"
+        "## Layer C - Persistence\n\nDatabase and object storage.\n",
+        encoding="utf-8",
+    )
+    vault = Path(connect_project(root)["vault"])
+    lens = json.loads(
+        (vault / "generated" / "answers" / "ans-architecture-layer-other.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    pipeline = lens["slots"]["knowledge_pipeline"]
+    assert pipeline != "UNKNOWN"
+    assert "Presentation UI" in pipeline or "Browser clients" in pipeline
+    assert "source evidence" not in pipeline.lower()
+    assert "canonical okf" not in pipeline.lower()
+
+
+def test_clean_line_preserves_underscores() -> None:
+    from project_atlas.project_architecture import _clean_line
+
+    assert "MODEL_OUTPUT" in _clean_line("Preserve MODEL_OUTPUT != AUTHORITY")
+    assert "mcp_server.py" in _clean_line("See `mcp_server.py` bridge")
+
+
 def test_demo_architecture_and_filename_cli_not_surface_authority(tmp_path: Path) -> None:
     root = tmp_path / "arch-demo-noise"
     (root / "docs" / "demo").mkdir(parents=True)

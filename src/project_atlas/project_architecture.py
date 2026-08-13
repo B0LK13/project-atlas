@@ -165,8 +165,10 @@ def _clean_line(line: str) -> str:
     text = re.sub(r"^\s*(?:[-*+]|\d+\.)\s+", "", text)
     text = text.replace("\u2192", "->").replace("\u2014", "-").replace("\u2013", "-")
     text = _LINK_RE.sub(r"\1", text)
-    for marker in ("**", "__", "`", "_"):
-        text = text.replace(marker, "")
+    # Strip Markdown emphasis/code fences without destroying identifiers
+    # like MODEL_OUTPUT or mcp_server.py (review P2).
+    text = text.replace("**", "").replace("__", "").replace("`", "")
+    text = re.sub(r"(?<!\w)_(?!\w)", "", text)
     text = re.sub(r"\s+", " ", text).strip(" ;")
     return text
 
@@ -267,12 +269,49 @@ def _join(parts: list[str], *, max_chars: int = _SLOT_MAX_CHARS) -> str | None:
 
 
 def _layer_pipeline(text: str) -> str | None:
+    """Derive Layer A/B/C meanings from source prose — never hard-code Atlas semantics."""
     lower = text.lower()
     if not all(token in lower for token in ("layer a", "layer b", "layer c")):
         return None
+    meanings: dict[str, str] = {}
+    for label in ("a", "b", "c"):
+        # Prefer explicit headings: "## Layer A - Source evidence"
+        heading_lines = _capture_section(
+            text,
+            lambda title, lab=label: bool(
+                re.search(rf"\blayer\s*{lab}\b", title, flags=re.IGNORECASE)
+            ),
+            max_lines=2,
+        )
+        if heading_lines:
+            meanings[label] = _clean_line(heading_lines[0])
+            continue
+        # Fallback: first prose line that mentions the layer with a description.
+        for line in _clean_text(text).splitlines():
+            cleaned = _clean_line(line)
+            if not cleaned:
+                continue
+            match = re.search(
+                rf"\blayer\s*{label}\b\s*[-\u2013\u2014:]\s*(.+)$",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            if match:
+                meanings[label] = _clean_line(match.group(1))
+                break
+            match = re.search(
+                rf"\blayer\s*{label}\b\s+(.+)$",
+                cleaned,
+                flags=re.IGNORECASE,
+            )
+            if match and len(match.group(1).split()) >= 2:
+                meanings[label] = _clean_line(match.group(1))
+                break
+    if len(meanings) < 3:
+        return None
     return (
-        "Three-layer vault: Layer A source evidence; Layer B canonical OKF knowledge; "
-        "Layer C portfolio intelligence."
+        "Three-layer model: "
+        f"Layer A {meanings['a']}; Layer B {meanings['b']}; Layer C {meanings['c']}"
     )
 
 
