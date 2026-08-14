@@ -5,6 +5,30 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-091 — D-042 conversational capture fresh execution
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-OWNER-D042-D091-FRESH-EXECUTION-AUTHORIZATION
+**Branch:** `cursor/d042-conversational-capture-6f85`
+**Historical PR #344 reused:** NO
+
+```
+AUTHORIZED_BASE_MAIN = c282f2c1eb2dde24f997e480c37d083fda906e54
+PRESTART_MAIN_MATCH = YES
+D091_HEAD = 9ec65c7662f1ed8e18805a9496df8ded19d2c65e
+D091_TREE = 97e56303ec7642bb86c9799cd2dbd79bfa1eaf08
+CONVERSATION_CAPTURE_SCHEMA = atlas.conversation-capture.v1
+EXISTING_SESSION_CAPTURE_REUSED = YES
+TRANSCRIPT_EXTRACTION = DEFERRED
+MCP = NOT_APPLICABLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+Implementer gates on exact freeze: D-042 suite, D-049 focused, identity/connect,
+source lineage, Control Plane, ruff, mypy, web typecheck/build = PASS.
+
+---
+
 ## D-089 — D-049 final pre-merge reconciliation
 
 **Date:** 2026-08-14
