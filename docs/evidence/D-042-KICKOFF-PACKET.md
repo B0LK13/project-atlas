@@ -1,12 +1,13 @@
 # D-042 kickoff packet (inputs only)
 
-DIRECTIVE context: D-082 Lane I, refreshed by D-086 then D-087.
+DIRECTIVE context: D-082 Lane I, refreshed by D-086 / D-087 / D-089.
 
 ```
 D042_KICKOFF_PACKET_READY = YES
 D042_KICKOFF_PACKET_D087_ALIGNED = YES
 D_042_EXECUTION_GATE = CLOSED
 D042_IMPLEMENTATION = NOT_STARTED
+D049_STATE = CERTIFIED — MERGE ELIGIBLE
 ```
 
 This file is **not** a D-042 implementation, PREP coding package, or
