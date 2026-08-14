@@ -1,0 +1,90 @@
+{
+  "cases": [
+    {
+      "candidate_id": "project-bca3d773bdcb465e",
+      "category": "AMBIGUOUS_MATCHES",
+      "conflicting_evidence": [
+        {
+          "detail": "explicit project_uuid is invalid UUIDv4; not treated as absent",
+          "kind": "invalid_project_uuid",
+          "weight": "invalid"
+        },
+        {
+          "detail": "marker id alpha has invalid uuid while governed uuid is present for that id",
+          "kind": "same_id_invalid_uuid",
+          "weight": "conflict"
+        }
+      ],
+      "false_exact": false,
+      "label": "invalid_uuid",
+      "marker_status": "ok",
+      "match_state": "CONFLICTING",
+      "pass": true,
+      "path": "/tmp/d064-corrupt-exxbykyt/estate/corrupt-invalid-uuid",
+      "required_review": true,
+      "uuid_status": "invalid",
+      "why_matched": [
+        "classified as CONFLICTING"
+      ]
+    },
+    {
+      "candidate_id": "project-2a8b47a1413a59f6",
+      "category": "AMBIGUOUS_MATCHES",
+      "conflicting_evidence": [
+        {
+          "detail": "project marker is invalid; refusing healthy EXACT",
+          "kind": "marker_invalid",
+          "weight": "invalid"
+        }
+      ],
+      "false_exact": false,
+      "label": "malformed_yaml",
+      "marker_status": "invalid",
+      "match_state": "CONFLICTING",
+      "pass": true,
+      "path": "/tmp/d064-corrupt-exxbykyt/estate/corrupt-malformed-yaml",
+      "required_review": true,
+      "uuid_status": "absent",
+      "why_matched": [
+        "classified as CONFLICTING"
+      ]
+    },
+    {
+      "candidate_id": "project-848e7a6e3b83c755",
+      "category": "AMBIGUOUS_MATCHES",
+      "conflicting_evidence": [
+        {
+          "detail": "project marker is unreadable; refusing healthy EXACT",
+          "kind": "marker_unreadable",
+          "weight": "invalid"
+        }
+      ],
+      "false_exact": false,
+      "label": "binary_nul_marker",
+      "marker_status": "unreadable",
+      "match_state": "CONFLICTING",
+      "pass": true,
+      "path": "/tmp/d064-corrupt-exxbykyt/estate/corrupt-binary-nul",
+      "required_review": true,
+      "uuid_status": "absent",
+      "why_matched": [
+        "classified as CONFLICTING"
+      ]
+    }
+  ],
+  "counters": {
+    "CORRUPT_IDENTITY_FALSE_MATCH": 0
+  },
+  "exact_anywhere": [],
+  "missing_candidates": [],
+  "package_id": "AS-CODER-ALPHA-KNOWLEDGE-ESTATE-DISCOVERY-001",
+  "pass": true,
+  "report_counts": {
+    "connected": 0,
+    "ignored": 3,
+    "knowledge": 0,
+    "projects": 3,
+    "required_review": 3
+  },
+  "schema": "d064-overnight-corrupt-input-v1"
+}

@@ -1,0 +1,138 @@
+{
+  "aggregate": {
+    "all_scans_recorded": true,
+    "no_node_modules_project_candidates": true,
+    "truncation_honesty_pass": true
+  },
+  "authenticity": "SYNTHETIC_SCALE_TREES",
+  "base": "/tmp/d064-scale",
+  "honesty": {
+    "SYNTHETIC_NE_AUTHENTIC": true,
+    "TRUNCATION_MUST_BE_EXPLICIT": true
+  },
+  "label": "D064_OVERNIGHT_SCALE_DOGFOOD",
+  "sizes": [
+    {
+      "KNOWLEDGE_CANDIDATES": 0,
+      "PROJECT_CANDIDATES": 3,
+      "SCAN_COMPLETE": true,
+      "SCAN_SECONDS": 0.016437,
+      "TOTAL_DIRECTORIES": 100,
+      "TRUNCATION": {
+        "dirs_visited": 77,
+        "knowledge_limit_reached": false,
+        "max_project_candidates": 500,
+        "project_limit_reached": false,
+        "truncation_reason": null
+      },
+      "false_node_modules_projects": [],
+      "label": "SMALL",
+      "planted_real_projects": 3,
+      "project_names": [
+        "real-proj-000",
+        "real-proj-001",
+        "real-proj-002"
+      ],
+      "root": "/tmp/d064-scale/small",
+      "target_dirs": 100
+    },
+    {
+      "KNOWLEDGE_CANDIDATES": 0,
+      "PROJECT_CANDIDATES": 8,
+      "SCAN_COMPLETE": true,
+      "SCAN_SECONDS": 0.155734,
+      "TOTAL_DIRECTORIES": 1000,
+      "TRUNCATION": {
+        "dirs_visited": 825,
+        "knowledge_limit_reached": false,
+        "max_project_candidates": 500,
+        "project_limit_reached": false,
+        "truncation_reason": null
+      },
+      "false_node_modules_projects": [],
+      "label": "MEDIUM",
+      "planted_real_projects": 8,
+      "project_names": [
+        "real-proj-000",
+        "real-proj-001",
+        "real-proj-002",
+        "real-proj-003",
+        "real-proj-004",
+        "real-proj-005",
+        "real-proj-006",
+        "real-proj-007"
+      ],
+      "root": "/tmp/d064-scale/medium",
+      "target_dirs": 1000
+    },
+    {
+      "KNOWLEDGE_CANDIDATES": 0,
+      "PROJECT_CANDIDATES": 15,
+      "SCAN_COMPLETE": true,
+      "SCAN_SECONDS": 0.723242,
+      "TOTAL_DIRECTORIES": 5000,
+      "TRUNCATION": {
+        "dirs_visited": 4125,
+        "knowledge_limit_reached": false,
+        "max_project_candidates": 500,
+        "project_limit_reached": false,
+        "truncation_reason": null
+      },
+      "false_node_modules_projects": [],
+      "label": "LARGE",
+      "planted_real_projects": 15,
+      "project_names": [
+        "real-proj-000",
+        "real-proj-001",
+        "real-proj-002",
+        "real-proj-003",
+        "real-proj-004",
+        "real-proj-005",
+        "real-proj-006",
+        "real-proj-007",
+        "real-proj-008",
+        "real-proj-009",
+        "real-proj-010",
+        "real-proj-011",
+        "real-proj-012",
+        "real-proj-013",
+        "real-proj-014"
+      ],
+      "root": "/tmp/d064-scale/large",
+      "target_dirs": 5000
+    }
+  ],
+  "truncation_honesty": {
+    "KNOWLEDGE_CANDIDATES": 0,
+    "PROJECT_CANDIDATES": 5,
+    "SCAN_COMPLETE": false,
+    "SCAN_SECONDS": 0.007403,
+    "TOTAL_DIRECTORIES": 48,
+    "TRUNCATION": {
+      "dirs_visited": 37,
+      "knowledge_limit_reached": false,
+      "max_project_candidates": 5,
+      "project_limit_reached": true,
+      "truncation_reason": "project_limit_reached"
+    },
+    "expect": {
+      "PROJECT_CANDIDATES": 5,
+      "SCAN_COMPLETE": false,
+      "max_project_candidates": 5,
+      "truncation_reason": "project_limit_reached"
+    },
+    "false_node_modules_projects": [],
+    "label": "TRUNCATION_MAX5",
+    "pass": true,
+    "planted_real_projects": 12,
+    "project_names": [
+      "trunc-proj-00",
+      "trunc-proj-01",
+      "trunc-proj-02",
+      "trunc-proj-03",
+      "trunc-proj-04"
+    ],
+    "root": "/tmp/d064-scale/truncation",
+    "target_dirs": 48
+  }
+}

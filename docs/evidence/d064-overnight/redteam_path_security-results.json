@@ -1,0 +1,52 @@
+{
+  "checks": {
+    "atlas_vault_ignored": {
+      "dir_ignored": true,
+      "fake_not_candidate": true
+    },
+    "discover_refuse_filesystem_root": "PASS",
+    "discover_refuse_home": "PASS",
+    "ignore_reasons_sample": {
+      "/tmp/d064-path-xlbttyyw/estate/.atlas-vault": "ignore_policy:.atlas-vault",
+      "/tmp/d064-path-xlbttyyw/estate/escape-link": "symlink_or_reparse_escape",
+      "/tmp/d064-path-xlbttyyw/estate/good-project/.git": "ignore_policy:.git",
+      "/tmp/d064-path-xlbttyyw/estate/good-project/node_modules": "ignore_policy:node_modules"
+    },
+    "nested_git_internals_ignored": true,
+    "node_modules_fake_ignored": true,
+    "refuse_filesystem_root": {
+      "error": "refusing filesystem root as authorized discovery root: /",
+      "result": "PASS"
+    },
+    "refuse_home": {
+      "error": "refusing home directory as authorized discovery root: /home/ubuntu",
+      "result": "PASS"
+    },
+    "symlink_escape": {
+      "allowed": 0,
+      "detected": 1,
+      "escape_ignored": true,
+      "outside_as_candidate": false,
+      "outside_secret_in_report": false
+    },
+    "symlink_loop": {
+      "completed": true,
+      "dirs_visited": 3,
+      "elapsed_s": 0.0008870909950928763,
+      "hung": false,
+      "result": "PASS",
+      "timeout_s": 5.0,
+      "unsafe_detected": 2
+    }
+  },
+  "findings": [],
+  "frozen_tip": "9c71cc2",
+  "hard_counters": {
+    "HOME_DIRECTORY_SILENT_SCAN": 0,
+    "UNSAFE_PATH_ESCAPES_ALLOWED": 0,
+    "WHOLE_DISK_SCAN": 0
+  },
+  "high_findings": 0,
+  "script": "redteam_path_security.py",
+  "status": "PASS"
+}

@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 const PROD_LINKS = [
   { to: "/", label: "Home", end: true },
   { to: "/projects", label: "Projects" },
+  { to: "/discovery", label: "Discovery" },
   { to: "/knowledge", label: "Knowledge" },
   { to: "/time-machine", label: "Time Machine" },
   { to: "/graph", label: "Graph" },

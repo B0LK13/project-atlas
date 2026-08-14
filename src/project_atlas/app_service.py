@@ -23,6 +23,7 @@ from project_atlas.web_api import (
     list_knowledge_answers,
     list_project_conflicts,
     list_projects,
+    load_estate_discovery_view,
     read_project_brief,
     read_status,
     read_vault_health,
@@ -60,6 +61,10 @@ class AppService:
 
     def projects(self) -> list[dict[str, Any]]:
         return [dict(row) for row in list_projects(self.vault)]
+
+    def estate_discovery(self) -> dict[str, Any]:
+        """D-049 read-only estate discovery projection (never invents roots)."""
+        return load_estate_discovery_view(self.vault)
 
     def knowledge(self, project_id: str | None = None) -> list[dict[str, Any]]:
         rows = [dict(row) for row in list_knowledge_answers(self.vault)]
