@@ -1,11 +1,10 @@
 # D-042 kickoff packet (inputs only)
 
-DIRECTIVE context: D-082 Lane I, refreshed by
-`D-PROJECT-ATLAS-CLOUD-D084-D086-CONDITIONAL-INTEGRATION-READINESS` Lane I
+DIRECTIVE context: D-082 Lane I, refreshed by D-086 then D-087.
 
 ```
 D042_KICKOFF_PACKET_READY = YES
-D042_KICKOFF_PACKET_D084_ALIGNED = YES
+D042_KICKOFF_PACKET_D087_ALIGNED = YES
 D_042_EXECUTION_GATE = CLOSED
 D042_IMPLEMENTATION = NOT_STARTED
 ```
@@ -21,18 +20,19 @@ D-042 may open only after D-086 Lane H’s three conditions exist
 ## Future accepted main (conditional)
 
 When Lane H fires, the accepted main is the **merge commit** of #351 onto
-then-current `main`, not `2fcf818` itself (merge commit ≠ production freeze).
+then-current `main`, not `b2b5d9b` itself (merge commit ≠ production freeze).
 
-Until then, the production candidate remains:
-
-```
-AUTHORIZED_PRODUCTION_HEAD = 2fcf8186d4a2c6d4209cee82b6d6f076e2119589
-AUTHORIZED_PRODUCTION_TREE = 4148e9a63de0089736bea1c0b2631dd1e4fe72e5
-```
-
-Superseded historical candidate (do not Local-validate, do not merge alone):
+Until then, the production candidate remains the D-087 freeze:
 
 ```
+AUTHORIZED_PRODUCTION_HEAD = b2b5d9b9fc7e4d3aff69fea3e1a90d9c950b0b78
+AUTHORIZED_PRODUCTION_TREE = 14318297c5fbf40b4fff054ad27126ee4c89db7f
+```
+
+Historical candidates (do not Local-validate, do not merge alone):
+
+```
+D084_PRODUCTION_FREEZE = 2fcf8186d4a2c6d4209cee82b6d6f076e2119589
 D080_PRODUCTION_FREEZE = 99aa937b3718cf0432bb688dbfa074daade7c049
 ```
 

@@ -5,6 +5,58 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-087 — In-memory path index for first authentic discovery
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-D087-PATH-INDEX-PERFORMANCE
+**PR:** #351 (do not merge)
+
+### Freeze
+
+```
+D087_HEAD = b2b5d9b9fc7e4d3aff69fea3e1a90d9c950b0b78
+D087_TREE = 14318297c5fbf40b4fff054ad27126ee4c89db7f
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D087_FREEZE = 0
+```
+
+### Profile
+
+```
+HYPOTHESIS_A_KNOWLEDGE_ANCESTRY = CONFIRMED
+DOMINANT_PHASE (post-index synthetic) = filesystem_traversal
+IN_MEMORY_PATH_INDEX = IMPLEMENTED
+RESOLVED_PATH_REUSE = IMPLEMENTED
+SCANDIR_METADATA_REUSE = NOT_NEEDED
+CACHE_RECORDING_OPTIMIZATION = NOT_NEEDED
+```
+
+Cloud IV ancestry loop (K=1001, P=500, different estate than unit tests):
+
+```
+PATH_RESOLVE_CALLS_BEFORE = 775804
+PATH_RESOLVE_CALLS_AFTER = 0
+ANCESTRY_CHECKS_BEFORE = 387426
+ANCESTRY_CHECKS_AFTER = 2901
+CLOUD_BENCH_SPEEDUP = 8039.7
+PROJECT_SELECTION_SEMANTIC_DRIFT = 0
+KNOWLEDGE_RELATION_SEMANTIC_DRIFT = 0
+CLOUD_IV = PASS
+```
+
+### Local gates (Cloud)
+
+```
+focused D-049..D-087 + connect + source identity   PASS (1 skip, pre-existing)
+Control Plane   PASS (one lock flake, passed on retry; GH ci/control-plane success)
+ruff            PASS
+mypy            PASS
+web tsc -b && build PASS
+```
+
+### Next
+
+`LOCAL VALIDATE EXACT D087 FREEZE AGAINST AUTHENTIC D:\.`
+
 ## D-086 — D-084 conditional integration readiness (no production mutation)
 
 **Date:** 2026-08-14
