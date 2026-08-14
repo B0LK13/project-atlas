@@ -20,12 +20,7 @@ export default function TimeMachinePage() {
   const { status, loading: statusLoading } = useReadStatus();
   const projects = status?.projects ?? [];
   const projectParam = params.get("project");
-  const projectId =
-    projectParam ??
-    (projects.find((project) => project.project_id === TIME_MACHINE_PROJECT)
-      ?.project_id ??
-      projects[0]?.project_id ??
-      TIME_MACHINE_PROJECT);
+  const projectId = projectParam ?? TIME_MACHINE_PROJECT;
   const t1 = params.get("from") ?? TIME_MACHINE_T1;
   const t2 = params.get("to") ?? TIME_MACHINE_T2;
   const {

@@ -133,13 +133,21 @@ export function useLiveTimeMachine(
                 `/v1/kdiff?project=${project}&from=${from}&to=${to}`,
               ),
             ]);
-          if (
-            conflictsResp.ok &&
-            asOfT1Resp.ok &&
-            asOfT2Resp.ok &&
-            diffResp.ok
-          ) {
-            const conflictsBody = (await conflictsResp.json()) as ConflictsResponse;
+          if (!conflictsResp.ok || !asOfT1Resp.ok || !asOfT2Resp.ok || !diffResp.ok) {
+            if (!cancelled) {
+              setError(
+                `time-machine HTTP ${conflictsResp.status}/${asOfT1Resp.status}/` +
+                  `${asOfT2Resp.status}/${diffResp.status}`,
+              );
+              setConflicts([]);
+              setAsOfT1Cells([]);
+              setAsOfT2Cells([]);
+              setDiff(EMPTY_DIFF);
+              setDataSource(null);
+            }
+            return;
+          }
+          const conflictsBody = (await conflictsResp.json()) as ConflictsResponse;
             const asOfT1Body = (await asOfT1Resp.json()) as AsOfResponse;
             const asOfT2Body = (await asOfT2Resp.json()) as AsOfResponse;
             const diffBody = (await diffResp.json()) as DiffResponse;
@@ -170,7 +178,6 @@ export function useLiveTimeMachine(
               setError(null);
             }
             return;
-          }
         } catch (err: unknown) {
           if (err instanceof LiveApiAuthError) {
             if (!cancelled) {
@@ -183,7 +190,15 @@ export function useLiveTimeMachine(
             }
             return;
           }
-          // network / other: fall through to isolated demo empty
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "time machine load failed");
+            setConflicts([]);
+            setAsOfT1Cells([]);
+            setAsOfT2Cells([]);
+            setDiff(EMPTY_DIFF);
+            setDataSource(null);
+          }
+          return;
         }
       }
       if (!cancelled) {
@@ -191,8 +206,12 @@ export function useLiveTimeMachine(
         setAsOfT1Cells([]);
         setAsOfT2Cells([]);
         setDiff(EMPTY_DIFF);
-        setDataSource("demo_stub");
-        setError(null);
+        setDataSource(liveApiDemoOnly() ? "demo_stub" : null);
+        setError(
+          liveApiDemoOnly() || !projectId
+            ? null
+            : "LIVE_API unavailable — no invented Time Machine rows",
+        );
       }
     }
 
