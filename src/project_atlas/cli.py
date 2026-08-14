@@ -193,6 +193,11 @@ from project_atlas.project_decisions import (
     ProjectDecisionsError,
     materialize_decisions_lenses,
 )
+from project_atlas.project_roadmap import (
+    ProjectRoadmapError,
+    materialize_roadmap_lenses,
+    render_roadmap_text,
+)
 from project_atlas.project_state import ProjectStateError, materialize_state_lenses
 from project_atlas.project_unknown import ProjectUnknownError, materialize_unknown_lenses
 from project_atlas.provider_adapters import (
@@ -284,6 +289,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
     if getattr(args, "vault", None) is None and getattr(args, "command", None) in {
         "overview",
         "state",
+        "roadmap",
         "changed",
         "decisions",
         "unknown",
@@ -320,6 +326,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
     if getattr(args, "command", None) in {
         "overview",
         "state",
+        "roadmap",
         "changed",
         "decisions",
         "unknown",
@@ -661,6 +668,33 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the state receipt JSON to stdout (sorted keys).",
+    )
+
+    roadmap_parser = subparsers.add_parser(
+        "roadmap",
+        help=(
+            "Materialize Living Project Roadmap V1 derived lenses "
+            "(AS-PROJECT-ROADMAP-001; ROADMAP!=canonical)."
+        ),
+    )
+    roadmap_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help="Vault directory (default: .atlas/connect.json bind / .atlas-vault).",
+    )
+    roadmap_parser.add_argument(
+        "--project",
+        action="append",
+        dest="projects",
+        default=None,
+        help="Limit to one project id (repeatable). Default: all projects/.",
+    )
+    roadmap_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the roadmap receipt JSON to stdout (sorted keys).",
     )
 
     changed_parser = subparsers.add_parser(
@@ -2478,6 +2512,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('rollup')}/{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "roadmap":
+        try:
+            report = materialize_roadmap_lenses(
+                args.vault,
+                project_ids=args.projects,
+            )
+        except (ProjectRoadmapError, OSError) as exc:
+            _log.error("roadmap failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas roadmap [{report.get('status', 'ok')}]")
+            print(f"  vault:    {report.get('vault')}")
+            print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
+            for lens in report.get("lenses") or []:
+                print(render_roadmap_text(lens))
         return EXIT_OK
 
     if args.command == "changed":

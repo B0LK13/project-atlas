@@ -5,6 +5,19 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-PROJECT-ROADMAP-001 — Living Project Roadmap V1
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D094-AND-OVERNIGHT-AUTONOMOUS-DEVELOPMENT-001
+**Branch:** `cursor/as-project-roadmap-001-6f85` (from accepted main `c282f2c`)
+**Not #353.** No merge authorization.
+
+Derived roadmap model + CLI + GET `/v1/roadmap` + Web `#/roadmap`.
+Agent-context integration deferred (D-042 `agent_handoff.py` overlap).
+Incremental connect measured and left `DORMANT_NO_MATERIAL_VALUE`.
+
+---
+
 ## D-089 — D-049 final pre-merge reconciliation
 
 **Date:** 2026-08-14

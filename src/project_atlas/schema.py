@@ -212,6 +212,8 @@ SCHEMA_FILES: dict[str, str] = {
     "sync-production-plan": "sync-production-plan.schema.json",
     # AS-2.0-TWIN-001 — production twin projection under final-cert fixture waiver
     "twin-production-projection": "twin-production-projection.schema.json",
+    # AS-PROJECT-ROADMAP-001 — derived Living Project Roadmap V1 (≠ canonical)
+    "project-roadmap": "project-roadmap.schema.json",
 }
 
 

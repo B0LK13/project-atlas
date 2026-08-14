@@ -98,6 +98,7 @@ def test_all_expected_schemas_available() -> None:
         "ops-report",
         "opt-experiment-receipt",
         "parser-output",
+        "project-roadmap",
         "provenance-reference",
         "provider-adapter-registry",
         "provider-quarantine-envelope",
