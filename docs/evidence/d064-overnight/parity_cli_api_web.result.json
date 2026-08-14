@@ -1,25 +1,25 @@
 {
   "api_candidate_ids": [
-    "obsidian_vault-cfaff79cafe81664",
-    "project-21b890e1f7571e19",
-    "project-bfbfcb087c61d950"
+    "obsidian_vault-4ecdadc451e40883",
+    "project-14e02a98ccd4a095",
+    "project-fad6b15da44c7848"
   ],
   "api_match_state_counts": {
     "EXACT": 1,
     "UNMATCHED": 2
   },
   "cli_candidate_ids": [
-    "obsidian_vault-cfaff79cafe81664",
-    "project-21b890e1f7571e19",
-    "project-bfbfcb087c61d950"
+    "obsidian_vault-4ecdadc451e40883",
+    "project-14e02a98ccd4a095",
+    "project-fad6b15da44c7848"
   ],
   "cli_match_state_counts": {
     "EXACT": 1,
     "UNMATCHED": 2
   },
   "connected_sample": {
-    "project-bfbfcb087c61d950": {
-      "candidate_id": "project-bfbfcb087c61d950",
+    "project-14e02a98ccd4a095": {
+      "candidate_id": "project-14e02a98ccd4a095",
       "category": "CONNECTED",
       "conflicting_evidence": [],
       "match_state": "EXACT",
@@ -64,13 +64,13 @@
     }
   },
   "fixture": {
-    "authorized_root": "/tmp/d064-parity-xk2rknk0/estate",
+    "authorized_root": "/tmp/d064-parity-td9a9cmo/estate",
     "expected": {
       "connected_project": "alpha",
       "obsidian": "personal-notes",
       "unmatched_project": "lonely-tool"
     },
-    "vault": "/tmp/d064-parity-xk2rknk0/vault"
+    "vault": "/tmp/d064-parity-td9a9cmo/vault"
   },
   "package_id": "AS-CODER-ALPHA-KNOWLEDGE-ESTATE-DISCOVERY-001",
   "pass": true,
@@ -109,9 +109,9 @@
   "semantic_drifts": [],
   "ui_reclassification_events": [],
   "view_candidate_ids": [
-    "obsidian_vault-cfaff79cafe81664",
-    "project-21b890e1f7571e19",
-    "project-bfbfcb087c61d950"
+    "obsidian_vault-4ecdadc451e40883",
+    "project-14e02a98ccd4a095",
+    "project-fad6b15da44c7848"
   ],
   "view_match_state_counts": {
     "EXACT": 1,

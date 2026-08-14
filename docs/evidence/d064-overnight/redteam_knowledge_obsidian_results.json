@@ -60,7 +60,7 @@
     "scan_complete": true,
     "truncation_reason": null
   },
-  "scan_seconds": 0.005746,
+  "scan_seconds": 0.00492,
   "scenarios": {
     "nested_research_under_project": {
       "expect": "KNOWLEDGE_PROJECT_MATCHED",
