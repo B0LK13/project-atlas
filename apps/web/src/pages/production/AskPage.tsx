@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ProdShell } from "../../components/ProdShell";
 import { useLiveAsk } from "../../hooks/useLiveAsk";
 
@@ -116,6 +116,22 @@ export default function AskPage() {
                       <span>
                         {project.path ?? project.title ?? project.name ?? ""}
                       </span>
+                      {project.project_id ? (
+                        <span className="flags" style={{ marginTop: "0.5rem" }}>
+                          <Link
+                            className="chip"
+                            to={`/knowledge?project=${encodeURIComponent(project.project_id)}`}
+                          >
+                            knowledge
+                          </Link>
+                          <Link
+                            className="chip"
+                            to={`/time-machine?project=${encodeURIComponent(project.project_id)}`}
+                          >
+                            time machine
+                          </Link>
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
