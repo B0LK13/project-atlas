@@ -24,6 +24,7 @@ def test_ask_route_and_nav_exist() -> None:
     knowledge = KNOWLEDGE.read_text(encoding="utf-8")
     assert "/ask" in knowledge
     assert "ask (≠ authority)" in knowledge
+    assert "/time-machine?project=" in knowledge
 
 
 def test_hook_uses_read_only_encoded_query() -> None:
