@@ -64,11 +64,15 @@ export interface EstateDiscoveryView {
     permission_errors?: unknown[];
     candidate_selection_policy?: string | null;
     project_candidates_seen?: number | null;
+    project_candidates_preselected?: number | null;
+    project_candidates_enriched?: number | null;
     project_candidates_emitted?: number | null;
     project_candidates_suppressed?: number | null;
     knowledge_candidates_seen?: number | null;
     knowledge_candidates_emitted?: number | null;
     knowledge_candidates_suppressed?: number | null;
+    region_candidate_counts?: Record<string, number> | null;
+    region_emitted_counts?: Record<string, number> | null;
   };
   categories: Record<DiscoveryCategoryKey, DiscoveryCandidateRow[]>;
   primary_question?: string;

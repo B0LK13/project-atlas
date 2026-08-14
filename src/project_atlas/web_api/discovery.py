@@ -112,6 +112,10 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
             "permission_errors": list(scan.get("permission_errors") or []),
             "candidate_selection_policy": scan.get("candidate_selection_policy"),
             "project_candidates_seen": scan.get("project_candidates_seen"),
+            "project_candidates_preselected": scan.get(
+                "project_candidates_preselected"
+            ),
+            "project_candidates_enriched": scan.get("project_candidates_enriched"),
             "project_candidates_emitted": scan.get("project_candidates_emitted"),
             "project_candidates_suppressed": scan.get(
                 "project_candidates_suppressed"
@@ -121,6 +125,8 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
             "knowledge_candidates_suppressed": scan.get(
                 "knowledge_candidates_suppressed"
             ),
+            "region_candidate_counts": scan.get("region_candidate_counts"),
+            "region_emitted_counts": scan.get("region_emitted_counts"),
         },
         "categories": merged,
         "primary_question": "What did Atlas find that I should care about?",

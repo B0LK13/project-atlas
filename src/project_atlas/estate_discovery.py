@@ -159,8 +159,11 @@ KNOWLEDGE_DIR_SIGNALS = frozenset(
 DEFAULT_MAX_DEPTH = 8
 DEFAULT_MAX_PROJECT_CANDIDATES = 500
 DEFAULT_MAX_KNOWLEDGE_CANDIDATES = 500
-CANDIDATE_SELECTION_POLICY = "deterministic_bounded_v1"
+CANDIDATE_SELECTION_POLICY = "deterministic_hierarchical_fair_v2"
 MAX_FAMILY_REPRESENTATIVES = 2
+# Cheap preselection budget: enrich at most emit_limit * multiplier
+# sightings, not every project sighting (D-084-C). Not a per-folder quota.
+PRESELECT_MULTIPLIER = 3
 
 
 class EstateDiscoveryError(ValueError):
@@ -775,6 +778,23 @@ def _score_project_signals(
     if any(n.casefold().startswith("docker-compose") for n in names):
         signals.append("docker_compose")
     return signals
+
+
+def _git_boundary_kind(directory: Path, names: set[str]) -> str:
+    """Own repository or worktree boundary from directory entries only."""
+    if ".git" not in names:
+        return "none"
+    git = directory / ".git"
+    if _is_reparse_or_symlink(git):
+        return "none"
+    try:
+        if git.is_dir():
+            return "repo"
+        if git.is_file():
+            return "worktree"
+    except OSError:
+        return "none"
+    return "none"
 
 
 def _is_project_candidate(signals: Sequence[str]) -> bool:
@@ -1483,6 +1503,13 @@ def _estate_region(path: Path, root: Path) -> str:
     return str(parts[0])
 
 
+def _region_counts(sightings: Sequence[ProjectSighting]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in sightings:
+        counts[item.region] = counts.get(item.region, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def _parent_path_key(path: Path) -> str:
     return canonical_path_key(path.parent)
 
@@ -1536,7 +1563,7 @@ def _primary_family_key(fingerprint: dict[str, Any], path_key: str) -> str:
 
 @dataclass
 class ProjectSighting:
-    """Compact project evidence gathered during traversal (D-080)."""
+    """Compact project evidence gathered during traversal (D-080 / D-084)."""
 
     path: Path
     path_key: str
@@ -1547,6 +1574,9 @@ class ProjectSighting:
     fingerprint: dict[str, Any]
     family: str
     evidence_weight: int
+    has_independent_boundary: bool = False
+    is_nested_component: bool = False
+    enriched: bool = False
 
 
 @dataclass
@@ -1562,27 +1592,143 @@ class KnowledgeSighting:
     names: set[str]
 
 
+def _is_path_key_ancestor(ancestor: str, descendant: str) -> bool:
+    if ancestor == descendant:
+        return False
+    prefix = ancestor.rstrip("/") + "/"
+    return descendant.startswith(prefix)
+
+
+def _has_boundary_ancestor(path_key: str, boundary_keys: set[str]) -> bool:
+    parts = path_key.split("/")
+    for end in range(len(parts) - 1, 0, -1):
+        prefix = "/".join(parts[:end])
+        if prefix in boundary_keys:
+            return True
+    return False
+
+
+def mark_nested_components(sightings: Sequence[ProjectSighting]) -> None:
+    """Non-independent descendants of a bounded ancestor are nested components.
+
+    ANCESTOR_AWARE_SELECTION != SILENT_IDENTITY_MERGE. Independent nested
+    repositories remain separately eligible.
+    """
+    boundary_keys = {
+        item.path_key for item in sightings if item.has_independent_boundary
+    }
+    for item in sightings:
+        if item.has_independent_boundary:
+            item.is_nested_component = False
+            continue
+        item.is_nested_component = _has_boundary_ancestor(item.path_key, boundary_keys)
+
+
 def assign_project_families(sightings: Sequence[ProjectSighting]) -> None:
-    """Family grouping for output diversity. Never an identity merge."""
+    """Family grouping for output diversity. Never an identity merge.
+
+    Parent-cluster collapse runs only after enrichment. Cheap preselection
+    must not treat sibling projects as one family just because remotes and
+    package names have not been read yet.
+    """
     parent_counts: dict[str, int] = {}
     for item in sightings:
         parent_counts[item.parent_key] = parent_counts.get(item.parent_key, 0) + 1
     for item in sightings:
         item.family = _primary_family_key(item.fingerprint, item.path_key)
-        if item.family.startswith("path:") and parent_counts.get(item.parent_key, 0) >= 3:
+        if (
+            item.enriched
+            and item.family.startswith("path:")
+            and parent_counts.get(item.parent_key, 0) >= 3
+        ):
             item.family = f"parent:{item.parent_key}"
 
 
-def _project_rank_key(item: ProjectSighting) -> tuple[int, int, str]:
-    return (-item.evidence_weight, item.depth, item.path_key)
+def _project_rank_key(item: ProjectSighting) -> tuple[int, int, int, str]:
+    nested = 1 if item.is_nested_component else 0
+    return (nested, -item.evidence_weight, item.depth, item.path_key)
+
+
+def hierarchical_preselect_budget(seen: int, emit_limit: int) -> int:
+    """Bounded shortlist size. Scales with emit cap, not all sightings."""
+    if emit_limit <= 0 or seen <= 0:
+        return 0
+    if seen <= emit_limit:
+        return seen
+    return min(seen, emit_limit * PRESELECT_MULTIPLIER)
+
+
+def _cheap_project_sighting(
+    directory: Path,
+    *,
+    path_key: str,
+    depth: int,
+    root: Path,
+    signals: Sequence[str],
+    names: set[str],
+) -> ProjectSighting:
+    git_kind = _git_boundary_kind(directory, names)
+    has_boundary = git_kind != "none" or "atlas_project_marker" in signals
+    fingerprint: dict[str, Any] = {
+        "canonical_path": directory.as_posix(),
+        "path_key": path_key,
+        "directory_name": directory.name,
+        "git_boundary": git_kind,
+        "atlas_marker_present": "atlas_project_marker" in signals,
+    }
+    return ProjectSighting(
+        path=directory,
+        path_key=path_key,
+        depth=depth,
+        region=_estate_region(directory, root),
+        parent_key=_parent_path_key(directory),
+        signals=list(signals),
+        fingerprint=fingerprint,
+        family=_primary_family_key(fingerprint, path_key),
+        evidence_weight=project_evidence_weight(
+            signals,
+            has_remote=False,
+            marker_status="absent",
+            uuid_status="absent",
+        ),
+        has_independent_boundary=has_boundary,
+    )
+
+
+def enrich_project_sighting(item: ProjectSighting) -> None:
+    """Expensive fingerprint / identity reads. Call only on a bounded shortlist."""
+    fingerprint = _build_fingerprint(item.path, item.signals)
+    git_kind = str(item.fingerprint.get("git_boundary") or "none")
+    fingerprint["git_boundary"] = git_kind
+    fingerprint["atlas_marker_present"] = "atlas_project_marker" in item.signals
+    item.fingerprint = fingerprint
+    item.evidence_weight = project_evidence_weight(
+        item.signals,
+        has_remote=bool(fingerprint.get("git_remote")),
+        marker_status=str(fingerprint.get("marker_status") or "absent"),
+        uuid_status=str(fingerprint.get("uuid_status") or "absent"),
+    )
+    if (
+        git_kind != "none"
+        or _valid_id_token(fingerprint.get("atlas_project_uuid"))
+        or _valid_id_token(fingerprint.get("atlas_project_id"))
+    ):
+        item.has_independent_boundary = True
+    item.enriched = True
 
 
 def select_bounded_project_sightings(
     sightings: Sequence[ProjectSighting],
     limit: int,
 ) -> tuple[list[ProjectSighting], list[ProjectSighting]]:
-    """Deterministic bounded selection. Traversal order is not authority."""
+    """Deterministic hierarchical-fair selection (D-084).
+
+    REGION → family/boundary → evidence rank → path tie-break.
+    Traversal order is not authority. One region cannot consume consecutive
+    output slots while other regions still have eligible candidates.
+    """
     assign_project_families(sightings)
+    mark_nested_components(sightings)
     by_path = sorted(sightings, key=lambda item: (item.path_key, item.path.as_posix()))
     if limit <= 0:
         return [], list(by_path)
@@ -1592,49 +1738,76 @@ def select_bounded_project_sightings(
     selected: list[ProjectSighting] = []
     selected_keys: set[str] = set()
     family_counts: dict[str, int] = {}
-    by_region: dict[str, list[ProjectSighting]] = {}
-    for item in sightings:
-        by_region.setdefault(item.region, []).append(item)
-    for region in sorted(by_region):
-        for item in sorted(by_region[region], key=_project_rank_key):
-            if item.path_key in selected_keys:
-                continue
-            selected.append(item)
-            selected_keys.add(item.path_key)
-            family_counts[item.family] = family_counts.get(item.family, 0) + 1
-            break
-        if len(selected) >= limit:
-            break
 
-    for item in sorted(sightings, key=_project_rank_key):
-        if len(selected) >= limit:
-            break
+    def _eligible(
+        item: ProjectSighting,
+        *,
+        allow_nested: bool,
+        unused_family_only: bool,
+        relax_family: bool,
+    ) -> bool:
         if item.path_key in selected_keys:
-            continue
-        if family_counts.get(item.family, 0) >= MAX_FAMILY_REPRESENTATIVES:
-            continue
-        selected.append(item)
-        selected_keys.add(item.path_key)
-        family_counts[item.family] = family_counts.get(item.family, 0) + 1
+            return False
+        if item.is_nested_component and not allow_nested:
+            return False
+        count = family_counts.get(item.family, 0)
+        if unused_family_only and count != 0:
+            return False
+        return relax_family or count < MAX_FAMILY_REPRESENTATIVES
 
-    if len(selected) < limit:
-        remaining_families = {
-            item.family
-            for item in sightings
-            if item.path_key not in selected_keys
-            and family_counts.get(item.family, 0) == 0
-        }
-        for item in sorted(sightings, key=_project_rank_key):
-            if len(selected) >= limit:
-                break
-            if item.path_key in selected_keys:
-                continue
-            if item.family not in remaining_families:
-                continue
-            selected.append(item)
-            selected_keys.add(item.path_key)
-            family_counts[item.family] = family_counts.get(item.family, 0) + 1
-            remaining_families.discard(item.family)
+    def _round_robin(
+        *,
+        allow_nested: bool,
+        unused_family_only: bool,
+        relax_family: bool,
+    ) -> None:
+        queues: dict[str, list[ProjectSighting]] = {}
+        for item in sightings:
+            if _eligible(
+                item,
+                allow_nested=allow_nested,
+                unused_family_only=unused_family_only,
+                relax_family=relax_family,
+            ):
+                queues.setdefault(item.region, []).append(item)
+        if not queues:
+            return
+        for region in queues:
+            queues[region].sort(key=_project_rank_key)
+        cursors = dict.fromkeys(queues, 0)
+        progressed = True
+        while len(selected) < limit and progressed:
+            progressed = False
+            for region in sorted(queues):
+                if len(selected) >= limit:
+                    break
+                queue = queues[region]
+                cursor = cursors[region]
+                while cursor < len(queue):
+                    item = queue[cursor]
+                    cursor += 1
+                    if not _eligible(
+                        item,
+                        allow_nested=allow_nested,
+                        unused_family_only=unused_family_only,
+                        relax_family=relax_family,
+                    ):
+                        continue
+                    selected.append(item)
+                    selected_keys.add(item.path_key)
+                    family_counts[item.family] = family_counts.get(item.family, 0) + 1
+                    progressed = True
+                    break
+                cursors[region] = cursor
+
+    # Independent-boundary / non-nested first, then nested components,
+    # then unused families, then leftover capacity (flows to remaining regions).
+    _round_robin(allow_nested=False, unused_family_only=False, relax_family=False)
+    _round_robin(allow_nested=True, unused_family_only=False, relax_family=False)
+    _round_robin(allow_nested=True, unused_family_only=True, relax_family=False)
+    # Unused capacity may flow to remaining regions, but family diversity
+    # still holds. Filling leftover slots from the same family is monopoly.
+    _round_robin(allow_nested=True, unused_family_only=False, relax_family=False)
 
     selected.sort(key=lambda item: (item.path.as_posix().casefold(), item.path_key))
     suppressed = [item for item in by_path if item.path_key not in selected_keys]
@@ -2049,25 +2222,14 @@ def discover_estate(
                     }
                 )
             else:
-                fingerprint = _build_fingerprint(current, project_signals)
                 project_sightings.append(
-                    ProjectSighting(
-                        path=current_resolved,
+                    _cheap_project_sighting(
+                        current_resolved,
                         path_key=key,
                         depth=depth,
-                        region=_estate_region(current_resolved, root),
-                        parent_key=_parent_path_key(current_resolved),
-                        signals=list(project_signals),
-                        fingerprint=fingerprint,
-                        family=_primary_family_key(fingerprint, key),
-                        evidence_weight=project_evidence_weight(
-                            project_signals,
-                            has_remote=bool(fingerprint.get("git_remote")),
-                            marker_status=str(
-                                fingerprint.get("marker_status") or "absent"
-                            ),
-                            uuid_status=str(fingerprint.get("uuid_status") or "absent"),
-                        ),
+                        root=root,
+                        signals=project_signals,
+                        names=names,
                     )
                 )
 
@@ -2154,9 +2316,21 @@ def discover_estate(
                 continue
             stack.append((child, depth + 1))
 
-    selected_project_sightings, suppressed_project_sightings = (
-        select_bounded_project_sightings(project_sightings, max_project_candidates)
+    preselect_limit = hierarchical_preselect_budget(
+        len(project_sightings), max_project_candidates
     )
+    preselected_project_sightings, _ = select_bounded_project_sightings(
+        project_sightings, preselect_limit
+    )
+    for item in preselected_project_sightings:
+        enrich_project_sighting(item)
+    selected_project_sightings, _ = select_bounded_project_sightings(
+        preselected_project_sightings, max_project_candidates
+    )
+    selected_keys = {item.path_key for item in selected_project_sightings}
+    suppressed_project_sightings = [
+        item for item in project_sightings if item.path_key not in selected_keys
+    ]
     project_limit_reached = len(project_sightings) > len(selected_project_sightings)
     projects = [
         _materialize_project_candidate(
@@ -2251,11 +2425,17 @@ def discover_estate(
             "dirs_visited": len(seen_dirs),
             "candidate_selection_policy": CANDIDATE_SELECTION_POLICY,
             "project_candidates_seen": len(project_sightings),
+            "project_candidates_preselected": len(preselected_project_sightings),
+            "project_candidates_enriched": sum(
+                1 for item in project_sightings if item.enriched
+            ),
             "project_candidates_emitted": len(projects),
             "project_candidates_suppressed": len(suppressed_project_sightings),
             "knowledge_candidates_seen": len(knowledge_sightings),
             "knowledge_candidates_emitted": len(knowledge),
             "knowledge_candidates_suppressed": len(suppressed_knowledge_sightings),
+            "region_candidate_counts": _region_counts(project_sightings),
+            "region_emitted_counts": _region_counts(selected_project_sightings),
         },
         "counts": {
             "projects": len(projects),
@@ -2536,6 +2716,13 @@ def format_discovery_human(report: dict[str, Any]) -> str:
                 f"Project candidate output bounded: emitted {emitted} of "
                 f"{seen} seen ({scan.get('candidate_selection_policy')})."
             )
+            preselected = scan.get("project_candidates_preselected")
+            enriched = scan.get("project_candidates_enriched")
+            if isinstance(preselected, int) and isinstance(enriched, int):
+                lines.append(
+                    f"Bounded enrichment: preselected {preselected}, "
+                    f"enriched {enriched} (not every sighting)."
+                )
         reason = scan.get("truncation_reason")
         if isinstance(reason, str) and reason and reason != "max_depth_reached":
             lines.append(f"Truncation: {reason}")
@@ -2595,6 +2782,7 @@ __all__ = [
     "IGNORE_DIR_NAMES",
     "INCREMENTAL_CACHE_RELATIVE",
     "PACKAGE_ID",
+    "PRESELECT_MULTIPLIER",
     "REPORT_RELATIVE",
     "ROOT_MODE_BOUNDED_DIRECTORY",
     "ROOT_MODE_OWNER_AUTHORIZED_VOLUME",
@@ -2606,14 +2794,17 @@ __all__ = [
     "canonical_path_key",
     "connect_discovered_candidate",
     "discover_estate",
+    "enrich_project_sighting",
     "find_candidate",
     "format_discovery_human",
+    "hierarchical_preselect_budget",
     "is_filesystem_root",
     "is_unc_root",
     "is_windows_drive_volume_root",
     "is_windows_system_volume_root",
     "load_discovery_cache",
     "load_vault_project_identities",
+    "mark_nested_components",
     "match_fingerprint",
     "normalize_root_mode",
     "prove_connected",
