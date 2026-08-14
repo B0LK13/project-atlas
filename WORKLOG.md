@@ -5,6 +5,69 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-078 — Owner-authorized Windows non-system volume root
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-DEV-VOLUME-ROOT-078
+**Package:** AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001
+**Branch:** cursor/d049-authorized-volume-root-6f85
+**PR:** #351
+
+### Historical truth (preserved)
+
+```
+TARGET_MAIN = 198350319c17b4de0665f972fda0bc51420cd686
+LOCAL_RUN_A_198350319 = FAIL
+FAILURE_CLASS = DISCOVERY_DEFECT
+FAILURE_REASON = AUTHORIZED_ROOT_REFUSED_FILESYSTEM_ROOT
+AUTHORIZED_ROOT = D:\
+```
+
+Do not rewrite Run A into PASS. Next authentic run is a new run against
+this freeze.
+
+### Production freeze
+
+```
+D078_HEAD = fcaf4f5e152b162a52bfc1c28654ff11acbeb842
+D078_TREE = 119c779f8995ab576a231aaa06a334fb813cd737
+PRODUCTION_SEMANTIC_CHANGES_AFTER_FREEZE = 0
+```
+
+### Change
+
+Explicit `--root-mode {bounded-directory,owner-authorized-volume}`.
+Default unchanged. Windows non-system volume roots require the explicit
+mode. `C:\`, home, UNC, and `/` stay refused. Discovery only — no connect,
+ingest, identity, or owner-file writes.
+
+### Commands and results
+
+```
+.venv/bin/python -m ruff check <D-078 paths>          PASS
+.venv/bin/python -m mypy src/project_atlas/{estate_discovery,cli,web_api/discovery}.py
+                                                      PASS
+pytest D-049/D-063/D-064/D-067/D-078 focused          64 passed
+pytest identity/connect/source-identity               33 passed
+pytest atlas-vault-documentation/tests --no-cov       171 passed
+npx tsc -b && npm run build (apps/web)                PASS
+Independent Cloud IV (7 policy questions)             PASS
+```
+
+### Gates held
+
+```
+CLOUD_IV = PASS
+LOCAL_REVALIDATION_READY = YES
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = FAIL
+D_049_FINAL_ACCEPTANCE = FAIL
+D_042_EXECUTION_GATE = CLOSED
+MERGE_RECOMMENDATION = BLOCKED_PENDING_LOCAL_REVALIDATION
+NEW_SECURITY_HIGH = 0
+NEW_HIGH = 0
+HIGH_OPEN = 0
+```
+
 ## D-063 — D-049 Wave 1 truth hardening (production candidate)
 
 **Date:** 2026-08-13

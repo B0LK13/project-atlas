@@ -377,6 +377,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
 - [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations
-- [ ] AS-CODER-ALPHA-CAPTURE-002 Conversational capture (D-042; GATE CLOSED until D-044 HIGH clear + Local Windows revalidation)
+- [ ] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 explicit owner-authorized Windows non-system volume root (D-078; Cloud implemented on freeze fcaf4f5; Local revalidation required; do not merge until Local PASS)
+- [ ] AS-CODER-ALPHA-CAPTURE-002 Conversational capture (D-042; GATE CLOSED until D-049 authentic estate acceptance)
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
 
