@@ -67,6 +67,7 @@ from project_atlas.doctor import run_doctor
 from project_atlas.doctor import to_dict as doctor_to_dict
 from project_atlas.domain.knowledge_query import KnowledgeQueryErrorCode, QueryShape
 from project_atlas.estate_discovery import (
+    DEFAULT_MAX_DEPTH,
     INCREMENTAL_CACHE_RELATIVE,
     REPORT_RELATIVE,
     EstateDiscoveryError,
@@ -365,6 +366,18 @@ def build_parser() -> argparse.ArgumentParser:
             "Discover sources (FR-002) or scan a bounded knowledge estate (D-049). "
             "Legacy: --source + --output. Estate: --root / review / connect."
         ),
+        epilog=(
+            "Estate mode examples:\n"
+            "  atlas discover --root /authorized/estate --vault /vault\n"
+            "  atlas discover --json --root /authorized/estate\n"
+            "  atlas discover review --root /authorized/estate --vault /vault\n"
+            "When --root is omitted, estate mode scans the current working "
+            "directory (filesystem root and home are refused). Traversal is "
+            f"bounded to max_depth={DEFAULT_MAX_DEPTH}; the bound is not a CLI "
+            "flag. A scan that stops at the bound reports SCAN INCOMPLETE "
+            "instead of claiming exhaustive coverage.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     discover_parser.add_argument(
         "--source",
@@ -382,7 +395,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--root",
         type=Path,
         default=None,
-        help="Authorized root for knowledge estate discovery (D-049). Never home/FS root.",
+        help=(
+            "Authorized root for knowledge estate discovery (D-049). "
+            "When omitted, estate mode uses the current working directory. "
+            f"Traversal stops at max_depth={DEFAULT_MAX_DEPTH} (not a CLI flag). "
+            "Never home or filesystem root."
+        ),
     )
     discover_parser.add_argument(
         "--projects",

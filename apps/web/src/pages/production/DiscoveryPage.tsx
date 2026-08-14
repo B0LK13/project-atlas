@@ -60,10 +60,12 @@ export default function DiscoveryPage() {
         {scanIncomplete ? (
           <p className="banner warn">
             SCAN INCOMPLETE
-            {view?.scan?.truncation_reason
-              ? `: ${view.scan.truncation_reason}`
-              : ""}{" "}
-            — results are partial, not a complete estate inventory.
+            {view?.scan?.depth_limit_reached
+              ? ` — Depth limit reached (max_depth=${String(view.scan.max_depth ?? "?")}). Some files/directories were not inspected.`
+              : view?.scan?.truncation_reason
+                ? `: ${view.scan.truncation_reason}`
+                : ""}{" "}
+            Results are not a complete estate inventory.
           </p>
         ) : null}
 

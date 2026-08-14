@@ -51,6 +51,9 @@ export interface EstateDiscoveryView {
   scan?: {
     scan_complete?: boolean;
     truncation_reason?: string | null;
+    truncation_causes?: string[];
+    depth_limit_reached?: boolean;
+    max_depth?: number | null;
     project_limit_reached?: boolean;
     knowledge_limit_reached?: boolean;
     permission_errors?: unknown[];

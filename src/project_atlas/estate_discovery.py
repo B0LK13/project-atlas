@@ -107,6 +107,7 @@ IGNORE_DIR_NAMES = frozenset(
         ".tox",
         ".eggs",
         ".cache",
+        "cache",
         "target",
         "out",
     }
@@ -367,15 +368,25 @@ def _read_json_object(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _unwrap_git_config_quotes(url: str) -> str:
+    """Strip one matching git-config quote pair; do not invent a full parser."""
+    raw = url.strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in {'"', "'"}:
+        return raw[1:-1].strip()
+    return raw
+
+
 def sanitize_git_remote_url(url: str) -> str:
-    """Strip credential userinfo from git remotes (D-064 secret hygiene).
+    """Strip credential userinfo from git remotes (D-064 / D-067 secret hygiene).
 
     Discovery may use remotes as fingerprint evidence, but must never echo
     passwords / tokens embedded in URLs into reports, CLI, API, or Web.
+    Quoted git-config values (``url = "https://user:pass@host/repo.git"``)
+    are unwrapped before ``urlsplit`` so userinfo is not left in-place.
     """
     from urllib.parse import urlsplit, urlunsplit
 
-    raw = url.strip()
+    raw = _unwrap_git_config_quotes(url)
     if not raw:
         return raw
     if "://" in raw:
@@ -1363,6 +1374,7 @@ def discover_estate(
     unsafe_escapes = 0
     project_limit_reached = False
     knowledge_limit_reached = False
+    depth_limit_reached = False
     cache_entries: dict[str, Any] = {}
 
     stack: list[tuple[Path, int]] = [(root, 0)]
@@ -1545,6 +1557,23 @@ def discover_estate(
                     )
 
         if depth >= max_depth:
+            # Honest bound: incompleteness only if a non-ignored, non-reparse
+            # directory child would have been descended (D-067 HIGH 2).
+            # Policy-ignored names are excluded without traversal.
+            folded_at_bound = {n.casefold() for n in IGNORE_DIR_NAMES}
+            for name in names:
+                if name.casefold() in folded_at_bound:
+                    continue
+                child = current / name
+                if _is_reparse_or_symlink(child):
+                    continue
+                try:
+                    is_dir = child.is_dir()
+                except OSError:
+                    continue
+                if is_dir:
+                    depth_limit_reached = True
+                    break
             continue
 
         folded_ignore = {n.casefold() for n in IGNORE_DIR_NAMES}
@@ -1636,18 +1665,21 @@ def discover_estate(
     for cand in knowledge:
         categories[cand.category].append(cand.to_dict())
 
-    scan_complete = not (
-        project_limit_reached or knowledge_limit_reached or permission_errors
-    )
-    truncation_reason: str | None = None
+    truncation_causes: list[str] = []
+    if depth_limit_reached:
+        truncation_causes.append("max_depth_reached")
     if project_limit_reached and knowledge_limit_reached:
-        truncation_reason = "project_and_knowledge_limits_reached"
+        truncation_causes.append("project_and_knowledge_limits_reached")
     elif project_limit_reached:
-        truncation_reason = "project_limit_reached"
+        truncation_causes.append("project_limit_reached")
     elif knowledge_limit_reached:
-        truncation_reason = "knowledge_limit_reached"
-    elif permission_errors:
-        truncation_reason = "permission_errors"
+        truncation_causes.append("knowledge_limit_reached")
+    if permission_errors:
+        truncation_causes.append("permission_errors")
+    scan_complete = not truncation_causes
+    truncation_reason: str | None = (
+        ",".join(truncation_causes) if truncation_causes else None
+    )
 
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -1672,6 +1704,8 @@ def discover_estate(
         "scan": {
             "scan_complete": scan_complete,
             "truncation_reason": truncation_reason,
+            "truncation_causes": list(truncation_causes),
+            "depth_limit_reached": depth_limit_reached,
             "project_limit_reached": project_limit_reached,
             "knowledge_limit_reached": knowledge_limit_reached,
             "max_depth": max_depth,
@@ -1931,10 +1965,16 @@ def format_discovery_human(report: dict[str, Any]) -> str:
         f"{counts.get('connected', 0)} connected."
     )
     if not scan.get("scan_complete", True):
-        lines.append(
-            f"SCAN INCOMPLETE: {scan.get('truncation_reason') or 'partial'} "
-            "(results are not a complete estate inventory)"
-        )
+        lines.append("SCAN INCOMPLETE")
+        if scan.get("depth_limit_reached"):
+            lines.append(
+                f"Depth limit reached (max_depth={scan.get('max_depth')})."
+            )
+            lines.append("Some files/directories were not inspected.")
+        reason = scan.get("truncation_reason")
+        if isinstance(reason, str) and reason and reason != "max_depth_reached":
+            lines.append(f"Truncation: {reason}")
+        lines.append("Results are not a complete estate inventory.")
     categories_raw = report.get("categories")
     categories: dict[str, Any] = (
         categories_raw if isinstance(categories_raw, dict) else {}
@@ -1984,7 +2024,9 @@ def format_discovery_human(report: dict[str, Any]) -> str:
 
 
 __all__ = [
+    "DEFAULT_MAX_DEPTH",
     "DIRECTIVE_FAMILY",
+    "IGNORE_DIR_NAMES",
     "INCREMENTAL_CACHE_RELATIVE",
     "PACKAGE_ID",
     "REPORT_RELATIVE",

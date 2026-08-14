@@ -57,6 +57,9 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
             "scan": {
                 "scan_complete": False,
                 "truncation_reason": "report_absent",
+                "truncation_causes": ["report_absent"],
+                "depth_limit_reached": False,
+                "max_depth": None,
                 "project_limit_reached": False,
                 "knowledge_limit_reached": False,
                 "permission_errors": [],
@@ -93,6 +96,9 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
         "scan": {
             "scan_complete": bool(scan.get("scan_complete", True)),
             "truncation_reason": scan.get("truncation_reason"),
+            "truncation_causes": list(scan.get("truncation_causes") or []),
+            "depth_limit_reached": bool(scan.get("depth_limit_reached", False)),
+            "max_depth": scan.get("max_depth"),
             "project_limit_reached": bool(scan.get("project_limit_reached", False)),
             "knowledge_limit_reached": bool(
                 scan.get("knowledge_limit_reached", False)
