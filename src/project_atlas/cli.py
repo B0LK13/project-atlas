@@ -61,6 +61,12 @@ from project_atlas.context_pack import (
     ProvenancePointer,
     build_context_pack,
 )
+from project_atlas.conversation_capture import (
+    ConversationCaptureError,
+    capture_conversation,
+    envelope_from_cli_items,
+    set_conversation_review_state,
+)
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.doctor import render_text as doctor_render_text
 from project_atlas.doctor import run_doctor
@@ -315,7 +321,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         args.project = resolve_bound_project_id(vault=getattr(args, "vault", None))
     if getattr(args, "command", None) == "capture" and getattr(
         args, "capture_command", None
-    ) in {"record", "conversation"} and getattr(args, "project", None) in {None, ""}:
+    ) == "record" and getattr(args, "project", None) in {None, ""}:
         args.project = resolve_bound_project_id(vault=getattr(args, "vault", None))
     if getattr(args, "command", None) == "review" and getattr(
         args, "review_command", None
@@ -342,6 +348,50 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
                 args.projects = [only]
             elif hasattr(args, "project"):
                 args.project = only
+
+
+def _load_conversation_envelope(args: argparse.Namespace) -> dict[str, Any]:
+    """Load a structured conversation envelope from file, stdin, or CLI items."""
+    sources = [
+        bool(getattr(args, "input_path", None)),
+        bool(getattr(args, "from_stdin", False)),
+        bool(getattr(args, "cli_items", None)),
+    ]
+    if sum(bool(item) for item in sources) != 1:
+        raise ConversationCaptureError(
+            "MALFORMED_SCHEMA",
+            "provide exactly one of --input, --stdin, or --item",
+        )
+    if args.input_path is not None:
+        try:
+            raw = args.input_path.read_text(encoding="utf-8")
+            payload = json.loads(raw)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ConversationCaptureError("MALFORMED_SCHEMA", "input is not valid JSON") from exc
+    elif args.from_stdin:
+        try:
+            payload = json.loads(sys.stdin.read())
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise ConversationCaptureError("MALFORMED_SCHEMA", "stdin is not valid JSON") from exc
+    else:
+        if not args.summary or not args.provider:
+            raise ConversationCaptureError(
+                "MALFORMED_SCHEMA",
+                "CLI item capture requires --provider and --summary",
+            )
+        return envelope_from_cli_items(
+            summary=args.summary,
+            provider=args.provider,
+            items=list(args.cli_items),
+            project_id=args.project,
+            conversation_id=args.conversation_id or "",
+        )
+    if not isinstance(payload, dict):
+        raise ConversationCaptureError("MALFORMED_SCHEMA", "envelope must be a JSON object")
+    nested = payload.get("envelope")
+    if isinstance(nested, dict):
+        return nested
+    return payload
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -846,8 +896,9 @@ def build_parser() -> argparse.ArgumentParser:
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
-            "Record or list meaningful session captures "
-            "(AS-CODER-ALPHA-CAPTURE-001; ops receipt!=authority)."
+            "Record session or conversation captures "
+            "(CAPTURE-001 ops receipt; CAPTURE-002 quarantined evidence; "
+            "neither is Truth Core authority)."
         ),
     )
     capture_sub = capture_parser.add_subparsers(dest="capture_command", required=True)
@@ -875,6 +926,53 @@ def build_parser() -> argparse.ArgumentParser:
     capture_list.add_argument("--project", default=None)
     capture_list.add_argument("--limit", type=int, default=20)
     capture_list.add_argument("--json", action="store_true", dest="as_json")
+    capture_conversation = capture_sub.add_parser(
+        "conversation",
+        help=(
+            "Submit a provider-neutral atlas.conversation-capture.v1 envelope "
+            "into Knowledge Inbox quarantine (CAPTURE != TRUTH CORE)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas capture conversation --vault <vault> --input capture.json --json\n"
+            "  cat capture.json | atlas capture conversation --vault <vault> --stdin --json\n"
+            "  atlas capture conversation --vault <vault> --project harbor-api "
+            "--provider cursor --summary \"Session note\" "
+            "--item observation=\"Postgres 16 remains unresolved\" --json"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    capture_conversation.add_argument("--vault", type=Path, default=None)
+    capture_conversation.add_argument("--project", default=None)
+    capture_conversation.add_argument("--input", type=Path, default=None, dest="input_path")
+    capture_conversation.add_argument("--stdin", action="store_true", dest="from_stdin")
+    capture_conversation.add_argument("--provider", default=None)
+    capture_conversation.add_argument("--summary", default=None)
+    capture_conversation.add_argument("--conversation-id", default="", dest="conversation_id")
+    capture_conversation.add_argument(
+        "--item",
+        action="append",
+        default=[],
+        dest="cli_items",
+        help="Compact item as item_type=text (repeatable).",
+    )
+    capture_conversation.add_argument("--json", action="store_true", dest="as_json")
+    capture_review = capture_sub.add_parser(
+        "review",
+        help=(
+            "Set conversation-capture review_state (captured|reviewed|rejected). "
+            "REVIEWED != Truth Core promotion."
+        ),
+    )
+    capture_review.add_argument("--vault", type=Path, default=None)
+    capture_review.add_argument("--capture-id", required=True, dest="capture_id")
+    capture_review.add_argument(
+        "--state",
+        required=True,
+        choices=sorted(["captured", "reviewed", "rejected"]),
+        dest="review_state",
+    )
+    capture_review.add_argument("--json", action="store_true", dest="as_json")
 
     obsidian_parser = subparsers.add_parser(
         "obsidian",
@@ -2769,6 +2867,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     unknowns=args.unknowns,
                     source="explicit",
                 )
+            elif args.capture_command == "conversation":
+                envelope = _load_conversation_envelope(args)
+                report = capture_conversation(
+                    args.vault,
+                    envelope,
+                    requested_project_id=args.project,
+                )
+            elif args.capture_command == "review":
+                report = set_conversation_review_state(
+                    args.vault,
+                    args.capture_id,
+                    args.review_state,
+                )
             else:
                 report = {
                     "schema_version": 1,
@@ -2780,6 +2891,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                         limit=args.limit,
                     ),
                 }
+        except ConversationCaptureError as exc:
+            _log.error("capture failed: %s", exc)
+            error_body = {
+                "status": "error",
+                "error": exc.code,
+                "message": str(exc),
+                "package": "AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001",
+            }
+            if getattr(args, "as_json", False):
+                print(json.dumps(error_body, indent=2, sort_keys=True))
+            else:
+                print(f"atlas capture conversation error [{exc.code}]: {exc}")
+            return EXIT_ERROR
         except (SessionCaptureError, OSError, ValueError) as exc:
             _log.error("capture failed: %s", exc)
             return EXIT_ERROR
@@ -2791,6 +2915,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             print(f"  path:     {report.get('path')}")
             print("  next: atlas context / atlas handoff create to surface session memory")
+        elif args.capture_command in {"conversation", "review"}:
+            print(f"atlas capture {args.capture_command} [{report.get('status', 'ok')}]")
+            print(f"  capture:  {report.get('capture_id')}")
+            print(f"  project:  {report.get('project_id')}")
+            print(f"  review:   {report.get('review_state')}")
+            print("  authority: NON_CANONICAL quarantined evidence (not Truth Core)")
         else:
             captures = report.get("captures") or []
             print(f"atlas capture list [{len(captures)}]")

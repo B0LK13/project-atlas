@@ -48,6 +48,7 @@ def test_all_expected_schemas_available() -> None:
         "conflict-record",
         "context-pack",
         "context-pack-composition",
+        "conversation-capture",
         "diagnostic",
         "estate-intel-fixture",
         "eval-score-receipt",

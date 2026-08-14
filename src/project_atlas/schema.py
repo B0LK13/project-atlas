@@ -176,6 +176,8 @@ SCHEMA_FILES: dict[str, str] = {
     "federation-read-lens": "federation-read-lens.schema.json",
     # AS-2.0-INBOX-001 — Knowledge Inbox quarantine receipt
     "knowledge-inbox-receipt": "knowledge-inbox-receipt.schema.json",
+    # AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001 — quarantined conversation envelope
+    "conversation-capture": "conversation-capture.schema.json",
     # AS-2.0-SCHED-001 — autonomy scheduler dry-run
     "scheduler-dry-run": "scheduler-dry-run.schema.json",
     # AS-2.0-SEC-001 — continuous security receipt (metadata only)

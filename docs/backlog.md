@@ -377,8 +377,8 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
 - [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations
-- [ ] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CERTIFIED MERGE ELIGIBLE (D-087 freeze b2b5d9b; D-088 authentic PASS); owner merge authorization required; do not merge #351 without grant; not CLOSED until post-merge seal
-- [ ] AS-CODER-ALPHA-CAPTURE-002 Conversational capture (D-042; GATE CLOSED until D-049 CLOSED after owner-authorized #351 merge + post-merge exact-main PASS)
+- [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
+- [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture (D-042; MERGED via #353 at 9441b0c; capture != Truth Core)
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web; not merged)
 
