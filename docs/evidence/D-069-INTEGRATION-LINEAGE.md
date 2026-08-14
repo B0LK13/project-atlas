@@ -58,9 +58,16 @@ MERGE_PARENTS = ccacaa5bcb094f35017c7195264fef55e382cb49
                 d3a9458f478c3c06be0086622c3f262ec9938175
 ```
 
-After this receipt commit, record `INTEGRATION_HEAD` / `INTEGRATION_TREE`
-from `git rev-parse HEAD` / `HEAD^{tree}` on
-`cursor/d049-integration-lineage-6f85`.
+```
+INTEGRATION_BRANCH = cursor/d049-integration-lineage-6f85
+D069_RECEIPT_COMMIT = a25c428c4441be43b90dd49f4e71b8e1cc7df33e
+D069_RECEIPT_TREE = 9c26d9301f640e96664afd4b4016a69b0e73b6e5
+```
+
+`INTEGRATION_HEAD` / `INTEGRATION_TREE` are the tip of
+`cursor/d049-integration-lineage-6f85` after this pin (evidence-only).
+That tip remains a descendant of `ccacaa5` with production trees identical
+to the D-067 freeze. #346 ref was **not** moved.
 
 ## Local applicability proof
 
@@ -86,12 +93,20 @@ LOCAL_RESULT_APPLICABLE_TO_INTEGRATION_TIP = YES
 Local D-068 does **not** need rerun solely because evidence-only commits
 sit above the semantic freeze.
 
-## Path classification (`ccacaa5` → integration, before this receipt)
+## Path classification (`ccacaa5` → integration tip)
 
-All changed paths are under `docs/evidence/`:
+All changed paths are under `docs/evidence/` (D-063/D-064 historical
+receipts, D-064 overnight results, D-067 receipts, this D-069 receipt).
 
-EVIDENCE / GOVERNANCE only. `PRODUCTION_SEMANTIC_PATHS_CHANGED = 0`.
-`UNCLASSIFIED_PATHS = 0`.
+```
+PRODUCTION_SEMANTIC_PATHS_CHANGED = 0
+UNCLASSIFIED_PATHS = 0
+EVIDENCE_HISTORY_PRESERVED = YES
+STALE_GOVERNANCE_RECONCILED = YES
+```
+
+Stale "0509287 is current Local target" text remains in historical D-064
+receipts as contemporaneous truth. Current state is this D-069 receipt.
 
 ## What this does not do
 
