@@ -12,8 +12,8 @@ D042_IMPLEMENTATION = NOT_STARTED
 This file is **not** a D-042 implementation, PREP coding package, or
 authorization to reopen `#344`. Do not create a D-042 branch from this packet.
 
-D-042 may open only after D-086 Lane H’s three conditions exist
-(D-085 CASE A PASS + owner-authorized #351 merge + post-merge exact-main PASS).
+D-042 may open only after Lane H’s three conditions exist
+(D-088 CASE A PASS + owner-authorized #351 merge + post-merge exact-main PASS).
 
 ---
 
