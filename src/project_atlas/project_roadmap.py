@@ -258,41 +258,82 @@ def _load_lens(vault: Path, name: str, project_id: str) -> dict[str, Any] | None
     return payload
 
 
+def _entry_owner(entry: dict[str, Any]) -> str | None:
+    raw = entry.get("project_id") or entry.get("project")
+    if raw is None or str(raw).strip() == "":
+        return None
+    return str(raw)
+
+
+def _count_scoped_entries(
+    entries: list[Any],
+    project_id: str,
+    *,
+    file_is_project_scoped: bool,
+    pending_only: bool = False,
+) -> int:
+    count = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        owner = _entry_owner(entry)
+        if owner is None:
+            if not file_is_project_scoped:
+                continue
+            owner = project_id
+        if owner != project_id:
+            continue
+        if pending_only:
+            status = str(entry.get("status") or "pending")
+            if status not in {"pending", "in-review", ""}:
+                continue
+        count += 1
+    return count
+
+
 def _pending_review_count(vault: Path, project_id: str) -> int:
     path = vault / "review" / "pending" / f"{project_id}.json"
     payload = _read_json(path)
+    file_is_project_scoped = payload is not None
     if not payload:
         path = vault / "review" / "pending.json"
         payload = _read_json(path)
+        file_is_project_scoped = False
     if not payload:
         return 0
     entries = payload.get("entries")
     if not isinstance(entries, list):
         return 0
-    count = 0
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-        status = str(entry.get("status") or "pending")
-        owner = str(entry.get("project_id") or entry.get("project") or project_id)
-        if owner != project_id:
-            continue
-        if status in {"pending", "in-review", ""}:
-            count += 1
-    return count
+    return _count_scoped_entries(
+        entries,
+        project_id,
+        file_is_project_scoped=file_is_project_scoped,
+        pending_only=True,
+    )
 
 
 def _conflict_count(vault: Path, project_id: str) -> int:
     """Count unresolved conflicts for one project only.
 
-    Cross-project files must never bleed. Prefer the isolated
-    ``review/conflicts/<project>.json`` surface used by the unknown lens.
+    Cross-project files and foreign entries must never bleed. Prefer the
+    isolated ``review/conflicts/<project>.json`` surface. A stale unknown
+    lens must not inflate a live zero.
     """
-    counts: list[int] = []
-    review = _read_json(vault / "review" / "conflicts" / f"{project_id}.json")
+    live: list[int] = []
+    review_path = vault / "review" / "conflicts" / f"{project_id}.json"
+    review = _read_json(review_path)
     if review is not None:
         entries = review.get("entries")
-        counts.append(len(entries) if isinstance(entries, list) else 0)
+        if isinstance(entries, list):
+            live.append(
+                _count_scoped_entries(
+                    entries,
+                    project_id,
+                    file_is_project_scoped=True,
+                )
+            )
+        else:
+            live.append(0)
 
     conflicts_dir = vault / "generated" / "ops" / "conflicts"
     if conflicts_dir.is_dir():
@@ -306,16 +347,20 @@ def _conflict_count(vault: Path, project_id: str) -> int:
             owner = str(payload.get("project_id") or payload.get("project") or "")
             if owner == project_id:
                 scoped += 1
-        counts.append(scoped)
+        live.append(scoped)
+
+    if live:
+        return max(live)
 
     unknown = _load_lens(vault, "unknown", project_id)
-    if unknown:
-        raw = unknown.get("unresolved_conflicts")
-        if isinstance(raw, int):
-            counts.append(raw)
-        elif isinstance(raw, list):
-            counts.append(len(raw))
-    return max(counts) if counts else 0
+    if not unknown:
+        return 0
+    raw = unknown.get("unresolved_conflicts")
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, list):
+        return len(raw)
+    return 0
 
 
 def _normalize_item(

@@ -335,6 +335,61 @@ def test_parallel_unfinished_work_is_not_closed(tmp_path: Path) -> None:
     assert lens["next_unlock"]["lifecycle"] != "CLOSED"
 
 
+def test_review_conflicts_mixed_entries_stay_scoped(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(vault, "alpha", {"items": [{"id": "a", "title": "A", "status": "IN_PROGRESS"}]})
+    _write_roadmap(vault, "beta", {"items": [{"id": "b", "title": "B", "status": "IN_PROGRESS"}]})
+    (vault / "review" / "conflicts").mkdir(parents=True, exist_ok=True)
+    (vault / "review" / "conflicts" / "alpha.json").write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {"conflict_id": "c-alpha", "project_id": "alpha"},
+                    {"conflict_id": "c-beta", "project_id": "beta"},
+                    {"conflict_id": "c-unscoped"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    alpha = build_roadmap_lens(vault, "alpha")
+    beta = build_roadmap_lens(vault, "beta")
+    assert alpha["unresolved_conflicts"] == 2
+    assert beta["unresolved_conflicts"] == 0
+
+
+def test_global_pending_unscoped_does_not_bleed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(vault, "alpha", {"items": [{"id": "a", "title": "A", "status": "IN_PROGRESS"}]})
+    _write_roadmap(vault, "beta", {"items": [{"id": "b", "title": "B", "status": "IN_PROGRESS"}]})
+    (vault / "review").mkdir(parents=True, exist_ok=True)
+    (vault / "review" / "pending.json").write_text(
+        json.dumps({"entries": [{"status": "pending"}]}),
+        encoding="utf-8",
+    )
+    alpha = build_roadmap_lens(vault, "alpha")
+    beta = build_roadmap_lens(vault, "beta")
+    assert alpha["pending_reviews"] == 0
+    assert beta["pending_reviews"] == 0
+
+
+def test_stale_unknown_lens_does_not_inflate_live_conflicts(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(vault, "alpha", {"items": [{"id": "a", "title": "A", "status": "IN_PROGRESS"}]})
+    (vault / "review" / "conflicts").mkdir(parents=True, exist_ok=True)
+    (vault / "review" / "conflicts" / "alpha.json").write_text(
+        json.dumps({"entries": []}),
+        encoding="utf-8",
+    )
+    (vault / "generated" / "answers").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "answers" / "ans-unknown-alpha.json").write_text(
+        json.dumps({"unresolved_conflicts": 9}),
+        encoding="utf-8",
+    )
+    lens = build_roadmap_lens(vault, "alpha")
+    assert lens["unresolved_conflicts"] == 0
+
+
 def test_cross_project_conflicts_do_not_bleed(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     _write_roadmap(vault, "alpha", {"items": [{"id": "a", "title": "A", "status": "IN_PROGRESS"}]})
