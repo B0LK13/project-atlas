@@ -308,6 +308,16 @@ export default function KnowledgePage() {
               )}
 
               <p className="flags" style={{ marginTop: "1rem" }}>
+                <Link
+                  className="chip"
+                  to={
+                    projectId
+                      ? `/ask?project=${encodeURIComponent(projectId)}`
+                      : "/ask"
+                  }
+                >
+                  ask (≠ authority)
+                </Link>
                 <Link className="chip" to="/time-machine">
                   history / Time Machine
                 </Link>

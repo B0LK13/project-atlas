@@ -5,6 +5,7 @@ const PROD_LINKS = [
   { to: "/projects", label: "Projects" },
   { to: "/discovery", label: "Discovery" },
   { to: "/knowledge", label: "Knowledge" },
+  { to: "/ask", label: "Ask" },
   { to: "/time-machine", label: "Time Machine" },
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
