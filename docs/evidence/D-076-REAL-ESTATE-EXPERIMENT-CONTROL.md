@@ -5,9 +5,13 @@ DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-D049-REAL-ESTATE-CONTROL-076`
 Cloud is experiment controller and final D-049 reconciler.
 Cloud does not access `D:\`. Cloud does not invent Local or Claude results.
 
+D-075 inventory ingested in `D-076A-D075-INGEST.md`
+(`CLAUDE_PROJECT_SELECTION = COMPLETE` as independent inventory).
+It is not Atlas discovery evidence.
+
 ```
 RUN_A_ORIGINAL_ESTATE = PENDING
-CLAUDE_PROJECT_SELECTION = PENDING
+CLAUDE_PROJECT_SELECTION = COMPLETE
 RUN_B_OPTIMIZED_ESTATE = BLOCKED_UNTIL_RUN_A_CAPTURED
 ATLAS_ORIGINAL_BASELINE_CAPTURED = NO
 

@@ -5,6 +5,17 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-076A — Ingest D-075 independent inventory (not Atlas evidence)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-REAL-ESTATE-CONTROL-076A
+**Branch:** cursor/d049-final-reconciliation-6f85 (existing; no new PR)
+
+Registered five D-075 anchors. Did not treat 168 or ≈55 as a recall
+denominator. Run A still pending. No D:\ access. No production mutation.
+
+Evidence: `docs/evidence/D-076A-D075-INGEST.md`
+
 ## D-076 — Real-estate experiment control (Run A / Run B)
 
 **Date:** 2026-08-14
