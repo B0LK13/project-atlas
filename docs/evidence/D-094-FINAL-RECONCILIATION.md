@@ -186,7 +186,7 @@ Observed commands (D-042 branch tip `e905c80`, production freeze `9ec65c7`):
 ```
 pytest D-042 + D-049 focused + connect + source identity + handoff
       + API ADV + SEC-009 + MCP
-exit 0 (1 pre-existing skip)
+exit 0 (128 passed, 1 pre-existing skip)
 
 pytest atlas-vault-documentation/tests --no-cov
 exit 0 (171 passed)

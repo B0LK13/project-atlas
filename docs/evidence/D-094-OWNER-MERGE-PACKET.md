@@ -17,13 +17,17 @@ AUTHORIZED_PR                    = 353
 AUTHORIZED_BASE_MAIN             = c282f2c1eb2dde24f997e480c37d083fda906e54
 AUTHORIZED_PRODUCTION_HEAD       = 9ec65c7662f1ed8e18805a9496df8ded19d2c65e
 AUTHORIZED_PRODUCTION_TREE       = 97e56303ec7642bb86c9799cd2dbd79bfa1eaf08
-AUTHORIZED_PR_HEAD               = TO_BE_STAMPED
-AUTHORIZED_PR_TREE               = TO_BE_STAMPED
+AUTHORIZED_PR_HEAD               = STAMPED_BELOW
+AUTHORIZED_PR_TREE               = STAMPED_BELOW
 AUTHORIZED_INTEGRATION_METHOD    = GITHUB_MERGE_COMMIT
+D094_RECONCILIATION_COMMIT       = d30c59673ab7bcecb17feb6dc9c6eba240eaad0d
+D094_RECONCILIATION_TREE         = 431838c8c49642127a14f41c214fe609a638da22
 ```
 
-`AUTHORIZED_PR_HEAD` / `AUTHORIZED_PR_TREE` are stamped in the follow-up
-evidence commit that freezes this packet on the branch tip.
+`AUTHORIZED_PR_HEAD` / `AUTHORIZED_PR_TREE` equal the D-094 freeze tip
+(this stamp commit on `cursor/d042-conversational-capture-6f85`).
+Re-read `origin` at authorization time. If the tip moved, the packet
+is invalid.
 
 Local D-092 validated the D-091 production freeze, not a later evidence tip.
 
