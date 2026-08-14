@@ -5,6 +5,299 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-089 — D-049 final pre-merge reconciliation
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-D089-FINAL-RECONCILIATION
+**PR:** #351 (not merged; draft; mergeable)
+
+```
+D087_FREEZE_DESCENDS_FROM_MAIN = YES
+PR_HEAD_DESCENDS_FROM_D087_FREEZE = YES
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D087_FREEZE = 0
+UNRELATED_PRODUCTION_CHANGE = 0
+RUNBOOK_ABSENCE_AT_PRODUCTION_FREEZE_EXPLAINED = YES
+D088_AUTHENTIC_ESTATE_RUN_A = PASS
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = PASS
+D087_PERFORMANCE_RESIDUAL = MINOR
+KNOWN_CLOUD_GATES = PASS (observed run 31815051882 on 568ef53)
+LOCAL_D088_APPLICABLE_TO_CURRENT_PR = YES
+D_049_MERGE_ELIGIBILITY = YES
+D_049_STATE = CERTIFIED — MERGE ELIGIBLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+D_042_EXECUTION_GATE = CLOSED
+NEXT_ACTION = WAIT FOR EXPLICIT OWNER MERGE AUTHORIZATION FOR #351.
+```
+
+## D-087 — In-memory path index for first authentic discovery
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-D087-PATH-INDEX-PERFORMANCE
+**PR:** #351 (do not merge)
+
+### Freeze
+
+```
+D087_HEAD = b2b5d9b9fc7e4d3aff69fea3e1a90d9c950b0b78
+D087_TREE = 14318297c5fbf40b4fff054ad27126ee4c89db7f
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D087_FREEZE = 0
+```
+
+### Profile
+
+```
+HYPOTHESIS_A_KNOWLEDGE_ANCESTRY = CONFIRMED
+DOMINANT_PHASE (post-index synthetic) = filesystem_traversal
+IN_MEMORY_PATH_INDEX = IMPLEMENTED
+RESOLVED_PATH_REUSE = IMPLEMENTED
+SCANDIR_METADATA_REUSE = NOT_NEEDED
+CACHE_RECORDING_OPTIMIZATION = NOT_NEEDED
+```
+
+Cloud IV ancestry loop (K=1001, P=500, different estate than unit tests):
+
+```
+PATH_RESOLVE_CALLS_BEFORE = 775804
+PATH_RESOLVE_CALLS_AFTER = 0
+ANCESTRY_CHECKS_BEFORE = 387426
+ANCESTRY_CHECKS_AFTER = 2901
+CLOUD_BENCH_SPEEDUP = 8039.7
+PROJECT_SELECTION_SEMANTIC_DRIFT = 0
+KNOWLEDGE_RELATION_SEMANTIC_DRIFT = 0
+CLOUD_IV = PASS
+```
+
+### Local gates (Cloud)
+
+```
+focused D-049..D-087 + connect + source identity   PASS (1 skip, pre-existing)
+Control Plane   PASS (one lock flake, passed on retry; GH ci/control-plane success)
+ruff            PASS
+mypy            PASS
+web tsc -b && build PASS
+```
+
+### Next
+
+`LOCAL VALIDATE EXACT D087 FREEZE AGAINST AUTHENTIC D:\.`
+
+## D-086 — D-084 conditional integration readiness (no production mutation)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D084-D086-CONDITIONAL-INTEGRATION-READINESS
+**PR:** #351 (not merged, not marked ready)
+
+```
+D084_FREEZE_DESCENDS_FROM_MAIN = YES
+PR_TIP_DESCENDS_FROM_D084_FREEZE = YES
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D084_FREEZE = 0
+UNRELATED_PRODUCTION_CHANGE = 0
+D085_RESULT = PENDING
+D042_KICKOFF_PACKET_D084_ALIGNED = YES
+NEXT_ACTION = WAIT FOR LOCAL D-085.
+```
+
+## D-084 — Hierarchical fair selection + bounded enrichment
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-D084-ESTATE-FAIR-SELECTION
+**PR:** #351 (do not merge)
+
+### Freeze
+
+```
+D084_HEAD = 2fcf8186d4a2c6d4209cee82b6d6f076e2119589
+D084_TREE = 4148e9a63de0089736bea1c0b2631dd1e4fe72e5
+```
+
+### Local gates (Cloud)
+
+```
+focused D-049..D-084   93 passed, 1 skipped
+identity/connect       33 passed
+Control Plane          171 passed
+ruff / mypy            PASS
+web tsc+build          PASS
+Cloud IV               PASS
+```
+
+### State
+
+```
+D081_RESULT = FAIL
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = FAIL
+D_049_FINAL_ACCEPTANCE = FAIL
+D_042_EXECUTION_GATE = CLOSED
+MERGE_RECOMMENDATION = BLOCKED_PENDING_LOCAL_D085
+```
+
+## D-083 — Windows CI test portability (test-only)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D083-TEST-PORTABILITY
+**PR:** #351 (do not merge)
+
+`test_f_linux_filesystem_root_refuses` no longer uses `Path.cwd().anchor`.
+On non-Windows it uses `Path("/")`. On Windows it is skipped; default
+drive-root refusal is asserted separately without walking the volume.
+
+```
+FAILURE_CLASS = TEST_PORTABILITY
+ROOT_POLICY_REGRESSION = NO
+PRODUCTION_FILES_CHANGED = 0
+LOCAL_D081_PRODUCTION_APPLICABILITY = UNCHANGED
+D080_HEAD remains 99aa937 / e73273f
+```
+
+## D-082 — D-080 conditional merge readiness (no production mutation)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D080-MERGE-READINESS-082
+**PR:** #351 (not merged, not marked ready)
+
+### Proven
+
+```
+D080_FREEZE_DESCENDS_FROM_MAIN = YES
+PR_TIP_DESCENDS_FROM_D080_FREEZE = YES
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D080_FREEZE = 0
+UNRELATED_PRODUCTION_CHANGE = 0
+```
+
+### Observed CI (not re-run)
+
+Ubuntu full + compat + control-plane PASS on `13e20b9`.
+Windows quality FAIL: `test_f_linux_filesystem_root_refuses` uses
+`Path.cwd().anchor` (TEST_PORTABILITY, not a D-078 policy regression).
+
+### State
+
+```
+D081_RESULT = PENDING
+OWNER_MERGE_PACKET_READY = YES
+D042_KICKOFF_PACKET_READY = YES
+D_042_EXECUTION_GATE = CLOSED
+NEXT_ACTION = WAIT FOR LOCAL D-081.
+```
+
+## D-080 — Deterministic bounded candidate selection
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-D080-CANDIDATE-SELECTION-TRUTH
+**Branch:** cursor/d049-authorized-volume-root-6f85
+**PR:** #351 (do not merge)
+
+### Inputs
+
+```
+D078_POLICY = PASS
+D079_AUTHENTIC_ESTATE_RUN_A = PARTIAL
+KNOWN_EXPECTED_FOUND = 0/5
+```
+
+### Production freeze
+
+```
+D080_HEAD = 99aa937b3718cf0432bb688dbfa074daade7c049
+D080_TREE = e73273f208009f9c317ffb489919e154938ee1c4
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D080_FREEZE = 0
+```
+
+### Change
+
+Traversal order is not selection authority. Family-aware / region-breadth
+top-K after compact evidence gathering. Volume root is a scope container.
+Knowledge attachment fail-closed. Cap honesty retained.
+
+### Commands and results
+
+```
+ruff / mypy on D-080 paths                         PASS
+pytest D-049/D-063/D-064/D-067/D-078/D-080         82 passed
+pytest identity/connect/source-identity            33 passed
+pytest atlas-vault-documentation/tests --no-cov    171 passed
+apps/web tsc -b && npm run build                   PASS
+Independent Cloud IV (falsify order + monopoly)    PASS
+```
+
+### Gates
+
+```
+CLOUD_IV = PASS
+LOCAL_D081_READY = YES
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = PARTIAL
+D_049_FINAL_ACCEPTANCE = PARTIAL
+D_042_EXECUTION_GATE = CLOSED
+MERGE_RECOMMENDATION = BLOCKED_PENDING_LOCAL_D081
+NEW_SECURITY_HIGH = 0
+NEW_HIGH = 0
+HIGH_OPEN = 0
+D080_PERFORMANCE_RESIDUAL = NOT_MEASURED_ON_AUTHENTIC_ESTATE
+```
+
+## D-078 — Owner-authorized Windows non-system volume root
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-DEV-VOLUME-ROOT-078
+**Package:** AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001
+**Branch:** cursor/d049-authorized-volume-root-6f85
+**PR:** #351
+
+### Historical truth (preserved)
+
+```
+TARGET_MAIN = 198350319c17b4de0665f972fda0bc51420cd686
+LOCAL_RUN_A_198350319 = FAIL
+FAILURE_CLASS = DISCOVERY_DEFECT
+FAILURE_REASON = AUTHORIZED_ROOT_REFUSED_FILESYSTEM_ROOT
+AUTHORIZED_ROOT = D:\
+```
+
+Do not rewrite Run A into PASS. Next authentic run is a new run against
+this freeze.
+
+### Production freeze
+
+```
+D078_HEAD = fcaf4f5e152b162a52bfc1c28654ff11acbeb842
+D078_TREE = 119c779f8995ab576a231aaa06a334fb813cd737
+PRODUCTION_SEMANTIC_CHANGES_AFTER_FREEZE = 0
+```
+
+### Change
+
+Explicit `--root-mode {bounded-directory,owner-authorized-volume}`.
+Default unchanged. Windows non-system volume roots require the explicit
+mode. `C:\`, home, UNC, and `/` stay refused. Discovery only — no connect,
+ingest, identity, or owner-file writes.
+
+### Commands and results
+
+```
+.venv/bin/python -m ruff check <D-078 paths>          PASS
+.venv/bin/python -m mypy src/project_atlas/{estate_discovery,cli,web_api/discovery}.py
+                                                      PASS
+pytest D-049/D-063/D-064/D-067/D-078 focused          64 passed
+pytest identity/connect/source-identity               33 passed
+pytest atlas-vault-documentation/tests --no-cov       171 passed
+npx tsc -b && npm run build (apps/web)                PASS
+Independent Cloud IV (7 policy questions)             PASS
+```
+
+### Gates held
+
+```
+CLOUD_IV = PASS
+LOCAL_REVALIDATION_READY = YES
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = FAIL
+D_049_FINAL_ACCEPTANCE = FAIL
+D_042_EXECUTION_GATE = CLOSED
+MERGE_RECOMMENDATION = BLOCKED_PENDING_LOCAL_REVALIDATION
+NEW_SECURITY_HIGH = 0
+NEW_HIGH = 0
+HIGH_OPEN = 0
+```
+
 ## D-063 — D-049 Wave 1 truth hardening (production candidate)
 
 **Date:** 2026-08-13

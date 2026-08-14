@@ -34,6 +34,8 @@ export interface DiscoveryCandidateRow {
   required_review?: boolean;
   required_action?: string | null;
   knowledge_relation?: string | null;
+  candidate_family?: string | null;
+  matched_project_id?: string | null;
 }
 
 export interface EstateDiscoveryView {
@@ -41,6 +43,9 @@ export interface EstateDiscoveryView {
   truth_boundary?: string;
   present: boolean;
   authorized_root?: string | null;
+  authorized_root_mode?: string | null;
+  volume_root_authorized?: boolean;
+  volume_root_kind?: string | null;
   counts?: {
     projects?: number;
     knowledge?: number;
@@ -57,6 +62,17 @@ export interface EstateDiscoveryView {
     project_limit_reached?: boolean;
     knowledge_limit_reached?: boolean;
     permission_errors?: unknown[];
+    candidate_selection_policy?: string | null;
+    project_candidates_seen?: number | null;
+    project_candidates_preselected?: number | null;
+    project_candidates_enriched?: number | null;
+    project_candidates_emitted?: number | null;
+    project_candidates_suppressed?: number | null;
+    knowledge_candidates_seen?: number | null;
+    knowledge_candidates_emitted?: number | null;
+    knowledge_candidates_suppressed?: number | null;
+    region_candidate_counts?: Record<string, number> | null;
+    region_emitted_counts?: Record<string, number> | null;
   };
   categories: Record<DiscoveryCategoryKey, DiscoveryCandidateRow[]>;
   primary_question?: string;

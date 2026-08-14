@@ -57,6 +57,14 @@ export default function DiscoveryPage() {
           </p>
         ) : null}
 
+        {view?.present && view.volume_root_authorized ? (
+          <p className="banner warn">
+            Owner-authorized Windows volume root — not an ordinary
+            bounded-directory scan ({view.volume_root_kind ?? "NON_SYSTEM_WINDOWS_VOLUME"}
+            ).
+          </p>
+        ) : null}
+
         {scanIncomplete ? (
           <p className="banner warn">
             SCAN INCOMPLETE
@@ -73,10 +81,17 @@ export default function DiscoveryPage() {
           <section className="panel" aria-label="Discovery summary">
             <h2>Summary</h2>
             <p>
-              Root: {view.authorized_root ?? "unknown"} · projects{" "}
-              {view.counts?.projects ?? 0} · knowledge {view.counts?.knowledge ?? 0} ·
-              review {view.counts?.required_review ?? 0} · connected{" "}
-              {view.counts?.connected ?? 0}
+              Root: {view.authorized_root ?? "unknown"} · mode{" "}
+              {view.authorized_root_mode ?? "BOUNDED_DIRECTORY"} · volume{" "}
+              {view.volume_root_authorized
+                ? `authorized (${view.volume_root_kind ?? "NON_SYSTEM_WINDOWS_VOLUME"})`
+                : "not authorized"}{" "}
+              · projects {view.counts?.projects ?? 0} · knowledge{" "}
+              {view.counts?.knowledge ?? 0} · review {view.counts?.required_review ?? 0}{" "}
+              · connected {view.counts?.connected ?? 0}
+              {view.scan?.project_limit_reached
+                ? ` · project output ${String(view.scan.project_candidates_emitted ?? "?")}/${String(view.scan.project_candidates_seen ?? "?")} enriched ${String(view.scan.project_candidates_enriched ?? "?")} (${view.scan.candidate_selection_policy ?? "bounded"})`
+                : ""}
             </p>
             <p className="disclaimer">
               DISCOVER ≠ INGEST ≠ TRUST ≠ AUTHORITY · UI ≠ canonical · LIKELY ≠

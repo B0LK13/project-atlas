@@ -47,6 +47,9 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
             "truth_boundary": TRUTH_BOUNDARY,
             "present": False,
             "authorized_root": None,
+            "authorized_root_mode": None,
+            "volume_root_authorized": False,
+            "volume_root_kind": "NONE",
             "counts": {
                 "projects": 0,
                 "knowledge": 0,
@@ -86,6 +89,9 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
         "truth_boundary": TRUTH_BOUNDARY,
         "present": True,
         "authorized_root": report.get("authorized_root"),
+        "authorized_root_mode": report.get("authorized_root_mode"),
+        "volume_root_authorized": bool(report.get("volume_root_authorized", False)),
+        "volume_root_kind": report.get("volume_root_kind") or "NONE",
         "counts": {
             "projects": int(counts.get("projects") or 0),
             "knowledge": int(counts.get("knowledge") or 0),
@@ -104,6 +110,23 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
                 scan.get("knowledge_limit_reached", False)
             ),
             "permission_errors": list(scan.get("permission_errors") or []),
+            "candidate_selection_policy": scan.get("candidate_selection_policy"),
+            "project_candidates_seen": scan.get("project_candidates_seen"),
+            "project_candidates_preselected": scan.get(
+                "project_candidates_preselected"
+            ),
+            "project_candidates_enriched": scan.get("project_candidates_enriched"),
+            "project_candidates_emitted": scan.get("project_candidates_emitted"),
+            "project_candidates_suppressed": scan.get(
+                "project_candidates_suppressed"
+            ),
+            "knowledge_candidates_seen": scan.get("knowledge_candidates_seen"),
+            "knowledge_candidates_emitted": scan.get("knowledge_candidates_emitted"),
+            "knowledge_candidates_suppressed": scan.get(
+                "knowledge_candidates_suppressed"
+            ),
+            "region_candidate_counts": scan.get("region_candidate_counts"),
+            "region_emitted_counts": scan.get("region_emitted_counts"),
         },
         "categories": merged,
         "primary_question": "What did Atlas find that I should care about?",
