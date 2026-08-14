@@ -142,6 +142,22 @@ export default function AskPage() {
                 </ul>
               )}
             </section>
+
+            <section className="panel" aria-label="Health keyword matches">
+              <h2>Health keywords</h2>
+              {healthHits.length === 0 ? (
+                <p className="banner warn">unknown — no health keyword matches</p>
+              ) : (
+                <ul className="theme-hub">
+                  {healthHits.map((token) => (
+                    <li key={token}>
+                      <strong>{token}</strong>
+                      <span>lexical health token — not a health verdict</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </>
         ) : (
           <p className="lede">

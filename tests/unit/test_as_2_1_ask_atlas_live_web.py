@@ -56,6 +56,8 @@ def test_page_keeps_unknown_honest_and_ask_not_authority() -> None:
     assert "UNKNOWN stays UNKNOWN" in text
     assert "UNKNOWN — no matching live projections" in text
     assert "Idle is not UNKNOWN" in text
+    assert "Health keywords" in text
+    assert "not a health verdict" in text
     assert "hint only — ask is vault-wide" in text
     assert "canonical_write=false" in text
     assert "ui_canonical=false" in text
