@@ -89,6 +89,9 @@ export default function DiscoveryPage() {
               · projects {view.counts?.projects ?? 0} · knowledge{" "}
               {view.counts?.knowledge ?? 0} · review {view.counts?.required_review ?? 0}{" "}
               · connected {view.counts?.connected ?? 0}
+              {view.scan?.project_limit_reached
+                ? ` · project output ${String(view.scan.project_candidates_emitted ?? "?")}/${String(view.scan.project_candidates_seen ?? "?")} (${view.scan.candidate_selection_policy ?? "bounded"})`
+                : ""}
             </p>
             <p className="disclaimer">
               DISCOVER ≠ INGEST ≠ TRUST ≠ AUTHORITY · UI ≠ canonical · LIKELY ≠

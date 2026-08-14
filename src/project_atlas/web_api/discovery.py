@@ -110,6 +110,17 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
                 scan.get("knowledge_limit_reached", False)
             ),
             "permission_errors": list(scan.get("permission_errors") or []),
+            "candidate_selection_policy": scan.get("candidate_selection_policy"),
+            "project_candidates_seen": scan.get("project_candidates_seen"),
+            "project_candidates_emitted": scan.get("project_candidates_emitted"),
+            "project_candidates_suppressed": scan.get(
+                "project_candidates_suppressed"
+            ),
+            "knowledge_candidates_seen": scan.get("knowledge_candidates_seen"),
+            "knowledge_candidates_emitted": scan.get("knowledge_candidates_emitted"),
+            "knowledge_candidates_suppressed": scan.get(
+                "knowledge_candidates_suppressed"
+            ),
         },
         "categories": merged,
         "primary_question": "What did Atlas find that I should care about?",

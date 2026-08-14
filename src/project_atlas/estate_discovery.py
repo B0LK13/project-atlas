@@ -159,6 +159,8 @@ KNOWLEDGE_DIR_SIGNALS = frozenset(
 DEFAULT_MAX_DEPTH = 8
 DEFAULT_MAX_PROJECT_CANDIDATES = 500
 DEFAULT_MAX_KNOWLEDGE_CANDIDATES = 500
+CANDIDATE_SELECTION_POLICY = "deterministic_bounded_v1"
+MAX_FAMILY_REPRESENTATIVES = 2
 
 
 class EstateDiscoveryError(ValueError):
@@ -200,6 +202,7 @@ class DiscoveryCandidate:
     matched_project_uuid: str | None = None
     knowledge_relation: KnowledgeRelation | None = None
     ignored_reason: str | None = None
+    candidate_family: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -222,6 +225,7 @@ class DiscoveryCandidate:
             "matched_project_uuid": self.matched_project_uuid,
             "knowledge_relation": self.knowledge_relation,
             "ignored_reason": self.ignored_reason,
+            "candidate_family": self.candidate_family,
         }
 
 
@@ -1453,6 +1457,279 @@ def _lifecycle_for(
     return "CANDIDATE"
 
 
+def _valid_id_token(value: object) -> str | None:
+    """Non-empty identity token, or None. Never treat blank/whitespace as an id."""
+    if not isinstance(value, str):
+        return None
+    token = value.strip()
+    return token or None
+
+
+def _project_relation_token(parent: DiscoveryCandidate) -> str | None:
+    """Pointer to an emitted project candidate or vault id. Never display_name."""
+    return _valid_id_token(parent.matched_project_id) or _valid_id_token(
+        parent.candidate_id
+    )
+
+
+def _estate_region(path: Path, root: Path) -> str:
+    try:
+        rel = path.resolve(strict=False).relative_to(root.resolve(strict=False))
+    except ValueError:
+        return "_outside"
+    parts = rel.parts
+    if not parts or parts == (".",):
+        return "_root"
+    return str(parts[0])
+
+
+def _parent_path_key(path: Path) -> str:
+    return canonical_path_key(path.parent)
+
+
+def project_evidence_weight(
+    signals: Sequence[str],
+    *,
+    has_remote: bool,
+    marker_status: str,
+    uuid_status: str,
+) -> int:
+    """Integer evidence weight for ranking. Not a confidence percentage."""
+    weight = 0
+    if "atlas_project_marker" in signals:
+        weight += 8
+    if marker_status == "ok":
+        weight += 2
+    if uuid_status == "ok":
+        weight += 4
+    if "git_dir" in signals:
+        weight += 3
+    if has_remote:
+        weight += 2
+    weight += 2 * sum(1 for item in signals if item.startswith("manifest:"))
+    weight += sum(1 for item in signals if item.startswith("doc:"))
+    if "dir:src" in signals:
+        weight += 2
+    weight += sum(
+        1 for item in signals if item.startswith("dir:") and item != "dir:src"
+    )
+    if "docker_compose" in signals:
+        weight += 1
+    return weight
+
+
+def _primary_family_key(fingerprint: dict[str, Any], path_key: str) -> str:
+    uuid = _valid_id_token(fingerprint.get("atlas_project_uuid"))
+    if uuid is not None:
+        return f"uuid:{uuid.casefold()}"
+    atlas_id = _valid_id_token(fingerprint.get("atlas_project_id"))
+    if atlas_id is not None:
+        return f"id:{atlas_id.casefold()}"
+    remote = fingerprint.get("git_remote")
+    if isinstance(remote, str) and remote.strip():
+        return f"remote:{_normalize_remote(remote)}"
+    package = fingerprint.get("package_name")
+    if isinstance(package, str) and package.strip():
+        return f"pkg:{package.strip().casefold()}"
+    return f"path:{path_key}"
+
+
+@dataclass
+class ProjectSighting:
+    """Compact project evidence gathered during traversal (D-080)."""
+
+    path: Path
+    path_key: str
+    depth: int
+    region: str
+    parent_key: str
+    signals: list[str]
+    fingerprint: dict[str, Any]
+    family: str
+    evidence_weight: int
+
+
+@dataclass
+class KnowledgeSighting:
+    """Compact knowledge evidence gathered during traversal (D-080)."""
+
+    path: Path
+    path_key: str
+    depth: int
+    region: str
+    signals: list[str]
+    is_obsidian: bool
+    names: set[str]
+
+
+def assign_project_families(sightings: Sequence[ProjectSighting]) -> None:
+    """Family grouping for output diversity. Never an identity merge."""
+    parent_counts: dict[str, int] = {}
+    for item in sightings:
+        parent_counts[item.parent_key] = parent_counts.get(item.parent_key, 0) + 1
+    for item in sightings:
+        item.family = _primary_family_key(item.fingerprint, item.path_key)
+        if item.family.startswith("path:") and parent_counts.get(item.parent_key, 0) >= 3:
+            item.family = f"parent:{item.parent_key}"
+
+
+def _project_rank_key(item: ProjectSighting) -> tuple[int, int, str]:
+    return (-item.evidence_weight, item.depth, item.path_key)
+
+
+def select_bounded_project_sightings(
+    sightings: Sequence[ProjectSighting],
+    limit: int,
+) -> tuple[list[ProjectSighting], list[ProjectSighting]]:
+    """Deterministic bounded selection. Traversal order is not authority."""
+    assign_project_families(sightings)
+    by_path = sorted(sightings, key=lambda item: (item.path_key, item.path.as_posix()))
+    if limit <= 0:
+        return [], list(by_path)
+    if len(sightings) <= limit:
+        return by_path, []
+
+    selected: list[ProjectSighting] = []
+    selected_keys: set[str] = set()
+    family_counts: dict[str, int] = {}
+    by_region: dict[str, list[ProjectSighting]] = {}
+    for item in sightings:
+        by_region.setdefault(item.region, []).append(item)
+    for region in sorted(by_region):
+        for item in sorted(by_region[region], key=_project_rank_key):
+            if item.path_key in selected_keys:
+                continue
+            selected.append(item)
+            selected_keys.add(item.path_key)
+            family_counts[item.family] = family_counts.get(item.family, 0) + 1
+            break
+        if len(selected) >= limit:
+            break
+
+    for item in sorted(sightings, key=_project_rank_key):
+        if len(selected) >= limit:
+            break
+        if item.path_key in selected_keys:
+            continue
+        if family_counts.get(item.family, 0) >= MAX_FAMILY_REPRESENTATIVES:
+            continue
+        selected.append(item)
+        selected_keys.add(item.path_key)
+        family_counts[item.family] = family_counts.get(item.family, 0) + 1
+
+    if len(selected) < limit:
+        remaining_families = {
+            item.family
+            for item in sightings
+            if item.path_key not in selected_keys
+            and family_counts.get(item.family, 0) == 0
+        }
+        for item in sorted(sightings, key=_project_rank_key):
+            if len(selected) >= limit:
+                break
+            if item.path_key in selected_keys:
+                continue
+            if item.family not in remaining_families:
+                continue
+            selected.append(item)
+            selected_keys.add(item.path_key)
+            family_counts[item.family] = family_counts.get(item.family, 0) + 1
+            remaining_families.discard(item.family)
+
+    selected.sort(key=lambda item: (item.path.as_posix().casefold(), item.path_key))
+    suppressed = [item for item in by_path if item.path_key not in selected_keys]
+    return selected, suppressed
+
+
+def select_bounded_knowledge_sightings(
+    sightings: Sequence[KnowledgeSighting],
+    limit: int,
+    selected_projects: Sequence[DiscoveryCandidate],
+) -> tuple[list[KnowledgeSighting], list[KnowledgeSighting]]:
+    """Prefer knowledge under selected projects; cap is not first-seen order."""
+    project_paths = [Path(item.path) for item in selected_projects]
+
+    def nested_under_selected(item: KnowledgeSighting) -> bool:
+        return any(
+            _under_authorized(item.path, parent)
+            and not _paths_equal(item.path, parent)
+            for parent in project_paths
+        )
+
+    def rank(item: KnowledgeSighting) -> tuple[int, int, int, str]:
+        nested = 1 if nested_under_selected(item) else 0
+        obsidian = 1 if item.is_obsidian else 0
+        return (-nested, -obsidian, item.depth, item.path_key)
+
+    ordered = sorted(sightings, key=lambda item: (item.path_key, item.path.as_posix()))
+    if limit <= 0:
+        return [], list(ordered)
+    if len(sightings) <= limit:
+        return ordered, []
+    chosen = sorted(sightings, key=rank)[:limit]
+    chosen.sort(key=lambda item: (item.path.as_posix().casefold(), item.path_key))
+    chosen_keys = {item.path_key for item in chosen}
+    suppressed = [item for item in ordered if item.path_key not in chosen_keys]
+    return chosen, suppressed
+
+
+def _sanitize_knowledge_relations(
+    knowledge: list[DiscoveryCandidate],
+    projects: Sequence[DiscoveryCandidate],
+    vault_projects: Sequence[VaultProjectIdentity],
+) -> None:
+    """Fail closed: no blank, dangling, or scope-container project attachments."""
+    valid: set[str] = set()
+    for item in projects:
+        token = _valid_id_token(item.candidate_id)
+        if token is not None:
+            valid.add(token)
+        token = _valid_id_token(item.matched_project_id)
+        if token is not None:
+            valid.add(token)
+        token = _valid_id_token(item.matched_project_uuid)
+        if token is not None:
+            valid.add(token)
+    for vault in vault_projects:
+        token = _valid_id_token(vault.project_id)
+        if token is not None:
+            valid.add(token)
+        token = _valid_id_token(vault.project_uuid)
+        if token is not None:
+            valid.add(token)
+    for item in knowledge:
+        mid = _valid_id_token(item.matched_project_id)
+        uuid = _valid_id_token(item.matched_project_uuid)
+        if mid is None:
+            item.matched_project_id = None
+            if item.knowledge_relation == "KNOWLEDGE_PROJECT_MATCHED":
+                item.knowledge_relation = "KNOWLEDGE_UNMATCHED"
+                item.match_state = "UNMATCHED"
+                item.required_review = True
+                item.category = _category_for(
+                    kind=item.kind,
+                    match_state="UNMATCHED",
+                    connected=False,
+                    knowledge_relation="KNOWLEDGE_UNMATCHED",
+                )
+            continue
+        if mid not in valid:
+            item.matched_project_id = None
+            item.matched_project_uuid = None
+            item.knowledge_relation = "KNOWLEDGE_UNMATCHED"
+            item.match_state = "UNMATCHED"
+            item.required_review = True
+            item.category = _category_for(
+                kind=item.kind,
+                match_state="UNMATCHED",
+                connected=False,
+                knowledge_relation="KNOWLEDGE_UNMATCHED",
+            )
+            continue
+        if uuid is not None and uuid not in valid:
+            item.matched_project_uuid = None
+
+
 def _associate_knowledge(
     knowledge_path: Path,
     project_candidates: Sequence[DiscoveryCandidate],
@@ -1481,11 +1758,22 @@ def _associate_knowledge(
                 "strong",
             )
         )
+        token = _project_relation_token(parent)
+        if token is None:
+            evidence.append(
+                MatchEvidence(
+                    "parent_project_unidentifiable",
+                    "nested under a project candidate with no valid id; "
+                    "refusing silent assignment",
+                    "conflict",
+                )
+            )
+            return "KNOWLEDGE_UNMATCHED", "UNMATCHED", evidence, None
         return (
             "KNOWLEDGE_PROJECT_MATCHED",
             parent.match_state if parent.match_state != "UNMATCHED" else "LIKELY",
             evidence,
-            parent.matched_project_id or parent.display_name,
+            token,
         )
     if len(parents) > 1:
         evidence.append(
@@ -1531,6 +1819,125 @@ def _associate_knowledge(
     return "KNOWLEDGE_DISCOVERED", "UNMATCHED", evidence, None
 
 
+def _materialize_project_candidate(
+    sighting: ProjectSighting,
+    *,
+    vault_projects: Sequence[VaultProjectIdentity],
+    vault_resolved: Path | None,
+) -> DiscoveryCandidate:
+    directory = sighting.path
+    fingerprint = dict(sighting.fingerprint)
+    match_state, evidence, conflicts, matched_id, matched_uuid = match_fingerprint(
+        fingerprint, vault_projects
+    )
+    connected, why_connected = prove_connected(
+        directory,
+        matched_id,
+        match_state,
+        vault_projects,
+        vault=vault_resolved,
+    )
+    marker_bad = fingerprint.get("marker_status") in {
+        "invalid",
+        "unreadable",
+    } or fingerprint.get("uuid_status") == "invalid"
+    required_review = (
+        match_state in {"AMBIGUOUS", "CONFLICTING"}
+        or marker_bad
+        or (match_state in {"EXACT", "STRONG_EVIDENCE", "LIKELY"} and not connected)
+    )
+    return DiscoveryCandidate(
+        candidate_id=_candidate_id("project", directory),
+        kind="project",
+        path=directory.as_posix(),
+        display_name=directory.name,
+        lifecycle=_lifecycle_for(
+            match_state, connected=connected, marker_bad=marker_bad
+        ),
+        match_state=match_state,
+        category=_category_for(
+            kind="project",
+            match_state=match_state,
+            connected=connected,
+        ),
+        why_matched=_why_from_evidence(evidence, match_state),
+        why_connected=why_connected if connected else [],
+        match_evidence=[row.as_dict() for row in evidence],
+        conflicting_evidence=[row.as_dict() for row in conflicts],
+        required_review=required_review,
+        required_action=_required_action(match_state, connected=connected),
+        signals=list(sighting.signals),
+        fingerprint=fingerprint,
+        matched_project_id=_valid_id_token(matched_id),
+        matched_project_uuid=_valid_id_token(matched_uuid),
+        candidate_family=sighting.family,
+    )
+
+
+def _materialize_knowledge_candidate(
+    sighting: KnowledgeSighting,
+    projects: Sequence[DiscoveryCandidate],
+    vault_projects: Sequence[VaultProjectIdentity],
+) -> DiscoveryCandidate:
+    kind: Literal["knowledge", "obsidian_vault"] = (
+        "obsidian_vault" if sighting.is_obsidian else "knowledge"
+    )
+    relation, k_state, k_evidence, k_match = _associate_knowledge(
+        sighting.path,
+        projects,
+        is_obsidian=sighting.is_obsidian,
+        vault_projects=vault_projects,
+    )
+    if relation == "KNOWLEDGE_DISCOVERED" and not sighting.is_obsidian and not k_evidence:
+        relation = "KNOWLEDGE_UNMATCHED"
+    k_match = _valid_id_token(k_match)
+    if relation == "KNOWLEDGE_PROJECT_MATCHED" and k_match is None:
+        relation = "KNOWLEDGE_UNMATCHED"
+        k_state = "UNMATCHED"
+    required_review = (
+        sighting.is_obsidian
+        or relation == "KNOWLEDGE_AMBIGUOUS"
+        or (relation == "KNOWLEDGE_UNMATCHED" and bool(k_evidence))
+    )
+    return DiscoveryCandidate(
+        candidate_id=_candidate_id(kind, sighting.path),
+        kind=kind,
+        path=sighting.path.as_posix(),
+        display_name=sighting.path.name,
+        lifecycle=(
+            "POLICY_REVIEW"
+            if relation == "KNOWLEDGE_AMBIGUOUS" or sighting.is_obsidian
+            else "CLASSIFIED"
+        ),
+        match_state=k_state,
+        category=_category_for(
+            kind=kind,
+            match_state=k_state,
+            connected=False,
+            knowledge_relation=relation,
+        ),
+        why_matched=_why_from_evidence(k_evidence, k_state),
+        match_evidence=[row.as_dict() for row in k_evidence],
+        conflicting_evidence=[],
+        required_review=required_review,
+        required_action=(
+            "Review Obsidian/knowledge relationship; discovery does not ingest"
+            if sighting.is_obsidian or relation == "KNOWLEDGE_AMBIGUOUS"
+            else None
+        ),
+        signals=list(sighting.signals),
+        fingerprint={
+            "canonical_path": sighting.path.as_posix(),
+            "path_key": sighting.path_key,
+            "path_fingerprint": root_identity_fingerprint(sighting.path),
+            "directory_name": sighting.path.name,
+            "obsidian": sighting.is_obsidian,
+        },
+        matched_project_id=k_match,
+        knowledge_relation=relation,
+    )
+
+
 def discover_estate(
     authorized_root: Path,
     *,
@@ -1544,6 +1951,7 @@ def discover_estate(
     root_mode: str = ROOT_MODE_BOUNDED_DIRECTORY,
     host_os: str | None = None,
     environ: dict[str, str] | None = None,
+    enumeration_order: Literal["name_asc", "name_desc"] = "name_asc",
 ) -> dict[str, Any]:
     """Bounded filesystem discovery under one authorized root.
 
@@ -1552,6 +1960,7 @@ def discover_estate(
     ``root_mode`` default is bounded-directory. Owner-authorized Windows
     non-system volume roots require an explicit mode; they never connect
     or ingest.
+    ``enumeration_order`` is a test hook only. Selection must not depend on it.
     """
     _ = prior_cache  # intentionally unused for skip decisions
     policy = authorize_discovery_root(
@@ -1575,6 +1984,9 @@ def discover_estate(
     knowledge_limit_reached = False
     depth_limit_reached = False
     cache_entries: dict[str, Any] = {}
+    project_sightings: list[ProjectSighting] = []
+    knowledge_sightings: list[KnowledgeSighting] = []
+    volume_root_is_container = policy.volume_root_authorized
 
     stack: list[tuple[Path, int]] = [(root, 0)]
     seen_dirs: set[str] = set()
@@ -1625,63 +2037,37 @@ def discover_estate(
         except OSError:
             pass
 
-        if (
-            include_projects
-            and _is_project_candidate(project_signals)
-        ):
-            if len(projects) >= max_project_candidates:
-                project_limit_reached = True
+        at_volume_root = volume_root_is_container and _paths_equal(
+            current_resolved, root
+        )
+        if include_projects and _is_project_candidate(project_signals):
+            if at_volume_root:
+                ignored.append(
+                    {
+                        "path": current_resolved.as_posix(),
+                        "reason": "authorized_volume_root_scope_container",
+                    }
+                )
             else:
                 fingerprint = _build_fingerprint(current, project_signals)
-                match_state, evidence, conflicts, matched_id, matched_uuid = (
-                    match_fingerprint(fingerprint, vault_projects)
-                )
-                connected, why_connected = prove_connected(
-                    current_resolved,
-                    matched_id,
-                    match_state,
-                    vault_projects,
-                    vault=vault_resolved,
-                )
-                marker_bad = fingerprint.get("marker_status") in {
-                    "invalid",
-                    "unreadable",
-                } or fingerprint.get("uuid_status") == "invalid"
-                required_review = (
-                    match_state in {"AMBIGUOUS", "CONFLICTING"}
-                    or marker_bad
-                    or (
-                        match_state in {"EXACT", "STRONG_EVIDENCE", "LIKELY"}
-                        and not connected
-                    )
-                )
-                projects.append(
-                    DiscoveryCandidate(
-                        candidate_id=_candidate_id("project", current_resolved),
-                        kind="project",
-                        path=current_resolved.as_posix(),
-                        display_name=current.name,
-                        lifecycle=_lifecycle_for(
-                            match_state, connected=connected, marker_bad=marker_bad
-                        ),
-                        match_state=match_state,
-                        category=_category_for(
-                            kind="project",
-                            match_state=match_state,
-                            connected=connected,
-                        ),
-                        why_matched=_why_from_evidence(evidence, match_state),
-                        why_connected=why_connected if connected else [],
-                        match_evidence=[e.as_dict() for e in evidence],
-                        conflicting_evidence=[c.as_dict() for c in conflicts],
-                        required_review=required_review,
-                        required_action=_required_action(
-                            match_state, connected=connected
-                        ),
+                project_sightings.append(
+                    ProjectSighting(
+                        path=current_resolved,
+                        path_key=key,
+                        depth=depth,
+                        region=_estate_region(current_resolved, root),
+                        parent_key=_parent_path_key(current_resolved),
                         signals=list(project_signals),
                         fingerprint=fingerprint,
-                        matched_project_id=matched_id,
-                        matched_project_uuid=matched_uuid,
+                        family=_primary_family_key(fingerprint, key),
+                        evidence_weight=project_evidence_weight(
+                            project_signals,
+                            has_remote=bool(fingerprint.get("git_remote")),
+                            marker_status=str(
+                                fingerprint.get("marker_status") or "absent"
+                            ),
+                            uuid_status=str(fingerprint.get("uuid_status") or "absent"),
+                        ),
                     )
                 )
 
@@ -1690,70 +2076,21 @@ def discover_estate(
             knowledge_only = bool(know_signals) and (
                 is_obsidian
                 or not _is_project_candidate(project_signals)
-                or any(s.startswith("knowledge_dir:") for s in know_signals)
+                or any(item.startswith("knowledge_dir:") for item in know_signals)
+                or at_volume_root
             )
             if knowledge_only:
-                if len(knowledge) >= max_knowledge_candidates:
-                    knowledge_limit_reached = True
-                else:
-                    kind: Literal["knowledge", "obsidian_vault"] = (
-                        "obsidian_vault" if is_obsidian else "knowledge"
-                    )
-                    relation, k_state, k_evidence, k_match = _associate_knowledge(
-                        current_resolved,
-                        projects,
+                knowledge_sightings.append(
+                    KnowledgeSighting(
+                        path=current_resolved,
+                        path_key=key,
+                        depth=depth,
+                        region=_estate_region(current_resolved, root),
+                        signals=list(know_signals),
                         is_obsidian=is_obsidian,
-                        vault_projects=vault_projects,
+                        names=set(names),
                     )
-                    # Standalone knowledge dirs with only knowledge_dir signal.
-                    if (
-                        relation == "KNOWLEDGE_DISCOVERED"
-                        and not is_obsidian
-                        and not k_evidence
-                    ):
-                        relation = "KNOWLEDGE_UNMATCHED"
-                    knowledge.append(
-                        DiscoveryCandidate(
-                            candidate_id=_candidate_id(kind, current_resolved),
-                            kind=kind,
-                            path=current_resolved.as_posix(),
-                            display_name=current.name,
-                            lifecycle=(
-                                "POLICY_REVIEW"
-                                if relation == "KNOWLEDGE_AMBIGUOUS" or is_obsidian
-                                else "CLASSIFIED"
-                            ),
-                            match_state=k_state,
-                            category=_category_for(
-                                kind=kind,
-                                match_state=k_state,
-                                connected=False,
-                                knowledge_relation=relation,
-                            ),
-                            why_matched=_why_from_evidence(k_evidence, k_state),
-                            match_evidence=[e.as_dict() for e in k_evidence],
-                            conflicting_evidence=[],
-                            required_review=(
-                                is_obsidian or relation == "KNOWLEDGE_AMBIGUOUS"
-                            ),
-                            required_action=(
-                                "Review Obsidian/knowledge relationship; "
-                                "discovery does not ingest"
-                                if is_obsidian or relation != "KNOWLEDGE_UNMATCHED"
-                                else None
-                            ),
-                            signals=list(know_signals),
-                            fingerprint={
-                                "canonical_path": current_resolved.as_posix(),
-                                "path_key": key,
-                                "path_fingerprint": root_identity_fingerprint(current),
-                                "directory_name": current.name,
-                                "obsidian": is_obsidian,
-                            },
-                            matched_project_id=k_match,
-                            knowledge_relation=relation,
-                        )
-                    )
+                )
 
         if depth >= max_depth:
             # Honest bound: incompleteness only if a non-ignored, non-reparse
@@ -1776,7 +2113,9 @@ def discover_estate(
             continue
 
         folded_ignore = {n.casefold() for n in IGNORE_DIR_NAMES}
-        for name in sorted(names, reverse=True):
+        # LIFO stack: reverse-sorted names visit A-first (historical name_asc).
+        name_reverse = enumeration_order != "name_desc"
+        for name in sorted(names, reverse=name_reverse):
             if name.casefold() in folded_ignore:
                 ignored.append(
                     {
@@ -1815,41 +2154,35 @@ def discover_estate(
                 continue
             stack.append((child, depth + 1))
 
-    projects.sort(key=lambda c: (c.path.casefold(), c.candidate_id))
-    knowledge.sort(key=lambda c: (c.path.casefold(), c.candidate_id))
+    selected_project_sightings, suppressed_project_sightings = (
+        select_bounded_project_sightings(project_sightings, max_project_candidates)
+    )
+    project_limit_reached = len(project_sightings) > len(selected_project_sightings)
+    projects = [
+        _materialize_project_candidate(
+            item, vault_projects=vault_projects, vault_resolved=vault_resolved
+        )
+        for item in selected_project_sightings
+    ]
+    selected_knowledge_sightings, suppressed_knowledge_sightings = (
+        select_bounded_knowledge_sightings(
+            knowledge_sightings, max_knowledge_candidates, projects
+        )
+    )
+    knowledge_limit_reached = len(knowledge_sightings) > len(
+        selected_knowledge_sightings
+    )
+    knowledge = [
+        _materialize_knowledge_candidate(item, projects, vault_projects)
+        for item in selected_knowledge_sightings
+    ]
+    _sanitize_knowledge_relations(knowledge, projects, vault_projects)
+
+    projects.sort(key=lambda item: (item.path.casefold(), item.candidate_id))
+    knowledge.sort(key=lambda item: (item.path.casefold(), item.candidate_id))
     ignored.sort(
         key=lambda row: (row.get("path", "").casefold(), row.get("reason", ""))
     )
-
-    # Second pass: associate knowledge that was scanned before parent projects
-    # were appended (depth-first). Recompute nesting for honesty.
-    if include_knowledge and projects:
-        refreshed: list[DiscoveryCandidate] = []
-        for item in knowledge:
-            relation, k_state, k_evidence, k_match = _associate_knowledge(
-                Path(item.path),
-                projects,
-                is_obsidian=item.kind == "obsidian_vault",
-                vault_projects=vault_projects,
-            )
-            if relation == "KNOWLEDGE_DISCOVERED" and item.kind != "obsidian_vault":
-                relation = "KNOWLEDGE_UNMATCHED"
-            item.knowledge_relation = relation
-            item.match_state = k_state
-            item.matched_project_id = k_match
-            item.why_matched = _why_from_evidence(k_evidence, k_state)
-            item.match_evidence = [e.as_dict() for e in k_evidence]
-            item.category = _category_for(
-                kind=item.kind,
-                match_state=k_state,
-                connected=False,
-                knowledge_relation=relation,
-            )
-            item.required_review = (
-                item.kind == "obsidian_vault" or relation == "KNOWLEDGE_AMBIGUOUS"
-            )
-            refreshed.append(item)
-        knowledge = refreshed
 
     categories: dict[str, list[dict[str, Any]]] = {
         "DISCOVERED_PROJECTS": [],
@@ -1916,6 +2249,13 @@ def discover_estate(
             "max_knowledge_candidates": max_knowledge_candidates,
             "permission_errors": permission_errors,
             "dirs_visited": len(seen_dirs),
+            "candidate_selection_policy": CANDIDATE_SELECTION_POLICY,
+            "project_candidates_seen": len(project_sightings),
+            "project_candidates_emitted": len(projects),
+            "project_candidates_suppressed": len(suppressed_project_sightings),
+            "knowledge_candidates_seen": len(knowledge_sightings),
+            "knowledge_candidates_emitted": len(knowledge),
+            "knowledge_candidates_suppressed": len(suppressed_knowledge_sightings),
         },
         "counts": {
             "projects": len(projects),
@@ -2185,6 +2525,17 @@ def format_discovery_human(report: dict[str, Any]) -> str:
                 f"Depth limit reached (max_depth={scan.get('max_depth')})."
             )
             lines.append("Some files/directories were not inspected.")
+        seen = scan.get("project_candidates_seen")
+        emitted = scan.get("project_candidates_emitted")
+        if (
+            scan.get("project_limit_reached")
+            and isinstance(seen, int)
+            and isinstance(emitted, int)
+        ):
+            lines.append(
+                f"Project candidate output bounded: emitted {emitted} of "
+                f"{seen} seen ({scan.get('candidate_selection_policy')})."
+            )
         reason = scan.get("truncation_reason")
         if isinstance(reason, str) and reason and reason != "max_depth_reached":
             lines.append(f"Truncation: {reason}")
@@ -2238,6 +2589,7 @@ def format_discovery_human(report: dict[str, Any]) -> str:
 
 
 __all__ = [
+    "CANDIDATE_SELECTION_POLICY",
     "DEFAULT_MAX_DEPTH",
     "DIRECTIVE_FAMILY",
     "IGNORE_DIR_NAMES",
@@ -2268,6 +2620,7 @@ __all__ = [
     "refuse_dangerous_authorized_root",
     "review_candidates",
     "sanitize_git_remote_url",
+    "select_bounded_project_sightings",
     "write_discovery_cache",
     "write_discovery_report",
 ]
