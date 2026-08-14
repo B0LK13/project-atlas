@@ -186,6 +186,34 @@ export default function KnowledgePage() {
               )}
             </section>
 
+            <section className="panel" aria-label="Knowledge Inbox conversation captures">
+              <h2>Knowledge Inbox — conversation captures</h2>
+              <p className="lede">
+                Quarantined conversation evidence. Conversation ≠ authority.
+                Capture ≠ Truth Core. Review ≠ automatic promotion.
+              </p>
+              {(brief.conversation_captures ?? []).length === 0 ? (
+                <p className="banner warn">unknown — no conversation captures</p>
+              ) : (
+                <ul className="theme-hub">
+                  {(brief.conversation_captures ?? []).map((capture) => (
+                    <li key={String(capture.capture_id)}>
+                      <strong>
+                        [{String(capture.review_state ?? "captured")}]{" "}
+                        {String(capture.summary ?? "UNKNOWN")}
+                      </strong>
+                      <span>
+                        {String(capture.label ?? "Conversation capture — non-authoritative")}{" "}
+                        · provider={String(capture.source_provider ?? "unknown")} ·
+                        classification={String(capture.classification ?? "NON_CANONICAL")} ·
+                        items={String(capture.item_count ?? 0)} · authority=false
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
             <section className="panel" aria-label="Truth inspection">
               <h2>Truth — why does Atlas believe this?</h2>
               <p className="lede">

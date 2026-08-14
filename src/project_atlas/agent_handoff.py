@@ -20,6 +20,10 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.conversation_capture import (
+    list_conversation_captures,
+    render_conversation_captures_markdown,
+)
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.session_capture import (
     SessionCaptureError,
@@ -137,6 +141,7 @@ def _render_context_markdown(
     *,
     attention: dict[str, Any] | None = None,
     source_health: dict[str, Any] | None = None,
+    conversation_captures: list[dict[str, Any]] | None = None,
 ) -> str:
     next_work = brief.get("suggested_next_work") or []
     evidence = brief.get("evidence_links") or []
@@ -180,6 +185,7 @@ def _render_context_markdown(
     lines.extend(_render_source_health_section(source_health))
     lines.extend(["", "## Session memory (captures)"])
     lines.extend(render_captures_markdown(captures or []))
+    lines.extend(render_conversation_captures_markdown(conversation_captures or []))
     lines.extend(["", "## Evidence links"])
     if isinstance(evidence, list) and evidence:
         lines.extend(f"- `{item}`" for item in evidence[:40])
@@ -215,6 +221,7 @@ def export_agent_context(
         raise AgentHandoffError(str(exc)) from exc
 
     captures = list_captures(vault, project_id=project_id, limit=8)
+    conversation_captures = list_conversation_captures(vault, project_id=project_id, limit=8)
     # Project shared Core classifiers — do not re-implement analysis here.
     attention: dict[str, Any] | None = None
     source_health: dict[str, Any] | None = None
@@ -231,6 +238,7 @@ def export_agent_context(
         captures=captures,
         attention=attention,
         source_health=source_health,
+        conversation_captures=conversation_captures,
     )
     payload = {
         "schema_version": 1,
@@ -249,6 +257,7 @@ def export_agent_context(
             "package": "AS-CODER-ALPHA-SOURCE-HEALTH-001",
         },
         "session_captures": captures,
+        "conversation_captures": conversation_captures,
         "markdown": markdown,
         "generated": {"by": GENERATOR_ID},
         "honesty": {
@@ -273,6 +282,7 @@ def export_agent_context(
         "markdown_path": md_path.relative_to(vault).as_posix(),
         "json_path": json_path.relative_to(vault).as_posix(),
         "purpose": brief.get("purpose"),
+        "conversation_captures": conversation_captures,
         "generated": {"by": GENERATOR_ID},
     }
 
