@@ -1,4 +1,6 @@
+import { useSearchParams } from "react-router-dom";
 import { ProdShell } from "../../components/ProdShell";
+import { useReadStatus } from "../../hooks/useReadStatus";
 import {
   TIME_MACHINE_PROJECT,
   TIME_MACHINE_T1,
@@ -9,10 +11,23 @@ import {
 
 /**
  * AS-2.2-KDIFF-001 web lens — conflict + Time Machine (as-of / T1→T2 diff)
- * for the fixed golden demo scope (harbor-api). LIVE_API preferred; demo
- * fallback stays empty and isolated. Read-only; kdiff ≠ authority.
+ * for the selected project. Golden-demo defaults remain harbor-api / T1→T2.
+ * LIVE_API preferred; demo fallback stays empty and isolated. Read-only;
+ * kdiff ≠ authority.
  */
 export default function TimeMachinePage() {
+  const [params, setParams] = useSearchParams();
+  const { status, loading: statusLoading } = useReadStatus();
+  const projects = status?.projects ?? [];
+  const projectParam = params.get("project");
+  const projectId =
+    projectParam ??
+    (projects.find((project) => project.project_id === TIME_MACHINE_PROJECT)
+      ?.project_id ??
+      projects[0]?.project_id ??
+      TIME_MACHINE_PROJECT);
+  const t1 = params.get("from") ?? TIME_MACHINE_T1;
+  const t2 = params.get("to") ?? TIME_MACHINE_T2;
   const {
     conflicts,
     asOfT1Cells,
@@ -21,8 +36,18 @@ export default function TimeMachinePage() {
     error,
     loading,
     dataSource,
-  } = useLiveTimeMachine();
+  } = useLiveTimeMachine(projectId, t1, t2);
   const isDemo = dataSource === "demo_stub";
+
+  function onSelectProject(next: string) {
+    const nextParams = new URLSearchParams(params);
+    if (next) {
+      nextParams.set("project", next);
+    } else {
+      nextParams.delete("project");
+    }
+    setParams(nextParams, { replace: true });
+  }
 
   return (
     <ProdShell>
@@ -31,11 +56,10 @@ export default function TimeMachinePage() {
           <p className="eyebrow">Production · Conflict &amp; Time Machine</p>
           <h1>Conflict &amp; Time Machine</h1>
           <p className="lede">
-            Read-only view of the <code>{TIME_MACHINE_PROJECT}</code> LIVE state:
-            the unresolved conflict plus the Time Machine as-of snapshots at{" "}
-            {TIME_MACHINE_T1} and {TIME_MACHINE_T2} and the T1→T2 diff.
-            LIVE_API preferred; demo fallback stays empty and isolated — nothing
-            is invented in the browser.
+            Read-only view of <code>{projectId ?? "UNKNOWN"}</code> LIVE state:
+            unresolved conflicts plus Time Machine as-of snapshots at {t1} and{" "}
+            {t2} and the T1→T2 diff. LIVE_API preferred; demo fallback stays
+            empty and isolated — nothing is invented in the browser.
           </p>
           <p className="flags" style={{ marginTop: "0.75rem" }}>
             <span className="chip">ui_canonical=false</span>
@@ -44,6 +68,36 @@ export default function TimeMachinePage() {
             <span className="chip">data_source={dataSource ?? "unknown"}</span>
           </p>
         </header>
+
+        <section className="panel" aria-label="Project selector">
+          <h2>Project</h2>
+          {statusLoading ? <p className="banner">Loading projects…</p> : null}
+          <label className="lede" htmlFor="time-machine-project">
+            Focus project
+          </label>
+          <select
+            id="time-machine-project"
+            value={projectId ?? ""}
+            onChange={(event) => onSelectProject(event.target.value)}
+            style={{ display: "block", marginTop: "0.5rem", maxWidth: "24rem" }}
+          >
+            {!projectId ? (
+              <option value="">unknown — select a project</option>
+            ) : null}
+            {projects.map((project) => (
+              <option
+                key={project.project_id ?? project.path}
+                value={project.project_id ?? ""}
+              >
+                {project.project_id ?? "unnamed"}
+              </option>
+            ))}
+            {projectId &&
+            !projects.some((project) => project.project_id === projectId) ? (
+              <option value={projectId}>{projectId}</option>
+            ) : null}
+          </select>
+        </section>
 
         {error ? <p className="banner warn">Time Machine unavailable: {error}</p> : null}
         {loading ? <p className="banner">Loading…</p> : null}
@@ -101,11 +155,11 @@ export default function TimeMachinePage() {
             }}
           >
             <div>
-              <h3>At T1 ({TIME_MACHINE_T1})</h3>
+              <h3>At T1 ({t1})</h3>
               <AsOfCells cells={asOfT1Cells} loading={loading} />
             </div>
             <div>
-              <h3>At T2 ({TIME_MACHINE_T2})</h3>
+              <h3>At T2 ({t2})</h3>
               <AsOfCells cells={asOfT2Cells} loading={loading} />
             </div>
           </div>
