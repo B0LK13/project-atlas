@@ -17,21 +17,23 @@ Do not reopen `#344`. Wait for a fresh owner-authorized execution lane.
 This file is **not** a D-042 implementation, PREP coding package, or
 authorization to reopen `#344`. Do not create a D-042 branch from this packet.
 
-D-042 may open only after Lane H’s three conditions exist
-(D-088 CASE A PASS + owner-authorized #351 merge + post-merge exact-main PASS).
+Lane H conditions now exist (D-088 CASE A PASS + owner-authorized #351
+merge `c282f2c` + post-merge exact-main PASS). The execution gate is
+OPEN. Implementation still requires a fresh owner-authorized D-042
+directive. Do not treat this packet as that authorization.
 
 ---
 
-## Future accepted main (conditional)
+## Accepted main (Lane H fired)
 
-When Lane H fires, the accepted main is the **merge commit** of #351 onto
-then-current `main`, not `b2b5d9b` itself (merge commit ≠ production freeze).
-
-Until then, the production candidate remains the D-087 freeze:
+Accepted main is the **merge commit** of #351, not the D-087 freeze
+itself (merge commit ≠ production freeze).
 
 ```
-AUTHORIZED_PRODUCTION_HEAD = b2b5d9b9fc7e4d3aff69fea3e1a90d9c950b0b78
-AUTHORIZED_PRODUCTION_TREE = 14318297c5fbf40b4fff054ad27126ee4c89db7f
+ACCEPTED_MAIN = c282f2c1eb2dde24f997e480c37d083fda906e54
+ACCEPTED_MAIN_TREE = 2490d370ee5dc40cdcc4d66e1d821be300ec1c59
+D087_PRODUCTION_FREEZE = b2b5d9b9fc7e4d3aff69fea3e1a90d9c950b0b78
+D087_PRODUCTION_TREE = 14318297c5fbf40b4fff054ad27126ee4c89db7f
 ```
 
 Historical candidates (do not Local-validate, do not merge alone):
