@@ -5,6 +5,61 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-080 — Deterministic bounded candidate selection
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-D080-CANDIDATE-SELECTION-TRUTH
+**Branch:** cursor/d049-authorized-volume-root-6f85
+**PR:** #351 (do not merge)
+
+### Inputs
+
+```
+D078_POLICY = PASS
+D079_AUTHENTIC_ESTATE_RUN_A = PARTIAL
+KNOWN_EXPECTED_FOUND = 0/5
+```
+
+### Production freeze
+
+```
+D080_HEAD = 99aa937b3718cf0432bb688dbfa074daade7c049
+D080_TREE = e73273f208009f9c317ffb489919e154938ee1c4
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D080_FREEZE = 0
+```
+
+### Change
+
+Traversal order is not selection authority. Family-aware / region-breadth
+top-K after compact evidence gathering. Volume root is a scope container.
+Knowledge attachment fail-closed. Cap honesty retained.
+
+### Commands and results
+
+```
+ruff / mypy on D-080 paths                         PASS
+pytest D-049/D-063/D-064/D-067/D-078/D-080         82 passed
+pytest identity/connect/source-identity            33 passed
+pytest atlas-vault-documentation/tests --no-cov    171 passed
+apps/web tsc -b && npm run build                   PASS
+Independent Cloud IV (falsify order + monopoly)    PASS
+```
+
+### Gates
+
+```
+CLOUD_IV = PASS
+LOCAL_D081_READY = YES
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = PARTIAL
+D_049_FINAL_ACCEPTANCE = PARTIAL
+D_042_EXECUTION_GATE = CLOSED
+MERGE_RECOMMENDATION = BLOCKED_PENDING_LOCAL_D081
+NEW_SECURITY_HIGH = 0
+NEW_HIGH = 0
+HIGH_OPEN = 0
+D080_PERFORMANCE_RESIDUAL = NOT_MEASURED_ON_AUTHENTIC_ESTATE
+```
+
 ## D-078 — Owner-authorized Windows non-system volume root
 
 **Date:** 2026-08-14
