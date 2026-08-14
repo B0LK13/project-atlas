@@ -5,6 +5,32 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-071A — Local D-068 PASS ingested; merge authorization packet ready
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-FINAL-RECONCILIATION-071A
+**Branch:** cursor/d049-final-reconciliation-6f85
+
+### Mission
+Ingest Local D-068 PASS on exact `ccacaa5` / `d26768`. Re-measure #348
+freeze integrity and CI. Produce owner merge authorization packet.
+Do not merge. No production mutation. No D-042.
+
+### Decision
+```
+LOCAL_D068_RESULT = PASS
+VALIDATION_TARGET_STALE = NO
+NEW_HIGH = 0
+HIGH_OPEN = 0
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D067_FREEZE = 0
+D067_CI_COVERAGE = COMPLETE
+D049_CLOUD_RECONCILIATION = READY_FOR_FINAL_MERGE_AUTHORIZATION
+OWNER_AUTHORIZATION = NOT_GRANTED
+```
+
+Evidence: `docs/evidence/D-071A-LOCAL-PASS-RECONCILIATION.md`,
+`docs/evidence/D-071A-MERGE-AUTHORIZATION-PACKET.md`
+
 ## D-071 — D-049 final reconciliation / merge-readiness packet
 
 **Date:** 2026-08-14
