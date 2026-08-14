@@ -5,6 +5,40 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-084 — Hierarchical fair selection + bounded enrichment
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-D084-ESTATE-FAIR-SELECTION
+**PR:** #351 (do not merge)
+
+### Freeze
+
+```
+D084_HEAD = 2fcf8186d4a2c6d4209cee82b6d6f076e2119589
+D084_TREE = 4148e9a63de0089736bea1c0b2631dd1e4fe72e5
+```
+
+### Local gates (Cloud)
+
+```
+focused D-049..D-084   93 passed, 1 skipped
+identity/connect       33 passed
+Control Plane          171 passed
+ruff / mypy            PASS
+web tsc+build          PASS
+Cloud IV               PASS
+```
+
+### State
+
+```
+D081_RESULT = FAIL
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = FAIL
+D_049_FINAL_ACCEPTANCE = FAIL
+D_042_EXECUTION_GATE = CLOSED
+MERGE_RECOMMENDATION = BLOCKED_PENDING_LOCAL_D085
+```
+
 ## D-083 — Windows CI test portability (test-only)
 
 **Date:** 2026-08-14
