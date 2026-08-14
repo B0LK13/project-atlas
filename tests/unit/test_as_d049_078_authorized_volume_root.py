@@ -8,6 +8,7 @@ Does not weaken default filesystem-root / home / C:\\ refusal.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -134,12 +135,42 @@ def test_e_home_refuses_even_with_volume_mode() -> None:
         )
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason=(
+        "Linux/macOS filesystem-root contract uses Path('/'); "
+        "Path.cwd().anchor on Windows is a drive volume (often D:\\), "
+        "which D-078 may accept under owner-authorized-volume. "
+        "Windows volume policy is covered by the D-078 Windows-specific tests."
+    ),
+)
 def test_f_linux_filesystem_root_refuses() -> None:
-    fs_root = Path(Path.cwd().anchor)
+    """POSIX filesystem root stays refused, including explicit volume mode.
+
+    D-083: do not derive this root from Path.cwd().anchor. On GitHub
+    windows-latest that anchor is typically a non-system volume (D:\\),
+    which is the D-078 capability — not a Linux '/' stand-in.
+    """
+    fs_root = Path("/")
     with pytest.raises(EstateDiscoveryError, match="FILESYSTEM_ROOT_NOT_ALLOWED"):
         refuse_dangerous_authorized_root(fs_root)
     with pytest.raises(EstateDiscoveryError, match="FILESYSTEM_ROOT_NOT_ALLOWED"):
         authorize_discovery_root(fs_root, root_mode=ROOT_MODE_OWNER_AUTHORIZED_VOLUME)
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="Windows default drive-root refusal; POSIX root is test_f",
+)
+def test_f_windows_default_drive_root_refuses_without_volume_mode() -> None:
+    """Real Windows drive root stays refused unless explicitly authorized.
+
+    Policy check only — does not walk the volume (Local D-081 remains the
+    authentic-estate scan). Explicit non-system acceptance stays in test_c.
+    """
+    drive_root = Path(Path.cwd().anchor)
+    with pytest.raises(EstateDiscoveryError, match="FILESYSTEM_ROOT_NOT_ALLOWED"):
+        refuse_dangerous_authorized_root(drive_root)
 
 
 def test_g_unc_root_refuses_as_volume_exception(

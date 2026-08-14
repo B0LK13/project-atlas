@@ -5,6 +5,24 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-083 — Windows CI test portability (test-only)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D083-TEST-PORTABILITY
+**PR:** #351 (do not merge)
+
+`test_f_linux_filesystem_root_refuses` no longer uses `Path.cwd().anchor`.
+On non-Windows it uses `Path("/")`. On Windows it is skipped; default
+drive-root refusal is asserted separately without walking the volume.
+
+```
+FAILURE_CLASS = TEST_PORTABILITY
+ROOT_POLICY_REGRESSION = NO
+PRODUCTION_FILES_CHANGED = 0
+LOCAL_D081_PRODUCTION_APPLICABILITY = UNCHANGED
+D080_HEAD remains 99aa937 / e73273f
+```
+
 ## D-082 — D-080 conditional merge readiness (no production mutation)
 
 **Date:** 2026-08-14
