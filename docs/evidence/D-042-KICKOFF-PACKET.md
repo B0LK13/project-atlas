@@ -5,10 +5,14 @@ DIRECTIVE context: D-082 Lane I, refreshed by D-086 / D-087 / D-089.
 ```
 D042_KICKOFF_PACKET_READY = YES
 D042_KICKOFF_PACKET_D087_ALIGNED = YES
-D_042_EXECUTION_GATE = CLOSED
+D_042_EXECUTION_GATE = OPEN
 D042_IMPLEMENTATION = NOT_STARTED
-D049_STATE = CERTIFIED — MERGE ELIGIBLE
+D049_STATE = CLOSED
+ACCEPTED_MAIN = c282f2c1eb2dde24f997e480c37d083fda906e54
 ```
+
+`OPEN != IMPLEMENTED`. Do not start D-042 from this file.
+Do not reopen `#344`. Wait for a fresh owner-authorized execution lane.
 
 This file is **not** a D-042 implementation, PREP coding package, or
 authorization to reopen `#344`. Do not create a D-042 branch from this packet.
