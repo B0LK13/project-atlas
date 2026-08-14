@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  LiveApiAuthError,
-  liveApiDemoOnly,
-  liveApiFetch,
-} from "../api/liveApi";
+import { liveApiDemoOnly, liveApiFetch } from "../api/liveApi";
 import type { DataSource } from "../types";
 
 /** AS-2.1-WEB-LIVE deepen: LIVE_API graph summary first; demo-isolated unknown fallback. */
@@ -45,17 +41,19 @@ export function useLiveGraph(): {
             }
             return;
           }
-        } catch (err: unknown) {
-          // SEC-SCAN-C-001: missing Bearer must fail closed — never silent demo.
-          if (err instanceof LiveApiAuthError) {
-            if (!cancelled) {
-              setError(err.message);
-              setGraph(null);
-              setDataSource(null);
-            }
-            return;
+          if (!cancelled) {
+            setError(`graph HTTP ${resp.status}`);
+            setGraph(null);
+            setDataSource(null);
           }
-          // network / other: fall through to isolated demo empty
+          return;
+        } catch (err: unknown) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "graph load failed");
+            setGraph(null);
+            setDataSource(null);
+          }
+          return;
         }
       }
       if (!cancelled) {

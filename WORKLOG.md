@@ -5,6 +5,18 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## TRUTH-UX-001 — LIVE web hook honesty
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001
+**Branch:** `cursor/live-hook-honesty-25b1` (from accepted main `9441b0c`)
+**Not #354 / #356 / #357.** No merge authorization.
+
+LIVE HTTP/network failures on brief/knowledge/graph/ops/discovery must
+not be labeled `demo_stub`.
+
+---
+
 ## D-094 — D-042 final reconciliation
 
 **Date:** 2026-08-14
