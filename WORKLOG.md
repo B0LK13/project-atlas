@@ -15,6 +15,14 @@ exact commands run, exact results, deviations, and remaining risks.
 Read-only `#/ask` over existing `GET /v1/ask`. Lexical live ask, not a
 chat model. UNKNOWN stays UNKNOWN. ASK ≠ authority.
 
+```
+ASK_IV = PASS
+ASK_CI = PASS
+ASK_STATE = CERTIFIED — MERGE ELIGIBLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+PRODUCTION_TIP = 98d364be887f1d671d24603bfdd69354b20bd76b
+```
+
 ---
 
 ## D-094 — D-042 final reconciliation
