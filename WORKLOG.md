@@ -5,6 +5,52 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-094 — D-042 final reconciliation
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D094-AND-OVERNIGHT-AUTONOMOUS-DEVELOPMENT-001
+**PR:** #353 (not merged; draft; frozen after this packet)
+
+```
+D091_FREEZE_DESCENDS_FROM_MAIN = YES
+PR_HEAD_DESCENDS_FROM_D091_FREEZE = YES
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D091_FREEZE = 0
+UNRELATED_PRODUCTION_CHANGE = 0
+LOCAL_D092_APPLICABLE_TO_PR = YES
+D092A = PASS
+D092_RECONCILED_RESULT = PASS
+D092B = PASS (supplementary; not authentic owner/pilot)
+D091_LOCAL_ACCEPTANCE = PASS
+CLOUD_IV = PASS
+D049_REGRESSION = PASS
+IDENTITY_CONNECT = PASS
+SOURCE_LINEAGE = PASS
+CONTROL_PLANE = PASS
+RUFF = PASS
+MYPY = PASS
+WEB_TYPECHECK = PASS
+WEB_BUILD = PASS
+WINDOWS_CI = PASS
+LINUX_CI = PASS
+NEW_SECURITY_HIGH = 0
+NEW_HIGH = 0
+HIGH_OPEN = 0
+D042_MERGE_ELIGIBILITY = YES
+D042_STATE = CERTIFIED — MERGE ELIGIBLE
+D042_FINAL_ACCEPTANCE_RECOMMENDATION = PASS
+MERGE_AUTHORIZATION = NOT_GRANTED
+PRODUCTION_MUTATION = NO
+```
+
+Interpretation: single governed project + no explicit project reference =
+deterministic unique route (expected D-091; not a defect). D-092B separately
+returned `AMBIGUOUS_PROJECT` for multi-project missing reference.
+
+Evidence: `docs/evidence/D-094-FINAL-RECONCILIATION.md`,
+`docs/evidence/D-094-OWNER-MERGE-PACKET.md`.
+
+---
+
 ## D-093 — D-042 conditional integration readiness
 
 **Date:** 2026-08-14
