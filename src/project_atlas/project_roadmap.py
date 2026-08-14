@@ -283,18 +283,39 @@ def _pending_review_count(vault: Path, project_id: str) -> int:
 
 
 def _conflict_count(vault: Path, project_id: str) -> int:
+    """Count unresolved conflicts for one project only.
+
+    Cross-project files must never bleed. Prefer the isolated
+    ``review/conflicts/<project>.json`` surface used by the unknown lens.
+    """
+    counts: list[int] = []
+    review = _read_json(vault / "review" / "conflicts" / f"{project_id}.json")
+    if review is not None:
+        entries = review.get("entries")
+        counts.append(len(entries) if isinstance(entries, list) else 0)
+
     conflicts_dir = vault / "generated" / "ops" / "conflicts"
     if conflicts_dir.is_dir():
-        return sum(1 for path in conflicts_dir.glob("*.json") if path.is_file())
+        scoped = 0
+        for path in sorted(conflicts_dir.glob("*.json")):
+            if not path.is_file():
+                continue
+            payload = _read_json(path)
+            if not payload:
+                continue
+            owner = str(payload.get("project_id") or payload.get("project") or "")
+            if owner == project_id:
+                scoped += 1
+        counts.append(scoped)
+
     unknown = _load_lens(vault, "unknown", project_id)
-    if not unknown:
-        return 0
-    raw = unknown.get("unresolved_conflicts")
-    if isinstance(raw, int):
-        return raw
-    if isinstance(raw, list):
-        return len(raw)
-    return 0
+    if unknown:
+        raw = unknown.get("unresolved_conflicts")
+        if isinstance(raw, int):
+            counts.append(raw)
+        elif isinstance(raw, list):
+            counts.append(len(raw))
+    return max(counts) if counts else 0
 
 
 def _normalize_item(
@@ -377,9 +398,32 @@ def _normalize_item(
         "blockers": blockers,
         "critical_path": False,
         "missing_acceptance_evidence": "MISSING_ACCEPTANCE_EVIDENCE" in flags,
+        "missing_dependencies": [],
         "flags": sorted(set(flags)),
         "notes": list(raw.get("notes") or []),
     }
+
+
+def _annotate_missing_dependencies(items: list[dict[str, Any]]) -> None:
+    """Missing depends_on targets are UNKNOWN blockers, not silent drops."""
+    known = {item["id"] for item in items}
+    for item in items:
+        missing = [dep for dep in item["depends_on"] if dep not in known]
+        item["missing_dependencies"] = missing
+        if not missing:
+            continue
+        flags = set(item["flags"])
+        flags.add("MISSING_DEPENDENCY")
+        item["flags"] = sorted(flags)
+        item["blockers"].append(
+            {
+                "reason": "missing dependency id",
+                "waiting_on": missing[0],
+                "unlock_condition": (
+                    f"declare roadmap item {missing[0]} or remove the dependency"
+                ),
+            }
+        )
 
 
 def _detect_cycle(items: list[dict[str, Any]]) -> bool:
@@ -403,8 +447,18 @@ def _detect_cycle(items: list[dict[str, Any]]) -> bool:
     return any(walk(item_id) for item_id in graph)
 
 
+def _path_has_unfinished(path: list[str], by_id: dict[str, dict[str, Any]]) -> bool:
+    return any(
+        node in by_id and by_id[node]["status"] not in _DONE_ENOUGH for node in path
+    )
+
+
 def _longest_paths(items: list[dict[str, Any]]) -> list[list[str]]:
-    """Longest dependency chains (dep → item) among remaining work."""
+    """Longest dependency chains (dep → item) among remaining work.
+
+    Finished-only chains are ignored when any unfinished path exists so a
+    completed long branch cannot hide a shorter parallel unlock.
+    """
     by_id = {item["id"]: item for item in items}
     memo: dict[str, list[str]] = {}
 
@@ -428,11 +482,13 @@ def _longest_paths(items: list[dict[str, Any]]) -> list[list[str]]:
         memo[item_id] = best
         return best
 
-    paths = [path_for(item_id, set()) for item_id in sorted(by_id)]
+    paths = [path for path in (path_for(item_id, set()) for item_id in sorted(by_id)) if path]
     if not paths:
         return []
-    longest = max(len(path) for path in paths)
-    return sorted(path for path in paths if len(path) == longest)
+    remaining = [path for path in paths if _path_has_unfinished(path, by_id)]
+    candidates = remaining if remaining else paths
+    longest = max(len(path) for path in candidates)
+    return sorted(path for path in candidates if len(path) == longest)
 
 
 def _you_are_here(
@@ -456,16 +512,40 @@ def _you_are_here(
                 ),
                 "evidence": list(item["evidence_present"]),
             }
+    unfinished = sorted(
+        (item for item in items if item["status"] not in _DONE_ENOUGH),
+        key=lambda item: str(item["id"]),
+    )
+    if unfinished:
+        item = unfinished[0]
+        return {
+            "item_id": item["id"],
+            "title": item["title"],
+            "status": item["status"],
+            "lifecycle": item.get("lifecycle"),
+            "reason": "parallel_remaining_work",
+            "why": (
+                f"selected critical path is exhausted but {item['id']} "
+                f"remains unfinished (progress={item['status']})"
+            ),
+            "evidence": list(item["evidence_present"]),
+        }
     if state_lens:
         rollup = state_lens.get("rollup") or state_lens.get("status")
         summary = state_lens.get("summary")
         if rollup or summary:
+            status, notes = _normalize_status(rollup)
             return {
                 "item_id": None,
                 "title": "current state lens",
-                "status": str(rollup or "UNKNOWN"),
+                "status": status,
                 "reason": "state_lens",
+                "why": (
+                    f"critical path exhausted; state-lens rollup normalized to {status}"
+                    + (f" ({summary})" if summary else "")
+                ),
                 "evidence": ["generated/answers/ans-state"],
+                "flags": notes,
             }
     if not items:
         return {
@@ -473,15 +553,26 @@ def _you_are_here(
             "title": "UNKNOWN",
             "status": "UNKNOWN",
             "reason": "no_roadmap_items",
+            "why": "no roadmap items",
+            "evidence": [],
+        }
+    if all(item["status"] == "VERIFIED_COMPLETION" for item in items):
+        return {
+            "item_id": None,
+            "title": "no remaining critical-path work",
+            "status": "VERIFIED_COMPLETION",
+            "lifecycle": "CLOSED",
+            "reason": "critical_path_exhausted",
+            "why": "all roadmap items have verified completion evidence",
             "evidence": [],
         }
     return {
         "item_id": None,
-        "title": "no remaining critical-path work",
-        "status": "VERIFIED_COMPLETION" if all(
-            item["status"] in _DONE_ENOUGH for item in items
-        ) else "UNKNOWN",
+        "title": "no remaining implementation work",
+        "status": "IMPLEMENTED",
+        "lifecycle": "IMPLEMENTATION_COMPLETE",
         "reason": "critical_path_exhausted",
+        "why": "remaining items are IMPLEMENTED; IMPLEMENTED != VERIFIED",
         "evidence": [],
     }
 
@@ -502,109 +593,179 @@ def _smallest_transition(item: dict[str, Any]) -> dict[str, str | None]:
     return {"from": current, "to": nxt}
 
 
+def _unlock_for_item(items: list[dict[str, Any]], item: dict[str, Any]) -> dict[str, Any]:
+    by_id = {row["id"]: row for row in items}
+    item_id = str(item["id"])
+    missing_deps = [dep for dep in item["depends_on"] if dep not in by_id]
+    deps = [by_id[dep] for dep in item["depends_on"] if dep in by_id]
+    unknown_deps = [dep["id"] for dep in deps if dep["status"] == "UNKNOWN"]
+    deps_ready = all(dep["status"] in _DONE_ENOUGH for dep in deps) and not missing_deps
+    releases = _downstream(items, item_id)
+    transition = _smallest_transition(item)
+    if missing_deps:
+        return {
+            "item_id": item_id,
+            "title": item["title"],
+            "status": item["status"],
+            "lifecycle": item.get("lifecycle"),
+            "waiting_on": missing_deps[0],
+            "unlock_condition": (
+                f"declare roadmap item {missing_deps[0]} or remove the dependency"
+            ),
+            "reason": "unknown_prerequisite",
+            "why": (
+                f"{item_id} depends on undeclared item {missing_deps[0]}; "
+                "missing dependency != ready"
+            ),
+            "smallest_transition": transition,
+            "releases": releases,
+        }
+    if item["status"] == "UNKNOWN":
+        return {
+            "item_id": item_id,
+            "title": item["title"],
+            "status": "UNKNOWN",
+            "lifecycle": item.get("lifecycle"),
+            "waiting_on": item_id,
+            "unlock_condition": f"replace UNKNOWN on {item_id} with evidence-backed state",
+            "reason": "unknown_prerequisite",
+            "why": f"{item_id} is UNKNOWN; no invented next transition",
+            "smallest_transition": None,
+            "releases": releases,
+        }
+    if unknown_deps:
+        return {
+            "item_id": item_id,
+            "title": item["title"],
+            "status": item["status"],
+            "lifecycle": item.get("lifecycle"),
+            "waiting_on": unknown_deps[0],
+            "unlock_condition": f"resolve UNKNOWN prerequisite {unknown_deps[0]}",
+            "reason": "unknown_prerequisite",
+            "why": (
+                f"{item_id} cannot advance while prerequisite "
+                f"{unknown_deps[0]} is UNKNOWN"
+            ),
+            "smallest_transition": transition,
+            "releases": releases,
+        }
+    if item["status"] == "BLOCKED":
+        blocker = item["blockers"][0] if item["blockers"] else {}
+        return {
+            "item_id": item_id,
+            "title": item["title"],
+            "status": "BLOCKED",
+            "lifecycle": item.get("lifecycle"),
+            "waiting_on": blocker.get("waiting_on"),
+            "unlock_condition": blocker.get("unlock_condition") or blocker.get("reason"),
+            "reason": "blocked",
+            "why": (
+                f"{item_id} is BLOCKED waiting on "
+                f"{blocker.get('waiting_on') or 'UNKNOWN'}; "
+                f"unlock={blocker.get('unlock_condition') or blocker.get('reason')}"
+            ),
+            "smallest_transition": transition,
+            "releases": releases,
+        }
+    if deps_ready:
+        return {
+            "item_id": item_id,
+            "title": item["title"],
+            "status": item["status"],
+            "lifecycle": item.get("lifecycle"),
+            "waiting_on": None,
+            "unlock_condition": (
+                f"advance {item_id} {transition['from']} → {transition['to']}"
+            ),
+            "reason": "next_critical_item",
+            "why": (
+                f"{item_id} is the first unfinished critical-path item; "
+                f"the smallest evidence-backed transition is "
+                f"{transition['from']} → {transition['to']}"
+                + (f", which releases {', '.join(releases)}" if releases else "")
+            ),
+            "smallest_transition": transition,
+            "releases": releases,
+        }
+    waiting = [dep["id"] for dep in deps if dep["status"] not in _DONE_ENOUGH]
+    return {
+        "item_id": item_id,
+        "title": item["title"],
+        "status": item["status"],
+        "lifecycle": item.get("lifecycle"),
+        "waiting_on": waiting[0] if waiting else None,
+        "unlock_condition": f"satisfy dependencies: {', '.join(waiting)}" if waiting else None,
+        "reason": "waiting_on_dependency",
+        "why": f"{item_id} waits on unfinished dependencies {', '.join(waiting)}",
+        "smallest_transition": transition,
+        "releases": releases,
+    }
+
+
+def _completion_unlock(items: list[dict[str, Any]]) -> dict[str, Any]:
+    if not items:
+        return {
+            "item_id": None,
+            "title": "UNKNOWN",
+            "status": "UNKNOWN",
+            "lifecycle": "UNKNOWN",
+            "waiting_on": None,
+            "unlock_condition": None,
+            "reason": "no_roadmap_items",
+            "why": "no roadmap items",
+            "smallest_transition": None,
+            "releases": [],
+        }
+    if all(item["status"] == "VERIFIED_COMPLETION" for item in items):
+        return {
+            "item_id": None,
+            "title": "none",
+            "status": "VERIFIED_COMPLETION",
+            "lifecycle": "CLOSED",
+            "waiting_on": None,
+            "unlock_condition": None,
+            "reason": "no_remaining_unlock",
+            "why": "all roadmap items have verified completion evidence",
+            "smallest_transition": None,
+            "releases": [],
+        }
+    return {
+        "item_id": None,
+        "title": "none",
+        "status": "IMPLEMENTED",
+        "lifecycle": "IMPLEMENTATION_COMPLETE",
+        "waiting_on": None,
+        "unlock_condition": None,
+        "reason": "remaining_verification",
+        "why": (
+            "no unfinished implementation; IMPLEMENTED != VERIFIED "
+            "and MERGED != CLOSED"
+        ),
+        "smallest_transition": None,
+        "releases": [],
+    }
+
+
 def _next_unlock(items: list[dict[str, Any]], critical_path: list[str]) -> dict[str, Any]:
     by_id = {item["id"]: item for item in items}
     for item_id in critical_path:
         item = by_id[item_id]
         if item["status"] in _DONE_ENOUGH:
             continue
-        deps = [by_id[dep] for dep in item["depends_on"] if dep in by_id]
-        unknown_deps = [dep["id"] for dep in deps if dep["status"] == "UNKNOWN"]
-        deps_ready = all(dep["status"] in _DONE_ENOUGH for dep in deps)
-        releases = _downstream(items, item_id)
-        transition = _smallest_transition(item)
-        if item["status"] == "UNKNOWN":
-            return {
-                "item_id": item_id,
-                "title": item["title"],
-                "status": "UNKNOWN",
-                "lifecycle": item.get("lifecycle"),
-                "waiting_on": item_id,
-                "unlock_condition": f"replace UNKNOWN on {item_id} with evidence-backed state",
-                "reason": "unknown_prerequisite",
-                "why": f"{item_id} is UNKNOWN; no invented next transition",
-                "smallest_transition": None,
-                "releases": releases,
-            }
-        if unknown_deps:
-            return {
-                "item_id": item_id,
-                "title": item["title"],
-                "status": item["status"],
-                "lifecycle": item.get("lifecycle"),
-                "waiting_on": unknown_deps[0],
-                "unlock_condition": f"resolve UNKNOWN prerequisite {unknown_deps[0]}",
-                "reason": "unknown_prerequisite",
-                "why": (
-                    f"{item_id} cannot advance while prerequisite "
-                    f"{unknown_deps[0]} is UNKNOWN"
-                ),
-                "smallest_transition": transition,
-                "releases": releases,
-            }
-        if item["status"] == "BLOCKED":
-            blocker = item["blockers"][0] if item["blockers"] else {}
-            return {
-                "item_id": item_id,
-                "title": item["title"],
-                "status": "BLOCKED",
-                "lifecycle": item.get("lifecycle"),
-                "waiting_on": blocker.get("waiting_on"),
-                "unlock_condition": blocker.get("unlock_condition") or blocker.get("reason"),
-                "reason": "blocked",
-                "why": (
-                    f"{item_id} is BLOCKED waiting on "
-                    f"{blocker.get('waiting_on') or 'UNKNOWN'}; "
-                    f"unlock={blocker.get('unlock_condition') or blocker.get('reason')}"
-                ),
-                "smallest_transition": transition,
-                "releases": releases,
-            }
-        if deps_ready:
-            return {
-                "item_id": item_id,
-                "title": item["title"],
-                "status": item["status"],
-                "lifecycle": item.get("lifecycle"),
-                "waiting_on": None,
-                "unlock_condition": (
-                    f"advance {item_id} {transition['from']} → {transition['to']}"
-                ),
-                "reason": "next_critical_item",
-                "why": (
-                    f"{item_id} is the first unfinished critical-path item; "
-                    f"the smallest evidence-backed transition is "
-                    f"{transition['from']} → {transition['to']}"
-                    + (f", which releases {', '.join(releases)}" if releases else "")
-                ),
-                "smallest_transition": transition,
-                "releases": releases,
-            }
-        waiting = [dep["id"] for dep in deps if dep["status"] not in _DONE_ENOUGH]
-        return {
-            "item_id": item_id,
-            "title": item["title"],
-            "status": item["status"],
-            "lifecycle": item.get("lifecycle"),
-            "waiting_on": waiting[0] if waiting else None,
-            "unlock_condition": f"satisfy dependencies: {', '.join(waiting)}" if waiting else None,
-            "reason": "waiting_on_dependency",
-            "why": f"{item_id} waits on unfinished dependencies {', '.join(waiting)}",
-            "smallest_transition": transition,
-            "releases": releases,
-        }
-    return {
-        "item_id": None,
-        "title": "UNKNOWN" if not items else "none",
-        "status": "UNKNOWN" if not items else "VERIFIED_COMPLETION",
-        "lifecycle": "UNKNOWN" if not items else "CLOSED",
-        "waiting_on": None,
-        "unlock_condition": None,
-        "reason": "no_remaining_unlock" if items else "no_roadmap_items",
-        "why": "no remaining unfinished critical-path item" if items else "no roadmap items",
-        "smallest_transition": None,
-        "releases": [],
-    }
+        return _unlock_for_item(items, item)
+    unfinished = sorted(
+        (item for item in items if item["status"] not in _DONE_ENOUGH),
+        key=lambda item: str(item["id"]),
+    )
+    if unfinished:
+        result = _unlock_for_item(items, unfinished[0])
+        if result["reason"] == "next_critical_item":
+            result["reason"] = "parallel_remaining_work"
+            result["why"] = (
+                f"critical path exhausted; next remaining unlock is {unfinished[0]['id']}"
+            )
+        return result
+    return _completion_unlock(items)
 
 
 def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
@@ -639,10 +800,13 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
         for index, raw in enumerate(raw_items)
         if isinstance(raw, dict)
     ]
+    _annotate_missing_dependencies(items)
     cyclic = _detect_cycle(items) if items else False
     critical_path: list[str] = []
+    multiple_critical_paths = False
     if items and not cyclic:
         paths = _longest_paths(items)
+        multiple_critical_paths = len(paths) > 1
         critical_path = paths[0] if paths else []
         marked = set(critical_path)
         for item in items:
@@ -682,6 +846,10 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
         unknowns.append("item status UNKNOWN")
     if any(item["missing_acceptance_evidence"] for item in items):
         unknowns.append("missing acceptance evidence")
+    if any(item.get("missing_dependencies") for item in items):
+        unknowns.append("missing dependency ids")
+    if multiple_critical_paths:
+        unknowns.append("multiple equal-length critical paths")
     if pending_reviews:
         unknowns.append("pending reviews")
     if conflicts:
@@ -779,8 +947,40 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "cyclic_dependencies": cyclic,
             "merged_eq_closed": False,
             "implemented_eq_verified": False,
+            "multiple_critical_paths": multiple_critical_paths,
             "dogfood_local_vault_executed": False,
             "authentic_pilot": False,
+            "atlas_opt_wake_gate": "CLOSED",
+        },
+    }
+
+
+def derive_roadmap_lenses(
+    vault: Path,
+    *,
+    project_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Read-only derive. Does not write generated answers or Layer B."""
+    vault = vault.expanduser().resolve()
+    if not vault.is_dir():
+        raise ProjectRoadmapError(f"vault is not a directory: {vault}")
+    selected = project_ids if project_ids is not None else _list_projects(vault)
+    lenses = [build_roadmap_lens(vault, project_id) for project_id in selected]
+    return {
+        "schema_version": 1,
+        "schema": "atlas.project-roadmap.receipt.v1",
+        "package": PACKAGE_ID,
+        "status": "ok",
+        "vault": vault.as_posix(),
+        "projects": list(selected),
+        "answers_written": [],
+        "lenses": lenses,
+        "generated": {"by": GENERATOR_ID},
+        "honesty": {
+            "roadmap_is_canonical": False,
+            "derived_status_is_authority": False,
+            "lens_is_authority": False,
+            "read_only": True,
             "atlas_opt_wake_gate": "CLOSED",
         },
     }
@@ -792,37 +992,20 @@ def materialize_roadmap_lenses(
     project_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Write roadmap answer lenses under ``generated/answers/``."""
-    vault = vault.expanduser().resolve()
-    if not vault.is_dir():
-        raise ProjectRoadmapError(f"vault is not a directory: {vault}")
-    selected = project_ids if project_ids is not None else _list_projects(vault)
+    report = derive_roadmap_lenses(vault, project_ids=project_ids)
+    vault = Path(str(report["vault"]))
     written: list[str] = []
-    lenses: list[dict[str, Any]] = []
-    for project_id in selected:
-        lens = build_roadmap_lens(vault, project_id)
-        lenses.append(lens)
+    for lens in report["lenses"]:
         answer_id = str(lens["answer_id"])
         path = vault / ANSWERS_RELATIVE / f"{answer_id}.json"
         payload = (json.dumps(lens, indent=2, sort_keys=True) + "\n").encode("utf-8")
         _write_atomic(path, payload)
         written.append(path.relative_to(vault).as_posix())
-    return {
-        "schema_version": 1,
-        "schema": "atlas.project-roadmap.receipt.v1",
-        "package": PACKAGE_ID,
-        "status": "ok",
-        "vault": vault.as_posix(),
-        "projects": list(selected),
-        "answers_written": written,
-        "lenses": lenses,
-        "generated": {"by": GENERATOR_ID},
-        "honesty": {
-            "roadmap_is_canonical": False,
-            "derived_status_is_authority": False,
-            "lens_is_authority": False,
-            "atlas_opt_wake_gate": "CLOSED",
-        },
-    }
+    report["answers_written"] = written
+    honesty = dict(report["honesty"])
+    honesty["read_only"] = False
+    report["honesty"] = honesty
+    return report
 
 
 def _format_critical_path(path: list[str], lens: dict[str, Any]) -> str:

@@ -70,9 +70,32 @@ export default function RoadmapPage() {
         <section className="panel" aria-label="Critical path">
           <h2>Critical path</h2>
           {path.length === 0 ? (
-            <p className="banner warn">UNKNOWN or empty — no invented path</p>
+            <p className="banner warn">
+              {roadmap?.honesty?.cyclic_dependencies
+                ? "UNKNOWN — cyclic dependencies; no invented path"
+                : "empty — no remaining-work path (not an invented completion)"}
+            </p>
           ) : (
             <p>{path.join(" → ")}</p>
+          )}
+        </section>
+
+        <section className="panel" aria-label="Blockers">
+          <h2>Blockers</h2>
+          {(roadmap?.blockers ?? []).length === 0 ? (
+            <p>No derived blockers on this lens.</p>
+          ) : (
+            <ul>
+              {(roadmap?.blockers ?? []).map((blocker, index) => (
+                <li key={`${blocker.waiting_on ?? "none"}-${index}`}>
+                  {blocker.reason ?? "UNKNOWN"}
+                  {blocker.waiting_on ? ` · waiting on ${blocker.waiting_on}` : ""}
+                  {blocker.unlock_condition
+                    ? ` · unlock: ${blocker.unlock_condition}`
+                    : ""}
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 

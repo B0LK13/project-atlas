@@ -33,12 +33,42 @@
     "authority": { "const": "derived-lens" },
     "layer": { "const": "C" },
     "project_id": { "type": "string", "minLength": 1 },
-    "you_are_here": { "type": "object" },
+    "you_are_here": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {
+        "item_id": { "type": ["string", "null"] },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "lifecycle": { "type": ["string", "null"] },
+        "reason": { "type": "string" },
+        "why": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "flags": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "milestones": { "type": "array", "items": { "type": "object" } },
     "items": { "type": "array", "items": { "type": "object" } },
     "blockers": { "type": "array", "items": { "type": "object" } },
     "critical_path": { "type": "array", "items": { "type": "string" } },
-    "next_unlock": { "type": "object" },
+    "next_unlock": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {
+        "item_id": { "type": ["string", "null"] },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "lifecycle": { "type": ["string", "null"] },
+        "waiting_on": { "type": ["string", "null"] },
+        "unlock_condition": { "type": ["string", "null"] },
+        "reason": { "type": "string" },
+        "why": { "type": "string" },
+        "smallest_transition": { "type": ["object", "null"] },
+        "releases": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
     "unknowns": { "type": "array", "items": { "type": "string" } },
     "pending_reviews": { "type": "integer", "minimum": 0 },
     "unresolved_conflicts": { "type": "integer", "minimum": 0 },
@@ -61,6 +91,9 @@
         "unknown_is_valid": { "const": true },
         "percent_complete_is_canonical": { "const": false },
         "cyclic_dependencies": { "type": "boolean" },
+        "merged_eq_closed": { "const": false },
+        "implemented_eq_verified": { "const": false },
+        "multiple_critical_paths": { "type": "boolean" },
         "authentic_pilot": { "type": "boolean" },
         "atlas_opt_wake_gate": { "type": "string" }
       },

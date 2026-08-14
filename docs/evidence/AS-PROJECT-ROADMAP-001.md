@@ -84,12 +84,30 @@ INCREMENTAL_CONNECT_PR = NONE
 
 ---
 
+## Overnight IV reconciliation (2026-08-14)
+
+Prior report claimed `ROADMAP_IV=PASS` against stale tip `8f0e78e`.
+Live PR head at verification start was `dd6d6f9` / tree `3fc96bc`.
+PR body correctly said independent certification pending. Windows CI
+was still rolling. Independent falsification of `dd6d6f9` found:
+
+- CRITICAL: selected finished critical path emitted `VERIFIED_COMPLETION`/`CLOSED` while a parallel `NOT_STARTED` item remained
+- HIGH: `_conflict_count` counted vault-global `generated/ops/conflicts/*.json`
+- HIGH: missing `depends_on` ids were dropped and treated as ready
+- HIGH: `state_lens.rollup` was emitted unnormalized (`100% complete`)
+
+```
+PRIOR_ROADMAP_IV_CLAIM = STALE_NOT_CERTIFIED
+IV_AT_dd6d6f9 = FAIL
+REMEDIATION = BOUNDED_ON_THIS_BRANCH
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
 ## Gates on this branch
 
 ```
 pytest tests/unit/test_as_project_roadmap_001.py + test_schema.py
-  15 passed
-ruff = PASS
-mypy (touched modules) = PASS
-web tsc -b && vite build = PASS (run after this packet if not already)
+  (adversarial honesty cases added; count is not the gate)
+ruff / mypy on touched modules
+connect now materializes ans-roadmap-* (agent-context still deferred)
 ```

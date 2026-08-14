@@ -195,6 +195,7 @@ from project_atlas.project_decisions import (
 )
 from project_atlas.project_roadmap import (
     ProjectRoadmapError,
+    derive_roadmap_lenses,
     materialize_roadmap_lenses,
     render_roadmap_text,
 )
@@ -695,6 +696,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the roadmap receipt JSON to stdout (sorted keys).",
+    )
+    roadmap_parser.add_argument(
+        "--read-only",
+        action="store_true",
+        dest="read_only",
+        help="Derive and print without writing generated/answers/ (no vault mutation).",
     )
 
     changed_parser = subparsers.add_parser(
@@ -2439,6 +2446,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if status == "connected":
                 print(
                     "  next: atlas overview --vault <vault> "
+                    "| atlas roadmap --vault <vault> --project <id> "
                     "| atlas ask2 --vault <vault> --project <id> "
                     "--question 'What is this project?'"
                 )
@@ -2457,6 +2465,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 unknown_answers = report.get("unknown_answers") or []
                 if unknown_answers:
                     print(f"  unknown:  {', '.join(unknown_answers)}")
+                roadmap_answers = report.get("roadmap_answers") or []
+                if roadmap_answers:
+                    print(f"  roadmap:  {', '.join(roadmap_answers)}")
                 brief_paths = report.get("brief_paths") or []
                 if brief_paths:
                     print(f"  brief:    {', '.join(brief_paths)}")
@@ -2516,7 +2527,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "roadmap":
         try:
-            report = materialize_roadmap_lenses(
+            derive = derive_roadmap_lenses if args.read_only else materialize_roadmap_lenses
+            report = derive(
                 args.vault,
                 project_ids=args.projects,
             )

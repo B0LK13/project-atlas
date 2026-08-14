@@ -7,7 +7,11 @@ from pathlib import Path
 
 from project_atlas.app_service import open_app_service
 from project_atlas.cli import EXIT_OK, main
-from project_atlas.project_roadmap import build_roadmap_lens, materialize_roadmap_lenses
+from project_atlas.project_roadmap import (
+    build_roadmap_lens,
+    derive_roadmap_lenses,
+    materialize_roadmap_lenses,
+)
 from project_atlas.schema import validate_record
 from project_atlas.web_api.roadmap import read_project_roadmap
 
@@ -286,3 +290,196 @@ def test_checked_in_harbor_slice_fixture() -> None:
     assert lens["you_are_here"]["item_id"] == "pkg-roadmap"
     assert lens["next_unlock"]["smallest_transition"]["to"] == "IMPLEMENTATION_COMPLETE"
     assert lens["honesty"]["dogfood_local_vault_executed"] is False
+
+
+def test_parallel_unfinished_work_is_not_closed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(
+        vault,
+        "parallel",
+        {
+            "items": [
+                {
+                    "id": "a",
+                    "title": "Root",
+                    "status": "VERIFIED_COMPLETION",
+                    "evidence": ["generated/ops/receipts/a.json"],
+                },
+                {
+                    "id": "b",
+                    "title": "Done branch",
+                    "status": "VERIFIED_COMPLETION",
+                    "depends_on": ["a"],
+                    "evidence": ["generated/ops/receipts/b.json"],
+                },
+                {
+                    "id": "c",
+                    "title": "Open sibling",
+                    "status": "NOT_STARTED",
+                    "depends_on": ["a"],
+                },
+            ]
+        },
+    )
+    receipts = vault / "generated" / "ops" / "receipts"
+    receipts.mkdir(parents=True, exist_ok=True)
+    (receipts / "a.json").write_text("{}\n", encoding="utf-8")
+    (receipts / "b.json").write_text("{}\n", encoding="utf-8")
+    lens = build_roadmap_lens(vault, "parallel")
+    validate_record(lens, "project-roadmap")
+    assert "c" in lens["critical_path"]
+    assert lens["you_are_here"]["item_id"] == "c"
+    assert lens["you_are_here"]["status"] != "VERIFIED_COMPLETION"
+    assert lens["next_unlock"]["item_id"] == "c"
+    assert lens["next_unlock"]["status"] != "VERIFIED_COMPLETION"
+    assert lens["next_unlock"]["lifecycle"] != "CLOSED"
+
+
+def test_cross_project_conflicts_do_not_bleed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(vault, "alpha", {"items": [{"id": "a", "title": "A", "status": "IN_PROGRESS"}]})
+    _write_roadmap(vault, "beta", {"items": [{"id": "b", "title": "B", "status": "IN_PROGRESS"}]})
+    conflicts = vault / "generated" / "ops" / "conflicts"
+    conflicts.mkdir(parents=True, exist_ok=True)
+    (conflicts / "alpha-only.json").write_text(
+        json.dumps({"project_id": "alpha", "entries": [{}]}),
+        encoding="utf-8",
+    )
+    (conflicts / "beta-only.json").write_text(
+        json.dumps({"project_id": "beta", "entries": [{}]}),
+        encoding="utf-8",
+    )
+    (vault / "review" / "conflicts").mkdir(parents=True, exist_ok=True)
+    (vault / "review" / "conflicts" / "alpha.json").write_text(
+        json.dumps({"entries": [{"conflict_id": "c-alpha"}]}),
+        encoding="utf-8",
+    )
+    alpha = build_roadmap_lens(vault, "alpha")
+    beta = build_roadmap_lens(vault, "beta")
+    assert alpha["unresolved_conflicts"] == 1
+    assert beta["unresolved_conflicts"] == 1
+    assert "unresolved conflicts" in alpha["unknowns"]
+    assert "unresolved conflicts" in beta["unknowns"]
+
+
+def test_missing_dependency_id_is_unknown_not_ready(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(
+        vault,
+        "ghost-dep",
+        {
+            "items": [
+                {
+                    "id": "pkg-b",
+                    "title": "Waiting on ghost",
+                    "status": "NOT_STARTED",
+                    "depends_on": ["missing-a"],
+                }
+            ]
+        },
+    )
+    lens = build_roadmap_lens(vault, "ghost-dep")
+    item = lens["items"][0]
+    assert "MISSING_DEPENDENCY" in item["flags"]
+    assert item["missing_dependencies"] == ["missing-a"]
+    assert lens["next_unlock"]["reason"] == "unknown_prerequisite"
+    assert lens["next_unlock"]["waiting_on"] == "missing-a"
+    assert lens["next_unlock"]["status"] != "VERIFIED_COMPLETION"
+    assert "missing dependency ids" in lens["unknowns"]
+
+
+def test_state_lens_percent_theatre_is_normalized(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(
+        vault,
+        "theatre-state",
+        {
+            "items": [
+                {
+                    "id": "pkg-a",
+                    "title": "Done",
+                    "status": "IMPLEMENTED",
+                    "evidence": ["generated/ops/receipts/a.json"],
+                }
+            ]
+        },
+    )
+    (vault / "generated" / "ops" / "receipts").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "ops" / "receipts" / "a.json").write_text("{}\n", encoding="utf-8")
+    (vault / "generated" / "answers").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "answers" / "ans-state-theatre-state.json").write_text(
+        json.dumps({"schema_version": 1, "status": "derived", "rollup": "100% complete"}),
+        encoding="utf-8",
+    )
+    lens = build_roadmap_lens(vault, "theatre-state")
+    assert lens["you_are_here"]["status"] != "100% complete"
+    assert lens["you_are_here"]["status"] in {"UNKNOWN", "IMPLEMENTED"}
+    assert "74%" not in json.dumps(lens)
+    assert "100%" not in lens["you_are_here"]["status"]
+
+
+def test_tied_critical_paths_are_disclosed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(
+        vault,
+        "ties",
+        {
+            "items": [
+                {
+                    "id": "root",
+                    "title": "Root",
+                    "status": "IMPLEMENTED",
+                    "evidence": ["generated/ops/receipts/r.json"],
+                },
+                {"id": "left", "title": "Left", "status": "IN_PROGRESS", "depends_on": ["root"]},
+                {"id": "right", "title": "Right", "status": "IN_PROGRESS", "depends_on": ["root"]},
+            ]
+        },
+    )
+    (vault / "generated" / "ops" / "receipts").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "ops" / "receipts" / "r.json").write_text("{}\n", encoding="utf-8")
+    lens = build_roadmap_lens(vault, "ties")
+    assert lens["honesty"]["multiple_critical_paths"] is True
+    assert "multiple equal-length critical paths" in lens["unknowns"]
+    assert lens["next_unlock"]["item_id"] in {"left", "right"}
+
+
+def test_read_only_cli_does_not_write(tmp_path: Path, capsys) -> None:
+    vault = tmp_path / "vault"
+    project_id = _seed_realistic(vault)
+    answers = vault / "generated" / "answers"
+    before = {path.name for path in answers.glob("ans-roadmap-*.json")}
+    code = main(["roadmap", "--vault", str(vault), "--project", project_id, "--read-only"])
+    assert code == EXIT_OK
+    after = {path.name for path in answers.glob("ans-roadmap-*.json")}
+    assert after == before
+    out = capsys.readouterr().out
+    assert "ROADMAP!=CANONICAL_TRUTH" in out
+    report = derive_roadmap_lenses(vault, project_ids=[project_id])
+    assert report["answers_written"] == []
+    assert report["honesty"]["read_only"] is True
+
+
+def test_implemented_all_done_is_not_verified_closed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(
+        vault,
+        "impl-only",
+        {
+            "items": [
+                {
+                    "id": "pkg-a",
+                    "title": "Implemented only",
+                    "status": "IMPLEMENTED",
+                    "evidence": ["generated/ops/receipts/a.json"],
+                }
+            ]
+        },
+    )
+    (vault / "generated" / "ops" / "receipts").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "ops" / "receipts" / "a.json").write_text("{}\n", encoding="utf-8")
+    lens = build_roadmap_lens(vault, "impl-only")
+    assert lens["next_unlock"]["status"] == "IMPLEMENTED"
+    assert lens["next_unlock"]["lifecycle"] != "CLOSED"
+    assert lens["next_unlock"]["reason"] == "remaining_verification"
+    assert lens["you_are_here"]["status"] != "VERIFIED_COMPLETION"

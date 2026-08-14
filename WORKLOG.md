@@ -8,7 +8,7 @@ exact commands run, exact results, deviations, and remaining risks.
 ## AS-PROJECT-ROADMAP-001 — Living Project Roadmap V1
 
 **Date:** 2026-08-14
-**Directive:** D-PROJECT-ATLAS-CLOUD-D094-AND-OVERNIGHT-AUTONOMOUS-DEVELOPMENT-001
+**Directive:** D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001
 **Branch:** `cursor/as-project-roadmap-001-6f85` (from accepted main `c282f2c`)
 **Not #353.** No merge authorization.
 
@@ -18,6 +18,14 @@ Incremental connect measured and left `DORMANT_NO_MATERIAL_VALUE`.
 
 D-094A: acknowledged Local D-092C `SEALED_PASS` without mutating `#353`.
 Enriched lifecycle vocabulary + next-unlock WHY on dedicated Roadmap files.
+
+Overnight IV against tip `dd6d6f9` falsified prior `ROADMAP_IV=PASS`:
+false CLOSED on parallel unfinished work (CRITICAL), cross-project
+conflict bleed (HIGH), silent missing dependency ids (HIGH), and
+unnormalized state-lens rollup (HIGH). Bounded remediation on this
+branch: remaining-work critical path, no false VERIFIED/CLOSED,
+project-scoped conflicts, missing-dep UNKNOWN, `--read-only` derive,
+connect-chain materialize, adversarial tests. Re-IV pending this tip.
 
 ---
 
