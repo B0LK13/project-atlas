@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/conversation-capture.schema.json",
+  "title": "ConversationCaptureReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema",
+    "package",
+    "capture_id",
+    "project_id",
+    "source_provider",
+    "source_conversation_id",
+    "source_message_refs",
+    "source_content_hash",
+    "capture_mode",
+    "capture_items",
+    "summary",
+    "provenance",
+    "extraction_method",
+    "authority",
+    "review_state",
+    "semantic_state",
+    "generated",
+    "honesty",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "schema": { "const": "atlas.conversation-capture.v1" },
+    "package": { "const": "AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001" },
+    "capture_id": {
+      "type": "string",
+      "pattern": "^ccap-[0-9a-f]{16}$"
+    },
+    "project_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "source_provider": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,31}$"
+    },
+    "source_conversation_id": { "type": "string", "maxLength": 256 },
+    "source_message_refs": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string", "maxLength": 256 }
+    },
+    "source_content_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "capture_mode": { "const": "structured_submission" },
+    "capture_items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/captureItem" }
+    },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_content_hash",
+        "extraction_method",
+        "raw_transcript_persisted"
+      ],
+      "properties": {
+        "source_content_hash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "extraction_method": { "const": "structured_submission" },
+        "raw_transcript_persisted": { "const": false }
+      }
+    },
+    "extraction_method": { "const": "structured_submission" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "classification", "note"],
+      "properties": {
+        "level": { "const": "quarantined-evidence" },
+        "classification": { "const": "NON_CANONICAL" },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "review_state": {
+      "type": "string",
+      "enum": ["captured", "reviewed", "rejected"]
+    },
+    "semantic_state": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "string",
+        "enum": ["CAPTURED", "NON_CANONICAL", "SOURCE_BACKED", "REVIEWABLE"]
+      }
+    },
+    "generated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["by"],
+      "properties": {
+        "by": { "const": "atlas-coder-alpha-conversational-capture-001" }
+      }
+    },
+    "honesty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authentic_pilot",
+        "atlas_opt_wake_gate",
+        "lens_is_authority",
+        "invented_facts",
+        "conversation_is_authority",
+        "model_summary_is_owner_decision"
+      ],
+      "properties": {
+        "authentic_pilot": { "const": false },
+        "atlas_opt_wake_gate": { "const": "CLOSED" },
+        "lens_is_authority": { "const": false },
+        "invented_facts": { "const": false },
+        "conversation_is_authority": { "const": false },
+        "model_summary_is_owner_decision": { "const": false }
+      }
+    },
+    "truth_boundary": { "type": "string", "minLength": 1 },
+    "inbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_id", "path", "status", "promoted_to_authority"],
+      "properties": {
+        "receipt_id": { "type": "string" },
+        "path": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["quarantined", "accepted-review", "rejected"]
+        },
+        "promoted_to_authority": { "const": false }
+      }
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "canonical"],
+      "properties": {
+        "path": { "type": "string" },
+        "canonical": { "const": false }
+      }
+    },
+    "idempotency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "same_input_same_capture_id"],
+      "properties": {
+        "result": { "type": "string", "enum": ["created", "replay"] },
+        "same_input_same_capture_id": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "captureItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item_type", "text"],
+      "properties": {
+        "item_type": {
+          "type": "string",
+          "enum": [
+            "session_note",
+            "idea",
+            "observation",
+            "research_finding",
+            "action_item",
+            "open_question",
+            "proposed_decision",
+            "confirmed_owner_decision",
+            "claim_candidate",
+            "constraint",
+            "lesson_learned",
+            "failed_approach",
+            "next_step"
+          ]
+        },
+        "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "owner_origin": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["evidence_kind", "statement", "origin"],
+          "properties": {
+            "evidence_kind": { "const": "explicit_owner_statement" },
+            "statement": { "type": "string", "minLength": 1, "maxLength": 2000 },
+            "origin": { "const": "owner" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,7 +2,9 @@
 
 Serves AppService JSON over HTTP. Default bind 127.0.0.1 only.
 GET is read-only. POST /v1/actions records reconstructable web actions only
-(never Layer B). Requires authz api.read / web.action as applicable.
+(never Layer B). POST /v1/captures/conversation writes quarantined
+conversation evidence (CAPTURE != TRUTH CORE). Requires authz api.read /
+web.action as applicable.
 Hardened: localhost CORS, Host gate, POST size cap, per-connection read
 timeout (slowloris, D-INTEGRATE-007A §11), obs/authz/mcp routes.
 
@@ -32,6 +34,10 @@ from project_atlas.authz import (
     mint_api_session,
 )
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.conversation_capture import (
+    ConversationCaptureError,
+    capture_conversation,
+)
 from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.obs_live import build_live_observability_receipt
 from project_atlas.ops_receipts import inventory_ops_receipts
@@ -387,7 +393,7 @@ def make_handler(
                 return
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"
-            if path != "/v1/actions":
+            if path not in {"/v1/actions", "/v1/captures/conversation"}:
                 self._send(
                     405,
                     {
@@ -434,6 +440,32 @@ def make_handler(
                 return
             if not isinstance(body, dict):
                 self._send(400, {"error": "body-not-object"})
+                return
+            if path == "/v1/captures/conversation":
+                try:
+                    operator.require("web.action")
+                    envelope = (
+                        body["envelope"]
+                        if isinstance(body.get("envelope"), dict)
+                        else body
+                    )
+                    receipt = capture_conversation(service.vault, envelope)
+                except PermissionError as exc:
+                    self._send(403, {"error": str(exc), "package_id": PACKAGE_ID})
+                    return
+                except ConversationCaptureError as exc:
+                    self._send(
+                        400,
+                        {
+                            "status": "error",
+                            "error": exc.code,
+                            "message": str(exc),
+                            "package_id": PACKAGE_ID,
+                            "truth_boundary": TRUTH_BOUNDARY,
+                        },
+                    )
+                    return
+                self._send(200, receipt)
                 return
             try:
                 txn = submit_web_action(

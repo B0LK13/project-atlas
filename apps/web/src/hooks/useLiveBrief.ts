@@ -81,6 +81,18 @@ export interface ProjectBrief {
     source?: string;
     status?: string;
   }>;
+  conversation_captures?: Array<{
+    capture_id?: string;
+    project_id?: string;
+    source_provider?: string;
+    summary?: string;
+    review_state?: string;
+    classification?: string;
+    item_count?: number;
+    status?: string;
+    label?: string;
+    authority?: boolean;
+  }>;
   truth?: TruthPanel;
   truth_boundary?: string;
   brief_path?: string | null;

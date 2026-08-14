@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.conversation_capture import list_conversation_captures
 from project_atlas.web_api.conflicts import list_project_conflicts
 from project_atlas.web_api.knowledge import list_knowledge_answers
 
@@ -66,6 +67,7 @@ def _unknown_brief(project_id: str) -> dict[str, Any]:
         "evidence_links": [],
         "lenses": {},
         "session_captures": [],
+        "conversation_captures": [],
         "available": False,
         "generated": {"by": "atlas-coder-alpha-web-001-read"},
         "honesty": {
@@ -311,6 +313,9 @@ def read_project_brief(vault: Path, project_id: str) -> dict[str, Any]:
     lenses = _lens_rows(vault, project_id)
     brief["lens_sections"] = {key: lenses.get(key) for key in LENS_FIELDS}
     brief["session_captures"] = _list_captures(vault, project_id)
+    brief["conversation_captures"] = list_conversation_captures(
+        vault, project_id=project_id, limit=8
+    )
     brief["brief_path"] = (
         brief_path.relative_to(vault).as_posix() if brief_path.is_file() else None
     )
