@@ -20,7 +20,7 @@ import json
 import os
 import re
 import sys
-import unicodedata
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +32,19 @@ from project_atlas.connect import (
     BIND_RELATIVE,
     MANIFEST_RELATIVE,
     root_identity_fingerprint,
+)
+from project_atlas.estate_path_index import (
+    DiscoveryPerf,
+    ancestor_items_from_index,
+    candidate_path_key_from_record,
+    canonical_path_key_resolved,
+    current_discovery_perf,
+    estate_region_resolved,
+    has_selected_project_ancestor,
+    is_canonical_under,
+    parent_canonical_key,
+    phase_timer,
+    reset_discovery_perf,
 )
 from project_atlas.source_identity import (
     load_allocation_project_uuids,
@@ -473,12 +486,14 @@ def canonical_path_key(path: Path) -> str:
     Linux (case-sensitive): preserve case so Foo/ and foo/ stay distinct.
     Windows / macOS: casefold so case aliases collapse to one candidate.
     Unicode is NFC-normalized for deterministic keys.
+
+    Untrusted / external paths must use this helper (resolves). Already
+    resolved paths should use ``canonical_path_key_resolved``.
     """
+    perf = current_discovery_perf()
+    perf.path_resolve_calls += 1
     resolved = path.expanduser().resolve(strict=False)
-    text = unicodedata.normalize("NFC", resolved.as_posix())
-    if _casefold_paths():
-        return text.casefold()
-    return text
+    return canonical_path_key_resolved(resolved)
 
 
 def _paths_equal(a: Path, b: Path) -> bool:
@@ -486,7 +501,15 @@ def _paths_equal(a: Path, b: Path) -> bool:
 
 
 def _under_authorized(path: Path, authorized: Path) -> bool:
+    """Security boundary for untrusted paths. Resolves both sides.
+
+    Do not call this in inner knowledge↔project selection loops. After a
+    path is already resolved and accepted, use ``is_canonical_under``.
+    """
+    perf = current_discovery_perf()
+    perf.under_authorized_calls += 1
     try:
+        perf.path_resolve_calls += 2
         path.resolve(strict=False).relative_to(authorized.resolve(strict=False))
         return True
     except ValueError:
@@ -498,13 +521,16 @@ def _under_authorized(path: Path, authorized: Path) -> bool:
 
 def _is_reparse_or_symlink(entry: Path) -> bool:
     """True for symlinks and Windows reparse/junction points (P6)."""
+    perf = current_discovery_perf()
     try:
+        perf.filesystem_stat_calls += 1
         if entry.is_symlink():
             return True
     except OSError:
         return True
     if os.name == "nt":
         try:
+            perf.filesystem_stat_calls += 1
             st = os.lstat(entry)
         except OSError:
             return True
@@ -529,10 +555,9 @@ def _reparse_escape(entry: Path, authorized: Path) -> bool:
     return not _under_authorized(target, authorized)
 
 
-def _candidate_id(kind: str, path: Path) -> str:
-    digest = hashlib.sha256(f"{kind}:{canonical_path_key(path)}".encode()).hexdigest()[
-        :16
-    ]
+def _candidate_id(kind: str, path: Path, *, path_key: str | None = None) -> str:
+    key = path_key if path_key is not None else canonical_path_key(path)
+    digest = hashlib.sha256(f"{kind}:{key}".encode()).hexdigest()[:16]
     return f"{kind}-{digest}"
 
 
@@ -782,6 +807,7 @@ def _score_project_signals(
 
 def _git_boundary_kind(directory: Path, names: set[str]) -> str:
     """Own repository or worktree boundary from directory entries only."""
+    current_discovery_perf().git_boundary_checks += 1
     if ".git" not in names:
         return "none"
     git = directory / ".git"
@@ -837,13 +863,27 @@ def _knowledge_signals(
     return signals
 
 
-def _build_fingerprint(directory: Path, signals: Sequence[str]) -> dict[str, Any]:
+def _build_fingerprint(
+    directory: Path,
+    signals: Sequence[str],
+    *,
+    path_key: str | None = None,
+) -> dict[str, Any]:
+    current_discovery_perf().project_fingerprint_builds += 1
     marker = _read_atlas_marker(directory)
     remote = _git_remote_url(directory) if "git_dir" in signals else None
     package = _package_name(directory)
+    if path_key is not None:
+        resolved_key = path_key
+        canonical_path = directory.as_posix()
+    else:
+        current_discovery_perf().path_resolve_calls += 1
+        resolved = directory.expanduser().resolve(strict=False)
+        resolved_key = canonical_path_key_resolved(resolved)
+        canonical_path = resolved.as_posix()
     return {
-        "canonical_path": directory.resolve(strict=False).as_posix(),
-        "path_key": canonical_path_key(directory),
+        "canonical_path": canonical_path,
+        "path_key": resolved_key,
         "path_fingerprint": root_identity_fingerprint(directory),
         "atlas_project_id": marker.get("atlas_project_id"),
         "atlas_project_uuid": marker.get("atlas_project_uuid"),
@@ -1493,7 +1533,10 @@ def _project_relation_token(parent: DiscoveryCandidate) -> str | None:
 
 
 def _estate_region(path: Path, root: Path) -> str:
+    """Untrusted-path region. Resolves both sides. Prefer resolved helper."""
+    perf = current_discovery_perf()
     try:
+        perf.path_resolve_calls += 2
         rel = path.resolve(strict=False).relative_to(root.resolve(strict=False))
     except ValueError:
         return "_outside"
@@ -1511,6 +1554,7 @@ def _region_counts(sightings: Sequence[ProjectSighting]) -> dict[str, int]:
 
 
 def _parent_path_key(path: Path) -> str:
+    """Untrusted-path parent key. Prefer ``parent_canonical_key`` on stored keys."""
     return canonical_path_key(path.parent)
 
 
@@ -1680,8 +1724,8 @@ def _cheap_project_sighting(
         path=directory,
         path_key=path_key,
         depth=depth,
-        region=_estate_region(directory, root),
-        parent_key=_parent_path_key(directory),
+        region=estate_region_resolved(directory, root),
+        parent_key=parent_canonical_key(path_key),
         signals=list(signals),
         fingerprint=fingerprint,
         family=_primary_family_key(fingerprint, path_key),
@@ -1697,7 +1741,7 @@ def _cheap_project_sighting(
 
 def enrich_project_sighting(item: ProjectSighting) -> None:
     """Expensive fingerprint / identity reads. Call only on a bounded shortlist."""
-    fingerprint = _build_fingerprint(item.path, item.signals)
+    fingerprint = _build_fingerprint(item.path, item.signals, path_key=item.path_key)
     git_kind = str(item.fingerprint.get("git_boundary") or "none")
     fingerprint["git_boundary"] = git_kind
     fingerprint["atlas_marker_present"] = "atlas_project_marker" in item.signals
@@ -1814,20 +1858,28 @@ def select_bounded_project_sightings(
     return selected, suppressed
 
 
+def _project_candidate_path_key(item: DiscoveryCandidate) -> str:
+    """Stored project path key, or one setup resolve if a caller omitted it."""
+    stored = candidate_path_key_from_record(item)
+    if stored is not None:
+        return stored
+    return canonical_path_key(Path(item.path))
+
+
 def select_bounded_knowledge_sightings(
     sightings: Sequence[KnowledgeSighting],
     limit: int,
     selected_projects: Sequence[DiscoveryCandidate],
 ) -> tuple[list[KnowledgeSighting], list[KnowledgeSighting]]:
-    """Prefer knowledge under selected projects; cap is not first-seen order."""
-    project_paths = [Path(item.path) for item in selected_projects]
+    """Prefer knowledge under selected projects; cap is not first-seen order.
+
+    Ancestry uses the in-memory path index (O(K * depth)). It does not
+    resolve filesystem paths per knowledge/project pair.
+    """
+    project_keys = {_project_candidate_path_key(item) for item in selected_projects}
 
     def nested_under_selected(item: KnowledgeSighting) -> bool:
-        return any(
-            _under_authorized(item.path, parent)
-            and not _paths_equal(item.path, parent)
-            for parent in project_paths
-        )
+        return has_selected_project_ancestor(item.path_key, project_keys)
 
     def rank(item: KnowledgeSighting) -> tuple[int, int, int, str]:
         nested = 1 if nested_under_selected(item) else 0
@@ -1909,17 +1961,22 @@ def _associate_knowledge(
     *,
     is_obsidian: bool,
     vault_projects: Sequence[VaultProjectIdentity],
+    knowledge_path_key: str | None = None,
 ) -> tuple[KnowledgeRelation, MatchState, list[MatchEvidence], str | None]:
-    """Classify knowledge→project relationship without ingest (P5)."""
+    """Classify knowledge→project relationship without ingest (P5).
+
+    Multiple enclosing selected projects remain AMBIGUOUS (D-084). The
+    deepest-parent sort is preserved for the single-parent path only.
+    """
     evidence: list[MatchEvidence] = []
-    # Structural nesting under a discovered project root.
-    parents = [
-        p
-        for p in project_candidates
-        if _under_authorized(knowledge_path, Path(p.path))
-        and not _paths_equal(knowledge_path, Path(p.path))
-    ]
-    # Prefer deepest project parent.
+    k_key = (
+        knowledge_path_key
+        if knowledge_path_key is not None
+        else canonical_path_key(knowledge_path)
+    )
+    by_key = {_project_candidate_path_key(item): item for item in project_candidates}
+    parents = ancestor_items_from_index(k_key, by_key)
+    # Prefer deepest project parent (same as D-084; multi-parent stays ambiguous).
     parents.sort(key=lambda p: len(Path(p.path).parts), reverse=True)
     if len(parents) == 1:
         parent = parents[0]
@@ -2020,7 +2077,7 @@ def _materialize_project_candidate(
         or (match_state in {"EXACT", "STRONG_EVIDENCE", "LIKELY"} and not connected)
     )
     return DiscoveryCandidate(
-        candidate_id=_candidate_id("project", directory),
+        candidate_id=_candidate_id("project", directory, path_key=sighting.path_key),
         kind="project",
         path=directory.as_posix(),
         display_name=directory.name,
@@ -2060,6 +2117,7 @@ def _materialize_knowledge_candidate(
         projects,
         is_obsidian=sighting.is_obsidian,
         vault_projects=vault_projects,
+        knowledge_path_key=sighting.path_key,
     )
     if relation == "KNOWLEDGE_DISCOVERED" and not sighting.is_obsidian and not k_evidence:
         relation = "KNOWLEDGE_UNMATCHED"
@@ -2073,7 +2131,7 @@ def _materialize_knowledge_candidate(
         or (relation == "KNOWLEDGE_UNMATCHED" and bool(k_evidence))
     )
     return DiscoveryCandidate(
-        candidate_id=_candidate_id(kind, sighting.path),
+        candidate_id=_candidate_id(kind, sighting.path, path_key=sighting.path_key),
         kind=kind,
         path=sighting.path.as_posix(),
         display_name=sighting.path.name,
@@ -2111,6 +2169,178 @@ def _materialize_knowledge_candidate(
     )
 
 
+def _walk_authorized_estate(
+    *,
+    root: Path,
+    root_key: str,
+    stack: list[tuple[Path, int]],
+    seen_dirs: set[str],
+    ignored: list[dict[str, str]],
+    permission_errors: list[dict[str, str]],
+    include_projects: bool,
+    include_knowledge: bool,
+    max_depth: int,
+    enumeration_order: Literal["name_asc", "name_desc"],
+    volume_root_is_container: bool,
+    project_sightings: list[ProjectSighting],
+    knowledge_sightings: list[KnowledgeSighting],
+    cache_entries: dict[str, Any],
+    depth_limit_holder: list[bool],
+    unsafe_escapes_holder: list[int],
+) -> None:
+    """Traverse the authorized estate. Resolve once per directory, then reuse keys."""
+    perf = current_discovery_perf()
+    while stack:
+        current, depth = stack.pop()
+        try:
+            perf.path_resolve_calls += 1
+            current_resolved = current.resolve(strict=False)
+        except (OSError, RuntimeError):
+            ignored.append({"path": current.as_posix(), "reason": "unresolvable_path"})
+            continue
+        key = canonical_path_key_resolved(current_resolved)
+        if key in seen_dirs:
+            continue
+        if not is_canonical_under(key, root_key):
+            unsafe_escapes_holder[0] += 1
+            ignored.append(
+                {
+                    "path": current.as_posix(),
+                    "reason": "symlink_or_reparse_escape",
+                }
+            )
+            continue
+        seen_dirs.add(key)
+
+        try:
+            names, lower_files = _dir_entries(current)
+        except OSError as exc:
+            permission_errors.append(
+                {"path": current.as_posix(), "reason": type(exc).__name__}
+            )
+            continue
+        if not names and not current.is_dir():
+            permission_errors.append(
+                {"path": current.as_posix(), "reason": "not_a_directory"}
+            )
+            continue
+
+        with phase_timer("project_signal_collection", accumulate=True):
+            project_signals = _score_project_signals(current, names, lower_files)
+        with phase_timer("knowledge_signal_collection", accumulate=True):
+            know_signals = _knowledge_signals(current, names, lower_files)
+
+        try:
+            perf.filesystem_stat_calls += 1
+            st = current.stat()
+            cache_entries[current_resolved.as_posix()] = {
+                "mtime_ns": getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9)),
+                "signals": sorted(set(project_signals) | set(know_signals)),
+            }
+        except OSError:
+            pass
+
+        at_volume_root = volume_root_is_container and key == root_key
+        if include_projects and _is_project_candidate(project_signals):
+            if at_volume_root:
+                ignored.append(
+                    {
+                        "path": current_resolved.as_posix(),
+                        "reason": "authorized_volume_root_scope_container",
+                    }
+                )
+            else:
+                with phase_timer("cheap_project_sighting", accumulate=True):
+                    project_sightings.append(
+                        _cheap_project_sighting(
+                            current_resolved,
+                            path_key=key,
+                            depth=depth,
+                            root=root,
+                            signals=project_signals,
+                            names=names,
+                        )
+                    )
+
+        if include_knowledge:
+            is_obsidian = "obsidian_vault" in know_signals
+            knowledge_only = bool(know_signals) and (
+                is_obsidian
+                or not _is_project_candidate(project_signals)
+                or any(item.startswith("knowledge_dir:") for item in know_signals)
+                or at_volume_root
+            )
+            if knowledge_only:
+                knowledge_sightings.append(
+                    KnowledgeSighting(
+                        path=current_resolved,
+                        path_key=key,
+                        depth=depth,
+                        region=estate_region_resolved(current_resolved, root),
+                        signals=list(know_signals),
+                        is_obsidian=is_obsidian,
+                        names=set(names),
+                    )
+                )
+
+        if depth >= max_depth:
+            folded_at_bound = {n.casefold() for n in IGNORE_DIR_NAMES}
+            for name in names:
+                if name.casefold() in folded_at_bound:
+                    continue
+                child = current / name
+                if _is_reparse_or_symlink(child):
+                    continue
+                try:
+                    is_dir = child.is_dir()
+                except OSError:
+                    continue
+                if is_dir:
+                    depth_limit_holder[0] = True
+                    break
+            continue
+
+        folded_ignore = {n.casefold() for n in IGNORE_DIR_NAMES}
+        name_reverse = enumeration_order != "name_desc"
+        for name in sorted(names, reverse=name_reverse):
+            if name.casefold() in folded_ignore:
+                ignored.append(
+                    {
+                        "path": (current / name).as_posix(),
+                        "reason": f"ignore_policy:{name.casefold()}",
+                    }
+                )
+                continue
+            child = current / name
+            if _is_reparse_or_symlink(child):
+                if _reparse_escape(child, root):
+                    unsafe_escapes_holder[0] += 1
+                    ignored.append(
+                        {
+                            "path": child.as_posix(),
+                            "reason": "symlink_or_reparse_escape",
+                        }
+                    )
+                else:
+                    ignored.append(
+                        {
+                            "path": child.as_posix(),
+                            "reason": "reparse_or_symlink_not_descended",
+                        }
+                    )
+                continue
+            try:
+                is_dir = child.is_dir()
+            except OSError:
+                permission_errors.append(
+                    {"path": child.as_posix(), "reason": "permission_denied"}
+                )
+                continue
+            if not is_dir:
+                continue
+            stack.append((child, depth + 1))
+
+
 def discover_estate(
     authorized_root: Path,
     *,
@@ -2136,17 +2366,57 @@ def discover_estate(
     ``enumeration_order`` is a test hook only. Selection must not depend on it.
     """
     _ = prior_cache  # intentionally unused for skip decisions
-    policy = authorize_discovery_root(
+    perf = reset_discovery_perf()
+    return _discover_estate_timed(
         authorized_root,
+        vault=vault,
+        include_projects=include_projects,
+        include_knowledge=include_knowledge,
+        max_depth=max_depth,
+        max_project_candidates=max_project_candidates,
+        max_knowledge_candidates=max_knowledge_candidates,
         root_mode=root_mode,
         host_os=host_os,
         environ=environ,
+        enumeration_order=enumeration_order,
+        perf=perf,
     )
+
+
+def _discover_estate_timed(
+    authorized_root: Path,
+    *,
+    vault: Path | None,
+    include_projects: bool,
+    include_knowledge: bool,
+    max_depth: int,
+    max_project_candidates: int,
+    max_knowledge_candidates: int,
+    root_mode: str,
+    host_os: str | None,
+    environ: dict[str, str] | None,
+    enumeration_order: Literal["name_asc", "name_desc"],
+    perf: DiscoveryPerf,
+) -> dict[str, Any]:
+    t_total = time.perf_counter()
+    with phase_timer("root_policy"):
+        policy = authorize_discovery_root(
+            authorized_root,
+            root_mode=root_mode,
+            host_os=host_os,
+            environ=environ,
+        )
     root = policy.resolved
-    vault_resolved = vault.expanduser().resolve(strict=False) if vault else None
-    vault_projects = load_vault_project_identities(
-        vault_resolved, authorized_root=root
-    )
+    root_key = canonical_path_key_resolved(root)
+    with phase_timer("vault_identity_load"):
+        if vault is not None:
+            perf.path_resolve_calls += 1
+            vault_resolved = vault.expanduser().resolve(strict=False)
+        else:
+            vault_resolved = None
+        vault_projects = load_vault_project_identities(
+            vault_resolved, authorized_root=root
+        )
 
     projects: list[DiscoveryCandidate] = []
     knowledge: list[DiscoveryCandidate] = []
@@ -2163,194 +2433,79 @@ def discover_estate(
 
     stack: list[tuple[Path, int]] = [(root, 0)]
     seen_dirs: set[str] = set()
+    depth_limit_holder = [False]
+    unsafe_escapes_holder = [0]
 
-    while stack:
-        current, depth = stack.pop()
-        try:
-            current_resolved = current.resolve(strict=False)
-        except (OSError, RuntimeError):
-            ignored.append({"path": current.as_posix(), "reason": "unresolvable_path"})
-            continue
-        key = canonical_path_key(current_resolved)
-        if key in seen_dirs:
-            continue
-        if not _under_authorized(current_resolved, root):
-            unsafe_escapes += 1
-            ignored.append(
-                {
-                    "path": current.as_posix(),
-                    "reason": "symlink_or_reparse_escape",
-                }
-            )
-            continue
-        seen_dirs.add(key)
-
-        try:
-            names, lower_files = _dir_entries(current)
-        except OSError as exc:
-            permission_errors.append(
-                {"path": current.as_posix(), "reason": type(exc).__name__}
-            )
-            continue
-        if not names and not current.is_dir():
-            permission_errors.append(
-                {"path": current.as_posix(), "reason": "not_a_directory"}
-            )
-            continue
-
-        project_signals = _score_project_signals(current, names, lower_files)
-        know_signals = _knowledge_signals(current, names, lower_files)
-
-        try:
-            st = current.stat()
-            cache_entries[current_resolved.as_posix()] = {
-                "mtime_ns": getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9)),
-                "signals": sorted(set(project_signals) | set(know_signals)),
-            }
-        except OSError:
-            pass
-
-        at_volume_root = volume_root_is_container and _paths_equal(
-            current_resolved, root
+    with phase_timer("filesystem_traversal"):
+        _walk_authorized_estate(
+            root=root,
+            root_key=root_key,
+            stack=stack,
+            seen_dirs=seen_dirs,
+            ignored=ignored,
+            permission_errors=permission_errors,
+            include_projects=include_projects,
+            include_knowledge=include_knowledge,
+            max_depth=max_depth,
+            enumeration_order=enumeration_order,
+            volume_root_is_container=volume_root_is_container,
+            project_sightings=project_sightings,
+            knowledge_sightings=knowledge_sightings,
+            cache_entries=cache_entries,
+            depth_limit_holder=depth_limit_holder,
+            unsafe_escapes_holder=unsafe_escapes_holder,
         )
-        if include_projects and _is_project_candidate(project_signals):
-            if at_volume_root:
-                ignored.append(
-                    {
-                        "path": current_resolved.as_posix(),
-                        "reason": "authorized_volume_root_scope_container",
-                    }
-                )
-            else:
-                project_sightings.append(
-                    _cheap_project_sighting(
-                        current_resolved,
-                        path_key=key,
-                        depth=depth,
-                        root=root,
-                        signals=project_signals,
-                        names=names,
-                    )
-                )
+    depth_limit_reached = depth_limit_holder[0]
+    unsafe_escapes = unsafe_escapes_holder[0]
 
-        if include_knowledge:
-            is_obsidian = "obsidian_vault" in know_signals
-            knowledge_only = bool(know_signals) and (
-                is_obsidian
-                or not _is_project_candidate(project_signals)
-                or any(item.startswith("knowledge_dir:") for item in know_signals)
-                or at_volume_root
-            )
-            if knowledge_only:
-                knowledge_sightings.append(
-                    KnowledgeSighting(
-                        path=current_resolved,
-                        path_key=key,
-                        depth=depth,
-                        region=_estate_region(current_resolved, root),
-                        signals=list(know_signals),
-                        is_obsidian=is_obsidian,
-                        names=set(names),
-                    )
-                )
-
-        if depth >= max_depth:
-            # Honest bound: incompleteness only if a non-ignored, non-reparse
-            # directory child would have been descended (D-067 HIGH 2).
-            # Policy-ignored names are excluded without traversal.
-            folded_at_bound = {n.casefold() for n in IGNORE_DIR_NAMES}
-            for name in names:
-                if name.casefold() in folded_at_bound:
-                    continue
-                child = current / name
-                if _is_reparse_or_symlink(child):
-                    continue
-                try:
-                    is_dir = child.is_dir()
-                except OSError:
-                    continue
-                if is_dir:
-                    depth_limit_reached = True
-                    break
-            continue
-
-        folded_ignore = {n.casefold() for n in IGNORE_DIR_NAMES}
-        # LIFO stack: reverse-sorted names visit A-first (historical name_asc).
-        name_reverse = enumeration_order != "name_desc"
-        for name in sorted(names, reverse=name_reverse):
-            if name.casefold() in folded_ignore:
-                ignored.append(
-                    {
-                        "path": (current / name).as_posix(),
-                        "reason": f"ignore_policy:{name.casefold()}",
-                    }
-                )
-                continue
-            child = current / name
-            if _is_reparse_or_symlink(child):
-                if _reparse_escape(child, root):
-                    unsafe_escapes += 1
-                    ignored.append(
-                        {
-                            "path": child.as_posix(),
-                            "reason": "symlink_or_reparse_escape",
-                        }
-                    )
-                else:
-                    # Inside-target reparse: default no-descend (P6).
-                    ignored.append(
-                        {
-                            "path": child.as_posix(),
-                            "reason": "reparse_or_symlink_not_descended",
-                        }
-                    )
-                continue
-            try:
-                is_dir = child.is_dir()
-            except OSError:
-                permission_errors.append(
-                    {"path": child.as_posix(), "reason": "permission_denied"}
-                )
-                continue
-            if not is_dir:
-                continue
-            stack.append((child, depth + 1))
-
-    preselect_limit = hierarchical_preselect_budget(
-        len(project_sightings), max_project_candidates
-    )
-    preselected_project_sightings, _ = select_bounded_project_sightings(
-        project_sightings, preselect_limit
-    )
-    for item in preselected_project_sightings:
-        enrich_project_sighting(item)
-    selected_project_sightings, _ = select_bounded_project_sightings(
-        preselected_project_sightings, max_project_candidates
-    )
+    with phase_timer("project_preselection"):
+        preselect_limit = hierarchical_preselect_budget(
+            len(project_sightings), max_project_candidates
+        )
+        preselected_project_sightings, _ = select_bounded_project_sightings(
+            project_sightings, preselect_limit
+        )
+    with phase_timer("project_enrichment"):
+        for item in preselected_project_sightings:
+            enrich_project_sighting(item)
+    with phase_timer("final_project_selection"):
+        selected_project_sightings, _ = select_bounded_project_sightings(
+            preselected_project_sightings, max_project_candidates
+        )
     selected_keys = {item.path_key for item in selected_project_sightings}
     suppressed_project_sightings = [
         item for item in project_sightings if item.path_key not in selected_keys
     ]
     project_limit_reached = len(project_sightings) > len(selected_project_sightings)
-    projects = [
-        _materialize_project_candidate(
-            item, vault_projects=vault_projects, vault_resolved=vault_resolved
+    with phase_timer("project_materialization"):
+        projects = [
+            _materialize_project_candidate(
+                item, vault_projects=vault_projects, vault_resolved=vault_resolved
+            )
+            for item in selected_project_sightings
+        ]
+    resolve_before_knowledge = perf.path_resolve_calls
+    under_before_knowledge = perf.under_authorized_calls
+    with phase_timer("knowledge_selection"):
+        selected_knowledge_sightings, suppressed_knowledge_sightings = (
+            select_bounded_knowledge_sightings(
+                knowledge_sightings, max_knowledge_candidates, projects
+            )
         )
-        for item in selected_project_sightings
-    ]
-    selected_knowledge_sightings, suppressed_knowledge_sightings = (
-        select_bounded_knowledge_sightings(
-            knowledge_sightings, max_knowledge_candidates, projects
-        )
-    )
     knowledge_limit_reached = len(knowledge_sightings) > len(
         selected_knowledge_sightings
     )
-    knowledge = [
-        _materialize_knowledge_candidate(item, projects, vault_projects)
-        for item in selected_knowledge_sightings
-    ]
-    _sanitize_knowledge_relations(knowledge, projects, vault_projects)
+    with phase_timer("knowledge_materialization"):
+        knowledge = [
+            _materialize_knowledge_candidate(item, projects, vault_projects)
+            for item in selected_knowledge_sightings
+        ]
+        _sanitize_knowledge_relations(knowledge, projects, vault_projects)
+    perf.add_phase(
+        "path_resolve_calls_during_in_memory_selection",
+        float(perf.path_resolve_calls - resolve_before_knowledge),
+    )
+    _ = under_before_knowledge
 
     projects.sort(key=lambda item: (item.path.casefold(), item.candidate_id))
     knowledge.sort(key=lambda item: (item.path.casefold(), item.candidate_id))
@@ -2436,6 +2591,10 @@ def discover_estate(
             "knowledge_candidates_suppressed": len(suppressed_knowledge_sightings),
             "region_candidate_counts": _region_counts(project_sightings),
             "region_emitted_counts": _region_counts(selected_project_sightings),
+            "operation_counters": perf.counters(),
+            "path_resolve_calls_during_in_memory_selection": (
+                perf.path_resolve_calls - resolve_before_knowledge
+            ),
         },
         "counts": {
             "projects": len(projects),
@@ -2461,6 +2620,15 @@ def discover_estate(
             ),
         },
         "_cache_entries": cache_entries,
+        "_perf": {
+            "phases": dict(perf.phases),
+            "total": round(time.perf_counter() - t_total, 6),
+            "counters": perf.counters(),
+            "note": (
+                "Diagnostic timings are not canonical truth. "
+                "Counters are bounded and non-authoritative."
+            ),
+        },
     }
     return report
 
@@ -2792,7 +2960,9 @@ __all__ = [
     "VaultProjectIdentity",
     "authorize_discovery_root",
     "canonical_path_key",
+    "canonical_path_key_resolved",
     "connect_discovered_candidate",
+    "current_discovery_perf",
     "discover_estate",
     "enrich_project_sighting",
     "find_candidate",
@@ -2809,8 +2979,10 @@ __all__ = [
     "normalize_root_mode",
     "prove_connected",
     "refuse_dangerous_authorized_root",
+    "reset_discovery_perf",
     "review_candidates",
     "sanitize_git_remote_url",
+    "select_bounded_knowledge_sightings",
     "select_bounded_project_sightings",
     "write_discovery_cache",
     "write_discovery_report",
