@@ -1,5 +1,9 @@
 # D-071 D-049 final reconciliation (Local still pending)
 
+SUPERSEDED AS CURRENT STATE by `D-071A-LOCAL-PASS-RECONCILIATION.md`
+(`LOCAL_D068_RESULT = PASS`). This file remains the contemporaneous
+pending-era receipt.
+
 DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-D049-FINAL-RECONCILIATION-071`
 
 This is **current-state** Cloud reconciliation. It does not rewrite

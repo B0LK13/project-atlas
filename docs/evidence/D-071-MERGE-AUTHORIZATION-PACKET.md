@@ -1,5 +1,8 @@
 # D-049 owner merge authorization packet (NOT AUTHORIZED)
 
+SUPERSEDED AS CURRENT PACKET by `D-071A-MERGE-AUTHORIZATION-PACKET.md`.
+This file remains the pending-era draft.
+
 DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-D049-FINAL-RECONCILIATION-071`
 
 ```
