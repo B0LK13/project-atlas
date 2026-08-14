@@ -44,8 +44,34 @@ ITEM_STATUSES = (
     "NOT_STARTED",
     "UNKNOWN",
 )
+LIFECYCLES = (
+    "PLANNED",
+    "ENTRY_GATE",
+    "READY",
+    "IN_PROGRESS",
+    "IMPLEMENTATION_COMPLETE",
+    "VERIFICATION_IN_PROGRESS",
+    "CERTIFIED_MERGE_ELIGIBLE",
+    "MERGE_AUTHORIZED",
+    "MERGED",
+    "POST_MERGE_VERIFIED",
+    "CLOSED",
+    "UNKNOWN",
+)
 _COMPLETE = frozenset({"VERIFIED_COMPLETION"})
 _DONE_ENOUGH = frozenset({"VERIFIED_COMPLETION", "IMPLEMENTED"})
+_NEXT_LIFECYCLE = {
+    "PLANNED": "ENTRY_GATE",
+    "ENTRY_GATE": "READY",
+    "READY": "IN_PROGRESS",
+    "IN_PROGRESS": "IMPLEMENTATION_COMPLETE",
+    "IMPLEMENTATION_COMPLETE": "VERIFICATION_IN_PROGRESS",
+    "VERIFICATION_IN_PROGRESS": "CERTIFIED_MERGE_ELIGIBLE",
+    "CERTIFIED_MERGE_ELIGIBLE": "MERGE_AUTHORIZED",
+    "MERGE_AUTHORIZED": "MERGED",
+    "MERGED": "POST_MERGE_VERIFIED",
+    "POST_MERGE_VERIFIED": "CLOSED",
+}
 _PERCENT_RE = re.compile(r"\d+\s*(%|/)")
 _COUNT_THEATRE_RE = re.compile(
     r"^\s*\d+\s*(packages?|items?|tasks?)?\s*(done|complete)?\s*/\s*\d+",
@@ -133,25 +159,78 @@ def _normalize_status(raw: Any) -> tuple[str, list[str]]:
         "VERIFIED": "VERIFIED_COMPLETION",
         "COMPLETE": "IMPLEMENTED",
         "DONE": "IMPLEMENTED",
-        "CERTIFIED": "VERIFIED_COMPLETION",
-        "MERGED": "IMPLEMENTED",
-        "CLOSED": "VERIFIED_COMPLETION",
+        "IMPLEMENTATION_COMPLETE": "IMPLEMENTED",
+        "IMPLEMENTATION-COMPLETE": "IMPLEMENTED",
     }
     if key in aliases:
         notes.append(f"status_alias:{text}->{aliases[key]}")
-        # MERGED != CLOSED and CERTIFIED != MERGED: aliases are hints only
-        # when the source used informal words. Keep honesty note.
-        if key == "MERGED":
-            notes.append("merged_neq_closed")
-        if key == "CERTIFIED":
-            notes.append("certified_neq_merged")
-        if key == "CLOSED":
-            notes.append("closed_requires_verification")
         key = aliases[key]
+    # Informal lifecycle words are not progress collapse.
+    if key in {
+        "MERGED",
+        "CLOSED",
+        "CERTIFIED",
+        "CERTIFIED_MERGE_ELIGIBLE",
+        "MERGE_AUTHORIZED",
+        "POST_MERGE_VERIFIED",
+        "PLANNED",
+        "ENTRY_GATE",
+        "READY",
+        "IMPLEMENTATION_COMPLETE",
+        "VERIFICATION_IN_PROGRESS",
+    }:
+        notes.append(f"lifecycle_word_not_progress:{text}")
+        if key in {"PLANNED", "ENTRY_GATE", "READY"}:
+            return "NOT_STARTED", notes
+        if key == "CLOSED":
+            notes.append("closed_requires_post_merge_verified")
+            return "UNKNOWN", notes
+        if key in {"MERGED", "CERTIFIED", "CERTIFIED_MERGE_ELIGIBLE", "MERGE_AUTHORIZED"}:
+            notes.append("merged_neq_closed")
+            notes.append("implemented_neq_verified")
+            return "IMPLEMENTED", notes
+        if key == "POST_MERGE_VERIFIED":
+            return "VERIFIED_COMPLETION", notes
+        if key in {"IMPLEMENTATION_COMPLETE", "VERIFICATION_IN_PROGRESS"}:
+            notes.append("implemented_neq_verified")
+            return "IMPLEMENTED", notes
     if key not in ITEM_STATUSES:
         notes.append(f"unrecognized_status:{text}")
         return "UNKNOWN", notes
     return key, notes
+
+
+def _normalize_lifecycle(raw: Any, *, progress: str, notes: list[str]) -> str:
+    """Preserve lifecycle distinctions. MERGED != CLOSED. IMPLEMENTED != VERIFIED."""
+    if raw is not None and str(raw).strip():
+        key = str(raw).strip().upper().replace(" ", "_").replace("-", "_")
+        key = {
+            "CERTIFIED": "CERTIFIED_MERGE_ELIGIBLE",
+            "CERTIFIED_MERGE_ELIGIBLE": "CERTIFIED_MERGE_ELIGIBLE",
+            "IMPLEMENTATION-COMPLETE": "IMPLEMENTATION_COMPLETE",
+            "VERIFICATION-IN-PROGRESS": "VERIFICATION_IN_PROGRESS",
+            "POST-MERGE-VERIFIED": "POST_MERGE_VERIFIED",
+            "ENTRY-GATE": "ENTRY_GATE",
+            "MERGE-AUTHORIZED": "MERGE_AUTHORIZED",
+        }.get(key, key)
+        if key in LIFECYCLES:
+            if key == "CLOSED":
+                notes.append("closed_is_not_merged")
+            if key == "MERGED":
+                notes.append("merged_neq_closed")
+            return key
+        notes.append(f"unrecognized_lifecycle:{raw}")
+    if progress == "VERIFIED_COMPLETION":
+        return "POST_MERGE_VERIFIED"
+    if progress == "IMPLEMENTED":
+        return "IMPLEMENTATION_COMPLETE"
+    if progress == "IN_PROGRESS":
+        return "IN_PROGRESS"
+    if progress == "BLOCKED":
+        return "IN_PROGRESS"
+    if progress == "NOT_STARTED":
+        return "PLANNED"
+    return "UNKNOWN"
 
 
 def _load_roadmap_source(vault: Path, project_id: str) -> tuple[dict[str, Any] | None, list[str]]:
@@ -226,7 +305,7 @@ def _normalize_item(
 ) -> dict[str, Any]:
     item_id = str(raw.get("id") or raw.get("item_id") or f"item-{index:03d}")
     title = str(raw.get("title") or raw.get("name") or item_id)
-    status, status_notes = _normalize_status(raw.get("status"))
+    status, status_notes = _normalize_status(raw.get("status") or raw.get("lifecycle"))
     depends_on = [
         str(dep)
         for dep in (raw.get("depends_on") or raw.get("dependencies") or [])
@@ -271,10 +350,25 @@ def _normalize_item(
             }
         )
         flags.append("blocked_reason_unknown")
+    lifecycle = _normalize_lifecycle(
+        raw.get("lifecycle"),
+        progress=status,
+        notes=flags,
+    )
+    if lifecycle == "CLOSED" and status != "VERIFIED_COMPLETION":
+        flags.append("closed_without_verified_completion")
+    if lifecycle == "MERGED" and status == "VERIFIED_COMPLETION":
+        flags.append("merged_is_not_closed_or_verified")
+        status = "IMPLEMENTED"
+    if lifecycle == "IMPLEMENTATION_COMPLETE" and status == "VERIFIED_COMPLETION":
+        flags.append("implemented_neq_verified")
+        status = "IMPLEMENTED"
     return {
         "id": item_id,
         "title": title,
         "status": status,
+        "progress": status,
+        "lifecycle": lifecycle,
         "milestone": raw.get("milestone"),
         "depends_on": depends_on,
         "evidence": evidence,
@@ -354,7 +448,12 @@ def _you_are_here(
                 "item_id": item_id,
                 "title": item["title"],
                 "status": item["status"],
+                "lifecycle": item.get("lifecycle"),
                 "reason": "critical_path_head",
+                "why": (
+                    f"{item_id} is the first unfinished critical-path item "
+                    f"(progress={item['status']}, lifecycle={item.get('lifecycle')})"
+                ),
                 "evidence": list(item["evidence_present"]),
             }
     if state_lens:
@@ -387,6 +486,22 @@ def _you_are_here(
     }
 
 
+def _downstream(items: list[dict[str, Any]], item_id: str) -> list[str]:
+    return sorted(
+        item["id"]
+        for item in items
+        if item_id in item["depends_on"]
+    )
+
+
+def _smallest_transition(item: dict[str, Any]) -> dict[str, str | None]:
+    current = str(item.get("lifecycle") or "UNKNOWN")
+    nxt = _NEXT_LIFECYCLE.get(current)
+    if item.get("status") == "BLOCKED":
+        nxt = current
+    return {"from": current, "to": nxt}
+
+
 def _next_unlock(items: list[dict[str, Any]], critical_path: list[str]) -> dict[str, Any]:
     by_id = {item["id"]: item for item in items}
     for item_id in critical_path:
@@ -394,42 +509,101 @@ def _next_unlock(items: list[dict[str, Any]], critical_path: list[str]) -> dict[
         if item["status"] in _DONE_ENOUGH:
             continue
         deps = [by_id[dep] for dep in item["depends_on"] if dep in by_id]
+        unknown_deps = [dep["id"] for dep in deps if dep["status"] == "UNKNOWN"]
         deps_ready = all(dep["status"] in _DONE_ENOUGH for dep in deps)
+        releases = _downstream(items, item_id)
+        transition = _smallest_transition(item)
+        if item["status"] == "UNKNOWN":
+            return {
+                "item_id": item_id,
+                "title": item["title"],
+                "status": "UNKNOWN",
+                "lifecycle": item.get("lifecycle"),
+                "waiting_on": item_id,
+                "unlock_condition": f"replace UNKNOWN on {item_id} with evidence-backed state",
+                "reason": "unknown_prerequisite",
+                "why": f"{item_id} is UNKNOWN; no invented next transition",
+                "smallest_transition": None,
+                "releases": releases,
+            }
+        if unknown_deps:
+            return {
+                "item_id": item_id,
+                "title": item["title"],
+                "status": item["status"],
+                "lifecycle": item.get("lifecycle"),
+                "waiting_on": unknown_deps[0],
+                "unlock_condition": f"resolve UNKNOWN prerequisite {unknown_deps[0]}",
+                "reason": "unknown_prerequisite",
+                "why": (
+                    f"{item_id} cannot advance while prerequisite "
+                    f"{unknown_deps[0]} is UNKNOWN"
+                ),
+                "smallest_transition": transition,
+                "releases": releases,
+            }
         if item["status"] == "BLOCKED":
             blocker = item["blockers"][0] if item["blockers"] else {}
             return {
                 "item_id": item_id,
                 "title": item["title"],
                 "status": "BLOCKED",
+                "lifecycle": item.get("lifecycle"),
                 "waiting_on": blocker.get("waiting_on"),
                 "unlock_condition": blocker.get("unlock_condition") or blocker.get("reason"),
                 "reason": "blocked",
+                "why": (
+                    f"{item_id} is BLOCKED waiting on "
+                    f"{blocker.get('waiting_on') or 'UNKNOWN'}; "
+                    f"unlock={blocker.get('unlock_condition') or blocker.get('reason')}"
+                ),
+                "smallest_transition": transition,
+                "releases": releases,
             }
         if deps_ready:
             return {
                 "item_id": item_id,
                 "title": item["title"],
                 "status": item["status"],
+                "lifecycle": item.get("lifecycle"),
                 "waiting_on": None,
-                "unlock_condition": "complete this item",
+                "unlock_condition": (
+                    f"advance {item_id} {transition['from']} → {transition['to']}"
+                ),
                 "reason": "next_critical_item",
+                "why": (
+                    f"{item_id} is the first unfinished critical-path item; "
+                    f"the smallest evidence-backed transition is "
+                    f"{transition['from']} → {transition['to']}"
+                    + (f", which releases {', '.join(releases)}" if releases else "")
+                ),
+                "smallest_transition": transition,
+                "releases": releases,
             }
         waiting = [dep["id"] for dep in deps if dep["status"] not in _DONE_ENOUGH]
         return {
             "item_id": item_id,
             "title": item["title"],
             "status": item["status"],
+            "lifecycle": item.get("lifecycle"),
             "waiting_on": waiting[0] if waiting else None,
             "unlock_condition": f"satisfy dependencies: {', '.join(waiting)}" if waiting else None,
             "reason": "waiting_on_dependency",
+            "why": f"{item_id} waits on unfinished dependencies {', '.join(waiting)}",
+            "smallest_transition": transition,
+            "releases": releases,
         }
     return {
         "item_id": None,
         "title": "UNKNOWN" if not items else "none",
         "status": "UNKNOWN" if not items else "VERIFIED_COMPLETION",
+        "lifecycle": "UNKNOWN" if not items else "CLOSED",
         "waiting_on": None,
         "unlock_condition": None,
         "reason": "no_remaining_unlock" if items else "no_roadmap_items",
+        "why": "no remaining unfinished critical-path item" if items else "no roadmap items",
+        "smallest_transition": None,
+        "releases": [],
     }
 
 
@@ -522,16 +696,22 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "item_id": None,
             "title": "UNKNOWN",
             "status": "UNKNOWN",
+            "lifecycle": "UNKNOWN",
             "reason": "cyclic_dependencies",
+            "why": "cycle detected; no fabricated critical path",
             "evidence": [],
         }
         next_unlock = {
             "item_id": None,
             "title": "UNKNOWN",
             "status": "UNKNOWN",
+            "lifecycle": "UNKNOWN",
             "waiting_on": None,
             "unlock_condition": None,
             "reason": "cyclic_dependencies",
+            "why": "cycle detected; next unlock is UNKNOWN",
+            "smallest_transition": None,
+            "releases": [],
         }
 
     milestones: list[dict[str, Any]] = []
@@ -583,8 +763,12 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "DERIVED_STATUS!=AUTHORITY",
             "UNKNOWN!=HEALTHY",
             "NO_EVIDENCE!=COMPLETE",
+            "MERGED!=CLOSED",
+            "IMPLEMENTED!=VERIFIED",
             "percent_complete_is_canonical=false",
         ],
+        "lifecycle_vocabulary": list(LIFECYCLES),
+        "progress_vocabulary": list(ITEM_STATUSES),
         "generated": {"by": GENERATOR_ID},
         "honesty": {
             "roadmap_is_canonical": False,
@@ -593,6 +777,9 @@ def build_roadmap_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "unknown_is_valid": True,
             "percent_complete_is_canonical": False,
             "cyclic_dependencies": cyclic,
+            "merged_eq_closed": False,
+            "implemented_eq_verified": False,
+            "dogfood_local_vault_executed": False,
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
         },
@@ -654,9 +841,10 @@ def render_roadmap_text(lens: dict[str, Any]) -> str:
     lines = [
         f"atlas roadmap [{lens.get('status', 'unknown')}]  (ROADMAP!=CANONICAL_TRUTH)",
         f"  project:       {lens.get('project_id')}",
-        f"  you are here:  {here.get('title')} [{here.get('status')}] ({here.get('reason')})",
+        f"  you are here:  {here.get('title')} [{here.get('status')}/"
+        f"{here.get('lifecycle')}] ({here.get('why') or here.get('reason')})",
         f"  next unlock:   {nxt.get('title')} [{nxt.get('status')}] "
-        f"waiting_on={nxt.get('waiting_on') or '—'} unlock={nxt.get('unlock_condition') or '—'}",
+        f"why={nxt.get('why') or nxt.get('unlock_condition') or '—'}",
         f"  critical path: {_format_critical_path(path, lens)}",
         f"  blockers:      {len(lens.get('blockers') or [])}",
         f"  unknowns:      {', '.join(lens.get('unknowns') or []) or '(none)'}",

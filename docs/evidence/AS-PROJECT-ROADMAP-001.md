@@ -42,7 +42,12 @@ percent_complete_is_canonical = false
 ```
 SURFACE_OVERLAP_WITH_D042 = LOW
 AGENT_CONTEXT_INTEGRATION = DEFERRED_UNTIL_D042_MERGE
+D094A_SHARED_FILE_EDITS = NONE (lifecycle/next-unlock stay in dedicated modules)
 ```
+
+D-094A added a separate lifecycle vocabulary so MERGED != CLOSED and
+IMPLEMENTED != VERIFIED. Next unlock now returns WHY + smallest
+transition. Cloud fixtures only; Dark Factory vault was not executed.
 
 ---
 

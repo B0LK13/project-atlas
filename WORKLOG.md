@@ -16,6 +16,9 @@ Derived roadmap model + CLI + GET `/v1/roadmap` + Web `#/roadmap`.
 Agent-context integration deferred (D-042 `agent_handoff.py` overlap).
 Incremental connect measured and left `DORMANT_NO_MATERIAL_VALUE`.
 
+D-094A: acknowledged Local D-092C `SEALED_PASS` without mutating `#353`.
+Enriched lifecycle vocabulary + next-unlock WHY on dedicated Roadmap files.
+
 ---
 
 ## D-089 — D-049 final pre-merge reconciliation

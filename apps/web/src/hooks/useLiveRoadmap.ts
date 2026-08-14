@@ -29,15 +29,19 @@ export interface RoadmapLens {
     item_id?: string | null;
     title?: string;
     status?: string;
+    lifecycle?: string;
     reason?: string;
+    why?: string;
   };
   next_unlock?: {
     item_id?: string | null;
     title?: string;
     status?: string;
+    lifecycle?: string;
     waiting_on?: string | null;
     unlock_condition?: string | null;
     reason?: string;
+    why?: string;
   };
   critical_path?: string[];
   items?: RoadmapItem[];

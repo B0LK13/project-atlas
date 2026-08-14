@@ -218,3 +218,71 @@ def test_cli_and_api_and_materialize(tmp_path: Path, capsys) -> None:
     assert api["honesty"]["ui_is_canonical"] is False
     read = read_project_roadmap(vault, project_id)
     assert read["critical_path"] == api["critical_path"]
+    assert api["next_unlock"]["why"]
+    assert api["honesty"]["merged_eq_closed"] is False
+    assert api["honesty"]["dogfood_local_vault_executed"] is False
+
+
+def test_merged_is_not_closed_or_verified(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(
+        vault,
+        "gates",
+        {
+            "items": [
+                {
+                    "id": "pkg-merged",
+                    "title": "Merged package",
+                    "lifecycle": "MERGED",
+                    "status": "IMPLEMENTED",
+                    "evidence": ["generated/ops/receipts/merge.json"],
+                },
+                {
+                    "id": "pkg-closed-claim",
+                    "title": "Claimed closed",
+                    "status": "CLOSED",
+                    "depends_on": ["pkg-merged"],
+                },
+            ]
+        },
+    )
+    (vault / "generated" / "ops" / "receipts").mkdir(parents=True, exist_ok=True)
+    (vault / "generated" / "ops" / "receipts" / "merge.json").write_text("{}\n", encoding="utf-8")
+    lens = build_roadmap_lens(vault, "gates")
+    merged = next(item for item in lens["items"] if item["id"] == "pkg-merged")
+    claimed = next(item for item in lens["items"] if item["id"] == "pkg-closed-claim")
+    assert merged["lifecycle"] == "MERGED"
+    assert merged["status"] == "IMPLEMENTED"
+    assert merged["lifecycle"] != "CLOSED"
+    assert claimed["status"] == "UNKNOWN"
+    assert "closed_requires_post_merge_verified" in claimed["flags"]
+
+
+def test_unknown_prerequisite_blocks_unlock(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _write_roadmap(
+        vault,
+        "unk-dep",
+        {
+            "items": [
+                {"id": "a", "title": "Unknown dep", "status": "UNKNOWN"},
+                {"id": "b", "title": "Waiting", "status": "NOT_STARTED", "depends_on": ["a"]},
+            ]
+        },
+    )
+    lens = build_roadmap_lens(vault, "unk-dep")
+    assert lens["next_unlock"]["reason"] == "unknown_prerequisite"
+    assert lens["next_unlock"]["waiting_on"] == "a"
+    assert lens["next_unlock"]["smallest_transition"] is None
+    assert "UNKNOWN" in (lens["next_unlock"]["why"] or "")
+
+
+def test_checked_in_harbor_slice_fixture() -> None:
+    fixture = (
+        Path(__file__).resolve().parents[1] / "fixtures" / "roadmap" / "v1" / "harbor-slice"
+    )
+    lens = build_roadmap_lens(fixture, "harbor-slice")
+    validate_record(lens, "project-roadmap")
+    assert lens["you_are_here"]["item_id"] == "pkg-roadmap"
+    assert lens["next_unlock"]["smallest_transition"]["to"] == "IMPLEMENTATION_COMPLETE"
+    assert lens["honesty"]["dogfood_local_vault_executed"] is False

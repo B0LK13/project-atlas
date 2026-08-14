@@ -44,6 +44,8 @@
     "unresolved_conflicts": { "type": "integer", "minimum": 0 },
     "inspected_artifacts": { "type": "array", "items": { "type": "string" } },
     "notes": { "type": "array", "items": { "type": "string" } },
+    "lifecycle_vocabulary": { "type": "array", "items": { "type": "string" } },
+    "progress_vocabulary": { "type": "array", "items": { "type": "string" } },
     "generated": { "type": "object" },
     "honesty": {
       "type": "object",

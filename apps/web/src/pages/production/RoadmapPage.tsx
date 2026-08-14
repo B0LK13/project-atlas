@@ -48,8 +48,9 @@ export default function RoadmapPage() {
             <p className="banner warn">UNKNOWN — no position evidence</p>
           ) : (
             <p>
-              <strong>{here?.title ?? "UNKNOWN"}</strong> [{here?.status ?? "UNKNOWN"}]
-              <span> · {here?.reason ?? "unknown"}</span>
+              <strong>{here?.title ?? "UNKNOWN"}</strong> [{here?.status ?? "UNKNOWN"}
+              {here?.lifecycle ? ` / ${here.lifecycle}` : ""}]
+              <span> · {here?.why ?? here?.reason ?? "unknown"}</span>
             </p>
           )}
         </section>
@@ -60,8 +61,8 @@ export default function RoadmapPage() {
             <p className="banner warn">UNKNOWN — no unlock evidence</p>
           ) : (
             <p>
-              <strong>{nextUnlock.title}</strong> [{nextUnlock.status}] waiting
-              on {nextUnlock.waiting_on ?? "—"} · {nextUnlock.unlock_condition ?? "—"}
+              <strong>{nextUnlock.title}</strong> [{nextUnlock.status}]
+              <span> · {nextUnlock.why ?? nextUnlock.unlock_condition ?? "UNKNOWN"}</span>
             </p>
           )}
         </section>
