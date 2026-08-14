@@ -80,6 +80,12 @@ Discovery reports expose:
 CLI/API/Web must not present an exceptional volume scan as an ordinary
 bounded-directory scan.
 
+## Merge status after D-080
+
+D-078 local policy revalidation PASS. D-078 is superseded as the merge
+candidate by D-080 (`99aa937` / `e73273f`). Do not merge D-078 alone.
+Root policy remains historically validated.
+
 ## Merge rule
 
 ```
