@@ -15,6 +15,14 @@ exact commands run, exact results, deviations, and remaining risks.
 LIVE HTTP/network failures on brief/knowledge/graph/ops/discovery must
 not be labeled `demo_stub`.
 
+```
+HOOK_HONESTY_IV = PASS
+HOOK_HONESTY_CI = PASS
+HOOK_HONESTY_STATE = CERTIFIED — MERGE ELIGIBLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+PRODUCTION_TIP = ba2fc7f373ba54f31dc0b1093e11d5309153fc5e
+```
+
 ---
 
 ## D-094 — D-042 final reconciliation
