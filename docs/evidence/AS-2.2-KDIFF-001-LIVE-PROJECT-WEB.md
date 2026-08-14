@@ -18,10 +18,12 @@ Not #354. Does not touch Roadmap modules.
 `#/time-machine` accepts `?project=` / `?from=` / `?to=`.
 Projects inventory and Knowledge link into the selected project.
 Golden-demo defaults remain `harbor-api` / `2024-03-01` / `2024-10-01`.
-Empty catalogs stay UNKNOWN. Nothing is invented in the browser.
+Empty **live** catalogs stay UNKNOWN. Failed LIVE loads and demo stubs
+are not labeled as empty UNKNOWN catalogs.
 
 ## Validation
 
 ```
-apps/web: tsc -b → pass
+apps/web: tsc -b
+pytest tests/unit/test_as_2_2_kdiff_live_project_web.py
 ```

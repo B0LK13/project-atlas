@@ -33,6 +33,7 @@ export default function TimeMachinePage() {
     dataSource,
   } = useLiveTimeMachine(projectId, t1, t2);
   const isDemo = dataSource === "demo_stub";
+  const liveReady = !loading && !error && dataSource === "live_api";
 
   function onSelectProject(next: string) {
     const nextParams = new URLSearchParams(params);
@@ -105,8 +106,16 @@ export default function TimeMachinePage() {
 
         <section className="panel" aria-label="Unresolved conflict">
           <h2>Unresolved conflict</h2>
-          {!loading && conflicts.length === 0 ? (
+          {liveReady && conflicts.length === 0 ? (
             <p className="banner warn">unknown — no conflict rows</p>
+          ) : !liveReady && conflicts.length === 0 ? (
+            <p className="lede">
+              {error
+                ? "Unavailable — not an empty conflict catalog."
+                : isDemo
+                  ? "Demo stub isolated — not an empty conflict catalog."
+                  : "Waiting for live conflict rows."}
+            </p>
           ) : (
             <ul className="theme-hub">
               {conflicts.map((conflict, index) => (
@@ -151,19 +160,29 @@ export default function TimeMachinePage() {
           >
             <div>
               <h3>At T1 ({t1})</h3>
-              <AsOfCells cells={asOfT1Cells} loading={loading} />
+              <AsOfCells cells={asOfT1Cells} liveReady={liveReady} error={error} isDemo={isDemo} />
             </div>
             <div>
               <h3>At T2 ({t2})</h3>
-              <AsOfCells cells={asOfT2Cells} loading={loading} />
+              <AsOfCells cells={asOfT2Cells} liveReady={liveReady} error={error} isDemo={isDemo} />
             </div>
           </div>
 
           <h3 style={{ marginTop: "1rem" }}>What changed T1 → T2</h3>
-          {!loading &&
+          {liveReady &&
           diff.value_changed.length === 0 &&
           diff.added.length === 0 ? (
             <p className="banner warn">unknown — no recorded changes</p>
+          ) : !liveReady &&
+            diff.value_changed.length === 0 &&
+            diff.added.length === 0 ? (
+            <p className="lede">
+              {error
+                ? "Unavailable — not an empty Time Machine diff."
+                : isDemo
+                  ? "Demo stub isolated — not an empty Time Machine diff."
+                  : "Waiting for live Time Machine diff."}
+            </p>
           ) : (
             <ul className="theme-hub">
               {diff.value_changed.map((change, index) => (
@@ -199,13 +218,28 @@ export default function TimeMachinePage() {
 
 function AsOfCells({
   cells,
-  loading,
+  liveReady,
+  error,
+  isDemo,
 }: {
   cells: KdiffCell[];
-  loading: boolean;
+  liveReady: boolean;
+  error: string | null;
+  isDemo: boolean;
 }) {
-  if (!loading && cells.length === 0) {
+  if (liveReady && cells.length === 0) {
     return <p className="banner warn">unknown — no cells</p>;
+  }
+  if (!liveReady && cells.length === 0) {
+    return (
+      <p className="lede">
+        {error
+          ? "Unavailable — not an empty as-of catalog."
+          : isDemo
+            ? "Demo stub isolated — not an empty as-of catalog."
+            : "Waiting for live as-of cells."}
+      </p>
+    );
   }
   return (
     <ul className="theme-hub">
