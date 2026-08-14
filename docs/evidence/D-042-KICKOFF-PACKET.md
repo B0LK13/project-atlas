@@ -1,9 +1,11 @@
 # D-042 kickoff packet (inputs only)
 
-DIRECTIVE context: `D-PROJECT-ATLAS-CLOUD-D080-MERGE-READINESS-082` Lane I
+DIRECTIVE context: D-082 Lane I, refreshed by
+`D-PROJECT-ATLAS-CLOUD-D084-D086-CONDITIONAL-INTEGRATION-READINESS` Lane I
 
 ```
 D042_KICKOFF_PACKET_READY = YES
+D042_KICKOFF_PACKET_D084_ALIGNED = YES
 D_042_EXECUTION_GATE = CLOSED
 D042_IMPLEMENTATION = NOT_STARTED
 ```
@@ -11,21 +13,27 @@ D042_IMPLEMENTATION = NOT_STARTED
 This file is **not** a D-042 implementation, PREP coding package, or
 authorization to reopen `#344`. Do not create a D-042 branch from this packet.
 
-D-042 may open only after Lane H’s three conditions exist
-(D-081 PASS + owner-authorized #351 merge + post-merge exact-main PASS).
+D-042 may open only after D-086 Lane H’s three conditions exist
+(D-085 CASE A PASS + owner-authorized #351 merge + post-merge exact-main PASS).
 
 ---
 
 ## Future accepted main (conditional)
 
 When Lane H fires, the accepted main is the **merge commit** of #351 onto
-then-current `main`, not `99aa937` itself (merge commit ≠ production freeze).
+then-current `main`, not `2fcf818` itself (merge commit ≠ production freeze).
 
 Until then, the production candidate remains:
 
 ```
-AUTHORIZED_PRODUCTION_HEAD = 99aa937b3718cf0432bb688dbfa074daade7c049
-AUTHORIZED_PRODUCTION_TREE = e73273f208009f9c317ffb489919e154938ee1c4
+AUTHORIZED_PRODUCTION_HEAD = 2fcf8186d4a2c6d4209cee82b6d6f076e2119589
+AUTHORIZED_PRODUCTION_TREE = 4148e9a63de0089736bea1c0b2631dd1e4fe72e5
+```
+
+Superseded historical candidate (do not Local-validate, do not merge alone):
+
+```
+D080_PRODUCTION_FREEZE = 99aa937b3718cf0432bb688dbfa074daade7c049
 ```
 
 ---
@@ -60,13 +68,29 @@ inbox into Layer B / Truth Core.
 
 ## Discovery contract D-042 must not weaken
 
+### D-078 root-mode
+
 - Default: filesystem root and home refused
 - Explicit `--root-mode owner-authorized-volume` is Windows non-system
   volume discovery only
 - System volume / UNC / `/` remain refused
+
+### D-080 truth
+
 - Volume root is a scope container, not a project
-- Candidate limits bound output; traversal order is not selection authority
 - Knowledge never attaches to blank / dangling / container ids
+- Traversal order is not selection authority
+
+### D-084 selection
+
+- `candidate_selection_policy = deterministic_hierarchical_fair_v2`
+- Region round-robin before family / evidence / path tie-break
+- One noisy region must not monopolize bounded output
+- Ancestor project boundary is not displaced by a non-independent nested child
+- Independent nested repositories remain separately eligible
+- Sibling projects in one region must both have a realistic path into the cap
+- Cheap sighting first; expensive enrichment only on a bounded shortlist
+- Candidate limits bound output and memory, not first-seen admission
 
 Conversational capture must not trigger estate discovery, ingest, or
 connect as a side effect.

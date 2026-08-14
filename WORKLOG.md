@@ -5,6 +5,22 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-086 — D-084 conditional integration readiness (no production mutation)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D084-D086-CONDITIONAL-INTEGRATION-READINESS
+**PR:** #351 (not merged, not marked ready)
+
+```
+D084_FREEZE_DESCENDS_FROM_MAIN = YES
+PR_TIP_DESCENDS_FROM_D084_FREEZE = YES
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D084_FREEZE = 0
+UNRELATED_PRODUCTION_CHANGE = 0
+D085_RESULT = PENDING
+D042_KICKOFF_PACKET_D084_ALIGNED = YES
+NEXT_ACTION = WAIT FOR LOCAL D-085.
+```
+
 ## D-084 — Hierarchical fair selection + bounded enrichment
 
 **Date:** 2026-08-14
