@@ -47,6 +47,9 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
             "truth_boundary": TRUTH_BOUNDARY,
             "present": False,
             "authorized_root": None,
+            "authorized_root_mode": None,
+            "volume_root_authorized": False,
+            "volume_root_kind": "NONE",
             "counts": {
                 "projects": 0,
                 "knowledge": 0,
@@ -86,6 +89,9 @@ def load_estate_discovery_view(vault: Path) -> dict[str, Any]:
         "truth_boundary": TRUTH_BOUNDARY,
         "present": True,
         "authorized_root": report.get("authorized_root"),
+        "authorized_root_mode": report.get("authorized_root_mode"),
+        "volume_root_authorized": bool(report.get("volume_root_authorized", False)),
+        "volume_root_kind": report.get("volume_root_kind") or "NONE",
         "counts": {
             "projects": int(counts.get("projects") or 0),
             "knowledge": int(counts.get("knowledge") or 0),

@@ -70,6 +70,8 @@ from project_atlas.estate_discovery import (
     DEFAULT_MAX_DEPTH,
     INCREMENTAL_CACHE_RELATIVE,
     REPORT_RELATIVE,
+    ROOT_MODE_BOUNDED_DIRECTORY,
+    ROOT_MODE_OWNER_AUTHORIZED_VOLUME,
     EstateDiscoveryError,
     connect_discovered_candidate,
     discover_estate,
@@ -376,6 +378,14 @@ def build_parser() -> argparse.ArgumentParser:
             f"bounded to max_depth={DEFAULT_MAX_DEPTH}; the bound is not a CLI "
             "flag. A scan that stops at the bound reports SCAN INCOMPLETE "
             "instead of claiming exhaustive coverage.\n"
+            "Root policy:\n"
+            "  Normal directories need no override (--root-mode "
+            f"{ROOT_MODE_BOUNDED_DIRECTORY}, default).\n"
+            "  Windows volume roots such as D:\\ are refused by default.\n"
+            "  A non-system Windows volume root requires explicit "
+            f"--root-mode {ROOT_MODE_OWNER_AUTHORIZED_VOLUME}.\n"
+            "  The Windows system volume (typically C:\\) remains refused.\n"
+            "  Linux/macOS filesystem root / remains refused.\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -399,7 +409,21 @@ def build_parser() -> argparse.ArgumentParser:
             "Authorized root for knowledge estate discovery (D-049). "
             "When omitted, estate mode uses the current working directory. "
             f"Traversal stops at max_depth={DEFAULT_MAX_DEPTH} (not a CLI flag). "
-            "Never home or filesystem root."
+            "Never home. Filesystem roots are refused unless --root-mode "
+            f"{ROOT_MODE_OWNER_AUTHORIZED_VOLUME} is set for a non-system "
+            "Windows volume (D:\\). System volume C:\\ stays refused."
+        ),
+    )
+    discover_parser.add_argument(
+        "--root-mode",
+        choices=(ROOT_MODE_BOUNDED_DIRECTORY, ROOT_MODE_OWNER_AUTHORIZED_VOLUME),
+        default=ROOT_MODE_BOUNDED_DIRECTORY,
+        help=(
+            "Authorized-root policy. Default bounded-directory refuses "
+            "filesystem roots and home. owner-authorized-volume explicitly "
+            "authorizes one non-system Windows drive-volume root (for example "
+            "D:\\). It is not --force/--unsafe and does not authorize C:\\, "
+            "home, UNC, or /."
         ),
     )
     discover_parser.add_argument(
@@ -2246,6 +2270,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     include_projects=include_projects,
                     include_knowledge=include_knowledge,
                     prior_cache=cache,
+                    root_mode=str(
+                        getattr(args, "root_mode", ROOT_MODE_BOUNDED_DIRECTORY)
+                    ),
                 )
 
             if discover_command == "review":

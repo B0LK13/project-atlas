@@ -41,6 +41,9 @@ export interface EstateDiscoveryView {
   truth_boundary?: string;
   present: boolean;
   authorized_root?: string | null;
+  authorized_root_mode?: string | null;
+  volume_root_authorized?: boolean;
+  volume_root_kind?: string | null;
   counts?: {
     projects?: number;
     knowledge?: number;

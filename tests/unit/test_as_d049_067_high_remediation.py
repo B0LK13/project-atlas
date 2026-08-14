@@ -286,6 +286,7 @@ def test_discover_help_text_names_cwd_and_depth_bound(
     assert "current working directory" in text
     assert f"max_depth={DEFAULT_MAX_DEPTH}" in text
     assert "SCAN INCOMPLETE" in text
+    assert "owner-authorized-volume" in text
 
 
 # --- MEDIUM: quoted git-config URL --------------------------------------------

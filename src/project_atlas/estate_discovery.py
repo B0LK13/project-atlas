@@ -249,23 +249,210 @@ def _write_atomic(path: Path, content: bytes) -> None:
             tmp.unlink(missing_ok=True)
 
 
-def refuse_dangerous_authorized_root(path: Path) -> Path:
-    """Resolve and refuse filesystem root / home as authorized discovery roots."""
+ROOT_MODE_BOUNDED_DIRECTORY = "bounded-directory"
+ROOT_MODE_OWNER_AUTHORIZED_VOLUME = "owner-authorized-volume"
+ROOT_MODE_BOUNDED_TOKEN = "BOUNDED_DIRECTORY"
+ROOT_MODE_VOLUME_TOKEN = "OWNER_AUTHORIZED_VOLUME_ROOT"
+VOLUME_KIND_NONE = "NONE"
+VOLUME_KIND_NON_SYSTEM_WINDOWS = "NON_SYSTEM_WINDOWS_VOLUME"
+
+_WIN_DRIVE_LETTER = re.compile(r"^([A-Za-z]):")
+
+
+@dataclass(frozen=True)
+class AuthorizedRootDecision:
+    """Resolved discovery-root policy (D-078). Never a connect/ingest grant."""
+
+    resolved: Path
+    authorized_root_mode: str
+    volume_root_authorized: bool
+    volume_root_kind: str
+
+
+def normalize_root_mode(value: str) -> str:
+    """Map CLI/API tokens to the two explicit root modes. No --force aliases."""
+    key = value.strip().lower().replace("_", "-")
+    if key in {ROOT_MODE_BOUNDED_DIRECTORY, "bounded"}:
+        return ROOT_MODE_BOUNDED_DIRECTORY
+    if key in {ROOT_MODE_OWNER_AUTHORIZED_VOLUME, "owner-authorized-volume-root"}:
+        return ROOT_MODE_OWNER_AUTHORIZED_VOLUME
+    raise EstateDiscoveryError(f"UNKNOWN_ROOT_MODE: unsupported root mode {value!r}")
+
+
+def is_filesystem_root(path: Path) -> bool:
+    resolved = path.expanduser().resolve(strict=False)
+    return resolved.parent == resolved
+
+
+def is_unc_root(path: Path) -> bool:
+    """True for UNC/network roots. Not a local Windows drive volume."""
+    raw = os.fspath(path).replace("/", "\\")
+    if raw.startswith("\\\\?\\"):
+        raw = raw[4:]
+    if raw.startswith("\\\\") and not _WIN_DRIVE_LETTER.match(raw.lstrip("\\")):
+        # \\server\share … — not \\?\C:\ (already stripped)
+        rest = raw[2:]
+        return not rest.startswith("?\\")
+    try:
+        anchor = path.expanduser().resolve(strict=False).anchor.replace("/", "\\")
+    except (OSError, RuntimeError):
+        return True
+    return bool(
+        anchor.startswith("\\\\")
+        and not _WIN_DRIVE_LETTER.match(anchor.lstrip("\\"))
+    )
+
+
+def _windows_volume_letter(path: Path) -> str | None:
+    for candidate in (os.fspath(path), getattr(path, "anchor", ""), str(path)):
+        text = str(candidate).replace("/", "\\")
+        if text.startswith("\\\\?\\"):
+            text = text[4:]
+        match = _WIN_DRIVE_LETTER.match(text)
+        if match:
+            return match.group(1).upper()
+    return None
+
+
+def is_windows_drive_volume_root(
+    path: Path, *, host_os: str | None = None
+) -> bool:
+    """True for a local Windows drive-volume root (D:\\), never UNC or /."""
+    host = host_os if host_os is not None else os.name
+    if host != "nt":
+        return False
+    if is_unc_root(path):
+        return False
+    resolved = path.expanduser().resolve(strict=False)
+    if not is_filesystem_root(resolved):
+        return False
+    return _windows_volume_letter(resolved) is not None
+
+
+def windows_system_drive_letter(
+    *, environ: dict[str, str] | None = None
+) -> str | None:
+    env = environ if environ is not None else dict(os.environ)
+    for key in ("SystemDrive", "SYSTEMDRIVE"):
+        raw = env.get(key)
+        if isinstance(raw, str) and raw.strip():
+            letter = raw.strip().rstrip(":\\/")
+            if len(letter) == 1 and letter.isalpha():
+                return letter.upper()
+    for key in ("SystemRoot", "SYSTEMROOT", "WINDIR", "windir"):
+        raw = env.get(key)
+        if isinstance(raw, str) and raw.strip():
+            match = _WIN_DRIVE_LETTER.match(raw.replace("/", "\\"))
+            if match:
+                return match.group(1).upper()
+    return None
+
+
+def is_windows_system_volume_root(
+    path: Path,
+    *,
+    host_os: str | None = None,
+    environ: dict[str, str] | None = None,
+) -> bool:
+    """True when path is the Windows system volume root.
+
+    If the host is Windows and the system drive cannot be determined, fail
+    closed (treat as system) so C:\\ cannot be silently classified as a
+    dedicated dev volume.
+    """
+    if not is_windows_drive_volume_root(path, host_os=host_os):
+        return False
+    letter = _windows_volume_letter(path)
+    system = windows_system_drive_letter(environ=environ)
+    if system is None:
+        host = host_os if host_os is not None else os.name
+        return host == "nt"
+    return letter == system
+
+
+def authorize_discovery_root(
+    path: Path,
+    *,
+    root_mode: str = ROOT_MODE_BOUNDED_DIRECTORY,
+    host_os: str | None = None,
+    environ: dict[str, str] | None = None,
+) -> AuthorizedRootDecision:
+    """SAFE DEFAULT + explicit Windows non-system volume capability (D-078).
+
+    Volume authorization permits traversal/discovery only. It does not
+    connect, ingest, mint identity, or write owner files.
+    """
+    mode = normalize_root_mode(root_mode)
     resolved = path.expanduser().resolve(strict=False)
     if not resolved.exists():
-        raise EstateDiscoveryError(f"authorized root does not exist: {resolved}")
-    if not resolved.is_dir():
-        raise EstateDiscoveryError(f"authorized root is not a directory: {resolved}")
-    if resolved.parent == resolved:
         raise EstateDiscoveryError(
-            f"refusing filesystem root as authorized discovery root: {resolved}"
+            f"AUTHORIZED_ROOT_DOES_NOT_EXIST: authorized root does not exist: {resolved}"
+        )
+    if not resolved.is_dir():
+        raise EstateDiscoveryError(
+            f"AUTHORIZED_ROOT_NOT_A_DIRECTORY: authorized root is not a directory: {resolved}"
         )
     home = Path.home().resolve()
-    if resolved == home:
+    if _paths_equal(resolved, home):
         raise EstateDiscoveryError(
-            f"refusing home directory as authorized discovery root: {resolved}"
+            "HOME_DIRECTORY_NOT_ALLOWED: refusing home directory as "
+            f"authorized discovery root: {resolved}"
         )
-    return resolved
+
+    unc = is_unc_root(path) or is_unc_root(resolved)
+    win_vol = is_windows_drive_volume_root(resolved, host_os=host_os)
+    sys_vol = is_windows_system_volume_root(
+        resolved, host_os=host_os, environ=environ
+    )
+    fs_root = is_filesystem_root(resolved)
+
+    if mode == ROOT_MODE_OWNER_AUTHORIZED_VOLUME:
+        if unc:
+            raise EstateDiscoveryError(
+                "UNC_VOLUME_ROOT_NOT_ALLOWED: owner-authorized-volume does not "
+                f"apply to UNC/network roots: {resolved}"
+            )
+        if not win_vol:
+            if fs_root:
+                raise EstateDiscoveryError(
+                    "FILESYSTEM_ROOT_NOT_ALLOWED: refusing filesystem root as "
+                    f"authorized discovery root: {resolved}"
+                )
+            raise EstateDiscoveryError(
+                "VOLUME_MODE_REQUIRES_WINDOWS_VOLUME_ROOT: "
+                "--root-mode owner-authorized-volume requires a Windows "
+                f"drive-volume root (for example D:\\); refusing {resolved}"
+            )
+        if sys_vol:
+            raise EstateDiscoveryError(
+                "SYSTEM_VOLUME_ROOT_NOT_ALLOWED: refusing Windows system "
+                f"volume root: {resolved}"
+            )
+        return AuthorizedRootDecision(
+            resolved=resolved,
+            authorized_root_mode=ROOT_MODE_VOLUME_TOKEN,
+            volume_root_authorized=True,
+            volume_root_kind=VOLUME_KIND_NON_SYSTEM_WINDOWS,
+        )
+
+    if fs_root or win_vol:
+        raise EstateDiscoveryError(
+            "FILESYSTEM_ROOT_NOT_ALLOWED: refusing filesystem root as "
+            f"authorized discovery root: {resolved}"
+        )
+    return AuthorizedRootDecision(
+        resolved=resolved,
+        authorized_root_mode=ROOT_MODE_BOUNDED_TOKEN,
+        volume_root_authorized=False,
+        volume_root_kind=VOLUME_KIND_NONE,
+    )
+
+
+def refuse_dangerous_authorized_root(path: Path) -> Path:
+    """Default bounded-directory policy (filesystem root / home refused)."""
+    return authorize_discovery_root(
+        path, root_mode=ROOT_MODE_BOUNDED_DIRECTORY
+    ).resolved
 
 
 def _casefold_paths() -> bool:
@@ -1354,14 +1541,26 @@ def discover_estate(
     max_project_candidates: int = DEFAULT_MAX_PROJECT_CANDIDATES,
     max_knowledge_candidates: int = DEFAULT_MAX_KNOWLEDGE_CANDIDATES,
     prior_cache: dict[str, Any] | None = None,
+    root_mode: str = ROOT_MODE_BOUNDED_DIRECTORY,
+    host_os: str | None = None,
+    environ: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Bounded filesystem discovery under one authorized root.
 
     ``prior_cache`` is recorded for Lane H foundation only — never used to skip
     identity re-evaluation (P11: STALE_CACHE_TRUTH = 0).
+    ``root_mode`` default is bounded-directory. Owner-authorized Windows
+    non-system volume roots require an explicit mode; they never connect
+    or ingest.
     """
     _ = prior_cache  # intentionally unused for skip decisions
-    root = refuse_dangerous_authorized_root(authorized_root)
+    policy = authorize_discovery_root(
+        authorized_root,
+        root_mode=root_mode,
+        host_os=host_os,
+        environ=environ,
+    )
+    root = policy.resolved
     vault_resolved = vault.expanduser().resolve(strict=False) if vault else None
     vault_projects = load_vault_project_identities(
         vault_resolved, authorized_root=root
@@ -1689,6 +1888,9 @@ def discover_estate(
         "invariant": "DISCOVER != INGEST != TRUST != AUTHORITY",
         "discovery_identity_source_of_truth": "EXISTING_GOVERNED_ATLAS_STATE",
         "authorized_root": root.as_posix(),
+        "authorized_root_mode": policy.authorized_root_mode,
+        "volume_root_authorized": policy.volume_root_authorized,
+        "volume_root_kind": policy.volume_root_kind,
         "vault": vault_resolved.as_posix() if vault_resolved is not None else None,
         "generated": {"by": "project-atlas"},
         "security": {
@@ -1697,6 +1899,7 @@ def discover_estate(
             "code_execution": False,
             "network_discovery": False,
             "whole_disk_scan": False,
+            "volume_root_authorized": policy.volume_root_authorized,
             "unsafe_path_escapes_detected": unsafe_escapes,
             "unsafe_path_escapes_allowed": 0,
             "casefold_path_identity": _casefold_paths(),
@@ -1952,6 +2155,17 @@ def format_discovery_human(report: dict[str, Any]) -> str:
     lines: list[str] = []
     root = report.get("authorized_root", "?")
     lines.append(f"Atlas knowledge estate discovery under: {root}")
+    mode = report.get("authorized_root_mode", ROOT_MODE_BOUNDED_TOKEN)
+    lines.append(f"authorized_root_mode: {mode}")
+    if report.get("volume_root_authorized"):
+        kind = report.get("volume_root_kind") or VOLUME_KIND_NON_SYSTEM_WINDOWS
+        lines.append(f"volume_root_authorized: true ({kind})")
+        lines.append(
+            "This is an explicit owner-authorized Windows volume scan, "
+            "not an ordinary bounded-directory scan."
+        )
+    else:
+        lines.append("volume_root_authorized: false")
     lines.append("DISCOVER != INGEST != TRUST != AUTHORITY")
     lines.append("")
     counts_raw = report.get("counts")
@@ -2030,17 +2244,26 @@ __all__ = [
     "INCREMENTAL_CACHE_RELATIVE",
     "PACKAGE_ID",
     "REPORT_RELATIVE",
+    "ROOT_MODE_BOUNDED_DIRECTORY",
+    "ROOT_MODE_OWNER_AUTHORIZED_VOLUME",
+    "AuthorizedRootDecision",
     "DiscoveryCandidate",
     "EstateDiscoveryError",
     "VaultProjectIdentity",
+    "authorize_discovery_root",
     "canonical_path_key",
     "connect_discovered_candidate",
     "discover_estate",
     "find_candidate",
     "format_discovery_human",
+    "is_filesystem_root",
+    "is_unc_root",
+    "is_windows_drive_volume_root",
+    "is_windows_system_volume_root",
     "load_discovery_cache",
     "load_vault_project_identities",
     "match_fingerprint",
+    "normalize_root_mode",
     "prove_connected",
     "refuse_dangerous_authorized_root",
     "review_candidates",
