@@ -5,6 +5,29 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-072 — Owner-authorized #348 merge + post-merge verification
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-OWNER-D049-MERGE-072
+
+### Merge
+GitHub merge commit of #348 onto `main`.
+`PREVIOUS_MAIN=072f139` → `MERGE_COMMIT=1983503`
+parents `072f139` + `d762475`. Tree `2250a7bf` = authorized #348 tree.
+
+### Post-merge
+D-049/067 46 PASS; identity/connect 33 PASS; Control Plane 171 PASS;
+ruff PASS; mypy PASS; web tsc+build PASS. Production drift vs `ccacaa5` = 0.
+
+```
+D_049_STATE = POST_MERGE_VERIFIED
+D_049_ACCEPTANCE = NOT_YET_EVALUATED
+AUTHENTIC_USER_ESTATE_ACCEPTANCE = NOT_EVALUATED
+D_042_EXECUTION_GATE = CLOSED
+```
+
+Evidence: `docs/evidence/D-072-POST-MERGE-VERIFICATION.md`
+
 ## D-071A — Local D-068 PASS ingested; merge authorization packet ready
 
 **Date:** 2026-08-14
