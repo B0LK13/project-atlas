@@ -5,6 +5,24 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-074 — Authentic acceptance matrix hold (Local D-073 pending)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-FINAL-ACCEPTANCE-074
+**Branch:** cursor/d049-final-reconciliation-6f85 (existing; no new PR)
+
+Verified `origin/main=1983503`, evidence tip `56127d4` preserved.
+Wrote ingest matrix only. No production mutation. No D-042.
+
+```
+LOCAL_D073_RESULT = PENDING
+D_049_FINAL_ACCEPTANCE = NOT_YET_EVALUATED
+D_042_EXECUTION_GATE = CLOSED
+NEW_PR_CREATED = NO
+```
+
+Evidence: `docs/evidence/D-074-AUTHENTIC-ACCEPTANCE-MATRIX.md`
+
 ## D-072 — Owner-authorized #348 merge + post-merge verification
 
 **Date:** 2026-08-14
