@@ -28,11 +28,28 @@ TREE == 97e56303ec7642bb86c9799cd2dbd79bfa1eaf08
 
 ## Preconditions
 
-- Use an **existing** owner project already bound in a governed Atlas vault.
-- Do **not** create a project.
-- Do **not** run estate discovery as a prerequisite.
+D-092 authentic capture requires a governed Atlas identity/vault binding.
+Owner-authorized D-092A onboarding for `D:\dev-ai\dark-factory` is the
+precondition. D-092A accepted-main onboarding ≠ D-091 production payload.
+
+```
+LOCAL_D092_READY = CONDITIONAL
+LOCAL_D092_GOVERNED_PROJECT_PRECONDITION = PENDING_D092A
+D092A_AUTHORIZED_PROJECT_ROOT = D:\dev-ai\dark-factory
+CANONICAL_GOVERNED_VAULT = D:\atlas-governed\dark-factory
+```
+
+After D-092A PASS:
+
+- Use that **existing** governed project / vault binding.
+- Do **not** create a second project from capture.
+- Do **not** run estate discovery as a capture prerequisite.
 - Do **not** include real secrets.
 - Conversation payload is a controlled representative structured envelope.
+
+If D-092A is not PASS, D-092 authentic round-trip is
+`NOT_APPLICABLE` / `BLOCKED`. Do not blame D-091 for accepted-main
+connect/onboarding behavior.
 
 ---
 
