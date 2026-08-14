@@ -20,8 +20,10 @@ plus isolation follow-up. Independent IV of `2d2a2dc` (pre-#353-merge
 base) = PASS. This merge updates the branch onto post-#353 main; post-merge
 re-IV is required before certification is restated.
 
-Agent-context integration was deferred while #353 was open. #353 is now
-on main; handoff wiring remains a separate follow-up, not this merge.
+Agent-context integration was deferred while #353 was open. After the
+owner merge, derived you-are-here / next unlock were added to agent
+context and handoff. Independent IV PASS at `2d2a2dc` and post-merge
+`69c2de8`. Package is CERTIFIED — MERGE ELIGIBLE; merge is not granted.
 
 ---
 
