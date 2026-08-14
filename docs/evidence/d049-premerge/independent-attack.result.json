@@ -1,0 +1,23 @@
+{
+  "note": "Synthetic planted token redacted. Run against exact 0509287 / 728f3af.",
+  "fail_count": 2,
+  "required_matrix_echo": 0,
+  "results": [
+    {"name": "sanitize:https_user_pass", "status": "PASS", "leaked": false},
+    {"name": "sanitize:https_token_only", "status": "PASS", "leaked": false},
+    {"name": "sanitize:http_user_pass", "status": "PASS", "leaked": false},
+    {"name": "sanitize:ssh_user_only", "status": "PASS", "leaked": false},
+    {"name": "sanitize:git_plus_https", "status": "PASS", "leaked": false},
+    {"name": "sanitize:encoded_userinfo", "status": "PASS", "leaked": false},
+    {"name": "sanitize:port_userinfo", "status": "PASS", "leaked": false},
+    {"name": "sanitize:query_fragment", "status": "PASS", "leaked": false},
+    {"name": "sanitize:quoted_https", "status": "FAIL", "leaked": true, "class": "MEDIUM_RESIDUAL", "note": "quoted git-config URL bypasses urlsplit userinfo parse"},
+    {"name": "sanitize:scp_form", "status": "PASS", "leaked": false},
+    {"name": "sanitize:clean_https", "status": "PASS", "leaked": false},
+    {"name": "report_echo_matrix", "status": "FAIL", "leaked": true, "class": "MEDIUM_RESIDUAL", "note": "only the quoted remote retained userinfo; required forms sanitized"},
+    {"name": "symlink_matrix", "status": "PASS", "outside_leaked": false, "escaped_allowed": 0},
+    {"name": "authorized_root_contains_self_loop", "status": "PASS"},
+    {"name": "refuse_fs_root", "status": "PASS"},
+    {"name": "refuse_home", "status": "PASS"}
+  ]
+}

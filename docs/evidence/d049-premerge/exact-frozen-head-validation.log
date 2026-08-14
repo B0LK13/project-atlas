@@ -1,0 +1,58 @@
+=== FOCUSED (30 passed) ===
+..............................                                           [100%]
+
+=== IDENTITY (46 passed) ===
+..............................................                           [100%]
+
+=== CONTROL PLANE (171 passed) ===
+........................................................................ [ 42%]
+........................................................................ [ 84%]
+...........................                                              [100%]
+
+=== BROADER ===
+.............................................s.......................... [ 45%]
+........................................................................ [ 91%]
+.............                                                            [100%]
+
+=== RUFF ===
+[1;32mAll checks passed![0m
+
+=== MYPY ===
+Success: no issues found in 185 source files
+
+=== WEB TSC ===
+npx tsc -b EXIT=0
+
+=== WEB BUILD ===
+
+> @project-atlas/web@0.2.0 build
+> tsc -b && vite build
+
+vite v6.4.3 building for production...
+transforming...
+✓ 70 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.41 kB │ gzip:  0.28 kB
+dist/assets/index-Dfs7050c.css    8.27 kB │ gzip:  2.17 kB
+dist/assets/index-r3ze7tLO.js   291.32 kB │ gzip: 87.15 kB
+✓ built in 1.21s
+
+=== INDEPENDENT ATTACK ===
+[PASS] sanitize:https_user_pass: {'input_has_secret': True, 'output': 'https://host.example/repo.git', 'leaked': False}
+[PASS] sanitize:https_token_only: {'input_has_secret': True, 'output': 'https://host.example/repo.git', 'leaked': False}
+[PASS] sanitize:http_user_pass: {'input_has_secret': True, 'output': 'http://host.example/repo.git', 'leaked': False}
+[PASS] sanitize:ssh_user_only: {'input_has_secret': False, 'output': 'ssh://host.example/repo.git', 'leaked': False}
+[PASS] sanitize:git_plus_https: {'input_has_secret': True, 'output': 'git+https://host.example/repo.git', 'leaked': False}
+[PASS] sanitize:encoded_userinfo: {'input_has_secret': True, 'output': 'https://host.example/repo.git', 'leaked': False}
+[PASS] sanitize:port_userinfo: {'input_has_secret': True, 'output': 'https://host.example:8443/repo.git', 'leaked': False}
+[PASS] sanitize:query_fragment: {'input_has_secret': True, 'output': 'https://host.example/repo.git?foo=1#bar', 'leaked': False}
+[FAIL] sanitize:quoted_https: {'input_has_secret': True, 'output': '"https://user:D049_PLANTED_SECRET_9f3a7c@host.example/repo.git"', 'leaked': True}
+[PASS] sanitize:scp_form: {'input_has_secret': False, 'output': 'git@host.example:org/repo.git', 'leaked': False}
+[PASS] sanitize:clean_https: {'input_has_secret': False, 'output': 'https://host.example/repo.git', 'leaked': False}
+[FAIL] report_echo_matrix: {'leaked': True, 'remotes': {'encoded': 'https://example.com/repo.git', 'git_plus': 'git+https://example.com/repo.git', 'http': 'http://example.com/repo.git', 'plain': 'https://example.com/repo.git', 'quoted': '"https://user:D049_PLANTED_SECRET_9f3a7c@example.com/repo.git"', 'ssh': 'ssh://example.com/repo.git', 'token': 'https://example.com/repo.git'}}
+[PASS] symlink_matrix: {'real_found': True, 'outside_leaked': False, 'secret_leaked': False, 'escaped_allowed': 0, 'unsafe_detected': 2, 'project_paths': ['/tmp/tmphhzhpgyl/estate/real-proj'], 'ignored_sample': ['ignore_policy:.git', 'reparse_or_symlink_not_descended', 'symlink_or_reparse_escape'], 'dirs_visited': 7}
+[PASS] authorized_root_contains_self_loop: {'dirs_visited': 1, 'escaped_allowed': 0}
+[PASS] refuse_fs_root: {'error': 'EstateDiscoveryError'}
+[PASS] refuse_home: {'error': 'EstateDiscoveryError'}
+FAIL_COUNT=2 wrote /tmp/d049-independent-attack.result.json

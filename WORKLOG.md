@@ -5,6 +5,34 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-071 — D-049 final reconciliation / merge-readiness packet
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-FINAL-RECONCILIATION-071
+**Branch:** cursor/d049-final-reconciliation-6f85
+
+### Mission
+Prepare owner merge-authorization materials while Local D-068 remains
+pending on exact `ccacaa5` / `d26768`. No production mutation. No merge.
+No D-042.
+
+### Verified
+- Active production PR is #348 (`d762475` tip; freeze `ccacaa5`)
+- `ccacaa5` → #348 production trees identical (`PRODUCTION_SEMANTIC_CHANGES_AFTER_D067_FREEZE = 0`)
+- D-067 CI run `31779400311` COMPLETE (ubuntu 3.12 full, 3.13 compat, windows 3.12, control-plane)
+- #346 superseded (diverged at `0509287`; does not contain `ccacaa5`)
+
+### Gates held
+```
+LOCAL_D068_RESULT = PENDING
+D049_CLOUD_RECONCILIATION = WAITING_FOR_LOCAL
+D_049_ACCEPTANCE = NOT_YET_EVALUATED
+D_042_EXECUTION_GATE = CLOSED
+REPOSITORY_PRODUCTION_MUTATION = NO
+```
+
+Evidence: `docs/evidence/D-071-FINAL-RECONCILIATION.md`
+
 ## D-063 — D-049 Wave 1 truth hardening (production candidate)
 
 **Date:** 2026-08-13
