@@ -33,7 +33,7 @@ mergeStateStatus             = CLEAN
 D091_PRODUCTION_HEAD         = 9ec65c7662f1ed8e18805a9496df8ded19d2c65e
 D091_PRODUCTION_TREE         = 97e56303ec7642bb86c9799cd2dbd79bfa1eaf08
 PRE_D093_PR_TIP              = 902b3a0e74a84e22e7b2f5395c5581f6401540aa
-CURRENT_PR_HEAD              = 902b3a0e74a84e22e7b2f5395c5581f6401540aa
+CURRENT_PR_HEAD              = 4db9480d5958b5652babdaf2fd5680b5fe008711
 D049_STATE                   = CLOSED
 D042_EXECUTION_GATE          = OPEN
 ```
@@ -69,7 +69,7 @@ Do not add Dark Factory files to PR `#353`.
 
 ```
 git merge-base --is-ancestor c282f2c 9ec65c7  → YES
-git merge-base --is-ancestor 9ec65c7 902b3a0  → YES
+git merge-base --is-ancestor 9ec65c7 4db9480  → YES
 ```
 
 ```
@@ -83,9 +83,11 @@ Ancestry:
 c282f2c  accepted main (D-049 CLOSED merge of #351)
   9ec65c7  D091 PRODUCTION FREEZE
   902b3a0  D091 evidence / D-092 runbook (pre-D093 tip)
+  e03abe8  D-093 conditional integration readiness
+  4db9480  D-093 backlog note (current evidence tip)
 ```
 
-### Post-freeze path classification (`9ec65c7` → `902b3a0`)
+### Post-freeze path classification (`9ec65c7` → `4db9480`)
 
 | Path | Class |
 | --- | --- |
@@ -93,6 +95,7 @@ c282f2c  accepted main (D-049 CLOSED merge of #351)
 | `docs/backlog.md` | GOVERNANCE_ONLY |
 | `docs/evidence/D-091-D042-EXECUTION-AUTHORIZATION.md` | EVIDENCE_ONLY |
 | `docs/evidence/D-092-LOCAL-REVALIDATION-RUNBOOK.md` | EVIDENCE_ONLY |
+| `docs/evidence/D-093-CONDITIONAL-INTEGRATION-READINESS.md` | EVIDENCE_ONLY |
 
 No `src/`, `apps/`, or `tests/` path changed after `9ec65c7`.
 
