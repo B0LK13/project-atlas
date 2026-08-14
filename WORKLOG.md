@@ -5,6 +5,37 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-082 — D-080 conditional merge readiness (no production mutation)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D080-MERGE-READINESS-082
+**PR:** #351 (not merged, not marked ready)
+
+### Proven
+
+```
+D080_FREEZE_DESCENDS_FROM_MAIN = YES
+PR_TIP_DESCENDS_FROM_D080_FREEZE = YES
+PRODUCTION_SEMANTIC_CHANGES_AFTER_D080_FREEZE = 0
+UNRELATED_PRODUCTION_CHANGE = 0
+```
+
+### Observed CI (not re-run)
+
+Ubuntu full + compat + control-plane PASS on `13e20b9`.
+Windows quality FAIL: `test_f_linux_filesystem_root_refuses` uses
+`Path.cwd().anchor` (TEST_PORTABILITY, not a D-078 policy regression).
+
+### State
+
+```
+D081_RESULT = PENDING
+OWNER_MERGE_PACKET_READY = YES
+D042_KICKOFF_PACKET_READY = YES
+D_042_EXECUTION_GATE = CLOSED
+NEXT_ACTION = WAIT FOR LOCAL D-081.
+```
+
 ## D-080 — Deterministic bounded candidate selection
 
 **Date:** 2026-08-14
