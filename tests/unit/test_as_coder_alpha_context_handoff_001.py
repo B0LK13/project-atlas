@@ -42,9 +42,13 @@ def test_context_export_and_handoff_roundtrip(tmp_path: Path) -> None:
     assert "attention_hygiene.py" in text
     assert "## Source health (failures / exclusions)" in text
     assert "AS-CODER-ALPHA-SOURCE-HEALTH-001" in text
+    assert "## Current project position (derived roadmap)" in text
+    assert "ROADMAP!=CANONICAL_TRUTH" in text
     payload = json.loads((vault / ctx["json_path"]).read_text(encoding="utf-8"))
     assert payload["attention"]["package"] == "AS-CODER-ALPHA-ATTENTION-001"
     assert payload["source_health"]["package"] == "AS-CODER-ALPHA-SOURCE-HEALTH-001"
+    assert payload["roadmap"]["package"] == "AS-PROJECT-ROADMAP-001"
+    assert payload["roadmap"]["you_are_here"]["status"]
 
     created = create_handoff(vault, project_id, note="overnight", refresh_brief=False)
     assert created["handoff_id"].startswith("handoff-")
