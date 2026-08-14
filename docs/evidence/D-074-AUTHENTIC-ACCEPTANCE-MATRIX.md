@@ -1,5 +1,9 @@
 # D-074 authentic-estate acceptance matrix (Local D-073 pending)
 
+Experiment control (Run A vs Run B, Claude cross-check) is in
+`D-076-REAL-ESTATE-EXPERIMENT-CONTROL.md`. This file remains the
+Run A hard-gate ingest matrix. D-076 does not replace it.
+
 DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-D049-FINAL-ACCEPTANCE-074`
 
 This is the ingest gate for Local D-073. It does not invent a Local

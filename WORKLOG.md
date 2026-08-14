@@ -5,6 +5,25 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-076 — Real-estate experiment control (Run A / Run B)
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-D049-REAL-ESTATE-CONTROL-076
+**Branch:** cursor/d049-final-reconciliation-6f85 (existing; no new PR)
+
+Prepared Run A ingest, Claude selection, cross-check, Run B before/after,
+D-049 closure, and D-042 unlock templates. Did not access D:\. Did not
+invent results. No production mutation.
+
+```
+RUN_A_ORIGINAL_ESTATE = PENDING
+RUN_B_OPTIMIZED_ESTATE = BLOCKED_UNTIL_RUN_A_CAPTURED
+D_042_EXECUTION_GATE = CLOSED
+NEW_PR_CREATED = NO
+```
+
+Evidence: `docs/evidence/D-076-REAL-ESTATE-EXPERIMENT-CONTROL.md`
+
 ## D-074 — Authentic acceptance matrix hold (Local D-073 pending)
 
 **Date:** 2026-08-14
