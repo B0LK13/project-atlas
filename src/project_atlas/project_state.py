@@ -20,6 +20,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.state_stale import evaluate_state_inventory_drift
+
 PACKAGE_ID = "AS-CODER-ALPHA-STATE-001"
 GENERATOR_ID = "atlas-coder-alpha-state-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -210,6 +212,19 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
         status_file_present=status_present,
     )
 
+    # AS-CODER-ALPHA-STATE-STALE-001: stable/current state must not hide
+    # live disk drift. UNKNOWN inventory does not fabricate FRESH and does
+    # not rewrite synthetic-vault rollups that lack a hashed inventory.
+    connect_rel = "generated/ops/connect-manifest.json"
+    inspected.append(connect_rel)
+    drift = evaluate_state_inventory_drift(vault, project_id)
+    drift_status = str(drift.get("status") or "UNKNOWN")
+    changed_paths = [
+        item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+    ]
+    if drift_status == "STALE" and rollup == "stable":
+        rollup = "unknown"
+
     summary_bits = [
         f"lifecycle={lifecycle or 'unknown'}",
         f"rollup={rollup}",
@@ -239,8 +254,14 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
     ]
     if pending_unreadable:
         notes.append("pending-queue-unreadable; not CLEAR; not stale knowledge-status")
-    if rollup == "unknown":
+    if rollup == "unknown" and drift_status != "STALE":
         notes.append("lifecycle/status insufficient; rollup stays UNKNOWN")
+    if drift_status == "STALE":
+        notes.append("STALE SOURCE INVENTORY != CURRENT STATE; reconnect first")
+        summary = f"{summary}; source_inventory_stale={len(changed_paths)}"
+        value = summary
+        if status != "unknown":
+            status = "derived"
 
     return {
         "schema_version": 1,
@@ -270,6 +291,20 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},
+        "source_drift": {
+            "status": drift_status,
+            "reason": drift.get("reason"),
+            "reason_code": drift.get("reason_code"),
+            "changed_paths": changed_paths[:20],
+            "package": drift.get("package") or "AS-CODER-ALPHA-STATE-STALE-001",
+        },
+        "honesty": {
+            "lens_is_authority": False,
+            "unknown_is_healthy": False,
+            "unknown_is_fresh": False,
+            "stale_is_current": False,
+            "source_inventory_stale": drift_status == "STALE",
+        },
     }
 
 
