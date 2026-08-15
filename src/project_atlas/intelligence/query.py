@@ -47,6 +47,10 @@ class IntelligenceQueryKind(StrEnum):
     ATTENTION = "attention"
     CHANGE = "change"
     CONTEXT = "context"
+    EXPLAIN_GRAPH = "explain-graph"
+    GAP_PRIORITY = "gap-priority"
+    DEPENDENCIES = "dependencies"
+    DECISION = "decision"
 
 
 class QueryOutcome(StrEnum):
@@ -104,6 +108,10 @@ class IntelligenceAnswer(BaseModel):
     changes: tuple[dict[str, object], ...] = ()
     risks: tuple[dict[str, object], ...] = ()
     context: dict[str, object] | None = None
+    explain_graph: dict[str, object] | None = None
+    prioritized_gaps: tuple[dict[str, object], ...] = ()
+    dependencies: tuple[dict[str, object], ...] = ()
+    decision: dict[str, object] | None = None
     truth_boundary: str
     generated: dict[str, str] = Field(default_factory=lambda: {"by": GENERATED_BY})
     authority_note: Literal["query-not-authoritative"] = "query-not-authoritative"
@@ -205,6 +213,20 @@ def query_intelligence(
             reason=reason,
             gaps=tuple(item.model_dump() for item in found),
             truth_boundary=TRUTH_BOUNDARY_QUERY,
+        )
+    if query.kind is IntelligenceQueryKind.EXPLAIN_GRAPH:
+        return _answer_explain_graph(
+            query, query_id, scoped, sources, validity_windows, identity_ambiguous_claim_ids
+        )
+    if query.kind is IntelligenceQueryKind.GAP_PRIORITY:
+        return _answer_gap_priority(
+            query, query_id, scoped, sources, validity_windows, identity_ambiguous_claim_ids
+        )
+    if query.kind is IntelligenceQueryKind.DEPENDENCIES:
+        return _answer_dependencies(query, query_id, scoped)
+    if query.kind is IntelligenceQueryKind.DECISION:
+        return _answer_decision(
+            query, query_id, scoped, sources, validity_windows, identity_ambiguous_claim_ids
         )
     assert_never(query.kind)
 
@@ -427,6 +449,135 @@ def _answer_context(
         as_of_valid_time=query.as_of_valid_time,
         reason="derived-agent-context-is-not-authority",
         context=context.model_dump(),
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+    )
+
+
+def _answer_explain_graph(
+    query: IntelligenceQuery,
+    query_id: str,
+    scoped: tuple[AssessableClaim, ...],
+    sources: tuple[SourceObservation, ...] | None,
+    validity_windows: tuple[ValidityWindowInput, ...],
+    identity_ambiguous_claim_ids: tuple[str, ...],
+) -> IntelligenceAnswer:
+    from project_atlas.intelligence.explain_graph import build_explanation_graph
+
+    graph = build_explanation_graph(
+        query.project_id,
+        scoped,
+        sources=sources,
+        validity_windows=validity_windows,
+        identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
+        as_of_valid_time=query.as_of_valid_time,
+    )
+    return IntelligenceAnswer(
+        query_id=query_id,
+        kind=query.kind,
+        outcome=QueryOutcome.ANSWER if graph.nodes else QueryOutcome.NONANSWER,
+        status=SlotStatus.DERIVED if graph.nodes else SlotStatus.NO_EVIDENCE,
+        project_id=query.project_id,
+        subject=query.subject,
+        field=query.field,
+        claim_id=query.claim_id,
+        as_of_valid_time=query.as_of_valid_time,
+        reason="explanation-graph-is-not-authority",
+        explain_graph=graph.model_dump(),
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+    )
+
+
+def _answer_gap_priority(
+    query: IntelligenceQuery,
+    query_id: str,
+    scoped: tuple[AssessableClaim, ...],
+    sources: tuple[SourceObservation, ...] | None,
+    validity_windows: tuple[ValidityWindowInput, ...],
+    identity_ambiguous_claim_ids: tuple[str, ...],
+) -> IntelligenceAnswer:
+    from project_atlas.intelligence.gap_priority import prioritize_evidence_gaps
+
+    found = prioritize_evidence_gaps(
+        query.project_id,
+        scoped,
+        sources=sources,
+        validity_windows=validity_windows,
+        identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
+        as_of_valid_time=query.as_of_valid_time,
+    )
+    return IntelligenceAnswer(
+        query_id=query_id,
+        kind=query.kind,
+        outcome=QueryOutcome.ANSWER if found else QueryOutcome.NONANSWER,
+        status=SlotStatus.UNKNOWN if found else SlotStatus.NO_EVIDENCE,
+        project_id=query.project_id,
+        subject=query.subject,
+        field=query.field,
+        claim_id=query.claim_id,
+        as_of_valid_time=query.as_of_valid_time,
+        reason="gap-priority-is-not-a-score",
+        prioritized_gaps=tuple(item.model_dump() for item in found),
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+    )
+
+
+def _answer_dependencies(
+    query: IntelligenceQuery,
+    query_id: str,
+    scoped: tuple[AssessableClaim, ...],
+) -> IntelligenceAnswer:
+    from project_atlas.intelligence.dependencies import detect_project_dependencies
+
+    found = detect_project_dependencies(query.project_id, scoped)
+    return IntelligenceAnswer(
+        query_id=query_id,
+        kind=query.kind,
+        outcome=QueryOutcome.ANSWER if found else QueryOutcome.NONANSWER,
+        status=SlotStatus.OBSERVED if found else SlotStatus.NO_EVIDENCE,
+        project_id=query.project_id,
+        subject=query.subject,
+        field=query.field,
+        claim_id=query.claim_id,
+        as_of_valid_time=query.as_of_valid_time,
+        reason="dependency-is-not-inferred",
+        dependencies=tuple(item.model_dump() for item in found),
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+    )
+
+
+def _answer_decision(
+    query: IntelligenceQuery,
+    query_id: str,
+    scoped: tuple[AssessableClaim, ...],
+    sources: tuple[SourceObservation, ...] | None,
+    validity_windows: tuple[ValidityWindowInput, ...],
+    identity_ambiguous_claim_ids: tuple[str, ...],
+) -> IntelligenceAnswer:
+    from project_atlas.intelligence.decision import compose_decision_candidate
+
+    candidate = compose_decision_candidate(
+        query.project_id,
+        scoped,
+        sources=sources,
+        validity_windows=validity_windows,
+        identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
+        as_of_valid_time=query.as_of_valid_time,
+    )
+    status = SlotStatus.CONTESTED if candidate.conflicts else SlotStatus.UNKNOWN
+    if not scoped:
+        status = SlotStatus.NO_EVIDENCE
+    return IntelligenceAnswer(
+        query_id=query_id,
+        kind=query.kind,
+        outcome=QueryOutcome.ANSWER,
+        status=status,
+        project_id=query.project_id,
+        subject=query.subject,
+        field=query.field,
+        claim_id=query.claim_id,
+        as_of_valid_time=query.as_of_valid_time,
+        reason="decision-candidate-is-not-a-command",
+        decision=candidate.model_dump(),
         truth_boundary=TRUTH_BOUNDARY_QUERY,
     )
 
