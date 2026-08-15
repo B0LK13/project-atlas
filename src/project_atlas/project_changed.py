@@ -12,6 +12,7 @@ Honesty:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -321,6 +322,21 @@ def build_changed_lens(
             "not a kdiff temporal authority claim",
         ]
 
+    drift: dict[str, Any] = {
+        "status": "UNKNOWN",
+        "reason": "drift not evaluated",
+        "changed_paths": [],
+    }
+    with contextlib.suppress(Exception):
+        from project_atlas.source_health_stale import evaluate_source_inventory_drift
+
+        drift = evaluate_source_inventory_drift(vault, project_id)
+    drift_status = str(drift.get("status") or "UNKNOWN")
+    if drift_status == "STALE":
+        notes.append("STALE LIVE != UNCHANGED / reconnect before treating What Changed as current")
+        if rollup == "unchanged":
+            summary = str(summary) + "; live sources drifted (reconnect required)"
+
     return {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.changed-lens.v1",
@@ -349,6 +365,22 @@ def build_changed_lens(
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},
+        "inventory_drift": {
+            "status": drift_status,
+            "reason": drift.get("reason"),
+            "changed_paths": [
+                item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+            ][:20],
+            "package": "AS-CODER-ALPHA-CHANGED-STALE-001",
+        },
+        "honesty": {
+            "lens_is_authority": False,
+            "ui_is_canonical": False,
+            "live_inventory_stale": drift_status == "STALE",
+            "unchanged_is_current": False,
+            "stale_is_current": False,
+            "unknown_is_healthy": False,
+        },
     }
 
 
