@@ -22,6 +22,7 @@ from project_atlas.intelligence.boundary import (
     PACKAGE_INTEL_003,
     PACKAGE_INTEL_004,
     PACKAGE_INTEL_005,
+    PACKAGE_NEXT_001,
     PACKAGE_STATE_001,
     PROJECT_STATE_IS_CANONICAL,
     TRUTH_BOUNDARY_CONTRADICTION,
@@ -30,6 +31,7 @@ from project_atlas.intelligence.boundary import (
     TRUTH_BOUNDARY_EXPLAIN,
     TRUTH_BOUNDARY_GAPS,
     TRUTH_BOUNDARY_HANDOFF,
+    TRUTH_BOUNDARY_NEXT,
     TRUTH_BOUNDARY_QUERY,
     TRUTH_BOUNDARY_STATE,
     UNKNOWN_IS_VALID,
@@ -68,6 +70,11 @@ from project_atlas.intelligence.gaps import (
     detect_evidence_gaps,
 )
 from project_atlas.intelligence.handoff import EvidenceHandoff, compose_evidence_handoff
+from project_atlas.intelligence.next_action import (
+    NextActionCandidate,
+    NextActionKind,
+    propose_next_action_candidates,
+)
 from project_atlas.intelligence.query import (
     IntelligenceAnswer,
     IntelligenceQuery,
@@ -105,6 +112,7 @@ __all__ = [
     "PACKAGE_INTEL_003",
     "PACKAGE_INTEL_004",
     "PACKAGE_INTEL_005",
+    "PACKAGE_NEXT_001",
     "PACKAGE_STATE_001",
     "PROJECT_STATE_IS_CANONICAL",
     "TRUTH_BOUNDARY_CONTRADICTION",
@@ -113,6 +121,7 @@ __all__ = [
     "TRUTH_BOUNDARY_EXPLAIN",
     "TRUTH_BOUNDARY_GAPS",
     "TRUTH_BOUNDARY_HANDOFF",
+    "TRUTH_BOUNDARY_NEXT",
     "TRUTH_BOUNDARY_QUERY",
     "TRUTH_BOUNDARY_STATE",
     "UNKNOWN_IS_VALID",
@@ -144,6 +153,8 @@ __all__ = [
     "IntelligenceQueryKind",
     "LimitingFactor",
     "LineageIntegrity",
+    "NextActionCandidate",
+    "NextActionKind",
     "PairingStats",
     "QueryOutcome",
     "RiskClass",
@@ -167,6 +178,7 @@ __all__ = [
     "explain_why",
     "find_contradiction_candidates",
     "find_contradiction_candidates_report",
+    "propose_next_action_candidates",
     "query_intelligence",
     "synthesize_project_state",
 ]
