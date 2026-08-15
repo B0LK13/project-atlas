@@ -13,10 +13,11 @@ import hashlib
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dataclasses import field as dc_field
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from project_atlas.domain import AuthorityLevel, Claim, ConfidenceState
 from project_atlas.intelligence.boundary import GENERATED_BY, TRUTH_BOUNDARY_CONTRADICTION
@@ -44,6 +45,15 @@ _STRONG_AUTHORITY = frozenset(
         AuthorityLevel.VALIDATED_EXECUTION,
     }
 )
+_GENERATED = {"by": GENERATED_BY}
+_EMPTY: tuple[str, ...] = ()
+_UNCERTAINTY_TEMPORAL: tuple[str, ...] = ("temporal-relationship-unknown",)
+_UNCERTAINTY_TEMPORAL_LINEAGE: tuple[str, ...] = (
+    "source-lineage-unknown",
+    "temporal-relationship-unknown",
+)
+_SOURCE_SAME = "same-lineage"
+_SOURCE_DISTINCT = "distinct-or-unknown-lineage"
 
 
 class ContradictionClass(StrEnum):
@@ -82,18 +92,19 @@ class ContradictionContext(BaseModel):
     assessments: tuple[EvidenceAssessment, ...] = ()
 
 
-class ContradictionCandidate(BaseModel):
-    """Explainable contradiction candidate. Not a resolution."""
+@dataclass(frozen=True, slots=True)
+class ContradictionCandidate:
+    """Explainable contradiction candidate. Not a resolution.
 
-    model_config = ConfigDict(extra="forbid")
+    Compact frozen record. Same fields and ids as the pydantic form; not
+    authority and not a proven falsehood.
+    """
 
-    schema_version: Literal[1] = 1
-    package_id: Literal["AS-2.0-INTEL-002"] = "AS-2.0-INTEL-002"
     candidate_id: str
     candidate_class: ContradictionClass
     claim_a_id: str
     claim_b_id: str
-    project_id: str | None = None
+    project_id: str | None
     subject: str
     field: str
     temporal_relationship: TemporalRelationship
@@ -104,9 +115,46 @@ class ContradictionCandidate(BaseModel):
     supporting_evidence: tuple[EvidenceRef, ...]
     uncertainty: tuple[str, ...]
     recommended_human_review_reason: str
-    truth_boundary: str
-    generated: dict[str, str] = Field(default_factory=lambda: {"by": GENERATED_BY})
+    schema_version: Literal[1] = 1
+    package_id: Literal["AS-2.0-INTEL-002"] = "AS-2.0-INTEL-002"
+    truth_boundary: str = TRUTH_BOUNDARY_CONTRADICTION
+    generated: dict[str, str] = dc_field(default_factory=lambda: _GENERATED)
     authority_note: Literal["candidate-not-resolution"] = "candidate-not-resolution"
+
+    def model_dump(self) -> dict[str, object]:
+        """Pydantic-compatible dump. Nested evidence becomes dicts."""
+        return {
+            "schema_version": self.schema_version,
+            "package_id": self.package_id,
+            "candidate_id": self.candidate_id,
+            "candidate_class": self.candidate_class,
+            "claim_a_id": self.claim_a_id,
+            "claim_b_id": self.claim_b_id,
+            "project_id": self.project_id,
+            "subject": self.subject,
+            "field": self.field,
+            "temporal_relationship": self.temporal_relationship,
+            "authority_relationship": self.authority_relationship,
+            "source_relationship": self.source_relationship,
+            "severity_class": self.severity_class,
+            "reason": self.reason,
+            "supporting_evidence": tuple(item.model_dump() for item in self.supporting_evidence),
+            "uncertainty": self.uncertainty,
+            "recommended_human_review_reason": self.recommended_human_review_reason,
+            "truth_boundary": self.truth_boundary,
+            "generated": self.generated,
+            "authority_note": self.authority_note,
+        }
+
+    def model_dump_json(self) -> str:
+        """JSON dump using enum values. Not an authority document."""
+        import json
+
+        payload = self.model_dump()
+        payload["candidate_class"] = self.candidate_class.value
+        payload["temporal_relationship"] = self.temporal_relationship.value
+        payload["severity_class"] = self.severity_class.value
+        return json.dumps(payload, sort_keys=True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,10 +173,25 @@ class PairingStats:
 @dataclass(frozen=True, slots=True)
 class _PreparedClaim:
     claim: AssessableClaim
+    claim_id: str
+    project_id: str | None
+    subject: str
+    field: str
     norm: str
     unknown: bool
     lineage: str
+    lineage_unknown: bool
     evidence: tuple[EvidenceRef, ...]
+    evidence_key: tuple[str, str, str]
+    authority: AuthorityLevel | None
+    authority_level: str
+    authority_strong: bool
+    authority_conflicting: bool
+    claim_type: str | None
+    authority_domain: str | None
+    window_from: str | None
+    window_to: str | None
+    missing_source: bool
 
 
 def find_contradiction_candidates(
@@ -147,7 +210,6 @@ _REVIEW_BY_CLASS = {
     )
     for item in ContradictionClass
 }
-_GENERATED = {"by": GENERATED_BY}
 
 
 def find_contradiction_candidates_report(
@@ -169,7 +231,7 @@ def find_contradiction_candidates_report(
         {item.source_id: item for item in ctx.sources} if ctx.sources is not None else None
     )
     ambiguous = set(ctx.identity_ambiguous_claim_ids)
-    prepared = [_prepare(item) for item in items]
+    prepared = [_prepare(item, windows, source_index) for item in items]
     groups: dict[str, list[_PreparedClaim]] = defaultdict(list)
     skipped_unknown = 0
     for item in prepared:
@@ -200,8 +262,6 @@ def find_contradiction_candidates_report(
                         found, temporal_skip, qualifies = _pair_prepared(
                             left,
                             right,
-                            windows,
-                            source_index,
                             ambiguous,
                             materialize=materialize,
                         )
@@ -224,90 +284,106 @@ def find_contradiction_candidates_report(
     return tuple(candidates), stats
 
 
-def _prepare(claim: AssessableClaim) -> _PreparedClaim:
+def _prepare(
+    claim: AssessableClaim,
+    windows: dict[str, ValidityWindowInput],
+    source_index: dict[str, SourceObservation] | None,
+) -> _PreparedClaim:
     unknown = is_unknown_value(claim.value, claim.normalized_text) or (
         claim.confidence is ConfidenceState.UNKNOWN
     )
+    lineage = _claim_lineage(claim)
+    evidence = _claim_evidence(claim)
+    window = windows.get(claim.claim_id)
+    authority = claim.authority
     return _PreparedClaim(
         claim=claim,
+        claim_id=claim.claim_id,
+        project_id=claim.project_id,
+        subject=claim.subject,
+        field=claim.field,
         norm=normalize_value(claim.value, claim.normalized_text),
         unknown=unknown,
-        lineage=_claim_lineage(claim),
-        evidence=_claim_evidence(claim),
+        lineage=lineage,
+        lineage_unknown=lineage == "unknown-identity",
+        evidence=evidence,
+        evidence_key=_evidence_sort(evidence[0]) if evidence else ("", "", ""),
+        authority=authority,
+        authority_level=authority.value if authority is not None else "unknown",
+        authority_strong=authority in _STRONG_AUTHORITY,
+        authority_conflicting=authority is AuthorityLevel.CONFLICTING,
+        claim_type=claim.claim_type,
+        authority_domain=claim.authority_domain,
+        window_from=window.valid_from if window else None,
+        window_to=window.valid_to if window else None,
+        missing_source=_claim_missing_source(claim, source_index),
     )
 
 
 def _pair_prepared(
     left: _PreparedClaim,
     right: _PreparedClaim,
-    windows: dict[str, ValidityWindowInput],
-    source_index: dict[str, SourceObservation] | None,
     ambiguous: set[str],
     *,
     materialize: bool = True,
 ) -> tuple[ContradictionCandidate | None, bool, bool]:
-    left_claim = left.claim
-    right_claim = right.claim
-    if left_claim.project_id != right_claim.project_id:
+    if left.project_id != right.project_id:
         return None, False, False
     if (
-        left_claim.authority_domain
-        and right_claim.authority_domain
-        and left_claim.authority_domain != right_claim.authority_domain
+        left.authority_domain
+        and right.authority_domain
+        and left.authority_domain != right.authority_domain
     ):
         return None, False, False
 
-    left_window = windows.get(left_claim.claim_id)
-    right_window = windows.get(right_claim.claim_id)
-    try:
-        relation_raw = windows_relation(
-            left_window.valid_from if left_window else None,
-            left_window.valid_to if left_window else None,
-            right_window.valid_from if right_window else None,
-            right_window.valid_to if right_window else None,
-        )
-    except IntelligenceTimeError:
-        relation_raw = "unknown"
-    temporal = TemporalRelationship(relation_raw)
+    if left.window_from is None or right.window_from is None:
+        temporal = TemporalRelationship.UNKNOWN
+    else:
+        try:
+            temporal = TemporalRelationship(
+                windows_relation(
+                    left.window_from,
+                    left.window_to,
+                    right.window_from,
+                    right.window_to,
+                )
+            )
+        except IntelligenceTimeError:
+            temporal = TemporalRelationship.UNKNOWN
     if temporal in {TemporalRelationship.SUCCESSION, TemporalRelationship.NON_OVERLAPPING}:
         return None, True, False
     if not materialize:
         return None, False, True
 
-    same_lineage = left.lineage != "unknown-identity" and left.lineage == right.lineage
-    source_relationship = "same-lineage" if same_lineage else "distinct-or-unknown-lineage"
-    authority_relationship = _authority_relationship(left_claim, right_claim)
-    missing_source = _missing_source_index(left_claim, right_claim, source_index)
-    identity_ambiguous = left_claim.claim_id in ambiguous or right_claim.claim_id in ambiguous
-
-    uncertainty: list[str] = []
-    if temporal is TemporalRelationship.UNKNOWN:
-        uncertainty.append("temporal-relationship-unknown")
-    if not same_lineage and (
-        left.lineage == "unknown-identity" or right.lineage == "unknown-identity"
-    ):
-        uncertainty.append("source-lineage-unknown")
-    if missing_source:
-        uncertainty.append("source-record-missing-or-deleted")
-    if left_claim.authority is None or right_claim.authority is None:
-        uncertainty.append("authority-incomplete")
-
-    candidate_class, reason = _classify_pair(
+    same_lineage = not left.lineage_unknown and left.lineage == right.lineage
+    source_relationship = _SOURCE_SAME if same_lineage else _SOURCE_DISTINCT
+    authority_relationship = _authority_rel(left.authority_level, right.authority_level)
+    missing_source = left.missing_source or right.missing_source
+    identity_ambiguous = left.claim_id in ambiguous or right.claim_id in ambiguous
+    uncertainty = _uncertainty(
+        temporal is TemporalRelationship.UNKNOWN,
+        (not same_lineage) and (left.lineage_unknown or right.lineage_unknown),
+        missing_source,
+        left.authority is None or right.authority is None,
+    )
+    candidate_class, reason = _classify_prepared(
         temporal=temporal,
         same_lineage=same_lineage,
         identity_ambiguous=identity_ambiguous,
-        left=left_claim,
-        right=right_claim,
+        left=left,
+        right=right,
         authority_relationship=authority_relationship,
     )
-    severity = _severity(candidate_class, temporal, left_claim, right_claim)
-    evidence = _merge_evidence(left.evidence, right.evidence)
-    first, second = sorted((left_claim.claim_id, right_claim.claim_id))
+    severity = _severity_prepared(candidate_class, temporal, left, right)
+    evidence = _merge_evidence(left, right)
+    first, second = (left.claim_id, right.claim_id)
+    if second < first:
+        first, second = second, first
     material = "|".join(
         (
-            left_claim.project_id or "",
-            left_claim.subject,
-            left_claim.field,
+            left.project_id or "",
+            left.subject,
+            left.field,
             first,
             second,
             candidate_class.value,
@@ -317,58 +393,115 @@ def _pair_prepared(
         material.encode("utf-8"), usedforsecurity=False
     ).hexdigest()[:20]
     return (
-        ContradictionCandidate.model_construct(
-            schema_version=1,
-            package_id="AS-2.0-INTEL-002",
+        ContradictionCandidate(
             candidate_id=candidate_id,
             candidate_class=candidate_class,
             claim_a_id=first,
             claim_b_id=second,
-            project_id=left_claim.project_id,
-            subject=left_claim.subject,
-            field=left_claim.field,
+            project_id=left.project_id,
+            subject=left.subject,
+            field=left.field,
             temporal_relationship=temporal,
             authority_relationship=authority_relationship,
             source_relationship=source_relationship,
             severity_class=severity,
             reason=reason,
             supporting_evidence=evidence,
-            uncertainty=tuple(sorted(set(uncertainty))),
+            uncertainty=uncertainty,
             recommended_human_review_reason=_REVIEW_BY_CLASS[candidate_class],
-            truth_boundary=TRUTH_BOUNDARY_CONTRADICTION,
-            generated=_GENERATED,
-            authority_note="candidate-not-resolution",
         ),
         False,
         True,
     )
 
 
-def _merge_evidence(
-    left: tuple[EvidenceRef, ...],
-    right: tuple[EvidenceRef, ...],
-) -> tuple[EvidenceRef, ...]:
-    if not left:
-        return right
-    if not right:
-        return left
+def _merge_evidence(left: _PreparedClaim, right: _PreparedClaim) -> tuple[EvidenceRef, ...]:
+    left_ev = left.evidence
+    right_ev = right.evidence
+    if not left_ev:
+        return right_ev
+    if not right_ev:
+        return left_ev
+    if len(left_ev) == 1 and len(right_ev) == 1:
+        if left.evidence_key <= right.evidence_key:
+            return (left_ev[0], right_ev[0])
+        return (right_ev[0], left_ev[0])
     merged: list[EvidenceRef] = []
     left_index = 0
     right_index = 0
-    while left_index < len(left) and right_index < len(right):
-        left_key = _evidence_sort(left[left_index])
-        right_key = _evidence_sort(right[right_index])
+    while left_index < len(left_ev) and right_index < len(right_ev):
+        left_key = _evidence_sort(left_ev[left_index])
+        right_key = _evidence_sort(right_ev[right_index])
         if left_key <= right_key:
-            merged.append(left[left_index])
+            merged.append(left_ev[left_index])
             left_index += 1
         else:
-            merged.append(right[right_index])
+            merged.append(right_ev[right_index])
             right_index += 1
-    if left_index < len(left):
-        merged.extend(left[left_index:])
-    if right_index < len(right):
-        merged.extend(right[right_index:])
+    if left_index < len(left_ev):
+        merged.extend(left_ev[left_index:])
+    if right_index < len(right_ev):
+        merged.extend(right_ev[right_index:])
     return tuple(merged)
+
+
+def _uncertainty(
+    temporal_unknown: bool,
+    lineage_unknown: bool,
+    missing_source: bool,
+    authority_incomplete: bool,
+) -> tuple[str, ...]:
+    if not missing_source and not authority_incomplete:
+        if temporal_unknown and lineage_unknown:
+            return _UNCERTAINTY_TEMPORAL_LINEAGE
+        if temporal_unknown:
+            return _UNCERTAINTY_TEMPORAL
+        if lineage_unknown:
+            return ("source-lineage-unknown",)
+        return _EMPTY
+    flags: list[str] = []
+    if temporal_unknown:
+        flags.append("temporal-relationship-unknown")
+    if lineage_unknown:
+        flags.append("source-lineage-unknown")
+    if missing_source:
+        flags.append("source-record-missing-or-deleted")
+    if authority_incomplete:
+        flags.append("authority-incomplete")
+    flags.sort()
+    return tuple(flags)
+
+
+_AUTH_REL: dict[tuple[str, str], str] = {}
+
+
+def _authority_rel(left_level: str, right_level: str) -> str:
+    key = (left_level, right_level)
+    cached = _AUTH_REL.get(key)
+    if cached is not None:
+        return cached
+    if left_level == right_level:
+        cached = f"same:{left_level}"
+    else:
+        levels = tuple(sorted((left_level, right_level)))
+        cached = f"divergent:{levels[0]}|{levels[1]}"
+    _AUTH_REL[key] = cached
+    return cached
+
+
+def _claim_missing_source(
+    claim: AssessableClaim,
+    source_index: dict[str, SourceObservation] | None,
+) -> bool:
+    if source_index is None:
+        return False
+    if not claim.provenance:
+        return True
+    for ref in claim.provenance:
+        observed = source_index.get(ref.source_id)
+        if observed is None or observed.deleted or not observed.present:
+            return True
+    return False
 
 
 def _claim_lineage(claim: AssessableClaim) -> str:
@@ -380,39 +513,13 @@ def _claim_lineage(claim: AssessableClaim) -> str:
     return lineage_key(None, None)
 
 
-def _authority_relationship(left: AssessableClaim, right: AssessableClaim) -> str:
-    left_level = left.authority.value if left.authority is not None else "unknown"
-    right_level = right.authority.value if right.authority is not None else "unknown"
-    levels = tuple(sorted((left_level, right_level)))
-    if left_level == right_level:
-        return f"same:{left_level}"
-    return f"divergent:{levels[0]}|{levels[1]}"
-
-
-def _missing_source_index(
-    left: AssessableClaim,
-    right: AssessableClaim,
-    source_index: dict[str, SourceObservation] | None,
-) -> bool:
-    if source_index is None:
-        return False
-    for claim in (left, right):
-        if not claim.provenance:
-            return True
-        for ref in claim.provenance:
-            observed = source_index.get(ref.source_id)
-            if observed is None or observed.deleted or not observed.present:
-                return True
-    return False
-
-
-def _classify_pair(
+def _classify_prepared(
     *,
     temporal: TemporalRelationship,
     same_lineage: bool,
     identity_ambiguous: bool,
-    left: AssessableClaim,
-    right: AssessableClaim,
+    left: _PreparedClaim,
+    right: _PreparedClaim,
     authority_relationship: str,
 ) -> tuple[ContradictionClass, str]:
     if identity_ambiguous:
@@ -436,16 +543,13 @@ def _classify_pair(
             "incompatible-values-under-different-claim-types",
         )
     if authority_relationship.startswith("divergent:") and (
-        left.authority in _STRONG_AUTHORITY or right.authority in _STRONG_AUTHORITY
+        left.authority_strong or right.authority_strong
     ):
         return (
             ContradictionClass.AUTHORITY_CONFLICT,
             "incompatible-values-with-divergent-authority",
         )
-    if (
-        left.authority is AuthorityLevel.CONFLICTING
-        or right.authority is AuthorityLevel.CONFLICTING
-    ):
+    if left.authority_conflicting or right.authority_conflicting:
         return (
             ContradictionClass.AUTHORITY_CONFLICT,
             "incompatible-values-with-conflicting-authority-mark",
@@ -463,19 +567,19 @@ def _classify_pair(
     )
 
 
-def _severity(
+def _severity_prepared(
     candidate_class: ContradictionClass,
     temporal: TemporalRelationship,
-    left: AssessableClaim,
-    right: AssessableClaim,
+    left: _PreparedClaim,
+    right: _PreparedClaim,
 ) -> SeverityClass:
     if candidate_class in {
         ContradictionClass.IDENTITY_AMBIGUITY,
         ContradictionClass.UNKNOWN_CONFLICT,
     }:
         return SeverityClass.UNKNOWN
-    both_strong = left.authority in _STRONG_AUTHORITY and right.authority in _STRONG_AUTHORITY
-    one_strong = (left.authority in _STRONG_AUTHORITY) != (right.authority in _STRONG_AUTHORITY)
+    both_strong = left.authority_strong and right.authority_strong
+    one_strong = left.authority_strong != right.authority_strong
     if temporal is TemporalRelationship.OVERLAPPING and both_strong:
         return SeverityClass.HIGH
     if one_strong:

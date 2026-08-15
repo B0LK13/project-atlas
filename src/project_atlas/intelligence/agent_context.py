@@ -52,7 +52,7 @@ _CONSTRAINTS = (
 class DerivedAgentContext(BaseModel):
     """Project-scoped derived context. Not a fixture pack and not authority."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     schema_version: Literal[1] = 1
     package_id: Literal["AS-2.0-CTX-001"] = "AS-2.0-CTX-001"

@@ -81,7 +81,7 @@ class IntelligenceQuery(BaseModel):
 class IntelligenceAnswer(BaseModel):
     """Query result envelope. Payload lists may be empty; empty ≠ healthy."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
     schema_version: Literal[1] = 1
     package_id: Literal["AS-2.0-INTEL-003"] = "AS-2.0-INTEL-003"
