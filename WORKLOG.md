@@ -20,6 +20,9 @@ Independent IV: UNKNOWN honesty, project mismatch fail-closed, newline
 flattening, cross-project capture filter, runtime helper gates, ruff,
 mypy, web typecheck/build. OWNER_HELD = YES.
 
+CI unblock: mypy 2.3.1 unused-ignore on `yaml_structured.py` dispose()
+(stubs differ). Closer assigned through `Any`. No YAML behavior change.
+
 ---
 
 ## D-094 — D-042 final reconciliation
