@@ -162,29 +162,52 @@ Library-only. Fail-closed wall-clock `now`/`today`. No vault writes.
    remain the last known-good 2.0 stack.
 4. Do not revert sealed `origin/main`.
 
-## 12. Refresh plan (next, not this report commit)
+## 12. Refresh executed
 
 ```
 METHOD = MERGE_CURRENT_MAIN
 REBASE = NO
-TARGET = new tip-refresh branch from 31c0c9c
+REFRESH_BRANCH = cursor/as-2.0-stack-refresh-315e
 FROZEN_WAVE_PINS = PRESERVE
+OLD_HEAD = 31c0c9cd1e3fd067574a06806a5645e72d31694e
+OLD_TREE = 7b4d1c3ad884287e7d7ca69ec3d0443c5ebdc44f
+NEW_HEAD = c2a846c7a86bfe955836d4206a7cf6e01de51698
+NEW_TREE = 4ab3b37f8fe81e8a05a813b3a99851538ad18b8c
 MERGE_PARENT_MAIN = e5f17209754558435ac4b7f11ae227aa6e30d2b5
-EXPECTED_CONFLICT_COUNT = 0
+MERGE_PARENT_STACK = 844feec04ba897de53d266a712261b86f5619e6b
+CONFLICT_COUNT = 0
+PRODUCTION_SEMANTIC_CONFLICTS = 0
+UNCLASSIFIED_CONFLICTS = 0
 ```
 
-Do not rewrite Wave 9–14 / 003C branch heads. Those pins are the freeze
-record.
+Frozen `cursor/as-2.0-intel-003c-query-kinds-315e` remains `31c0c9c`.
+
+Post-refresh gates:
+
+```
+INTELLIGENCE_UNIT = 133 passed
+CORE_IDENTITY_TEMPORAL_AUTHORITY_QUERY_ROADMAP = 181 passed, 1 xfailed
+RUFF = PASS
+MYPY src = PASS
+INTELLIGENCE_STACK_REGRESSION = PASS
+TRUTH_INVARIANTS = PASS
+NEW_SECURITY_HIGH = 0
+NEW_SECURITY_MEDIUM = 0
+NEW_WRITE_SCOPE = NO
+NEW_AUTH_SCOPE = NO
+```
 
 ## 13. Verdict
 
 ```
 READINESS = PASS
+STACK_REFRESH = PASS
 ATLAS_2_0_API_WEB_INTEGRATION_GATE = OPEN
 WAVE_15_IMPLEMENTATION = NOT_STARTED
 WAVE_16_IMPLEMENTATION = BLOCKED_BY_WAVE_15
 MERGE_AUTHORIZATION = NOT_GRANTED
 NEW_PRODUCTION_PR_CREATED = 0
+NEXT = WAVE 15 read-only API from Wave-6 contracts on a new isolated branch
 ```
 
 Truth invariants remain:
