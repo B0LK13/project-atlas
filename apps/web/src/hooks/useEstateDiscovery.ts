@@ -154,8 +154,13 @@ export function useEstateDiscovery(): {
         } else {
           setError(err instanceof Error ? err.message : "discovery unavailable");
         }
-        setView(EMPTY);
-        setDataSource("demo_stub");
+        setView({
+          ...EMPTY,
+          data_source: undefined,
+          demo_isolated: false,
+          note: "LIVE discovery unavailable — not a demo stub",
+        });
+        setDataSource(null);
       } finally {
         if (!cancelled) setLoading(false);
       }

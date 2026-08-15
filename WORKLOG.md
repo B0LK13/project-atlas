@@ -5,6 +5,114 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-102 — #358 exact-main refresh
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D102-PR358-EXACT-MAIN-REFRESH-AND-D100-RECONCILIATION
+**PR:** #358
+**Refresh:** merge `origin/main` `4da4a4e` (no rebase). WORKLOG keep-both.
+**Merge authorization:** NOT_GRANTED
+
+```
+ACTUAL_MAIN = 4da4a4ed6028583021c22b24eb11a47a4bdf0fe0
+PR359_STATE = MERGED — POST-MERGE VERIFIED
+CURRENT_MAIN_CI_REPAIRED = YES
+D100_TARGET_HEAD = 6041b79332c49a56894dca4d45619253e54ef51c
+PR354_AUTHENTIC_HOLD = CLEARED
+PR354_PRODUCT_HOLD = CLEARED
+PR354_INTEGRATION_HOLD = YES
+PR354_STATE = AUTHENTIC CERTIFIED — INTEGRATION PENDING
+PR358_HEAD_BEFORE = e44de58cb79db138c8a62427fa3febeb82502ab6
+PR358_REFRESH_METHOD = MERGE_CURRENT_MAIN
+PR358_PRODUCTION_SEMANTIC_CONFLICTS = 0
+D100_ROADMAP_SEMANTIC_DELTA = 0
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+Evidence: `docs/evidence/D-102-PR358-EXACT-MAIN-REFRESH.md`.
+
+---
+
+## D-102 — D-100 Roadmap reconcile + #358 exact-main refresh
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D102-D100-ROADMAP-RECONCILIATION-AND-PR358-EXACT-MAIN-READINESS
+**PR #358:** refreshed onto post-#359 main via merge (no rebase). Do not merge.
+**PR #354:** not mutated. D-100 authentic pin preserved.
+
+```
+PR359_MERGED = YES
+CURRENT_MAIN = 4da4a4ed6028583021c22b24eb11a47a4bdf0fe0
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_HEAD = 6041b79332c49a56894dca4d45619253e54ef51c
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_TREE = 78e24d48024f26c55d741f00689e788f1ec0fc01
+D100_LOCAL_AUTHENTIC_IV = PASS
+PR354_AUTHENTIC_HOLD = CLEARED
+PR354_INTEGRATION_HOLD = YES
+PR354_MERGE_AUTHORIZATION = NOT_GRANTED
+PR358_REFRESH_METHOD = MERGE_CURRENT_MAIN
+PR358_PRODUCTION_SEMANTIC_CONFLICTS = 0
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+Conflict: `WORKLOG.md` only — DOCS_ADDITIVE keep-both (#358 honesty +
+#359 Context + D-096/#360). Evidence:
+`docs/evidence/D-100-ROADMAP-LOCAL-AUTHENTIC-REIV.md`,
+`docs/evidence/D-102-PR358-EXACT-MAIN-OWNER-PACKET.md`.
+
+---
+
+## D-100 — Roadmap Local authentic re-IV (owner-supplied)
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D102 (Lane A reconcile)
+**PR #354:** `cursor/as-project-roadmap-001-6f85` — head not moved
+**Validator:** Local (Windows) authentic re-IV — owner-supplied fact
+
+Exact object Local tested (permanent pin; later refresh ≠ this object):
+
+```
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_HEAD = 6041b79332c49a56894dca4d45619253e54ef51c
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_TREE = 78e24d48024f26c55d741f00689e788f1ec0fc01
+PROJECT_ID = dark-factory-02ee94d0
+PROJECT_UUID = c440d169-bb43-4e97-a175-0d3f62177d8f
+ROADMAP_LOCAL_AUTHENTIC_IV = PASS
+ROADMAP_SEMANTIC_CERTIFICATION = PASS
+ROADMAP_AUTHENTIC_CERTIFICATION = PASS
+ROADMAP_STATE = CERTIFIED — INTEGRATION PENDING
+MERGE_ELIGIBLE = NOT YET
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+Former `PR354_SPECIAL_HOLD` / `LOCAL_RECERTIFICATION_PENDING` is
+superseded. Authentic hold cleared. Integration hold remains:
+WAITING_FOR_PRECEDING_QUEUE + EXACT-MAIN REFRESH.
+
+---
+
+## TRUTH-UX-001 — LIVE web hook honesty
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001
+**Branch:** `cursor/live-hook-honesty-25b1` (from accepted main `9441b0c`)
+**Not #354 / #356 / #357.** No merge authorization.
+
+LIVE HTTP/network failures on brief/knowledge/graph/ops/discovery must
+not be labeled `demo_stub`.
+
+```
+HOOK_HONESTY_IV = PASS
+HOOK_HONESTY_CI = PASS
+HOOK_HONESTY_STATE = CERTIFIED — MERGE ELIGIBLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+PRODUCTION_TIP = ba2fc7f373ba54f31dc0b1093e11d5309153fc5e
+```
+
+D-102: refreshed onto exact post-#359 main `4da4a4e` by merge commit
+(no rebase). Production tip `ba2fc7f` unchanged. Merge authorization
+still not granted.
+
+---
+
 ## AS-CODER-ALPHA-CONTEXT-001 — Web paste-ready agent context
 
 **Date:** 2026-08-15
