@@ -380,5 +380,5 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture (D-042; MERGED via #353 at 9441b0c; capture != Truth Core)
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
-- [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; CERTIFIED — MERGE ELIGIBLE on #354; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; #354 tip 96c4c68 remediates Web ?project= + live-failure honesty; CI+IV pending recertification; MERGE_AUTHORIZATION NOT_GRANTED)
 
