@@ -31,7 +31,7 @@ Wave 15 API and Wave 16 Web remain ineligible.
 | 12 | AS-2.0-TEMPINT-001 | `cursor/as-2.0-tempint-001-temporal-315e` | `f5919a07b39e082b6aacbe9a82857219a8db0e48` | `2d798347fcb44873d8b47d608ac92ad68f193c7b` |
 | 13 | AS-2.0-DEP-001 | `cursor/as-2.0-dep-001-explicit-315e` | `d3cfcf85fda4ee6c51693887e4ddf1c07c7d8dec` | `a4e3a2c8e60392060a36c45ccfe646d675a9c1c0` |
 | 14 | AS-2.0-DECISION-001 | `cursor/as-2.0-decision-001-candidates-315e` | `19ca85a8cf19c54673dab8df15c4b275dc48ab79` | `0f99f59f470f379924dbe6b60d5423444123de2e` |
-| 14+ | AS-2.0-INTEL-003C | `cursor/as-2.0-intel-003c-query-kinds-315e` | recorded after this commit | recorded after this commit |
+| 14+ | AS-2.0-INTEL-003C | `cursor/as-2.0-intel-003c-query-kinds-315e` | `5afdc6f59661173fa8d9222bedd7150859f0638a` | `7b2a70ba6db6c4177755ebabcd540841720668d1` |
 
 ## Tests
 
