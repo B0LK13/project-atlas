@@ -209,7 +209,9 @@ def assess_freshness(
             )
             covered.append("source_modified")
 
-    frozen_decisions = {item.decision_id: item for item in frozen.decisions}
+    frozen_decisions: dict[str, DecisionSnapshot] = {
+        item.decision_id: item for item in frozen.decisions
+    }
     for decision in current.decisions:
         prior = frozen_decisions.get(decision.decision_id)
         if prior is None:
