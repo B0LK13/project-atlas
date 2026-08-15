@@ -29,6 +29,7 @@ from project_atlas.web_api import (
     read_intelligence_conflicts,
     read_intelligence_evidence,
     read_intelligence_explain,
+    read_intelligence_query,
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
@@ -44,6 +45,14 @@ TRUTH_BOUNDARY = "APP-SVC READ FACADE != AUTHORITY / != LIVE WRITE"
 
 class AppServiceError(ValueError):
     """Fail-closed application service error."""
+
+    honesty: str | None = None
+
+
+def _intel_error(exc: WebIntelligenceError) -> AppServiceError:
+    error = AppServiceError(str(exc))
+    error.honesty = exc.honesty.value
+    return error
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +153,7 @@ class AppService:
                 as_of_valid_time=as_of_valid_time,
             )
         except WebIntelligenceError as exc:
-            raise AppServiceError(str(exc)) from exc
+            raise _intel_error(exc) from exc
 
     def intelligence_conflicts(
         self,
@@ -157,7 +166,7 @@ class AppService:
                 self.vault, project_id, as_of_valid_time=as_of_valid_time
             )
         except WebIntelligenceError as exc:
-            raise AppServiceError(str(exc)) from exc
+            raise _intel_error(exc) from exc
 
     def intelligence_explain(
         self,
@@ -178,7 +187,7 @@ class AppService:
                 as_of_valid_time=as_of_valid_time,
             )
         except WebIntelligenceError as exc:
-            raise AppServiceError(str(exc)) from exc
+            raise _intel_error(exc) from exc
 
     def project_state(
         self,
@@ -191,7 +200,7 @@ class AppService:
                 self.vault, project_id, as_of_valid_time=as_of_valid_time
             )
         except WebIntelligenceError as exc:
-            raise AppServiceError(str(exc)) from exc
+            raise _intel_error(exc) from exc
 
     def project_attention(
         self,
@@ -204,7 +213,7 @@ class AppService:
                 self.vault, project_id, as_of_valid_time=as_of_valid_time
             )
         except WebIntelligenceError as exc:
-            raise AppServiceError(str(exc)) from exc
+            raise _intel_error(exc) from exc
 
     def portfolio_state(
         self,
@@ -217,7 +226,30 @@ class AppService:
                 self.vault, project_ids, as_of_valid_time=as_of_valid_time
             )
         except WebIntelligenceError as exc:
-            raise AppServiceError(str(exc)) from exc
+            raise _intel_error(exc) from exc
+
+    def intelligence_query(
+        self,
+        project_id: str,
+        kind: str,
+        *,
+        subject: str | None = None,
+        field: str | None = None,
+        claim_id: str | None = None,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_intelligence_query(
+                self.vault,
+                project_id,
+                kind,
+                subject=subject,
+                field=field,
+                claim_id=claim_id,
+                as_of_valid_time=as_of_valid_time,
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

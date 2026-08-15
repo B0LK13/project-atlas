@@ -7,8 +7,9 @@ Library results only. Never writes Layer B. Never replaces ``/v1/conflicts``.
 from __future__ import annotations
 
 import json
+from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, assert_never
 
 from atlas_contracts.identity import safe_relative_component
 from project_atlas.domain import (
@@ -18,6 +19,7 @@ from project_atlas.domain import (
     ProvenanceReference,
 )
 from project_atlas.intelligence import (
+    IntelligenceAnswer,
     IntelligenceQuery,
     IntelligenceQueryKind,
     aggregate_portfolio_state,
@@ -27,31 +29,87 @@ from project_atlas.intelligence import (
     synthesize_project_state,
 )
 from project_atlas.intelligence.boundary import (
+    CANONICAL_WRITE,
     DERIVED_INTELLIGENCE_IS_AUTHORITY,
     TRUTH_BOUNDARY_CONTRADICTION,
     TRUTH_BOUNDARY_QUERY,
     TRUTH_BOUNDARY_RISK,
     TRUTH_BOUNDARY_STATE,
+    UNKNOWN_IS_VALID,
 )
 from project_atlas.intelligence.derived_state import StateContext
+from project_atlas.intelligence.query import SlotStatus
 from project_atlas.intelligence.timewin import IntelligenceTimeError, parse_instant
-from project_atlas.intelligence.types import AssessableClaim
+from project_atlas.intelligence.types import AssessableClaim, ValidityWindowInput
 
 PACKAGE_ID = "AS-2.0-API-001"
+CERTIFIED_QUERY_KINDS: frozenset[str] = frozenset(
+    {
+        IntelligenceQueryKind.CHANGE.value,
+        IntelligenceQueryKind.CONTEXT.value,
+        IntelligenceQueryKind.GAP_PRIORITY.value,
+        IntelligenceQueryKind.DEPENDENCIES.value,
+        IntelligenceQueryKind.DECISION.value,
+    }
+)
+_DEDICATED_KINDS: frozenset[str] = frozenset(
+    {
+        IntelligenceQueryKind.EVIDENCE.value,
+        IntelligenceQueryKind.CONFLICTS.value,
+        IntelligenceQueryKind.EXPLAIN.value,
+        IntelligenceQueryKind.STATE.value,
+        IntelligenceQueryKind.ATTENTION.value,
+    }
+)
+_LIMITATIONS: tuple[str, ...] = (
+    "DERIVED_INTELLIGENCE_IS_AUTHORITY=NO",
+    "API_RESULT_IS_AUTHORITY=NO",
+    "CANONICAL_WRITE=NO",
+    "UNKNOWN_IS_VALID=YES",
+    "CONTRADICTION_CANDIDATE_IS_PROVEN_FALSEHOOD=NO",
+    "RISK_IS_FACT=NO",
+    "NO_FAKE_PROBABILITY",
+)
+
+
+class HonestyClass(StrEnum):
+    """HTTP-facing honesty classes. Never collapse these into each other."""
+
+    UNKNOWN = "UNKNOWN"
+    NO_DATA = "NO_DATA"
+    VALID_EMPTY = "VALID_EMPTY"
+    NO_MATCH = "NO_MATCH"
+    CONTESTED = "CONTESTED"
+    STALE = "STALE"
+    HTTP_FAILURE = "HTTP_FAILURE"
+    MALFORMED_INPUT = "MALFORMED_INPUT"
+    UNSUPPORTED_SCOPE = "UNSUPPORTED_SCOPE"
 
 
 class WebIntelligenceError(ValueError):
     """Fail-closed intelligence API read error."""
 
+    def __init__(self, message: str, honesty: HonestyClass | None = None) -> None:
+        super().__init__(message)
+        self.honesty = honesty or (
+            HonestyClass.UNSUPPORTED_SCOPE
+            if "unsupported" in message
+            else HonestyClass.MALFORMED_INPUT
+        )
+
 
 def _safe_project_id(project_id: str) -> str:
     token = (project_id or "").strip()
     if not token:
-        raise WebIntelligenceError("intel-api-project-id-required")
+        raise WebIntelligenceError(
+            "intel-api-project-id-required", HonestyClass.MALFORMED_INPUT
+        )
     try:
         return safe_relative_component(token, label="project id")
     except ValueError as exc:
-        raise WebIntelligenceError("intel-api-project-id-invalid") from exc
+        raise WebIntelligenceError(
+            "intel-api-project-id-invalid", HonestyClass.MALFORMED_INPUT
+        ) from exc
 
 
 def _optional_as_of(raw: str | None) -> str | None:
@@ -63,8 +121,13 @@ def _optional_as_of(raw: str | None) -> str | None:
     try:
         parse_instant(text, field="as-of")
     except IntelligenceTimeError as exc:
-        raise WebIntelligenceError(str(exc)) from exc
+        raise WebIntelligenceError(str(exc), HonestyClass.MALFORMED_INPUT) from exc
     return text
+
+
+def claims_file_present(vault: Path, project_id: str) -> bool:
+    token = _safe_project_id(project_id)
+    return (vault / "state" / "claims" / f"{token}.json").is_file()
 
 
 def load_assessable_claims(vault: Path, project_id: str) -> tuple[AssessableClaim, ...]:
@@ -76,10 +139,14 @@ def load_assessable_claims(vault: Path, project_id: str) -> tuple[AssessableClai
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise WebIntelligenceError(f"intel-api-claims-unreadable:{token}") from exc
+        raise WebIntelligenceError(
+            f"intel-api-claims-unreadable:{token}", HonestyClass.MALFORMED_INPUT
+        ) from exc
     entries = raw.get("claims") if isinstance(raw, dict) else None
     if not isinstance(entries, list):
-        raise WebIntelligenceError(f"intel-api-claims-malformed:{token}")
+        raise WebIntelligenceError(
+            f"intel-api-claims-malformed:{token}", HonestyClass.MALFORMED_INPUT
+        )
     found: list[AssessableClaim] = []
     for item in entries:
         if not isinstance(item, dict):
@@ -88,6 +155,77 @@ def load_assessable_claims(vault: Path, project_id: str) -> tuple[AssessableClai
         if claim is not None:
             found.append(claim)
     return tuple(found)
+
+
+def load_validity_windows(vault: Path, project_id: str) -> tuple[ValidityWindowInput, ...]:
+    """Document-declared windows from claim records and optional catalog."""
+    token = _safe_project_id(project_id)
+    by_claim: dict[str, ValidityWindowInput] = {}
+    path = vault / "state" / "claims" / f"{token}.json"
+    if path.is_file():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise WebIntelligenceError(
+                f"intel-api-claims-unreadable:{token}", HonestyClass.MALFORMED_INPUT
+            ) from exc
+        entries = raw.get("claims") if isinstance(raw, dict) else None
+        if isinstance(entries, list):
+            for item in entries:
+                if not isinstance(item, dict):
+                    continue
+                claim_id = str(item.get("claim_id") or "").strip()
+                if not claim_id:
+                    continue
+                valid_from = _optional_bound(item.get("valid_from"))
+                valid_to = _optional_bound(item.get("valid_to"))
+                if valid_from or valid_to:
+                    by_claim[claim_id] = ValidityWindowInput(
+                        claim_id=claim_id,
+                        valid_from=valid_from,
+                        valid_to=valid_to,
+                        evidence_kind="claim-record",
+                    )
+    catalog = vault / "generated" / "ops" / "bitemporal" / f"{token}-validity-catalog.json"
+    if catalog.is_file():
+        try:
+            payload = json.loads(catalog.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise WebIntelligenceError(
+                f"intel-api-catalog-unreadable:{token}", HonestyClass.MALFORMED_INPUT
+            ) from exc
+        windows = payload.get("windows") if isinstance(payload, dict) else None
+        if not isinstance(windows, list):
+            raise WebIntelligenceError(
+                f"intel-api-catalog-malformed:{token}", HonestyClass.MALFORMED_INPUT
+            )
+        for item in windows:
+            if not isinstance(item, dict):
+                continue
+            claim_id = str(item.get("claim_id") or "").strip()
+            if not claim_id:
+                continue
+            existing = by_claim.get(claim_id)
+            by_claim[claim_id] = ValidityWindowInput(
+                claim_id=claim_id,
+                valid_from=_optional_bound(item.get("valid_from"))
+                or (existing.valid_from if existing else None),
+                valid_to=_optional_bound(item.get("valid_to"))
+                or (existing.valid_to if existing else None),
+                evidence_kind=str(item.get("evidence_kind") or "catalog"),
+            )
+    return tuple(sorted(by_claim.values(), key=lambda item: item.claim_id))
+
+
+def _optional_bound(raw: object) -> str | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    text = raw.strip()
+    try:
+        parse_instant(text, field="validity-bound")
+    except IntelligenceTimeError as exc:
+        raise WebIntelligenceError(str(exc), HonestyClass.MALFORMED_INPUT) from exc
+    return text
 
 
 def _claim_from_record(item: dict[str, Any], project_id: str) -> AssessableClaim | None:
@@ -159,6 +297,111 @@ def _query(
     )
 
 
+def classify_honesty(
+    status: SlotStatus | str,
+    *,
+    claims_present: bool,
+    filtered: bool = False,
+    empty_payload: bool = False,
+) -> str:
+    slot = status if isinstance(status, SlotStatus) else SlotStatus(status)
+    if slot is SlotStatus.CONTESTED:
+        return HonestyClass.CONTESTED.value
+    if slot is SlotStatus.STALE:
+        return HonestyClass.STALE.value
+    if slot is SlotStatus.INVALID:
+        return HonestyClass.MALFORMED_INPUT.value
+    if slot is SlotStatus.NO_EVIDENCE:
+        if not claims_present:
+            return HonestyClass.NO_DATA.value
+        if filtered:
+            return HonestyClass.NO_MATCH.value
+        return HonestyClass.VALID_EMPTY.value
+    if empty_payload and not claims_present:
+        return HonestyClass.NO_DATA.value
+    if empty_payload:
+        return HonestyClass.VALID_EMPTY.value
+    if slot is SlotStatus.UNKNOWN:
+        return HonestyClass.UNKNOWN.value
+    if slot is SlotStatus.DERIVED:
+        return "DERIVED"
+    if slot is SlotStatus.OBSERVED:
+        return "OBSERVED"
+    assert_never(slot)
+
+
+def _envelope(
+    *,
+    project_id: str,
+    as_of: str | None,
+    status: str,
+    honesty: str,
+    reason: str,
+    authority_note: str,
+    truth_boundary: str,
+    extra: dict[str, Any],
+) -> dict[str, Any]:
+    payload = {
+        "package_id": PACKAGE_ID,
+        "status": status,
+        "honesty": honesty,
+        "project": project_id,
+        "project_id": project_id,
+        "scope": "project",
+        "as_of": as_of,
+        "derived_classification": status,
+        "reasons": [reason] if reason else [],
+        "reason": reason,
+        "authority_note": authority_note,
+        "authority": {
+            "derived_intelligence_is_authority": DERIVED_INTELLIGENCE_IS_AUTHORITY,
+            "canonical_write": CANONICAL_WRITE == "YES",
+            "unknown_is_valid": UNKNOWN_IS_VALID,
+            "api_result_is_authority": "NO",
+        },
+        "temporal_context": {
+            "as_of_valid_time": as_of,
+            "evaluation": "as-of-valid-time" if as_of else "unspecified-valid-time",
+        },
+        "limitations": list(_LIMITATIONS),
+        "derived_intelligence_is_authority": DERIVED_INTELLIGENCE_IS_AUTHORITY,
+        "canonical_write": False,
+        "truth_boundary": truth_boundary,
+        "numeric_confidence": None,
+    }
+    payload.update(extra)
+    return payload
+
+
+def _run_query(
+    vault: Path,
+    project_id: str,
+    kind: IntelligenceQueryKind,
+    *,
+    subject: str | None = None,
+    field: str | None = None,
+    claim_id: str | None = None,
+    as_of_valid_time: str | None = None,
+) -> tuple[str, str | None, tuple[AssessableClaim, ...], IntelligenceAnswer, bool]:
+    token = _safe_project_id(project_id)
+    as_of = _optional_as_of(as_of_valid_time)
+    claims = load_assessable_claims(vault, token)
+    windows = load_validity_windows(vault, token)
+    answer = query_intelligence(
+        _query(
+            token,
+            kind,
+            subject=subject,
+            field=field,
+            claim_id=claim_id,
+            as_of_valid_time=as_of,
+        ),
+        claims,
+        validity_windows=windows,
+    )
+    return token, as_of, claims, answer, claims_file_present(vault, token)
+
+
 def read_intelligence_evidence(
     vault: Path,
     project_id: str,
@@ -168,31 +411,59 @@ def read_intelligence_evidence(
     claim_id: str | None = None,
     as_of_valid_time: str | None = None,
 ) -> dict[str, Any]:
-    token = _safe_project_id(project_id)
-    as_of = _optional_as_of(as_of_valid_time)
-    answer = query_intelligence(
-        _query(
-            token,
-            IntelligenceQueryKind.EVIDENCE,
-            subject=subject,
-            field=field,
-            claim_id=claim_id,
-            as_of_valid_time=as_of,
-        ),
-        load_assessable_claims(vault, token),
+    token, as_of, _claims, answer, present = _run_query(
+        vault,
+        project_id,
+        IntelligenceQueryKind.EVIDENCE,
+        subject=subject,
+        field=field,
+        claim_id=claim_id,
+        as_of_valid_time=as_of_valid_time,
     )
-    return {
-        "package_id": PACKAGE_ID,
-        "project_id": token,
-        "outcome": answer.outcome.value,
-        "status": answer.status.value,
-        "reason": answer.reason,
-        "assessments": [item.model_dump(mode="json") for item in answer.assessments],
-        "authority_note": answer.authority_note,
-        "derived_intelligence_is_authority": DERIVED_INTELLIGENCE_IS_AUTHORITY,
-        "truth_boundary": TRUTH_BOUNDARY_QUERY,
-        "canonical_write": False,
-    }
+    assessments = [item.model_dump(mode="json") for item in answer.assessments]
+    filtered = bool(subject or field or claim_id)
+    honesty = classify_honesty(
+        answer.status,
+        claims_present=present,
+        filtered=filtered,
+        empty_payload=not assessments,
+    )
+    supporting = [
+        ref
+        for item in assessments
+        for ref in item.get("supporting_evidence", [])
+    ]
+    contradicting = [
+        ref
+        for item in assessments
+        for ref in item.get("contradicting_evidence", [])
+    ]
+    unknown = [
+        factor
+        for item in assessments
+        for factor in item.get("unknown_factors", [])
+    ]
+    return _envelope(
+        project_id=token,
+        as_of=as_of,
+        status=answer.status.value,
+        honesty=honesty,
+        reason=answer.reason,
+        authority_note=answer.authority_note,
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+        extra={
+            "outcome": answer.outcome.value,
+            "assessments": assessments,
+            "supporting_evidence": supporting,
+            "contradicting_evidence": contradicting,
+            "unknown_evidence": unknown,
+            "provenance": [
+                link
+                for item in assessments
+                for link in item.get("provenance_links", [])
+            ],
+        },
+    )
 
 
 def read_intelligence_conflicts(
@@ -201,22 +472,32 @@ def read_intelligence_conflicts(
     *,
     as_of_valid_time: str | None = None,
 ) -> dict[str, Any]:
-    token = _safe_project_id(project_id)
-    as_of = _optional_as_of(as_of_valid_time)
-    answer = query_intelligence(
-        _query(token, IntelligenceQueryKind.CONFLICTS, as_of_valid_time=as_of),
-        load_assessable_claims(vault, token),
+    token, as_of, _claims, answer, present = _run_query(
+        vault,
+        project_id,
+        IntelligenceQueryKind.CONFLICTS,
+        as_of_valid_time=as_of_valid_time,
     )
-    return {
-        "package_id": PACKAGE_ID,
-        "project_id": token,
-        "candidates": [item.model_dump() for item in answer.candidates],
-        "authority_note": "candidate-not-resolution",
-        "derived_intelligence_is_authority": DERIVED_INTELLIGENCE_IS_AUTHORITY,
-        "truth_boundary": TRUTH_BOUNDARY_CONTRADICTION,
-        "canonical_write": False,
-        "replaces_v1_conflicts": False,
-    }
+    candidates = [item.model_dump() for item in answer.candidates]
+    honesty = classify_honesty(
+        answer.status,
+        claims_present=present,
+        empty_payload=not candidates,
+    )
+    return _envelope(
+        project_id=token,
+        as_of=as_of,
+        status=answer.status.value,
+        honesty=honesty,
+        reason=answer.reason,
+        authority_note="candidate-not-resolution",
+        truth_boundary=TRUTH_BOUNDARY_CONTRADICTION,
+        extra={
+            "candidates": candidates,
+            "replaces_v1_conflicts": False,
+            "contradiction_is_proven_falsehood": "NO",
+        },
+    )
 
 
 def read_intelligence_explain(
@@ -228,30 +509,31 @@ def read_intelligence_explain(
     claim_id: str | None = None,
     as_of_valid_time: str | None = None,
 ) -> dict[str, Any]:
-    token = _safe_project_id(project_id)
-    as_of = _optional_as_of(as_of_valid_time)
-    answer = query_intelligence(
-        _query(
-            token,
-            IntelligenceQueryKind.EXPLAIN,
-            subject=subject,
-            field=field,
-            claim_id=claim_id,
-            as_of_valid_time=as_of,
-        ),
-        load_assessable_claims(vault, token),
+    token, as_of, _claims, answer, present = _run_query(
+        vault,
+        project_id,
+        IntelligenceQueryKind.EXPLAIN,
+        subject=subject,
+        field=field,
+        claim_id=claim_id,
+        as_of_valid_time=as_of_valid_time,
     )
-    return {
-        "package_id": PACKAGE_ID,
-        "project_id": token,
-        "explanation": answer.explanation,
-        "status": answer.status.value,
-        "reason": answer.reason,
-        "authority_note": answer.authority_note,
-        "derived_intelligence_is_authority": DERIVED_INTELLIGENCE_IS_AUTHORITY,
-        "truth_boundary": TRUTH_BOUNDARY_QUERY,
-        "canonical_write": False,
-    }
+    honesty = classify_honesty(
+        answer.status,
+        claims_present=present,
+        filtered=bool(subject or field or claim_id),
+        empty_payload=answer.explanation is None,
+    )
+    return _envelope(
+        project_id=token,
+        as_of=as_of,
+        status=answer.status.value,
+        honesty=honesty,
+        reason=answer.reason,
+        authority_note=answer.authority_note,
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+        extra={"explanation": answer.explanation},
+    )
 
 
 def read_project_state(
@@ -262,16 +544,45 @@ def read_project_state(
 ) -> dict[str, Any]:
     token = _safe_project_id(project_id)
     as_of = _optional_as_of(as_of_valid_time)
+    claims = load_assessable_claims(vault, token)
+    windows = load_validity_windows(vault, token)
     state = synthesize_project_state(
         token,
-        load_assessable_claims(vault, token),
-        StateContext(as_of_valid_time=as_of),
+        claims,
+        StateContext(as_of_valid_time=as_of, validity_windows=windows),
     )
     payload = state.model_dump(mode="json")
-    payload["package_id"] = PACKAGE_ID
-    payload["derived_intelligence_is_authority"] = DERIVED_INTELLIGENCE_IS_AUTHORITY
-    payload["canonical_write"] = False
-    payload["truth_boundary"] = TRUTH_BOUNDARY_STATE
+    present = claims_file_present(vault, token)
+    if state.contested_facts:
+        honesty = HonestyClass.CONTESTED.value
+        status = "contested"
+    elif state.stale_facts:
+        honesty = HonestyClass.STALE.value
+        status = "stale"
+    elif not present:
+        honesty = HonestyClass.NO_DATA.value
+        status = "unknown"
+    elif not claims:
+        honesty = HonestyClass.VALID_EMPTY.value
+        status = "unknown"
+    elif state.unknown_facts and not state.known_facts:
+        honesty = HonestyClass.UNKNOWN.value
+        status = "unknown"
+    else:
+        honesty = HonestyClass.UNKNOWN.value
+        status = payload.get("overall_status") or "derived"
+    payload.update(
+        _envelope(
+            project_id=token,
+            as_of=as_of,
+            status=str(status),
+            honesty=honesty,
+            reason=str(payload.get("why") or "derived-state-not-canonical"),
+            authority_note="derived-state-not-canonical",
+            truth_boundary=TRUTH_BOUNDARY_STATE,
+            extra={},
+        )
+    )
     return payload
 
 
@@ -281,21 +592,100 @@ def read_project_attention(
     *,
     as_of_valid_time: str | None = None,
 ) -> dict[str, Any]:
-    token = _safe_project_id(project_id)
-    as_of = _optional_as_of(as_of_valid_time)
-    answer = query_intelligence(
-        _query(token, IntelligenceQueryKind.ATTENTION, as_of_valid_time=as_of),
-        load_assessable_claims(vault, token),
+    token, as_of, _claims, answer, present = _run_query(
+        vault,
+        project_id,
+        IntelligenceQueryKind.ATTENTION,
+        as_of_valid_time=as_of_valid_time,
     )
-    return {
-        "package_id": PACKAGE_ID,
-        "project_id": token,
-        "risks": list(answer.risks),
-        "authority_note": "risk-is-not-fact",
-        "derived_intelligence_is_authority": DERIVED_INTELLIGENCE_IS_AUTHORITY,
-        "truth_boundary": TRUTH_BOUNDARY_RISK,
-        "canonical_write": False,
+    honesty = classify_honesty(
+        answer.status,
+        claims_present=present,
+        empty_payload=not answer.risks,
+    )
+    return _envelope(
+        project_id=token,
+        as_of=as_of,
+        status=answer.status.value,
+        honesty=honesty,
+        reason=answer.reason,
+        authority_note="risk-is-not-fact",
+        truth_boundary=TRUTH_BOUNDARY_RISK,
+        extra={
+            "risks": list(answer.risks),
+            "attention_rank_is_score": "NO",
+            "numeric_priority_score": None,
+        },
+    )
+
+
+def read_intelligence_query(
+    vault: Path,
+    project_id: str,
+    kind: str,
+    *,
+    subject: str | None = None,
+    field: str | None = None,
+    claim_id: str | None = None,
+    as_of_valid_time: str | None = None,
+) -> dict[str, Any]:
+    token = (kind or "").strip()
+    if token in _DEDICATED_KINDS:
+        raise WebIntelligenceError(
+            f"intel-api-use-dedicated-route:{token}",
+            HonestyClass.UNSUPPORTED_SCOPE,
+        )
+    if token not in CERTIFIED_QUERY_KINDS:
+        raise WebIntelligenceError(
+            f"intel-api-kind-unsupported:{token or 'missing'}",
+            HonestyClass.UNSUPPORTED_SCOPE,
+        )
+    query_kind = IntelligenceQueryKind(token)
+    project, as_of, _claims, answer, present = _run_query(
+        vault,
+        project_id,
+        query_kind,
+        subject=subject,
+        field=field,
+        claim_id=claim_id,
+        as_of_valid_time=as_of_valid_time,
+    )
+    empty = not (
+        answer.changes
+        or answer.context
+        or answer.prioritized_gaps
+        or answer.dependencies
+        or answer.decision
+    )
+    honesty = classify_honesty(
+        answer.status,
+        claims_present=present,
+        filtered=bool(subject or field or claim_id),
+        empty_payload=empty,
+    )
+    extra: dict[str, Any] = {
+        "kind": query_kind.value,
+        "outcome": answer.outcome.value,
+        "changes": list(answer.changes),
+        "context": answer.context,
+        "prioritized_gaps": list(answer.prioritized_gaps),
+        "dependencies": list(answer.dependencies),
+        "decision": answer.decision,
+        "gap_priority_is_fact": "NO",
+        "dependency_is_inferred": "NO",
+        "decision_engine_is_authority": "NO",
+        "decision_candidate_is_command": "NO",
     }
+    return _envelope(
+        project_id=project,
+        as_of=as_of,
+        status=answer.status.value,
+        honesty=honesty,
+        reason=answer.reason,
+        authority_note=answer.authority_note,
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+        extra=extra,
+    )
 
 
 def _known_claim_projects(vault: Path) -> tuple[str, ...]:
@@ -321,15 +711,38 @@ def read_portfolio_state(
     requested = tuple(_safe_project_id(item) for item in project_ids if item.strip())
     keys = requested or _known_claim_projects(vault)
     projects = {key: load_assessable_claims(vault, key) for key in keys}
-    state = aggregate_portfolio_state(projects, as_of_valid_time=as_of)
+    windows = {key: load_validity_windows(vault, key) for key in keys}
+    state = aggregate_portfolio_state(
+        projects, as_of_valid_time=as_of, validity_windows_by_project=windows
+    )
     deps = detect_portfolio_dependencies(projects)
-    attention = rank_portfolio_attention(projects, as_of_valid_time=as_of)
-    return {
-        "package_id": PACKAGE_ID,
-        "state": state.model_dump(mode="json"),
-        "dependencies": [item.model_dump(mode="json") for item in deps],
-        "attention": [item.model_dump(mode="json") for item in attention],
-        "derived_intelligence_is_authority": DERIVED_INTELLIGENCE_IS_AUTHORITY,
-        "canonical_write": False,
-        "numeric_priority_score": None,
-    }
+    attention = rank_portfolio_attention(
+        projects, as_of_valid_time=as_of, validity_windows_by_project=windows
+    )
+    if not keys:
+        honesty = HonestyClass.NO_DATA.value
+        status = "unknown"
+    elif not any(projects.values()):
+        honesty = HonestyClass.VALID_EMPTY.value
+        status = "unknown"
+    else:
+        honesty = HonestyClass.UNKNOWN.value
+        status = "derived"
+    payload = _envelope(
+        project_id=",".join(keys) or "portfolio",
+        as_of=as_of,
+        status=status,
+        honesty=honesty,
+        reason="portfolio-not-authority",
+        authority_note="portfolio-not-authority",
+        truth_boundary=TRUTH_BOUNDARY_STATE,
+        extra={
+            "scope": "portfolio",
+            "project_ids": list(keys),
+            "state": state.model_dump(mode="json"),
+            "dependencies": [item.model_dump(mode="json") for item in deps],
+            "attention": [item.model_dump(mode="json") for item in attention],
+            "numeric_priority_score": None,
+        },
+    )
+    return payload

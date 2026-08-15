@@ -326,6 +326,7 @@ def make_handler(
                 "/v1/intelligence/evidence",
                 "/v1/intelligence/conflicts",
                 "/v1/intelligence/explain",
+                "/v1/intelligence/query",
                 "/v1/project-state",
                 "/v1/project-attention",
             }:
@@ -334,12 +335,14 @@ def make_handler(
                 subject = (qs.get("subject") or [""])[0] or None
                 field = (qs.get("field") or [""])[0] or None
                 claim_id = (qs.get("claim_id") or [""])[0] or None
+                kind = (qs.get("kind") or [""])[0]
                 if not project:
                     self._send(
                         400,
                         {
                             "error": "intel-api-project-id-required",
                             "package_id": "AS-2.0-API-001",
+                            "honesty": "MALFORMED_INPUT",
                         },
                     )
                     return
@@ -364,6 +367,15 @@ def make_handler(
                             claim_id=claim_id,
                             as_of_valid_time=as_of or None,
                         )
+                    elif path == "/v1/intelligence/query":
+                        payload = service.intelligence_query(
+                            project,
+                            kind,
+                            subject=subject,
+                            field=field,
+                            claim_id=claim_id,
+                            as_of_valid_time=as_of or None,
+                        )
                     elif path == "/v1/project-state":
                         payload = service.project_state(
                             project, as_of_valid_time=as_of or None
@@ -374,7 +386,15 @@ def make_handler(
                         )
                     self._send(200, payload)
                 except AppServiceError as exc:
-                    self._send(400, {"error": str(exc), "package_id": "AS-2.0-API-001"})
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": honesty,
+                        },
+                    )
                 return
             if path == "/v1/portfolio-state":
                 project_ids = tuple(
@@ -391,7 +411,15 @@ def make_handler(
                         ),
                     )
                 except AppServiceError as exc:
-                    self._send(400, {"error": str(exc), "package_id": "AS-2.0-API-001"})
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": honesty,
+                        },
+                    )
                 return
             if path == "/v1/conflicts":
                 project = (qs.get("project") or [""])[0]
