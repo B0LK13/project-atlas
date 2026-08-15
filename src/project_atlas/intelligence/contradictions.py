@@ -140,11 +140,28 @@ def find_contradiction_candidates(
     return candidates
 
 
+_REVIEW_BY_CLASS = {
+    item: (
+        f"human-review-required:{item.value};"
+        "auto-resolve-forbidden;candidate-is-not-falsehood"
+    )
+    for item in ContradictionClass
+}
+_GENERATED = {"by": GENERATED_BY}
+
+
 def find_contradiction_candidates_report(
     claims: Sequence[Claim | AssessableClaim],
     context: ContradictionContext | None = None,
+    *,
+    materialize: bool = True,
 ) -> tuple[tuple[ContradictionCandidate, ...], PairingStats]:
-    """Same candidates as :func:`find_contradiction_candidates`, plus pairing stats."""
+    """Same candidates as :func:`find_contradiction_candidates`, plus pairing stats.
+
+    ``materialize=False`` still evaluates every qualifying pair for counts
+    but does not allocate candidate objects. Semantics of which pairs
+    qualify do not change.
+    """
     ctx = context if context is not None else ContradictionContext()
     items = coerce_claims(claims)
     windows = {item.claim_id: item for item in ctx.validity_windows}
@@ -165,6 +182,7 @@ def find_contradiction_candidates_report(
     pair_evaluations = 0
     skipped_same_value = 0
     skipped_temporal = 0
+    counted = 0
     for bucket in groups.values():
         bucket.sort(key=lambda item: item.claim.claim_id)
         by_value: dict[str, list[_PreparedClaim]] = defaultdict(list)
@@ -179,23 +197,26 @@ def find_contradiction_candidates_report(
                 for left in left_rows:
                     for right in right_rows:
                         pair_evaluations += 1
-                        found, temporal_skip = _pair_prepared(
+                        found, temporal_skip, qualifies = _pair_prepared(
                             left,
                             right,
                             windows,
                             source_index,
                             ambiguous,
+                            materialize=materialize,
                         )
                         if temporal_skip:
                             skipped_temporal += 1
-                        if found is not None:
+                        elif qualifies and found is not None:
                             candidates.append(found)
+                        elif qualifies:
+                            counted += 1
     candidates.sort(key=lambda item: item.candidate_id)
     stats = PairingStats(
         claim_count=len(items),
         group_count=len(groups),
         pair_evaluations=pair_evaluations,
-        candidate_count=len(candidates),
+        candidate_count=len(candidates) + counted,
         skipped_same_value=skipped_same_value,
         skipped_unknown=skipped_unknown,
         skipped_temporal=skipped_temporal,
@@ -222,17 +243,19 @@ def _pair_prepared(
     windows: dict[str, ValidityWindowInput],
     source_index: dict[str, SourceObservation] | None,
     ambiguous: set[str],
-) -> tuple[ContradictionCandidate | None, bool]:
+    *,
+    materialize: bool = True,
+) -> tuple[ContradictionCandidate | None, bool, bool]:
     left_claim = left.claim
     right_claim = right.claim
     if left_claim.project_id != right_claim.project_id:
-        return None, False
+        return None, False, False
     if (
         left_claim.authority_domain
         and right_claim.authority_domain
         and left_claim.authority_domain != right_claim.authority_domain
     ):
-        return None, False
+        return None, False, False
 
     left_window = windows.get(left_claim.claim_id)
     right_window = windows.get(right_claim.claim_id)
@@ -247,11 +270,11 @@ def _pair_prepared(
         relation_raw = "unknown"
     temporal = TemporalRelationship(relation_raw)
     if temporal in {TemporalRelationship.SUCCESSION, TemporalRelationship.NON_OVERLAPPING}:
-        return None, True
+        return None, True, False
+    if not materialize:
+        return None, False, True
 
-    same_lineage = (
-        left.lineage != "unknown-identity" and left.lineage == right.lineage
-    )
+    same_lineage = left.lineage != "unknown-identity" and left.lineage == right.lineage
     source_relationship = "same-lineage" if same_lineage else "distinct-or-unknown-lineage"
     authority_relationship = _authority_relationship(left_claim, right_claim)
     missing_source = _missing_source_index(left_claim, right_claim, source_index)
@@ -278,7 +301,7 @@ def _pair_prepared(
         authority_relationship=authority_relationship,
     )
     severity = _severity(candidate_class, temporal, left_claim, right_claim)
-    evidence = tuple(sorted(left.evidence + right.evidence, key=_evidence_sort))
+    evidence = _merge_evidence(left.evidence, right.evidence)
     first, second = sorted((left_claim.claim_id, right_claim.claim_id))
     material = "|".join(
         (
@@ -290,11 +313,9 @@ def _pair_prepared(
             candidate_class.value,
         )
     )
-    candidate_id = "cc-" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:20]
-    review = (
-        f"human-review-required:{candidate_class.value};"
-        "auto-resolve-forbidden;candidate-is-not-falsehood"
-    )
+    candidate_id = "cc-" + hashlib.sha256(
+        material.encode("utf-8"), usedforsecurity=False
+    ).hexdigest()[:20]
     return (
         ContradictionCandidate.model_construct(
             schema_version=1,
@@ -313,13 +334,41 @@ def _pair_prepared(
             reason=reason,
             supporting_evidence=evidence,
             uncertainty=tuple(sorted(set(uncertainty))),
-            recommended_human_review_reason=review,
+            recommended_human_review_reason=_REVIEW_BY_CLASS[candidate_class],
             truth_boundary=TRUTH_BOUNDARY_CONTRADICTION,
-            generated={"by": GENERATED_BY},
+            generated=_GENERATED,
             authority_note="candidate-not-resolution",
         ),
         False,
+        True,
     )
+
+
+def _merge_evidence(
+    left: tuple[EvidenceRef, ...],
+    right: tuple[EvidenceRef, ...],
+) -> tuple[EvidenceRef, ...]:
+    if not left:
+        return right
+    if not right:
+        return left
+    merged: list[EvidenceRef] = []
+    left_index = 0
+    right_index = 0
+    while left_index < len(left) and right_index < len(right):
+        left_key = _evidence_sort(left[left_index])
+        right_key = _evidence_sort(right[right_index])
+        if left_key <= right_key:
+            merged.append(left[left_index])
+            left_index += 1
+        else:
+            merged.append(right[right_index])
+            right_index += 1
+    if left_index < len(left):
+        merged.extend(left[left_index:])
+    if right_index < len(right):
+        merged.extend(right[right_index:])
+    return tuple(merged)
 
 
 def _claim_lineage(claim: AssessableClaim) -> str:
