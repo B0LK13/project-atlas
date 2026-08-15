@@ -78,7 +78,9 @@ def _count_ingest(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     return calls
 
 
-def test_zero_change_reconnect_skips_ingest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_zero_change_reconnect_skips_ingest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     project = _seed(tmp_path / "zero-change")
     calls = _count_ingest(monkeypatch)
     first = connect_project(project)
@@ -131,7 +133,9 @@ def test_zero_change_reconnect_skips_ingest(tmp_path: Path, monkeypatch: pytest.
     assert "at" not in receipt.get("generated", {})
 
 
-def test_one_file_modification_full_compiles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_one_file_modification_full_compiles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     project = _seed(tmp_path / "one-mod", body="v1")
     calls = _count_ingest(monkeypatch)
     first = connect_project(project)
@@ -228,7 +232,9 @@ def test_malformed_source_fail_closed(tmp_path: Path) -> None:
         connect_project(project)
 
 
-def test_interrupted_prior_connect_does_not_skip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_interrupted_prior_connect_does_not_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     project = _seed(tmp_path / "interrupted")
     calls = _count_ingest(monkeypatch)
     first = connect_project(project)
@@ -357,7 +363,10 @@ def test_next_brief_handoff_not_falsely_stale(tmp_path: Path) -> None:
     assert brief["honesty"]["lens_is_authority"] is False
     context = export_agent_context(vault, project_id, refresh_brief=False)
     assert context["project_id"] == project_id
-    assert context["brief"]["project_id"] == project_id
+    assert context.get("purpose") == brief["purpose"]
+    packed = json.loads((vault / str(context["json_path"])).read_text(encoding="utf-8"))
+    assert packed["brief"]["project_id"] == project_id
+    assert packed["honesty"]["lens_is_authority"] is False
     notes = " ".join(str(item) for item in (brief.get("notes") or []))
     assert "stale" not in notes.lower()
 
