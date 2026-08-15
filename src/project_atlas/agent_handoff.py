@@ -176,6 +176,30 @@ def _render_roadmap_section(roadmap: dict[str, Any] | None) -> list[str]:
     return lines
 
 
+def _render_next_section(nxt: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## What next (derived)"]
+    if not nxt:
+        lines.append("UNKNOWN — no next lens")
+        return lines
+    lines.append("NEXT!=AUTHORITY. NEXT!=COMMAND. Do not auto-execute.")
+    primary = nxt.get("primary") if isinstance(nxt.get("primary"), dict) else {}
+    lines.append(
+        f"primary={primary.get('title') or 'UNKNOWN'} "
+        f"[{primary.get('kind') or 'UNKNOWN'}] "
+        f"why={primary.get('why') or 'UNKNOWN'}"
+    )
+    lines.append(f"action={primary.get('action') or 'UNKNOWN'}")
+    blocked = nxt.get("why_cannot_advance")
+    if blocked:
+        lines.append(f"why_cannot_advance={blocked}")
+    for item in nxt.get("queue") or []:
+        if isinstance(item, dict):
+            lines.append(
+                f"- [{item.get('kind')}] {item.get('title')}: {item.get('action')}"
+            )
+    return lines
+
+
 def _render_context_markdown(
     brief: dict[str, Any],
     captures: list[dict[str, Any]] | None = None,
@@ -184,6 +208,7 @@ def _render_context_markdown(
     source_health: dict[str, Any] | None = None,
     conversation_captures: list[dict[str, Any]] | None = None,
     roadmap: dict[str, Any] | None = None,
+    nxt: dict[str, Any] | None = None,
 ) -> str:
     next_work = brief.get("suggested_next_work") or []
     evidence = brief.get("evidence_links") or []
@@ -209,6 +234,7 @@ def _render_context_markdown(
         str(brief.get("current_state") or "UNKNOWN"),
     ]
     lines.extend(_render_roadmap_section(roadmap))
+    lines.extend(_render_next_section(nxt))
     lines.extend(
         [
             "",
@@ -246,6 +272,7 @@ def _render_context_markdown(
             "- atlas_opt_wake_gate: CLOSED",
             "- lens_is_authority: false",
             "- roadmap_is_canonical: false",
+            "- next_is_command: false",
             "",
         ]
     )
@@ -286,6 +313,11 @@ def export_agent_context(
         from project_atlas.project_roadmap import build_roadmap_lens
 
         roadmap = build_roadmap_lens(vault, project_id)
+    nxt: dict[str, Any] | None = None
+    with contextlib.suppress(Exception):
+        from project_atlas.project_next import build_next_lens
+
+        nxt = build_next_lens(vault, project_id)
     markdown = _render_context_markdown(
         brief,
         captures=captures,
@@ -293,6 +325,7 @@ def export_agent_context(
         source_health=source_health,
         conversation_captures=conversation_captures,
         roadmap=roadmap,
+        nxt=nxt,
     )
     payload = {
         "schema_version": 1,
@@ -320,6 +353,14 @@ def export_agent_context(
             "blockers": (roadmap or {}).get("blockers"),
             "unknowns": (roadmap or {}).get("unknowns"),
             "honesty": (roadmap or {}).get("honesty"),
+        },
+        "next": {
+            "package": "AS-CODER-ALPHA-NEXT-001",
+            "primary": (nxt or {}).get("primary"),
+            "queue": (nxt or {}).get("queue"),
+            "why_cannot_advance": (nxt or {}).get("why_cannot_advance"),
+            "suggested_next_work": (nxt or {}).get("suggested_next_work"),
+            "honesty": (nxt or {}).get("honesty"),
         },
         "markdown": markdown,
         "generated": {"by": GENERATOR_ID},
