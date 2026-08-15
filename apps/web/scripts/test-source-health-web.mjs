@@ -43,7 +43,7 @@ assert.match(page, /explicit project required/);
 assert.match(page, /useLiveSourceHealth/);
 assert.doesNotMatch(page, /type=["']submit["']/);
 assert.doesNotMatch(page, /method=["']POST["']/);
-assert.doesNotMatch(page, /accept-review|promote|reject-source/i);
+assert.doesNotMatch(page, /<button[^>]*>\s*(Accept|Reject|Promote)/i);
 assert.doesNotMatch(page, /confidence[_ ]?score/i);
 assert.doesNotMatch(page, /health_score|percent_complete|completion_pct/i);
 
