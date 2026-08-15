@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.unknown_stale import evaluate_unknown_inventory_drift
+
 PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-001"
 GENERATOR_ID = "atlas-coder-alpha-unknown-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -195,6 +197,20 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
 
     if pending_unreadable:
         unknowns.append("pending_queue=unreadable")
+
+    # AS-CODER-ALPHA-UNKNOWN-STALE-001: CLEAR/current unknown must not hide
+    # live disk drift. UNKNOWN inventory does not fabricate FRESH and does
+    # not rewrite synthetic-vault rollups that lack a hashed inventory.
+    connect_rel = "generated/ops/connect-manifest.json"
+    inspected.append(connect_rel)
+    drift = evaluate_unknown_inventory_drift(vault, project_id)
+    drift_status = str(drift.get("status") or "UNKNOWN")
+    changed_paths = [
+        item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+    ]
+    if drift_status == "STALE":
+        unknowns.append("source_inventory_stale=" + str(len(changed_paths)))
+
     if conflict_count or sources_failed:
         rollup = "conflict"
     elif pending_count or stale or withheld:
@@ -222,6 +238,8 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
     ]
     if pending_unreadable:
         notes.append("pending-queue-unreadable; not CLEAR; not stale knowledge-status")
+    if drift_status == "STALE":
+        notes.append("STALE SOURCE INVENTORY != CURRENT UNKNOWN; reconnect first")
 
     return {
         "schema_version": 1,
@@ -251,6 +269,20 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},
+        "source_drift": {
+            "status": drift_status,
+            "reason": drift.get("reason"),
+            "reason_code": drift.get("reason_code"),
+            "changed_paths": changed_paths[:20],
+            "package": drift.get("package") or "AS-CODER-ALPHA-UNKNOWN-STALE-001",
+        },
+        "honesty": {
+            "lens_is_authority": False,
+            "unknown_is_healthy": False,
+            "unknown_is_fresh": False,
+            "stale_is_current": False,
+            "source_inventory_stale": drift_status == "STALE",
+        },
     }
 
 
