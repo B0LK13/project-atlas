@@ -21,11 +21,7 @@ from project_atlas.intelligence import (
     StateContext,
     synthesize_project_state,
 )
-from project_atlas.intelligence.types import (
-    AssessableClaim,
-    SourceObservation,
-    ValidityWindowInput,
-)
+from project_atlas.intelligence.types import SourceObservation, ValidityWindowInput
 
 HASH_A = "a" * 64
 

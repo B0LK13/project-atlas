@@ -162,7 +162,9 @@ def synthesize_project_state(
         project_id, scoped, by_claim, candidates, ctx
     )
     attention = _attention(facts, candidates, ctx)
-    known = tuple(item for item in facts if item.status in {FactStatus.OBSERVED, FactStatus.DERIVED})
+    known = tuple(
+        item for item in facts if item.status in {FactStatus.OBSERVED, FactStatus.DERIVED}
+    )
     unknown = tuple(item for item in facts if item.status is FactStatus.UNKNOWN)
     stale = tuple(item for item in facts if item.status is FactStatus.STALE)
     contested = tuple(item for item in facts if item.status is FactStatus.CONTESTED)
@@ -261,7 +263,9 @@ def _facts_for_project(
             )
             for item in group_assessments
         )
-        unknown = all(item.confidence_class is ConfidenceClass.UNKNOWN for item in group_assessments)
+        unknown = all(
+            item.confidence_class is ConfidenceClass.UNKNOWN for item in group_assessments
+        )
         values = {normalize_value(item.value, item.normalized_text) for item in bucket}
         recently = any(
             item.predecessor_claim_id or item.lifecycle is ClaimLifecycle.UPDATED for item in bucket
