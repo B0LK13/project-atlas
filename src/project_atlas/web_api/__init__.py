@@ -27,6 +27,7 @@ from project_atlas.web_api.health import (
     read_status,
     read_vault_health,
 )
+from project_atlas.web_api.inbox import WebInboxError, read_inbox
 from project_atlas.web_api.intelligence import (
     WebIntelligenceError,
     read_intelligence_conflicts,
@@ -48,6 +49,7 @@ __all__ = [
     "ReadStatus",
     "VaultHealthView",
     "WebBriefError",
+    "WebInboxError",
     "WebIntelligenceError",
     "WebRoadmapError",
     "filter_knowledge_by_project",
@@ -57,6 +59,7 @@ __all__ = [
     "list_projects",
     "load_estate_discovery_view",
     "read_impact_graph",
+    "read_inbox",
     "read_intelligence_conflicts",
     "read_intelligence_evidence",
     "read_intelligence_explain",

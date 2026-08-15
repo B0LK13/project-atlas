@@ -18,6 +18,7 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebInboxError,
     WebIntelligenceError,
     WebRoadmapError,
     filter_knowledge_by_project,
@@ -26,6 +27,7 @@ from project_atlas.web_api import (
     list_project_conflicts,
     list_projects,
     load_estate_discovery_view,
+    read_inbox,
     read_intelligence_conflicts,
     read_intelligence_evidence,
     read_intelligence_explain,
@@ -104,6 +106,21 @@ class AppService:
             return read_project_roadmap(self.vault, project_id)
         except WebRoadmapError as exc:
             raise AppServiceError(str(exc)) from exc
+
+    def inbox(
+        self,
+        project_id: str,
+        *,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """Project-scoped Knowledge Inbox lens (read-only; INBOX != authority)."""
+        try:
+            return read_inbox(self.vault, project_id, status=status, limit=limit)
+        except WebInboxError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
 
     def graph_summary(self) -> dict[str, Any]:
         summary = impact_graph_summary(self.vault)
