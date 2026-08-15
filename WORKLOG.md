@@ -25,6 +25,271 @@ MERGE_AUTHORIZATION = NOT_GRANTED
 PRODUCTION_TIP = 1ac68f3116181d50adf07e56979b1b217d2665a0
 ```
 
+## D-102 — #358 exact-main refresh
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D102-PR358-EXACT-MAIN-REFRESH-AND-D100-RECONCILIATION
+**PR:** #358
+**Refresh:** merge `origin/main` `4da4a4e` (no rebase). WORKLOG keep-both.
+**Merge authorization:** NOT_GRANTED
+
+```
+ACTUAL_MAIN = 4da4a4ed6028583021c22b24eb11a47a4bdf0fe0
+PR359_STATE = MERGED — POST-MERGE VERIFIED
+CURRENT_MAIN_CI_REPAIRED = YES
+D100_TARGET_HEAD = 6041b79332c49a56894dca4d45619253e54ef51c
+PR354_AUTHENTIC_HOLD = CLEARED
+PR354_PRODUCT_HOLD = CLEARED
+PR354_INTEGRATION_HOLD = YES
+PR354_STATE = AUTHENTIC CERTIFIED — INTEGRATION PENDING
+PR358_HEAD_BEFORE = e44de58cb79db138c8a62427fa3febeb82502ab6
+PR358_REFRESH_METHOD = MERGE_CURRENT_MAIN
+PR358_PRODUCTION_SEMANTIC_CONFLICTS = 0
+D100_ROADMAP_SEMANTIC_DELTA = 0
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+Evidence: `docs/evidence/D-102-PR358-EXACT-MAIN-REFRESH.md`.
+
+---
+
+## D-102 — D-100 Roadmap reconcile + #358 exact-main refresh
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D102-D100-ROADMAP-RECONCILIATION-AND-PR358-EXACT-MAIN-READINESS
+**PR #358:** refreshed onto post-#359 main via merge (no rebase). Do not merge.
+**PR #354:** not mutated. D-100 authentic pin preserved.
+
+```
+PR359_MERGED = YES
+CURRENT_MAIN = 4da4a4ed6028583021c22b24eb11a47a4bdf0fe0
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_HEAD = 6041b79332c49a56894dca4d45619253e54ef51c
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_TREE = 78e24d48024f26c55d741f00689e788f1ec0fc01
+D100_LOCAL_AUTHENTIC_IV = PASS
+PR354_AUTHENTIC_HOLD = CLEARED
+PR354_INTEGRATION_HOLD = YES
+PR354_MERGE_AUTHORIZATION = NOT_GRANTED
+PR358_REFRESH_METHOD = MERGE_CURRENT_MAIN
+PR358_PRODUCTION_SEMANTIC_CONFLICTS = 0
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+Conflict: `WORKLOG.md` only — DOCS_ADDITIVE keep-both (#358 honesty +
+#359 Context + D-096/#360). Evidence:
+`docs/evidence/D-100-ROADMAP-LOCAL-AUTHENTIC-REIV.md`,
+`docs/evidence/D-102-PR358-EXACT-MAIN-OWNER-PACKET.md`.
+
+---
+
+## D-100 — Roadmap Local authentic re-IV (owner-supplied)
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D102 (Lane A reconcile)
+**PR #354:** `cursor/as-project-roadmap-001-6f85` — head not moved
+**Validator:** Local (Windows) authentic re-IV — owner-supplied fact
+
+Exact object Local tested (permanent pin; later refresh ≠ this object):
+
+```
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_HEAD = 6041b79332c49a56894dca4d45619253e54ef51c
+D100_AUTHENTIC_CERTIFIED_PRODUCTION_TREE = 78e24d48024f26c55d741f00689e788f1ec0fc01
+PROJECT_ID = dark-factory-02ee94d0
+PROJECT_UUID = c440d169-bb43-4e97-a175-0d3f62177d8f
+ROADMAP_LOCAL_AUTHENTIC_IV = PASS
+ROADMAP_SEMANTIC_CERTIFICATION = PASS
+ROADMAP_AUTHENTIC_CERTIFICATION = PASS
+ROADMAP_STATE = CERTIFIED — INTEGRATION PENDING
+MERGE_ELIGIBLE = NOT YET
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+Former `PR354_SPECIAL_HOLD` / `LOCAL_RECERTIFICATION_PENDING` is
+superseded. Authentic hold cleared. Integration hold remains:
+WAITING_FOR_PRECEDING_QUEUE + EXACT-MAIN REFRESH.
+
+---
+
+## TRUTH-UX-001 — LIVE web hook honesty
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001
+**Branch:** `cursor/live-hook-honesty-25b1` (from accepted main `9441b0c`)
+**Not #354 / #356 / #357.** No merge authorization.
+
+LIVE HTTP/network failures on brief/knowledge/graph/ops/discovery must
+not be labeled `demo_stub`.
+
+```
+HOOK_HONESTY_IV = PASS
+HOOK_HONESTY_CI = PASS
+HOOK_HONESTY_STATE = CERTIFIED — MERGE ELIGIBLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+PRODUCTION_TIP = ba2fc7f373ba54f31dc0b1093e11d5309153fc5e
+```
+
+D-102: refreshed onto exact post-#359 main `4da4a4e` by merge commit
+(no rebase). Production tip `ba2fc7f` unchanged. Merge authorization
+still not granted.
+
+---
+
+## AS-CODER-ALPHA-CONTEXT-001 — Web paste-ready agent context
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-OWNER-QUEUE-CONSOLIDATION-001
+**PR:** #359
+**Branch:** `cursor/web-agent-context-25b1` (from accepted main `9441b0c`)
+**Not #354 / #356 / #357 / #358.** No merge authorization.
+
+Read-only `#/context` markdown pack from live brief. Does not write
+`atlas context` files. LENS ≠ authority. DERIVED ≠ authority.
+
+Independent IV: UNKNOWN honesty, project mismatch fail-closed, newline
+flattening, cross-project capture filter, runtime helper gates, ruff,
+mypy, web typecheck/build. OWNER_HELD = YES.
+
+CI unblock: mypy 2.3.1 unused-ignore on `yaml_structured.py` dispose()
+(stubs differ). Closer assigned through `Any`. No YAML behavior change.
+
+D-099: merged exact current main `689f740` via merge commit (no rebase).
+WORKLOG keep-both with D-096/#360 history. yaml closer unchanged.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+---
+
+## D-096 — D-042 post-hoc owner governance ratification
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-OWNER-D042-D096-GOVERNANCE-RATIFICATION
+**PR #360:** docs/governance only; authorized for GitHub merge commit
+**PR #353:** already merged; history not rewritten
+**PR #354:** not touched
+
+Owner granted post-hoc ratification of the already-merged `#353`
+object. Pre-merge authorization provenance remains UNVERIFIED.
+No production / runtime / test / schema change.
+
+```
+PRE_MERGE_AUTHORIZATION_PROVENANCE = UNVERIFIED
+POST_HOC_OWNER_RATIFICATION = GRANTED
+D042_FINAL_ACCEPTANCE = PASS
+D042_STATE = CLOSED
+PRODUCTION_SEMANTIC_CHANGE = 0
+```
+
+Evidence: `docs/evidence/D-096-D042-POST-HOC-OWNER-GOVERNANCE-RATIFICATION.md`.
+
+---
+
+## D-095 — D-042 post-merge seal and governance reconciliation
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D042-D095-POST-MERGE-SEAL-AND-GOVERNANCE-RECONCILIATION
+**Validator:** Cloud/Local D-042 lane (Windows)
+**PR #353:** already merged; not amended
+**PR #354:** not touched
+**PR #360:** draft docs-only; owner-held; updated, not merged
+
+Independent of the earlier Local D-095 `CLOSED` stamp. Live re-read of
+`origin/main` `9441b0c` / tree `ed78a92e` / parents `c282f2c1` +
+`822a6d82`. Exact-main CI `31838651156` PASS. Bounded suites re-run on
+fresh detached worktree `D:\atlas-acceptance-d060\d095-recon-src`
+(`STALE_GLOBAL_ATLAS_USED = NO`). Four post-merge Copilot comments
+triaged: 0 blocking; LOW residuals only.
+`GOVERNANCE_RULE_FOR_LOW_MEDIUM_RESIDUALS = NOT_FOUND`.
+
+```
+MERGE_AUTHORIZATION_PROVENANCE = UNVERIFIED
+PREMERGE_OWNER_AUTHORIZATION = UNVERIFIED
+MERGE_EXECUTION_PRECEDED_VERIFIED_OWNER_AUTHORIZATION = YES
+POST_HOC_OWNER_RATIFICATION = CONDITIONAL
+OWNER_GOVERNANCE_RATIFICATION_REQUIRED = YES
+POST_MERGE_TECHNICAL_SEAL = PASS
+D042_FINAL_ACCEPTANCE = PENDING
+D042_STATE = MERGED — TECHNICALLY VERIFIED — GOVERNANCE RATIFICATION PENDING
+POST_MERGE_CLOSURE_PRODUCTION_CHANGES = 0
+```
+
+CASE B. Do not write `MERGE_AUTHORIZATION = VALID`. Return to owner.
+
+Evidence: `docs/evidence/D-095-D042-POST-MERGE-SEAL.md`.
+Prior Local receipt retained:
+`docs/evidence/D-095-D042-POST-MERGE-RATIFICATION-AND-SEAL.md`
+(historical; governance state superseded by this packet).
+Local recon freeze: `D:\atlas-acceptance-d060\d095-recon\FINAL_REPORT.md`.
+
+---
+
+## D-095 — D-042 post-merge ratification and seal
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-OWNER-D042-D095-POST-MERGE-RATIFICATION-AND-CLOSURE
+**Validator:** Local (Windows)
+**PR #353:** already merged when D-095 began (do not merge again)
+**PR #354:** not touched
+
+```
+PR_353_MERGED = YES
+OBSERVED_MERGE_COMMIT = 9441b0c576dc54bc43a92a62a4e972889424c21f
+CURRENT_MAIN = 9441b0c576dc54bc43a92a62a4e972889424c21f
+MERGE_TREE = ed78a92e941d88ac1aa198c311b0120b4c9ce7ef
+PARENT_1 = c282f2c1eb2dde24f997e480c37d083fda906e54
+PARENT_2 = 822a6d82fa81df8afa1f4de759f3d2dc2a8b93fb
+PARENT_1_MATCH = YES
+PARENT_2_MATCH = YES
+MERGE_TREE_EQUALS_CERTIFIED_PR_TREE = YES
+GITHUB_MERGE_COMMIT = YES
+SQUASH = NO
+REBASE = NO
+PREMERGE_AUTHORIZATION = NOT_ESTABLISHED
+OWNER_POST_MERGE_RATIFICATION = VALID
+OWNER_ACCEPTS_EXISTING_MERGE = YES
+AUTHORIZED_D091_PAYLOAD_PRESENT = YES
+PRODUCTION_SEMANTIC_DRIFT_FROM_CERTIFIED_PR = 0
+UNRELATED_PRODUCTION_CHANGE = 0
+VALIDATION_HEAD = 9441b0c576dc54bc43a92a62a4e972889424c21f
+VALIDATION_TREE = ed78a92e941d88ac1aa198c311b0120b4c9ce7ef
+D042_EXACT_MAIN = PASS
+D049_REGRESSION = PASS
+IDENTITY_CONNECT = PASS
+SOURCE_LINEAGE = PASS
+SESSION_CAPTURE = PASS
+AGENT_HANDOFF = PASS
+API_ADV = PASS
+SECURITY = PASS
+MCP = PASS
+CONTROL_PLANE = PASS
+RUFF = PASS
+MYPY = PASS
+WEB_TYPECHECK = PASS
+WEB_BUILD = PASS
+LOCAL_D092_APPLICABLE_TO_MERGED_MAIN = YES
+POST_MERGE_GITHUB_CI = PASS
+D042_FINAL_ACCEPTANCE = PASS
+D042_STATE = CLOSED
+CONVERSATIONAL_CAPTURE = PRODUCTION_ACCEPTED
+D042_EXECUTION_GATE = SATISFIED
+D091_PRODUCTION_FREEZE = ACCEPTED_ON_MAIN
+POST_MERGE_CLOSURE_PRODUCTION_CHANGES = 0
+ROADMAP_PR_354_TOUCHED = NO
+```
+
+`#353` was already merged. Known prior state said `MERGE_AUTHORIZATION =
+NOT_GRANTED`. No predating owner merge-authorization receipt was found.
+Owner later granted post-merge ratification after integrity + exact-main
+gates passed. This is not a retroactive pre-merge authorization claim.
+
+Exact-main worktree: `D:\atlas-acceptance-d060\d095-atlas-src` at
+`9441b0c` / tree `ed78a92e`. Fresh `py -3.12` venv. Stale global atlas
+not used.
+
+CI distinction: PR-head CI `31837034472` on `822a6d82` = PASS (separate).
+Post-merge push CI `31838651156` on `9441b0c` = PASS.
+
+Evidence: `docs/evidence/D-095-D042-POST-MERGE-RATIFICATION-AND-SEAL.md`.
+Local freeze copy: `D:\atlas-acceptance-d060\d095-seal\FINAL_REPORT.md`.
+Closure PR: `#360` (draft; owner-held; do not merge without explicit owner authorization).
+
 ---
 
 ## D-094 — D-042 final reconciliation

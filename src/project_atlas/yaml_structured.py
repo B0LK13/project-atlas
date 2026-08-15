@@ -219,7 +219,10 @@ def load_safe_yaml(data: bytes | str, limits: YamlSecurityLimits = DEFAULT_YAML_
         try:
             return loader.get_single_data()
         finally:
-            loader.dispose()  # type: ignore[no-untyped-call]
+            # PyYAML stubs sometimes type dispose(), sometimes do not.
+            # Avoid a version-sensitive type: ignore (mypy 2.3.1 unused-ignore).
+            closer: Any = loader.dispose
+            closer()
     except YamlSecurityError:
         raise
     except yaml.constructor.ConstructorError as exc:

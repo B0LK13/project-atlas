@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  LiveApiAuthError,
-  liveApiDemoOnly,
-  liveApiFetch,
-} from "../api/liveApi";
+import { liveApiDemoOnly, liveApiFetch } from "../api/liveApi";
 import type { DataSource } from "../types";
 
 /** LIVE_API ops receipt inventory; demo fallback is honest unknown (no invent). */
@@ -72,16 +68,21 @@ export function useOpsReceipts(): {
             }
             return;
           }
-        } catch (err: unknown) {
-          if (err instanceof LiveApiAuthError) {
-            if (!cancelled) {
-              setError(err.message);
-              setInventory(null);
-              setDataSource(null);
-            }
-            return;
+          if (!cancelled) {
+            setError(`ops receipts HTTP ${resp.status}`);
+            setInventory(null);
+            setDataSource(null);
           }
-          // fall through
+          return;
+        } catch (err: unknown) {
+          if (!cancelled) {
+            setError(
+              err instanceof Error ? err.message : "ops receipts load failed",
+            );
+            setInventory(null);
+            setDataSource(null);
+          }
+          return;
         }
       }
       if (!cancelled) {
