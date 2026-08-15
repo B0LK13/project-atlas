@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal
 
@@ -108,57 +109,133 @@ class ContradictionCandidate(BaseModel):
     authority_note: Literal["candidate-not-resolution"] = "candidate-not-resolution"
 
 
+@dataclass(frozen=True, slots=True)
+class PairingStats:
+    """Explainable pairing cost. Not a quality score."""
+
+    claim_count: int
+    group_count: int
+    pair_evaluations: int
+    candidate_count: int
+    skipped_same_value: int
+    skipped_unknown: int
+    skipped_temporal: int
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedClaim:
+    claim: AssessableClaim
+    norm: str
+    unknown: bool
+    lineage: str
+    evidence: tuple[EvidenceRef, ...]
+
+
 def find_contradiction_candidates(
     claims: Sequence[Claim | AssessableClaim],
     context: ContradictionContext | None = None,
 ) -> tuple[ContradictionCandidate, ...]:
     """Detect explainable candidates. Input order does not change semantics."""
+    candidates, _stats = find_contradiction_candidates_report(claims, context)
+    return candidates
+
+
+def find_contradiction_candidates_report(
+    claims: Sequence[Claim | AssessableClaim],
+    context: ContradictionContext | None = None,
+) -> tuple[tuple[ContradictionCandidate, ...], PairingStats]:
+    """Same candidates as :func:`find_contradiction_candidates`, plus pairing stats."""
     ctx = context if context is not None else ContradictionContext()
     items = coerce_claims(claims)
     windows = {item.claim_id: item for item in ctx.validity_windows}
-    groups: dict[str, list[AssessableClaim]] = defaultdict(list)
-    for item in items:
-        groups[group_key(item.project_id, item.subject, item.field)].append(item)
+    source_index = (
+        {item.source_id: item for item in ctx.sources} if ctx.sources is not None else None
+    )
+    ambiguous = set(ctx.identity_ambiguous_claim_ids)
+    prepared = [_prepare(item) for item in items]
+    groups: dict[str, list[_PreparedClaim]] = defaultdict(list)
+    skipped_unknown = 0
+    for item in prepared:
+        if item.unknown:
+            skipped_unknown += 1
+            continue
+        groups[group_key(item.claim.project_id, item.claim.subject, item.claim.field)].append(item)
 
     candidates: list[ContradictionCandidate] = []
+    pair_evaluations = 0
+    skipped_same_value = 0
+    skipped_temporal = 0
     for bucket in groups.values():
-        bucket.sort(key=lambda item: item.claim_id)
-        for index, left in enumerate(bucket):
-            for right in bucket[index + 1 :]:
-                found = _pair_candidate(left, right, ctx, windows)
-                if found is not None:
-                    candidates.append(found)
+        bucket.sort(key=lambda item: item.claim.claim_id)
+        by_value: dict[str, list[_PreparedClaim]] = defaultdict(list)
+        for item in bucket:
+            by_value[item.norm].append(item)
+        value_keys = sorted(by_value)
+        skipped_same_value += sum(len(rows) * (len(rows) - 1) // 2 for rows in by_value.values())
+        for left_index, left_key in enumerate(value_keys):
+            for right_key in value_keys[left_index + 1 :]:
+                left_rows = by_value[left_key]
+                right_rows = by_value[right_key]
+                for left in left_rows:
+                    for right in right_rows:
+                        pair_evaluations += 1
+                        found, temporal_skip = _pair_prepared(
+                            left,
+                            right,
+                            windows,
+                            source_index,
+                            ambiguous,
+                        )
+                        if temporal_skip:
+                            skipped_temporal += 1
+                        if found is not None:
+                            candidates.append(found)
     candidates.sort(key=lambda item: item.candidate_id)
-    return tuple(candidates)
+    stats = PairingStats(
+        claim_count=len(items),
+        group_count=len(groups),
+        pair_evaluations=pair_evaluations,
+        candidate_count=len(candidates),
+        skipped_same_value=skipped_same_value,
+        skipped_unknown=skipped_unknown,
+        skipped_temporal=skipped_temporal,
+    )
+    return tuple(candidates), stats
 
 
-def _pair_candidate(
-    left: AssessableClaim,
-    right: AssessableClaim,
-    ctx: ContradictionContext,
+def _prepare(claim: AssessableClaim) -> _PreparedClaim:
+    unknown = is_unknown_value(claim.value, claim.normalized_text) or (
+        claim.confidence is ConfidenceState.UNKNOWN
+    )
+    return _PreparedClaim(
+        claim=claim,
+        norm=normalize_value(claim.value, claim.normalized_text),
+        unknown=unknown,
+        lineage=_claim_lineage(claim),
+        evidence=_claim_evidence(claim),
+    )
+
+
+def _pair_prepared(
+    left: _PreparedClaim,
+    right: _PreparedClaim,
     windows: dict[str, ValidityWindowInput],
-) -> ContradictionCandidate | None:
-    if left.project_id != right.project_id:
-        return None
-    if is_unknown_value(left.value, left.normalized_text) or is_unknown_value(
-        right.value, right.normalized_text
-    ):
-        return None
-    if left.confidence is ConfidenceState.UNKNOWN or right.confidence is ConfidenceState.UNKNOWN:
-        return None
-    if normalize_value(left.value, left.normalized_text) == normalize_value(
-        right.value, right.normalized_text
-    ):
-        return None
+    source_index: dict[str, SourceObservation] | None,
+    ambiguous: set[str],
+) -> tuple[ContradictionCandidate | None, bool]:
+    left_claim = left.claim
+    right_claim = right.claim
+    if left_claim.project_id != right_claim.project_id:
+        return None, False
     if (
-        left.authority_domain
-        and right.authority_domain
-        and left.authority_domain != right.authority_domain
+        left_claim.authority_domain
+        and right_claim.authority_domain
+        and left_claim.authority_domain != right_claim.authority_domain
     ):
-        return None
+        return None, False
 
-    left_window = windows.get(left.claim_id)
-    right_window = windows.get(right.claim_id)
+    left_window = windows.get(left_claim.claim_id)
+    right_window = windows.get(right_claim.claim_id)
     try:
         relation_raw = windows_relation(
             left_window.valid_from if left_window else None,
@@ -170,50 +247,44 @@ def _pair_candidate(
         relation_raw = "unknown"
     temporal = TemporalRelationship(relation_raw)
     if temporal in {TemporalRelationship.SUCCESSION, TemporalRelationship.NON_OVERLAPPING}:
-        return None
+        return None, True
 
-    left_lineage = _claim_lineage(left)
-    right_lineage = _claim_lineage(right)
     same_lineage = (
-        left_lineage != "unknown-identity"
-        and left_lineage == right_lineage
+        left.lineage != "unknown-identity" and left.lineage == right.lineage
     )
     source_relationship = "same-lineage" if same_lineage else "distinct-or-unknown-lineage"
-    authority_relationship = _authority_relationship(left, right)
-    missing_source = _missing_source(left, right, ctx.sources)
-    identity_ambiguous = (
-        left.claim_id in ctx.identity_ambiguous_claim_ids
-        or right.claim_id in ctx.identity_ambiguous_claim_ids
-    )
+    authority_relationship = _authority_relationship(left_claim, right_claim)
+    missing_source = _missing_source_index(left_claim, right_claim, source_index)
+    identity_ambiguous = left_claim.claim_id in ambiguous or right_claim.claim_id in ambiguous
 
     uncertainty: list[str] = []
     if temporal is TemporalRelationship.UNKNOWN:
         uncertainty.append("temporal-relationship-unknown")
     if not same_lineage and (
-        left_lineage == "unknown-identity" or right_lineage == "unknown-identity"
+        left.lineage == "unknown-identity" or right.lineage == "unknown-identity"
     ):
         uncertainty.append("source-lineage-unknown")
     if missing_source:
         uncertainty.append("source-record-missing-or-deleted")
-    if left.authority is None or right.authority is None:
+    if left_claim.authority is None or right_claim.authority is None:
         uncertainty.append("authority-incomplete")
 
     candidate_class, reason = _classify_pair(
         temporal=temporal,
         same_lineage=same_lineage,
         identity_ambiguous=identity_ambiguous,
-        left=left,
-        right=right,
+        left=left_claim,
+        right=right_claim,
         authority_relationship=authority_relationship,
     )
-    severity = _severity(candidate_class, temporal, left, right)
-    evidence = _pair_evidence(left, right)
-    first, second = sorted((left.claim_id, right.claim_id))
+    severity = _severity(candidate_class, temporal, left_claim, right_claim)
+    evidence = tuple(sorted(left.evidence + right.evidence, key=_evidence_sort))
+    first, second = sorted((left_claim.claim_id, right_claim.claim_id))
     material = "|".join(
         (
-            left.project_id or "",
-            left.subject,
-            left.field,
+            left_claim.project_id or "",
+            left_claim.subject,
+            left_claim.field,
             first,
             second,
             candidate_class.value,
@@ -224,23 +295,30 @@ def _pair_candidate(
         f"human-review-required:{candidate_class.value};"
         "auto-resolve-forbidden;candidate-is-not-falsehood"
     )
-    return ContradictionCandidate(
-        candidate_id=candidate_id,
-        candidate_class=candidate_class,
-        claim_a_id=first,
-        claim_b_id=second,
-        project_id=left.project_id,
-        subject=left.subject,
-        field=left.field,
-        temporal_relationship=temporal,
-        authority_relationship=authority_relationship,
-        source_relationship=source_relationship,
-        severity_class=severity,
-        reason=reason,
-        supporting_evidence=evidence,
-        uncertainty=tuple(sorted(set(uncertainty))),
-        recommended_human_review_reason=review,
-        truth_boundary=TRUTH_BOUNDARY_CONTRADICTION,
+    return (
+        ContradictionCandidate.model_construct(
+            schema_version=1,
+            package_id="AS-2.0-INTEL-002",
+            candidate_id=candidate_id,
+            candidate_class=candidate_class,
+            claim_a_id=first,
+            claim_b_id=second,
+            project_id=left_claim.project_id,
+            subject=left_claim.subject,
+            field=left_claim.field,
+            temporal_relationship=temporal,
+            authority_relationship=authority_relationship,
+            source_relationship=source_relationship,
+            severity_class=severity,
+            reason=reason,
+            supporting_evidence=evidence,
+            uncertainty=tuple(sorted(set(uncertainty))),
+            recommended_human_review_reason=review,
+            truth_boundary=TRUTH_BOUNDARY_CONTRADICTION,
+            generated={"by": GENERATED_BY},
+            authority_note="candidate-not-resolution",
+        ),
+        False,
     )
 
 
@@ -262,19 +340,18 @@ def _authority_relationship(left: AssessableClaim, right: AssessableClaim) -> st
     return f"divergent:{levels[0]}|{levels[1]}"
 
 
-def _missing_source(
+def _missing_source_index(
     left: AssessableClaim,
     right: AssessableClaim,
-    sources: tuple[SourceObservation, ...] | None,
+    source_index: dict[str, SourceObservation] | None,
 ) -> bool:
-    if sources is None:
+    if source_index is None:
         return False
-    index = {item.source_id: item for item in sources}
     for claim in (left, right):
         if not claim.provenance:
             return True
         for ref in claim.provenance:
-            observed = index.get(ref.source_id)
+            observed = source_index.get(ref.source_id)
             if observed is None or observed.deleted or not observed.present:
                 return True
     return False
@@ -359,31 +436,34 @@ def _severity(
     return SeverityClass.LOW
 
 
-def _pair_evidence(left: AssessableClaim, right: AssessableClaim) -> tuple[EvidenceRef, ...]:
+def _claim_evidence(claim: AssessableClaim) -> tuple[EvidenceRef, ...]:
     refs: list[EvidenceRef] = []
-    for claim in (left, right):
-        if claim.provenance:
-            for item in claim.provenance:
-                refs.append(
-                    EvidenceRef(
-                        source_id=item.source_id,
-                        source_lineage_id=item.source_lineage_id or claim.source_lineage_id,
-                        resource=item.resource,
-                        sha256=item.sha256,
-                        claim_id=claim.claim_id,
-                        role=EvidenceRole.CONTRADICTING,
-                    )
-                )
-        else:
+    if claim.provenance:
+        for item in claim.provenance:
             refs.append(
-                EvidenceRef(
-                    source_id=None,
-                    source_lineage_id=claim.source_lineage_id,
-                    resource=None,
-                    sha256=None,
+                EvidenceRef.model_construct(
+                    source_id=item.source_id,
+                    source_lineage_id=item.source_lineage_id or claim.source_lineage_id,
+                    resource=item.resource,
+                    sha256=item.sha256,
                     claim_id=claim.claim_id,
-                    role=EvidenceRole.UNKNOWN,
+                    role=EvidenceRole.CONTRADICTING,
                 )
             )
-    refs.sort(key=lambda item: (item.claim_id or "", item.source_id or "", item.resource or ""))
+    else:
+        refs.append(
+            EvidenceRef.model_construct(
+                source_id=None,
+                source_lineage_id=claim.source_lineage_id,
+                resource=None,
+                sha256=None,
+                claim_id=claim.claim_id,
+                role=EvidenceRole.UNKNOWN,
+            )
+        )
+    refs.sort(key=_evidence_sort)
     return tuple(refs)
+
+
+def _evidence_sort(item: EvidenceRef) -> tuple[str, str, str]:
+    return (item.claim_id or "", item.source_id or "", item.resource or "")

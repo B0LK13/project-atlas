@@ -23,9 +23,11 @@ from project_atlas.intelligence.contradictions import (
     ContradictionCandidate,
     ContradictionClass,
     ContradictionContext,
+    PairingStats,
     SeverityClass,
     TemporalRelationship,
     find_contradiction_candidates,
+    find_contradiction_candidates_report,
 )
 from project_atlas.intelligence.derived_state import (
     AttentionCandidate,
@@ -82,6 +84,7 @@ __all__ = [
     "FactStatus",
     "LimitingFactor",
     "LineageIntegrity",
+    "PairingStats",
     "SeverityClass",
     "SourceObservation",
     "StateContext",
@@ -90,5 +93,6 @@ __all__ = [
     "assess_evidence",
     "assess_evidence_many",
     "find_contradiction_candidates",
+    "find_contradiction_candidates_report",
     "synthesize_project_state",
 ]
