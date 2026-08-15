@@ -25,6 +25,7 @@ from project_atlas.intelligence.boundary import (
     PACKAGE_NEXT_001,
     PACKAGE_PORTFOLIO_001,
     PACKAGE_PORTFOLIO_002,
+    PACKAGE_PORTFOLIO_003,
     PACKAGE_STATE_001,
     PROJECT_STATE_IS_CANONICAL,
     TRUTH_BOUNDARY_CONTRADICTION,
@@ -84,6 +85,11 @@ from project_atlas.intelligence.portfolio import (
     PortfolioState,
     aggregate_portfolio_state,
 )
+from project_atlas.intelligence.portfolio_attention import (
+    AttentionRankClass,
+    PortfolioAttentionEntry,
+    rank_portfolio_attention,
+)
 from project_atlas.intelligence.portfolio_deps import (
     DependencyClass,
     PortfolioDependency,
@@ -129,6 +135,7 @@ __all__ = [
     "PACKAGE_NEXT_001",
     "PACKAGE_PORTFOLIO_001",
     "PACKAGE_PORTFOLIO_002",
+    "PACKAGE_PORTFOLIO_003",
     "PACKAGE_STATE_001",
     "PROJECT_STATE_IS_CANONICAL",
     "TRUTH_BOUNDARY_CONTRADICTION",
@@ -146,6 +153,7 @@ __all__ = [
     "AssessmentContext",
     "AttentionCandidate",
     "AttentionKind",
+    "AttentionRankClass",
     "ChangeClass",
     "ConfidenceClass",
     "ContradictionCandidate",
@@ -175,6 +183,7 @@ __all__ = [
     "NextActionCandidate",
     "NextActionKind",
     "PairingStats",
+    "PortfolioAttentionEntry",
     "PortfolioDependency",
     "PortfolioProjectEntry",
     "PortfolioState",
@@ -204,5 +213,6 @@ __all__ = [
     "find_contradiction_candidates_report",
     "propose_next_action_candidates",
     "query_intelligence",
+    "rank_portfolio_attention",
     "synthesize_project_state",
 ]
