@@ -3,11 +3,11 @@
 DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001`
 BRANCH: `cursor/as-project-roadmap-001-6f85`
 BASE: `9441b0c576dc54bc43a92a62a4e972889424c21f` (accepted main after #353)
-PRODUCTION_TIP: `d0d3afcf548952d15fc3cf80cbb4df63d85012df`
+PRODUCTION_TIP: `96c4c68a3d98d64d749231ace7136a8eb8da7ccd`
 
 ```
-ROADMAP_STATE = CERTIFIED — MERGE ELIGIBLE
-ROADMAP_IV = PASS
+ROADMAP_STATE = REMEDIATED — CI + IV PENDING
+ROADMAP_IV = PENDING_REVALIDATION
 MERGE_AUTHORIZATION = NOT_GRANTED
 OWNER_HELD = YES
 ```
@@ -64,7 +64,8 @@ transition. Cloud fixtures only; Dark Factory vault was not executed.
 - Deterministic model: `atlas.project-roadmap.v1`
 - CLI: `atlas roadmap --vault <vault> [--project <id>] [--json]`
 - API: `GET /v1/roadmap?project=<id>` (read-only derive; no write)
-- Web: `#/roadmap` (UI ≠ canonical; demo stub isolated)
+- Web: `#/roadmap?project=` (UI ≠ canonical; demo stub only when
+  `liveApiDemoOnly()`; HTTP/catch failures stay unlabeled as demo)
 
 Agent context (`CURRENT_PROJECT_POSITION` / critical path / blockers) is
 deferred so `#353` `agent_handoff.py` is not contaminated.
@@ -114,8 +115,27 @@ MERGE_AUTHORIZATION = NOT_GRANTED
 ## Gates on this branch
 
 ```
-pytest tests/unit/test_as_project_roadmap_001.py + test_schema.py
-  (adversarial honesty cases added; count is not the gate)
-ruff / mypy on touched modules
-connect now materializes ans-roadmap-* (agent-context still deferred)
+pytest tests/unit/test_as_project_roadmap_001.py
+       tests/unit/test_as_project_roadmap_web.py
+  22 passed against /workspace/src
+apps/web tsc -b PASS; vite build PASS
+connect materializes ans-roadmap-*; agent-context position after #353
+```
+
+## Daytime Web honesty remediation (2026-08-15)
+
+Composed product journey found:
+
+- `JOURNEY_ROADMAP = PARTIAL` — hardcoded `harbor-api`, no `?project=`
+- `LIVE_FAILURE_HONESTY = FAIL` on the Roadmap hook (`demo_stub` on error)
+
+`96c4c68` keeps the fixture default when the query is absent, follows
+`?project=` otherwise, and sets `data_source=null` on live HTTP/catch
+errors. `demo_stub` remains only for explicit `liveApiDemoOnly()`.
+
+```
+PRIOR_CERTIFIED_TIP = d0d3afcf548952d15fc3cf80cbb4df63d85012df
+CURRENT_PRODUCTION_TIP = 96c4c68a3d98d64d749231ace7136a8eb8da7ccd
+CURRENT_PRODUCTION_TREE = 9a034042fb614429c44a6cde242e51ea9d2680e6
+KNOWLEDGEPAGE_TOUCHED = NO
 ```

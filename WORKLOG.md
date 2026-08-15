@@ -23,7 +23,11 @@ re-IV is required before certification is restated.
 Agent-context integration was deferred while #353 was open. After the
 owner merge, derived you-are-here / next unlock were added to agent
 context and handoff. Independent IV PASS at `2d2a2dc` and post-merge
-`69c2de8`. Package is CERTIFIED — MERGE ELIGIBLE; merge is not granted.
+`69c2de8`. Daytime journey IV then found MEDIUM Web defects on the
+prior certified tip (`d0d3afc`): hardcoded `harbor-api` and
+`demo_stub` on live HTTP/catch. Bounded remediation `96c4c68` adds
+`?project=` routing and honest `data_source`. Recertification pending
+CI + repeated IV. Merge is not granted.
 
 ---
 

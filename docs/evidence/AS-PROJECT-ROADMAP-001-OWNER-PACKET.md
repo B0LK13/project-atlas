@@ -5,8 +5,8 @@ PR: `#354`
 BRANCH: `cursor/as-project-roadmap-001-6f85`
 
 ```
-ROADMAP_STATE = CERTIFIED — MERGE ELIGIBLE
-ROADMAP_IV = PASS
+ROADMAP_STATE = REMEDIATED — CI + IV PENDING
+ROADMAP_IV = PENDING_REVALIDATION
 ROADMAP_PR = 354
 MERGE_AUTHORIZATION = NOT_GRANTED
 OWNER_HELD = YES
@@ -21,13 +21,23 @@ Cloud does not merge this PR.
 ```
 ACCEPTED_MAIN = 9441b0c576dc54bc43a92a62a4e972889424c21f
 D042_MERGED_VIA = #353
-PRODUCTION_TIP = d0d3afcf548952d15fc3cf80cbb4df63d85012df
-PRODUCTION_TREE = ace08a2ac004b81d998267cd53d94bf2a5cc6c9c
+PRODUCTION_TIP = 96c4c68a3d98d64d749231ace7136a8eb8da7ccd
+PRODUCTION_TREE = 9a034042fb614429c44a6cde242e51ea9d2680e6
 ```
 
-`PRODUCTION_TIP` is the last production commit (agent-context position).
-Any later docs-only evidence commit on this branch does not change
-runtime behavior.
+`PRODUCTION_TIP` is the last production commit (Web `?project=` routing
++ live-failure honesty). Any later docs-only evidence commit on this
+branch does not change runtime behavior.
+
+Daytime governor `D-PROJECT-ATLAS-CLOUD-DAYTIME-GOVERNOR-20260815-001`
+found two MEDIUM journey defects on the prior certified tip:
+
+- Roadmap Web hardcoded `harbor-api` (no `useSearchParams`)
+- `useLiveRoadmap` labeled HTTP/catch failures as `demo_stub`
+
+Bounded remediation stays inside `#354`. Recertification requires
+repeated IV + observed GitHub CI on this tip. Do not treat the prior
+`d0d3afc` CERTIFIED stamp as current.
 
 ---
 
@@ -54,7 +64,7 @@ wired after D-042 landed.
 
 - CLI: `atlas roadmap [--read-only] [--json]`
 - API: `GET /v1/roadmap?project=`
-- Web: `#/roadmap`
+- Web: `#/roadmap?project=`
 - Connect: materializes `ans-roadmap-*`
 - Agent context / handoff: derived you-are-here / next unlock / blockers
 
@@ -70,9 +80,13 @@ NO EVIDENCE != VERIFIED
 ## Validation observed
 
 ```
-pytest roadmap + schema + connect + D-042 capture + handoff
-ruff / mypy on touched modules
-Independent IV PASS at 2d2a2dc and 69c2de8
+pytest tests/unit/test_as_project_roadmap_001.py
+       tests/unit/test_as_project_roadmap_web.py
+  22 passed (workspace src)
+apps/web tsc -b PASS
+apps/web vite build PASS (72 modules)
+Independent IV of 96c4c68 = PENDING (repeat after CI)
+Prior IV PASS at 2d2a2dc and 69c2de8 remains historical only
 ```
 
 ---
