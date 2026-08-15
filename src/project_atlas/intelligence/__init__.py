@@ -45,6 +45,7 @@ from project_atlas.intelligence.derived_state import (
     synthesize_project_state,
 )
 from project_atlas.intelligence.evidence import assess_evidence, assess_evidence_many
+from project_atlas.intelligence.explain import EvidenceTrace, explain_why
 from project_atlas.intelligence.query import (
     IntelligenceAnswer,
     IntelligenceQuery,
@@ -101,6 +102,7 @@ __all__ = [
     "EvidenceDimensions",
     "EvidenceRef",
     "EvidenceRole",
+    "EvidenceTrace",
     "FactStatus",
     "IntelligenceAnswer",
     "IntelligenceQuery",
@@ -117,6 +119,7 @@ __all__ = [
     "ValidityWindowInput",
     "assess_evidence",
     "assess_evidence_many",
+    "explain_why",
     "find_contradiction_candidates",
     "find_contradiction_candidates_report",
     "query_intelligence",

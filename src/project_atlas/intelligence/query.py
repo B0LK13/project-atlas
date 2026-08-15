@@ -142,7 +142,30 @@ def query_intelligence(
             query, query_id, claims, sources, validity_windows, identity_ambiguous_claim_ids
         )
     if query.kind is IntelligenceQueryKind.EXPLAIN:
-        return _nonanswer(query, query_id, SlotStatus.UNKNOWN, "explain-package-not-bound")
+        from project_atlas.intelligence.explain import explanation_for_query
+
+        trace, status, reason, assessments = explanation_for_query(
+            query,
+            scoped,
+            sources=sources,
+            validity_windows=validity_windows,
+            identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
+        )
+        return IntelligenceAnswer(
+            query_id=query_id,
+            kind=query.kind,
+            outcome=QueryOutcome.ANSWER if scoped else QueryOutcome.NONANSWER,
+            status=status,
+            project_id=query.project_id,
+            subject=query.subject,
+            field=query.field,
+            claim_id=query.claim_id,
+            as_of_valid_time=query.as_of_valid_time,
+            reason=reason,
+            assessments=assessments,
+            explanation=trace.model_dump(),
+            truth_boundary=TRUTH_BOUNDARY_QUERY,
+        )
     return _nonanswer(query, query_id, SlotStatus.UNKNOWN, "gaps-package-not-bound")
 
 
