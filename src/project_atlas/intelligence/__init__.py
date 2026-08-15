@@ -24,6 +24,7 @@ from project_atlas.intelligence.boundary import (
     PACKAGE_INTEL_005,
     PACKAGE_NEXT_001,
     PACKAGE_PORTFOLIO_001,
+    PACKAGE_PORTFOLIO_002,
     PACKAGE_STATE_001,
     PROJECT_STATE_IS_CANONICAL,
     TRUTH_BOUNDARY_CONTRADICTION,
@@ -83,6 +84,11 @@ from project_atlas.intelligence.portfolio import (
     PortfolioState,
     aggregate_portfolio_state,
 )
+from project_atlas.intelligence.portfolio_deps import (
+    DependencyClass,
+    PortfolioDependency,
+    detect_portfolio_dependencies,
+)
 from project_atlas.intelligence.query import (
     IntelligenceAnswer,
     IntelligenceQuery,
@@ -122,6 +128,7 @@ __all__ = [
     "PACKAGE_INTEL_005",
     "PACKAGE_NEXT_001",
     "PACKAGE_PORTFOLIO_001",
+    "PACKAGE_PORTFOLIO_002",
     "PACKAGE_STATE_001",
     "PROJECT_STATE_IS_CANONICAL",
     "TRUTH_BOUNDARY_CONTRADICTION",
@@ -145,6 +152,7 @@ __all__ = [
     "ContradictionClass",
     "ContradictionContext",
     "DeltaPolarity",
+    "DependencyClass",
     "DerivedAgentContext",
     "DerivedFact",
     "DerivedProjectState",
@@ -167,6 +175,7 @@ __all__ = [
     "NextActionCandidate",
     "NextActionKind",
     "PairingStats",
+    "PortfolioDependency",
     "PortfolioProjectEntry",
     "PortfolioState",
     "QueryOutcome",
@@ -187,6 +196,7 @@ __all__ = [
     "compose_agent_context",
     "compose_evidence_handoff",
     "detect_evidence_gaps",
+    "detect_portfolio_dependencies",
     "detect_risk_signals",
     "detect_semantic_changes",
     "explain_why",
