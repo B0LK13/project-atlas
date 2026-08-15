@@ -304,9 +304,9 @@ def test_candidates_do_not_mutate_inputs() -> None:
         _claim("claim-a", value="PostgreSQL 15"),
         _claim("claim-b", value="PostgreSQL 16", source_id="src-b"),
     ]
-    before = [item.model_dump() if isinstance(item, Claim) else item.model_dump() for item in claims]
+    before = [item.model_dump() for item in claims]
     find_contradiction_candidates(claims)
-    after = [item.model_dump() if isinstance(item, Claim) else item.model_dump() for item in claims]
+    after = [item.model_dump() for item in claims]
     assert before == after
 
 

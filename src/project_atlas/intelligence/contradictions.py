@@ -33,7 +33,6 @@ from project_atlas.intelligence.types import (
     EvidenceRole,
     SourceObservation,
     ValidityWindowInput,
-    coerce_claim,
     coerce_claims,
 )
 
@@ -317,7 +316,10 @@ def _classify_pair(
             ContradictionClass.AUTHORITY_CONFLICT,
             "incompatible-values-with-divergent-authority",
         )
-    if left.authority is AuthorityLevel.CONFLICTING or right.authority is AuthorityLevel.CONFLICTING:
+    if (
+        left.authority is AuthorityLevel.CONFLICTING
+        or right.authority is AuthorityLevel.CONFLICTING
+    ):
         return (
             ContradictionClass.AUTHORITY_CONFLICT,
             "incompatible-values-with-conflicting-authority-mark",
