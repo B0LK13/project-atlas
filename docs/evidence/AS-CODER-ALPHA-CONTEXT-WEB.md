@@ -50,6 +50,12 @@ NEW_HIGH = 0
 
 Standard repository CI is observed on the pushed tip (do not guess names).
 
+CI note: GitHub `quality (ubuntu-latest, 3.12, full)` installed mypy 2.3.1
+and failed on an unused `type: ignore` in `yaml_structured.py` (unchanged
+#359 semantics; present on current main). The ignore is removed so the
+required CI gate can complete. This is not a conversational-capture or
+context-pack behavior change.
+
 ## Rollback
 
 Revert this branch. No schema or vault migration.
