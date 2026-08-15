@@ -3051,7 +3051,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         except KnowledgeInboxError as exc:
             _log.error("inbox failed: %s", exc)
-            error_body = {
+            inbox_error: dict[str, Any] = {
                 "status": "error",
                 "error": exc.code,
                 "message": str(exc),
@@ -3059,7 +3059,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "promoted_to_authority": False,
             }
             if getattr(args, "as_json", False):
-                print(json.dumps(error_body, indent=2, sort_keys=True))
+                print(json.dumps(inbox_error, indent=2, sort_keys=True))
             else:
                 print(f"atlas inbox list error [{exc.code}]: {exc}")
             return EXIT_ERROR
