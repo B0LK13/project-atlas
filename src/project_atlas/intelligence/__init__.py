@@ -4,12 +4,18 @@ Import from this package, not from ``project_atlas.domain``. These types are
 not Layer B records and must not be written as canonical truth.
 """
 
+from project_atlas.intelligence.agent_context import (
+    DerivedAgentContext,
+    compose_agent_context,
+)
 from project_atlas.intelligence.boundary import (
     AUTO_RESOLVE_CONTRADICTIONS,
     CONFIDENCE_SCORE_IS_FACT,
     CONTRADICTION_CANDIDATE_IS_PROVEN_FALSEHOOD,
     DERIVED_INTELLIGENCE_IS_AUTHORITY,
     DERIVED_STATE_WRITES_CANONICAL_TRUTH,
+    NEXT_ACTION_CANDIDATE_IS_COMMAND,
+    PACKAGE_CTX_001,
     PACKAGE_INTEL_001,
     PACKAGE_INTEL_002,
     PACKAGE_INTEL_003,
@@ -18,6 +24,7 @@ from project_atlas.intelligence.boundary import (
     PACKAGE_STATE_001,
     PROJECT_STATE_IS_CANONICAL,
     TRUTH_BOUNDARY_CONTRADICTION,
+    TRUTH_BOUNDARY_CTX,
     TRUTH_BOUNDARY_EVIDENCE,
     TRUTH_BOUNDARY_EXPLAIN,
     TRUTH_BOUNDARY_GAPS,
@@ -87,6 +94,8 @@ __all__ = [
     "CONTRADICTION_CANDIDATE_IS_PROVEN_FALSEHOOD",
     "DERIVED_INTELLIGENCE_IS_AUTHORITY",
     "DERIVED_STATE_WRITES_CANONICAL_TRUTH",
+    "NEXT_ACTION_CANDIDATE_IS_COMMAND",
+    "PACKAGE_CTX_001",
     "PACKAGE_INTEL_001",
     "PACKAGE_INTEL_002",
     "PACKAGE_INTEL_003",
@@ -95,6 +104,7 @@ __all__ = [
     "PACKAGE_STATE_001",
     "PROJECT_STATE_IS_CANONICAL",
     "TRUTH_BOUNDARY_CONTRADICTION",
+    "TRUTH_BOUNDARY_CTX",
     "TRUTH_BOUNDARY_EVIDENCE",
     "TRUTH_BOUNDARY_EXPLAIN",
     "TRUTH_BOUNDARY_GAPS",
@@ -111,6 +121,7 @@ __all__ = [
     "ContradictionClass",
     "ContradictionContext",
     "DeltaPolarity",
+    "DerivedAgentContext",
     "DerivedFact",
     "DerivedProjectState",
     "EvidenceAssessment",
@@ -142,6 +153,7 @@ __all__ = [
     "assess_evidence",
     "assess_evidence_many",
     "classify_deltas",
+    "compose_agent_context",
     "detect_evidence_gaps",
     "detect_risk_signals",
     "detect_semantic_changes",
