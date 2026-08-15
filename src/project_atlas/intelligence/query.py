@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Sequence
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, assert_never
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,6 +44,9 @@ class IntelligenceQueryKind(StrEnum):
     STATE = "state"
     EXPLAIN = "explain"
     GAPS = "gaps"
+    ATTENTION = "attention"
+    CHANGE = "change"
+    CONTEXT = "context"
 
 
 class QueryOutcome(StrEnum):
@@ -98,6 +101,9 @@ class IntelligenceAnswer(BaseModel):
     state: DerivedProjectState | None = None
     explanation: dict[str, object] | None = None
     gaps: tuple[dict[str, object], ...] = ()
+    changes: tuple[dict[str, object], ...] = ()
+    risks: tuple[dict[str, object], ...] = ()
+    context: dict[str, object] | None = None
     truth_boundary: str
     generated: dict[str, str] = Field(default_factory=lambda: {"by": GENERATED_BY})
     authority_note: Literal["query-not-authoritative"] = "query-not-authoritative"
@@ -166,29 +172,41 @@ def query_intelligence(
             explanation=trace.model_dump(),
             truth_boundary=TRUTH_BOUNDARY_QUERY,
         )
-    from project_atlas.intelligence.gaps import gaps_for_query
+    if query.kind is IntelligenceQueryKind.ATTENTION:
+        return _answer_attention(
+            query, query_id, scoped, sources, validity_windows, identity_ambiguous_claim_ids
+        )
+    if query.kind is IntelligenceQueryKind.CHANGE:
+        return _answer_change(query, query_id, scoped, validity_windows)
+    if query.kind is IntelligenceQueryKind.CONTEXT:
+        return _answer_context(
+            query, query_id, scoped, sources, validity_windows, identity_ambiguous_claim_ids
+        )
+    if query.kind is IntelligenceQueryKind.GAPS:
+        from project_atlas.intelligence.gaps import gaps_for_query
 
-    found, status, reason = gaps_for_query(
-        query,
-        scoped,
-        sources=sources,
-        validity_windows=validity_windows,
-        identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
-    )
-    return IntelligenceAnswer(
-        query_id=query_id,
-        kind=query.kind,
-        outcome=QueryOutcome.ANSWER if found else QueryOutcome.NONANSWER,
-        status=status,
-        project_id=query.project_id,
-        subject=query.subject,
-        field=query.field,
-        claim_id=query.claim_id,
-        as_of_valid_time=query.as_of_valid_time,
-        reason=reason,
-        gaps=tuple(item.model_dump() for item in found),
-        truth_boundary=TRUTH_BOUNDARY_QUERY,
-    )
+        found, status, reason = gaps_for_query(
+            query,
+            scoped,
+            sources=sources,
+            validity_windows=validity_windows,
+            identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
+        )
+        return IntelligenceAnswer(
+            query_id=query_id,
+            kind=query.kind,
+            outcome=QueryOutcome.ANSWER if found else QueryOutcome.NONANSWER,
+            status=status,
+            project_id=query.project_id,
+            subject=query.subject,
+            field=query.field,
+            claim_id=query.claim_id,
+            as_of_valid_time=query.as_of_valid_time,
+            reason=reason,
+            gaps=tuple(item.model_dump() for item in found),
+            truth_boundary=TRUTH_BOUNDARY_QUERY,
+        )
+    assert_never(query.kind)
 
 
 def _answer_evidence(
@@ -304,6 +322,111 @@ def _answer_state(
         reason="derived-project-state-filtered-to-query-scope",
         facts=facts,
         state=state,
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+    )
+
+
+def _answer_attention(
+    query: IntelligenceQuery,
+    query_id: str,
+    scoped: tuple[AssessableClaim, ...],
+    sources: tuple[SourceObservation, ...] | None,
+    validity_windows: tuple[ValidityWindowInput, ...],
+    identity_ambiguous_claim_ids: tuple[str, ...],
+) -> IntelligenceAnswer:
+    from project_atlas.intelligence.risk import detect_risk_signals
+
+    signals = detect_risk_signals(
+        query.project_id,
+        scoped,
+        sources=sources,
+        validity_windows=validity_windows,
+        identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
+        as_of_valid_time=query.as_of_valid_time,
+    )
+    status = SlotStatus.NO_EVIDENCE if not scoped else SlotStatus.UNKNOWN
+    if any(item.risk_class.value == "attention" for item in signals):
+        status = SlotStatus.CONTESTED
+    return IntelligenceAnswer(
+        query_id=query_id,
+        kind=query.kind,
+        outcome=QueryOutcome.ANSWER if signals else QueryOutcome.NONANSWER,
+        status=status,
+        project_id=query.project_id,
+        subject=query.subject,
+        field=query.field,
+        claim_id=query.claim_id,
+        as_of_valid_time=query.as_of_valid_time,
+        reason="risk-signals-are-not-facts",
+        risks=tuple(item.model_dump() for item in signals),
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+    )
+
+
+def _answer_change(
+    query: IntelligenceQuery,
+    query_id: str,
+    scoped: tuple[AssessableClaim, ...],
+    validity_windows: tuple[ValidityWindowInput, ...],
+) -> IntelligenceAnswer:
+    from project_atlas.intelligence.change import detect_semantic_changes
+
+    found = detect_semantic_changes(scoped, validity_windows=validity_windows)
+    if query.subject:
+        found = tuple(item for item in found if item.subject == query.subject)
+    if query.field:
+        found = tuple(item for item in found if item.field == query.field)
+    return IntelligenceAnswer(
+        query_id=query_id,
+        kind=query.kind,
+        outcome=QueryOutcome.ANSWER if found else QueryOutcome.NONANSWER,
+        status=SlotStatus.DERIVED if found else SlotStatus.NO_EVIDENCE,
+        project_id=query.project_id,
+        subject=query.subject,
+        field=query.field,
+        claim_id=query.claim_id,
+        as_of_valid_time=query.as_of_valid_time,
+        reason="semantic-change-is-not-regression",
+        changes=tuple(item.model_dump() for item in found),
+        truth_boundary=TRUTH_BOUNDARY_QUERY,
+    )
+
+
+def _answer_context(
+    query: IntelligenceQuery,
+    query_id: str,
+    scoped: tuple[AssessableClaim, ...],
+    sources: tuple[SourceObservation, ...] | None,
+    validity_windows: tuple[ValidityWindowInput, ...],
+    identity_ambiguous_claim_ids: tuple[str, ...],
+) -> IntelligenceAnswer:
+    from project_atlas.intelligence.agent_context import compose_agent_context
+
+    context = compose_agent_context(
+        query.project_id,
+        scoped,
+        sources=sources,
+        validity_windows=validity_windows,
+        identity_ambiguous_claim_ids=identity_ambiguous_claim_ids,
+        as_of_valid_time=query.as_of_valid_time,
+    )
+    status = SlotStatus.NO_EVIDENCE if not scoped else SlotStatus.DERIVED
+    if context.contested_facts:
+        status = SlotStatus.CONTESTED
+    elif context.unknown_facts and not context.known_facts:
+        status = SlotStatus.UNKNOWN
+    return IntelligenceAnswer(
+        query_id=query_id,
+        kind=query.kind,
+        outcome=QueryOutcome.ANSWER,
+        status=status,
+        project_id=query.project_id,
+        subject=query.subject,
+        field=query.field,
+        claim_id=query.claim_id,
+        as_of_valid_time=query.as_of_valid_time,
+        reason="derived-agent-context-is-not-authority",
+        context=context.model_dump(),
         truth_boundary=TRUTH_BOUNDARY_QUERY,
     )
 
