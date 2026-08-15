@@ -20,6 +20,7 @@ from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
     WebRoadmapError,
+    WebSourceHealthError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -35,6 +36,7 @@ from project_atlas.web_api import (
     read_project_brief,
     read_project_roadmap,
     read_project_state,
+    read_source_health,
     read_status,
     read_vault_health,
 )
@@ -104,6 +106,15 @@ class AppService:
             return read_project_roadmap(self.vault, project_id)
         except WebRoadmapError as exc:
             raise AppServiceError(str(exc)) from exc
+
+    def source_health(self, project_id: str) -> dict[str, Any]:
+        """Project-scoped source-health lens (read-only; != authority)."""
+        try:
+            return read_source_health(self.vault, project_id)
+        except WebSourceHealthError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
 
     def graph_summary(self) -> dict[str, Any]:
         summary = impact_graph_summary(self.vault)
