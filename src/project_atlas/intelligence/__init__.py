@@ -40,6 +40,7 @@ from project_atlas.intelligence.contradictions import (
     find_contradiction_candidates,
     find_contradiction_candidates_report,
 )
+from project_atlas.intelligence.delta import DeltaPolarity, ValueDelta, classify_deltas
 from project_atlas.intelligence.derived_state import (
     AttentionCandidate,
     AttentionKind,
@@ -109,6 +110,7 @@ __all__ = [
     "ContradictionCandidate",
     "ContradictionClass",
     "ContradictionContext",
+    "DeltaPolarity",
     "DerivedFact",
     "DerivedProjectState",
     "EvidenceAssessment",
@@ -136,8 +138,10 @@ __all__ = [
     "StateContext",
     "TemporalRelationship",
     "ValidityWindowInput",
+    "ValueDelta",
     "assess_evidence",
     "assess_evidence_many",
+    "classify_deltas",
     "detect_evidence_gaps",
     "detect_risk_signals",
     "detect_semantic_changes",
