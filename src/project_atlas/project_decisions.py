@@ -12,6 +12,7 @@ Honesty: lens != authority; UNKNOWN when no decision evidence exists.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -231,6 +232,95 @@ def _safe_project_id(project_id: str) -> str:
     if not project_id or project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
         raise ProjectDecisionsError(f"unsafe project id: {project_id!r}")
     return project_id
+
+
+def _decision_source_path(relative: str) -> bool:
+    posix = relative.replace("\\", "/").lower()
+    name = posix.rsplit("/", 1)[-1]
+    return (
+        name == "decisions.md"
+        or "/adr/" in posix
+        or "/adrs/" in posix
+        or name.startswith("adr-")
+    )
+
+
+def _evaluate_decision_source_drift(vault: Path, project_id: str) -> dict[str, Any]:
+    """Compare live decision-looking sources to connect-manifest hashes."""
+    manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
+    if not manifest_path.is_file():
+        return {"status": "UNKNOWN", "reason": "connect-manifest absent", "changed_paths": []}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {"status": "UNKNOWN", "reason": "connect-manifest unreadable", "changed_paths": []}
+    if not isinstance(manifest, dict):
+        return {"status": "UNKNOWN", "reason": "connect-manifest unreadable", "changed_paths": []}
+    sources = manifest.get("sources")
+    rows: list[dict[str, str]] = []
+    if isinstance(sources, list):
+        for item in sources:
+            if not isinstance(item, dict) or item.get("exclusion_reason"):
+                continue
+            owner = item.get("likely_project") or item.get("project_id")
+            if isinstance(owner, str) and owner != project_id:
+                continue
+            path = item.get("path")
+            digest = item.get("sha256")
+            if isinstance(path, str) and _decision_source_path(path):
+                rows.append(
+                    {
+                        "path": path.replace("\\", "/"),
+                        "sha256": digest if isinstance(digest, str) else "",
+                    }
+                )
+    if not rows:
+        return {
+            "status": "UNKNOWN",
+            "reason": "no decision-looking active sources",
+            "changed_paths": [],
+        }
+    raw_root = manifest.get("source_root")
+    if not isinstance(raw_root, str) or not raw_root.strip() or ".." in Path(raw_root).parts:
+        return {
+            "status": "UNKNOWN",
+            "reason": "source_root missing; stored hashes are not live",
+            "changed_paths": [],
+        }
+    try:
+        root = Path(raw_root).expanduser().resolve()
+    except OSError:
+        root = None
+    if root is None or not root.is_dir():
+        return {
+            "status": "UNKNOWN",
+            "reason": "source_root missing on disk",
+            "changed_paths": [],
+        }
+    from project_atlas.source_identity import canonical_source_sha256
+
+    changed: list[str] = []
+    for row in rows:
+        rel = row["path"]
+        if not rel or ".." in Path(rel).parts or rel.startswith("/"):
+            changed.append(rel or "UNKNOWN")
+            continue
+        live_path = root / rel
+        if not live_path.is_file():
+            changed.append(rel)
+            continue
+        try:
+            live = canonical_source_sha256(live_path)
+        except OSError:
+            changed.append(rel)
+            continue
+        if live != (row["sha256"] or ""):
+            changed.append(rel)
+    return {
+        "status": "STALE" if changed else "FRESH",
+        "reason": "live decision sources drifted" if changed else "live decision sources match",
+        "changed_paths": changed,
+    }
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -561,6 +651,19 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "UNKNOWN!=healthy",
         ]
 
+    drift: dict[str, Any] = {
+        "status": "UNKNOWN",
+        "reason": "drift not evaluated",
+        "changed_paths": [],
+    }
+    with contextlib.suppress(Exception):
+        drift = _evaluate_decision_source_drift(vault, project_id)
+    drift_status = str(drift.get("status") or "UNKNOWN")
+    if drift_status == "STALE":
+        notes.append(
+            "STALE DECISION SOURCE != CURRENT GOVERNING; reconnect first"
+        )
+
     return {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.decisions-lens.v1",
@@ -583,6 +686,21 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},
+        "source_drift": {
+            "status": drift_status,
+            "reason": drift.get("reason"),
+            "changed_paths": [
+                item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+            ][:20],
+            "package": "AS-CODER-ALPHA-DECISIONS-STALE-001",
+        },
+        "honesty": {
+            "lens_is_authority": False,
+            "governing_evidence_stale": drift_status == "STALE",
+            "stale_is_current": False,
+            "unknown_is_healthy": False,
+            "status_is_confidence": False,
+        },
     }
 
 
