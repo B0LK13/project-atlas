@@ -299,9 +299,10 @@ POST_MERGE_CLOSURE_PRODUCTION_CHANGES = 0
 ROADMAP_PR_354_TOUCHED         = NO
 ```
 
-Persistence of this receipt on `main` is a separate owner-held docs PR.
-The operational D-042 closure verdict is recorded here after the
-exact-main seal passed.
+Persistence of this receipt on `main` is a separate owner-held docs PR
+(`#360`, draft). The operational D-042 closure verdict is recorded here
+after the exact-main seal passed. Do not merge `#360` without explicit
+owner authorization.
 
 ---
 

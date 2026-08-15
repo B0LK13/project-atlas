@@ -73,6 +73,7 @@ Post-merge push CI `31838651156` on `9441b0c` = PASS.
 
 Evidence: `docs/evidence/D-095-D042-POST-MERGE-RATIFICATION-AND-SEAL.md`.
 Local freeze copy: `D:\atlas-acceptance-d060\d095-seal\FINAL_REPORT.md`.
+Closure PR: `#360` (draft; owner-held; do not merge without explicit owner authorization).
 
 ---
 
