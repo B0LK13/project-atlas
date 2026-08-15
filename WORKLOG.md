@@ -5,6 +5,30 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-CONTEXT-001 — Web paste-ready agent context
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-OWNER-QUEUE-CONSOLIDATION-001
+**PR:** #359
+**Branch:** `cursor/web-agent-context-25b1` (from accepted main `9441b0c`)
+**Not #354 / #356 / #357 / #358.** No merge authorization.
+
+Read-only `#/context` markdown pack from live brief. Does not write
+`atlas context` files. LENS ≠ authority. DERIVED ≠ authority.
+
+Independent IV: UNKNOWN honesty, project mismatch fail-closed, newline
+flattening, cross-project capture filter, runtime helper gates, ruff,
+mypy, web typecheck/build. OWNER_HELD = YES.
+
+CI unblock: mypy 2.3.1 unused-ignore on `yaml_structured.py` dispose()
+(stubs differ). Closer assigned through `Any`. No YAML behavior change.
+
+D-099: merged exact current main `689f740` via merge commit (no rebase).
+WORKLOG keep-both with D-096/#360 history. yaml closer unchanged.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+---
+
 ## D-096 — D-042 post-hoc owner governance ratification
 
 **Date:** 2026-08-15
