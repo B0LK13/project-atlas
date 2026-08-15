@@ -91,6 +91,8 @@ def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
     assert (project / BIND_RELATIVE).is_file()
     assert (vault / "generated" / "ops" / "connect-receipt.json").is_file()
     assert (vault / "projects" / expected_id / "project.md").is_file()
+    assert any("ans-roadmap-" in path for path in first.get("roadmap_answers") or [])
+    assert (vault / "generated" / "answers" / f"ans-roadmap-{expected_id}.json").is_file()
     marker = (project / ".atlas-project.yaml").read_text(encoding="utf-8")
     assert f"id: {expected_id}" in marker
 

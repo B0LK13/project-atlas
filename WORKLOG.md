@@ -5,6 +5,68 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-PROJECT-ROADMAP-001 — D-098 authentic Web context remediation
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D098-ROADMAP-AUTHENTIC-WEB-CONTEXT-REMEDIATION
+**Branch:** `cursor/as-project-roadmap-001-6f85`
+**PR:** #354 (existing; no new PR)
+**Merge authorization:** not granted
+
+Local D-096 on `a9770ce` / `4359ceb7` returned `PARTIAL`: ProdNav
+`/roadmap` dropped `?project=`, and `RoadmapPage` silently defaulted to
+`harbor-api`. Prior `ROADMAP_IV=PASS` is superseded. Chronology A–G
+preserved in `docs/evidence/AS-PROJECT-ROADMAP-001.md`.
+
+Bounded Web-only fix: project-aware ProdNav hrefs; Roadmap requires
+explicit `?project=` (UNKNOWN / select otherwise). `harbor-api` only
+when selected. No Core/API mutation. No `project-atlas` default.
+
+```
+py -3.12 -m pytest tests/unit/test_as_project_roadmap_001.py
+                   tests/unit/test_as_project_roadmap_web.py
+                   tests/unit/test_as_project_roadmap_nav.py
+  34 passed (was 22; +12)
+ruff PASS; mypy src PASS; apps/web tsc + vite 72 modules PASS
+```
+
+```
+CLOUD_IV = PASS
+ROADMAP_LOCAL_AUTHENTIC_IV = PENDING_RECHECK
+ROADMAP_STATE = LOCAL_RECERTIFICATION_PENDING
+MERGE_ELIGIBLE = NO
+MERGE_AUTHORIZATION = NOT_GRANTED
+QUEUE_ORDER_UNCHANGED = YES
+```
+
+---
+
+## AS-PROJECT-ROADMAP-001 — Living Project Roadmap V1
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001
+**Branch:** `cursor/as-project-roadmap-001-6f85`
+**Updated onto accepted main:** `9441b0c` (owner merged #353 / D-042)
+**Merge authorization:** not granted
+
+Derived roadmap model + CLI + GET `/v1/roadmap` + Web `#/roadmap`.
+Overnight IV of `dd6d6f9` falsified prior `ROADMAP_IV=PASS` (false CLOSED,
+conflict bleed, missing deps, unnormalized rollup). Bounded remediation
+plus isolation follow-up. Independent IV of `2d2a2dc` (pre-#353-merge
+base) = PASS. This merge updates the branch onto post-#353 main; post-merge
+re-IV is required before certification is restated.
+
+Agent-context integration was deferred while #353 was open. After the
+owner merge, derived you-are-here / next unlock were added to agent
+context and handoff. Independent IV PASS at `2d2a2dc` and post-merge
+`69c2de8`. Daytime journey IV then found MEDIUM Web defects on the
+prior certified tip (`d0d3afc`): hardcoded `harbor-api` and
+`demo_stub` on live HTTP/catch. Bounded remediation `96c4c68` adds
+`?project=` routing and honest `data_source`. `a9770ce` applies the
+identical #359 yaml closer after ubuntu-full mypy unused-ignore.
+CI `31871795221` SUCCESS. Independent IV PASS. CERTIFIED — MERGE
+ELIGIBLE. Merge is not granted.
+
 ## AS-2.1-ASK-ATLAS-LIVE-001 — Web Ask live journey
 
 **Date:** 2026-08-14

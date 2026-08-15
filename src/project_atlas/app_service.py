@@ -18,6 +18,7 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebRoadmapError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -25,6 +26,7 @@ from project_atlas.web_api import (
     list_projects,
     load_estate_discovery_view,
     read_project_brief,
+    read_project_roadmap,
     read_status,
     read_vault_health,
 )
@@ -78,6 +80,13 @@ class AppService:
         try:
             return read_project_brief(self.vault, project_id)
         except WebBriefError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def roadmap(self, project_id: str) -> dict[str, Any]:
+        """Living Project Roadmap V1 (read-only; ROADMAP != canonical)."""
+        try:
+            return read_project_roadmap(self.vault, project_id)
+        except WebRoadmapError as exc:
             raise AppServiceError(str(exc)) from exc
 
     def graph_summary(self) -> dict[str, Any]:

@@ -44,6 +44,11 @@ const PROD = [
     title: "Workspace",
     blurb: "AS-WEB-WORKSPACE-001 stub — UI≠canonical; ACCEPTED=YES.",
   },
+  {
+    to: "/roadmap",
+    title: "Roadmap",
+    blurb: "Living Project Roadmap V1 — derived; ROADMAP≠canonical.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
