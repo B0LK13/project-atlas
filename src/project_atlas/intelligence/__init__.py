@@ -28,6 +28,7 @@ from project_atlas.intelligence.boundary import (
     PACKAGE_PORTFOLIO_002,
     PACKAGE_PORTFOLIO_003,
     PACKAGE_STATE_001,
+    PACKAGE_TEMPINT_001,
     PROJECT_STATE_IS_CANONICAL,
     TRUTH_BOUNDARY_CONTRADICTION,
     TRUTH_BOUNDARY_CTX,
@@ -39,6 +40,7 @@ from project_atlas.intelligence.boundary import (
     TRUTH_BOUNDARY_PORTFOLIO,
     TRUTH_BOUNDARY_QUERY,
     TRUTH_BOUNDARY_STATE,
+    TRUTH_BOUNDARY_TEMPINT,
     UNKNOWN_IS_VALID,
 )
 from project_atlas.intelligence.change import (
@@ -120,6 +122,13 @@ from project_atlas.intelligence.query import (
     query_intelligence,
 )
 from project_atlas.intelligence.risk import RiskClass, RiskSignal, detect_risk_signals
+from project_atlas.intelligence.temporal_intel import (
+    TemporalDeltaClass,
+    TemporalProjectDelta,
+    TemporalReasonClass,
+    TemporalSlotDelta,
+    derive_temporal_intelligence,
+)
 from project_atlas.intelligence.types import (
     AssessableClaim,
     AssessmentContext,
@@ -154,6 +163,7 @@ __all__ = [
     "PACKAGE_PORTFOLIO_002",
     "PACKAGE_PORTFOLIO_003",
     "PACKAGE_STATE_001",
+    "PACKAGE_TEMPINT_001",
     "PROJECT_STATE_IS_CANONICAL",
     "TRUTH_BOUNDARY_CONTRADICTION",
     "TRUTH_BOUNDARY_CTX",
@@ -165,6 +175,7 @@ __all__ = [
     "TRUTH_BOUNDARY_PORTFOLIO",
     "TRUTH_BOUNDARY_QUERY",
     "TRUTH_BOUNDARY_STATE",
+    "TRUTH_BOUNDARY_TEMPINT",
     "UNKNOWN_IS_VALID",
     "AssessableClaim",
     "AssessmentContext",
@@ -218,7 +229,11 @@ __all__ = [
     "SlotStatus",
     "SourceObservation",
     "StateContext",
+    "TemporalDeltaClass",
+    "TemporalProjectDelta",
+    "TemporalReasonClass",
     "TemporalRelationship",
+    "TemporalSlotDelta",
     "ValidityWindowInput",
     "ValueDelta",
     "aggregate_portfolio_state",
@@ -228,6 +243,7 @@ __all__ = [
     "classify_deltas",
     "compose_agent_context",
     "compose_evidence_handoff",
+    "derive_temporal_intelligence",
     "detect_evidence_gaps",
     "detect_portfolio_dependencies",
     "detect_risk_signals",
