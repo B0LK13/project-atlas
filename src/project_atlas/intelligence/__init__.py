@@ -79,6 +79,10 @@ from project_atlas.intelligence.next_action import (
     NextActionKind,
     propose_next_action_candidates,
 )
+from project_atlas.intelligence.observe import (
+    IntelligenceRunReport,
+    observe_intelligence_run,
+)
 from project_atlas.intelligence.portfolio import (
     LeakageRejection,
     PortfolioProjectEntry,
@@ -177,6 +181,7 @@ __all__ = [
     "IntelligenceAnswer",
     "IntelligenceQuery",
     "IntelligenceQueryKind",
+    "IntelligenceRunReport",
     "LeakageRejection",
     "LimitingFactor",
     "LineageIntegrity",
@@ -211,6 +216,7 @@ __all__ = [
     "explain_why",
     "find_contradiction_candidates",
     "find_contradiction_candidates_report",
+    "observe_intelligence_run",
     "propose_next_action_candidates",
     "query_intelligence",
     "rank_portfolio_attention",
