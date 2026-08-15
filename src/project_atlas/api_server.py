@@ -284,6 +284,22 @@ def make_handler(
                 except AppServiceError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/roadmap":
+                project = (qs.get("project") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "roadmap-requires-project",
+                            "package_id": PACKAGE_ID,
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.roadmap(project))
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/actions/recent":
                 try:
                     limit = _parse_limit(qs, default=20)

@@ -525,6 +525,7 @@ def connect_project(
             "materialize_changed",
             "materialize_decisions",
             "materialize_unknown",
+            "materialize_roadmap",
             "materialize_brief",
             "materialize_obsidian",
             "write_bind",
@@ -549,6 +550,7 @@ def connect_project(
         "changed_answers": [],
         "decisions_answers": [],
         "unknown_answers": [],
+        "roadmap_answers": [],
         "brief_paths": [],
         "obsidian_notes": [],
         "marker_created": False,
@@ -649,6 +651,7 @@ def connect_project(
         from project_atlas.project_brief import materialize_project_briefs
         from project_atlas.project_changed import materialize_changed_lenses
         from project_atlas.project_decisions import materialize_decisions_lenses
+        from project_atlas.project_roadmap import materialize_roadmap_lenses
         from project_atlas.project_state import materialize_state_lenses
         from project_atlas.project_unknown import materialize_unknown_lenses
 
@@ -658,6 +661,7 @@ def connect_project(
         changed = materialize_changed_lenses(vault_path, manifest=manifest)
         decisions = materialize_decisions_lenses(vault_path)
         unknown = materialize_unknown_lenses(vault_path)
+        roadmap = materialize_roadmap_lenses(vault_path)
         # refresh=False: lenses just written above.
         brief = materialize_project_briefs(vault_path, refresh=False)
         from project_atlas.obsidian_projection import materialize_obsidian_projection
@@ -683,6 +687,7 @@ def connect_project(
     report["changed_delta"] = changed.get("delta", {})
     report["decisions_answers"] = decisions.get("answers_written", [])
     report["unknown_answers"] = unknown.get("answers_written", [])
+    report["roadmap_answers"] = roadmap.get("answers_written", [])
     report["brief_paths"] = brief.get("briefs_written", [])
     report["obsidian_notes"] = obsidian.get("notes_written", [])
 

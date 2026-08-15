@@ -135,6 +135,47 @@ def _render_source_health_section(health: dict[str, Any] | None) -> list[str]:
     return lines
 
 
+def _render_roadmap_section(roadmap: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Current project position (derived roadmap)"]
+    if not roadmap:
+        lines.append("UNKNOWN — no roadmap lens")
+        return lines
+    here = roadmap.get("you_are_here") if isinstance(roadmap, dict) else None
+    nxt = roadmap.get("next_unlock") if isinstance(roadmap, dict) else None
+    here = here if isinstance(here, dict) else {}
+    nxt = nxt if isinstance(nxt, dict) else {}
+    lines.append("ROADMAP!=CANONICAL_TRUTH. DERIVED_STATUS!=AUTHORITY.")
+    lines.append(
+        f"you_are_here={here.get('title') or 'UNKNOWN'} "
+        f"[{here.get('status') or 'UNKNOWN'}/{here.get('lifecycle') or 'UNKNOWN'}] "
+        f"why={here.get('why') or here.get('reason') or 'UNKNOWN'}"
+    )
+    lines.append(
+        f"next_unlock={nxt.get('title') or 'UNKNOWN'} "
+        f"[{nxt.get('status') or 'UNKNOWN'}] "
+        f"why={nxt.get('why') or nxt.get('unlock_condition') or 'UNKNOWN'}"
+    )
+    path = roadmap.get("critical_path") or []
+    if isinstance(path, list) and path:
+        lines.append("critical_path=" + " → ".join(str(item) for item in path))
+    else:
+        lines.append("critical_path=UNKNOWN")
+    blockers = roadmap.get("blockers") if isinstance(roadmap.get("blockers"), list) else []
+    if blockers:
+        lines.append(f"blockers={len(blockers)}")
+        for blocker in blockers[:6]:
+            if isinstance(blocker, dict):
+                lines.append(
+                    f"- {blocker.get('reason') or 'UNKNOWN'} "
+                    f"waiting_on={blocker.get('waiting_on') or 'UNKNOWN'} "
+                    f"unlock={blocker.get('unlock_condition') or 'UNKNOWN'}"
+                )
+    unknowns = roadmap.get("unknowns") if isinstance(roadmap.get("unknowns"), list) else []
+    if unknowns:
+        lines.append("unknowns=" + ", ".join(str(item) for item in unknowns[:8]))
+    return lines
+
+
 def _render_context_markdown(
     brief: dict[str, Any],
     captures: list[dict[str, Any]] | None = None,
@@ -142,6 +183,7 @@ def _render_context_markdown(
     attention: dict[str, Any] | None = None,
     source_health: dict[str, Any] | None = None,
     conversation_captures: list[dict[str, Any]] | None = None,
+    roadmap: dict[str, Any] | None = None,
 ) -> str:
     next_work = brief.get("suggested_next_work") or []
     evidence = brief.get("evidence_links") or []
@@ -165,18 +207,23 @@ def _render_context_markdown(
         "",
         "## Current state",
         str(brief.get("current_state") or "UNKNOWN"),
-        "",
-        "## Recent meaningful changes",
-        str(brief.get("recent_meaningful_changes") or "UNKNOWN"),
-        "",
-        "## Important decisions",
-        str(brief.get("important_decisions") or "UNKNOWN"),
-        "",
-        "## Known problems / unknown / conflicting",
-        str(brief.get("unknown_or_conflicting") or "UNKNOWN"),
-        "",
-        "## Suggested next work",
     ]
+    lines.extend(_render_roadmap_section(roadmap))
+    lines.extend(
+        [
+            "",
+            "## Recent meaningful changes",
+            str(brief.get("recent_meaningful_changes") or "UNKNOWN"),
+            "",
+            "## Important decisions",
+            str(brief.get("important_decisions") or "UNKNOWN"),
+            "",
+            "## Known problems / unknown / conflicting",
+            str(brief.get("unknown_or_conflicting") or "UNKNOWN"),
+            "",
+            "## Suggested next work",
+        ]
+    )
     if isinstance(next_work, list) and next_work:
         lines.extend(f"- {item}" for item in next_work)
     else:
@@ -198,6 +245,7 @@ def _render_context_markdown(
             "- authentic_pilot: false",
             "- atlas_opt_wake_gate: CLOSED",
             "- lens_is_authority: false",
+            "- roadmap_is_canonical: false",
             "",
         ]
     )
@@ -233,12 +281,18 @@ def export_agent_context(
         from project_atlas.source_health import explain_source_health
 
         source_health = explain_source_health(vault, project_id)
+    roadmap: dict[str, Any] | None = None
+    with contextlib.suppress(Exception):
+        from project_atlas.project_roadmap import build_roadmap_lens
+
+        roadmap = build_roadmap_lens(vault, project_id)
     markdown = _render_context_markdown(
         brief,
         captures=captures,
         attention=attention,
         source_health=source_health,
         conversation_captures=conversation_captures,
+        roadmap=roadmap,
     )
     payload = {
         "schema_version": 1,
@@ -258,6 +312,15 @@ def export_agent_context(
         },
         "session_captures": captures,
         "conversation_captures": conversation_captures,
+        "roadmap": {
+            "package": "AS-PROJECT-ROADMAP-001",
+            "you_are_here": (roadmap or {}).get("you_are_here"),
+            "next_unlock": (roadmap or {}).get("next_unlock"),
+            "critical_path": (roadmap or {}).get("critical_path"),
+            "blockers": (roadmap or {}).get("blockers"),
+            "unknowns": (roadmap or {}).get("unknowns"),
+            "honesty": (roadmap or {}).get("honesty"),
+        },
         "markdown": markdown,
         "generated": {"by": GENERATOR_ID},
         "honesty": {
@@ -329,6 +392,7 @@ def create_handoff(
         "session_capture": capture_report,
         "resume_instructions": [
             f"Read `{context['markdown_path']}` before coding",
+            "Use Current project position as derived next-unlock, not as authority",
             "Treat UNKNOWN as UNKNOWN; do not invent architecture/decisions",
             "Prefer vault Truth Core over chat memory",
             "After meaningful work, run atlas capture record then atlas handoff create",
