@@ -5,6 +5,12 @@ Binds an explicit project root to a Vault and runs the Core compile chain:
     ensure vault → discover → ingest → rediscover (SEC-002) → ingest
     → build-indexes → validate
 
+AS-CODER-ALPHA-INCREMENTAL-CONNECT-001: a no-change reconnect inspects the
+current discover inventory against the committed connect-manifest + receipt
+and skips redundant ingest / rematerialization. Skip is operational only —
+not Truth Core authority. A partial or missing prior receipt is never a
+clean skip. Validation is not weakened to obtain a skip.
+
 Does not invent authentic pilot estates, does not wake Atlas-OPT, and does not
 claim AUTHENTIC_PILOT / RELEASE. Deterministic receipts omit wall-clock times
 (NFR-001 / ADR-001).
@@ -26,10 +32,20 @@ import yaml
 from atlas_contracts.identity import safe_relative_component
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.domain.claims import ID_PATTERN
+from project_atlas.incremental_connect import (
+    IncrementalDecision,
+    acquire_project_identity_locks,
+    attach_incremental,
+    evaluate_incremental_reconnect,
+    overlay_prior_lens_fields,
+    release_project_identity_locks,
+    write_incremental_receipt,
+)
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.scaffold import ScaffoldError, create_scaffold
 from project_atlas.source_identity import (
+    IdentityLockError,
     assert_project_uuid_one_owner,
     validate_project_uuid,
 )
@@ -470,6 +486,19 @@ def _write_receipt(vault: Path, report: dict[str, Any]) -> Path:
     return path
 
 
+def _read_connect_receipt(vault: Path) -> tuple[str, dict[str, Any] | None]:
+    path = vault / RECEIPT_RELATIVE
+    if not path.is_file():
+        return "absent", None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return "unreadable", None
+    if isinstance(raw, dict):
+        return "ok", raw
+    return "unreadable", None
+
+
 def _list_vault_projects(vault: Path) -> list[str]:
     projects_root = vault / "projects"
     if not projects_root.is_dir():
@@ -479,6 +508,54 @@ def _list_vault_projects(vault: Path) -> list[str]:
         for path in projects_root.iterdir()
         if path.is_dir() and not path.name.startswith(".")
     )
+
+
+def _finish_no_change_reconnect(
+    *,
+    project_root: Path,
+    vault_path: Path,
+    report: dict[str, Any],
+    decision: IncrementalDecision,
+    prior_receipt: dict[str, Any],
+) -> dict[str, Any]:
+    """Operational skip: reuse prior lenses, rewrite bind/receipt, no ingest."""
+    overlay_prior_lens_fields(report, prior_receipt)
+    report["documents_ingested"] = 0
+    report["projects"] = _list_vault_projects(vault_path) or list(
+        prior_receipt.get("projects") or []
+    )
+    attach_incremental(report, decision)
+    primary = _marker_project_id(project_root)
+    vault_projects = list(report["projects"] or [])
+    if primary is None and len(vault_projects) == 1:
+        primary = vault_projects[0]
+    if primary is None:
+        bound = prior_receipt.get("bound_project_id")
+        if isinstance(bound, str) and bound.strip():
+            primary = bound.strip()
+    locks = acquire_project_identity_locks(vault_path, [str(item) for item in vault_projects])
+    try:
+        bind_path = _write_bind(
+            project_root,
+            vault_path,
+            str(report["vault_id"] or ""),
+            project_ids=vault_projects,
+            primary_project_id=primary,
+        )
+        report["bind_path"] = bind_path.as_posix()
+        report["bound_project_id"] = primary
+        incremental_path = write_incremental_receipt(vault_path, decision)
+        report["incremental_receipt_path"] = incremental_path.as_posix()
+        receipt_path = _write_receipt(vault_path, report)
+        report["receipt_path"] = receipt_path.as_posix()
+    except IdentityLockError as exc:
+        raise ConnectError(str(exc)) from exc
+    except (OSError, ValueError, TypeError) as exc:
+        raise ConnectError(str(exc)) from exc
+    finally:
+        release_project_identity_locks(locks)
+    report["status"] = "connected"
+    return report
 
 
 def connect_project(
@@ -604,14 +681,43 @@ def connect_project(
         with contextlib.suppress(OSError):
             staging_manifest.unlink(missing_ok=True)
 
+    decision: IncrementalDecision | None = None
     try:
         manifest = discover(
             project_root,
             excludes=merged_excludes,
             max_file_size=max_file_size,
         )
-        write_manifest(manifest, staging_manifest)
         report["documents_discovered"] = _active_source_count(manifest)
+        decision = evaluate_incremental_reconnect(
+            vault=vault_path,
+            project_root=project_root,
+            current_manifest=manifest,
+            vault_id=str(report["vault_id"] or ""),
+            include_portfolio=include_portfolio,
+            skip_validate=skip_validate,
+            excludes=merged_excludes,
+            max_file_size=max_file_size,
+            manifest_relative=MANIFEST_RELATIVE,
+            staging_relative=STAGING_MANIFEST_RELATIVE,
+            receipt_relative=RECEIPT_RELATIVE,
+        )
+        if decision.can_skip:
+            prior_status, prior_receipt = _read_connect_receipt(vault_path)
+            if prior_status != "ok" or prior_receipt is None:
+                raise ConnectError(
+                    "incremental skip refused: prior connect receipt unreadable"
+                )
+            _discard_staging()
+            return _finish_no_change_reconnect(
+                project_root=project_root,
+                vault_path=vault_path,
+                report=report,
+                decision=decision,
+                prior_receipt=prior_receipt,
+            )
+
+        write_manifest(manifest, staging_manifest)
 
         ingest(
             staging_manifest,
@@ -674,10 +780,15 @@ def connect_project(
     except ConnectError:
         _discard_staging()
         raise
+    except IdentityLockError as exc:
+        _discard_staging()
+        raise ConnectError(str(exc)) from exc
     except (OSError, ValueError, KeyError, TypeError) as exc:
         _discard_staging()
         raise ConnectError(str(exc)) from exc
 
+    if decision is None:
+        raise ConnectError("incremental decision missing after compile")
     report["documents_ingested"] = int(second.get("documents_ingested", 0))
     report["projects"] = _list_vault_projects(vault_path)
     report["indexes"] = {
@@ -695,6 +806,22 @@ def connect_project(
     report["next_answers"] = nxt.get("answers_written", [])
     report["brief_paths"] = brief.get("briefs_written", [])
     report["obsidian_notes"] = obsidian.get("notes_written", [])
+    projection_paths = [
+        *(report["overview_answers"] or []),
+        *(report["architecture_answers"] or []),
+        *(report["state_answers"] or []),
+        *(report["changed_answers"] or []),
+        *(report["decisions_answers"] or []),
+        *(report["unknown_answers"] or []),
+        *(report["roadmap_answers"] or []),
+        *(report["next_answers"] or []),
+        *(report["brief_paths"] or []),
+        *(report["obsidian_notes"] or []),
+    ]
+    decision.projections_regenerated = len(projection_paths)
+    decision.physical_writes = int(report["documents_ingested"]) + decision.projections_regenerated
+    attach_incremental(report, decision)
+    report["incremental_receipt_path"] = write_incremental_receipt(vault_path, decision).as_posix()
 
     # Prefer this source root's marker project.id as bind primary so shared-vault
     # connects do not immediately become stranger-CLI ambiguous (Codex P2).
