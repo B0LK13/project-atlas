@@ -20,6 +20,11 @@ PRODUCTION_TIP = ba2fc7f373ba54f31dc0b1093e11d5309153fc5e
 PRODUCTION_TREE = 35d2c46b9905b4c1b671bab0f781b67ed450dccc
 ```
 
+D-102 exact-main refresh supersedes the `9441b0c` base. Production tip
+`ba2fc7f` is unchanged. Use
+`docs/evidence/D-102-PR358-EXACT-MAIN-OWNER-PACKET.md` for the current
+parent/head pins. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
 Observed checks on `ba2fc7f`: `control-plane`, `quality (ubuntu-latest, 3.12, full)`, `quality (ubuntu-latest, 3.13, compat)`, `quality (windows-latest, 3.12, windows)` = SUCCESS.
 
 Rollback: revert this branch. No schema or vault migration.
