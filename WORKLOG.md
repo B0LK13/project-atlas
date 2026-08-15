@@ -5,6 +5,42 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-PROJECT-ROADMAP-001 — D-098 authentic Web context remediation
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D098-ROADMAP-AUTHENTIC-WEB-CONTEXT-REMEDIATION
+**Branch:** `cursor/as-project-roadmap-001-6f85`
+**PR:** #354 (existing; no new PR)
+**Merge authorization:** not granted
+
+Local D-096 on `a9770ce` / `4359ceb7` returned `PARTIAL`: ProdNav
+`/roadmap` dropped `?project=`, and `RoadmapPage` silently defaulted to
+`harbor-api`. Prior `ROADMAP_IV=PASS` is superseded. Chronology A–G
+preserved in `docs/evidence/AS-PROJECT-ROADMAP-001.md`.
+
+Bounded Web-only fix: project-aware ProdNav hrefs; Roadmap requires
+explicit `?project=` (UNKNOWN / select otherwise). `harbor-api` only
+when selected. No Core/API mutation. No `project-atlas` default.
+
+```
+py -3.12 -m pytest tests/unit/test_as_project_roadmap_001.py
+                   tests/unit/test_as_project_roadmap_web.py
+                   tests/unit/test_as_project_roadmap_nav.py
+  34 passed (was 22; +12)
+ruff PASS; mypy src PASS; apps/web tsc + vite 72 modules PASS
+```
+
+```
+CLOUD_IV = PASS
+ROADMAP_LOCAL_AUTHENTIC_IV = PENDING_RECHECK
+ROADMAP_STATE = LOCAL_RECERTIFICATION_PENDING
+MERGE_ELIGIBLE = NO
+MERGE_AUTHORIZATION = NOT_GRANTED
+QUEUE_ORDER_UNCHANGED = YES
+```
+
+---
+
 ## AS-PROJECT-ROADMAP-001 — Living Project Roadmap V1
 
 **Date:** 2026-08-14

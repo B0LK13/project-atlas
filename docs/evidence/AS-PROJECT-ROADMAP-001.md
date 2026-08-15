@@ -1,13 +1,17 @@
 # AS-PROJECT-ROADMAP-001 — Living Project Roadmap V1
 
-DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001`
+DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-D098-ROADMAP-AUTHENTIC-WEB-CONTEXT-REMEDIATION`
 BRANCH: `cursor/as-project-roadmap-001-6f85`
 BASE: `9441b0c576dc54bc43a92a62a4e972889424c21f` (accepted main after #353)
-PRODUCTION_TIP: `a9770ce132822dd1035bb663490f3907d68117eb`
+PRE_REMEDIATION_PRODUCTION_HEAD: `a9770ce132822dd1035bb663490f3907d68117eb`
+PRE_REMEDIATION_PRODUCTION_TREE: `4359ceb7ecd77d3b8680552f25967557f8c70da8`
 
 ```
-ROADMAP_STATE = CERTIFIED — MERGE ELIGIBLE
-ROADMAP_IV = PASS
+ROADMAP_STATE = LOCAL_RECERTIFICATION_PENDING
+CLOUD_IV = PASS
+ROADMAP_LOCAL_AUTHENTIC_IV = PENDING_RECHECK
+PRIOR_ROADMAP_IV = SUPERSEDED_BY_AUTHENTIC_LOCAL_IV
+MERGE_ELIGIBLE = NO
 MERGE_AUTHORIZATION = NOT_GRANTED
 OWNER_HELD = YES
 ```
@@ -140,5 +144,45 @@ CURRENT_PRODUCTION_TIP = a9770ce132822dd1035bb663490f3907d68117eb
 CURRENT_PRODUCTION_TREE = 4359ceb7ecd77d3b8680552f25967557f8c70da8
 CI_RUN = 31871795221
 KNOWLEDGEPAGE_TOUCHED = NO
-ROADMAP_IV = PASS
+ROADMAP_IV = SUPERSEDED_BY_AUTHENTIC_LOCAL_IV
+```
+
+---
+
+## Chronology A–G (preserved)
+
+| Step | What | Pin / result |
+| --- | --- | --- |
+| A | Overnight false-CERTIFIED + honesty defects | `d0d3afc` — hardcoded `harbor-api`, `demo_stub` on live fail |
+| B | Query-follow + live-failure honesty | `96c4c68` — follows `?project=`; HTTP/catch `data_source=null` |
+| C | CI mypy closer (pre-remediation production) | `a9770ce` / tree `4359ceb7` |
+| D | Docs-only recertify | `7a1ce54` — `src/**` and `apps/**` unchanged vs C |
+| E | Local D-096 authentic IV | `PARTIAL` — `HARDCODED_HARBOR_API_LEAK=YES`, `WEB_PARITY=FAIL` |
+| F | D-098 Cloud Web context remediation | ProdNav preserves `?project=`; Roadmap no silent fixture default |
+| G | Local re-IV | `ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK` — Cloud does not claim Local PASS |
+
+`PRODUCTION_SEMANTIC_CHANGES_a9770ce_TO_PR_HEAD` before F was `0` (docs/evidence only).
+
+---
+
+## D-098 authentic Web context remediation (2026-08-15)
+
+Local D-096 proved the residual product defect on `a9770ce`:
+
+- ProdNav issued static `/roadmap` (no query preserve)
+- `RoadmapPage` `DEFAULT_PROJECT = "harbor-api"`
+- Current project `dark-factory-02ee94d0` → nav Roadmap → `GET /v1/roadmap?project=harbor-api`
+
+Bounded Web-only fix on `#354`:
+
+- `ProdNav` reads current `?project=P` and appends `project=P` to Knowledge / Context / Ask / Time Machine / Roadmap / Workspace. Does not copy `from=`/`to=`. Does not hard-code project ids.
+- `RoadmapPage` uses explicit `?project=` only. No query → no project / UNKNOWN / require selection. `harbor-api` remains valid only when explicitly selected.
+- No Core/API mutation. No global active-project store. No `project-atlas` replacement default.
+
+```
+CLOUD_IV = PASS
+ROADMAP_LOCAL_AUTHENTIC_IV = PENDING_RECHECK
+HARDCODED_HARBOR_API_LEAK = NO  (Cloud source + focused tests; Local recheck required)
+WEB_PARITY = PENDING_LOCAL_RECHECK
+QUEUE_ORDER_UNCHANGED = YES
 ```

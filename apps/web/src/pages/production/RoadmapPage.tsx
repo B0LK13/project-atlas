@@ -3,19 +3,18 @@ import { ProdShell } from "../../components/ProdShell";
 import { useLiveRoadmap } from "../../hooks/useLiveRoadmap";
 import { useReadStatus } from "../../hooks/useReadStatus";
 
-const DEFAULT_PROJECT = "harbor-api";
-
 /**
  * AS-PROJECT-ROADMAP-001 web lens — derived Living Project Roadmap V1.
  * UI ≠ canonical; ROADMAP ≠ authority; UNKNOWN ≠ healthy.
- * Project follows ?project= so the coder journey keeps context.
+ * Project is explicit ?project= only. No silent fixture default.
  */
 export default function RoadmapPage() {
   const [params, setParams] = useSearchParams();
   const { status, loading: statusLoading } = useReadStatus();
   const projects = status?.projects ?? [];
   const projectParam = params.get("project");
-  const projectId = projectParam ?? DEFAULT_PROJECT;
+  const projectId =
+    projectParam && projectParam.trim() ? projectParam.trim() : null;
   const { roadmap, error, loading, dataSource } = useLiveRoadmap(projectId);
   const isDemo = dataSource === "demo_stub";
   const here = roadmap?.you_are_here;
