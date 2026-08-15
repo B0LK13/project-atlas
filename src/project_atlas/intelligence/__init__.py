@@ -19,6 +19,14 @@ from project_atlas.intelligence.boundary import (
     TRUTH_BOUNDARY_STATE,
     UNKNOWN_IS_VALID,
 )
+from project_atlas.intelligence.contradictions import (
+    ContradictionCandidate,
+    ContradictionClass,
+    ContradictionContext,
+    SeverityClass,
+    TemporalRelationship,
+    find_contradiction_candidates,
+)
 from project_atlas.intelligence.evidence import assess_evidence, assess_evidence_many
 from project_atlas.intelligence.types import (
     AssessableClaim,
@@ -51,6 +59,11 @@ __all__ = [
     "AssessableClaim",
     "AssessmentContext",
     "ConfidenceClass",
+    "ContradictionCandidate",
+    "ContradictionClass",
+    "ContradictionContext",
+    "SeverityClass",
+    "TemporalRelationship",
     "EvidenceAssessment",
     "EvidenceDimensions",
     "EvidenceRef",
@@ -61,4 +74,5 @@ __all__ = [
     "ValidityWindowInput",
     "assess_evidence",
     "assess_evidence_many",
+    "find_contradiction_candidates",
 ]

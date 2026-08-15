@@ -139,6 +139,7 @@ class AssessableClaim(BaseModel):
     predecessor_claim_id: str | None = None
     source_hashes: tuple[str, ...] = ()
     claim_type: str | None = None
+    authority_domain: str | None = None
 
     @classmethod
     def from_claim(cls, claim: Claim) -> AssessableClaim:
