@@ -112,6 +112,9 @@ def live_source_rows(vault: Path, project_id: str) -> tuple[str, list[dict[str, 
     if not rows:
         return "unreadable", []
     root = _source_root(manifest, vault_path)
+    if root is None:
+        # Stored hashes are not live evidence. Missing root => UNKNOWN, never FRESH.
+        return "unreadable", []
     scoped: list[dict[str, str]] = []
     for row in rows:
         digest = row["sha256"]

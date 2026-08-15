@@ -47,6 +47,28 @@ def test_missing_inventory_is_unknown_not_fresh(tmp_path: Path) -> None:
     assert report["live_fingerprint"] is None
 
 
+def test_missing_source_root_is_unknown_not_fresh(tmp_path: Path) -> None:
+    """P1: vanished source_root must not reuse stored hashes as FRESH."""
+    root = tmp_path / "gone-root"
+    _manifest(root, {"README.md": "v1"}, project_id="harbor-api")
+    vault = root / ".atlas-vault"
+    first = evaluate_context_freshness(vault, "harbor-api")
+    assert first["status"] == "FRESH"
+    manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["source_root"] = str(tmp_path / "does-not-exist")
+    manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    second = evaluate_context_freshness(
+        vault,
+        "harbor-api",
+        frozen_fingerprint=first["live_fingerprint"],
+        frozen_rows=first["rows"],
+    )
+    assert second["status"] == "UNKNOWN"
+    assert second["honesty"]["unknown_is_fresh"] is False
+    assert second["live_fingerprint"] is None
+
+
 def test_sibling_project_rows_do_not_scope_this_project(tmp_path: Path) -> None:
     root = tmp_path / "estate"
     _manifest(root, {"portal/README.md": "portal"}, project_id="harbor-portal")
