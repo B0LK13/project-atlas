@@ -46,3 +46,8 @@ def test_page_binds_url_and_does_not_call_empty_error_unknown() -> None:
     assert "unknown — no conflict rows" in text
     assert "/time-machine?project=" in PROJECTS.read_text(encoding="utf-8")
     assert "/time-machine?project=" in KNOWLEDGE.read_text(encoding="utf-8")
+    assert "usingControlledDemoDefault" in text
+    assert "fixture_class=controlled_demo_fixture" in text
+    assert "authentic_history_claim=no" in text
+    assert "project_query=explicit" in text
+    assert "AUTHENTIC_HISTORY_CLAIM=NO" in text

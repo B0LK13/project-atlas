@@ -20,6 +20,7 @@ export default function TimeMachinePage() {
   const { status, loading: statusLoading } = useReadStatus();
   const projects = status?.projects ?? [];
   const projectParam = params.get("project");
+  const usingControlledDemoDefault = projectParam === null;
   const projectId = projectParam ?? TIME_MACHINE_PROJECT;
   const t1 = params.get("from") ?? TIME_MACHINE_T1;
   const t2 = params.get("to") ?? TIME_MACHINE_T2;
@@ -52,16 +53,38 @@ export default function TimeMachinePage() {
           <p className="eyebrow">Production · Conflict &amp; Time Machine</p>
           <h1>Conflict &amp; Time Machine</h1>
           <p className="lede">
-            Read-only view of <code>{projectId ?? "UNKNOWN"}</code> LIVE state:
-            unresolved conflicts plus Time Machine as-of snapshots at {t1} and{" "}
-            {t2} and the T1→T2 diff. LIVE_API preferred; demo fallback stays
-            empty and isolated — nothing is invented in the browser.
+            {usingControlledDemoDefault ? (
+              <>
+                No <code>?project=</code> query — using{" "}
+                <code>harbor-api</code> as the controlled golden-demo fixture,
+                not as a selected authentic project. AUTHENTIC_HISTORY_CLAIM=NO.
+                Unresolved conflicts plus as-of snapshots at {t1} and {t2} and
+                the T1→T2 diff. LIVE_API preferred; demo fallback stays empty
+                and isolated — nothing is invented in the browser.
+              </>
+            ) : (
+              <>
+                Read-only view of <code>{projectId ?? "UNKNOWN"}</code> LIVE
+                state: unresolved conflicts plus Time Machine as-of snapshots at{" "}
+                {t1} and {t2} and the T1→T2 diff. LIVE_API preferred; demo
+                fallback stays empty and isolated — nothing is invented in the
+                browser.
+              </>
+            )}
           </p>
           <p className="flags" style={{ marginTop: "0.75rem" }}>
             <span className="chip">ui_canonical=false</span>
             <span className="chip">graph_authority=false</span>
             <span className="chip">kdiff≠authority</span>
             <span className="chip">data_source={dataSource ?? "unknown"}</span>
+            {usingControlledDemoDefault ? (
+              <>
+                <span className="chip">fixture_class=controlled_demo_fixture</span>
+                <span className="chip">authentic_history_claim=no</span>
+              </>
+            ) : (
+              <span className="chip">project_query=explicit</span>
+            )}
           </p>
         </header>
 
@@ -97,6 +120,14 @@ export default function TimeMachinePage() {
 
         {error ? <p className="banner warn">Time Machine unavailable: {error}</p> : null}
         {loading ? <p className="banner">Loading…</p> : null}
+        {usingControlledDemoDefault ? (
+          <p className="banner warn">
+            Controlled demo fixture default — <code>harbor-api</code> is not
+            claimed as the user&apos;s selected authentic project. Authentic
+            binds (including Dark Factory) require <code>?project=</code>.
+            Dark Factory is authentic estate identity, not kdiff history.
+          </p>
+        ) : null}
         {isDemo ? (
           <p className="banner warn">
             DEMO STUB isolated — start <code>atlas live api-serve</code> to see
