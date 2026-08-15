@@ -42,7 +42,7 @@ def test_intelligence_is_actual_project_binding() -> None:
     assert 'params.get("project")' in page
     assert "projectParam && projectParam.trim()" in page
     assert "useLiveIntelligence(projectId, view)" in page
-    assert "unknown — select a project" in page
+    assert "UNKNOWN / SELECT_SCOPE — select a project" in page
     assert 'projectId ?? "UNKNOWN"' in page
     assert "DEFAULT_PROJECT" not in page
     assert f'?? "{HARBOR}"' not in page
@@ -123,5 +123,8 @@ def test_portfolio_is_explicit_cross_project() -> None:
     hook = HOOK.read_text(encoding="utf-8")
     assert "Portfolio Intelligence" in page
     assert "explicit cross-project" in page
-    assert 'view !== "portfolio"' in hook
-    assert '"/v1/portfolio-state"' in hook
+    assert "does not fetch all projects" in page
+    assert "SELECT_SCOPE" in page
+    assert '"/v1/portfolio-state"' not in hook
+    assert "`/v1/portfolio-state?${projectQ}`" in hook
+    assert "if (!projectId)" in hook

@@ -135,8 +135,7 @@ export function useLiveIntelligence(
         cancelled = true;
       };
     }
-    const needsProject = view !== "portfolio";
-    if (needsProject && !projectId) {
+    if (!projectId) {
       setBundle(EMPTY);
       setDataSource(null);
       setError(null);
@@ -150,7 +149,7 @@ export function useLiveIntelligence(
       ? `project=${encodeURIComponent(projectId)}`
       : "";
     const jobs: Array<Promise<Partial<IntelligenceBundle>>> = [];
-    if (projectId && view !== "portfolio") {
+    if (view !== "portfolio") {
       jobs.push(
         readJson(`/v1/project-state?${projectQ}`).then((state) => ({ state })),
       );
@@ -213,10 +212,11 @@ export function useLiveIntelligence(
       }
     }
     if (view === "overview" || view === "portfolio") {
-      const portfolioPath = projectId
-        ? `/v1/portfolio-state?${projectQ}`
-        : "/v1/portfolio-state";
-      jobs.push(readJson(portfolioPath).then((portfolio) => ({ portfolio })));
+      jobs.push(
+        readJson(`/v1/portfolio-state?${projectQ}`).then((portfolio) => ({
+          portfolio,
+        })),
+      );
     }
     Promise.all(jobs)
       .then((parts) => {

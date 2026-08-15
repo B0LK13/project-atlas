@@ -175,10 +175,10 @@ export default function IntelligencePage() {
             UNKNOWN — intelligence project does not match selected project
           </p>
         ) : null}
-        {!projectId && view !== "portfolio" ? (
+        {!projectId ? (
           <p className="banner warn">
-            UNKNOWN — select a project. Intelligence does not default to
-            harbor-api.
+            UNKNOWN / SELECT_SCOPE — select a project. Intelligence does not
+            default to harbor-api and does not fetch all projects.
           </p>
         ) : null}
 
