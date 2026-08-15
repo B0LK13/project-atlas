@@ -15,14 +15,19 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Final
 
-from project_atlas.app_service import AppService, open_app_service
+from project_atlas.app_service import AppService, AppServiceError, open_app_service
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
+BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
+BRIEF_TRUTH_BOUNDARY = (
+    "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
 _ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool"})
@@ -83,6 +88,52 @@ def _assert_safe_tool_id(tool_id: str) -> str:
     return tid
 
 
+def _unknown_brief_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "purpose": "UNKNOWN",
+        "available": False,
+        "suggested_next_work": [],
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def read_vault_briefs(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped brief read. Does not invent projects or write."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            brief = service.brief(pid)
+        except AppServiceError:
+            brief = _unknown_brief_row(pid)
+        rows.append({"project_id": pid, "brief": brief})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": BRIEF_PACKAGE_ID,
+        "truth_boundary": BRIEF_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "briefs": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -93,6 +144,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
             "graph": service.graph_summary(),
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
+        "atlas.brief.read": lambda: read_vault_briefs(service),
     }
 
 
