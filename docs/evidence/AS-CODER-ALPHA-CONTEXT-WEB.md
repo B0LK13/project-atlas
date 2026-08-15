@@ -2,7 +2,8 @@
 
 DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-OWNER-QUEUE-CONSOLIDATION-001`
 BRANCH: `cursor/web-agent-context-25b1`
-BASE: `9441b0c576dc54bc43a92a62a4e972889424c21f`
+BASE: `689f740f6ebe1bd8c2f5be956235369c924021dc` (exact current main after #360)
+PRIOR_BASE: `9441b0c576dc54bc43a92a62a4e972889424c21f`
 
 ```
 WEB_CONTEXT != ATLAS_CONTEXT_FILE
@@ -59,3 +60,22 @@ context-pack behavior change.
 ## Rollback
 
 Revert this branch. No schema or vault migration.
+
+## D-099 exact-main refresh
+
+```
+REFRESH_METHOD = MERGE_CURRENT_MAIN
+REFRESH_BASE = 689f740f6ebe1bd8c2f5be956235369c924021dc
+PRODUCTION_SEMANTIC_CONFLICTS = 0
+DOCS_ADDITIVE_CONFLICTS = 1 (WORKLOG.md keep-both)
+PR359_YAML_CLOSER_PRESENT = YES
+DUPLICATE_FIX_REQUIRED = NO
+MERGE_AUTHORIZATION = NOT_GRANTED
+OWNER_EXCEPTION_REQUIRED = YES
+```
+
+A/B mypy 2.3.1 + types-PyYAML 6.0.12.20260815:
+
+- exact main: unused-ignore at yaml_structured.py:222
+- refreshed #359: Success, 187 files
+
