@@ -5,6 +5,7 @@ const PROD_LINKS = [
   { to: "/projects", label: "Projects" },
   { to: "/discovery", label: "Discovery" },
   { to: "/knowledge", label: "Knowledge" },
+  { to: "/intelligence", label: "Intelligence" },
   { to: "/context", label: "Context" },
   { to: "/ask", label: "Ask" },
   { to: "/time-machine", label: "Time Machine" },
@@ -19,6 +20,7 @@ const PROD_LINKS = [
 /** Project-scoped lenses. Preserve ?project= only — never from=/to=. */
 const PROJECT_AWARE_PATHS = new Set([
   "/knowledge",
+  "/intelligence",
   "/context",
   "/ask",
   "/time-machine",

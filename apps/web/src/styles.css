@@ -413,3 +413,45 @@ code,
 .theme-terminal .val {
   color: var(--atlas-ink);
 }
+
+.intel-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1.25rem;
+}
+
+.intel-card {
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--atlas-line);
+  background: color-mix(in srgb, var(--atlas-panel) 80%, transparent);
+}
+
+.truth-live {
+  border-color: var(--atlas-accent);
+}
+
+.truth-derived {
+  border-color: var(--atlas-accent);
+}
+
+.truth-unknown,
+.truth-no_data,
+.truth-valid_empty,
+.truth-no_match {
+  border-color: var(--atlas-unknown);
+  color: var(--atlas-unknown);
+}
+
+.truth-contested,
+.truth-stale,
+.truth-http_failure,
+.truth-malformed_input {
+  border-color: var(--atlas-warn);
+  color: var(--atlas-warn);
+}
+
+.truth-demo {
+  border-color: var(--atlas-muted);
+}
