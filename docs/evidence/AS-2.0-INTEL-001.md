@@ -83,6 +83,23 @@ None. No schema catalog change. No vault layout change.
 Delete `src/project_atlas/intelligence/` and the package-1 tests/docs.
 No runtime registration exists.
 
+## Test results
+
+```
+AS_2_0_INTEL_001 = PASS
+PACKAGE_1_TESTS = PASS (20 focused cases)
+PACKAGE_1_RUFF = PASS
+PACKAGE_1_MYPY = PASS
+NEW_HIGH = 0
+NEW_MEDIUM = 0
+```
+
+Covered: single strong source, corroboration without fabricated
+independence, same-lineage copies, authority mismatch, stale,
+not-yet-valid, conflicting peers, missing provenance, missing source,
+UNKNOWN honesty, unsupported claim, repeated observations, durable
+identity after move, replay, no mutation, no numeric probability.
+
 ## Future API contract
 
 Draft only: `GET /v1/intelligence/evidence` — see

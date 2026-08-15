@@ -79,6 +79,41 @@ None.
 
 Remove `derived_state.py` and Package 3 tests/docs. Packages 1–2 remain.
 
+## Test results
+
+```
+AS_2_0_STATE_001 = PASS
+DERIVED_STATE_DETERMINISTIC = YES
+CANONICAL_MUTATION = NO
+CROSS_PROJECT_LEAKAGE = 0
+UNSUPPORTED_STATUS_INFERENCE = 0
+PACKAGE_3_RUFF = PASS
+PACKAGE_3_MYPY = PASS
+```
+
+Covered: corroborated stable project, no-data ≠ healthy, stale ≠
+invalid, contested ≠ resolved, temporal transition, missing source,
+mixed authority, identity ambiguity, only-UNKNOWN, replay, order,
+cross-project isolation.
+
+## Performance
+
+Representative grouped pairing (small k per subject+field):
+
+```
+1k claims / 200 groups : 0.027s
+10k claims / 2000 groups : 0.339s
+state synthesis 200 claims / 40 fields : 0.026s
+```
+
+```
+PERFORMANCE_CLASS = ACCEPTABLE
+```
+
+Residual: MAJOR for dense same-slot groups (example: 10k claims in 50
+fields, k≈200, previously ~19s). Grouping prevents whole-vault N²;
+intra-slot pairing remains O(k²). Not micro-optimized in this wave.
+
 ## Future API contract
 
 Draft only: `GET /v1/project-state`. Not registered.

@@ -70,6 +70,25 @@ None. Additive optional `authority_domain` on `AssessableClaim` only.
 
 Remove `contradictions.py` and Package 2 tests/docs. Package 1 remains.
 
+## Test results
+
+```
+AS_2_0_INTEL_002 = PASS
+FALSE_TEMPORAL_CONTRADICTION = 0
+CROSS_PROJECT_FALSE_CONTRADICTION = 0
+UNKNOWN_FALSE_CONTRADICTION = 0
+DETERMINISTIC = YES
+MUTATION = NO
+PACKAGE_2_RUFF = PASS
+PACKAGE_2_MYPY = PASS
+```
+
+Covered: simultaneous incompatible values, formatting-only sameness,
+March→October succession, overlapping validity, non-overlapping
+validity, same lineage, different authority domains, different
+projects, strong vs weak, UNKNOWN vs known, missing source,
+identity ambiguity, replay/order.
+
 ## Future API contract
 
 Draft only: `GET /v1/intelligence/conflicts`. Not registered.
