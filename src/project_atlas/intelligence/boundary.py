@@ -1,0 +1,36 @@
+"""Truth-boundary constants for Atlas 2.0 derived intelligence.
+
+AS-2.0-INTEL-001 / AS-2.0-INTEL-002 / AS-2.0-STATE-001.
+
+Derived intelligence is explainable and provenance-traceable. It is never
+canonical Layer B truth, never a write-back engine, and never a substitute
+for human review.
+"""
+
+from __future__ import annotations
+
+from typing import Final
+
+PACKAGE_INTEL_001: Final[str] = "AS-2.0-INTEL-001"
+PACKAGE_INTEL_002: Final[str] = "AS-2.0-INTEL-002"
+PACKAGE_STATE_001: Final[str] = "AS-2.0-STATE-001"
+
+DERIVED_INTELLIGENCE_IS_AUTHORITY: Final[str] = "NO"
+DERIVED_STATE_WRITES_CANONICAL_TRUTH: Final[str] = "NO"
+CONTRADICTION_CANDIDATE_IS_PROVEN_FALSEHOOD: Final[str] = "NO"
+CONFIDENCE_SCORE_IS_FACT: Final[str] = "NO"
+UNKNOWN_IS_VALID: Final[str] = "YES"
+PROJECT_STATE_IS_CANONICAL: Final[str] = "NO"
+AUTO_RESOLVE_CONTRADICTIONS: Final[str] = "NO"
+
+TRUTH_BOUNDARY_EVIDENCE: Final[str] = (
+    "EVIDENCE ASSESSMENT ≠ AUTHORITY / ≠ CLAIM MUTATION / ≠ PROBABILITY"
+)
+TRUTH_BOUNDARY_CONTRADICTION: Final[str] = (
+    "CONTRADICTION CANDIDATE ≠ PROVEN FALSEHOOD / ≠ AUTO-RESOLUTION / ≠ AUTHORITY"
+)
+TRUTH_BOUNDARY_STATE: Final[str] = (
+    "DERIVED PROJECT STATE ≠ CANONICAL TRUTH / ≠ ROADMAP / ≠ HEALTH SCORE"
+)
+
+GENERATED_BY: Final[str] = "project-atlas"
