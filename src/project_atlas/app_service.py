@@ -18,6 +18,7 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebIntelligenceError,
     WebRoadmapError,
     filter_knowledge_by_project,
     impact_graph_summary,
@@ -25,8 +26,15 @@ from project_atlas.web_api import (
     list_project_conflicts,
     list_projects,
     load_estate_discovery_view,
+    read_intelligence_conflicts,
+    read_intelligence_evidence,
+    read_intelligence_explain,
+    read_intelligence_query,
+    read_portfolio_state,
+    read_project_attention,
     read_project_brief,
     read_project_roadmap,
+    read_project_state,
     read_status,
     read_vault_health,
 )
@@ -37,6 +45,14 @@ TRUTH_BOUNDARY = "APP-SVC READ FACADE != AUTHORITY / != LIVE WRITE"
 
 class AppServiceError(ValueError):
     """Fail-closed application service error."""
+
+    honesty: str | None = None
+
+
+def _intel_error(exc: WebIntelligenceError) -> AppServiceError:
+    error = AppServiceError(str(exc))
+    error.honesty = exc.honesty.value
+    return error
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +133,123 @@ class AppService:
             return diff_knowledge(self.vault, project_id=project_id, t1=t1, t2=t2)
         except KnowledgeDiffError as exc:
             raise AppServiceError(str(exc)) from exc
+
+    def intelligence_evidence(
+        self,
+        project_id: str,
+        *,
+        subject: str | None = None,
+        field: str | None = None,
+        claim_id: str | None = None,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_intelligence_evidence(
+                self.vault,
+                project_id,
+                subject=subject,
+                field=field,
+                claim_id=claim_id,
+                as_of_valid_time=as_of_valid_time,
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
+
+    def intelligence_conflicts(
+        self,
+        project_id: str,
+        *,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_intelligence_conflicts(
+                self.vault, project_id, as_of_valid_time=as_of_valid_time
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
+
+    def intelligence_explain(
+        self,
+        project_id: str,
+        *,
+        subject: str | None = None,
+        field: str | None = None,
+        claim_id: str | None = None,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_intelligence_explain(
+                self.vault,
+                project_id,
+                subject=subject,
+                field=field,
+                claim_id=claim_id,
+                as_of_valid_time=as_of_valid_time,
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
+
+    def project_state(
+        self,
+        project_id: str,
+        *,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_project_state(
+                self.vault, project_id, as_of_valid_time=as_of_valid_time
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
+
+    def project_attention(
+        self,
+        project_id: str,
+        *,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_project_attention(
+                self.vault, project_id, as_of_valid_time=as_of_valid_time
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
+
+    def portfolio_state(
+        self,
+        project_ids: tuple[str, ...] = (),
+        *,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_portfolio_state(
+                self.vault, project_ids, as_of_valid_time=as_of_valid_time
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
+
+    def intelligence_query(
+        self,
+        project_id: str,
+        kind: str,
+        *,
+        subject: str | None = None,
+        field: str | None = None,
+        claim_id: str | None = None,
+        as_of_valid_time: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return read_intelligence_query(
+                self.vault,
+                project_id,
+                kind,
+                subject=subject,
+                field=field,
+                claim_id=claim_id,
+                as_of_valid_time=as_of_valid_time,
+            )
+        except WebIntelligenceError as exc:
+            raise _intel_error(exc) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
