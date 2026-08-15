@@ -14,6 +14,7 @@ from project_atlas.intelligence.boundary import (
     CONTRADICTION_CANDIDATE_IS_PROVEN_FALSEHOOD,
     DERIVED_INTELLIGENCE_IS_AUTHORITY,
     DERIVED_STATE_WRITES_CANONICAL_TRUTH,
+    GAP_PRIORITY_IS_FACT,
     NEXT_ACTION_CANDIDATE_IS_COMMAND,
     PACKAGE_CTX_001,
     PACKAGE_HANDOFF_001,
@@ -72,6 +73,11 @@ from project_atlas.intelligence.explain_graph import (
     ExplanationGraph,
     ExplanationNode,
     build_explanation_graph,
+)
+from project_atlas.intelligence.gap_priority import (
+    GapPriorityClass,
+    PrioritizedGap,
+    prioritize_evidence_gaps,
 )
 from project_atlas.intelligence.gaps import (
     EvidenceGap,
@@ -134,6 +140,7 @@ __all__ = [
     "CONTRADICTION_CANDIDATE_IS_PROVEN_FALSEHOOD",
     "DERIVED_INTELLIGENCE_IS_AUTHORITY",
     "DERIVED_STATE_WRITES_CANONICAL_TRUTH",
+    "GAP_PRIORITY_IS_FACT",
     "NEXT_ACTION_CANDIDATE_IS_COMMAND",
     "PACKAGE_CTX_001",
     "PACKAGE_HANDOFF_001",
@@ -187,6 +194,7 @@ __all__ = [
     "FactStatus",
     "GapClass",
     "GapCurrentStatus",
+    "GapPriorityClass",
     "IntelligenceAnswer",
     "IntelligenceQuery",
     "IntelligenceQueryKind",
@@ -201,6 +209,7 @@ __all__ = [
     "PortfolioDependency",
     "PortfolioProjectEntry",
     "PortfolioState",
+    "PrioritizedGap",
     "QueryOutcome",
     "RiskClass",
     "RiskSignal",
@@ -227,6 +236,7 @@ __all__ = [
     "find_contradiction_candidates",
     "find_contradiction_candidates_report",
     "observe_intelligence_run",
+    "prioritize_evidence_gaps",
     "propose_next_action_candidates",
     "query_intelligence",
     "rank_portfolio_attention",
