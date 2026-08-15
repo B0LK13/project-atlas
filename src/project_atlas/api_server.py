@@ -395,6 +395,15 @@ def make_handler(
                             "honesty": honesty,
                         },
                     )
+                except OSError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": f"intel-api-filesystem-unreadable:{exc.__class__.__name__}",
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": "MALFORMED_INPUT",
+                        },
+                    )
                 return
             if path == "/v1/portfolio-state":
                 project_ids = tuple(
@@ -418,6 +427,15 @@ def make_handler(
                             "error": str(exc),
                             "package_id": "AS-2.0-API-001",
                             "honesty": honesty,
+                        },
+                    )
+                except OSError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": f"intel-api-filesystem-unreadable:{exc.__class__.__name__}",
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": "MALFORMED_INPUT",
                         },
                     )
                 return
@@ -607,6 +625,14 @@ def make_handler(
             self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
 
         def do_DELETE(self) -> None:
+            if not self._host_ok():
+                self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
+                return
+            if self._authenticate() is None:
+                return
+            self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
+
+        def do_PATCH(self) -> None:
             if not self._host_ok():
                 self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
                 return

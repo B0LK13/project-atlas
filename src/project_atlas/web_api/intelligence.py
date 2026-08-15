@@ -7,6 +7,7 @@ Library results only. Never writes Layer B. Never replaces ``/v1/conflicts``.
 from __future__ import annotations
 
 import json
+import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, assert_never
@@ -61,6 +62,8 @@ _DEDICATED_KINDS: frozenset[str] = frozenset(
         IntelligenceQueryKind.ATTENTION.value,
     }
 )
+# Same project-token boundary as /v1/conflicts. Validate before any path.
+_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _LIMITATIONS: tuple[str, ...] = (
     "DERIVED_INTELLIGENCE_IS_AUTHORITY=NO",
     "API_RESULT_IS_AUTHORITY=NO",
@@ -104,11 +107,24 @@ def _safe_project_id(project_id: str) -> str:
         raise WebIntelligenceError(
             "intel-api-project-id-required", HonestyClass.MALFORMED_INPUT
         )
+    if not _ID_RE.fullmatch(token):
+        raise WebIntelligenceError(
+            "intel-api-project-id-invalid", HonestyClass.MALFORMED_INPUT
+        )
     try:
         return safe_relative_component(token, label="project id")
     except ValueError as exc:
         raise WebIntelligenceError(
             "intel-api-project-id-invalid", HonestyClass.MALFORMED_INPUT
+        ) from exc
+
+
+def _existing_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError as exc:
+        raise WebIntelligenceError(
+            "intel-api-filesystem-unreadable", HonestyClass.MALFORMED_INPUT
         ) from exc
 
 
@@ -127,14 +143,14 @@ def _optional_as_of(raw: str | None) -> str | None:
 
 def claims_file_present(vault: Path, project_id: str) -> bool:
     token = _safe_project_id(project_id)
-    return (vault / "state" / "claims" / f"{token}.json").is_file()
+    return _existing_file(vault / "state" / "claims" / f"{token}.json")
 
 
 def load_assessable_claims(vault: Path, project_id: str) -> tuple[AssessableClaim, ...]:
     """Read ``state/claims/<project>.json``. Missing file is empty, not invented."""
     token = _safe_project_id(project_id)
     path = vault / "state" / "claims" / f"{token}.json"
-    if not path.is_file():
+    if not _existing_file(path):
         return ()
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -162,7 +178,7 @@ def load_validity_windows(vault: Path, project_id: str) -> tuple[ValidityWindowI
     token = _safe_project_id(project_id)
     by_claim: dict[str, ValidityWindowInput] = {}
     path = vault / "state" / "claims" / f"{token}.json"
-    if path.is_file():
+    if _existing_file(path):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -187,7 +203,7 @@ def load_validity_windows(vault: Path, project_id: str) -> tuple[ValidityWindowI
                         evidence_kind="claim-record",
                     )
     catalog = vault / "generated" / "ops" / "bitemporal" / f"{token}-validity-catalog.json"
-    if catalog.is_file():
+    if _existing_file(catalog):
         try:
             payload = json.loads(catalog.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -688,19 +704,6 @@ def read_intelligence_query(
     )
 
 
-def _known_claim_projects(vault: Path) -> tuple[str, ...]:
-    root = vault / "state" / "claims"
-    if not root.is_dir():
-        return ()
-    found: list[str] = []
-    for path in sorted(root.glob("*.json")):
-        try:
-            found.append(safe_relative_component(path.stem, label="project id"))
-        except ValueError:
-            continue
-    return tuple(found)
-
-
 def read_portfolio_state(
     vault: Path,
     project_ids: tuple[str, ...] = (),
@@ -708,8 +711,13 @@ def read_portfolio_state(
     as_of_valid_time: str | None = None,
 ) -> dict[str, Any]:
     as_of = _optional_as_of(as_of_valid_time)
-    requested = tuple(_safe_project_id(item) for item in project_ids if item.strip())
-    keys = requested or _known_claim_projects(vault)
+    requested = tuple(item.strip() for item in project_ids if item.strip())
+    if not requested:
+        raise WebIntelligenceError(
+            "intel-api-portfolio-scope-required",
+            HonestyClass.UNSUPPORTED_SCOPE,
+        )
+    keys = tuple(_safe_project_id(item) for item in requested)
     projects = {key: load_assessable_claims(vault, key) for key in keys}
     windows = {key: load_validity_windows(vault, key) for key in keys}
     state = aggregate_portfolio_state(
