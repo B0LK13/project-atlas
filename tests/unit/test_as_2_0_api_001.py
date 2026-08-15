@@ -398,3 +398,116 @@ def test_http_honesty_and_no_auth_expansion(tmp_path: Path) -> None:
         assert "replaces_v1_conflicts" not in classic
     finally:
         server.shutdown()
+
+
+def test_project_token_boundary_matches_conflicts(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    valid_64 = "a" + ("x" * 63)
+    _write_claims(vault, valid_64, [_row("claim-a", "ok", project_id=valid_64)])
+    payload = read_project_state(vault, valid_64)
+    assert payload["project_id"] == valid_64
+    for token in (valid_64 + "y", "x" * 512, "z" * 8000):
+        with pytest.raises(WebIntelligenceError) as exc:
+            read_project_state(vault, token)
+        assert exc.value.honesty.value == "MALFORMED_INPUT"
+
+
+def test_http_enametoolong_and_portfolio_scope(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    project_a = "dark-factory-02ee94d0"
+    project_b = "harbor-portal"
+    _write_claims(vault, project_a, [_row("claim-a", "factory-only", project_id=project_a)])
+    _write_claims(
+        vault,
+        project_b,
+        [_row("claim-b", "SECRET-PORTAL-VALUE", project_id=project_b)],
+    )
+    server = serve_api(vault, host="127.0.0.1", port=0)
+    host, port = server.server_address[:2]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        hdrs = session_credentials(server).auth_headers()
+        before = {
+            path.relative_to(vault).as_posix(): path.read_bytes()
+            for path in vault.rglob("*")
+            if path.is_file()
+        }
+        for token in ("a" + ("x" * 64), "y" * 512, "z" * 8000):
+            status, body = _http_json(
+                str(host),
+                int(port),
+                hdrs,
+                f"/v1/project-state?project={token}",
+            )
+            assert status == 400
+            assert body["honesty"] == "MALFORMED_INPUT"
+            assert "Traceback" not in str(body)
+        status, unscoped = _http_json(
+            str(host),
+            int(port),
+            hdrs,
+            "/v1/portfolio-state",
+        )
+        assert status == 400
+        assert unscoped["honesty"] == "UNSUPPORTED_SCOPE"
+        assert "SECRET-PORTAL-VALUE" not in json.dumps(unscoped)
+        status, scoped_a = _http_json(
+            str(host),
+            int(port),
+            hdrs,
+            f"/v1/portfolio-state?project={project_a}",
+        )
+        assert status == 200
+        dumped_a = json.dumps(scoped_a)
+        assert "SECRET-PORTAL-VALUE" not in dumped_a
+        assert project_b not in dumped_a
+        status, scoped_b = _http_json(
+            str(host),
+            int(port),
+            hdrs,
+            f"/v1/portfolio-state?project={project_b}",
+        )
+        assert status == 200
+        assert "SECRET-PORTAL-VALUE" in json.dumps(scoped_b)
+        status, scoped_both = _http_json(
+            str(host),
+            int(port),
+            hdrs,
+            f"/v1/portfolio-state?project={project_a}&project={project_b}",
+        )
+        assert status == 200
+        dumped_both = json.dumps(scoped_both)
+        assert project_a in dumped_both
+        assert "SECRET-PORTAL-VALUE" in dumped_both
+        for path in (
+            f"/v1/intelligence/evidence?project={project_a}",
+            f"/v1/intelligence/conflicts?project={project_a}",
+            f"/v1/intelligence/explain?project={project_a}&field=datastore",
+            f"/v1/project-state?project={project_a}",
+            f"/v1/project-attention?project={project_a}",
+            f"/v1/intelligence/query?project={project_a}&kind=decision",
+        ):
+            status, payload = _http_json(str(host), int(port), hdrs, path)
+            assert status == 200
+            assert "SECRET-PORTAL-VALUE" not in json.dumps(payload)
+        status, patched = _http_json(
+            str(host),
+            int(port),
+            {**hdrs, "Content-Type": "application/json"},
+            f"/v1/intelligence/evidence?project={project_a}",
+            method="PATCH",
+            body=b"{}",
+        )
+        assert status == 405
+        assert patched["error"] == "writes-forbidden"
+        status, _health = _http_json(str(host), int(port), hdrs, "/v1/health")
+        assert status == 200
+        after = {
+            path.relative_to(vault).as_posix(): path.read_bytes()
+            for path in vault.rglob("*")
+            if path.is_file()
+        }
+        assert after == before
+    finally:
+        server.shutdown()
