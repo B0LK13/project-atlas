@@ -6565,3 +6565,22 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Local D-046 must revalidate the **new** exact HEAD before merge (prior tip stale)
 - INCREMENTAL-CONNECT remains analysis-only until post-merge Local HIGH gate
 
+## D-127+ — AS-CODER-ALPHA-NEXT-001 (independent of frozen D125 stack)
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-AUTONOMOUS-LONG-HORIZON-127-PLUS
+**Branch:** `cursor/coder-alpha-next-001-315e` (based on exact `main` `e5f17209754558435ac4b7f11ae227aa6e30d2b5`)
+**Mode:** MODE A — INDEPENDENT. `SPECULATIVE_FUTURE_STACK=NO`. Does not touch #361/#362/#363.
+
+### Why this lane
+North-star daily journey still lacked a first-class **What next** step. Substrate already existed (`atlas roadmap` `next_unlock`, `atlas attention` `care_about`, `atlas source-health`, brief heuristics) but users/agents had to synthesize it.
+
+### Surface overlap vs frozen pinset
+`NO_OVERLAP` on planned production paths. New module `src/project_atlas/project_next.py` only. Explicitly not `AS-2.0-NEXT-001` / `intelligence/next_action.py` / Wave 15-16 API/Web.
+
+### Honesty
+- NEXT LENS != AUTHORITY
+- NEXT ACTION != COMMAND
+- UNKNOWN is valid
+- no auto-execution
+

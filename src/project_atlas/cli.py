@@ -199,6 +199,12 @@ from project_atlas.project_decisions import (
     ProjectDecisionsError,
     materialize_decisions_lenses,
 )
+from project_atlas.project_next import (
+    ProjectNextError,
+    derive_next_lenses,
+    materialize_next_lenses,
+    render_next_text,
+)
 from project_atlas.project_roadmap import (
     ProjectRoadmapError,
     derive_roadmap_lenses,
@@ -297,6 +303,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "overview",
         "state",
         "roadmap",
+        "next",
         "changed",
         "decisions",
         "unknown",
@@ -748,6 +755,39 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit the roadmap receipt JSON to stdout (sorted keys).",
     )
     roadmap_parser.add_argument(
+        "--read-only",
+        action="store_true",
+        dest="read_only",
+        help="Derive and print without writing generated/answers/ (no vault mutation).",
+    )
+
+    next_parser = subparsers.add_parser(
+        "next",
+        help=(
+            "Materialize What Next derived lens from attention/roadmap/"
+            "unknown/source-health (AS-CODER-ALPHA-NEXT-001; NEXT!=command)."
+        ),
+    )
+    next_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help="Vault directory (default: .atlas/connect.json bind / .atlas-vault).",
+    )
+    next_parser.add_argument(
+        "--project",
+        action="append",
+        dest="projects",
+        default=None,
+        help="Limit to one project id (repeatable). Default: all projects/.",
+    )
+    next_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the next receipt JSON to stdout (sorted keys).",
+    )
+    next_parser.add_argument(
         "--read-only",
         action="store_true",
         dest="read_only",
@@ -2545,6 +2585,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     "  next: atlas overview --vault <vault> "
                     "| atlas roadmap --vault <vault> --project <id> "
+                    "| atlas next --vault <vault> --project <id> "
                     "| atlas ask2 --vault <vault> --project <id> "
                     "--question 'What is this project?'"
                 )
@@ -2566,6 +2607,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 roadmap_answers = report.get("roadmap_answers") or []
                 if roadmap_answers:
                     print(f"  roadmap:  {', '.join(roadmap_answers)}")
+                next_answers = report.get("next_answers") or []
+                if next_answers:
+                    print(f"  next:     {', '.join(next_answers)}")
                 brief_paths = report.get("brief_paths") or []
                 if brief_paths:
                     print(f"  brief:    {', '.join(brief_paths)}")
@@ -2641,6 +2685,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
             for lens in report.get("lenses") or []:
                 print(render_roadmap_text(lens))
+        return EXIT_OK
+
+    if args.command == "next":
+        try:
+            derive = derive_next_lenses if args.read_only else materialize_next_lenses
+            report = derive(
+                args.vault,
+                project_ids=args.projects,
+            )
+        except (ProjectNextError, OSError) as exc:
+            _log.error("next failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas next [{report.get('status', 'ok')}]")
+            print(f"  vault:    {report.get('vault')}")
+            print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
+            for lens in report.get("lenses") or []:
+                print(render_next_text(lens))
         return EXIT_OK
 
     if args.command == "changed":

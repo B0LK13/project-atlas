@@ -202,21 +202,31 @@ def build_project_brief(
         if isinstance(raw_absent, list):
             coverage_absent = [str(item) for item in raw_absent]
 
-    # Suggested next work is honesty-driven, not invented roadmap.
+    # Suggested next work: prefer the composed What Next lens, then honesty fallbacks.
+    next_lens: dict[str, Any] | None = None
+    with contextlib.suppress(Exception):
+        from project_atlas.project_next import build_next_lens
+
+        next_lens = build_next_lens(vault, project_id)
     next_work: list[str] = []
-    if isinstance(unknown_signals, dict):
-        if int(unknown_signals.get("unresolved_conflicts") or 0) > 0:
-            next_work.append("Resolve unresolved conflicts in review/conflicts")
-        if int(unknown_signals.get("pending_reviews") or 0) > 0:
-            next_work.append("Triage pending human reviews in review/pending")
-    if coverage_absent:
-        next_work.append(
-            "Add source evidence for absent coverage: " + ", ".join(coverage_absent[:6])
-        )
-    if (decisions or {}).get("status") == "unknown":
-        next_work.append("Capture important decisions in docs/DECISIONS.md or ADRs")
-    if (changed or {}).get("rollup") == "baseline":
-        next_work.append("Re-run atlas connect after edits to populate What Changed")
+    if next_lens is not None:
+        raw_next = next_lens.get("suggested_next_work")
+        if isinstance(raw_next, list):
+            next_work = [str(item) for item in raw_next if str(item).strip()]
+    if not next_work:
+        if isinstance(unknown_signals, dict):
+            if int(unknown_signals.get("unresolved_conflicts") or 0) > 0:
+                next_work.append("Resolve unresolved conflicts in review/conflicts")
+            if int(unknown_signals.get("pending_reviews") or 0) > 0:
+                next_work.append("Triage pending human reviews in review/pending")
+        if coverage_absent:
+            next_work.append(
+                "Add source evidence for absent coverage: " + ", ".join(coverage_absent[:6])
+            )
+        if (decisions or {}).get("status") == "unknown":
+            next_work.append("Capture important decisions in docs/DECISIONS.md or ADRs")
+        if (changed or {}).get("rollup") == "baseline":
+            next_work.append("Re-run atlas connect after edits to populate What Changed")
     if not next_work:
         next_work.append("UNKNOWN - no concrete next-work signal derived from Truth Core")
 
@@ -258,6 +268,7 @@ def build_project_brief(
             "changed": (changed or {}).get("answer_id"),
             "decisions": (decisions or {}).get("answer_id"),
             "unknown": (unknown or {}).get("answer_id"),
+            "next": (next_lens or {}).get("answer_id"),
         },
         "knowledge_answers": [
             row["answer_id"]
