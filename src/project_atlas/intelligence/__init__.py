@@ -65,6 +65,7 @@ from project_atlas.intelligence.query import (
     SlotStatus,
     query_intelligence,
 )
+from project_atlas.intelligence.risk import RiskClass, RiskSignal, detect_risk_signals
 from project_atlas.intelligence.types import (
     AssessableClaim,
     AssessmentContext,
@@ -126,6 +127,8 @@ __all__ = [
     "LineageIntegrity",
     "PairingStats",
     "QueryOutcome",
+    "RiskClass",
+    "RiskSignal",
     "SemanticChange",
     "SeverityClass",
     "SlotStatus",
@@ -136,6 +139,7 @@ __all__ = [
     "assess_evidence",
     "assess_evidence_many",
     "detect_evidence_gaps",
+    "detect_risk_signals",
     "detect_semantic_changes",
     "explain_why",
     "find_contradiction_candidates",
