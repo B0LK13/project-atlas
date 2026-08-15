@@ -46,6 +46,12 @@ from project_atlas.intelligence.derived_state import (
 )
 from project_atlas.intelligence.evidence import assess_evidence, assess_evidence_many
 from project_atlas.intelligence.explain import EvidenceTrace, explain_why
+from project_atlas.intelligence.gaps import (
+    EvidenceGap,
+    GapClass,
+    GapCurrentStatus,
+    detect_evidence_gaps,
+)
 from project_atlas.intelligence.query import (
     IntelligenceAnswer,
     IntelligenceQuery,
@@ -100,10 +106,13 @@ __all__ = [
     "DerivedProjectState",
     "EvidenceAssessment",
     "EvidenceDimensions",
+    "EvidenceGap",
     "EvidenceRef",
     "EvidenceRole",
     "EvidenceTrace",
     "FactStatus",
+    "GapClass",
+    "GapCurrentStatus",
     "IntelligenceAnswer",
     "IntelligenceQuery",
     "IntelligenceQueryKind",
@@ -119,6 +128,7 @@ __all__ = [
     "ValidityWindowInput",
     "assess_evidence",
     "assess_evidence_many",
+    "detect_evidence_gaps",
     "explain_why",
     "find_contradiction_candidates",
     "find_contradiction_candidates_report",

@@ -108,13 +108,13 @@ def test_wall_clock_as_of_is_invalid() -> None:
     assert "wall-clock-forbidden" in answer.reason
 
 
-def test_gaps_remain_unbound_until_later_package() -> None:
+def test_gaps_query_is_bound() -> None:
     gaps = query_intelligence(
         IntelligenceQuery(project_id="harbor-api", kind=IntelligenceQueryKind.GAPS),
         [_claim("claim-a", value="PostgreSQL 16")],
     )
-    assert gaps.outcome is QueryOutcome.NONANSWER
-    assert gaps.reason == "gaps-package-not-bound"
+    assert gaps.outcome is QueryOutcome.ANSWER
+    assert gaps.gaps
 
 
 def test_replay_query_id_is_stable() -> None:
