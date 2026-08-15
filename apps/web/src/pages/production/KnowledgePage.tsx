@@ -322,6 +322,16 @@ export default function KnowledgePage() {
                   className="chip"
                   to={
                     projectId
+                      ? `/ask?project=${encodeURIComponent(projectId)}`
+                      : "/ask"
+                  }
+                >
+                  ask (≠ authority)
+                </Link>
+                <Link
+                  className="chip"
+                  to={
+                    projectId
                       ? `/time-machine?project=${encodeURIComponent(projectId)}`
                       : "/time-machine"
                   }

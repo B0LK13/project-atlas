@@ -5,6 +5,24 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-2.1-ASK-ATLAS-LIVE-001 — Web Ask live journey
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001
+**Branch:** `cursor/web-ask-live-25b1` (from accepted main `9441b0c`)
+**Not #354 / #356.** No merge authorization.
+
+Read-only `#/ask` over existing `GET /v1/ask`. Lexical live ask, not a
+chat model. UNKNOWN stays UNKNOWN. ASK ≠ authority.
+
+```
+ASK_IV = PASS
+ASK_CI = PASS
+ASK_STATE = CERTIFIED — MERGE ELIGIBLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+PRODUCTION_TIP = 98d364be887f1d671d24603bfdd69354b20bd76b
+```
+
 ## AS-2.2-KDIFF-001 — Time Machine live project journey
 
 **Date:** 2026-08-14
