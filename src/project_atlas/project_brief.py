@@ -283,12 +283,20 @@ def build_project_brief(
             "lens_is_authority": False,
             "fabricated_fields": False,
             "unknown_is_valid": True,
+            "answer_evidence_stale": bool(
+                ((next_lens or {}).get("honesty") or {}).get("answer_evidence_stale")
+            ),
+            "live_source_unverified": bool(
+                ((next_lens or {}).get("honesty") or {}).get("live_source_unverified")
+            ),
+            "stale_is_current": False,
         },
         "notes": [
             "Unified Coder Alpha brief over derived lenses",
             "UI!=canonical",
             "MODEL_OUTPUT!=AUTHORITY",
             "UNKNOWN!=healthy",
+            "STALE EVIDENCE!=CURRENT",
         ],
     }
     return brief
