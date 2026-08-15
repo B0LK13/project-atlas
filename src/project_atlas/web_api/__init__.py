@@ -40,6 +40,10 @@ from project_atlas.web_api.intelligence import (
 from project_atlas.web_api.knowledge import KnowledgeAnswerSummary, list_knowledge_answers
 from project_atlas.web_api.projects import ProjectSummary, list_projects
 from project_atlas.web_api.roadmap import WebRoadmapError, read_project_roadmap
+from project_atlas.web_api.source_health import (
+    WebSourceHealthError,
+    read_source_health,
+)
 
 __all__ = [
     "OBS_HEALTH_SNAPSHOT_RELATIVE",
@@ -50,6 +54,7 @@ __all__ = [
     "WebBriefError",
     "WebIntelligenceError",
     "WebRoadmapError",
+    "WebSourceHealthError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
     "list_knowledge_answers",
@@ -66,6 +71,7 @@ __all__ = [
     "read_project_brief",
     "read_project_roadmap",
     "read_project_state",
+    "read_source_health",
     "read_status",
     "read_vault_health",
 ]

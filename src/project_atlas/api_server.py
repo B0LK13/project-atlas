@@ -300,6 +300,31 @@ def make_handler(
                 except AppServiceError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/source-health":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "source-health-requires-project",
+                            "package_id": "AS-CODER-ALPHA-SOURCE-HEALTH-API-001",
+                            "honesty": "UNSUPPORTED_SCOPE",
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.source_health(project))
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-SOURCE-HEALTH-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                return
             if path == "/v1/actions/recent":
                 try:
                     limit = _parse_limit(qs, default=20)
@@ -501,6 +526,7 @@ def make_handler(
                     "intelligence_live": True,
                     "kdiff_live": True,
                     "brief_live": True,
+                    "source_health_live": True,
                     "discovery_live": True,
                     "truth_ux_live": True,
                     "authz_profile": True,
