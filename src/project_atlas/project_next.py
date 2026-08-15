@@ -37,6 +37,7 @@ ANSWERS_RELATIVE = Path("generated") / "answers"
 
 _KIND_RANK = {
     "blocking_attention": 10,
+    "stale_evidence": 15,
     "unresolved_conflict": 20,
     "pending_review": 30,
     "source_failure": 40,
@@ -396,6 +397,27 @@ def build_next_lens(vault: Path, project_id: str) -> dict[str, Any]:
 
     collected: list[dict[str, Any]] = []
     inspected: list[str] = []
+    drift: dict[str, Any] | None = None
+    with contextlib.suppress(Exception):
+        from project_atlas.next_stale_evidence import (
+            evaluate_next_source_drift,
+            stale_queue_item,
+        )
+
+        drift = evaluate_next_source_drift(vault, project_id)
+        inspected.append("generated/ops/connect-manifest.json")
+        stale_item = stale_queue_item(drift)
+        if stale_item is not None:
+            collected.append(
+                _queue_item(
+                    kind=str(stale_item["kind"]),
+                    title=str(stale_item["title"]),
+                    why=str(stale_item["why"]),
+                    action=str(stale_item["action"]),
+                    evidence=[str(item) for item in (stale_item.get("evidence") or []) if item],
+                    source_package=str(stale_item.get("source_package") or PACKAGE_ID),
+                )
+            )
     for collector in (
         _collect_attention,
         _collect_source_health,
@@ -461,15 +483,29 @@ def build_next_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "fabricated_fields": False,
             "not_as_2_0_next_001": True,
             "derived_only": True,
+            "answer_evidence_stale": bool((drift or {}).get("status") == "STALE"),
+            "live_source_unverified": bool(
+                drift is None or (drift or {}).get("status") == "UNKNOWN"
+            ),
+            "stale_is_current": False,
+        },
+        "source_drift": {
+            "status": (drift or {}).get("status") or "UNKNOWN",
+            "reason": (drift or {}).get("reason") or "drift not evaluated",
+            "package": "AS-CODER-ALPHA-NEXT-STALE-EVIDENCE-001",
         },
         "notes": [
             "Coder Alpha What Next over derived lenses",
             "NEXT!=AUTHORITY",
             "NEXT!=COMMAND",
             "UNKNOWN!=healthy",
+            "STALE EVIDENCE!=CURRENT",
             "Not AS-2.0-NEXT-001 / not Wave 15-16 intelligence",
         ],
-        "truth_boundary": "NEXT LENS != AUTHORITY / NEXT ACTION != COMMAND",
+        "truth_boundary": (
+            "NEXT LENS != AUTHORITY / NEXT ACTION != COMMAND / "
+            "STALE EVIDENCE != CURRENT"
+        ),
     }
 
 
