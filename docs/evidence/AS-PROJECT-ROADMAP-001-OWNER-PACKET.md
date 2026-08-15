@@ -5,8 +5,8 @@ PR: `#354`
 BRANCH: `cursor/as-project-roadmap-001-6f85`
 
 ```
-ROADMAP_STATE = REMEDIATED — CI + IV PENDING
-ROADMAP_IV = PENDING_REVALIDATION
+ROADMAP_STATE = CERTIFIED — MERGE ELIGIBLE
+ROADMAP_IV = PASS
 ROADMAP_PR = 354
 MERGE_AUTHORIZATION = NOT_GRANTED
 OWNER_HELD = YES
@@ -21,23 +21,27 @@ Cloud does not merge this PR.
 ```
 ACCEPTED_MAIN = 9441b0c576dc54bc43a92a62a4e972889424c21f
 D042_MERGED_VIA = #353
-PRODUCTION_TIP = 96c4c68a3d98d64d749231ace7136a8eb8da7ccd
-PRODUCTION_TREE = 9a034042fb614429c44a6cde242e51ea9d2680e6
+ROADMAP_SEMANTICS_TIP = 96c4c68a3d98d64d749231ace7136a8eb8da7ccd
+PRODUCTION_TIP = a9770ce132822dd1035bb663490f3907d68117eb
+PRODUCTION_TREE = 4359ceb7ecd77d3b8680552f25967557f8c70da8
+CI_RUN = 31871795221
 ```
 
 `PRODUCTION_TIP` is the last production commit (Web `?project=` routing
-+ live-failure honesty). Any later docs-only evidence commit on this
-branch does not change runtime behavior.
++ live-failure honesty + identical #359 yaml closer). Any later
+docs-only evidence commit on this branch does not change runtime
+behavior.
 
 Daytime governor `D-PROJECT-ATLAS-CLOUD-DAYTIME-GOVERNOR-20260815-001`
-found two MEDIUM journey defects on the prior certified tip:
+found two MEDIUM journey defects on the prior certified tip `d0d3afc`:
 
 - Roadmap Web hardcoded `harbor-api` (no `useSearchParams`)
 - `useLiveRoadmap` labeled HTTP/catch failures as `demo_stub`
 
-Bounded remediation stays inside `#354`. Recertification requires
-repeated IV + observed GitHub CI on this tip. Do not treat the prior
-`d0d3afc` CERTIFIED stamp as current.
+Bounded remediation `96c4c68` stays inside `#354`. `a9770ce` applies
+the identical mypy 2.3.1 closer already certified on `#359` after
+`types-PyYAML 6.0.12.20260815` made the unused-ignore fail on
+ubuntu-full. Recertification IV + CI observed on `a9770ce`.
 
 ---
 
@@ -83,10 +87,17 @@ NO EVIDENCE != VERIFIED
 pytest tests/unit/test_as_project_roadmap_001.py
        tests/unit/test_as_project_roadmap_web.py
   22 passed (workspace src)
+local mypy yaml_structured.py PASS
 apps/web tsc -b PASS
 apps/web vite build PASS (72 modules)
-Independent IV of 96c4c68 = PENDING (repeat after CI)
-Prior IV PASS at 2d2a2dc and 69c2de8 remains historical only
+compose 359→358→356→357→354 : 37 focused tests PASS; web 76 modules PASS
+source IV_354_CHECKS PASS (KnowledgePage untouched)
+composed browser journey: ?project= followed; live miss ≠ demo_stub
+GitHub CI 31871795221 SUCCESS on a9770ce
+  observed: control-plane
+            quality (ubuntu-latest, 3.12, full)
+            quality (ubuntu-latest, 3.13, compat)
+            quality (windows-latest, 3.12, windows)
 ```
 
 ---

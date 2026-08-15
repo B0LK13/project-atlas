@@ -26,8 +26,10 @@ context and handoff. Independent IV PASS at `2d2a2dc` and post-merge
 `69c2de8`. Daytime journey IV then found MEDIUM Web defects on the
 prior certified tip (`d0d3afc`): hardcoded `harbor-api` and
 `demo_stub` on live HTTP/catch. Bounded remediation `96c4c68` adds
-`?project=` routing and honest `data_source`. Recertification pending
-CI + repeated IV. Merge is not granted.
+`?project=` routing and honest `data_source`. `a9770ce` applies the
+identical #359 yaml closer after ubuntu-full mypy unused-ignore.
+CI `31871795221` SUCCESS. Independent IV PASS. CERTIFIED — MERGE
+ELIGIBLE. Merge is not granted.
 
 ---
 
