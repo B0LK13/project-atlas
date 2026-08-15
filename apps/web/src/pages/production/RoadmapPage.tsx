@@ -1,18 +1,41 @@
+import { useSearchParams } from "react-router-dom";
 import { ProdShell } from "../../components/ProdShell";
 import { useLiveRoadmap } from "../../hooks/useLiveRoadmap";
+import { useReadStatus } from "../../hooks/useReadStatus";
 
 const DEFAULT_PROJECT = "harbor-api";
 
 /**
  * AS-PROJECT-ROADMAP-001 web lens — derived Living Project Roadmap V1.
  * UI ≠ canonical; ROADMAP ≠ authority; UNKNOWN ≠ healthy.
+ * Project follows ?project= so the coder journey keeps context.
  */
 export default function RoadmapPage() {
-  const { roadmap, error, loading, dataSource } = useLiveRoadmap(DEFAULT_PROJECT);
+  const [params, setParams] = useSearchParams();
+  const { status, loading: statusLoading } = useReadStatus();
+  const projects = status?.projects ?? [];
+  const projectParam = params.get("project");
+  const projectId = projectParam ?? DEFAULT_PROJECT;
+  const { roadmap, error, loading, dataSource } = useLiveRoadmap(projectId);
   const isDemo = dataSource === "demo_stub";
   const here = roadmap?.you_are_here;
   const nextUnlock = roadmap?.next_unlock;
   const path = roadmap?.critical_path ?? [];
+  const briefProject =
+    typeof roadmap?.project_id === "string" ? roadmap.project_id.trim() : "";
+  const projectMismatch = Boolean(
+    roadmap && projectId && briefProject && briefProject !== projectId,
+  );
+
+  function onSelectProject(next: string) {
+    const nextParams = new URLSearchParams(params);
+    if (next) {
+      nextParams.set("project", next);
+    } else {
+      nextParams.delete("project");
+    }
+    setParams(nextParams, { replace: true });
+  }
 
   return (
     <ProdShell>
@@ -21,8 +44,8 @@ export default function RoadmapPage() {
           <p className="eyebrow">Production · Living Project Roadmap V1</p>
           <h1>Project roadmap</h1>
           <p className="lede">
-            Derived projection of where <code>{DEFAULT_PROJECT}</code> is, why
-            it is there, and what unlocks next. Not canonical truth. Not
+            Derived projection of where <code>{projectId ?? "UNKNOWN"}</code> is,
+            why it is there, and what unlocks next. Not canonical truth. Not
             authority. No invented completion percentages.
           </p>
           <p className="flags" style={{ marginTop: "0.75rem" }}>
@@ -33,12 +56,47 @@ export default function RoadmapPage() {
           </p>
         </header>
 
+        <section className="panel" aria-label="Project selector">
+          <h2>Project</h2>
+          {statusLoading ? <p className="banner">Loading projects…</p> : null}
+          <label className="lede" htmlFor="roadmap-project">
+            Focus project
+          </label>
+          <select
+            id="roadmap-project"
+            value={projectId ?? ""}
+            onChange={(event) => onSelectProject(event.target.value)}
+            style={{ display: "block", marginTop: "0.5rem", maxWidth: "24rem" }}
+          >
+            {!projectId ? (
+              <option value="">unknown — select a project</option>
+            ) : null}
+            {projects.map((project) => (
+              <option
+                key={project.project_id ?? project.path}
+                value={project.project_id ?? ""}
+              >
+                {project.project_id ?? "unnamed"}
+              </option>
+            ))}
+            {projectId &&
+            !projects.some((project) => project.project_id === projectId) ? (
+              <option value={projectId}>{projectId}</option>
+            ) : null}
+          </select>
+        </section>
+
         {error ? <p className="banner warn">Roadmap unavailable: {error}</p> : null}
         {loading ? <p className="banner">Loading…</p> : null}
         {isDemo ? (
           <p className="banner warn">
             DEMO STUB isolated — start <code>atlas live api-serve</code> to see
             a live derived roadmap (not vault truth)
+          </p>
+        ) : null}
+        {projectMismatch ? (
+          <p className="banner warn">
+            UNKNOWN — roadmap project does not match selected project
           </p>
         ) : null}
 

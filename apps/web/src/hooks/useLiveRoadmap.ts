@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  LiveApiAuthError,
-  liveApiDemoOnly,
-  liveApiFetch,
-} from "../api/liveApi";
+import { liveApiDemoOnly, liveApiFetch } from "../api/liveApi";
 import type { DataSource } from "../types";
 
 export interface RoadmapBlocker {
@@ -58,17 +54,29 @@ export function useLiveRoadmap(projectId: string | null) {
 
   useEffect(() => {
     let cancelled = false;
-    if (!projectId || liveApiDemoOnly()) {
+    if (liveApiDemoOnly()) {
       setRoadmap(null);
       setDataSource("demo_stub");
       setError(null);
-      return;
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (!projectId) {
+      setRoadmap(null);
+      setDataSource(null);
+      setError(null);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
     }
     setLoading(true);
     liveApiFetch(`/v1/roadmap?project=${encodeURIComponent(projectId)}`)
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error(`roadmap ${response.status}`);
+          throw new Error(`roadmap HTTP ${response.status}`);
         }
         return (await response.json()) as RoadmapLens;
       })
@@ -85,11 +93,7 @@ export function useLiveRoadmap(projectId: string | null) {
           return;
         }
         setRoadmap(null);
-        setDataSource("demo_stub");
-        if (exc instanceof LiveApiAuthError) {
-          setError(exc.message);
-          return;
-        }
+        setDataSource(null);
         setError(exc instanceof Error ? exc.message : "roadmap unavailable");
       })
       .finally(() => {
