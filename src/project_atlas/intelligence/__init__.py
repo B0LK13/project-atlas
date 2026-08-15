@@ -25,6 +25,11 @@ from project_atlas.intelligence.boundary import (
     TRUTH_BOUNDARY_STATE,
     UNKNOWN_IS_VALID,
 )
+from project_atlas.intelligence.change import (
+    ChangeClass,
+    SemanticChange,
+    detect_semantic_changes,
+)
 from project_atlas.intelligence.contradictions import (
     ContradictionCandidate,
     ContradictionClass,
@@ -98,6 +103,7 @@ __all__ = [
     "AssessmentContext",
     "AttentionCandidate",
     "AttentionKind",
+    "ChangeClass",
     "ConfidenceClass",
     "ContradictionCandidate",
     "ContradictionClass",
@@ -120,6 +126,7 @@ __all__ = [
     "LineageIntegrity",
     "PairingStats",
     "QueryOutcome",
+    "SemanticChange",
     "SeverityClass",
     "SlotStatus",
     "SourceObservation",
@@ -129,6 +136,7 @@ __all__ = [
     "assess_evidence",
     "assess_evidence_many",
     "detect_evidence_gaps",
+    "detect_semantic_changes",
     "explain_why",
     "find_contradiction_candidates",
     "find_contradiction_candidates_report",
