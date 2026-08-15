@@ -266,7 +266,9 @@ def _evidence_refs(
                     role=EvidenceRole.CONTRADICTING,
                 )
             )
-    supporting.sort(key=lambda item: (item.claim_id or "", item.source_id or "", item.resource or ""))
+    supporting.sort(
+        key=lambda item: (item.claim_id or "", item.source_id or "", item.resource or "")
+    )
     contradicting.sort(
         key=lambda item: (item.claim_id or "", item.source_id or "", item.resource or "")
     )
@@ -326,25 +328,28 @@ def _analyze(
 
     lineage_ids: set[str] = set()
     source_ids: set[str] = set()
-    for ref in supporting:
-        lineage_ids.add(lineage_key(ref.source_lineage_id, ref.source_id))
-        if ref.source_id:
-            source_ids.add(ref.source_id)
+    for evidence_ref in supporting:
+        lineage_ids.add(lineage_key(evidence_ref.source_lineage_id, evidence_ref.source_id))
+        if evidence_ref.source_id:
+            source_ids.add(evidence_ref.source_id)
     if not lineage_ids and target.source_lineage_id:
         lineage_ids.add(lineage_key(target.source_lineage_id, None))
     if not source_ids:
-        for ref in target.provenance:
-            source_ids.add(ref.source_id)
+        for provenance_ref in target.provenance:
+            source_ids.add(provenance_ref.source_id)
 
     repeated_same_source = False
     if target.provenance:
         counted: dict[str, int] = {}
-        for ref in target.provenance:
-            key = lineage_key(ref.source_lineage_id or target.source_lineage_id, ref.source_id)
+        for provenance_ref in target.provenance:
+            key = lineage_key(
+                provenance_ref.source_lineage_id or target.source_lineage_id,
+                provenance_ref.source_id,
+            )
             counted[key] = counted.get(key, 0) + 1
         repeated_same_source = any(count > 1 for count in counted.values())
-    for observed in observations:
-        if observed.observation_count > 1:
+    for source_row in observations:
+        if source_row.observation_count > 1:
             repeated_same_source = True
     if repeated_same_source:
         factors.append(LimitingFactor.REPEATED_SAME_SOURCE)
@@ -397,11 +402,11 @@ def _analyze(
     else:
         missing = False
         present = False
-        for ref in target.provenance:
-            observed = source_index.get(ref.source_id)
-            if observed is None and (ref.source_lineage_id or target.source_lineage_id):
-                lineage = ref.source_lineage_id or target.source_lineage_id
-                observed = source_index.get(f"lineage:{lineage}")
+        for provenance_ref in target.provenance:
+            observed = source_index.get(provenance_ref.source_id)
+            lineage_id = provenance_ref.source_lineage_id or target.source_lineage_id
+            if observed is None and lineage_id is not None:
+                observed = source_index.get(f"lineage:{lineage_id}")
             if observed is None or observed.deleted or not observed.present:
                 missing = True
             else:

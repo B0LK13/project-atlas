@@ -19,7 +19,7 @@ from project_atlas.domain import (
     ConfidenceState,
     ProvenanceReference,
 )
-from project_atlas.intelligence.boundary import GENERATED_BY, PACKAGE_INTEL_001
+from project_atlas.intelligence.boundary import GENERATED_BY
 
 
 class ConfidenceClass(StrEnum):
@@ -205,7 +205,7 @@ class EvidenceAssessment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal[1] = 1
-    package_id: Literal["AS-2.0-INTEL-001"] = PACKAGE_INTEL_001
+    package_id: Literal["AS-2.0-INTEL-001"] = "AS-2.0-INTEL-001"
     claim_id: str
     project_id: str | None = None
     subject: str

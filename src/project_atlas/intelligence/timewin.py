@@ -50,9 +50,9 @@ def window_applicability(
     """Classify a claim window against an explicit as-of instant."""
     if as_of_valid_time is None:
         return "unspecified"
+    as_of = parse_instant(as_of_valid_time, field="as-of")
     if valid_from is None and valid_to is None:
         return "unknown"
-    as_of = parse_instant(as_of_valid_time, field="as-of")
     start = parse_instant(valid_from, field="valid-from") if valid_from else None
     end = parse_instant(valid_to, field="valid-to") if valid_to else None
     if start is not None and end is not None and end < start:

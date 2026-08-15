@@ -58,7 +58,7 @@ def _claim(
     *,
     value: str = "PostgreSQL 16",
     field: str = "datastore",
-    subject: str = "component:harbor-api",
+        subject: str = "project:harbor-api",
     source_id: str = "src-adr",
     lineage: str | None = None,
     authority: AuthorityLevel = AuthorityLevel.PRIMARY,
@@ -213,7 +213,9 @@ def test_future_not_yet_valid_evidence_stays_unknown() -> None:
 
 def test_conflicting_evidence_is_low_and_traceable() -> None:
     claim = _claim("claim-pg16", value="PostgreSQL 16")
-    peer = AssessableClaim.from_claim(_claim("claim-pg15", value="PostgreSQL 15", source_id="src-b"))
+    peer = AssessableClaim.from_claim(
+        _claim("claim-pg15", value="PostgreSQL 15", source_id="src-b")
+    )
     result = assess_evidence(claim, AssessmentContext(peer_claims=(peer,)))
     assert result.confidence_class is ConfidenceClass.LOW
     assert LimitingFactor.CONTRADICTORY_EVIDENCE in result.limiting_factors
@@ -225,7 +227,7 @@ def test_missing_provenance_is_unknown() -> None:
     bare = AssessableClaim(
         claim_id="claim-bare",
         project_id="harbor-api",
-        subject="component:harbor-api",
+        subject="project:harbor-api",
         field="datastore",
         value="PostgreSQL 16",
         authority=AuthorityLevel.PRIMARY,
@@ -272,7 +274,7 @@ def test_unknown_claim_remains_unknown() -> None:
 def test_unsupported_claim_is_unknown() -> None:
     bare = AssessableClaim(
         claim_id="claim-unsupported",
-        subject="component:harbor-api",
+        subject="project:harbor-api",
         field="datastore",
         value="PostgreSQL 16",
         authority=AuthorityLevel.INFERRED,
