@@ -7,12 +7,13 @@ import {
 import type { DataSource } from "../types";
 
 /**
- * AS-2.2-KDIFF-001 web lens: LIVE_API conflict + Time Machine state for the
- * fixed golden demo scope (harbor-api, T1→T2). Read-only; kdiff ≠ authority.
+ * AS-2.2-KDIFF-001 web lens: LIVE_API conflict + Time Machine state for a
+ * selected project. Golden-demo defaults remain harbor-api / T1→T2 when the
+ * URL does not name a project. Read-only; kdiff ≠ authority.
  * Demo-isolated honest empty fallback — never invents conflicts or diffs.
  */
 
-/** Fixed golden demo scope (must match the backend golden fixture). */
+/** Golden demo defaults (must match the backend golden fixture). */
 export const TIME_MACHINE_PROJECT = "harbor-api";
 export const TIME_MACHINE_T1 = "2024-03-01";
 export const TIME_MACHINE_T2 = "2024-10-01";
@@ -89,7 +90,11 @@ const EMPTY_DIFF: TimeMachineDiff = {
   removed: [],
 };
 
-export function useLiveTimeMachine(): {
+export function useLiveTimeMachine(
+  projectId: string | null = TIME_MACHINE_PROJECT,
+  t1: string = TIME_MACHINE_T1,
+  t2: string = TIME_MACHINE_T2,
+): {
   conflicts: ConflictRow[];
   asOfT1Cells: KdiffCell[];
   asOfT2Cells: KdiffCell[];
@@ -97,6 +102,9 @@ export function useLiveTimeMachine(): {
   error: string | null;
   loading: boolean;
   dataSource: DataSource | null;
+  projectId: string | null;
+  t1: string;
+  t2: string;
 } {
   const [conflicts, setConflicts] = useState<ConflictRow[]>([]);
   const [asOfT1Cells, setAsOfT1Cells] = useState<KdiffCell[]>([]);
@@ -111,25 +119,35 @@ export function useLiveTimeMachine(): {
     setLoading(true);
 
     async function load(): Promise<void> {
-      if (!liveApiDemoOnly()) {
+      if (!liveApiDemoOnly() && projectId) {
         try {
-          const project = encodeURIComponent(TIME_MACHINE_PROJECT);
+          const project = encodeURIComponent(projectId);
+          const from = encodeURIComponent(t1);
+          const to = encodeURIComponent(t2);
           const [conflictsResp, asOfT1Resp, asOfT2Resp, diffResp] =
             await Promise.all([
               liveApiFetch(`/v1/conflicts?project=${project}`),
-              liveApiFetch(`/v1/kdiff?project=${project}&as_of=${TIME_MACHINE_T1}`),
-              liveApiFetch(`/v1/kdiff?project=${project}&as_of=${TIME_MACHINE_T2}`),
+              liveApiFetch(`/v1/kdiff?project=${project}&as_of=${from}`),
+              liveApiFetch(`/v1/kdiff?project=${project}&as_of=${to}`),
               liveApiFetch(
-                `/v1/kdiff?project=${project}&from=${TIME_MACHINE_T1}&to=${TIME_MACHINE_T2}`,
+                `/v1/kdiff?project=${project}&from=${from}&to=${to}`,
               ),
             ]);
-          if (
-            conflictsResp.ok &&
-            asOfT1Resp.ok &&
-            asOfT2Resp.ok &&
-            diffResp.ok
-          ) {
-            const conflictsBody = (await conflictsResp.json()) as ConflictsResponse;
+          if (!conflictsResp.ok || !asOfT1Resp.ok || !asOfT2Resp.ok || !diffResp.ok) {
+            if (!cancelled) {
+              setError(
+                `time-machine HTTP ${conflictsResp.status}/${asOfT1Resp.status}/` +
+                  `${asOfT2Resp.status}/${diffResp.status}`,
+              );
+              setConflicts([]);
+              setAsOfT1Cells([]);
+              setAsOfT2Cells([]);
+              setDiff(EMPTY_DIFF);
+              setDataSource(null);
+            }
+            return;
+          }
+          const conflictsBody = (await conflictsResp.json()) as ConflictsResponse;
             const asOfT1Body = (await asOfT1Resp.json()) as AsOfResponse;
             const asOfT2Body = (await asOfT2Resp.json()) as AsOfResponse;
             const diffBody = (await diffResp.json()) as DiffResponse;
@@ -160,7 +178,6 @@ export function useLiveTimeMachine(): {
               setError(null);
             }
             return;
-          }
         } catch (err: unknown) {
           if (err instanceof LiveApiAuthError) {
             if (!cancelled) {
@@ -173,7 +190,15 @@ export function useLiveTimeMachine(): {
             }
             return;
           }
-          // network / other: fall through to isolated demo empty
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "time machine load failed");
+            setConflicts([]);
+            setAsOfT1Cells([]);
+            setAsOfT2Cells([]);
+            setDiff(EMPTY_DIFF);
+            setDataSource(null);
+          }
+          return;
         }
       }
       if (!cancelled) {
@@ -181,8 +206,12 @@ export function useLiveTimeMachine(): {
         setAsOfT1Cells([]);
         setAsOfT2Cells([]);
         setDiff(EMPTY_DIFF);
-        setDataSource("demo_stub");
-        setError(null);
+        setDataSource(liveApiDemoOnly() ? "demo_stub" : null);
+        setError(
+          liveApiDemoOnly() || !projectId
+            ? null
+            : "LIVE_API unavailable — no invented Time Machine rows",
+        );
       }
     }
 
@@ -208,7 +237,7 @@ export function useLiveTimeMachine(): {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [projectId, t1, t2]);
 
   return {
     conflicts,
@@ -218,5 +247,8 @@ export function useLiveTimeMachine(): {
     error,
     loading,
     dataSource,
+    projectId,
+    t1,
+    t2,
   };
 }

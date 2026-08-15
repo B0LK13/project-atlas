@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  LiveApiAuthError,
-  liveApiDemoOnly,
-  liveApiFetch,
-} from "../api/liveApi";
+import { liveApiDemoOnly, liveApiFetch } from "../api/liveApi";
 import type { DataSource } from "../types";
 
 /** AS-2.1-WEB-LIVE / AS-CODER-ALPHA-WEB-001: LIVE_API knowledge; optional project filter. */
@@ -50,16 +46,21 @@ export function useLiveKnowledge(projectId?: string | null): {
             }
             return;
           }
-        } catch (err: unknown) {
-          if (err instanceof LiveApiAuthError) {
-            if (!cancelled) {
-              setError(err.message);
-              setKnowledge([]);
-              setDataSource(null);
-            }
-            return;
+          if (!cancelled) {
+            setError(`knowledge HTTP ${resp.status}`);
+            setKnowledge([]);
+            setDataSource(null);
           }
-          // network / other: fall through to isolated demo empty
+          return;
+        } catch (err: unknown) {
+          if (!cancelled) {
+            setError(
+              err instanceof Error ? err.message : "knowledge load failed",
+            );
+            setKnowledge([]);
+            setDataSource(null);
+          }
+          return;
         }
       }
       if (!cancelled) {

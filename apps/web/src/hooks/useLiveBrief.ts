@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  LiveApiAuthError,
-  liveApiDemoOnly,
-  liveApiFetch,
-} from "../api/liveApi";
+import { liveApiDemoOnly, liveApiFetch } from "../api/liveApi";
 import type { DataSource } from "../types";
 
 /** AS-CODER-ALPHA-WEB-001 / TRUTH-UX-001 — LIVE_API project brief + truth panel. */
@@ -145,14 +141,12 @@ export function useLiveBrief(projectId: string | null): {
           }
           return;
         } catch (err: unknown) {
-          if (err instanceof LiveApiAuthError) {
-            if (!cancelled) {
-              setError(err.message);
-              setBrief(null);
-              setDataSource(null);
-            }
-            return;
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "brief load failed");
+            setBrief(null);
+            setDataSource(null);
           }
+          return;
         }
       }
       if (!cancelled) {

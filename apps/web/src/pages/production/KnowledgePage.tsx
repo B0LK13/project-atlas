@@ -308,7 +308,34 @@ export default function KnowledgePage() {
               )}
 
               <p className="flags" style={{ marginTop: "1rem" }}>
-                <Link className="chip" to="/time-machine">
+                <Link
+                  className="chip"
+                  to={
+                    projectId
+                      ? `/context?project=${encodeURIComponent(projectId)}`
+                      : "/context"
+                  }
+                >
+                  agent context (≠ authority)
+                </Link>
+                <Link
+                  className="chip"
+                  to={
+                    projectId
+                      ? `/ask?project=${encodeURIComponent(projectId)}`
+                      : "/ask"
+                  }
+                >
+                  ask (≠ authority)
+                </Link>
+                <Link
+                  className="chip"
+                  to={
+                    projectId
+                      ? `/time-machine?project=${encodeURIComponent(projectId)}`
+                      : "/time-machine"
+                  }
+                >
                   history / Time Machine
                 </Link>
                 <Link className="chip" to="/graph">

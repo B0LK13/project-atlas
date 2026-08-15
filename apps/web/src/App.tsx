@@ -13,6 +13,8 @@ import CommandCenterPage from "./pages/production/CommandCenterPage";
 import MissionControlPage from "./pages/production/MissionControlPage";
 import WorkspacePage from "./pages/production/WorkspacePage";
 import TimeMachinePage from "./pages/production/TimeMachinePage";
+import ContextPage from "./pages/production/ContextPage";
+import AskPage from "./pages/production/AskPage";
 import RoadmapPage from "./pages/production/RoadmapPage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
@@ -29,6 +31,8 @@ export default function App() {
       <Route path="/mission-control" element={<MissionControlPage />} />
       <Route path="/workspace" element={<WorkspacePage />} />
       <Route path="/time-machine" element={<TimeMachinePage />} />
+      <Route path="/context" element={<ContextPage />} />
+      <Route path="/ask" element={<AskPage />} />
       <Route path="/roadmap" element={<RoadmapPage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />
