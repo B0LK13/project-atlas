@@ -155,7 +155,10 @@ def test_missing_decisions_signal_preserved(tmp_path: Path) -> None:
     )
     lens = build_next_lens(vault, project_id)
     assert any(item["kind"] == "missing_decisions" for item in lens["queue"])
-    assert any("DECISIONS" in line or "decision" in line.lower() for line in lens["suggested_next_work"])
+    assert any(
+        "DECISIONS" in line or "decision" in line.lower()
+        for line in lens["suggested_next_work"]
+    )
 
 
 def test_materialize_is_deterministic_and_answers_only(tmp_path: Path) -> None:
@@ -210,7 +213,9 @@ def test_connect_materializes_next_and_brief_uses_it(tmp_path: Path) -> None:
     project_id = str(report["bound_project_id"])
     assert any(f"ans-next-{project_id}.json" in path for path in report.get("next_answers") or [])
     lens = json.loads(
-        (vault / "generated" / "answers" / f"ans-next-{project_id}.json").read_text(encoding="utf-8")
+        (vault / "generated" / "answers" / f"ans-next-{project_id}.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert lens["package"] == PACKAGE_ID
     assert lens["honesty"]["next_is_command"] is False
@@ -218,6 +223,8 @@ def test_connect_materializes_next_and_brief_uses_it(tmp_path: Path) -> None:
     assert brief["lenses"]["next"] == f"ans-next-{project_id}"
     assert brief["suggested_next_work"]
     ctx = export_agent_context(vault, project_id, refresh_brief=False)
-    assert "## What next (derived)" in ctx["markdown"]
-    assert ctx["next"]["package"] == PACKAGE_ID
-    assert "next_is_command: false" in ctx["markdown"]
+    markdown = (vault / ctx["markdown_path"]).read_text(encoding="utf-8")
+    payload = json.loads((vault / ctx["json_path"]).read_text(encoding="utf-8"))
+    assert "## What next (derived)" in markdown
+    assert payload["next"]["package"] == PACKAGE_ID
+    assert "next_is_command: false" in markdown

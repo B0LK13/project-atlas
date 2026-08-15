@@ -191,12 +191,6 @@ from project_atlas.perf_baselines import PerfBaselineError, run_perf_baselines
 from project_atlas.pilot_auth_prep import PilotAuthPrepError, write_pilot_prep_report
 from project_atlas.portfolio import build_portfolio
 from project_atlas.project_brief import ProjectBriefError, materialize_project_briefs
-from project_atlas.project_next import (
-    ProjectNextError,
-    derive_next_lenses,
-    materialize_next_lenses,
-    render_next_text,
-)
 from project_atlas.project_changed import (
     ProjectChangedError,
     materialize_changed_lenses,
@@ -204,6 +198,12 @@ from project_atlas.project_changed import (
 from project_atlas.project_decisions import (
     ProjectDecisionsError,
     materialize_decisions_lenses,
+)
+from project_atlas.project_next import (
+    ProjectNextError,
+    derive_next_lenses,
+    materialize_next_lenses,
+    render_next_text,
 )
 from project_atlas.project_roadmap import (
     ProjectRoadmapError,

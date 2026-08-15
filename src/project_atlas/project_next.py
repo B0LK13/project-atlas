@@ -91,6 +91,10 @@ def _safe_project_id(project_id: str) -> str:
         raise ProjectNextError(str(exc)) from exc
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _load_answer(vault: Path, name: str, project_id: str) -> dict[str, Any] | None:
     path = vault / ANSWERS_RELATIVE / f"ans-{name}-{project_id}.json"
     if not path.is_file():
@@ -215,15 +219,20 @@ def _collect_roadmap(vault: Path, project_id: str) -> tuple[list[dict[str, Any]]
 
         roadmap = build_roadmap_lens(vault, project_id)
         inspected.extend(str(path) for path in (roadmap.get("inspected_artifacts") or []) if path)
-        nxt = roadmap.get("next_unlock") if isinstance(roadmap.get("next_unlock"), dict) else {}
+        nxt = _as_dict(roadmap.get("next_unlock"))
         reason = str(nxt.get("reason") or "")
         title = str(nxt.get("title") or nxt.get("item_id") or "UNKNOWN")
-        if reason in {"blocked", "waiting_on_dependency"} or str(nxt.get("status") or "") == "BLOCKED":
+        blocked_status = str(nxt.get("status") or "") == "BLOCKED"
+        if reason in {"blocked", "waiting_on_dependency"} or blocked_status:
             items.append(
                 _queue_item(
                     kind="roadmap_blocked",
                     title=title,
-                    why=str(nxt.get("why") or nxt.get("unlock_condition") or "roadmap item is blocked"),
+                    why=str(
+                        nxt.get("why")
+                        or nxt.get("unlock_condition")
+                        or "roadmap item is blocked"
+                    ),
                     action=str(
                         nxt.get("unlock_condition")
                         or "Satisfy the documented unlock condition before advancing"
@@ -242,7 +251,11 @@ def _collect_roadmap(vault: Path, project_id: str) -> tuple[list[dict[str, Any]]
                 _queue_item(
                     kind="roadmap_unlock",
                     title=title,
-                    why=str(nxt.get("why") or nxt.get("unlock_condition") or "next critical-path unlock"),
+                    why=str(
+                        nxt.get("why")
+                        or nxt.get("unlock_condition")
+                        or "next critical-path unlock"
+                    ),
                     action=str(
                         nxt.get("unlock_condition")
                         or "Advance the first unfinished critical-path item"
@@ -280,7 +293,7 @@ def _collect_honesty_gaps(vault: Path, project_id: str) -> tuple[list[dict[str, 
     changed = _load_answer(vault, "changed", project_id)
     if unknown is not None:
         inspected.append(f"generated/answers/ans-unknown-{project_id}.json")
-        signals = unknown.get("signals") if isinstance(unknown.get("signals"), dict) else {}
+        signals = _as_dict(unknown.get("signals"))
         if int(signals.get("unresolved_conflicts") or 0) > 0:
             items.append(
                 _queue_item(
@@ -515,7 +528,7 @@ def materialize_next_lenses(
 
 def render_next_text(lens: dict[str, Any]) -> str:
     """Human-readable CLI projection. Text != canonical."""
-    primary = lens.get("primary") if isinstance(lens.get("primary"), dict) else {}
+    primary = _as_dict(lens.get("primary"))
     lines = [
         f"atlas next [{lens.get('status', 'unknown')}]  (NEXT!=AUTHORITY / NEXT!=COMMAND)",
         f"  project:            {lens.get('project_id')}",

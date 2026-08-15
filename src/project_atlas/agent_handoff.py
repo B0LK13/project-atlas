@@ -182,7 +182,8 @@ def _render_next_section(nxt: dict[str, Any] | None) -> list[str]:
         lines.append("UNKNOWN — no next lens")
         return lines
     lines.append("NEXT!=AUTHORITY. NEXT!=COMMAND. Do not auto-execute.")
-    primary = nxt.get("primary") if isinstance(nxt.get("primary"), dict) else {}
+    raw_primary = nxt.get("primary")
+    primary: dict[str, Any] = raw_primary if isinstance(raw_primary, dict) else {}
     lines.append(
         f"primary={primary.get('title') or 'UNKNOWN'} "
         f"[{primary.get('kind') or 'UNKNOWN'}] "
