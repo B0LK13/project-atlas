@@ -6,21 +6,52 @@ import type { ProjectBrief } from "../hooks/useLiveBrief";
  * Not authority. UNKNOWN stays UNKNOWN.
  */
 
-function line(value: unknown): string {
-  if (typeof value === "string" && value.trim()) {
-    return value.trim();
+export function flattenContextLine(value: unknown): string {
+  if (typeof value !== "string") {
+    return "UNKNOWN";
   }
-  return "UNKNOWN";
+  const flattened = value.replace(/[\r\n\t]+/g, " ").replace(/ +/g, " ").trim();
+  return flattened || "UNKNOWN";
 }
 
-export function renderAgentContextMarkdown(brief: ProjectBrief): string {
-  const project = line(brief.project_id);
+function sameProject(left: string, right: string): boolean {
+  return left.trim() === right.trim();
+}
+
+function rowProjectId(row: object): string {
+  if (!("project_id" in row)) {
+    return "";
+  }
+  const pid = (row as { project_id?: unknown }).project_id;
+  return typeof pid === "string" ? pid.trim() : "";
+}
+
+export function renderAgentContextMarkdown(
+  brief: ProjectBrief,
+  expectedProjectId?: string,
+): string {
+  const expected =
+    typeof expectedProjectId === "string" ? expectedProjectId.trim() : "";
+  const briefProject =
+    typeof brief.project_id === "string" ? brief.project_id.trim() : "";
+  if (expected && briefProject && !sameProject(briefProject, expected)) {
+    return "";
+  }
+  const project = flattenContextLine(briefProject || expected);
   const next = Array.isArray(brief.suggested_next_work)
-    ? brief.suggested_next_work.filter((item) => item.trim())
+    ? brief.suggested_next_work
+        .map((item) => flattenContextLine(item))
+        .filter((item) => item !== "UNKNOWN")
     : [];
-  const sessions = brief.session_captures ?? [];
-  const conversations = brief.conversation_captures ?? [];
-  const unknown = line(brief.unknown_or_conflicting);
+  const sessions = (brief.session_captures ?? []).filter((row) => {
+    const pid = rowProjectId(row);
+    return !pid || sameProject(pid, project);
+  });
+  const conversations = (brief.conversation_captures ?? []).filter((row) => {
+    const pid = rowProjectId(row);
+    return !pid || sameProject(pid, project);
+  });
+  const unknown = flattenContextLine(brief.unknown_or_conflicting);
   const lines = [
     `# Atlas agent context — ${project}`,
     "",
@@ -28,18 +59,19 @@ export function renderAgentContextMarkdown(brief: ProjectBrief): string {
     "UI != CANONICAL_TRUTH",
     "LENS != AUTHORITY",
     "UNKNOWN stays UNKNOWN",
+    "DERIVED_CONTEXT != AUTHORITY",
     "",
     "## Purpose",
-    line(brief.purpose),
+    flattenContextLine(brief.purpose),
     "",
     "## Current state",
-    line(brief.current_state),
+    flattenContextLine(brief.current_state),
     "",
     "## What changed",
-    line(brief.recent_meaningful_changes),
+    flattenContextLine(brief.recent_meaningful_changes),
     "",
     "## Decisions",
-    line(brief.important_decisions),
+    flattenContextLine(brief.important_decisions),
     "",
     "## Unknown / conflicts",
     unknown,
@@ -51,7 +83,7 @@ export function renderAgentContextMarkdown(brief: ProjectBrief): string {
     ...(sessions.length > 0
       ? sessions.map(
           (row) =>
-            `- [${line(row.kind)}] ${line(row.summary)} (authority=false)`,
+            `- [${flattenContextLine(row.kind)}] ${flattenContextLine(row.summary)} (authority=false)`,
         )
       : ["- UNKNOWN — no session captures"]),
     "",
@@ -59,12 +91,20 @@ export function renderAgentContextMarkdown(brief: ProjectBrief): string {
     ...(conversations.length > 0
       ? conversations.map(
           (row) =>
-            `- [${line(row.review_state)}] ${line(row.summary)} (conversation≠authority)`,
+            `- [${flattenContextLine(row.review_state)}] ${flattenContextLine(row.summary)} (conversation≠authority)`,
         )
       : ["- UNKNOWN — no conversation captures"]),
     "",
-    brief.truth_boundary ??
-      "ASK/BRIEF/CONTEXT != CANONICAL WRITE / UI!=TRUTH / != AUTHORITY",
+    "## Honesty",
+    "- authentic_pilot: false",
+    "- atlas_opt_wake_gate: CLOSED",
+    "- lens_is_authority: false",
+    "- web_context_is_authority: false",
+    "",
+    flattenContextLine(
+      brief.truth_boundary ??
+        "ASK/BRIEF/CONTEXT != CANONICAL WRITE / UI!=TRUTH / != AUTHORITY",
+    ),
     "",
   ];
   return lines.join("\n");

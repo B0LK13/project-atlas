@@ -22,7 +22,16 @@ export default function ContextPage() {
       null);
   const { brief, error, loading, dataSource } = useLiveBrief(projectId);
   const isDemo = dataSource === "demo_stub";
-  const markdown = brief ? renderAgentContextMarkdown(brief) : "";
+  const briefProject =
+    typeof brief?.project_id === "string" ? brief.project_id.trim() : "";
+  const selectedProject = projectId?.trim() ?? "";
+  const projectMismatch = Boolean(
+    brief && selectedProject && briefProject && briefProject !== selectedProject,
+  );
+  const markdown =
+    brief && !projectMismatch
+      ? renderAgentContextMarkdown(brief, selectedProject || undefined)
+      : "";
   const [copyState, setCopyState] = useState<string | null>(null);
 
   function onSelectProject(next: string) {
@@ -66,6 +75,7 @@ export default function ContextPage() {
             <span className="chip">lens≠authority</span>
             <span className="chip">web_context≠atlas_context_file</span>
             <span className="chip">canonical_write=false</span>
+            <span className="chip">derived≠authority</span>
             <span className="chip">data_source={dataSource ?? "unknown"}</span>
           </p>
         </header>
@@ -107,6 +117,11 @@ export default function ContextPage() {
         {!loading && !error && !brief && dataSource === "live_api" ? (
           <p className="banner warn">UNKNOWN — no live brief projection</p>
         ) : null}
+        {projectMismatch ? (
+          <p className="banner warn">
+            UNKNOWN — brief project does not match selected project
+          </p>
+        ) : null}
 
         {markdown ? (
           <section className="panel" aria-label="Paste pack">
@@ -128,7 +143,8 @@ export default function ContextPage() {
         ) : null}
 
         <p className="disclaimer">
-          WEB CONTEXT != ATLAS CONTEXT FILE / UI!=TRUTH / != AUTHORITY
+          WEB CONTEXT != ATLAS CONTEXT FILE / DERIVED != AUTHORITY /
+          UI!=TRUTH / != AUTHORITY
           {isDemo ? " · demo isolated from LIVE_API" : " · LIVE_API read-only"}
         </p>
       </main>
