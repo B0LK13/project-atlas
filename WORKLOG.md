@@ -6565,3 +6565,16 @@ Audit the 16-step dogfood user journey against implemented CLI/web/MCP/control-p
 - Local D-046 must revalidate the **new** exact HEAD before merge (prior tip stale)
 - INCREMENTAL-CONNECT remains analysis-only until post-merge Local HIGH gate
 
+## D-127+ — AS-2.1-MCP-BRIEF-001 (independent of frozen D125 stack and #364)
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-AUTONOMOUS-D127-PARALLEL-FORWARD-001
+**Branch:** `cursor/mcp-brief-001-315e` (based on exact `main` `e5f17209754558435ac4b7f11ae227aa6e30d2b5`)
+**Mode:** MODE A — INDEPENDENT. Does not touch #361/#362/#363/#364.
+
+### Why this lane
+MCP live tools exposed ops/knowledge/projects but not the Coder Alpha brief. Agents using `atlas live mcp-invoke` still could not receive purpose/state/changed/decisions/unknown/next without a paste ritual.
+
+### Contract
+Zero-arg `{ "tool": "atlas.brief.read" }` only. Vault-scoped project loop via existing `AppService.projects()` + `AppService.brief()`. No `app_service.py` edits. MCP != authority. UNKNOWN remains valid. No writes.
+
