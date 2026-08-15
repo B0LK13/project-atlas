@@ -20,6 +20,11 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.context_stale_guard import (
+    ContextStaleGuardError,
+    evaluate_context_freshness,
+    render_freshness_markdown,
+)
 from project_atlas.conversation_capture import (
     list_conversation_captures,
     render_conversation_captures_markdown,
@@ -210,6 +215,7 @@ def _render_context_markdown(
     conversation_captures: list[dict[str, Any]] | None = None,
     roadmap: dict[str, Any] | None = None,
     nxt: dict[str, Any] | None = None,
+    freshness: dict[str, Any] | None = None,
 ) -> str:
     next_work = brief.get("suggested_next_work") or []
     evidence = brief.get("evidence_links") or []
@@ -218,8 +224,12 @@ def _render_context_markdown(
         "",
         "Derived from Atlas Truth Core via Coder Alpha brief. UI!=canonical.",
         "MODEL_OUTPUT!=AUTHORITY. UNKNOWN stays UNKNOWN.",
-        "",
-        "## Project identity",
+    ]
+    lines.extend(render_freshness_markdown(freshness))
+    lines.extend(
+        [
+            "",
+            "## Project identity",
         str(brief.get("project_identity") or "UNKNOWN"),
         "",
         "## Purpose",
@@ -231,9 +241,10 @@ def _render_context_markdown(
         "## Architecture summary",
         str(brief.get("architecture_summary") or "UNKNOWN"),
         "",
-        "## Current state",
-        str(brief.get("current_state") or "UNKNOWN"),
-    ]
+            "## Current state",
+            str(brief.get("current_state") or "UNKNOWN"),
+        ]
+    )
     lines.extend(_render_roadmap_section(roadmap))
     lines.extend(_render_next_section(nxt))
     lines.extend(
@@ -319,6 +330,7 @@ def export_agent_context(
         from project_atlas.project_next import build_next_lens
 
         nxt = build_next_lens(vault, project_id)
+    freshness = evaluate_context_freshness(vault, project_id)
     markdown = _render_context_markdown(
         brief,
         captures=captures,
@@ -327,6 +339,7 @@ def export_agent_context(
         conversation_captures=conversation_captures,
         roadmap=roadmap,
         nxt=nxt,
+        freshness=freshness,
     )
     payload = {
         "schema_version": 1,
@@ -364,12 +377,23 @@ def export_agent_context(
             "honesty": (nxt or {}).get("honesty"),
         },
         "markdown": markdown,
+        "freshness": {
+            "package": "AS-CODER-ALPHA-CONTEXT-STALE-GUARD-001",
+            "status": freshness.get("status"),
+            "reason": freshness.get("reason"),
+            "live_fingerprint": freshness.get("live_fingerprint"),
+            "frozen_fingerprint": freshness.get("frozen_fingerprint"),
+            "changed_paths": freshness.get("changed_paths"),
+            "rows": freshness.get("rows") or [],
+            "honesty": freshness.get("honesty"),
+        },
         "generated": {"by": GENERATOR_ID},
         "honesty": {
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
             "invented_facts": False,
+            "fresh_is_authority": False,
         },
     }
     md_path = vault / CONTEXT_DIR / f"{project_id}.md"
@@ -388,6 +412,7 @@ def export_agent_context(
         "json_path": json_path.relative_to(vault).as_posix(),
         "purpose": brief.get("purpose"),
         "conversation_captures": conversation_captures,
+        "freshness": payload["freshness"],
         "generated": {"by": GENERATOR_ID},
     }
 
@@ -441,10 +466,12 @@ def create_handoff(
         ],
         "operator_note": note,
         "generated": {"by": GENERATOR_ID},
+        "freshness": context.get("freshness"),
         "honesty": {
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
+            "fresh_is_authority": False,
         },
     }
     path = vault / HANDOFF_DIR / f"{handoff_id}.json"
@@ -530,4 +557,27 @@ def resume_handoff(
         raise AgentHandoffError("handoff pack must be a JSON object")
     pack["status"] = "resumed"
     pack["resume_path"] = path.relative_to(vault).as_posix()
+    prior = pack.get("freshness")
+    if not isinstance(prior, dict):
+        ctx = pack.get("context")
+        prior = ctx.get("freshness") if isinstance(ctx, dict) else None
+    frozen_fp = prior.get("live_fingerprint") if isinstance(prior, dict) else None
+    frozen_rows = prior.get("rows") if isinstance(prior, dict) else None
+    if not isinstance(frozen_fp, str):
+        frozen_fp = None
+    if not isinstance(frozen_rows, list):
+        frozen_rows = None
+    try:
+        pack["freshness"] = evaluate_context_freshness(
+            vault,
+            str(pack.get("project_id") or "unknown"),
+            frozen_fingerprint=frozen_fp,
+            frozen_rows=frozen_rows,
+        )
+    except (ContextStaleGuardError, ValueError):
+        pack["freshness"] = {
+            "status": "UNKNOWN",
+            "reason": "resume freshness evaluation failed closed",
+            "honesty": {"unknown_is_fresh": False, "fresh_is_authority": False},
+        }
     return pack
