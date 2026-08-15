@@ -55,7 +55,7 @@ def test_read_empty_vault_is_unknown_not_authority(tmp_path: Path) -> None:
     assert report["project_id"] == "harbor-api"
     assert report["authority"] == "derived"
     assert report["honesty"]["lens_is_authority"] is False
-    assert report["health_state"] in {"UNKNOWN", "CLEAR", "UNREADABLE"}
+    assert report["health_state"] in {"UNKNOWN", "CLEAR", "UNREADABLE", "STALE"}
     assert report["api_package"] == "AS-CODER-ALPHA-SOURCE-HEALTH-API-001"
 
 

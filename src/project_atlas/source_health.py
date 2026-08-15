@@ -10,6 +10,7 @@ D-044 honesty:
 
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 from typing import Any
@@ -473,6 +474,23 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
     else:
         health_state = "CLEAR" if artifact_status.get("connect-manifest") == "ok" else "UNKNOWN"
 
+    drift: dict[str, Any] = {
+        "status": "UNKNOWN",
+        "reason": "drift not evaluated",
+        "changed_paths": [],
+    }
+    if project_id is not None:
+        with contextlib.suppress(Exception):
+            from project_atlas.source_health_stale import evaluate_source_inventory_drift
+
+            drift = evaluate_source_inventory_drift(vault, project_id)
+    drift_status = str(drift.get("status") or "UNKNOWN")
+    drift_code = str(drift.get("reason_code") or "")
+    if drift_status == "STALE" and health_state == "CLEAR":
+        health_state = "STALE"
+    elif drift_code == "SOURCE_ROOT_UNVERIFIED" and health_state == "CLEAR":
+        health_state = "UNKNOWN"
+
     return {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.source-health.v1",
@@ -505,6 +523,15 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
         "artifact_status": artifact_status,
         "inspected_artifacts": inspected,
         "generated": {"by": GENERATOR_ID},
+        "inventory_drift": {
+            "status": drift_status,
+            "reason": drift.get("reason"),
+            "reason_code": drift_code or None,
+            "changed_paths": [
+                item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+            ][:20],
+            "package": "AS-CODER-ALPHA-SOURCE-HEALTH-STALE-001",
+        },
         "honesty": {
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
@@ -513,6 +540,11 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
             "unknown_is_valid": True,
             "unreadable_as_healthy": False,
             "unknown_project_leaked": False,
+            "inventory_stale": drift_status == "STALE",
+            "stale_is_healthy": False,
+            "live_source_unverified": drift_status == "UNKNOWN",
         },
-        "truth_boundary": "SOURCE HEALTH != AUTHORITY / NO SECRET ECHO",
+        "truth_boundary": (
+            "SOURCE HEALTH != AUTHORITY / NO SECRET ECHO / STALE != CLEAR"
+        ),
     }
