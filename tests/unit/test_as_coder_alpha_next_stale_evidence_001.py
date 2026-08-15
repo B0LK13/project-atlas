@@ -102,6 +102,21 @@ def test_disk_edit_marks_next_stale_and_does_not_echo_secret(tmp_path: Path) -> 
     assert secret not in json.dumps(lens)
 
 
+def test_unicode_and_long_relative_paths_detect_stale(tmp_path: Path) -> None:
+    vault = _manifest(
+        tmp_path / "uni",
+        {"docs/决策.md": "v1", "/".join(["d"] * 12 + ["file.md"]): "v1"},
+        project_id="harbor-api",
+    )
+    root = tmp_path / "uni"
+    first = evaluate_next_source_drift(vault, "harbor-api")
+    assert first["status"] == "FRESH"
+    (root / "docs" / "决策.md").write_text("v2", encoding="utf-8")
+    second = evaluate_next_source_drift(vault, "harbor-api")
+    assert second["status"] == "STALE"
+    assert "docs/决策.md" in second["changed_paths"]
+
+
 def test_connect_then_edit_without_reconnect_surfaces_stale_next(tmp_path: Path) -> None:
     project = tmp_path / "live"
     project.mkdir()
