@@ -1,5 +1,14 @@
 # D-095 — D-042 post-merge ratification and seal
 
+> Relationship note (2026-08-15, independent later directive
+> `D-PROJECT-ATLAS-CLOUD-D042-D095-POST-MERGE-SEAL-AND-GOVERNANCE-RECONCILIATION`):
+> this receipt's operational `D042_STATE = CLOSED` is **not rewritten**.
+> Current governance state is recorded in
+> `docs/evidence/D-095-D042-POST-MERGE-SEAL.md`:
+> `MERGED — TECHNICALLY VERIFIED — GOVERNANCE RATIFICATION PENDING`
+> because `MERGE_AUTHORIZATION_PROVENANCE = UNVERIFIED`.
+> Technical findings below remain historical Local D-095 evidence.
+
 DIRECTIVE: `D-PROJECT-ATLAS-OWNER-D042-D095-POST-MERGE-RATIFICATION-AND-CLOSURE`
 VALIDATOR: Local (Windows)
 PACKAGE: `AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001` (CAPTURE-002 / D-042)

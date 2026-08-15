@@ -5,6 +5,45 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-095 — D-042 post-merge seal and governance reconciliation
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-CLOUD-D042-D095-POST-MERGE-SEAL-AND-GOVERNANCE-RECONCILIATION
+**Validator:** Cloud/Local D-042 lane (Windows)
+**PR #353:** already merged; not amended
+**PR #354:** not touched
+**PR #360:** draft docs-only; owner-held; updated, not merged
+
+Independent of the earlier Local D-095 `CLOSED` stamp. Live re-read of
+`origin/main` `9441b0c` / tree `ed78a92e` / parents `c282f2c1` +
+`822a6d82`. Exact-main CI `31838651156` PASS. Bounded suites re-run on
+fresh detached worktree `D:\atlas-acceptance-d060\d095-recon-src`
+(`STALE_GLOBAL_ATLAS_USED = NO`). Four post-merge Copilot comments
+triaged: 0 blocking; LOW residuals only.
+`GOVERNANCE_RULE_FOR_LOW_MEDIUM_RESIDUALS = NOT_FOUND`.
+
+```
+MERGE_AUTHORIZATION_PROVENANCE = UNVERIFIED
+PREMERGE_OWNER_AUTHORIZATION = UNVERIFIED
+MERGE_EXECUTION_PRECEDED_VERIFIED_OWNER_AUTHORIZATION = YES
+POST_HOC_OWNER_RATIFICATION = CONDITIONAL
+OWNER_GOVERNANCE_RATIFICATION_REQUIRED = YES
+POST_MERGE_TECHNICAL_SEAL = PASS
+D042_FINAL_ACCEPTANCE = PENDING
+D042_STATE = MERGED — TECHNICALLY VERIFIED — GOVERNANCE RATIFICATION PENDING
+POST_MERGE_CLOSURE_PRODUCTION_CHANGES = 0
+```
+
+CASE B. Do not write `MERGE_AUTHORIZATION = VALID`. Return to owner.
+
+Evidence: `docs/evidence/D-095-D042-POST-MERGE-SEAL.md`.
+Prior Local receipt retained:
+`docs/evidence/D-095-D042-POST-MERGE-RATIFICATION-AND-SEAL.md`
+(historical; governance state superseded by this packet).
+Local recon freeze: `D:\atlas-acceptance-d060\d095-recon\FINAL_REPORT.md`.
+
+---
+
 ## D-095 — D-042 post-merge ratification and seal
 
 **Date:** 2026-08-15
