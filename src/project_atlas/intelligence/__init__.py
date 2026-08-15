@@ -67,6 +67,12 @@ from project_atlas.intelligence.derived_state import (
 )
 from project_atlas.intelligence.evidence import assess_evidence, assess_evidence_many
 from project_atlas.intelligence.explain import EvidenceTrace, explain_why
+from project_atlas.intelligence.explain_graph import (
+    ExplanationEdge,
+    ExplanationGraph,
+    ExplanationNode,
+    build_explanation_graph,
+)
 from project_atlas.intelligence.gaps import (
     EvidenceGap,
     GapClass,
@@ -175,6 +181,9 @@ __all__ = [
     "EvidenceRef",
     "EvidenceRole",
     "EvidenceTrace",
+    "ExplanationEdge",
+    "ExplanationGraph",
+    "ExplanationNode",
     "FactStatus",
     "GapClass",
     "GapCurrentStatus",
@@ -206,6 +215,7 @@ __all__ = [
     "aggregate_portfolio_state",
     "assess_evidence",
     "assess_evidence_many",
+    "build_explanation_graph",
     "classify_deltas",
     "compose_agent_context",
     "compose_evidence_handoff",
