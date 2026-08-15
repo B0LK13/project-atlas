@@ -5,6 +5,26 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-2.2-KDIFF-001 — Time Machine live project journey
+
+**Date:** 2026-08-14
+**Directive:** D-PROJECT-ATLAS-CLOUD-OVERNIGHT-GOVERNOR-20260814-001
+**Branch:** `cursor/time-machine-live-project-25b1` (from accepted main `9441b0c`)
+**Not #354.** No merge authorization.
+
+Web Time Machine accepts `?project=` / `?from=` / `?to=` so a connected
+project can be inspected, not only the hardcoded harbor-api golden demo.
+Empty live catalogs stay UNKNOWN. Failed loads are not empty catalogs.
+kdiff ≠ authority.
+
+```
+TIME_MACHINE_IV = PASS
+TIME_MACHINE_CI = PASS
+TIME_MACHINE_STATE = CERTIFIED — MERGE ELIGIBLE
+MERGE_AUTHORIZATION = NOT_GRANTED
+PRODUCTION_TIP = 1ac68f3116181d50adf07e56979b1b217d2665a0
+```
+
 ## D-102 — #358 exact-main refresh
 
 **Date:** 2026-08-15

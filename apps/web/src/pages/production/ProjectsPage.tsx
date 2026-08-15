@@ -17,7 +17,8 @@ export default function ProjectsPage() {
           <p className="lede">
             Read-only project inventory. LIVE_API preferred; demo stub isolated.
             Missing evidence stays unknown — never invented estate rows.
-            Open Knowledge for the one-minute project brief.
+            Open Knowledge for the one-minute project brief, or Time Machine
+            for conflicts and as-of history.
           </p>
         </header>
 
@@ -48,7 +49,16 @@ export default function ProjectsPage() {
                         id
                       )}
                     </strong>
-                    <span>{project.path ?? "path unknown"} · open Knowledge brief</span>
+                    <span>
+                      {project.path ?? "path unknown"} ·{" "}
+                      <Link to={`/knowledge?project=${encodeURIComponent(id)}`}>
+                        Knowledge
+                      </Link>
+                      {" · "}
+                      <Link to={`/time-machine?project=${encodeURIComponent(id)}`}>
+                        Time Machine
+                      </Link>
+                    </span>
                   </li>
                 );
               })}

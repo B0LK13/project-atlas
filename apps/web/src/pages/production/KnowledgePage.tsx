@@ -318,7 +318,14 @@ export default function KnowledgePage() {
                 >
                   agent context (≠ authority)
                 </Link>
-                <Link className="chip" to="/time-machine">
+                <Link
+                  className="chip"
+                  to={
+                    projectId
+                      ? `/time-machine?project=${encodeURIComponent(projectId)}`
+                      : "/time-machine"
+                  }
+                >
                   history / Time Machine
                 </Link>
                 <Link className="chip" to="/graph">
