@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.attention_stale import evaluate_attention_inventory_drift
 
 PACKAGE_ID = "AS-CODER-ALPHA-ATTENTION-001"
 GENERATOR_ID = "atlas-coder-alpha-attention-001"
@@ -494,6 +495,33 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             )
         )
 
+    # AS-CODER-ALPHA-ATTENTION-STALE-001: CLEAR must not hide live disk drift.
+    # UNKNOWN inventory does not fabricate FRESH and does not rewrite existing
+    # synthetic-vault CLEAR (no hashed connect-manifest).
+    connect_rel = "generated/ops/connect-manifest.json"
+    inspected.append(connect_rel)
+    drift = evaluate_attention_inventory_drift(vault, project_id)
+    drift_status = str(drift.get("status") or "UNKNOWN")
+    changed_paths = [
+        item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+    ]
+    if drift_status == "STALE":
+        sample = ", ".join(changed_paths[:5]) or "UNKNOWN"
+        items.append(
+            _item(
+                level="STALE",
+                kind="source_inventory_stale",
+                reason_code="SOURCE_INVENTORY_STALE",
+                why=(
+                    "Live sources drifted from connect-manifest without reconnect: "
+                    f"{sample}"
+                ),
+                impact="Attention may describe superseded evidence; not current",
+                action="Re-run atlas connect then re-check atlas attention",
+                evidence=[connect_rel, *changed_paths[:8]],
+            )
+        )
+
     rollup_rank = {name: index for index, name in enumerate(_ROLLUP_ORDER)}
     if items:
         rollup = min(
@@ -510,6 +538,7 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
     for level, limit in (
         ("BLOCKING", 5),
         ("ACTION_REQUIRED", 3),
+        ("STALE", 2),
         ("NEEDS_HUMAN_REVIEW", 2),
     ):
         level_items = [item for item in items if item.get("level") == level]
@@ -550,6 +579,13 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             "outcomes": outcomes_status,
             "positively_inspected": len(inspected_ok) == 3 and not unreadable,
         },
+        "source_drift": {
+            "status": drift_status,
+            "reason": drift.get("reason"),
+            "reason_code": drift.get("reason_code"),
+            "changed_paths": changed_paths[:20],
+            "package": drift.get("package") or "AS-CODER-ALPHA-ATTENTION-STALE-001",
+        },
         "honesty": {
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
@@ -558,6 +594,9 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             "unknown_is_valid": True,
             "failures_hidden": False,
             "clear_requires_positive_inspection": True,
+            "stale_is_current": False,
+            "unknown_is_fresh": False,
+            "source_inventory_stale": drift_status == "STALE",
         },
         "truth_boundary": "ATTENTION LENS != AUTHORITY / UI != CANONICAL",
     }
