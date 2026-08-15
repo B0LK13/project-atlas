@@ -5,6 +5,30 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-096 — D-042 post-hoc owner governance ratification
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-OWNER-D042-D096-GOVERNANCE-RATIFICATION
+**PR #360:** docs/governance only; authorized for GitHub merge commit
+**PR #353:** already merged; history not rewritten
+**PR #354:** not touched
+
+Owner granted post-hoc ratification of the already-merged `#353`
+object. Pre-merge authorization provenance remains UNVERIFIED.
+No production / runtime / test / schema change.
+
+```
+PRE_MERGE_AUTHORIZATION_PROVENANCE = UNVERIFIED
+POST_HOC_OWNER_RATIFICATION = GRANTED
+D042_FINAL_ACCEPTANCE = PASS
+D042_STATE = CLOSED
+PRODUCTION_SEMANTIC_CHANGE = 0
+```
+
+Evidence: `docs/evidence/D-096-D042-POST-HOC-OWNER-GOVERNANCE-RATIFICATION.md`.
+
+---
+
 ## D-095 — D-042 post-merge seal and governance reconciliation
 
 **Date:** 2026-08-15

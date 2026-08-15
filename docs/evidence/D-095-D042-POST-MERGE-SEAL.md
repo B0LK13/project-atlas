@@ -1,5 +1,16 @@
 # D-095 — D-042 exact-main post-merge seal and governance reconciliation
 
+> Current governance state is recorded in
+> `docs/evidence/D-096-D042-POST-HOC-OWNER-GOVERNANCE-RATIFICATION.md`
+> under `D-PROJECT-ATLAS-OWNER-D042-D096-GOVERNANCE-RATIFICATION`:
+> `POST_HOC_OWNER_RATIFICATION = GRANTED`,
+> `PRE_MERGE_AUTHORIZATION_PROVENANCE = UNVERIFIED`,
+> `D042_STATE = CLOSED`.
+> The CASE B findings below are **not rewritten**. They remain the
+> historical record that pre-merge authorization provenance is
+> UNVERIFIED and that `#353` merged while frozen text said
+> `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
 DIRECTIVE: `D-PROJECT-ATLAS-CLOUD-D042-D095-POST-MERGE-SEAL-AND-GOVERNANCE-RECONCILIATION`
 VALIDATOR: Cloud/Local D-042 lane (Windows)
 PACKAGE: `AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001` (CAPTURE-002 / D-042)
