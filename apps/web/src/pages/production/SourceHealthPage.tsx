@@ -186,7 +186,7 @@ export default function SourceHealthPage() {
           <p className={unknownHealth || unavailable ? "banner warn" : "lede"}>
             {projectId
               ? `${healthState} — SOURCE HEALTH != AUTHORITY`
-              : "UNKNOWN — no project selected"}
+              : "UNKNOWN — no project selected · SOURCE HEALTH != AUTHORITY"}
           </p>
           <p className="flags">
             <span className="chip">

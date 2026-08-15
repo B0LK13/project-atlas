@@ -23,7 +23,7 @@ test.describe("Atlas Web — source health (AS-CODER-ALPHA-SOURCE-HEALTH-WEB-001
     await expect(
       page.getByText(/UNKNOWN — explicit project required/),
     ).toBeVisible();
-    await expect(page.getByText("SOURCE HEALTH != AUTHORITY")).toBeVisible();
+    await expect(page.getByText("SOURCE HEALTH != AUTHORITY").first()).toBeVisible();
   });
 
   test("scoped LIVE failure is visible and not replaced by a live-labelled demo", async ({
