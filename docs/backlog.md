@@ -378,6 +378,6 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
 - [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
-- [ ] AS-CODER-ALPHA-CAPTURE-002 Conversational capture (D-042; CERTIFIED — MERGE ELIGIBLE; D-091 freeze 9ec65c7; D-094 Local D092A/D092/D092B PASS; MERGE_AUTHORIZATION NOT_GRANTED; do not merge #353; do not reopen #344)
+- [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-091 freeze 9ec65c7; D-095 post-merge seal PASS; PREMERGE_AUTHORIZATION NOT_ESTABLISHED; OWNER_POST_MERGE_RATIFICATION VALID; do not reopen #344)
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
 
