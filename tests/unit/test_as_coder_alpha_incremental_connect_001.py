@@ -12,6 +12,7 @@ from project_atlas.agent_handoff import export_agent_context
 from project_atlas.connect import ConnectError, connect_project
 from project_atlas.incremental_connect import (
     classify_active_delta,
+    evaluate_incremental_reconnect,
     identity_lock_path,
     inventory_fingerprint,
 )
@@ -406,3 +407,167 @@ def test_cross_project_skip_does_not_leak(tmp_path: Path) -> None:
     ]
     assert leaked == []
     assert len(after_ids) == len(set(after_ids))
+
+
+_MANIFEST_RELATIVE = Path("generated") / "ops" / "connect-manifest.json"
+_STAGING_RELATIVE = Path("generated") / "ops" / ".connect-manifest.staging.json"
+_RECEIPT_RELATIVE = Path("generated") / "ops" / "connect-receipt.json"
+_REQUIRED_INDEX_FILES = (
+    "authority.json",
+    "claims.json",
+    "concepts.json",
+    "conflicts.json",
+    "provenance.json",
+    "reviews.json",
+    "sources.json",
+)
+
+
+def _write_skip_ready_vault(
+    tmp_path: Path,
+    *,
+    agent_events: list[dict[str, str]] | None = None,
+    write_indexes: bool = True,
+    empty_index_files: bool = False,
+) -> tuple[Path, Path, dict[str, Any]]:
+    project = tmp_path / "skip-ready"
+    vault = tmp_path / "skip-vault"
+    project.mkdir(parents=True)
+    source_root = str(project.resolve())
+    manifest: dict[str, Any] = {
+        "source_root": source_root,
+        "sources": [
+            {
+                "path": "README.md",
+                "sha256": "ab" * 32,
+                "likely_project": "demo",
+                "source_id": "source-a",
+            }
+        ],
+        "agent_events": list(agent_events or []),
+    }
+    receipt = {
+        "schema": "atlas.connect.receipt.v1",
+        "status": "connected",
+        "vault_id": "vault-1",
+        "projects": ["demo"],
+        "steps": ["ingest", "validate"],
+        "project_root": source_root,
+        "compile_options": {
+            "include_portfolio": False,
+            "skip_validate": False,
+            "excludes": [],
+            "max_file_size": 10 * 1024 * 1024,
+        },
+    }
+    ops = vault / "generated" / "ops"
+    ops.mkdir(parents=True)
+    (vault / _MANIFEST_RELATIVE).write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    (vault / _RECEIPT_RELATIVE).write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    if write_indexes:
+        indexes = vault / "generated" / "indexes"
+        indexes.mkdir(parents=True)
+        for name in _REQUIRED_INDEX_FILES:
+            payload = "" if empty_index_files else "{}\n"
+            (indexes / name).write_text(payload, encoding="utf-8")
+    return vault, project, manifest
+
+
+def _evaluate(
+    vault: Path,
+    project: Path,
+    current_manifest: dict[str, Any],
+) -> Any:
+    return evaluate_incremental_reconnect(
+        vault=vault,
+        project_root=project,
+        current_manifest=current_manifest,
+        vault_id="vault-1",
+        include_portfolio=False,
+        skip_validate=False,
+        excludes=[],
+        max_file_size=10 * 1024 * 1024,
+        manifest_relative=_MANIFEST_RELATIVE,
+        staging_relative=_STAGING_RELATIVE,
+        receipt_relative=_RECEIPT_RELATIVE,
+    )
+
+
+def test_inbox_only_agent_event_change_does_not_skip(tmp_path: Path) -> None:
+    vault, project, prior = _write_skip_ready_vault(tmp_path)
+    unchanged = _evaluate(vault, project, prior)
+    assert unchanged.disposition == "no_change_skip"
+    assert unchanged.reason == "active_sources_unchanged"
+
+    added = _evaluate(
+        vault,
+        project,
+        {**prior, "agent_events": [{"event_id": "AE-inbox-1", "component_sha256": "cd" * 32}]},
+    )
+    assert added.disposition == "full_compile"
+    assert added.reason == "agent_events_changed"
+    assert added.delta.unchanged is True
+
+    vault_b, project_b, prior_b = _write_skip_ready_vault(
+        tmp_path / "event-edit",
+        agent_events=[{"event_id": "AE-inbox-1", "component_sha256": "cd" * 32}],
+    )
+    edited = _evaluate(
+        vault_b,
+        project_b,
+        {**prior_b, "agent_events": [{"event_id": "AE-inbox-1", "component_sha256": "ef" * 32}]},
+    )
+    assert edited.disposition == "full_compile"
+    assert edited.reason == "agent_events_changed"
+
+    dropped = _evaluate(vault_b, project_b, {**prior_b, "agent_events": []})
+    assert dropped.disposition == "full_compile"
+    assert dropped.reason == "agent_events_changed"
+
+
+def test_empty_or_stripped_indexes_do_not_skip(tmp_path: Path) -> None:
+    empty_dir, project, manifest = _write_skip_ready_vault(
+        tmp_path / "empty-dir", write_indexes=False
+    )
+    (empty_dir / "generated" / "indexes").mkdir(parents=True)
+    empty = _evaluate(empty_dir, project, manifest)
+    assert empty.disposition == "dirty_prior_full_recompile"
+    assert empty.reason == "indexes_absent"
+
+    stripped, project_s, manifest_s = _write_skip_ready_vault(
+        tmp_path / "stripped", write_indexes=True, empty_index_files=True
+    )
+    blank = _evaluate(stripped, project_s, manifest_s)
+    assert blank.disposition == "dirty_prior_full_recompile"
+    assert blank.reason == "indexes_absent"
+
+    missing_one, project_m, manifest_m = _write_skip_ready_vault(tmp_path / "partial")
+    (missing_one / "generated" / "indexes" / "claims.json").unlink()
+    partial = _evaluate(missing_one, project_m, manifest_m)
+    assert partial.disposition == "dirty_prior_full_recompile"
+    assert partial.reason == "indexes_absent"
+
+
+def test_stripped_indexes_force_reconnect_recompile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _seed(tmp_path / "stripped-live")
+    calls = _count_ingest(monkeypatch)
+    first = connect_project(project)
+    assert first["status"] == "connected"
+    vault = Path(first["vault"])
+    indexes = vault / "generated" / "indexes"
+    for path in indexes.iterdir():
+        if path.is_file():
+            path.unlink()
+    before = calls["n"]
+    second = connect_project(project)
+    incr = _incr(second)
+    assert incr["disposition"] == "dirty_prior_full_recompile"
+    assert incr["reason"] == "indexes_absent"
+    assert calls["n"] == before + 2
+    assert (indexes / "claims.json").is_file()

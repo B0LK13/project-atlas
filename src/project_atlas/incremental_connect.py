@@ -2,8 +2,8 @@
 
 Inspects the current discover inventory against the last committed
 ``connect-manifest`` + ``connect-receipt``. When those artifacts prove an
-unchanged active-source set, ``atlas connect`` skips redundant ingest and
-derived rematerialization.
+unchanged active-source + agent-event inventory, ``atlas connect`` skips
+redundant ingest and derived rematerialization.
 
 Skip is **operational only**. It is not Truth Core authority, not a trust
 score, and not a substitute for validation. A missing, partial, or
@@ -47,6 +47,17 @@ _REQUIRED_RECEIPT_KEYS = (
     "projects",
     "steps",
     "project_root",
+)
+
+# Always written by ``build_indexes`` / ``canonical_index_payloads``.
+_REQUIRED_LEXICAL_INDEX_FILES = (
+    "authority.json",
+    "claims.json",
+    "concepts.json",
+    "conflicts.json",
+    "provenance.json",
+    "reviews.json",
+    "sources.json",
 )
 
 
@@ -243,6 +254,21 @@ def classify_active_delta(
         semantic_records_changed=semantic,
         lineage_proven=not unknown_moves,
     )
+
+
+def lexical_indexes_present(vault: Path) -> bool:
+    """True only when the canonical lexical index files exist and are non-empty."""
+    root = vault / "generated" / "indexes"
+    if not root.is_dir():
+        return False
+    for name in _REQUIRED_LEXICAL_INDEX_FILES:
+        path = root / name
+        try:
+            if not path.is_file() or path.stat().st_size <= 0:
+                return False
+        except OSError:
+            return False
+    return True
 
 
 def files_inspected_count(manifest: dict[str, Any]) -> int:
@@ -532,7 +558,16 @@ def evaluate_incremental_reconnect(
             prior_ok=True,
         )
 
-    if not (vault / "generated" / "indexes").is_dir():
+    prior_fp = inventory_fingerprint(prior_manifest)
+    if str(prior_fp.get("digest") or "") != str(current_fp["digest"]):
+        return _decision(
+            "full_compile",
+            "agent_events_changed",
+            delta=delta,
+            prior_ok=True,
+        )
+
+    if not lexical_indexes_present(vault):
         return _decision(
             "dirty_prior_full_recompile",
             "indexes_absent",
