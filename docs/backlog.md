@@ -483,7 +483,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher + Cursor CLI Process Transport
 
-_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Authentic Windows Cursor agent dispatch is **not** certified from Cloud._
+_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001D-R1; not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Authentic Windows Cursor agent dispatch is **not** certified from Cloud. Old IV/CI/Local pins are historical only._
 
 Honesty (mandatory):
 
@@ -511,6 +511,7 @@ Honesty (mandatory):
 - [x] ORCH001D-004 Eligibility revalidation (HANDOFF_READY + dispatchable task + fail-closed privileges)
 - [x] ORCH001D-005 Owner/terminal non-executing outcomes (`PROCESS_STARTED = NO`)
 - [x] ORCH001D-006 Cursor CLI argv transport (`agent` / `cursor-agent`, `--print --output-format json`, no shell)
+- [x] ORCH001D-R1 Native Windows `.CMD` launcher compatibility + stdin prompt + read-only `--mode=ask`
 - [x] ORCH001D-007 `atlas orchestrator dispatch-submit-result` (validated evidence only; not 001C stage)
 - [x] ORCH001D-008 Transactional finalize: ack source → stage target → explicit complete → stop
 - [x] ORCH001D-009 `atlas orchestrator dispatch-recover` (no respawn)

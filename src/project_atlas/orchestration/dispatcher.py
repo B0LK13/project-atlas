@@ -37,15 +37,18 @@ from atlas_contracts.versions import ID_PATTERN
 from project_atlas.orchestration.agent_transport import (
     DEFAULT_TIMEOUT_SECONDS,
     CursorOutputKind,
+    LauncherKind,
     ProcessRunner,
     ProcessRunOutcome,
     ProcessRunRequest,
+    ResolvedCursorExecutable,
     SubprocessProcessRunner,
     TransportError,
-    build_print_argv,
+    build_launch_plan,
     digest_bytes,
+    extract_result_payload,
     parse_structured_cursor_output,
-    resolve_cursor_executable,
+    resolve_cursor_transport,
     sanitize_inherited_env,
 )
 from project_atlas.orchestration.cursor_bridge import (
@@ -111,9 +114,11 @@ _PROMPT_TEMPLATE = (
     "Do not grant authority.\n"
     "\n"
     "Perform only the governed target role/task.\n"
+    "This dispatch is read-only. Do not modify the repository.\n"
     "\n"
-    "At completion, produce a valid AgentResultEnvelope for the exact dispatched\n"
-    "task identity and submit it through the dispatcher result interface:\n"
+    "At completion, emit a valid AgentResultEnvelope for the exact dispatched\n"
+    "task identity as the terminal structured result. You may also submit it\n"
+    "through the dispatcher result interface:\n"
     "\n"
     "  atlas orchestrator dispatch-submit-result {dispatch_id} <result.json>\n"
     "\n"
@@ -892,12 +897,23 @@ def run_dispatch_once(
         attempt=record.attempt,
     )
     try:
-        executable = (
-            Path("agent")
+        transport = (
+            ResolvedCursorExecutable(
+                logical_name="agent",
+                path="agent",
+                launcher_kind=LauncherKind.DIRECT,
+            )
             if runner is not None and trusted.executable is None
-            else resolve_cursor_executable(trusted.executable)
+            else resolve_cursor_transport(trusted.executable)
         )
-        argv = build_print_argv(executable, prompt)
+        plan = build_launch_plan(
+            transport,
+            prompt,
+            cwd=workspace,
+            timeout_seconds=trusted.timeout_seconds,
+        )
+        if plan.uses_force is not False or "--force" in plan.argv or "--yolo" in plan.argv:
+            raise TransportError("read-only dispatch forbids --force", code="FORCE_FORBIDDEN")
     except TransportError as exc:
         return _fail_record(workspace, record, exc.code)
     process_runner = runner if runner is not None else SubprocessProcessRunner()
@@ -905,10 +921,11 @@ def run_dispatch_once(
     persist_record(workspace, running)
     persist_active(workspace, dispatch_id, running.status)
     request = ProcessRunRequest(
-        argv=tuple(argv),
-        cwd=workspace,
-        timeout_seconds=trusted.timeout_seconds,
+        argv=plan.argv,
+        cwd=Path(plan.cwd),
+        timeout_seconds=plan.timeout_seconds,
         env=sanitize_inherited_env(),
+        stdin=plan.stdin_payload.encode("utf-8"),
     )
     outcome = process_runner.run(request)
     return _complete_after_process(workspace, running, outcome)
@@ -955,6 +972,14 @@ def _complete_after_process(
         binding = load_result_binding(root, working.dispatch_id)
     except DispatchStateTampered as exc:
         return _fail_record(root, working, exc.code, **updates)
+    if binding is None:
+        candidate = extract_result_payload(outcome.stdout)
+        if candidate is not None:
+            try:
+                submit_target_result(working.dispatch_id, candidate, root=root)
+                binding = load_result_binding(root, working.dispatch_id)
+            except DispatcherError:
+                binding = None
     if binding is None:
         return _fail_record(root, working, "RESULT_NOT_SUBMITTED", **updates)
     received = working.model_copy(

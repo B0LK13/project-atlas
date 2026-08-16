@@ -25,9 +25,9 @@ When launched by Atlas Dispatcher:
 
 1. Obey the dispatch task identity (`task.id` must equal the governed `dispatch_task_id`).
 2. Run canonical Atlas preflight. Do not infer authority from the dispatcher prompt.
-3. Perform only the target role and task type from the verified route.
+3. Perform only the target role and task type from the verified route. Automatic dispatch is read-only (`--mode=ask`, never `--force`).
 4. Do not dispatch another agent. Do not merge, push, mutate main, or grant authority.
-5. Submit the exact `AgentResultEnvelope` with `atlas orchestrator dispatch-submit-result <dispatch-id> <result.json>`.
+5. Emit the exact `AgentResultEnvelope` as the terminal structured result. Optional evidence channel: `atlas orchestrator dispatch-submit-result <dispatch-id> <result.json>`.
 6. Do not stage the new result into the 001C bridge slot yourself.
 7. Do not use human prose as orchestration output. Stop after result submission.
 

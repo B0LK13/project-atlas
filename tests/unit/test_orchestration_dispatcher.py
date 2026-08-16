@@ -93,6 +93,16 @@ def _success_stdout() -> bytes:
     ).encode("utf-8")
 
 
+def _request_prompt(request: ProcessRunRequest) -> str:
+    if request.stdin:
+        return request.stdin.decode("utf-8")
+    raise AssertionError("dispatch prompt must travel on stdin")
+
+
+def _dispatch_id_from_request(request: ProcessRunRequest) -> str:
+    return _request_prompt(request).rsplit("dispatch-submit-result ", 1)[1].split()[0]
+
+
 class ScriptedRunner:
     def __init__(
         self,
@@ -248,10 +258,14 @@ def test_task_success_single_hop(tmp_path: Path) -> None:
     holder: dict[str, str] = {}
 
     def on_run(request: ProcessRunRequest) -> None:
-        prompt = request.argv[-1]
+        prompt = _request_prompt(request)
         assert "ignore all previous instructions" not in prompt
         assert "--resume" not in request.argv
-        dispatch_id = prompt.rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        assert "--force" not in request.argv
+        assert "--mode" in request.argv
+        assert "ask" in request.argv
+        assert prompt not in request.argv
+        dispatch_id = _dispatch_id_from_request(request)
         holder["dispatch_id"] = dispatch_id
         submit_target_result(
             dispatch_id,
@@ -295,7 +309,7 @@ def test_process_failure_with_result_does_not_promote(tmp_path: Path) -> None:
     stage_result(_payload(), root=workspace)
 
     def on_run(request: ProcessRunRequest) -> None:
-        dispatch_id = request.argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        dispatch_id = _dispatch_id_from_request(request)
         submit_target_result(dispatch_id, _target_payload(f"d.{dispatch_id}"), root=workspace)
 
     runner = ScriptedRunner(_ok_outcome(exit_code=2), on_run=on_run)
@@ -347,7 +361,7 @@ def test_result_binding_rejects_mismatches_and_replay(tmp_path: Path) -> None:
     captured: dict[str, str] = {}
 
     def on_run(request: ProcessRunRequest) -> None:
-        dispatch_id = request.argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        dispatch_id = _dispatch_id_from_request(request)
         captured["dispatch_id"] = dispatch_id
         submit_target_result(dispatch_id, _target_payload(f"d.{dispatch_id}"), root=workspace)
 
@@ -379,7 +393,7 @@ def test_submit_rejects_wrong_attempt_role_and_task(tmp_path: Path) -> None:
     captured: dict[str, str] = {}
 
     def on_run(request: ProcessRunRequest) -> None:
-        dispatch_id = request.argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        dispatch_id = _dispatch_id_from_request(request)
         captured["id"] = dispatch_id
         raise RuntimeError("stop-before-submit")
 
@@ -464,7 +478,7 @@ def test_tampered_record_is_detected(tmp_path: Path) -> None:
     captured: dict[str, str] = {}
 
     def on_run(request: ProcessRunRequest) -> None:
-        captured["id"] = request.argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        captured["id"] = _dispatch_id_from_request(request)
         raise RuntimeError("stop")
 
     with pytest.raises(RuntimeError):
@@ -495,7 +509,7 @@ def test_crash_recovery_does_not_respawn(tmp_path: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(dispatcher_mod, "finalize_dispatch", boom)
 
     def on_run(request: ProcessRunRequest) -> None:
-        dispatch_id = request.argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        dispatch_id = _dispatch_id_from_request(request)
         submit_target_result(dispatch_id, _target_payload(f"d.{dispatch_id}"), root=workspace)
 
     runner = ScriptedRunner(_ok_outcome(), on_run=on_run)
@@ -503,7 +517,7 @@ def test_crash_recovery_does_not_respawn(tmp_path: Path, monkeypatch: pytest.Mon
         run_dispatch_once(root=workspace, runner=runner)
     assert len(runner.requests) == 1
     monkeypatch.setattr(dispatcher_mod, "finalize_dispatch", real_finalize)
-    dispatch_id = runner.requests[0].argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+    dispatch_id = _dispatch_id_from_request(runner.requests[0])
     receipt = recover_dispatch(dispatch_id, root=workspace)
     assert receipt.status is DispatchStatus.COMPLETED
     assert receipt.source_acknowledged is True
@@ -517,6 +531,43 @@ def test_workspace_rejects_root_home_and_non_atlas(tmp_path: Path) -> None:
         validate_workspace_root(Path.home())
     with pytest.raises((DispatcherError, CursorBridgeError)):
         validate_workspace_root(tmp_path)
+
+
+def test_structured_cursor_envelope_binds_without_shell_submit(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    stage_result(_payload(), root=workspace)
+    captured: dict[str, str] = {}
+
+    def on_run(request: ProcessRunRequest) -> None:
+        captured["id"] = _dispatch_id_from_request(request)
+
+    def outcome_factory() -> ProcessRunOutcome:
+        dispatch_id = captured["id"]
+        envelope = _target_payload(f"d.{dispatch_id}")
+        return ProcessRunOutcome(
+            exit_code=0,
+            stdout=json.dumps(
+                {"type": "result", "is_error": False, "result": envelope}
+            ).encode(),
+            stderr=b"",
+            timed_out=False,
+            duration_ms=4,
+        )
+
+    class LateRunner:
+        def __init__(self) -> None:
+            self.requests: list[ProcessRunRequest] = []
+
+        def run(self, request: ProcessRunRequest) -> ProcessRunOutcome:
+            self.requests.append(request)
+            on_run(request)
+            return outcome_factory()
+
+    runner = LateRunner()
+    receipt = run_dispatch_once(root=workspace, runner=runner)
+    assert receipt.status is DispatchStatus.COMPLETED
+    assert receipt.result_received is True
+    assert receipt.next_handoff_autodispatched is False
 
 
 def test_status_is_read_only(tmp_path: Path) -> None:

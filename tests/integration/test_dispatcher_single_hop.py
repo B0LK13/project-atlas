@@ -19,6 +19,12 @@ from project_atlas.orchestration.dispatcher import (
 )
 
 
+def _dispatch_id_from_request(request: ProcessRunRequest) -> str:
+    if request.stdin is None:
+        raise AssertionError("dispatch prompt must travel on stdin")
+    return request.stdin.decode("utf-8").rsplit("dispatch-submit-result ", 1)[1].split()[0]
+
+
 def _workspace(tmp_path: Path) -> Path:
     (tmp_path / "AGENTS.md").write_text("# Atlas\n", encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text(
@@ -57,7 +63,7 @@ class RecordingRunner:
 
     def run(self, request: ProcessRunRequest) -> ProcessRunOutcome:
         self.requests.append(request)
-        dispatch_id = request.argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        dispatch_id = _dispatch_id_from_request(request)
         submit_target_result(
             dispatch_id,
             {
@@ -134,7 +140,7 @@ def test_recover_cli_without_respawn(tmp_path: Path, monkeypatch: Any) -> None:
     runner = RecordingRunner(workspace)
     with pytest.raises(RuntimeError):
         run_dispatch_once(root=workspace, runner=runner)
-    dispatch_id = runner.requests[0].argv[-1].rsplit("dispatch-submit-result ", 1)[1].split()[0]
+    dispatch_id = _dispatch_id_from_request(runner.requests[0])
     monkeypatch.setattr(dispatcher_mod, "finalize_dispatch", real)
     recover_code = main(
         ["orchestrator", "dispatch-recover", dispatch_id, "--root", str(workspace)]
