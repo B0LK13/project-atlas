@@ -407,7 +407,7 @@ Honesty (mandatory):
 - [x] ORCH001A-006 Focused unit tests + schema/model parity
 - [ ] ORCH001A-007 Independent integration verification
 - [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
-- [ ] ORCH001C Cursor Integration (follow-up; not this package)
+- [x] ORCH001C Cursor Integration — see AS-ORCH-001C (stop-hook bridge implemented; authentic Windows Cursor runtime NOT_YET_CERTIFIED; dispatch NOT implemented)
 - [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 
@@ -439,7 +439,40 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 - [x] ORCH001B-006 Shipped JSON schemas + model/schema parity tests
 - [x] ORCH001B-007 Focused unit + composition + privilege-invariant tests
 - [ ] ORCH001B-008 Independent integration verification
-- [ ] ORCH001C Cursor Integration (follow-up; not this package)
+- [x] ORCH001C Cursor Integration — see AS-ORCH-001C (stop-hook bridge implemented; authentic Windows Cursor runtime NOT_YET_CERTIFIED; dispatch NOT implemented)
+- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
+
+## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Surfaces a governed Atlas route to the current Cursor session via a thin stop hook. Does **not** spawn agents, execute `TaskDirective`, merge, or grant authority. `AUTHENTIC_WINDOWS_CURSOR_STOP_HOOK = NOT_YET_CERTIFIED`._
+
+Honesty (mandatory):
+
+- `STRUCTURED_RESULT_CONTRACT = IMPLEMENTED`
+- `DETERMINISTIC_CLASSIFICATION = IMPLEMENTED`
+- `DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED`
+- `TYPED_TASK_DIRECTIVE = IMPLEMENTED`
+- `CURSOR_INTEGRATION_BRIDGE = IMPLEMENTED`
+- `CURSOR_STOP_HOOK = IMPLEMENTED`
+- `CURSOR TRIGGER INTEGRATION IMPLEMENTED`
+- `CROSS-AGENT DISPATCH NOT IMPLEMENTED`
+- `AUTHENTIC_WINDOWS_CURSOR_RUNTIME = NOT_YET_CERTIFIED`
+- `AGENT_DISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP = NOT_IMPLEMENTED`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+
+- [x] ORCH001C-001 Typed `CursorStopEvent` / `CursorBridgeState` / `CursorBridgeResponse`
+- [x] ORCH001C-002 Single-slot runtime state under `.atlas/orchestration/cursor/` (gitignored)
+- [x] ORCH001C-003 `atlas orchestrator cursor-stage-result` (recompute 001A+001B; fail closed on pending overwrite)
+- [x] ORCH001C-004 Thin `.cursor/hooks.json` + `.cursor/hooks/atlas_stop.py` (no policy in the hook)
+- [x] ORCH001C-005 One trusted `followup_message` for task/owner_gate; `{}` for terminal/aborted/error
+- [x] ORCH001C-006 Loop guard + `atlas orchestrator cursor-ack` (ack != authority)
+- [x] ORCH001C-007 Tamper/injection tests + hook stdin/stdout contract
+- [x] ORCH001C-008 Read-only `atlas orchestrator cursor-status`
+- [ ] ORCH001C-009 Independent integration verification
+- [ ] ORCH001C-010 Local Windows Cursor stop-hook acceptance
 - [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 

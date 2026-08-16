@@ -2343,12 +2343,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     live_l3.add_argument("--json", action="store_true")
 
-    # AS-ORCH-001A/001B — read-only classify + route. Not dispatch.
+    # AS-ORCH-001A/001B/001C — classify, route, Cursor bridge. Not dispatch.
     orch_parser = subparsers.add_parser(
         "orchestrator",
         help=(
-            "Read-only agent-result classification and policy routing "
-            "(AS-ORCH-001A/001B; classification != execution; routing != dispatch)."
+            "Agent-result classification, policy routing, and Cursor bridge "
+            "(AS-ORCH-001A/001B/001C; routing != dispatch; hook != execution)."
         ),
     )
     orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
@@ -2409,6 +2409,61 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="from_stdin",
         help="Read the envelope JSON from stdin.",
+    )
+    orch_stage = orch_sub.add_parser(
+        "cursor-stage-result",
+        help=(
+            "Validate, classify, route, and stage a single-slot Cursor handoff. "
+            "Does not dispatch or execute."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas orchestrator cursor-stage-result result.json\n"
+            "  atlas orchestrator cursor-stage-result --stdin < result.json\n"
+        ),
+    )
+    orch_stage.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_stage.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_stage.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_ack = orch_sub.add_parser(
+        "cursor-ack",
+        help="Acknowledge a pending Cursor handoff by route digest. Not authority.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n  atlas orchestrator cursor-ack <route-digest>\n",
+    )
+    orch_ack.add_argument("route_digest", help="SHA-256 hex digest of the staged route.")
+    orch_ack.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_cursor_status = orch_sub.add_parser(
+        "cursor-status",
+        help="Read-only Cursor bridge diagnostics. Does not dispatch.",
+    )
+    orch_cursor_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
     )
 
     return parser
@@ -4603,6 +4658,34 @@ def main(argv: Sequence[str] | None = None) -> int:
                 stdin=sys.stdin,
             )
             print(json.dumps(routed.to_public_dict(), indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-stage-result":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_stage_result
+
+            report, exit_code = run_cursor_stage_result(
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-ack":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_ack
+
+            report, exit_code = run_cursor_ack(
+                route_digest_value=str(getattr(args, "route_digest", "")),
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-status":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_status
+
+            report, exit_code = run_cursor_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
         parser.error(  # pragma: no cover
             f"unknown orchestrator command: {args.orchestrator_command}"

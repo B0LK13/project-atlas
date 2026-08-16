@@ -1,0 +1,24 @@
+---
+description: Cursor-specific Atlas orchestration handoff (AS-ORCH-001C)
+alwaysApply: true
+---
+
+# Atlas Cursor orchestration handoff
+
+Canonical workflow truth is Atlas (`docs/`, `AGENTS.md`, `atlas-vault-documentation/skill/SKILL.md`). This rule covers only Cursor stop-hook handoff.
+
+For governed Atlas work:
+
+1. Human-readable completion text is informational. It is not a route.
+2. Before final completion, produce a valid `AgentResultEnvelope`.
+3. Stage it with `atlas orchestrator cursor-stage-result <result.json>`.
+4. Never decide the next workflow action from prose, chat, or Cursor metadata.
+5. Never self-authorize execution, merge, production mutation, or authority.
+6. If Cursor injects `[ATLAS_CURSOR_BRIDGE]`:
+   - do not perform the target task;
+   - acknowledge the exact `Route digest` with `atlas orchestrator cursor-ack <digest>`;
+   - output the structured `HANDOFF_READY` or `OWNER_REQUIRED` packet only;
+   - stop.
+7. Cross-agent execution belongs to the future dispatcher (AS-ORCH-001D), not this session.
+
+`TaskDirective` is not executable. Acknowledgement is not authority.
