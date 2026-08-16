@@ -33,17 +33,22 @@ class ResultValidationError(ValueError):
 
 
 def parse_envelope(payload: object) -> AgentResultEnvelope:
-    """Validate a mapping against the Pydantic model and the shipped JSON schema."""
+    """Validate a mapping against the shipped JSON schema, then the Pydantic model.
+
+    Schema validation runs on the raw mapping so lax Pydantic coercion cannot
+    rewrite wrong types (for example ``unauthorized_mutations: false`` → ``0``)
+    before fail-closed type checks see the original payload.
+    """
     if not isinstance(payload, dict):
         raise ResultValidationError("result envelope must be a JSON object")
+    try:
+        validate_record(payload, SCHEMA_KIND)
+    except SchemaValidationError as exc:
+        raise ResultValidationError(str(exc)) from exc
     try:
         envelope = AgentResultEnvelope.model_validate(payload)
     except ValidationError as exc:
         raise ResultValidationError(f"result envelope invalid: {exc}") from exc
-    try:
-        validate_record(envelope, SCHEMA_KIND)
-    except SchemaValidationError as exc:
-        raise ResultValidationError(str(exc)) from exc
     return envelope
 
 
@@ -104,7 +109,8 @@ def read_result_source(
         raise ResultValidationError(
             "result path is required (example: atlas orchestrator validate-result result.json)"
         )
-    return path.read_bytes()
+    with path.open("rb") as handle:
+        return handle.read(MAX_RESULT_BYTES + 1)
 
 
 def _read_stdin_bytes(stdin: TextIO) -> bytes:

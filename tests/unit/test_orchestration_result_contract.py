@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,11 @@ from project_atlas.orchestration import (
     validate_and_classify,
 )
 from project_atlas.orchestration.models import ResultReceiptBinding
+from project_atlas.orchestration.validator import (
+    MAX_RESULT_BYTES,
+    read_result_source,
+    run_validate_result,
+)
 from project_atlas.schema import SchemaValidationError, available_schemas, validate_record
 
 ORCH_DIR = Path(__file__).resolve().parents[2] / "src" / "project_atlas" / "orchestration"
@@ -133,6 +139,20 @@ def test_negative_unauthorized_mutations_rejected() -> None:
     )
     assert decision.valid is False
     assert decision.next_transition == "REJECTED"
+
+
+def test_coerced_observation_types_rejected() -> None:
+    """JSON Schema must see the raw payload; bool/int swaps must not pass."""
+    confused = _valid_payload(
+        observations={"target_moved": 0, "unauthorized_mutations": False}
+    )
+    with pytest.raises(SchemaValidationError):
+        validate_record(confused, "agent-result-envelope")
+    decision = validate_and_classify(confused)
+    assert decision.valid is False
+    assert decision.next_transition == "REJECTED"
+    assert decision.execution_authorized is False
+    assert decision.reasons[0] == "malformed_or_schema_invalid"
 
 
 def test_unexpected_authority_fields_rejected() -> None:
@@ -274,6 +294,18 @@ def test_cli_valid_input(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert report["execution_authorized"] is False
     assert report["merge_authorized"] is False
     assert report["package_id"] == PACKAGE_ID
+
+
+def test_file_read_is_capped_before_full_materialization(tmp_path: Path) -> None:
+    path = tmp_path / "huge.json"
+    path.write_bytes(b"x" * (MAX_RESULT_BYTES + 50))
+    data = read_result_source(path=path, from_stdin=False, stdin=io.StringIO())
+    assert len(data) == MAX_RESULT_BYTES + 1
+    decision, code = run_validate_result(path=path, from_stdin=False, stdin=io.StringIO())
+    assert code == 1
+    assert decision.valid is False
+    assert decision.next_transition == "REJECTED"
+    assert "size limit" in decision.reasons[1]
 
 
 def test_cli_invalid_input(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
