@@ -6848,4 +6848,9 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - Focused orchestration tests: 175 passed (001A/B/C 140 + transport 9 + dispatcher unit 22 + dispatcher integration 4)
 - Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
 - Combined focused+contract: 185 passed
-- Quality gates (ruff / mypy / full pytest) recorded after this entry if a follow-up commit is required.
+- `ruff check .`: pass
+- `mypy src`: pass (228 source files)
+- Full `pytest --override-ini='addopts='`: 3016 collected; 3009 passed, 3 failed, 3 skipped, 1 xfailed
+- The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases (`test_scenario_2_mature_pilot_is_not_falsely_reported`, `test_scenario_3_partial_pilot_reports_accurate_gaps`, `test_k007_dedicated_secret_fixture_never_leaks`). Not this package. Do not call full pytest PASS.
+- NEW_REGRESSIONS = none
+- MERGE_PERFORMED = NO
