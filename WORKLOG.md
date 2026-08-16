@@ -6854,3 +6854,56 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases (`test_scenario_2_mature_pilot_is_not_falsely_reported`, `test_scenario_3_partial_pilot_reports_accurate_gaps`, `test_k007_dedicated_secret_fixture_never_leaks`). Not this package. Do not call full pytest PASS.
 - NEW_REGRESSIONS = none
 - MERGE_PERFORMED = NO
+
+---
+
+## AS-ORCH-001D-R1 — Native Windows Cursor Launcher + Read-Only Dispatch Hardening
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001D-R1-WINDOWS-TRANSPORT-001
+**Package:** AS-ORCH-001D-R1
+**Branch:** `cursor/as-orch-001d-agent-dispatcher-d054`
+**PR:** #396
+**Base:** live `origin/main` `122ad8b11236dbc906c5e245054b090e4ff8e006` / TREE `0d13568f3964a58a0b91d99519c95aa2020020e4`
+**OLD_PR_HEAD:** `193f62a77b5d033000ec3e21519a323a96855408`
+**OLD_PR_TREE:** `99c29fcca0d277c489e8cb92b5e4c4f3171c9684`
+
+### Root cause
+- Trusted resolver treated ordinary Windows path backslashes as shell metacharacters, so absolute `agent` paths failed on Windows CI (`test_resolve_accepts_absolute_supported_basename`).
+- `which("agent")` returning `agent.CMD` was rejected because basename was compared exactly to `agent`.
+- Process-runner fixture used a POSIX shebang script; Windows CreateProcess raised WinError 193.
+
+### Remediation
+- Logical Cursor identity (`agent` / `cursor-agent`) is separate from physical launcher (`DIRECT` or `WINDOWS_CMD_WRAPPER`).
+- Windows `.cmd` wrappers launch via trusted System32 `cmd.exe` (`/d /s /c`) with `shell=False`.
+- Dispatch prompt is stdin-only. Untrusted text never enters the Windows command string or process argv.
+- Automatic read-only hops use `--mode=ask` and never `--force`. Result binding may accept a strict `AgentResultEnvelope` from Cursor structured JSON (same role/task/attempt/receipt rules). CLI `dispatch-submit-result` remains an evidence channel.
+- Mutating remediation/reconcile remain `CAPABILITY_REQUIRED`.
+- Windows CI fixture now uses the current Python executable plus a temporary helper.
+
+### Honesty
+- WINDOWS_CMD_WRAPPER_SUPPORTED = YES
+- DIRECT_EXECUTABLE_SUPPORTED = YES
+- WINDOWS_BACKSLASH_REJECTED_AS_UNSAFE = NO
+- PYTHON_SHELL_TRUE = NO
+- UNTRUSTED_TEXT_REACHES_WINDOWS_COMMAND_STRING = NO
+- READ_ONLY_DISPATCH_USES_FORCE = NO
+- READ_ONLY_DISPATCH_MACHINE_ENFORCED = YES (`--mode=ask`, no `--force`, no workspace `.cursor/cli.json` mutation)
+- TARGET_RESULT_SUBMISSION_SECURITY = structured envelope capture (C) + existing `dispatch-submit-result` (B); no broad shell grant
+- AUTHENTIC_WINDOWS_CURSOR_AGENT_DISPATCH = NOT_YET_CERTIFIED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- NEXT_HANDOFF_AUTODISPATCHED = NO
+- MUTATING_REMEDIATION_AUTO_DISPATCH = BLOCKED_PENDING_EXISTING_AUTHORITY_BINDING
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Local verification
+- Focused orchestration tests: 185 passed
+- Schema/contract regression: 10 passed
+- `ruff check .`: pass
+- `mypy src`: pass (228 source files)
+- Full `pytest --override-ini='addopts='`: 3026 collected; 3019 passed, 3 failed, 3 skipped, 1 xfailed
+- The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases. Not this package. Do not call full pytest PASS.
+- Closed 001D-specific Windows CI failures: `test_resolve_accepts_absolute_supported_basename`, `test_subprocess_runner_uses_argv_and_timeout`
+- NEW_REGRESSIONS = none
+- MERGE_PERFORMED = NO
+- STATE = REMEDIATED — READY FOR RE-CERTIFICATION
