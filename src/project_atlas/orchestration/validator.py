@@ -61,7 +61,6 @@ def malformed_decision(reason: str) -> OrchestrationDecision:
         merge_authorized=False,
         reasons=["malformed_or_schema_invalid", reason],
         requested_transition=None,
-        truth_boundary=TRUTH_BOUNDARY,
     )
 
 

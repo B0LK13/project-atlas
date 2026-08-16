@@ -96,10 +96,15 @@
         },
         "status": { "enum": ["valid", "pending", "rejected"] },
         "event_id": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+            }
+          ]
         }
       }
     },
@@ -139,7 +144,7 @@
           "maxLength": 64,
           "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
         },
-        "detail": { "type": "string", "maxLength": 256 }
+        "detail": { "type": ["string", "null"], "maxLength": 256 }
       }
     }
   }

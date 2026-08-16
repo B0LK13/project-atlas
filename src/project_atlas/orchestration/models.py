@@ -151,7 +151,7 @@ class ResultReceiptBinding(BaseModel):
         return value
 
     def is_valid_evidence(self) -> bool:
-        return self.status == ReceiptStatus.VALID
+        return self.status == "valid"
 
     def to_receipt_reference(self) -> ReceiptReference | None:
         """Compose the canonical receipt primitive when an event_id is present."""
@@ -240,7 +240,7 @@ class OrchestrationDecision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal[1] = 1
-    package_id: Literal["AS-ORCH-001A"] = PACKAGE_ID
+    package_id: Literal["AS-ORCH-001A"] = "AS-ORCH-001A"
     valid: bool
     producer: ProducerRole | None = None
     task: str | None = None
@@ -252,12 +252,7 @@ class OrchestrationDecision(BaseModel):
     merge_authorized: Literal[False] = False
     reasons: list[str] = Field(default_factory=list, max_length=32)
     requested_transition: RequestedTransition | None = None
-    truth_boundary: Literal[
-        "RESULT != AUTHORITY / RECEIPT != AUTHORITY / PASS != MERGE AUTHORIZATION / "
-        "CERTIFIED != MERGED / MERGE_ELIGIBLE != MERGED / "
-        "REQUESTED_TRANSITION != AUTHORIZED_TRANSITION / "
-        "AGENT RECOMMENDATION != OWNER APPROVAL / CLASSIFICATION != EXECUTION"
-    ] = TRUTH_BOUNDARY
+    truth_boundary: str = TRUTH_BOUNDARY
 
     @model_validator(mode="after")
     def _no_execution_or_merge_authority(self) -> OrchestrationDecision:

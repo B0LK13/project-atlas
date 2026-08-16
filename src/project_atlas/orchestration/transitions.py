@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from project_atlas.orchestration.models import (
     OWNER_GATED_STATES,
-    TRUTH_BOUNDARY,
     AgentResultEnvelope,
     NextTransition,
     OrchestrationDecision,
@@ -29,10 +28,6 @@ from project_atlas.orchestration.models import (
     ResultOutcome,
     WorkflowState,
 )
-
-# AS-ORCH-001A has no execution authority. Hard-coded; never derived from input.
-_EXECUTION_AUTHORIZED = False
-_MERGE_AUTHORIZED = False
 
 
 def classify_envelope(envelope: AgentResultEnvelope) -> OrchestrationDecision:
@@ -187,10 +182,9 @@ def _decision(
         outcome=envelope.outcome,
         workflow_state=workflow_state,
         next_transition=next_transition,
-        execution_authorized=_EXECUTION_AUTHORIZED,
+        execution_authorized=False,
         owner_required=owner_required,
-        merge_authorized=_MERGE_AUTHORIZED,
+        merge_authorized=False,
         reasons=reasons,
         requested_transition=envelope.requested_transition,
-        truth_boundary=TRUTH_BOUNDARY,
     )
