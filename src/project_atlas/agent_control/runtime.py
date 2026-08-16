@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Literal, cast
 
+from project_atlas.agent_control.trusted_argv import resolve_executable_argv
+
 MDA_ENV_VAR: Final[str] = "ATLAS_MDA_COMMAND"
 MDA_PATH_BASENAME: Final[str] = "mda"
 _TEST_PATH_COMPONENTS: Final[frozenset[str]] = frozenset(
@@ -134,11 +136,25 @@ def _file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def mda_version_probe_argv(executable: Path) -> list[str]:
+    """Build ``--version`` argv using shared trusted launch semantics.
+
+    Authorization must already have succeeded. A shebang never grants
+    authority. Python shebang scripts use ``sys.executable``; unexpected
+    interpreters are not substituted.
+    """
+    try:
+        return [*resolve_executable_argv(str(executable)), "--version"]
+    except ValueError as exc:
+        raise _pipeline_unavailable("MDA version could not be established") from exc
+
+
 def probe_mda_version(executable: Path) -> str:
-    """Probe ``--version`` before the executable may produce lifecycle evidence."""
+    """Probe ``--version`` with the same argv identity as normalization."""
+    argv = mda_version_probe_argv(executable)
     try:
         completed = subprocess.run(
-            [str(executable), "--version"],
+            argv,
             capture_output=True,
             text=True,
             timeout=_VERSION_PROBE_TIMEOUT_SECONDS,
@@ -169,6 +185,7 @@ def _accept_production_candidate(
     path: Path,
     source: Literal["operator_config", "PATH"],
 ) -> MdaProvider:
+    # AUTHORIZATION_PRECEDES_EXECUTION: path/provenance gates run first.
     resolved = _require_production_file(path)
     version = probe_mda_version(resolved)
     if version_is_mock(version):

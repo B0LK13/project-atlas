@@ -33,6 +33,11 @@ from project_atlas.orchestration.dispatcher import DispatchStatus, run_dispatch_
 
 
 def _write_mda(directory: Path, *, version: str) -> Path:
+    """Write an authorized-looking Python shebang helper.
+
+    Launch identity is owned by ``resolve_executable_argv`` (sys.executable
+    wrap). This helper is not a production fixture path.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / "mda"
     path.write_text(
