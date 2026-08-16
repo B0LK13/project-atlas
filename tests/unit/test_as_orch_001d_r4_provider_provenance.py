@@ -6,7 +6,12 @@ import os
 from pathlib import Path
 
 import pytest
-from tests.orchestration_control_plane import MDA_FIXTURE, install_managed_control_plane
+from tests.orchestration_control_plane import (
+    MDA_FIXTURE,
+    bind_test_mda_pipeline,
+    explicit_test_mda_provider,
+    install_managed_control_plane,
+)
 from tests.unit.test_orchestration_dispatcher import (
     ScriptedRunner,
     _ok_outcome,
@@ -17,11 +22,8 @@ from tests.unit.test_orchestration_dispatcher import (
 from project_atlas.agent_control.runtime import (
     ControlPlaneError,
     MdaProvider,
-    clear_test_mda_provider,
-    inject_test_mda_provider,
     prepare_event_pipeline,
     resolve_mda_command,
-    resolve_mda_provider,
     resolve_production_mda_provider,
     scoped_mda_environment,
 )
@@ -130,18 +132,25 @@ def test_mock_version_is_rejected_in_production(tmp_path: Path) -> None:
     _assert_pipeline_unavailable(caught.value)
 
 
-def test_explicit_test_injection_allows_fixture() -> None:
-    provider = inject_test_mda_provider(MDA_FIXTURE)
+def test_explicit_test_harness_provider_is_not_production_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = explicit_test_mda_provider()
     assert provider.source == "test_injection"
     assert "mock" in provider.version.lower()
-    resolved = resolve_mda_provider(allow_test_injection=True)
-    assert resolved.source == "test_injection"
-    assert resolved.command == MDA_FIXTURE.resolve()
+    monkeypatch.delenv("ATLAS_MDA_COMMAND", raising=False)
+    monkeypatch.setattr(
+        "project_atlas.agent_control.runtime.shutil.which",
+        lambda _name: None,
+    )
     with pytest.raises(ControlPlaneError):
         resolve_production_mda_provider(
             environ={"ATLAS_MDA_COMMAND": str(MDA_FIXTURE)},
             which=lambda _name: None,
         )
+    with pytest.raises(ControlPlaneError) as caught:
+        prepare_event_pipeline()
+    _assert_pipeline_unavailable(caught.value)
 
 
 def test_environment_restored_after_successful_event(tmp_path: Path) -> None:
@@ -179,7 +188,7 @@ def test_environment_restored_after_failing_event(tmp_path: Path) -> None:
     assert "ATLAS_MDA_COMMAND" not in os.environ
 
 
-def test_prepare_event_pipeline_does_not_leave_env_mutated(
+def test_prepare_event_pipeline_is_production_only_and_does_not_mutate_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("ATLAS_MDA_COMMAND", raising=False)
@@ -187,9 +196,10 @@ def test_prepare_event_pipeline_does_not_leave_env_mutated(
         "project_atlas.agent_control.runtime.shutil.which",
         lambda _name: None,
     )
-    inject_test_mda_provider(MDA_FIXTURE)
-    provider = prepare_event_pipeline()
-    assert provider.source == "test_injection"
+    explicit_test_mda_provider()
+    with pytest.raises(ControlPlaneError) as caught:
+        prepare_event_pipeline()
+    _assert_pipeline_unavailable(caught.value)
     assert "ATLAS_MDA_COMMAND" not in os.environ
 
 
@@ -198,7 +208,6 @@ def test_mock_provider_cannot_create_canonical_completion_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     workspace = _workspace(tmp_path)
-    clear_test_mda_provider()
     monkeypatch.setenv("ATLAS_MDA_COMMAND", str(MDA_FIXTURE))
     stage_result(_payload(), root=workspace)
     runner = ScriptedRunner(_ok_outcome())
@@ -218,7 +227,7 @@ def test_missing_provider_fails_before_spawn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    workspace = install_managed_control_plane(tmp_path, inject_mda=False)
+    workspace = install_managed_control_plane(tmp_path)
     (workspace / "AGENTS.md").write_text("# Atlas\n", encoding="utf-8")
     (workspace / "pyproject.toml").write_text(
         '[project]\nname = "project-atlas"\n',
@@ -238,10 +247,11 @@ def test_missing_provider_fails_before_spawn(
     assert runner.requests == []
 
 
-def test_cursor_child_does_not_inherit_injected_test_mda(
+def test_cursor_child_does_not_inherit_test_mda(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    bind_test_mda_pipeline(monkeypatch)
     workspace = _workspace(tmp_path)
     monkeypatch.setenv("ATLAS_MDA_COMMAND", str(MDA_FIXTURE))
     monkeypatch.setenv("CURSOR_API_KEY", "secret")
@@ -278,8 +288,7 @@ def test_runtime_has_no_production_fixture_fallback() -> None:
     assert "if fixture.is_file():" not in text
 
 
-def test_injected_fixture_is_not_used_by_production_resolver() -> None:
-    inject_test_mda_provider(MDA_FIXTURE)
+def test_fixture_on_path_is_not_used_by_production_resolver() -> None:
     with pytest.raises(ControlPlaneError) as caught:
         resolve_production_mda_provider(
             environ={},

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tests.orchestration_control_plane import DEFAULT_PROJECT_ID
+from tests.orchestration_control_plane import DEFAULT_PROJECT_ID, bind_test_mda_pipeline
 from tests.unit.test_orchestration_dispatcher import (
     ScriptedRunner,
     _ok_outcome,
@@ -41,6 +41,11 @@ from project_atlas.orchestration.dispatcher import (
 )
 from project_atlas.orchestration.models import AgentResultEnvelope
 from project_atlas.orchestration.validator import parse_envelope
+
+
+@pytest.fixture(autouse=True)
+def _bind_test_mda_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    bind_test_mda_pipeline(monkeypatch)
 
 
 def _id_from_prompt(text: str) -> str:

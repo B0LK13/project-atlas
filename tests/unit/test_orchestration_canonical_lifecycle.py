@@ -6,6 +6,10 @@ import hashlib
 from pathlib import Path
 
 import pytest
+from tests.orchestration_control_plane import (
+    bind_test_mda_pipeline,
+    restore_production_event_pipeline,
+)
 from tests.unit.test_orchestration_dispatcher import (
     ScriptedRunner,
     _ok_outcome,
@@ -17,10 +21,7 @@ from tests.unit.test_orchestration_dispatcher import (
 
 from project_atlas.agent_control import postflight as core_postflight
 from project_atlas.agent_control import receipt_gate as core_receipt_gate
-from project_atlas.agent_control.runtime import (
-    clear_test_mda_provider,
-    ensure_control_plane_importable,
-)
+from project_atlas.agent_control.runtime import ensure_control_plane_importable
 from project_atlas.orchestration.agent_transport import ProcessRunRequest
 from project_atlas.orchestration.canonical_session_receipt import (
     load_managed_session,
@@ -35,6 +36,11 @@ from project_atlas.orchestration.dispatcher import (
     run_dispatch_once,
     submit_target_result,
 )
+
+
+@pytest.fixture(autouse=True)
+def _bind_test_mda_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    bind_test_mda_pipeline(monkeypatch)
 
 
 def _dispatch_id(request: ProcessRunRequest) -> str:
@@ -137,7 +143,7 @@ def test_pipeline_failure_fails_closed(tmp_path: Path, monkeypatch: pytest.Monke
 
     def on_run(request: ProcessRunRequest) -> None:
         captured["id"] = _dispatch_id(request)
-        clear_test_mda_provider()
+        restore_production_event_pipeline(monkeypatch)
         monkeypatch.setenv("ATLAS_MDA_COMMAND", str(tmp_path / "missing-mda"))
         with pytest.raises(DispatcherError):
             submit_target_result(

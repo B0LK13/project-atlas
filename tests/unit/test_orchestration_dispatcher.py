@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
-from tests.orchestration_control_plane import install_managed_control_plane
+from tests.orchestration_control_plane import bind_test_mda_pipeline, install_managed_control_plane
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.orchestration.agent_transport import ProcessRunOutcome, ProcessRunRequest
@@ -39,6 +39,11 @@ from project_atlas.orchestration.dispatcher import (
 )
 from project_atlas.orchestration.models import ProducerRole, TaskType
 from project_atlas.schema import SchemaValidationError, validate_record
+
+
+@pytest.fixture(autouse=True)
+def _bind_test_mda_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    bind_test_mda_pipeline(monkeypatch)
 
 
 def _workspace(tmp_path: Path) -> Path:

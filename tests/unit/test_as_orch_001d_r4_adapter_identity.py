@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+from tests.orchestration_control_plane import bind_test_mda_pipeline
 from tests.unit.test_orchestration_dispatcher import (
     ScriptedRunner,
     _ok_outcome,
@@ -30,6 +32,11 @@ from project_atlas.orchestration.dispatcher import (
     run_dispatch_once,
     submit_target_result,
 )
+
+
+@pytest.fixture(autouse=True)
+def _bind_test_mda_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    bind_test_mda_pipeline(monkeypatch)
 
 
 def _dispatch_id(request: ProcessRunRequest) -> str:

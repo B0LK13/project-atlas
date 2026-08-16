@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tests.orchestration_control_plane import install_managed_control_plane
+from tests.orchestration_control_plane import bind_test_mda_pipeline, install_managed_control_plane
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.agent_transport import ProcessRunOutcome, ProcessRunRequest
@@ -18,6 +18,11 @@ from project_atlas.orchestration.dispatcher import (
     run_dispatch_once,
     submit_target_result,
 )
+
+
+@pytest.fixture(autouse=True)
+def _bind_test_mda_pipeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    bind_test_mda_pipeline(monkeypatch)
 
 
 def _dispatch_id_from_request(request: ProcessRunRequest) -> str:
