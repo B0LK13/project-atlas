@@ -180,6 +180,7 @@ def test_schema_kinds_registered() -> None:
     kinds = available_schemas()
     assert "task-directive" in kinds
     assert "orchestration-route" in kinds
+    assert "handoff-packet" in kinds
 
 
 def test_task_directive_schema_model_parity() -> None:

@@ -6694,3 +6694,116 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - Full `pytest`: 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot; not this package)
 - Scenarios A/B/C/D: integration verify / recertification / owner_gate / rejected terminal; `execution_authorized=false`
 
+
+## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001C-001
+**Package:** AS-ORCH-001C
+**Branch:** `cursor/as-orch-001c-cursor-integration-d054`
+**PR:** https://github.com/B0LK13/project-atlas/pull/395 (draft)
+**Base:** live `origin/main` `5d7224fc8a51ce86d37b883dd9fa5f70dc47e94e` / TREE `b7725d4c31a419a1bf39aaabb4e01e09e641340b`
+**TARGET_MOVED:** NO
+
+### Scope implemented
+- Typed `CursorStopEvent` / `CursorBridgeState` / `CursorBridgeResponse`
+- Single-slot ephemeral state at `.atlas/orchestration/cursor/state.json` (gitignored; not a queue)
+- CLI: `atlas orchestrator cursor-stage-result` / `cursor-ack` / `cursor-status`
+- Thin Cursor stop hook: `.cursor/hooks.json` + `.cursor/hooks/atlas_stop.py` (no policy in the hook)
+- Cursor project rule: `.cursor/rules/atlas-orchestration.mdc`
+- One trusted `followup_message` for task / owner_gate; `{}` for terminal / aborted / error / tamper
+- Loop guard: at most one automatic continuation (`loop_count` + `followup_emitted`)
+- HANDOFF_READY / OWNER_REQUIRED packets (not executable prompts)
+
+### Honesty
+- STRUCTURED_RESULT_CONTRACT = IMPLEMENTED
+- DETERMINISTIC_CLASSIFICATION = IMPLEMENTED
+- DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED
+- TYPED_TASK_DIRECTIVE = IMPLEMENTED
+- CURSOR_INTEGRATION_BRIDGE = IMPLEMENTED
+- CURSOR_STOP_HOOK = IMPLEMENTED
+- CURSOR TRIGGER INTEGRATION IMPLEMENTED
+- CROSS-AGENT DISPATCH NOT IMPLEMENTED
+- AUTHENTIC_WINDOWS_CURSOR_RUNTIME = NOT_YET_CERTIFIED
+- AUTHENTIC_WINDOWS_CURSOR_STOP_HOOK = NOT_YET_CERTIFIED
+- AGENT_DISPATCH = NOT_IMPLEMENTED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- AUTOMATIC_MERGE = NOT_IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- UNTRUSTED_TEXT_REACHES_FOLLOWUP = NO
+- CURSOR_CAN_CHOOSE_ROUTE = NO
+- HOOK_CAN_SPAWN_AGENT = NO
+- BRIDGE_ACK_IS_AUTHORITY = NO
+
+### Follow-up (not started)
+- Independent integration verification, then Local Windows Cursor stop-hook acceptance
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
+### Local verification
+- Focused orchestration tests: 125 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26 + `test_orchestration_policy.py` 21 + `test_orchestration_router.py` 24 + `test_orchestration_cursor_bridge.py` 29 + `test_cursor_hook_contract.py` 6)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- Combined focused+contract: 135 passed
+- `ruff check .`: pass
+- `mypy src`: pass (226 source files)
+- Full `pytest`: 2966 collected; 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot, `age_days=20681`; not this package). Observed 1 xfailed + 3 skipped in the progress output. Do not call full pytest PASS.
+- NEW_REGRESSIONS = none
+- Scenarios: task followup / owner_gate followup / terminal `{}` / aborted `{}` / loop guard / tampered state `{}`; `execution_authorized=false`
+
+## AS-ORCH-001C-R1 — Deterministic Completion Transport Fallback
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001C-R1-001
+**Package:** AS-ORCH-001C-R1
+**Branch:** `cursor/as-orch-001c-cursor-integration-d054`
+**PR:** https://github.com/B0LK13/project-atlas/pull/395 (draft; not merge-ready)
+**Base:** live `origin/main` `5d7224fc8a51ce86d37b883dd9fa5f70dc47e94e` / TREE `b7725d4c31a419a1bf39aaabb4e01e09e641340b`
+**OLD_PR_HEAD:** `70116b16108859622c3f39a71ee8605b361358a4`
+**OLD_PR_TREE:** `8c15c53445e53536b2e9b30734bd26c4aa411e84`
+**TARGET_MOVED:** expected (remediation commit)
+
+### Scope implemented
+- Typed `HandoffPacket` shared by the optional Cursor stop-hook adapter and explicit completion
+- Transport-neutral `complete_staged_handoff` / `surface_pending_handoff` (no Cursor event required)
+- CLI: `atlas orchestrator cursor-complete` returns one machine-readable packet; no dispatch
+- `cursor-ack` unchanged and transport-independent; `cursor-status` reports hook adapter vs explicit transport honestly
+- Hook files `.cursor/hooks.json` and `.cursor/hooks/atlas_stop.py` retained (no policy in the hook)
+- Project rule no longer treats hook injection as guaranteed
+
+### Honesty
+- STRUCTURED_RESULT_CONTRACT = IMPLEMENTED
+- DETERMINISTIC_CLASSIFICATION = IMPLEMENTED
+- DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED
+- TYPED_TASK_DIRECTIVE = IMPLEMENTED
+- CURSOR_BRIDGE_CORE = IMPLEMENTED
+- CURSOR_STOP_HOOK_ADAPTER = IMPLEMENTED
+- EXPLICIT_COMPLETION_TRANSPORT = IMPLEMENTED
+- AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = NOT_RELIABLE_IN_CURRENT_WINDOWS_CLI_RUNTIME
+- AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT
+- HOOK_RUNTIME_REQUIRED_FOR_CORE_FLOW = NO
+- CROSS_AGENT_DISPATCH = NOT_IMPLEMENTED
+- AGENT_DISPATCH = NOT_IMPLEMENTED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- AUTOMATIC_MERGE = NOT_IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- TRANSPORT_CAN_CHOOSE_ROUTE = NO
+- TRANSPORT_CAN_ESCALATE_PRIVILEGE = NO
+- BRIDGE_ACK_IS_AUTHORITY = NO
+- ACK_DISPATCHES_AGENT = NO
+- MERGE_ELIGIBLE = NO
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Follow-up (not started)
+- New independent Integration IV + exact-head CI + Local Windows explicit-completion acceptance
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
+### Local verification
+- Focused orchestration tests: 140 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26 + `test_orchestration_policy.py` 21 + `test_orchestration_router.py` 24 + `test_orchestration_cursor_bridge.py` 29 + `test_orchestration_explicit_completion.py` 15 + `test_cursor_hook_contract.py` 6)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- Combined focused+contract: 150 passed
+- `ruff check .`: pass
+- `mypy src`: pass (226 source files)
+- Full `pytest`: 2981 collected; 2 failures, both `WinError 206` filename-too-long in eval-broker git history/secret tests (workspace environment; not this package). AS-MVP-001 calendar/mtime failures did not reproduce in this run. Observed 1 xfailed + 5 skipped in the progress output. Do not call full pytest PASS.
+- NEW_REGRESSIONS = none
+- Scenarios A-G: task / recertify / owner_gate / terminal / tamper reject / idempotent complete / transport equivalence; `execution_authorized=false`; `dispatch_performed=false`

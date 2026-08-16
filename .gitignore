@@ -86,6 +86,10 @@ desktop.ini
 # connect-generated markers only under nested workdirs if present.
 **/.atlas/connect-bind.json
 
+# AS-ORCH-001C ephemeral Cursor bridge state (runtime only; never commit)
+.atlas/orchestration/
+**/.atlas/orchestration/
+
 # AS-2.2-EVAL-001 private holdout expected map (never commit plaintext answers).
 # Documented operator-local location (docs/AS-2.2-EVAL-001.md,
 # fixtures/eval/holdouts/hidden/ACCESS.md):

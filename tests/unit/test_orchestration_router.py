@@ -348,12 +348,13 @@ def test_no_execute_or_dispatch_helpers() -> None:
         "def spawn_agent(",
         "shell_command",
         "cursor_prompt",
-        "followup_message",
     )
     for path in sorted(ORCH_DIR.glob("*.py")):
         text = path.read_text(encoding="utf-8")
         for needle in forbidden:
             assert needle not in text, f"{path.name} must not contain {needle!r}"
+        if path.name != "cursor_bridge.py":
+            assert "followup_message" not in text
 
 
 def test_cli_route_result_scenario_a(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
