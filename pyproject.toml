@@ -64,5 +64,9 @@ warn_unreachable = true
 module = ["jsonschema.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["agent_control", "agent_control.*"]
+ignore_missing_imports = true
+
 [tool.atlas]
 # Default configuration; see project_atlas.config for all fields.
