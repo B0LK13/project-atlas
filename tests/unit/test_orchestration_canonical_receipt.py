@@ -392,23 +392,18 @@ def test_recovery_incomplete_lifecycle_fails_closed(tmp_path: Path) -> None:
 def test_forged_session_events_and_pipeline_fail_closed(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     dispatch_id = _prepare_running_dispatch(workspace)
+    submit_target_result(dispatch_id, _target_payload(f"d.{dispatch_id}"), root=workspace)
     record = load_record(workspace, dispatch_id)
     assert record is not None and record.managed_session_id is not None
     state = session.load(workspace, record.managed_session_id)
-    state["events"]["validation"] = ["AE-forged-validation"]
     state["events"]["completion"] = ["AE-forged-completion"]
-    state["pipeline"]["verified"] = 99
-    state["pipeline"]["normalized"] = 99
-    state["pipeline"]["routed"] = 99
-    session.save(workspace, state)
-    errors = receipt_gate.validate(state)
-    assert errors == [] or errors
     state["pipeline"]["verified"] = 0
     session.save(workspace, state)
     gate_errors = receipt_gate.validate(state)
     assert any("normalized" in error or "verified" in error for error in gate_errors)
     recovered = recover_dispatch(dispatch_id, root=workspace)
     assert recovered.status is DispatchStatus.FAILED
+    assert recovered.failure_code == "RECONCILIATION_REQUIRED"
     assert recovered.source_acknowledged is False
 
 

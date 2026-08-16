@@ -48,8 +48,9 @@ from project_atlas.orchestration.router import canonical_payload_digest
 
 CANONICAL_RECEIPTS_RELATIVE: Final[tuple[str, ...]] = (".atlas", "receipts")
 CANONICAL_SESSIONS_RELATIVE: Final[tuple[str, ...]] = (".atlas", "sessions")
-MANAGED_AGENT_ID: Final[str] = "cursor-readonly-ask"
+MANAGED_AGENT_ID: Final[str] = "cursor-ide"
 MANAGED_AGENT_TYPE: Final[str] = "ide"
+MANAGED_WORK_PACKAGE: Final[str] = "as-orch-001d"
 _ID_RE = re.compile(ID_PATTERN)
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -74,7 +75,15 @@ def _from_control_plane(exc: Exception) -> ReceiptBindingError:
     if isinstance(exc, ControlPlaneError) and isinstance(code, str):
         return ReceiptBindingError(str(exc), code=code)
     text = str(exc).lower()
-    if "normalization failed" in text or "routing failed" in text:
+    if any(
+        token in text
+        for token in (
+            "normalization failed",
+            "routing failed",
+            "invalid-raw-event",
+            "likely secret",
+        )
+    ):
         return ReceiptBindingError(str(exc), code="PIPELINE_FAILED")
     if "capture failed" in text:
         return ReceiptBindingError(str(exc), code="VALIDATION_EVENT_FAILED")
@@ -279,6 +288,7 @@ def _bind_dispatch_metadata(
     state: dict[str, Any],
     *,
     dispatch_id: str,
+    dispatch_task_id: str,
     attempt: int,
     target_role: str,
 ) -> dict[str, Any]:
@@ -286,6 +296,7 @@ def _bind_dispatch_metadata(
     if not isinstance(current, dict):
         raise ReceiptBindingError("managed session is malformed", code="RECEIPT_TAMPERED")
     updated = dict(current)
+    updated["task_id"] = dispatch_task_id
     updated["dispatch_id"] = dispatch_id
     updated["attempt"] = attempt
     updated["target_role"] = target_role
@@ -322,7 +333,7 @@ def start_managed_dispatch_session(
             vault_root=root,
             agent_type=MANAGED_AGENT_TYPE,
             agent_value=MANAGED_AGENT_ID,
-            task_id=dispatch_task_id,
+            task_id=MANAGED_WORK_PACKAGE,
             skill_root=skill_root,
         )
     except ReceiptBindingError:
@@ -338,6 +349,7 @@ def start_managed_dispatch_session(
     bound = _bind_dispatch_metadata(
         state,
         dispatch_id=dispatch_id,
+        dispatch_task_id=dispatch_task_id,
         attempt=attempt,
         target_role=target_role,
     )
@@ -397,7 +409,7 @@ def record_validation_event(
             session_id=target.managed_session_id,
             event_type="validation",
             summary="Dispatched target result passed schema and dispatch binding validation",
-            work_package=target.dispatch_task_id,
+            work_package=MANAGED_WORK_PACKAGE,
             validation=notes,
         )
     except ReceiptBindingError:
@@ -431,7 +443,7 @@ def record_completion_event(
             session_id=target.managed_session_id,
             event_type="completion",
             summary="Dispatched target process completed after validated raw evidence",
-            work_package=target.dispatch_task_id,
+            work_package=MANAGED_WORK_PACKAGE,
         )
     except ReceiptBindingError:
         raise

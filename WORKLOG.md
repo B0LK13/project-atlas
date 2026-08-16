@@ -6963,3 +6963,74 @@ R1 treated `AgentResultEnvelope.receipt.status == "valid"` as sufficient evidenc
 - NEW_REGRESSIONS = none
 - MERGE_PERFORMED = NO
 - STATE = REMEDIATED — READY FOR RE-CERTIFICATION
+
+---
+
+## AS-ORCH-001D-R3 — Real Canonical Managed-Session Lifecycle + Receipt Gate Integration
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001D-R3-CANONICAL-LIFECYCLE-001
+**Package:** AS-ORCH-001D-R3
+**Branch:** `cursor/as-orch-001d-agent-dispatcher-d054`
+**PR:** #396
+**Base:** live `origin/main` `122ad8b11236dbc906c5e245054b090e4ff8e006` / TREE `0d13568f3964a58a0b91d99519c95aa2020020e4`
+**OLD_PR_HEAD:** `7b2bbcfe85d4e930c3c89ba35e20dbead39c7636`
+**OLD_PR_TREE:** `06e140de4896c993b61f1082d9f9f00b3808ff39`
+
+### Root cause
+R2 claimed `CANONICAL_RECEIPT_PRIMITIVE_REUSED = YES` while independently constructing session-start/validation/completion events, assigning `1970-01-01T00:00:00Z`, setting pipeline counters, mirroring `receipt_gate.validate`, and writing the receipt itself. That was synthetic lifecycle / dispatcher self-attestation.
+
+### Remediation
+- Extracted the single `session` / `receipt_gate.validate` / `receipt_gate.issue` / `postflight.run` implementation into `src/project_atlas/agent_control/`. Sibling `atlas-vault-documentation/agent_control/{session,receipt_gate,postflight}.py` are re-export shims.
+- Dispatcher starts a real managed session through canonical preflight + `bootstrap.start` + `event_client.document(session-start)`.
+- Raw `AgentResultEnvelope` is stored as RAW_TARGET_EVIDENCE. A validation event is recorded only after that validation. Completion is recorded only after process + validation + real MDA pipeline success.
+- Receipts are issued only by `postflight.run` → `receipt_gate.validate` → `receipt_gate.issue`.
+- Model `receipt.status=valid` is provisional (policy B) and cannot skip postflight. Dispatcher replaces only the receipt binding after issue.
+- Recovery inspects real session state and does not synthesize missing events.
+- R1/R2 Windows Ask-mode / stdin / `shell=False` / no `--force` transport is unchanged.
+
+### Honesty
+- R2_SYNTHETIC_LIFECYCLE_REMOVED = YES
+- R2_LOCAL_RECEIPT_GATE_MIRROR_REMOVED = YES
+- CANONICAL_RECEIPT_VALIDATE_IMPLEMENTATIONS = 1
+- CANONICAL_RECEIPT_ISSUE_IMPLEMENTATIONS = 1
+- SESSION_START_RECORDED_BY_CANONICAL_CONTROL_PLANE = YES
+- PREFLIGHT_RESULT_SOURCE = CANONICAL_CONTROL_PLANE
+- RAW_RESULT_IS_CANONICAL_RECEIPT = NO
+- VALIDATION_EVENT_RECORDED_AFTER_VALIDATION = YES
+- PIPELINE_STATE_DERIVED_FROM_ACTUAL_PIPELINE = YES
+- COMPLETION_EVENT_RECORDED_AFTER_REAL_COMPLETION = YES
+- CANONICAL_RECEIPT_GATE_VALIDATE_CALLED = YES
+- CANONICAL_RECEIPT_GATE_ISSUE_CALLED = YES
+- MODEL_CAN_SELF_ASSERT_RECEIPT_VALIDITY = NO
+- DISPATCHER_CAN_SELF_ASSERT_LIFECYCLE_VALIDITY = NO
+- TARGET_RECEIPT_CANNOT_SKIP_POSTFLIGHT = YES
+- FAKE_EVENT_TIMESTAMP = NONE
+- RECOVERY_SYNTHESIZES_MISSING_EVENTS = NO
+- RECOVERY_REVALIDATES_CANONICAL_SESSION = YES
+- CANONICAL_SESSION_RECEIPT_IS_AUTHORITY = NO
+- DISPATCH_RECEIPT_IS_AUTHORITY = NO
+- READ_ONLY_CURSOR_MODE = ask
+- READ_ONLY_DISPATCH_USES_FORCE = NO
+- PROMPT_TRANSPORT = stdin
+- PYTHON_SHELL_TRUE = NO
+- MAX_ACTIVE_DISPATCHES = 1
+- NEXT_HANDOFF_AUTODISPATCHED = NO
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Local verification
+- Focused orchestration tests: 203 passed
+- Canonical agent-control tests: 12 passed (`atlas-vault-documentation/tests/test_agent_control.py`)
+- SEC-015/016/019 receipt/authority tests: 5 passed
+- Full control-plane suite: 171 passed
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- Combined focused+contract: 213 passed
+- `ruff check .`: pass
+- `mypy src`: pass (234 source files)
+- Full `pytest --override-ini='addopts='`: 3050 collected; 3043 passed, 3 failed, 3 skipped, 1 xfailed
+- The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases. Not this package. Do not call full pytest PASS.
+- OLD_CI_RUN = 31958689288 (historical only; do not reuse for R3)
+- NEW_REGRESSIONS = none
+- MERGE_PERFORMED = NO
+- STATE = REMEDIATED — READY FOR RE-CERTIFICATION
