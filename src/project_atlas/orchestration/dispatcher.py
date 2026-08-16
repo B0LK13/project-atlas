@@ -12,6 +12,8 @@ MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED
 DISPATCHER_CAN_REROUTE = NO
 DISPATCH_RECEIPT_IS_AUTHORITY = NO
 CURSOR_STOP_EVENT_REQUIRED_FOR_DISPATCH = NO
+MODEL_CAN_SELF_ASSERT_RECEIPT_VALIDITY = NO
+ENVELOPE_RECEIPT_STATUS_ALONE_IS_SUFFICIENT = NO
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ import os
 import re
 from enum import StrEnum
 from pathlib import Path
-from typing import Final, Literal, TextIO
+from typing import Final, Literal, NoReturn, TextIO
 
 from pydantic import (
     BaseModel,
@@ -50,6 +52,14 @@ from project_atlas.orchestration.agent_transport import (
     parse_structured_cursor_output,
     resolve_cursor_transport,
     sanitize_inherited_env,
+)
+from project_atlas.orchestration.canonical_session_receipt import (
+    DispatchReceiptBindTarget,
+    ReceiptBindingError,
+    bind_target_receipt,
+    ensure_managed_dispatch_session,
+    managed_session_id_for,
+    verify_target_receipt_binding,
 )
 from project_atlas.orchestration.cursor_bridge import (
     BridgeStatus,
@@ -96,6 +106,23 @@ MUTATING_REMEDIATION_AUTO_DISPATCH: Final[str] = (
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _TASK_ID_RE = re.compile(ID_PATTERN)
 _ACTIVE_STATUSES = frozenset({"prepared", "running", "result_received", "finalizing"})
+RECEIPT_AUTHENTICITY_CODES: Final[frozenset[str]] = frozenset(
+    {
+        "RECEIPT_NOT_FOUND",
+        "RECEIPT_BINDING_MISMATCH",
+        "RECEIPT_NOT_VALID",
+        "RECEIPT_TAMPERED",
+    }
+)
+_SUBMIT_FAIL_CLOSED_CODES: Final[frozenset[str]] = RECEIPT_AUTHENTICITY_CODES | frozenset(
+    {
+        "ROLE_MISMATCH",
+        "TASK_ID_MISMATCH",
+        "ATTEMPT_MISMATCH",
+        "INVALID_TARGET_RESULT",
+        "INVALID_RECEIPT",
+    }
+)
 _PROMPT_TEMPLATE = (
     "You are an Atlas governed {target_role} agent.\n"
     "\n"
@@ -197,6 +224,16 @@ class DispatchRecord(BaseModel):
     request_id: str | None = Field(default=None, max_length=128)
     duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
     failure_code: str | None = Field(default=None, max_length=64)
+    managed_session_id: str | None = Field(default=None, max_length=128, pattern=ID_PATTERN)
+    target_receipt_id: str | None = Field(default=None, max_length=128, pattern=ID_PATTERN)
+    target_receipt_verified: bool = False
+    target_receipt_binding_digest: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
+    raw_target_result_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    normalized_target_result_digest: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
     execution_authorized: Literal[False] = False
 
     @field_validator(
@@ -205,6 +242,9 @@ class DispatchRecord(BaseModel):
         "stdout_digest",
         "stderr_digest",
         "result_text_digest",
+        "target_receipt_binding_digest",
+        "raw_target_result_digest",
+        "normalized_target_result_digest",
     )
     @classmethod
     def _digest_hex(cls, value: str | None) -> str | None:
@@ -257,12 +297,28 @@ class DispatchReceipt(BaseModel):
     next_route_digest: str | None = Field(default=None, min_length=64, max_length=64)
     failure_code: str | None = Field(default=None, max_length=64)
     mutating_remediation_auto_dispatch: str | None = Field(default=None, max_length=128)
+    target_receipt_id: str | None = Field(default=None, max_length=128, pattern=ID_PATTERN)
+    target_receipt_verified: bool = False
+    target_receipt_binding_digest: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
+    raw_target_result_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    normalized_target_result_digest: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
     execution_authorized: Literal[False] = False
     authority_granted: Literal[False] = False
     dispatch_receipt_is_authority: Literal[False] = False
     next_handoff_autodispatched: Literal[False] = False
 
-    @field_validator("dispatch_id", "source_route_digest", "next_route_digest")
+    @field_validator(
+        "dispatch_id",
+        "source_route_digest",
+        "next_route_digest",
+        "target_receipt_binding_digest",
+        "raw_target_result_digest",
+        "normalized_target_result_digest",
+    )
     @classmethod
     def _digest_hex(cls, value: str | None) -> str | None:
         if value is None:
@@ -306,6 +362,7 @@ class DispatchReceipt(BaseModel):
             "next_route_digest": self.next_route_digest,
             "failure_code": self.failure_code,
             "mutating_remediation_auto_dispatch": self.mutating_remediation_auto_dispatch,
+            "target_receipt_verified": self.target_receipt_verified,
             "execution_authorized": False,
             "authority_granted": False,
             "dispatch_receipt_is_authority": False,
@@ -330,10 +387,21 @@ class DispatchResultBinding(BaseModel):
     dispatch_id: str = Field(min_length=64, max_length=64)
     envelope_digest: str = Field(min_length=64, max_length=64)
     envelope: AgentResultEnvelope
+    raw_target_result_digest: str | None = Field(default=None, min_length=64, max_length=64)
+    normalized_target_result_digest: str | None = Field(
+        default=None, min_length=64, max_length=64
+    )
 
-    @field_validator("dispatch_id", "envelope_digest")
+    @field_validator(
+        "dispatch_id",
+        "envelope_digest",
+        "raw_target_result_digest",
+        "normalized_target_result_digest",
+    )
     @classmethod
-    def _digest_hex(cls, value: str) -> str:
+    def _digest_hex(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if not _DIGEST_RE.fullmatch(value):
             raise ValueError("field must be a SHA-256 hex digest")
         return value
@@ -616,7 +684,37 @@ def _receipt_from_record(
             if record.failure_code == "CAPABILITY_REQUIRED"
             else None
         ),
+        target_receipt_id=record.target_receipt_id,
+        target_receipt_verified=record.target_receipt_verified,
+        target_receipt_binding_digest=record.target_receipt_binding_digest,
+        raw_target_result_digest=record.raw_target_result_digest,
+        normalized_target_result_digest=record.normalized_target_result_digest,
     )
+
+
+def _bind_target_for(record: DispatchRecord) -> DispatchReceiptBindTarget:
+    return DispatchReceiptBindTarget(
+        dispatch_id=record.dispatch_id,
+        dispatch_task_id=record.dispatch_task_id,
+        managed_session_id=managed_session_id_for(
+            record.dispatch_id, record.managed_session_id
+        ),
+        attempt=record.attempt,
+        target_role=record.target_role.value,
+    )
+
+
+def _raise_receipt_error(exc: ReceiptBindingError) -> NoReturn:
+    raise DispatcherError(str(exc), code=exc.code) from exc
+
+
+def _reverify_bound_envelope(
+    envelope: AgentResultEnvelope, record: DispatchRecord, workspace: Path
+) -> None:
+    try:
+        verify_target_receipt_binding(envelope, _bind_target_for(record), workspace)
+    except ReceiptBindingError as exc:
+        _raise_receipt_error(exc)
 
 
 def evaluate_dispatch_eligibility(packet: HandoffPacket, root: Path) -> None:
@@ -666,7 +764,11 @@ def submit_target_result(
     *,
     root: Path,
 ) -> DispatchResultBinding:
-    """Store validated target evidence. Does not stage the 001C slot."""
+    """Store validated target evidence after canonical receipt authenticity.
+
+    Paths B (CLI submit-result) and C (terminal JSON) share this function.
+    Envelope ``receipt.status`` is never sufficient. Does not stage 001C.
+    """
     workspace = validate_workspace_root(root)
     record = load_record(workspace, dispatch_id)
     if record is None:
@@ -681,25 +783,37 @@ def submit_target_result(
         raise DispatcherError("task id does not match dispatch task", code="TASK_ID_MISMATCH")
     if envelope.task.attempt != record.attempt:
         raise DispatcherError("task attempt does not match dispatch", code="ATTEMPT_MISMATCH")
-    if not envelope.receipt_is_valid_evidence():
-        raise DispatcherError("target result receipt is not valid evidence", code="INVALID_RECEIPT")
-    envelope_digest = canonical_payload_digest(envelope.model_dump(mode="json"))
-    existing = None
+    raw_digest = canonical_payload_digest(envelope.model_dump(mode="json"))
     result_file = result_path(workspace, dispatch_id)
-    if result_file.is_file():
-        existing = load_result_binding(workspace, dispatch_id)
+    existing = load_result_binding(workspace, dispatch_id) if result_file.is_file() else None
     if existing is not None:
-        if existing.envelope_digest == envelope_digest:
+        if existing.raw_target_result_digest == raw_digest or existing.envelope_digest == raw_digest:
+            _reverify_bound_envelope(existing.envelope, record, workspace)
             return existing
         raise DispatchResultAlreadyBound("DISPATCH_RESULT_ALREADY_BOUND")
+    try:
+        bound, facts = bind_target_receipt(envelope, _bind_target_for(record), workspace)
+    except ReceiptBindingError as exc:
+        _raise_receipt_error(exc)
+    envelope_digest = canonical_payload_digest(bound.model_dump(mode="json"))
     binding = DispatchResultBinding(
         dispatch_id=dispatch_id,
         envelope_digest=envelope_digest,
-        envelope=envelope,
+        envelope=bound,
+        raw_target_result_digest=str(facts["raw_target_result_digest"]),
+        normalized_target_result_digest=str(facts["normalized_target_result_digest"]),
     )
     _write_json(result_file, binding.model_dump(mode="json"))
     updated = record.model_copy(
-        update={"result_received": True, "status": DispatchStatus.RESULT_RECEIVED}
+        update={
+            "result_received": True,
+            "status": DispatchStatus.RESULT_RECEIVED,
+            "target_receipt_id": str(facts["receipt_id"]),
+            "target_receipt_verified": True,
+            "target_receipt_binding_digest": str(facts["target_receipt_binding_digest"]),
+            "raw_target_result_digest": str(facts["raw_target_result_digest"]),
+            "normalized_target_result_digest": str(facts["normalized_target_result_digest"]),
+        }
     )
     if record.status in {
         DispatchStatus.PREPARED,
@@ -742,6 +856,12 @@ def finalize_dispatch(root: Path, record: DispatchRecord) -> DispatchReceipt:
     binding = load_result_binding(workspace, verified_record.dispatch_id)
     if binding is None:
         return _fail_record(workspace, verified_record, "RESULT_NOT_SUBMITTED")
+    try:
+        verify_target_receipt_binding(
+            binding.envelope, _bind_target_for(verified_record), workspace
+        )
+    except ReceiptBindingError as exc:
+        return _fail_record(workspace, verified_record, exc.code, result_received=True)
     if not verified_record.process_terminal or verified_record.process_exit_code != 0:
         return _fail_record(
             workspace,
@@ -884,9 +1004,14 @@ def run_dispatch_once(
         task_type=packet.task_type,
         attempt=DEFAULT_ATTEMPT,
         workspace_root=str(workspace),
+        managed_session_id=managed_session_id_for(dispatch_id),
     )
     persist_record(workspace, record)
     persist_active(workspace, dispatch_id, record.status)
+    try:
+        ensure_managed_dispatch_session(workspace, _bind_target_for(record))
+    except ReceiptBindingError as exc:
+        return _fail_record(workspace, record, exc.code)
     prompt = trusted_dispatch_prompt(
         dispatch_id=dispatch_id,
         dispatch_task_id=record.dispatch_task_id,
@@ -978,7 +1103,9 @@ def _complete_after_process(
             try:
                 submit_target_result(working.dispatch_id, candidate, root=root)
                 binding = load_result_binding(root, working.dispatch_id)
-            except DispatcherError:
+            except DispatcherError as exc:
+                if exc.code in _SUBMIT_FAIL_CLOSED_CODES:
+                    return _fail_record(root, working, exc.code, **updates)
                 binding = None
     if binding is None:
         return _fail_record(root, working, "RESULT_NOT_SUBMITTED", **updates)
@@ -1045,6 +1172,13 @@ def status_report(root: Path) -> dict[str, object]:
         ),
         "result_received": record.result_received if record else (
             receipt.result_received if receipt else False
+        ),
+        "target_receipt_verified": (
+            record.target_receipt_verified
+            if record is not None
+            else receipt.target_receipt_verified
+            if receipt is not None
+            else False
         ),
         "next_handoff_state": (
             receipt.next_handoff_state.value

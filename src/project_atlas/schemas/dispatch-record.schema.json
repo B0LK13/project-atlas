@@ -96,6 +96,36 @@
     "failure_code": {
       "oneOf": [{ "type": "null" }, { "type": "string", "maxLength": 64 }]
     },
+    "managed_session_id": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      ]
+    },
+    "target_receipt_id": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      ]
+    },
+    "target_receipt_verified": { "type": "boolean" },
+    "target_receipt_binding_digest": {
+      "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[0-9a-f]{64}$" }]
+    },
+    "raw_target_result_digest": {
+      "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[0-9a-f]{64}$" }]
+    },
+    "normalized_target_result_digest": {
+      "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^[0-9a-f]{64}$" }]
+    },
     "execution_authorized": { "const": false }
   }
 }

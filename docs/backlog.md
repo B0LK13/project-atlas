@@ -483,7 +483,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher + Cursor CLI Process Transport
 
-_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001D-R1; not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Authentic Windows Cursor agent dispatch is **not** certified from Cloud. Old IV/CI/Local pins are historical only._
+_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001D-R2; not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Model-authored `receipt.status=valid` is **not** sufficient; dispatcher binds only after canonical `.atlas/receipts` evidence. Authentic Windows Cursor agent dispatch is **not** certified from Cloud. R1 CI `31956522215` is historical only._
 
 Honesty (mandatory):
 
@@ -501,6 +501,11 @@ Honesty (mandatory):
 - `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
 - `PROCESS_DISPATCH != PRIVILEGED EXECUTION AUTHORITY`
 - `DISPATCH_RECEIPT_IS_AUTHORITY = NO`
+- `MODEL_CAN_SELF_ASSERT_RECEIPT_VALIDITY = NO`
+- `ENVELOPE_RECEIPT_STATUS_ALONE_IS_SUFFICIENT = NO`
+- `TERMINAL_JSON_SELF_ATTESTED_RECEIPT = REJECTED`
+- `SUBMIT_RESULT_RECEIPT_AUTHENTICITY = SAME_AS_TERMINAL_JSON_PATH`
+- `RECOVERY_REVALIDATES_RECEIPT = YES`
 - `CURSOR_STOP_EVENT_REQUIRED_FOR_DISPATCH = NO`
 - `MUTATING_REMEDIATION_AUTO_DISPATCH = BLOCKED_PENDING_EXISTING_AUTHORITY_BINDING`
 - `OWNER AUTHORITY = STILL REQUIRED`
@@ -512,7 +517,8 @@ Honesty (mandatory):
 - [x] ORCH001D-005 Owner/terminal non-executing outcomes (`PROCESS_STARTED = NO`)
 - [x] ORCH001D-006 Cursor CLI argv transport (`agent` / `cursor-agent`, `--print --output-format json`, no shell)
 - [x] ORCH001D-R1 Native Windows `.CMD` launcher compatibility + stdin prompt + read-only `--mode=ask`
-- [x] ORCH001D-007 `atlas orchestrator dispatch-submit-result` (validated evidence only; not 001C stage)
+- [x] ORCH001D-R2 Canonical receipt authenticity + managed read-only dispatch evidence (control-plane receipt store; no second authority model)
+- [x] ORCH001D-007 `atlas orchestrator dispatch-submit-result` (validated evidence only; not 001C stage; same receipt authenticity as terminal JSON)
 - [x] ORCH001D-008 Transactional finalize: ack source → stage target → explicit complete → stop
 - [x] ORCH001D-009 `atlas orchestrator dispatch-recover` (no respawn)
 - [x] ORCH001D-010 `atlas orchestrator dispatch-once` / `dispatch-status`

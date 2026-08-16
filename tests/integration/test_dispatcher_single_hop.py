@@ -73,7 +73,7 @@ class RecordingRunner:
                 "outcome": "PASS",
                 "state": "CERTIFIED",
                 "observations": {"target_moved": False, "unauthorized_mutations": 0},
-                "receipt": {"receipt_id": "ASR-1234567890abcdef", "status": "valid"},
+                "receipt": {"receipt_id": "ASR-pending00000001", "status": "pending"},
                 "blockers": [],
                 "requested_transition": "MERGE",
             },
@@ -149,6 +149,42 @@ def test_recover_cli_without_respawn(tmp_path: Path, monkeypatch: Any) -> None:
     recovered = recover_dispatch(dispatch_id, root=workspace)
     assert recovered.status is DispatchStatus.COMPLETED
     assert len(runner.requests) == 1
+
+
+def test_terminal_json_fake_valid_receipt_is_rejected(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    stage_result(_payload(), root=workspace)
+    captured: dict[str, str] = {}
+
+    class FakeValidRunner:
+        def run(self, request: ProcessRunRequest) -> ProcessRunOutcome:
+            dispatch_id = _dispatch_id_from_request(request)
+            captured["id"] = dispatch_id
+            envelope = {
+                "schema_version": 1,
+                "producer": {"role": "integration", "agent_id": "iv-agent"},
+                "task": {"id": f"d.{dispatch_id}", "attempt": 1},
+                "outcome": "PASS",
+                "state": "CERTIFIED",
+                "observations": {"target_moved": False, "unauthorized_mutations": 0},
+                "receipt": {"receipt_id": "ASR-fake123", "status": "valid"},
+                "blockers": [],
+                "requested_transition": None,
+            }
+            return ProcessRunOutcome(
+                exit_code=0,
+                stdout=json.dumps({"type": "result", "is_error": False, "result": envelope}).encode(),
+                stderr=b"",
+                timed_out=False,
+                duration_ms=4,
+            )
+
+    receipt = run_dispatch_once(root=workspace, runner=FakeValidRunner())
+    assert receipt.status is DispatchStatus.FAILED
+    assert receipt.failure_code == "RECEIPT_NOT_FOUND"
+    assert receipt.source_acknowledged is False
+    assert receipt.result_staged is False
+    assert receipt.next_handoff_state is None
 
 
 def test_requested_merge_is_advisory_only(tmp_path: Path) -> None:

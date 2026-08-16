@@ -75,6 +75,7 @@ def _target_payload(task_id: str, **overrides: Any) -> dict[str, Any]:
     data = _payload(
         producer={"role": "integration", "agent_id": "iv-agent"},
         task={"id": task_id, "attempt": 1},
+        receipt=None,
     )
     for key, value in overrides.items():
         data[key] = value
@@ -278,6 +279,7 @@ def test_task_success_single_hop(tmp_path: Path) -> None:
     assert receipt.status is DispatchStatus.COMPLETED
     assert receipt.process_started is True
     assert receipt.result_received is True
+    assert receipt.target_receipt_verified is True
     assert receipt.source_acknowledged is True
     assert receipt.result_staged is True
     assert receipt.next_handoff_state is not None
@@ -567,6 +569,7 @@ def test_structured_cursor_envelope_binds_without_shell_submit(tmp_path: Path) -
     receipt = run_dispatch_once(root=workspace, runner=runner)
     assert receipt.status is DispatchStatus.COMPLETED
     assert receipt.result_received is True
+    assert receipt.target_receipt_verified is True
     assert receipt.next_handoff_autodispatched is False
 
 
@@ -581,7 +584,7 @@ def test_status_is_read_only(tmp_path: Path) -> None:
 
 def test_source_has_no_merge_or_authority() -> None:
     root = Path(__file__).resolve().parents[2] / "src" / "project_atlas" / "orchestration"
-    for name in ("dispatcher.py", "agent_transport.py"):
+    for name in ("dispatcher.py", "agent_transport.py", "canonical_session_receipt.py"):
         text = (root / name).read_text(encoding="utf-8")
         for needle in (
             "gh pr merge",

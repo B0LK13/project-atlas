@@ -151,6 +151,7 @@ class ResultReceiptBinding(BaseModel):
         return value
 
     def is_valid_evidence(self) -> bool:
+        """Envelope-claimed receipt status only. Not canonical authenticity."""
         return self.status == "valid"
 
     def to_receipt_reference(self) -> ReceiptReference | None:
@@ -231,6 +232,12 @@ class AgentResultEnvelope(BaseModel):
         return value
 
     def receipt_is_valid_evidence(self) -> bool:
+        """True when the envelope claims ``receipt.status=valid``.
+
+        Classification (001A) may use this as a structured signal. Dispatcher
+        authenticity must verify a canonical Atlas receipt separately.
+        ``ENVELOPE_RECEIPT_STATUS_ALONE_IS_SUFFICIENT = NO``.
+        """
         return self.receipt is not None and self.receipt.is_valid_evidence()
 
 
