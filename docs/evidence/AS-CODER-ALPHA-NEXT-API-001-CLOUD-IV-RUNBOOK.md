@@ -15,16 +15,24 @@
 
 ## Cloud IV (this environment)
 
+**Recorded on HEAD** `7c7c97f88e70f019deb38bd8dc9a7a5273cf7f4a`  
+**TREE** `abf775acf89d548b85e3e9467a338825bc033e0d`  
+**CLOUD_IV = PASS** (2026-08-16 Cloud agent; not Local)
+
 ```bash
-.venv/bin/python -m ruff check src tests
-.venv/bin/python -m mypy src
-.venv/bin/python -m pytest tests/unit/test_as_coder_alpha_next_api_001.py \
+.venv/bin/python -m ruff check src tests          # exit 0
+.venv/bin/python -m mypy src                      # exit 0; 219 files
+.venv/bin/python -m pytest --no-cov \
+  tests/unit/test_as_coder_alpha_next_api_001.py  # 5 passed
+.venv/bin/python -m pytest \
+  tests/unit/test_as_coder_alpha_next_api_001.py \
   tests/unit/test_as_coder_alpha_next_001.py \
   tests/unit/test_as_coder_alpha_source_health_api_001.py \
-  tests/unit/test_as_2_1_mcp_brief_001.py \
   tests/unit/test_as_2_0_mcp_001.py \
-  tests/unit/test_as_sec_009_api_auth.py
+  tests/unit/test_as_sec_009_api_auth.py           # 30 passed
 ```
+
+`tests/unit/test_as_2_1_mcp_brief_001.py` is not on current `main` (lives on owner-held `#365`). It was run on the disposable `CURRENT_MAIN + #365 + this package` tree and passed (46 tests with neighbors).
 
 Pass criteria:
 

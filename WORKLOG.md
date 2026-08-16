@@ -6607,3 +6607,11 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - no Layer B write / no answer materialization
 - not AS-2.0-NEXT-001
 
+### Cloud IV
+- `CLOUD_IV = PASS` on `7c7c97f88e70f019deb38bd8dc9a7a5273cf7f4a`
+- ruff 0 / mypy 0 / 5 next-api unit tests pass / 30 neighbor tests pass
+- `LOCAL_IV = NOT_RUN`
+- `AUTHENTIC_ESTATE = NOT_CLAIMED`
+- `WINDOWS_AUTHENTIC = NOT_CLAIMED`
+- Draft PR only. `MERGE_AUTHORIZATION = NOT_GRANTED`
+
