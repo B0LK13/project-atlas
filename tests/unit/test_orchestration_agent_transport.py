@@ -248,6 +248,21 @@ def test_bound_capture_and_env_copy_do_not_log_secrets() -> None:
     assert "secret" not in repr(sanitize_inherited_env)
 
 
+def test_cursor_child_env_omits_lifecycle_mda_provider() -> None:
+    env = sanitize_inherited_env(
+        {
+            "CURSOR_API_KEY": "secret",
+            "PATH": "/bin",
+            "ATLAS_MDA_COMMAND": "/repo/tests/fixtures/bin/mda",
+            "MDA_MOCK_MODE": "ok",
+        }
+    )
+    assert env["CURSOR_API_KEY"] == "secret"
+    assert "ATLAS_MDA_COMMAND" not in env
+    assert "MDA_MOCK_MODE" not in env
+    assert "/repo/tests/fixtures/bin/mda" not in env.values()
+
+
 def test_subprocess_runner_uses_argv_and_timeout(tmp_path: Path) -> None:
     helper = tmp_path / "helper.py"
     helper.write_text(
