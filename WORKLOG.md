@@ -5,6 +5,67 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-001D-R5 — Hard Production/Test MDA Provider Isolation
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001D-R5-TEST-PROVIDER-ISOLATION-001
+**Package:** AS-ORCH-001D-R5
+**Branch:** `cursor/as-orch-001d-agent-dispatcher-d054`
+**PR:** #396
+**Base:** live `origin/main` `122ad8b11236dbc906c5e245054b090e4ff8e006` / TREE `0d13568f3964a58a0b91d99519c95aa2020020e4`
+**OLD_PR_HEAD (R4):** `6fe091d2ed8b1b5f67c9f4bebd6da4f80d4f826b`
+**OLD_PR_TREE (R4):** `7fb1976e96106be751d604c1c88c074e750ed903`
+
+### Root cause
+R4 rejected fixture/mock MDA in production resolution, but left global
+`_injected_test_provider` state. `prepare_event_pipeline()` called
+`resolve_mda_provider(allow_test_injection=True)`, so production
+`bootstrap_start` / `document_event` / dispatch-once could consume a
+same-process test fixture.
+
+### Remediation
+- Removed `_injected_test_provider`, `inject_test_mda_provider`,
+  `clear_test_mda_provider`, `injected_test_mda_provider`, and
+  `resolve_mda_provider` from production runtime.
+- `prepare_event_pipeline()` is now `resolve_production_mda_provider()` only.
+- Offline fixture MDA is constructed as an explicit `MdaProvider` and bound
+  only by the test-harness adapter, which patches
+  `canonical_session_receipt` — not production runtime functions.
+
+### Honesty
+- PRODUCTION_PREPARE_USES_TEST_INJECTION = NO
+- PRODUCTION_LIFECYCLE_CAN_OBSERVE_TEST_INJECTION = NO
+- GLOBAL_TEST_PROVIDER_STATE = REMOVED
+- TEST_PROVIDER_INJECTION_MODEL = explicit test-harness adapter DI
+- TEST_PROVIDER_CANNOT_CONTAMINATE_PRODUCTION = PASS
+- TEST_FIXTURE_AUTO_SELECTED_IN_PRODUCTION = NO
+- TEST_FIXTURE_CAN_SATISFY_CANONICAL_PIPELINE = NO
+- TEST_FIXTURE_REQUIRES_EXPLICIT_DEPENDENCY_INJECTION = YES
+- MOCK_MDA_VERSION_ACCEPTED = NO
+- PIPELINE_PROVIDER_ENVIRONMENT_SCOPED = YES
+- TEST_MDA_PATH_INHERITED_BY_CURSOR_TARGET = NO
+- MANAGED_AGENT_TRANSPORT = CURSOR_CLI
+- MANAGED_AGENT_TYPE = cli
+- CANONICAL_ADAPTER_ID = generic-cli-v1
+- MANAGED_AGENT_ID = cursor-agent-cli
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Local verification
+- Focused orchestration + R4/R5 tests: 231 passed
+- Canonical agent-control tests: 12 passed
+- SEC-015/016/019 receipt/authority tests: 5 passed
+- Schema/contract regression: 10 passed
+- `ruff check .`: pass
+- `mypy src`: pass (234 source files)
+- Full `pytest --override-ini='addopts='`: 3071 passed, 3 failed, 3 skipped, 1 xfailed
+- The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases. Not this package.
+- R4_CI_RUN = 31960840242 (historical only; conclusion `cancelled`)
+- NEW_REGRESSIONS = none
+- MERGE_PERFORMED = NO
+- STATE = REMEDIATED — READY FOR RE-CERTIFICATION
+
+---
+
 ## AS-ORCH-001D-R4 — Production MDA Provider Provenance + Cursor CLI Adapter Binding
 
 **Date:** 2026-08-16
