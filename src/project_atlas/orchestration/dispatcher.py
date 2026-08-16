@@ -862,6 +862,18 @@ def finalize_dispatch(root: Path, record: DispatchRecord) -> DispatchReceipt:
         )
     except ReceiptBindingError as exc:
         return _fail_record(workspace, verified_record, exc.code, result_received=True)
+    bound_receipt_id = (
+        binding.envelope.receipt.receipt_id if binding.envelope.receipt is not None else None
+    )
+    verified_record = verified_record.model_copy(
+        update={
+            "target_receipt_verified": True,
+            "target_receipt_id": bound_receipt_id or verified_record.target_receipt_id,
+            "normalized_target_result_digest": (
+                verified_record.normalized_target_result_digest or binding.envelope_digest
+            ),
+        }
+    )
     if not verified_record.process_terminal or verified_record.process_exit_code != 0:
         return _fail_record(
             workspace,
@@ -1074,7 +1086,8 @@ def _complete_after_process(
         "request_id": parsed.request_id,
         "duration_ms": outcome.duration_ms,
     }
-    working = record.model_copy(update=updates)
+    latest = load_record(root, record.dispatch_id) or record
+    working = latest.model_copy(update=updates)
     persist_record(root, working)
     if outcome.timed_out:
         return _fail_record(root, working, "PROCESS_TIMEOUT", **updates)
@@ -1109,8 +1122,13 @@ def _complete_after_process(
                 binding = None
     if binding is None:
         return _fail_record(root, working, "RESULT_NOT_SUBMITTED", **updates)
-    received = working.model_copy(
-        update={"status": DispatchStatus.RESULT_RECEIVED, "result_received": True}
+    latest = load_record(root, working.dispatch_id) or working
+    received = latest.model_copy(
+        update={
+            **updates,
+            "status": DispatchStatus.RESULT_RECEIVED,
+            "result_received": True,
+        }
     )
     persist_record(root, received)
     persist_active(root, received.dispatch_id, received.status)
