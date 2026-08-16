@@ -4,27 +4,33 @@ STRUCTURED_RESULT_CONTRACT = IMPLEMENTED
 DETERMINISTIC_CLASSIFICATION = IMPLEMENTED
 DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED
 TYPED_TASK_DIRECTIVE = IMPLEMENTED
-CURSOR_INTEGRATION_BRIDGE = IMPLEMENTED
-CURSOR_STOP_HOOK = IMPLEMENTED
-
-CURSOR TRIGGER INTEGRATION IMPLEMENTED
-CROSS-AGENT DISPATCH NOT IMPLEMENTED
-AUTHENTIC_WINDOWS_CURSOR_RUNTIME = NOT_YET_CERTIFIED
+CURSOR_BRIDGE_CORE = IMPLEMENTED
+CURSOR_STOP_HOOK_ADAPTER = IMPLEMENTED
+EXPLICIT_COMPLETION_TRANSPORT = IMPLEMENTED
+AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = NOT_RELIABLE_IN_CURRENT_WINDOWS_CLI_RUNTIME
+AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT
+HOOK_RUNTIME_REQUIRED_FOR_CORE_FLOW = NO
+CROSS_AGENT_DISPATCH = NOT_IMPLEMENTED
 AGENT_DISPATCH = NOT_IMPLEMENTED
 AUTONOMOUS_LOOP = NOT_IMPLEMENTED
 AUTOMATIC_MERGE = NOT_IMPLEMENTED
 OWNER AUTHORITY = STILL REQUIRED
 
-The Cursor hook is a lifecycle trigger only. Atlas remains the source of
-workflow truth. ``execution_authorized`` is always false.
+The Cursor stop hook is an optional transport adapter. Atlas remains the
+source of workflow truth. Explicit completion does not require a Cursor
+stop event. ``execution_authorized`` is always false.
 """
 
 from project_atlas.orchestration.cursor_bridge import (
+    CompletionTransport,
     CursorBridgeResponse,
     CursorBridgeState,
     CursorStopEvent,
+    HandoffPacket,
+    complete_staged_handoff,
     handle_stop_event,
     stage_result,
+    surface_pending_handoff,
 )
 from project_atlas.orchestration.models import (
     PACKAGE_ID,
@@ -71,9 +77,11 @@ __all__ = [
     "SCHEMA_KIND",
     "TRUTH_BOUNDARY",
     "AgentResultEnvelope",
+    "CompletionTransport",
     "CursorBridgeResponse",
     "CursorBridgeState",
     "CursorStopEvent",
+    "HandoffPacket",
     "NextTransition",
     "OrchestrationDecision",
     "OrchestrationRoute",
@@ -87,6 +95,7 @@ __all__ = [
     "TaskType",
     "WorkflowState",
     "classify_envelope",
+    "complete_staged_handoff",
     "handle_stop_event",
     "parse_envelope",
     "resolve_policy",
@@ -96,5 +105,6 @@ __all__ = [
     "run_validate_result",
     "source_result_digest",
     "stage_result",
+    "surface_pending_handoff",
     "validate_and_classify",
 ]

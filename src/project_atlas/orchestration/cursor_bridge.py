@@ -1,12 +1,15 @@
 """AS-ORCH-001C Cursor integration bridge.
 
-Cursor is transport/lifecycle only. Atlas remains the source of workflow truth.
+Cursor is optional transport/lifecycle only. Atlas remains the source of
+workflow truth. Completion does not require a Cursor stop/subagentStop event.
 
-  Cursor stop event → thin adapter → this module → 001A validate/classify
-  → 001B route → safe followup_message or empty continuation
+  AgentResultEnvelope → 001A validate/classify → 001B route → CursorBridge
+    ├── optional Cursor stop-hook adapter (environment-dependent delivery)
+    └── deterministic explicit-completion adapter → HandoffPacket
 
 This module does not dispatch agents, execute TaskDirective, merge, or grant
 authority. A single pending route may emit at most one followup_message.
+Transport metadata cannot choose a route or escalate privilege.
 """
 
 from __future__ import annotations
@@ -18,12 +21,14 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Final, Literal, TextIO
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from project_atlas.orchestration.models import (
     AgentResultEnvelope,
     OrchestrationRoute,
+    ProducerRole,
     RouteKind,
+    TaskType,
 )
 from project_atlas.orchestration.router import (
     canonical_payload_digest,
@@ -70,6 +75,12 @@ class BridgeAckError(CursorBridgeError):
     """Acknowledgement rejected. Acknowledgement is not authority."""
 
     code = "BRIDGE_ACK_REJECTED"
+
+
+class StagedStateTampered(CursorBridgeError):
+    """Staged state failed recomputation or was unreadable. Fail closed."""
+
+    code = "STAGED_STATE_TAMPERED"
 
 
 class BridgeStatus(StrEnum):
@@ -136,6 +147,99 @@ class CursorBridgeResponse(BaseModel):
         if self.followup_message is None:
             return {}
         return {"followup_message": self.followup_message}
+
+
+class HandoffState(StrEnum):
+    """Machine-readable completion outcome. Not an authority grant."""
+
+    HANDOFF_READY = "HANDOFF_READY"
+    OWNER_REQUIRED = "OWNER_REQUIRED"
+    TERMINAL = "TERMINAL"
+
+
+class CompletionTransport(StrEnum):
+    """How a packet was surfaced. Transport cannot choose the route."""
+
+    HOOK = "hook"
+    EXPLICIT = "explicit"
+
+
+class ExplicitCompletionMetadata(BaseModel):
+    """Optional bounded transport metadata. Extra fields are ignored."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    status: str | None = Field(default=None, max_length=64)
+    conversation_id: str | None = Field(default=None, max_length=256)
+    transport: Literal["explicit"] | None = None
+
+
+class HandoffPacket(BaseModel):
+    """Typed handoff for the hook adapter and future 001D. Not a prompt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    package_id: Literal["AS-ORCH-001C"] = "AS-ORCH-001C"
+    state: HandoffState
+    transport: CompletionTransport
+    route_digest: str = Field(min_length=64, max_length=64)
+    source_task: str | None = Field(default=None, max_length=128)
+    target_role: ProducerRole | None = None
+    task_type: TaskType | None = None
+    dispatch_performed: Literal[False] = False
+    execution_authorized: Literal[False] = False
+
+    @field_validator("route_digest")
+    @classmethod
+    def _digest_hex(cls, value: str) -> str:
+        if not _DIGEST_RE.fullmatch(value):
+            raise ValueError("route_digest must be a SHA-256 hex digest")
+        return value
+
+    @field_validator("source_task")
+    @classmethod
+    def _safe_task(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not _TASK_ID_RE.fullmatch(value):
+            raise ValueError("source_task must be a safe identifier")
+        return value
+
+    @model_validator(mode="after")
+    def _no_privilege_and_shape(self) -> HandoffPacket:
+        if self.dispatch_performed is not False or self.execution_authorized is not False:
+            raise ValueError("HandoffPacket cannot authorize execution or dispatch")
+        if self.state == HandoffState.HANDOFF_READY:
+            if self.source_task is None or self.target_role is None or self.task_type is None:
+                raise ValueError("HANDOFF_READY requires source_task, target_role, and task_type")
+        elif self.target_role is not None or self.task_type is not None:
+            raise ValueError("non-task handoffs must not invent an executable target")
+        return self
+
+    def semantic_identity(self) -> dict[str, object]:
+        """Transport-independent identity. Transport cannot choose the route."""
+        return {
+            "state": self.state.value,
+            "route_digest": self.route_digest,
+            "source_task": self.source_task,
+            "target_role": self.target_role.value if self.target_role is not None else None,
+            "task_type": self.task_type.value if self.task_type is not None else None,
+            "dispatch_performed": False,
+            "execution_authorized": False,
+        }
+
+    def to_public_dict(self) -> dict[str, object]:
+        return {
+            "state": self.state.value,
+            "transport": self.transport.value,
+            "route_digest": self.route_digest,
+            "source_task": self.source_task,
+            "target_role": self.target_role.value if self.target_role is not None else None,
+            "task_type": self.task_type.value if self.task_type is not None else None,
+            "dispatch_performed": False,
+            "execution_authorized": False,
+        }
 
 
 def route_digest(route: OrchestrationRoute) -> str:
@@ -252,22 +356,72 @@ def handle_stop_event(payload: object, *, root: Path) -> dict[str, str]:
         return {}
     if verified.route.route_kind == RouteKind.TERMINAL:
         return {}
-    message = render_followup(verified)
+    packet = build_handoff_packet(verified, transport=CompletionTransport.HOOK)
+    message = render_followup_from_packet(packet)
     if message is None:
         return {}
     persist_state(root, verified.model_copy(update={"followup_emitted": True}))
     return CursorBridgeResponse(followup_message=message).to_stdout_dict()
 
 
-def render_followup(state: CursorBridgeState) -> str | None:
-    """Fixed trusted template. Untrusted envelope text never interpolates."""
+def build_handoff_packet(
+    state: CursorBridgeState,
+    *,
+    transport: CompletionTransport,
+) -> HandoffPacket:
+    """Build the typed packet from verified Atlas state. Transport is a stamp only."""
     route = state.route
     if not _privileges_closed(route):
+        raise CursorBridgeError("bridge state cannot authorize execution")
+    source_task = state.envelope.task.id
+    if route.route_kind == RouteKind.OWNER_GATE:
+        return HandoffPacket(
+            state=HandoffState.OWNER_REQUIRED,
+            transport=transport,
+            route_digest=state.route_digest,
+            source_task=source_task,
+        )
+    if route.route_kind == RouteKind.TASK:
+        return HandoffPacket(
+            state=HandoffState.HANDOFF_READY,
+            transport=transport,
+            route_digest=state.route_digest,
+            source_task=source_task,
+            target_role=route.target.role,
+            task_type=route.task_type,
+        )
+    return HandoffPacket(
+        state=HandoffState.TERMINAL,
+        transport=transport,
+        route_digest=state.route_digest,
+        source_task=source_task,
+    )
+
+
+def render_followup(state: CursorBridgeState) -> str | None:
+    """Fixed trusted template. Untrusted envelope text never interpolates."""
+    if not _privileges_closed(state.route):
         return None
-    digest = state.route_digest
+    try:
+        packet = build_handoff_packet(state, transport=CompletionTransport.HOOK)
+    except (CursorBridgeError, ValidationError, ValueError):
+        return None
+    return render_followup_from_packet(packet)
+
+
+def render_followup_from_packet(packet: HandoffPacket) -> str | None:
+    """Render the hook followup from a trusted HandoffPacket only."""
+    digest = packet.route_digest
     if not _DIGEST_RE.fullmatch(digest):
         return None
-    if route.route_kind == RouteKind.OWNER_GATE:
+    dumped = packet.model_dump(mode="json")
+    privileges_open = (
+        dumped.get("execution_authorized") is not False
+        or dumped.get("dispatch_performed") is not False
+    )
+    if privileges_open:
+        return None
+    if packet.state == HandoffState.OWNER_REQUIRED:
         return (
             f"{BRIDGE_MARKER}\n"
             "\n"
@@ -278,11 +432,13 @@ def render_followup(state: CursorBridgeState) -> str | None:
             "Acknowledge the bridge state and return the structured owner-gate packet.\n"
             "Do not execute or simulate the privileged action.\n"
         )
-    if route.route_kind == RouteKind.TASK:
-        task_id = state.envelope.task.id
-        role = route.target.role.value if route.target.role is not None else None
-        task_type = route.task_type.value if route.task_type is not None else None
-        if role is None or task_type is None or not _TASK_ID_RE.fullmatch(task_id):
+    if packet.state == HandoffState.HANDOFF_READY:
+        task_id = packet.source_task
+        role = packet.target_role.value if packet.target_role is not None else None
+        task_type = packet.task_type.value if packet.task_type is not None else None
+        if role is None or task_type is None or task_id is None:
+            return None
+        if not _TASK_ID_RE.fullmatch(task_id):
             return None
         return (
             f"{BRIDGE_MARKER}\n"
@@ -303,27 +459,67 @@ def render_followup(state: CursorBridgeState) -> str | None:
     return None
 
 
-def handoff_packet(state: CursorBridgeState) -> dict[str, object]:
-    """Machine-readable packet contract for the current session. Not a prompt."""
-    route = state.route
-    base: dict[str, object] = {
-        "route_digest": state.route_digest,
-        "dispatch_performed": False,
-        "execution_authorized": False,
-    }
-    if route.route_kind == RouteKind.OWNER_GATE:
-        return {"state": "OWNER_REQUIRED", **base}
-    if route.route_kind == RouteKind.TASK:
-        role = route.target.role.value if route.target.role is not None else None
-        task_type = route.task_type.value if route.task_type is not None else None
-        return {
-            "state": "HANDOFF_READY",
-            "source_task": state.envelope.task.id,
-            "target_role": role,
-            "task_type": task_type,
-            **base,
-        }
-    return {"state": "TERMINAL", **base}
+def handoff_packet(
+    state: CursorBridgeState,
+    *,
+    transport: CompletionTransport = CompletionTransport.HOOK,
+) -> dict[str, object]:
+    """Machine-readable packet contract. Shared by hook and explicit transports."""
+    return build_handoff_packet(state, transport=transport).to_public_dict()
+
+
+def _ignore_transport_metadata(payload: object | None) -> None:
+    """Accept optional Cursor-like metadata. Values never influence routing."""
+    if payload is None:
+        return
+    try:
+        ExplicitCompletionMetadata.model_validate(payload)
+    except ValidationError:
+        return
+
+
+def require_verified_state(root: Path) -> CursorBridgeState:
+    """Load staged state and recompute 001A+001B. Never trust state.json blindly."""
+    path = bridge_state_path(root)
+    if not path.is_file():
+        raise CursorBridgeError("no staged Cursor bridge state", code="NO_STAGED_HANDOFF")
+    existing = load_state(root)
+    if existing is None:
+        raise StagedStateTampered("staged bridge state is unreadable or invalid")
+    verified = verify_state(existing)
+    if verified is None:
+        raise StagedStateTampered("staged bridge state failed recomputation")
+    return verified
+
+
+def complete_staged_handoff(
+    payload: object | None = None,
+    *,
+    root: Path,
+) -> HandoffPacket:
+    """Surface the staged route as a HandoffPacket. Does not dispatch.
+
+    Optional ``payload`` may carry bounded transport metadata
+    (``status``, ``conversation_id``, ``transport=explicit``). Those fields
+    are ignored for route, role, task, permissions, and authority.
+    """
+    _ignore_transport_metadata(payload)
+    verified = require_verified_state(root)
+    if verified.status == BridgeStatus.ACKNOWLEDGED:
+        raise CursorBridgeError(
+            "handoff already acknowledged",
+            code="HANDOFF_ALREADY_ACKNOWLEDGED",
+        )
+    return build_handoff_packet(verified, transport=CompletionTransport.EXPLICIT)
+
+
+def surface_pending_handoff(
+    payload: object | None = None,
+    *,
+    root: Path,
+) -> HandoffPacket:
+    """Alias for ``complete_staged_handoff``. Future 001D entry point."""
+    return complete_staged_handoff(payload, root=root)
 
 
 def verify_state(state: CursorBridgeState) -> CursorBridgeState | None:
@@ -370,7 +566,7 @@ def persist_state(root: Path, state: CursorBridgeState) -> None:
 
 
 def status_report(root: Path) -> dict[str, object]:
-    """Read-only Cursor bridge diagnostics. No secrets."""
+    """Read-only Cursor bridge diagnostics. No secrets. Hook config ≠ runtime PASS."""
     resolved = resolve_repo_root(root)
     existing = load_state(resolved)
     verified = verify_state(existing) if existing is not None else None
@@ -381,12 +577,20 @@ def status_report(root: Path) -> dict[str, object]:
         route_kind = verified.route.route_kind.value
         role = verified.route.target.role.value if verified.route.target.role else None
         task_type = verified.route.task_type.value if verified.route.task_type else None
+    hook_config = (resolved / HOOK_CONFIG_RELATIVE).is_file()
+    hook_entry = (resolved / HOOK_ENTRY_RELATIVE).is_file()
+    hook_adapter = "configured" if hook_config and hook_entry else "absent"
+    active_state = existing.status.value if existing is not None else "absent"
     return {
         "package_id": PACKAGE_ID,
-        "bridge_configured": (resolved / HOOK_CONFIG_RELATIVE).is_file(),
-        "hook_config_found": (resolved / HOOK_CONFIG_RELATIVE).is_file(),
-        "hook_entrypoint_found": (resolved / HOOK_ENTRY_RELATIVE).is_file(),
-        "state": existing.status.value if existing is not None else "absent",
+        "bridge_configured": hook_config,
+        "hook_config_found": hook_config,
+        "hook_entrypoint_found": hook_entry,
+        "cursor_hook_adapter": hook_adapter,
+        "cursor_hook_runtime_certified": False,
+        "explicit_completion_transport": "available",
+        "state": active_state,
+        "active_state": active_state,
         "state_valid": verified is not None,
         "source_result_digest": existing.source_result_digest if existing else None,
         "route_digest": existing.route_digest if existing else None,
@@ -397,7 +601,11 @@ def status_report(root: Path) -> dict[str, object]:
         "execution_authorized": False,
         "policy_id": POLICY_ID,
         "policy_version": POLICY_VERSION,
-        "handoff_packet": handoff_packet(verified) if verified is not None else None,
+        "handoff_packet": (
+            handoff_packet(verified, transport=CompletionTransport.EXPLICIT)
+            if verified is not None
+            else None
+        ),
     }
 
 
@@ -433,6 +641,15 @@ def run_cursor_status(*, root: Path) -> tuple[dict[str, object], int]:
         return status_report(root), 0
     except CursorBridgeError as exc:
         return {"ok": False, "error": str(exc), "execution_authorized": False}, 1
+
+
+def run_cursor_complete(*, root: Path) -> tuple[dict[str, object], int]:
+    try:
+        packet = complete_staged_handoff(root=root)
+    except (StagedStateTampered, CursorBridgeError) as exc:
+        code = getattr(exc, "code", "CURSOR_BRIDGE_ERROR")
+        return {"ok": False, "error": code, "execution_authorized": False}, 1
+    return packet.to_public_dict(), 0
 
 
 def _public_state(state: CursorBridgeState, *, ok: bool) -> dict[str, object]:

@@ -203,6 +203,8 @@ SCHEMA_FILES: dict[str, str] = {
     # AS-ORCH-001B — typed task directive + discriminated routing output
     "task-directive": "task-directive.schema.json",
     "orchestration-route": "orchestration-route.schema.json",
+    # AS-ORCH-001C-R1 — transport-neutral handoff packet (≠ dispatch / authority)
+    "handoff-packet": "handoff-packet.schema.json",
     # AS-2.0-OAI-IMPORT-002 — OAI import path (fixtures if no export)
     "openai-import-path-receipt": "openai-import-path-receipt.schema.json",
     # AS-2.0-REALITY-GAP-UI-001 — Reality Gap UI catalog

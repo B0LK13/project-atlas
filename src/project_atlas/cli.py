@@ -2348,7 +2348,8 @@ def build_parser() -> argparse.ArgumentParser:
         "orchestrator",
         help=(
             "Agent-result classification, policy routing, and Cursor bridge "
-            "(AS-ORCH-001A/001B/001C; routing != dispatch; hook != execution)."
+            "(AS-ORCH-001A/001B/001C; routing != dispatch; hook != execution; "
+            "explicit completion != dispatch)."
         ),
     )
     orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
@@ -2460,6 +2461,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Read-only Cursor bridge diagnostics. Does not dispatch.",
     )
     orch_cursor_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_complete = orch_sub.add_parser(
+        "cursor-complete",
+        help=(
+            "Surface the staged Cursor handoff as a machine-readable "
+            "HandoffPacket. Does not require a Cursor stop event. "
+            "Does not dispatch or execute."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n  atlas orchestrator cursor-complete --root <repo>\n",
+    )
+    orch_complete.add_argument(
         "--root",
         type=Path,
         default=None,
@@ -4683,6 +4700,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             from project_atlas.orchestration.cursor_bridge import run_cursor_status
 
             report, exit_code = run_cursor_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-complete":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_complete
+
+            report, exit_code = run_cursor_complete(
                 root=Path(getattr(args, "root", None) or Path.cwd()),
             )
             print(json.dumps(report, indent=2, sort_keys=True))

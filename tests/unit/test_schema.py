@@ -73,6 +73,7 @@ def test_all_expected_schemas_available() -> None:
         "graphify-envelope",
         "graphify-metadata",
         "graphify-node",
+        "handoff-packet",
         "hybrid-retrieval-plan",
         "hybrid-retrieval-rrf",
         "impact-graph",
