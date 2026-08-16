@@ -6,14 +6,34 @@ implementations callable from the installed Core package without copying them.
 
 Receipt validate/issue are not loaded from here; they live in
 ``project_atlas.agent_control.receipt_gate``.
+
+Production MDA resolution never discovers repository test fixtures.
+TEST_MDA_FIXTURE_AUTO_SELECTED_IN_PRODUCTION = NO
+TEST_FIXTURE_REQUIRES_EXPLICIT_INJECTION = YES
+MOCK_MDA_VERSION_ACCEPTED = NO
+PIPELINE_PROVIDER_ENVIRONMENT_SCOPED = YES
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
+import shutil
+import subprocess
 import sys
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Final, Literal, cast
+
+MDA_ENV_VAR: Final[str] = "ATLAS_MDA_COMMAND"
+MDA_PATH_BASENAME: Final[str] = "mda"
+_TEST_PATH_COMPONENTS: Final[frozenset[str]] = frozenset(
+    {"tests", "test", "fixtures", "mock", "mocks"}
+)
+_VERSION_PROBE_TIMEOUT_SECONDS: Final[int] = 10
+_injected_test_provider: Path | None = None
 
 
 class ControlPlaneError(RuntimeError):
@@ -25,6 +45,16 @@ class ControlPlaneError(RuntimeError):
         super().__init__(message)
         if code is not None:
             self.code = code
+
+
+@dataclass(frozen=True, slots=True)
+class MdaProvider:
+    """Safe production/test MDA provenance. Never stores secrets."""
+
+    command: Path
+    source: Literal["operator_config", "PATH", "test_injection"]
+    version: str
+    path_digest: str
 
 
 def package_repo_root() -> Path:
@@ -63,30 +93,177 @@ def documentation_skill_root() -> Path:
     raise ControlPlaneError("canonical documentation skill is missing", code="PREFLIGHT_FAILED")
 
 
-def resolve_mda_command() -> Path:
-    configured = os.environ.get("ATLAS_MDA_COMMAND")
-    if configured:
-        path = Path(configured)
-        if path.is_file():
-            return path
-        raise ControlPlaneError(
-            "ATLAS_MDA_COMMAND does not point at an executable",
-            code="PIPELINE_UNAVAILABLE",
-        )
-    fixture = control_plane_root() / "tests" / "fixtures" / "bin" / "mda"
-    if fixture.is_file():
-        return fixture
-    raise ControlPlaneError(
-        "canonical event pipeline MDA is unavailable",
-        code="PIPELINE_UNAVAILABLE",
+def _pipeline_unavailable(message: str) -> ControlPlaneError:
+    return ControlPlaneError(message, code="PIPELINE_UNAVAILABLE")
+
+
+def _posix_path_text(path: Path) -> str:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path
+    return str(resolved).replace("\\", "/").lower()
+
+
+def path_is_test_or_mock_utility(path: Path) -> bool:
+    """True when a path component is a test/fixture/mock utility location."""
+    parts = {part for part in _posix_path_text(path).split("/") if part}
+    return bool(parts & _TEST_PATH_COMPONENTS)
+
+
+def path_is_known_repo_mda_fixture(path: Path) -> bool:
+    posix = _posix_path_text(path)
+    return posix.endswith("/tests/fixtures/bin/mda") or posix.endswith(
+        "/tests/fixtures/bin/mda.exe"
     )
 
 
-def prepare_event_pipeline() -> Path:
-    """Require the real capture→normalize→verify→route MDA before events."""
-    mda = resolve_mda_command()
-    os.environ["ATLAS_MDA_COMMAND"] = str(mda)
-    return mda
+def version_is_mock(version: str) -> bool:
+    return "mock" in version.lower()
+
+
+def _file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(65_536)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def probe_mda_version(executable: Path) -> str:
+    """Probe ``--version`` before the executable may produce lifecycle evidence."""
+    try:
+        completed = subprocess.run(
+            [str(executable), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=_VERSION_PROBE_TIMEOUT_SECONDS,
+            check=False,
+            shell=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise _pipeline_unavailable("MDA version could not be established") from exc
+    text = (completed.stdout or "").strip() or (completed.stderr or "").strip()
+    if completed.returncode != 0 or not text:
+        raise _pipeline_unavailable("MDA version could not be established")
+    return text.splitlines()[0].strip()
+
+
+def inject_test_mda_provider(path: Path) -> MdaProvider:
+    """Test-only explicit injection. Production resolution never calls this."""
+    global _injected_test_provider
+    candidate = Path(path).expanduser()
+    if not candidate.is_file():
+        raise _pipeline_unavailable("injected test MDA provider is not a file")
+    resolved = candidate.resolve()
+    _injected_test_provider = resolved
+    version = probe_mda_version(resolved)
+    return MdaProvider(
+        command=resolved,
+        source="test_injection",
+        version=version,
+        path_digest=_file_digest(resolved),
+    )
+
+
+def clear_test_mda_provider() -> None:
+    global _injected_test_provider
+    _injected_test_provider = None
+
+
+def injected_test_mda_provider() -> Path | None:
+    return _injected_test_provider
+
+
+def _require_production_file(path: Path) -> Path:
+    if not path.is_file():
+        raise _pipeline_unavailable("MDA provider is not a real file")
+    if os.name != "nt" and not os.access(path, os.X_OK):
+        raise _pipeline_unavailable("MDA provider is not executable")
+    if path_is_test_or_mock_utility(path) or path_is_known_repo_mda_fixture(path):
+        raise _pipeline_unavailable(
+            "test or mock MDA provider is not accepted in production"
+        )
+    return path.resolve()
+
+
+def _accept_production_candidate(
+    path: Path,
+    source: Literal["operator_config", "PATH"],
+) -> MdaProvider:
+    resolved = _require_production_file(path)
+    version = probe_mda_version(resolved)
+    if version_is_mock(version):
+        raise _pipeline_unavailable("mock MDA version is not accepted in production")
+    return MdaProvider(
+        command=resolved,
+        source=source,
+        version=version,
+        path_digest=_file_digest(resolved),
+    )
+
+
+def resolve_production_mda_provider(
+    *,
+    environ: Mapping[str, str] | None = None,
+    which: Callable[[str], str | None] | None = None,
+) -> MdaProvider:
+    """Resolve a trusted real MDA provider. Never discovers test fixtures."""
+    env = os.environ if environ is None else environ
+    configured = str(env.get(MDA_ENV_VAR, "")).strip()
+    if configured:
+        return _accept_production_candidate(Path(configured), "operator_config")
+    finder = shutil.which if which is None else which
+    found = finder(MDA_PATH_BASENAME)
+    if found:
+        return _accept_production_candidate(Path(found), "PATH")
+    raise _pipeline_unavailable("canonical event pipeline MDA is unavailable")
+
+
+def resolve_mda_provider(*, allow_test_injection: bool = False) -> MdaProvider:
+    """Resolve MDA for a governed event. Injection is test-only and explicit."""
+    if allow_test_injection and _injected_test_provider is not None:
+        path = _injected_test_provider
+        if not path.is_file():
+            raise _pipeline_unavailable("injected test MDA provider is missing")
+        version = probe_mda_version(path)
+        return MdaProvider(
+            command=path,
+            source="test_injection",
+            version=version,
+            path_digest=_file_digest(path),
+        )
+    return resolve_production_mda_provider()
+
+
+def resolve_mda_command() -> Path:
+    """Production resolution only. Never falls back to the repository fixture."""
+    return resolve_production_mda_provider().command
+
+
+@contextmanager
+def scoped_mda_environment(provider: MdaProvider | None) -> Iterator[None]:
+    """Bridge ATLAS_MDA_COMMAND only for one canonical event operation."""
+    prior = os.environ.get(MDA_ENV_VAR)
+    try:
+        if provider is None:
+            os.environ.pop(MDA_ENV_VAR, None)
+        else:
+            os.environ[MDA_ENV_VAR] = str(provider.command)
+        yield
+    finally:
+        if prior is None:
+            os.environ.pop(MDA_ENV_VAR, None)
+        else:
+            os.environ[MDA_ENV_VAR] = prior
+
+
+def prepare_event_pipeline() -> MdaProvider:
+    """Resolve a trusted MDA provider. Does not permanently mutate the environment."""
+    return resolve_mda_provider(allow_test_injection=True)
 
 
 def bootstrap_start(
@@ -98,20 +275,22 @@ def bootstrap_start(
     task_id: str,
     skill_root: Path,
 ) -> tuple[dict[str, Any], dict[str, str]]:
+    provider = prepare_event_pipeline()
     ensure_control_plane_importable()
     from agent_control.bootstrap import start
 
-    return cast(
-        tuple[dict[str, Any], dict[str, str]],
-        start(
-            project_root=project_root,
-            vault_root=vault_root,
-            agent_type=agent_type,
-            agent_value=agent_value,
-            task_id=task_id,
-            skill_root=skill_root,
-        ),
-    )
+    with scoped_mda_environment(provider):
+        return cast(
+            tuple[dict[str, Any], dict[str, str]],
+            start(
+                project_root=project_root,
+                vault_root=vault_root,
+                agent_type=agent_type,
+                agent_value=agent_value,
+                task_id=task_id,
+                skill_root=skill_root,
+            ),
+        )
 
 
 def run_preflight(
@@ -149,20 +328,22 @@ def document_event(
     changed_files: list[str] | None = None,
     spool: bool = False,
 ) -> dict[str, Any]:
+    provider = prepare_event_pipeline()
     ensure_control_plane_importable()
     from agent_control.event_client import document
 
-    return cast(
-        dict[str, Any],
-        document(
-            vault_root=vault_root,
-            session_id=session_id,
-            event_type=event_type,
-            summary=summary,
-            work_package=work_package,
-            validation=validation,
-            decision=decision,
-            changed_files=changed_files,
-            spool=spool,
-        ),
-    )
+    with scoped_mda_environment(provider):
+        return cast(
+            dict[str, Any],
+            document(
+                vault_root=vault_root,
+                session_id=session_id,
+                event_type=event_type,
+                summary=summary,
+                work_package=work_package,
+                validation=validation,
+                decision=decision,
+                changed_files=changed_files,
+                spool=spool,
+            ),
+        )

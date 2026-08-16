@@ -1,4 +1,7 @@
-"""AS-ORCH-001D-R3 adapter: dispatch ↔ canonical managed-session lifecycle.
+"""AS-ORCH-001D adapter: dispatch ↔ canonical managed-session lifecycle.
+
+Cursor CLI dispatch binds ``agent_type=cli`` / ``generic-cli-v1``.
+Readiness is owned by canonical preflight. No readiness override.
 
 Lifecycle truth is owned by the control plane:
 
@@ -48,8 +51,10 @@ from project_atlas.orchestration.router import canonical_payload_digest
 
 CANONICAL_RECEIPTS_RELATIVE: Final[tuple[str, ...]] = (".atlas", "receipts")
 CANONICAL_SESSIONS_RELATIVE: Final[tuple[str, ...]] = (".atlas", "sessions")
-MANAGED_AGENT_ID: Final[str] = "cursor-ide"
-MANAGED_AGENT_TYPE: Final[str] = "ide"
+MANAGED_AGENT_TRANSPORT: Final[str] = "CURSOR_CLI"
+MANAGED_AGENT_ID: Final[str] = "cursor-agent-cli"
+MANAGED_AGENT_TYPE: Final[str] = "cli"
+CANONICAL_ADAPTER_ID: Final[str] = "generic-cli-v1"
 MANAGED_WORK_PACKAGE: Final[str] = "as-orch-001d"
 _ID_RE = re.compile(ID_PATTERN)
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")

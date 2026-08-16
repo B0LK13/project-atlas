@@ -152,9 +152,18 @@ def bound_captured_bytes(data: bytes) -> bytes:
     return data[:MAX_CAPTURED_BYTES]
 
 
+_CURSOR_OMIT_ENV: frozenset[str] = frozenset({"ATLAS_MDA_COMMAND", "MDA_MOCK_MODE"})
+
+
 def sanitize_inherited_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
-    """Copy the process environment. Never log or persist secret values."""
+    """Copy process env for the Cursor child. Never log or persist secret values.
+
+    TEST_MDA_PATH_INHERITED_BY_CURSOR_TARGET = NO. The target does not receive
+    a parent lifecycle MDA provider path. Cursor authentication variables stay.
+    """
     env = dict(os.environ if source is None else source)
+    for key in _CURSOR_OMIT_ENV:
+        env.pop(key, None)
     return env
 
 
