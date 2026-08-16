@@ -25,6 +25,7 @@ def test_all_expected_schemas_available() -> None:
     assert available_schemas() == [
         "adv-release-cert-report",
         "agent-eval-shadow-receipt",
+        "agent-result-envelope",
         "agentos-phase-transition",
         "agentos-session-envelope",
         "api-surface-registry",

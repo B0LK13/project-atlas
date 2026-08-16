@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/agent-result-envelope.schema.json",
+  "title": "AgentResultEnvelope",
+  "description": "AS-ORCH-001A machine-readable agent result contract. Evidence/input, not authority. RESULT != AUTHORITY; RECEIPT != AUTHORITY; REQUESTED_TRANSITION != AUTHORIZED_TRANSITION; CLASSIFICATION != EXECUTION. additionalProperties:false fails closed against smuggled authority fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "producer",
+    "task",
+    "outcome",
+    "state",
+    "observations"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "producer": { "$ref": "#/$defs/producer" },
+    "task": { "$ref": "#/$defs/task" },
+    "outcome": { "enum": ["PASS", "FAIL", "BLOCKED"] },
+    "state": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+    },
+    "observations": { "$ref": "#/$defs/observations" },
+    "receipt": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/receiptBinding" }
+      ]
+    },
+    "blockers": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/blocker" }
+    },
+    "requested_transition": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "INTEGRATION_VERIFY",
+            "RECERTIFY_REQUIRED",
+            "AUTONOMOUS_RECONCILE",
+            "REMEDIATION_REQUIRED",
+            "OWNER_REQUIRED",
+            "MERGE",
+            "BLOCKED",
+            "REJECTED"
+          ]
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "agent_id"],
+      "properties": {
+        "role": { "enum": ["local", "integration", "autonomous"] },
+        "agent_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "attempt"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 10000 }
+      }
+    },
+    "receiptBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_id", "status"],
+      "properties": {
+        "receipt_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "status": { "enum": ["valid", "pending", "rejected"] },
+        "event_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        }
+      }
+    },
+    "observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target_moved", "unauthorized_mutations"],
+      "properties": {
+        "target_moved": { "type": "boolean" },
+        "unauthorized_mutations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "extras": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+          "additionalProperties": {
+            "oneOf": [
+              { "type": "boolean" },
+              { "type": "integer", "minimum": -1000000, "maximum": 1000000 },
+              { "type": "string", "maxLength": 256 }
+            ]
+          }
+        }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        },
+        "detail": { "type": "string", "maxLength": 256 }
+      }
+    }
+  }
+}
