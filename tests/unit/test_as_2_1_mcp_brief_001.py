@@ -76,6 +76,24 @@ def test_empty_vault_does_not_invent_briefs(tmp_path: Path) -> None:
     assert result["honesty"]["request_contains_project"] is False
 
 
+def test_conflict_unsafe_project_id_is_unknown_not_abort(tmp_path: Path) -> None:
+    """IDs legal in projects/ but rejected by conflicts regex must not abort."""
+    vault = tmp_path / "v"
+    (vault / "projects" / "ok-proj").mkdir(parents=True)
+    (vault / "projects" / "weird_proj.id").mkdir(parents=True)
+    _write(
+        vault / "generated" / "ops" / "project-brief-ok-proj.json",
+        {"project_id": "ok-proj", "purpose": "Fine"},
+    )
+    report = invoke_mcp_tool(vault, "atlas.brief.read")
+    rows = {row["project_id"]: row["brief"] for row in report["result"]["briefs"]}
+    assert set(rows) == {"ok-proj", "weird_proj.id"}
+    assert rows["ok-proj"]["purpose"] == "Fine"
+    assert rows["weird_proj.id"]["purpose"] == "UNKNOWN"
+    assert rows["weird_proj.id"]["available"] is False
+    assert rows["weird_proj.id"]["honesty"]["unknown_is_valid"] is True
+
+
 def test_missing_brief_file_is_unknown_not_invented(tmp_path: Path) -> None:
     vault = tmp_path / "v"
     (vault / "projects" / "sparse-proj").mkdir(parents=True)

@@ -79,7 +79,7 @@ class AppService:
         """Coder Alpha project brief + Truth UX projection (read-only)."""
         try:
             return read_project_brief(self.vault, project_id)
-        except WebBriefError as exc:
+        except ValueError as exc:
             raise AppServiceError(str(exc)) from exc
 
     def roadmap(self, project_id: str) -> dict[str, Any]:
