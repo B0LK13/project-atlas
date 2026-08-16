@@ -6632,3 +6632,11 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - AS-ORCH-001D Agent Dispatcher
 - AS-ORCH-001E Governed Autonomous Loop
 
+### Local verification
+- Focused orchestration tests: 45 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- `ruff check .`: pass
+- `mypy src`: pass
+- Full `pytest`: 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot; not this package)
+- Scenarios A/B/C: INTEGRATION_VERIFY / RECERTIFY_REQUIRED / OWNER_REQUIRED; `execution_authorized=false`
+
