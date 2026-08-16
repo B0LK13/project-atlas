@@ -483,7 +483,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher + Cursor CLI Process Transport
 
-_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001D-R5; not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Model-authored `receipt.status=valid` is provisional and **cannot** skip canonical postflight. Lifecycle events and receipts are produced only by the shared control-plane `receipt_gate` / `postflight` implementation. Production MDA resolution is fail-closed (operator config or PATH `mda`) and cannot observe test-provider state. Cursor CLI dispatch binds `agent_type=cli` / `generic-cli-v1`. Authentic Windows Cursor agent dispatch is **not** certified from Cloud. R4 CI `31960840242` is historical only._
+_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001D-R6; not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Model-authored `receipt.status=valid` is provisional and **cannot** skip canonical postflight. Lifecycle events and receipts are produced only by the shared control-plane `receipt_gate` / `postflight` implementation. Production MDA resolution is fail-closed (operator config or PATH `mda`) and cannot observe test-provider state. MDA version probing uses the same trusted executable argv as normalization (`TRUSTED_EXECUTABLE_ARGV_IMPLEMENTATIONS = 1`). Cursor CLI dispatch binds `agent_type=cli` / `generic-cli-v1`. Authentic Windows Cursor agent dispatch is **not** certified from Cloud. R5 CI `31961502619` is historical only._
 
 Honesty (mandatory):
 
@@ -525,6 +525,7 @@ Honesty (mandatory):
 - [x] ORCH001D-R3 Real canonical managed-session lifecycle + shared receipt_gate/postflight (R2 synthetic mirror removed)
 - [x] ORCH001D-R4 Production MDA provider provenance + Cursor CLI adapter identity (`generic-cli-v1`; no fixture fallback)
 - [x] ORCH001D-R5 Hard production/test MDA provider isolation (no global test-provider state in production runtime)
+- [x] ORCH001D-R6 Windows-safe MDA version-probe / execution launch-parity (shared trusted argv; production fixture rejection unchanged)
 - [x] ORCH001D-007 `atlas orchestrator dispatch-submit-result` (validated evidence only; not 001C stage; same receipt authenticity as terminal JSON)
 - [x] ORCH001D-008 Transactional finalize: ack source → stage target → explicit complete → stop
 - [x] ORCH001D-009 `atlas orchestrator dispatch-recover` (no respawn)

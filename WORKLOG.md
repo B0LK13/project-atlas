@@ -5,6 +5,67 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-001D-R6 — Windows-Safe MDA Version Probe / Execution Launch-Parity
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001D-R6-WINDOWS-MDA-PROBE-001
+**Package:** AS-ORCH-001D-R6
+**Branch:** `cursor/as-orch-001d-agent-dispatcher-d054`
+**PR:** #396
+**Base:** live `origin/main` `122ad8b11236dbc906c5e245054b090e4ff8e006` / TREE `0d13568f3964a58a0b91d99519c95aa2020020e4`
+**OLD_PR_HEAD (R5):** `3e014cdb78498ce7b0c21b7cd0bec246789134b1`
+**OLD_PR_TREE (R5):** `d4a7c1c920cd2af99143fe04013964e566f32c21`
+
+### Root cause
+`probe_mda_version()` executed `[path, "--version"]` directly. The explicit
+test MDA and R4/R5 helpers are Python shebang scripts. Windows CreateProcess
+cannot run those scripts, so `explicit_test_mda_provider()` and dependent
+lifecycle/provider tests failed on exact-head Windows CI `31961502619`.
+Normalization already used `resolve_executable_argv()` (`sys.executable` +
+script). Version probing bypassed that launch identity.
+
+### Remediation
+- Extracted the single `resolve_executable_argv` implementation into
+  `src/project_atlas/agent_control/trusted_argv.py`.
+- `atlas-vault-documentation/internal/process_runner.py` re-exports that
+  function. Normalization and version probing share one implementation.
+- `probe_mda_version` now builds argv as
+  `[*resolve_executable_argv(path), "--version"]` after production
+  authorization. Shebang wrapping never grants production authority.
+- Production fixture/mock rejection and R5 test/production isolation are
+  unchanged. Dispatcher and receipt architecture are unchanged.
+
+### Honesty
+- MDA_VERSION_PROBE_LAUNCH_PARITY = YES
+- TRUSTED_EXECUTABLE_ARGV_IMPLEMENTATIONS = 1
+- AUTHORIZATION_PRECEDES_EXECUTION = YES
+- ARBITRARY_SHEBANG_INTERPRETER_EXECUTION = NO
+- PYTHON_SHELL_TRUE = NO
+- PRODUCTION_TEST_FIXTURE_REJECTION = PASS
+- TEST_FIXTURE_CAN_SATISFY_PRODUCTION_PIPELINE = NO
+- TEST_FIXTURE_REQUIRES_EXPLICIT_DEPENDENCY_INJECTION = YES
+- MOCK_MDA_VERSION_ACCEPTED = NO
+- PRODUCTION_PREPARE_USES_TEST_INJECTION = NO
+- PRODUCTION_LIFECYCLE_CAN_OBSERVE_TEST_INJECTION = NO
+- GLOBAL_TEST_PROVIDER_STATE = REMOVED
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Local verification
+- Focused orchestration + R4/R5/R6 tests: 250 passed
+- Canonical agent-control tests: 12 passed
+- SEC-015/016/019 receipt-authority tests: 5 passed
+- Schema/contract regression: 10 passed
+- `ruff check .`: pass
+- `mypy src`: pass (235 source files)
+- Full `pytest --override-ini='addopts='`: 3084 passed, 3 failed, 3 skipped, 1 xfailed
+- The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases. Not this package.
+- OLD_CI_RUN = 31961502619 (historical R5 exact-head failure)
+- NEW_REGRESSIONS = none
+- MERGE_PERFORMED = NO
+- STATE = REMEDIATED — READY FOR RE-CERTIFICATION
+
+---
+
 ## AS-ORCH-001D-R5 — Hard Production/Test MDA Provider Isolation
 
 **Date:** 2026-08-16
