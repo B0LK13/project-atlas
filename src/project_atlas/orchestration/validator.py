@@ -32,18 +32,49 @@ class ResultValidationError(ValueError):
     """Raised when an envelope cannot be accepted as a typed result."""
 
 
+def _safe_schema_reason(exc: SchemaValidationError) -> str:
+    """Location-only schema failure. Never echo rejected instance values."""
+    text = str(exc)
+    marker = " record violates schema at "
+    if marker in text:
+        location = text.split(marker, 1)[1].split(":", 1)[0].strip()
+        if location and all(ch.isalnum() or ch in {"/", "_", "-", "<", ">"} for ch in location):
+            return f"schema_invalid:{location}"
+    return "schema_invalid"
+
+
+def _safe_model_reason(exc: ValidationError) -> str:
+    """Field-location and error-type only. Never echo input_value."""
+    parts: list[str] = []
+    for error in exc.errors():
+        loc = "/".join(str(item) for item in error.get("loc", ()))
+        kind = str(error.get("type", "invalid"))
+        if loc:
+            parts.append(f"{loc}:{kind}")
+        else:
+            parts.append(kind)
+        if len(parts) >= 8:
+            break
+    return "model_invalid:" + ",".join(parts) if parts else "model_invalid"
+
+
 def parse_envelope(payload: object) -> AgentResultEnvelope:
-    """Validate a mapping against the Pydantic model and the shipped JSON schema."""
+    """Validate a mapping against the shipped JSON schema, then the Pydantic model.
+
+    Schema validation runs on the raw mapping so lax Pydantic coercion cannot
+    rewrite wrong types (for example ``unauthorized_mutations: false`` → ``0``)
+    before fail-closed type checks see the original payload.
+    """
     if not isinstance(payload, dict):
         raise ResultValidationError("result envelope must be a JSON object")
     try:
+        validate_record(payload, SCHEMA_KIND)
+    except SchemaValidationError as exc:
+        raise ResultValidationError(_safe_schema_reason(exc)) from exc
+    try:
         envelope = AgentResultEnvelope.model_validate(payload)
     except ValidationError as exc:
-        raise ResultValidationError(f"result envelope invalid: {exc}") from exc
-    try:
-        validate_record(envelope, SCHEMA_KIND)
-    except SchemaValidationError as exc:
-        raise ResultValidationError(str(exc)) from exc
+        raise ResultValidationError(_safe_model_reason(exc)) from exc
     return envelope
 
 
@@ -84,7 +115,7 @@ def load_result_bytes(data: bytes) -> object:
     try:
         payload: object = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ResultValidationError(f"result envelope is not valid JSON: {exc}") from exc
+        raise ResultValidationError("result envelope is not valid JSON") from exc
     return payload
 
 
@@ -104,7 +135,8 @@ def read_result_source(
         raise ResultValidationError(
             "result path is required (example: atlas orchestrator validate-result result.json)"
         )
-    return path.read_bytes()
+    with path.open("rb") as handle:
+        return handle.read(MAX_RESULT_BYTES + 1)
 
 
 def _read_stdin_bytes(stdin: TextIO) -> bytes:
@@ -129,8 +161,8 @@ def run_validate_result(
         payload = load_result_bytes(raw)
     except ResultValidationError as exc:
         return malformed_decision(str(exc)), 1
-    except OSError as exc:
-        return malformed_decision(f"cannot read result file: {exc}"), 1
+    except OSError:
+        return malformed_decision("cannot read result file"), 1
     decision = validate_and_classify(payload)
     return decision, (0 if decision.valid else 1)
 
