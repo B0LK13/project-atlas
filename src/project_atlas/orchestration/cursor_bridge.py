@@ -143,6 +143,20 @@ def route_digest(route: OrchestrationRoute) -> str:
     return canonical_payload_digest(route.model_dump(mode="json"))
 
 
+def _privileges_closed(route: OrchestrationRoute) -> bool:
+    """Inspect dumped flags. Typed literals are fail-closed; dump is the runtime check."""
+    dumped = route.model_dump(mode="json")
+    permissions = dumped.get("permissions")
+    if not isinstance(permissions, dict):
+        return False
+    if dumped.get("execution_authorized") is not False:
+        return False
+    return not any(
+        permissions.get(flag) is True
+        for flag in ("merge", "production_mutation", "authority_grant")
+    )
+
+
 def resolve_repo_root(root: Path | None) -> Path:
     """Resolve and reject unsafe roots. Hook cwd is not assumed to be the repo."""
     if root is None:
@@ -150,7 +164,7 @@ def resolve_repo_root(root: Path | None) -> Path:
     resolved = root.expanduser().resolve()
     if not resolved.is_dir():
         raise CursorBridgeError("repository root is not a directory")
-    if resolved == resolved.anchor or resolved == Path.home().resolve():
+    if resolved == Path(resolved.anchor) or resolved == Path.home().resolve():
         raise CursorBridgeError("refusing filesystem root or home as bridge root")
     return resolved
 
@@ -248,13 +262,7 @@ def handle_stop_event(payload: object, *, root: Path) -> dict[str, str]:
 def render_followup(state: CursorBridgeState) -> str | None:
     """Fixed trusted template. Untrusted envelope text never interpolates."""
     route = state.route
-    if route.execution_authorized is not False:
-        return None
-    if (
-        route.permissions.merge
-        or route.permissions.production_mutation
-        or route.permissions.authority_grant
-    ):
+    if not _privileges_closed(route):
         return None
     digest = state.route_digest
     if not _DIGEST_RE.fullmatch(digest):
@@ -333,15 +341,10 @@ def verify_state(state: CursorBridgeState) -> CursorBridgeState | None:
         return None
     if routed.model_dump(mode="json") != state.route.model_dump(mode="json"):
         return None
-    if routed.execution_authorized is not False:
+    if not _privileges_closed(routed) or not _privileges_closed(state.route):
         return None
-    if (
-        routed.permissions.merge
-        or routed.permissions.production_mutation
-        or routed.permissions.authority_grant
-    ):
-        return None
-    if state.policy_id != POLICY_ID or state.policy_version != POLICY_VERSION:
+    identity = state.model_dump(mode="json")
+    if identity.get("policy_id") != POLICY_ID or identity.get("policy_version") != POLICY_VERSION:
         return None
     return state.model_copy(update={"envelope": envelope, "route": routed})
 

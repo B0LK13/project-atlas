@@ -55,7 +55,7 @@ def test_hook_task_route_stdout_is_pure_json(tmp_path: Path) -> None:
     repo.mkdir()
     hook = _install_hook(repo)
     stage_result(_payload(), root=repo)
-    code, stdout, stderr = _invoke(
+    code, stdout, _stderr = _invoke(
         hook, {"status": "completed", "loop_count": 0, "conversation_id": "c"}, cwd=tmp_path
     )
     assert code == 0
