@@ -289,3 +289,295 @@ class OrchestrationDecision(BaseModel):
             "requested_transition": requested,
             "truth_boundary": self.truth_boundary,
         }
+
+
+# --- AS-ORCH-001B: typed routing output (TaskDirective != execution) ---
+
+
+class RouteKind(StrEnum):
+    """Discriminated routing result. Owner/blocked paths are not fake agent tasks."""
+
+    TASK = "task"
+    OWNER_GATE = "owner_gate"
+    TERMINAL = "terminal"
+
+
+class TargetKind(StrEnum):
+    """Where a route points. ``owner`` is not an executable agent role."""
+
+    AGENT = "agent"
+    OWNER_GATE = "owner_gate"
+    TERMINAL = "terminal"
+
+
+class TaskType(StrEnum):
+    """Typed follow-up work. Semantics only — not a shell command or prompt."""
+
+    CANDIDATE_VERIFICATION = "candidate_verification"
+    RECERTIFICATION = "recertification"
+    PROGRAM_RECONCILIATION = "program_reconciliation"
+    REMEDIATION = "remediation"
+
+
+class DirectivePermissions(BaseModel):
+    """Explicit fail-closed privileges. AS-ORCH-001B never sets any flag true."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    repository_write: Literal[False] = False
+    branch_write: Literal[False] = False
+    pull_request_write: Literal[False] = False
+    merge: Literal[False] = False
+    production_mutation: Literal[False] = False
+    authority_grant: Literal[False] = False
+
+    @model_validator(mode="after")
+    def _fail_closed(self) -> DirectivePermissions:
+        flags = (
+            self.repository_write,
+            self.branch_write,
+            self.pull_request_write,
+            self.merge,
+            self.production_mutation,
+            self.authority_grant,
+        )
+        if any(flags):
+            raise ValueError("AS-ORCH-001B permissions are fail-closed; no privilege may be true")
+        return self
+
+
+class DirectiveSource(BaseModel):
+    """Task/producer binding copied from the validated envelope. Not authority."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str | None = Field(default=None, max_length=128)
+    attempt: int | None = Field(default=None, ge=1, le=10_000)
+    producer_role: ProducerRole | None = None
+
+    @field_validator("task_id")
+    @classmethod
+    def _safe_task_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not re.fullmatch(ID_PATTERN, value):
+            raise ValueError("source.task_id must be a safe identifier")
+        return value
+
+
+class TaskDirectiveSource(BaseModel):
+    """Fully bound source for an agent TaskDirective."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    attempt: int = Field(ge=1, le=10_000)
+    producer_role: ProducerRole
+
+
+class RouteTarget(BaseModel):
+    """Typed destination. Agent roles reuse the existing producer taxonomy."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: TargetKind
+    role: ProducerRole | None = None
+
+    @model_validator(mode="after")
+    def _role_matches_kind(self) -> RouteTarget:
+        if self.kind == TargetKind.AGENT and self.role is None:
+            raise ValueError("agent targets require an existing producer role")
+        if self.kind != TargetKind.AGENT and self.role is not None:
+            raise ValueError("non-agent targets must not invent an executable role")
+        return self
+
+
+class DirectiveInputs(BaseModel):
+    """Bounded structured facts for a future target agent. Not an execution channel."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: ResultOutcome
+    state: str = Field(min_length=1, max_length=64)
+    target_moved: bool
+    unauthorized_mutations: int = Field(ge=0, le=1_000_000)
+    receipt_status: Literal["valid", "pending", "rejected"] | None = None
+    blocker_codes: list[str] = Field(default_factory=list, max_length=64)
+
+    @field_validator("state")
+    @classmethod
+    def _state_identifier(cls, value: str) -> str:
+        if not _STATE_RE.fullmatch(value):
+            raise ValueError("inputs.state must be an uppercase identifier")
+        return value
+
+    @field_validator("blocker_codes")
+    @classmethod
+    def _blocker_codes(cls, value: list[str]) -> list[str]:
+        for code in value:
+            if not _BLOCKER_CODE_RE.fullmatch(code):
+                raise ValueError("inputs.blocker_codes must be uppercase identifiers")
+        return value
+
+
+class TaskDirective(BaseModel):
+    """Machine-readable follow-up task semantics. Not execution and not authority."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    source: TaskDirectiveSource
+    transition: NextTransition
+    target: RouteTarget
+    task_type: TaskType
+    permissions: DirectivePermissions
+    owner_gate: Literal[False] = False
+    execution_authorized: Literal[False] = False
+    source_result_digest: str = Field(min_length=64, max_length=64)
+    policy_id: Literal["atlas-orchestration-routing"] = "atlas-orchestration-routing"
+    policy_version: Literal[1] = 1
+    inputs: DirectiveInputs
+
+    @field_validator("source_result_digest")
+    @classmethod
+    def _digest_hex(cls, value: str) -> str:
+        if not re.fullmatch(r"^[0-9a-f]{64}$", value):
+            raise ValueError("source_result_digest must be a SHA-256 hex digest")
+        return value
+
+    @model_validator(mode="after")
+    def _task_invariants(self) -> TaskDirective:
+        if self.execution_authorized is not False:
+            raise ValueError("TaskDirective cannot authorize execution")
+        if self.owner_gate is not False:
+            raise ValueError("TaskDirective is not an owner gate")
+        if self.target.kind != TargetKind.AGENT or self.target.role is None:
+            raise ValueError("TaskDirective target must be an agent with an existing role")
+        if self.transition == NextTransition.OWNER_REQUIRED:
+            raise ValueError("OWNER_REQUIRED must not be encoded as a TaskDirective")
+        if self.transition in {
+            NextTransition.BLOCKED,
+            NextTransition.REJECTED,
+            NextTransition.BLOCKED_UNKNOWN_STATE,
+        }:
+            raise ValueError("terminal transitions must not be encoded as a TaskDirective")
+        if self.permissions.merge or self.permissions.production_mutation:
+            raise ValueError("TaskDirective cannot authorize merge or production mutation")
+        if self.permissions.authority_grant:
+            raise ValueError("TaskDirective cannot grant authority")
+        return self
+
+
+class OrchestrationRoute(BaseModel):
+    """Public AS-ORCH-001B routing output. Routing != dispatch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    package_id: Literal["AS-ORCH-001B"] = "AS-ORCH-001B"
+    policy_id: Literal["atlas-orchestration-routing"] = "atlas-orchestration-routing"
+    policy_version: Literal[1] = 1
+    source: DirectiveSource
+    source_result_digest: str = Field(min_length=64, max_length=64)
+    transition: NextTransition
+    route_kind: RouteKind
+    target: RouteTarget
+    task_type: TaskType | None = None
+    permissions: DirectivePermissions
+    owner_gate: bool
+    dispatchable: bool
+    execution_authorized: Literal[False] = False
+    task: TaskDirective | None = None
+    reasons: list[str] = Field(default_factory=list, max_length=32)
+    truth_boundary: str = (
+        TRUTH_BOUNDARY + " / ROUTING != DISPATCH / TASK_DIRECTIVE != EXECUTION / "
+        "TASK_DIRECTIVE != AUTHORITY / ELIGIBLE ACTION != AUTHORIZED PRIVILEGED ACTION"
+    )
+
+    @field_validator("source_result_digest")
+    @classmethod
+    def _digest_hex(cls, value: str) -> str:
+        if not re.fullmatch(r"^[0-9a-f]{64}$", value):
+            raise ValueError("source_result_digest must be a SHA-256 hex digest")
+        return value
+
+    @field_validator("reasons")
+    @classmethod
+    def _bound_reasons(cls, value: list[str]) -> list[str]:
+        return [item[:2048] for item in value]
+
+    @model_validator(mode="after")
+    def _route_invariants(self) -> OrchestrationRoute:
+        if self.execution_authorized is not False:
+            raise ValueError("AS-ORCH-001B has no execution authority")
+        if (
+            self.permissions.merge
+            or self.permissions.production_mutation
+            or self.permissions.authority_grant
+        ):
+            raise ValueError("AS-ORCH-001B cannot grant privileged permissions")
+        if self.route_kind == RouteKind.TASK:
+            if not self.dispatchable:
+                raise ValueError("task routes mark typed work as dispatchable, not executed")
+            if self.owner_gate:
+                raise ValueError("task routes are not owner gates")
+            if self.task is None or self.task_type is None:
+                raise ValueError("task routes require TaskDirective and task_type")
+            if self.target.kind != TargetKind.AGENT or self.target.role is None:
+                raise ValueError("task routes require an agent target role")
+            if self.task.transition != self.transition:
+                raise ValueError("TaskDirective.transition must match the route transition")
+            if self.task.task_type != self.task_type:
+                raise ValueError("TaskDirective.task_type must match the route task_type")
+            if self.task.source_result_digest != self.source_result_digest:
+                raise ValueError("TaskDirective digest must match the route binding")
+        elif self.route_kind == RouteKind.OWNER_GATE:
+            if self.dispatchable:
+                raise ValueError("owner_gate routes are not dispatchable")
+            if not self.owner_gate:
+                raise ValueError("owner_gate routes must set owner_gate")
+            if self.task is not None or self.task_type is not None:
+                raise ValueError("owner_gate routes must not synthesize a TaskDirective")
+            if self.target.kind != TargetKind.OWNER_GATE:
+                raise ValueError("owner_gate target.kind must be owner_gate")
+            if self.transition != NextTransition.OWNER_REQUIRED:
+                raise ValueError("owner_gate is only valid for OWNER_REQUIRED")
+        elif self.route_kind == RouteKind.TERMINAL:
+            if self.dispatchable:
+                raise ValueError("terminal routes are not dispatchable")
+            if self.owner_gate:
+                raise ValueError("terminal routes are not owner gates")
+            if self.task is not None or self.task_type is not None:
+                raise ValueError("terminal routes must not synthesize a TaskDirective")
+            if self.target.kind != TargetKind.TERMINAL:
+                raise ValueError("terminal target.kind must be terminal")
+            if self.transition not in {
+                NextTransition.BLOCKED,
+                NextTransition.REJECTED,
+                NextTransition.BLOCKED_UNKNOWN_STATE,
+            }:
+                raise ValueError("terminal route has an unexpected transition")
+        return self
+
+    def to_public_dict(self) -> dict[str, object]:
+        """Compact machine-readable route for the read-only CLI."""
+        role = self.target.role.value if self.target.role is not None else None
+        task_type = self.task_type.value if self.task_type is not None else None
+        return {
+            "schema_version": self.schema_version,
+            "package_id": self.package_id,
+            "policy_id": self.policy_id,
+            "policy_version": self.policy_version,
+            "route_kind": self.route_kind.value,
+            "transition": self.transition.value,
+            "target_kind": self.target.kind.value,
+            "target_role": role,
+            "task_type": task_type,
+            "owner_gate": self.owner_gate,
+            "dispatchable": self.dispatchable,
+            "execution_authorized": False,
+            "source_result_digest": self.source_result_digest,
+            "task_id": self.source.task_id,
+            "permissions": self.permissions.model_dump(mode="json"),
+            "reasons": list(self.reasons),
+        }

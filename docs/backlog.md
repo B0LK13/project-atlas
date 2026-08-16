@@ -406,7 +406,39 @@ Honesty (mandatory):
 - [x] ORCH001A-005 Read-only CLI `atlas orchestrator validate-result`
 - [x] ORCH001A-006 Focused unit tests + schema/model parity
 - [ ] ORCH001A-007 Independent integration verification
-- [ ] ORCH001B Policy Router (follow-up; not this package)
+- [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
+- [ ] ORCH001C Cursor Integration (follow-up; not this package)
+- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
+
+## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Routes a 001A `OrchestrationDecision` to a typed `TaskDirective` or an explicit owner-gate / terminal result. Does **not** dispatch, create Cursor hooks, execute tasks, merge, or grant owner authority. `execution_authorized = false` always._
+
+Honesty (mandatory):
+
+- `STRUCTURED_RESULT_CONTRACT = IMPLEMENTED`
+- `DETERMINISTIC_CLASSIFICATION = IMPLEMENTED`
+- `DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED`
+- `TYPED_TASK_DIRECTIVE = IMPLEMENTED`
+- `ROUTING POLICY IMPLEMENTED`
+- `RUNTIME AUTOMATIC ROUTING NOT IMPLEMENTED`
+- `CURSOR_HOOK = NOT_IMPLEMENTED`
+- `AGENT_DISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP = NOT_IMPLEMENTED`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+
+Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. There is no `implementation` role. `REMEDIATION_REQUIRED` targets `local` (least-authoritative existing role). Recertification remains `integration`.
+
+- [x] ORCH001B-001 Typed `TaskDirective` + fail-closed `DirectivePermissions`
+- [x] ORCH001B-002 Discriminated `OrchestrationRoute` (`task` | `owner_gate` | `terminal`)
+- [x] ORCH001B-003 Deterministic policy table over 001A `NextTransition` values
+- [x] ORCH001B-004 Source-result digest binding + decision/envelope consistency
+- [x] ORCH001B-005 Read-only CLI `atlas orchestrator route-result`
+- [x] ORCH001B-006 Shipped JSON schemas + model/schema parity tests
+- [x] ORCH001B-007 Focused unit + composition + privilege-invariant tests
+- [ ] ORCH001B-008 Independent integration verification
 - [ ] ORCH001C Cursor Integration (follow-up; not this package)
 - [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)

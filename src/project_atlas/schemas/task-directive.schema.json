@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/task-directive.schema.json",
+  "title": "TaskDirective",
+  "description": "AS-ORCH-001B typed follow-up task semantics. TASK_DIRECTIVE != EXECUTION; TASK_DIRECTIVE != AUTHORITY; ROUTING != DISPATCH. additionalProperties:false fails closed against executable payloads and privilege smuggling.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source",
+    "transition",
+    "target",
+    "task_type",
+    "permissions",
+    "owner_gate",
+    "execution_authorized",
+    "source_result_digest",
+    "policy_id",
+    "policy_version",
+    "inputs"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "source": { "$ref": "#/$defs/taskSource" },
+    "transition": { "$ref": "#/$defs/taskTransition" },
+    "target": { "$ref": "#/$defs/agentTarget" },
+    "task_type": {
+      "enum": [
+        "candidate_verification",
+        "recertification",
+        "program_reconciliation",
+        "remediation"
+      ]
+    },
+    "permissions": { "$ref": "#/$defs/permissions" },
+    "owner_gate": { "const": false },
+    "execution_authorized": { "const": false },
+    "source_result_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "policy_id": { "const": "atlas-orchestration-routing" },
+    "policy_version": { "const": 1 },
+    "inputs": { "$ref": "#/$defs/inputs" }
+  },
+  "$defs": {
+    "taskSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "attempt", "producer_role"],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "attempt": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "producer_role": { "enum": ["local", "integration", "autonomous"] }
+      }
+    },
+    "taskTransition": {
+      "enum": [
+        "INTEGRATION_VERIFY",
+        "RECERTIFY_REQUIRED",
+        "AUTONOMOUS_RECONCILE",
+        "REMEDIATION_REQUIRED"
+      ]
+    },
+    "agentTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "role"],
+      "properties": {
+        "kind": { "const": "agent" },
+        "role": { "enum": ["local", "integration", "autonomous"] }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_write",
+        "branch_write",
+        "pull_request_write",
+        "merge",
+        "production_mutation",
+        "authority_grant"
+      ],
+      "properties": {
+        "repository_write": { "const": false },
+        "branch_write": { "const": false },
+        "pull_request_write": { "const": false },
+        "merge": { "const": false },
+        "production_mutation": { "const": false },
+        "authority_grant": { "const": false }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome",
+        "state",
+        "target_moved",
+        "unauthorized_mutations",
+        "receipt_status",
+        "blocker_codes"
+      ],
+      "properties": {
+        "outcome": { "enum": ["PASS", "FAIL", "BLOCKED"] },
+        "state": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+        },
+        "target_moved": { "type": "boolean" },
+        "unauthorized_mutations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "receipt_status": {
+          "oneOf": [
+            { "type": "null" },
+            { "enum": ["valid", "pending", "rejected"] }
+          ]
+        },
+        "blocker_codes": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Z][A-Z0-9_]{0,63}$"
+          }
+        }
+      }
+    }
+  }
+}

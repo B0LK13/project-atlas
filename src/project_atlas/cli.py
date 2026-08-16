@@ -2343,13 +2343,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     live_l3.add_argument("--json", action="store_true")
 
-    # AS-ORCH-001A — read-only result validation / transition classification.
-    # Classification != execution. Does not dispatch, merge, or grant authority.
+    # AS-ORCH-001A/001B — read-only classify + route. Not dispatch.
     orch_parser = subparsers.add_parser(
         "orchestrator",
         help=(
-            "Read-only agent-result validation and transition classification "
-            "(AS-ORCH-001A; classification != execution; no dispatch)."
+            "Read-only agent-result classification and policy routing "
+            "(AS-ORCH-001A/001B; classification != execution; routing != dispatch)."
         ),
     )
     orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
@@ -2375,6 +2374,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
     )
     orch_validate.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_route = orch_sub.add_parser(
+        "route-result",
+        help=(
+            "Validate, classify, and apply the deterministic routing policy. "
+            "Prints a machine-readable route. Does not dispatch or execute."
+        ),
+        description=(
+            "Validate an AgentResultEnvelope, classify it with AS-ORCH-001A, "
+            "and apply the AS-ORCH-001B routing policy. Does not dispatch or execute."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas orchestrator route-result result.json\n"
+            "  atlas orchestrator route-result --stdin < result.json\n"
+            "  cat result.json | atlas orchestrator route-result -\n"
+        ),
+    )
+    orch_route.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_route.add_argument(
         "--stdin",
         action="store_true",
         dest="from_stdin",
@@ -4563,6 +4593,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 stdin=sys.stdin,
             )
             print(json.dumps(decision.to_public_dict(), indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "route-result":
+            from project_atlas.orchestration import run_route_result
+
+            routed, exit_code = run_route_result(
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+            )
+            print(json.dumps(routed.to_public_dict(), indent=2, sort_keys=True))
             return exit_code
         parser.error(  # pragma: no cover
             f"unknown orchestrator command: {args.orchestrator_command}"
