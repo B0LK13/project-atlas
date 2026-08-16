@@ -21,9 +21,10 @@ import json
 import os
 import re
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Mapping
+from typing import Any, Final, NoReturn
 
 from atlas_contracts.identity import ensure_under_root, safe_relative_component
 from atlas_contracts.versions import ID_PATTERN
@@ -64,6 +65,10 @@ class ReceiptBindingError(ValueError):
         super().__init__(message)
         if code is not None:
             self.code = code
+
+
+def _closed(code: str, message: str) -> NoReturn:
+    raise ReceiptBindingError(message, code=code)
 
 
 @dataclass(frozen=True)
@@ -158,7 +163,7 @@ def resolve_canonical_receipt_path(workspace: Path, receipt_id: str) -> Path:
     filename = f"{receipt_id}.json"
     path = _join_atlas(workspace, CANONICAL_RECEIPTS_RELATIVE, filename, label="receipt_id")
     if path.name != filename or path.suffix != ".json":
-        raise ReceiptBindingError("receipt path is not a canonical json artifact", code="RECEIPT_TAMPERED")
+        _closed("RECEIPT_TAMPERED", "receipt path is not a canonical json artifact")
     candidate = canonical_receipts_root(workspace) / filename
     if candidate.is_symlink() or path.is_symlink():
         raise ReceiptBindingError("refusing symlink receipt path", code="RECEIPT_TAMPERED")
@@ -213,7 +218,7 @@ def _workspace_vault_binding(workspace: Path) -> dict[str, str]:
 
 
 def _skill_binding() -> dict[str, Any]:
-    material = f"{MANAGED_SKILL_ID}:{MANAGED_SKILL_VERSION}".encode("utf-8")
+    material = f"{MANAGED_SKILL_ID}:{MANAGED_SKILL_VERSION}".encode()
     return {
         "id": MANAGED_SKILL_ID,
         "version": MANAGED_SKILL_VERSION,
@@ -297,7 +302,8 @@ def _validate_gate_state(state: Mapping[str, Any]) -> list[str]:
         errors.append("pending spool events")
     captured = int(pipeline_obj.get("captured", 0) or 0)
     if captured and not all(
-        int(pipeline_obj.get(key, 0) or 0) >= captured for key in ("normalized", "verified", "routed")
+        int(pipeline_obj.get(key, 0) or 0) >= captured
+        for key in ("normalized", "verified", "routed")
     ):
         errors.append("capture pipeline is not normalized, verified and routed")
     skill = state.get("skill", {})
@@ -325,7 +331,10 @@ def ensure_managed_dispatch_session(
         try:
             existing = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            raise ReceiptBindingError("managed session is unreadable", code="RECEIPT_TAMPERED") from exc
+            raise ReceiptBindingError(
+                "managed session is unreadable",
+                code="RECEIPT_TAMPERED",
+            ) from exc
         if isinstance(existing, dict):
             session = existing.get("session")
             if (
@@ -397,7 +406,10 @@ def issue_managed_dispatch_receipt(
         try:
             existing = path.read_text(encoding="utf-8")
         except OSError as exc:
-            raise ReceiptBindingError("canonical receipt is unreadable", code="RECEIPT_TAMPERED") from exc
+            raise ReceiptBindingError(
+                "canonical receipt is unreadable",
+                code="RECEIPT_TAMPERED",
+            ) from exc
         if existing != content:
             raise ReceiptBindingError(
                 "immutable session receipt collision",
@@ -424,7 +436,10 @@ def load_canonical_receipt(workspace: Path, receipt_id: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ReceiptBindingError("canonical receipt is malformed", code="RECEIPT_TAMPERED") from exc
+        raise ReceiptBindingError(
+            "canonical receipt is malformed",
+            code="RECEIPT_TAMPERED",
+        ) from exc
     if not isinstance(payload, dict):
         raise ReceiptBindingError("canonical receipt is malformed", code="RECEIPT_TAMPERED")
     return payload
@@ -447,9 +462,9 @@ def verify_canonical_receipt_payload(
 ) -> dict[str, Any]:
     """Independently verify canonical receipt truth. Envelope copies are ignored."""
     if payload.get("receipt_id") != receipt_id:
-        raise ReceiptBindingError("canonical receipt_id does not match reference", code="RECEIPT_TAMPERED")
+        _closed("RECEIPT_TAMPERED", "canonical receipt_id does not match reference")
     if payload.get("status") != "passed":
-        raise ReceiptBindingError("canonical receipt is not in a successful state", code="RECEIPT_NOT_VALID")
+        _closed("RECEIPT_NOT_VALID", "canonical receipt is not in a successful state")
     if payload.get("authority_role") != "evidence-only":
         raise ReceiptBindingError("canonical receipt is not evidence-only", code="RECEIPT_TAMPERED")
     _require_false(payload, "is_authority")
@@ -458,7 +473,7 @@ def verify_canonical_receipt_payload(
     if not isinstance(session, dict):
         raise ReceiptBindingError("canonical receipt session is missing", code="RECEIPT_TAMPERED")
     if session.get("task_id") != target.dispatch_task_id:
-        raise ReceiptBindingError("canonical receipt task does not match dispatch", code="RECEIPT_BINDING_MISMATCH")
+        _closed("RECEIPT_BINDING_MISMATCH", "canonical receipt task does not match dispatch")
     if session.get("session_id") != target.managed_session_id:
         raise ReceiptBindingError(
             "canonical receipt session does not match dispatch",
@@ -487,7 +502,7 @@ def verify_canonical_receipt_payload(
         )
     validation = payload.get("validation")
     if not isinstance(validation, dict):
-        raise ReceiptBindingError("canonical receipt validation is missing", code="RECEIPT_TAMPERED")
+        _closed("RECEIPT_TAMPERED", "canonical receipt validation is missing")
     for field in _VALIDATION_PASSED_FIELDS:
         if validation.get(field) != "passed":
             raise ReceiptBindingError(
@@ -501,11 +516,11 @@ def verify_canonical_receipt_payload(
         raise ReceiptBindingError("canonical receipt pipeline failed", code="RECEIPT_NOT_VALID")
     for value in pipeline.values():
         if value in _FAILED_PIPELINE_TOKENS:
-            raise ReceiptBindingError("canonical receipt pipeline is unverified", code="RECEIPT_NOT_VALID")
+            _closed("RECEIPT_NOT_VALID", "canonical receipt pipeline is unverified")
     captured = int(pipeline.get("captured", 0) or 0)
     for key in _PIPELINE_COUNTERS[1:]:
         if int(pipeline.get(key, 0) or 0) < captured:
-            raise ReceiptBindingError("canonical receipt pipeline is incomplete", code="RECEIPT_NOT_VALID")
+            _closed("RECEIPT_NOT_VALID", "canonical receipt pipeline is incomplete")
     events = payload.get("events")
     if not isinstance(events, dict):
         raise ReceiptBindingError("canonical receipt events are missing", code="RECEIPT_TAMPERED")
@@ -517,7 +532,7 @@ def verify_canonical_receipt_payload(
             )
     skill = payload.get("skill")
     if not isinstance(skill, dict) or not skill.get("sha256"):
-        raise ReceiptBindingError("canonical receipt skill hash is missing", code="RECEIPT_TAMPERED")
+        _closed("RECEIPT_TAMPERED", "canonical receipt skill hash is missing")
     return dict(payload)
 
 

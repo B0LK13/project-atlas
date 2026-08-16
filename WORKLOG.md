@@ -6907,3 +6907,59 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - NEW_REGRESSIONS = none
 - MERGE_PERFORMED = NO
 - STATE = REMEDIATED — READY FOR RE-CERTIFICATION
+
+---
+
+## AS-ORCH-001D-R2 — Canonical Receipt Authenticity + Managed Read-Only Dispatch Evidence
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001D-R2-RECEIPT-BINDING-001
+**Package:** AS-ORCH-001D-R2
+**Branch:** `cursor/as-orch-001d-agent-dispatcher-d054`
+**PR:** #396
+**Base:** live `origin/main` `122ad8b11236dbc906c5e245054b090e4ff8e006` / TREE `0d13568f3964a58a0b91d99519c95aa2020020e4`
+**OLD_PR_HEAD:** `94c2785212d460364368eab4d710ed7639858027`
+**OLD_PR_TREE:** `42e85000bc6c98f817949bc9d2bc29f4fe8f836d`
+
+### Root cause
+R1 treated `AgentResultEnvelope.receipt.status == "valid"` as sufficient evidence. Cursor structured JSON `result` is model-generated assistant output, so a target could self-assert `receipt_id` + `status=valid` with no canonical Atlas receipt.
+
+### Remediation
+- Added `project_atlas.orchestration.canonical_session_receipt` as a small Core adapter over the existing control-plane store (`.atlas/receipts/{receipt_id}.json`) and `receipt_gate.issue` payload shape. Core does not import `atlas-vault-documentation`.
+- `submit_target_result` (CLI path B and terminal-JSON path C) now requires canonical receipt authenticity. Envelope `receipt.status` alone is never sufficient.
+- A `status=valid` claim without a bound artifact fails `RECEIPT_NOT_FOUND`. Pending/missing claims receive a managed evidence-only session receipt issued by Atlas; only the receipt binding is replaced.
+- Canonical verification checks `status=passed`, `authority_role=evidence-only`, `is_authority=false`, `receipt_is_authority=false`, task/session/dispatch/project binding, validation, and pipeline. Path lookup is fail-closed (no traversal, symlink, absolute, or alternate-extension lookup).
+- Finalize and recover re-verify the canonical receipt before source ack / staging. Receipt authenticity failure leaves the source handoff recoverable.
+- Ask mode, stdin prompt, no `--force`, and Windows `.CMD` launch remain unchanged.
+
+### Honesty
+- MODEL_CAN_SELF_ASSERT_RECEIPT_VALIDITY = NO
+- ENVELOPE_RECEIPT_STATUS_ALONE_IS_SUFFICIENT = NO
+- TERMINAL_JSON_SELF_ATTESTED_RECEIPT = REJECTED
+- SUBMIT_RESULT_RECEIPT_AUTHENTICITY = SAME_AS_TERMINAL_JSON_PATH
+- RECEIPT_IS_AUTHORITY = NO
+- DISPATCH_RECEIPT_IS_AUTHORITY = NO
+- SOURCE_ACK_REQUIRES_VERIFIED_RECEIPT = YES
+- RECOVERY_REVALIDATES_RECEIPT = YES
+- READ_ONLY_CURSOR_MODE = ask
+- READ_ONLY_DISPATCH_USES_FORCE = NO
+- PYTHON_SHELL_TRUE = NO
+- PROMPT_TRANSPORT = stdin
+- MAX_ACTIVE_DISPATCHES = 1
+- NEXT_HANDOFF_AUTODISPATCHED = NO
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- AUTHENTIC_WINDOWS_CURSOR_AGENT_DISPATCH = NOT_YET_CERTIFIED
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Local verification
+- Focused orchestration tests: 201 passed (001A/B/C/D + R2 receipt matrix)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- Combined focused+contract: 211 passed
+- `ruff check .`: pass
+- `mypy src`: pass (229 source files)
+- Full `pytest --override-ini='addopts='`: 3042 collected; 3035 passed, 3 failed, 3 skipped, 1 xfailed
+- The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases. Not this package. Do not call full pytest PASS.
+- OLD_CI_RUN = 31956522215 (historical only; do not reuse for R2)
+- NEW_REGRESSIONS = none
+- MERGE_PERFORMED = NO
+- STATE = REMEDIATED — READY FOR RE-CERTIFICATION

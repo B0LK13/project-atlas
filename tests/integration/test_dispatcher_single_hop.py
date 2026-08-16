@@ -173,7 +173,9 @@ def test_terminal_json_fake_valid_receipt_is_rejected(tmp_path: Path) -> None:
             }
             return ProcessRunOutcome(
                 exit_code=0,
-                stdout=json.dumps({"type": "result", "is_error": False, "result": envelope}).encode(),
+                stdout=json.dumps(
+                    {"type": "result", "is_error": False, "result": envelope}
+                ).encode(),
                 stderr=b"",
                 timed_out=False,
                 duration_ms=4,

@@ -787,7 +787,8 @@ def submit_target_result(
     result_file = result_path(workspace, dispatch_id)
     existing = load_result_binding(workspace, dispatch_id) if result_file.is_file() else None
     if existing is not None:
-        if existing.raw_target_result_digest == raw_digest or existing.envelope_digest == raw_digest:
+        same_raw = existing.raw_target_result_digest == raw_digest
+        if same_raw or existing.envelope_digest == raw_digest:
             _reverify_bound_envelope(existing.envelope, record, workspace)
             return existing
         raise DispatchResultAlreadyBound("DISPATCH_RESULT_ALREADY_BOUND")

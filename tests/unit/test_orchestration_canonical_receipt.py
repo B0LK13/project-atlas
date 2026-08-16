@@ -7,6 +7,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.unit.test_orchestration_dispatcher import (
+    ScriptedRunner,
+    _ok_outcome,
+    _payload,
+    _request_prompt,
+    _target_payload,
+    _workspace,
+)
 
 from project_atlas.cli import EXIT_ERROR, main
 from project_atlas.orchestration.agent_transport import ProcessRunOutcome, ProcessRunRequest
@@ -33,21 +41,32 @@ from project_atlas.orchestration.dispatcher import (
 from project_atlas.orchestration.models import AgentResultEnvelope
 from project_atlas.orchestration.validator import parse_envelope
 
-from tests.unit.test_orchestration_dispatcher import (
-    ScriptedRunner,
-    _ok_outcome,
-    _payload,
-    _request_prompt,
-    _target_payload,
-    _workspace,
-)
+
+def _id_from_prompt(text: str) -> str:
+    return text.rsplit("dispatch-submit-result ", 1)[1].split()[0]
+
+
+def _result_binding_path(workspace: Path, dispatch_id: str) -> Path:
+    return (
+        workspace
+        / ".atlas"
+        / "orchestration"
+        / "dispatcher"
+        / "results"
+        / f"{dispatch_id}.json"
+    )
+
+
+def _cursor_stdout(envelope: dict[str, Any]) -> bytes:
+    return json.dumps({"type": "result", "is_error": False, "result": envelope}).encode()
 
 
 def _prepare_running_dispatch(workspace: Path) -> str:
     captured: dict[str, str] = {}
 
     def on_run(request: ProcessRunRequest) -> None:
-        captured["id"] = request.stdin.decode("utf-8").rsplit("dispatch-submit-result ", 1)[1].split()[0]
+        assert request.stdin is not None
+        captured["id"] = _id_from_prompt(request.stdin.decode("utf-8"))
         raise RuntimeError("stop-before-submit")
 
     stage_result(_payload(), root=workspace)
@@ -56,7 +75,9 @@ def _prepare_running_dispatch(workspace: Path) -> str:
     return captured["id"]
 
 
-def _bind_target(workspace: Path, dispatch_id: str, *, role: str = "integration") -> DispatchReceiptBindTarget:
+def _bind_target(
+    workspace: Path, dispatch_id: str, *, role: str = "integration"
+) -> DispatchReceiptBindTarget:
     return DispatchReceiptBindTarget(
         dispatch_id=dispatch_id,
         dispatch_task_id=f"d.{dispatch_id}",
@@ -131,7 +152,7 @@ def test_self_attested_valid_receipt_is_rejected(tmp_path: Path) -> None:
             root=workspace,
         )
     assert exc.value.code == "RECEIPT_NOT_FOUND"
-    assert not (workspace / ".atlas" / "orchestration" / "dispatcher" / "results" / f"{dispatch_id}.json").is_file()
+    assert not _result_binding_path(workspace, dispatch_id).is_file()
     assert (workspace / STATE_RELATIVE).is_file()
 
 
@@ -164,7 +185,7 @@ def test_submit_result_cli_rejects_self_attested_receipt(
     report = json.loads(capsys.readouterr().out)
     assert report["ok"] is False
     assert report["error"] == "RECEIPT_NOT_FOUND"
-    assert not (workspace / ".atlas" / "orchestration" / "dispatcher" / "results" / f"{dispatch_id}.json").is_file()
+    assert not _result_binding_path(workspace, dispatch_id).is_file()
 
 
 def test_pending_and_missing_receipt_are_issued(tmp_path: Path) -> None:
@@ -301,7 +322,7 @@ def test_terminal_json_self_attested_receipt_does_not_ack(tmp_path: Path) -> Non
             )
             return ProcessRunOutcome(
                 exit_code=0,
-                stdout=json.dumps({"type": "result", "is_error": False, "result": envelope}).encode(),
+                stdout=_cursor_stdout(envelope),
                 stderr=b"",
                 timed_out=False,
                 duration_ms=3,
@@ -335,7 +356,7 @@ def test_terminal_json_with_bound_canonical_receipt(tmp_path: Path) -> None:
             )
             return ProcessRunOutcome(
                 exit_code=0,
-                stdout=json.dumps({"type": "result", "is_error": False, "result": envelope}).encode(),
+                stdout=_cursor_stdout(envelope),
                 stderr=b"",
                 timed_out=False,
                 duration_ms=3,
@@ -371,7 +392,7 @@ def test_recovery_revalidates_receipt(tmp_path: Path, monkeypatch: pytest.Monkey
     runner = ScriptedRunner(_ok_outcome(), on_run=on_run)
     with pytest.raises(RuntimeError):
         run_dispatch_once(root=workspace, runner=runner)
-    dispatch_id = _request_prompt(runner.requests[0]).rsplit("dispatch-submit-result ", 1)[1].split()[0]
+    dispatch_id = _id_from_prompt(_request_prompt(runner.requests[0]))
     receipts = workspace / ".atlas" / "receipts"
     for path in receipts.glob("ASR-*.json"):
         path.unlink()
