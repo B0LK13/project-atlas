@@ -49,6 +49,11 @@ const PROD = [
     title: "Roadmap",
     blurb: "Living Project Roadmap V1 — derived; ROADMAP≠canonical.",
   },
+  {
+    to: "/intelligence",
+    title: "Intelligence",
+    blurb: "Read-only derived intelligence — DERIVED≠authority.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

@@ -300,6 +300,31 @@ def make_handler(
                 except AppServiceError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/source-health":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "source-health-requires-project",
+                            "package_id": "AS-CODER-ALPHA-SOURCE-HEALTH-API-001",
+                            "honesty": "UNSUPPORTED_SCOPE",
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.source_health(project))
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-SOURCE-HEALTH-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                return
             if path == "/v1/actions/recent":
                 try:
                     limit = _parse_limit(qs, default=20)
@@ -321,6 +346,123 @@ def make_handler(
                     )
                 except ValueError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path in {
+                "/v1/intelligence/evidence",
+                "/v1/intelligence/conflicts",
+                "/v1/intelligence/explain",
+                "/v1/intelligence/query",
+                "/v1/project-state",
+                "/v1/project-attention",
+            }:
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                as_of = (qs.get("as_of_valid_time") or qs.get("as_of") or [""])[0]
+                subject = (qs.get("subject") or [""])[0] or None
+                field = (qs.get("field") or [""])[0] or None
+                claim_id = (qs.get("claim_id") or [""])[0] or None
+                kind = (qs.get("kind") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "intel-api-project-id-required",
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": "MALFORMED_INPUT",
+                        },
+                    )
+                    return
+                try:
+                    if path == "/v1/intelligence/evidence":
+                        payload = service.intelligence_evidence(
+                            project,
+                            subject=subject,
+                            field=field,
+                            claim_id=claim_id,
+                            as_of_valid_time=as_of or None,
+                        )
+                    elif path == "/v1/intelligence/conflicts":
+                        payload = service.intelligence_conflicts(
+                            project, as_of_valid_time=as_of or None
+                        )
+                    elif path == "/v1/intelligence/explain":
+                        payload = service.intelligence_explain(
+                            project,
+                            subject=subject,
+                            field=field,
+                            claim_id=claim_id,
+                            as_of_valid_time=as_of or None,
+                        )
+                    elif path == "/v1/intelligence/query":
+                        payload = service.intelligence_query(
+                            project,
+                            kind,
+                            subject=subject,
+                            field=field,
+                            claim_id=claim_id,
+                            as_of_valid_time=as_of or None,
+                        )
+                    elif path == "/v1/project-state":
+                        payload = service.project_state(
+                            project, as_of_valid_time=as_of or None
+                        )
+                    else:
+                        payload = service.project_attention(
+                            project, as_of_valid_time=as_of or None
+                        )
+                    self._send(200, payload)
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                except OSError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": f"intel-api-filesystem-unreadable:{exc.__class__.__name__}",
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": "MALFORMED_INPUT",
+                        },
+                    )
+                return
+            if path == "/v1/portfolio-state":
+                project_ids = tuple(
+                    item
+                    for item in (qs.get("project") or qs.get("project_id") or [])
+                    if item.strip()
+                )
+                as_of = (qs.get("as_of_valid_time") or qs.get("as_of") or [""])[0]
+                try:
+                    self._send(
+                        200,
+                        service.portfolio_state(
+                            project_ids, as_of_valid_time=as_of or None
+                        ),
+                    )
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                except OSError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": f"intel-api-filesystem-unreadable:{exc.__class__.__name__}",
+                            "package_id": "AS-2.0-API-001",
+                            "honesty": "MALFORMED_INPUT",
+                        },
+                    )
                 return
             if path == "/v1/conflicts":
                 project = (qs.get("project") or [""])[0]
@@ -381,8 +523,10 @@ def make_handler(
                     "mission_live": True,
                     "workspace_live": True,
                     "conflicts_live": True,
+                    "intelligence_live": True,
                     "kdiff_live": True,
                     "brief_live": True,
+                    "source_health_live": True,
                     "discovery_live": True,
                     "truth_ux_live": True,
                     "authz_profile": True,
@@ -507,6 +651,14 @@ def make_handler(
             self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
 
         def do_DELETE(self) -> None:
+            if not self._host_ok():
+                self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
+                return
+            if self._authenticate() is None:
+                return
+            self._send(405, {"error": "writes-forbidden", "package_id": PACKAGE_ID})
+
+        def do_PATCH(self) -> None:
             if not self._host_ok():
                 self._send(403, {"error": "host-non-local-forbidden", "package_id": PACKAGE_ID})
                 return
