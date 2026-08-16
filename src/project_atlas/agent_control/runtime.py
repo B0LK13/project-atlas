@@ -7,9 +7,11 @@ implementations callable from the installed Core package without copying them.
 Receipt validate/issue are not loaded from here; they live in
 ``project_atlas.agent_control.receipt_gate``.
 
-Production MDA resolution never discovers repository test fixtures.
+Production MDA resolution never discovers repository test fixtures and
+never consults test-provider state.
+PRODUCTION_PREPARE_USES_TEST_INJECTION = NO
+PRODUCTION_LIFECYCLE_CAN_OBSERVE_TEST_INJECTION = NO
 TEST_MDA_FIXTURE_AUTO_SELECTED_IN_PRODUCTION = NO
-TEST_FIXTURE_REQUIRES_EXPLICIT_INJECTION = YES
 MOCK_MDA_VERSION_ACCEPTED = NO
 PIPELINE_PROVIDER_ENVIRONMENT_SCOPED = YES
 """
@@ -33,7 +35,6 @@ _TEST_PATH_COMPONENTS: Final[frozenset[str]] = frozenset(
     {"tests", "test", "fixtures", "mock", "mocks"}
 )
 _VERSION_PROBE_TIMEOUT_SECONDS: Final[int] = 10
-_injected_test_provider: Path | None = None
 
 
 class ControlPlaneError(RuntimeError):
@@ -152,32 +153,6 @@ def probe_mda_version(executable: Path) -> str:
     return text.splitlines()[0].strip()
 
 
-def inject_test_mda_provider(path: Path) -> MdaProvider:
-    """Test-only explicit injection. Production resolution never calls this."""
-    global _injected_test_provider
-    candidate = Path(path).expanduser()
-    if not candidate.is_file():
-        raise _pipeline_unavailable("injected test MDA provider is not a file")
-    resolved = candidate.resolve()
-    _injected_test_provider = resolved
-    version = probe_mda_version(resolved)
-    return MdaProvider(
-        command=resolved,
-        source="test_injection",
-        version=version,
-        path_digest=_file_digest(resolved),
-    )
-
-
-def clear_test_mda_provider() -> None:
-    global _injected_test_provider
-    _injected_test_provider = None
-
-
-def injected_test_mda_provider() -> Path | None:
-    return _injected_test_provider
-
-
 def _require_production_file(path: Path) -> Path:
     if not path.is_file():
         raise _pipeline_unavailable("MDA provider is not a real file")
@@ -223,22 +198,6 @@ def resolve_production_mda_provider(
     raise _pipeline_unavailable("canonical event pipeline MDA is unavailable")
 
 
-def resolve_mda_provider(*, allow_test_injection: bool = False) -> MdaProvider:
-    """Resolve MDA for a governed event. Injection is test-only and explicit."""
-    if allow_test_injection and _injected_test_provider is not None:
-        path = _injected_test_provider
-        if not path.is_file():
-            raise _pipeline_unavailable("injected test MDA provider is missing")
-        version = probe_mda_version(path)
-        return MdaProvider(
-            command=path,
-            source="test_injection",
-            version=version,
-            path_digest=_file_digest(path),
-        )
-    return resolve_production_mda_provider()
-
-
 def resolve_mda_command() -> Path:
     """Production resolution only. Never falls back to the repository fixture."""
     return resolve_production_mda_provider().command
@@ -262,8 +221,8 @@ def scoped_mda_environment(provider: MdaProvider | None) -> Iterator[None]:
 
 
 def prepare_event_pipeline() -> MdaProvider:
-    """Resolve a trusted MDA provider. Does not permanently mutate the environment."""
-    return resolve_mda_provider(allow_test_injection=True)
+    """Resolve a trusted production MDA provider. Never consults test state."""
+    return resolve_production_mda_provider()
 
 
 def bootstrap_start(
