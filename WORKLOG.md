@@ -6807,3 +6807,45 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - Full `pytest`: 2981 collected; 2 failures, both `WinError 206` filename-too-long in eval-broker git history/secret tests (workspace environment; not this package). AS-MVP-001 calendar/mtime failures did not reproduce in this run. Observed 1 xfailed + 5 skipped in the progress output. Do not call full pytest PASS.
 - NEW_REGRESSIONS = none
 - Scenarios A-G: task / recertify / owner_gate / terminal / tamper reject / idempotent complete / transport equivalence; `execution_authorized=false`; `dispatch_performed=false`
+
+---
+
+## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher + Cursor CLI Process Transport
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001D-001
+**Package:** AS-ORCH-001D
+**Branch:** `cursor/as-orch-001d-agent-dispatcher-d054`
+**Base:** live `origin/main` `122ad8b11236dbc906c5e245054b090e4ff8e006` / TREE `0d13568f3964a58a0b91d99519c95aa2020020e4`
+**TARGET_MOVED:** NO
+
+### Scope implemented
+- Typed `DispatchRecord` / `DispatchReceipt` / `DispatchStatus` + shipped JSON schemas
+- Deterministic dispatch identity from trusted routing fields; `dispatch_task_id = d.<dispatch_id>`
+- Single-active-dispatch runtime under `.atlas/orchestration/dispatcher/` (already gitignored)
+- Cursor CLI argv transport (`agent` / `cursor-agent`, `--print --output-format json`, no shell, no `--resume`)
+- CLI: `dispatch-once`, `dispatch-status`, `dispatch-submit-result`, `dispatch-recover`
+- Target result stored in dispatcher runtime first; 001C stage + explicit complete only after process success + valid bound result
+- Owner/terminal: no process. Mutating remediation/reconcile: `CAPABILITY_REQUIRED`
+- Crash recovery finalizes without respawn. Next HandoffPacket is not auto-dispatched.
+
+### Honesty
+- SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED
+- CURSOR_CLI_PROCESS_TRANSPORT = IMPLEMENTED
+- CURSOR_CLI_PROCESS_SIMULATION = PASS
+- AUTHENTIC_WINDOWS_CURSOR_AGENT_DISPATCH = NOT_YET_CERTIFIED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED
+- PARALLEL_AGENT_FANOUT = NOT_IMPLEMENTED
+- AUTOMATIC_MERGE = NOT_IMPLEMENTED
+- DISPATCH_RECEIPT_IS_AUTHORITY = NO
+- CURSOR_STOP_EVENT_REQUIRED_FOR_DISPATCH = NO
+- MUTATING_REMEDIATION_AUTO_DISPATCH = BLOCKED_PENDING_EXISTING_AUTHORITY_BINDING
+- PROCESS_DISPATCH != PRIVILEGED EXECUTION AUTHORITY
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Local verification
+- Focused orchestration tests: 175 passed (001A/B/C 140 + transport 9 + dispatcher unit 22 + dispatcher integration 4)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- Combined focused+contract: 185 passed
+- Quality gates (ruff / mypy / full pytest) recorded after this entry if a follow-up commit is required.

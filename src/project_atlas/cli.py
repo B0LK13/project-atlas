@@ -2343,13 +2343,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     live_l3.add_argument("--json", action="store_true")
 
-    # AS-ORCH-001A/001B/001C — classify, route, Cursor bridge. Not dispatch.
+    # AS-ORCH-001A/001B/001C/001D — classify, route, Cursor bridge, single-hop dispatch.
     orch_parser = subparsers.add_parser(
         "orchestrator",
         help=(
-            "Agent-result classification, policy routing, and Cursor bridge "
-            "(AS-ORCH-001A/001B/001C; routing != dispatch; hook != execution; "
-            "explicit completion != dispatch)."
+            "Agent-result classification, policy routing, Cursor bridge, and "
+            "single-hop dispatch (AS-ORCH-001A/001B/001C/001D; routing != loop; "
+            "hook != execution; dispatch-once != autonomous loop)."
         ),
     )
     orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
@@ -2481,6 +2481,80 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_dispatch_once = orch_sub.add_parser(
+        "dispatch-once",
+        help=(
+            "Single-hop governed dispatch for a HANDOFF_READY task route. "
+            "Starts at most one target process. Does not dispatch the next "
+            "HandoffPacket. Does not grant authority."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n  atlas orchestrator dispatch-once --root <repo>\n",
+    )
+    orch_dispatch_once.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for dispatcher and bridge state (default: cwd).",
+    )
+    orch_dispatch_status = orch_sub.add_parser(
+        "dispatch-status",
+        help="Read-only dispatcher diagnostics. Does not start a process.",
+    )
+    orch_dispatch_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for dispatcher state (default: cwd).",
+    )
+    orch_dispatch_submit = orch_sub.add_parser(
+        "dispatch-submit-result",
+        help=(
+            "Submit a target AgentResultEnvelope for an active dispatch. "
+            "Validates evidence only. Does not stage the 001C slot."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas orchestrator dispatch-submit-result <dispatch-id> result.json\n"
+        ),
+    )
+    orch_dispatch_submit.add_argument("dispatch_id", help="Deterministic dispatch identity.")
+    orch_dispatch_submit.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_dispatch_submit.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_dispatch_submit.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for dispatcher state (default: cwd).",
+    )
+    orch_dispatch_recover = orch_sub.add_parser(
+        "dispatch-recover",
+        help=(
+            "Finish finalization for a dispatch that already has a bound "
+            "result. Never starts a target process."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n  atlas orchestrator dispatch-recover <dispatch-id>\n",
+    )
+    orch_dispatch_recover.add_argument("dispatch_id", help="Deterministic dispatch identity.")
+    orch_dispatch_recover.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for dispatcher state (default: cwd).",
     )
 
     return parser
@@ -4708,6 +4782,43 @@ def main(argv: Sequence[str] | None = None) -> int:
             from project_atlas.orchestration.cursor_bridge import run_cursor_complete
 
             report, exit_code = run_cursor_complete(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-once":
+            from project_atlas.orchestration.dispatcher import run_cli_dispatch_once
+
+            report, exit_code = run_cli_dispatch_once(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-status":
+            from project_atlas.orchestration.dispatcher import run_cli_dispatch_status
+
+            report, exit_code = run_cli_dispatch_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-submit-result":
+            from project_atlas.orchestration.dispatcher import run_cli_submit_result
+
+            report, exit_code = run_cli_submit_result(
+                dispatch_id=str(getattr(args, "dispatch_id", "")),
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-recover":
+            from project_atlas.orchestration.dispatcher import run_cli_recover
+
+            report, exit_code = run_cli_recover(
+                dispatch_id=str(getattr(args, "dispatch_id", "")),
                 root=Path(getattr(args, "root", None) or Path.cwd()),
             )
             print(json.dumps(report, indent=2, sort_keys=True))

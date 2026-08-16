@@ -408,7 +408,7 @@ Honesty (mandatory):
 - [ ] ORCH001A-007 Independent integration verification
 - [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
-- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (single-hop process start; no autonomous loop; authentic Windows Cursor dispatch NOT_YET_CERTIFIED)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 
 ## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
@@ -440,7 +440,7 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 - [x] ORCH001B-007 Focused unit + composition + privilege-invariant tests
 - [ ] ORCH001B-008 Independent integration verification
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
-- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (single-hop process start; no autonomous loop; authentic Windows Cursor dispatch NOT_YET_CERTIFIED)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 
 ## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
@@ -478,6 +478,46 @@ Honesty (mandatory):
 - [x] ORCH001C-R1-003 Transport-equivalence + tamper + idempotence proofs
 - [ ] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move)
 - [ ] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
-- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (single-hop process start; no autonomous loop; authentic Windows Cursor dispatch NOT_YET_CERTIFIED)
+- [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
+
+## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher + Cursor CLI Process Transport
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Authentic Windows Cursor agent dispatch is **not** certified from Cloud._
+
+Honesty (mandatory):
+
+- `STRUCTURED_RESULT_CONTRACT = IMPLEMENTED`
+- `DETERMINISTIC_CLASSIFICATION = IMPLEMENTED`
+- `DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED`
+- `EXPLICIT_COMPLETION_TRANSPORT = IMPLEMENTED`
+- `SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED`
+- `CURSOR_CLI_PROCESS_TRANSPORT = IMPLEMENTED`
+- `CURSOR_CLI_PROCESS_SIMULATION = PASS` (Cloud fake runner)
+- `AUTHENTIC_WINDOWS_CURSOR_AGENT_DISPATCH = NOT_YET_CERTIFIED`
+- `AUTONOMOUS_LOOP = NOT_IMPLEMENTED`
+- `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
+- `PARALLEL_AGENT_FANOUT = NOT_IMPLEMENTED`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `PROCESS_DISPATCH != PRIVILEGED EXECUTION AUTHORITY`
+- `DISPATCH_RECEIPT_IS_AUTHORITY = NO`
+- `CURSOR_STOP_EVENT_REQUIRED_FOR_DISPATCH = NO`
+- `MUTATING_REMEDIATION_AUTO_DISPATCH = BLOCKED_PENDING_EXISTING_AUTHORITY_BINDING`
+- `OWNER AUTHORITY = STILL REQUIRED`
+
+- [x] ORCH001D-001 Typed `DispatchRecord` / `DispatchReceipt` / `DispatchStatus` + shipped schemas
+- [x] ORCH001D-002 Deterministic dispatch identity + `dispatch_task_id` bound to Atlas `ID_PATTERN`
+- [x] ORCH001D-003 Single-active-dispatch slot under `.atlas/orchestration/dispatcher/` (gitignored)
+- [x] ORCH001D-004 Eligibility revalidation (HANDOFF_READY + dispatchable task + fail-closed privileges)
+- [x] ORCH001D-005 Owner/terminal non-executing outcomes (`PROCESS_STARTED = NO`)
+- [x] ORCH001D-006 Cursor CLI argv transport (`agent` / `cursor-agent`, `--print --output-format json`, no shell)
+- [x] ORCH001D-007 `atlas orchestrator dispatch-submit-result` (validated evidence only; not 001C stage)
+- [x] ORCH001D-008 Transactional finalize: ack source → stage target → explicit complete → stop
+- [x] ORCH001D-009 `atlas orchestrator dispatch-recover` (no respawn)
+- [x] ORCH001D-010 `atlas orchestrator dispatch-once` / `dispatch-status`
+- [x] ORCH001D-011 Mutating remediation/reconcile fail closed (`CAPABILITY_REQUIRED`)
+- [x] ORCH001D-012 Focused unit + integration + schema/model parity tests
+- [ ] ORCH001D-013 Independent integration verification
+- [ ] ORCH001D-014 Authentic Local Windows Cursor agent dispatch acceptance
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 

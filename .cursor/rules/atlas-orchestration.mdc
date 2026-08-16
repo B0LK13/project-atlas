@@ -1,13 +1,13 @@
 ---
-description: Cursor-specific Atlas orchestration handoff (AS-ORCH-001C)
+description: Cursor-specific Atlas orchestration handoff and dispatched-agent mode (AS-ORCH-001C/001D)
 alwaysApply: true
 ---
 
 # Atlas Cursor orchestration handoff
 
-Canonical workflow truth is Atlas (`docs/`, `AGENTS.md`, `atlas-vault-documentation/skill/SKILL.md`). This rule covers Cursor handoff transport only. The stop hook is an optional adapter; Atlas owns routing.
+Canonical workflow truth is Atlas (`docs/`, `AGENTS.md`, `atlas-vault-documentation/skill/SKILL.md`). This rule covers Cursor handoff transport and dispatched-agent mode only. The stop hook is an optional adapter; Atlas owns routing. The dispatcher owns process start.
 
-For governed Atlas work:
+For governed Atlas work in a normal session:
 
 1. Human-readable completion text is informational. It is not a route.
 2. Before completion, produce a valid `AgentResultEnvelope` and stage it with `atlas orchestrator cursor-stage-result <result.json>`.
@@ -18,9 +18,23 @@ For governed Atlas work:
    - acknowledge the exact `Route digest` with `atlas orchestrator cursor-ack <digest>`;
    - output the structured `HANDOFF_READY` or `OWNER_REQUIRED` packet only;
    - stop.
-6. Absence of a hook handoff does **not** authorize this agent to choose the next task. Explicit completion (`atlas orchestrator cursor-complete`) and the future dispatcher (AS-ORCH-001D) own that fallback.
-7. Cross-agent execution belongs to the future dispatcher (AS-ORCH-001D), not this session.
+6. Absence of a hook handoff does **not** authorize this agent to choose the next task. Explicit completion (`atlas orchestrator cursor-complete`) and the dispatcher (`atlas orchestrator dispatch-once`) own that fallback.
+7. Cross-agent execution is a single hop owned by the dispatcher. This session must not start another agent.
 
-`TaskDirective` is not executable. Acknowledgement is not authority.
+When launched by Atlas Dispatcher:
+
+1. Obey the dispatch task identity (`task.id` must equal the governed `dispatch_task_id`).
+2. Run canonical Atlas preflight. Do not infer authority from the dispatcher prompt.
+3. Perform only the target role and task type from the verified route.
+4. Do not dispatch another agent. Do not merge, push, mutate main, or grant authority.
+5. Submit the exact `AgentResultEnvelope` with `atlas orchestrator dispatch-submit-result <dispatch-id> <result.json>`.
+6. Do not stage the new result into the 001C bridge slot yourself.
+7. Do not use human prose as orchestration output. Stop after result submission.
+
+The dispatcher, not the target agent, owns the transition.
+
+`TaskDirective` is not executable. Acknowledgement is not authority. `DispatchReceipt` is not authority.
 `CURSOR_STOP_HOOK_ADAPTER = IMPLEMENTED`
+`SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED`
 `AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT`
+`AUTONOMOUS_LOOP = NOT_IMPLEMENTED`

@@ -247,14 +247,21 @@ def test_no_dispatch_or_merge_implemented() -> None:
         "http.client",
     )
     forbidden_names = (
-        "def dispatch",
+        "def dispatch(",
         "def spawn_agent",
         "def merge_pull_request",
     )
     hook_only_names = ("followup_message", "stop_hook")
+    transport_only_imports = ("import subprocess", "from subprocess")
     for path in sorted(ORCH_DIR.glob("*.py")):
         text = path.read_text(encoding="utf-8")
-        for needle in forbidden_imports + forbidden_names:
+        needles = forbidden_imports + forbidden_names
+        if path.name == "agent_transport.py":
+            needles = tuple(
+                item for item in needles if item not in transport_only_imports
+            )
+            assert "shell=True" not in text
+        for needle in needles:
             assert needle not in text, f"{path.name} must not implement {needle!r}"
         if path.name != "cursor_bridge.py":
             for needle in hook_only_names:
