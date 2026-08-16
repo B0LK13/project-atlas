@@ -28,14 +28,13 @@ def main() -> int:
         return 0
     root = repository_root()
     try:
-        from project_atlas.orchestration.cursor_bridge import handle_stop_event
-    except ImportError:
-        src = root / "src"
-        if src.is_dir() and str(src) not in sys.path:
-            sys.path.insert(0, str(src))
-        from project_atlas.orchestration.cursor_bridge import handle_stop_event
-
-    try:
+        try:
+            from project_atlas.orchestration.cursor_bridge import handle_stop_event
+        except ImportError:
+            src = root / "src"
+            if src.is_dir() and str(src) not in sys.path:
+                sys.path.insert(0, str(src))
+            from project_atlas.orchestration.cursor_bridge import handle_stop_event
         response = handle_stop_event(payload, root=root)
     except Exception as exc:  # noqa: BLE001 — hook must fail closed to {}
         print(f"atlas_stop: bridge error: {type(exc).__name__}", file=sys.stderr)

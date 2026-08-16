@@ -231,6 +231,8 @@ class HandoffPacket(BaseModel):
 
     def to_public_dict(self) -> dict[str, object]:
         return {
+            "schema_version": self.schema_version,
+            "package_id": self.package_id,
             "state": self.state.value,
             "transport": self.transport.value,
             "route_digest": self.route_digest,
@@ -668,5 +670,5 @@ def _public_state(state: CursorBridgeState, *, ok: bool) -> dict[str, object]:
         "execution_authorized": False,
         "policy_id": state.policy_id,
         "policy_version": state.policy_version,
-        "handoff_packet": handoff_packet(state),
+        "handoff_packet": handoff_packet(state, transport=CompletionTransport.EXPLICIT),
     }
