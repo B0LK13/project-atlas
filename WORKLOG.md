@@ -5,6 +5,83 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-001D-R4 — Production MDA Provider Provenance + Cursor CLI Adapter Binding
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001D-R4-PROVIDER-IDENTITY-001
+**Package:** AS-ORCH-001D-R4
+**Branch:** `cursor/as-orch-001d-agent-dispatcher-d054`
+**PR:** #396
+**Base:** live `origin/main` `122ad8b11236dbc906c5e245054b090e4ff8e006` / TREE `0d13568f3964a58a0b91d99519c95aa2020020e4`
+**OLD_PR_HEAD (R3):** `517e3dd0747b963dd7d45f5276b8ae26f3f66261`
+**OLD_PR_TREE (R3):** `f25cb93a293840f414ae39a576997eb1d6c5e9f6`
+
+### Root cause
+R3 reused the real shared `receipt_gate` / session / postflight path, but
+`resolve_mda_command()` auto-selected `atlas-vault-documentation/tests/fixtures/bin/mda`
+when `ATLAS_MDA_COMMAND` was absent, and `prepare_event_pipeline()` left that
+path in the process environment. The managed session also claimed
+`agent_type=ide` / `cursor-ide` while launching Cursor Agent CLI.
+
+### Remediation
+- Production MDA resolution accepts only a trusted operator path or a real
+  PATH `mda` after a `--version` probe. Fixture paths and `*mock*` versions
+  fail closed as `PIPELINE_UNAVAILABLE`.
+- Tests may use the repository fixture only through
+  `inject_test_mda_provider()`.
+- `ATLAS_MDA_COMMAND` is scoped around canonical event operations and restored
+  on success and exception.
+- Cursor child env omits `ATLAS_MDA_COMMAND` / `MDA_MOCK_MODE`.
+- Dispatch binds `agent_type=cli` / `cursor-agent-cli`. Canonical preflight
+  selects `generic-cli-v1`. Readiness is not overridden.
+
+### Honesty
+- TEST_MDA_FIXTURE_AUTO_SELECTED_IN_PRODUCTION = NO
+- TEST_FIXTURE_CAN_SATISFY_CANONICAL_PIPELINE = NO
+- TEST_FIXTURE_REQUIRES_EXPLICIT_INJECTION = YES
+- MOCK_MDA_VERSION_ACCEPTED = NO
+- PIPELINE_PROVIDER_ENVIRONMENT_SCOPED = YES
+- TEST_MDA_PATH_INHERITED_BY_CURSOR_TARGET = NO
+- MANAGED_AGENT_TRANSPORT = CURSOR_CLI
+- MANAGED_AGENT_TYPE = cli
+- CANONICAL_ADAPTER_ID = generic-cli-v1
+- MANAGED_AGENT_ID = cursor-agent-cli
+- READINESS_RESULT_SOURCE = CANONICAL_PREFLIGHT
+- READINESS_OVERRIDE = NONE
+- RECEIPT_MISLABELS_CLI_AS_IDE = NO
+- SESSION_START_RECORDED_BY_CANONICAL_CONTROL_PLANE = YES
+- VALIDATION_EVENT_RECORDED_AFTER_VALIDATION = YES
+- PIPELINE_STATE_DERIVED_FROM_ACTUAL_PIPELINE = YES
+- COMPLETION_EVENT_RECORDED_AFTER_REAL_COMPLETION = YES
+- CANONICAL_RECEIPT_GATE_VALIDATE_CALLED = YES
+- CANONICAL_RECEIPT_GATE_ISSUE_CALLED = YES
+- MODEL_CAN_SELF_ASSERT_RECEIPT_VALIDITY = NO
+- DISPATCHER_CAN_SELF_ASSERT_LIFECYCLE_VALIDITY = NO
+- WINDOWS_AGENT_CMD_RESOLUTION = PASS
+- READ_ONLY_CURSOR_MODE = ask
+- PYTHON_SHELL_TRUE = NO
+- MAX_ACTIVE_DISPATCHES = 1
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Local verification
+- Focused orchestration tests: 224 passed
+  (`tests/unit/test_orchestration_*.py` + `tests/unit/test_as_orch_001d_r4_*.py`
+  + `tests/integration/test_dispatcher_single_hop.py`)
+- Canonical agent-control tests: 12 passed (`atlas-vault-documentation/tests/test_agent_control.py`)
+- SEC-015/016/019 receipt/authority tests: 5 passed
+- Full control-plane suite: 171 passed
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- `ruff check .`: pass
+- `mypy src`: pass (234 source files)
+- Full `pytest --override-ini='addopts='`: 3064 passed, 3 failed, 3 skipped, 1 xfailed
+- The 3 failures are the known AS-MVP-001 fixture-mtime/calendar cases. Not this package. Do not call full pytest PASS.
+- R3_CI_RUN = 31959846434 (historical only; conclusion `cancelled`; do not reuse for R4)
+- NEW_REGRESSIONS = none
+- MERGE_PERFORMED = NO
+- STATE = REMEDIATED — READY FOR RE-CERTIFICATION
+
+---
+
 ## D-127+ — AS-2.1-MCP-BRIEF-001 (independent of frozen D125 stack and #364)
 
 **Date:** 2026-08-15
