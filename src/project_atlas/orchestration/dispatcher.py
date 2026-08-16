@@ -14,6 +14,8 @@ DISPATCH_RECEIPT_IS_AUTHORITY = NO
 CURSOR_STOP_EVENT_REQUIRED_FOR_DISPATCH = NO
 MODEL_CAN_SELF_ASSERT_RECEIPT_VALIDITY = NO
 ENVELOPE_RECEIPT_STATUS_ALONE_IS_SUFFICIENT = NO
+TARGET_RECEIPT_CANNOT_SKIP_POSTFLIGHT = YES
+DISPATCHER_CAN_SELF_ASSERT_LIFECYCLE_VALIDITY = NO
 """
 
 from __future__ import annotations
@@ -56,9 +58,15 @@ from project_atlas.orchestration.agent_transport import (
 from project_atlas.orchestration.canonical_session_receipt import (
     DispatchReceiptBindTarget,
     ReceiptBindingError,
-    bind_target_receipt,
+    accept_raw_target_result,
     ensure_managed_dispatch_session,
-    managed_session_id_for,
+    lifecycle_is_complete,
+    load_canonical_receipt,
+    load_managed_session,
+    normalize_envelope_receipt,
+    record_completion_event,
+    require_managed_session_id,
+    run_managed_postflight,
     verify_target_receipt_binding,
 )
 from project_atlas.orchestration.cursor_bridge import (
@@ -121,6 +129,16 @@ _SUBMIT_FAIL_CLOSED_CODES: Final[frozenset[str]] = RECEIPT_AUTHENTICITY_CODES | 
         "ATTEMPT_MISMATCH",
         "INVALID_TARGET_RESULT",
         "INVALID_RECEIPT",
+        "PREFLIGHT_FAILED",
+        "SESSION_NOT_STARTED",
+        "SESSION_START_FAILED",
+        "VALIDATION_EVENT_FAILED",
+        "PIPELINE_FAILED",
+        "PIPELINE_UNAVAILABLE",
+        "POSTFLIGHT_FAILED",
+        "LIFECYCLE_INCOMPLETE",
+        "RECONCILIATION_REQUIRED",
+        "CONTROL_PLANE_UNAVAILABLE",
     }
 )
 _PROMPT_TEMPLATE = (
@@ -696,9 +714,7 @@ def _bind_target_for(record: DispatchRecord) -> DispatchReceiptBindTarget:
     return DispatchReceiptBindTarget(
         dispatch_id=record.dispatch_id,
         dispatch_task_id=record.dispatch_task_id,
-        managed_session_id=managed_session_id_for(
-            record.dispatch_id, record.managed_session_id
-        ),
+        managed_session_id=require_managed_session_id(record.managed_session_id),
         attempt=record.attempt,
         target_role=record.target_role.value,
     )
@@ -706,15 +722,6 @@ def _bind_target_for(record: DispatchRecord) -> DispatchReceiptBindTarget:
 
 def _raise_receipt_error(exc: ReceiptBindingError) -> NoReturn:
     raise DispatcherError(str(exc), code=exc.code) from exc
-
-
-def _reverify_bound_envelope(
-    envelope: AgentResultEnvelope, record: DispatchRecord, workspace: Path
-) -> None:
-    try:
-        verify_target_receipt_binding(envelope, _bind_target_for(record), workspace)
-    except ReceiptBindingError as exc:
-        _raise_receipt_error(exc)
 
 
 def evaluate_dispatch_eligibility(packet: HandoffPacket, root: Path) -> None:
@@ -764,10 +771,11 @@ def submit_target_result(
     *,
     root: Path,
 ) -> DispatchResultBinding:
-    """Store validated target evidence after canonical receipt authenticity.
+    """Store RAW target evidence after schema/dispatch validation.
 
     Paths B (CLI submit-result) and C (terminal JSON) share this function.
-    Envelope ``receipt.status`` is never sufficient. Does not stage 001C.
+    Envelope ``receipt.status`` is provisional and never sufficient. Does not
+    issue a canonical receipt, stage 001C, or skip postflight.
     """
     workspace = validate_workspace_root(root)
     record = load_record(workspace, dispatch_id)
@@ -789,31 +797,32 @@ def submit_target_result(
     if existing is not None:
         same_raw = existing.raw_target_result_digest == raw_digest
         if same_raw or existing.envelope_digest == raw_digest:
-            _reverify_bound_envelope(existing.envelope, record, workspace)
             return existing
         raise DispatchResultAlreadyBound("DISPATCH_RESULT_ALREADY_BOUND")
     try:
-        bound, facts = bind_target_receipt(envelope, _bind_target_for(record), workspace)
+        raw_envelope, facts = accept_raw_target_result(
+            envelope, _bind_target_for(record), workspace
+        )
     except ReceiptBindingError as exc:
         _raise_receipt_error(exc)
-    envelope_digest = canonical_payload_digest(bound.model_dump(mode="json"))
+    envelope_digest = canonical_payload_digest(raw_envelope.model_dump(mode="json"))
     binding = DispatchResultBinding(
         dispatch_id=dispatch_id,
         envelope_digest=envelope_digest,
-        envelope=bound,
+        envelope=raw_envelope,
         raw_target_result_digest=str(facts["raw_target_result_digest"]),
-        normalized_target_result_digest=str(facts["normalized_target_result_digest"]),
+        normalized_target_result_digest=None,
     )
     _write_json(result_file, binding.model_dump(mode="json"))
     updated = record.model_copy(
         update={
             "result_received": True,
             "status": DispatchStatus.RESULT_RECEIVED,
-            "target_receipt_id": str(facts["receipt_id"]),
-            "target_receipt_verified": True,
-            "target_receipt_binding_digest": str(facts["target_receipt_binding_digest"]),
+            "target_receipt_id": None,
+            "target_receipt_verified": False,
+            "target_receipt_binding_digest": None,
             "raw_target_result_digest": str(facts["raw_target_result_digest"]),
-            "normalized_target_result_digest": str(facts["normalized_target_result_digest"]),
+            "normalized_target_result_digest": None,
         }
     )
     if record.status in {
@@ -844,6 +853,104 @@ def _fail_record(
     return receipt
 
 
+def complete_managed_lifecycle(root: Path, dispatch_id: str) -> DispatchResultBinding:
+    """Record completion and run canonical postflight after process success.
+
+    Raw target evidence must already be stored. This does not ack or stage.
+    """
+    workspace = validate_workspace_root(root)
+    record = load_record(workspace, dispatch_id)
+    if record is None:
+        raise DispatcherError(
+            "no dispatch record for lifecycle completion",
+            code="UNKNOWN_DISPATCH",
+        )
+    binding = load_result_binding(workspace, dispatch_id)
+    if binding is None:
+        raise DispatcherError("raw target evidence is missing", code="RESULT_NOT_SUBMITTED")
+    target = _bind_target_for(record)
+    if lifecycle_is_complete(workspace, target):
+        return _normalize_from_issued_receipt(workspace, record, binding)
+    try:
+        record_completion_event(workspace, target)
+        issued = run_managed_postflight(workspace, target)
+        bound, facts = normalize_envelope_receipt(
+            binding.envelope, target, workspace, issued
+        )
+    except ReceiptBindingError as exc:
+        _raise_receipt_error(exc)
+    envelope_digest = canonical_payload_digest(bound.model_dump(mode="json"))
+    normalized = DispatchResultBinding(
+        dispatch_id=dispatch_id,
+        envelope_digest=envelope_digest,
+        envelope=bound,
+        raw_target_result_digest=str(facts["raw_target_result_digest"]),
+        normalized_target_result_digest=str(facts["normalized_target_result_digest"]),
+    )
+    _write_json(result_path(workspace, dispatch_id), normalized.model_dump(mode="json"))
+    updated = record.model_copy(
+        update={
+            "result_received": True,
+            "status": DispatchStatus.RESULT_RECEIVED,
+            "target_receipt_id": str(facts["receipt_id"]),
+            "target_receipt_verified": True,
+            "target_receipt_binding_digest": str(facts["target_receipt_binding_digest"]),
+            "raw_target_result_digest": str(facts["raw_target_result_digest"]),
+            "normalized_target_result_digest": str(facts["normalized_target_result_digest"]),
+        }
+    )
+    persist_record(workspace, updated)
+    persist_active(workspace, dispatch_id, updated.status)
+    return normalized
+
+
+def _normalize_from_issued_receipt(
+    workspace: Path,
+    record: DispatchRecord,
+    binding: DispatchResultBinding,
+) -> DispatchResultBinding:
+    """Attach an already-issued canonical receipt. Does not record events."""
+    target = _bind_target_for(record)
+    state = load_managed_session(workspace, target.managed_session_id)
+    receipt_id = state.get("receipt_id")
+    if not isinstance(receipt_id, str) or not receipt_id:
+        raise DispatcherError(
+            "canonical receipt was not issued",
+            code="RECONCILIATION_REQUIRED",
+        )
+    issued = load_canonical_receipt(workspace, receipt_id)
+    try:
+        bound, facts = normalize_envelope_receipt(
+            binding.envelope, target, workspace, issued
+        )
+    except ReceiptBindingError as exc:
+        _raise_receipt_error(exc)
+    envelope_digest = canonical_payload_digest(bound.model_dump(mode="json"))
+    normalized = DispatchResultBinding(
+        dispatch_id=record.dispatch_id,
+        envelope_digest=envelope_digest,
+        envelope=bound,
+        raw_target_result_digest=binding.raw_target_result_digest
+        or str(facts["raw_target_result_digest"]),
+        normalized_target_result_digest=str(facts["normalized_target_result_digest"]),
+    )
+    _write_json(
+        result_path(workspace, record.dispatch_id),
+        normalized.model_dump(mode="json"),
+    )
+    updated = record.model_copy(
+        update={
+            "target_receipt_id": str(facts["receipt_id"]),
+            "target_receipt_verified": True,
+            "target_receipt_binding_digest": str(facts["target_receipt_binding_digest"]),
+            "raw_target_result_digest": normalized.raw_target_result_digest,
+            "normalized_target_result_digest": str(facts["normalized_target_result_digest"]),
+        }
+    )
+    persist_record(workspace, updated)
+    return normalized
+
+
 def finalize_dispatch(root: Path, record: DispatchRecord) -> DispatchReceipt:
     """Ack source, stage target evidence, explicit-complete. Never starts a process."""
     workspace = validate_workspace_root(root)
@@ -858,10 +965,23 @@ def finalize_dispatch(root: Path, record: DispatchRecord) -> DispatchReceipt:
     if binding is None:
         return _fail_record(workspace, verified_record, "RESULT_NOT_SUBMITTED")
     try:
+        target = _bind_target_for(verified_record)
+        if not lifecycle_is_complete(workspace, target):
+            return _fail_record(
+                workspace,
+                verified_record,
+                "RECONCILIATION_REQUIRED",
+                result_received=True,
+            )
+        if not verified_record.target_receipt_verified:
+            binding = _normalize_from_issued_receipt(workspace, verified_record, binding)
+            verified_record = load_record(workspace, verified_record.dispatch_id) or verified_record
         verify_target_receipt_binding(
-            binding.envelope, _bind_target_for(verified_record), workspace
+            binding.envelope, target, workspace
         )
     except ReceiptBindingError as exc:
+        return _fail_record(workspace, verified_record, exc.code, result_received=True)
+    except DispatcherError as exc:
         return _fail_record(workspace, verified_record, exc.code, result_received=True)
     bound_receipt_id = (
         binding.envelope.receipt.receipt_id if binding.envelope.receipt is not None else None
@@ -937,6 +1057,12 @@ def recover_dispatch(dispatch_id: str, *, root: Path) -> DispatchReceipt:
     if record.status == DispatchStatus.FAILED:
         return existing_receipt or _receipt_from_record(record)
     if record.status in {DispatchStatus.RESULT_RECEIVED, DispatchStatus.FINALIZING}:
+        try:
+            target = _bind_target_for(record)
+        except ReceiptBindingError as exc:
+            return _fail_record(workspace, record, exc.code)
+        if not lifecycle_is_complete(workspace, target):
+            return _fail_record(workspace, record, "RECONCILIATION_REQUIRED")
         return finalize_dispatch(workspace, record)
     raise DispatcherError(
         "recovery does not start a target process",
@@ -1000,6 +1126,12 @@ def run_dispatch_once(
             receipt = load_receipt(workspace, dispatch_id)
             return receipt or _receipt_from_record(existing)
         if existing.status in {DispatchStatus.RESULT_RECEIVED, DispatchStatus.FINALIZING}:
+            try:
+                target = _bind_target_for(existing)
+            except ReceiptBindingError as exc:
+                return _fail_record(workspace, existing, exc.code)
+            if not lifecycle_is_complete(workspace, target):
+                return _fail_record(workspace, existing, "RECONCILIATION_REQUIRED")
             return finalize_dispatch(workspace, existing)
         if existing.status in {DispatchStatus.PREPARED, DispatchStatus.RUNNING}:
             raise DispatcherError(
@@ -1017,12 +1149,26 @@ def run_dispatch_once(
         task_type=packet.task_type,
         attempt=DEFAULT_ATTEMPT,
         workspace_root=str(workspace),
-        managed_session_id=managed_session_id_for(dispatch_id),
+        managed_session_id=None,
     )
     persist_record(workspace, record)
     persist_active(workspace, dispatch_id, record.status)
     try:
-        ensure_managed_dispatch_session(workspace, _bind_target_for(record))
+        started = ensure_managed_dispatch_session(
+            workspace,
+            dispatch_id=record.dispatch_id,
+            dispatch_task_id=record.dispatch_task_id,
+            attempt=record.attempt,
+            target_role=record.target_role.value,
+        )
+        session_id = started.get("session", {}).get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            raise ReceiptBindingError(
+                "canonical session start did not return a session id",
+                code="SESSION_START_FAILED",
+            )
+        record = record.model_copy(update={"managed_session_id": session_id})
+        persist_record(workspace, record)
     except ReceiptBindingError as exc:
         return _fail_record(workspace, record, exc.code)
     prompt = trusted_dispatch_prompt(
@@ -1133,7 +1279,13 @@ def _complete_after_process(
     )
     persist_record(root, received)
     persist_active(root, received.dispatch_id, received.status)
-    return finalize_dispatch(root, received)
+    try:
+        complete_managed_lifecycle(root, received.dispatch_id)
+    except DispatcherError as exc:
+        latest_failed = load_record(root, received.dispatch_id) or received
+        return _fail_record(root, latest_failed, exc.code, **updates)
+    latest = load_record(root, received.dispatch_id) or received
+    return finalize_dispatch(root, latest)
 
 
 def status_report(root: Path) -> dict[str, object]:

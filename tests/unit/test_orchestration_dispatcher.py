@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from pydantic import ValidationError
+from tests.orchestration_control_plane import install_managed_control_plane
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.orchestration.agent_transport import ProcessRunOutcome, ProcessRunRequest
@@ -46,7 +47,7 @@ def _workspace(tmp_path: Path) -> Path:
         '[project]\nname = "project-atlas"\n',
         encoding="utf-8",
     )
-    return tmp_path.resolve()
+    return install_managed_control_plane(tmp_path.resolve())
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:

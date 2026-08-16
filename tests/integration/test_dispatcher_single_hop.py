@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.orchestration_control_plane import install_managed_control_plane
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.agent_transport import ProcessRunOutcome, ProcessRunRequest
@@ -31,7 +32,7 @@ def _workspace(tmp_path: Path) -> Path:
         '[project]\nname = "project-atlas"\n',
         encoding="utf-8",
     )
-    return tmp_path.resolve()
+    return install_managed_control_plane(tmp_path.resolve())
 
 
 def _payload(**overrides: Any) -> dict[str, Any]:
@@ -151,7 +152,7 @@ def test_recover_cli_without_respawn(tmp_path: Path, monkeypatch: Any) -> None:
     assert len(runner.requests) == 1
 
 
-def test_terminal_json_fake_valid_receipt_is_rejected(tmp_path: Path) -> None:
+def test_terminal_json_fake_valid_receipt_cannot_skip_postflight(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     stage_result(_payload(), root=workspace)
     captured: dict[str, str] = {}
@@ -182,11 +183,12 @@ def test_terminal_json_fake_valid_receipt_is_rejected(tmp_path: Path) -> None:
             )
 
     receipt = run_dispatch_once(root=workspace, runner=FakeValidRunner())
-    assert receipt.status is DispatchStatus.FAILED
-    assert receipt.failure_code == "RECEIPT_NOT_FOUND"
-    assert receipt.source_acknowledged is False
-    assert receipt.result_staged is False
-    assert receipt.next_handoff_state is None
+    assert receipt.status is DispatchStatus.COMPLETED
+    assert receipt.target_receipt_verified is True
+    assert receipt.target_receipt_id != "ASR-fake123"
+    assert receipt.target_receipt_id is not None
+    assert receipt.target_receipt_id.startswith("ASR-")
+    assert receipt.source_acknowledged is True
 
 
 def test_requested_merge_is_advisory_only(tmp_path: Path) -> None:

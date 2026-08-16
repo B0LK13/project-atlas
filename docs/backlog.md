@@ -483,7 +483,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher + Cursor CLI Process Transport
 
-_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001D-R2; not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Model-authored `receipt.status=valid` is **not** sufficient; dispatcher binds only after canonical `.atlas/receipts` evidence. Authentic Windows Cursor agent dispatch is **not** certified from Cloud. R1 CI `31956522215` is historical only._
+_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001D-R3; not merge-eligible; not owner-approved; not production-ready). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task route, then stops. Does **not** auto-dispatch the next `HandoffPacket`. Does **not** mint authority. Model-authored `receipt.status=valid` is provisional and **cannot** skip canonical postflight. Lifecycle events and receipts are produced only by the shared control-plane `receipt_gate` / `postflight` implementation. Authentic Windows Cursor agent dispatch is **not** certified from Cloud. R2 CI `31958689288` is historical only._
 
 Honesty (mandatory):
 
@@ -503,9 +503,13 @@ Honesty (mandatory):
 - `DISPATCH_RECEIPT_IS_AUTHORITY = NO`
 - `MODEL_CAN_SELF_ASSERT_RECEIPT_VALIDITY = NO`
 - `ENVELOPE_RECEIPT_STATUS_ALONE_IS_SUFFICIENT = NO`
-- `TERMINAL_JSON_SELF_ATTESTED_RECEIPT = REJECTED`
+- `TERMINAL_JSON_SELF_ATTESTED_RECEIPT = PROVISIONAL_THEN_CANONICAL_POSTFLIGHT`
+- `TARGET_RECEIPT_CANNOT_SKIP_POSTFLIGHT = YES`
 - `SUBMIT_RESULT_RECEIPT_AUTHENTICITY = SAME_AS_TERMINAL_JSON_PATH`
-- `RECOVERY_REVALIDATES_RECEIPT = YES`
+- `RECOVERY_REVALIDATES_CANONICAL_SESSION = YES`
+- `RECOVERY_SYNTHESIZES_MISSING_EVENTS = NO`
+- `CANONICAL_RECEIPT_VALIDATE_IMPLEMENTATIONS = 1`
+- `CANONICAL_RECEIPT_ISSUE_IMPLEMENTATIONS = 1`
 - `CURSOR_STOP_EVENT_REQUIRED_FOR_DISPATCH = NO`
 - `MUTATING_REMEDIATION_AUTO_DISPATCH = BLOCKED_PENDING_EXISTING_AUTHORITY_BINDING`
 - `OWNER AUTHORITY = STILL REQUIRED`
@@ -518,6 +522,7 @@ Honesty (mandatory):
 - [x] ORCH001D-006 Cursor CLI argv transport (`agent` / `cursor-agent`, `--print --output-format json`, no shell)
 - [x] ORCH001D-R1 Native Windows `.CMD` launcher compatibility + stdin prompt + read-only `--mode=ask`
 - [x] ORCH001D-R2 Canonical receipt authenticity + managed read-only dispatch evidence (control-plane receipt store; no second authority model)
+- [x] ORCH001D-R3 Real canonical managed-session lifecycle + shared receipt_gate/postflight (R2 synthetic mirror removed)
 - [x] ORCH001D-007 `atlas orchestrator dispatch-submit-result` (validated evidence only; not 001C stage; same receipt authenticity as terminal JSON)
 - [x] ORCH001D-008 Transactional finalize: ack source → stage target → explicit complete → stop
 - [x] ORCH001D-009 `atlas orchestrator dispatch-recover` (no respawn)
