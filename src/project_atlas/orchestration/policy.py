@@ -19,7 +19,7 @@ RUNTIME AUTOMATIC ROUTING NOT IMPLEMENTED
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, Literal
 
 from project_atlas.orchestration.models import (
     NextTransition,
@@ -29,9 +29,9 @@ from project_atlas.orchestration.models import (
     TaskType,
 )
 
-ROUTING_PACKAGE_ID: Final[str] = "AS-ORCH-001B"
-POLICY_ID: Final[str] = "atlas-orchestration-routing"
-POLICY_VERSION: Final[int] = 1
+ROUTING_PACKAGE_ID: Final[Literal["AS-ORCH-001B"]] = "AS-ORCH-001B"
+POLICY_ID: Final[Literal["atlas-orchestration-routing"]] = "atlas-orchestration-routing"
+POLICY_VERSION: Final[Literal[1]] = 1
 
 # Recertification stays on the integration plane — same role that verifies
 # candidates. Do not invent a separate recertifier role.

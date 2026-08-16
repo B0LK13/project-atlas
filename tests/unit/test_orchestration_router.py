@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.orchestration import (

@@ -2385,6 +2385,10 @@ def build_parser() -> argparse.ArgumentParser:
             "Validate, classify, and apply the deterministic routing policy. "
             "Prints a machine-readable route. Does not dispatch or execute."
         ),
+        description=(
+            "Validate an AgentResultEnvelope, classify it with AS-ORCH-001A, "
+            "and apply the AS-ORCH-001B routing policy. Does not dispatch or execute."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
