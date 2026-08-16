@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/orchestration-route.schema.json",
+  "title": "OrchestrationRoute",
+  "description": "AS-ORCH-001B public routing output. Discriminated route_kind: task | owner_gate | terminal. ROUTING != DISPATCH; TASK_DIRECTIVE != EXECUTION; execution_authorized is always false. additionalProperties:false fails closed against executable payloads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "policy_id",
+    "policy_version",
+    "source",
+    "source_result_digest",
+    "transition",
+    "route_kind",
+    "target",
+    "task_type",
+    "permissions",
+    "owner_gate",
+    "dispatchable",
+    "execution_authorized",
+    "task",
+    "reasons",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-ORCH-001B" },
+    "policy_id": { "const": "atlas-orchestration-routing" },
+    "policy_version": { "const": 1 },
+    "source": { "$ref": "#/$defs/source" },
+    "source_result_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "transition": {
+      "enum": [
+        "INTEGRATION_VERIFY",
+        "RECERTIFY_REQUIRED",
+        "BLOCKED",
+        "AUTONOMOUS_RECONCILE",
+        "REMEDIATION_REQUIRED",
+        "OWNER_REQUIRED",
+        "REJECTED",
+        "BLOCKED_UNKNOWN_STATE"
+      ]
+    },
+    "route_kind": { "enum": ["task", "owner_gate", "terminal"] },
+    "target": { "$ref": "#/$defs/target" },
+    "task_type": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "candidate_verification",
+            "recertification",
+            "program_reconciliation",
+            "remediation"
+          ]
+        }
+      ]
+    },
+    "permissions": { "$ref": "#/$defs/permissions" },
+    "owner_gate": { "type": "boolean" },
+    "dispatchable": { "type": "boolean" },
+    "execution_authorized": { "const": false },
+    "task": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "https://project-atlas.local/schemas/task-directive.schema.json" }
+      ]
+    },
+    "reasons": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "minLength": 1, "maxLength": 2048 }
+    },
+    "truth_boundary": { "type": "string", "minLength": 1, "maxLength": 1024 }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "attempt", "producer_role"],
+      "properties": {
+        "task_id": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }
+          ]
+        },
+        "attempt": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 1, "maximum": 10000 }
+          ]
+        },
+        "producer_role": {
+          "oneOf": [
+            { "type": "null" },
+            { "enum": ["local", "integration", "autonomous"] }
+          ]
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "role"],
+      "properties": {
+        "kind": { "enum": ["agent", "owner_gate", "terminal"] },
+        "role": {
+          "oneOf": [
+            { "type": "null" },
+            { "enum": ["local", "integration", "autonomous"] }
+          ]
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_write",
+        "branch_write",
+        "pull_request_write",
+        "merge",
+        "production_mutation",
+        "authority_grant"
+      ],
+      "properties": {
+        "repository_write": { "const": false },
+        "branch_write": { "const": false },
+        "pull_request_write": { "const": false },
+        "merge": { "const": false },
+        "production_mutation": { "const": false },
+        "authority_grant": { "const": false }
+      }
+    }
+  }
+}

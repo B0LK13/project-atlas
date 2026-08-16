@@ -6640,3 +6640,49 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - Full `pytest`: 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot; not this package)
 - Scenarios A/B/C: INTEGRATION_VERIFY / RECERTIFY_REQUIRED / OWNER_REQUIRED; `execution_authorized=false`
 
+## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001B-001
+**Package:** AS-ORCH-001B
+**Branch:** `cursor/as-orch-001b-policy-router-d054`
+**Base:** live `origin/main` `1efaf1c57fc3719d7f788f860ebafff4570478b4` / TREE `dcda2c7b8f3e1790707741fe076d41db16222f03`
+
+### Scope implemented
+- Typed `TaskDirective` + fail-closed `DirectivePermissions` (all privileges `false`)
+- Discriminated `OrchestrationRoute` (`task` | `owner_gate` | `terminal`)
+- Deterministic policy table over every 001A `NextTransition`
+- SHA-256 `source_result_digest` binding + decision/envelope consistency
+- Read-only CLI: `atlas orchestrator route-result <result.json>`
+- Schemas: `task-directive.schema.json`, `orchestration-route.schema.json`
+
+### Routing map
+- INTEGRATION_VERIFY → task / integration / candidate_verification
+- RECERTIFY_REQUIRED → task / integration / recertification
+- AUTONOMOUS_RECONCILE → task / autonomous / program_reconciliation
+- REMEDIATION_REQUIRED → task / local / remediation (least-authoritative existing role; no `implementation` role in current taxonomy)
+- OWNER_REQUIRED → owner_gate / non-dispatchable / no MERGE task
+- BLOCKED / REJECTED / BLOCKED_UNKNOWN_STATE → terminal / non-dispatchable
+
+### Honesty
+- STRUCTURED_RESULT_CONTRACT = IMPLEMENTED
+- DETERMINISTIC_CLASSIFICATION = IMPLEMENTED
+- DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED
+- TYPED_TASK_DIRECTIVE = IMPLEMENTED
+- ROUTING POLICY IMPLEMENTED
+- RUNTIME AUTOMATIC ROUTING NOT IMPLEMENTED
+- CURSOR_HOOK = NOT_IMPLEMENTED
+- AGENT_DISPATCH = NOT_IMPLEMENTED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- AUTOMATIC_MERGE = NOT_IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- TASK_DIRECTIVE != EXECUTION
+- TASK_DIRECTIVE != AUTHORITY
+- ROUTING != DISPATCH
+- REQUESTED_TRANSITION remains advisory; 001B follows 001A `next_transition`
+
+### Follow-up (not started)
+- AS-ORCH-001C Cursor Integration
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
