@@ -6584,3 +6584,26 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - UNKNOWN is valid
 - no auto-execution
 
+## D-139 — AS-CODER-ALPHA-NEXT-API-001 (independent of owner-held #365/#366)
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-AUTONOMOUS-D139-FORWARD-PARALLEL-DEVELOPMENT-001
+**Branch:** `cursor/next-api-001-5408` (based on exact `main` `32c992894d7cabe58dd4b965585093fe6d308458`)
+**Mode:** MODE A — INDEPENDENT. Does not mutate #365 or #366.
+
+### Why this lane
+`atlas next` is on `main` (AS-CODER-ALPHA-NEXT-001) but agents/Web had no LIVE_API projection. Brief, roadmap, and source-health already expose `/v1/*`. What Next is the north-star daily gap.
+
+### Surface
+- NEW `src/project_atlas/web_api/next.py`
+- `web_api/__init__.py`, `app_service.py`, `api_server.py` additive `/v1/next`
+- Tests `tests/unit/test_as_coder_alpha_next_api_001.py`
+- Overlap vs #365/#366: `NO_OVERLAP`
+
+### Honesty
+- NEXT LENS != AUTHORITY
+- NEXT ACTION != COMMAND
+- UNKNOWN is valid
+- no Layer B write / no answer materialization
+- not AS-2.0-NEXT-001
+
