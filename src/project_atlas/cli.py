@@ -2343,6 +2343,44 @@ def build_parser() -> argparse.ArgumentParser:
     )
     live_l3.add_argument("--json", action="store_true")
 
+    # AS-ORCH-001A — read-only result validation / transition classification.
+    # Classification != execution. Does not dispatch, merge, or grant authority.
+    orch_parser = subparsers.add_parser(
+        "orchestrator",
+        help=(
+            "Read-only agent-result validation and transition classification "
+            "(AS-ORCH-001A; classification != execution; no dispatch)."
+        ),
+    )
+    orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
+    orch_validate = orch_sub.add_parser(
+        "validate-result",
+        help=(
+            "Validate an AgentResultEnvelope and classify the next transition. "
+            "Does not execute the transition."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas orchestrator validate-result result.json\n"
+            "  atlas orchestrator validate-result --stdin < result.json\n"
+            "  cat result.json | atlas orchestrator validate-result -\n"
+        ),
+    )
+    orch_validate.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_validate.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+
     return parser
 
 
@@ -4513,6 +4551,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown live command: {args.live_command}"
+        )
+
+    if args.command == "orchestrator":
+        if args.orchestrator_command == "validate-result":
+            from project_atlas.orchestration import run_validate_result
+
+            decision, exit_code = run_validate_result(
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+            )
+            print(json.dumps(decision.to_public_dict(), indent=2, sort_keys=True))
+            return exit_code
+        parser.error(  # pragma: no cover
+            f"unknown orchestrator command: {args.orchestrator_command}"
         )
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces

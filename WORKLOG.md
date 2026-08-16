@@ -6597,3 +6597,46 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - UNKNOWN is valid
 - no auto-execution
 
+## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001A-001
+**Package:** AS-ORCH-001A
+**Branch:** `cursor/as-orch-001a-agent-result-contract-d054`
+**Base:** live `origin/main` `dc9b23f320524947a58e283693833b2c2578655f` / TREE `a1aaaa0bdf3de56c2c2a5b44126525d6b8d9da01`
+
+### Scope implemented
+- Typed `AgentResultEnvelope` + shipped `agent-result-envelope.schema.json`
+- Typed `OrchestrationDecision` with `execution_authorized=false` and `merge_authorized=false`
+- Deterministic, side-effect-free transition classifier with explicit safety precedence
+- Owner gate: `MERGE_ELIGIBLE` → `OWNER_REQUIRED` (never `MERGE`)
+- Read-only CLI: `atlas orchestrator validate-result <result.json>`
+
+### Honesty
+- STRUCTURED RESULT CONTRACT = IMPLEMENTED
+- DETERMINISTIC CLASSIFICATION = IMPLEMENTED
+- AUTOMATIC ROUTING = NOT YET IMPLEMENTED
+- CURSOR HOOK = NOT YET IMPLEMENTED
+- AGENT DISPATCH = NOT YET IMPLEMENTED
+- AUTONOMOUS LOOP = NOT YET IMPLEMENTED
+- AUTOMATIC MERGE = NOT IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- RESULT != AUTHORITY
+- RECEIPT != AUTHORITY
+- CLASSIFICATION != EXECUTION
+- REQUESTED_TRANSITION != AUTHORIZED_TRANSITION
+
+### Follow-up (not started)
+- AS-ORCH-001B Policy Router
+- AS-ORCH-001C Cursor Integration
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
+### Local verification
+- Focused orchestration tests: 45 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- `ruff check .`: pass
+- `mypy src`: pass
+- Full `pytest`: 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot; not this package)
+- Scenarios A/B/C: INTEGRATION_VERIFY / RECERTIFY_REQUIRED / OWNER_REQUIRED; `execution_authorized=false`
+

@@ -384,3 +384,30 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
+## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Classifies the next eligible transition from a structured `AgentResultEnvelope`. Does **not** dispatch, route automatically, create Cursor hooks, merge, or grant owner authority. `execution_authorized = false` always._
+
+Honesty (mandatory):
+
+- `STRUCTURED RESULT CONTRACT = IMPLEMENTED`
+- `DETERMINISTIC CLASSIFICATION = IMPLEMENTED`
+- `AUTOMATIC ROUTING = NOT YET IMPLEMENTED`
+- `CURSOR HOOK = NOT YET IMPLEMENTED`
+- `AGENT DISPATCH = NOT YET IMPLEMENTED`
+- `AUTONOMOUS LOOP = NOT YET IMPLEMENTED`
+- `AUTOMATIC MERGE = NOT IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+
+- [x] ORCH001A-001 `AgentResultEnvelope` model + shipped JSON schema
+- [x] ORCH001A-002 `OrchestrationDecision` (`execution_authorized=false`, `merge_authorized=false`)
+- [x] ORCH001A-003 Deterministic transition classifier + explicit precedence
+- [x] ORCH001A-004 Owner gate (`MERGE_ELIGIBLE` → `OWNER_REQUIRED`, never `MERGE`)
+- [x] ORCH001A-005 Read-only CLI `atlas orchestrator validate-result`
+- [x] ORCH001A-006 Focused unit tests + schema/model parity
+- [ ] ORCH001A-007 Independent integration verification
+- [ ] ORCH001B Policy Router (follow-up; not this package)
+- [ ] ORCH001C Cursor Integration (follow-up; not this package)
+- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
+
