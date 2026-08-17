@@ -12,6 +12,11 @@ from typing import Sequence
 
 import atlas_config
 
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+from internal.mda_output_contract import is_mda_output_artifact  # noqa: E402
+
 REQUIRED_KEYS = {
     "type", "id", "event_id", "event_kind", "occurred_at", "captured_at",
     "agent", "project_id", "project_slug", "sync_state",
@@ -70,7 +75,6 @@ def validate_event(path: Path) -> list[str]:
     return errors
 
 
-NORMALIZED_SUFFIX = ".normalized.md"
 NORMALIZED_REQUIRED_KEYS = {"type", "id", "project_id", "event_kind", "status"}
 
 
@@ -177,8 +181,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     errors: list[str] = []
     unique_files = sorted(set(files))
-    raw_files = [p for p in unique_files if not p.name.endswith(NORMALIZED_SUFFIX)]
-    normalized_files = [p for p in unique_files if p.name.endswith(NORMALIZED_SUFFIX)]
+    raw_files = [p for p in unique_files if not is_mda_output_artifact(p.name)]
+    normalized_files = [p for p in unique_files if is_mda_output_artifact(p.name)]
     for path in raw_files:
         errors.extend(validate_event(path))
     for path in normalized_files:

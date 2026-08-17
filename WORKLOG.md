@@ -6807,3 +6807,45 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - Full `pytest`: 2981 collected; 2 failures, both `WinError 206` filename-too-long in eval-broker git history/secret tests (workspace environment; not this package). AS-MVP-001 calendar/mtime failures did not reproduce in this run. Observed 1 xfailed + 5 skipped in the progress output. Do not call full pytest PASS.
 - NEW_REGRESSIONS = none
 - Scenarios A-G: task / recertify / owner_gate / terminal / tamper reject / idempotent complete / transport equivalence; `execution_authorized=false`; `dispatch_performed=false`
+
+## AS-MDA-CONTROL-PLANE-COMPAT-001-R1 — mda-cli 0.2.9 control-plane output contract
+
+**Date:** 2026-08-17
+**Package:** AS-MDA-CONTROL-PLANE-COMPAT-001-R1
+**Reason:** `CERTIFIED_OBJECT_LOST` — prior HEAD `4cb80a0aa0e28fbddee8c8a71f1875519f19fc92` / TREE `0e7926bf9257219ffb271c669ddd3c8c8b855a9e` was never published. Prior certification does not transfer.
+**Branch:** `cursor/as-mda-control-plane-compat-001-r1`
+**Base:** `122ad8b11236dbc906c5e245054b090e4ff8e006` (`TARGET_MOVED = NO` at reconstruction)
+**PR #396:** untouched (`2b6ea76f3f2f54f1014de5fbb2092622d8c4e665`)
+
+### Scope
+- Explicit trusted mda-cli 0.2.9 output contract: `<source>.md` → `<source>.restructured.md`
+- Directory mode uses `--out-dir` (never `--output-folder`)
+- Fail-closed: missing, empty, stale, ambiguous, unknown version, path confinement
+- Production success does not accept `*.normalized.md` (legacy fixture / scan class only)
+- Trusted-exec + `shell=False` invariants preserved (CODEX-SEC-021)
+
+### `.normalized.md` inventory (session-start relevant stale production refs = 0)
+- `internal/mda_output_contract.py`, `internal/normalization.py`, mock `tests/fixtures/bin/mda`: CURRENT_MDA_RUNTIME_CONTRACT
+- `internal/event_reader.py`, `scripts/check_documentation.py`: CURRENT_MDA_RUNTIME_CONTRACT + LEGACY_FIXTURE scan class
+- `internal/ingestion_orchestrator.py`: CURRENT_MDA_RUNTIME_CONTRACT (routes `*.restructured.md`)
+- `tests/test_router.py`, `tests/test_check_documentation.py`: LEGACY_FIXTURE (downstream router/scan tests; not session-start production)
+- `WORKLOG.md` historical mentions: UNRELATED
+- Follow-up debt (untouched): leftover fixture writers in router/check_documentation tests remain labeled LEGACY_FIXTURE
+
+### Local verification (this Linux host)
+- Focused R1 reconstruction tests: 23 passed (`test_mda_output_contract_r1.py`)
+- Agent-control suite: 194 passed (`atlas-vault-documentation/tests`)
+- ORCH-001A/B/C regression: 140 passed
+- Security suite: 188 passed
+- CLI smoke: pass
+- `ruff check .`: pass
+- `mypy src`: pass (226 source files)
+- Full `pytest`: 2977 passed, 3 skipped, 1 xfailed
+- Authentic PATH `mda` 0.2.9 + billed OpenRouter: **not available in this environment** (`REAL_MDA_PROVIDER_AVAILABLE = NO`)
+- PR396 mutated: NO; R7 created: NO; authentic R6 resumed: NO
+
+### Honesty
+- `PRIOR_CERTIFICATION_TRANSFERRED = NO`
+- `NEW_HEAD != LOST_HEAD` (required)
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_PERFORMED = NO`

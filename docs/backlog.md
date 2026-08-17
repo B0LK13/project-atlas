@@ -481,3 +481,15 @@ Honesty (mandatory):
 - [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 
+## AS-MDA-CONTROL-PLANE-COMPAT-001-R1 — mda-cli 0.2.9 control-plane compatibility
+
+_Status: **RECONSTRUCTED — RECERTIFICATION IN PROGRESS** (owner-authorized because the previously certified Git object was lost before publication). Prior HEAD `4cb80a0aa0e28fbddee8c8a71f1875519f19fc92` remains historical evidence only. Prior certification is not transferable. This package does not touch PR #396 / AS-ORCH-001D._
+
+- [x] MDA-R1-001 Explicit trusted 0.2.9 contract (`*.restructured.md`, `--out-dir`)
+- [x] MDA-R1-002 Fail-closed missing / empty / stale / ambiguous / unknown-contract / confinement
+- [x] MDA-R1-003 Focused reconstruction tests (18 cases) + mock models production contract
+- [x] MDA-R1-004 Session-start-relevant stale `*.normalized.md` production refs = 0
+- [ ] MDA-R1-005 Authentic PATH mda 0.2.9 + billed OpenRouter + `normalize_event` (host-blocked here)
+- [ ] MDA-R1-006 Independent verification against published R1 HEAD/TREE
+- [ ] MDA-R1-007 Exact-head GitHub CI + owner merge gate (merge not authorized)
+

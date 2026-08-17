@@ -35,6 +35,7 @@ ATLAS_ENV_VARS = (
     "ATLAS_SKILL",
     "ATLAS_SKILL_DIR",
     "MDA_MOCK_MODE",
+    "MDA_MOCK_VERSION",
 )
 
 ROOT_DIR = Path(__file__).resolve().parent.parent

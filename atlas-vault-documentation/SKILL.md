@@ -112,7 +112,8 @@ mda --skill-dir <path-to-this-skill> <raw-event-path>
 Rules:
 
 - Never use `--in-place` on immutable raw evidence.
-- Use sibling or explicit output-folder mode.
+- Use sibling output or explicit `--out-dir` (mda-cli 0.2.9). `--output-folder` is not a 0.2.9 flag.
+- Canonical current-run sibling suffix is `.restructured.md`.
 - Preserve mda-cli atomic-write behavior.
 - Treat provider failure as `normalization-pending`.
 - Record command, exit status, provider when known, and output path.

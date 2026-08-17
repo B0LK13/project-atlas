@@ -31,6 +31,7 @@ import atlas_config
 import capture_event
 import check_documentation
 from internal import normalization
+from internal.mda_output_contract import UnknownMdaContractError
 from internal.trusted_exec import (
     TrustedExecError,
     resolve_normalization_command,
@@ -225,14 +226,53 @@ def main(argv: Sequence[str] | None = None) -> int:
         _emit(payload, args, f"Normalization disabled: {event_id}")
         return EXIT_OK
 
-    try:
-        plan_command = normalization.build_command(settings, raw_event.resolve())
-        plan_output = normalization.expected_output(settings, raw_event.resolve())
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return EXIT_USAGE
-
     if args.dry_run:
+        probe, contract = normalization.probe_output_contract(
+            settings, redact=capture_event.redact
+        )
+        if contract is None:
+            version_line = (probe.stdout or "").strip().splitlines()
+            line = version_line[0] if version_line else "unknown"
+            category = (
+                probe.category
+                if probe.category
+                else normalization.CATEGORY_UNKNOWN_CONTRACT
+            )
+            message = (
+                f"mda-cli {category}: version probe failed"
+                if probe.category
+                else f"unrecognized mda-cli version contract: {line!r}"
+            )
+            payload = {
+                "ok": False,
+                "event_id": event_id,
+                "status": "failed",
+                "category": category,
+                "message": message,
+                "raw_event": str(raw_event),
+                "normalized_event": None,
+            }
+            try:
+                payload["command"] = normalization.build_command(
+                    settings, raw_event.resolve(), contract=None
+                )
+            except (UnknownMdaContractError, ValueError):
+                payload["command"] = [settings.mda_command]
+            _emit(payload, args, f"FAILED {event_id}: {message}")
+            if not args.json_output:
+                print(f"ERROR: {message}", file=sys.stderr)
+            return EXIT_NORMALIZATION_FAILED
+        try:
+            plan_command = normalization.build_command(
+                settings, raw_event.resolve(), contract
+            )
+            plan_output = normalization.expected_output(
+                settings, raw_event.resolve(), contract
+            )
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        version = (probe.stdout or "").strip().splitlines()[0][:200]
         payload = {
             "ok": True,
             "event_id": event_id,
@@ -242,6 +282,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "root": str(root),
             "verify": settings.verify,
             "provider": settings.provider,
+            "mda_version": version,
+            "output_contract": contract.classification,
+            "output_suffix": contract.suffix,
         }
         _emit(payload, args, "Dry run: " + " ".join(plan_command))
         return EXIT_OK
