@@ -513,6 +513,32 @@ Honesty (mandatory):
 - [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
+## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Extends the existing 001D parent so a terminal ask-mode process can return one framed `AgentResultEnvelope` that the parent validates and binds. Does **not** create a second dispatcher, grant ask-mode write, merge, or mutate PR #402/#396._
+
+Honesty (mandatory):
+
+- `PROCESS_DISPATCH_PATH_COUNT = 1`
+- `DISPATCH_PATH = AS_ORCH_001D`
+- `SECOND_PROCESS_LAUNCH_PATH = NO`
+- `STDOUT_IS_AUTHORITY = NO`
+- `STDERR_IS_AUTHORITY = NO`
+- `PROCESS_EXIT_ZERO_IS_AUTHORITY = NO`
+- `RESULT_ADAPTER_CAN_AUTHORIZE_MERGE = NO`
+- `ASK_MODE_GENERAL_MUTATION = NO`
+- `AS_ORCH_001A_R1 = BLOCKED` until a later owner merge of this package
+- `PR402_CERTIFICATION = NOT_GRANTED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCH001DRB-001 Uniquely delimited terminal result frame
+- [x] ORCH001DRB-002 Parent capture + 001A validation of untrusted payload
+- [x] ORCH001DRB-003 Strict dispatch/lease/package/role/pin identity binding
+- [x] ORCH001DRB-004 Replay fail-closed (duplicate/stale/wrong/after-finalization)
+- [x] ORCH001DRB-005 Exit code is not semantic PASS
+- [x] ORCH001DRB-006 Internal governed submit/finalize (child write not required)
+- [ ] ORCH001DRB-007 Independent verification (bootstrap: candidate tests + exact-head CI + Windows process matrix; adapter PASS is not self-trust)
+
 ## AS-ORCH-001E — Governed Autonomous Loop
 
 _Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Persistent loop above the landed 001D dispatcher. Does **not** bypass owner gates, authorize merge, grant waivers, expand objectives, or mutate #396._

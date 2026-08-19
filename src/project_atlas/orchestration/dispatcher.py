@@ -7,9 +7,12 @@ HandoffPacket is never auto-dispatched. Privileges remain false.
 PROCESS_DISPATCH != PRIVILEGED EXECUTION AUTHORITY.
 
 SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED
+PROCESS_RESULT_BINDING = IMPLEMENTED
 AUTONOMOUS_LOOP = NOT_IMPLEMENTED
 MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED
 DISPATCH_RECEIPT_IS_AUTHORITY = NO
+RESULT_ADAPTER_CAN_AUTHORIZE_MERGE = NO
+STDOUT_IS_AUTHORITY = NO
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 from enum import StrEnum
 from pathlib import Path
 from typing import Final, Literal, TextIO
@@ -33,14 +37,15 @@ from pydantic import (
 from atlas_contracts.versions import ID_PATTERN
 from project_atlas.orchestration.agent_transport import (
     DEFAULT_TIMEOUT_SECONDS,
-    CursorOutputKind,
     ProcessRunner,
     ProcessRunOutcome,
     ProcessRunRequest,
+    ResultChannelStatus,
     SubprocessProcessRunner,
     TransportError,
     build_launch_plan,
     digest_bytes,
+    extract_result_channel,
     parse_structured_cursor_output,
     resolve_cursor_transport,
     sanitize_inherited_env,
@@ -68,8 +73,10 @@ from project_atlas.orchestration.router import canonical_payload_digest, source_
 from project_atlas.orchestration.validator import ResultValidationError, parse_envelope
 
 PACKAGE_ID: Final[Literal["AS-ORCH-001D"]] = "AS-ORCH-001D"
+RESULT_BINDING_PACKAGE_ID: Final[str] = "AS-ORCH-001D-RESULT-BINDING-001"
 MAX_ACTIVE_DISPATCHES: Final[int] = 1
 DEFAULT_ATTEMPT: Final[int] = 1
+PROCESS_DISPATCH_PATH_COUNT: Final[int] = 1
 STATE_DIR_RELATIVE: Final[Path] = Path(".atlas") / "orchestration" / "dispatcher"
 ACTIVE_RELATIVE: Final[Path] = STATE_DIR_RELATIVE / "active.json"
 RECORDS_RELATIVE: Final[Path] = STATE_DIR_RELATIVE / "records"
@@ -82,8 +89,37 @@ MUTATING_REMEDIATION_AUTO_DISPATCH: Final[str] = (
     "BLOCKED_PENDING_EXISTING_AUTHORITY_BINDING"
 )
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+_PIN_RE = re.compile(r"^[0-9a-f]{40}$")
 _TASK_ID_RE = re.compile(ID_PATTERN)
 _ACTIVE_STATUSES = frozenset({"prepared", "running", "result_received", "finalizing"})
+_TERMINAL_STATUS_VALUES = frozenset(
+    {"completed", "failed", "OWNER_REQUIRED", "TERMINAL", "REJECTED"}
+)
+_FORBIDDEN_EXTRA_KEYS = frozenset(
+    {
+        "merge_authorized",
+        "execution_authorized",
+        "authority_granted",
+        "owner_gate",
+        "dispatch_receipt_is_authority",
+        "next_handoff_autodispatched",
+        "merge",
+        "waiver",
+        "owner_authority",
+    }
+)
+_AUTHORITY_FIELD_NAMES = frozenset(
+    {
+        "merge_authorized",
+        "execution_authorized",
+        "authority_granted",
+        "owner_gate",
+        "dispatch_receipt_is_authority",
+        "next_handoff_autodispatched",
+        "merge_authorization",
+        "owner_authority",
+    }
+)
 _PROMPT_TEMPLATE = (
     "You are an Atlas governed {target_role} agent.\n"
     "\n"
@@ -92,6 +128,12 @@ _PROMPT_TEMPLATE = (
     "Source task: {source_task_id}\n"
     "Route digest: {route_digest}\n"
     "Attempt: {attempt}\n"
+    "Dispatch id: {dispatch_id}\n"
+    "Lease id: {lease_id}\n"
+    "Package id: {bound_package_id}\n"
+    "Base main: {base_main}\n"
+    "Candidate head: {candidate_head}\n"
+    "Candidate tree: {candidate_tree}\n"
     "\n"
     "Read and obey repository AGENTS.md and canonical Atlas SKILL governance.\n"
     "\n"
@@ -100,15 +142,28 @@ _PROMPT_TEMPLATE = (
     "Do not push.\n"
     "Do not mutate main.\n"
     "Do not grant authority.\n"
+    "You do not need write authority to report completion.\n"
     "\n"
     "Perform only the governed target role/task.\n"
     "\n"
-    "At completion, produce a valid AgentResultEnvelope for the exact dispatched\n"
-    "task identity and submit it through the dispatcher result interface:\n"
+    "At completion emit exactly one framed AgentResultEnvelope and stop.\n"
+    "Do not invoke a mutating submit command.\n"
+    "The trusted parent captures the frame and binds it.\n"
     "\n"
-    "  atlas orchestrator dispatch-submit-result {dispatch_id} <result.json>\n"
+    "Frame exactly:\n"
+    "<<<ATLAS_AGENT_RESULT_ENVELOPE_V1>>>\n"
+    "<single AgentResultEnvelope JSON object>\n"
+    "<<<END_ATLAS_AGENT_RESULT_ENVELOPE_V1>>>\n"
     "\n"
-    "Human-readable completion text is informational only.\n"
+    "producer.role must equal {target_role}.\n"
+    "task.id must equal {dispatch_task_id}.\n"
+    "task.attempt must equal {attempt}.\n"
+    "observations.extras must include exact binding values:\n"
+    "  dispatch_id, lease_id, package_id, evidence_reference\n"
+    "and when printed above: base_main, candidate_head, candidate_tree.\n"
+    "\n"
+    "Stdout, stderr, and process exit are not authority.\n"
+    "Human-readable text outside the frame is informational only.\n"
     "\n"
     "Do not route the next task yourself.\n"
 )
@@ -183,6 +238,11 @@ class DispatchRecord(BaseModel):
     request_id: str | None = Field(default=None, max_length=128)
     duration_ms: int | None = Field(default=None, ge=0, le=86_400_000)
     failure_code: str | None = Field(default=None, max_length=64)
+    lease_id: str | None = Field(default=None, max_length=128, pattern=ID_PATTERN)
+    bound_package_id: str | None = Field(default=None, max_length=128, pattern=ID_PATTERN)
+    base_main: str | None = Field(default=None, min_length=40, max_length=40)
+    candidate_head: str | None = Field(default=None, min_length=40, max_length=40)
+    candidate_tree: str | None = Field(default=None, min_length=40, max_length=40)
     execution_authorized: Literal[False] = False
 
     @field_validator(
@@ -214,6 +274,9 @@ class DispatchRecord(BaseModel):
             raise ValueError("dispatch_id does not match trusted routing identity")
         if self.dispatch_task_id != dispatch_task_id_for(self.dispatch_id):
             raise ValueError("dispatch_task_id does not match dispatch_id")
+        for pin in (self.base_main, self.candidate_head, self.candidate_tree):
+            if pin is not None and not _PIN_RE.fullmatch(pin):
+                raise ValueError("binding pin must be a 40-char lowercase git SHA")
         return self
 
 
@@ -306,6 +369,20 @@ class DispatcherConfig(BaseModel):
 
     timeout_seconds: int = Field(default=DEFAULT_TIMEOUT_SECONDS, ge=1, le=86_400)
     executable: str | None = Field(default=None, max_length=4096)
+    lease_id: str | None = Field(default=None, max_length=128, pattern=ID_PATTERN)
+    bound_package_id: str | None = Field(default=None, max_length=128, pattern=ID_PATTERN)
+    base_main: str | None = Field(default=None, min_length=40, max_length=40)
+    candidate_head: str | None = Field(default=None, min_length=40, max_length=40)
+    candidate_tree: str | None = Field(default=None, min_length=40, max_length=40)
+
+    @field_validator("base_main", "candidate_head", "candidate_tree")
+    @classmethod
+    def _pin_hex(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not _PIN_RE.fullmatch(value):
+            raise ValueError("binding pin must be a 40-char lowercase git SHA")
+        return value
 
 
 class DispatchResultBinding(BaseModel):
@@ -371,6 +448,11 @@ def trusted_dispatch_prompt(
     target_role: ProducerRole,
     task_type: TaskType,
     attempt: int,
+    lease_id: str | None = None,
+    bound_package_id: str | None = None,
+    base_main: str | None = None,
+    candidate_head: str | None = None,
+    candidate_tree: str | None = None,
 ) -> str:
     """Fixed Atlas-owned template. Untrusted envelope text is never interpolated."""
     if not _DIGEST_RE.fullmatch(dispatch_id) or not _DIGEST_RE.fullmatch(route_digest):
@@ -387,6 +469,11 @@ def trusted_dispatch_prompt(
         route_digest=route_digest,
         attempt=attempt,
         dispatch_id=dispatch_id,
+        lease_id=lease_id or "UNSET",
+        bound_package_id=bound_package_id or source_task_id,
+        base_main=base_main or "UNSET",
+        candidate_head=candidate_head or "UNSET",
+        candidate_tree=candidate_tree or "UNSET",
     )
 
 
@@ -579,6 +666,122 @@ def _receipt_from_record(
     )
 
 
+def _git_rev_parse(root: Path, spec: str) -> str | None:
+    """Observe a git object name. Not authority. shell=False always."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", spec],
+            capture_output=True,
+            text=True,
+            check=False,
+            shell=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    value = completed.stdout.strip().lower()
+    if _PIN_RE.fullmatch(value) or _DIGEST_RE.fullmatch(value):
+        return value
+    return None
+
+
+def observe_binding_pins(root: Path) -> tuple[str | None, str | None, str | None]:
+    """Observe base/candidate pins. Missing git is not TARGET_MOVED."""
+    base_main = _git_rev_parse(root, "origin/main") or _git_rev_parse(root, "refs/heads/main")
+    candidate_head = _git_rev_parse(root, "HEAD")
+    candidate_tree = _git_rev_parse(root, "HEAD^{tree}")
+    return base_main, candidate_head, candidate_tree
+
+
+def resolve_binding_pins(
+    *,
+    root: Path,
+    dispatch_id: str,
+    source_task_id: str,
+    config: DispatcherConfig,
+) -> tuple[str, str, str | None, str | None, str | None]:
+    """Trusted parent pins. Envelope values cannot populate these."""
+    observed_base, observed_head, observed_tree = observe_binding_pins(root)
+    lease_id = config.lease_id or f"LEASE-DISPATCH.{dispatch_id}"
+    bound_package = config.bound_package_id or source_task_id
+    return (
+        lease_id,
+        bound_package,
+        config.base_main or observed_base,
+        config.candidate_head or observed_head,
+        config.candidate_tree or observed_tree,
+    )
+
+
+def _extra_str(extras: dict[str, bool | int | str], key: str) -> str | None:
+    value = extras.get(key)
+    return value if isinstance(value, str) else None
+
+
+def _authority_fields_present(payload: object) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    if any(key in _AUTHORITY_FIELD_NAMES for key in payload):
+        return True
+    observations = payload.get("observations")
+    if isinstance(observations, dict):
+        extras = observations.get("extras")
+        if isinstance(extras, dict) and any(key in _FORBIDDEN_EXTRA_KEYS for key in extras):
+            return True
+    return False
+
+
+def evaluate_identity_binding(
+    envelope: AgentResultEnvelope,
+    record: DispatchRecord,
+) -> None:
+    """Strict equality against the active dispatch. Any mismatch rejects."""
+    extras = envelope.observations.extras
+    if any(key in extras for key in _FORBIDDEN_EXTRA_KEYS):
+        raise DispatcherError(
+            "result extras smuggle an authority field",
+            code="RESULT_WITH_EXTRA_AUTHORITY_FIELD",
+        )
+    dispatch_id = _extra_str(extras, "dispatch_id")
+    if dispatch_id != record.dispatch_id:
+        if dispatch_id is not None and _DIGEST_RE.fullmatch(dispatch_id):
+            existing = load_record(Path(record.workspace_root), dispatch_id)
+            if existing is not None and existing.dispatch_id != record.dispatch_id:
+                raise DispatcherError(
+                    "result belongs to a previous dispatch",
+                    code="RESULT_FROM_PREVIOUS_DISPATCH",
+                )
+        raise DispatcherError("result dispatch_id does not match", code="WRONG_DISPATCH_ID")
+    lease_id = _extra_str(extras, "lease_id")
+    if record.lease_id is not None and lease_id != record.lease_id:
+        raise DispatcherError("result lease_id does not match", code="WRONG_LEASE_ID")
+    package_id = _extra_str(extras, "package_id")
+    if record.bound_package_id is not None and package_id != record.bound_package_id:
+        raise DispatcherError("result package_id does not match", code="WRONG_PACKAGE")
+    if envelope.producer.role != record.target_role:
+        raise DispatcherError("result role does not match", code="WRONG_ROLE")
+    if envelope.task.id != record.dispatch_task_id:
+        raise DispatcherError("result task id does not match", code="TASK_ID_MISMATCH")
+    if envelope.task.attempt != record.attempt:
+        if envelope.task.attempt < record.attempt:
+            raise DispatcherError("result attempt is stale", code="STALE_RESULT")
+        raise DispatcherError("result attempt does not match", code="ATTEMPT_MISMATCH")
+    base_main = _extra_str(extras, "base_main")
+    if record.base_main is not None and base_main != record.base_main:
+        raise DispatcherError("result base_main does not match", code="WRONG_BASE")
+    candidate_head = _extra_str(extras, "candidate_head")
+    if record.candidate_head is not None and candidate_head != record.candidate_head:
+        raise DispatcherError("result candidate_head does not match", code="WRONG_HEAD")
+    candidate_tree = _extra_str(extras, "candidate_tree")
+    if record.candidate_tree is not None and candidate_tree != record.candidate_tree:
+        raise DispatcherError("result candidate_tree does not match", code="WRONG_TREE")
+    evidence = _extra_str(extras, "evidence_reference")
+    if evidence is None or not evidence:
+        raise DispatcherError("result missing evidence_reference", code="MALFORMED_RESULT")
+
+
 def evaluate_dispatch_eligibility(packet: HandoffPacket, root: Path) -> None:
     """Recompute live Atlas route. Dispatcher cannot reroute."""
     if packet.state == HandoffState.OWNER_REQUIRED:
@@ -631,6 +834,14 @@ def submit_target_result(
     record = load_record(workspace, dispatch_id)
     if record is None:
         raise DispatcherError("no dispatch record for result submission", code="UNKNOWN_DISPATCH")
+    result_file = result_path(workspace, dispatch_id)
+    if result_file.is_file() and load_result_binding(workspace, dispatch_id) is not None:
+        raise DispatcherError("dispatch already has a terminal result", code="DUPLICATE_RESULT")
+    if record.status.value in _TERMINAL_STATUS_VALUES:
+        raise DispatcherError(
+            "result arrived after finalization",
+            code="RESULT_AFTER_FINALIZATION",
+        )
     try:
         envelope = parse_envelope(payload)
     except ResultValidationError as exc:
@@ -644,13 +855,6 @@ def submit_target_result(
     if not envelope.receipt_is_valid_evidence():
         raise DispatcherError("target result receipt is not valid evidence", code="INVALID_RECEIPT")
     envelope_digest = canonical_payload_digest(envelope.model_dump(mode="json"))
-    result_file = result_path(workspace, dispatch_id)
-    if result_file.is_file():
-        existing = load_result_binding(workspace, dispatch_id)
-        if existing is not None:
-            if existing.envelope_digest == envelope_digest:
-                return existing
-            raise DispatchResultAlreadyBound("DISPATCH_RESULT_ALREADY_BOUND")
     binding = DispatchResultBinding(
         dispatch_id=dispatch_id,
         envelope_digest=envelope_digest,
@@ -667,6 +871,57 @@ def submit_target_result(
     }:
         persist_record(workspace, updated)
         persist_active(workspace, dispatch_id, updated.status)
+    return binding
+
+
+def bind_captured_result(
+    payload: object,
+    *,
+    root: Path,
+    record: DispatchRecord,
+) -> DispatchResultBinding:
+    """Validate an untrusted framed payload and bind it to the active dispatch."""
+    workspace = validate_workspace_root(root)
+    live = load_record(workspace, record.dispatch_id)
+    if live is None:
+        raise DispatcherError("no dispatch record for captured result", code="UNKNOWN_DISPATCH")
+    if live.status.value in _TERMINAL_STATUS_VALUES:
+        raise DispatcherError(
+            "result arrived after finalization",
+            code="RESULT_AFTER_FINALIZATION",
+        )
+    if result_path(workspace, live.dispatch_id).is_file():
+        raise DispatcherError("dispatch already has a terminal result", code="DUPLICATE_RESULT")
+    if _authority_fields_present(payload):
+        raise DispatcherError(
+            "result contains an extra authority field",
+            code="RESULT_WITH_EXTRA_AUTHORITY_FIELD",
+        )
+    try:
+        envelope = parse_envelope(payload)
+    except ResultValidationError as exc:
+        message = str(exc)
+        if "extra" in message.lower() or "forbid" in message.lower():
+            raise DispatcherError(
+                message,
+                code="RESULT_WITH_EXTRA_AUTHORITY_FIELD",
+            ) from exc
+        raise DispatcherError(message, code="MALFORMED_RESULT") from exc
+    evaluate_identity_binding(envelope, live)
+    if not envelope.receipt_is_valid_evidence():
+        raise DispatcherError("target result receipt is not valid evidence", code="INVALID_RECEIPT")
+    envelope_digest = canonical_payload_digest(envelope.model_dump(mode="json"))
+    binding = DispatchResultBinding(
+        dispatch_id=live.dispatch_id,
+        envelope_digest=envelope_digest,
+        envelope=envelope,
+    )
+    _write_json(result_path(workspace, live.dispatch_id), binding.model_dump(mode="json"))
+    updated = live.model_copy(
+        update={"result_received": True, "status": DispatchStatus.RESULT_RECEIVED}
+    )
+    persist_record(workspace, updated)
+    persist_active(workspace, live.dispatch_id, updated.status)
     return binding
 
 
@@ -829,6 +1084,12 @@ def run_dispatch_once(
                 code="DISPATCH_ALREADY_ACTIVE",
             )
     _reject_unrelated_active(workspace, dispatch_id)
+    lease_id, bound_package_id, base_main, candidate_head, candidate_tree = resolve_binding_pins(
+        root=workspace,
+        dispatch_id=dispatch_id,
+        source_task_id=packet.source_task,
+        config=trusted,
+    )
     record = DispatchRecord(
         dispatch_id=dispatch_id,
         status=DispatchStatus.PREPARED,
@@ -839,6 +1100,11 @@ def run_dispatch_once(
         task_type=packet.task_type,
         attempt=DEFAULT_ATTEMPT,
         workspace_root=str(workspace),
+        lease_id=lease_id,
+        bound_package_id=bound_package_id,
+        base_main=base_main,
+        candidate_head=candidate_head,
+        candidate_tree=candidate_tree,
     )
     persist_record(workspace, record)
     persist_active(workspace, dispatch_id, record.status)
@@ -850,6 +1116,11 @@ def run_dispatch_once(
         target_role=record.target_role,
         task_type=record.task_type,
         attempt=record.attempt,
+        lease_id=record.lease_id,
+        bound_package_id=record.bound_package_id,
+        base_main=record.base_main,
+        candidate_head=record.candidate_head,
+        candidate_tree=record.candidate_tree,
     )
     try:
         if runner is not None and trusted.executable is None:
@@ -885,6 +1156,7 @@ def _complete_after_process(
     outcome: ProcessRunOutcome,
 ) -> DispatchReceipt:
     parsed = parse_structured_cursor_output(outcome.stdout)
+    channel = extract_result_channel(outcome.stdout, outcome.stderr)
     updates: dict[str, object] = {
         "process_terminal": True,
         "process_timeout": outcome.timed_out,
@@ -898,24 +1170,30 @@ def _complete_after_process(
     }
     if outcome.timed_out:
         return _fail_record(root, record, "PROCESS_TIMEOUT", **updates)
-    if outcome.exit_code != 0 or parsed.kind in {
-        CursorOutputKind.MISSING,
-        CursorOutputKind.MALFORMED,
-        CursorOutputKind.CURSOR_ERROR,
-    }:
-        code = "PROCESS_FAILED" if outcome.exit_code != 0 else "CURSOR_OUTPUT_UNUSABLE"
-        return _fail_record(root, record, code, **updates)
     terminal = record.model_copy(update={**updates, "status": DispatchStatus.RUNNING})
     persist_record(root, terminal)
-    binding = load_result_binding(root, terminal.dispatch_id)
-    if binding is None:
-        return _fail_record(
-            root,
-            terminal,
-            "RESULT_NOT_SUBMITTED",
-            **updates,
-        )
-    received = terminal.model_copy(
+    captured = channel.status is ResultChannelStatus.SINGLE and channel.payload is not None
+    if not captured:
+        if channel.failure_code in {
+            "MULTIPLE_RESULT_ENVELOPES",
+            "MALFORMED_RESULT",
+            "OVERSIZED_RESULT",
+        }:
+            return _fail_record(root, terminal, channel.failure_code, **updates)
+        if outcome.exit_code != 0:
+            return _fail_record(root, terminal, "PROCESS_FAILED", **updates)
+        return _fail_record(root, terminal, "RESULT_NOT_SUBMITTED", **updates)
+    try:
+        bind_captured_result(channel.payload, root=root, record=terminal)
+    except DispatcherError as exc:
+        return _fail_record(root, terminal, exc.code, **updates)
+    bound = load_record(root, terminal.dispatch_id) or terminal
+    if outcome.exit_code != 0:
+        binding = load_result_binding(root, bound.dispatch_id)
+        claimed_pass = binding is not None and binding.envelope.outcome.value == "PASS"
+        code = "EXIT_CLAIMED_PASS" if claimed_pass else "PROCESS_FAILED_WITH_RESULT"
+        return _fail_record(root, bound, code, result_received=True, **updates)
+    received = bound.model_copy(
         update={"result_received": True, "status": DispatchStatus.RESULT_RECEIVED}
     )
     persist_record(root, received)
@@ -976,9 +1254,10 @@ def run_cli_dispatch_once(
     *,
     root: Path,
     runner: ProcessRunner | None = None,
+    config: DispatcherConfig | None = None,
 ) -> tuple[dict[str, object], int]:
     try:
-        receipt = run_dispatch_once(root=root, runner=runner)
+        receipt = run_dispatch_once(root=root, runner=runner, config=config)
     except (DispatcherError, CursorBridgeError, StagedStateTampered) as exc:
         code = getattr(exc, "code", "DISPATCHER_ERROR")
         return _public_error(str(code)), 1

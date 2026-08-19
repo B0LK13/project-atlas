@@ -2571,6 +2571,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Repository root (default: cwd).",
     )
+    orch_dispatch_once.add_argument(
+        "--lease-id",
+        default=None,
+        help="Optional lease identity recorded on the dispatch for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--bound-package-id",
+        default=None,
+        help="Optional work-package identity recorded for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--base-main",
+        default=None,
+        help="Optional 40-char base main SHA recorded for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--candidate-head",
+        default=None,
+        help="Optional 40-char candidate HEAD SHA recorded for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--candidate-tree",
+        default=None,
+        help="Optional 40-char candidate tree SHA recorded for result binding.",
+    )
     orch_dispatch_status = orch_sub.add_parser(
         "dispatch-status",
         help="Read-only dispatcher diagnostics. Does not start a process.",
@@ -4914,10 +4939,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
         if args.orchestrator_command == "dispatch-once":
-            from project_atlas.orchestration.dispatcher import run_cli_dispatch_once
+            from project_atlas.orchestration.dispatcher import (
+                DispatcherConfig,
+                run_cli_dispatch_once,
+            )
 
             report, exit_code = run_cli_dispatch_once(
                 root=Path(getattr(args, "root", None) or Path.cwd()),
+                config=DispatcherConfig(
+                    lease_id=getattr(args, "lease_id", None),
+                    bound_package_id=getattr(args, "bound_package_id", None),
+                    base_main=getattr(args, "base_main", None),
+                    candidate_head=getattr(args, "candidate_head", None),
+                    candidate_tree=getattr(args, "candidate_tree", None),
+                ),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

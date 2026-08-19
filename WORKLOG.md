@@ -5,6 +5,24 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
+
+**Date:** 2026-08-19
+**Directive:** D-AS-ORCH-001D-RESULT-BINDING-014
+**Branch:** `feat/as-orch-001d-result-binding-014` (from trusted `origin/main` `806218ae29792db63416a654e6a8390268764a1d` / tree `a83aeb9d88dd4042698c86c4ae6b0b0e6298460d`)
+**Mode:** NARROW_CONTROL_PLANE_REMEDIATION. Does not mutate PR #402 or PR #396. Does not merge.
+
+### Why this lane
+Ask-mode 001D IV completed with process exit 0 but could not write `dispatch-submit-result`. That is the generic result-binding blocker. Parent now captures one uniquely framed `AgentResultEnvelope` from stdout, validates it as untrusted input, binds identity to the active dispatch, and invokes existing submit/finalize internally.
+
+### Contract
+One process dispatch path (001D). Stdout/stderr/exit 0 are not authority. Extra authority fields, wrong pins, duplicates, and exit-1 claimed PASS fail closed. Adapter cannot authorize merge or grant owner authority.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-001d-result-binding-014\`
+
+---
+
 ## AS-ORCH-001E — governed autonomous loop / D-AS-ORCH-001D-OWNER-MERGE-010
 
 **Date:** 2026-08-19
