@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -12,9 +13,12 @@ from project_atlas.orchestration.agent_transport import (
     CursorOutputKind,
     LauncherKind,
     ProcessRunRequest,
+    ResultChannelStatus,
     SubprocessProcessRunner,
     TransportError,
     build_launch_plan,
+    extract_result_channel,
+    frame_result_payload,
     parse_structured_cursor_output,
     resolve_cursor_transport,
     sanitize_inherited_env,
@@ -107,6 +111,21 @@ def test_parse_cursor_json_hashes_prose_only() -> None:
     assert parsed.kind.value == "terminal_success"
     assert parsed.result_text_digest is not None
     assert "ignore" not in parsed.result_text_digest
+
+
+def test_framed_result_channel_rejects_last_json_and_stderr() -> None:
+    payload = {"schema_version": 1, "outcome": "PASS"}
+    raw_json = json.dumps(payload).encode("utf-8")
+    assert extract_result_channel(raw_json, b"").status is ResultChannelStatus.ABSENT
+    framed = frame_result_payload(payload)
+    cursor = json.dumps({"type": "result", "result": "hello\n" + framed}).encode("utf-8")
+    captured = extract_result_channel(cursor, b"")
+    assert captured.status is ResultChannelStatus.SINGLE
+    assert captured.payload == payload
+    absent = extract_result_channel(b'{"type":"result","result":"plain"}', framed.encode())
+    assert absent.status is ResultChannelStatus.ABSENT
+    doubled = framed + framed
+    assert extract_result_channel(doubled.encode(), b"").failure_code == "MULTIPLE_RESULT_ENVELOPES"
 
 
 def test_dispatch_schemas_are_registered() -> None:

@@ -75,6 +75,46 @@
     "request_id": { "type": ["string", "null"], "maxLength": 128 },
     "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
     "failure_code": { "type": ["string", "null"], "maxLength": 64 },
+    "lease_id": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      ]
+    },
+    "bound_package_id": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      ]
+    },
+    "base_main": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      ]
+    },
+    "candidate_head": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      ]
+    },
+    "candidate_tree": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      ]
+    },
     "execution_authorized": { "const": false }
   }
 }

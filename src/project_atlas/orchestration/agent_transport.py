@@ -36,6 +36,8 @@ DEFAULT_TIMEOUT_SECONDS = 600
 MAX_CAPTURED_BYTES = 64 * 1024
 MAX_PROMPT_CHARS = 8_192
 MAX_RESULT_CANDIDATE_BYTES = 256 * 1024
+RESULT_FRAME_BEGIN = "<<<ATLAS_AGENT_RESULT_ENVELOPE_V1>>>"
+RESULT_FRAME_END = "<<<END_ATLAS_AGENT_RESULT_ENVELOPE_V1>>>"
 _SAFE_META_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 _CURSOR_OMIT_ENV: frozenset[str] = frozenset({"ATLAS_MDA_COMMAND", "MDA_MOCK_MODE"})
@@ -518,6 +520,102 @@ def parse_structured_cursor_output(stdout: bytes) -> CursorStructuredResult:
         if parsed_item is not None:
             return parsed_item
     return CursorStructuredResult(kind=CursorOutputKind.MALFORMED)
+
+
+class ResultChannelStatus(StrEnum):
+    """Capture outcome for the framed terminal result. Not a semantic PASS."""
+
+    ABSENT = "absent"
+    SINGLE = "single"
+    MULTIPLE = "multiple"
+    MALFORMED = "malformed"
+    OVERSIZED = "oversized"
+
+
+@dataclass(frozen=True, slots=True)
+class CapturedResultChannel:
+    """Untrusted framed payload. Absence is not a PASS and not authority."""
+
+    status: ResultChannelStatus
+    payload: object | None = None
+    failure_code: str | None = None
+
+
+def _cursor_result_text(stdout: bytes) -> str | None:
+    """Return Cursor ``result`` prose when stdout is one JSON object. Not authority."""
+    try:
+        parsed: object = json.loads(stdout.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        return None
+    if isinstance(parsed, dict):
+        result = parsed.get("result")
+        if isinstance(result, str):
+            return result
+    return None
+
+
+def _extract_frames(text: str) -> tuple[ResultChannelStatus, list[str]]:
+    """Collect uniquely delimited frames. Does not parse the last JSON object."""
+    frames: list[str] = []
+    start = 0
+    while True:
+        begin = text.find(RESULT_FRAME_BEGIN, start)
+        if begin < 0:
+            break
+        body_start = begin + len(RESULT_FRAME_BEGIN)
+        end = text.find(RESULT_FRAME_END, body_start)
+        if end < 0:
+            return ResultChannelStatus.MALFORMED, []
+        frames.append(text[body_start:end])
+        start = end + len(RESULT_FRAME_END)
+    if not frames:
+        return ResultChannelStatus.ABSENT, []
+    if len(frames) > 1:
+        return ResultChannelStatus.MULTIPLE, frames
+    return ResultChannelStatus.SINGLE, frames
+
+
+def extract_result_channel(stdout: bytes, stderr: bytes | None = None) -> CapturedResultChannel:
+    """Extract at most one framed envelope from stdout. Stderr is never authority."""
+    del stderr  # STDERR_IS_AUTHORITY = NO
+    cursor_text = _cursor_result_text(stdout)
+    if cursor_text is not None:
+        search_text = cursor_text
+    else:
+        search_text = stdout.decode("utf-8", errors="replace")
+    status, frames = _extract_frames(search_text)
+    if status is ResultChannelStatus.ABSENT:
+        return CapturedResultChannel(status=status, failure_code="NO_RESULT_PAYLOAD")
+    if status is ResultChannelStatus.MULTIPLE:
+        return CapturedResultChannel(status=status, failure_code="MULTIPLE_RESULT_ENVELOPES")
+    if status is ResultChannelStatus.MALFORMED:
+        return CapturedResultChannel(status=status, failure_code="MALFORMED_RESULT")
+    body = frames[0]
+    encoded = body.encode("utf-8")
+    if len(encoded) > MAX_RESULT_CANDIDATE_BYTES:
+        return CapturedResultChannel(
+            status=ResultChannelStatus.OVERSIZED,
+            failure_code="OVERSIZED_RESULT",
+        )
+    try:
+        payload: object = json.loads(body)
+    except json.JSONDecodeError:
+        return CapturedResultChannel(
+            status=ResultChannelStatus.MALFORMED,
+            failure_code="MALFORMED_RESULT",
+        )
+    if not isinstance(payload, dict):
+        return CapturedResultChannel(
+            status=ResultChannelStatus.MALFORMED,
+            failure_code="MALFORMED_RESULT",
+        )
+    return CapturedResultChannel(status=ResultChannelStatus.SINGLE, payload=payload)
+
+
+def frame_result_payload(payload: object) -> str:
+    """Wrap a JSON object in the unique terminal result frame."""
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return f"{RESULT_FRAME_BEGIN}\n{encoded}\n{RESULT_FRAME_END}\n"
 
 
 class SubprocessProcessRunner:
