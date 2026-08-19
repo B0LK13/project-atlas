@@ -17,8 +17,8 @@ from project_atlas.orchestration.autonomy.iv_routing import IvRoutingError, rout
 from project_atlas.orchestration.autonomy.leases import grant_lease, release_lease
 from project_atlas.orchestration.autonomy.models import (
     AUTONOMY_PACKAGE_ID,
-    EXPECTED_BASE_MAIN,
-    EXPECTED_BASE_TREE,
+    BOOTSTRAP_MAIN,
+    BOOTSTRAP_TREE,
     PILOT_PACKAGE_ID,
     AgentCapability,
     AgentLease,
@@ -41,6 +41,7 @@ from project_atlas.orchestration.autonomy.models import (
     RiskTag,
     StopReason,
     TransitionRecord,
+    TrustedAnchorRecord,
     WorkNode,
 )
 from project_atlas.orchestration.autonomy.overlap import overlap_gate, would_overlap
@@ -49,6 +50,12 @@ from project_atlas.orchestration.autonomy.remediation import (
     RemediationExhausted,
     can_remediate,
     consume_remediation_cycle,
+)
+from project_atlas.orchestration.autonomy.trust import (
+    TrustError,
+    classify_observation,
+    evaluate_target_moved,
+    load_runtime_anchor,
 )
 
 DEFAULT_AGENTS: tuple[AgentRecord, ...] = (
@@ -86,9 +93,11 @@ class AutonomousGovernor:
         *,
         current_main: str,
         current_tree: str,
+        trusted_anchor: TrustedAnchorRecord,
         agents: tuple[AgentRecord, ...] = DEFAULT_AGENTS,
     ) -> None:
-        target_moved = current_main != EXPECTED_BASE_MAIN or current_tree != EXPECTED_BASE_TREE
+        self._trusted = trusted_anchor
+        target_moved = evaluate_target_moved(current_main, current_tree, trusted_anchor)
         self._nodes: list[WorkNode] = []
         self._agents = list(agents)
         self._leases: list[AgentLease] = []
@@ -100,6 +109,7 @@ class AutonomousGovernor:
         self._current_main = current_main
         self._current_tree = current_tree
         self._target_moved = target_moved
+        self._trust_state = classify_observation(current_main, current_tree, trusted_anchor)
         self._ci_state = CiState.UNKNOWN
         self._iv_state = IvState.NOT_REQUIRED
         self._certification_state = CertificationState.NOT_STARTED
@@ -116,6 +126,11 @@ class AutonomousGovernor:
         return GovernorState(
             current_main=self._current_main,
             current_tree=self._current_tree,
+            trusted_runtime_main=self._trusted.trusted_main,
+            trusted_runtime_tree=self._trusted.trusted_tree,
+            bootstrap_main=BOOTSTRAP_MAIN,
+            bootstrap_tree=BOOTSTRAP_TREE,
+            trust_state=self._trust_state,
             target_moved=self._target_moved,
             nodes=nodes,
             agents=tuple(self._agents),
@@ -384,7 +399,7 @@ class AutonomousGovernor:
         """End-to-end non-destructive pilot using the real governor APIs."""
         if self._target_moved:
             raise GovernorError("CASE=A-B target moved", code="TARGET_MOVED")
-        report = discover(inventory)
+        report = discover(inventory, trusted=self._trusted)
         if report.case == "A-B":
             raise GovernorError(report.blocker or "A-B", code=report.blocker or "A-B")
         node = self.ingest_discovery(report)
@@ -475,11 +490,17 @@ def run_live_pilot(
     repo: Path,
     *,
     evidence_dir: Path | None = None,
+    trusted_anchor: TrustedAnchorRecord | None = None,
 ) -> dict[str, object]:
+    try:
+        trusted = trusted_anchor or load_runtime_anchor(allow_shipped=True)
+    except TrustError as exc:
+        raise GovernorError(str(exc), code=exc.code) from exc
     inventory = collect_live_inventory(repo)
     governor = AutonomousGovernor(
         current_main=inventory.current_main,
         current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
     )
     return governor.run_controlled_pilot(
         inventory,

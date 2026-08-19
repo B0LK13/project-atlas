@@ -20,9 +20,25 @@ from atlas_contracts.versions import HASH_PATTERN, ID_PATTERN
 
 AUTONOMY_PACKAGE_ID: Final[Literal["AS-ORCH-AUTONOMY-001"]] = "AS-ORCH-AUTONOMY-001"
 DIRECTIVE_ID: Final[Literal["D-AUTONOMY-TRANSITION-001"]] = "D-AUTONOMY-TRANSITION-001"
+PIN_RETARGET_PACKAGE_ID: Final[str] = "AS-ORCH-AUTONOMY-001-PIN-RETARGET"
+PIN_RETARGET_DIRECTIVE_ID: Final[str] = "D-AUTONOMY-PIN-RETARGET-003"
 MAX_AUTONOMOUS_REMEDIATION_CYCLES: Final[int] = 3
-EXPECTED_BASE_MAIN: Final[str] = "23ebc0293a8988bc4f144cad6b478c6bff4d32d0"
-EXPECTED_BASE_TREE: Final[str] = "d7f5059d99e879502570245358e5a1612c52e739"
+# Historical genesis only. Not runtime authority after pin-retarget.
+BOOTSTRAP_MAIN: Final[str] = "23ebc0293a8988bc4f144cad6b478c6bff4d32d0"
+BOOTSTRAP_TREE: Final[str] = "d7f5059d99e879502570245358e5a1612c52e739"
+EXPECTED_BASE_MAIN: Final[str] = BOOTSTRAP_MAIN
+EXPECTED_BASE_TREE: Final[str] = BOOTSTRAP_TREE
+# Verification expectations for the shipped #398 retarget artifact.
+# Missing or corrupt records do not fall back to these constants.
+INITIAL_RETARGET_MAIN: Final[str] = "62f8d59f170150d5ceab1610f49be00ad25fdd50"
+INITIAL_RETARGET_TREE: Final[str] = "aed48e4854c9f32ed281b5009c92327d93971ae7"
+INITIAL_RETARGET_CERTIFIED_HEAD: Final[str] = "aca44c2b207e4eac01b9d54353d3ef8841367e65"
+INITIAL_RETARGET_SOURCE_PR: Final[int] = 398
+INITIAL_RETARGET_SOURCE_DIRECTIVE: Final[str] = "D-AUTONOMY-OWNER-MERGE-GATE-002"
+INITIAL_RETARGET_EVIDENCE_DIGEST: Final[str] = (
+    "7265052e8e30a6c3058751a96a9b10c410f2c49797fab700983a562528bdd04a"
+)
+CANONICAL_REPOSITORY_IDENTITY: Final[str] = "github.com/b0lk13/project-atlas"
 PILOT_PACKAGE_ID: Final[str] = "AS-ORCH-AUTONOMY-001-PILOT"
 TRUTH_BOUNDARY: Final[str] = (
     "GOVERNOR_STATE != AUTHORITY / LEASE != DISPATCH / CERTIFIED != MERGED / "
@@ -103,6 +119,21 @@ class ExecutionHostClass(StrEnum):
 
     IN_PROCESS = "IN_PROCESS"
     EXTERNAL_AGENT = "EXTERNAL_AGENT"
+
+
+class AdvancementReason(StrEnum):
+    """Why a trusted runtime anchor advanced. Not an authority grant."""
+
+    VERIFIED_OWNER_AUTHORIZED_MERGE = "VERIFIED_OWNER_AUTHORIZED_MERGE"
+
+
+class TrustState(StrEnum):
+    """Runtime trust classification. UNVERIFIABLE never falls back."""
+
+    TRUSTED = "TRUSTED"
+    UNVERIFIABLE = "UNVERIFIABLE"
+    BLOCKED = "BLOCKED"
+    TARGET_MOVED = "TARGET_MOVED"
 
 
 class CiState(StrEnum):
@@ -326,6 +357,148 @@ class ExecutionPlan(BaseModel):
     truth_boundary: str = TRUTH_BOUNDARY
 
 
+class TrustedAnchorRecord(BaseModel):
+    """Persisted trusted runtime anchor. Evidence identity, not owner authority.
+
+    ``record_created_at`` is omitted: hashed canonical evidence must stay
+    deterministic (NFR-001). ``sequence`` is the logical history key.
+    COMMIT_IDENTITY (trusted_main / certified_head) is distinct from
+    CONTENT_IDENTITY (trusted_tree / certified_tree).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    repository_identity: str = Field(min_length=1, max_length=256)
+    trusted_main: str = Field(min_length=40, max_length=40)
+    trusted_tree: str = Field(min_length=40, max_length=40)
+    predecessor_main: str = Field(min_length=40, max_length=40)
+    predecessor_tree: str = Field(min_length=40, max_length=40)
+    advancement_reason: AdvancementReason
+    source_package: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_directive: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_pr: int = Field(ge=1, le=1_000_000)
+    merge_commit: str = Field(min_length=40, max_length=40)
+    merge_parent_1: str = Field(min_length=40, max_length=40)
+    merge_parent_2: str = Field(min_length=40, max_length=40)
+    merge_tree: str = Field(min_length=40, max_length=40)
+    certified_head: str = Field(min_length=40, max_length=40)
+    certified_tree: str = Field(min_length=40, max_length=40)
+    certification_status: Literal["CERTIFIED"]
+    independent_verification_status: Literal["PASS"]
+    post_merge_seal: Literal["PASS"]
+    post_merge_ci: Literal["PASS"]
+    evidence_reference: str = Field(min_length=1, max_length=256)
+    evidence_digest: str = Field(min_length=64, max_length=64)
+    sequence: int = Field(ge=1, le=1_000_000)
+    record_digest: str = Field(min_length=64, max_length=64)
+
+    @field_validator(
+        "trusted_main",
+        "trusted_tree",
+        "predecessor_main",
+        "predecessor_tree",
+        "merge_commit",
+        "merge_parent_1",
+        "merge_parent_2",
+        "merge_tree",
+        "certified_head",
+        "certified_tree",
+    )
+    @classmethod
+    def _pin(cls, value: str) -> str:
+        if not _PIN_RE.fullmatch(value):
+            raise ValueError("anchor pins must be 40-char lowercase git SHAs")
+        return value
+
+    @field_validator("evidence_digest", "record_digest")
+    @classmethod
+    def _digest(cls, value: str) -> str:
+        if not re.fullmatch(HASH_PATTERN, value):
+            raise ValueError("digest must be a SHA-256 hex digest")
+        return value
+
+    @field_validator("repository_identity", "evidence_reference")
+    @classmethod
+    def _safe_ref(cls, value: str) -> str:
+        if ".." in value.split("/") or "\\" in value or value.startswith("/") or ":" in value:
+            raise ValueError("reference must be a safe relative identifier")
+        if not _REL_PATH_RE.fullmatch(value):
+            raise ValueError("reference must be a safe relative identifier")
+        return value
+
+    @model_validator(mode="after")
+    def _commit_matches_merge(self) -> TrustedAnchorRecord:
+        if self.trusted_main != self.merge_commit:
+            raise ValueError("trusted_main must equal merge_commit")
+        if self.trusted_tree != self.merge_tree:
+            raise ValueError("trusted_tree must equal merge_tree")
+        return self
+
+    def unsigned_payload(self) -> dict[str, object]:
+        payload = self.model_dump(mode="json")
+        payload.pop("record_digest")
+        return payload
+
+
+class AdvancementProof(BaseModel):
+    """Owner-supplied advancement artifact. Governor verifies; never invents."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    repository_identity: str = Field(min_length=1, max_length=256)
+    owner_authorization: Literal["OWNER_AUTHORIZED"]
+    expected_previous_main: str = Field(min_length=40, max_length=40)
+    expected_previous_tree: str = Field(min_length=40, max_length=40)
+    authorized_candidate_head: str = Field(min_length=40, max_length=40)
+    authorized_candidate_tree: str = Field(min_length=40, max_length=40)
+    merge_commit: str = Field(min_length=40, max_length=40)
+    merge_parent_1: str = Field(min_length=40, max_length=40)
+    merge_parent_2: str = Field(min_length=40, max_length=40)
+    merge_tree: str = Field(min_length=40, max_length=40)
+    post_merge_seal: Literal["PASS", "FAIL"]
+    post_merge_ci: Literal["PASS", "FAIL"]
+    evidence_reference: str = Field(min_length=1, max_length=256)
+    evidence_digest: str = Field(min_length=64, max_length=64)
+    source_package: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_directive: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_pr: int = Field(ge=1, le=1_000_000)
+    evidence_payload: dict[str, object] | None = None
+
+    @field_validator(
+        "expected_previous_main",
+        "expected_previous_tree",
+        "authorized_candidate_head",
+        "authorized_candidate_tree",
+        "merge_commit",
+        "merge_parent_1",
+        "merge_parent_2",
+        "merge_tree",
+    )
+    @classmethod
+    def _pin(cls, value: str) -> str:
+        if not _PIN_RE.fullmatch(value):
+            raise ValueError("proof pins must be 40-char lowercase git SHAs")
+        return value
+
+    @field_validator("evidence_digest")
+    @classmethod
+    def _digest(cls, value: str) -> str:
+        if not re.fullmatch(HASH_PATTERN, value):
+            raise ValueError("evidence_digest must be a SHA-256 hex digest")
+        return value
+
+    @field_validator("repository_identity", "evidence_reference")
+    @classmethod
+    def _safe_ref(cls, value: str) -> str:
+        if ".." in value.split("/") or "\\" in value or value.startswith("/") or ":" in value:
+            raise ValueError("reference must be a safe relative identifier")
+        if not _REL_PATH_RE.fullmatch(value):
+            raise ValueError("reference must be a safe relative identifier")
+        return value
+
+
 class GovernorState(BaseModel):
     """Single logical governor snapshot. Reconstructable and hashable."""
 
@@ -336,6 +509,11 @@ class GovernorState(BaseModel):
     directive_id: Literal["D-AUTONOMY-TRANSITION-001"] = DIRECTIVE_ID
     current_main: str = Field(min_length=40, max_length=40)
     current_tree: str = Field(min_length=40, max_length=40)
+    trusted_runtime_main: str = Field(min_length=40, max_length=40)
+    trusted_runtime_tree: str = Field(min_length=40, max_length=40)
+    bootstrap_main: str = BOOTSTRAP_MAIN
+    bootstrap_tree: str = BOOTSTRAP_TREE
+    trust_state: TrustState
     target_moved: bool
     nodes: tuple[WorkNode, ...] = Field(default_factory=tuple, max_length=256)
     agents: tuple[AgentRecord, ...] = Field(default_factory=tuple, max_length=32)
@@ -354,7 +532,14 @@ class GovernorState(BaseModel):
     successor_execution_under_new_model: Literal["NOT_YET_ACTIVE"] = "NOT_YET_ACTIVE"
     truth_boundary: str = TRUTH_BOUNDARY
 
-    @field_validator("current_main", "current_tree")
+    @field_validator(
+        "current_main",
+        "current_tree",
+        "trusted_runtime_main",
+        "trusted_runtime_tree",
+        "bootstrap_main",
+        "bootstrap_tree",
+    )
     @classmethod
     def _pin(cls, value: str) -> str:
         if not _PIN_RE.fullmatch(value):
@@ -432,9 +617,18 @@ class DiscoveryReport(BaseModel):
     schema_version: Literal[1] = 1
     package_id: Literal["AS-ORCH-AUTONOMY-001"] = AUTONOMY_PACKAGE_ID
     inventory: LiveInventory
+    trusted_runtime_main: str = Field(min_length=40, max_length=40)
+    trusted_runtime_tree: str = Field(min_length=40, max_length=40)
     target_moved: bool
     successor_already_started: bool
     candidates: tuple[DiscoveryCandidate, ...] = Field(default_factory=tuple, max_length=32)
     selected_package_id: str | None = None
     case: Literal["A-A-PREFLIGHT", "A-B"] = "A-A-PREFLIGHT"
     blocker: str | None = None
+
+    @field_validator("trusted_runtime_main", "trusted_runtime_tree")
+    @classmethod
+    def _trusted_pin(cls, value: str) -> str:
+        if not _PIN_RE.fullmatch(value):
+            raise ValueError("discovery trusted pins must be 40-char lowercase git SHAs")
+        return value

@@ -14,14 +14,14 @@ from pathlib import Path
 from typing import Literal
 
 from project_atlas.orchestration.autonomy.models import (
-    EXPECTED_BASE_MAIN,
-    EXPECTED_BASE_TREE,
     PILOT_PACKAGE_ID,
     DiscoveryCandidate,
     DiscoveryReport,
     LiveInventory,
     OwnerGateKind,
+    TrustedAnchorRecord,
 )
+from project_atlas.orchestration.autonomy.trust import evaluate_target_moved
 
 _SUCCESSOR_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"as-orch-001d-r2", re.IGNORECASE),
@@ -113,11 +113,16 @@ def collect_live_inventory(repo: Path) -> LiveInventory:
     )
 
 
-def discover(inventory: LiveInventory) -> DiscoveryReport:
-    """Classify live candidates. Prefer a self-contained non-destructive pilot."""
-    target_moved = (
-        inventory.current_main != EXPECTED_BASE_MAIN
-        or inventory.current_tree != EXPECTED_BASE_TREE
+def discover(inventory: LiveInventory, *, trusted: TrustedAnchorRecord) -> DiscoveryReport:
+    """Classify live candidates against the trusted runtime anchor.
+
+    Compile-time bootstrap pins are not runtime authority. Descendant
+    relationship is not consulted and cannot grant eligibility.
+    """
+    target_moved = evaluate_target_moved(
+        inventory.current_main,
+        inventory.current_tree,
+        trusted,
     )
     successor_started = bool(inventory.active_successor_packages) or inventory.r2_created == "YES"
     successor_started = successor_started or inventory.r7_created == "YES"
@@ -125,6 +130,8 @@ def discover(inventory: LiveInventory) -> DiscoveryReport:
     if target_moved:
         return DiscoveryReport(
             inventory=inventory,
+            trusted_runtime_main=trusted.trusted_main,
+            trusted_runtime_tree=trusted.trusted_tree,
             target_moved=True,
             successor_already_started=successor_started,
             candidates=(),
@@ -135,6 +142,8 @@ def discover(inventory: LiveInventory) -> DiscoveryReport:
     if successor_started:
         return DiscoveryReport(
             inventory=inventory,
+            trusted_runtime_main=trusted.trusted_main,
+            trusted_runtime_tree=trusted.trusted_tree,
             target_moved=False,
             successor_already_started=True,
             candidates=(),
@@ -182,6 +191,8 @@ def discover(inventory: LiveInventory) -> DiscoveryReport:
     selected = next(item.package_id for item in candidates if item.eligible)
     return DiscoveryReport(
         inventory=inventory,
+        trusted_runtime_main=trusted.trusted_main,
+        trusted_runtime_tree=trusted.trusted_tree,
         target_moved=False,
         successor_already_started=False,
         candidates=candidates,
