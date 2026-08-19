@@ -12,7 +12,11 @@ from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.orchestration.autonomy.adversarial import requires_adversarial_review
 from project_atlas.orchestration.autonomy.continuation import select_next
 from project_atlas.orchestration.autonomy.dag import IllegalTransitionError, apply_transition
-from project_atlas.orchestration.autonomy.discovery import discover
+from project_atlas.orchestration.autonomy.discovery import (
+    DiscoveryError,
+    collect_live_inventory,
+    discover,
+)
 from project_atlas.orchestration.autonomy.evidence import (
     EvidenceError,
     file_sha256,
@@ -20,7 +24,11 @@ from project_atlas.orchestration.autonomy.evidence import (
     write_bundle,
 )
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
-from project_atlas.orchestration.autonomy.leases import ScopeExpansionError, expand_lease
+from project_atlas.orchestration.autonomy.leases import (
+    ScopeExpansionError,
+    expand_lease,
+    grant_lease,
+)
 from project_atlas.orchestration.autonomy.models import (
     EXPECTED_BASE_MAIN,
     EXPECTED_BASE_TREE,
@@ -178,6 +186,24 @@ def test_lease_and_forbidden_scope_expansion() -> None:
     validate_record(lease, "autonomy-lease")
     with pytest.raises(ScopeExpansionError):
         expand_lease(lease)
+    agent = next(item for item in gov.snapshot().agents if item.agent_id == "governor-pilot-local")
+    ready = _node(
+        "PKG-B",
+        capabilities=(AgentCapability.DISCOVER, AgentCapability.IMPLEMENT),
+        surface="surface-b",
+        semantic="SEMANTIC_B",
+        paths=("src/b",),
+    )
+    with pytest.raises(ScopeExpansionError):
+        grant_lease(
+            lease_id="LEASE-WIDE",
+            agent=agent,
+            node=ready,
+            branch="feat/x",
+            worktree="repo",
+            sequence=9,
+            authorized_paths=("src/b", "src/outside"),
+        )
 
 
 def test_overlap_gate_blocks_shared_surface() -> None:
@@ -275,6 +301,17 @@ def test_discovery_selects_pilot_not_successors() -> None:
     assert "AS-ORCH-001D-R7" in rejected
     assert "AS-ORCH-001E" in rejected
     assert "AS-ORCH-001D-R6" in rejected
+
+
+def test_live_inventory_fails_closed_without_git(tmp_path: Path) -> None:
+    with pytest.raises(DiscoveryError):
+        collect_live_inventory(tmp_path)
+
+
+def test_live_inventory_does_not_walk_parent_repo() -> None:
+    nested = Path(__file__).resolve().parents[2] / "src"
+    with pytest.raises(DiscoveryError, match="not a git repository"):
+        collect_live_inventory(nested)
 
 
 def test_discovery_drift_is_case_a_b() -> None:

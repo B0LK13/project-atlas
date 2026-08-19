@@ -46,8 +46,16 @@ def grant_lease(
         raise LeaseError("agent lacks required capabilities", code="CAPABILITY_MISMATCH")
     if node.state != NodeState.READY:
         raise LeaseError("only READY nodes may be leased", code="NODE_NOT_READY")
-    paths = authorized_paths if authorized_paths is not None else node.mutation_surface.paths
-    forbidden = forbidden_paths if forbidden_paths is not None else ("main", "projects")
+    surface = frozenset(node.mutation_surface.paths)
+    if authorized_paths is None:
+        paths = node.mutation_surface.paths
+    else:
+        extra = frozenset(authorized_paths) - surface
+        if extra:
+            raise ScopeExpansionError("authorized_paths exceed mutation surface")
+        paths = authorized_paths
+    default_forbidden = ("main", "projects")
+    forbidden = forbidden_paths if forbidden_paths is not None else default_forbidden
     return AgentLease(
         lease_id=lease_id,
         agent_id=agent.agent_id,

@@ -1,10 +1,13 @@
 """Live discovery of the next safe non-destructive ready node.
 
 Does not preselect R2/R6/R7/001E. Those remain owner-gated or blocked.
+Git observation is fail-closed: missing repo, non-toplevel --root, or
+unreadable pins do not fall back to expected SHAs.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -26,6 +29,18 @@ _SUCCESSOR_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"as-orch-001e", re.IGNORECASE),
     re.compile(r"feat/as-orch-001e", re.IGNORECASE),
 )
+_PIN_RE = re.compile(r"^[0-9a-f]{40}$")
+_PR396_BRANCH = "cursor/as-orch-001d-agent-dispatcher-d054"
+
+
+class DiscoveryError(ValueError):
+    """Live observation failed closed. Not an eligibility grant."""
+
+    code = "DISCOVERY_UNOBSERVABLE"
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(str(left.resolve())) == os.path.normcase(str(right.resolve()))
 
 
 def _run_git(repo: Path, *args: str) -> str:
@@ -37,15 +52,36 @@ def _run_git(repo: Path, *args: str) -> str:
         text=True,
     )
     if result.returncode != 0:
-        return ""
+        raise DiscoveryError(f"git {' '.join(args)} failed")
     return result.stdout.strip()
 
 
+def _require_toplevel(repo: Path) -> Path:
+    resolved = repo.resolve()
+    if not (resolved / ".git").exists():
+        raise DiscoveryError("root is not a git repository")
+    toplevel = Path(_run_git(resolved, "rev-parse", "--show-toplevel"))
+    if not _same_path(resolved, toplevel):
+        raise DiscoveryError("root is not the git toplevel")
+    return resolved
+
+
+def _require_pin(value: str, label: str) -> str:
+    if not _PIN_RE.fullmatch(value):
+        raise DiscoveryError(f"{label} is not an observable git pin")
+    return value
+
+
 def collect_live_inventory(repo: Path) -> LiveInventory:
-    """Observe git facts. Does not call GitHub mutation APIs."""
-    current_main = _run_git(repo, "rev-parse", "origin/main") or EXPECTED_BASE_MAIN
-    current_tree = _run_git(repo, "rev-parse", "origin/main^{tree}") or EXPECTED_BASE_TREE
-    branches = _run_git(repo, "branch", "-a")
+    """Observe git facts at an exact toplevel. Does not invent pins or PR lists."""
+    resolved = _require_toplevel(repo)
+    current_main = _require_pin(_run_git(resolved, "rev-parse", "origin/main"), "origin/main")
+    current_tree = _require_pin(
+        _run_git(resolved, "rev-parse", "origin/main^{tree}"),
+        "origin/main tree",
+    )
+    branches = _run_git(resolved, "branch", "-a")
+    current_branch = _run_git(resolved, "branch", "--show-current")
     r2_created: Literal["YES", "NO"] = (
         "YES" if re.search(r"001d-r2", branches, re.IGNORECASE) else "NO"
     )
@@ -60,19 +96,20 @@ def collect_live_inventory(repo: Path) -> LiveInventory:
         name = line.strip().lstrip("* ").split()[0] if line.strip() else ""
         if any(pattern.search(name) for pattern in _SUCCESSOR_PATTERNS):
             successors.append(name)
-    status = _run_git(repo, "status", "-sb").splitlines()
+    status = _run_git(resolved, "status", "-sb").splitlines()
     worktree = "CLEAN" if len(status) <= 1 else "DIRTY_UNTRACKED_OR_MODIFIED"
+    pr396: Literal["YES", "NO"] = "YES" if current_branch == _PR396_BRANCH else "NO"
     return LiveInventory(
         current_main=current_main,
         current_tree=current_tree,
         worktree_status=worktree,
-        open_relevant_prs=("396", "394"),
+        open_relevant_prs=(),
         active_successor_packages=tuple(successors),
         r2_created=r2_created,
         r7_created=r7_created,
         authentic_r6_resumed="NO",
         as_orch_001e_started=started_e,
-        pr396_mutated="NO",
+        pr396_mutated=pr396,
     )
 
 

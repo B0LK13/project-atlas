@@ -406,7 +406,7 @@ class LiveInventory(BaseModel):
     r7_created: Literal["YES", "NO"] = "NO"
     authentic_r6_resumed: Literal["YES", "NO"] = "NO"
     as_orch_001e_started: Literal["YES", "NO"] = "NO"
-    pr396_mutated: Literal["YES", "NO"] = "NO"
+    pr396_mutated: Literal["YES", "NO", "UNOBSERVED"] = "UNOBSERVED"
 
     @field_validator("current_main", "current_tree")
     @classmethod

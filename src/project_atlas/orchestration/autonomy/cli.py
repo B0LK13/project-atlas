@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 from typing import TextIO
 
-from project_atlas.orchestration.autonomy.discovery import collect_live_inventory, discover
+from project_atlas.orchestration.autonomy.discovery import (
+    DiscoveryError,
+    collect_live_inventory,
+    discover,
+)
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, run_live_pilot
 from project_atlas.orchestration.autonomy.models import (
     AUTONOMY_PACKAGE_ID,
@@ -29,7 +33,18 @@ def _load_inventory(path: Path | None, repo: Path) -> LiveInventory:
 
 
 def run_governor_status(*, root: Path) -> tuple[dict[str, object], int]:
-    inventory = collect_live_inventory(root)
+    try:
+        inventory = collect_live_inventory(root)
+    except DiscoveryError as exc:
+        return {
+            "schema_version": 1,
+            "package_id": AUTONOMY_PACKAGE_ID,
+            "case": "A-B",
+            "blocker": "DISCOVERY_UNOBSERVABLE",
+            "detail": str(exc),
+            "merge_authorized": False,
+            "execution_authorized": False,
+        }, EXIT_ERROR
     governor = AutonomousGovernor(
         current_main=inventory.current_main,
         current_tree=inventory.current_tree,
@@ -63,7 +78,16 @@ def run_governor_discover(
     root: Path,
     inventory_path: Path | None = None,
 ) -> tuple[dict[str, object], int]:
-    inventory = _load_inventory(inventory_path, root)
+    try:
+        inventory = _load_inventory(inventory_path, root)
+    except DiscoveryError as exc:
+        return {
+            "schema_version": 1,
+            "package_id": AUTONOMY_PACKAGE_ID,
+            "case": "A-B",
+            "blocker": "DISCOVERY_UNOBSERVABLE",
+            "detail": str(exc),
+        }, EXIT_ERROR
     report = discover(inventory)
     return report.model_dump(mode="json"), EXIT_ERROR if report.case == "A-B" else EXIT_OK
 
@@ -76,18 +100,28 @@ def run_governor_pilot(
     stdin: TextIO | None = None,
 ) -> tuple[dict[str, object], int]:
     del stdin
-    if inventory_path is not None:
-        inventory = _load_inventory(inventory_path, root)
-        governor = AutonomousGovernor(
-            current_main=inventory.current_main,
-            current_tree=inventory.current_tree,
-        )
-        result = governor.run_controlled_pilot(
-            inventory,
-            branch="feat/as-orch-autonomy-001",
-            worktree=str(root),
-            evidence_dir=evidence_dir,
-        )
+    try:
+        if inventory_path is not None:
+            inventory = _load_inventory(inventory_path, root)
+            governor = AutonomousGovernor(
+                current_main=inventory.current_main,
+                current_tree=inventory.current_tree,
+            )
+            result = governor.run_controlled_pilot(
+                inventory,
+                branch="feat/as-orch-autonomy-001",
+                worktree=str(root),
+                evidence_dir=evidence_dir,
+            )
+            return result, EXIT_OK
+        result = run_live_pilot(root, evidence_dir=evidence_dir)
         return result, EXIT_OK
-    result = run_live_pilot(root, evidence_dir=evidence_dir)
-    return result, EXIT_OK
+    except DiscoveryError as exc:
+        return {
+            "schema_version": 1,
+            "package_id": AUTONOMY_PACKAGE_ID,
+            "case": "A-B",
+            "blocker": "DISCOVERY_UNOBSERVABLE",
+            "detail": str(exc),
+            "merge_authorized": False,
+        }, EXIT_ERROR
