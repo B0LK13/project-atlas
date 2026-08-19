@@ -213,6 +213,7 @@ SCHEMA_FILES: dict[str, str] = {
     "autonomy-work-node": "autonomy-work-node.schema.json",
     "autonomy-lease": "autonomy-lease.schema.json",
     "autonomy-trusted-anchor": "autonomy-trusted-anchor.schema.json",
+    "autonomy-loop-state": "autonomy-loop-state.schema.json",
     # AS-2.0-OAI-IMPORT-002 — OAI import path (fixtures if no export)
     "openai-import-path-receipt": "openai-import-path-receipt.schema.json",
     # AS-2.0-REALITY-GAP-UI-001 — Reality Gap UI catalog

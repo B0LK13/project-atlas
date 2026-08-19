@@ -5,6 +5,21 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-001E — governed autonomous loop / D-AS-ORCH-001D-OWNER-MERGE-010
+
+**Date:** 2026-08-19
+**Directive:** D-AS-ORCH-001D-OWNER-MERGE-010
+**Branch:** `feat/as-orch-001e-autonomous-loop` (from sealed `origin/main` `d1dcabcd79b19dd04f98a541353e1aa6e594a149` / tree `49b5512551c482d9632e26c615f377c1a53cb326`)
+**Mode:** PERSISTENT_LOOP_ABOVE_001D. Does not mutate PR #396 or merge 001E.
+
+### Why this lane
+001D landed and sealed. Live DAG still requires a persistent autonomous loop. Implementation covers select→lease→001D dispatch→validate→continue, owner/hard-blocker stops, crash recovery, and replay/corruption fail-closed.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-001d-owner-merge-010\`
+
+---
+
 ## AS-ORCH-001D — current-main dispatch primitive / D-AUTONOMY-OWNER-HELD-QUEUE-RESOLUTION-006
 
 **Date:** 2026-08-19

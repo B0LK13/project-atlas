@@ -409,7 +409,7 @@ Honesty (mandatory):
 - [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
-- [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
 ## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
 
@@ -441,7 +441,7 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 - [ ] ORCH001B-008 Independent integration verification
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
-- [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
 ## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
 
@@ -479,7 +479,7 @@ Honesty (mandatory):
 - [ ] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move)
 - [ ] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
-- [ ] ORCH001E Governed Autonomous Loop (blocked on merged 001D)
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher (current-main reconstruction)
 
@@ -511,7 +511,34 @@ Honesty (mandatory):
 - [x] ORCH001D-010 Focused unit + schema tests
 - [ ] ORCH001D-011 Independent verification
 - [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
-- [ ] ORCH001E Governed Autonomous Loop (follow-up; blocked by this merge)
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
+
+## AS-ORCH-001E — Governed Autonomous Loop
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Persistent loop above the landed 001D dispatcher. Does **not** bypass owner gates, authorize merge, grant waivers, expand objectives, or mutate #396._
+
+Honesty (mandatory):
+
+- `PERSISTENT_AUTONOMOUS_LOOP = IMPLEMENTED`
+- `AUTONOMOUS_LOOP_001E = IMPLEMENTED`
+- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = ACTIVE`
+- `LOOP_CAN_BYPASS_OWNER_GATE = NO`
+- `LOOP_CAN_AUTHORIZE_MERGE = NO`
+- `LOOP_CAN_GRANT_WAIVER = NO`
+- `LOOP_CAN_EXPAND_OBJECTIVE = NO`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCH001E-001 Persisted loop state with fail-closed digest
+- [x] ORCH001E-002 Tick: select READY → lease → 001D dispatch-once → stop
+- [x] ORCH001E-003 Completion → validate → governor transition → DAG refresh
+- [x] ORCH001E-004 Owner-gate and hard-blocker stop propagation
+- [x] ORCH001E-005 Crash/restart recovery without duplicate dispatch
+- [x] ORCH001E-006 Duplicate lease/result/dispatch prevention
+- [x] ORCH001E-007 Adversarial matrix (authority, replay, corruption, cross-project)
+- [ ] ORCH001E-008 Independent verification
+- [ ] ORCH001E-009 Owner merge gate (not this package)
 
 ## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
 
@@ -531,8 +558,8 @@ Honesty (mandatory):
 - `OWNER_GATES_A_F = IMPLEMENTED`
 - `AGENT_DISPATCH = IMPLEMENTED_BY_AS_ORCH_001D`
 - `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
-- `AUTONOMOUS_LOOP_001E = NOT_IMPLEMENTED`
-- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = NOT_YET_ACTIVE`
+- `AUTONOMOUS_LOOP_001E = IMPLEMENTED`
+- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = ACTIVE`
 - `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
 - `OWNER AUTHORITY = STILL REQUIRED`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
