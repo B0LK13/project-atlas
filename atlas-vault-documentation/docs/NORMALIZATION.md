@@ -53,13 +53,20 @@ Guarantees:
 
 ## Output modes
 
-- **sibling:** `<raw-stem>.normalized.md` next to the raw event;
-- **directory:** `<output-dir>/<raw-stem>.normalized.md` via mda-cli's
-  `--output-folder`.
+- **sibling:** `<raw-stem>.restructured.md` next to the raw event (mda-cli 0.2.9 canonical contract);
+- **directory:** `<output-dir>/<raw-stem>.restructured.md` via mda-cli 0.2.9 `--out-dir`.
+  `--output-folder` is not a mda-cli 0.2.9 flag and must not be emitted.
+
+The expected path is derived from the probed mda-cli version contract. The
+adapter never selects output by scanning for the newest sibling Markdown file.
+Unrecognized versions fail closed and must not assume `.restructured.md`.
+`*.normalized.md` is a historical mock/test fixture convention, not production
+success for mda-cli 0.2.9.
 
 The expected output must not exist beforehand (normalization never
-overwrites). After the run, the watched directory must contain exactly
-one new file — the expected one.
+overwrites). After the run, the watched directory must contain the expected
+file created by this invocation. Empty, stale, or ambiguous contract-shaped
+outputs fail closed.
 
 ## Exit codes
 

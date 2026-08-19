@@ -20,6 +20,10 @@ from internal import (
     ingestion_state,
     project_discovery,
 )
+from internal.mda_output_contract import (
+    RESTRUCTURED_SUFFIX,
+    is_mda_output_artifact,
+)
 
 
 class IngestionError(RuntimeError):
@@ -152,12 +156,12 @@ def ingest_project(
             processed["captured"] += 1
             raw_candidates = sorted(
                 path for path in vault_root.rglob(f"{event_id}.md")
-                if path.is_file() and not path.name.endswith(".normalized.md")
+                if path.is_file() and not is_mda_output_artifact(path.name)
             )
             if len(raw_candidates) != 1:
                 raise IngestionError(f"capture produced {len(raw_candidates)} raw artifacts for {event_id}")
             raw = raw_candidates[0]
-            normalized = raw.with_name(f"{event_id}.normalized.md")
+            normalized = raw.with_name(f"{event_id}{RESTRUCTURED_SUFFIX}")
             started = time.perf_counter()
             _run([
                 sys.executable, str(scripts / "normalize_event.py"), "--event", str(raw),

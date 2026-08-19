@@ -15,6 +15,7 @@ from typing import Any
 
 from internal import provenance as provenance_mod
 from internal import verification
+from internal.mda_output_contract import raw_sibling_for
 
 EVENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 WORK_PACKAGE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -96,12 +97,11 @@ def _raw_resource(text: str, normalized_path: Path) -> Path | None:
         resolved = (normalized_path.parent / match.group(1)).resolve()
         if resolved.is_file():
             return resolved
-    # Sibling convention: <raw-stem>.normalized.md → <raw-stem>.md
-    name = normalized_path.name
-    if name.endswith(".normalized.md"):
-        sibling = normalized_path.with_name(name[: -len(".normalized.md")] + ".md")
-        if sibling.is_file():
-            return sibling
+    # Sibling convention: <raw-stem>.restructured.md (current mda-cli 0.2.9)
+    # or historical <raw-stem>.normalized.md → <raw-stem>.md
+    sibling = raw_sibling_for(normalized_path)
+    if sibling is not None and sibling.is_file():
+        return sibling
     return None
 
 

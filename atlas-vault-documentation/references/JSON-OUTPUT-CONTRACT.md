@@ -59,14 +59,14 @@ Exit `3` covers I/O failures, unsafe paths, and duplicate event IDs
 | `ok` | boolean | `true` when `errors` is empty |
 | `files_checked` | integer | unique event files validated |
 | `raw_checked` | integer | raw event sources validated with raw rules |
-| `normalized_checked` | integer | `*.normalized.md` files validated with normalized rules |
+| `normalized_checked` | integer | `*.restructured.md` (current mda-cli 0.2.9) and leftover `*.normalized.md` fixtures validated with normalized rules |
 | `pending_spool` | integer | `.atlas-spool/*.md` files found |
 | `errors` | string[] | human-readable findings, never secret values |
 
 Raw events (`Agent Work Event Source`) and normalized events
-(`Agent Work Event`, suffix `.normalized.md`) are validated with
-distinct rule sets; raw-only constraints are never applied to
-normalized output.
+(`Agent Work Event`, suffix `.restructured.md` for mda-cli 0.2.9, plus
+leftover `.normalized.md` fixtures) are validated with distinct rule
+sets; raw-only constraints are never applied to normalized output.
 
 Exit `0` when `ok` is true, `1` otherwise. In strict mode
 (`--strict`, `ATLAS_STRICT=true`, or
@@ -83,7 +83,7 @@ events produce an error and exit `1` (AS-007).
   "event_id": "AE-20260801T100000Z-project-atlas-ab12cd34",
   "status": "normalized",
   "raw_event": "/vault/sources/agent-events/2026/08/01/AE-....md",
-  "normalized_event": "/vault/sources/agent-events/2026/08/01/AE-....normalized.md",
+  "normalized_event": "/vault/sources/agent-events/2026/08/01/AE-....restructured.md",
   "category": null,
   "message": "normalized and verified",
   "attempts": 1,

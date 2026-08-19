@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Deterministic mda-cli mock for offline tests.
 
-Behavior is scripted through the MDA_MOCK_MODE environment variable so
-tests can exercise every success and failure category without network,
-providers, or a real mda-cli installation. Supports the CLI surface the
-orchestrator uses: --skill, --skill-dir, --output-folder, --version,
-and one positional raw-event path.
+Models the production mda-cli 0.2.9 output contract:
+
+    <source>.md → <source>.restructured.md
+    directory mode uses --out-dir (not --output-folder)
+
+``*.normalized.md`` is a historical mock/fixture convention and is not
+production success for this mock unless a test explicitly requests a
+legacy-only write mode.
+
+Behavior is scripted through MDA_MOCK_MODE. MDA_MOCK_VERSION overrides
+the --version string (default: mda 0.2.9-mock).
 """
 
 from __future__ import annotations
@@ -17,17 +23,26 @@ import time
 from pathlib import Path
 
 MODE = os.environ.get("MDA_MOCK_MODE", "ok")
+VERSION = os.environ.get("MDA_MOCK_VERSION", "mda 0.2.9-mock")
+PRODUCTION_SUFFIX = ".restructured.md"
+LEGACY_SUFFIX = ".normalized.md"
 
 
 def parse_args(argv: list[str]) -> dict:
-    result = {"output_folder": None, "raw": None}
+    result = {"out_dir": None, "raw": None}
     index = 0
     while index < len(argv):
         arg = argv[index]
-        if arg in ("--skill", "--skill-dir", "--output-folder"):
+        if arg in ("--skill", "--skill-dir", "--out-dir"):
             key = arg.lstrip("-").replace("-", "_")
             result[key] = argv[index + 1]
             index += 2
+        elif arg == "--output-folder":
+            print(
+                "mda-mock: --output-folder is not a mda-cli 0.2.9 flag",
+                file=sys.stderr,
+            )
+            raise SystemExit(2)
         elif arg == "--version":
             result["version"] = True
             index += 1
@@ -131,17 +146,17 @@ tags:
 """
 
 
-def output_path(args: dict, raw: Path) -> Path:
-    name = raw.name[: -len(".md")] + ".normalized.md"
-    if args.get("output_folder"):
-        return Path(args["output_folder"]) / name
+def output_path(args: dict, raw: Path, *, suffix: str = PRODUCTION_SUFFIX) -> Path:
+    name = raw.name[: -len(".md")] + suffix if raw.name.endswith(".md") else raw.name + suffix
+    if args.get("out_dir"):
+        return Path(args["out_dir"]) / name
     return raw.parent / name
 
 
 def main() -> int:
     args = parse_args(sys.argv[1:])
     if args.get("version"):
-        print("mda 0.2.9-mock")
+        print(VERSION)
         return 0
 
     if MODE == "sleep":
@@ -161,6 +176,16 @@ def main() -> int:
 
     if MODE == "missing-output":
         return 0
+    if MODE == "wrong-basename":
+        target = raw.parent / f"other{PRODUCTION_SUFFIX}"
+    if MODE == "wrong-directory":
+        target = raw.parent / "elsewhere" / target.name
+    if MODE == "empty-output":
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"")
+        return 0
+    if MODE == "legacy-normalized-only":
+        target = output_path(args, raw, suffix=LEGACY_SUFFIX)
 
     target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -184,10 +209,17 @@ def main() -> int:
     elif MODE == "extra-file":
         target.write_text(normalized_document(event_id, "Extra file"), encoding="utf-8")
         (target.parent / "unexpected.md").write_text("surprise\n", encoding="utf-8")
+    elif MODE == "both-siblings":
+        target.write_text(normalized_document(event_id, summary, kind, work_package, occurred), encoding="utf-8")
+        legacy = output_path(args, raw, suffix=LEGACY_SUFFIX)
+        legacy.write_text(normalized_document(event_id, "legacy"), encoding="utf-8")
+    elif MODE == "unrelated-sibling":
+        target.write_text(normalized_document(event_id, summary, kind, work_package, occurred), encoding="utf-8")
+        (raw.parent / "notes.md").write_text("# unrelated sibling\n", encoding="utf-8")
     elif MODE == "fenced":
         doc = "````markdown\n" + normalized_document(event_id, "Fenced") + "\n````\n"
         target.write_text(doc, encoding="utf-8")
-    else:  # ok
+    else:  # ok / wrong-basename / wrong-directory / legacy-normalized-only
         target.write_text(
             normalized_document(event_id, summary, kind, work_package, occurred),
             encoding="utf-8",
