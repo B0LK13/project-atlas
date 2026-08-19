@@ -178,9 +178,13 @@ class TestNormalizeEventTrustedBoundary:
         assert payload["command"][0] == "mda"
         assert str(evil) not in payload["command"]
         assert not marker.exists()
-        # Uninstalled default `mda` cannot be mapped to a version contract.
-        assert rc == 4
-        assert payload["category"] in {"unknown-contract", "executable-missing"}
+        # Probe outcome is host-dependent: authentic PATH `mda` 0.2.9
+        # succeeds; missing or unrecognized binaries fail closed.
+        if rc == 0:
+            assert payload["status"] == "dry-run"
+        else:
+            assert rc == 4
+            assert payload["category"] in {"unknown-contract", "executable-missing"}
 
     def test_upward_config_discovery_cannot_select_executable(
         self,
