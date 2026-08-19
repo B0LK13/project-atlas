@@ -2533,6 +2533,31 @@ def build_parser() -> argparse.ArgumentParser:
             "governor APIs. Non-destructive. Does not merge or start 001E."
         ),
     )
+    orch_gov_loop = orch_sub.add_parser(
+        "governor-loop-tick",
+        help=(
+            "AS-ORCH-001E: one persistent-loop tick above 001D. "
+            "Does not merge, waive, or invent owner authority."
+        ),
+    )
+    orch_gov_loop.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_loop.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store.",
+    )
+    orch_gov_loop.add_argument(
+        "--loop-store",
+        type=Path,
+        default=None,
+        help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
+    )
     orch_dispatch_once = orch_sub.add_parser(
         "dispatch-once",
         help=(
@@ -4875,6 +4900,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 evidence_dir=getattr(args, "evidence_dir", None),
                 inventory_path=getattr(args, "inventory", None),
                 trust_store=getattr(args, "trust_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-loop-tick":
+            from project_atlas.orchestration.autonomy.cli import run_governor_loop_tick
+
+            report, exit_code = run_governor_loop_tick(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                trust_store=getattr(args, "trust_store", None),
+                loop_store=getattr(args, "loop_store", None),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

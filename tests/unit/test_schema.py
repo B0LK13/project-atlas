@@ -34,6 +34,7 @@ def test_all_expected_schemas_available() -> None:
         "autonomy-governor-report",
         "autonomy-lease",
         "autonomy-level-catalog",
+        "autonomy-loop-state",
         "autonomy-trusted-anchor",
         "autonomy-work-node",
         "backup-manifest",

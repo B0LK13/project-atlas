@@ -1,8 +1,8 @@
 """Live discovery of the next safe ready node.
 
-R2/R7/R6 are closed (superseded/obsolete). 001D is implemented on this
-tree and waits at the owner merge gate. 001E stays blocked until that
-merge lands on trusted main. Git observation is fail-closed: missing
+R2/R7/R6 are closed (superseded/obsolete). 001D is merged on trusted
+main. 001E is implemented on this tree and waits at the owner merge
+gate. Git observation is fail-closed: missing
 repo, non-toplevel --root, or unreadable pins do not fall back to SHAs.
 """
 
@@ -179,7 +179,7 @@ def discover(inventory: LiveInventory, *, trusted: TrustedAnchorRecord) -> Disco
             eligible=False,
             destructive=True,
             owner_gate=OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
-            reason="BLOCKED_BY_DEPENDENCY_AS_ORCH_001D",
+            reason="IMPLEMENTED_PENDING_OWNER_MERGE",
         ),
         DiscoveryCandidate(
             package_id=PILOT_PACKAGE_ID,
@@ -193,7 +193,7 @@ def discover(inventory: LiveInventory, *, trusted: TrustedAnchorRecord) -> Disco
             eligible=False,
             destructive=False,
             owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE,
-            reason="IMPLEMENTED_CERTIFIED_PENDING_OWNER_MERGE",
+            reason="MERGED_AND_SEALED_ON_TRUSTED_MAIN",
         ),
     )
     selected = next((item.package_id for item in candidates if item.eligible), None)

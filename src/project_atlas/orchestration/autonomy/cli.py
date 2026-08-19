@@ -12,6 +12,11 @@ from project_atlas.orchestration.autonomy.discovery import (
     discover,
 )
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, run_live_pilot
+from project_atlas.orchestration.autonomy.loop import (
+    STATE_DIR_RELATIVE,
+    AutonomousLoop,
+    LoopError,
+)
 from project_atlas.orchestration.autonomy.models import (
     AUTONOMY_PACKAGE_ID,
     BOOTSTRAP_MAIN,
@@ -213,6 +218,39 @@ def run_governor_pilot(
             "merge_authorized": False,
             "static_bootstrap_pin_as_runtime_authority": False,
         }, EXIT_ERROR
+
+
+def run_governor_loop_tick(
+    *,
+    root: Path,
+    trust_store: Path | None = None,
+    loop_store: Path | None = None,
+) -> tuple[dict[str, object], int]:
+    """One 001E tick. Never merges or grants owner authority."""
+    try:
+        trusted = _load_trusted(trust_store=trust_store, allow_shipped=trust_store is None)
+        inventory = collect_live_inventory(root)
+        governor = AutonomousGovernor(
+            current_main=inventory.current_main,
+            current_tree=inventory.current_tree,
+            trusted_anchor=trusted,
+        )
+        store = loop_store or (root / STATE_DIR_RELATIVE)
+        loop = AutonomousLoop(
+            governor=governor,
+            trusted=trusted,
+            store=store,
+            root=root,
+        )
+        result = loop.tick()
+        payload = result.model_dump(mode="json")
+        payload["package_id"] = "AS-ORCH-001E"
+        payload["merge_authorized"] = False
+        payload["execution_authorized"] = False
+        return payload, EXIT_OK if result.phase.value != "FAILED_CLOSED" else EXIT_ERROR
+    except (TrustError, DiscoveryError, LoopError) as exc:
+        code = getattr(exc, "code", "LOOP_FAILED_CLOSED")
+        return _fail_closed(str(exc), blocker=code), EXIT_ERROR
 
 
 def observed_repository_identity(remote_url: str) -> str:

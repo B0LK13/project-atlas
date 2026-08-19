@@ -151,6 +151,7 @@ def test_schemas_registered() -> None:
     assert "autonomy-work-node" in kinds
     assert "autonomy-lease" in kinds
     assert "autonomy-trusted-anchor" in kinds
+    assert "autonomy-loop-state" in kinds
 
 
 def test_work_node_and_plan_schema_parity() -> None:
@@ -355,9 +356,9 @@ def test_discovery_selects_dispatch_primitive_not_closed_slots() -> None:
     rejected = {item.package_id: item.reason for item in report.candidates if not item.eligible}
     assert rejected["AS-ORCH-001D-R2"] == "SUPERSEDED_CLOSED_SEMANTIC_DELTA_ZERO"
     assert rejected["AS-ORCH-001D-R7"] == "OBSOLETE_NO_DEFINED_SEMANTIC"
-    assert rejected["AS-ORCH-001E"] == "BLOCKED_BY_DEPENDENCY_AS_ORCH_001D"
+    assert rejected["AS-ORCH-001E"] == "IMPLEMENTED_PENDING_OWNER_MERGE"
     assert rejected["AS-ORCH-001D-R6"] == "SUPERSEDED_CLOSED_DO_NOT_MUTATE_PR_396"
-    assert rejected["AS-ORCH-001D"] == "IMPLEMENTED_CERTIFIED_PENDING_OWNER_MERGE"
+    assert rejected["AS-ORCH-001D"] == "MERGED_AND_SEALED_ON_TRUSTED_MAIN"
     assert PILOT_PACKAGE_ID in rejected
 
 
