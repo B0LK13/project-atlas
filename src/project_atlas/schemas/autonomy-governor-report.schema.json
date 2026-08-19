@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/autonomy-governor-report.schema.json",
+  "title": "AutonomyExecutionPlan",
+  "description": "AS-ORCH-AUTONOMY-001 execution plan. GOVERNOR_STATE != AUTHORITY. merge_authorized and execution_authorized are always false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "what_can_run_now",
+    "what_must_wait",
+    "what_can_run_in_parallel",
+    "what_requires_owner_authority",
+    "stop_reason",
+    "merge_authorized",
+    "execution_authorized",
+    "truth_boundary"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-ORCH-AUTONOMY-001" },
+    "what_can_run_now": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "what_must_wait": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "what_can_run_in_parallel": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "array",
+        "maxItems": 16,
+        "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "what_requires_owner_authority": {
+      "type": "array",
+      "maxItems": 64,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "stop_reason": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "OWNER_GATE",
+            "HARD_BLOCKER",
+            "NO_ELIGIBLE_WORK",
+            "SAFETY_BOUNDARY",
+            "RESOURCE_BOUNDARY",
+            "PILOT_COMPLETE"
+          ]
+        }
+      ]
+    },
+    "merge_authorized": { "const": false },
+    "execution_authorized": { "const": false },
+    "truth_boundary": { "type": "string", "minLength": 1 }
+  }
+}

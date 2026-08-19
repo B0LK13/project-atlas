@@ -481,6 +481,44 @@ Honesty (mandatory):
 - [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 
+## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Formalizes a single logical autonomous governor, work DAG, leases, overlap gate, continuation, bounded remediation, IV routing, adversarial trigger, evidence hashing, and owner gates A–F. Does **not** implement AS-ORCH-001D process dispatch, start AS-ORCH-001E, mutate #396, or merge._
+
+Honesty (mandatory):
+
+- `AUTONOMOUS_GOVERNOR = IMPLEMENTED`
+- `WORK_DAG = IMPLEMENTED`
+- `AGENT_LEASE_MODEL = IMPLEMENTED`
+- `SURFACE_OVERLAP_GATE = IMPLEMENTED`
+- `AUTONOMOUS_CONTINUATION_POLICY = IMPLEMENTED`
+- `AUTOMATIC_REMEDIATION = IMPLEMENTED`
+- `IV_ROUTING = IMPLEMENTED`
+- `ADVERSARIAL_REVIEW_TRIGGER = IMPLEMENTED`
+- `EVIDENCE_CONTRACT = IMPLEMENTED`
+- `OWNER_GATES_A_F = IMPLEMENTED`
+- `AGENT_DISPATCH = NOT_IMPLEMENTED`
+- `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP_001E = NOT_IMPLEMENTED`
+- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = NOT_YET_ACTIVE`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCHAUT-001 Authoritative governor state + WHAT_CAN_RUN / WAIT / PARALLEL / OWNER
+- [x] ORCHAUT-002 Work DAG with explicit recorded transitions
+- [x] ORCHAUT-003 Surface overlap gate (unsafe parallel = NO)
+- [x] ORCHAUT-004 Agent lease model; no autonomous scope expansion
+- [x] ORCHAUT-005 Continuation policy; stop at owner gate / hard blocker
+- [x] ORCHAUT-006 Bounded remediation (max 3) then BLOCKED
+- [x] ORCHAUT-007 IV routing: implementer != verifier
+- [x] ORCHAUT-008 Adversarial review trigger for control-plane / authorization
+- [x] ORCHAUT-009 Deterministic hashed evidence bundles
+- [x] ORCHAUT-010 Owner gates A–F fail closed
+- [x] ORCHAUT-011 CLI `governor-status` / `governor-discover` / `governor-pilot`
+- [x] ORCHAUT-012 Controlled non-destructive in-process pilot
+- [ ] ORCHAUT-013 Owner merge gate (not this package)
+
 ## AS-MDA-CONTROL-PLANE-COMPAT-001-R1 — mda-cli 0.2.9 control-plane compatibility
 
 _Status: **RECONSTRUCTED — RECERTIFICATION IN PROGRESS** (owner-authorized because the previously certified Git object was lost before publication). Prior HEAD `4cb80a0aa0e28fbddee8c8a71f1875519f19fc92` remains historical evidence only. Prior certification is not transferable. This package does not touch PR #396 / AS-ORCH-001D._
