@@ -20,8 +20,9 @@ OWNER_GATES_A_F = IMPLEMENTED
 AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = NOT_RELIABLE_IN_CURRENT_WINDOWS_CLI_RUNTIME
 AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT
 HOOK_RUNTIME_REQUIRED_FOR_CORE_FLOW = NO
-CROSS_AGENT_DISPATCH = NOT_IMPLEMENTED
-AGENT_DISPATCH = NOT_IMPLEMENTED
+CROSS_AGENT_DISPATCH = IMPLEMENTED
+AGENT_DISPATCH = IMPLEMENTED
+SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED
 MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED
 AUTONOMOUS_LOOP = NOT_IMPLEMENTED
 AUTONOMOUS_LOOP_001E = NOT_IMPLEMENTED
@@ -44,6 +45,11 @@ from project_atlas.orchestration.cursor_bridge import (
     handle_stop_event,
     stage_result,
     surface_pending_handoff,
+)
+from project_atlas.orchestration.dispatcher import (
+    DispatchReceipt,
+    DispatchRecord,
+    run_dispatch_once,
 )
 from project_atlas.orchestration.models import (
     PACKAGE_ID,
@@ -94,6 +100,8 @@ __all__ = [
     "CursorBridgeResponse",
     "CursorBridgeState",
     "CursorStopEvent",
+    "DispatchReceipt",
+    "DispatchRecord",
     "HandoffPacket",
     "NextTransition",
     "OrchestrationDecision",
@@ -114,6 +122,7 @@ __all__ = [
     "resolve_policy",
     "route",
     "route_payload",
+    "run_dispatch_once",
     "run_route_result",
     "run_validate_result",
     "source_result_digest",

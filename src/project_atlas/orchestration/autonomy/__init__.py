@@ -1,8 +1,8 @@
 """AS-ORCH-AUTONOMY-001 autonomous control plane.
 
 Formalizes deterministic, auditable, fail-closed autonomous operation.
-Does not implement AS-ORCH-001D process dispatch, AS-ORCH-001E, merge,
-or owner-authority grants.
+Does not implement AS-ORCH-001E, merge, or owner-authority grants.
+001D single-hop dispatch lives in project_atlas.orchestration.dispatcher.
 
 AUTONOMOUS_GOVERNOR = IMPLEMENTED
 TRUSTED_ANCHOR_ADVANCEMENT = IMPLEMENTED
@@ -16,7 +16,7 @@ IV_ROUTING = IMPLEMENTED
 ADVERSARIAL_REVIEW_TRIGGER = IMPLEMENTED
 EVIDENCE_CONTRACT = IMPLEMENTED
 OWNER_GATES_A_F = IMPLEMENTED
-AGENT_DISPATCH = NOT_IMPLEMENTED
+AGENT_DISPATCH = IMPLEMENTED_BY_AS_ORCH_001D
 MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED
 AUTONOMOUS_LOOP_001E = NOT_IMPLEMENTED
 AUTOMATIC_MERGE = NOT_IMPLEMENTED

@@ -5,6 +5,24 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-001D — current-main dispatch primitive / D-AUTONOMY-OWNER-HELD-QUEUE-RESOLUTION-006
+
+**Date:** 2026-08-19
+**Directive:** D-AUTONOMY-OWNER-HELD-QUEUE-RESOLUTION-006
+**Branch:** `feat/as-orch-001d-dispatch-runtime` (from `origin/main` `8b3c8831127537be86dea913346169426882186d` / tree `8dad412bc2d5424560002fdcf56e6791e683d9c5`)
+**Mode:** FRESH_CURRENT_MAIN_RECONSTRUCTION. Does not mutate PR #396, create R2/R7, or merge.
+
+### Why this lane
+Frontier reconciliation closed R2 (superseded) and R7 (obsolete). AS-ORCH-001E remains required but is blocked because current main has no general agent dispatch runtime. R6 Windows MDA launch parity is already on main and is not this package.
+
+### Contract
+Single-hop only. Owner/terminal routes start no process. Mutating tasks fail closed. Receipt is not authority. Next handoff is never auto-dispatched. Recover does not respawn. Windows `.cmd` launchers wrap through trusted `cmd.exe`; prompt is stdin-only.
+
+### Evidence
+`D:\atlas-acceptance-d060\autonomy-owner-held-queue-resolution-006\`
+
+---
+
 ## AS-ORCH-AUTONOMY-001-PIN-RETARGET — trusted-anchor retarget / D-AUTONOMY-PIN-RETARGET-003
 
 **Date:** 2026-08-19

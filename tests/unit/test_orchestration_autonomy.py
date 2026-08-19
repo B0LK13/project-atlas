@@ -347,15 +347,18 @@ def test_adversarial_trigger_for_control_plane() -> None:
     assert requires_adversarial_review((RiskTag.CONTROL_PLANE, RiskTag.AUTHORIZATION))
 
 
-def test_discovery_selects_pilot_not_successors() -> None:
+def test_discovery_selects_dispatch_primitive_not_closed_slots() -> None:
     report = discover(_inventory(), trusted=_anchor())
     assert report.case == "A-A-PREFLIGHT"
-    assert report.selected_package_id == PILOT_PACKAGE_ID
-    rejected = {item.package_id for item in report.candidates if not item.eligible}
-    assert "AS-ORCH-001D-R2" in rejected
-    assert "AS-ORCH-001D-R7" in rejected
-    assert "AS-ORCH-001E" in rejected
-    assert "AS-ORCH-001D-R6" in rejected
+    assert report.selected_package_id is None
+    assert report.blocker == "OWNER_GATE"
+    rejected = {item.package_id: item.reason for item in report.candidates if not item.eligible}
+    assert rejected["AS-ORCH-001D-R2"] == "SUPERSEDED_CLOSED_SEMANTIC_DELTA_ZERO"
+    assert rejected["AS-ORCH-001D-R7"] == "OBSOLETE_NO_DEFINED_SEMANTIC"
+    assert rejected["AS-ORCH-001E"] == "BLOCKED_BY_DEPENDENCY_AS_ORCH_001D"
+    assert rejected["AS-ORCH-001D-R6"] == "SUPERSEDED_CLOSED_DO_NOT_MUTATE_PR_396"
+    assert rejected["AS-ORCH-001D"] == "IMPLEMENTED_CERTIFIED_PENDING_OWNER_MERGE"
+    assert PILOT_PACKAGE_ID in rejected
 
 
 def test_live_inventory_fails_closed_without_git(tmp_path: Path) -> None:
@@ -414,7 +417,7 @@ def test_controlled_pilot_stops_at_owner_gate(tmp_path: Path) -> None:
         evidence_dir=tmp_path,
     )
     assert result["discovered"] is True
-    assert result["selected_package_id"] == PILOT_PACKAGE_ID
+    assert result["selected_package_id"] is None
     assert result["implementer_equals_verifier"] is False
     assert result["stop_reason"] == "OWNER_GATE"
     assert result["node_state"] == "OWNER_HELD"
@@ -459,7 +462,8 @@ def test_cli_governor_discover(tmp_path: Path, capsys: pytest.CaptureFixture[str
     )
     assert code == EXIT_OK
     payload = json.loads(capsys.readouterr().out)
-    assert payload["selected_package_id"] == PILOT_PACKAGE_ID
+    assert payload["selected_package_id"] is None
+    assert payload["blocker"] == "OWNER_GATE"
 
 
 def test_cli_governor_pilot(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

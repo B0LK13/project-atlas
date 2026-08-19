@@ -55,6 +55,8 @@ def test_all_expected_schemas_available() -> None:
         "context-pack-composition",
         "conversation-capture",
         "diagnostic",
+        "dispatch-receipt",
+        "dispatch-record",
         "estate-intel-fixture",
         "eval-score-receipt",
         "event-retention-policy",

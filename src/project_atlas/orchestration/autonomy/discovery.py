@@ -1,8 +1,9 @@
-"""Live discovery of the next safe non-destructive ready node.
+"""Live discovery of the next safe ready node.
 
-Does not preselect R2/R6/R7/001E. Those remain owner-gated or blocked.
-Git observation is fail-closed: missing repo, non-toplevel --root, or
-unreadable pins do not fall back to expected SHAs.
+R2/R7/R6 are closed (superseded/obsolete). 001D is implemented on this
+tree and waits at the owner merge gate. 001E stays blocked until that
+merge lands on trusted main. Git observation is fail-closed: missing
+repo, non-toplevel --root, or unreadable pins do not fall back to SHAs.
 """
 
 from __future__ import annotations
@@ -156,39 +157,46 @@ def discover(inventory: LiveInventory, *, trusted: TrustedAnchorRecord) -> Disco
             package_id="AS-ORCH-001D-R2",
             eligible=False,
             destructive=False,
-            owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE,
-            reason="NOT_PRESELECTED_OWNER_GATED",
+            owner_gate=None,
+            reason="SUPERSEDED_CLOSED_SEMANTIC_DELTA_ZERO",
         ),
         DiscoveryCandidate(
             package_id="AS-ORCH-001D-R7",
             eligible=False,
             destructive=False,
-            owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE,
-            reason="NOT_PRESELECTED_OWNER_GATED",
-        ),
-        DiscoveryCandidate(
-            package_id="AS-ORCH-001E",
-            eligible=False,
-            destructive=True,
-            owner_gate=OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
-            reason="AUTONOMOUS_LOOP_NOT_AUTHORIZED",
+            owner_gate=None,
+            reason="OBSOLETE_NO_DEFINED_SEMANTIC",
         ),
         DiscoveryCandidate(
             package_id="AS-ORCH-001D-R6",
             eligible=False,
             destructive=False,
             owner_gate=OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION,
-            reason="DO_NOT_MUTATE_PR_396",
+            reason="SUPERSEDED_CLOSED_DO_NOT_MUTATE_PR_396",
+        ),
+        DiscoveryCandidate(
+            package_id="AS-ORCH-001E",
+            eligible=False,
+            destructive=True,
+            owner_gate=OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
+            reason="BLOCKED_BY_DEPENDENCY_AS_ORCH_001D",
         ),
         DiscoveryCandidate(
             package_id=PILOT_PACKAGE_ID,
-            eligible=True,
+            eligible=False,
+            destructive=False,
+            owner_gate=None,
+            reason="COMPLETED_CERTIFICATION_PILOT_CLOSED",
+        ),
+        DiscoveryCandidate(
+            package_id="AS-ORCH-001D",
+            eligible=False,
             destructive=False,
             owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE,
-            reason="NEXT_SAFE_NON_DESTRUCTIVE_READY_PACKAGE",
+            reason="IMPLEMENTED_CERTIFIED_PENDING_OWNER_MERGE",
         ),
     )
-    selected = next(item.package_id for item in candidates if item.eligible)
+    selected = next((item.package_id for item in candidates if item.eligible), None)
     return DiscoveryReport(
         inventory=inventory,
         trusted_runtime_main=trusted.trusted_main,
@@ -198,5 +206,5 @@ def discover(inventory: LiveInventory, *, trusted: TrustedAnchorRecord) -> Disco
         candidates=candidates,
         selected_package_id=selected,
         case="A-A-PREFLIGHT",
-        blocker=None,
+        blocker="OWNER_GATE" if selected is None else None,
     )

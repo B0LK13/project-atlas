@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/dispatch-record.schema.json",
+  "title": "DispatchRecord",
+  "description": "AS-ORCH-001D single-slot dispatch identity. PROCESS_DISPATCH != AUTHORITY. additionalProperties:false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "dispatch_id",
+    "status",
+    "source_route_digest",
+    "source_task_id",
+    "dispatch_task_id",
+    "target_role",
+    "task_type",
+    "attempt",
+    "workspace_root",
+    "process_started",
+    "execution_authorized"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-ORCH-001D" },
+    "dispatch_id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "status": {
+      "enum": [
+        "prepared",
+        "running",
+        "result_received",
+        "finalizing",
+        "completed",
+        "failed",
+        "OWNER_REQUIRED",
+        "TERMINAL",
+        "REJECTED"
+      ]
+    },
+    "source_route_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source_task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "dispatch_task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "target_role": { "enum": ["local", "integration", "autonomous"] },
+    "task_type": {
+      "enum": [
+        "candidate_verification",
+        "recertification",
+        "program_reconciliation",
+        "remediation"
+      ]
+    },
+    "attempt": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "workspace_root": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "process_started": { "type": "boolean" },
+    "process_terminal": { "type": "boolean" },
+    "process_timeout": { "type": "boolean" },
+    "process_exit_code": { "type": ["integer", "null"] },
+    "result_received": { "type": "boolean" },
+    "source_acknowledged": { "type": "boolean" },
+    "result_staged": { "type": "boolean" },
+    "stdout_digest": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "stderr_digest": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "result_text_digest": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "session_id": { "type": ["string", "null"], "maxLength": 128 },
+    "request_id": { "type": ["string", "null"], "maxLength": 128 },
+    "duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "failure_code": { "type": ["string", "null"], "maxLength": 64 },
+    "execution_authorized": { "const": false }
+  }
+}

@@ -2348,8 +2348,8 @@ def build_parser() -> argparse.ArgumentParser:
         "orchestrator",
         help=(
             "Agent-result classification, policy routing, and Cursor bridge "
-            "(AS-ORCH-001A/001B/001C/AUTONOMY-001; routing != dispatch; "
-            "hook != execution; governor != merge; explicit completion != dispatch)."
+            "(AS-ORCH-001A/001B/001C/001D/AUTONOMY-001; routing != merge; "
+            "hook != execution; governor != merge; 001D is single-hop only)."
         ),
     )
     orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
@@ -2532,6 +2532,67 @@ def build_parser() -> argparse.ArgumentParser:
             "Run the controlled in-process autonomy pilot through the real "
             "governor APIs. Non-destructive. Does not merge or start 001E."
         ),
+    )
+    orch_dispatch_once = orch_sub.add_parser(
+        "dispatch-once",
+        help=(
+            "Start exactly one governed target agent for a HANDOFF_READY "
+            "dispatchable task, then stop. Does not auto-dispatch the next hop."
+        ),
+    )
+    orch_dispatch_once.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_dispatch_status = orch_sub.add_parser(
+        "dispatch-status",
+        help="Read-only dispatcher diagnostics. Does not start a process.",
+    )
+    orch_dispatch_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_dispatch_submit = orch_sub.add_parser(
+        "dispatch-submit-result",
+        help=(
+            "Bind a validated AgentResultEnvelope to an existing dispatch. "
+            "Does not stage the 001C slot and does not grant authority."
+        ),
+    )
+    orch_dispatch_submit.add_argument("dispatch_id", help="SHA-256 dispatch identity.")
+    orch_dispatch_submit.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_dispatch_submit.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_dispatch_submit.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_dispatch_recover = orch_sub.add_parser(
+        "dispatch-recover",
+        help="Finish finalization after result_received. Never respawns a process.",
+    )
+    orch_dispatch_recover.add_argument("dispatch_id", help="SHA-256 dispatch identity.")
+    orch_dispatch_recover.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
     )
     orch_gov_pilot.add_argument(
         "--root",
@@ -4814,6 +4875,43 @@ def main(argv: Sequence[str] | None = None) -> int:
                 evidence_dir=getattr(args, "evidence_dir", None),
                 inventory_path=getattr(args, "inventory", None),
                 trust_store=getattr(args, "trust_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-once":
+            from project_atlas.orchestration.dispatcher import run_cli_dispatch_once
+
+            report, exit_code = run_cli_dispatch_once(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-status":
+            from project_atlas.orchestration.dispatcher import run_cli_dispatch_status
+
+            report, exit_code = run_cli_dispatch_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-submit-result":
+            from project_atlas.orchestration.dispatcher import run_cli_submit_result
+
+            report, exit_code = run_cli_submit_result(
+                dispatch_id=str(getattr(args, "dispatch_id", "")),
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-recover":
+            from project_atlas.orchestration.dispatcher import run_cli_recover
+
+            report, exit_code = run_cli_recover(
+                dispatch_id=str(getattr(args, "dispatch_id", "")),
+                root=Path(getattr(args, "root", None) or Path.cwd()),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
