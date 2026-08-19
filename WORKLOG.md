@@ -5,6 +5,132 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
+
+**Date:** 2026-08-19
+**Directive:** D-AS-ORCH-001D-RESULT-BINDING-014
+**Branch:** `feat/as-orch-001d-result-binding-014` (from trusted `origin/main` `806218ae29792db63416a654e6a8390268764a1d` / tree `a83aeb9d88dd4042698c86c4ae6b0b0e6298460d`)
+**Mode:** NARROW_CONTROL_PLANE_REMEDIATION. Does not mutate PR #402 or PR #396. Does not merge.
+
+### Why this lane
+Ask-mode 001D IV completed with process exit 0 but could not write `dispatch-submit-result`. That is the generic result-binding blocker. Parent now captures one uniquely framed `AgentResultEnvelope` from stdout, validates it as untrusted input, binds identity to the active dispatch, and invokes existing submit/finalize internally.
+
+### Contract
+One process dispatch path (001D). Stdout/stderr/exit 0 are not authority. Extra authority fields, wrong pins, duplicates, and exit-1 claimed PASS fail closed. Adapter cannot authorize merge or grant owner authority.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-001d-result-binding-014\`
+
+---
+
+## AS-ORCH-001E — governed autonomous loop / D-AS-ORCH-001D-OWNER-MERGE-010
+
+**Date:** 2026-08-19
+**Directive:** D-AS-ORCH-001D-OWNER-MERGE-010
+**Branch:** `feat/as-orch-001e-autonomous-loop` (from sealed `origin/main` `d1dcabcd79b19dd04f98a541353e1aa6e594a149` / tree `49b5512551c482d9632e26c615f377c1a53cb326`)
+**Mode:** PERSISTENT_LOOP_ABOVE_001D. Does not mutate PR #396 or merge 001E.
+
+### Why this lane
+001D landed and sealed. Live DAG still requires a persistent autonomous loop. Implementation covers select→lease→001D dispatch→validate→continue, owner/hard-blocker stops, crash recovery, and replay/corruption fail-closed.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-001d-owner-merge-010\`
+
+---
+
+## AS-ORCH-001D — current-main dispatch primitive / D-AUTONOMY-OWNER-HELD-QUEUE-RESOLUTION-006
+
+**Date:** 2026-08-19
+**Directive:** D-AUTONOMY-OWNER-HELD-QUEUE-RESOLUTION-006
+**Branch:** `feat/as-orch-001d-dispatch-runtime` (from `origin/main` `8b3c8831127537be86dea913346169426882186d` / tree `8dad412bc2d5424560002fdcf56e6791e683d9c5`)
+**Mode:** FRESH_CURRENT_MAIN_RECONSTRUCTION. Does not mutate PR #396, create R2/R7, or merge.
+
+### Why this lane
+Frontier reconciliation closed R2 (superseded) and R7 (obsolete). AS-ORCH-001E remains required but is blocked because current main has no general agent dispatch runtime. R6 Windows MDA launch parity is already on main and is not this package.
+
+### Contract
+Single-hop only. Owner/terminal routes start no process. Mutating tasks fail closed. Receipt is not authority. Next handoff is never auto-dispatched. Recover does not respawn. Windows `.cmd` launchers wrap through trusted `cmd.exe`; prompt is stdin-only.
+
+### Evidence
+`D:\atlas-acceptance-d060\autonomy-owner-held-queue-resolution-006\`
+
+---
+
+## AS-ORCH-AUTONOMY-001-PIN-RETARGET — trusted-anchor retarget / D-AUTONOMY-PIN-RETARGET-003
+
+**Date:** 2026-08-19
+**Directive:** D-AUTONOMY-PIN-RETARGET-003
+**Branch:** `feat/as-orch-autonomy-001-pin-retarget` (from `origin/main` `62f8d59f170150d5ceab1610f49be00ad25fdd50` / tree `aed48e4854c9f32ed281b5009c92327d93971ae7`)
+**Mode:** FAIL_CLOSED_TRUST_ANCHOR_ADVANCEMENT. Does not modify PR #396, create R2/R7, start AS-ORCH-001E, or merge.
+
+### Why this lane
+The first live autonomous cycle correctly stopped at TARGET_MOVED after #398 merged: the sealed governor still treated the pre-merge bootstrap SHA as runtime authority. This package retargets the trusted runtime anchor to the verified post-merge state and replaces permanent compile-time pin authority with a provenance-bound advancement mechanism.
+
+### Contract
+BOOTSTRAP_MAIN/TREE remain historical genesis only. TRUSTED_RUNTIME_MAIN/TREE come from a verified record. OBSERVED_MAIN/TREE are live facts. Advancement requires an owner-supplied proof plus topology/seal/CI/evidence checks. The governor cannot invent owner authority or advance from origin/main alone. Missing/corrupt records fail closed with no compile-time or live-main fallback. History is monotonic and compare-and-advance is atomic.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-autonomy-001-pin-retarget-003\`
+
+```
+BASE_MAIN = 62f8d59f170150d5ceab1610f49be00ad25fdd50
+BASE_TREE = aed48e4854c9f32ed281b5009c92327d93971ae7
+TRUSTED_RUNTIME_MAIN = 62f8d59f170150d5ceab1610f49be00ad25fdd50
+BOOTSTRAP_MAIN = 23ebc0293a8988bc4f144cad6b478c6bff4d32d0
+R2_CREATED = NO
+R7_CREATED = NO
+AUTHENTIC_R6_RESUMED = NO
+AS_ORCH_001E_STARTED = NO
+PR396_MUTATED = NO
+SUCCESSOR_LEASE_ISSUED = NO
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+---
+
+## AS-ORCH-AUTONOMY-001 — autonomous governor / D-AUTONOMY-TRANSITION-001
+
+**Date:** 2026-08-19
+**Directive:** D-AUTONOMY-TRANSITION-001
+**Branch:** `feat/as-orch-autonomy-001` (from `origin/main` `23ebc0293a8988bc4f144cad6b478c6bff4d32d0` / tree `d7f5059d99e879502570245358e5a1612c52e739`)
+**Mode:** OPERATING_MODEL_TRANSITION. Does not modify PR #396, create R2/R7, start AS-ORCH-001E, or merge.
+
+### Why this lane
+Atlas 001A/001B/001C classify and route but cannot answer what may run now, in parallel, or only with owner authority. This package adds a fail-closed autonomous governor without weakening 001D single-hop / dispatch-once / owner-authority semantics (001D remains unmerged on #396).
+
+### Contract
+Governor state is evidence, not authority. Leases cannot expand scope. Overlapping mutation surfaces cannot run in parallel. Continuation stops at OWNER_GATE / HARD_BLOCKER / NO_ELIGIBLE_WORK / SAFETY_BOUNDARY / RESOURCE_BOUNDARY. Remediation is capped at 3 cycles. Certification requires implementer != verifier. Owner gates A–F never self-grant. Pilot is in-process and non-destructive.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-autonomy-001\`
+
+```
+BASE_MAIN = 23ebc0293a8988bc4f144cad6b478c6bff4d32d0
+BASE_TREE = d7f5059d99e879502570245358e5a1612c52e739
+R2_CREATED = NO
+R7_CREATED = NO
+AUTHENTIC_R6_RESUMED = NO
+AS_ORCH_001E_STARTED = NO
+PR396_MUTATED = NO
+MERGE_AUTHORIZATION = NOT_GRANTED
+SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = NOT_YET_ACTIVE
+```
+
+---
+
+## D-127+ — AS-2.1-MCP-BRIEF-001 (independent of frozen D125 stack and #364)
+
+**Date:** 2026-08-15
+**Directive:** D-PROJECT-ATLAS-AUTONOMOUS-D127-PARALLEL-FORWARD-001
+**Branch:** `cursor/mcp-brief-001-315e` (based on exact `main` `e5f17209754558435ac4b7f11ae227aa6e30d2b5`)
+**Mode:** MODE A — INDEPENDENT. Does not touch #361/#362/#363/#364.
+
+### Why this lane
+MCP live tools exposed ops/knowledge/projects but not the Coder Alpha brief. Agents using `atlas live mcp-invoke` still could not receive purpose/state/changed/decisions/unknown/next without a paste ritual.
+
+### Contract
+Zero-arg `{ "tool": "atlas.brief.read" }` only. Vault-scoped project loop via existing `AppService.projects()` + `AppService.brief()`. No `app_service.py` edits. MCP != authority. UNKNOWN remains valid. No writes.
+
 ## AS-PROJECT-ROADMAP-001 — D-098 authentic Web context remediation
 
 **Date:** 2026-08-15
@@ -6584,3 +6710,255 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - UNKNOWN is valid
 - no auto-execution
 
+## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001A-001
+**Package:** AS-ORCH-001A
+**Branch:** `cursor/as-orch-001a-agent-result-contract-d054`
+**Base:** live `origin/main` `dc9b23f320524947a58e283693833b2c2578655f` / TREE `a1aaaa0bdf3de56c2c2a5b44126525d6b8d9da01`
+
+### Scope implemented
+- Typed `AgentResultEnvelope` + shipped `agent-result-envelope.schema.json`
+- Typed `OrchestrationDecision` with `execution_authorized=false` and `merge_authorized=false`
+- Deterministic, side-effect-free transition classifier with explicit safety precedence
+- Owner gate: `MERGE_ELIGIBLE` → `OWNER_REQUIRED` (never `MERGE`)
+- Read-only CLI: `atlas orchestrator validate-result <result.json>`
+
+### Honesty
+- STRUCTURED RESULT CONTRACT = IMPLEMENTED
+- DETERMINISTIC CLASSIFICATION = IMPLEMENTED
+- AUTOMATIC ROUTING = NOT YET IMPLEMENTED
+- CURSOR HOOK = NOT YET IMPLEMENTED
+- AGENT DISPATCH = NOT YET IMPLEMENTED
+- AUTONOMOUS LOOP = NOT YET IMPLEMENTED
+- AUTOMATIC MERGE = NOT IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- RESULT != AUTHORITY
+- RECEIPT != AUTHORITY
+- CLASSIFICATION != EXECUTION
+- REQUESTED_TRANSITION != AUTHORIZED_TRANSITION
+
+### Follow-up (not started)
+- AS-ORCH-001B Policy Router
+- AS-ORCH-001C Cursor Integration
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
+### Local verification
+- Focused orchestration tests: 45 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- `ruff check .`: pass
+- `mypy src`: pass
+- Full `pytest`: 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot; not this package)
+- Scenarios A/B/C: INTEGRATION_VERIFY / RECERTIFY_REQUIRED / OWNER_REQUIRED; `execution_authorized=false`
+
+## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001B-001
+**Package:** AS-ORCH-001B
+**Branch:** `cursor/as-orch-001b-policy-router-d054`
+**Base:** live `origin/main` `1efaf1c57fc3719d7f788f860ebafff4570478b4` / TREE `dcda2c7b8f3e1790707741fe076d41db16222f03`
+
+### Scope implemented
+- Typed `TaskDirective` + fail-closed `DirectivePermissions` (all privileges `false`)
+- Discriminated `OrchestrationRoute` (`task` | `owner_gate` | `terminal`)
+- Deterministic policy table over every 001A `NextTransition`
+- SHA-256 `source_result_digest` binding + decision/envelope consistency
+- Read-only CLI: `atlas orchestrator route-result <result.json>`
+- Schemas: `task-directive.schema.json`, `orchestration-route.schema.json`
+
+### Routing map
+- INTEGRATION_VERIFY → task / integration / candidate_verification
+- RECERTIFY_REQUIRED → task / integration / recertification
+- AUTONOMOUS_RECONCILE → task / autonomous / program_reconciliation
+- REMEDIATION_REQUIRED → task / local / remediation (least-authoritative existing role; no `implementation` role in current taxonomy)
+- OWNER_REQUIRED → owner_gate / non-dispatchable / no MERGE task
+- BLOCKED / REJECTED / BLOCKED_UNKNOWN_STATE → terminal / non-dispatchable
+
+### Honesty
+- STRUCTURED_RESULT_CONTRACT = IMPLEMENTED
+- DETERMINISTIC_CLASSIFICATION = IMPLEMENTED
+- DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED
+- TYPED_TASK_DIRECTIVE = IMPLEMENTED
+- ROUTING POLICY IMPLEMENTED
+- RUNTIME AUTOMATIC ROUTING NOT IMPLEMENTED
+- CURSOR_HOOK = NOT_IMPLEMENTED
+- AGENT_DISPATCH = NOT_IMPLEMENTED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- AUTOMATIC_MERGE = NOT_IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- TASK_DIRECTIVE != EXECUTION
+- TASK_DIRECTIVE != AUTHORITY
+- ROUTING != DISPATCH
+- REQUESTED_TRANSITION remains advisory; 001B follows 001A `next_transition`
+
+### Follow-up (not started)
+- AS-ORCH-001C Cursor Integration
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
+### Local verification
+- Focused orchestration tests: 90 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26 + `test_orchestration_policy.py` 21 + `test_orchestration_router.py` 24)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- `ruff check .`: pass
+- `mypy src`: pass (225 source files)
+- Full `pytest`: 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot; not this package)
+- Scenarios A/B/C/D: integration verify / recertification / owner_gate / rejected terminal; `execution_authorized=false`
+
+
+## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001C-001
+**Package:** AS-ORCH-001C
+**Branch:** `cursor/as-orch-001c-cursor-integration-d054`
+**PR:** https://github.com/B0LK13/project-atlas/pull/395 (draft)
+**Base:** live `origin/main` `5d7224fc8a51ce86d37b883dd9fa5f70dc47e94e` / TREE `b7725d4c31a419a1bf39aaabb4e01e09e641340b`
+**TARGET_MOVED:** NO
+
+### Scope implemented
+- Typed `CursorStopEvent` / `CursorBridgeState` / `CursorBridgeResponse`
+- Single-slot ephemeral state at `.atlas/orchestration/cursor/state.json` (gitignored; not a queue)
+- CLI: `atlas orchestrator cursor-stage-result` / `cursor-ack` / `cursor-status`
+- Thin Cursor stop hook: `.cursor/hooks.json` + `.cursor/hooks/atlas_stop.py` (no policy in the hook)
+- Cursor project rule: `.cursor/rules/atlas-orchestration.mdc`
+- One trusted `followup_message` for task / owner_gate; `{}` for terminal / aborted / error / tamper
+- Loop guard: at most one automatic continuation (`loop_count` + `followup_emitted`)
+- HANDOFF_READY / OWNER_REQUIRED packets (not executable prompts)
+
+### Honesty
+- STRUCTURED_RESULT_CONTRACT = IMPLEMENTED
+- DETERMINISTIC_CLASSIFICATION = IMPLEMENTED
+- DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED
+- TYPED_TASK_DIRECTIVE = IMPLEMENTED
+- CURSOR_INTEGRATION_BRIDGE = IMPLEMENTED
+- CURSOR_STOP_HOOK = IMPLEMENTED
+- CURSOR TRIGGER INTEGRATION IMPLEMENTED
+- CROSS-AGENT DISPATCH NOT IMPLEMENTED
+- AUTHENTIC_WINDOWS_CURSOR_RUNTIME = NOT_YET_CERTIFIED
+- AUTHENTIC_WINDOWS_CURSOR_STOP_HOOK = NOT_YET_CERTIFIED
+- AGENT_DISPATCH = NOT_IMPLEMENTED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- AUTOMATIC_MERGE = NOT_IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- UNTRUSTED_TEXT_REACHES_FOLLOWUP = NO
+- CURSOR_CAN_CHOOSE_ROUTE = NO
+- HOOK_CAN_SPAWN_AGENT = NO
+- BRIDGE_ACK_IS_AUTHORITY = NO
+
+### Follow-up (not started)
+- Independent integration verification, then Local Windows Cursor stop-hook acceptance
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
+### Local verification
+- Focused orchestration tests: 125 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26 + `test_orchestration_policy.py` 21 + `test_orchestration_router.py` 24 + `test_orchestration_cursor_bridge.py` 29 + `test_cursor_hook_contract.py` 6)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- Combined focused+contract: 135 passed
+- `ruff check .`: pass
+- `mypy src`: pass (226 source files)
+- Full `pytest`: 2966 collected; 3 failures, all pre-existing on `origin/main` (AS-MVP-001 stale-knowledge calendar-rot, `age_days=20681`; not this package). Observed 1 xfailed + 3 skipped in the progress output. Do not call full pytest PASS.
+- NEW_REGRESSIONS = none
+- Scenarios: task followup / owner_gate followup / terminal `{}` / aborted `{}` / loop guard / tampered state `{}`; `execution_authorized=false`
+
+## AS-ORCH-001C-R1 — Deterministic Completion Transport Fallback
+
+**Date:** 2026-08-16
+**Directive:** D-PROJECT-ATLAS-CLOUD-AS-ORCH-001C-R1-001
+**Package:** AS-ORCH-001C-R1
+**Branch:** `cursor/as-orch-001c-cursor-integration-d054`
+**PR:** https://github.com/B0LK13/project-atlas/pull/395 (draft; not merge-ready)
+**Base:** live `origin/main` `5d7224fc8a51ce86d37b883dd9fa5f70dc47e94e` / TREE `b7725d4c31a419a1bf39aaabb4e01e09e641340b`
+**OLD_PR_HEAD:** `70116b16108859622c3f39a71ee8605b361358a4`
+**OLD_PR_TREE:** `8c15c53445e53536b2e9b30734bd26c4aa411e84`
+**TARGET_MOVED:** expected (remediation commit)
+
+### Scope implemented
+- Typed `HandoffPacket` shared by the optional Cursor stop-hook adapter and explicit completion
+- Transport-neutral `complete_staged_handoff` / `surface_pending_handoff` (no Cursor event required)
+- CLI: `atlas orchestrator cursor-complete` returns one machine-readable packet; no dispatch
+- `cursor-ack` unchanged and transport-independent; `cursor-status` reports hook adapter vs explicit transport honestly
+- Hook files `.cursor/hooks.json` and `.cursor/hooks/atlas_stop.py` retained (no policy in the hook)
+- Project rule no longer treats hook injection as guaranteed
+
+### Honesty
+- STRUCTURED_RESULT_CONTRACT = IMPLEMENTED
+- DETERMINISTIC_CLASSIFICATION = IMPLEMENTED
+- DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED
+- TYPED_TASK_DIRECTIVE = IMPLEMENTED
+- CURSOR_BRIDGE_CORE = IMPLEMENTED
+- CURSOR_STOP_HOOK_ADAPTER = IMPLEMENTED
+- EXPLICIT_COMPLETION_TRANSPORT = IMPLEMENTED
+- AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = NOT_RELIABLE_IN_CURRENT_WINDOWS_CLI_RUNTIME
+- AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT
+- HOOK_RUNTIME_REQUIRED_FOR_CORE_FLOW = NO
+- CROSS_AGENT_DISPATCH = NOT_IMPLEMENTED
+- AGENT_DISPATCH = NOT_IMPLEMENTED
+- AUTONOMOUS_LOOP = NOT_IMPLEMENTED
+- AUTOMATIC_MERGE = NOT_IMPLEMENTED
+- OWNER AUTHORITY = STILL REQUIRED
+- TRANSPORT_CAN_CHOOSE_ROUTE = NO
+- TRANSPORT_CAN_ESCALATE_PRIVILEGE = NO
+- BRIDGE_ACK_IS_AUTHORITY = NO
+- ACK_DISPATCHES_AGENT = NO
+- MERGE_ELIGIBLE = NO
+- MERGE_AUTHORIZATION = NOT_GRANTED
+
+### Follow-up (not started)
+- New independent Integration IV + exact-head CI + Local Windows explicit-completion acceptance
+- AS-ORCH-001D Agent Dispatcher
+- AS-ORCH-001E Governed Autonomous Loop
+
+### Local verification
+- Focused orchestration tests: 140 passed (`test_orchestration_result_contract.py` 19 + `test_orchestration_transitions.py` 26 + `test_orchestration_policy.py` 21 + `test_orchestration_router.py` 24 + `test_orchestration_cursor_bridge.py` 29 + `test_orchestration_explicit_completion.py` 15 + `test_cursor_hook_contract.py` 6)
+- Schema/contract regression: 10 passed (`test_schema.py` 8 + `test_atlas_contracts.py` 2)
+- Combined focused+contract: 150 passed
+- `ruff check .`: pass
+- `mypy src`: pass (226 source files)
+- Full `pytest`: 2981 collected; 2 failures, both `WinError 206` filename-too-long in eval-broker git history/secret tests (workspace environment; not this package). AS-MVP-001 calendar/mtime failures did not reproduce in this run. Observed 1 xfailed + 5 skipped in the progress output. Do not call full pytest PASS.
+- NEW_REGRESSIONS = none
+- Scenarios A-G: task / recertify / owner_gate / terminal / tamper reject / idempotent complete / transport equivalence; `execution_authorized=false`; `dispatch_performed=false`
+
+## AS-MDA-CONTROL-PLANE-COMPAT-001-R1 — mda-cli 0.2.9 control-plane output contract
+
+**Date:** 2026-08-17
+**Package:** AS-MDA-CONTROL-PLANE-COMPAT-001-R1
+**Reason:** `CERTIFIED_OBJECT_LOST` — prior HEAD `4cb80a0aa0e28fbddee8c8a71f1875519f19fc92` / TREE `0e7926bf9257219ffb271c669ddd3c8c8b855a9e` was never published. Prior certification does not transfer.
+**Branch:** `cursor/as-mda-control-plane-compat-001-r1`
+**Base:** `122ad8b11236dbc906c5e245054b090e4ff8e006` (`TARGET_MOVED = NO` at reconstruction)
+**PR #396:** untouched (`2b6ea76f3f2f54f1014de5fbb2092622d8c4e665`)
+
+### Scope
+- Explicit trusted mda-cli 0.2.9 output contract: `<source>.md` → `<source>.restructured.md`
+- Directory mode uses `--out-dir` (never `--output-folder`)
+- Fail-closed: missing, empty, stale, ambiguous, unknown version, path confinement
+- Production success does not accept `*.normalized.md` (legacy fixture / scan class only)
+- Trusted-exec + `shell=False` invariants preserved (CODEX-SEC-021)
+
+### `.normalized.md` inventory (session-start relevant stale production refs = 0)
+- `internal/mda_output_contract.py`, `internal/normalization.py`, mock `tests/fixtures/bin/mda`: CURRENT_MDA_RUNTIME_CONTRACT
+- `internal/event_reader.py`, `scripts/check_documentation.py`: CURRENT_MDA_RUNTIME_CONTRACT + LEGACY_FIXTURE scan class
+- `internal/ingestion_orchestrator.py`: CURRENT_MDA_RUNTIME_CONTRACT (routes `*.restructured.md`)
+- `tests/test_router.py`, `tests/test_check_documentation.py`: LEGACY_FIXTURE (downstream router/scan tests; not session-start production)
+- `WORKLOG.md` historical mentions: UNRELATED
+- Follow-up debt (untouched): leftover fixture writers in router/check_documentation tests remain labeled LEGACY_FIXTURE
+
+### Local verification (this Linux host)
+- Focused R1 reconstruction tests: 23 passed (`test_mda_output_contract_r1.py`)
+- Agent-control suite: 194 passed (`atlas-vault-documentation/tests`)
+- ORCH-001A/B/C regression: 140 passed
+- Security suite: 188 passed
+- CLI smoke: pass
+- `ruff check .`: pass
+- `mypy src`: pass (226 source files)
+- Full `pytest`: 2977 passed, 3 skipped, 1 xfailed
+- Authentic PATH `mda` 0.2.9 + billed OpenRouter: **not available in this environment** (`REAL_MDA_PROVIDER_AVAILABLE = NO`)
+- PR396 mutated: NO; R7 created: NO; authentic R6 resumed: NO
+
+### Honesty
+- `PRIOR_CERTIFICATION_TRANSFERRED = NO`
+- `NEW_HEAD != LOST_HEAD` (required)
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_PERFORMED = NO`

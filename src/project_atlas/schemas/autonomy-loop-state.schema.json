@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/autonomy-loop-state.schema.json",
+  "title": "AutonomyLoopState",
+  "description": "AS-ORCH-001E persisted loop runtime. Not owner authority. Not a merge grant.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository_identity",
+    "trusted_main",
+    "trusted_tree",
+    "phase",
+    "sequence",
+    "ticks_in_invocation",
+    "merge_authorized",
+    "execution_authorized",
+    "authority_granted",
+    "record_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "repository_identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "trusted_main": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "trusted_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "phase": {
+      "type": "string",
+      "enum": [
+        "IDLE",
+        "LEASED",
+        "DISPATCHING",
+        "AWAITING_RESULT",
+        "VALIDATING",
+        "STOPPED",
+        "FAILED_CLOSED"
+      ]
+    },
+    "sequence": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "ticks_in_invocation": { "type": "integer", "minimum": 0, "maximum": 8 },
+    "active_package_id": { "type": ["string", "null"] },
+    "active_lease_id": { "type": ["string", "null"] },
+    "active_dispatch_id": { "type": ["string", "null"] },
+    "completed_lease_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "completed_dispatch_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "completed_result_digests": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "stop_reason": {
+      "type": ["string", "null"],
+      "enum": [
+        "OWNER_GATE",
+        "HARD_BLOCKER",
+        "NO_ELIGIBLE_WORK",
+        "SAFETY_BOUNDARY",
+        "RESOURCE_BOUNDARY",
+        "PILOT_COMPLETE",
+        null
+      ]
+    },
+    "merge_authorized": { "const": false },
+    "execution_authorized": { "const": false },
+    "authority_granted": { "const": false },
+    "record_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

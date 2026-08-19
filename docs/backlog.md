@@ -379,7 +379,265 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
+- [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
+
+## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Classifies the next eligible transition from a structured `AgentResultEnvelope`. Does **not** dispatch, route automatically, create Cursor hooks, merge, or grant owner authority. `execution_authorized = false` always._
+
+Honesty (mandatory):
+
+- `STRUCTURED RESULT CONTRACT = IMPLEMENTED`
+- `DETERMINISTIC CLASSIFICATION = IMPLEMENTED`
+- `AUTOMATIC ROUTING = NOT YET IMPLEMENTED`
+- `CURSOR HOOK = NOT YET IMPLEMENTED`
+- `AGENT DISPATCH = NOT YET IMPLEMENTED`
+- `AUTONOMOUS LOOP = NOT YET IMPLEMENTED`
+- `AUTOMATIC MERGE = NOT IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+
+- [x] ORCH001A-001 `AgentResultEnvelope` model + shipped JSON schema
+- [x] ORCH001A-002 `OrchestrationDecision` (`execution_authorized=false`, `merge_authorized=false`)
+- [x] ORCH001A-003 Deterministic transition classifier + explicit precedence
+- [x] ORCH001A-004 Owner gate (`MERGE_ELIGIBLE` → `OWNER_REQUIRED`, never `MERGE`)
+- [x] ORCH001A-005 Read-only CLI `atlas orchestrator validate-result`
+- [x] ORCH001A-006 Focused unit tests + schema/model parity
+- [ ] ORCH001A-007 Independent integration verification
+- [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
+- [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
+
+## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Routes a 001A `OrchestrationDecision` to a typed `TaskDirective` or an explicit owner-gate / terminal result. Does **not** dispatch, create Cursor hooks, execute tasks, merge, or grant owner authority. `execution_authorized = false` always._
+
+Honesty (mandatory):
+
+- `STRUCTURED_RESULT_CONTRACT = IMPLEMENTED`
+- `DETERMINISTIC_CLASSIFICATION = IMPLEMENTED`
+- `DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED`
+- `TYPED_TASK_DIRECTIVE = IMPLEMENTED`
+- `ROUTING POLICY IMPLEMENTED`
+- `RUNTIME AUTOMATIC ROUTING NOT IMPLEMENTED`
+- `CURSOR_HOOK = NOT_IMPLEMENTED`
+- `AGENT_DISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP = NOT_IMPLEMENTED`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+
+Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. There is no `implementation` role. `REMEDIATION_REQUIRED` targets `local` (least-authoritative existing role). Recertification remains `integration`.
+
+- [x] ORCH001B-001 Typed `TaskDirective` + fail-closed `DirectivePermissions`
+- [x] ORCH001B-002 Discriminated `OrchestrationRoute` (`task` | `owner_gate` | `terminal`)
+- [x] ORCH001B-003 Deterministic policy table over 001A `NextTransition` values
+- [x] ORCH001B-004 Source-result digest binding + decision/envelope consistency
+- [x] ORCH001B-005 Read-only CLI `atlas orchestrator route-result`
+- [x] ORCH001B-006 Shipped JSON schemas + model/schema parity tests
+- [x] ORCH001B-007 Focused unit + composition + privilege-invariant tests
+- [ ] ORCH001B-008 Independent integration verification
+- [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
+
+## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
+
+_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001C-R1; not merge-eligible; not owner-approved; not production-ready). Surfaces a governed Atlas route via an optional Cursor stop-hook adapter **or** a deterministic explicit completion transport. Does **not** spawn agents, execute `TaskDirective`, merge, or grant authority. The stop hook is **not** the required primary runtime trigger._
+
+Honesty (mandatory):
+
+- `STRUCTURED_RESULT_CONTRACT = IMPLEMENTED`
+- `DETERMINISTIC_CLASSIFICATION = IMPLEMENTED`
+- `DETERMINISTIC_POLICY_ROUTING = IMPLEMENTED`
+- `TYPED_TASK_DIRECTIVE = IMPLEMENTED`
+- `CURSOR_BRIDGE_CORE = IMPLEMENTED`
+- `CURSOR_STOP_HOOK_ADAPTER = IMPLEMENTED`
+- `EXPLICIT_COMPLETION_TRANSPORT = IMPLEMENTED`
+- `AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = NOT_RELIABLE_IN_CURRENT_WINDOWS_CLI_RUNTIME`
+- `AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT`
+- `HOOK_RUNTIME_REQUIRED_FOR_CORE_FLOW = NO`
+- `CROSS_AGENT_DISPATCH = NOT_IMPLEMENTED`
+- `AGENT_DISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP = NOT_IMPLEMENTED`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+
+- [x] ORCH001C-001 Typed `CursorStopEvent` / `CursorBridgeState` / `CursorBridgeResponse`
+- [x] ORCH001C-002 Single-slot runtime state under `.atlas/orchestration/cursor/` (gitignored)
+- [x] ORCH001C-003 `atlas orchestrator cursor-stage-result` (recompute 001A+001B; fail closed on pending overwrite)
+- [x] ORCH001C-004 Thin `.cursor/hooks.json` + `.cursor/hooks/atlas_stop.py` (no policy in the hook)
+- [x] ORCH001C-005 One trusted `followup_message` for task/owner_gate; `{}` for terminal/aborted/error
+- [x] ORCH001C-006 Loop guard + `atlas orchestrator cursor-ack` (ack != authority)
+- [x] ORCH001C-007 Tamper/injection tests + hook stdin/stdout contract
+- [x] ORCH001C-008 Read-only `atlas orchestrator cursor-status`
+- [x] ORCH001C-R1-001 Typed `HandoffPacket` shared by hook adapter and explicit completion
+- [x] ORCH001C-R1-002 `complete_staged_handoff` / `atlas orchestrator cursor-complete` (no Cursor event required)
+- [x] ORCH001C-R1-003 Transport-equivalence + tamper + idempotence proofs
+- [ ] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move)
+- [ ] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
+
+## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher (current-main reconstruction)
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
+
+Honesty (mandatory):
+
+- `SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED`
+- `GENERAL_AGENT_DISPATCH_RUNTIME = IMPLEMENTED`
+- `WINDOWS_CMD_WRAPPER_SUPPORTED = YES`
+- `CURSOR_CLI_PROCESS_TRANSPORT = IMPLEMENTED`
+- `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP = NOT_IMPLEMENTED`
+- `DISPATCH_RECEIPT_IS_AUTHORITY = NO`
+- `PR396_RESURRECTED = NO`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCH001D-001 Typed `DispatchRecord` / `DispatchReceipt` + shipped schemas
+- [x] ORCH001D-002 Deterministic dispatch identity bound to trusted routing fields
+- [x] ORCH001D-003 Single-active-dispatch slot under `.atlas/orchestration/dispatcher/`
+- [x] ORCH001D-004 Eligibility revalidation (HANDOFF_READY + dispatchable + fail-closed privileges)
+- [x] ORCH001D-005 Owner/terminal non-executing outcomes (`PROCESS_STARTED = NO`)
+- [x] ORCH001D-006 Cursor CLI argv transport with Windows `.cmd` wrapper + stdin prompt
+- [x] ORCH001D-007 `dispatch-submit-result` / `dispatch-recover` (no respawn)
+- [x] ORCH001D-008 `atlas orchestrator dispatch-once` / `dispatch-status`
+- [x] ORCH001D-009 Mutating remediation fail closed (`CAPABILITY_REQUIRED`)
+- [x] ORCH001D-010 Focused unit + schema tests
+- [ ] ORCH001D-011 Independent verification
+- [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
+- [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
+
+## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Extends the existing 001D parent so a terminal ask-mode process can return one framed `AgentResultEnvelope` that the parent validates and binds. Does **not** create a second dispatcher, grant ask-mode write, merge, or mutate PR #402/#396._
+
+Honesty (mandatory):
+
+- `PROCESS_DISPATCH_PATH_COUNT = 1`
+- `DISPATCH_PATH = AS_ORCH_001D`
+- `SECOND_PROCESS_LAUNCH_PATH = NO`
+- `STDOUT_IS_AUTHORITY = NO`
+- `STDERR_IS_AUTHORITY = NO`
+- `PROCESS_EXIT_ZERO_IS_AUTHORITY = NO`
+- `RESULT_ADAPTER_CAN_AUTHORIZE_MERGE = NO`
+- `ASK_MODE_GENERAL_MUTATION = NO`
+- `AS_ORCH_001A_R1 = BLOCKED` until a later owner merge of this package
+- `PR402_CERTIFICATION = NOT_GRANTED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCH001DRB-001 Uniquely delimited terminal result frame
+- [x] ORCH001DRB-002 Parent capture + 001A validation of untrusted payload
+- [x] ORCH001DRB-003 Strict dispatch/lease/package/role/pin identity binding
+- [x] ORCH001DRB-004 Replay fail-closed (duplicate/stale/wrong/after-finalization)
+- [x] ORCH001DRB-005 Exit code is not semantic PASS
+- [x] ORCH001DRB-006 Internal governed submit/finalize (child write not required)
+- [ ] ORCH001DRB-007 Independent verification (bootstrap: candidate tests + exact-head CI + Windows process matrix; adapter PASS is not self-trust)
+
+## AS-ORCH-001E — Governed Autonomous Loop
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Persistent loop above the landed 001D dispatcher. Does **not** bypass owner gates, authorize merge, grant waivers, expand objectives, or mutate #396._
+
+Honesty (mandatory):
+
+- `PERSISTENT_AUTONOMOUS_LOOP = IMPLEMENTED`
+- `AUTONOMOUS_LOOP_001E = IMPLEMENTED`
+- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = ACTIVE`
+- `LOOP_CAN_BYPASS_OWNER_GATE = NO`
+- `LOOP_CAN_AUTHORIZE_MERGE = NO`
+- `LOOP_CAN_GRANT_WAIVER = NO`
+- `LOOP_CAN_EXPAND_OBJECTIVE = NO`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCH001E-001 Persisted loop state with fail-closed digest
+- [x] ORCH001E-002 Tick: select READY → lease → 001D dispatch-once → stop
+- [x] ORCH001E-003 Completion → validate → governor transition → DAG refresh
+- [x] ORCH001E-004 Owner-gate and hard-blocker stop propagation
+- [x] ORCH001E-005 Crash/restart recovery without duplicate dispatch
+- [x] ORCH001E-006 Duplicate lease/result/dispatch prevention
+- [x] ORCH001E-007 Adversarial matrix (authority, replay, corruption, cross-project)
+- [ ] ORCH001E-008 Independent verification
+- [ ] ORCH001E-009 Owner merge gate (not this package)
+
+## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
+
+_Status: **IMPLEMENTED ON MAIN**. Formalizes a single logical autonomous governor, work DAG, leases, overlap gate, continuation, bounded remediation, IV routing, adversarial trigger, evidence hashing, and owner gates A–F. Process dispatch is owned by AS-ORCH-001D (this tree). Does **not** start AS-ORCH-001E, mutate #396, or merge._
+
+Honesty (mandatory):
+
+- `AUTONOMOUS_GOVERNOR = IMPLEMENTED`
+- `WORK_DAG = IMPLEMENTED`
+- `AGENT_LEASE_MODEL = IMPLEMENTED`
+- `SURFACE_OVERLAP_GATE = IMPLEMENTED`
+- `AUTONOMOUS_CONTINUATION_POLICY = IMPLEMENTED`
+- `AUTOMATIC_REMEDIATION = IMPLEMENTED`
+- `IV_ROUTING = IMPLEMENTED`
+- `ADVERSARIAL_REVIEW_TRIGGER = IMPLEMENTED`
+- `EVIDENCE_CONTRACT = IMPLEMENTED`
+- `OWNER_GATES_A_F = IMPLEMENTED`
+- `AGENT_DISPATCH = IMPLEMENTED_BY_AS_ORCH_001D`
+- `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP_001E = IMPLEMENTED`
+- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = ACTIVE`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCHAUT-001 Authoritative governor state + WHAT_CAN_RUN / WAIT / PARALLEL / OWNER
+- [x] ORCHAUT-002 Work DAG with explicit recorded transitions
+- [x] ORCHAUT-003 Surface overlap gate (unsafe parallel = NO)
+- [x] ORCHAUT-004 Agent lease model; no autonomous scope expansion
+- [x] ORCHAUT-005 Continuation policy; stop at owner gate / hard blocker
+- [x] ORCHAUT-006 Bounded remediation (max 3) then BLOCKED
+- [x] ORCHAUT-007 IV routing: implementer != verifier
+- [x] ORCHAUT-008 Adversarial review trigger for control-plane / authorization
+- [x] ORCHAUT-009 Deterministic hashed evidence bundles
+- [x] ORCHAUT-010 Owner gates A–F fail closed
+- [x] ORCHAUT-011 CLI `governor-status` / `governor-discover` / `governor-pilot`
+- [x] ORCHAUT-012 Controlled non-destructive in-process pilot
+- [ ] ORCHAUT-013 Owner merge gate (not this package)
+
+## AS-ORCH-AUTONOMY-001-PIN-RETARGET — trusted-anchor retarget / D-AUTONOMY-PIN-RETARGET-003
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Replaces compile-time `EXPECTED_BASE_MAIN` as runtime authority with a provenance-bound trusted-anchor record. Initial retarget is the verified #398 merge (`62f8d59f...` / tree `aed48e48...`). Does **not** start R2/R6/R7/001E, mutate #396, or merge._
+
+Honesty (mandatory):
+
+- `STATIC_BOOTSTRAP_PIN_AS_RUNTIME_AUTHORITY = NO`
+- `TRUSTED_ANCHOR_ADVANCEMENT = IMPLEMENTED`
+- `GOVERNOR_CAN_INVENT_OWNER_AUTHORITY = NO`
+- `GOVERNOR_CAN_ADVANCE_ANCHOR_FROM_OBSERVED_MAIN_ONLY = NO`
+- `DESCENDANT_ONLY_IS_SUFFICIENT_AUTHORITY = NO`
+- `UNVERIFIED_MAIN_MOVEMENT_FAILS_CLOSED = YES`
+- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = NOT_YET_ACTIVE`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCHAUT-014 Distinct BOOTSTRAP / TRUSTED_RUNTIME / OBSERVED pins
+- [x] ORCHAUT-015 Shipped evidence-based #398 trusted-anchor record
+- [x] ORCHAUT-016 Authorized advancement only when all §10 checks pass
+- [x] ORCHAUT-017 Unauthorized / descendant-only / stale / concurrent / TOCTOU fail closed
+- [x] ORCHAUT-018 Atomic compare-and-advance with append-only history
+- [x] ORCHAUT-019 Negative matrix cases 1–15 + positive A/B/C
+- [ ] ORCHAUT-020 Owner merge gate (not this package)
+
+## AS-MDA-CONTROL-PLANE-COMPAT-001-R1 — mda-cli 0.2.9 control-plane compatibility
+
+_Status: **RECONSTRUCTED — RECERTIFICATION IN PROGRESS** (owner-authorized because the previously certified Git object was lost before publication). Prior HEAD `4cb80a0aa0e28fbddee8c8a71f1875519f19fc92` remains historical evidence only. Prior certification is not transferable. This package does not touch PR #396 / AS-ORCH-001D._
+
+- [x] MDA-R1-001 Explicit trusted 0.2.9 contract (`*.restructured.md`, `--out-dir`)
+- [x] MDA-R1-002 Fail-closed missing / empty / stale / ambiguous / unknown-contract / confinement
+- [x] MDA-R1-003 Focused reconstruction tests (18 cases) + mock models production contract
+- [x] MDA-R1-004 Session-start-relevant stale `*.normalized.md` production refs = 0
+- [ ] MDA-R1-005 Authentic PATH mda 0.2.9 + billed OpenRouter + `normalize_event` (host-blocked here)
+- [ ] MDA-R1-006 Independent verification against published R1 HEAD/TREE
+- [ ] MDA-R1-007 Exact-head GitHub CI + owner merge gate (merge not authorized)
 

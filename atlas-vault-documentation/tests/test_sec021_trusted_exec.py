@@ -171,14 +171,16 @@ class TestNormalizeEventTrustedBoundary:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("ATLAS_MDA_COMMAND", raising=False)
         monkeypatch.delenv("ATLAS_AGENT_CONFIG", raising=False)
-        # Without a trusted executable, dry-run should plan the allowlisted
-        # default `mda`, never the repo-selected payload.
+        # Without a trusted executable, dry-run must not execute the
+        # repo-selected payload. Default basename remains `mda`.
         rc = normalize_event.main(["--event", str(raw_event), "--dry-run", "--json"])
-        assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["command"][0] == "mda"
         assert str(evil) not in payload["command"]
         assert not marker.exists()
+        # Uninstalled default `mda` cannot be mapped to a version contract.
+        assert rc == 4
+        assert payload["category"] in {"unknown-contract", "executable-missing"}
 
     def test_upward_config_discovery_cannot_select_executable(
         self,

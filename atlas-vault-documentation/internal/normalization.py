@@ -20,15 +20,24 @@ from pathlib import Path
 from typing import Any
 
 from internal import process_runner, provenance, verification
+from internal.mda_output_contract import (
+    MdaOutputContract,
+    UnknownMdaContractError,
+    expected_output_path,
+    is_mda_output_artifact,
+    resolve_output_contract,
+)
 from internal.process_runner import resolve_executable_argv
 
 #: Provider/executable-adjacent names must be simple identifiers.
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
-OUTPUT_SUFFIX = ".normalized.md"
-
 #: Normalization-phase failure categories (exit 4).
 CATEGORY_MISSING_OUTPUT = "missing-output"
+CATEGORY_EMPTY_OUTPUT = "empty-output"
+CATEGORY_STALE_OUTPUT = "stale-output"
+CATEGORY_AMBIGUOUS_OUTPUT = "ambiguous-output"
+CATEGORY_UNKNOWN_CONTRACT = "unknown-contract"
 CATEGORY_INVALID_RAW_EVENT = "invalid-raw-event"
 CATEGORY_DISABLED = "disabled"
 #: Verification-phase failure category (exit 5).
@@ -89,8 +98,42 @@ class NormalizationResult:
         return data
 
 
-def build_command(settings: NormalizationSettings, raw_event: Path) -> list[str]:
-    """Construct the mda-cli argument array (never a shell string)."""
+def probe_output_contract(
+    settings: NormalizationSettings,
+    *,
+    redact: Callable[[str], str],
+) -> tuple[process_runner.ProcessResult, MdaOutputContract | None]:
+    """Probe ``mda --version`` and map it to a trusted output contract.
+
+    Executable-missing and permission-denied stay those categories.
+    A successful probe of an unrecognized version is ``unknown-contract``.
+    """
+    probe = process_runner.run_command(
+        [*resolve_executable_argv(settings.mda_command), "--version"],
+        timeout_seconds=min(settings.timeout_seconds, 30),
+        redact=redact,
+    )
+    if not probe.ok:
+        return probe, None
+    version_line = (probe.stdout or "").strip().splitlines()
+    line = version_line[0] if version_line else ""
+    try:
+        return probe, resolve_output_contract(line)
+    except UnknownMdaContractError:
+        return probe, None
+
+
+def build_command(
+    settings: NormalizationSettings,
+    raw_event: Path,
+    contract: MdaOutputContract | None = None,
+) -> list[str]:
+    """Construct the mda-cli argument array (never a shell string).
+
+    Directory mode uses the version contract's flag (mda-cli 0.2.9: ``--out-dir``).
+    ``--output-folder`` is not a mda-cli 0.2.9 flag and is never emitted.
+    Unknown contracts cannot select a directory flag.
+    """
     argv = list(resolve_executable_argv(settings.mda_command))
     if settings.skill_dir is not None:
         argv.extend(["--skill-dir", str(settings.skill_dir)])
@@ -99,7 +142,11 @@ def build_command(settings: NormalizationSettings, raw_event: Path) -> list[str]
     if settings.output_mode == "directory":
         if settings.output_dir is None:
             raise ValueError("output_mode 'directory' requires output_dir")
-        argv.extend(["--output-folder", str(settings.output_dir)])
+        if contract is None:
+            raise UnknownMdaContractError(
+                "directory mode requires a recognized mda-cli output contract"
+            )
+        argv.extend([contract.directory_flag, str(settings.output_dir)])
     # Raw evidence is immutable: --in-place is never emitted (AS-009).
     argv.append(str(raw_event))
     return argv
@@ -109,14 +156,18 @@ def _stem(path: Path) -> str:
     return path.name[: -len(".md")] if path.name.endswith(".md") else path.name
 
 
-def expected_output(settings: NormalizationSettings, raw_event: Path) -> Path:
-    """Deterministic expected output path for the configured mode."""
-    name = _stem(raw_event) + OUTPUT_SUFFIX
-    if settings.output_mode == "sibling":
-        return raw_event.parent / name
-    if settings.output_dir is None:
-        raise ValueError("output_mode 'directory' requires output_dir")
-    return settings.output_dir / name
+def expected_output(
+    settings: NormalizationSettings,
+    raw_event: Path,
+    contract: MdaOutputContract,
+) -> Path:
+    """Deterministic expected output path from the trusted version contract."""
+    return expected_output_path(
+        raw_event,
+        contract,
+        output_mode=settings.output_mode,
+        output_dir=settings.output_dir,
+    )
 
 
 def write_failure_record(
@@ -200,7 +251,43 @@ def normalize(
             problems=tuple(raw_problems),
         )
 
-    output = expected_output(settings, raw_event)
+    probe, contract = probe_output_contract(settings, redact=redact)
+    if contract is None:
+        if probe.category == process_runner.CATEGORY_EXECUTABLE_MISSING:
+            return _fail(
+                raw_event, event_id,
+                status="failed",
+                category=process_runner.CATEGORY_EXECUTABLE_MISSING,
+                message="mda-cli executable-missing: version probe failed",
+            )
+        if probe.category == process_runner.CATEGORY_PERMISSION_DENIED:
+            return _fail(
+                raw_event, event_id,
+                status="failed",
+                category=process_runner.CATEGORY_PERMISSION_DENIED,
+                message="mda-cli permission-denied: version probe failed",
+            )
+        if probe.category is not None:
+            detail = probe.stderr.strip() or probe.category
+            return _fail(
+                raw_event, event_id,
+                status="failed",
+                category=probe.category,
+                message=f"mda-cli {probe.category}: {detail}",
+                attempts=probe.attempts,
+                duration=probe.duration_seconds,
+            )
+        version_line = (probe.stdout or "").strip().splitlines()
+        line = version_line[0] if version_line else "unknown"
+        return _fail(
+            raw_event, event_id,
+            status="failed",
+            category=CATEGORY_UNKNOWN_CONTRACT,
+            message=f"unrecognized mda-cli version contract: {line!r}",
+        )
+    version = (probe.stdout or "").strip().splitlines()[0][:200]
+
+    output = expected_output(settings, raw_event, contract)
     verification.ensure_inside_root(root, output)
     watch_directory = output.parent
     if output.exists():
@@ -210,14 +297,17 @@ def normalize(
             message=f"expected output already exists: {output}",
         )
 
-    argv = build_command(settings, raw_event)
+    argv = build_command(settings, raw_event, contract)
+    if "--output-folder" in argv:
+        return _fail(
+            raw_event, event_id,
+            status="failed",
+            category=CATEGORY_UNKNOWN_CONTRACT,
+            message="refusing non-0.2.9 flag --output-folder",
+        )
 
     # --- execution ---------------------------------------------------------
     before = verification.snapshot(watch_directory)
-    version = process_runner.command_version(
-        settings.mda_command, timeout_seconds=min(settings.timeout_seconds, 30),
-        redact=redact,
-    )
     result = process_runner.run_command(
         argv,
         timeout_seconds=settings.timeout_seconds,
@@ -234,7 +324,12 @@ def normalize(
             attempts=result.attempts, duration=result.duration_seconds,
         )
 
-    # --- discovery ----------------------------------------------------------
+    # --- discovery: explicit contract path only, never newest-sibling scan
+    after = verification.snapshot(watch_directory)
+    new_files = after - before
+    resolved_output = output.resolve() if output.exists() else output
+    created_this_run = output in new_files or resolved_output in new_files
+
     if not output.exists():
         return _fail(
             raw_event, event_id,
@@ -242,6 +337,41 @@ def normalize(
             message=f"mda-cli exited 0 but produced no output at {output}",
             command=argv if settings.record_command else None,
             attempts=result.attempts, duration=result.duration_seconds,
+        )
+    if output.stat().st_size == 0:
+        return _fail(
+            raw_event, event_id,
+            status="failed", category=CATEGORY_EMPTY_OUTPUT,
+            message=f"mda-cli exited 0 but expected output is empty: {output}",
+            command=argv if settings.record_command else None,
+            attempts=result.attempts, duration=result.duration_seconds,
+        )
+    if not created_this_run:
+        return _fail(
+            raw_event, event_id,
+            status="failed", category=CATEGORY_STALE_OUTPUT,
+            message=f"stale output was not created by this invocation: {output}",
+            command=argv if settings.record_command else None,
+            attempts=result.attempts, duration=result.duration_seconds,
+        )
+
+    extra_contract_outputs = sorted(
+        path
+        for path in new_files
+        if is_mda_output_artifact(path.name)
+        and path != output
+        and path != resolved_output
+    )
+    if extra_contract_outputs:
+        return _fail(
+            raw_event, event_id,
+            status="failed",
+            category=CATEGORY_AMBIGUOUS_OUTPUT,
+            message="ambiguous mda output: multiple contract-shaped artifacts",
+            command=argv if settings.record_command else None,
+            attempts=result.attempts,
+            duration=result.duration_seconds,
+            problems=tuple(str(path) for path in extra_contract_outputs),
         )
 
     # --- verification --------------------------------------------------------

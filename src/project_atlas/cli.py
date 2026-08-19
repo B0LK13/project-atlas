@@ -2343,6 +2343,332 @@ def build_parser() -> argparse.ArgumentParser:
     )
     live_l3.add_argument("--json", action="store_true")
 
+    # AS-ORCH-001A/001B/001C — classify, route, Cursor bridge. Not dispatch.
+    orch_parser = subparsers.add_parser(
+        "orchestrator",
+        help=(
+            "Agent-result classification, policy routing, and Cursor bridge "
+            "(AS-ORCH-001A/001B/001C/001D/AUTONOMY-001; routing != merge; "
+            "hook != execution; governor != merge; 001D is single-hop only)."
+        ),
+    )
+    orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
+    orch_validate = orch_sub.add_parser(
+        "validate-result",
+        help=(
+            "Validate an AgentResultEnvelope and classify the next transition. "
+            "Does not execute the transition."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas orchestrator validate-result result.json\n"
+            "  atlas orchestrator validate-result --stdin < result.json\n"
+            "  cat result.json | atlas orchestrator validate-result -\n"
+        ),
+    )
+    orch_validate.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_validate.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_route = orch_sub.add_parser(
+        "route-result",
+        help=(
+            "Validate, classify, and apply the deterministic routing policy. "
+            "Prints a machine-readable route. Does not dispatch or execute."
+        ),
+        description=(
+            "Validate an AgentResultEnvelope, classify it with AS-ORCH-001A, "
+            "and apply the AS-ORCH-001B routing policy. Does not dispatch or execute."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas orchestrator route-result result.json\n"
+            "  atlas orchestrator route-result --stdin < result.json\n"
+            "  cat result.json | atlas orchestrator route-result -\n"
+        ),
+    )
+    orch_route.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_route.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_stage = orch_sub.add_parser(
+        "cursor-stage-result",
+        help=(
+            "Validate, classify, route, and stage a single-slot Cursor handoff. "
+            "Does not dispatch or execute."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas orchestrator cursor-stage-result result.json\n"
+            "  atlas orchestrator cursor-stage-result --stdin < result.json\n"
+        ),
+    )
+    orch_stage.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_stage.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_stage.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_ack = orch_sub.add_parser(
+        "cursor-ack",
+        help="Acknowledge a pending Cursor handoff by route digest. Not authority.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n  atlas orchestrator cursor-ack <route-digest>\n",
+    )
+    orch_ack.add_argument("route_digest", help="SHA-256 hex digest of the staged route.")
+    orch_ack.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_cursor_status = orch_sub.add_parser(
+        "cursor-status",
+        help="Read-only Cursor bridge diagnostics. Does not dispatch.",
+    )
+    orch_cursor_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_complete = orch_sub.add_parser(
+        "cursor-complete",
+        help=(
+            "Surface the staged Cursor handoff as a machine-readable "
+            "HandoffPacket. Does not require a Cursor stop event. "
+            "Does not dispatch or execute."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n  atlas orchestrator cursor-complete --root <repo>\n",
+    )
+    orch_complete.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_gov_status = orch_sub.add_parser(
+        "governor-status",
+        help=(
+            "Read-only autonomous governor snapshot (AS-ORCH-AUTONOMY-001). "
+            "Does not dispatch, merge, or start successor packages."
+        ),
+    )
+    orch_gov_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_status.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store. When omitted, the shipped record is used.",
+    )
+    orch_gov_discover = orch_sub.add_parser(
+        "governor-discover",
+        help=(
+            "Discover the next safe non-destructive ready node from live "
+            "or injected inventory. Does not execute or merge."
+        ),
+    )
+    orch_gov_discover.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_discover.add_argument(
+        "--inventory",
+        type=Path,
+        default=None,
+        help="Optional LiveInventory JSON. When omitted, live git facts are used.",
+    )
+    orch_gov_discover.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store. When omitted, the shipped record is used.",
+    )
+    orch_gov_pilot = orch_sub.add_parser(
+        "governor-pilot",
+        help=(
+            "Run the controlled in-process autonomy pilot through the real "
+            "governor APIs. Non-destructive. Does not merge or start 001E."
+        ),
+    )
+    orch_gov_loop = orch_sub.add_parser(
+        "governor-loop-tick",
+        help=(
+            "AS-ORCH-001E: one persistent-loop tick above 001D. "
+            "Does not merge, waive, or invent owner authority."
+        ),
+    )
+    orch_gov_loop.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_loop.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store.",
+    )
+    orch_gov_loop.add_argument(
+        "--loop-store",
+        type=Path,
+        default=None,
+        help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
+    )
+    orch_dispatch_once = orch_sub.add_parser(
+        "dispatch-once",
+        help=(
+            "Start exactly one governed target agent for a HANDOFF_READY "
+            "dispatchable task, then stop. Does not auto-dispatch the next hop."
+        ),
+    )
+    orch_dispatch_once.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_dispatch_once.add_argument(
+        "--lease-id",
+        default=None,
+        help="Optional lease identity recorded on the dispatch for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--bound-package-id",
+        default=None,
+        help="Optional work-package identity recorded for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--base-main",
+        default=None,
+        help="Optional 40-char base main SHA recorded for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--candidate-head",
+        default=None,
+        help="Optional 40-char candidate HEAD SHA recorded for result binding.",
+    )
+    orch_dispatch_once.add_argument(
+        "--candidate-tree",
+        default=None,
+        help="Optional 40-char candidate tree SHA recorded for result binding.",
+    )
+    orch_dispatch_status = orch_sub.add_parser(
+        "dispatch-status",
+        help="Read-only dispatcher diagnostics. Does not start a process.",
+    )
+    orch_dispatch_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_dispatch_submit = orch_sub.add_parser(
+        "dispatch-submit-result",
+        help=(
+            "Bind a validated AgentResultEnvelope to an existing dispatch. "
+            "Does not stage the 001C slot and does not grant authority."
+        ),
+    )
+    orch_dispatch_submit.add_argument("dispatch_id", help="SHA-256 dispatch identity.")
+    orch_dispatch_submit.add_argument(
+        "result",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to AgentResultEnvelope JSON. Use - to read stdin.",
+    )
+    orch_dispatch_submit.add_argument(
+        "--stdin",
+        action="store_true",
+        dest="from_stdin",
+        help="Read the envelope JSON from stdin.",
+    )
+    orch_dispatch_submit.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_dispatch_recover = orch_sub.add_parser(
+        "dispatch-recover",
+        help="Finish finalization after result_received. Never respawns a process.",
+    )
+    orch_dispatch_recover.add_argument("dispatch_id", help="SHA-256 dispatch identity.")
+    orch_dispatch_recover.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_pilot.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_pilot.add_argument(
+        "--inventory",
+        type=Path,
+        default=None,
+        help="Optional LiveInventory JSON. When omitted, live git facts are used.",
+    )
+    orch_gov_pilot.add_argument(
+        "--evidence-dir",
+        type=Path,
+        default=None,
+        help="Optional directory for the hashed evidence bundle.",
+    )
+    orch_gov_pilot.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store. When omitted, the shipped record is used.",
+    )
+
     return parser
 
 
@@ -4513,6 +4839,154 @@ def main(argv: Sequence[str] | None = None) -> int:
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown live command: {args.live_command}"
+        )
+
+    if args.command == "orchestrator":
+        if args.orchestrator_command == "validate-result":
+            from project_atlas.orchestration import run_validate_result
+
+            decision, exit_code = run_validate_result(
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+            )
+            print(json.dumps(decision.to_public_dict(), indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "route-result":
+            from project_atlas.orchestration import run_route_result
+
+            routed, exit_code = run_route_result(
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+            )
+            print(json.dumps(routed.to_public_dict(), indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-stage-result":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_stage_result
+
+            report, exit_code = run_cursor_stage_result(
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-ack":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_ack
+
+            report, exit_code = run_cursor_ack(
+                route_digest_value=str(getattr(args, "route_digest", "")),
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-status":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_status
+
+            report, exit_code = run_cursor_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "cursor-complete":
+            from project_atlas.orchestration.cursor_bridge import run_cursor_complete
+
+            report, exit_code = run_cursor_complete(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-status":
+            from project_atlas.orchestration.autonomy.cli import run_governor_status
+
+            report, exit_code = run_governor_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                trust_store=getattr(args, "trust_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-discover":
+            from project_atlas.orchestration.autonomy.cli import run_governor_discover
+
+            report, exit_code = run_governor_discover(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                inventory_path=getattr(args, "inventory", None),
+                trust_store=getattr(args, "trust_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-pilot":
+            from project_atlas.orchestration.autonomy.cli import run_governor_pilot
+
+            report, exit_code = run_governor_pilot(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                evidence_dir=getattr(args, "evidence_dir", None),
+                inventory_path=getattr(args, "inventory", None),
+                trust_store=getattr(args, "trust_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-loop-tick":
+            from project_atlas.orchestration.autonomy.cli import run_governor_loop_tick
+
+            report, exit_code = run_governor_loop_tick(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                trust_store=getattr(args, "trust_store", None),
+                loop_store=getattr(args, "loop_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-once":
+            from project_atlas.orchestration.dispatcher import (
+                DispatcherConfig,
+                run_cli_dispatch_once,
+            )
+
+            report, exit_code = run_cli_dispatch_once(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                config=DispatcherConfig(
+                    lease_id=getattr(args, "lease_id", None),
+                    bound_package_id=getattr(args, "bound_package_id", None),
+                    base_main=getattr(args, "base_main", None),
+                    candidate_head=getattr(args, "candidate_head", None),
+                    candidate_tree=getattr(args, "candidate_tree", None),
+                ),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-status":
+            from project_atlas.orchestration.dispatcher import run_cli_dispatch_status
+
+            report, exit_code = run_cli_dispatch_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-submit-result":
+            from project_atlas.orchestration.dispatcher import run_cli_submit_result
+
+            report, exit_code = run_cli_submit_result(
+                dispatch_id=str(getattr(args, "dispatch_id", "")),
+                path=getattr(args, "result", None),
+                from_stdin=bool(getattr(args, "from_stdin", False)),
+                stdin=sys.stdin,
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "dispatch-recover":
+            from project_atlas.orchestration.dispatcher import run_cli_recover
+
+            report, exit_code = run_cli_recover(
+                dispatch_id=str(getattr(args, "dispatch_id", "")),
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        parser.error(  # pragma: no cover
+            f"unknown orchestrator command: {args.orchestrator_command}"
         )
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces

@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/autonomy-work-node.schema.json",
+  "title": "AutonomyWorkNode",
+  "description": "AS-ORCH-AUTONOMY-001 DAG node. WorkNode != authority; execution_authorized and merge_authorized are always false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "package_id",
+    "objective",
+    "base_pin",
+    "dependencies",
+    "mutation_surface",
+    "execution_host_class",
+    "agent_capabilities_required",
+    "acceptance_criteria",
+    "test_requirements",
+    "iv_requirements",
+    "owner_gate",
+    "retry_policy",
+    "state",
+    "risk_tags",
+    "destructive",
+    "merge_authorized",
+    "execution_authorized"
+  ],
+  "properties": {
+    "package_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "objective": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "base_pin": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "dependencies": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+    },
+    "mutation_surface": { "$ref": "#/$defs/surface" },
+    "execution_host_class": { "enum": ["IN_PROCESS", "EXTERNAL_AGENT"] },
+    "agent_capabilities_required": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": { "enum": ["DISCOVER", "IMPLEMENT", "VERIFY", "REMEDIATE", "ADVERSARIAL_REVIEW"] }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "test_requirements": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "iv_requirements": { "$ref": "#/$defs/iv" },
+    "owner_gate": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "enum": [
+            "A_PROTECTED_MAIN_MERGE",
+            "B_ACCEPTANCE_WAIVER",
+            "C_CERTIFIED_OBJECT_MUTATION",
+            "D_SECURITY_GOVERNANCE_POLICY",
+            "E_DESTRUCTIVE_OPS",
+            "F_MATERIAL_EXTERNAL_SPEND"
+          ]
+        }
+      ]
+    },
+    "retry_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_autonomous_cycles", "cycles_used"],
+      "properties": {
+        "max_autonomous_cycles": { "const": 3 },
+        "cycles_used": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    },
+    "state": {
+      "enum": [
+        "DISCOVERED", "READY", "LEASED", "ACTIVE", "VERIFYING", "REMEDIATING",
+        "CERTIFIED", "OWNER_HELD", "MERGE_ELIGIBLE", "MERGED", "BLOCKED",
+        "SUPERSEDED", "CLOSED"
+      ]
+    },
+    "risk_tags": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "enum": [
+          "SECURITY_RELEVANT",
+          "CONTROL_PLANE",
+          "AUTHORIZATION",
+          "DATA_INTEGRITY",
+          "CROSS_PROJECT_ISOLATION",
+          "HIGH_BLAST_RADIUS"
+        ]
+      }
+    },
+    "destructive": { "const": false },
+    "merge_authorized": { "const": false },
+    "execution_authorized": { "const": false }
+  },
+  "$defs": {
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface_id", "paths", "semantic"],
+      "properties": {
+        "surface_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "paths": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$" }
+        },
+        "semantic": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$" }
+      }
+    },
+    "iv": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["certification_required", "implementer_cannot_verify", "adversarial_required"],
+      "properties": {
+        "certification_required": { "type": "boolean" },
+        "implementer_cannot_verify": { "const": true },
+        "adversarial_required": { "type": "boolean" }
+      }
+    }
+  }
+}

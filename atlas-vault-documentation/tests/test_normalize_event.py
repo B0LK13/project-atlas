@@ -65,7 +65,7 @@ class TestSuccessfulNormalization:
         assert payload["status"] == "normalized"
         assert payload["event_id"] == EVENT_ID
         output = Path(payload["normalized_event"])
-        assert output.name == f"AE-20260801T100000Z-project-atlas-norm01.normalized.md"
+        assert output.name == f"AE-20260801T100000Z-project-atlas-norm01.restructured.md"
         assert output.parent == raw_event.parent
 
         # AS-009: raw evidence untouched.
@@ -100,16 +100,22 @@ class TestSuccessfulNormalization:
     def test_fenced_output_stripped(self, raw_event: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MDA_MOCK_MODE", "fenced")
         assert normalize_event.main(normalize_args(raw_event)) == 0
-        output = next(raw_event.parent.glob("*.normalized.md"))
+        output = next(raw_event.parent.glob("*.restructured.md"))
         assert output.read_text(encoding="utf-8").startswith("---\n")
 
-    def test_directory_mode(self, raw_event: Path, vault: Path) -> None:
+    def test_directory_mode(self, raw_event: Path, vault: Path, capsys: pytest.CaptureFixture[str]) -> None:
         outdir = vault / "projects" / "project-atlas" / "events"
         rc = normalize_event.main(normalize_args(
-            raw_event, "--output-mode", "directory", "--output-dir", str(outdir),
+            raw_event, "--output-mode", "directory", "--output-dir", str(outdir), "--json",
         ))
         assert rc == 0
-        assert (outdir / f"{EVENT_ID}.normalized.md").is_file()
+        payload = json.loads(capsys.readouterr().out)
+        args = payload["provenance"]["command_arguments"]
+        if isinstance(args, str):
+            args = json.loads(args)
+        assert "--out-dir" in args
+        assert "--output-folder" not in args
+        assert (outdir / f"{EVENT_ID}.restructured.md").is_file()
 
     def test_provider_from_env(
         self, raw_event: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -177,6 +183,10 @@ class TestSuccessfulNormalization:
         payload = json.loads(capsys.readouterr().out)
         assert payload["status"] == "dry-run"
         assert str(MOCK_MDA) in [str(a) for a in payload["command"]]
+        assert "--output-folder" not in payload["command"]
+        assert payload["output_suffix"] == ".restructured.md"
+        assert payload["output_contract"] == "CANONICAL_RESTRUCTURED"
+        assert str(payload["expected_output"]).endswith(".restructured.md")
         assert set(raw_event.parent.iterdir()) == before
 
     def test_disabled_by_config(self, raw_event: Path, tmp_path: Path) -> None:
@@ -184,7 +194,7 @@ class TestSuccessfulNormalization:
         config.write_text("normalization:\n  enabled: false\n", encoding="utf-8")
         rc = normalize_event.main(normalize_args(raw_event, "--config", str(config)))
         assert rc == 0
-        assert list(raw_event.parent.glob("*.normalized.md")) == []
+        assert list(raw_event.parent.glob("*.restructured.md")) == []
 
     def test_unicode_content(self, vault: Path) -> None:
         rc = capture_event.main([
@@ -207,7 +217,7 @@ class TestSuccessfulNormalization:
             raw_event, "--output-mode", "directory", "--output-dir", str(long_dir),
         ))
         assert rc == 0
-        assert (long_dir / f"{EVENT_ID}.normalized.md").is_file()
+        assert (long_dir / f"{EVENT_ID}.restructured.md").is_file()
 
 
 # --- Failure handling (AS-019 provider degradation) ----------------------------
@@ -266,7 +276,7 @@ class TestFailureHandling:
         payload = json.loads(capsys.readouterr().out)
         assert payload["category"] == "process-failed"
         assert "simulated outage" in payload["message"]
-        assert list(raw_event.parent.glob("*.normalized.md")) == []
+        assert list(raw_event.parent.glob("*.restructured.md")) == []
 
     def test_missing_output(self, raw_event: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MDA_MOCK_MODE", "missing-output")
@@ -311,7 +321,7 @@ class TestFailureHandling:
         self, raw_event: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("MDA_MOCK_MODE", "extra-file")
-        expected = raw_event.with_name(raw_event.name.replace(".md", ".normalized.md"))
+        expected = raw_event.with_name(raw_event.name.replace(".md", ".restructured.md"))
         expected.write_text("pre-existing content\n", encoding="utf-8")
         rc = normalize_event.main(normalize_args(raw_event))
         assert rc == 3
@@ -328,7 +338,7 @@ class TestSecurity:
     def test_malformed_provider_names_rejected(self, raw_event: Path, bad: str) -> None:
         rc = normalize_event.main(normalize_args(raw_event, "--provider", bad))
         assert rc == 2
-        assert list(raw_event.parent.glob("*.normalized.md")) == []
+        assert list(raw_event.parent.glob("*.restructured.md")) == []
 
     def test_symlink_raw_event_escape_blocked(self, vault: Path, tmp_path: Path, raw_event: Path) -> None:
         outside = tmp_path / "outside-event.md"
@@ -337,7 +347,7 @@ class TestSecurity:
         link.symlink_to(outside)
         rc = normalize_event.main(normalize_args(link))
         assert rc == 3
-        assert list(tmp_path.glob("*.normalized.md")) == []
+        assert list(tmp_path.glob("*.restructured.md")) == []
 
     def test_output_dir_outside_root_blocked(self, raw_event: Path, tmp_path: Path) -> None:
         outside = tmp_path / "elsewhere"
@@ -355,6 +365,6 @@ class TestSecurity:
             timeout_seconds=1, retries=0, output_mode="sibling",
             output_dir=None, verify=True, record_command=True, enabled=True,
         )
-        argv = normalization.build_command(settings, Path("raw;rm -rf.md"))
+        argv = normalization.build_command(settings, Path("raw;rm -rf.md"))  # sibling: contract unused
         assert isinstance(argv, list)
         assert argv[-1] == "raw;rm -rf.md"  # passed as data, never a shell line

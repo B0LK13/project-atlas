@@ -198,6 +198,22 @@ SCHEMA_FILES: dict[str, str] = {
     "scoring-broker-result": "scoring-broker-result.schema.json",
     # AS-OPT-GATE-001 — governed experiment / promotion receipt (≠ OPT wake)
     "opt-experiment-receipt": "opt-experiment-receipt.schema.json",
+    # AS-ORCH-001A — agent result envelope (evidence ≠ authority; classify ≠ execute)
+    "agent-result-envelope": "agent-result-envelope.schema.json",
+    # AS-ORCH-001B — typed task directive + discriminated routing output
+    "task-directive": "task-directive.schema.json",
+    "orchestration-route": "orchestration-route.schema.json",
+    # AS-ORCH-001C-R1 — transport-neutral handoff packet (≠ dispatch / authority)
+    "handoff-packet": "handoff-packet.schema.json",
+    # AS-ORCH-001D — single-hop dispatch identity / receipt (≠ authority / ≠ 001E loop)
+    "dispatch-record": "dispatch-record.schema.json",
+    "dispatch-receipt": "dispatch-receipt.schema.json",
+    # AS-ORCH-AUTONOMY-001 — autonomous governor public report (≠ merge / 001E)
+    "autonomy-governor-report": "autonomy-governor-report.schema.json",
+    "autonomy-work-node": "autonomy-work-node.schema.json",
+    "autonomy-lease": "autonomy-lease.schema.json",
+    "autonomy-trusted-anchor": "autonomy-trusted-anchor.schema.json",
+    "autonomy-loop-state": "autonomy-loop-state.schema.json",
     # AS-2.0-OAI-IMPORT-002 — OAI import path (fixtures if no export)
     "openai-import-path-receipt": "openai-import-path-receipt.schema.json",
     # AS-2.0-REALITY-GAP-UI-001 — Reality Gap UI catalog
