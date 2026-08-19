@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
 from project_atlas.orchestration.agent_transport import (
+    READ_ONLY_CURSOR_FLAGS,
+    CursorOutputKind,
     LauncherKind,
+    ProcessRunRequest,
+    SubprocessProcessRunner,
     TransportError,
     build_launch_plan,
     parse_structured_cursor_output,
@@ -40,12 +47,42 @@ def test_windows_cmd_wrapper_uses_trusted_comspec(tmp_path) -> None:
         exists=lambda path: path in {str(launcher), str(cmd)},
     )
     assert plan.argv[0] == str(cmd.resolve())
-    assert plan.argv[1:4] == ("/d", "/s", "/c")
-    assert "--print" in plan.argv[-1]
-    assert "--mode ask" in plan.argv[-1] or "--mode" in plan.argv[-1]
-    assert "trusted prompt body" not in " ".join(plan.argv)
+    assert plan.argv[1:3] == ("/d", "/c")
+    assert plan.argv[3] == resolved.path
+    assert plan.argv[4:] == READ_ONLY_CURSOR_FLAGS
+    assert "--print" in plan.argv
+    assert "--mode" in plan.argv
+    assert "trusted prompt body" not in plan.argv
     assert plan.stdin_payload == "trusted prompt body"
     assert plan.uses_force is False
+    assert not any(" " in token and "--print" in token for token in plan.argv)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="authentic Windows CreateProcess for .cmd wrapper")
+def test_windows_cmd_wrapper_createprocess_starts_agent(tmp_path: Path) -> None:
+    launcher = tmp_path / "agent.cmd"
+    launcher.write_text(
+        "@echo off\r\n"
+        'echo {"type":"result","result":"ok","session_id":"s1"}\r\n'
+        "exit /b 0\r\n",
+        encoding="utf-8",
+    )
+    resolved = resolve_cursor_transport(str(launcher))
+    plan = build_launch_plan(resolved, "trusted prompt body", cwd=tmp_path)
+    outcome = SubprocessProcessRunner().run(
+        ProcessRunRequest(
+            argv=tuple(plan.argv),
+            cwd=tmp_path,
+            timeout_seconds=15,
+            env=sanitize_inherited_env(),
+            stdin=plan.stdin_payload.encode("utf-8"),
+        )
+    )
+    parsed = parse_structured_cursor_output(outcome.stdout)
+    assert outcome.timed_out is False
+    assert outcome.exit_code == 0
+    assert parsed.kind is CursorOutputKind.TERMINAL_SUCCESS
+    assert parsed.session_id == "s1"
 
 
 def test_rejects_python_and_curl_basenames() -> None:

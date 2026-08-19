@@ -405,15 +405,16 @@ def build_launch_plan(
             environ=environ,
             exists=exists,
         )
-        command = " ".join((_quote_windows_path(resolved.path), *flags))
-        argv = (launcher, "/d", "/s", "/c", command)
+        # Reject cmd metacharacters, then pass path and flags as separate
+        # argv tokens. A pre-quoted command string is re-quoted by
+        # subprocess list2cmdline and authentic cmd.exe cannot start it.
+        _quote_windows_path(resolved.path)
+        argv = (launcher, "/d", "/c", resolved.path, *flags)
         create_process = launcher
     if any(flag in argv for flag in FORBIDDEN_CURSOR_FLAGS):
         raise TransportError("launch plan contains a forbidden flag", code="ARGV_REJECTED")
-    if prompt in argv:
+    if prompt in argv or any(prompt in token for token in argv):
         raise TransportError("prompt leaked into process argv", code="PROMPT_REJECTED")
-    if resolved.launcher_kind is LauncherKind.WINDOWS_CMD_WRAPPER and prompt in argv[-1]:
-        raise TransportError("prompt leaked into Windows command string", code="PROMPT_REJECTED")
     return CursorLaunchPlan(
         logical_name=resolved.logical_name,
         physical_path=resolved.path,
