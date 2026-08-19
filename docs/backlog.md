@@ -408,7 +408,7 @@ Honesty (mandatory):
 - [ ] ORCH001A-007 Independent integration verification
 - [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
-- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 
 ## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
@@ -440,7 +440,7 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 - [x] ORCH001B-007 Focused unit + composition + privilege-invariant tests
 - [ ] ORCH001B-008 Independent integration verification
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
-- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
 
 ## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
@@ -478,12 +478,44 @@ Honesty (mandatory):
 - [x] ORCH001C-R1-003 Transport-equivalence + tamper + idempotence proofs
 - [ ] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move)
 - [ ] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
-- [ ] ORCH001D Agent Dispatcher (follow-up; not this package)
-- [ ] ORCH001E Governed Autonomous Loop (follow-up; not this package)
+- [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
+- [ ] ORCH001E Governed Autonomous Loop (blocked on merged 001D)
+
+## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher (current-main reconstruction)
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
+
+Honesty (mandatory):
+
+- `SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED`
+- `GENERAL_AGENT_DISPATCH_RUNTIME = IMPLEMENTED`
+- `WINDOWS_CMD_WRAPPER_SUPPORTED = YES`
+- `CURSOR_CLI_PROCESS_TRANSPORT = IMPLEMENTED`
+- `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
+- `AUTONOMOUS_LOOP = NOT_IMPLEMENTED`
+- `DISPATCH_RECEIPT_IS_AUTHORITY = NO`
+- `PR396_RESURRECTED = NO`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCH001D-001 Typed `DispatchRecord` / `DispatchReceipt` + shipped schemas
+- [x] ORCH001D-002 Deterministic dispatch identity bound to trusted routing fields
+- [x] ORCH001D-003 Single-active-dispatch slot under `.atlas/orchestration/dispatcher/`
+- [x] ORCH001D-004 Eligibility revalidation (HANDOFF_READY + dispatchable + fail-closed privileges)
+- [x] ORCH001D-005 Owner/terminal non-executing outcomes (`PROCESS_STARTED = NO`)
+- [x] ORCH001D-006 Cursor CLI argv transport with Windows `.cmd` wrapper + stdin prompt
+- [x] ORCH001D-007 `dispatch-submit-result` / `dispatch-recover` (no respawn)
+- [x] ORCH001D-008 `atlas orchestrator dispatch-once` / `dispatch-status`
+- [x] ORCH001D-009 Mutating remediation fail closed (`CAPABILITY_REQUIRED`)
+- [x] ORCH001D-010 Focused unit + schema tests
+- [ ] ORCH001D-011 Independent verification
+- [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
+- [ ] ORCH001E Governed Autonomous Loop (follow-up; blocked by this merge)
 
 ## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Formalizes a single logical autonomous governor, work DAG, leases, overlap gate, continuation, bounded remediation, IV routing, adversarial trigger, evidence hashing, and owner gates A–F. Does **not** implement AS-ORCH-001D process dispatch, start AS-ORCH-001E, mutate #396, or merge._
+_Status: **IMPLEMENTED ON MAIN**. Formalizes a single logical autonomous governor, work DAG, leases, overlap gate, continuation, bounded remediation, IV routing, adversarial trigger, evidence hashing, and owner gates A–F. Process dispatch is owned by AS-ORCH-001D (this tree). Does **not** start AS-ORCH-001E, mutate #396, or merge._
 
 Honesty (mandatory):
 
@@ -497,7 +529,7 @@ Honesty (mandatory):
 - `ADVERSARIAL_REVIEW_TRIGGER = IMPLEMENTED`
 - `EVIDENCE_CONTRACT = IMPLEMENTED`
 - `OWNER_GATES_A_F = IMPLEMENTED`
-- `AGENT_DISPATCH = NOT_IMPLEMENTED`
+- `AGENT_DISPATCH = IMPLEMENTED_BY_AS_ORCH_001D`
 - `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
 - `AUTONOMOUS_LOOP_001E = NOT_IMPLEMENTED`
 - `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = NOT_YET_ACTIVE`

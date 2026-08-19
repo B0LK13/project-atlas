@@ -20,7 +20,6 @@ from project_atlas.orchestration.autonomy.models import (
     INITIAL_RETARGET_CERTIFIED_HEAD,
     INITIAL_RETARGET_MAIN,
     INITIAL_RETARGET_TREE,
-    PILOT_PACKAGE_ID,
     AdvancementProof,
     AdvancementReason,
     LiveInventory,
@@ -410,7 +409,8 @@ def test_positive_b_unchanged_runtime_is_not_moved() -> None:
     report = discover(_inventory(INITIAL_RETARGET_MAIN, INITIAL_RETARGET_TREE), trusted=trusted)
     assert report.case == "A-A-PREFLIGHT"
     assert report.target_moved is False
-    assert report.selected_package_id == PILOT_PACKAGE_ID
+    assert report.selected_package_id is None
+    assert report.blocker == "OWNER_GATE"
     gov = AutonomousGovernor(
         current_main=INITIAL_RETARGET_MAIN,
         current_tree=INITIAL_RETARGET_TREE,

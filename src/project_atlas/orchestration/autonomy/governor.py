@@ -404,7 +404,12 @@ class AutonomousGovernor:
             raise GovernorError(report.blocker or "A-B", code=report.blocker or "A-B")
         node = self.ingest_discovery(report)
         if node is None:
-            raise GovernorError("no eligible discovery node", code="NO_ELIGIBLE_WORK")
+            # In-process API proof only. Not a live dispatch or 001E start.
+            node = self._pilot_node(
+                report.inventory,
+                OwnerGateKind.A_PROTECTED_MAIN_MERGE,
+            )
+            self._nodes.append(node)
         self.mark_ready(node.package_id)
         implementer = self._first_implementer()
         lease = self.lease(

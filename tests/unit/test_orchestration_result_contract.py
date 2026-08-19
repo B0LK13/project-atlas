@@ -239,6 +239,12 @@ def test_no_prose_parsing_in_orchestration_package() -> None:
 
 
 def test_no_dispatch_or_merge_implemented() -> None:
+    """001A/001B/001C modules still must not spawn or merge.
+
+    AS-ORCH-001D owns subprocess transport and dispatch-once. Multi-hop
+    auto-dispatch and merge remain forbidden everywhere.
+    """
+    dispatch_modules = {"agent_transport.py", "dispatcher.py"}
     forbidden_imports = (
         "import subprocess",
         "from subprocess",
@@ -254,6 +260,10 @@ def test_no_dispatch_or_merge_implemented() -> None:
     hook_only_names = ("followup_message", "stop_hook")
     for path in sorted(ORCH_DIR.glob("*.py")):
         text = path.read_text(encoding="utf-8")
+        assert "def merge_pull_request" not in text
+        assert "next_handoff_autodispatched: Literal[True]" not in text
+        if path.name in dispatch_modules:
+            continue
         for needle in forbidden_imports + forbidden_names:
             assert needle not in text, f"{path.name} must not implement {needle!r}"
         if path.name != "cursor_bridge.py":
