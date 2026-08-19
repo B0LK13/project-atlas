@@ -30,9 +30,13 @@ from project_atlas.orchestration.autonomy.leases import (
     grant_lease,
 )
 from project_atlas.orchestration.autonomy.models import (
+    CANONICAL_REPOSITORY_IDENTITY,
     EXPECTED_BASE_MAIN,
     EXPECTED_BASE_TREE,
+    INITIAL_RETARGET_MAIN,
+    INITIAL_RETARGET_TREE,
     PILOT_PACKAGE_ID,
+    AdvancementReason,
     AgentCapability,
     ExecutionHostClass,
     ExecutionPlan,
@@ -43,6 +47,7 @@ from project_atlas.orchestration.autonomy.models import (
     OwnerGateKind,
     RiskTag,
     StopReason,
+    TrustedAnchorRecord,
     WorkNode,
 )
 from project_atlas.orchestration.autonomy.overlap import overlap_gate, would_overlap
@@ -55,9 +60,42 @@ from project_atlas.orchestration.autonomy.remediation import (
     RemediationExhausted,
     consume_remediation_cycle,
 )
+from project_atlas.orchestration.autonomy.trust import seal_anchor
 from project_atlas.schema import available_schemas, validate_record
 
 PIN = EXPECTED_BASE_MAIN
+
+
+def _anchor(main: str = EXPECTED_BASE_MAIN, tree: str = EXPECTED_BASE_TREE) -> TrustedAnchorRecord:
+    predecessor = "1111111111111111111111111111111111111111"
+    certified = "3333333333333333333333333333333333333333"
+    return seal_anchor(
+        TrustedAnchorRecord(
+            repository_identity=CANONICAL_REPOSITORY_IDENTITY,
+            trusted_main=main,
+            trusted_tree=tree,
+            predecessor_main=predecessor,
+            predecessor_tree="2222222222222222222222222222222222222222",
+            advancement_reason=AdvancementReason.VERIFIED_OWNER_AUTHORIZED_MERGE,
+            source_package="AS-ORCH-AUTONOMY-001-TEST",
+            source_directive="D-AUTONOMY-TEST-001",
+            source_pr=1,
+            merge_commit=main,
+            merge_parent_1=predecessor,
+            merge_parent_2=certified,
+            merge_tree=tree,
+            certified_head=certified,
+            certified_tree=tree,
+            certification_status="CERTIFIED",
+            independent_verification_status="PASS",
+            post_merge_seal="PASS",
+            post_merge_ci="PASS",
+            evidence_reference="tests/unit/test-anchor.json",
+            evidence_digest="aa" * 32,
+            sequence=1,
+            record_digest="00" * 32,
+        )
+    )
 
 
 def _inventory(**overrides: Any) -> LiveInventory:
@@ -112,6 +150,7 @@ def test_schemas_registered() -> None:
     assert "autonomy-governor-report" in kinds
     assert "autonomy-work-node" in kinds
     assert "autonomy-lease" in kinds
+    assert "autonomy-trusted-anchor" in kinds
 
 
 def test_work_node_and_plan_schema_parity() -> None:
@@ -141,7 +180,11 @@ def test_legal_ready_to_leased() -> None:
 
 
 def test_governor_cannot_merge() -> None:
-    gov = AutonomousGovernor(current_main=EXPECTED_BASE_MAIN, current_tree=EXPECTED_BASE_TREE)
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
     gov.add_node(_node("PKG-A", state=NodeState.MERGE_ELIGIBLE))
     with pytest.raises(OwnerGateError):
         gov.request_merge("PKG-A")
@@ -155,7 +198,11 @@ def test_governor_cannot_merge() -> None:
 
 
 def test_owner_gates_a_through_f_fail_closed() -> None:
-    gov = AutonomousGovernor(current_main=EXPECTED_BASE_MAIN, current_tree=EXPECTED_BASE_TREE)
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
     gates = classify_requested_action(
         merge_to_protected_main=True,
         waive_acceptance=True,
@@ -170,7 +217,11 @@ def test_owner_gates_a_through_f_fail_closed() -> None:
 
 
 def test_lease_and_forbidden_scope_expansion() -> None:
-    gov = AutonomousGovernor(current_main=EXPECTED_BASE_MAIN, current_tree=EXPECTED_BASE_TREE)
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
     gov.add_node(
         _node(
             "PKG-A",
@@ -263,7 +314,11 @@ def test_evidence_hash_is_reconstructable(tmp_path: Path) -> None:
 
 
 def test_iv_implementer_cannot_verify() -> None:
-    gov = AutonomousGovernor(current_main=EXPECTED_BASE_MAIN, current_tree=EXPECTED_BASE_TREE)
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
     gov.add_node(
         _node(
             "PKG-A",
@@ -293,7 +348,7 @@ def test_adversarial_trigger_for_control_plane() -> None:
 
 
 def test_discovery_selects_pilot_not_successors() -> None:
-    report = discover(_inventory())
+    report = discover(_inventory(), trusted=_anchor())
     assert report.case == "A-A-PREFLIGHT"
     assert report.selected_package_id == PILOT_PACKAGE_ID
     rejected = {item.package_id for item in report.candidates if not item.eligible}
@@ -315,13 +370,20 @@ def test_live_inventory_does_not_walk_parent_repo() -> None:
 
 
 def test_discovery_drift_is_case_a_b() -> None:
-    report = discover(_inventory(current_main="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+    report = discover(
+        _inventory(current_main="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        trusted=_anchor(),
+    )
     assert report.case == "A-B"
     assert report.blocker == "TARGET_MOVED"
 
 
 def test_governor_plan_answers() -> None:
-    gov = AutonomousGovernor(current_main=EXPECTED_BASE_MAIN, current_tree=EXPECTED_BASE_TREE)
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
     gov.add_node(_node("PKG-A", owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE))
     gov.add_node(
         _node(
@@ -340,7 +402,11 @@ def test_governor_plan_answers() -> None:
 
 
 def test_controlled_pilot_stops_at_owner_gate(tmp_path: Path) -> None:
-    gov = AutonomousGovernor(current_main=EXPECTED_BASE_MAIN, current_tree=EXPECTED_BASE_TREE)
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
     result = gov.run_controlled_pilot(
         _inventory(),
         branch="feat/as-orch-autonomy-001",
@@ -359,7 +425,11 @@ def test_controlled_pilot_stops_at_owner_gate(tmp_path: Path) -> None:
 
 
 def test_controlled_pilot_bounded_remediation() -> None:
-    gov = AutonomousGovernor(current_main=EXPECTED_BASE_MAIN, current_tree=EXPECTED_BASE_TREE)
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
     result = gov.run_controlled_pilot(
         _inventory(),
         branch="feat/as-orch-autonomy-001",
@@ -372,7 +442,11 @@ def test_controlled_pilot_bounded_remediation() -> None:
 
 def test_cli_governor_discover(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     inventory = tmp_path / "inv.json"
-    inventory.write_text(_inventory().model_dump_json(), encoding="utf-8")
+    inventory.write_text(
+        _inventory(current_main=INITIAL_RETARGET_MAIN, current_tree=INITIAL_RETARGET_TREE)
+        .model_dump_json(),
+        encoding="utf-8",
+    )
     code = main(
         [
             "orchestrator",
@@ -390,7 +464,11 @@ def test_cli_governor_discover(tmp_path: Path, capsys: pytest.CaptureFixture[str
 
 def test_cli_governor_pilot(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     inventory = tmp_path / "inv.json"
-    inventory.write_text(_inventory().model_dump_json(), encoding="utf-8")
+    inventory.write_text(
+        _inventory(current_main=INITIAL_RETARGET_MAIN, current_tree=INITIAL_RETARGET_TREE)
+        .model_dump_json(),
+        encoding="utf-8",
+    )
     evidence = tmp_path / "ev"
     code = main(
         [

@@ -9,8 +9,8 @@ import pytest
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.autonomy.models import (
-    EXPECTED_BASE_MAIN,
-    EXPECTED_BASE_TREE,
+    INITIAL_RETARGET_MAIN,
+    INITIAL_RETARGET_TREE,
     PILOT_PACKAGE_ID,
     LiveInventory,
 )
@@ -19,8 +19,8 @@ from project_atlas.orchestration.autonomy.models import (
 @pytest.mark.integration
 def test_pilot_exercises_real_governor_apis(tmp_path: Path) -> None:
     inventory = LiveInventory(
-        current_main=EXPECTED_BASE_MAIN,
-        current_tree=EXPECTED_BASE_TREE,
+        current_main=INITIAL_RETARGET_MAIN,
+        current_tree=INITIAL_RETARGET_TREE,
         worktree_status="CLEAN",
         open_relevant_prs=("396", "394"),
         active_successor_packages=(),

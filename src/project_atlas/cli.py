@@ -2495,6 +2495,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Repository root (default: cwd).",
     )
+    orch_gov_status.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store. When omitted, the shipped record is used.",
+    )
     orch_gov_discover = orch_sub.add_parser(
         "governor-discover",
         help=(
@@ -2513,6 +2519,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Optional LiveInventory JSON. When omitted, live git facts are used.",
+    )
+    orch_gov_discover.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store. When omitted, the shipped record is used.",
     )
     orch_gov_pilot = orch_sub.add_parser(
         "governor-pilot",
@@ -2538,6 +2550,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Optional directory for the hashed evidence bundle.",
+    )
+    orch_gov_pilot.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store. When omitted, the shipped record is used.",
     )
 
     return parser
@@ -4774,6 +4792,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             report, exit_code = run_governor_status(
                 root=Path(getattr(args, "root", None) or Path.cwd()),
+                trust_store=getattr(args, "trust_store", None),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
@@ -4783,6 +4802,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             report, exit_code = run_governor_discover(
                 root=Path(getattr(args, "root", None) or Path.cwd()),
                 inventory_path=getattr(args, "inventory", None),
+                trust_store=getattr(args, "trust_store", None),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
@@ -4793,6 +4813,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 root=Path(getattr(args, "root", None) or Path.cwd()),
                 evidence_dir=getattr(args, "evidence_dir", None),
                 inventory_path=getattr(args, "inventory", None),
+                trust_store=getattr(args, "trust_store", None),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

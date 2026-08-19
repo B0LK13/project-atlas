@@ -519,6 +519,31 @@ Honesty (mandatory):
 - [x] ORCHAUT-012 Controlled non-destructive in-process pilot
 - [ ] ORCHAUT-013 Owner merge gate (not this package)
 
+## AS-ORCH-AUTONOMY-001-PIN-RETARGET — trusted-anchor retarget / D-AUTONOMY-PIN-RETARGET-003
+
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Replaces compile-time `EXPECTED_BASE_MAIN` as runtime authority with a provenance-bound trusted-anchor record. Initial retarget is the verified #398 merge (`62f8d59f...` / tree `aed48e48...`). Does **not** start R2/R6/R7/001E, mutate #396, or merge._
+
+Honesty (mandatory):
+
+- `STATIC_BOOTSTRAP_PIN_AS_RUNTIME_AUTHORITY = NO`
+- `TRUSTED_ANCHOR_ADVANCEMENT = IMPLEMENTED`
+- `GOVERNOR_CAN_INVENT_OWNER_AUTHORITY = NO`
+- `GOVERNOR_CAN_ADVANCE_ANCHOR_FROM_OBSERVED_MAIN_ONLY = NO`
+- `DESCENDANT_ONLY_IS_SUFFICIENT_AUTHORITY = NO`
+- `UNVERIFIED_MAIN_MOVEMENT_FAILS_CLOSED = YES`
+- `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = NOT_YET_ACTIVE`
+- `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
+- `OWNER AUTHORITY = STILL REQUIRED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCHAUT-014 Distinct BOOTSTRAP / TRUSTED_RUNTIME / OBSERVED pins
+- [x] ORCHAUT-015 Shipped evidence-based #398 trusted-anchor record
+- [x] ORCHAUT-016 Authorized advancement only when all §10 checks pass
+- [x] ORCHAUT-017 Unauthorized / descendant-only / stale / concurrent / TOCTOU fail closed
+- [x] ORCHAUT-018 Atomic compare-and-advance with append-only history
+- [x] ORCHAUT-019 Negative matrix cases 1–15 + positive A/B/C
+- [ ] ORCHAUT-020 Owner merge gate (not this package)
+
 ## AS-MDA-CONTROL-PLANE-COMPAT-001-R1 — mda-cli 0.2.9 control-plane compatibility
 
 _Status: **RECONSTRUCTED — RECERTIFICATION IN PROGRESS** (owner-authorized because the previously certified Git object was lost before publication). Prior HEAD `4cb80a0aa0e28fbddee8c8a71f1875519f19fc92` remains historical evidence only. Prior certification is not transferable. This package does not touch PR #396 / AS-ORCH-001D._

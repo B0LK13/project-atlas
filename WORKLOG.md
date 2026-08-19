@@ -5,6 +5,38 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-AUTONOMY-001-PIN-RETARGET — trusted-anchor retarget / D-AUTONOMY-PIN-RETARGET-003
+
+**Date:** 2026-08-19
+**Directive:** D-AUTONOMY-PIN-RETARGET-003
+**Branch:** `feat/as-orch-autonomy-001-pin-retarget` (from `origin/main` `62f8d59f170150d5ceab1610f49be00ad25fdd50` / tree `aed48e4854c9f32ed281b5009c92327d93971ae7`)
+**Mode:** FAIL_CLOSED_TRUST_ANCHOR_ADVANCEMENT. Does not modify PR #396, create R2/R7, start AS-ORCH-001E, or merge.
+
+### Why this lane
+The first live autonomous cycle correctly stopped at TARGET_MOVED after #398 merged: the sealed governor still treated the pre-merge bootstrap SHA as runtime authority. This package retargets the trusted runtime anchor to the verified post-merge state and replaces permanent compile-time pin authority with a provenance-bound advancement mechanism.
+
+### Contract
+BOOTSTRAP_MAIN/TREE remain historical genesis only. TRUSTED_RUNTIME_MAIN/TREE come from a verified record. OBSERVED_MAIN/TREE are live facts. Advancement requires an owner-supplied proof plus topology/seal/CI/evidence checks. The governor cannot invent owner authority or advance from origin/main alone. Missing/corrupt records fail closed with no compile-time or live-main fallback. History is monotonic and compare-and-advance is atomic.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-autonomy-001-pin-retarget-003\`
+
+```
+BASE_MAIN = 62f8d59f170150d5ceab1610f49be00ad25fdd50
+BASE_TREE = aed48e4854c9f32ed281b5009c92327d93971ae7
+TRUSTED_RUNTIME_MAIN = 62f8d59f170150d5ceab1610f49be00ad25fdd50
+BOOTSTRAP_MAIN = 23ebc0293a8988bc4f144cad6b478c6bff4d32d0
+R2_CREATED = NO
+R7_CREATED = NO
+AUTHENTIC_R6_RESUMED = NO
+AS_ORCH_001E_STARTED = NO
+PR396_MUTATED = NO
+SUCCESSOR_LEASE_ISSUED = NO
+MERGE_AUTHORIZATION = NOT_GRANTED
+```
+
+---
+
 ## AS-ORCH-AUTONOMY-001 — autonomous governor / D-AUTONOMY-TRANSITION-001
 
 **Date:** 2026-08-19
