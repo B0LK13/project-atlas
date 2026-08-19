@@ -5,6 +5,36 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-AUTONOMY-001 — autonomous governor / D-AUTONOMY-TRANSITION-001
+
+**Date:** 2026-08-19
+**Directive:** D-AUTONOMY-TRANSITION-001
+**Branch:** `feat/as-orch-autonomy-001` (from `origin/main` `23ebc0293a8988bc4f144cad6b478c6bff4d32d0` / tree `d7f5059d99e879502570245358e5a1612c52e739`)
+**Mode:** OPERATING_MODEL_TRANSITION. Does not modify PR #396, create R2/R7, start AS-ORCH-001E, or merge.
+
+### Why this lane
+Atlas 001A/001B/001C classify and route but cannot answer what may run now, in parallel, or only with owner authority. This package adds a fail-closed autonomous governor without weakening 001D single-hop / dispatch-once / owner-authority semantics (001D remains unmerged on #396).
+
+### Contract
+Governor state is evidence, not authority. Leases cannot expand scope. Overlapping mutation surfaces cannot run in parallel. Continuation stops at OWNER_GATE / HARD_BLOCKER / NO_ELIGIBLE_WORK / SAFETY_BOUNDARY / RESOURCE_BOUNDARY. Remediation is capped at 3 cycles. Certification requires implementer != verifier. Owner gates A–F never self-grant. Pilot is in-process and non-destructive.
+
+### Evidence
+`D:\atlas-acceptance-d060\as-orch-autonomy-001\`
+
+```
+BASE_MAIN = 23ebc0293a8988bc4f144cad6b478c6bff4d32d0
+BASE_TREE = d7f5059d99e879502570245358e5a1612c52e739
+R2_CREATED = NO
+R7_CREATED = NO
+AUTHENTIC_R6_RESUMED = NO
+AS_ORCH_001E_STARTED = NO
+PR396_MUTATED = NO
+MERGE_AUTHORIZATION = NOT_GRANTED
+SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = NOT_YET_ACTIVE
+```
+
+---
+
 ## D-127+ — AS-2.1-MCP-BRIEF-001 (independent of frozen D125 stack and #364)
 
 **Date:** 2026-08-15

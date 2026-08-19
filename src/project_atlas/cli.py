@@ -2348,8 +2348,8 @@ def build_parser() -> argparse.ArgumentParser:
         "orchestrator",
         help=(
             "Agent-result classification, policy routing, and Cursor bridge "
-            "(AS-ORCH-001A/001B/001C; routing != dispatch; hook != execution; "
-            "explicit completion != dispatch)."
+            "(AS-ORCH-001A/001B/001C/AUTONOMY-001; routing != dispatch; "
+            "hook != execution; governor != merge; explicit completion != dispatch)."
         ),
     )
     orch_sub = orch_parser.add_subparsers(dest="orchestrator_command", required=True)
@@ -2481,6 +2481,63 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Repository root for ephemeral bridge state (default: cwd).",
+    )
+    orch_gov_status = orch_sub.add_parser(
+        "governor-status",
+        help=(
+            "Read-only autonomous governor snapshot (AS-ORCH-AUTONOMY-001). "
+            "Does not dispatch, merge, or start successor packages."
+        ),
+    )
+    orch_gov_status.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_discover = orch_sub.add_parser(
+        "governor-discover",
+        help=(
+            "Discover the next safe non-destructive ready node from live "
+            "or injected inventory. Does not execute or merge."
+        ),
+    )
+    orch_gov_discover.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_discover.add_argument(
+        "--inventory",
+        type=Path,
+        default=None,
+        help="Optional LiveInventory JSON. When omitted, live git facts are used.",
+    )
+    orch_gov_pilot = orch_sub.add_parser(
+        "governor-pilot",
+        help=(
+            "Run the controlled in-process autonomy pilot through the real "
+            "governor APIs. Non-destructive. Does not merge or start 001E."
+        ),
+    )
+    orch_gov_pilot.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_pilot.add_argument(
+        "--inventory",
+        type=Path,
+        default=None,
+        help="Optional LiveInventory JSON. When omitted, live git facts are used.",
+    )
+    orch_gov_pilot.add_argument(
+        "--evidence-dir",
+        type=Path,
+        default=None,
+        help="Optional directory for the hashed evidence bundle.",
     )
 
     return parser
@@ -4709,6 +4766,33 @@ def main(argv: Sequence[str] | None = None) -> int:
 
             report, exit_code = run_cursor_complete(
                 root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-status":
+            from project_atlas.orchestration.autonomy.cli import run_governor_status
+
+            report, exit_code = run_governor_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-discover":
+            from project_atlas.orchestration.autonomy.cli import run_governor_discover
+
+            report, exit_code = run_governor_discover(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                inventory_path=getattr(args, "inventory", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-pilot":
+            from project_atlas.orchestration.autonomy.cli import run_governor_pilot
+
+            report, exit_code = run_governor_pilot(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                evidence_dir=getattr(args, "evidence_dir", None),
+                inventory_path=getattr(args, "inventory", None),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

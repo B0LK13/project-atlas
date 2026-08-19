@@ -205,6 +205,10 @@ SCHEMA_FILES: dict[str, str] = {
     "orchestration-route": "orchestration-route.schema.json",
     # AS-ORCH-001C-R1 — transport-neutral handoff packet (≠ dispatch / authority)
     "handoff-packet": "handoff-packet.schema.json",
+    # AS-ORCH-AUTONOMY-001 — autonomous governor public report (≠ merge / 001E)
+    "autonomy-governor-report": "autonomy-governor-report.schema.json",
+    "autonomy-work-node": "autonomy-work-node.schema.json",
+    "autonomy-lease": "autonomy-lease.schema.json",
     # AS-2.0-OAI-IMPORT-002 — OAI import path (fixtures if no export)
     "openai-import-path-receipt": "openai-import-path-receipt.schema.json",
     # AS-2.0-REALITY-GAP-UI-001 — Reality Gap UI catalog
