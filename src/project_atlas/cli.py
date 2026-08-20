@@ -136,6 +136,10 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.knowledge_diff import diff_to_json as kdiff_diff_to_json
 from project_atlas.knowledge_diff import snapshot_to_json as kdiff_snapshot_to_json
+from project_atlas.knowledge_inbox import (
+    KnowledgeInboxError,
+    list_inbox_items,
+)
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
@@ -313,6 +317,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "context",
         "handoff",
         "capture",
+        "inbox",
         "obsidian",
         "review",
     }:
@@ -1013,6 +1018,31 @@ def build_parser() -> argparse.ArgumentParser:
         dest="review_state",
     )
     capture_review.add_argument("--json", action="store_true", dest="as_json")
+
+    inbox_parser = subparsers.add_parser(
+        "inbox",
+        help=(
+            "Read Knowledge Inbox observations "
+            "(INBOX != AUTHORITY; list is read-only and project-scoped)."
+        ),
+    )
+    inbox_sub = inbox_parser.add_subparsers(dest="inbox_command", required=True)
+    inbox_list = inbox_sub.add_parser(
+        "list",
+        help=(
+            "List project-scoped inbox items in deterministic receipt_id order. "
+            "Requires --project or a single-project bind. No implicit portfolio-all."
+        ),
+    )
+    inbox_list.add_argument("--vault", type=Path, default=None)
+    inbox_list.add_argument("--project", default=None)
+    inbox_list.add_argument(
+        "--status",
+        default=None,
+        choices=sorted(["quarantined", "accepted-review", "rejected"]),
+    )
+    inbox_list.add_argument("--limit", type=int, default=20)
+    inbox_list.add_argument("--json", action="store_true", dest="as_json")
 
     obsidian_parser = subparsers.add_parser(
         "obsidian",
@@ -3319,6 +3349,61 @@ def main(argv: Sequence[str] | None = None) -> int:
             for item in captures:
                 print(
                     f"  - {item.get('capture_id')} [{item.get('kind')}] "
+                    f"{item.get('summary')}"
+                )
+        return EXIT_OK
+
+    if args.command == "inbox":
+        try:
+            if args.inbox_command != "list":
+                raise KnowledgeInboxError(
+                    "UNSUPPORTED_SCOPE",
+                    f"inbox command not implemented: {args.inbox_command}",
+                )
+            project_id = args.project
+            if project_id in {None, ""}:
+                try:
+                    project_id = resolve_bound_project_id(vault=args.vault)
+                except ConnectError as exc:
+                    raise KnowledgeInboxError(
+                        "UNSUPPORTED_SCOPE",
+                        "inbox list requires --project (no implicit portfolio-all)",
+                    ) from exc
+            report = list_inbox_items(
+                args.vault,
+                project_id=project_id,
+                status=args.status,
+                limit=args.limit,
+            )
+        except KnowledgeInboxError as exc:
+            _log.error("inbox failed: %s", exc)
+            inbox_error: dict[str, Any] = {
+                "status": "error",
+                "error": exc.code,
+                "message": str(exc),
+                "package": "AS-CODER-ALPHA-INBOX-LIST-001",
+                "promoted_to_authority": False,
+            }
+            if getattr(args, "as_json", False):
+                print(json.dumps(inbox_error, indent=2, sort_keys=True))
+            else:
+                print(f"atlas inbox list error [{exc.code}]: {exc}")
+            return EXIT_ERROR
+        except (OSError, ValueError) as exc:
+            _log.error("inbox failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            items = report.get("items") or []
+            print(f"atlas inbox list [{report.get('count', 0)}]")
+            print(f"  project:  {report.get('project_id')}")
+            print("  boundary: INBOX != AUTHORITY (observations, not Truth Core)")
+            if not items:
+                print("  UNKNOWN (no inbox items for project)")
+            for item in items:
+                print(
+                    f"  - {item.get('receipt_id')} [{item.get('status')}] "
                     f"{item.get('summary')}"
                 )
         return EXIT_OK
