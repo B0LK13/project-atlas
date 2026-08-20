@@ -54,6 +54,11 @@ const PROD = [
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",
   },
+  {
+    to: "/source-health",
+    title: "Source health",
+    blurb: "Read-only source-health lens — SOURCE HEALTH≠authority; explicit ?project=.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
