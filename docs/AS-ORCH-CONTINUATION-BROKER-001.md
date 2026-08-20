@@ -35,3 +35,10 @@ exhaustion enqueues `RESOURCE_YIELD` instead of `OWNER_REQUIRED`.
 - Owner-gate fingerprint emits at most one prompt
 - Stop-event extras never interpolate into followup text
 - Followup cannot grant merge, execution, or authority
+- `CHECKPOINT_CONTINUE` is exposed only after `finalize_governor_checkpoint` durably queues a successor
+- Atlas does not treat Cursor `loop_count > 0` as DAG-terminal
+- Project stop hook sets `loop_limit: null`; Atlas no-progress bound is 3 identical cycles
+- `beforeSubmitPrompt` consumes an exact trusted follow-up; untrusted text cannot consume a foreign cycle
+- Cursor hooks bind current worktree `src` before any `project_atlas` import
+- If `OWNER_ACTION_REQUIRED_NOW = NO` and safe DAG work remains, a final response requires successor `QUEUED`, `FOLLOWUP_EMITTED`, or `AWAITING_RESULT`
+- `NEXT_MACHINE_ACTION = X` is invalid unless X is executing or durably scheduled

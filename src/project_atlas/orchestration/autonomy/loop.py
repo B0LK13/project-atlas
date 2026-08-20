@@ -508,26 +508,23 @@ class AutonomousLoop:
         return self._result()
 
     def _enqueue_resource_yield(self) -> None:
-        """RESOURCE_BOUNDARY is YIELD, not OWNER_REQUIRED. Best-effort enqueue."""
+        """RESOURCE_BOUNDARY is YIELD, not OWNER_REQUIRED. Atomic finalize."""
         from project_atlas.orchestration.autonomy.continuation_broker import (
-            BrokerError,
-            SuccessorKind,
-            enqueue_successor,
+            finalize_governor_checkpoint,
         )
 
         cycle_id = f"YIELD-{self._state.sequence}"
-        try:
-            enqueue_successor(
-                self._root,
-                cycle_id=cycle_id,
-                kind=SuccessorKind.RESOURCE_YIELD,
-                trusted_main=self._trusted.trusted_main,
-                trusted_tree=self._trusted.trusted_tree,
-                repository_identity=self._trusted.repository_identity,
-                dag_generation=self._state.sequence,
-            )
-        except BrokerError:
-            return
+        finalize_governor_checkpoint(
+            self._root,
+            result_class="RESOURCE_YIELD",
+            cycle_id=cycle_id,
+            trusted_main=self._trusted.trusted_main,
+            trusted_tree=self._trusted.trusted_tree,
+            next_action_class="RESOURCE_YIELD",
+            repository_identity=self._trusted.repository_identity,
+            dag_generation=self._state.sequence,
+            safe_dag_work_remains=True,
+        )
 
     def _first_agent(self) -> str:
         for agent in self._governor.snapshot().agents:

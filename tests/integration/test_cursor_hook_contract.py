@@ -34,8 +34,19 @@ def _payload(**overrides: Any) -> dict[str, Any]:
 def _install_hook(repo: Path) -> Path:
     dest = repo / ".cursor" / "hooks" / "atlas_stop.py"
     dest.parent.mkdir(parents=True)
+    hook_dir = REPO / ".cursor" / "hooks"
     shutil.copy2(HOOK_SRC, dest)
+    for name in ("atlas_hook_runtime.py", "atlas_before_submit.py", "atlas_hook_launch.py"):
+        src = hook_dir / name
+        if src.is_file():
+            shutil.copy2(src, dest.parent / name)
     shutil.copy2(REPO / ".cursor" / "hooks.json", repo / ".cursor" / "hooks.json")
+    src_dst = repo / "src"
+    if not src_dst.exists():
+        try:
+            src_dst.symlink_to(REPO / "src", target_is_directory=True)
+        except OSError:
+            shutil.copytree(REPO / "src", src_dst)
     return dest
 
 
