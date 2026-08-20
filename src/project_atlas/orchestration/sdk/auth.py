@@ -47,13 +47,15 @@ def discover_auth(*, environ: dict[str, str] | None = None) -> AuthDiscovery:
     try:
         import cursor_sdk  # noqa: F401
 
-        local_ok = version is not None
+        # Import success is sufficient for local_sdk_available. Metadata may be
+        # missing in some editable/CI layouts; do not treat that as unavailable.
+        local_ok = True
+        if version is None:
+            version = getattr(cursor_sdk, "__version__", None)
     except ImportError:
         local_ok = False
 
     cloud_enabled = key_present and local_ok
-    # Functional backend exists when cloud is enabled or the official package imports
-    # (local runtime may still use ambient Cursor app auth).
     functional = cloud_enabled or local_ok
     return AuthDiscovery(
         cursor_api_key_available="YES" if key_present else "NO",

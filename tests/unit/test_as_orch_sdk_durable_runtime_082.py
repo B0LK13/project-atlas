@@ -45,6 +45,8 @@ def test_auth_discovery_never_exposes_key(tmp_path: Path) -> None:
     dumped = discovery.model_dump_json()
     assert "cursor_secret" not in dumped
     assert discovery.cursor_api_key_available == "YES"
+    # Cloud runtime enables when key is present and the official package imports.
+    assert discovery.local_sdk_available == "YES"
     assert discovery.cloud_sdk_runtime == "ENABLED"
 
 
