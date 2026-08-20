@@ -84,7 +84,6 @@ _NON_DECISION_HINTS = (
 def _decision_source_path(path: str) -> bool:
     """True for DECISIONS.md / ADR-like paths. README is not governing evidence."""
     posix = path.replace("\\", "/").removeprefix("./")
-    lower = posix.lower()
     name = Path(posix).name.lower()
     if name in {"readme.md", "readme.txt", "readme"}:
         return False
@@ -92,7 +91,11 @@ def _decision_source_path(path: str) -> bool:
         return True
     if name.startswith(("adr-", "adr_", "rfc-", "rfc_")):
         return True
-    return any(hint in lower for hint in _DECISION_PATH_HINTS)
+    # Exact path segments only — never substring-match "adr" inside "adapters".
+    return any(
+        part in {"adr", "adrs", "rfc", "rfcs", "decision", "decisions"}
+        for part in posix.lower().split("/")
+    )
 
 
 def _is_section_header_noise(title: str) -> bool:

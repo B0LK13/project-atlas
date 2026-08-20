@@ -232,8 +232,11 @@ def attach_source_drift(
     if drift_status == "STALE":
         notes.append("STALE SOURCE INVENTORY != CURRENT LENS; reconnect first")
         if isinstance(summary, str) and summary:
-            summary = f"{summary}; source_inventory_stale={len(changed_paths)}"
-            value = summary
+            annotated = f"{summary}; source_inventory_stale={len(changed_paths)}"
+            # Keep distinct published values (e.g. next suggested-work line).
+            if value == summary:
+                value = annotated
+            summary = annotated
     honesty = dict(lens.get("honesty") or {}) if isinstance(lens.get("honesty"), dict) else {}
     honesty.update(
         {
