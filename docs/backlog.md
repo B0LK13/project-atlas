@@ -359,6 +359,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CAPTURE-001 Session capture defaults
 - [x] AS-CODER-ALPHA-HANDOFF-001 `atlas handoff` create/resume
 - [x] AS-CODER-ALPHA-CONTEXT-001 Agent context export
+- [ ] AS-CODER-ALPHA-WORKFLOW-METRICS-001 honest North Star telemetry from ops receipts (current-main; do not retarget #377; TELEMETRY!=TRUTH CORE; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-OBSIDIAN-001 Living Obsidian projection
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-001 Human decisions → Truth Core
 - [x] AS-CODER-ALPHA-WEB-001 Web Knowledge UX on Core
