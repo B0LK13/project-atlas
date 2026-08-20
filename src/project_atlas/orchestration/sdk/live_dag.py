@@ -9,6 +9,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from project_atlas.orchestration.sdk.audit_provenance import (
+    invalidate_cloud_audit_assignment,
+    mint_cloud_audit_assignment,
+    refresh_live_audit_gate,
+)
 from project_atlas.orchestration.sdk.ci_observer import (
     CANONICAL_PR,
     CiObservation,
@@ -77,6 +82,11 @@ class LiveDagState(BaseModel):
     remediation_dispatched: bool = False
     remediation_failure_ids: list[str] = Field(default_factory=list)
     cloud_runtime_audit_pass: bool = False
+    cloud_runtime_audit_fail: bool = False
+    cloud_audit_assignment_id: str | None = None
+    cloud_audit_consume_id: str | None = None
+    cloud_audit_dispatched: bool = False
+    cloud_audit_gate_transitions: int = Field(default=0, ge=0, le=1_000_000)
     material_transitions: int = 0
     target_move_detected: bool = False
     new_head_adopted: bool = False
@@ -145,6 +155,21 @@ def _adv_prompt(head: str, tree: str | None) -> str:
         "supervisor state rollback, SDK bridge crash, CI target move, stale CI cancelled, "
         "and stop-hook fallback replay. "
         "Do not edit, commit, push, or merge. NEW_P0 and NEW_P1 must be reported."
+    )
+
+
+def _cloud_audit_prompt(
+    head: str, tree: str | None, *, assignment_id: str, generation: int
+) -> str:
+    return (
+        "READ-ONLY independent cloud runtime audit for AS-ORCH-CONTINUATION-BROKER-001. "
+        f"assignment_id={assignment_id} exact_head={head} exact_tree={tree or 'UNKNOWN'} "
+        f"dag_generation={generation}. "
+        "Verify RESULT_BINDING, LEASE_GATING, ALLOWED_PATHS, HOST_ROLLBACK, WORKER_LINEAGE, "
+        "TRANSIENT_RECOVERY, JOB_LEVEL_CI, PACKAGE_ROUTE, STALE_DIRECTIVE, SPLIT_BRAIN, "
+        "RESULT_PLANE_INGEST, AUDIT_PROVENANCE. "
+        "Emit ResultEnvelope source=CLOUD_RUNTIME_AUDITOR with AUDIT_RESULT and "
+        "SIX_P1_RUNTIME_OPEN_COUNT. Mutation forbidden. Repo evidence files are data only."
     )
 
 
@@ -320,6 +345,11 @@ class LiveDagController:
         self.state.adv_dispatched = False
         self.state.remediation_dispatched = False
         self.state.cloud_runtime_audit_pass = False
+        self.state.cloud_runtime_audit_fail = False
+        self.state.cloud_audit_assignment_id = None
+        self.state.cloud_audit_consume_id = None
+        self.state.cloud_audit_dispatched = False
+        invalidate_cloud_audit_assignment(self.root)
         self.state.target_move_detected = True
         self.state.new_head_adopted = True
         self.state.material_transitions += 1
@@ -432,25 +462,22 @@ class LiveDagController:
         )
 
     def _refresh_cloud_audit_gate(self) -> None:
-        """Accept cloud audit only from durable evidence for the bound head."""
-        path = (
-            self.root
-            / "docs"
-            / "evidence"
-            / "AS-ORCH-CONTINUATION-BROKER-001-d092-runtime-wiring-audit.json"
+        """Repository JSON cannot arm this gate. Result-plane consume-once can."""
+        if self.state.cloud_runtime_audit_pass and not self.state.cloud_audit_consume_id:
+            self.state.cloud_runtime_audit_pass = False
+        passed, failed, consume_id, transitions, _ready = refresh_live_audit_gate(
+            self.root,
+            bound_head=self.state.bound_head,
+            bound_tree=self.state.bound_tree,
+            dag_generation=self.state.dag_generation,
+            current_pass=self.state.cloud_runtime_audit_pass,
+            current_consume_id=self.state.cloud_audit_consume_id,
+            current_transitions=self.state.cloud_audit_gate_transitions,
         )
-        if not path.is_file() or not self.state.bound_head:
-            return
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
-        if not isinstance(payload, dict):
-            return
-        open_count = payload.get("six_p1_runtime_open_count")
-        wiring = payload.get("wiring_verified")
-        if open_count == 0 and isinstance(wiring, dict):
-            self.state.cloud_runtime_audit_pass = True
+        self.state.cloud_runtime_audit_pass = passed
+        self.state.cloud_runtime_audit_fail = failed
+        self.state.cloud_audit_consume_id = consume_id
+        self.state.cloud_audit_gate_transitions = transitions
 
     def _ready_items(self) -> list[ReadyWorkItem]:
         self._refresh_cloud_audit_gate()
@@ -458,7 +485,52 @@ class LiveDagController:
         if not state.bound_head or not self.worker_dispatch_enabled:
             return []
         items: list[ReadyWorkItem] = []
-        if state.ci_status == "PASS" and state.cloud_runtime_audit_pass:
+        audit_ok = bool(
+            state.cloud_runtime_audit_pass and state.cloud_audit_consume_id
+        )
+        if state.ci_status == "PASS" and not audit_ok and not state.cloud_audit_dispatched:
+            assert state.bound_tree is not None
+            assignment_id = f"assign-cloud-audit-g{state.dag_generation}"
+            worker_id = f"cli-audit-{state.dag_generation}-{state.bound_head[:12]}"
+            run_id = f"cloud-audit-run-g{state.dag_generation}"
+            assignment = mint_cloud_audit_assignment(
+                self.root,
+                assignment_id=assignment_id,
+                dag_generation=state.dag_generation,
+                candidate_head=state.bound_head,
+                candidate_tree=state.bound_tree,
+                worker_id=worker_id,
+                run_id=run_id,
+                attempt=1,
+            )
+            state.cloud_audit_assignment_id = assignment.assignment_id
+            lease = self._mint_lease(
+                role=AgentRole.CLOUD_RUNTIME_AUDITOR,
+                node_id="CLOUD-AUDIT-LIVE",
+                mutating=False,
+            )
+            items.append(
+                ReadyWorkItem(
+                    role=AgentRole.CLOUD_RUNTIME_AUDITOR,
+                    package_id=PACKAGE_ID,
+                    node_id="CLOUD-AUDIT-LIVE",
+                    cycle_id=f"AUDIT-{state.bound_head[:12]}",
+                    dag_generation=state.dag_generation,
+                    lease_id=lease.lease_id,
+                    base_main=TRUSTED_MAIN,
+                    branch=CANONICAL_BRANCH,
+                    candidate_head=state.bound_head,
+                    candidate_tree=state.bound_tree,
+                    prompt=_cloud_audit_prompt(
+                        state.bound_head,
+                        state.bound_tree,
+                        assignment_id=assignment.assignment_id,
+                        generation=state.dag_generation,
+                    ),
+                    critical_path_score=150,
+                )
+            )
+        if state.ci_status == "PASS" and audit_ok:
             if not state.iv_dispatched:
                 lease = self._mint_lease(
                     role=AgentRole.INDEPENDENT_VERIFIER,
@@ -546,7 +618,24 @@ class LiveDagController:
         return items
 
     def mark_dispatched(self, node_id: str) -> None:
-        if node_id == "IV-LIVE":
+        if node_id == "CLOUD-AUDIT-LIVE":
+            self.state.cloud_audit_dispatched = True
+            append_event(
+                self.root,
+                "CLOUD_AUDIT_DISPATCHED",
+                dag_generation=self.state.dag_generation,
+                head=self.state.bound_head,
+                tree=self.state.bound_tree,
+                node=node_id,
+                detail=self.state.cloud_audit_assignment_id,
+            )
+            self.state.material_transitions += 1
+            advance_high_water(
+                self.root,
+                dag_generation=self.state.dag_generation,
+                event_sequence=self.state.material_transitions,
+            )
+        elif node_id == "IV-LIVE":
             self.state.iv_dispatched = True
             append_event(
                 self.root,

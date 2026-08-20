@@ -257,22 +257,68 @@ def test_live_dag_adopts_new_head_and_new_ci(tmp_path: Path) -> None:
 
 
 def test_live_dag_dispatches_iv_and_adv_on_pass(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.audit_provenance import (
+        mint_cloud_audit_assignment,
+    )
     from project_atlas.orchestration.sdk.ci_observer import CiObservation, PrHeadRef
     from project_atlas.orchestration.sdk.live_dag import (
         LiveDagController,
         LiveDagState,
         persist_live_dag,
     )
-    from project_atlas.orchestration.sdk.models import AgentRole
+    from project_atlas.orchestration.sdk.models import PACKAGE_ID, AgentRole
+    from project_atlas.orchestration.sdk.result_plane import ResultEnvelope, append_result
+    from project_atlas.orchestration.sdk.security_gates import (
+        BoundWorkerResult,
+        WorkerBackend,
+    )
 
+    head = "8a02af94b0c41df1bc62940f24015c6930561a4b"
+    tree = "a897d79f3a03bb9cd3933b59ca895b6bc44191dd"
+    auditor = "cli-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    mint_cloud_audit_assignment(
+        tmp_path,
+        assignment_id="assign-cloud-audit-90",
+        dag_generation=90,
+        candidate_head=head,
+        candidate_tree=tree,
+        worker_id=auditor,
+        run_id="run-cloud-audit-90",
+        implementer_worker_id="cli-writer-00000000-0000-0000-0000-000000000001",
+    )
+    append_result(
+        tmp_path,
+        ResultEnvelope(
+            source="CLOUD_RUNTIME_AUDITOR",
+            binding=BoundWorkerResult(
+                worker_backend=WorkerBackend.CURSOR_AGENT_CLI,
+                session_or_agent_id=auditor,
+                run_id="run-cloud-audit-90",
+                package_id=PACKAGE_ID,
+                dag_node="CLOUD-AUDIT-LIVE",
+                dag_generation=90,
+                role=AgentRole.CLOUD_RUNTIME_AUDITOR,
+                lease_id="lease-cloud-audit-90",
+                attempt=1,
+                result_digest="b" * 64,
+                candidate_head=head,
+                candidate_tree=tree,
+            ),
+            payload={
+                "ASSIGNMENT_ID": "assign-cloud-audit-90",
+                "SIX_P1_RUNTIME_OPEN_COUNT": 0,
+                "WIRING_VERIFIED": {"RESULT_BINDING": "PASS"},
+                "AUDIT_RESULT": "PASS",
+            },
+        ),
+    )
     persist_live_dag(
         tmp_path,
         LiveDagState(
-            bound_head="8a02af94b0c41df1bc62940f24015c6930561a4b",
-            bound_tree="a897d79f3a03bb9cd3933b59ca895b6bc44191dd",
+            bound_head=head,
+            bound_tree=tree,
             ci_run_id="32399733297",
             ci_status="PENDING",
-            cloud_runtime_audit_pass=True,
             dag_generation=90,
         ),
     )

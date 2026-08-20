@@ -31,7 +31,14 @@ class ResultEnvelope(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal[1] = 1
-    source: Literal["IV", "ADV", "CLI_WORKER", "CLOUD_AUDITOR", "SDK_WORKER"]
+    source: Literal[
+        "IV",
+        "ADV",
+        "CLI_WORKER",
+        "CLOUD_AUDITOR",
+        "CLOUD_RUNTIME_AUDITOR",
+        "SDK_WORKER",
+    ]
     binding: BoundWorkerResult
     payload: dict[str, Any] = Field(default_factory=dict)
     owner_relay_required: Literal[False] = False

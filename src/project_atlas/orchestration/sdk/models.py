@@ -57,6 +57,7 @@ class AgentRole(StrEnum):
     LOCAL_AUTHENTIC_WORKER = "LOCAL_AUTHENTIC_WORKER"
     READ_ONLY_ANALYST = "READ_ONLY_ANALYST"
     LOOKAHEAD = "LOOKAHEAD"
+    CLOUD_RUNTIME_AUDITOR = "CLOUD_RUNTIME_AUDITOR"
 
 
 class AgentRuntime(StrEnum):
@@ -91,6 +92,7 @@ INDEPENDENT_ROLES: Final[frozenset[AgentRole]] = frozenset(
         AgentRole.INDEPENDENT_VERIFIER,
         AgentRole.SECURITY_REVIEWER,
         AgentRole.READ_ONLY_ANALYST,
+        AgentRole.CLOUD_RUNTIME_AUDITOR,
     }
 )
 
