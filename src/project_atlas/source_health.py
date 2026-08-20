@@ -15,6 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.inventory_drift import (
+    attach_source_drift,
+    evaluate_connect_inventory_drift,
+)
 
 PACKAGE_ID = "AS-CODER-ALPHA-SOURCE-HEALTH-001"
 GENERATOR_ID = "atlas-coder-alpha-source-health-001"
@@ -473,7 +477,16 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
     else:
         health_state = "CLEAR" if artifact_status.get("connect-manifest") == "ok" else "UNKNOWN"
 
-    return {
+    if project_id is not None:
+        drift = evaluate_connect_inventory_drift(vault, project_id)
+        drift_status = str(drift.get("status") or "UNKNOWN")
+        reason_code = str(drift.get("reason_code") or "")
+        if health_state == "CLEAR" and drift_status == "STALE":
+            health_state = "STALE"
+        elif health_state == "CLEAR" and reason_code == "SOURCE_ROOT_UNVERIFIED":
+            health_state = "UNKNOWN"
+
+    payload = {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.source-health.v1",
         "package": PACKAGE_ID,
@@ -516,3 +529,6 @@ def explain_source_health(vault: Path, project_id: str | None = None) -> dict[st
         },
         "truth_boundary": "SOURCE HEALTH != AUTHORITY / NO SECRET ECHO",
     }
+    if project_id is not None:
+        return attach_source_drift(payload, vault, project_id)
+    return payload
