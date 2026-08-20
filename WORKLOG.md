@@ -6985,3 +6985,15 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - Focused projection tests: 13 passed
 - Autonomy regression: 26 passed (unchanged default path)
 - ruff/mypy on touched modules: pass
+
+### D-069 remedi 1/2 — ORCH-LEASE-SYMLINK-ESCAPE-001
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-DUPLICATE-RECEIPT-SUPPRESSION-AND-PR427-FRESH-REVIEW-069
+**Parent head:** `5929b03fc2a61e81c9f9603ad14f763ffa987f35`
+**Mode:** SAME PACKAGE / SAME OBJECTIVE / NARROWER SURFACE. No rebase. No merge.
+**Finding:** `_write_atomic` used a predictable `.{name}.tmp` path and
+`Path.write_text`, so a pre-planted symlink escaped the store.
+**Fix:** unique exclusive `O_NOFOLLOW` tmp in the store directory; reject
+symlink projection files on read.
+**Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
+grant source and does not certify #427.

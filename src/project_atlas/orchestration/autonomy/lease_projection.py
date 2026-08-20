@@ -9,8 +9,11 @@ LEASE_GRANT_SOURCE = PRIMARY_GOVERNOR
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import json
 import os
+import stat
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Final, Literal
@@ -91,22 +94,105 @@ def _inside(root: Path, target: Path) -> bool:
     return True
 
 
+def _is_regular_file(path: Path) -> bool:
+    try:
+        mode = os.lstat(path).st_mode
+    except OSError:
+        return False
+    return stat.S_ISREG(mode)
+
+
 def _store_file(store: Path) -> Path:
     root = store.expanduser().resolve()
     if ".." in Path(PROJECTION_NAME).parts:
         raise ProjectionError("projection path is unsafe", code="PATH_UNSAFE")
-    target = (root / PROJECTION_NAME).resolve()
+    candidate = root / PROJECTION_NAME
+    if candidate.is_symlink():
+        raise ProjectionError("projection path is a symlink", code="PATH_UNSAFE")
+    target = candidate.resolve()
     if not _inside(root, target):
         raise ProjectionError("projection path escapes store", code="PATH_UNSAFE")
     return target
 
 
 def _write_atomic(target: Path, payload: dict[str, Any]) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    encoded = json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=True)
-    tmp = target.with_name(f".{target.name}.tmp")
-    tmp.write_text(encoded + "\n", encoding="utf-8")
-    os.replace(tmp, target)
+    """Atomically replace the projection without following a planted tmp symlink.
+
+    ORCH-LEASE-SYMLINK-ESCAPE-001: a predictable ``.{name}.tmp`` path that is
+    written via Path.write_text will follow a pre-planted symlink and can
+    overwrite a foreign store. Exclusive ``O_NOFOLLOW`` create plus a unique
+    tmp name keeps the write inside ``target.parent``.
+    """
+    parent = target.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    if parent.is_symlink():
+        raise ProjectionError("projection directory is a symlink", code="PATH_UNSAFE")
+    if target.exists() and (target.is_symlink() or not _is_regular_file(target)):
+        raise ProjectionError("projection path is not a regular file", code="PATH_UNSAFE")
+    encoded = json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=True) + "\n"
+    data = encoded.encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if nofollow:
+        flags |= nofollow
+    fd = -1
+    tmp_path: Path | None = None
+    try:
+        for _attempt in range(8):
+            candidate = parent / f".{target.name}.{os.urandom(8).hex()}.tmp"
+            try:
+                fd = os.open(os.fspath(candidate), flags, 0o644)
+                tmp_path = candidate
+                break
+            except FileExistsError:
+                continue
+            except OSError as exc:
+                if getattr(exc, "errno", None) in {errno.ELOOP, errno.EEXIST}:
+                    raise ProjectionError(
+                        "temporary lease file is unsafe",
+                        code="PATH_UNSAFE",
+                    ) from exc
+                raise
+        if fd < 0 or tmp_path is None:
+            raise ProjectionError(
+                "could not create exclusive temporary lease file",
+                code="PATH_UNSAFE",
+            )
+        if not _inside(parent.resolve(), tmp_path.resolve()):
+            raise ProjectionError("temporary lease path escaped store", code="PATH_UNSAFE")
+        written = 0
+        while written < len(data):
+            n = os.write(fd, data[written:])
+            if n <= 0:
+                raise OSError("short write to lease projection")
+            written += n
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        st = os.lstat(tmp_path)
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+            tmp_path.unlink(missing_ok=True)
+            tmp_path = None
+            raise ProjectionError(
+                "temporary lease file is not a regular file",
+                code="PATH_UNSAFE",
+            )
+        os.replace(tmp_path, target)
+        tmp_path = None
+        final = os.lstat(target)
+        if stat.S_ISLNK(final.st_mode) or not stat.S_ISREG(final.st_mode):
+            raise ProjectionError(
+                "lease projection resolved to a non-regular file",
+                code="PATH_UNSAFE",
+            )
+        if not _inside(parent.resolve(), target.resolve()):
+            raise ProjectionError("lease projection escaped store", code="PATH_UNSAFE")
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        if tmp_path is not None:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
 
 
 def load_projection(store: Path) -> LeaseProjection:

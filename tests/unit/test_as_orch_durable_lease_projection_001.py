@@ -347,3 +347,61 @@ def test_governor_projects_grant_and_ack(tmp_path: Path) -> None:
     )
     assert row.status == "ACTIVE"
     assert row.projection_is_authority is False
+
+
+def test_planted_tmp_symlink_does_not_escape_outside_file(tmp_path: Path) -> None:
+    """ORCH-LEASE-SYMLINK-ESCAPE-001: ignore predictable .leases.json.tmp symlink."""
+    store = tmp_path / "store-a"
+    store.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text("FOREIGN_SENTINEL\n", encoding="utf-8")
+    planted = store / f".{PROJECTION_NAME}.tmp"
+    planted.symlink_to(outside)
+    project_grant(
+        store,
+        _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1),
+        live_main=PIN,
+    )
+    assert outside.read_text(encoding="utf-8") == "FOREIGN_SENTINEL\n"
+    projection = store / PROJECTION_NAME
+    assert projection.is_file()
+    assert not projection.is_symlink()
+    assert planted.is_symlink()
+    loaded = load_projection(store)
+    assert loaded.leases[0].lease_id == "LEASE-1"
+    assert loaded.leases[0].projection_is_authority is False
+
+
+def test_planted_tmp_symlink_does_not_overwrite_foreign_store(tmp_path: Path) -> None:
+    store_a = tmp_path / "store-a"
+    store_b = tmp_path / "store-b"
+    store_a.mkdir()
+    store_b.mkdir()
+    foreign = store_b / PROJECTION_NAME
+    foreign.write_text("FOREIGN_SENTINEL\n", encoding="utf-8")
+    planted = store_a / f".{PROJECTION_NAME}.tmp"
+    planted.symlink_to(foreign)
+    project_grant(
+        store_a,
+        _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1),
+        live_main=PIN,
+    )
+    assert foreign.read_text(encoding="utf-8") == "FOREIGN_SENTINEL\n"
+    assert not foreign.is_symlink()
+    local = store_a / PROJECTION_NAME
+    assert local.is_file()
+    assert not local.is_symlink()
+    assert load_projection(store_a).leases[0].lease_id == "LEASE-1"
+    with pytest.raises(ProjectionError, match="unreadable") as exc:
+        load_projection(store_b)
+    assert exc.value.code == "STATE_CORRUPT"
+
+
+def test_symlink_projection_file_fail_closed(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}", encoding="utf-8")
+    planted = tmp_path / PROJECTION_NAME
+    planted.symlink_to(outside)
+    with pytest.raises(ProjectionError, match="symlink") as exc:
+        load_projection(tmp_path)
+    assert exc.value.code == "PATH_UNSAFE"

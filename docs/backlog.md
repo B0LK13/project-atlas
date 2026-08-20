@@ -656,6 +656,7 @@ Honesty (mandatory):
 
 - [x] ORCHLEASE-001 Optional governor projection store (default off; existing tests unchanged)
 - [x] ORCHLEASE-002 Atomic JSON projection + identity lock
+- [x] ORCHLEASE-002a Exclusive nofollow tmp write (ORCH-LEASE-SYMLINK-ESCAPE-001)
 - [x] ORCHLEASE-003 Reject stale / duplicate / foreign worker / foreign package / replay
 - [x] ORCHLEASE-004 Ack + release visibility after process restart
 - [x] ORCHLEASE-005 Focused + concurrent + control-plane tests

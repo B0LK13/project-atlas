@@ -33,7 +33,8 @@ existing in-memory-only behavior.
 
 When set, the governor writes `leases.json` under that directory after a
 successful in-process grant or release. Writes use the existing identity-lock
-+ atomic-replace pattern from the AS-ORCH-001E loop store.
+plus an exclusive `O_NOFOLLOW` temporary file in the same directory. A planted
+`.leases.json.tmp` symlink is not followed (ORCH-LEASE-SYMLINK-ESCAPE-001).
 
 ## Fail-closed reads
 
