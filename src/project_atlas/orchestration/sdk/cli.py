@@ -9,6 +9,10 @@ import os
 from pathlib import Path
 
 from project_atlas.orchestration.sdk.auth import discover_auth, record_auth_prerequisite
+from project_atlas.orchestration.sdk.backend import CursorSDKExecutionBackend
+from project_atlas.orchestration.sdk.ci_observer import CANONICAL_PR
+from project_atlas.orchestration.sdk.live_dag import LiveDagController
+from project_atlas.orchestration.sdk.local_proof import run_local_sdk_proof
 from project_atlas.orchestration.sdk.models import PRIMARY_BACKEND, STOP_HOOK_BACKEND
 from project_atlas.orchestration.sdk.supervisor import (
     DurableAtlasSupervisor,
@@ -39,51 +43,81 @@ def run_governor_service(
     poll_interval_sec: float = 2.0,
     use_fake: bool = False,
     candidate_head: str | None = None,
+    pr_number: int = CANONICAL_PR,
 ) -> tuple[dict[str, object], int]:
     """Persistent host process. Returns only after stop/max_cycles."""
     from project_atlas.orchestration.autonomy.continuation_broker import (
         BrokerError,
         supersede_legacy_hook_successor,
     )
-    from project_atlas.orchestration.sdk.ci_observer import (
-        observe_exact_head_ci,
-        persist_observation,
-    )
     from project_atlas.orchestration.sdk.host import write_host_identity
+    from project_atlas.orchestration.sdk.windows_bridge import (
+        apply_windows_discovery_patch,
+    )
+
+    apply_windows_discovery_patch()
 
     with contextlib.suppress(BrokerError):
         supersede_legacy_hook_successor(root, cycle_id="D081-CI-0")
-
-    observed_head = candidate_head
-
-    async def _ready() -> list[object]:
-        if observed_head:
-            persist_observation(root, observe_exact_head_ci(head_sha=observed_head))
-        return []
 
     supervisor = DurableAtlasSupervisor.create(
         root,
         use_fake=use_fake,
         poll_interval_sec=poll_interval_sec,
         max_cycles=max_cycles if max_cycles is not None else None,
-        ready_provider=_ready,  # type: ignore[arg-type]
     )
+    real_sdk = isinstance(supervisor.backend, CursorSDKExecutionBackend) and not use_fake
+    controller = LiveDagController(
+        root,
+        pr_number=pr_number,
+        supervisor_pid=os.getpid(),
+        real_sdk_backend=real_sdk,
+    )
+    if candidate_head and controller.state.bound_head is None:
+        controller.state.bound_head = candidate_head
+
+    async def _ready() -> list[object]:
+        _state, items = controller.tick()
+        return list(items)
+
     write_host_identity(
         root,
         pid=os.getpid(),
         backend=(
-            "CLOUD_SDK"
-            if supervisor.auth.cloud_sdk_runtime == "ENABLED"
-            else "LOCAL_SDK"
-            if supervisor.auth.local_sdk_available == "YES"
+            "LOCAL_SDK"
+            if real_sdk
+            else "FAKE_TEST_ONLY"
+            if use_fake
             else "OBSERVER"
         ),
-        package_head=observed_head or "unknown",
+        package_head=controller.state.bound_head or candidate_head or "unknown",
         worktree=str(root),
     )
+    # Immediate reconcile so a stale launch-time --candidate-head cannot freeze the DAG.
+    controller.tick()
+    if real_sdk:
+        run_local_sdk_proof(root)
+    original_cycle = supervisor.schedule_cycle
+
+    async def _cycle_and_mark() -> object:
+        result = await original_cycle()
+        for run in result.started:
+            if run.node_id:
+                controller.mark_dispatched(run.node_id)
+        return result
+
+    supervisor.schedule_cycle = _cycle_and_mark  # type: ignore[method-assign,assignment]
+    supervisor.ready_provider = _ready  # type: ignore[assignment]
     supervisor.status.next_machine_action = "MONITOR_EXACT_HEAD_CI"
     status = asyncio.run(supervisor.run_forever())
-    return status_dict(status), EXIT_OK
+    payload = status_dict(status)
+    payload["bound_head"] = controller.state.bound_head
+    payload["bound_tree"] = controller.state.bound_tree
+    payload["ci_run_id"] = controller.state.ci_run_id
+    payload["ci_status"] = controller.state.ci_status
+    payload["material_transitions"] = controller.state.material_transitions
+    payload["target_move_detected"] = controller.state.target_move_detected
+    return payload, EXIT_OK
 
 
 def run_governor_service_once(

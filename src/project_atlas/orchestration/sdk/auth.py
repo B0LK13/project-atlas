@@ -45,7 +45,7 @@ def discover_auth(*, environ: dict[str, str] | None = None) -> AuthDiscovery:
     version = cursor_sdk_version()
     local_ok = False
     try:
-        import cursor_sdk  # noqa: F401
+        import cursor_sdk
 
         # Import success is sufficient for local_sdk_available. Metadata may be
         # missing in some editable/CI layouts; do not treat that as unavailable.

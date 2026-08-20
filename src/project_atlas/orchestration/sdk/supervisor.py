@@ -97,9 +97,7 @@ class DurableAtlasSupervisor:
         backend: ExecutionBackend
         if use_fake:
             backend = FakeCursorSDKBackend(agents_reg=agents, runs_reg=runs, pool=pool)
-        elif auth.cursor_api_key_available == "YES" and (
-            auth.cloud_sdk_runtime == "ENABLED" or auth.local_sdk_available == "YES"
-        ):
+        elif auth.local_sdk_available == "YES" or auth.cloud_sdk_runtime == "ENABLED":
             backend = CursorSDKExecutionBackend(
                 root=root, agents_reg=agents, runs_reg=runs, pool=pool, discovery=auth
             )

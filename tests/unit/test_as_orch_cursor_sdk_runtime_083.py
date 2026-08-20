@@ -173,3 +173,127 @@ def test_supervisor_create_observe_only_without_key(tmp_path: Path) -> None:
     supervisor = DurableAtlasSupervisor.create(tmp_path, use_fake=True, max_cycles=1)
     assert supervisor.status.merge_authorized is False
     assert supervisor.status.next_machine_action_executing_or_scheduled is True
+
+
+def test_cancelled_ci_is_not_classified_as_fail() -> None:
+    from project_atlas.orchestration.sdk.ci_observer import (
+        CiObservation,
+        classify_against_live_head,
+        classify_exact_head_status,
+    )
+
+    assert classify_exact_head_status(raw_status="completed", conclusion="cancelled") == (
+        "CANCELLED"
+    )
+    assert classify_exact_head_status(raw_status="completed", conclusion="failure") == "FAIL"
+    old = CiObservation(
+        head_sha="b3b0e3048a605703eb90fc893545f937e794ef6f",
+        run_id="32399649516",
+        status="CANCELLED",
+        conclusion="cancelled",
+    )
+    live = "8a02af94b0c41df1bc62940f24015c6930561a4b"
+    classified = classify_against_live_head(exact=old, live_head=live)
+    assert classified.status == "STALE_SUPERSEDED"
+
+
+def test_live_dag_adopts_new_head_and_new_ci(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.ci_observer import (
+        CiObservation,
+        PrHeadRef,
+        persist_observation,
+    )
+    from project_atlas.orchestration.sdk.event_log import read_events
+    from project_atlas.orchestration.sdk.live_dag import LiveDagController
+
+    persist_observation(
+        tmp_path,
+        CiObservation(
+            head_sha="b3b0e3048a605703eb90fc893545f937e794ef6f",
+            run_id="32399649516",
+            status="CANCELLED",
+            conclusion="cancelled",
+        ),
+    )
+    live = PrHeadRef(
+        pr_number=429,
+        head_sha="8a02af94b0c41df1bc62940f24015c6930561a4b",
+        tree_sha="a897d79f3a03bb9cd3933b59ca895b6bc44191dd",
+    )
+    observations = {
+        "b3b0e3048a605703eb90fc893545f937e794ef6f": CiObservation(
+            head_sha="b3b0e3048a605703eb90fc893545f937e794ef6f",
+            run_id="32399649516",
+            status="CANCELLED",
+            conclusion="cancelled",
+        ),
+        "8a02af94b0c41df1bc62940f24015c6930561a4b": CiObservation(
+            head_sha="8a02af94b0c41df1bc62940f24015c6930561a4b",
+            run_id="32399733297",
+            status="PENDING",
+            conclusion=None,
+        ),
+    }
+    controller = LiveDagController(
+        tmp_path,
+        refresh=lambda: live,
+        observe=lambda sha: observations[sha],
+        real_sdk_backend=True,
+    )
+    state, items = controller.tick()
+    assert state.target_move_detected is True
+    assert state.new_head_adopted is True
+    assert state.new_ci_adopted is True
+    assert state.bound_head == "8a02af94b0c41df1bc62940f24015c6930561a4b"
+    assert state.ci_run_id == "32399733297"
+    assert state.previous_ci_classification == "STALE_SUPERSEDED"
+    assert state.material_transitions >= 2
+    names = [event.event for event in read_events(tmp_path)]
+    assert "OLD_CI_CANCELLED" in names
+    assert "OLD_CI_SUPERSEDED" in names
+    assert "NEW_HEAD_ADOPTED" in names
+    assert "NEW_CI_ADOPTED" in names
+    assert items == []  # CI still pending
+
+
+def test_live_dag_dispatches_iv_and_adv_on_pass(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.ci_observer import CiObservation, PrHeadRef
+    from project_atlas.orchestration.sdk.live_dag import (
+        LiveDagController,
+        LiveDagState,
+        persist_live_dag,
+    )
+    from project_atlas.orchestration.sdk.models import AgentRole
+
+    persist_live_dag(
+        tmp_path,
+        LiveDagState(
+            bound_head="8a02af94b0c41df1bc62940f24015c6930561a4b",
+            bound_tree="a897d79f3a03bb9cd3933b59ca895b6bc44191dd",
+            ci_run_id="32399733297",
+            ci_status="PENDING",
+        ),
+    )
+    live = PrHeadRef(
+        pr_number=429,
+        head_sha="8a02af94b0c41df1bc62940f24015c6930561a4b",
+        tree_sha="a897d79f3a03bb9cd3933b59ca895b6bc44191dd",
+    )
+    controller = LiveDagController(
+        tmp_path,
+        refresh=lambda: live,
+        observe=lambda _sha: CiObservation(
+            head_sha="8a02af94b0c41df1bc62940f24015c6930561a4b",
+            run_id="32399733297",
+            status="PASS",
+            conclusion="success",
+        ),
+        real_sdk_backend=True,
+    )
+    _state, items = controller.tick()
+    roles = {item.role for item in items}
+    assert roles == {AgentRole.INDEPENDENT_VERIFIER, AgentRole.SECURITY_REVIEWER}
+    iv = next(item for item in items if item.role == AgentRole.INDEPENDENT_VERIFIER)
+    adv = next(item for item in items if item.role == AgentRole.SECURITY_REVIEWER)
+    assert iv.candidate_head == adv.candidate_head
+    assert iv.cycle_id != adv.cycle_id

@@ -2587,7 +2587,13 @@ def build_parser() -> argparse.ArgumentParser:
     orch_gov_service.add_argument(
         "--candidate-head",
         default=None,
-        help="Exact 40-char candidate SHA for the CI observer.",
+        help="Optional initial 40-char candidate SHA. Live PR head is refreshed each cycle.",
+    )
+    orch_gov_service.add_argument(
+        "--pr",
+        type=int,
+        default=429,
+        help="Canonical continuation PR to refresh (default: 429).",
     )
     orch_sdk_auth = orch_sub.add_parser(
         "sdk-auth-status",
@@ -5016,6 +5022,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 poll_interval_sec=float(getattr(args, "poll_interval", 2.0) or 2.0),
                 use_fake=bool(getattr(args, "fake_backend", False)),
                 candidate_head=getattr(args, "candidate_head", None),
+                pr_number=int(getattr(args, "pr", 429) or 429),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

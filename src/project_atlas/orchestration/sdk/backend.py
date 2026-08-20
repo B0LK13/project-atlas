@@ -278,8 +278,39 @@ class CursorSDKExecutionBackend:
             return self._client
         from cursor_sdk import AsyncClient
 
-        self._client = await AsyncClient.launch_bridge(workspace=str(self.root))
+        from project_atlas.orchestration.sdk.windows_bridge import (
+            apply_windows_discovery_patch,
+            official_bridge_command,
+        )
+
+        apply_windows_discovery_patch()
+        command = official_bridge_command()
+        if command is None:
+            self._client = await AsyncClient.launch_bridge(workspace=str(self.root))
+        else:
+            self._client = await AsyncClient.launch_bridge(
+                command, workspace=str(self.root)
+            )
         return self._client
+
+    async def _discover_model(self, client: Any) -> str | None:
+        try:
+            listing = await client.models.list()
+        except Exception:
+            return None
+        ids: list[str] = []
+        items = getattr(listing, "items", listing)
+        if isinstance(items, list):
+            for row in items:
+                ident = getattr(row, "id", None)
+                if ident is None and isinstance(row, dict):
+                    ident = row.get("id")
+                if ident:
+                    ids.append(str(ident))
+        for preferred in ("composer-2.5", "composer-2", "auto-smart"):
+            if preferred in ids:
+                return preferred
+        return ids[0] if ids else None
 
     async def aclose(self) -> None:
         client = self._client
@@ -332,8 +363,13 @@ class CursorSDKExecutionBackend:
         from cursor_sdk import CloudAgentOptions, CloudRepository, LocalAgentOptions
 
         client = await self._ensure_client()
+        model = request.model or DEFAULT_MODEL
+        if runtime == AgentRuntime.LOCAL:
+            discovered = await self._discover_model(client)
+            if discovered:
+                model = discovered
         kwargs: dict[str, Any] = {
-            "model": request.model or DEFAULT_MODEL,
+            "model": model,
         }
         if self._api_key:
             kwargs["api_key"] = self._api_key
