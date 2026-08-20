@@ -12,6 +12,7 @@ from project_atlas.orchestration.autonomy.continuation_broker import (
     BACKEND,
     BROKER_MARKER,
     PACKAGE_ID,
+    PRIMARY_CONTINUATION_BACKEND,
     BrokerError,
     BrokerPhase,
     SuccessorKind,
@@ -80,6 +81,7 @@ def _envelope() -> dict[str, object]:
 
 def test_backend_is_real_stop_hook() -> None:
     assert BACKEND == "CURSOR_STOP_HOOK_FOLLOWUP"
+    assert PRIMARY_CONTINUATION_BACKEND == "CURSOR_SDK_DURABLE_AGENT_RUNTIME"
     assert PACKAGE_ID == "AS-ORCH-CONTINUATION-BROKER-001"
 
 

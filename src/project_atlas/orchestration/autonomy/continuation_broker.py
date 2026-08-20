@@ -3,14 +3,17 @@
 Reuses AS-ORCH-001D (single-hop dispatch) and AS-ORCH-001E (loop tick).
 Does not create a second governor, DAG, dispatcher, or lease authority.
 
-CONTINUATION_BACKEND = CURSOR_STOP_HOOK_FOLLOWUP
-Durable consume-once cycle store is the invocation contract.
+PRIMARY_CONTINUATION_BACKEND = CURSOR_SDK_DURABLE_AGENT_RUNTIME
+STOP_HOOK_BACKEND = CURSOR_STOP_HOOK_FOLLOWUP (fallback / defense-in-depth)
+
+Durable consume-once cycle store remains the hook invocation contract.
 The 001C Cursor bridge slot is never read or written here
 (PR400 leftover must remain unconsumed).
 
 RESULT != AUTHORITY / FOLLOWUP != DISPATCH / YIELD != OWNER_REQUIRED
 WORKER_TERMINAL != DAG_TERMINAL / REQUESTED_TRANSITION != AUTHORIZATION
 NEXT_MACHINE_ACTION text alone is not continuation.
+RUN_TERMINAL != DAG_END
 """
 
 from __future__ import annotations
@@ -34,8 +37,12 @@ from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 PACKAGE_ID: Final[Literal["AS-ORCH-CONTINUATION-BROKER-001"]] = (
     "AS-ORCH-CONTINUATION-BROKER-001"
 )
+PRIMARY_CONTINUATION_BACKEND: Final[Literal["CURSOR_SDK_DURABLE_AGENT_RUNTIME"]] = (
+    "CURSOR_SDK_DURABLE_AGENT_RUNTIME"
+)
 BACKEND: Final[Literal["CURSOR_STOP_HOOK_FOLLOWUP"]] = "CURSOR_STOP_HOOK_FOLLOWUP"
-HOOK_ADAPTER_VERSION: Final[Literal["D081-1"]] = "D081-1"
+STOP_HOOK_BACKEND: Final[Literal["CURSOR_STOP_HOOK_FOLLOWUP"]] = BACKEND
+HOOK_ADAPTER_VERSION: Final[Literal["D082-1"]] = "D082-1"
 STATE_DIR_RELATIVE: Final[Path] = Path(".atlas") / "orchestration" / "continuation-broker"
 CURRENT_NAME: Final[str] = "current.json"
 LOCK_NAME: Final[str] = ".broker.lock"
@@ -128,6 +135,7 @@ class BrokerState(BaseModel):
     schema_version: Literal[1] = 1
     package_id: Literal["AS-ORCH-CONTINUATION-BROKER-001"] = PACKAGE_ID
     backend: Literal["CURSOR_STOP_HOOK_FOLLOWUP"] = BACKEND
+    stop_hook_backend: Literal["CURSOR_STOP_HOOK_FOLLOWUP"] = STOP_HOOK_BACKEND
     repository_identity: str = Field(min_length=1, max_length=256)
     trusted_main: str = Field(min_length=40, max_length=40)
     trusted_tree: str = Field(min_length=40, max_length=40)
@@ -1105,4 +1113,45 @@ def status_report(root: Path) -> dict[str, object]:
         "merge_authorized": False,
         "authority_granted": False,
         "python_executable": sys.executable,
+        "primary_continuation_backend": PRIMARY_CONTINUATION_BACKEND,
+        "stop_hook_backend": STOP_HOOK_BACKEND,
     }
+
+
+def supersede_legacy_hook_successor(
+    root: Path,
+    *,
+    cycle_id: str,
+    reason: str = "SUPERSEDED_BY_SDK_SUPERVISOR",
+) -> BrokerState:
+    """Park a stranded stop-hook successor without treating it as consumed."""
+    if not _CYCLE_RE.fullmatch(cycle_id):
+        raise BrokerError("cycle_id is unsafe", code="UNSAFE_CYCLE_ID")
+    if not _FINGERPRINT_RE.fullmatch(reason):
+        raise BrokerError("supersede reason is unsafe", code="UNSAFE_TOKEN")
+    store = broker_store_dir(root)
+    existing = load_broker_state(store)
+    if existing is None or existing.cycle_id != cycle_id:
+        raise BrokerError("legacy successor is not queued", code="CYCLE_MISSING")
+    if existing.consumed:
+        raise BrokerError("cycle already consumed", code="CYCLE_REPLAY")
+    updated = persist_broker_state(
+        store,
+        existing.model_copy(
+            update={
+                "phase": BrokerPhase.AWAITING_RESULT,
+                "followup_emitted": False,
+                "external_wait_identity": reason,
+            }
+        ),
+    )
+    append_hook_trace(
+        root,
+        {
+            "event_type": "LEGACY_SUCCESSOR_SUPERSEDED",
+            "cycle_id": cycle_id,
+            "broker_phase": updated.phase.value,
+            "error_code": reason,
+        },
+    )
+    return updated

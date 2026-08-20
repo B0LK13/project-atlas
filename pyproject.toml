@@ -22,6 +22,9 @@ dev = [
     "mypy>=1.10",
     "types-PyYAML>=6.0",
 ]
+orch = [
+    "cursor-sdk>=1.0.25,<1.1",
+]
 
 [project.scripts]
 atlas = "project_atlas.cli:main"
@@ -63,6 +66,10 @@ warn_unreachable = true
 
 [[tool.mypy.overrides]]
 module = ["jsonschema.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cursor_sdk", "cursor_sdk.*"]
 ignore_missing_imports = true
 
 [tool.atlas]

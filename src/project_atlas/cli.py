@@ -2558,12 +2558,51 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
     )
+    orch_gov_service = orch_sub.add_parser(
+        "governor-service-run",
+        help=(
+            "D-083 durable Atlas supervisor: persistent Cursor SDK "
+            "runtime plus CI observer. Owns the DAG; SDK agents are workers. "
+            "Does not merge."
+        ),
+    )
+    orch_gov_service.add_argument("--root", type=Path, default=None)
+    orch_gov_service.add_argument(
+        "--max-cycles",
+        type=int,
+        default=None,
+        help="Optional cycle cap (default: run until stopped).",
+    )
+    orch_gov_service.add_argument(
+        "--poll-interval",
+        type=float,
+        default=2.0,
+        help="Seconds between schedule cycles.",
+    )
+    orch_gov_service.add_argument(
+        "--fake-backend",
+        action="store_true",
+        help="Use in-process fake SDK backend (tests / no API key).",
+    )
+    orch_gov_service.add_argument(
+        "--candidate-head",
+        default=None,
+        help="Exact 40-char candidate SHA for the CI observer.",
+    )
+    orch_sdk_auth = orch_sub.add_parser(
+        "sdk-auth-status",
+        help=(
+            "Detect CURSOR_API_KEY availability without printing the secret. "
+            "Records CURSOR_SDK_AUTH_REQUIRED at most once when needed."
+        ),
+    )
+    orch_sdk_auth.add_argument("--root", type=Path, default=None)
     orch_broker = orch_sub.add_parser(
         "continuation-broker",
         help=(
             "AS-ORCH-CONTINUATION-BROKER-001: enqueue/consume/status for "
-            "one consume-once successor. Does not merge, dispatch, or "
-            "consume the 001C Cursor bridge slot."
+            "one consume-once successor. Stop-hook fallback only; primary "
+            "continuation is governor-service-run. Does not merge."
         ),
     )
     orch_broker.add_argument(
@@ -4957,6 +4996,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 root=Path(getattr(args, "root", None) or Path.cwd()),
                 trust_store=getattr(args, "trust_store", None),
                 loop_store=getattr(args, "loop_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "sdk-auth-status":
+            from project_atlas.orchestration.sdk.cli import run_auth_status
+
+            report, exit_code = run_auth_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-run":
+            from project_atlas.orchestration.sdk.cli import run_governor_service
+
+            report, exit_code = run_governor_service(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                max_cycles=getattr(args, "max_cycles", None),
+                poll_interval_sec=float(getattr(args, "poll_interval", 2.0) or 2.0),
+                use_fake=bool(getattr(args, "fake_backend", False)),
+                candidate_head=getattr(args, "candidate_head", None),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
