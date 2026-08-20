@@ -276,20 +276,40 @@ def build_project_brief(
             if row.get("subject") == project_id
         ],
         "generated": {"by": GENERATOR_ID},
-        "honesty": {
-            "authentic_pilot": False,
-            "release_certified": False,
-            "atlas_opt_wake_gate": "CLOSED",
-            "lens_is_authority": False,
-            "fabricated_fields": False,
-            "unknown_is_valid": True,
-        },
-        "notes": [
-            "Unified Coder Alpha brief over derived lenses",
-            "UI!=canonical",
-            "MODEL_OUTPUT!=AUTHORITY",
-            "UNKNOWN!=healthy",
-        ],
+    }
+    next_honesty = next_lens.get("honesty") if isinstance(next_lens, dict) else None
+    answer_stale = bool(
+        isinstance(next_honesty, dict) and next_honesty.get("answer_evidence_stale")
+    )
+    live_unverified = bool(
+        isinstance(next_honesty, dict) and next_honesty.get("live_source_unverified")
+    )
+    notes = [
+        "Unified Coder Alpha brief over derived lenses",
+        "UI!=canonical",
+        "MODEL_OUTPUT!=AUTHORITY",
+        "UNKNOWN!=healthy",
+        "BRIEF!=authority",
+    ]
+    if answer_stale:
+        notes.append("STALE EVIDENCE != CURRENT")
+        next_work.insert(0, "STALE EVIDENCE != CURRENT — reconnect before treating Next as current")
+    if live_unverified:
+        notes.append("LIVE SOURCE UNVERIFIED != HEALTHY")
+        next_work.insert(0, "LIVE SOURCE UNVERIFIED — do not treat Next as current or healthy")
+    brief["suggested_next_work"] = next_work
+    brief["notes"] = notes
+    brief["honesty"] = {
+        "authentic_pilot": False,
+        "release_certified": False,
+        "atlas_opt_wake_gate": "CLOSED",
+        "lens_is_authority": False,
+        "fabricated_fields": False,
+        "unknown_is_valid": True,
+        "stale_is_current": False,
+        "unknown_is_healthy": False,
+        "answer_evidence_stale": answer_stale,
+        "live_source_unverified": live_unverified,
     }
     return brief
 
