@@ -1,0 +1,2612 @@
+{
+  ".atlas-spool/.atlas/sessions/AS-20260804T203902Z-codex-universal-bootstrap-project-atlas-58ef5783.json": {
+    "mtime": 1785879282.7166004,
+    "ast_hash": "650815b1cc26cbf44ad9087a2ae2f614",
+    "semantic_hash": "650815b1cc26cbf44ad9087a2ae2f614"
+  },
+  "atlas-vault-documentation/agent_control/__init__.py": {
+    "mtime": 1785873332.5914998,
+    "ast_hash": "0ebb15520b347aaa7a773dfd6c282d84",
+    "semantic_hash": "0ebb15520b347aaa7a773dfd6c282d84"
+  },
+  "atlas-vault-documentation/agent_control/adapter_registry.py": {
+    "mtime": 1785873332.592112,
+    "ast_hash": "e5cd92d846ba2196498f767423556f03",
+    "semantic_hash": "e5cd92d846ba2196498f767423556f03"
+  },
+  "atlas-vault-documentation/agent_control/agent_identity.py": {
+    "mtime": 1785873332.5926182,
+    "ast_hash": "b60c5ab284e869e7e323d88874103b3c",
+    "semantic_hash": "b60c5ab284e869e7e323d88874103b3c"
+  },
+  "atlas-vault-documentation/agent_control/bootstrap.py": {
+    "mtime": 1785873332.5926182,
+    "ast_hash": "d95f60b30dbd9a80636eddc6cd07507f",
+    "semantic_hash": "d95f60b30dbd9a80636eddc6cd07507f"
+  },
+  "atlas-vault-documentation/agent_control/capability.py": {
+    "mtime": 1785873332.5946586,
+    "ast_hash": "b72e9d1fea158975210f6f66bd7064a8",
+    "semantic_hash": "b72e9d1fea158975210f6f66bd7064a8"
+  },
+  "atlas-vault-documentation/agent_control/doctor.py": {
+    "mtime": 1785873332.5946586,
+    "ast_hash": "69bb632a20eca409381a5315e9adb581",
+    "semantic_hash": "69bb632a20eca409381a5315e9adb581"
+  },
+  "atlas-vault-documentation/agent_control/event_client.py": {
+    "mtime": 1785873332.5967534,
+    "ast_hash": "55f53f9196808b82ce9dd6ef72f087ff",
+    "semantic_hash": "55f53f9196808b82ce9dd6ef72f087ff"
+  },
+  "atlas-vault-documentation/agent_control/postflight.py": {
+    "mtime": 1785873332.5967534,
+    "ast_hash": "914e2e77c6da368d3064af293b55b799",
+    "semantic_hash": "914e2e77c6da368d3064af293b55b799"
+  },
+  "atlas-vault-documentation/agent_control/preflight.py": {
+    "mtime": 1785873332.598797,
+    "ast_hash": "f53971d4a21a17e73c9ce52a1c54ce3c",
+    "semantic_hash": "f53971d4a21a17e73c9ce52a1c54ce3c"
+  },
+  "atlas-vault-documentation/agent_control/protected_paths.py": {
+    "mtime": 1785873332.5993192,
+    "ast_hash": "0d06e6ff50f7e8e1ab818f251dabdd92",
+    "semantic_hash": "0d06e6ff50f7e8e1ab818f251dabdd92"
+  },
+  "atlas-vault-documentation/agent_control/readiness.py": {
+    "mtime": 1785873332.599841,
+    "ast_hash": "e99aa96b9c7ec17c8cec47ca5bebebf5",
+    "semantic_hash": "e99aa96b9c7ec17c8cec47ca5bebebf5"
+  },
+  "atlas-vault-documentation/agent_control/receipt_gate.py": {
+    "mtime": 1785873332.599841,
+    "ast_hash": "466232fb6f04c466a2aca7bc6386fbdd",
+    "semantic_hash": "466232fb6f04c466a2aca7bc6386fbdd"
+  },
+  "atlas-vault-documentation/agent_control/repository_gate.py": {
+    "mtime": 1785873332.6013587,
+    "ast_hash": "cdb043b621b64dafae2cdcf2a3023ca6",
+    "semantic_hash": "cdb043b621b64dafae2cdcf2a3023ca6"
+  },
+  "atlas-vault-documentation/agent_control/session.py": {
+    "mtime": 1785873332.6013587,
+    "ast_hash": "33f15c6febda0f5820c3261b7f1124b7",
+    "semantic_hash": "33f15c6febda0f5820c3261b7f1124b7"
+  },
+  "atlas-vault-documentation/agent_control/skill_ack.py": {
+    "mtime": 1785873332.6034188,
+    "ast_hash": "29e5dfafe5247b5deebc509c7ed701a4",
+    "semantic_hash": "29e5dfafe5247b5deebc509c7ed701a4"
+  },
+  "atlas-vault-documentation/agent_control/skill_compiler.py": {
+    "mtime": 1785873332.603948,
+    "ast_hash": "323865bd2d27518d2171ee151ecc8fd7",
+    "semantic_hash": "323865bd2d27518d2171ee151ecc8fd7"
+  },
+  "atlas-vault-documentation/agent_control/skill_loader.py": {
+    "mtime": 1785873332.6049588,
+    "ast_hash": "768a229c502117e81ad1e27c1d27c0cb",
+    "semantic_hash": "768a229c502117e81ad1e27c1d27c0cb"
+  },
+  "atlas-vault-documentation/agent_control/spool_sync.py": {
+    "mtime": 1785873332.6055548,
+    "ast_hash": "8d2f78a9a41b1f6fb75cfa2a146038dd",
+    "semantic_hash": "8d2f78a9a41b1f6fb75cfa2a146038dd"
+  },
+  "atlas-vault-documentation/agent_control/vault_identity.py": {
+    "mtime": 1785873332.6065674,
+    "ast_hash": "727b6f80cb0c3347d72dc1be9270555f",
+    "semantic_hash": "727b6f80cb0c3347d72dc1be9270555f"
+  },
+  "atlas-vault-documentation/evidence/AS-CTRL-001-concurrency-reconciliation.json": {
+    "mtime": 1785873332.6125693,
+    "ast_hash": "3c4799e9dcd00788c52dd284e213fc77",
+    "semantic_hash": "3c4799e9dcd00788c52dd284e213fc77"
+  },
+  "atlas-vault-documentation/evidence/AS-CTRL-001-managed-launch.json": {
+    "mtime": 1785873332.6125693,
+    "ast_hash": "596296c8d265cb4d38a79cb5cb3957df",
+    "semantic_hash": "596296c8d265cb4d38a79cb5cb3957df"
+  },
+  "atlas-vault-documentation/evidence/AS-SKILL-001-certification-evidence.json": {
+    "mtime": 1785873332.6141777,
+    "ast_hash": "cd58d6b93e1e033ccfb2fccf07dd162d",
+    "semantic_hash": "cd58d6b93e1e033ccfb2fccf07dd162d"
+  },
+  "atlas-vault-documentation/evidence/AS-SKILL-001-negative-gates.json": {
+    "mtime": 1785873332.6151094,
+    "ast_hash": "d4a0799ee1c03790378a0b0cc3b58b83",
+    "semantic_hash": "d4a0799ee1c03790378a0b0cc3b58b83"
+  },
+  "atlas-vault-documentation/internal/__init__.py": {
+    "mtime": 1785873332.6173978,
+    "ast_hash": "dcae0538c533983c327b8a5d57a675a4",
+    "semantic_hash": "dcae0538c533983c327b8a5d57a675a4"
+  },
+  "atlas-vault-documentation/internal/atlas_links.py": {
+    "mtime": 1785873332.6186402,
+    "ast_hash": "07ccea430fa3e26b4f7ab998852f9893",
+    "semantic_hash": "07ccea430fa3e26b4f7ab998852f9893"
+  },
+  "atlas-vault-documentation/internal/atlas_router.py": {
+    "mtime": 1785873332.619418,
+    "ast_hash": "7b6213eb889bb1134a4c8a20c66a8f35",
+    "semantic_hash": "7b6213eb889bb1134a4c8a20c66a8f35"
+  },
+  "atlas-vault-documentation/internal/authority_model.py": {
+    "mtime": 1785873332.6204185,
+    "ast_hash": "f1175668210594a909bd0ad9ddf6d351",
+    "semantic_hash": "f1175668210594a909bd0ad9ddf6d351"
+  },
+  "atlas-vault-documentation/internal/content_fingerprint.py": {
+    "mtime": 1785873332.6219258,
+    "ast_hash": "25569a96e9ac6d205497712c0cc48ccc",
+    "semantic_hash": "25569a96e9ac6d205497712c0cc48ccc"
+  },
+  "atlas-vault-documentation/internal/document_classifier.py": {
+    "mtime": 1785873332.6226387,
+    "ast_hash": "288fe72f5934aa969400cd4e301f21d2",
+    "semantic_hash": "288fe72f5934aa969400cd4e301f21d2"
+  },
+  "atlas-vault-documentation/internal/document_inventory.py": {
+    "mtime": 1785873332.623648,
+    "ast_hash": "0892562a91b90ed50b2d4094ff1c6024",
+    "semantic_hash": "0892562a91b90ed50b2d4094ff1c6024"
+  },
+  "atlas-vault-documentation/internal/documentation_conflicts.py": {
+    "mtime": 1785873332.6252563,
+    "ast_hash": "aa99699ff7f90d504a267c0931ed751f",
+    "semantic_hash": "aa99699ff7f90d504a267c0931ed751f"
+  },
+  "atlas-vault-documentation/internal/documentation_coverage.py": {
+    "mtime": 1785873332.6261673,
+    "ast_hash": "9a264fcb6a1e6338992a3b742f26b7ee",
+    "semantic_hash": "9a264fcb6a1e6338992a3b742f26b7ee"
+  },
+  "atlas-vault-documentation/internal/event_reader.py": {
+    "mtime": 1785873332.6272993,
+    "ast_hash": "83c0c9b50e394cb535a2ae2587dfdb9d",
+    "semantic_hash": "83c0c9b50e394cb535a2ae2587dfdb9d"
+  },
+  "atlas-vault-documentation/internal/frontmatter.py": {
+    "mtime": 1785873332.6282003,
+    "ast_hash": "b6c6d7f68d90be7dea94d5eb91db8bdb",
+    "semantic_hash": "b6c6d7f68d90be7dea94d5eb91db8bdb"
+  },
+  "atlas-vault-documentation/internal/generated_regions.py": {
+    "mtime": 1785873332.6287076,
+    "ast_hash": "5a1627c966364b3a152ab3d80a128e69",
+    "semantic_hash": "5a1627c966364b3a152ab3d80a128e69"
+  },
+  "atlas-vault-documentation/internal/graph_confidence.py": {
+    "mtime": 1785873332.6297197,
+    "ast_hash": "7a253ae6252039698cc94e0d205cc8ab",
+    "semantic_hash": "7a253ae6252039698cc94e0d205cc8ab"
+  },
+  "atlas-vault-documentation/internal/graph_conflicts.py": {
+    "mtime": 1785873332.6297197,
+    "ast_hash": "481429cbac4795d1ce6e1d9b03d7e947",
+    "semantic_hash": "481429cbac4795d1ce6e1d9b03d7e947"
+  },
+  "atlas-vault-documentation/internal/graph_deduplication.py": {
+    "mtime": 1785873332.6312964,
+    "ast_hash": "d4cf7d59a4d0218566703314b4abe829",
+    "semantic_hash": "d4cf7d59a4d0218566703314b4abe829"
+  },
+  "atlas-vault-documentation/internal/graph_edge.py": {
+    "mtime": 1785873332.631865,
+    "ast_hash": "18c829cf04efd48ed0317fb5b608f5a5",
+    "semantic_hash": "18c829cf04efd48ed0317fb5b608f5a5"
+  },
+  "atlas-vault-documentation/internal/graph_identity.py": {
+    "mtime": 1785873332.632813,
+    "ast_hash": "d0ab21cc872bba150bce1580fc5b2743",
+    "semantic_hash": "d0ab21cc872bba150bce1580fc5b2743"
+  },
+  "atlas-vault-documentation/internal/graph_ingestion.py": {
+    "mtime": 1785873332.6338148,
+    "ast_hash": "262b32ab8307dbdb0ff23544b47a2663",
+    "semantic_hash": "262b32ab8307dbdb0ff23544b47a2663"
+  },
+  "atlas-vault-documentation/internal/graph_ingestion_state.py": {
+    "mtime": 1785873332.6338148,
+    "ast_hash": "c76a4f9c6c20ee3c91ce7b95ae5a2833",
+    "semantic_hash": "c76a4f9c6c20ee3c91ce7b95ae5a2833"
+  },
+  "atlas-vault-documentation/internal/graph_node.py": {
+    "mtime": 1785873332.6348143,
+    "ast_hash": "0cb548b4364bbecdd19fba206e28d0b5",
+    "semantic_hash": "0cb548b4364bbecdd19fba206e28d0b5"
+  },
+  "atlas-vault-documentation/internal/graph_projection.py": {
+    "mtime": 1785873332.635324,
+    "ast_hash": "f7723c3dca11664a194e0c8bb945189e",
+    "semantic_hash": "f7723c3dca11664a194e0c8bb945189e"
+  },
+  "atlas-vault-documentation/internal/graph_quarantine.py": {
+    "mtime": 1785873332.636335,
+    "ast_hash": "4013503b7517e54946728c17e8973d37",
+    "semantic_hash": "4013503b7517e54946728c17e8973d37"
+  },
+  "atlas-vault-documentation/internal/graph_source_linking.py": {
+    "mtime": 1785873332.6373334,
+    "ast_hash": "2c80fc1ee53ef52e007cab316aa2ea55",
+    "semantic_hash": "2c80fc1ee53ef52e007cab316aa2ea55"
+  },
+  "atlas-vault-documentation/internal/graph_validation.py": {
+    "mtime": 1785873332.6373334,
+    "ast_hash": "3937741b6dfb9d9b0ebde01ca2de7b5a",
+    "semantic_hash": "3937741b6dfb9d9b0ebde01ca2de7b5a"
+  },
+  "atlas-vault-documentation/internal/graphify_discovery.py": {
+    "mtime": 1785873332.6373334,
+    "ast_hash": "44bd68e6b492110e9cb2cb9062705111",
+    "semantic_hash": "44bd68e6b492110e9cb2cb9062705111"
+  },
+  "atlas-vault-documentation/internal/graphify_parser.py": {
+    "mtime": 1785873332.6389148,
+    "ast_hash": "6def2bb49b60db4b226139149c76ff89",
+    "semantic_hash": "6def2bb49b60db4b226139149c76ff89"
+  },
+  "atlas-vault-documentation/internal/graphify_schema.py": {
+    "mtime": 1785873332.6399257,
+    "ast_hash": "3da998d2eb75523e422185954c803dc3",
+    "semantic_hash": "3da998d2eb75523e422185954c803dc3"
+  },
+  "atlas-vault-documentation/internal/ingestion_orchestrator.py": {
+    "mtime": 1785873332.641071,
+    "ast_hash": "39634aabf1ccec11f5971835a2140bcb",
+    "semantic_hash": "39634aabf1ccec11f5971835a2140bcb"
+  },
+  "atlas-vault-documentation/internal/ingestion_planner.py": {
+    "mtime": 1785873332.64214,
+    "ast_hash": "4adfaeb03e385777d44837ed1687fe62",
+    "semantic_hash": "4adfaeb03e385777d44837ed1687fe62"
+  },
+  "atlas-vault-documentation/internal/ingestion_projection.py": {
+    "mtime": 1785873332.6432378,
+    "ast_hash": "6624d8029c9969230e902aa765aa1e8e",
+    "semantic_hash": "6624d8029c9969230e902aa765aa1e8e"
+  },
+  "atlas-vault-documentation/internal/ingestion_state.py": {
+    "mtime": 1785873332.6432378,
+    "ast_hash": "646780a3138c9868ec5878f982eed0a5",
+    "semantic_hash": "646780a3138c9868ec5878f982eed0a5"
+  },
+  "atlas-vault-documentation/internal/ingestion_validation.py": {
+    "mtime": 1785873332.6448443,
+    "ast_hash": "6d7037c40341b8ddfe44685bd15dc2ed",
+    "semantic_hash": "6d7037c40341b8ddfe44685bd15dc2ed"
+  },
+  "atlas-vault-documentation/internal/normalization.py": {
+    "mtime": 1785873332.6448443,
+    "ast_hash": "2b4cb0a751b3b56f2f0ec45028e3c16f",
+    "semantic_hash": "2b4cb0a751b3b56f2f0ec45028e3c16f"
+  },
+  "atlas-vault-documentation/internal/process_runner.py": {
+    "mtime": 1785873332.646409,
+    "ast_hash": "e595e0e8432e41b66802b26be49576bd",
+    "semantic_hash": "e595e0e8432e41b66802b26be49576bd"
+  },
+  "atlas-vault-documentation/internal/project_discovery.py": {
+    "mtime": 1785873332.6473649,
+    "ast_hash": "b488fa545d229b1640d230273fe78905",
+    "semantic_hash": "b488fa545d229b1640d230273fe78905"
+  },
+  "atlas-vault-documentation/internal/project_identity.py": {
+    "mtime": 1785873332.648427,
+    "ast_hash": "6ae40603e3d3bd10d1ef2be7705b27db",
+    "semantic_hash": "6ae40603e3d3bd10d1ef2be7705b27db"
+  },
+  "atlas-vault-documentation/internal/project_log.py": {
+    "mtime": 1785873332.6489348,
+    "ast_hash": "74e54e31436839ff95ab91440ab58178",
+    "semantic_hash": "74e54e31436839ff95ab91440ab58178"
+  },
+  "atlas-vault-documentation/internal/project_markers.py": {
+    "mtime": 1785873332.6489348,
+    "ast_hash": "2f3415837a902ed4e72719f124f777a0",
+    "semantic_hash": "2f3415837a902ed4e72719f124f777a0"
+  },
+  "atlas-vault-documentation/internal/project_pages.py": {
+    "mtime": 1785873332.6499448,
+    "ast_hash": "5223568d049000fc4973d642777e3f96",
+    "semantic_hash": "5223568d049000fc4973d642777e3f96"
+  },
+  "atlas-vault-documentation/internal/provenance.py": {
+    "mtime": 1785873332.6515477,
+    "ast_hash": "ca4f7e78604ef49e175dd83cb28a011d",
+    "semantic_hash": "ca4f7e78604ef49e175dd83cb28a011d"
+  },
+  "atlas-vault-documentation/internal/route_planner.py": {
+    "mtime": 1785873332.6515477,
+    "ast_hash": "4c7320dd1001551cc3740f6dce305d11",
+    "semantic_hash": "4c7320dd1001551cc3740f6dce305d11"
+  },
+  "atlas-vault-documentation/internal/router_validation.py": {
+    "mtime": 1785873332.6524658,
+    "ast_hash": "0e43d715f71b0e56fb7c5f7dd1b1b855",
+    "semantic_hash": "0e43d715f71b0e56fb7c5f7dd1b1b855"
+  },
+  "atlas-vault-documentation/internal/routing_state.py": {
+    "mtime": 1785873332.6534655,
+    "ast_hash": "7fec50060b91d408634b77f27c8cd108",
+    "semantic_hash": "7fec50060b91d408634b77f27c8cd108"
+  },
+  "atlas-vault-documentation/internal/transaction.py": {
+    "mtime": 1785873332.6534655,
+    "ast_hash": "0d160a052e4a42a705b6e2f687391b83",
+    "semantic_hash": "0d160a052e4a42a705b6e2f687391b83"
+  },
+  "atlas-vault-documentation/internal/verification.py": {
+    "mtime": 1785873332.6552927,
+    "ast_hash": "e02638d1d8e895031ce2c74c5f46e5f3",
+    "semantic_hash": "e02638d1d8e895031ce2c74c5f46e5f3"
+  },
+  "atlas-vault-documentation/internal/work_package_projection.py": {
+    "mtime": 1785873332.6557996,
+    "ast_hash": "0f0ebdb611d6365443615dc320c950b0",
+    "semantic_hash": "0f0ebdb611d6365443615dc320c950b0"
+  },
+  "atlas-vault-documentation/schemas/agent-adapter-registry.schema.json": {
+    "mtime": 1785873332.6779053,
+    "ast_hash": "d72658dfb76dbaf23293246fdd30f69c",
+    "semantic_hash": "d72658dfb76dbaf23293246fdd30f69c"
+  },
+  "atlas-vault-documentation/schemas/agent-adapter.schema.json": {
+    "mtime": 1785873332.6788633,
+    "ast_hash": "7280921814145dbb6491fdf53698b1b4",
+    "semantic_hash": "7280921814145dbb6491fdf53698b1b4"
+  },
+  "atlas-vault-documentation/schemas/agent-readiness.schema.json": {
+    "mtime": 1785873332.6788633,
+    "ast_hash": "318461c38bc5f796729d5777b5f9ad49",
+    "semantic_hash": "318461c38bc5f796729d5777b5f9ad49"
+  },
+  "atlas-vault-documentation/schemas/agent-receipt.schema.json": {
+    "mtime": 1785873332.6798682,
+    "ast_hash": "78ddae9aa0a7c48d354a94873c7b3ff3",
+    "semantic_hash": "78ddae9aa0a7c48d354a94873c7b3ff3"
+  },
+  "atlas-vault-documentation/schemas/agent-session.schema.json": {
+    "mtime": 1785873332.680863,
+    "ast_hash": "49bafab019de9a38f8d910e1a9746f28",
+    "semantic_hash": "49bafab019de9a38f8d910e1a9746f28"
+  },
+  "atlas-vault-documentation/schemas/document-inventory.schema.json": {
+    "mtime": 1785873332.681429,
+    "ast_hash": "a0dfdba6c78e8b74e6f31aa7a8eb2165",
+    "semantic_hash": "a0dfdba6c78e8b74e6f31aa7a8eb2165"
+  },
+  "atlas-vault-documentation/schemas/documentation-coverage.schema.json": {
+    "mtime": 1785873332.6819432,
+    "ast_hash": "6a8c765d993b03cd1bec86497b5bd3bf",
+    "semantic_hash": "6a8c765d993b03cd1bec86497b5bd3bf"
+  },
+  "atlas-vault-documentation/schemas/graph-edge-record.schema.json": {
+    "mtime": 1785873332.6819432,
+    "ast_hash": "7fcf60c830b4148ca1fb54ca8833e811",
+    "semantic_hash": "7fcf60c830b4148ca1fb54ca8833e811"
+  },
+  "atlas-vault-documentation/schemas/graph-ingestion-receipt.schema.json": {
+    "mtime": 1785873332.6829538,
+    "ast_hash": "fdeab20ffe77fdfb4f458eec84136a0e",
+    "semantic_hash": "fdeab20ffe77fdfb4f458eec84136a0e"
+  },
+  "atlas-vault-documentation/schemas/graph-ingestion-state.schema.json": {
+    "mtime": 1785873332.6839523,
+    "ast_hash": "02747030ee128f2852ee30a94454dd1b",
+    "semantic_hash": "02747030ee128f2852ee30a94454dd1b"
+  },
+  "atlas-vault-documentation/schemas/graph-node-record.schema.json": {
+    "mtime": 1785873332.6839523,
+    "ast_hash": "86c8371753d7e2da65728552a64e5657",
+    "semantic_hash": "86c8371753d7e2da65728552a64e5657"
+  },
+  "atlas-vault-documentation/schemas/graph-quarantine-record.schema.json": {
+    "mtime": 1785873332.6849504,
+    "ast_hash": "e3c3901e725732fd21f47ffeaf7416f8",
+    "semantic_hash": "e3c3901e725732fd21f47ffeaf7416f8"
+  },
+  "atlas-vault-documentation/schemas/graphify-artifact.schema.json": {
+    "mtime": 1785873332.6854558,
+    "ast_hash": "ccf8c8994c4397c8d6d74558037abeca",
+    "semantic_hash": "ccf8c8994c4397c8d6d74558037abeca"
+  },
+  "atlas-vault-documentation/schemas/ingestion-plan.schema.json": {
+    "mtime": 1785873332.6854558,
+    "ast_hash": "f953392837053891d9050821951afa60",
+    "semantic_hash": "f953392837053891d9050821951afa60"
+  },
+  "atlas-vault-documentation/schemas/ingestion-receipt.schema.json": {
+    "mtime": 1785873332.686963,
+    "ast_hash": "20a90d8cd4a0db9b594945aef4ae4dc2",
+    "semantic_hash": "20a90d8cd4a0db9b594945aef4ae4dc2"
+  },
+  "atlas-vault-documentation/schemas/ingestion-state.schema.json": {
+    "mtime": 1785873332.686963,
+    "ast_hash": "ef4176af14b5893160c86ddecf304639",
+    "semantic_hash": "ef4176af14b5893160c86ddecf304639"
+  },
+  "atlas-vault-documentation/schemas/project-record.schema.json": {
+    "mtime": 1785873332.6886034,
+    "ast_hash": "9a5c01a9fa1bdc27e9ab55436030b3a8",
+    "semantic_hash": "9a5c01a9fa1bdc27e9ab55436030b3a8"
+  },
+  "atlas-vault-documentation/schemas/relationship-record.schema.json": {
+    "mtime": 1785873332.6891644,
+    "ast_hash": "cf2c8e163fb5a6058484f2612c693fc2",
+    "semantic_hash": "cf2c8e163fb5a6058484f2612c693fc2"
+  },
+  "atlas-vault-documentation/schemas/skill-acknowledgement.schema.json": {
+    "mtime": 1785873332.6897368,
+    "ast_hash": "a3353ac2f181eace34ffbae201b06167",
+    "semantic_hash": "a3353ac2f181eace34ffbae201b06167"
+  },
+  "atlas-vault-documentation/schemas/skill-manifest.schema.json": {
+    "mtime": 1785873332.6906977,
+    "ast_hash": "1972a66b603e2261799e5fb166935c1f",
+    "semantic_hash": "1972a66b603e2261799e5fb166935c1f"
+  },
+  "atlas-vault-documentation/scripts/atlas_agent.py": {
+    "mtime": 1785873332.6918623,
+    "ast_hash": "910db2f8db613e4645d0be839433b44d",
+    "semantic_hash": "910db2f8db613e4645d0be839433b44d"
+  },
+  "atlas-vault-documentation/scripts/atlas_config.py": {
+    "mtime": 1785873332.6924417,
+    "ast_hash": "2f05a1d75d1a64bb4fb028f1e87ed965",
+    "semantic_hash": "2f05a1d75d1a64bb4fb028f1e87ed965"
+  },
+  "atlas-vault-documentation/scripts/benchmark_graphify.py": {
+    "mtime": 1785873332.6924417,
+    "ast_hash": "4e5d48a85bf547c304289808026ebc5e",
+    "semantic_hash": "4e5d48a85bf547c304289808026ebc5e"
+  },
+  "atlas-vault-documentation/scripts/benchmark_ingestion.py": {
+    "mtime": 1785873332.6933913,
+    "ast_hash": "30f5ab86187cdf89a34ac7afed6af9ef",
+    "semantic_hash": "30f5ab86187cdf89a34ac7afed6af9ef"
+  },
+  "atlas-vault-documentation/scripts/capture_event.py": {
+    "mtime": 1785873332.6944547,
+    "ast_hash": "f3ad82c639052a5288820eb4103f2b11",
+    "semantic_hash": "f3ad82c639052a5288820eb4103f2b11"
+  },
+  "atlas-vault-documentation/scripts/check_documentation.py": {
+    "mtime": 1785873332.6954322,
+    "ast_hash": "426015ee99a439cd9986a40c54366b98",
+    "semantic_hash": "426015ee99a439cd9986a40c54366b98"
+  },
+  "atlas-vault-documentation/scripts/discover_projects.py": {
+    "mtime": 1785873332.696429,
+    "ast_hash": "1463c9a3c3cb7967776b7708162227bc",
+    "semantic_hash": "1463c9a3c3cb7967776b7708162227bc"
+  },
+  "atlas-vault-documentation/scripts/document_work.py": {
+    "mtime": 1785873332.696429,
+    "ast_hash": "f910796e39610f5f021297570c4b71bc",
+    "semantic_hash": "f910796e39610f5f021297570c4b71bc"
+  },
+  "atlas-vault-documentation/scripts/ingest_graphify.py": {
+    "mtime": 1785873332.6978064,
+    "ast_hash": "29f634a5b6dfae969d9e76002fc7cc24",
+    "semantic_hash": "29f634a5b6dfae969d9e76002fc7cc24"
+  },
+  "atlas-vault-documentation/scripts/ingest_project.py": {
+    "mtime": 1785873332.698372,
+    "ast_hash": "f62cabfca0ead7774e533ab4f5e30679",
+    "semantic_hash": "f62cabfca0ead7774e533ab4f5e30679"
+  },
+  "atlas-vault-documentation/scripts/inspect_graphify.py": {
+    "mtime": 1785873332.6989684,
+    "ast_hash": "35b1433f49974b7349fead37e2e770ea",
+    "semantic_hash": "35b1433f49974b7349fead37e2e770ea"
+  },
+  "atlas-vault-documentation/scripts/install-skill.ps1": {
+    "mtime": 1785873332.699886,
+    "ast_hash": "256df330521237918e315ce1db055657",
+    "semantic_hash": "256df330521237918e315ce1db055657"
+  },
+  "atlas-vault-documentation/scripts/install-skill.sh": {
+    "mtime": 1785873332.699886,
+    "ast_hash": "cb2ea76c6380bafe167ba24bddc16d73",
+    "semantic_hash": "cb2ea76c6380bafe167ba24bddc16d73"
+  },
+  "atlas-vault-documentation/scripts/install_agent_instructions.py": {
+    "mtime": 1785873332.70145,
+    "ast_hash": "8729410cd25df7e5d71e46c8fd0b159d",
+    "semantic_hash": "8729410cd25df7e5d71e46c8fd0b159d"
+  },
+  "atlas-vault-documentation/scripts/inventory_project.py": {
+    "mtime": 1785873332.702409,
+    "ast_hash": "5caa07363b6cd2e19f7532157b409c2d",
+    "semantic_hash": "5caa07363b6cd2e19f7532157b409c2d"
+  },
+  "atlas-vault-documentation/scripts/normalize_event.py": {
+    "mtime": 1785873332.702409,
+    "ast_hash": "e69d400dd4ce01d747975c20260210b1",
+    "semantic_hash": "e69d400dd4ce01d747975c20260210b1"
+  },
+  "atlas-vault-documentation/scripts/rebuild_project.py": {
+    "mtime": 1785873332.7034676,
+    "ast_hash": "2a01936cabffe5f5abf7dde8430a1241",
+    "semantic_hash": "2a01936cabffe5f5abf7dde8430a1241"
+  },
+  "atlas-vault-documentation/scripts/rebuild_relationships.py": {
+    "mtime": 1785873332.7049735,
+    "ast_hash": "46100b71c6f39746e187dca043390287",
+    "semantic_hash": "46100b71c6f39746e187dca043390287"
+  },
+  "atlas-vault-documentation/scripts/route_event.py": {
+    "mtime": 1785873332.705963,
+    "ast_hash": "b60c48269a328dd6c3b91a6b18c786b4",
+    "semantic_hash": "b60c48269a328dd6c3b91a6b18c786b4"
+  },
+  "atlas-vault-documentation/scripts/run_ctrl_certification.py": {
+    "mtime": 1785873332.706541,
+    "ast_hash": "35fec1b0def6a660a1fb118cff95ed0d",
+    "semantic_hash": "35fec1b0def6a660a1fb118cff95ed0d"
+  },
+  "atlas-vault-documentation/scripts/run_skill_certification.py": {
+    "mtime": 1785873332.7074947,
+    "ast_hash": "1fc9122fb5789b8b7542354d95a5ca47",
+    "semantic_hash": "1fc9122fb5789b8b7542354d95a5ca47"
+  },
+  "atlas-vault-documentation/scripts/validate_agent_session.py": {
+    "mtime": 1785873332.7074947,
+    "ast_hash": "3464007d5a0cb33bd977ca4c3878947f",
+    "semantic_hash": "3464007d5a0cb33bd977ca4c3878947f"
+  },
+  "atlas-vault-documentation/scripts/validate_graphify.py": {
+    "mtime": 1785873332.7084947,
+    "ast_hash": "c057af492df317c179b0684016188cfc",
+    "semantic_hash": "c057af492df317c179b0684016188cfc"
+  },
+  "atlas-vault-documentation/scripts/validate_ingestion.py": {
+    "mtime": 1785873332.709494,
+    "ast_hash": "7a9875c408ce7f2ce45d6eeda397a17d",
+    "semantic_hash": "7a9875c408ce7f2ce45d6eeda397a17d"
+  },
+  "atlas-vault-documentation/scripts/validate_routes.py": {
+    "mtime": 1785873332.709494,
+    "ast_hash": "7d29d34cd4ef9a44bb9ef695f6c68947",
+    "semantic_hash": "7d29d34cd4ef9a44bb9ef695f6c68947"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/examples/completion-event.json": {
+    "mtime": 1785873332.7188246,
+    "ast_hash": "ec79aa4c29df75ed9ecf631ecc882c69",
+    "semantic_hash": "ec79aa4c29df75ed9ecf631ecc882c69"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/examples/implementation-event.json": {
+    "mtime": 1785873332.7193315,
+    "ast_hash": "d511c47a9a62988f0e3211aaf5e8830f",
+    "semantic_hash": "d511c47a9a62988f0e3211aaf5e8830f"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/examples/validation-event.json": {
+    "mtime": 1785873332.720347,
+    "ast_hash": "3f5cccf1c39c13c76e1b985896704488",
+    "semantic_hash": "3f5cccf1c39c13c76e1b985896704488"
+  },
+  "atlas-vault-documentation/tests/conftest.py": {
+    "mtime": 1785873332.7293358,
+    "ast_hash": "6900423273df84ab26630e273864a50e",
+    "semantic_hash": "6900423273df84ab26630e273864a50e"
+  },
+  "atlas-vault-documentation/tests/fixtures/bin/mda": {
+    "mtime": 1785873332.7303429,
+    "ast_hash": "304a5aa09d161d2428b61c9125e96be6",
+    "semantic_hash": "304a5aa09d161d2428b61c9125e96be6"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/pyproject.toml": {
+    "mtime": 1785873332.7467647,
+    "ast_hash": "691343a58c3835785a2758587114a7e6",
+    "semantic_hash": "691343a58c3835785a2758587114a7e6"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/mixed-formats/metadata.json": {
+    "mtime": 1785873332.7591116,
+    "ast_hash": "b4d72c5a8469f1d625cbed0cf2bc2870",
+    "semantic_hash": "b4d72c5a8469f1d625cbed0cf2bc2870"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/apps/api/pyproject.toml": {
+    "mtime": 1785873332.7632213,
+    "ast_hash": "bd3d88f75fb7f659f697e0e2b71e690a",
+    "semantic_hash": "bd3d88f75fb7f659f697e0e2b71e690a"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/apps/web/package.json": {
+    "mtime": 1785873332.7647276,
+    "ast_hash": "51b5776417dc8d2288534b9986ebca00",
+    "semantic_hash": "51b5776417dc8d2288534b9986ebca00"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/package.json": {
+    "mtime": 1785873332.7657366,
+    "ast_hash": "71a1370e9df56e7203186ebec7e1f1a7",
+    "semantic_hash": "71a1370e9df56e7203186ebec7e1f1a7"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/packages/shared/package.json": {
+    "mtime": 1785873332.7678843,
+    "ast_hash": "fc2b6312876a6475d2bc77dcc95ad8a0",
+    "semantic_hash": "fc2b6312876a6475d2bc77dcc95ad8a0"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/sparse-readme/package.json": {
+    "mtime": 1785873332.7699401,
+    "ast_hash": "17565cd007805582911993493b0aaf45",
+    "semantic_hash": "17565cd007805582911993493b0aaf45"
+  },
+  "atlas-vault-documentation/tests/test_agent_control.py": {
+    "mtime": 1785873332.7718453,
+    "ast_hash": "d3b6d485b7bb7c7d991f3946b0f4dc8e",
+    "semantic_hash": "d3b6d485b7bb7c7d991f3946b0f4dc8e"
+  },
+  "atlas-vault-documentation/tests/test_atlas_config.py": {
+    "mtime": 1785873332.7727911,
+    "ast_hash": "f7446a9a8005578715564d69365b9f8d",
+    "semantic_hash": "f7446a9a8005578715564d69365b9f8d"
+  },
+  "atlas-vault-documentation/tests/test_capture_event.py": {
+    "mtime": 1785873332.7737956,
+    "ast_hash": "fcd1a1fcf8700cf10b8da41cedef1e73",
+    "semantic_hash": "fcd1a1fcf8700cf10b8da41cedef1e73"
+  },
+  "atlas-vault-documentation/tests/test_check_documentation.py": {
+    "mtime": 1785873332.774856,
+    "ast_hash": "3e4a4cd42e4a9d53ae49a87026d95ea1",
+    "semantic_hash": "3e4a4cd42e4a9d53ae49a87026d95ea1"
+  },
+  "atlas-vault-documentation/tests/test_graph_ingestion.py": {
+    "mtime": 1785873332.7754314,
+    "ast_hash": "c09f02a9790b38dd5ed4cea8a2785aa6",
+    "semantic_hash": "c09f02a9790b38dd5ed4cea8a2785aa6"
+  },
+  "atlas-vault-documentation/tests/test_ingestion.py": {
+    "mtime": 1785873332.7763717,
+    "ast_hash": "66927ce4c99b4d868b4e5005dab6076a",
+    "semantic_hash": "66927ce4c99b4d868b4e5005dab6076a"
+  },
+  "atlas-vault-documentation/tests/test_ingestion_stage2.py": {
+    "mtime": 1785873332.7763717,
+    "ast_hash": "1cbc80a852ee3493d82ed83acfb88c00",
+    "semantic_hash": "1cbc80a852ee3493d82ed83acfb88c00"
+  },
+  "atlas-vault-documentation/tests/test_internal.py": {
+    "mtime": 1785873332.7782938,
+    "ast_hash": "b033799fef1a321890130f9e05968f88",
+    "semantic_hash": "b033799fef1a321890130f9e05968f88"
+  },
+  "atlas-vault-documentation/tests/test_normalize_event.py": {
+    "mtime": 1785873332.7792037,
+    "ast_hash": "c51287ca683599330d366ae8f90cb64f",
+    "semantic_hash": "c51287ca683599330d366ae8f90cb64f"
+  },
+  "atlas-vault-documentation/tests/test_router.py": {
+    "mtime": 1785873332.7802036,
+    "ast_hash": "e4431670aab24d9ad467eaa49d528204",
+    "semantic_hash": "e4431670aab24d9ad467eaa49d528204"
+  },
+  "docs/evidence/atlas-core-ingestion-traversal.json": {
+    "mtime": 1785873332.8231635,
+    "ast_hash": "7ce87ef82211fb4df39d6236f755b0ac",
+    "semantic_hash": "7ce87ef82211fb4df39d6236f755b0ac"
+  },
+  "docs/evidence/atlas-core-vertical-slice.json": {
+    "mtime": 1785873332.8264441,
+    "ast_hash": "ff880ef5f5907b4953310049ddec5e33",
+    "semantic_hash": "ff880ef5f5907b4953310049ddec5e33"
+  },
+  "pyproject.toml": {
+    "mtime": 1786091741.179276,
+    "ast_hash": "236db23e67792f478fd24c4902cee5cb",
+    "semantic_hash": "236db23e67792f478fd24c4902cee5cb"
+  },
+  "src/atlas_contracts/__init__.py": {
+    "mtime": 1785873332.833755,
+    "ast_hash": "30e7fbde8829ba1e7bb42885d2ca3006",
+    "semantic_hash": "30e7fbde8829ba1e7bb42885d2ca3006"
+  },
+  "src/atlas_contracts/agent_event.py": {
+    "mtime": 1785873332.8354156,
+    "ast_hash": "8b758482fd5850421ebdae2414929b3f",
+    "semantic_hash": "8b758482fd5850421ebdae2414929b3f"
+  },
+  "src/atlas_contracts/event_package.py": {
+    "mtime": 1785873332.8354156,
+    "ast_hash": "ddf7a9bb231dd359b5c6ca6f49e60d34",
+    "semantic_hash": "ddf7a9bb231dd359b5c6ca6f49e60d34"
+  },
+  "src/atlas_contracts/identity.py": {
+    "mtime": 1785873332.836372,
+    "ast_hash": "bb23131d20f927ef7c474b2aec616b98",
+    "semantic_hash": "bb23131d20f927ef7c474b2aec616b98"
+  },
+  "src/atlas_contracts/provenance.py": {
+    "mtime": 1785873332.8373697,
+    "ast_hash": "60718164ec5abd22a3a86ff3ae94afa4",
+    "semantic_hash": "60718164ec5abd22a3a86ff3ae94afa4"
+  },
+  "src/atlas_contracts/receipts.py": {
+    "mtime": 1785873332.8383694,
+    "ast_hash": "dea124c9297e9407823ee472e2f256cb",
+    "semantic_hash": "dea124c9297e9407823ee472e2f256cb"
+  },
+  "src/atlas_contracts/schemas/agent-event.schema.json": {
+    "mtime": 1785873332.8383694,
+    "ast_hash": "c148983806815d1acf49f89d095543f9",
+    "semantic_hash": "c148983806815d1acf49f89d095543f9"
+  },
+  "src/atlas_contracts/schemas/event-package.schema.json": {
+    "mtime": 1785873332.840141,
+    "ast_hash": "18451eb864f87ea192d414c3d4f76aaf",
+    "semantic_hash": "18451eb864f87ea192d414c3d4f76aaf"
+  },
+  "src/atlas_contracts/schemas/provenance.schema.json": {
+    "mtime": 1785873332.8408585,
+    "ast_hash": "8e5b2c1a54af2d73bf7e7fb7f1a2cb6e",
+    "semantic_hash": "8e5b2c1a54af2d73bf7e7fb7f1a2cb6e"
+  },
+  "src/atlas_contracts/schemas/receipt-reference.schema.json": {
+    "mtime": 1785873332.8408585,
+    "ast_hash": "43471447e248b6f8114cf96493de3f47",
+    "semantic_hash": "43471447e248b6f8114cf96493de3f47"
+  },
+  "src/atlas_contracts/versions.py": {
+    "mtime": 1785873332.8422928,
+    "ast_hash": "885e874e0bdf2a7e747ad83dc247defe",
+    "semantic_hash": "885e874e0bdf2a7e747ad83dc247defe"
+  },
+  "src/project_atlas/__init__.py": {
+    "mtime": 1785873332.8429966,
+    "ast_hash": "516af525ad65c00e84b6d4780028599a",
+    "semantic_hash": "516af525ad65c00e84b6d4780028599a"
+  },
+  "src/project_atlas/claim_identity.py": {
+    "mtime": 1786091741.180277,
+    "ast_hash": "3f705b754f60fe02ea5d1387d39ef25b",
+    "semantic_hash": "3f705b754f60fe02ea5d1387d39ef25b"
+  },
+  "src/project_atlas/classification.py": {
+    "mtime": 1786091741.181278,
+    "ast_hash": "a8e167361c147779551379d420275a57",
+    "semantic_hash": "a8e167361c147779551379d420275a57"
+  },
+  "src/project_atlas/cli.py": {
+    "mtime": 1786091741.1832771,
+    "ast_hash": "2f7b1aefca33a5c97a4146e94c3c1efc",
+    "semantic_hash": "2f7b1aefca33a5c97a4146e94c3c1efc"
+  },
+  "src/project_atlas/compilation.py": {
+    "mtime": 1786091741.1842859,
+    "ast_hash": "437fa3614271457ba3b0313504dbe6ef",
+    "semantic_hash": "437fa3614271457ba3b0313504dbe6ef"
+  },
+  "src/project_atlas/config.py": {
+    "mtime": 1785873332.8445637,
+    "ast_hash": "8de9356ac1221ae5fec05ae481b0a67f",
+    "semantic_hash": "8de9356ac1221ae5fec05ae481b0a67f"
+  },
+  "src/project_atlas/discovery.py": {
+    "mtime": 1786091741.1852765,
+    "ast_hash": "d8b1fa0ae92961d879b238641365c222",
+    "semantic_hash": "d8b1fa0ae92961d879b238641365c222"
+  },
+  "src/project_atlas/domain/__init__.py": {
+    "mtime": 1786091741.187276,
+    "ast_hash": "69f7045c8f0df236e33624ffe69c5b09",
+    "semantic_hash": "69f7045c8f0df236e33624ffe69c5b09"
+  },
+  "src/project_atlas/domain/claims.py": {
+    "mtime": 1786091741.188276,
+    "ast_hash": "29113c75a8f2170c591d7cf3dd1fab2d",
+    "semantic_hash": "29113c75a8f2170c591d7cf3dd1fab2d"
+  },
+  "src/project_atlas/domain/concepts.py": {
+    "mtime": 1785873332.8483257,
+    "ast_hash": "74388e1ed365887b7ce5ef8d6ca2fea6",
+    "semantic_hash": "74388e1ed365887b7ce5ef8d6ca2fea6"
+  },
+  "src/project_atlas/domain/conflicts.py": {
+    "mtime": 1785873332.848886,
+    "ast_hash": "c33792156c8dda52d8d3329456db7eaf",
+    "semantic_hash": "c33792156c8dda52d8d3329456db7eaf"
+  },
+  "src/project_atlas/domain/diagnostics.py": {
+    "mtime": 1786091741.188276,
+    "ast_hash": "36fa987a911249cbe229125b23472bab",
+    "semantic_hash": "36fa987a911249cbe229125b23472bab"
+  },
+  "src/project_atlas/domain/findings.py": {
+    "mtime": 1785873332.849842,
+    "ast_hash": "de3acd108dfd5078d13ef3f5536017ef",
+    "semantic_hash": "de3acd108dfd5078d13ef3f5536017ef"
+  },
+  "src/project_atlas/domain/parser_output.py": {
+    "mtime": 1786091741.189277,
+    "ast_hash": "327d805443b744e22052febe589020af",
+    "semantic_hash": "327d805443b744e22052febe589020af"
+  },
+  "src/project_atlas/domain/relationships.py": {
+    "mtime": 1785873332.849842,
+    "ast_hash": "64a07de4f1eaef1cd090ac03bf7ee1fd",
+    "semantic_hash": "64a07de4f1eaef1cd090ac03bf7ee1fd"
+  },
+  "src/project_atlas/domain/semantic.py": {
+    "mtime": 1785873332.8514054,
+    "ast_hash": "622791c62f9930379b3c2b1784a0a173",
+    "semantic_hash": "622791c62f9930379b3c2b1784a0a173"
+  },
+  "src/project_atlas/domain/source_registry.py": {
+    "mtime": 1785873332.8523595,
+    "ast_hash": "8ffecfe175c067963bddd54181d14a37",
+    "semantic_hash": "8ffecfe175c067963bddd54181d14a37"
+  },
+  "src/project_atlas/domain/sources.py": {
+    "mtime": 1785873332.8533604,
+    "ast_hash": "25a64054aa8ec4cf025e421dcfee8aff",
+    "semantic_hash": "25a64054aa8ec4cf025e421dcfee8aff"
+  },
+  "src/project_atlas/domain/vocabulary.py": {
+    "mtime": 1785873332.8538692,
+    "ast_hash": "ded9cb79ce3d594daec2dc96c3a098a8",
+    "semantic_hash": "ded9cb79ce3d594daec2dc96c3a098a8"
+  },
+  "src/project_atlas/evidence_compiler.py": {
+    "mtime": 1786091741.1902776,
+    "ast_hash": "ac8268f293d0900d4c2c3aa0aaacd8e8",
+    "semantic_hash": "ac8268f293d0900d4c2c3aa0aaacd8e8"
+  },
+  "src/project_atlas/evidence_profiles.py": {
+    "mtime": 1786091741.1912763,
+    "ast_hash": "c26c40ae0007cc2d5c5d0b4bdcc5d5f9",
+    "semantic_hash": "c26c40ae0007cc2d5c5d0b4bdcc5d5f9"
+  },
+  "src/project_atlas/indexes.py": {
+    "mtime": 1785873332.8549204,
+    "ast_hash": "3a2dc4ae15dda1f30fee66c95f002d70",
+    "semantic_hash": "3a2dc4ae15dda1f30fee66c95f002d70"
+  },
+  "src/project_atlas/ingestion.py": {
+    "mtime": 1786091741.1932783,
+    "ast_hash": "0382c069bb1491cc4aa3c541fb3e952b",
+    "semantic_hash": "0382c069bb1491cc4aa3c541fb3e952b"
+  },
+  "src/project_atlas/knowledge_compiler.py": {
+    "mtime": 1786091741.196277,
+    "ast_hash": "f5f75f0a3e43ec84adc3838599e1e03f",
+    "semantic_hash": "f5f75f0a3e43ec84adc3838599e1e03f"
+  },
+  "src/project_atlas/lineage.py": {
+    "mtime": 1785873332.858696,
+    "ast_hash": "94734b50c5b7e1f4e878ec0494d367e7",
+    "semantic_hash": "94734b50c5b7e1f4e878ec0494d367e7"
+  },
+  "src/project_atlas/locator_migration.py": {
+    "mtime": 1786091741.1972775,
+    "ast_hash": "81dce6333eb0bb5d473e7cabde5e810b",
+    "semantic_hash": "81dce6333eb0bb5d473e7cabde5e810b"
+  },
+  "src/project_atlas/logging.py": {
+    "mtime": 1785873332.8592336,
+    "ast_hash": "73fbb81c6becada2db99ed43e1bfec04",
+    "semantic_hash": "73fbb81c6becada2db99ed43e1bfec04"
+  },
+  "src/project_atlas/migrations/__init__.py": {
+    "mtime": 1786091741.1972775,
+    "ast_hash": "bf53082f91e22414971d9333573570c5",
+    "semantic_hash": "bf53082f91e22414971d9333573570c5"
+  },
+  "src/project_atlas/migrations/claim_v2_migration.py": {
+    "mtime": 1786091741.1982763,
+    "ast_hash": "68a86bc32db5aeea09e6e9572b008b83",
+    "semantic_hash": "68a86bc32db5aeea09e6e9572b008b83"
+  },
+  "src/project_atlas/okf_renderer.py": {
+    "mtime": 1785873332.8625138,
+    "ast_hash": "a48ea0a8adf8d007d7b94f35a314f3ed",
+    "semantic_hash": "a48ea0a8adf8d007d7b94f35a314f3ed"
+  },
+  "src/project_atlas/portfolio.py": {
+    "mtime": 1785873332.8635943,
+    "ast_hash": "b6af6c29237dbcaee3bd5b35aeeade50",
+    "semantic_hash": "b6af6c29237dbcaee3bd5b35aeeade50"
+  },
+  "src/project_atlas/quarantine.py": {
+    "mtime": 1785873332.8651867,
+    "ast_hash": "914c4fbf8aa9a24f0126184f82a6b220",
+    "semantic_hash": "914c4fbf8aa9a24f0126184f82a6b220"
+  },
+  "src/project_atlas/retrieval.py": {
+    "mtime": 1785873332.8658981,
+    "ast_hash": "572f778fc13b3baa3dd8ea424e3f0330",
+    "semantic_hash": "572f778fc13b3baa3dd8ea424e3f0330"
+  },
+  "src/project_atlas/scaffold.py": {
+    "mtime": 1785873332.8669736,
+    "ast_hash": "2c7da9a9c5201bcdb34d74eccee37559",
+    "semantic_hash": "2c7da9a9c5201bcdb34d74eccee37559"
+  },
+  "src/project_atlas/schema.py": {
+    "mtime": 1786091741.199277,
+    "ast_hash": "ae14b82cde8d2e33bf1498b9d8d6be5a",
+    "semantic_hash": "ae14b82cde8d2e33bf1498b9d8d6be5a"
+  },
+  "src/project_atlas/schemas/authority-record.schema.json": {
+    "mtime": 1785873332.8691201,
+    "ast_hash": "5f0a2dda0f647b7f56e85a2551581f53",
+    "semantic_hash": "5f0a2dda0f647b7f56e85a2551581f53"
+  },
+  "src/project_atlas/schemas/claim-alias.schema.json": {
+    "mtime": 1786091741.2002764,
+    "ast_hash": "193e34dcc5374d933b5f90de5857c56d",
+    "semantic_hash": "193e34dcc5374d933b5f90de5857c56d"
+  },
+  "src/project_atlas/schemas/claim-lifecycle.schema.json": {
+    "mtime": 1785873332.870677,
+    "ast_hash": "63646e30d0289956b0bd03ce1f8834f7",
+    "semantic_hash": "63646e30d0289956b0bd03ce1f8834f7"
+  },
+  "src/project_atlas/schemas/claim.schema.json": {
+    "mtime": 1786091741.2012777,
+    "ast_hash": "499ea7b8416a386fade8730b9306cf41",
+    "semantic_hash": "499ea7b8416a386fade8730b9306cf41"
+  },
+  "src/project_atlas/schemas/concept-record.schema.json": {
+    "mtime": 1785873332.8723671,
+    "ast_hash": "830044c93e9e143eb23592d8c3250934",
+    "semantic_hash": "830044c93e9e143eb23592d8c3250934"
+  },
+  "src/project_atlas/schemas/conflict-record.schema.json": {
+    "mtime": 1785873332.8733058,
+    "ast_hash": "66ef1e5eec02aad651358d40eb91d972",
+    "semantic_hash": "66ef1e5eec02aad651358d40eb91d972"
+  },
+  "src/project_atlas/schemas/diagnostic.schema.json": {
+    "mtime": 1786091741.2022772,
+    "ast_hash": "671d4fc1fed52e6d5d0bc8306b07d6c4",
+    "semantic_hash": "671d4fc1fed52e6d5d0bc8306b07d6c4"
+  },
+  "src/project_atlas/schemas/parser-output.schema.json": {
+    "mtime": 1786091741.2032857,
+    "ast_hash": "bfd8dd29ed2fa897200791bc07ff85fe",
+    "semantic_hash": "bfd8dd29ed2fa897200791bc07ff85fe"
+  },
+  "src/project_atlas/schemas/provenance-reference.schema.json": {
+    "mtime": 1785873332.8733058,
+    "ast_hash": "b1df001899c67fab2a7cb231004d3e78",
+    "semantic_hash": "b1df001899c67fab2a7cb231004d3e78"
+  },
+  "src/project_atlas/schemas/review-entry.schema.json": {
+    "mtime": 1785873332.8748894,
+    "ast_hash": "b1cfb89440fc92914cfc577d17a8fcc9",
+    "semantic_hash": "b1cfb89440fc92914cfc577d17a8fcc9"
+  },
+  "src/project_atlas/schemas/semantic-records.schema.json": {
+    "mtime": 1785873332.8755193,
+    "ast_hash": "b569b9dc763cb6fbd0d192ec3740af58",
+    "semantic_hash": "b569b9dc763cb6fbd0d192ec3740af58"
+  },
+  "src/project_atlas/schemas/source-record.schema.json": {
+    "mtime": 1785873332.8765879,
+    "ast_hash": "81679e19314fd321232fd2d617f42f85",
+    "semantic_hash": "81679e19314fd321232fd2d617f42f85"
+  },
+  "src/project_atlas/schemas/source-registry.schema.json": {
+    "mtime": 1785873332.8776507,
+    "ast_hash": "573a1a792d0acab842ca2c30db2fe3af",
+    "semantic_hash": "573a1a792d0acab842ca2c30db2fe3af"
+  },
+  "src/project_atlas/schemas/validation-finding.schema.json": {
+    "mtime": 1785873332.8782578,
+    "ast_hash": "1dfa3d64875dbfc0f1dc7d2def1f974e",
+    "semantic_hash": "1dfa3d64875dbfc0f1dc7d2def1f974e"
+  },
+  "src/project_atlas/semantic_compiler.py": {
+    "mtime": 1785873332.8791897,
+    "ast_hash": "6005b7659c47ea088faebe8082109d28",
+    "semantic_hash": "6005b7659c47ea088faebe8082109d28"
+  },
+  "src/project_atlas/source_identity.py": {
+    "mtime": 1786091741.2042868,
+    "ast_hash": "68a8375f618f90f8027a26cbd9bb33d3",
+    "semantic_hash": "68a8375f618f90f8027a26cbd9bb33d3"
+  },
+  "src/project_atlas/validation.py": {
+    "mtime": 1786091741.2052906,
+    "ast_hash": "25b7f71763ea3b0795645c8e97fe2b7e",
+    "semantic_hash": "25b7f71763ea3b0795645c8e97fe2b7e"
+  },
+  "src/project_atlas/verify_profile.py": {
+    "mtime": 1786091741.2062912,
+    "ast_hash": "1f46e014594a4ecfa743c180c2e963da",
+    "semantic_hash": "1f46e014594a4ecfa743c180c2e963da"
+  },
+  "src/project_atlas/yaml_structured.py": {
+    "mtime": 1786091741.2072911,
+    "ast_hash": "fca0035e15e56c299b849dcc0f57b632",
+    "semantic_hash": "fca0035e15e56c299b849dcc0f57b632"
+  },
+  "tests/__init__.py": {
+    "mtime": 1785873332.8818667,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "tests/fixtures/expected/manifests/pilots-manifest.json": {
+    "mtime": 1786091741.2318797,
+    "ast_hash": "edb734e743f3eace8591eb530a119d3b",
+    "semantic_hash": "edb734e743f3eace8591eb530a119d3b"
+  },
+  "tests/fixtures/expected/portfolio/capability-report.json": {
+    "mtime": 1785874883.4325528,
+    "ast_hash": "3ca424fd168cc24f348ae1deace0efb6",
+    "semantic_hash": "3ca424fd168cc24f348ae1deace0efb6"
+  },
+  "tests/fixtures/expected/portfolio/dependency-report.json": {
+    "mtime": 1786091741.2324023,
+    "ast_hash": "fb08137edb417928115f2dc31747ed14",
+    "semantic_hash": "fb08137edb417928115f2dc31747ed14"
+  },
+  "tests/fixtures/expected/portfolio/documentation-coverage.json": {
+    "mtime": 1786091741.2324023,
+    "ast_hash": "f2ca09540494b9c582b3440af7001a63",
+    "semantic_hash": "f2ca09540494b9c582b3440af7001a63"
+  },
+  "tests/fixtures/expected/portfolio/maturity-matrix.json": {
+    "mtime": 1785874883.4269443,
+    "ast_hash": "d478accf4fbec35021fb6eeec9661346",
+    "semantic_hash": "d478accf4fbec35021fb6eeec9661346"
+  },
+  "tests/fixtures/expected/portfolio/overview.json": {
+    "mtime": 1785874883.4264278,
+    "ast_hash": "89a8c00f949fef9704b6eb982c62bcac",
+    "semantic_hash": "89a8c00f949fef9704b6eb982c62bcac"
+  },
+  "tests/fixtures/expected/portfolio/stale-knowledge.json": {
+    "mtime": 1785874883.428978,
+    "ast_hash": "898672cd32599f938b76d77b8c6dea30",
+    "semantic_hash": "898672cd32599f938b76d77b8c6dea30"
+  },
+  "tests/integration/test_agent_event_ingestion.py": {
+    "mtime": 1786091741.2389245,
+    "ast_hash": "bdefa1f9feb6719b17fde1e45e5b8512",
+    "semantic_hash": "bdefa1f9feb6719b17fde1e45e5b8512"
+  },
+  "tests/integration/test_as_mvp_001_portfolio.py": {
+    "mtime": 1786091741.2404423,
+    "ast_hash": "c58a0bac8c445632d75f1edb8f3acf3d",
+    "semantic_hash": "c58a0bac8c445632d75f1edb8f3acf3d"
+  },
+  "tests/integration/test_as_mvp_001_release_closure.py": {
+    "mtime": 1786091741.242431,
+    "ast_hash": "96c4b320aeff8994708d867d084aa53a",
+    "semantic_hash": "96c4b320aeff8994708d867d084aa53a"
+  },
+  "tests/integration/test_as_ret_001_lexical_indexes.py": {
+    "mtime": 1786091741.2434404,
+    "ast_hash": "8bee804903d936975b01b8c9604478ea",
+    "semantic_hash": "8bee804903d936975b01b8c9604478ea"
+  },
+  "tests/integration/test_as_sec_001_quarantine_boundary.py": {
+    "mtime": 1786091741.2446995,
+    "ast_hash": "2ce2ea43049f4b345effe05ae93817f0",
+    "semantic_hash": "2ce2ea43049f4b345effe05ae93817f0"
+  },
+  "tests/integration/test_cli.py": {
+    "mtime": 1785873332.935377,
+    "ast_hash": "ced07095041d00f453588945a9815188",
+    "semantic_hash": "ced07095041d00f453588945a9815188"
+  },
+  "tests/integration/test_concurrency.py": {
+    "mtime": 1786091741.2452083,
+    "ast_hash": "089b03f3df884e61901b87ceb7e3f323",
+    "semantic_hash": "089b03f3df884e61901b87ceb7e3f323"
+  },
+  "tests/integration/test_core_claims_authority_conflicts.py": {
+    "mtime": 1786091741.2462177,
+    "ast_hash": "ef27bb04ad8c7e88867073a05a30c872",
+    "semantic_hash": "ef27bb04ad8c7e88867073a05a30c872"
+  },
+  "tests/integration/test_core_semantic_lifecycle.py": {
+    "mtime": 1786091741.2476552,
+    "ast_hash": "297a95706cdf7f3e6398467273851535",
+    "semantic_hash": "297a95706cdf7f3e6398467273851535"
+  },
+  "tests/integration/test_core_vertical_slice.py": {
+    "mtime": 1786091741.2490427,
+    "ast_hash": "d92aba0f473ad09852264d0c60fb2001",
+    "semantic_hash": "d92aba0f473ad09852264d0c60fb2001"
+  },
+  "tests/integration/test_evidence_compiler_pipeline.py": {
+    "mtime": 1786091741.2495508,
+    "ast_hash": "6d0da05204ad9c24c2fa3cecd1c49901",
+    "semantic_hash": "6d0da05204ad9c24c2fa3cecd1c49901"
+  },
+  "tests/integration/test_historical_completeness.py": {
+    "mtime": 1786091741.250561,
+    "ast_hash": "5211aa15f5461a44b0214e51a7627606",
+    "semantic_hash": "5211aa15f5461a44b0214e51a7627606"
+  },
+  "tests/integration/test_ingestion_security.py": {
+    "mtime": 1786091741.2522652,
+    "ast_hash": "c7ce57ec48a27cc50a055713e10ec5a4",
+    "semantic_hash": "c7ce57ec48a27cc50a055713e10ec5a4"
+  },
+  "tests/integration/test_migration.py": {
+    "mtime": 1786091741.2527404,
+    "ast_hash": "8f15404bf898420176339996fdf3bdff",
+    "semantic_hash": "8f15404bf898420176339996fdf3bdff"
+  },
+  "tests/integration/test_okf_public_conformance.py": {
+    "mtime": 1786091741.2537615,
+    "ast_hash": "9e41816d4b7590d0154c3c271a9ab244",
+    "semantic_hash": "9e41816d4b7590d0154c3c271a9ab244"
+  },
+  "tests/unit/test_as_gh_001_governance.py": {
+    "mtime": 1786091741.254402,
+    "ast_hash": "667c4a8ffdd7b4223de34775f5532921",
+    "semantic_hash": "667c4a8ffdd7b4223de34775f5532921"
+  },
+  "tests/unit/test_as_mvp_001_relationship_edges.py": {
+    "mtime": 1785873332.9476392,
+    "ast_hash": "ab153f5487ab623acdfa4bb3e96be5c3",
+    "semantic_hash": "ab153f5487ab623acdfa4bb3e96be5c3"
+  },
+  "tests/unit/test_atlas_contracts.py": {
+    "mtime": 1785873332.948285,
+    "ast_hash": "0e8bf9a526ca73a711b4b96d626aa5e1",
+    "semantic_hash": "0e8bf9a526ca73a711b4b96d626aa5e1"
+  },
+  "tests/unit/test_claim_identity.py": {
+    "mtime": 1786091741.2549098,
+    "ast_hash": "10ff17907ca5050e22827f53789cb732",
+    "semantic_hash": "10ff17907ca5050e22827f53789cb732"
+  },
+  "tests/unit/test_classification.py": {
+    "mtime": 1786091741.2561457,
+    "ast_hash": "8ca9eb24f55e0e2845b31b6b3e61ad6b",
+    "semantic_hash": "8ca9eb24f55e0e2845b31b6b3e61ad6b"
+  },
+  "tests/unit/test_compilation.py": {
+    "mtime": 1786091741.2568233,
+    "ast_hash": "1ec1fe5f8bb8dce657df37cea157f3de",
+    "semantic_hash": "1ec1fe5f8bb8dce657df37cea157f3de"
+  },
+  "tests/unit/test_config.py": {
+    "mtime": 1785873332.9488435,
+    "ast_hash": "824e0b5a51a7b36ad0d5ac15397b0e5c",
+    "semantic_hash": "824e0b5a51a7b36ad0d5ac15397b0e5c"
+  },
+  "tests/unit/test_diagnostics.py": {
+    "mtime": 1786091741.257319,
+    "ast_hash": "aead2ec4bed3e7c943b5c83f6373f898",
+    "semantic_hash": "aead2ec4bed3e7c943b5c83f6373f898"
+  },
+  "tests/unit/test_domain_models.py": {
+    "mtime": 1785873332.9497998,
+    "ast_hash": "a1f92a5f7aaf9f410f8515e205de4562",
+    "semantic_hash": "a1f92a5f7aaf9f410f8515e205de4562"
+  },
+  "tests/unit/test_evidence_compiler.py": {
+    "mtime": 1786091741.258134,
+    "ast_hash": "c7be06450b6bca9bbab80eee3510efd5",
+    "semantic_hash": "c7be06450b6bca9bbab80eee3510efd5"
+  },
+  "tests/unit/test_evidence_profiles.py": {
+    "mtime": 1786091741.2586417,
+    "ast_hash": "acb886f802b62225ec13f4aeeebf55d0",
+    "semantic_hash": "acb886f802b62225ec13f4aeeebf55d0"
+  },
+  "tests/unit/test_heading_locator.py": {
+    "mtime": 1786091741.259652,
+    "ast_hash": "37ef871a0d350a32bbc7929c233c255d",
+    "semantic_hash": "37ef871a0d350a32bbc7929c233c255d"
+  },
+  "tests/unit/test_knowledge_compiler.py": {
+    "mtime": 1786091741.2633386,
+    "ast_hash": "bfa069d7f7accdac93f4ffc5f3d636f8",
+    "semantic_hash": "bfa069d7f7accdac93f4ffc5f3d636f8"
+  },
+  "tests/unit/test_locator_migration.py": {
+    "mtime": 1786091741.2649617,
+    "ast_hash": "ace8e1321a7f8dcd5ec2900a18bd8dcd",
+    "semantic_hash": "ace8e1321a7f8dcd5ec2900a18bd8dcd"
+  },
+  "tests/unit/test_logging.py": {
+    "mtime": 1785873332.9513698,
+    "ast_hash": "157857f364829318598a59284d589bc9",
+    "semantic_hash": "157857f364829318598a59284d589bc9"
+  },
+  "tests/unit/test_okf_conformance.py": {
+    "mtime": 1786091741.2667806,
+    "ast_hash": "db100e0669b337e89cbd966bc6277d72",
+    "semantic_hash": "db100e0669b337e89cbd966bc6277d72"
+  },
+  "tests/unit/test_parser_output.py": {
+    "mtime": 1786091741.267472,
+    "ast_hash": "50795a16c5842eddfd6ec31ea5309c13",
+    "semantic_hash": "50795a16c5842eddfd6ec31ea5309c13"
+  },
+  "tests/unit/test_quarantine.py": {
+    "mtime": 1785873332.9543724,
+    "ast_hash": "326e2194436fd6ce2e6784d895a6d807",
+    "semantic_hash": "326e2194436fd6ce2e6784d895a6d807"
+  },
+  "tests/unit/test_quarantine_fuzz.py": {
+    "mtime": 1785873332.9554815,
+    "ast_hash": "5d01ddda12e6ea647b344d529376883e",
+    "semantic_hash": "5d01ddda12e6ea647b344d529376883e"
+  },
+  "tests/unit/test_scaffold.py": {
+    "mtime": 1785873332.9554815,
+    "ast_hash": "0b4fe6345dfc8d71f2f889f61b86434f",
+    "semantic_hash": "0b4fe6345dfc8d71f2f889f61b86434f"
+  },
+  "tests/unit/test_schema.py": {
+    "mtime": 1786091741.2690814,
+    "ast_hash": "bdc8f00a7e65e715a56f18f862ca2a80",
+    "semantic_hash": "bdc8f00a7e65e715a56f18f862ca2a80"
+  },
+  "tests/unit/test_semantic_models.py": {
+    "mtime": 1785873332.9574933,
+    "ast_hash": "fb53d63854b98a0c81136b1d31d83085",
+    "semantic_hash": "fb53d63854b98a0c81136b1d31d83085"
+  },
+  "tests/unit/test_source_identity.py": {
+    "mtime": 1786091741.2695868,
+    "ast_hash": "5d47d826b3ed5d4ce35baf97b8209494",
+    "semantic_hash": "5d47d826b3ed5d4ce35baf97b8209494"
+  },
+  "tests/unit/test_verify_profile.py": {
+    "mtime": 1786091741.270743,
+    "ast_hash": "46ad72401a5bc4250a81174a5e38d735",
+    "semantic_hash": "46ad72401a5bc4250a81174a5e38d735"
+  },
+  "tests/unit/test_yaml_structured.py": {
+    "mtime": 1786091741.2717526,
+    "ast_hash": "a04b53d41ccf786ea5393a5e13060b14",
+    "semantic_hash": "a04b53d41ccf786ea5393a5e13060b14"
+  },
+  ".atlas-spool/AE-20260804T203902Z-project-atlas-47edc661.md": {
+    "mtime": 1785875942.4494843,
+    "ast_hash": "5d005d97a571db8902cf5dd6e878aaf8",
+    "semantic_hash": "5d005d97a571db8902cf5dd6e878aaf8"
+  },
+  ".atlas-spool/AE-20260804T205604Z-project-atlas-023d8f68.md": {
+    "mtime": 1785876964.7227666,
+    "ast_hash": "5ef49b919a5dcb7b62ef0b6d9cff9439",
+    "semantic_hash": "5ef49b919a5dcb7b62ef0b6d9cff9439"
+  },
+  ".atlas-spool/AE-20260804T213441Z-project-atlas-81597755.md": {
+    "mtime": 1785879281.9562418,
+    "ast_hash": "5ef07774f2fc2ef3a76ddb5de6dcf016",
+    "semantic_hash": "5ef07774f2fc2ef3a76ddb5de6dcf016"
+  },
+  ".atlas-spool/AE-20260804T213441Z-project-atlas-f3aed868.md": {
+    "mtime": 1785879281.3054748,
+    "ast_hash": "53a2edd3b1479497fb2709a7d7cd1c59",
+    "semantic_hash": "53a2edd3b1479497fb2709a7d7cd1c59"
+  },
+  ".atlas-spool/AE-20260804T213442Z-project-atlas-80479c40.md": {
+    "mtime": 1785879282.6946032,
+    "ast_hash": "d1dc8ed6405631ef8140be6a4320d1fe",
+    "semantic_hash": "d1dc8ed6405631ef8140be6a4320d1fe"
+  },
+  ".atlas/project.yaml": {
+    "mtime": 1785873332.549961,
+    "ast_hash": "ece6b8f6ffa93e0cc5c09eaa59b42a75",
+    "semantic_hash": "ece6b8f6ffa93e0cc5c09eaa59b42a75"
+  },
+  ".github/dependabot.yml": {
+    "mtime": 1786091741.1465015,
+    "ast_hash": "e17feae2cc1e96469887d25b4718c6ab",
+    "semantic_hash": "e17feae2cc1e96469887d25b4718c6ab"
+  },
+  ".github/pull_request_template.md": {
+    "mtime": 1786091741.1474988,
+    "ast_hash": "1780663ec704b9e5a29f0315cbfe501e",
+    "semantic_hash": "1780663ec704b9e5a29f0315cbfe501e"
+  },
+  ".github/workflows/atlas-documentation-gate.yml": {
+    "mtime": 1786091741.1487472,
+    "ast_hash": "1fd9718e2865ce6f76e4de75340391c7",
+    "semantic_hash": "1fd9718e2865ce6f76e4de75340391c7"
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1786091741.1502664,
+    "ast_hash": "6888237b131cf63cc1a5541d9c7f2534",
+    "semantic_hash": "6888237b131cf63cc1a5541d9c7f2534"
+  },
+  "AGENT-BOOTSTRAP.md": {
+    "mtime": 1785873332.5590298,
+    "ast_hash": "3b0f63940db8231f287bb185157b82fa",
+    "semantic_hash": "3b0f63940db8231f287bb185157b82fa"
+  },
+  "AGENTS.md": {
+    "mtime": 1785873332.5590298,
+    "ast_hash": "78975e4ea4cd88474d1d6cea63700489",
+    "semantic_hash": "78975e4ea4cd88474d1d6cea63700489"
+  },
+  "CLAUDE.md": {
+    "mtime": 1785873332.5611713,
+    "ast_hash": "daa15162c35fe5834f2a082823c4c88e",
+    "semantic_hash": "daa15162c35fe5834f2a082823c4c88e"
+  },
+  "CONTRIBUTING.md": {
+    "mtime": 1786091741.1522782,
+    "ast_hash": "edc01d05fb42c56e00969ce5da691770",
+    "semantic_hash": "edc01d05fb42c56e00969ce5da691770"
+  },
+  "README.md": {
+    "mtime": 1786091741.1532762,
+    "ast_hash": "13e3f0e46123a6ed00cac2b3b536b422",
+    "semantic_hash": "13e3f0e46123a6ed00cac2b3b536b422"
+  },
+  "SECURITY.md": {
+    "mtime": 1786091741.155277,
+    "ast_hash": "eb91cbc0b18b9cfad26fde8dc82e598f",
+    "semantic_hash": "eb91cbc0b18b9cfad26fde8dc82e598f"
+  },
+  "WORKLOG.md": {
+    "mtime": 1786091795.6895123,
+    "ast_hash": "3d0f14772459afb7cb81bfa5e2471cad",
+    "semantic_hash": "3d0f14772459afb7cb81bfa5e2471cad"
+  },
+  "atlas-vault-documentation/ACCEPTANCE_TESTS.md": {
+    "mtime": 1785873332.5670002,
+    "ast_hash": "d1b34d85a535f4872daf2547e48f6bb6",
+    "semantic_hash": "d1b34d85a535f4872daf2547e48f6bb6"
+  },
+  "atlas-vault-documentation/AS-CTRL-001-CERTIFICATION-RECEIPT.yaml": {
+    "mtime": 1785873332.5676322,
+    "ast_hash": "645fe4fca657f5d89af4f27b27e5ba2b",
+    "semantic_hash": "645fe4fca657f5d89af4f27b27e5ba2b"
+  },
+  "atlas-vault-documentation/AS-CTRL-001-CERTIFICATION.md": {
+    "mtime": 1785873332.5690224,
+    "ast_hash": "87eae43c6580b9eb1f593a9520582058",
+    "semantic_hash": "87eae43c6580b9eb1f593a9520582058"
+  },
+  "atlas-vault-documentation/AS-CTRL-001-COMPLETION-REPORT.md": {
+    "mtime": 1785873332.5700312,
+    "ast_hash": "39bc00542813857add3ddbd3075524a3",
+    "semantic_hash": "39bc00542813857add3ddbd3075524a3"
+  },
+  "atlas-vault-documentation/AS-SKILL-001-CERTIFICATION-RECEIPT.yaml": {
+    "mtime": 1785873332.5715396,
+    "ast_hash": "8ec8119a3a837152c36f49cb029aa5e3",
+    "semantic_hash": "8ec8119a3a837152c36f49cb029aa5e3"
+  },
+  "atlas-vault-documentation/AS-SKILL-001-CERTIFICATION.md": {
+    "mtime": 1785873332.572538,
+    "ast_hash": "154a06aa29d8d7b6fd83a778fe6d8bf1",
+    "semantic_hash": "154a06aa29d8d7b6fd83a778fe6d8bf1"
+  },
+  "atlas-vault-documentation/AS-SKILL-001-COMPLETION-REPORT.md": {
+    "mtime": 1785873332.5730464,
+    "ast_hash": "10dea24c9244d2095f49c99c5d44c0b6",
+    "semantic_hash": "10dea24c9244d2095f49c99c5d44c0b6"
+  },
+  "atlas-vault-documentation/AS-WP-003-CERTIFICATION.md": {
+    "mtime": 1785873332.5730464,
+    "ast_hash": "91d91cf9a44446b036dc0008ca69e379",
+    "semantic_hash": "91d91cf9a44446b036dc0008ca69e379"
+  },
+  "atlas-vault-documentation/AS-WP-004-CERTIFICATION.md": {
+    "mtime": 1785873332.5747378,
+    "ast_hash": "4bea3cd2f1c5d48ff2d2a7cfdfbc393c",
+    "semantic_hash": "4bea3cd2f1c5d48ff2d2a7cfdfbc393c"
+  },
+  "atlas-vault-documentation/AS-WP-004-COMPLETION-REPORT.md": {
+    "mtime": 1785873332.5760913,
+    "ast_hash": "8bbf03fdbeaee4c4290cd8f36c28ebfa",
+    "semantic_hash": "8bbf03fdbeaee4c4290cd8f36c28ebfa"
+  },
+  "atlas-vault-documentation/AS-WP-005-CERTIFICATION.md": {
+    "mtime": 1785873332.5765982,
+    "ast_hash": "185911e5ec593f453994f1b807469c73",
+    "semantic_hash": "185911e5ec593f453994f1b807469c73"
+  },
+  "atlas-vault-documentation/ATLAS-DOC-RECEIPT.md": {
+    "mtime": 1785873332.5781195,
+    "ast_hash": "e0cb8ec95769d76bf6173a020695a15e",
+    "semantic_hash": "e0cb8ec95769d76bf6173a020695a15e"
+  },
+  "atlas-vault-documentation/IMPLEMENTATION_ROADMAP.md": {
+    "mtime": 1785873332.5791297,
+    "ast_hash": "0abd6b5c382a0240adaffa55d8add4d0",
+    "semantic_hash": "0abd6b5c382a0240adaffa55d8add4d0"
+  },
+  "atlas-vault-documentation/MDA-STANDARD.md": {
+    "mtime": 1785873332.5797887,
+    "ast_hash": "a0a588c357f07e603c16f884da50a676",
+    "semantic_hash": "a0a588c357f07e603c16f884da50a676"
+  },
+  "atlas-vault-documentation/PRP.md": {
+    "mtime": 1785873332.5802987,
+    "ast_hash": "67b03bde169328053654d7e7951e0fa8",
+    "semantic_hash": "67b03bde169328053654d7e7951e0fa8"
+  },
+  "atlas-vault-documentation/README.md": {
+    "mtime": 1785873332.5818164,
+    "ast_hash": "84160b16c61d742c732631eae237dc18",
+    "semantic_hash": "84160b16c61d742c732631eae237dc18"
+  },
+  "atlas-vault-documentation/SKILL.md": {
+    "mtime": 1785873332.582827,
+    "ast_hash": "b03a2f18bb54a2800448409d89e12db4",
+    "semantic_hash": "b03a2f18bb54a2800448409d89e12db4"
+  },
+  "atlas-vault-documentation/START_HERE_AGENT_PROMPT.md": {
+    "mtime": 1785873332.5838368,
+    "ast_hash": "df45d4fd9e21648b1f168e0db3a34280",
+    "semantic_hash": "df45d4fd9e21648b1f168e0db3a34280"
+  },
+  "atlas-vault-documentation/VALIDATION_REPORT.md": {
+    "mtime": 1785873332.5848348,
+    "ast_hash": "8876e8d77cf4f393b464dd9371dbc3f4",
+    "semantic_hash": "8876e8d77cf4f393b464dd9371dbc3f4"
+  },
+  "atlas-vault-documentation/adapters/universal-system-prompt.md": {
+    "mtime": 1785873332.5894747,
+    "ast_hash": "6c4c062fd5736010bfbcb07d60ac97f4",
+    "semantic_hash": "6c4c062fd5736010bfbcb07d60ac97f4"
+  },
+  "atlas-vault-documentation/agent-control/README.md": {
+    "mtime": 1785873332.5894747,
+    "ast_hash": "eb8562077d5ef947abf9f8e47606da32",
+    "semantic_hash": "eb8562077d5ef947abf9f8e47606da32"
+  },
+  "atlas-vault-documentation/config/agent-readiness.yaml": {
+    "mtime": 1785873332.607579,
+    "ast_hash": "605d46ec079369889aa5a799ff7ff51b",
+    "semantic_hash": "605d46ec079369889aa5a799ff7ff51b"
+  },
+  "atlas-vault-documentation/config/agent-registry.yaml": {
+    "mtime": 1785873332.607579,
+    "ast_hash": "cc226c5f18e5043fea561814afe7a9fa",
+    "semantic_hash": "cc226c5f18e5043fea561814afe7a9fa"
+  },
+  "atlas-vault-documentation/config/atlas-agent.example.yaml": {
+    "mtime": 1785873332.6088398,
+    "ast_hash": "2e6b6d3427634aa66927b4aaea59b980",
+    "semantic_hash": "2e6b6d3427634aa66927b4aaea59b980"
+  },
+  "atlas-vault-documentation/docs/MDA-CLI-ALIGNMENT.md": {
+    "mtime": 1785873332.6093614,
+    "ast_hash": "46383c50a33c09914d0898180567b3be",
+    "semantic_hash": "46383c50a33c09914d0898180567b3be"
+  },
+  "atlas-vault-documentation/docs/NORMALIZATION.md": {
+    "mtime": 1785873332.6104438,
+    "ast_hash": "dd6eef4d89cbc8db650835237cadb5a0",
+    "semantic_hash": "dd6eef4d89cbc8db650835237cadb5a0"
+  },
+  "atlas-vault-documentation/docs/THREAT_MODEL.md": {
+    "mtime": 1785873332.6115272,
+    "ast_hash": "dfc41680682890efd511cad666a36328",
+    "semantic_hash": "dfc41680682890efd511cad666a36328"
+  },
+  "atlas-vault-documentation/evidence/agent-readiness-promoted.yaml": {
+    "mtime": 1785873332.6151094,
+    "ast_hash": "605d46ec079369889aa5a799ff7ff51b",
+    "semantic_hash": "605d46ec079369889aa5a799ff7ff51b"
+  },
+  "atlas-vault-documentation/examples/raw-event-example.md": {
+    "mtime": 1785873332.6173277,
+    "ast_hash": "644c3c10d4a5b8f3d5d0a85be0a7c345",
+    "semantic_hash": "644c3c10d4a5b8f3d5d0a85be0a7c345"
+  },
+  "atlas-vault-documentation/references/AGENT-BOOTSTRAP-CONTRACT.md": {
+    "mtime": 1785873332.6574328,
+    "ast_hash": "bf1fbb6c71b0a5a2eb97ce85bb175518",
+    "semantic_hash": "bf1fbb6c71b0a5a2eb97ce85bb175518"
+  },
+  "atlas-vault-documentation/references/AGENT-CAPABILITY-CONTRACT.md": {
+    "mtime": 1785873332.6584423,
+    "ast_hash": "1fbce6e9277542495243b707d2f05f8b",
+    "semantic_hash": "1fbce6e9277542495243b707d2f05f8b"
+  },
+  "atlas-vault-documentation/references/AGENT-INTEGRATION.md": {
+    "mtime": 1785873332.6584423,
+    "ast_hash": "c63caaefb37377a0e5ab724f859ef709",
+    "semantic_hash": "c63caaefb37377a0e5ab724f859ef709"
+  },
+  "atlas-vault-documentation/references/AGENT-READINESS-CONTRACT.md": {
+    "mtime": 1785873332.6594443,
+    "ast_hash": "c493da42225717a7727d68ebdb24a326",
+    "semantic_hash": "c493da42225717a7727d68ebdb24a326"
+  },
+  "atlas-vault-documentation/references/AGENT-SESSION-CONTRACT.md": {
+    "mtime": 1785873332.660497,
+    "ast_hash": "bbac9ea806954d2bbe071993b8af8362",
+    "semantic_hash": "bbac9ea806954d2bbe071993b8af8362"
+  },
+  "atlas-vault-documentation/references/ATLAS-DOCUMENTATION-CONTRACT.md": {
+    "mtime": 1785873332.661049,
+    "ast_hash": "1fddd09a744291a0122d0bc24f091184",
+    "semantic_hash": "1fddd09a744291a0122d0bc24f091184"
+  },
+  "atlas-vault-documentation/references/DOCUMENT-CLASSIFICATION-CONTRACT.md": {
+    "mtime": 1785873332.6616764,
+    "ast_hash": "1c21131353caa127759f8d509757c310",
+    "semantic_hash": "1c21131353caa127759f8d509757c310"
+  },
+  "atlas-vault-documentation/references/DOCUMENT-INVENTORY-CONTRACT.md": {
+    "mtime": 1785873332.6626067,
+    "ast_hash": "dc486e3820d51c80ee5b7ce4badaa348",
+    "semantic_hash": "dc486e3820d51c80ee5b7ce4badaa348"
+  },
+  "atlas-vault-documentation/references/DOCUMENTATION-COVERAGE-CONTRACT.md": {
+    "mtime": 1785873332.6626067,
+    "ast_hash": "bb13d62ed6ca59ef434ab253ba73628f",
+    "semantic_hash": "bb13d62ed6ca59ef434ab253ba73628f"
+  },
+  "atlas-vault-documentation/references/DOCUMENTATION-ENFORCEMENT-CONTRACT.md": {
+    "mtime": 1785873332.6641707,
+    "ast_hash": "c8701e8578d8895c79dad676d163ca1f",
+    "semantic_hash": "c8701e8578d8895c79dad676d163ca1f"
+  },
+  "atlas-vault-documentation/references/EVENT-TAXONOMY.md": {
+    "mtime": 1785873332.6641707,
+    "ast_hash": "40fc077aa0a47f16fa7f32bbe2a297f6",
+    "semantic_hash": "40fc077aa0a47f16fa7f32bbe2a297f6"
+  },
+  "atlas-vault-documentation/references/FRONTMATTER-SCHEMA.md": {
+    "mtime": 1785873332.665131,
+    "ast_hash": "92edfe3ab70ff31754a17faf4d9530e7",
+    "semantic_hash": "92edfe3ab70ff31754a17faf4d9530e7"
+  },
+  "atlas-vault-documentation/references/GRAPH-IDENTITY-CONTRACT.md": {
+    "mtime": 1785873332.665131,
+    "ast_hash": "dad6c0a0ef98f95279d0b1c7f3e9d1e6",
+    "semantic_hash": "dad6c0a0ef98f95279d0b1c7f3e9d1e6"
+  },
+  "atlas-vault-documentation/references/GRAPH-QUARANTINE-CONTRACT.md": {
+    "mtime": 1785873332.6667008,
+    "ast_hash": "43e32aa9f3f8fa86abadd92713d8ab88",
+    "semantic_hash": "43e32aa9f3f8fa86abadd92713d8ab88"
+  },
+  "atlas-vault-documentation/references/GRAPH-SOURCE-LINK-CONTRACT.md": {
+    "mtime": 1785873332.6678615,
+    "ast_hash": "f69b282d1b7e1e5afee463ffa9516bad",
+    "semantic_hash": "f69b282d1b7e1e5afee463ffa9516bad"
+  },
+  "atlas-vault-documentation/references/GRAPH-VALIDATION-CONTRACT.md": {
+    "mtime": 1785873332.6684783,
+    "ast_hash": "1238b6f4dcfa99c83206bdadf5aadff7",
+    "semantic_hash": "1238b6f4dcfa99c83206bdadf5aadff7"
+  },
+  "atlas-vault-documentation/references/GRAPHIFY-ADAPTER-CONTRACT.md": {
+    "mtime": 1785873332.6684783,
+    "ast_hash": "ac9ed71f9f8368d41814d14044a72a93",
+    "semantic_hash": "ac9ed71f9f8368d41814d14044a72a93"
+  },
+  "atlas-vault-documentation/references/INGESTION-RECEIPT-CONTRACT.md": {
+    "mtime": 1785873332.669488,
+    "ast_hash": "ff7d6ade856d15ff79609b1917951825",
+    "semantic_hash": "ff7d6ade856d15ff79609b1917951825"
+  },
+  "atlas-vault-documentation/references/JSON-OUTPUT-CONTRACT.md": {
+    "mtime": 1785873332.6704917,
+    "ast_hash": "28cdfce762824d723dab2f6e913812f2",
+    "semantic_hash": "28cdfce762824d723dab2f6e913812f2"
+  },
+  "atlas-vault-documentation/references/MDA-CLI-INTEGRATION.md": {
+    "mtime": 1785873332.6714928,
+    "ast_hash": "0dee6fb15189b02a085848a30f4d2dff",
+    "semantic_hash": "0dee6fb15189b02a085848a30f4d2dff"
+  },
+  "atlas-vault-documentation/references/PROJECT-DISCOVERY-CONTRACT.md": {
+    "mtime": 1785873332.6721287,
+    "ast_hash": "2803d06b5fb592eb3f7f338d230ae0ef",
+    "semantic_hash": "2803d06b5fb592eb3f7f338d230ae0ef"
+  },
+  "atlas-vault-documentation/references/PROVENANCE.md": {
+    "mtime": 1785873332.672636,
+    "ast_hash": "da422df6d4c315e1fba05c85fdf3e126",
+    "semantic_hash": "da422df6d4c315e1fba05c85fdf3e126"
+  },
+  "atlas-vault-documentation/references/RELATIONSHIP-AUTHORITY-CONTRACT.md": {
+    "mtime": 1785873332.6736486,
+    "ast_hash": "ec1d37ed9bb8b1df646fef170671480b",
+    "semantic_hash": "ec1d37ed9bb8b1df646fef170671480b"
+  },
+  "atlas-vault-documentation/references/SKILL-DISTRIBUTION-CONTRACT.md": {
+    "mtime": 1785873332.6736486,
+    "ast_hash": "f3ef49a56fa91839a0fb227be8514d18",
+    "semantic_hash": "f3ef49a56fa91839a0fb227be8514d18"
+  },
+  "atlas-vault-documentation/references/SOURCE-AUTHORITY-CONTRACT.md": {
+    "mtime": 1785873332.674712,
+    "ast_hash": "4e959829bec836ae9bc00570ea0d558d",
+    "semantic_hash": "4e959829bec836ae9bc00570ea0d558d"
+  },
+  "atlas-vault-documentation/references/SUPERVISED-AGENT-CONTRACT.md": {
+    "mtime": 1785873332.6752758,
+    "ast_hash": "0267b2db8ec24fbcbd8106c0e8a58418",
+    "semantic_hash": "0267b2db8ec24fbcbd8106c0e8a58418"
+  },
+  "atlas-vault-documentation/references/VAULT-IDENTITY-CONTRACT.md": {
+    "mtime": 1785873332.676233,
+    "ast_hash": "d1e1bbed084ef3a6641b4190af4762b9",
+    "semantic_hash": "d1e1bbed084ef3a6641b4190af4762b9"
+  },
+  "atlas-vault-documentation/references/VAULT-PATH-MAPPING.md": {
+    "mtime": 1785873332.676233,
+    "ast_hash": "92a3c6b563dbb680435ded4974154f6c",
+    "semantic_hash": "92a3c6b563dbb680435ded4974154f6c"
+  },
+  "atlas-vault-documentation/skill/SKILL.md": {
+    "mtime": 1785873332.711002,
+    "ast_hash": "c4c0c07c6f057e6e6538ee3f4135f0e7",
+    "semantic_hash": "c4c0c07c6f057e6e6538ee3f4135f0e7"
+  },
+  "atlas-vault-documentation/skill/skill-manifest.yaml": {
+    "mtime": 1785873332.711002,
+    "ast_hash": "8bfb2916cda7dcf704d3764a81746745",
+    "semantic_hash": "8bfb2916cda7dcf704d3764a81746745"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/COMMANDS.md": {
+    "mtime": 1785873332.7125185,
+    "ast_hash": "4ac44c0cc45fca2ee4b05a92f76f4953",
+    "semantic_hash": "4ac44c0cc45fca2ee4b05a92f76f4953"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/EVENT-TYPES.md": {
+    "mtime": 1785873332.7141864,
+    "ast_hash": "2a6c5d9fb869e75196212294000c701e",
+    "semantic_hash": "2a6c5d9fb869e75196212294000c701e"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/FAILURE-RECOVERY.md": {
+    "mtime": 1785873332.7144,
+    "ast_hash": "c17e4e645f2f6addfdb41992ed3e3c8d",
+    "semantic_hash": "c17e4e645f2f6addfdb41992ed3e3c8d"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/RECEIPT-CONTRACT.md": {
+    "mtime": 1785873332.7150388,
+    "ast_hash": "651dd275304267e60073f711259ffcd8",
+    "semantic_hash": "651dd275304267e60073f711259ffcd8"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/SKILL.md": {
+    "mtime": 1785873332.7171307,
+    "ast_hash": "9e3282094909080e9033b9d63662e7df",
+    "semantic_hash": "9e3282094909080e9033b9d63662e7df"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/agents/openai.yaml": {
+    "mtime": 1785873332.7179165,
+    "ast_hash": "9be1610393b4aa80e843c2fc461e001b",
+    "semantic_hash": "9be1610393b4aa80e843c2fc461e001b"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/examples/offline-session.md": {
+    "mtime": 1785873332.7193315,
+    "ast_hash": "4be8d7395784ee8c3d50cdd136e019fc",
+    "semantic_hash": "4be8d7395784ee8c3d50cdd136e019fc"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/references/api_reference.md": {
+    "mtime": 1785873332.7220218,
+    "ast_hash": "c83a1ff42b7c27b0504c9a65e972c0f0",
+    "semantic_hash": "c83a1ff42b7c27b0504c9a65e972c0f0"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/skill.yaml": {
+    "mtime": 1785873332.7236378,
+    "ast_hash": "ec5cc6c9f3c2e1ae812bf496fc74c153",
+    "semantic_hash": "ec5cc6c9f3c2e1ae812bf496fc74c153"
+  },
+  "atlas-vault-documentation/skills/atlas-governed-work/tests/capability-scenarios.yaml": {
+    "mtime": 1785873332.7251544,
+    "ast_hash": "6c343e14dde3da216641199246d3b396",
+    "semantic_hash": "6c343e14dde3da216641199246d3b396"
+  },
+  "atlas-vault-documentation/templates/documentation-receipt.md": {
+    "mtime": 1785873332.7263105,
+    "ast_hash": "bfb103e44aa316e16ef0611f28b7eaf6",
+    "semantic_hash": "bfb103e44aa316e16ef0611f28b7eaf6"
+  },
+  "atlas-vault-documentation/templates/project-log-entry.md": {
+    "mtime": 1785873332.7263105,
+    "ast_hash": "e1d594d0a7e307ec84f29fdd81c652ed",
+    "semantic_hash": "e1d594d0a7e307ec84f29fdd81c652ed"
+  },
+  "atlas-vault-documentation/templates/raw-event.md": {
+    "mtime": 1785873332.7271893,
+    "ast_hash": "8f1497ca4adec7a74815d0775ee60cbb",
+    "semantic_hash": "8f1497ca4adec7a74815d0775ee60cbb"
+  },
+  "atlas-vault-documentation/templates/work-package-update.md": {
+    "mtime": 1785873332.7281852,
+    "ast_hash": "be201e48ec08611069dac5362f9479c1",
+    "semantic_hash": "be201e48ec08611069dac5362f9479c1"
+  },
+  "atlas-vault-documentation/tests/fixtures/project-atlas/.atlas-project.yaml": {
+    "mtime": 1785873332.7313356,
+    "ast_hash": "b9d5f0612e08c74840c4c2746fa7f902",
+    "semantic_hash": "b9d5f0612e08c74840c4c2746fa7f902"
+  },
+  "atlas-vault-documentation/tests/fixtures/project-atlas/README.md": {
+    "mtime": 1785873332.731925,
+    "ast_hash": "0ea7dd4e3475c0e9f91d6ee80acf7055",
+    "semantic_hash": "0ea7dd4e3475c0e9f91d6ee80acf7055"
+  },
+  "atlas-vault-documentation/tests/fixtures/project-atlas/docs/ARCHITECTURE.md": {
+    "mtime": 1785873332.7339375,
+    "ast_hash": "4298d57f5670b00459890a9bb4f09908",
+    "semantic_hash": "4298d57f5670b00459890a9bb4f09908"
+  },
+  "atlas-vault-documentation/tests/fixtures/project-atlas/docs/VALIDATION_REPORT.md": {
+    "mtime": 1785873332.7350543,
+    "ast_hash": "84c1399817fe75754f7847506eac1a87",
+    "semantic_hash": "84c1399817fe75754f7847506eac1a87"
+  },
+  "atlas-vault-documentation/tests/fixtures/project-atlas/docs/roadmap.md": {
+    "mtime": 1785873332.7350543,
+    "ast_hash": "f286589fc807f634cd7af18d7ab8b48a",
+    "semantic_hash": "f286589fc807f634cd7af18d7ab8b48a"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/.atlas-project.yaml": {
+    "mtime": 1785873332.73761,
+    "ast_hash": "3097d6a7e5ec21ba89137c1b293246ab",
+    "semantic_hash": "3097d6a7e5ec21ba89137c1b293246ab"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/ARCHITECTURE.md": {
+    "mtime": 1785873332.738609,
+    "ast_hash": "6d5947747e5e2ed1cdf8eb23b0e63f33",
+    "semantic_hash": "6d5947747e5e2ed1cdf8eb23b0e63f33"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/DEPLOYMENT.md": {
+    "mtime": 1785873332.738609,
+    "ast_hash": "534018e66f6aa70a3e51b1418c22e6ca",
+    "semantic_hash": "534018e66f6aa70a3e51b1418c22e6ca"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/README.md": {
+    "mtime": 1785873332.7397854,
+    "ast_hash": "9469fe0339149ea21d76b96bd90897a4",
+    "semantic_hash": "9469fe0339149ea21d76b96bd90897a4"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/REQUIREMENTS.md": {
+    "mtime": 1785873332.7407434,
+    "ast_hash": "b990beb58accba6f0522ec9406c96085",
+    "semantic_hash": "b990beb58accba6f0522ec9406c96085"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/ROADMAP.md": {
+    "mtime": 1785873332.7407434,
+    "ast_hash": "57b1e0e2a9bbef00229ad1f3480c4ca6",
+    "semantic_hash": "57b1e0e2a9bbef00229ad1f3480c4ca6"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/SECURITY.md": {
+    "mtime": 1785873332.7423882,
+    "ast_hash": "15a9f04848845ac6e73ea8d84a45f1a3",
+    "semantic_hash": "15a9f04848845ac6e73ea8d84a45f1a3"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/VALIDATION_REPORT.md": {
+    "mtime": 1785873332.7430136,
+    "ast_hash": "73c4867ff16935cc944dcb087c7ce0f7",
+    "semantic_hash": "73c4867ff16935cc944dcb087c7ce0f7"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/WORKLOG.md": {
+    "mtime": 1785873332.7430718,
+    "ast_hash": "dda46a38f76d24aa42d7a7d16c40e050",
+    "semantic_hash": "dda46a38f76d24aa42d7a7d16c40e050"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/docs/decisions/ADR-001.md": {
+    "mtime": 1785873332.7446072,
+    "ast_hash": "08ca6f534abdde8cbb356a54d806d4e8",
+    "semantic_hash": "08ca6f534abdde8cbb356a54d806d4e8"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/docs/operations/RUNBOOK.md": {
+    "mtime": 1785873332.7446072,
+    "ast_hash": "04710ea04921e3ca39e64bb96119ff34",
+    "semantic_hash": "04710ea04921e3ca39e64bb96119ff34"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/docs/work-packages/WP-001.md": {
+    "mtime": 1785873332.7461698,
+    "ast_hash": "504d643b698c51169f384caf03b55e0e",
+    "semantic_hash": "504d643b698c51169f384caf03b55e0e"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/graphify-present/.atlas-project.yaml": {
+    "mtime": 1785873332.7467647,
+    "ast_hash": "b2b30fa9ea8c0388fc99602c943e367d",
+    "semantic_hash": "b2b30fa9ea8c0388fc99602c943e367d"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/graphify-present/ARCHITECTURE.md": {
+    "mtime": 1785873332.7467647,
+    "ast_hash": "d9280aed16cd13626ac6e0dc8ab2e65d",
+    "semantic_hash": "d9280aed16cd13626ac6e0dc8ab2e65d"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/graphify-present/README.md": {
+    "mtime": 1785873332.7491772,
+    "ast_hash": "8570aa0682a78b55ba61cbc6e3445dfb",
+    "semantic_hash": "8570aa0682a78b55ba61cbc6e3445dfb"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/mixed-formats/.atlas-project.yaml": {
+    "mtime": 1785873332.7535002,
+    "ast_hash": "0163b54fc63e2561206d49fcb604c9dd",
+    "semantic_hash": "0163b54fc63e2561206d49fcb604c9dd"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/mixed-formats/README.md": {
+    "mtime": 1785873332.7550147,
+    "ast_hash": "56495923546575e76d80476b807a91d3",
+    "semantic_hash": "56495923546575e76d80476b807a91d3"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/mixed-formats/config.yaml": {
+    "mtime": 1785873332.7571015,
+    "ast_hash": "88f14e64434e4857abc2dc5f0f414f5e",
+    "semantic_hash": "88f14e64434e4857abc2dc5f0f414f5e"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/mixed-formats/notes.txt": {
+    "mtime": 1785873332.7591116,
+    "ast_hash": "3a96263ed536bb4182750fefeccd0ce3",
+    "semantic_hash": "3a96263ed536bb4182750fefeccd0ce3"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/.atlas-project.yaml": {
+    "mtime": 1785873332.7611802,
+    "ast_hash": "71d8ba895790918840aef7d495c2241a",
+    "semantic_hash": "71d8ba895790918840aef7d495c2241a"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/README.md": {
+    "mtime": 1785873332.7616887,
+    "ast_hash": "a8806659d825f02129af8a03d6e4e9e8",
+    "semantic_hash": "a8806659d825f02129af8a03d6e4e9e8"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/apps/api/README.md": {
+    "mtime": 1785873332.7622123,
+    "ast_hash": "ce6835b4f6a92b9557f25368e56f1135",
+    "semantic_hash": "ce6835b4f6a92b9557f25368e56f1135"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/apps/web/README.md": {
+    "mtime": 1785873332.7642202,
+    "ast_hash": "9a18fd6cb4a6e465b03d0e0c5e7f044c",
+    "semantic_hash": "9a18fd6cb4a6e465b03d0e0c5e7f044c"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/docs/ARCHITECTURE.md": {
+    "mtime": 1785873332.7657366,
+    "ast_hash": "e418aa1e3fa82478cea7301805019a28",
+    "semantic_hash": "e418aa1e3fa82478cea7301805019a28"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/monorepo/packages/shared/README.md": {
+    "mtime": 1785873332.7673712,
+    "ast_hash": "6e65ae94a895aa37ec41164f548849a7",
+    "semantic_hash": "6e65ae94a895aa37ec41164f548849a7"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/sparse-readme/.atlas-project.yaml": {
+    "mtime": 1785873332.768929,
+    "ast_hash": "a4a95c7be776aaaddbebb36b9960a014",
+    "semantic_hash": "a4a95c7be776aaaddbebb36b9960a014"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/sparse-readme/README.md": {
+    "mtime": 1785873332.7699401,
+    "ast_hash": "ca68cd614753b85993af00309da06668",
+    "semantic_hash": "ca68cd614753b85993af00309da06668"
+  },
+  "atlas-vault-documentation/tests/fixtures/secret-event-input.txt": {
+    "mtime": 1785873332.7699401,
+    "ast_hash": "628130bb2143d27cdc0174260af1af5d",
+    "semantic_hash": "628130bb2143d27cdc0174260af1af5d"
+  },
+  "docs/AS-CORE-002-plan.md": {
+    "mtime": 1785873332.7812064,
+    "ast_hash": "e2c20a6ab6639a030cf7f76b1ba388f3",
+    "semantic_hash": "e2c20a6ab6639a030cf7f76b1ba388f3"
+  },
+  "docs/AS-CORE-002-post-merge.md": {
+    "mtime": 1785873332.7812064,
+    "ast_hash": "183227a00d2fa8ed140047fa14327907",
+    "semantic_hash": "183227a00d2fa8ed140047fa14327907"
+  },
+  "docs/AS-CORE-002-remediation.md": {
+    "mtime": 1785873332.7826698,
+    "ast_hash": "b79d35949c28a3ad7140e8ff550b920b",
+    "semantic_hash": "b79d35949c28a3ad7140e8ff550b920b"
+  },
+  "docs/AS-CORE-002-source-lifecycle-erratum.md": {
+    "mtime": 1785873332.783176,
+    "ast_hash": "9a92f49b1e61160009b7d79ff5ced866",
+    "semantic_hash": "9a92f49b1e61160009b7d79ff5ced866"
+  },
+  "docs/AS-CORE-003-claim-identity-amendment.md": {
+    "mtime": 1786091741.1592774,
+    "ast_hash": "0d0e0e7be5a6fcb9192e1f58e3561699",
+    "semantic_hash": "0d0e0e7be5a6fcb9192e1f58e3561699"
+  },
+  "docs/AS-CORE-003-plan.md": {
+    "mtime": 1786091741.1592774,
+    "ast_hash": "339cce2c47773cfa157f30e6cb571815",
+    "semantic_hash": "339cce2c47773cfa157f30e6cb571815"
+  },
+  "docs/AS-ID-001-governor-remediation.md": {
+    "mtime": 1785873332.7866492,
+    "ast_hash": "308f6756ffc149d094f688e4800d2ef0",
+    "semantic_hash": "308f6756ffc149d094f688e4800d2ef0"
+  },
+  "docs/AS-ID-001-plan.md": {
+    "mtime": 1785873332.7866492,
+    "ast_hash": "972f74ba46025ba35babedb2ecfd78b7",
+    "semantic_hash": "972f74ba46025ba35babedb2ecfd78b7"
+  },
+  "docs/AS-INT-001-post-merge.md": {
+    "mtime": 1785873332.7877388,
+    "ast_hash": "791c1e7ac16d75af039e37f06fcda6e9",
+    "semantic_hash": "791c1e7ac16d75af039e37f06fcda6e9"
+  },
+  "docs/acceptance-test.md": {
+    "mtime": 1785873332.7892532,
+    "ast_hash": "b4bc3d00dda38b17a2ef988f05c1950f",
+    "semantic_hash": "b4bc3d00dda38b17a2ef988f05c1950f"
+  },
+  "docs/adr/ADR-001-wp001-foundation-decisions.md": {
+    "mtime": 1785873332.7898176,
+    "ast_hash": "9d89badc0abf2bc293224ed21d39a837",
+    "semantic_hash": "9d89badc0abf2bc293224ed21d39a837"
+  },
+  "docs/adr/ADR-002-atlas-two-track-reconciliation.md": {
+    "mtime": 1785873332.7908287,
+    "ast_hash": "e487002e8b32c3449d3cbe776cd01a44",
+    "semantic_hash": "e487002e8b32c3449d3cbe776cd01a44"
+  },
+  "docs/adr/ADR-003-agent-event-ingestion-contract.md": {
+    "mtime": 1785873332.791874,
+    "ast_hash": "883dee8bb2344dae9339a6b35dea77bf",
+    "semantic_hash": "883dee8bb2344dae9339a6b35dea77bf"
+  },
+  "docs/adr/ADR-004-source-quarantine-prompt-injection-boundary.md": {
+    "mtime": 1785873332.7924268,
+    "ast_hash": "60ff3e2e16cadd3ec271e181c96ddc7a",
+    "semantic_hash": "60ff3e2e16cadd3ec271e181c96ddc7a"
+  },
+  "docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md": {
+    "mtime": 1785873332.7939467,
+    "ast_hash": "389383c8d73b5b6545cfb686a428e3d5",
+    "semantic_hash": "389383c8d73b5b6545cfb686a428e3d5"
+  },
+  "docs/adr/ADR-006-github-repository-governance-baseline.md": {
+    "mtime": 1786091741.1622784,
+    "ast_hash": "81c951f485065a369b5d1f6700dcafdf",
+    "semantic_hash": "81c951f485065a369b5d1f6700dcafdf"
+  },
+  "docs/adr/ADR-007-claim-identity-v2-canonicalization.md": {
+    "mtime": 1786091741.1632757,
+    "ast_hash": "d868fbb6a2c2ac5896755c97838b8a65",
+    "semantic_hash": "d868fbb6a2c2ac5896755c97838b8a65"
+  },
+  "docs/agent-event-ingestion-contract.md": {
+    "mtime": 1785873332.7964795,
+    "ast_hash": "dd176af593da8ee439170222a759c598",
+    "semantic_hash": "dd176af593da8ee439170222a759c598"
+  },
+  "docs/agent-event-ingestion-plan.md": {
+    "mtime": 1785873332.7964795,
+    "ast_hash": "d9a55e7c0edaee289263ecb5b4642cae",
+    "semantic_hash": "d9a55e7c0edaee289263ecb5b4642cae"
+  },
+  "docs/architecture-governance/VERIFY-AS-RET-SEQUENCING-DECISION.md": {
+    "mtime": 1785873332.7975142,
+    "ast_hash": "0bee236af1dcc33dc2da5516281bd8d5",
+    "semantic_hash": "0bee236af1dcc33dc2da5516281bd8d5"
+  },
+  "docs/atlas-core-vertical-slice-plan.md": {
+    "mtime": 1785873332.7985172,
+    "ast_hash": "8d043ac6d7e428766c8fe916d43748b6",
+    "semantic_hash": "8d043ac6d7e428766c8fe916d43748b6"
+  },
+  "docs/atlas-core-vertical-slice-post-merge.md": {
+    "mtime": 1785873332.799577,
+    "ast_hash": "dc76c4fca8f2a6dcafd49dc0a72e89e4",
+    "semantic_hash": "dc76c4fca8f2a6dcafd49dc0a72e89e4"
+  },
+  "docs/backlog.md": {
+    "mtime": 1786091741.1642754,
+    "ast_hash": "aaae3134053571015688e5d3be0d4251",
+    "semantic_hash": "aaae3134053571015688e5d3be0d4251"
+  },
+  "docs/claims-authority-conflicts.md": {
+    "mtime": 1785873332.8017087,
+    "ast_hash": "dfafcf1667e6f492de4e913434fa8801",
+    "semantic_hash": "dfafcf1667e6f492de4e913434fa8801"
+  },
+  "docs/completion-plan.md": {
+    "mtime": 1785873332.8017087,
+    "ast_hash": "f87ff0a2ca90a7d6b2f1a3693d39466a",
+    "semantic_hash": "f87ff0a2ca90a7d6b2f1a3693d39466a"
+  },
+  "docs/durable-source-lineage.md": {
+    "mtime": 1785873332.8032198,
+    "ast_hash": "e778f35fe25d1363cd71c711471caa24",
+    "semantic_hash": "e778f35fe25d1363cd71c711471caa24"
+  },
+  "docs/evidence/AS-CORE-002-post-merge-receipt.yaml": {
+    "mtime": 1785873332.8042293,
+    "ast_hash": "c5f65f5dbae59a49ce825f8a07a6714d",
+    "semantic_hash": "c5f65f5dbae59a49ce825f8a07a6714d"
+  },
+  "docs/evidence/AS-CORE-002-source-lifecycle-recertification.yaml": {
+    "mtime": 1785873332.8042293,
+    "ast_hash": "72841a760151c3a58921a77e7043c78c",
+    "semantic_hash": "72841a760151c3a58921a77e7043c78c"
+  },
+  "docs/evidence/AS-CORE-003-claim-identity-amendment-plan.yaml": {
+    "mtime": 1786091741.1652765,
+    "ast_hash": "a31bdfc1a718ff7b41d1df1453431fef",
+    "semantic_hash": "a31bdfc1a718ff7b41d1df1453431fef"
+  },
+  "docs/evidence/AS-CORE-003-receipt.yaml": {
+    "mtime": 1785873332.8067482,
+    "ast_hash": "df338ebb0a03699dc1fd53ff22065207",
+    "semantic_hash": "df338ebb0a03699dc1fd53ff22065207"
+  },
+  "docs/evidence/AS-CORE-003-v2-candidate-003-review.yaml": {
+    "mtime": 1786091741.1662772,
+    "ast_hash": "472df7b8af45fe7a4f8f6a1aeda7acba",
+    "semantic_hash": "472df7b8af45fe7a4f8f6a1aeda7acba"
+  },
+  "docs/evidence/AS-CORE-003-v2-candidate-003.yaml": {
+    "mtime": 1786091741.1662772,
+    "ast_hash": "fb4c3e3c35959db5139a3fb3318f1889",
+    "semantic_hash": "fb4c3e3c35959db5139a3fb3318f1889"
+  },
+  "docs/evidence/AS-CORE-003-v2-candidate-004.yaml": {
+    "mtime": 1786091741.1672764,
+    "ast_hash": "fcae9c83963e4f4ca16d67926b5c7bd8",
+    "semantic_hash": "fcae9c83963e4f4ca16d67926b5c7bd8"
+  },
+  "docs/evidence/AS-CORE-003-v2-candidate-005-review.yaml": {
+    "mtime": 1786091741.1682763,
+    "ast_hash": "14980103083947ca0e59e1fcb8e67cf3",
+    "semantic_hash": "14980103083947ca0e59e1fcb8e67cf3"
+  },
+  "docs/evidence/AS-CORE-003-v2-candidate-005.yaml": {
+    "mtime": 1786091741.169277,
+    "ast_hash": "49dc934501db94361d0d91134232be66",
+    "semantic_hash": "49dc934501db94361d0d91134232be66"
+  },
+  "docs/evidence/AS-CORE-003-v2-candidate-006-review-addendum.yaml": {
+    "mtime": 1786091741.169277,
+    "ast_hash": "0cbcde8e1e42ca3e85fd9254530b3ec2",
+    "semantic_hash": "0cbcde8e1e42ca3e85fd9254530b3ec2"
+  },
+  "docs/evidence/AS-CORE-003-v2-candidate-006.yaml": {
+    "mtime": 1786091741.1702774,
+    "ast_hash": "80e2b216e9153a8e90cc8e7ea6e8ac82",
+    "semantic_hash": "80e2b216e9153a8e90cc8e7ea6e8ac82"
+  },
+  "docs/evidence/AS-CORE-003-v2-remediation-receipt.yaml": {
+    "mtime": 1786091741.1712806,
+    "ast_hash": "91531fb1ba0db3ec1205955c4c36ebb3",
+    "semantic_hash": "91531fb1ba0db3ec1205955c4c36ebb3"
+  },
+  "docs/evidence/AS-ENG-005-receipt.yaml": {
+    "mtime": 1785873332.8082645,
+    "ast_hash": "02b9e6e97ee294661487019fb0852273",
+    "semantic_hash": "02b9e6e97ee294661487019fb0852273"
+  },
+  "docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2-amendment.yaml": {
+    "mtime": 1786091796.5756426,
+    "ast_hash": "46326343e847f99e0253aae0d0d394d5",
+    "semantic_hash": "46326343e847f99e0253aae0d0d394d5"
+  },
+  "docs/evidence/AS-EXT-001A-level0-selfhost-receipt-v2.yaml": {
+    "mtime": 1786091796.5347633,
+    "ast_hash": "25bf8264c0aa5d4da46402ad92ef9c51",
+    "semantic_hash": "25bf8264c0aa5d4da46402ad92ef9c51"
+  },
+  "docs/evidence/AS-EXT-001A-level0-selfhost-receipt.yaml": {
+    "mtime": 1786091796.4401784,
+    "ast_hash": "d7bc7aee509166ff0b1ea3b4492daea8",
+    "semantic_hash": "d7bc7aee509166ff0b1ea3b4492daea8"
+  },
+  "docs/evidence/AS-GH-001-receipt.yaml": {
+    "mtime": 1786091741.1742759,
+    "ast_hash": "cbb17500fa964be0361357d8fae4242b",
+    "semantic_hash": "cbb17500fa964be0361357d8fae4242b"
+  },
+  "docs/evidence/AS-ID-001-final-certification-remediation-receipt.yaml": {
+    "mtime": 1785873332.8092632,
+    "ast_hash": "c015b6b76a8210e4437c607135f53e03",
+    "semantic_hash": "c015b6b76a8210e4437c607135f53e03"
+  },
+  "docs/evidence/AS-ID-001-governor-remediation-receipt.yaml": {
+    "mtime": 1785873332.8108363,
+    "ast_hash": "165cee8f0f769e00d731007e08a63c48",
+    "semantic_hash": "165cee8f0f769e00d731007e08a63c48"
+  },
+  "docs/evidence/AS-ID-001-receipt.yaml": {
+    "mtime": 1785873332.8117788,
+    "ast_hash": "a4a00ed8aab5b0afb03dfadb4f9d5496",
+    "semantic_hash": "a4a00ed8aab5b0afb03dfadb4f9d5496"
+  },
+  "docs/evidence/AS-ID-001-retired-slot-resolution-wiring-receipt.yaml": {
+    "mtime": 1785873332.812286,
+    "ast_hash": "9a2aa3f476bb97edb0cf8ce1964ac88b",
+    "semantic_hash": "9a2aa3f476bb97edb0cf8ce1964ac88b"
+  },
+  "docs/evidence/AS-INT-001-post-merge-receipt.yaml": {
+    "mtime": 1785873332.8132968,
+    "ast_hash": "4c124a1ee5893731bbf6bee7992ca7c4",
+    "semantic_hash": "4c124a1ee5893731bbf6bee7992ca7c4"
+  },
+  "docs/evidence/AS-INT-001-receipt.yaml": {
+    "mtime": 1785873332.8144255,
+    "ast_hash": "9918f3e52eeacb8a88a339c1e83bb01e",
+    "semantic_hash": "9918f3e52eeacb8a88a339c1e83bb01e"
+  },
+  "docs/evidence/AS-MAINT-001-receipt.yaml": {
+    "mtime": 1785873332.8154383,
+    "ast_hash": "1bf499a1f1b372aee3fcd3caffa96888",
+    "semantic_hash": "1bf499a1f1b372aee3fcd3caffa96888"
+  },
+  "docs/evidence/AS-MVP-001-architecture-entry.yaml": {
+    "mtime": 1785873332.8154383,
+    "ast_hash": "d6c94f18a6ca78dbe72f2e3d31c59919",
+    "semantic_hash": "d6c94f18a6ca78dbe72f2e3d31c59919"
+  },
+  "docs/evidence/AS-MVP-001-receipt.yaml": {
+    "mtime": 1785873332.817577,
+    "ast_hash": "620fb6b5dc77b23ff5e549864f654501",
+    "semantic_hash": "620fb6b5dc77b23ff5e549864f654501"
+  },
+  "docs/evidence/AS-RET-001-post-merge-receipt.yaml": {
+    "mtime": 1785873332.8185341,
+    "ast_hash": "08608e447c2499717c16d57ce1bfcedd",
+    "semantic_hash": "08608e447c2499717c16d57ce1bfcedd"
+  },
+  "docs/evidence/AS-RET-001-receipt.yaml": {
+    "mtime": 1785873332.8190403,
+    "ast_hash": "5db4adbabadb03e20812f1c8894119d9",
+    "semantic_hash": "5db4adbabadb03e20812f1c8894119d9"
+  },
+  "docs/evidence/AS-SEC-001-certification-carry-forward.yaml": {
+    "mtime": 1785873332.8200543,
+    "ast_hash": "bc7967fd3afc08825902d90df6efd609",
+    "semantic_hash": "bc7967fd3afc08825902d90df6efd609"
+  },
+  "docs/evidence/AS-SEC-001-post-merge-validation.yaml": {
+    "mtime": 1785873332.8200543,
+    "ast_hash": "413f7881882543a8dbae38df0bebe527",
+    "semantic_hash": "413f7881882543a8dbae38df0bebe527"
+  },
+  "docs/evidence/AS-SEC-001-receipt.yaml": {
+    "mtime": 1785873332.8221552,
+    "ast_hash": "898b3ddb5a8e461d326f44005157b2a8",
+    "semantic_hash": "898b3ddb5a8e461d326f44005157b2a8"
+  },
+  "docs/evidence/AS-SPEC-004-receipt.yaml": {
+    "mtime": 1785873332.8231635,
+    "ast_hash": "17defe9d414509d8765f322f8390e74e",
+    "semantic_hash": "17defe9d414509d8765f322f8390e74e"
+  },
+  "docs/evidence/atlas-core-vertical-slice-post-merge-receipt.yaml": {
+    "mtime": 1785873332.8248172,
+    "ast_hash": "b87559d2d865e038c2e3e4583547acd5",
+    "semantic_hash": "b87559d2d865e038c2e3e4583547acd5"
+  },
+  "docs/evidence/atlas-core-vertical-slice-receipt.yaml": {
+    "mtime": 1785873332.8253286,
+    "ast_hash": "277915952045e5ba9ec561c647a30936",
+    "semantic_hash": "277915952045e5ba9ec561c647a30936"
+  },
+  "docs/implementation-roadmap.md": {
+    "mtime": 1785873332.8264441,
+    "ast_hash": "49404b377ea9bb91541965a2ba4135c9",
+    "semantic_hash": "49404b377ea9bb91541965a2ba4135c9"
+  },
+  "docs/master-roadmap.md": {
+    "mtime": 1786091741.1762764,
+    "ast_hash": "fe7efb242885c14921c3e056f899dfac",
+    "semantic_hash": "fe7efb242885c14921c3e056f899dfac"
+  },
+  "docs/plan.md": {
+    "mtime": 1785873332.8289306,
+    "ast_hash": "f44b4f3e7b9c3dc7d220e48d0487e1b4",
+    "semantic_hash": "f44b4f3e7b9c3dc7d220e48d0487e1b4"
+  },
+  "docs/prp.md": {
+    "mtime": 1785873332.8304858,
+    "ast_hash": "554ca8aacb9e6f139a0832151571f57c",
+    "semantic_hash": "554ca8aacb9e6f139a0832151571f57c"
+  },
+  "docs/security-findings.md": {
+    "mtime": 1785873332.8312228,
+    "ast_hash": "fdf7eabb89256464099700aaf3f807f4",
+    "semantic_hash": "fdf7eabb89256464099700aaf3f807f4"
+  },
+  "docs/work-packages/AS-EXT-001A.md": {
+    "mtime": 1786091741.1772778,
+    "ast_hash": "d61f6259635ed2ced55db032cb1a181a",
+    "semantic_hash": "d61f6259635ed2ced55db032cb1a181a"
+  },
+  "docs/work-packages/AS-GH-001.md": {
+    "mtime": 1786091741.178277,
+    "ast_hash": "f62cf79056e25f5fd1637898c153a645",
+    "semantic_hash": "f62cf79056e25f5fd1637898c153a645"
+  },
+  "tests/fixtures/adversarial-project/.atlas-project.yaml": {
+    "mtime": 1785873332.8827958,
+    "ast_hash": "16e319be78fc68a9791bb9f6018787df",
+    "semantic_hash": "16e319be78fc68a9791bb9f6018787df"
+  },
+  "tests/fixtures/adversarial-project/README.md": {
+    "mtime": 1785873332.8837962,
+    "ast_hash": "67e5c8fc1f19eec903bcefcd3625a8d0",
+    "semantic_hash": "67e5c8fc1f19eec903bcefcd3625a8d0"
+  },
+  "tests/fixtures/adversarial-project/adversarial-project-id-override.yaml": {
+    "mtime": 1785873332.8848002,
+    "ast_hash": "0a4518b238336c669bb1940b41f14b7c",
+    "semantic_hash": "0a4518b238336c669bb1940b41f14b7c"
+  },
+  "tests/fixtures/adversarial-project/benign-multiline-control.md": {
+    "mtime": 1785873332.8848002,
+    "ast_hash": "881e291485230287ba24c363ff07b285",
+    "semantic_hash": "881e291485230287ba24c363ff07b285"
+  },
+  "tests/fixtures/adversarial-project/benign-multilingual-separators-control.md": {
+    "mtime": 1785873332.8858898,
+    "ast_hash": "5e83c1acbd08e85a2f2fef14213b9287",
+    "semantic_hash": "5e83c1acbd08e85a2f2fef14213b9287"
+  },
+  "tests/fixtures/adversarial-project/canary-bearing.md": {
+    "mtime": 1785873332.886889,
+    "ast_hash": "d26c9d7fbf51ca81b79b478229bbfc63",
+    "semantic_hash": "d26c9d7fbf51ca81b79b478229bbfc63"
+  },
+  "tests/fixtures/adversarial-project/carriage-return-mid-keyword-reproduction.md": {
+    "mtime": 1785873332.886889,
+    "ast_hash": "57433204db25cd3419a43f8b5135de2f",
+    "semantic_hash": "57433204db25cd3419a43f8b5135de2f"
+  },
+  "tests/fixtures/adversarial-project/cyrillic-homoglyph.md": {
+    "mtime": 1785873332.888461,
+    "ast_hash": "992488c32ec435cde19ccf884d6f38e2",
+    "semantic_hash": "992488c32ec435cde19ccf884d6f38e2"
+  },
+  "tests/fixtures/adversarial-project/diacritic-e-reproduction.md": {
+    "mtime": 1785873332.8895261,
+    "ast_hash": "c4d89d91da67d0d9fbde80e9949a9ba4",
+    "semantic_hash": "c4d89d91da67d0d9fbde80e9949a9ba4"
+  },
+  "tests/fixtures/adversarial-project/diacritic-i-reproduction.md": {
+    "mtime": 1785873332.8895261,
+    "ast_hash": "d9d56057579fa455eba210e54439ce1f",
+    "semantic_hash": "d9d56057579fa455eba210e54439ce1f"
+  },
+  "tests/fixtures/adversarial-project/diacritic-o-reproduction.md": {
+    "mtime": 1785873332.8910284,
+    "ast_hash": "83b83d14a53319f5c11671735bb5865c",
+    "semantic_hash": "83b83d14a53319f5c11671735bb5865c"
+  },
+  "tests/fixtures/adversarial-project/em-space-mid-keyword-reproduction.md": {
+    "mtime": 1785873332.892037,
+    "ast_hash": "0806dd716c80e17ba3c764655b166128",
+    "semantic_hash": "0806dd716c80e17ba3c764655b166128"
+  },
+  "tests/fixtures/adversarial-project/em-space-reproduction.md": {
+    "mtime": 1785873332.8931193,
+    "ast_hash": "373eeb327dfe3bb69c0446ea44f8fc29",
+    "semantic_hash": "373eeb327dfe3bb69c0446ea44f8fc29"
+  },
+  "tests/fixtures/adversarial-project/form-feed-reproduction.md": {
+    "mtime": 1785873332.8936257,
+    "ast_hash": "8c28e08bbbd91b27c0bc7a6a14607239",
+    "semantic_hash": "8c28e08bbbd91b27c0bc7a6a14607239"
+  },
+  "tests/fixtures/adversarial-project/greek-iota-reproduction.md": {
+    "mtime": 1785873332.894208,
+    "ast_hash": "55cebeef9cc62038cfba07c7d3a0888e",
+    "semantic_hash": "55cebeef9cc62038cfba07c7d3a0888e"
+  },
+  "tests/fixtures/adversarial-project/greek-omicron-reproduction.md": {
+    "mtime": 1785873332.8951592,
+    "ast_hash": "8620fbb5fa5b81c333a17a5d67e86439",
+    "semantic_hash": "8620fbb5fa5b81c333a17a5d67e86439"
+  },
+  "tests/fixtures/adversarial-project/instruction-bearing.md": {
+    "mtime": 1785873332.89616,
+    "ast_hash": "4c6140566f7b50db5969720d6ede03da",
+    "semantic_hash": "4c6140566f7b50db5969720d6ede03da"
+  },
+  "tests/fixtures/adversarial-project/line-feed-mid-keyword-reproduction.md": {
+    "mtime": 1785873332.89616,
+    "ast_hash": "c9b2f3f2f97da35edf4dd1ccd9f593d3",
+    "semantic_hash": "c9b2f3f2f97da35edf4dd1ccd9f593d3"
+  },
+  "tests/fixtures/adversarial-project/line-separator-mid-keyword-reproduction.md": {
+    "mtime": 1785873332.8973699,
+    "ast_hash": "78346657d8402a0668168012386b82bb",
+    "semantic_hash": "78346657d8402a0668168012386b82bb"
+  },
+  "tests/fixtures/adversarial-project/line-separator-reproduction.md": {
+    "mtime": 1785873332.8983698,
+    "ast_hash": "50c8fe61615464fef5e52e42f3e5072f",
+    "semantic_hash": "50c8fe61615464fef5e52e42f3e5072f"
+  },
+  "tests/fixtures/adversarial-project/no-break-space-reproduction.md": {
+    "mtime": 1785873332.8988764,
+    "ast_hash": "364a1ad0321aa21223d24c2234757896",
+    "semantic_hash": "364a1ad0321aa21223d24c2234757896"
+  },
+  "tests/fixtures/adversarial-project/non-adversarial-control.md": {
+    "mtime": 1785873332.8998847,
+    "ast_hash": "886562e0b3fffb58c68a742228970d95",
+    "semantic_hash": "886562e0b3fffb58c68a742228970d95"
+  },
+  "tests/fixtures/adversarial-project/paragraph-separator-mid-keyword-reproduction.md": {
+    "mtime": 1785873332.8998847,
+    "ast_hash": "bb1304e5f3e2c20752c30109afc66e00",
+    "semantic_hash": "bb1304e5f3e2c20752c30109afc66e00"
+  },
+  "tests/fixtures/adversarial-project/quoted-research.md": {
+    "mtime": 1785873332.901458,
+    "ast_hash": "a6eb3291ea9bdfd23dab2feb83959d1a",
+    "semantic_hash": "a6eb3291ea9bdfd23dab2feb83959d1a"
+  },
+  "tests/fixtures/adversarial-project/soft-hyphen-insertion.md": {
+    "mtime": 1785873332.9024093,
+    "ast_hash": "c7a1e51b377f22295f411ef95271b9ba",
+    "semantic_hash": "c7a1e51b377f22295f411ef95271b9ba"
+  },
+  "tests/fixtures/adversarial-project/tab-mid-keyword-reproduction.md": {
+    "mtime": 1785873332.9034123,
+    "ast_hash": "bee6949975058c3c03f11ac39286fe67",
+    "semantic_hash": "bee6949975058c3c03f11ac39286fe67"
+  },
+  "tests/fixtures/adversarial-project/uppercase-cyrillic-reproduction.md": {
+    "mtime": 1785873332.9034123,
+    "ast_hash": "e813acd93905a3d8973b8a2d7705ad76",
+    "semantic_hash": "e813acd93905a3d8973b8a2d7705ad76"
+  },
+  "tests/fixtures/adversarial-project/vertical-tab-reproduction.md": {
+    "mtime": 1785873332.9045665,
+    "ast_hash": "8e407fa252d56da0083ece934d8074f4",
+    "semantic_hash": "8e407fa252d56da0083ece934d8074f4"
+  },
+  "tests/fixtures/adversarial-project/zero-width-insertion.md": {
+    "mtime": 1785873332.90565,
+    "ast_hash": "aa98c056bebd037919d2878932d0b721",
+    "semantic_hash": "aa98c056bebd037919d2878932d0b721"
+  },
+  "tests/fixtures/as-ext-001a/PROVENANCE.md": {
+    "mtime": 1786091741.2112908,
+    "ast_hash": "eb9c976afe2bcafdf518a409bf450422",
+    "semantic_hash": "eb9c976afe2bcafdf518a409bf450422"
+  },
+  "tests/fixtures/as-ext-001a/real/evidence-flat-as-core-002-post-merge-receipt.yaml": {
+    "mtime": 1786091741.2122858,
+    "ast_hash": "c5f65f5dbae59a49ce825f8a07a6714d",
+    "semantic_hash": "c5f65f5dbae59a49ce825f8a07a6714d"
+  },
+  "tests/fixtures/as-ext-001a/real/f01-verify-collision-excerpt.md": {
+    "mtime": 1786091741.2122858,
+    "ast_hash": "e3d69f455c969561fcf892f9f9e691a8",
+    "semantic_hash": "e3d69f455c969561fcf892f9f9e691a8"
+  },
+  "tests/fixtures/as-ext-001a/real/f01-verify-structured-document.md": {
+    "mtime": 1786091741.2132857,
+    "ast_hash": "0bee236af1dcc33dc2da5516281bd8d5",
+    "semantic_hash": "0bee236af1dcc33dc2da5516281bd8d5"
+  },
+  "tests/fixtures/as-ext-001a/real/f02-backlog-historical-4e2b436.md": {
+    "mtime": 1786091741.2142928,
+    "ast_hash": "b0c5bf6850a4ac4a268788acf97cbaf0",
+    "semantic_hash": "b0c5bf6850a4ac4a268788acf97cbaf0"
+  },
+  "tests/fixtures/as-ext-001a/real/f03-evidence-nested-as-core-003-receipt.yaml": {
+    "mtime": 1786091741.2152858,
+    "ast_hash": "df338ebb0a03699dc1fd53ff22065207",
+    "semantic_hash": "df338ebb0a03699dc1fd53ff22065207"
+  },
+  "tests/fixtures/as-ext-001a/real/f04-adr-family-a-adr-003.md": {
+    "mtime": 1786091741.2162864,
+    "ast_hash": "883dee8bb2344dae9339a6b35dea77bf",
+    "semantic_hash": "883dee8bb2344dae9339a6b35dea77bf"
+  },
+  "tests/fixtures/as-ext-001a/real/f05-adr-family-b-adr-006.md": {
+    "mtime": 1786091741.2162864,
+    "ast_hash": "81c951f485065a369b5d1f6700dcafdf",
+    "semantic_hash": "81c951f485065a369b5d1f6700dcafdf"
+  },
+  "tests/fixtures/as-ext-001a/real/f06-worklog-entry-excerpt.md": {
+    "mtime": 1786091741.2178636,
+    "ast_hash": "87686b27ed81c3281e2ed8cd7d644e34",
+    "semantic_hash": "87686b27ed81c3281e2ed8cd7d644e34"
+  },
+  "tests/fixtures/as-ext-001a/real/f07-implementation-roadmap-repeated-headings.md": {
+    "mtime": 1786091741.2178636,
+    "ast_hash": "e45ba0f7a06ecbd6347bf223efb0327d",
+    "semantic_hash": "e45ba0f7a06ecbd6347bf223efb0327d"
+  },
+  "tests/fixtures/as-ext-001a/real/f07-master-roadmap-repeated-headings.md": {
+    "mtime": 1786091741.2193775,
+    "ast_hash": "9e0ea0c8d8fd066ed785d53630e7b696",
+    "semantic_hash": "9e0ea0c8d8fd066ed785d53630e7b696"
+  },
+  "tests/fixtures/as-ext-001a/real/f08-plan-foreign-h1-excerpt.md": {
+    "mtime": 1786091741.2193775,
+    "ast_hash": "6665e61a1c6682de5547a9b447a360d1",
+    "semantic_hash": "6665e61a1c6682de5547a9b447a360d1"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/alias-amplification.yaml": {
+    "mtime": 1786091741.2207313,
+    "ast_hash": "6e012ccd0d552975cf1f987c00008d92",
+    "semantic_hash": "6e012ccd0d552975cf1f987c00008d92"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/duplicate-yaml-keys.yaml": {
+    "mtime": 1786091741.2212367,
+    "ast_hash": "552b1dbaffbf9b7c38010009b0ef28c2",
+    "semantic_hash": "552b1dbaffbf9b7c38010009b0ef28c2"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/malformed-yaml.yaml": {
+    "mtime": 1786091741.2219756,
+    "ast_hash": "ce64881a9ba93a8832d14360eb8d7c2e",
+    "semantic_hash": "ce64881a9ba93a8832d14360eb8d7c2e"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/many-unknown-fields.yaml": {
+    "mtime": 1786091741.2226703,
+    "ast_hash": "35c2e57c251ef5b61dcbd86bd1862139",
+    "semantic_hash": "35c2e57c251ef5b61dcbd86bd1862139"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/one-to-many-migration.md": {
+    "mtime": 1786091741.2238073,
+    "ast_hash": "204bb490b75a423070e6064a19903101",
+    "semantic_hash": "204bb490b75a423070e6064a19903101"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/partial-candidate.md": {
+    "mtime": 1786091741.2243123,
+    "ast_hash": "6977b20f6aa099020dfa7699a195e904",
+    "semantic_hash": "6977b20f6aa099020dfa7699a195e904"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/promotion-failure.md": {
+    "mtime": 1786091741.2243123,
+    "ast_hash": "2d923047719e2a4d8dd7cc3e6fd90c7e",
+    "semantic_hash": "2d923047719e2a4d8dd7cc3e6fd90c7e"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/reordered-mapping-a.yaml": {
+    "mtime": 1786091741.2261505,
+    "ast_hash": "c119da0c3aeb183cf83144e59dc5e1aa",
+    "semantic_hash": "c119da0c3aeb183cf83144e59dc5e1aa"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/reordered-mapping-b.yaml": {
+    "mtime": 1786091741.226657,
+    "ast_hash": "231b876278b2db436be196c2e166a782",
+    "semantic_hash": "231b876278b2db436be196c2e166a782"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/sequence-provisional-index.yaml": {
+    "mtime": 1786091741.2280443,
+    "ast_hash": "3ae6fe7451bf408391c763e20e7765cc",
+    "semantic_hash": "3ae6fe7451bf408391c763e20e7765cc"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/sequence-stable-key.yaml": {
+    "mtime": 1786091741.2287533,
+    "ast_hash": "55c78cf0777602ff5e37633f5843f5c9",
+    "semantic_hash": "55c78cf0777602ff5e37633f5843f5c9"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/unicode-equivalent-keys-nfd.yaml": {
+    "mtime": 1786091741.2297335,
+    "ast_hash": "0914fd20cf445881672d70b45b82f868",
+    "semantic_hash": "0914fd20cf445881672d70b45b82f868"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/unicode-equivalent-keys.yaml": {
+    "mtime": 1786091741.2297335,
+    "ast_hash": "d5cf3733e259708e033eb1fccfd2a310",
+    "semantic_hash": "d5cf3733e259708e033eb1fccfd2a310"
+  },
+  "tests/fixtures/as-ext-001a/synthetic/unknown-receipt-profile.yaml": {
+    "mtime": 1786091741.2304137,
+    "ast_hash": "61a345debdc14e4d89c020e873f94275",
+    "semantic_hash": "61a345debdc14e4d89c020e873f94275"
+  },
+  "tests/fixtures/expected/portfolio/portfolio-overview.md": {
+    "mtime": 1785874883.4330876,
+    "ast_hash": "4e13ba473c0e0e32de258dba13c656b1",
+    "semantic_hash": "4e13ba473c0e0e32de258dba13c656b1"
+  },
+  "tests/fixtures/integrated-atlas-project/.atlas-project.yaml": {
+    "mtime": 1785873332.9129176,
+    "ast_hash": "a496551ca08f732c51b8c37a496fdf77",
+    "semantic_hash": "a496551ca08f732c51b8c37a496fdf77"
+  },
+  "tests/fixtures/integrated-atlas-project/ARCHITECTURE.md": {
+    "mtime": 1785873332.9139216,
+    "ast_hash": "ced9b230eb3f5b800d78cd48fb9e7205",
+    "semantic_hash": "ced9b230eb3f5b800d78cd48fb9e7205"
+  },
+  "tests/fixtures/integrated-atlas-project/README.md": {
+    "mtime": 1785873332.9139216,
+    "ast_hash": "f8e28dbc7df91fde4852207cf4f432e8",
+    "semantic_hash": "f8e28dbc7df91fde4852207cf4f432e8"
+  },
+  "tests/fixtures/k007-canary-secrets/.atlas-project.yaml": {
+    "mtime": 1785873332.9162066,
+    "ast_hash": "255f77a4e7706f69557210734aaa82ae",
+    "semantic_hash": "255f77a4e7706f69557210734aaa82ae"
+  },
+  "tests/fixtures/k007-canary-secrets/CONFIG-NOTES.md": {
+    "mtime": 1785873332.9168425,
+    "ast_hash": "ec2663b33130dd1ddc21407c7bdc5b13",
+    "semantic_hash": "ec2663b33130dd1ddc21407c7bdc5b13"
+  },
+  "tests/fixtures/k007-canary-secrets/README.md": {
+    "mtime": 1785873332.9174044,
+    "ast_hash": "663fc608211efc9af5f633562f493c2f",
+    "semantic_hash": "663fc608211efc9af5f633562f493c2f"
+  },
+  "tests/fixtures/okf/project-one-concepts.md": {
+    "mtime": 1785873332.9183574,
+    "ast_hash": "f918446ba01b6c10b8609c2ef33a709a",
+    "semantic_hash": "f918446ba01b6c10b8609c2ef33a709a"
+  },
+  "tests/fixtures/pilots/black-agency-os/.atlas-project.yaml": {
+    "mtime": 1785873332.9193702,
+    "ast_hash": "2d00c3653427f45d3e0a96fc864292e0",
+    "semantic_hash": "2d00c3653427f45d3e0a96fc864292e0"
+  },
+  "tests/fixtures/pilots/black-agency-os/README.md": {
+    "mtime": 1785873332.920382,
+    "ast_hash": "06e49f6414514b09db2b83b6a18714e8",
+    "semantic_hash": "06e49f6414514b09db2b83b6a18714e8"
+  },
+  "tests/fixtures/pilots/dark-factory/.atlas-project.yaml": {
+    "mtime": 1785873332.920382,
+    "ast_hash": "670d8797f90254fd977cbe21d06defc1",
+    "semantic_hash": "670d8797f90254fd977cbe21d06defc1"
+  },
+  "tests/fixtures/pilots/dark-factory/DEPENDENCIES.md": {
+    "mtime": 1786091741.2340362,
+    "ast_hash": "28473525485016e3299166047ced75e4",
+    "semantic_hash": "28473525485016e3299166047ced75e4"
+  },
+  "tests/fixtures/pilots/dark-factory/ROADMAP-A.md": {
+    "mtime": 1786091741.2350435,
+    "ast_hash": "788ac3bdef6e607836521a61cc18e30d",
+    "semantic_hash": "788ac3bdef6e607836521a61cc18e30d"
+  },
+  "tests/fixtures/pilots/dark-factory/ROADMAP-B.md": {
+    "mtime": 1786091741.2360563,
+    "ast_hash": "524ab68703733f7cc8b00519dd7e41c5",
+    "semantic_hash": "524ab68703733f7cc8b00519dd7e41c5"
+  },
+  "tests/fixtures/pilots/nebula/.atlas-project.yaml": {
+    "mtime": 1785873332.9251306,
+    "ast_hash": "52c82beeacd54c9cd9941692c1f2a450",
+    "semantic_hash": "52c82beeacd54c9cd9941692c1f2a450"
+  },
+  "tests/fixtures/pilots/nebula/ARCHITECTURE.md": {
+    "mtime": 1785873332.926222,
+    "ast_hash": "173cba8f7fb637ceb65d0de999e6db4e",
+    "semantic_hash": "173cba8f7fb637ceb65d0de999e6db4e"
+  },
+  "tests/fixtures/pilots/nebula/DEPENDENCIES.md": {
+    "mtime": 1786091741.2372177,
+    "ast_hash": "44d2771cf565f3442efd5c5ee53a68a3",
+    "semantic_hash": "44d2771cf565f3442efd5c5ee53a68a3"
+  },
+  "tests/fixtures/pilots/nebula/README.md": {
+    "mtime": 1785873332.9272401,
+    "ast_hash": "ad176cf4be3d262bffd4b8a1fef3b078",
+    "semantic_hash": "ad176cf4be3d262bffd4b8a1fef3b078"
+  },
+  "tests/fixtures/pilots/nebula/SECURITY.md": {
+    "mtime": 1785873332.9283826,
+    "ast_hash": "ecc2d97eefb11047b59d1e1c1ceabbb6",
+    "semantic_hash": "ecc2d97eefb11047b59d1e1c1ceabbb6"
+  },
+  "tests/fixtures/pilots/nebula/VALIDATION.md": {
+    "mtime": 1785873332.9293256,
+    "ast_hash": "8753ef07b26e15bb6724131364ad6d6b",
+    "semantic_hash": "8753ef07b26e15bb6724131364ad6d6b"
+  },
+  "universal-directive.md": {
+    "mtime": 1785876688.616928,
+    "ast_hash": "0537d6ccef852714e0b21e0359a03299",
+    "semantic_hash": "0537d6ccef852714e0b21e0359a03299"
+  },
+  "atlas-vault-documentation/tests/fixtures/project-atlas/archive.pdf": {
+    "mtime": 1785873332.731925,
+    "ast_hash": "aac4bf7fce8e160c10c0aa72e8bd5d7a",
+    "semantic_hash": "aac4bf7fce8e160c10c0aa72e8bd5d7a"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/mixed-formats/architecture.pdf": {
+    "mtime": 1785873332.7555842,
+    "ast_hash": "865b2494d1ed58937f139decb391ab20",
+    "semantic_hash": "865b2494d1ed58937f139decb391ab20"
+  },
+  "atlas-vault-documentation/tests/fixtures/projects/mixed-formats/diagram.png": {
+    "mtime": 1785873332.7581127,
+    "ast_hash": "40813ef52f0f451707f28c71138b7311",
+    "semantic_hash": "40813ef52f0f451707f28c71138b7311"
+  }
+}

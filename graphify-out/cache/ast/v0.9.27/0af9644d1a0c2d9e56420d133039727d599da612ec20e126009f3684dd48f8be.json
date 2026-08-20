@@ -1,0 +1,1 @@
+{"nodes": [{"id": "pkg_api", "label": "api", "file_type": "code", "type": "package", "ecosystem": "python", "source_file": "atlas-vault-documentation/tests/fixtures/projects/monorepo/apps/api/pyproject.toml", "source_location": "L1"}], "edges": []}

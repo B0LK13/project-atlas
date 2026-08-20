@@ -1,0 +1,1 @@
+{"nodes": [{"id": "pkg_documentation_rich", "label": "documentation-rich", "file_type": "code", "type": "package", "ecosystem": "python", "source_file": "atlas-vault-documentation/tests/fixtures/projects/documentation-rich/pyproject.toml", "source_location": "L1", "version": "0.1.0"}], "edges": []}
