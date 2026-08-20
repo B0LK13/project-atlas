@@ -22,6 +22,7 @@ from project_atlas.orchestration.sdk.backend import (
     ExecutionBackend,
     FakeCursorSDKBackend,
 )
+from project_atlas.orchestration.sdk.cli_execution_port import CursorAgentCliExecutionPort
 from project_atlas.orchestration.sdk.cost_guard import CostGuard
 from project_atlas.orchestration.sdk.models import (
     DIRECTIVE_ID,
@@ -37,6 +38,7 @@ from project_atlas.orchestration.sdk.scheduler import (
     ReadyWorkItem,
     ScheduleCycleResult,
 )
+from project_atlas.orchestration.sdk.security_gates import WorkerBackend
 
 ReadyProvider = Callable[[], Awaitable[list[ReadyWorkItem]] | list[ReadyWorkItem]]
 
@@ -47,6 +49,7 @@ class SupervisorStatus:
     package_id: str = PACKAGE_ID
     primary_backend: str = PRIMARY_BACKEND
     stop_hook_backend: str = STOP_HOOK_BACKEND
+    authentic_worker_backend: str = "NONE"
     cycles: int = 0
     running: bool = False
     auth: AuthDiscovery | None = None
@@ -62,7 +65,7 @@ class SupervisorStatus:
 
 @dataclass
 class DurableAtlasSupervisor:
-    """Persistent asynchronous governor host. Owns the DAG; SDK executes workers."""
+    """Persistent asynchronous governor host. Owns the DAG; SDK/CLI execute workers."""
 
     root: Path
     backend: ExecutionBackend
@@ -83,6 +86,7 @@ class DurableAtlasSupervisor:
         root: Path,
         *,
         use_fake: bool = False,
+        prefer_cli: bool = True,
         budget: BudgetConfig | None = None,
         ready_provider: ReadyProvider | None = None,
         poll_interval_sec: float = 2.0,
@@ -95,17 +99,30 @@ class DurableAtlasSupervisor:
         pool = AgentRolePool(agents)
         cost = CostGuard(runs, config=budget or BudgetConfig())
         backend: ExecutionBackend
+        authentic = "NONE"
         if use_fake:
             backend = FakeCursorSDKBackend(agents_reg=agents, runs_reg=runs, pool=pool)
+            authentic = "FAKE_TEST_ONLY"
+        elif prefer_cli and auth.cursor_api_key_available != "YES":
+            # D-088: authentic local worker is cursor-agent CLI when User API key deferred.
+            backend = CursorAgentCliExecutionPort(
+                root=root, agents_reg=agents, runs_reg=runs, pool=pool
+            )
+            authentic = WorkerBackend.CURSOR_AGENT_CLI.value
         elif auth.local_sdk_available == "YES" or auth.cloud_sdk_runtime == "ENABLED":
             backend = CursorSDKExecutionBackend(
                 root=root, agents_reg=agents, runs_reg=runs, pool=pool, discovery=auth
             )
+            authentic = WorkerBackend.CURSOR_SDK.value
         else:
-            backend = FakeCursorSDKBackend(agents_reg=agents, runs_reg=runs, pool=pool)
+            backend = CursorAgentCliExecutionPort(
+                root=root, agents_reg=agents, runs_reg=runs, pool=pool
+            )
+            authentic = WorkerBackend.CURSOR_AGENT_CLI.value
         scheduler = DagToAgentScheduler(
             backend=backend, agents=agents, runs=runs, pool=pool, cost=cost
         )
+        status = SupervisorStatus(auth=auth, authentic_worker_backend=authentic)
         return cls(
             root=root,
             backend=backend,
@@ -117,7 +134,7 @@ class DurableAtlasSupervisor:
             ready_provider=ready_provider,
             poll_interval_sec=poll_interval_sec,
             max_cycles=max_cycles,
-            status=SupervisorStatus(auth=auth),
+            status=status,
         )
 
     def request_stop(self) -> None:
@@ -176,6 +193,12 @@ def status_dict(status: SupervisorStatus) -> dict[str, object]:
         "package_id": status.package_id,
         "primary_continuation_backend": status.primary_backend,
         "stop_hook_backend": status.stop_hook_backend,
+        "authentic_worker_backend": status.authentic_worker_backend,
+        "official_cursor_sdk_agent_runtime": (
+            "DEFERRED_USER_API_KEY"
+            if auth and auth.cursor_api_key_available != "YES"
+            else "AVAILABLE"
+        ),
         "cycles": status.cycles,
         "running": status.running,
         "cursor_api_key_available": auth.cursor_api_key_available if auth else "NO",

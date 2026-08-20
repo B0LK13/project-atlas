@@ -11,6 +11,7 @@ from pathlib import Path
 from project_atlas.orchestration.sdk.auth import discover_auth, record_auth_prerequisite
 from project_atlas.orchestration.sdk.backend import CursorSDKExecutionBackend
 from project_atlas.orchestration.sdk.ci_observer import CANONICAL_PR
+from project_atlas.orchestration.sdk.cli_execution_port import CursorAgentCliExecutionPort
 from project_atlas.orchestration.sdk.live_dag import LiveDagController
 from project_atlas.orchestration.sdk.local_proof import run_local_sdk_proof
 from project_atlas.orchestration.sdk.models import PRIMARY_BACKEND, STOP_HOOK_BACKEND
@@ -66,37 +67,52 @@ def run_governor_service(
         poll_interval_sec=poll_interval_sec,
         max_cycles=max_cycles if max_cycles is not None else None,
     )
+    cli_backend = isinstance(supervisor.backend, CursorAgentCliExecutionPort)
     real_sdk = isinstance(supervisor.backend, CursorSDKExecutionBackend) and not use_fake
+    dispatch_enabled = (cli_backend or real_sdk) and not use_fake
     controller = LiveDagController(
         root,
         pr_number=pr_number,
         supervisor_pid=os.getpid(),
         real_sdk_backend=real_sdk,
+        worker_dispatch_enabled=dispatch_enabled,
     )
     if candidate_head and controller.state.bound_head is None:
         controller.state.bound_head = candidate_head
 
     async def _ready() -> list[object]:
         _state, items = controller.tick()
+        # Wire minted leases into CLI port so mutating/read-bound starts are gated.
+        if cli_backend and isinstance(supervisor.backend, CursorAgentCliExecutionPort):
+            for lease in controller._leases.values():
+                supervisor.backend.register_lease(lease)
         return list(items)
 
+    backend_label = (
+        "CURSOR_AGENT_CLI"
+        if cli_backend
+        else "LOCAL_SDK"
+        if real_sdk
+        else "FAKE_TEST_ONLY"
+        if use_fake
+        else "OBSERVER"
+    )
     write_host_identity(
         root,
         pid=os.getpid(),
-        backend=(
-            "LOCAL_SDK"
-            if real_sdk
-            else "FAKE_TEST_ONLY"
-            if use_fake
-            else "OBSERVER"
-        ),
+        backend=backend_label,
         package_head=controller.state.bound_head or candidate_head or "unknown",
         worktree=str(root),
     )
     # Immediate reconcile so a stale launch-time --candidate-head cannot freeze the DAG.
     controller.tick()
     if real_sdk:
-        run_local_sdk_proof(root)
+        proof = run_local_sdk_proof(root)
+        agent_id = str(proof.get("real_local_agent_id") or "")
+        if not agent_id.startswith("agent-") and not cli_backend:
+            # Official SDK agent-* unavailable and no CLI port: observe only.
+            controller.worker_dispatch_enabled = False
+            controller.real_sdk_backend = False
     original_cycle = supervisor.schedule_cycle
 
     async def _cycle_and_mark() -> object:
@@ -104,6 +120,17 @@ def run_governor_service(
         for run in result.started:
             if run.node_id:
                 controller.mark_dispatched(run.node_id)
+        if controller.state.ci_status == "PASS":
+            if controller.state.iv_dispatched and controller.state.adv_dispatched:
+                supervisor.status.next_machine_action = "INGEST_IV_ADV_RESULTS"
+            elif dispatch_enabled:
+                supervisor.status.next_machine_action = "DISPATCH_IV_ADV_PARALLEL"
+            else:
+                supervisor.status.next_machine_action = "MONITOR_EXACT_HEAD_CI"
+        elif controller.state.ci_status == "FAIL":
+            supervisor.status.next_machine_action = "DISPATCH_REMEDIATION"
+        else:
+            supervisor.status.next_machine_action = "MONITOR_EXACT_HEAD_CI"
         return result
 
     supervisor.schedule_cycle = _cycle_and_mark  # type: ignore[method-assign,assignment]
@@ -117,6 +144,8 @@ def run_governor_service(
     payload["ci_status"] = controller.state.ci_status
     payload["material_transitions"] = controller.state.material_transitions
     payload["target_move_detected"] = controller.state.target_move_detected
+    payload["iv_dispatched"] = controller.state.iv_dispatched
+    payload["adv_dispatched"] = controller.state.adv_dispatched
     return payload, EXIT_OK
 
 

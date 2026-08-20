@@ -31,7 +31,11 @@ AUTH_PREREQ_NAME: Final[str] = "auth-prerequisite.json"
 PLACEHOLDER_DIGEST: Final[str] = "0" * 64
 
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
-_AGENT_ID_RE = re.compile(r"^(bc-|agent-)[A-Za-z0-9_-]{1,128}$")
+_BRANCH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
+# SDK cloud/local agents (bc-/agent-*) and CLI sessions (cli-<uuid>).
+_AGENT_ID_RE = re.compile(
+    r"^(?:bc-|agent-|cli-)[A-Za-z0-9_-]{1,128}$"
+)
 
 
 class SdkRuntimeError(ValueError):
@@ -131,13 +135,20 @@ class AgentRecord(BaseModel):
     def _pin(cls, value: str) -> str:
         return require_full_pin(value, "agent base_main")
 
-    @field_validator("package_id", "branch")
+    @field_validator("package_id")
     @classmethod
-    def _token(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
+    def _token(cls, value: str) -> str:
         if not _ID_RE.fullmatch(value):
             raise ValueError("unsafe identity token")
+        return value
+
+    @field_validator("branch")
+    @classmethod
+    def _branch(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not _BRANCH_RE.fullmatch(value):
+            raise ValueError("unsafe branch token")
         return value
 
     @model_validator(mode="after")
@@ -148,6 +159,8 @@ class AgentRecord(BaseModel):
             raise ValueError("cloud agents must use bc- agent_id")
         if self.runtime == AgentRuntime.LOCAL and self.agent_id.startswith("bc-"):
             raise ValueError("local agents must not use bc- agent_id")
+        if self.agent_id.startswith("cli-") and self.runtime != AgentRuntime.LOCAL:
+            raise ValueError("cli- identities are local-only")
         if self.archived and self.state != AgentState.ARCHIVED:
             raise ValueError("archived agent must be ARCHIVED")
         return self

@@ -26,10 +26,26 @@ from project_atlas.orchestration.sdk.models import (
     AgentRole,
 )
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
+from project_atlas.orchestration.sdk.security_gates import (
+    CANONICAL_PR as SECURITY_CANONICAL_PR,
+)
+from project_atlas.orchestration.sdk.security_gates import (
+    GovernorLease,
+    advance_high_water,
+    reject_superseded_pr_mutation,
+)
 
 LIVE_DAG_NAME = "live-dag.json"
+LEASES_NAME = "governor-leases.json"
 CANONICAL_BRANCH = "feat/as-orch-continuation-broker-001"
 TRUSTED_MAIN = "7e797468a2eca37c959920912b1fa264df4be638"
+# Read-only IV/ADV may only touch evidence under the package surface.
+IV_ADV_ALLOWED_PATHS: tuple[str, ...] = (
+    "src/project_atlas/orchestration/sdk",
+    "tests/unit",
+    "docs/evidence",
+    ".atlas/orchestration/sdk-runtime",
+)
 
 RefreshFn = Callable[[], PrHeadRef | None]
 ObserveFn = Callable[[str], CiObservation]
@@ -145,6 +161,7 @@ class LiveDagController:
         refresh: RefreshFn | None = None,
         observe: ObserveFn | None = None,
         real_sdk_backend: bool = False,
+        worker_dispatch_enabled: bool | None = None,
     ) -> None:
         self.root = root
         self.pr_number = pr_number
@@ -153,8 +170,13 @@ class LiveDagController:
             lambda: refresh_pr_head(pr_number=pr_number)
         )
         self._observe = observe or (lambda sha: observe_exact_head_ci(head_sha=sha))
+        # D-088: CLI authentic worker may dispatch; do not require official SDK.
         self.real_sdk_backend = real_sdk_backend
+        self.worker_dispatch_enabled = (
+            real_sdk_backend if worker_dispatch_enabled is None else worker_dispatch_enabled
+        )
         self.state = load_live_dag(root)
+        self._leases: dict[str, GovernorLease] = {}
 
     def tick(self) -> tuple[LiveDagState, list[ReadyWorkItem]]:
         live = self._refresh()
@@ -294,13 +316,51 @@ class LiveDagController:
             run_id=new_obs.run_id,
         )
 
+    def _mint_lease(self, *, role: AgentRole, node_id: str, mutating: bool) -> GovernorLease:
+        reject_superseded_pr_mutation(target_pr=self.pr_number)
+        if self.pr_number != SECURITY_CANONICAL_PR:
+            raise ValueError("non-canonical PR cannot mint lease")
+        assert self.state.bound_head is not None
+        lease = GovernorLease(
+            lease_id=f"lease-{node_id.lower()}-{self.state.dag_generation}",
+            package_id=PACKAGE_ID,
+            canonical_pr=SECURITY_CANONICAL_PR,
+            branch=CANONICAL_BRANCH,
+            role=role,
+            dag_generation=self.state.dag_generation,
+            allowed_paths=IV_ADV_ALLOWED_PATHS
+            if not mutating
+            else (
+                "src/project_atlas/orchestration/sdk",
+                "tests/unit",
+                "scripts",
+            ),
+            worktree=str(self.root),
+            candidate_head=self.state.bound_head,
+            candidate_tree=self.state.bound_tree,
+            active=True,
+            expired=False,
+            mutation_authorized=mutating,
+        )
+        self._leases[lease.lease_id] = lease
+        path = self.root / STATE_DIR_RELATIVE / LEASES_NAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {k: v.model_dump(mode="json") for k, v in self._leases.items()}
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return lease
+
     def _ready_items(self) -> list[ReadyWorkItem]:
         state = self.state
-        if not state.bound_head or not self.real_sdk_backend:
+        if not state.bound_head or not self.worker_dispatch_enabled:
             return []
         items: list[ReadyWorkItem] = []
         if state.ci_status == "PASS":
             if not state.iv_dispatched:
+                lease = self._mint_lease(
+                    role=AgentRole.INDEPENDENT_VERIFIER,
+                    node_id="IV-LIVE",
+                    mutating=False,
+                )
                 items.append(
                     ReadyWorkItem(
                         role=AgentRole.INDEPENDENT_VERIFIER,
@@ -308,14 +368,21 @@ class LiveDagController:
                         node_id="IV-LIVE",
                         cycle_id=f"IV-{state.bound_head[:12]}",
                         dag_generation=state.dag_generation,
+                        lease_id=lease.lease_id,
                         base_main=TRUSTED_MAIN,
                         branch=CANONICAL_BRANCH,
                         candidate_head=state.bound_head,
                         candidate_tree=state.bound_tree,
                         prompt=_iv_prompt(state.bound_head, state.bound_tree),
+                        critical_path_score=100,
                     )
                 )
             if not state.adv_dispatched:
+                lease = self._mint_lease(
+                    role=AgentRole.SECURITY_REVIEWER,
+                    node_id="ADV-LIVE",
+                    mutating=False,
+                )
                 items.append(
                     ReadyWorkItem(
                         role=AgentRole.SECURITY_REVIEWER,
@@ -323,14 +390,21 @@ class LiveDagController:
                         node_id="ADV-LIVE",
                         cycle_id=f"ADV-{state.bound_head[:12]}",
                         dag_generation=state.dag_generation,
+                        lease_id=lease.lease_id,
                         base_main=TRUSTED_MAIN,
                         branch=CANONICAL_BRANCH,
                         candidate_head=state.bound_head,
                         candidate_tree=state.bound_tree,
                         prompt=_adv_prompt(state.bound_head, state.bound_tree),
+                        critical_path_score=100,
                     )
                 )
         elif state.ci_status == "FAIL" and not state.remediation_dispatched:
+            lease = self._mint_lease(
+                role=AgentRole.REMEDIATOR,
+                node_id="REMEDIATE-LIVE",
+                mutating=True,
+            )
             items.append(
                 ReadyWorkItem(
                     role=AgentRole.REMEDIATOR,
@@ -338,11 +412,13 @@ class LiveDagController:
                     node_id="REMEDIATE-LIVE",
                     cycle_id=f"REM-{state.bound_head[:12]}",
                     dag_generation=state.dag_generation,
+                    lease_id=lease.lease_id,
                     base_main=TRUSTED_MAIN,
                     branch=CANONICAL_BRANCH,
                     candidate_head=state.bound_head,
                     candidate_tree=state.bound_tree,
                     prompt=_remediator_prompt(state.bound_head, state.ci_run_id),
+                    critical_path_score=200,
                 )
             )
         return items
@@ -358,6 +434,12 @@ class LiveDagController:
                 tree=self.state.bound_tree,
                 node=node_id,
             )
+            self.state.material_transitions += 1
+            advance_high_water(
+                self.root,
+                dag_generation=self.state.dag_generation,
+                event_sequence=self.state.material_transitions,
+            )
         elif node_id == "ADV-LIVE":
             self.state.adv_dispatched = True
             append_event(
@@ -368,6 +450,12 @@ class LiveDagController:
                 tree=self.state.bound_tree,
                 node=node_id,
             )
+            self.state.material_transitions += 1
+            advance_high_water(
+                self.root,
+                dag_generation=self.state.dag_generation,
+                event_sequence=self.state.material_transitions,
+            )
         elif node_id == "REMEDIATE-LIVE":
             self.state.remediation_dispatched = True
             append_event(
@@ -377,5 +465,11 @@ class LiveDagController:
                 head=self.state.bound_head,
                 tree=self.state.bound_tree,
                 node=node_id,
+            )
+            self.state.material_transitions += 1
+            advance_high_water(
+                self.root,
+                dag_generation=self.state.dag_generation,
+                event_sequence=self.state.material_transitions,
             )
         persist_live_dag(self.root, self.state)
