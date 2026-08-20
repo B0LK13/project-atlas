@@ -28,6 +28,11 @@ _SECRET_RE = re.compile(
 )
 
 
+def _prepare_windows_loop() -> None:
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
 SMOKE_A = (
     "READ-ONLY bounded repository inspection. Do not edit, commit, push, or merge. "
     "Open src/project_atlas/orchestration/sdk/models.py and return only the exact "
@@ -448,6 +453,7 @@ def run_local_sdk_proof(root: Path) -> dict[str, object]:
         "real_local_followup_without_human": "FAIL",
         "local_agent_resume_after_restart": "FAIL",
     }
+    _prepare_windows_loop()
     apply_windows_discovery_patch()
     try:
         report.update(asyncio.run(_run_async_proof(root)))
