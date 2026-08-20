@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-HOOK_ADAPTER_VERSION = "D081-1"
+HOOK_ADAPTER_VERSION = "D082-1"
 
 
 def repository_root() -> Path:

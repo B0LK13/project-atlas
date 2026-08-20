@@ -10,7 +10,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
 
 from project_atlas.orchestration.sdk.auth import (
     AuthDiscovery,
@@ -137,10 +136,10 @@ class DurableAtlasSupervisor:
         ready: list[ReadyWorkItem] = []
         if self.ready_provider is not None:
             provided = self.ready_provider()
-            if asyncio.iscoroutine(provided):
-                ready = list(await provided)
+            if isinstance(provided, list):
+                ready = provided
             else:
-                ready = list(cast(list[ReadyWorkItem], provided))
+                ready = await provided
         result = await self.scheduler.cycle(ready)
         self.status.cycles += 1
         self.status.last_cycle = result
