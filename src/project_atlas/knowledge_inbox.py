@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from atlas_contracts.identity import safe_relative_component
+from atlas_contracts.identity import join_under_root, safe_relative_component
 from project_atlas.compat_anchor import (
     SNAPSHOT_ID,
     CompatibilityAnchor,
@@ -31,6 +31,7 @@ SCHEMA_KIND = "knowledge-inbox-receipt"
 INBOX_DIR = Path("generated") / "ops" / "inbox"
 CONVERSATION_DIR = Path("generated") / "ops" / "conversation-captures"
 ALLOWED_STATUS = frozenset({"quarantined", "accepted-review", "rejected"})
+UNKNOWN_PROJECT = "unknown-project"
 _REDACTED = "[redacted: secret-shaped value]"
 
 
@@ -112,6 +113,47 @@ def _safe_project_id(project_id: str | None) -> str:
         raise KnowledgeInboxError("MALFORMED_INPUT", str(exc)) from exc
 
 
+def _safe_receipt_id(receipt_id: str) -> str:
+    """Validate a receipt/capture id as one safe relative path component."""
+    token = receipt_id.strip()
+    if not token or not _ID_RE.fullmatch(token):
+        raise KnowledgeInboxError("MALFORMED_INPUT", "inbox-receipt-id-invalid")
+    try:
+        return safe_relative_component(token, label="receipt id")
+    except ValueError as exc:
+        raise KnowledgeInboxError("MALFORMED_INPUT", str(exc)) from exc
+
+
+def _inbox_receipt_path(vault: Path, receipt_id: str) -> Path:
+    """Resolve ``generated/ops/inbox/<id>.json``; never follow traversal."""
+    rid = _safe_receipt_id(receipt_id)
+    return join_under_root(vault / INBOX_DIR, f"{rid}.json", label="inbox receipt")
+
+
+def _unknown_project_report(
+    *,
+    limit: int,
+    status_filter: str | None,
+) -> dict[str, Any]:
+    """Fail-closed: unknown-project cannot own authoritative inbox inventory."""
+    return {
+        "schema_version": 1,
+        "package": LIST_PACKAGE_ID,
+        "status": "UNKNOWN",
+        "reason_code": "UNKNOWN_PROJECT",
+        "project_id": UNKNOWN_PROJECT,
+        "count": 0,
+        "limit": limit,
+        "status_filter": status_filter,
+        "items": [],
+        "unknown": "UNKNOWN (unknown-project is not an authoritative owner)",
+        "promoted_to_authority": False,
+        "layer_b_writes": 0,
+        "truth_boundary": TRUTH_BOUNDARY,
+        "generated": {"by": "project-atlas"},
+    }
+
+
 def _read_json_object(path: Path) -> dict[str, Any] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -128,7 +170,11 @@ def _safe_summary(value: Any) -> str:
 
 
 def _load_receipt(vault: Path, receipt_id: str) -> dict[str, Any] | None:
-    path = vault / INBOX_DIR / f"{receipt_id}.json"
+    """Load an inbox receipt. Unsafe ids never escape ``generated/ops/inbox``."""
+    try:
+        path = _inbox_receipt_path(vault, receipt_id)
+    except (KnowledgeInboxError, ValueError):
+        return None
     if path.is_symlink() or not path.is_file():
         return None
     payload = _read_json_object(path)
@@ -167,6 +213,8 @@ def list_inbox_items(
         status_filter = str(status).strip()
         if status_filter not in ALLOWED_STATUS:
             raise KnowledgeInboxError("MALFORMED_INPUT", "inbox-status-invalid")
+    if token == UNKNOWN_PROJECT:
+        return _unknown_project_report(limit=limit, status_filter=status_filter)
 
     inbox_root = vault / INBOX_DIR
     capture_root = vault / CONVERSATION_DIR
@@ -181,9 +229,16 @@ def list_inbox_items(
             payload = _read_json_object(path)
             if payload is None:
                 continue
-            if payload.get("project_id") != token:
+            owner = payload.get("project_id")
+            if owner == UNKNOWN_PROJECT or owner != token:
                 continue
-            cid = str(payload.get("capture_id") or path.stem)
+            raw_cid = payload.get("capture_id") or path.stem
+            if not isinstance(raw_cid, str):
+                continue
+            try:
+                cid = _safe_receipt_id(raw_cid)
+            except KnowledgeInboxError:
+                continue
             receipt = _load_receipt(vault, cid)
             raw_inbox = payload.get("inbox")
             inbox_meta = raw_inbox if isinstance(raw_inbox, dict) else {}
@@ -193,6 +248,12 @@ def list_inbox_items(
                 continue
             if status_filter is not None and row_status != status_filter:
                 continue
+            receipt_path = "UNKNOWN"
+            if receipt is not None:
+                try:
+                    receipt_path = _inbox_receipt_path(vault, cid).relative_to(vault).as_posix()
+                except (KnowledgeInboxError, ValueError):
+                    receipt_path = "UNKNOWN"
             items.append(
                 {
                     "receipt_id": cid,
@@ -207,11 +268,7 @@ def list_inbox_items(
                     "summary": _safe_summary(payload.get("summary")),
                     "review_state": payload.get("review_state") or "UNKNOWN",
                     "path": path.relative_to(vault).as_posix(),
-                    "receipt_path": (
-                        (vault / INBOX_DIR / f"{cid}.json").relative_to(vault).as_posix()
-                        if receipt is not None
-                        else "UNKNOWN"
-                    ),
+                    "receipt_path": receipt_path,
                     "authority": "derived",
                     "truth_boundary": TRUTH_BOUNDARY,
                 }

@@ -13,6 +13,7 @@ import pytest
 from project_atlas.cli import main
 from project_atlas.knowledge_inbox import (
     KnowledgeInboxError,
+    _load_receipt,
     build_knowledge_inbox_receipt,
     list_inbox_items,
 )
@@ -220,3 +221,131 @@ def test_cli_inbox_list_rejects_implicit_all_and_long_token(
     err = json.loads(capsys.readouterr().out)
     assert err["error"] == "MALFORMED_INPUT"
     assert err["promoted_to_authority"] is False
+
+
+def test_load_receipt_rejects_path_traversal_without_echoing_layer_b(
+    tmp_path: Path,
+) -> None:
+    vault = tmp_path / "v"
+    vault.mkdir()
+    layer_b = vault / "projects" / "harbor-api" / "leaked.json"
+    layer_b.parent.mkdir(parents=True)
+    secret = "LAYER-B-SECRET-MUST-NOT-LEAK"
+    _write(
+        layer_b,
+        {
+            "status": "quarantined",
+            "promoted_to_authority": False,
+            "item_count": 99,
+            "secret": secret,
+        },
+    )
+    adversarial_ids = (
+        "../../../projects/harbor-api/leaked",
+        "..\\..\\..\\projects\\harbor-api\\leaked",
+        "/projects/harbor-api/leaked",
+        "C:/projects/harbor-api/leaked",
+    )
+    for capture_id in adversarial_ids:
+        loaded = _load_receipt(vault, capture_id)
+        assert loaded is None
+        assert secret not in json.dumps(loaded) if loaded is not None else True
+
+
+def test_list_rejects_capture_id_path_traversal_without_echoing_layer_b(
+    tmp_path: Path,
+) -> None:
+    vault = tmp_path / "v"
+    vault.mkdir()
+    layer_b = vault / "projects" / "harbor-api" / "leaked.json"
+    layer_b.parent.mkdir(parents=True)
+    secret = "LAYER-B-SECRET-MUST-NOT-LEAK"
+    _write(
+        layer_b,
+        {
+            "status": "quarantined",
+            "promoted_to_authority": False,
+            "item_count": 99,
+            "secret": secret,
+        },
+    )
+    _write(
+        vault / "generated" / "ops" / "conversation-captures" / "ccap-evil.json",
+        {
+            "capture_id": "../../../projects/harbor-api/leaked",
+            "project_id": "harbor-api",
+            "summary": "should-not-read-layer-b",
+            "review_state": "captured",
+            "capture_items": [{"item_type": "observation", "text": "evil"}],
+            "inbox": {"status": "quarantined", "promoted_to_authority": False},
+        },
+    )
+    _capture(vault, capture_id="ccap-ok", project_id="harbor-api", summary="safe-row")
+    report = list_inbox_items(vault, project_id="harbor-api")
+    payload = json.dumps(report)
+    assert secret not in payload
+    assert "LAYER-B-SECRET" not in payload
+    assert [item["receipt_id"] for item in report["items"]] == ["ccap-ok"]
+    assert all(item.get("item_count") != 99 for item in report["items"])
+    assert "../../../projects/harbor-api/leaked" not in [
+        item["receipt_id"] for item in report["items"]
+    ]
+    assert "projects/harbor-api/leaked.json" not in payload
+
+
+def test_list_unknown_project_sentinel_is_not_authoritative_inventory(
+    tmp_path: Path,
+) -> None:
+    vault = tmp_path / "v"
+    vault.mkdir()
+    _capture(
+        vault,
+        capture_id="ccap-u",
+        project_id="unknown-project",
+        summary="sentinel-owned-must-not-list",
+    )
+    _capture(vault, capture_id="ccap-h", project_id="harbor-api", summary="owned")
+    report = list_inbox_items(vault, project_id="unknown-project")
+    assert report["status"] == "UNKNOWN"
+    assert report["reason_code"] == "UNKNOWN_PROJECT"
+    assert report["items"] == []
+    assert report["count"] == 0
+    payload = json.dumps(report)
+    assert "ccap-u" not in payload
+    assert "sentinel-owned-must-not-list" not in payload
+    assert report["status"] != "ok"
+    harbor = list_inbox_items(vault, project_id="harbor-api")
+    assert harbor["status"] == "ok"
+    assert [item["receipt_id"] for item in harbor["items"]] == ["ccap-h"]
+    assert "ccap-u" not in json.dumps(harbor["items"])
+
+
+def test_cli_inbox_list_unknown_project_is_not_owned_listing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    vault = tmp_path / "v"
+    vault.mkdir()
+    _capture(
+        vault,
+        capture_id="ccap-u",
+        project_id="unknown-project",
+        summary="sentinel-owned-must-not-list",
+    )
+    code = main(
+        [
+            "inbox",
+            "list",
+            "--vault",
+            str(vault),
+            "--project",
+            "unknown-project",
+            "--json",
+        ]
+    )
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "UNKNOWN"
+    assert payload["reason_code"] == "UNKNOWN_PROJECT"
+    assert payload["items"] == []
+    assert "ccap-u" not in json.dumps(payload)
+    assert "sentinel-owned-must-not-list" not in json.dumps(payload)
