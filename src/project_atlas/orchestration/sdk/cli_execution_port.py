@@ -540,15 +540,13 @@ class CursorAgentCliExecutionPort:
             return
         if not record.lease_id or not record.node_id or not record.result_digest:
             return
-        source: Literal[
-            "IV",
-            "ADV",
-            "CLOUD_RUNTIME_AUDITOR",
-        ] = {
-            AgentRole.CLOUD_RUNTIME_AUDITOR: "CLOUD_RUNTIME_AUDITOR",
-            AgentRole.INDEPENDENT_VERIFIER: "IV",
-            AgentRole.SECURITY_REVIEWER: "ADV",
-        }[request.role]
+        source: Literal["IV", "ADV", "CLOUD_RUNTIME_AUDITOR"]
+        if request.role == AgentRole.CLOUD_RUNTIME_AUDITOR:
+            source = "CLOUD_RUNTIME_AUDITOR"
+        elif request.role == AgentRole.INDEPENDENT_VERIFIER:
+            source = "IV"
+        else:
+            source = "ADV"
         envelope_payload = _extract_structured_payload(text)
         if request.role == AgentRole.CLOUD_RUNTIME_AUDITOR:
             assignment_id = None
