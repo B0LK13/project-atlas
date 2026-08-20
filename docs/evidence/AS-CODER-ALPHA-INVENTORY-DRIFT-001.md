@@ -1,0 +1,32 @@
+# AS-CODER-ALPHA-INVENTORY-DRIFT-001
+
+```
+PACKAGE = AS-CODER-ALPHA-INVENTORY-DRIFT-001
+BASE = 5b7f564863d09d82fb7977cfc495f5a2b5124f6b
+DIRECTIVE = D-CLOUD-SYSTEMIC-CONSOLIDATION-033
+DRAFT = YES
+CERTIFICATION = NOT_GRANTED
+MERGE_AUTHORIZATION = NOT_GRANTED
+INDEPENDENT_IV = BLOCKED
+SELF_REVIEW != INDEPENDENT_IV
+```
+
+Shared connect-inventory drift primitive. Thin wrappers attach metadata to
+overview and architecture lenses. Next ranking, attention scoring, brief
+composition, architecture slot extraction, and state classification stay
+lens-specific.
+
+Supersede candidates (do not auto-close): #389 #404 #388 #387 #386 #385
+#383 #384 #382 #381.
+
+```
+MISSING_SOURCE_ROOT = UNKNOWN
+MISSING_INVENTORY = UNKNOWN
+SOURCE_HASH_MISMATCH = STALE
+STORED_HASHES_ALONE_ARE_NOT_LIVE_EVIDENCE = YES
+UNKNOWN != FRESH
+UNKNOWN != HEALTHY
+STALE != CURRENT
+LENS != AUTHORITY
+SECRET_CONTENT_ECHO = NO
+```

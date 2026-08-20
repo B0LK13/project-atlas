@@ -19,6 +19,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import attach_source_drift
+
 PACKAGE_ID = "AS-CODER-ALPHA-OVERVIEW-001"
 GENERATOR_ID = "atlas-coder-alpha-overview-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -187,29 +189,33 @@ def build_overview_lens(vault: Path, project_id: str) -> dict[str, Any]:
     project_note = vault / "projects" / project_id / "project.md"
     inspected = [f"projects/{project_id}/project.md"]
     if not project_note.is_file():
-        return {
-            "schema_version": 1,
-            "schema": "atlas.coder-alpha.overview-lens.v1",
-            "package": PACKAGE_ID,
-            "answer_id": f"ans-overview-{project_id}",
-            "subject": project_id,
-            "field": "overview",
-            "title": "What is this project?",
-            "summary": None,
-            "value": None,
-            "status": "unknown",
-            "authority": "derived-lens",
-            "layer": "C",
-            "project_id": project_id,
-            "coverage": {},
-            "inspected_artifacts": inspected,
-            "notes": [
-                "project.md missing; UNKNOWN (not invented)",
-                "lens≠Layer-B-authority",
-                "UI≠canonical",
-            ],
-            "generated": {"by": GENERATOR_ID},
-        }
+        return attach_source_drift(
+            {
+                "schema_version": 1,
+                "schema": "atlas.coder-alpha.overview-lens.v1",
+                "package": PACKAGE_ID,
+                "answer_id": f"ans-overview-{project_id}",
+                "subject": project_id,
+                "field": "overview",
+                "title": "What is this project?",
+                "summary": None,
+                "value": None,
+                "status": "unknown",
+                "authority": "derived-lens",
+                "layer": "C",
+                "project_id": project_id,
+                "coverage": {},
+                "inspected_artifacts": inspected,
+                "notes": [
+                    "project.md missing; UNKNOWN (not invented)",
+                    "lens≠Layer-B-authority",
+                    "UI≠canonical",
+                ],
+                "generated": {"by": GENERATOR_ID},
+            },
+            vault,
+            project_id,
+        )
 
     try:
         note_text = project_note.read_text(encoding="utf-8")
@@ -257,25 +263,29 @@ def build_overview_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if absent:
         notes.append("coverage_absent_sample=" + ",".join(absent[:8]))
 
-    return {
-        "schema_version": 1,
-        "schema": "atlas.coder-alpha.overview-lens.v1",
-        "package": PACKAGE_ID,
-        "answer_id": f"ans-overview-{project_id}",
-        "subject": project_id,
-        "field": "overview",
-        "title": "What is this project?",
-        "summary": summary,
-        "value": value,
-        "status": status,
-        "authority": "derived-lens",
-        "layer": "C",
-        "project_id": project_id,
-        "coverage": coverage,
-        "inspected_artifacts": inspected,
-        "notes": notes,
-        "generated": {"by": GENERATOR_ID},
-    }
+    return attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": "atlas.coder-alpha.overview-lens.v1",
+            "package": PACKAGE_ID,
+            "answer_id": f"ans-overview-{project_id}",
+            "subject": project_id,
+            "field": "overview",
+            "title": "What is this project?",
+            "summary": summary,
+            "value": value,
+            "status": status,
+            "authority": "derived-lens",
+            "layer": "C",
+            "project_id": project_id,
+            "coverage": coverage,
+            "inspected_artifacts": inspected,
+            "notes": notes,
+            "generated": {"by": GENERATOR_ID},
+        },
+        vault,
+        project_id,
+    )
 
 
 def materialize_overview_lenses(
