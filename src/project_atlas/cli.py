@@ -4968,27 +4968,39 @@ def main(argv: Sequence[str] | None = None) -> int:
                 status_report,
             )
 
-            root = Path(getattr(args, "root", None) or Path.cwd())
+            broker_root = Path(getattr(args, "root", None) or Path.cwd())
             action = str(getattr(args, "broker_action", ""))
             try:
                 if action == "status":
-                    report = status_report(root)
-                    print(json.dumps(report, indent=2, sort_keys=True))
-                    return EXIT_OK if report.get("ok") else EXIT_ERROR
+                    broker_status = status_report(broker_root)
+                    print(json.dumps(broker_status, indent=2, sort_keys=True))
+                    return EXIT_OK if broker_status.get("ok") else EXIT_ERROR
                 cycle_id = str(getattr(args, "cycle_id", "") or "")
                 if action == "consume":
-                    state = consume_successor(root, cycle_id)
-                    print(json.dumps(state.model_dump(mode="json"), indent=2, sort_keys=True))
+                    broker_state = consume_successor(broker_root, cycle_id)
+                    print(
+                        json.dumps(
+                            broker_state.model_dump(mode="json"),
+                            indent=2,
+                            sort_keys=True,
+                        )
+                    )
                     return EXIT_OK
                 kind = SuccessorKind(str(getattr(args, "kind", "CHECKPOINT_CONTINUE")))
-                result = enqueue_successor(
-                    root,
+                broker_enqueue = enqueue_successor(
+                    broker_root,
                     cycle_id=cycle_id,
                     kind=kind,
                     trusted_main=str(getattr(args, "trusted_main", "") or ""),
                     trusted_tree=str(getattr(args, "trusted_tree", "") or ""),
                 )
-                print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+                print(
+                    json.dumps(
+                        broker_enqueue.model_dump(mode="json"),
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
                 return EXIT_OK
             except Exception as exc:
                 code = getattr(exc, "code", str(exc))
