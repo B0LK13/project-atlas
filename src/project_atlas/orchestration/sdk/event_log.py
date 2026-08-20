@@ -19,6 +19,7 @@ SupervisorEventName = Literal[
     "NEW_HEAD_ADOPTED",
     "NEW_CI_ADOPTED",
     "CI_TERMINAL",
+    "CI_JOB_SIGNAL",
     "IV_DISPATCHED",
     "ADV_DISPATCHED",
     "REMEDIATION_DISPATCHED",

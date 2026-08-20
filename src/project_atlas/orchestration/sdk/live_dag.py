@@ -14,6 +14,8 @@ from project_atlas.orchestration.sdk.ci_observer import (
     CiObservation,
     PrHeadRef,
     classify_against_live_head,
+    classify_failure,
+    failure_identity,
     observe_exact_head_ci,
     persist_observation,
     refresh_pr_head,
@@ -25,6 +27,10 @@ from project_atlas.orchestration.sdk.models import (
     STATE_DIR_RELATIVE,
     AgentRole,
 )
+from project_atlas.orchestration.sdk.package_registry import (
+    require_mutating_route,
+    update_package_route_on_head_move,
+)
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
 from project_atlas.orchestration.sdk.security_gates import (
     CANONICAL_PR as SECURITY_CANONICAL_PR,
@@ -33,6 +39,7 @@ from project_atlas.orchestration.sdk.security_gates import (
     GovernorLease,
     advance_high_water,
     reject_superseded_pr_mutation,
+    suppress_stale_directive,
 )
 
 LIVE_DAG_NAME = "live-dag.json"
@@ -68,6 +75,8 @@ class LiveDagState(BaseModel):
     iv_dispatched: bool = False
     adv_dispatched: bool = False
     remediation_dispatched: bool = False
+    remediation_failure_ids: list[str] = Field(default_factory=list)
+    cloud_runtime_audit_pass: bool = False
     material_transitions: int = 0
     target_move_detected: bool = False
     new_head_adopted: bool = False
@@ -198,18 +207,31 @@ class LiveDagController:
         assert self.state.bound_head is not None
         obs = self._observe(self.state.bound_head)
         classified = classify_against_live_head(exact=obs, live_head=live.head_sha)
+        classified = classify_failure(
+            observation=classified,
+            live_head=live.head_sha,
+            current_generation=self.state.dag_generation,
+        )
         persist_observation(self.root, classified)
         self.state.ci_status = classified.status
         self.state.ci_run_id = classified.run_id
         if classified.status in {"PASS", "FAIL", "CANCELLED"}:
+            event_name: Literal["CI_TERMINAL", "CI_JOB_SIGNAL"] = (
+                "CI_TERMINAL"
+                if (classified.run_status or "") == "completed"
+                else "CI_JOB_SIGNAL"
+            )
+            detail: str = classified.status
+            if classified.failed_required_job_id:
+                detail = f"{classified.status}:{classified.failed_required_job_id}"
             append_event(
                 self.root,
-                "CI_TERMINAL",
+                event_name,
                 dag_generation=self.state.dag_generation,
                 head=self.state.bound_head,
                 tree=self.state.bound_tree,
                 run_id=classified.run_id,
-                detail=classified.status,
+                detail=detail,
             )
         persist_live_dag(self.root, self.state)
         if self.supervisor_pid is not None and self.state.bound_head:
@@ -233,6 +255,12 @@ class LiveDagController:
         self.state.bound_head = live.head_sha
         self.state.bound_tree = live.tree_sha
         self.state.new_head_adopted = True
+        update_package_route_on_head_move(
+            self.root,
+            head=live.head_sha,
+            tree=live.tree_sha,
+            dag_generation=self.state.dag_generation,
+        )
         append_event(
             self.root,
             "NEW_HEAD_ADOPTED",
@@ -291,9 +319,16 @@ class LiveDagController:
         self.state.iv_dispatched = False
         self.state.adv_dispatched = False
         self.state.remediation_dispatched = False
+        self.state.cloud_runtime_audit_pass = False
         self.state.target_move_detected = True
         self.state.new_head_adopted = True
         self.state.material_transitions += 1
+        update_package_route_on_head_move(
+            self.root,
+            head=live.head_sha,
+            tree=live.tree_sha,
+            dag_generation=self.state.dag_generation,
+        )
         append_event(
             self.root,
             "NEW_HEAD_ADOPTED",
@@ -321,6 +356,22 @@ class LiveDagController:
         if self.pr_number != SECURITY_CANONICAL_PR:
             raise ValueError("non-canonical PR cannot mint lease")
         assert self.state.bound_head is not None
+        stale = suppress_stale_directive(
+            directive_pr=self.pr_number,
+            directive_head=self.state.bound_head,
+            live_pr=SECURITY_CANONICAL_PR,
+            live_head=self.state.bound_head,
+        )
+        if stale:
+            raise ValueError(f"stale directive suppressed: {stale}")
+        if mutating:
+            require_mutating_route(
+                self.root,
+                target_pr=self.pr_number,
+                branch=CANONICAL_BRANCH,
+                head=self.state.bound_head,
+                dag_generation=self.state.dag_generation,
+            )
         lease = GovernorLease(
             lease_id=f"lease-{node_id.lower()}-{self.state.dag_generation}",
             package_id=PACKAGE_ID,
@@ -349,12 +400,43 @@ class LiveDagController:
         path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return lease
 
+    def _failure_id_for_current(self) -> str | None:
+        path = self.root / STATE_DIR_RELATIVE / "ci-observer.json"
+        if not path.is_file():
+            return None
+        try:
+            obs = CiObservation.model_validate_json(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if (
+            obs.status != "FAIL"
+            or not obs.run_id
+            or not obs.failed_required_job_id
+            or not obs.failure_digest
+            or not self.state.bound_head
+        ):
+            # Workflow-level FAIL without job id still needs a stable identity.
+            if obs.status == "FAIL" and obs.run_id and self.state.bound_head:
+                return failure_identity(
+                    head=self.state.bound_head,
+                    run_id=obs.run_id,
+                    job_id=obs.failed_required_job_id or "workflow",
+                    failure_digest=obs.failure_digest or obs.run_id,
+                )
+            return None
+        return failure_identity(
+            head=self.state.bound_head,
+            run_id=obs.run_id,
+            job_id=obs.failed_required_job_id,
+            failure_digest=obs.failure_digest,
+        )
+
     def _ready_items(self) -> list[ReadyWorkItem]:
         state = self.state
         if not state.bound_head or not self.worker_dispatch_enabled:
             return []
         items: list[ReadyWorkItem] = []
-        if state.ci_status == "PASS":
+        if state.ci_status == "PASS" and state.cloud_runtime_audit_pass:
             if not state.iv_dispatched:
                 lease = self._mint_lease(
                     role=AgentRole.INDEPENDENT_VERIFIER,
@@ -400,6 +482,24 @@ class LiveDagController:
                     )
                 )
         elif state.ci_status == "FAIL" and not state.remediation_dispatched:
+            fid = self._failure_id_for_current()
+            if fid and fid in state.remediation_failure_ids:
+                return items
+            # Only candidate defects remediates; stale/infra do not.
+            path = self.root / STATE_DIR_RELATIVE / "ci-observer.json"
+            failure_class = "CANDIDATE_DEFECT"
+            if path.is_file():
+                try:
+                    obs = CiObservation.model_validate_json(
+                        path.read_text(encoding="utf-8")
+                    )
+                    failure_class = obs.failure_class
+                except (OSError, ValueError):
+                    pass
+            if failure_class != "CANDIDATE_DEFECT":
+                return items
+            if fid:
+                state.remediation_failure_ids.append(fid)
             lease = self._mint_lease(
                 role=AgentRole.REMEDIATOR,
                 node_id="REMEDIATE-LIVE",

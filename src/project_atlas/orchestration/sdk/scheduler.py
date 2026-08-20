@@ -1,12 +1,16 @@
-"""DAG-to-agent scheduler. Uses the primary governor — no second DAG engine."""
+"""DAG-to-agent scheduler. Parks transient failures; never exits primary loop."""
 
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from project_atlas.orchestration.sdk.backend import ExecutionBackend
 from project_atlas.orchestration.sdk.cost_guard import CostGuard
 from project_atlas.orchestration.sdk.models import (
+    STATE_DIR_RELATIVE,
     AgentRole,
     RunRecord,
     ScheduleRequest,
@@ -14,6 +18,24 @@ from project_atlas.orchestration.sdk.models import (
 )
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
+from project_atlas.orchestration.sdk.security_gates import (
+    TransientClass,
+    classify_transient_failure,
+    recovery_action,
+)
+
+PARKED_NAME = "scheduler-parked.json"
+TRANSIENT_CODES = frozenset(
+    {
+        "TRANSIENT_TIMEOUT",
+        "TRANSIENT_CLI_BRIDGE",
+        "RATE_LIMIT",
+        "NETWORK",
+        "TIMEOUT",
+        "SERVER_5XX",
+        "CLI_BRIDGE",
+    }
+)
 
 
 @dataclass
@@ -58,6 +80,48 @@ class DagToAgentScheduler:
     runs: RunRegistry
     pool: AgentRolePool
     cost: CostGuard
+    root: Path | None = None
+
+    def _park_path(self) -> Path | None:
+        if self.root is None:
+            return None
+        return self.root / STATE_DIR_RELATIVE / PARKED_NAME
+
+    def _load_parked(self) -> dict[str, object]:
+        path = self._park_path()
+        if path is None or not path.is_file():
+            return {}
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _save_parked(self, payload: dict[str, object]) -> None:
+        path = self._park_path()
+        if path is None:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    def _is_parked(self, node_id: str) -> bool:
+        parked = self._load_parked()
+        entry = parked.get(node_id)
+        if not isinstance(entry, dict):
+            return False
+        next_retry = float(entry.get("next_retry_at") or 0)
+        return time.time() < next_retry
+
+    def _park_node(self, node_id: str, *, code: str, attempt: int) -> None:
+        parked = self._load_parked()
+        delay = min(300.0, 2.0 ** min(attempt, 8))
+        parked[node_id] = {
+            "code": code,
+            "attempt": attempt,
+            "next_retry_at": time.time() + delay,
+            "parked_at": time.time(),
+        }
+        self._save_parked(parked)
 
     async def ingest_completions(self) -> list[RunRecord]:
         ingested: list[RunRecord] = []
@@ -72,6 +136,9 @@ class DagToAgentScheduler:
         result = ScheduleCycleResult()
         ordered = sorted(items, key=lambda i: (-i.critical_path_score, i.node_id))
         for item in ordered:
+            if self._is_parked(item.node_id):
+                result.parked.append(item.node_id)
+                continue
             if not self.cost.allow_schedule(item.role, optional=item.optional):
                 result.parked.append(item.node_id)
                 continue
@@ -109,13 +176,34 @@ class DagToAgentScheduler:
                 result.started.append(run)
             except SdkRuntimeError as exc:
                 if exc.code == "AGENT_BUSY" and existing is not None and existing.last_run_id:
-                    # Reconcile: bind active run, do not spawn duplicate.
                     bound = await self.backend.wait_run(
                         existing.last_run_id, agent_id=existing.agent_id
                     )
                     result.ingested.append(bound)
-                else:
-                    raise
+                    continue
+                kind = classify_transient_failure(exc)
+                if exc.code in TRANSIENT_CODES or kind != TransientClass.NOT_TRANSIENT:
+                    action = recovery_action(kind)
+                    if action == "PARK_BACKOFF":
+                        self._park_node(item.node_id, code=exc.code, attempt=item.attempt)
+                        result.parked.append(item.node_id)
+                        continue
+                    if action == "TRY_OTHER_BACKEND":
+                        # Mark parked; supervisor may switch backends. No owner prompt.
+                        self._park_node(
+                            item.node_id,
+                            code="AUTH_PERSISTENT_TRY_OTHER_BACKEND",
+                            attempt=item.attempt,
+                        )
+                        result.parked.append(item.node_id)
+                        continue
+                # Non-transient: park as diagnostic, keep supervisor alive.
+                self._park_node(
+                    item.node_id,
+                    code=f"INTERNAL_DIAGNOSTIC:{exc.code}",
+                    attempt=item.attempt,
+                )
+                result.parked.append(item.node_id)
         return result
 
     async def cycle(self, ready: list[ReadyWorkItem]) -> ScheduleCycleResult:

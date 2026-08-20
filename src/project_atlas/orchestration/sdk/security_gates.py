@@ -261,27 +261,44 @@ def require_valid_lease(
     return lease
 
 
-def normalize_rel_path(raw: str) -> str:
-    """Reject path normalization escapes; return POSIX relative form."""
+def normalize_rel_path(raw: str, *, casefold: bool = False) -> str:
+    """Reject path normalization escapes; return POSIX relative form.
+
+    Handles Windows separators, drive/UNC prefixes, ``..``, and trailing junk.
+    """
     text = raw.replace("\\", "/").strip()
+    # Strip Windows extended/UNC prefixes.
+    for prefix in ("//?/", "//./", "//"):
+        if text.startswith(prefix):
+            text = text[len(prefix) :]
+            break
     if not text or text.startswith("/") or text.startswith("~"):
         raise SdkRuntimeError("path escape rejected", code="PATH_ESCAPE")
+    # Drive letter / absolute Windows path.
+    if len(text) >= 2 and text[1] == ":" and text[0].isalpha():
+        raise SdkRuntimeError("drive-absolute path rejected", code="PATH_ESCAPE")
     parts: list[str] = []
     for part in text.split("/"):
         if part in ("", "."):
             continue
         if part == "..":
             raise SdkRuntimeError("path traversal rejected", code="PATH_ESCAPE")
+        # Windows trailing-dot / trailing-space segment tricks.
+        stripped = part.rstrip(" .")
+        if stripped != part:
+            raise SdkRuntimeError("trailing path junk rejected", code="PATH_ESCAPE")
         parts.append(part)
     if not parts:
         raise SdkRuntimeError("empty path rejected", code="PATH_ESCAPE")
-    return "/".join(parts)
+    out = "/".join(parts)
+    return out.casefold() if casefold else out
 
 
 def enforce_allowed_paths(
     *,
     changed_paths: list[str] | tuple[str, ...],
     allowed_paths: list[str] | tuple[str, ...],
+    windows_casefold: bool = True,
 ) -> None:
     """ORCH-SDK-ALLOWED-PATHS-001 — compare actual diff paths to lease.allowed_paths."""
     if not allowed_paths:
@@ -289,10 +306,11 @@ def enforce_allowed_paths(
             "metadata-only allowed_paths insufficient",
             code="ALLOWED_PATHS_EMPTY",
         )
-    allowed = {normalize_rel_path(p) for p in allowed_paths}
+    allowed = {
+        normalize_rel_path(p, casefold=windows_casefold) for p in allowed_paths
+    }
     for raw in changed_paths:
-        path = normalize_rel_path(raw)
-        # Repo metadata always rejected for mutating acceptance.
+        path = normalize_rel_path(raw, casefold=windows_casefold)
         if path.startswith(".git/") or path == ".git":
             raise SdkRuntimeError("repo metadata path rejected", code="REPO_METADATA")
         matched = False
@@ -305,6 +323,15 @@ def enforce_allowed_paths(
                 f"unauthorized path {path}",
                 code="ALLOWED_PATHS_VIOLATION",
             )
+
+
+def require_changed_paths_determined(changed_paths: list[str] | None) -> list[str]:
+    if changed_paths is None:
+        raise SdkRuntimeError(
+            "post-run diff cannot be determined",
+            code="DIFF_UNDETERMINED",
+        )
+    return list(changed_paths)
 
 
 def validate_result_binding(
@@ -431,6 +458,12 @@ def classify_transient_failure(
     code = status_code
     if code is None:
         code = getattr(exc, "status_code", None) if not isinstance(exc, str) else None
+    if not isinstance(exc, str) and type(exc).__name__ in {
+        "TimeoutError",
+        "CancelledError",
+        "Timeout",
+    }:
+        return TransientClass.TIMEOUT
     if code in {401, 403} or "invalid user api key" in text or "missing_api_key" in text:
         return TransientClass.AUTH_PERSISTENT
     if code == 429 or "rate limit" in text or "too many requests" in text:
@@ -492,54 +525,78 @@ class SixP1ClosureStatus:
     symbol: str
 
 
-def six_p1_closure_matrix() -> list[SixP1ClosureStatus]:
-    """Read-only auditor matrix: each finding maps to file/symbol evidence."""
+@dataclass(frozen=True)
+class SixP1RuntimeProofs:
+    """Evidence-backed runtime wiring proofs. Never hard-code CLOSED without these."""
+
+    result_binding_runtime: bool = False
+    lease_gating_runtime: bool = False
+    allowed_paths_post_run: bool = False
+    host_high_water_recovery: bool = False
+    worker_lineage_persisted: bool = False
+    transient_failure_parked: bool = False
+
+
+def six_p1_closure_matrix(
+    proofs: SixP1RuntimeProofs | None = None,
+) -> list[SixP1ClosureStatus]:
+    """Matrix from runtime proofs. Helper presence alone yields PARTIAL."""
+    p = proofs or SixP1RuntimeProofs()
+
+    def _status(wired: bool) -> Literal["CLOSED", "PARTIAL", "MISSING"]:
+        return "CLOSED" if wired else "PARTIAL"
+
     return [
         SixP1ClosureStatus(
             "ORCH-SDK-RESULT-BINDING-001",
-            "CLOSED",
-            "security_gates.py",
-            "validate_result_binding",
+            _status(p.result_binding_runtime),
+            "result_plane.py",
+            "ingest_pending_against_registry",
         ),
         SixP1ClosureStatus(
             "ORCH-SDK-LEASE-GATE-001",
-            "CLOSED",
-            "security_gates.py",
-            "require_valid_lease",
+            _status(p.lease_gating_runtime),
+            "cli_execution_port.py",
+            "_require_lease",
         ),
         SixP1ClosureStatus(
             "ORCH-SDK-ALLOWED-PATHS-001",
-            "CLOSED",
-            "security_gates.py",
-            "enforce_allowed_paths",
+            _status(p.allowed_paths_post_run),
+            "cli_execution_port.py",
+            "_enforce_post_run_paths",
         ),
         SixP1ClosureStatus(
             "ORCH-SDK-HOST-ROLLBACK-001",
-            "CLOSED",
-            "security_gates.py",
-            "reject_host_rollback",
+            _status(p.host_high_water_recovery),
+            "recovery.py",
+            "recover_runtime",
         ),
         SixP1ClosureStatus(
             "ORCH-SDK-AGENT-LINEAGE-001",
-            "CLOSED",
-            "security_gates.py",
-            "bind_worker_lineage",
+            _status(p.worker_lineage_persisted),
+            "cli_execution_port.py",
+            "resume_agent",
         ),
         SixP1ClosureStatus(
             "ORCH-SDK-TRANSIENT-FAILURE-001",
-            "CLOSED",
-            "security_gates.py",
-            "classify_transient_failure",
+            _status(p.transient_failure_parked),
+            "scheduler.py",
+            "assign_and_start",
         ),
     ]
 
 
-def six_p1_open_count() -> int:
-    return sum(1 for row in six_p1_closure_matrix() if row.status != "CLOSED")
+def six_p1_open_count(proofs: SixP1RuntimeProofs | None = None) -> int:
+    return sum(1 for row in six_p1_closure_matrix(proofs) if row.status != "CLOSED")
 
 
-def audit_payload() -> dict[str, Any]:
-    rows = six_p1_closure_matrix()
+def six_p1_runtime_open_count(proofs: SixP1RuntimeProofs) -> int:
+    """Alias that requires explicit proofs — no default CLOSED self-certification."""
+    return six_p1_open_count(proofs)
+
+
+def audit_payload(proofs: SixP1RuntimeProofs | None = None) -> dict[str, Any]:
+    rows = six_p1_closure_matrix(proofs)
     return {
         "package_id": PACKAGE_ID,
         "canonical_pr": CANONICAL_PR,
@@ -550,13 +607,17 @@ def audit_payload() -> dict[str, Any]:
                 "file": r.file,
                 "symbol": r.symbol,
                 "attack": r.finding_id,
-                "test": "test_as_orch_six_p1_security_088.py",
+                "test": "test_as_orch_d092_runtime_wiring.py",
                 "evidence": f"src/project_atlas/orchestration/sdk/{r.file}::{r.symbol}",
-                "required_delta": "NONE" if r.status == "CLOSED" else "IMPLEMENT",
+                "required_delta": "NONE" if r.status == "CLOSED" else "WIRE_RUNTIME",
+                "helper_exists": "YES",
+                "authoritative_call_site": f"{r.file}:{r.symbol}",
+                "real_runtime_path": "YES" if r.status == "CLOSED" else "PARTIAL",
             }
             for r in rows
         ],
-        "six_p1_open_count": six_p1_open_count(),
+        "six_p1_open_count": six_p1_open_count(proofs),
+        "six_p1_runtime_open_count": six_p1_open_count(proofs),
         "merge_authorized": False,
         "execution_authorized": False,
     }

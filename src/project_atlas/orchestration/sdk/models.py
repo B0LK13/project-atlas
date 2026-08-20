@@ -119,6 +119,12 @@ class AgentRecord(BaseModel):
     last_run_id: str | None = None
     state: AgentState = AgentState.IDLE
     archived: bool = False
+    # Persisted worker lineage (D-092). Resume must use stored values.
+    worker_backend: str | None = None
+    workspace: str | None = None
+    repository: str | None = None
+    creation_generation: int | None = Field(default=None, ge=0, le=1_000_000)
+    lineage_id: str | None = None
     merge_authorized: Literal[False] = False
     execution_authorized: Literal[False] = False
     authority_granted: Literal[False] = False
@@ -135,9 +141,11 @@ class AgentRecord(BaseModel):
     def _pin(cls, value: str) -> str:
         return require_full_pin(value, "agent base_main")
 
-    @field_validator("package_id")
+    @field_validator("package_id", "lineage_id", "worker_backend")
     @classmethod
-    def _token(cls, value: str) -> str:
+    def _token_opt(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if not _ID_RE.fullmatch(value):
             raise ValueError("unsafe identity token")
         return value

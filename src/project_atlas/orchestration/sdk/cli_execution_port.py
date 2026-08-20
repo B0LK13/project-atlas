@@ -40,8 +40,10 @@ from project_atlas.orchestration.sdk.security_gates import (
     WorkerLineage,
     bind_worker_lineage,
     classify_transient_failure,
+    enforce_allowed_paths,
     normalize_cli_identity,
     recovery_action,
+    require_changed_paths_determined,
     require_valid_lease,
 )
 
@@ -107,6 +109,110 @@ class CursorAgentCliExecutionPort:
             package_id=request.package_id,
             mutating=mutating,
         )
+
+    def _git_porcelain_paths(self) -> list[str] | None:
+        """Return changed paths from git status; None if undetermined."""
+        import subprocess
+
+        try:
+            completed = subprocess.run(
+                ["git", "status", "--porcelain", "-uall"],
+                cwd=str(self.root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if completed.returncode != 0:
+            return None
+        paths: list[str] = []
+        for line in (completed.stdout or "").splitlines():
+            if len(line) < 4:
+                continue
+            rest = line[3:]
+            if " -> " in rest:
+                rest = rest.split(" -> ", 1)[1]
+            paths.append(rest.strip().strip('"'))
+        return paths
+
+    def _enforce_post_run_paths(
+        self,
+        request: ScheduleRequest,
+        lease: GovernorLease,
+        *,
+        pre_paths: set[str] | None = None,
+    ) -> None:
+        if request.role not in MUTATING_ROLES:
+            return
+        post = self._git_porcelain_paths()
+        determined = require_changed_paths_determined(post)
+        if pre_paths is not None:
+            changed = [p for p in determined if p not in pre_paths]
+        else:
+            changed = determined
+        try:
+            enforce_allowed_paths(
+                changed_paths=changed,
+                allowed_paths=lease.allowed_paths,
+            )
+        except SdkRuntimeError as exc:
+            raise SdkRuntimeError(
+                f"REJECTED_SCOPE_ESCAPE: {exc}",
+                code="REJECTED_SCOPE_ESCAPE",
+            ) from exc
+
+    def _lineage_from_stored(self, stored: AgentRecord) -> WorkerLineage:
+        if (
+            stored.workspace is None
+            or stored.repository is None
+            or stored.creation_generation is None
+            or stored.worker_backend is None
+        ):
+            raise SdkRuntimeError(
+                "agent registry missing lineage",
+                code="LINEAGE_MISSING",
+            )
+        return WorkerLineage(
+            identity=stored.agent_id,
+            backend=WorkerBackend(stored.worker_backend),
+            workspace=stored.workspace,
+            repository=stored.repository,
+            package_id=stored.package_id,
+            role=stored.role,
+            branch=stored.branch or CANONICAL_BRANCH,
+            base_main=stored.base_main,
+            creation_generation=stored.creation_generation,
+        )
+
+    def _persist_agent(
+        self,
+        *,
+        agent_id: str,
+        request: ScheduleRequest,
+        lineage: WorkerLineage,
+        state: AgentState,
+        last_run_id: str | None = None,
+    ) -> AgentRecord:
+        record = AgentRecord(
+            agent_id=agent_id,
+            runtime=AgentRuntime.LOCAL,
+            role=request.role,
+            package_id=request.package_id,
+            base_main=request.base_main,
+            branch=request.branch,
+            created_at=_utc_now(),
+            state=state,
+            last_run_id=last_run_id,
+            worker_backend=WorkerBackend.CURSOR_AGENT_CLI.value,
+            workspace=lineage.workspace,
+            repository=lineage.repository,
+            creation_generation=lineage.creation_generation,
+            lineage_id=f"lin-{agent_id}-{lineage.creation_generation}",
+        )
+        self.agents_reg.upsert(record)
+        return record
 
     def _mode_flags(self, role: AgentRole) -> list[str]:
         if role in MUTATING_ROLES:
@@ -234,6 +340,7 @@ class CursorAgentCliExecutionPort:
             return await self.send_followup(request.existing_agent_id, request)
 
         lease = self._require_lease(request)
+        pre_paths = set(self._git_porcelain_paths() or [])
         payload = await self._invoke(
             prompt=request.prompt,
             resume_session=None,
@@ -246,7 +353,7 @@ class CursorAgentCliExecutionPort:
         lineage = bind_worker_lineage(
             identity=agent_id,
             backend=WorkerBackend.CURSOR_AGENT_CLI,
-            workspace=str(self.root),
+            workspace=str(self.root.resolve()),
             repository=CANONICAL_REPO_URL,
             package_id=request.package_id,
             role=request.role,
@@ -265,17 +372,13 @@ class CursorAgentCliExecutionPort:
             lease=lease,
         )
         self._sessions[agent_id] = session
-        record = AgentRecord(
+        self._persist_agent(
             agent_id=agent_id,
-            runtime=AgentRuntime.LOCAL,
-            role=request.role,
-            package_id=request.package_id,
-            base_main=request.base_main,
-            branch=request.branch,
-            created_at=_utc_now(),
+            request=request,
+            lineage=lineage,
             state=AgentState.BUSY,
         )
-        self.agents_reg.upsert(record)
+        self._enforce_post_run_paths(request, lease, pre_paths=pre_paths)
         return self._finalize_run(session, request, key, payload)
 
     async def send_followup(self, agent_id: str, request: ScheduleRequest) -> RunRecord:
@@ -296,7 +399,20 @@ class CursorAgentCliExecutionPort:
             raise SdkRuntimeError("role change requires new session", code="ROLE_CHANGE")
         session = self._sessions.get(agent_id)
         if session is None:
-            # Resume after supervisor restart: re-bind lineage from registry.
+            # Resume after supervisor restart: use AUTHORITATIVE stored lineage.
+            stored_lineage = self._lineage_from_stored(stored)
+            bind_worker_lineage(
+                identity=agent_id,
+                backend=WorkerBackend.CURSOR_AGENT_CLI,
+                workspace=str(self.root.resolve()),
+                repository=CANONICAL_REPO_URL,
+                package_id=request.package_id,
+                role=request.role,
+                branch=request.branch or CANONICAL_BRANCH,
+                base_main=request.base_main,
+                creation_generation=request.dag_generation,
+                expected=stored_lineage,
+            )
             session = _CliSession(
                 agent_id=agent_id,
                 session_id=agent_id.removeprefix("cli-"),
@@ -304,17 +420,7 @@ class CursorAgentCliExecutionPort:
                 package_id=stored.package_id,
                 base_main=stored.base_main,
                 branch=stored.branch,
-                lineage=bind_worker_lineage(
-                    identity=agent_id,
-                    backend=WorkerBackend.CURSOR_AGENT_CLI,
-                    workspace=str(self.root),
-                    repository=CANONICAL_REPO_URL,
-                    package_id=stored.package_id,
-                    role=stored.role,
-                    branch=stored.branch or CANONICAL_BRANCH,
-                    base_main=stored.base_main,
-                    creation_generation=request.dag_generation,
-                ),
+                lineage=stored_lineage,
                 lease=lease,
             )
             self._sessions[agent_id] = session
@@ -322,7 +428,7 @@ class CursorAgentCliExecutionPort:
             bind_worker_lineage(
                 identity=agent_id,
                 backend=WorkerBackend.CURSOR_AGENT_CLI,
-                workspace=str(self.root),
+                workspace=str(self.root.resolve()),
                 repository=CANONICAL_REPO_URL,
                 package_id=request.package_id,
                 role=request.role,
@@ -332,6 +438,7 @@ class CursorAgentCliExecutionPort:
                 expected=session.lineage,
             )
         session.lease = lease
+        pre_paths = set(self._git_porcelain_paths() or [])
         payload = await self._invoke(
             prompt=request.prompt,
             resume_session=session.session_id,
@@ -340,6 +447,7 @@ class CursorAgentCliExecutionPort:
         returned = str(payload.get("session_id") or session.session_id).lower()
         if returned != session.session_id and normalize_cli_identity(returned) != agent_id:
             raise SdkRuntimeError("session identity drift", code="FOREIGN_IDENTITY")
+        self._enforce_post_run_paths(request, lease, pre_paths=pre_paths)
         return self._finalize_run(session, request, key, payload)
 
     def _finalize_run(
@@ -403,6 +511,7 @@ class CursorAgentCliExecutionPort:
         stored = self.agents_reg.get(agent_id)
         if stored is None:
             raise SdkRuntimeError("foreign CLI session", code="FOREIGN_IDENTITY")
+        lineage = self._lineage_from_stored(stored)
         if agent_id not in self._sessions:
             self._sessions[agent_id] = _CliSession(
                 agent_id=agent_id,
@@ -411,17 +520,7 @@ class CursorAgentCliExecutionPort:
                 package_id=stored.package_id,
                 base_main=stored.base_main,
                 branch=stored.branch,
-                lineage=bind_worker_lineage(
-                    identity=agent_id,
-                    backend=WorkerBackend.CURSOR_AGENT_CLI,
-                    workspace=str(self.root),
-                    repository=CANONICAL_REPO_URL,
-                    package_id=stored.package_id,
-                    role=stored.role,
-                    branch=stored.branch or CANONICAL_BRANCH,
-                    base_main=stored.base_main,
-                    creation_generation=0,
-                ),
+                lineage=lineage,
             )
         return stored
 

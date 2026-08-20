@@ -272,6 +272,8 @@ def test_live_dag_dispatches_iv_and_adv_on_pass(tmp_path: Path) -> None:
             bound_tree="a897d79f3a03bb9cd3933b59ca895b6bc44191dd",
             ci_run_id="32399733297",
             ci_status="PENDING",
+            cloud_runtime_audit_pass=True,
+            dag_generation=90,
         ),
     )
     live = PrHeadRef(

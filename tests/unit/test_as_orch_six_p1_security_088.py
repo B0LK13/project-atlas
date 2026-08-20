@@ -54,8 +54,20 @@ def _lease(**kwargs: object) -> GovernorLease:
 
 
 def test_six_p1_all_closed() -> None:
-    assert six_p1_open_count() == 0
-    payload = audit_payload()
+    # Without runtime proofs, helpers alone are PARTIAL (D-092).
+    assert six_p1_open_count() == 6
+    from project_atlas.orchestration.sdk.security_gates import SixP1RuntimeProofs
+
+    proofs = SixP1RuntimeProofs(
+        result_binding_runtime=True,
+        lease_gating_runtime=True,
+        allowed_paths_post_run=True,
+        host_high_water_recovery=True,
+        worker_lineage_persisted=True,
+        transient_failure_parked=True,
+    )
+    assert six_p1_open_count(proofs) == 0
+    payload = audit_payload(proofs)
     assert payload["six_p1_open_count"] == 0
     assert all(f["status"] == "CLOSED" for f in payload["findings"])
 
@@ -248,6 +260,8 @@ def test_transient_failure_park_vs_auth() -> None:
     assert classify_transient_failure("connection reset by peer") == TransientClass.NETWORK
     assert recovery_action(TransientClass.NETWORK) == "PARK_BACKOFF"
     assert classify_transient_failure("timeout waiting") == TransientClass.TIMEOUT
+    assert classify_transient_failure(TimeoutError()) == TransientClass.TIMEOUT
+    assert recovery_action(classify_transient_failure(TimeoutError())) == "PARK_BACKOFF"
     assert classify_transient_failure("rate limit", status_code=429) == TransientClass.RATE_LIMIT
     assert classify_transient_failure("boom", status_code=503) == TransientClass.SERVER_5XX
     assert classify_transient_failure("missing_api_key") == TransientClass.AUTH_PERSISTENT
@@ -307,7 +321,23 @@ def test_result_plane_ingest_without_owner_relay(tmp_path: Path) -> None:
         tmp_path,
         ResultEnvelope(source="ADV", binding=binding, payload={"new_p0": 0, "new_p1": 0}),
     )
-    assert transport_state(tmp_path) == "CLOSED"
-    ingested = ingest_pending(tmp_path)
+    # File existence alone is not CLOSED (D-092).
+    assert transport_state(tmp_path) == "OPEN"
+    expected = {
+        "worker_backend": WorkerBackend.CURSOR_AGENT_CLI.value,
+        "session_or_agent_id": binding.session_or_agent_id,
+        "run_id": binding.run_id,
+        "package_id": PACKAGE_ID,
+        "dag_node": "ADV-LIVE",
+        "dag_generation": 88,
+        "role": AgentRole.SECURITY_REVIEWER.value,
+        "lease_id": "lease-adv",
+        "attempt": 1,
+        "result_digest": "b" * 64,
+        "candidate_head": HEAD,
+        "candidate_tree": TREE,
+    }
+    ingested = ingest_pending(tmp_path, expected=expected)
     assert len(ingested) == 1
-    assert ingest_pending(tmp_path) == []  # idempotent
+    assert ingest_pending(tmp_path, expected=expected) == []
+    assert transport_state(tmp_path) == "CLOSED"

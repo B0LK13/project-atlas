@@ -7,6 +7,7 @@ worker terminal, or owner-gate on one branch while independent work exists.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,9 +30,14 @@ from project_atlas.orchestration.sdk.models import (
     PACKAGE_ID,
     PRIMARY_BACKEND,
     STOP_HOOK_BACKEND,
+    SdkRuntimeError,
 )
 from project_atlas.orchestration.sdk.recovery import RecoveryReport, recover_runtime
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
+from project_atlas.orchestration.sdk.result_plane import (
+    ingest_pending_against_registry,
+    transport_state,
+)
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
 from project_atlas.orchestration.sdk.scheduler import (
     DagToAgentScheduler,
@@ -120,7 +126,12 @@ class DurableAtlasSupervisor:
             )
             authentic = WorkerBackend.CURSOR_AGENT_CLI.value
         scheduler = DagToAgentScheduler(
-            backend=backend, agents=agents, runs=runs, pool=pool, cost=cost
+            backend=backend,
+            agents=agents,
+            runs=runs,
+            pool=pool,
+            cost=cost,
+            root=root,
         )
         status = SupervisorStatus(auth=auth, authentic_worker_backend=authentic)
         return cls(
@@ -142,12 +153,30 @@ class DurableAtlasSupervisor:
 
     async def startup_recovery(self) -> RecoveryReport:
         report = await recover_runtime(
-            backend=self.backend, agents=self.agents, runs=self.runs
+            backend=self.backend,
+            agents=self.agents,
+            runs=self.runs,
+            root=self.root,
         )
         self.status.last_recovery = report
+        if report.safety_stop:
+            self.status.next_machine_action = "SAFETY_STOP_HOST_ROLLBACK"
+            self.status.owner_action_required_now = False
         return report
 
     async def schedule_cycle(self) -> ScheduleCycleResult:
+        # D-092 cycle order: refresh (via ready_provider) → ingest result plane →
+        # validate → consume → recover runs → recompute ready → dispatch.
+        backend = WorkerBackend.CURSOR_AGENT_CLI
+        if isinstance(self.backend, CursorSDKExecutionBackend):
+            backend = WorkerBackend.CURSOR_SDK
+        with contextlib.suppress(SdkRuntimeError):
+            ingest_pending_against_registry(
+                self.root, runs=self.runs, worker_backend=backend
+            )
+        if self.status.last_recovery and self.status.last_recovery.safety_stop:
+            self.status.cycles += 1
+            return ScheduleCycleResult()
         ready: list[ReadyWorkItem] = []
         if self.ready_provider is not None:
             provided = self.ready_provider()
@@ -159,6 +188,8 @@ class DurableAtlasSupervisor:
         self.status.cycles += 1
         self.status.last_cycle = result
         self.status.human_scheduler_events = 0
+        if transport_state(self.root) == "CLOSED":
+            self.status.next_machine_action = "RESULT_PLANE_CONSUMED"
         return result
 
     async def run_forever(self) -> SupervisorStatus:
