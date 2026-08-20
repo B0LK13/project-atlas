@@ -61,6 +61,7 @@ from project_atlas.orchestration.autonomy.mutating_transport import (
     WorkerQuestionClass,
     classify_worker_question,
     command_is_forbidden,
+    pid_is_running,
     require_active_lease,
 )
 from project_atlas.orchestration.autonomy.trust import seal_anchor
@@ -212,6 +213,22 @@ def test_schema_registered() -> None:
         )
     )
     validate_record(state.model_dump(mode="json"), "autonomy-host-state")
+
+
+def test_pid_probe_does_not_use_kill_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    from project_atlas.orchestration.autonomy import mutating_transport as mt
+
+    killed: list[int] = []
+
+    def _forbidden(pid: int, sig: int) -> None:
+        killed.append(pid)
+        raise AssertionError(f"os.kill({pid}, {sig}) must not run on Windows")
+
+    monkeypatch.setattr(mt.os, "name", "nt")
+    monkeypatch.setattr(mt.os, "kill", _forbidden)
+    monkeypatch.setattr(mt, "_windows_pid_running", lambda pid: pid == os.getpid())
+    assert mt.pid_is_running(os.getpid()) is True
+    assert killed == []
 
 
 def test_read_only_001d_flags_unchanged() -> None:
@@ -388,14 +405,14 @@ def test_outer_session_exit_dag_continues(tmp_path: Path) -> None:
                 break
         time.sleep(0.1)
     request_stop(tmp_path / "host-store")
-    assert os.path.exists(f"/proc/{child_pid}") or len(completed) >= 3
+    assert pid_is_running(child_pid) or len(completed) >= 3
     assert set(completed) == {
         "AS-ORCH-D080-PKGA-001",
         "AS-ORCH-D080-PKGB-001",
         "AS-ORCH-D080-PKGC-001",
     }
     deadline = time.time() + 5
-    while time.time() < deadline and os.path.exists(f"/proc/{child_pid}"):
+    while time.time() < deadline and pid_is_running(child_pid):
         time.sleep(0.1)
 
 

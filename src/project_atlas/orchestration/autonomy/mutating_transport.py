@@ -394,13 +394,46 @@ class ProcessMutatingBackend:
 
 
 def pid_is_running(pid: int) -> bool:
+    """Existence check only. Never signals or terminates the process.
+
+    On Windows, ``os.kill(pid, 0)`` is not an existence probe: non-CTRL
+    signals call ``TerminateProcess``. That both kills governed workers and
+    can interrupt the supervisor with KeyboardInterrupt.
+    """
     if pid <= 0:
         return False
+    if os.name == "nt":
+        return _windows_pid_running(pid)
     try:
         os.kill(pid, 0)
     except OSError:
         return False
     return True
+
+
+def _windows_pid_running(pid: int) -> bool:
+    import ctypes
+
+    try:
+        from ctypes import wintypes
+    except ImportError:
+        return False
+    windll = getattr(ctypes, "WinDLL", None)
+    if windll is None:
+        return False
+    process_query_limited = 0x1000
+    still_active = 259
+    kernel32 = windll("kernel32", use_last_error=True)
+    handle = kernel32.OpenProcess(process_query_limited, False, wintypes.DWORD(pid))
+    if not handle:
+        return False
+    try:
+        exit_code = wintypes.DWORD()
+        if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)) == 0:
+            return False
+        return int(exit_code.value) == still_active
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 def _pid_running(pid: int) -> bool:
