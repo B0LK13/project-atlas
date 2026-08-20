@@ -121,10 +121,23 @@ def run_governor_service(
             if run.node_id:
                 controller.mark_dispatched(run.node_id)
         if controller.state.ci_status == "PASS":
-            if controller.state.iv_dispatched and controller.state.adv_dispatched:
+            if (
+                controller.state.cloud_runtime_audit_pass
+                and controller.state.cloud_audit_consume_id
+                and controller.state.iv_dispatched
+                and controller.state.adv_dispatched
+            ):
                 supervisor.status.next_machine_action = "INGEST_IV_ADV_RESULTS"
-            elif dispatch_enabled:
+            elif (
+                controller.state.cloud_runtime_audit_pass
+                and controller.state.cloud_audit_consume_id
+                and dispatch_enabled
+            ):
                 supervisor.status.next_machine_action = "DISPATCH_IV_ADV_PARALLEL"
+            elif dispatch_enabled and not controller.state.cloud_audit_dispatched:
+                supervisor.status.next_machine_action = "DISPATCH_CLOUD_RUNTIME_AUDIT"
+            elif dispatch_enabled:
+                supervisor.status.next_machine_action = "AWAIT_CLOUD_AUDIT_RESULT"
             else:
                 supervisor.status.next_machine_action = "MONITOR_EXACT_HEAD_CI"
         elif controller.state.ci_status == "FAIL":

@@ -260,10 +260,16 @@ class LiveDagController:
             )
         persist_live_dag(self.root, self.state)
         if self.supervisor_pid is not None and self.state.bound_head:
+            if self.real_sdk_backend:
+                host_backend = "LOCAL_SDK"
+            elif self.worker_dispatch_enabled:
+                host_backend = "CURSOR_AGENT_CLI"
+            else:
+                host_backend = "OBSERVER"
             write_host_identity(
                 self.root,
                 pid=self.supervisor_pid,
-                backend="LOCAL_SDK" if self.real_sdk_backend else "OBSERVER",
+                backend=host_backend,
                 package_head=self.state.bound_head,
                 worktree=str(self.root),
             )
