@@ -18,9 +18,26 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import attach_source_drift
+
 PACKAGE_ID = "AS-CODER-ALPHA-DECISIONS-001"
 GENERATOR_ID = "atlas-coder-alpha-decisions-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
+
+
+def _decision_source_path(path: str) -> bool:
+    """Decision-bearing inventory only (PR385 unique path_filter)."""
+    token = path.replace("\\", "/").lower()
+    name = token.rsplit("/", 1)[-1]
+    return (
+        name == "decisions.md"
+        or "/adr/" in f"/{token}/"
+        or "/adrs/" in f"/{token}/"
+        or name.startswith("adr-")
+        or name.startswith("adr_")
+    )
+
+
 _HEADING_RE = re.compile(r"^(#{1,3})\s+(.+?)\s*$", re.MULTILINE)
 _ADR_TITLE_RE = re.compile(r"\bADR[- ]?\d+\b", re.IGNORECASE)
 _DECISION_PATH_HINTS = ("decision", "adr", "rfc")
@@ -561,29 +578,44 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "UNKNOWN!=healthy",
         ]
 
-    return {
-        "schema_version": 1,
-        "schema": "atlas.coder-alpha.decisions-lens.v1",
-        "package": PACKAGE_ID,
-        "answer_id": f"ans-decisions-{project_id}",
-        "subject": project_id,
-        "field": "decisions",
-        "title": "What decisions matter?",
-        "summary": summary,
-        "value": value,
-        "status": status,
-        "authority": "derived-lens",
-        "layer": "C",
-        "project_id": project_id,
-        "decisions": unique[:20],
-        "decision_count": len(unique),
-        "active_governing_count": len(
-            [item for item in unique if item.get("status") == "ACTIVE_GOVERNING"]
-        ),
-        "inspected_artifacts": inspected,
-        "notes": notes,
-        "generated": {"by": GENERATOR_ID},
-    }
+    lens = attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": "atlas.coder-alpha.decisions-lens.v1",
+            "package": PACKAGE_ID,
+            "answer_id": f"ans-decisions-{project_id}",
+            "subject": project_id,
+            "field": "decisions",
+            "title": "What decisions matter?",
+            "summary": summary,
+            "value": value,
+            "status": status,
+            "authority": "derived-lens",
+            "layer": "C",
+            "project_id": project_id,
+            "decisions": unique[:20],
+            "decision_count": len(unique),
+            "active_governing_count": len(
+                [item for item in unique if item.get("status") == "ACTIVE_GOVERNING"]
+            ),
+            "inspected_artifacts": inspected,
+            "notes": notes,
+            "generated": {"by": GENERATOR_ID},
+            "honesty": {
+                "governing_evidence_stale": False,
+                "lens_is_authority": False,
+            },
+        },
+        vault,
+        project_id,
+        path_filter=_decision_source_path,
+    )
+    honesty = lens.get("honesty")
+    if isinstance(honesty, dict):
+        honesty["governing_evidence_stale"] = bool(
+            (lens.get("source_drift") or {}).get("status") == "STALE"
+        )
+    return lens
 
 
 def materialize_decisions_lenses(

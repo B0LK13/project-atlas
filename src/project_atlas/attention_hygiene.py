@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.inventory_drift import evaluate_connect_inventory_drift
 
 PACKAGE_ID = "AS-CODER-ALPHA-ATTENTION-001"
 GENERATOR_ID = "atlas-coder-alpha-attention-001"
@@ -493,6 +494,24 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
                 evidence=inspected[:3],
             )
         )
+
+    drift = evaluate_connect_inventory_drift(vault, project_id)
+    if drift.get("status") == "STALE":
+        changed = [
+            item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+        ]
+        items.append(
+            _item(
+                level="STALE",
+                kind="source_inventory_stale",
+                reason_code="SOURCE_INVENTORY_STALE",
+                why="Live active sources drifted from the connect-manifest",
+                impact="Attention CLEAR would hide disk drift; reconnect first",
+                action="Re-run atlas connect then re-check atlas attention",
+                evidence=["generated/ops/connect-manifest.json", *changed[:3]],
+            )
+        )
+        inspected.append("generated/ops/connect-manifest.json")
 
     rollup_rank = {name: index for index, name in enumerate(_ROLLUP_ORDER)}
     if items:

@@ -17,6 +17,11 @@ import os
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import (
+    attach_source_drift,
+    evaluate_connect_inventory_drift,
+)
+
 PACKAGE_ID = "AS-CODER-ALPHA-CHANGED-001"
 GENERATOR_ID = "atlas-coder-alpha-changed-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -321,7 +326,24 @@ def build_changed_lens(
             "not a kdiff temporal authority claim",
         ]
 
-    return {
+    honesty = {
+        "unchanged_is_current": rollup == "unchanged",
+        "lens_is_authority": False,
+        "stale_is_current": False,
+    }
+    if rollup == "unchanged":
+        live = evaluate_connect_inventory_drift(vault, project_id)
+        if live.get("status") == "STALE":
+            honesty["unchanged_is_current"] = False
+            notes.append(
+                "STALE LIVE != UNCHANGED / reconnect before treating What Changed as current"
+            )
+            if isinstance(summary, str):
+                summary = f"{summary}; live sources drifted (reconnect required)"
+                value = summary
+
+    return attach_source_drift(
+        {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.changed-lens.v1",
         "package": PACKAGE_ID,
@@ -349,7 +371,11 @@ def build_changed_lens(
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},
-    }
+        "honesty": honesty,
+    },
+        vault,
+        project_id,
+    )
 
 
 def rotate_and_diff_inventory(

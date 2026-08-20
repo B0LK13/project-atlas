@@ -283,6 +283,17 @@ def build_project_brief(
             "lens_is_authority": False,
             "fabricated_fields": False,
             "unknown_is_valid": True,
+            "stale_is_current": False,
+            "answer_evidence_stale": bool(
+                isinstance(next_lens, dict)
+                and isinstance(next_lens.get("honesty"), dict)
+                and next_lens["honesty"].get("answer_evidence_stale")
+            ),
+            "live_source_unverified": bool(
+                isinstance(next_lens, dict)
+                and isinstance(next_lens.get("honesty"), dict)
+                and next_lens["honesty"].get("live_source_unverified")
+            ),
         },
         "notes": [
             "Unified Coder Alpha brief over derived lenses",

@@ -20,6 +20,11 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import (
+    attach_source_drift,
+    evaluate_connect_inventory_drift,
+)
+
 PACKAGE_ID = "AS-CODER-ALPHA-STATE-001"
 GENERATOR_ID = "atlas-coder-alpha-state-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -242,35 +247,49 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if rollup == "unknown":
         notes.append("lifecycle/status insufficient; rollup stays UNKNOWN")
 
-    return {
-        "schema_version": 1,
-        "schema": "atlas.coder-alpha.state-lens.v1",
-        "package": PACKAGE_ID,
-        "answer_id": f"ans-state-{project_id}",
-        "subject": project_id,
-        "field": "current_state",
-        "title": "What is the current state?",
-        "summary": summary if value is not None else None,
-        "value": value,
-        "status": status,
-        "authority": "derived-lens",
-        "layer": "C",
-        "project_id": project_id,
-        "lifecycle": lifecycle or "unknown",
-        "rollup": rollup,
-        "signals": {
-            "pending_reviews": pending_reviews,
-            "unresolved_conflicts": unresolved_conflicts,
-            "stale_claims": stale_claims,
-            "sources_complete": sources_complete,
-            "sources_failed": sources_failed,
-            "verified_claims": verified_claims,
-            "status_counts": status_counts,
+    drift = evaluate_connect_inventory_drift(vault, project_id)
+    if drift.get("status") == "STALE" and rollup == "stable":
+        rollup = "unknown"
+        status = "derived" if status != "unknown" else status
+        notes.append("STALE SOURCE INVENTORY != STABLE STATE; reconnect first")
+        summary_bits[1] = f"rollup={rollup}"
+        summary = "; ".join(summary_bits)
+        if value is not None:
+            value = summary
+
+    return attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": "atlas.coder-alpha.state-lens.v1",
+            "package": PACKAGE_ID,
+            "answer_id": f"ans-state-{project_id}",
+            "subject": project_id,
+            "field": "current_state",
+            "title": "What is the current state?",
+            "summary": summary if value is not None else None,
+            "value": value,
+            "status": status,
+            "authority": "derived-lens",
+            "layer": "C",
+            "project_id": project_id,
+            "lifecycle": lifecycle or "unknown",
+            "rollup": rollup,
+            "signals": {
+                "pending_reviews": pending_reviews,
+                "unresolved_conflicts": unresolved_conflicts,
+                "stale_claims": stale_claims,
+                "sources_complete": sources_complete,
+                "sources_failed": sources_failed,
+                "verified_claims": verified_claims,
+                "status_counts": status_counts,
+            },
+            "inspected_artifacts": inspected,
+            "notes": notes,
+            "generated": {"by": GENERATOR_ID},
         },
-        "inspected_artifacts": inspected,
-        "notes": notes,
-        "generated": {"by": GENERATOR_ID},
-    }
+        vault,
+        project_id,
+    )
 
 
 def materialize_state_lenses(
