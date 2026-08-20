@@ -40,6 +40,7 @@ from project_atlas.web_api import (
     read_status,
     read_vault_health,
 )
+from project_atlas.web_api.architecture import WebArchitectureError, read_architecture
 
 PACKAGE_ID = "AS-2.1-APP-SVC-001"
 TRUTH_BOUNDARY = "APP-SVC READ FACADE != AUTHORITY / != LIVE WRITE"
@@ -112,6 +113,15 @@ class AppService:
         try:
             return read_source_health(self.vault, project_id)
         except WebSourceHealthError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def architecture(self, project_id: str) -> dict[str, Any]:
+        """Project-scoped architecture lens (read-only; != authority)."""
+        try:
+            return read_architecture(self.vault, project_id)
+        except WebArchitectureError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc
