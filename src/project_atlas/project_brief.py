@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import evaluate_connect_inventory_drift
 from project_atlas.overview import materialize_overview_lenses
 from project_atlas.project_architecture import (
     _manifest_source_rows,
@@ -28,6 +29,20 @@ PACKAGE_ID = "AS-CODER-ALPHA-BRIEF-001"
 GENERATOR_ID = "atlas-coder-alpha-brief-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
 BRIEF_RELATIVE = Path("generated") / "ops" / "project-brief.json"
+_UNVERIFIED_REASON_CODES = frozenset(
+    {
+        "SOURCE_ROOT_UNVERIFIED",
+        "MANIFEST_ABSENT",
+        "NO_ACTIVE_SOURCES",
+    }
+)
+_STALE_NEXT_LINE = (
+    "NOT CURRENT — live source evidence is stale; reconnect before treating "
+    "this recommendation as current"
+)
+_UNVERIFIED_NEXT_LINE = (
+    "UNVERIFIED — live source inventory could not be verified; uncertainty preserved"
+)
 
 
 class ProjectBriefError(ValueError):
@@ -65,6 +80,65 @@ def _load_answer(vault: Path, answer_id: str) -> dict[str, Any] | None:
     except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     return raw if isinstance(raw, dict) else None
+
+
+def _next_honesty_flag(next_lens: dict[str, Any] | None, key: str) -> bool:
+    if not isinstance(next_lens, dict):
+        return False
+    honesty = next_lens.get("honesty")
+    return isinstance(honesty, dict) and bool(honesty.get(key))
+
+
+def _brief_live_honesty(
+    vault: Path,
+    project_id: str,
+    next_lens: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Observe stale/unverified inventory without cloning hash helpers.
+
+    NEXT.answer_evidence_stale / NEXT.live_source_unverified are copied when
+    present. On current main those keys are absent, so brief evaluates
+    ``evaluate_connect_inventory_drift`` itself (AS-CODER-ALPHA-HONESTY-TAIL-001
+    / #382). project_next.py is left untouched because that primitive already
+    exposes SOURCE_ROOT_UNVERIFIED / MANIFEST_ABSENT / NO_ACTIVE_SOURCES.
+    """
+    live = evaluate_connect_inventory_drift(vault, project_id)
+    status = str(live.get("status") or "UNKNOWN")
+    reason_code = str(live.get("reason_code") or "")
+    answer_evidence_stale = _next_honesty_flag(
+        next_lens, "answer_evidence_stale"
+    ) or status == "STALE"
+    live_source_unverified = _next_honesty_flag(
+        next_lens, "live_source_unverified"
+    ) or (status == "UNKNOWN" and reason_code in _UNVERIFIED_REASON_CODES)
+    return {
+        "answer_evidence_stale": answer_evidence_stale,
+        "live_source_unverified": live_source_unverified,
+        "source_drift": {
+            "status": status,
+            "reason": live.get("reason"),
+            "reason_code": live.get("reason_code"),
+            "changed_paths": [
+                item for item in (live.get("changed_paths") or []) if isinstance(item, str)
+            ][:20],
+            "package": live.get("package"),
+        },
+    }
+
+
+def _qualify_next_work(
+    next_work: list[str],
+    *,
+    answer_evidence_stale: bool,
+    live_source_unverified: bool,
+) -> list[str]:
+    """Keep recommendations, but never present stale/unverified work as current."""
+    qualified = list(next_work)
+    if answer_evidence_stale and _STALE_NEXT_LINE not in qualified:
+        qualified.insert(0, _STALE_NEXT_LINE)
+    if live_source_unverified and _UNVERIFIED_NEXT_LINE not in qualified:
+        qualified.insert(0, _UNVERIFIED_NEXT_LINE)
+    return qualified
 
 
 def _field(lens: dict[str, Any] | None, key: str = "summary") -> str | None:
@@ -230,6 +304,13 @@ def build_project_brief(
     if not next_work:
         next_work.append("UNKNOWN - no concrete next-work signal derived from Truth Core")
 
+    live_honesty = _brief_live_honesty(vault, project_id, next_lens)
+    next_work = _qualify_next_work(
+        next_work,
+        answer_evidence_stale=bool(live_honesty["answer_evidence_stale"]),
+        live_source_unverified=bool(live_honesty["live_source_unverified"]),
+    )
+
     evidence = []
     for lens in (overview, state, changed, decisions, unknown):
         if not lens:
@@ -276,21 +357,35 @@ def build_project_brief(
             if row.get("subject") == project_id
         ],
         "generated": {"by": GENERATOR_ID},
+        "source_drift": live_honesty["source_drift"],
         "honesty": {
             "authentic_pilot": False,
             "release_certified": False,
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
+            "brief_is_authority": False,
             "fabricated_fields": False,
             "unknown_is_valid": True,
+            "unknown_is_healthy": False,
+            "stale_is_current": False,
+            "answer_evidence_stale": bool(live_honesty["answer_evidence_stale"]),
+            "live_source_unverified": bool(live_honesty["live_source_unverified"]),
         },
         "notes": [
             "Unified Coder Alpha brief over derived lenses",
             "UI!=canonical",
             "MODEL_OUTPUT!=AUTHORITY",
             "UNKNOWN!=healthy",
+            "BRIEF!=AUTHORITY",
+            "STALE!=CURRENT",
         ],
     }
+    if live_honesty["answer_evidence_stale"]:
+        brief["notes"].append(
+            "STALE NEXT EVIDENCE != CURRENT BRIEF RECOMMENDATION"
+        )
+    if live_honesty["live_source_unverified"]:
+        brief["notes"].append("LIVE SOURCE UNVERIFIED; uncertainty preserved")
     return brief
 
 
