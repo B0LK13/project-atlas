@@ -641,3 +641,24 @@ _Status: **RECONSTRUCTED — RECERTIFICATION IN PROGRESS** (owner-authorized bec
 - [ ] MDA-R1-006 Independent verification against published R1 HEAD/TREE
 - [ ] MDA-R1-007 Exact-head GitHub CI + owner merge gate (merge not authorized)
 
+## AS-ORCH-DURABLE-LEASE-PROJECTION-001 — durable read projection of governor leases
+
+_Status: **IMPLEMENTING**. Projects primary-governor lease grant/release into a durable file for process-restart and subordinate read-only visibility. The projection is **not** authority. Grant/ack source remains the primary governor. Does **not** replace `AutonomousGovernor._leases`. Does **not** consume the Cursor bridge slot. Does **not** merge._
+
+Honesty (mandatory):
+
+- `PRIMARY_GOVERNOR_REMAINS_AUTHORITY = YES`
+- `DURABLE_PROJECTION_IS_AUTHORITY = NO`
+- `LEASE_GRANT_SOURCE = PRIMARY_GOVERNOR`
+- `LEASE_ACK_SOURCE = PRIMARY_GOVERNOR`
+- `CROSS_PROCESS_LEASE_VISIBILITY = PARTIAL_UNTIL_THIS_LANDS`
+- `GLOBAL_AUTONOMY_BLOCKER = NO`
+
+- [x] ORCHLEASE-001 Optional governor projection store (default off; existing tests unchanged)
+- [x] ORCHLEASE-002 Atomic JSON projection + identity lock
+- [x] ORCHLEASE-003 Reject stale / duplicate / foreign worker / foreign package / replay
+- [x] ORCHLEASE-004 Ack + release visibility after process restart
+- [x] ORCHLEASE-005 Focused + concurrent + control-plane tests
+- [ ] ORCHLEASE-006 Exact-head CI + independent IV + adversarial control-plane review
+- [ ] ORCHLEASE-007 Owner merge gate (not this package)
+

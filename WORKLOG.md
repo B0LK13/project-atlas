@@ -6962,3 +6962,26 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - `NEW_HEAD != LOST_HEAD` (required)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `MERGE_PERFORMED = NO`
+
+---
+
+## AS-ORCH-DURABLE-LEASE-PROJECTION-001 — durable read projection of governor leases
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-NO-PROMPT-PERSISTENT-GOVERNOR-060 / D-061
+**Branch:** `feat/as-orch-durable-lease-projection-001` (from `origin/main` `dc9d81df0ff7106438de44a4bd84df0b955535bc`)
+**Mode:** CONTROL_PLANE_RESILIENCE. Does not replace in-memory governor authority. Does not consume PR400. Does not merge.
+
+### Why
+`AutonomousGovernor._leases` is process-local. Subordinates cannot inspect another process's memory. That is a visibility gap, not a grant failure. This package projects grant/release to `leases.json` for restart/ack/audit.
+
+### Honesty
+- `PRIMARY_GOVERNOR_REMAINS_AUTHORITY = YES`
+- `DURABLE_PROJECTION_IS_AUTHORITY = NO`
+- `LEASE_GRANT_SOURCE = PRIMARY_GOVERNOR`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Local verification
+- Focused projection tests: 13 passed
+- Autonomy regression: 26 passed (unchanged default path)
+- ruff/mypy on touched modules: pass
