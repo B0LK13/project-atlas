@@ -23,6 +23,7 @@ PACKAGE_ID: Final[str] = "AS-CODER-ALPHA-INVENTORY-DRIFT-001"
 GENERATOR_ID: Final[str] = "atlas-coder-alpha-inventory-drift-001"
 CONNECT_MANIFEST: Final[Path] = Path("generated") / "ops" / "connect-manifest.json"
 CONNECT_RECEIPT: Final[Path] = Path("generated") / "ops" / "connect-receipt.json"
+UNKNOWN_PROJECT: Final[str] = "unknown-project"
 
 DriftStatus = Literal["FRESH", "STALE", "UNKNOWN"]
 
@@ -67,6 +68,29 @@ def _unknown(reason: str, reason_code: str) -> dict[str, Any]:
         "generated": {"by": GENERATOR_ID},
         "honesty": _honesty(),
     }
+
+
+def _row_owner(item: dict[str, Any]) -> str | None:
+    """Return an explicit owner token, or None when ownership is missing."""
+    raw = item.get("likely_project") or item.get("project_id")
+    if not isinstance(raw, str):
+        return None
+    owner = raw.strip()
+    return owner or None
+
+
+def _row_matches_scoped_project(item: dict[str, Any], scoped: str) -> bool:
+    """Exact real-project owner only. Sentinel/missing/sibling stay out of scope.
+
+    ``unknown-project`` is never an authoritative owner, including when the
+    requested ``project_id`` is itself the sentinel (D-OWNER-DRIFT-039).
+    """
+    if scoped == UNKNOWN_PROJECT:
+        return False
+    owner = _row_owner(item)
+    if owner is None or owner == UNKNOWN_PROJECT:
+        return False
+    return owner == scoped
 
 
 def _source_root(manifest: dict[str, Any], vault: Path) -> Path | None:
@@ -121,10 +145,7 @@ def evaluate_connect_inventory_drift(
         for item in sources:
             if not isinstance(item, dict) or item.get("exclusion_reason"):
                 continue
-            owner = item.get("likely_project") or item.get("project_id")
-            if not isinstance(owner, str) or not owner.strip():
-                continue
-            if owner != scoped:
+            if not _row_matches_scoped_project(item, scoped):
                 continue
             path = item.get("path")
             digest = item.get("sha256")

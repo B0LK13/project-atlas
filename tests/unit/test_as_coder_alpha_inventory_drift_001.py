@@ -312,3 +312,110 @@ def test_architecture_lens_attaches_unknown_when_manifest_missing(tmp_path: Path
     assert lens["source_drift"]["status"] == "UNKNOWN"
     assert lens["honesty"]["unknown_is_healthy"] is False
     assert lens["honesty"]["unknown_is_fresh"] is False
+
+
+def test_unknown_project_sentinel_never_owns_scoped_inventory(tmp_path: Path) -> None:
+    """D-OWNER-DRIFT-039: unknown-project is never an authoritative owner."""
+    root = tmp_path / "src"
+    root.mkdir()
+    harbor = root / "harbor.md"
+    harbor.write_text("# Harbor\n\nowned\n", encoding="utf-8")
+    unowned = root / "unowned.md"
+    unowned.write_text("# Unowned\n\nchanged\n", encoding="utf-8")
+    empty_owner = root / "empty.md"
+    empty_owner.write_text("# Empty\n\nchanged\n", encoding="utf-8")
+    sentinel_likely = root / "sentinel-likely.md"
+    sentinel_likely.write_text("# Sentinel likely\n\nchanged\n", encoding="utf-8")
+    sentinel_pid = root / "sentinel-pid.md"
+    sentinel_pid.write_text("# Sentinel pid\n\nchanged\n", encoding="utf-8")
+    sibling = root / "sibling.md"
+    sibling.write_text("# Sibling\n\nchanged\n", encoding="utf-8")
+    vault = tmp_path / "vault"
+    _write_manifest(
+        vault,
+        root,
+        [
+            {
+                "path": "harbor.md",
+                "sha256": canonical_source_sha256(harbor),
+                "likely_project": "harbor",
+            },
+            {
+                "path": "unowned.md",
+                "sha256": "00",
+            },
+            {
+                "path": "empty.md",
+                "sha256": "00",
+                "likely_project": "   ",
+            },
+            {
+                "path": "sentinel-likely.md",
+                "sha256": "00",
+                "likely_project": "unknown-project",
+            },
+            {
+                "path": "sentinel-pid.md",
+                "sha256": "00",
+                "project_id": "unknown-project",
+            },
+            {
+                "path": "sibling.md",
+                "sha256": "00",
+                "likely_project": "portal",
+            },
+        ],
+    )
+    for path in (unowned, empty_owner, sentinel_likely, sentinel_pid, sibling):
+        path.write_text(path.read_text(encoding="utf-8") + "drift\n", encoding="utf-8")
+
+    harbor_drift = evaluate_connect_inventory_drift(vault, "harbor")
+    assert harbor_drift["status"] == "FRESH"
+    leaked = set(harbor_drift["changed_paths"])
+    assert "unowned.md" not in leaked
+    assert "empty.md" not in leaked
+    assert "sentinel-likely.md" not in leaked
+    assert "sentinel-pid.md" not in leaked
+    assert "sibling.md" not in leaked
+
+    sentinel_scope = evaluate_connect_inventory_drift(vault, "unknown-project")
+    assert sentinel_scope["status"] == "UNKNOWN"
+    assert sentinel_scope["reason_code"] == "NO_ACTIVE_SOURCES"
+    assert sentinel_scope["changed_paths"] == []
+
+
+def test_absolute_and_symlink_escape_rejected_without_echo(tmp_path: Path) -> None:
+    root = tmp_path / "src"
+    root.mkdir()
+    outside = tmp_path / "secret-outside.txt"
+    outside.write_text("SECRET-OUTSIDE-CONTENT\n", encoding="utf-8")
+    escape = root / "escape.md"
+    escape.symlink_to(outside)
+    vault = tmp_path / "vault"
+    _write_manifest(
+        vault,
+        root,
+        [
+            {
+                "path": "/etc/passwd",
+                "sha256": "00",
+                "likely_project": "harbor",
+            },
+            {
+                "path": "C:/Windows/system32/config",
+                "sha256": "00",
+                "likely_project": "harbor",
+            },
+            {
+                "path": "escape.md",
+                "sha256": "00",
+                "likely_project": "harbor",
+            },
+        ],
+    )
+    drift = evaluate_connect_inventory_drift(vault, "harbor")
+    assert drift["status"] == "STALE"
+    payload = json.dumps(drift)
+    assert "SECRET-OUTSIDE-CONTENT" not in payload
+    assert "/etc/passwd" in drift["changed_paths"]
+    assert "escape.md" in drift["changed_paths"]
