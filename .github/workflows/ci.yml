@@ -63,9 +63,16 @@ jobs:
         if: matrix.suite == 'compat'
         run: python -m pytest
 
+      - name: Pytest product-perf (Windows, uncovered)
+        if: matrix.suite == 'windows'
+        # Dense 10k wall-clock was calibrated uncovered. addopts enables
+        # --cov for the default suite; do not re-gate that 20s product cap
+        # under coverage instrumentation on Windows hosted runners.
+        run: python -m pytest -m product_perf --no-cov
+
       - name: Pytest (Windows)
         if: matrix.suite == 'windows'
-        run: python -m pytest
+        run: python -m pytest -m "not product_perf"
 
       - name: CLI smoke (AT-001 scaffold contract)
         if: matrix.suite != 'compat'
