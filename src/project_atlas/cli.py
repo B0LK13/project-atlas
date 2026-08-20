@@ -2597,6 +2597,92 @@ def build_parser() -> argparse.ArgumentParser:
         default=32,
         help="Maximum successor cycles in this process (default: 32).",
     )
+    orch_gov_service = orch_sub.add_parser(
+        "governor-service-run",
+        help=(
+            "AS-ORCH-CONTINUATION-BROKER-001 durable host supervisor. "
+            "Long-lived: does not return on resource-boundary, worker exit, "
+            "or WAITING_OWNER. Returns only on explicit stop, safety stop, "
+            "or unrecoverable host failure. Does not merge or grant authority."
+        ),
+    )
+    orch_gov_service.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_service.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store.",
+    )
+    orch_gov_service.add_argument(
+        "--loop-store",
+        type=Path,
+        default=None,
+        help="Optional 001E loop store.",
+    )
+    orch_gov_service.add_argument(
+        "--broker-store",
+        type=Path,
+        default=None,
+        help="Optional broker store.",
+    )
+    orch_gov_service.add_argument(
+        "--host-store",
+        type=Path,
+        default=None,
+        help="Optional durable host store (default: <root>/.atlas/orchestration/host).",
+    )
+    orch_gov_service.add_argument(
+        "--poll-seconds",
+        type=float,
+        default=2.0,
+        help="Worker/result poll interval while the service stays alive.",
+    )
+    orch_gov_service.add_argument(
+        "--owner-backoff-seconds",
+        type=float,
+        default=5.0,
+        help="Bounded backoff while parked on WAITING_OWNER.",
+    )
+    orch_gov_service_stop = orch_sub.add_parser(
+        "governor-service-stop",
+        help="Request the durable governor service to stop (explicit stop file).",
+    )
+    orch_gov_service_stop.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_service_stop.add_argument(
+        "--host-store",
+        type=Path,
+        default=None,
+        help="Optional durable host store.",
+    )
+    orch_gov_service_install = orch_sub.add_parser(
+        "governor-service-install",
+        help=(
+            "Render least-privilege durable-host install artifacts "
+            "(systemd --user or Windows Task Scheduler). Never embeds secrets."
+        ),
+    )
+    orch_gov_service_install.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Authenticated Project Atlas root.",
+    )
+    orch_gov_service_install.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Optional path to write the systemd user unit.",
+    )
     orch_dispatch_once = orch_sub.add_parser(
         "dispatch-once",
         help=(
@@ -4986,6 +5072,38 @@ def main(argv: Sequence[str] | None = None) -> int:
                 loop_store=getattr(args, "loop_store", None),
                 broker_store=getattr(args, "broker_store", None),
                 max_cycles=int(getattr(args, "max_cycles", 32)),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-run":
+            from project_atlas.orchestration.autonomy.cli import run_governor_service
+
+            report, exit_code = run_governor_service(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                trust_store=getattr(args, "trust_store", None),
+                loop_store=getattr(args, "loop_store", None),
+                broker_store=getattr(args, "broker_store", None),
+                host_store=getattr(args, "host_store", None),
+                poll_seconds=float(getattr(args, "poll_seconds", 2.0)),
+                owner_backoff_seconds=float(getattr(args, "owner_backoff_seconds", 5.0)),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-stop":
+            from project_atlas.orchestration.autonomy.cli import run_governor_service_stop
+
+            report, exit_code = run_governor_service_stop(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                host_store=getattr(args, "host_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-install":
+            from project_atlas.orchestration.autonomy.cli import run_governor_service_install
+
+            report, exit_code = run_governor_service_install(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                output=getattr(args, "output", None),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

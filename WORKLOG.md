@@ -6990,3 +6990,28 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - `OWNER_REQUEST_REISSUED = NO` (`BATCH-B-CONTEXT-INTEGRATION-001` seeded already-issued)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `BROKER_CERTIFICATION = NOT_GRANTED`
+
+---
+
+## AS-ORCH-CONTINUATION-BROKER-001 — durable host + mutating port / D-080
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-END-TO-END-HOSTED-GOVERNOR-AND-MUTATING-WORKER-BACKEND-080
+**Branch:** `cursor/orch-continuation-broker-001-5d32` (remediate PR #428 in place)
+**Mode:** CONTROL_PLANE_REMEDIATION. Does not mutate #419/#426. Does not merge. Does not create PR429 or a second governor.
+
+### Finding
+Inner-loop 001E supervision on `7ea26e49576b0c6a9e2e7ced8856bec3d4cb4b26` is PASS. End-to-end `HANDS_OFF_DEVELOPMENT_AFTER_OUTER_CURSOR_SESSION_EXIT` is FAIL/NOT_IMPLEMENTED: no durable host supervisor, bounded `run()` can return CONTINUE, 001D is Ask-only, and no mutating worker backend is bound.
+
+### Remediation
+- `MutatingExecutionPort` + Cursor Cloud Agents API v1 client + local Agent/ACP discover + process worker
+- `atlas orchestrator governor-service-run` long-lived supervisor
+- Linux systemd --user and Windows Task Scheduler install paths (no embedded secrets)
+- Repository rule: worker does not ask owner what next
+
+### Honesty
+- `PR428_OLD_HEAD_END_TO_END_CERTIFIABLE = NO`
+- `READ_ONLY_CURSOR_FLAGS` unchanged (Ask)
+- `BATCH-B-CONTEXT-INTEGRATION-001` not reissued
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `BROKER_CERTIFICATION = NOT_GRANTED` until fresh CI + independent IV/ADV

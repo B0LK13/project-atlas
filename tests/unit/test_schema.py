@@ -33,6 +33,7 @@ def test_all_expected_schemas_available() -> None:
         "authority-record",
         "autonomy-broker-state",
         "autonomy-governor-report",
+        "autonomy-host-state",
         "autonomy-lease",
         "autonomy-level-catalog",
         "autonomy-loop-state",

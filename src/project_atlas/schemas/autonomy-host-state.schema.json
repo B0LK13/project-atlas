@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/autonomy-host-state.schema.json",
+  "title": "AutonomyHostState",
+  "description": "AS-ORCH-CONTINUATION-BROKER-001 durable host runtime. Not owner authority. Not a second governor. Never stores API keys.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "repository_identity",
+    "main_sha",
+    "main_tree",
+    "dag_generation",
+    "backend_type",
+    "parked_owner",
+    "authentic_backend_request_emitted",
+    "merge_authorized",
+    "record_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-ORCH-CONTINUATION-BROKER-001" },
+    "repository_identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "main_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "main_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "dag_generation": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "backend_type": {
+      "type": "string",
+      "enum": ["CLOUD_API", "LOCAL_ACP", "LOCAL_AGENT", "PROCESS", "NONE"]
+    },
+    "active_package_id": { "type": ["string", "null"] },
+    "active_lease_id": { "type": ["string", "null"] },
+    "cloud_agent_id": { "type": ["string", "null"] },
+    "cloud_run_id": { "type": ["string", "null"] },
+    "local_session_id": { "type": ["string", "null"] },
+    "process_agent_id": { "type": ["string", "null"] },
+    "process_run_id": { "type": ["string", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "parked_owner": { "type": "boolean" },
+    "authentic_backend_request_emitted": { "type": "boolean" },
+    "completed_package_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "merge_authorized": { "const": false },
+    "record_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

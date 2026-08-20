@@ -568,12 +568,15 @@ Honesty (mandatory):
 
 ## AS-ORCH-CONTINUATION-BROKER-001 — Invocation supervisor
 
-_Status: **IMPLEMENTED — NOT CERTIFIED** (not merged; merge authorization not granted). Same-process supervisor connecting AS-ORCH-001E invocations to the landed AS-ORCH-001D `DispatchPort`. Does **not** create a second governor, DAG engine, lease engine, or dispatch authority. Does **not** merge or invent owner prompts._
+_Status: **IMPLEMENTED — NOT CERTIFIED** (not merged; merge authorization not granted). Durable host supervisor over AS-ORCH-001E + read-only 001D Ask port + lease-gated `MutatingExecutionPort`. Does **not** create a second governor, DAG engine, lease engine, or dispatch authority. Does **not** merge or invent owner prompts._
 
 Honesty (mandatory):
 
 - `AUTONOMY_CONTINUATION_RUNTIME_GAP = CONFIRMED`
-- `CONTINUATION_BACKEND = SAME_PROCESS_SUPERVISOR_OVER_001E_WITH_001D_DISPATCHPORT`
+- `PR428_OLD_HEAD_END_TO_END_CERTIFIABLE = NO`
+- `HANDS_OFF_DEVELOPMENT_AFTER_OUTER_CURSOR_SESSION_EXIT` requires durable host + real worker backend (inner-loop PASS is not sufficient)
+- `CONTINUATION_BACKEND = DURABLE_HOST_SUPERVISOR_OVER_001E_WITH_001D_ASK_AND_MUTATING_PORT`
+- `READ_ONLY_WORKER_BACKEND = 001D_ASK`
 - `BROKER_IS_SECOND_GOVERNOR = NO`
 - `BROKER_CAN_AUTHORIZE_MERGE = NO`
 - `BROKER_CAN_BYPASS_OWNER_GATE = NO`
@@ -587,9 +590,14 @@ Honesty (mandatory):
 - [x] ORCHBROKER-004 Resource-boundary yield into a fresh invocation
 - [x] ORCHBROKER-005 Crash/restart without duplicate dispatch or owner prompt
 - [x] ORCHBROKER-006 Multi-cycle no-human regression + adversarial matrix
+- [x] ORCHBROKER-010 Durable host `governor-service-run` (explicit/safety stop only)
+- [x] ORCHBROKER-011 Lease-gated `MutatingExecutionPort` (Cloud API v1 / local Agent / process)
+- [x] ORCHBROKER-012 Outer session-death + restart-recovery process tests
 - [ ] ORCHBROKER-007 Independent verification
 - [ ] ORCHBROKER-008 Independent adversarial review
 - [ ] ORCHBROKER-009 Owner merge gate (not this package)
+- [ ] ORCHBROKER-013 Authentic Cloud/local Agent smoke (credential-gated)
+- [ ] ORCHBROKER-014 Post-merge durable-host activation seal
 
 ## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
 

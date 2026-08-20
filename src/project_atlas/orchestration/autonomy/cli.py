@@ -278,6 +278,157 @@ def run_governor_broker(
         return _fail_closed(str(exc), blocker=code), EXIT_ERROR
 
 
+def run_governor_service(
+    *,
+    root: Path,
+    trust_store: Path | None = None,
+    loop_store: Path | None = None,
+    broker_store: Path | None = None,
+    host_store: Path | None = None,
+    poll_seconds: float = 2.0,
+    owner_backoff_seconds: float = 5.0,
+) -> tuple[dict[str, object], int]:
+    """Long-lived durable host. Returns only on stop/safety/unrecoverable."""
+    from project_atlas.orchestration.autonomy.broker import (
+        BROKER_PACKAGE_ID,
+        BrokerError,
+        ContinuationBroker,
+        wire_001d_dispatch_port,
+    )
+    from project_atlas.orchestration.autonomy.broker import (
+        STATE_DIR_RELATIVE as BROKER_STATE_DIR,
+    )
+    from project_atlas.orchestration.autonomy.host_service import (
+        STATE_DIR_RELATIVE as HOST_STATE_DIR,
+    )
+    from project_atlas.orchestration.autonomy.host_service import (
+        DurableHostService,
+        HostError,
+        HostStopReason,
+    )
+    from project_atlas.orchestration.autonomy.local_agent import select_mutating_backend_name
+    from project_atlas.orchestration.autonomy.mutating_transport import (
+        MutatingExecutionPort,
+        ProcessMutatingBackend,
+        cloud_api_key_present,
+        local_cursor_cli_present,
+    )
+
+    try:
+        trusted = _load_trusted(trust_store=trust_store, allow_shipped=trust_store is None)
+        inventory = collect_live_inventory(root)
+        governor = AutonomousGovernor(
+            current_main=inventory.current_main,
+            current_tree=inventory.current_tree,
+            trusted_anchor=trusted,
+        )
+        broker = ContinuationBroker(
+            governor=governor,
+            trusted=trusted,
+            store=broker_store or (root / BROKER_STATE_DIR),
+            root=root,
+            loop_store=loop_store,
+            dispatch=wire_001d_dispatch_port(),
+        )
+        mutating: MutatingExecutionPort
+        backend_name = select_mutating_backend_name()
+        if backend_name.value == "CLOUD_API":
+            from project_atlas.orchestration.autonomy.cursor_cloud import CursorCloudBackend
+
+            mutating = CursorCloudBackend()
+        elif backend_name.value == "LOCAL_AGENT":
+            from project_atlas.orchestration.autonomy.local_agent import LocalAgentBackend
+
+            mutating = LocalAgentBackend()
+        else:
+            mutating = ProcessMutatingBackend(
+                root=root,
+                store=root / ".atlas" / "orchestration" / "workers" / "mutating",
+            )
+        service = DurableHostService(
+            governor=governor,
+            broker=broker,
+            store=host_store or (root / HOST_STATE_DIR),
+            root=root,
+            trusted=trusted,
+            mutating=mutating,
+            poll_seconds=poll_seconds,
+            owner_backoff_seconds=owner_backoff_seconds,
+        )
+        reason = service.run()
+        payload = {
+            "schema_version": 1,
+            "package_id": BROKER_PACKAGE_ID,
+            "stop_reason": reason.value,
+            "backend_selected": backend_name.value,
+            "cloud_api_key_present": cloud_api_key_present(),
+            "local_cursor_authenticated": local_cursor_cli_present(),
+            "host_is_second_governor": False,
+            "merge_authorized": False,
+            "execution_authorized": False,
+        }
+        exit_code = EXIT_OK if reason is HostStopReason.EXPLICIT_STOP else EXIT_ERROR
+        return payload, exit_code
+    except (TrustError, DiscoveryError, LoopError, HostError, BrokerError) as exc:
+        code = getattr(exc, "code", "HOST_FAILED_CLOSED")
+        return _fail_closed(str(exc), blocker=code), EXIT_ERROR
+
+
+def run_governor_service_stop(
+    *,
+    root: Path,
+    host_store: Path | None = None,
+) -> tuple[dict[str, object], int]:
+    from project_atlas.orchestration.autonomy.host_service import (
+        STATE_DIR_RELATIVE as HOST_STATE_DIR,
+    )
+    from project_atlas.orchestration.autonomy.host_service import request_stop
+
+    store = host_store or (root / HOST_STATE_DIR)
+    request_stop(store)
+    return {
+        "schema_version": 1,
+        "package_id": AUTONOMY_PACKAGE_ID,
+        "stop_requested": True,
+        "merge_authorized": False,
+    }, EXIT_OK
+
+
+def run_governor_service_install(
+    *,
+    root: Path,
+    output: Path | None = None,
+) -> tuple[dict[str, object], int]:
+    import shutil
+    import sys
+
+    from project_atlas.orchestration.autonomy.host_install import (
+        SYSTEMD_UNIT_NAME,
+        TASK_NAME,
+        render_systemd_user_unit,
+        render_windows_schtasks_command,
+        write_linux_unit,
+    )
+
+    atlas_bin = shutil.which("atlas") or sys.executable + " -m project_atlas.cli"
+    unit_text = render_systemd_user_unit(root=root, atlas_bin=atlas_bin)
+    task_cmd = render_windows_schtasks_command(root=root, atlas_bin=atlas_bin)
+    written = None
+    if output is not None:
+        written = str(write_linux_unit(output=output, root=root, atlas_bin=atlas_bin))
+    return {
+        "schema_version": 1,
+        "package_id": AUTONOMY_PACKAGE_ID,
+        "linux_unit": SYSTEMD_UNIT_NAME,
+        "windows_task": TASK_NAME,
+        "linux_unit_text": unit_text,
+        "windows_command": task_cmd,
+        "unit_path": written,
+        "secrets_embedded": False,
+        "merge_authorized": False,
+    }, EXIT_OK
+
+
 def run_governor_loop_tick(
     *,
     root: Path,

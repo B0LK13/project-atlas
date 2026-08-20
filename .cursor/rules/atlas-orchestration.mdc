@@ -24,3 +24,12 @@ For governed Atlas work:
 `TaskDirective` is not executable. Acknowledgement is not authority.
 `CURSOR_STOP_HOOK_ADAPTER = IMPLEMENTED`
 `AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT`
+
+Standing worker / governor behavior (defense-in-depth; the broker enforces):
+
+8. A worker does not ask the owner what to do next. Routine next-step questions return to the primary governor.
+9. A worker that is uncertain returns a machine blocker to the governor. It does not invent owner policy or request merge authority.
+10. A checkpoint is not a terminal DAG state. Transport TERMINAL is not DAG-terminal.
+11. An owner gate parks only the gated node. It is not a global stop of safe remaining work.
+12. Duplicate owner prompts for an unchanged fingerprint are forbidden.
+13. 001D Ask-mode remains the read-only verification transport. Mutation requires a separately leased MutatingExecutionPort.
