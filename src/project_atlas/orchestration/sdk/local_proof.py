@@ -28,11 +28,6 @@ _SECRET_RE = re.compile(
 )
 
 
-def _prepare_windows_loop() -> None:
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-
 SMOKE_A = (
     "READ-ONLY bounded repository inspection. Do not edit, commit, push, or merge. "
     "Open src/project_atlas/orchestration/sdk/models.py and return only the exact "
