@@ -3,6 +3,10 @@
 Builds paste-ready agent context and durable handoff packs from the Coder Alpha
 project brief + evidence links. Does not invent estate facts; UNKNOWN remains.
 
+AS-CODER-ALPHA-CONTEXT-STALE-GUARD-001 stamps connect-inventory freshness
+via ``inventory_drift`` already on main. STALE/UNKNOWN packs must not look
+current. No second hash engine. Historical #380 is not retargeted.
+
 Outputs (under vault):
 - ``generated/ops/agent-context/<project>.md``
 - ``generated/ops/agent-context/<project>.json``
@@ -24,6 +28,10 @@ from project_atlas.conversation_capture import (
     list_conversation_captures,
     render_conversation_captures_markdown,
 )
+from project_atlas.inventory_drift import (
+    PACKAGE_ID as DRIFT_PACKAGE,
+    attach_source_drift,
+)
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.session_capture import (
     SessionCaptureError,
@@ -34,7 +42,12 @@ from project_atlas.session_capture import (
 
 PACKAGE_CONTEXT = "AS-CODER-ALPHA-CONTEXT-001"
 PACKAGE_HANDOFF = "AS-CODER-ALPHA-HANDOFF-001"
+PACKAGE_STALE_GUARD = "AS-CODER-ALPHA-CONTEXT-STALE-GUARD-001"
 GENERATOR_ID = "atlas-coder-alpha-context-handoff-001"
+STALE_CONTEXT_BANNER = "STALE SOURCE INVENTORY != CURRENT CONTEXT; reconnect first"
+UNKNOWN_CONTEXT_BANNER = (
+    "UNKNOWN SOURCE INVENTORY != FRESH; do not treat this pack as current"
+)
 CONTEXT_DIR = Path("generated") / "ops" / "agent-context"
 HANDOFF_DIR = Path("generated") / "ops" / "handoffs"
 
@@ -59,6 +72,68 @@ def _safe_project_id(project_id: str) -> str:
         return safe_relative_component(project_id, label="project id")
     except ValueError as exc:
         raise AgentHandoffError(str(exc)) from exc
+
+
+def _freshness_honesty(status: str) -> dict[str, Any]:
+    return {
+        "authentic_pilot": False,
+        "atlas_opt_wake_gate": "CLOSED",
+        "lens_is_authority": False,
+        "invented_facts": False,
+        "fresh_is_authority": False,
+        "unknown_is_fresh": False,
+        "unknown_is_healthy": False,
+        "stale_is_current": False,
+        "source_inventory_stale": status == "STALE",
+    }
+
+
+def evaluate_context_freshness(vault: Path, project_id: str) -> dict[str, Any]:
+    """Stamp connect-inventory freshness. Delegates to inventory_drift.
+
+    Missing or unverified inventory is UNKNOWN, never FRESH. STALE is not
+    current. Does not hash sources here and does not retarget #380.
+    """
+    scoped = _safe_project_id(project_id) if project_id else ""
+    lens = attach_source_drift(
+        {
+            "summary": "agent context",
+            "inspected_artifacts": [
+                CONTEXT_DIR.as_posix(),
+                "generated/ops/connect-manifest.json",
+            ],
+            "notes": [],
+            "honesty": _freshness_honesty("UNKNOWN"),
+        },
+        vault.expanduser().resolve(),
+        scoped or project_id,
+    )
+    drift = lens.get("source_drift") if isinstance(lens.get("source_drift"), dict) else {}
+    status = str((drift or {}).get("status") or "UNKNOWN")
+    changed = [
+        item
+        for item in ((drift or {}).get("changed_paths") or [])
+        if isinstance(item, str)
+    ]
+    notes = [item for item in (lens.get("notes") or []) if isinstance(item, str)]
+    if status == "STALE" and STALE_CONTEXT_BANNER not in notes:
+        notes.append(STALE_CONTEXT_BANNER)
+    if status == "UNKNOWN" and UNKNOWN_CONTEXT_BANNER not in notes:
+        notes.append(UNKNOWN_CONTEXT_BANNER)
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.context-stale-guard.v1",
+        "package": PACKAGE_STALE_GUARD,
+        "engine": DRIFT_PACKAGE,
+        "status": status,
+        "reason": (drift or {}).get("reason"),
+        "reason_code": (drift or {}).get("reason_code"),
+        "changed_paths": changed[:20],
+        "notes": notes,
+        "source_drift": drift or {},
+        "generated": {"by": GENERATOR_ID},
+        "honesty": _freshness_honesty(status),
+    }
 
 
 def _render_attention_section(attention: dict[str, Any] | None) -> list[str]:
@@ -201,6 +276,30 @@ def _render_next_section(nxt: dict[str, Any] | None) -> list[str]:
     return lines
 
 
+def _render_freshness_section(freshness: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Context freshness"]
+    if not freshness:
+        lines.append("UNKNOWN")
+        return lines
+    status = str(freshness.get("status") or "UNKNOWN")
+    lines.append("CONTEXT_FRESHNESS!=AUTHORITY. STALE!=CURRENT. UNKNOWN!=FRESH.")
+    lines.append(
+        f"status={status} "
+        f"package=`{PACKAGE_STALE_GUARD}` "
+        f"engine=`{DRIFT_PACKAGE}`"
+    )
+    reason = freshness.get("reason") or freshness.get("reason_code") or "UNKNOWN"
+    lines.append(f"reason={reason}")
+    if status == "STALE":
+        lines.append(STALE_CONTEXT_BANNER)
+    elif status == "UNKNOWN":
+        lines.append(UNKNOWN_CONTEXT_BANNER)
+    changed = freshness.get("changed_paths") or []
+    if isinstance(changed, list) and changed:
+        lines.append("changed_paths=" + ", ".join(str(item) for item in changed[:8]))
+    return lines
+
+
 def _render_context_markdown(
     brief: dict[str, Any],
     captures: list[dict[str, Any]] | None = None,
@@ -210,30 +309,52 @@ def _render_context_markdown(
     conversation_captures: list[dict[str, Any]] | None = None,
     roadmap: dict[str, Any] | None = None,
     nxt: dict[str, Any] | None = None,
+    freshness: dict[str, Any] | None = None,
 ) -> str:
-    next_work = brief.get("suggested_next_work") or []
+    next_work = list(brief.get("suggested_next_work") or [])
+    status = str((freshness or {}).get("status") or "UNKNOWN")
+    if status == "STALE" and (
+        not next_work or STALE_CONTEXT_BANNER not in str(next_work[0])
+    ):
+        next_work.insert(0, STALE_CONTEXT_BANNER)
+    elif status == "UNKNOWN" and (
+        not next_work or UNKNOWN_CONTEXT_BANNER not in str(next_work[0])
+    ):
+        next_work.insert(0, UNKNOWN_CONTEXT_BANNER)
     evidence = brief.get("evidence_links") or []
+    banner = ""
+    if status == "STALE":
+        banner = STALE_CONTEXT_BANNER
+    elif status == "UNKNOWN":
+        banner = UNKNOWN_CONTEXT_BANNER
     lines = [
         f"# Atlas Agent Context — {brief.get('project_id')}",
         "",
         "Derived from Atlas Truth Core via Coder Alpha brief. UI!=canonical.",
         "MODEL_OUTPUT!=AUTHORITY. UNKNOWN stays UNKNOWN.",
-        "",
-        "## Project identity",
-        str(brief.get("project_identity") or "UNKNOWN"),
-        "",
-        "## Purpose",
-        str(brief.get("purpose") or "UNKNOWN"),
-        "",
-        "## Tech stack",
-        str(brief.get("tech_stack") or "UNKNOWN"),
-        "",
-        "## Architecture summary",
-        str(brief.get("architecture_summary") or "UNKNOWN"),
-        "",
-        "## Current state",
-        str(brief.get("current_state") or "UNKNOWN"),
     ]
+    if banner:
+        lines.extend(["", banner])
+    lines.extend(
+        [
+            "",
+            "## Project identity",
+            str(brief.get("project_identity") or "UNKNOWN"),
+            "",
+            "## Purpose",
+            str(brief.get("purpose") or "UNKNOWN"),
+            "",
+            "## Tech stack",
+            str(brief.get("tech_stack") or "UNKNOWN"),
+            "",
+            "## Architecture summary",
+            str(brief.get("architecture_summary") or "UNKNOWN"),
+            "",
+            "## Current state",
+            str(brief.get("current_state") or "UNKNOWN"),
+        ]
+    )
+    lines.extend(_render_freshness_section(freshness))
     lines.extend(_render_roadmap_section(roadmap))
     lines.extend(_render_next_section(nxt))
     lines.extend(
@@ -274,6 +395,11 @@ def _render_context_markdown(
             "- lens_is_authority: false",
             "- roadmap_is_canonical: false",
             "- next_is_command: false",
+            "- stale_is_current: false",
+            "- unknown_is_fresh: false",
+            "- fresh_is_authority: false",
+            f"- source_inventory_stale: {str(status == 'STALE').lower()}",
+            f"- context_freshness: {status}",
             "",
         ]
     )
@@ -319,6 +445,7 @@ def export_agent_context(
         from project_atlas.project_next import build_next_lens
 
         nxt = build_next_lens(vault, project_id)
+    freshness = evaluate_context_freshness(vault, project_id)
     markdown = _render_context_markdown(
         brief,
         captures=captures,
@@ -327,12 +454,22 @@ def export_agent_context(
         conversation_captures=conversation_captures,
         roadmap=roadmap,
         nxt=nxt,
+        freshness=freshness,
     )
+    honesty = {
+        "authentic_pilot": False,
+        "atlas_opt_wake_gate": "CLOSED",
+        "lens_is_authority": False,
+        "invented_facts": False,
+    }
+    honesty.update(freshness.get("honesty") or {})
     payload = {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.agent-context.v1",
         "package": PACKAGE_CONTEXT,
         "project_id": project_id,
+        "freshness": freshness,
+        "source_drift": freshness.get("source_drift"),
         "brief": brief,
         "attention": {
             "rollup": (attention or {}).get("rollup"),
@@ -365,12 +502,7 @@ def export_agent_context(
         },
         "markdown": markdown,
         "generated": {"by": GENERATOR_ID},
-        "honesty": {
-            "authentic_pilot": False,
-            "atlas_opt_wake_gate": "CLOSED",
-            "lens_is_authority": False,
-            "invented_facts": False,
-        },
+        "honesty": honesty,
     }
     md_path = vault / CONTEXT_DIR / f"{project_id}.md"
     json_path = vault / CONTEXT_DIR / f"{project_id}.json"
@@ -388,6 +520,9 @@ def export_agent_context(
         "json_path": json_path.relative_to(vault).as_posix(),
         "purpose": brief.get("purpose"),
         "conversation_captures": conversation_captures,
+        "freshness": freshness,
+        "source_drift": freshness.get("source_drift"),
+        "honesty": honesty,
         "generated": {"by": GENERATOR_ID},
     }
 
@@ -437,14 +572,23 @@ def create_handoff(
             "Use Current project position as derived next-unlock, not as authority",
             "Treat UNKNOWN as UNKNOWN; do not invent architecture/decisions",
             "Prefer vault Truth Core over chat memory",
+            "If context freshness is STALE or UNKNOWN, reconnect before treating this pack as current",
             "After meaningful work, run atlas capture record then atlas handoff create",
         ],
         "operator_note": note,
+        "freshness": context.get("freshness"),
         "generated": {"by": GENERATOR_ID},
         "honesty": {
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
+            "invented_facts": False,
+            "fresh_is_authority": False,
+            "unknown_is_fresh": False,
+            "stale_is_current": False,
+            "source_inventory_stale": bool(
+                ((context.get("honesty") or {}).get("source_inventory_stale"))
+            ),
         },
     }
     path = vault / HANDOFF_DIR / f"{handoff_id}.json"
@@ -478,6 +622,13 @@ def create_handoff(
         "project_id": project_id,
         "context_markdown": context["markdown_path"],
         "session_capture": capture_report,
+        "freshness": context.get("freshness"),
+        "honesty": {
+            "stale_is_current": False,
+            "source_inventory_stale": bool(
+                ((context.get("honesty") or {}).get("source_inventory_stale"))
+            ),
+        },
         "generated": {"by": GENERATOR_ID},
     }
 
@@ -528,6 +679,16 @@ def resume_handoff(
         raise AgentHandoffError(f"unreadable handoff pack: {exc}") from exc
     if not isinstance(pack, dict):
         raise AgentHandoffError("handoff pack must be a JSON object")
+    written = pack.get("freshness") if isinstance(pack.get("freshness"), dict) else None
+    live_id = pack.get("project_id")
+    live = evaluate_context_freshness(
+        vault, live_id if isinstance(live_id, str) else ""
+    )
+    pack["freshness_at_write"] = written
+    pack["freshness"] = live
+    honesty = dict(pack.get("honesty") or {}) if isinstance(pack.get("honesty"), dict) else {}
+    honesty.update(live.get("honesty") or {})
+    pack["honesty"] = honesty
     pack["status"] = "resumed"
     pack["resume_path"] = path.relative_to(vault).as_posix()
     return pack

@@ -3205,6 +3205,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             print(f"  markdown: {report.get('markdown_path')}")
             print(f"  json:     {report.get('json_path')}")
+            freshness = report.get("freshness") or {}
+            print(f"  freshness:{freshness.get('status', 'UNKNOWN')}")
+            if freshness.get("status") == "STALE":
+                print(
+                    "  warning:  STALE SOURCE INVENTORY != CURRENT CONTEXT; "
+                    "reconnect first"
+                )
             print("  next: paste markdown into Cursor/Claude/Codex/ChatGPT")
         return EXIT_OK
 

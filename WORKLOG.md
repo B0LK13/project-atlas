@@ -6962,3 +6962,26 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - `NEW_HEAD != LOST_HEAD` (required)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `MERGE_PERFORMED = NO`
+
+---
+
+## 2026-08-20 — AS-CODER-ALPHA-CONTEXT-STALE-GUARD-001 (current-main)
+
+**Package:** AS-CODER-ALPHA-CONTEXT-STALE-GUARD-001
+**Branch:** `cursor/context-stale-guard-current-001-5d32`
+**Base:** `dc9d81df0ff7106438de44a4bd84df0b955535bc` (`TARGET_MOVED = NO` at open)
+**Historical #380:** not retargeted (`cursor/context-stale-guard-001-315e` remains historical)
+
+### Scope
+- Stamp `atlas context` / handoff freshness from `inventory_drift.attach_source_drift`
+- STALE/UNKNOWN cannot look current (`stale_is_current=false`, `unknown_is_fresh=false`)
+- Markdown banner + CLI freshness line
+- `handoff resume` re-evaluates live inventory drift
+- No second hash engine; no six-lens or honesty-tail file edits
+
+### Honesty
+- `CONTEXT_FRESHNESS != AUTHORITY`
+- `STALE != CURRENT`
+- `UNKNOWN != FRESH`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_PERFORMED = NO`
