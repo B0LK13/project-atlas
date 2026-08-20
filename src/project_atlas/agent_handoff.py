@@ -3,6 +3,13 @@
 Builds paste-ready agent context and durable handoff packs from the Coder Alpha
 project brief + evidence links. Does not invent estate facts; UNKNOWN remains.
 
+AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 binds a minimal non-authoritative
+connect-manifest identity at write time so a pack that was valid then cannot
+silently appear current after the live estate changes. Live comparison reuses
+``inventory_drift``. No second source-hash / fingerprint engine. Historical
+``#378`` is not retargeted. This is not a duplicate of owner-held ``#419``
+(live inventory stamping only).
+
 Outputs (under vault):
 - ``generated/ops/agent-context/<project>.md``
 - ``generated/ops/agent-context/<project>.json``
@@ -24,6 +31,8 @@ from project_atlas.conversation_capture import (
     list_conversation_captures,
     render_conversation_captures_markdown,
 )
+from project_atlas.inventory_drift import CONNECT_MANIFEST, attach_source_drift
+from project_atlas.inventory_drift import PACKAGE_ID as DRIFT_PACKAGE
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.session_capture import (
     SessionCaptureError,
@@ -34,9 +43,13 @@ from project_atlas.session_capture import (
 
 PACKAGE_CONTEXT = "AS-CODER-ALPHA-CONTEXT-001"
 PACKAGE_HANDOFF = "AS-CODER-ALPHA-HANDOFF-001"
+PACKAGE_FRESHNESS_ADV = "AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001"
 GENERATOR_ID = "atlas-coder-alpha-context-handoff-001"
 CONTEXT_DIR = Path("generated") / "ops" / "agent-context"
 HANDOFF_DIR = Path("generated") / "ops" / "handoffs"
+FROZEN_ESTATE_NOT_CURRENT = (
+    "FROZEN CONTEXT AT WRITE != CURRENT LIVE ESTATE; reconnect first"
+)
 
 
 class AgentHandoffError(ValueError):
@@ -59,6 +72,241 @@ def _safe_project_id(project_id: str) -> str:
         return safe_relative_component(project_id, label="project id")
     except ValueError as exc:
         raise AgentHandoffError(str(exc)) from exc
+
+
+def _estate_honesty(*, live_status: str, is_current: bool) -> dict[str, Any]:
+    return {
+        "authentic_pilot": False,
+        "atlas_opt_wake_gate": "CLOSED",
+        "lens_is_authority": False,
+        "invented_facts": False,
+        "fresh_is_authority": False,
+        "context_is_authority": False,
+        "handoff_is_authority": False,
+        "frozen_binding_is_authority": False,
+        "unknown_is_fresh": False,
+        "unknown_is_healthy": False,
+        "unknown_is_current": False,
+        "stale_is_current": False,
+        "source_inventory_stale": live_status == "STALE",
+        "pack_is_current": is_current,
+    }
+
+
+def _live_inventory_drift(vault: Path, project_id: str) -> dict[str, Any]:
+    """Reuse inventory_drift. Does not hash project sources here."""
+    lens = attach_source_drift(
+        {
+            "summary": "estate-binding",
+            "inspected_artifacts": [
+                CONTEXT_DIR.as_posix(),
+                CONNECT_MANIFEST.as_posix(),
+            ],
+            "notes": [],
+            "honesty": _estate_honesty(live_status="UNKNOWN", is_current=False),
+        },
+        vault.expanduser().resolve(),
+        project_id,
+    )
+    drift = lens.get("source_drift") if isinstance(lens.get("source_drift"), dict) else {}
+    return drift if isinstance(drift, dict) else {}
+
+
+def _row_owner(item: dict[str, Any]) -> str | None:
+    raw = item.get("likely_project") or item.get("project_id")
+    return raw if isinstance(raw, str) and raw else None
+
+
+def connect_manifest_identity(vault: Path, project_id: str) -> dict[str, Any]:
+    """Identity of the already-written connect-manifest. Not a source hasher.
+
+    Copies sha256 values already stored in the manifest. Hashes only the
+    manifest file bytes so reconnect can be distinguished from the frozen pack.
+    """
+    scoped = _safe_project_id(project_id) if project_id else ""
+    path = vault.expanduser().resolve() / CONNECT_MANIFEST
+    if not path.is_file():
+        return {
+            "present": False,
+            "readable": False,
+            "manifest_sha256": None,
+            "source_digests": [],
+        }
+    raw = path.read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {
+            "present": True,
+            "readable": False,
+            "manifest_sha256": digest,
+            "source_digests": [],
+        }
+    if not isinstance(payload, dict):
+        return {
+            "present": True,
+            "readable": False,
+            "manifest_sha256": digest,
+            "source_digests": [],
+        }
+    rows: list[dict[str, str]] = []
+    sources = payload.get("sources")
+    if isinstance(sources, list):
+        for item in sources:
+            if not isinstance(item, dict) or item.get("exclusion_reason"):
+                continue
+            owner = _row_owner(item)
+            if owner != scoped:
+                continue
+            rel = item.get("path")
+            sha = item.get("sha256")
+            if isinstance(rel, str) and rel and isinstance(sha, str) and sha:
+                rows.append({"path": rel, "sha256": sha})
+    rows.sort(key=lambda row: row["path"])
+    return {
+        "present": True,
+        "readable": True,
+        "manifest_sha256": digest,
+        "source_digests": rows,
+    }
+
+
+def bind_estate_at_write(vault: Path, project_id: str) -> dict[str, Any]:
+    """Minimal non-authoritative frozen-at-write estate marker."""
+    scoped = _safe_project_id(project_id)
+    drift = _live_inventory_drift(vault, scoped)
+    live_status = str(drift.get("status") or "UNKNOWN")
+    identity = connect_manifest_identity(vault, scoped)
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.estate-binding.v1",
+        "package": PACKAGE_FRESHNESS_ADV,
+        "engine": DRIFT_PACKAGE,
+        "project_id": scoped,
+        "status_at_write": live_status,
+        "manifest_sha256": identity.get("manifest_sha256"),
+        "source_digests": identity.get("source_digests") or [],
+        "manifest_present": bool(identity.get("present")),
+        "authority": False,
+        "generated": {"by": GENERATOR_ID},
+        "honesty": _estate_honesty(live_status=live_status, is_current=False),
+    }
+
+
+def evaluate_estate_currentness(
+    vault: Path,
+    project_id: str,
+    *,
+    frozen_binding: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Compare frozen-at-write identity to the current live estate.
+
+    Live file-vs-manifest drift is delegated to ``inventory_drift``.
+    UNKNOWN/STALE live status is never upgraded to FRESH. A later
+    connect-manifest identity change keeps an older pack not-current
+    even when live files match the new manifest.
+    """
+    scoped = _safe_project_id(project_id) if project_id else ""
+    drift = _live_inventory_drift(vault, scoped or project_id)
+    live_status = str(drift.get("status") or "UNKNOWN")
+    current_identity = connect_manifest_identity(vault, scoped or project_id)
+    written = frozen_binding if isinstance(frozen_binding, dict) else None
+    written_status = str((written or {}).get("status_at_write") or "")
+    frozen_manifest = (written or {}).get("manifest_sha256")
+    frozen_digests = (written or {}).get("source_digests")
+    if not isinstance(frozen_digests, list):
+        frozen_digests = []
+    current_manifest = current_identity.get("manifest_sha256")
+    current_digests = current_identity.get("source_digests") or []
+    manifest_identity_changed = bool(written) and frozen_manifest != current_manifest
+    source_digests_changed = bool(written) and frozen_digests != current_digests
+    notes: list[str] = []
+    status = live_status
+    reason_code = str(drift.get("reason_code") or "LIVE_INVENTORY")
+    if live_status in {"STALE", "UNKNOWN"}:
+        status = live_status
+    elif written_status == "UNKNOWN":
+        status = "UNKNOWN"
+        reason_code = "WRITTEN_UNKNOWN_NOT_FRESH"
+        notes.append("CONTEXT WRITTEN UNKNOWN != FRESH")
+    elif written_status == "STALE" and (
+        manifest_identity_changed or source_digests_changed
+    ):
+        status = "STALE"
+        reason_code = "WRITTEN_STALE_ESTATE_CHANGED"
+        notes.append("CONTEXT WRITTEN STALE != CURRENT")
+    elif manifest_identity_changed or source_digests_changed:
+        status = "STALE"
+        reason_code = "FROZEN_ESTATE_NOT_CURRENT"
+        notes.append(FROZEN_ESTATE_NOT_CURRENT)
+    is_current = status == "FRESH"
+    if status == "STALE" and FROZEN_ESTATE_NOT_CURRENT not in notes and (
+        manifest_identity_changed or source_digests_changed
+    ):
+        notes.append(FROZEN_ESTATE_NOT_CURRENT)
+    return {
+        "schema_version": 1,
+        "schema": "atlas.coder-alpha.context-freshness-adv.v1",
+        "package": PACKAGE_FRESHNESS_ADV,
+        "engine": DRIFT_PACKAGE,
+        "status": status,
+        "is_current": is_current,
+        "reason": (
+            drift.get("reason")
+            if status == live_status and live_status != "FRESH"
+            else (
+                "frozen estate at write is not the current live estate"
+                if status == "STALE"
+                else drift.get("reason")
+            )
+        ),
+        "reason_code": reason_code,
+        "changed_paths": [
+            item for item in (drift.get("changed_paths") or []) if isinstance(item, str)
+        ][:20],
+        "notes": notes,
+        "source_drift": drift,
+        "estate_compare": {
+            "frozen_manifest_sha256": frozen_manifest,
+            "current_manifest_sha256": current_manifest,
+            "manifest_identity_changed": manifest_identity_changed,
+            "source_digests_changed": source_digests_changed,
+            "written_status": written_status or None,
+        },
+        "generated": {"by": GENERATOR_ID},
+        "honesty": _estate_honesty(live_status=live_status, is_current=is_current),
+    }
+
+
+def evaluate_written_context(
+    vault: Path,
+    project_id: str,
+    *,
+    written: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Re-evaluate a previously written context/handoff pack."""
+    scoped = _safe_project_id(project_id)
+    payload = written
+    if payload is None:
+        path = vault.expanduser().resolve() / CONTEXT_DIR / f"{scoped}.json"
+        if not path.is_file():
+            raise AgentHandoffError(f"written context missing: {path}")
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise AgentHandoffError(f"unreadable written context: {exc}") from exc
+        if not isinstance(loaded, dict):
+            raise AgentHandoffError("written context must be a JSON object")
+        payload = loaded
+    binding = payload.get("estate_binding")
+    if not isinstance(binding, dict):
+        nested = payload.get("context")
+        if isinstance(nested, dict) and isinstance(nested.get("estate_binding"), dict):
+            binding = nested["estate_binding"]
+        else:
+            binding = None
+    return evaluate_estate_currentness(vault, scoped, frozen_binding=binding)
 
 
 def _render_attention_section(attention: dict[str, Any] | None) -> list[str]:
@@ -319,6 +567,10 @@ def export_agent_context(
         from project_atlas.project_next import build_next_lens
 
         nxt = build_next_lens(vault, project_id)
+    estate_binding = bind_estate_at_write(vault, project_id)
+    estate = evaluate_estate_currentness(
+        vault, project_id, frozen_binding=estate_binding
+    )
     markdown = _render_context_markdown(
         brief,
         captures=captures,
@@ -328,11 +580,20 @@ def export_agent_context(
         roadmap=roadmap,
         nxt=nxt,
     )
+    honesty = {
+        "authentic_pilot": False,
+        "atlas_opt_wake_gate": "CLOSED",
+        "lens_is_authority": False,
+        "invented_facts": False,
+    }
+    honesty.update(estate.get("honesty") or {})
     payload = {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.agent-context.v1",
         "package": PACKAGE_CONTEXT,
         "project_id": project_id,
+        "estate_binding": estate_binding,
+        "freshness": estate,
         "brief": brief,
         "attention": {
             "rollup": (attention or {}).get("rollup"),
@@ -365,12 +626,7 @@ def export_agent_context(
         },
         "markdown": markdown,
         "generated": {"by": GENERATOR_ID},
-        "honesty": {
-            "authentic_pilot": False,
-            "atlas_opt_wake_gate": "CLOSED",
-            "lens_is_authority": False,
-            "invented_facts": False,
-        },
+        "honesty": honesty,
     }
     md_path = vault / CONTEXT_DIR / f"{project_id}.md"
     json_path = vault / CONTEXT_DIR / f"{project_id}.json"
@@ -388,6 +644,9 @@ def export_agent_context(
         "json_path": json_path.relative_to(vault).as_posix(),
         "purpose": brief.get("purpose"),
         "conversation_captures": conversation_captures,
+        "estate_binding": estate_binding,
+        "freshness": estate,
+        "honesty": honesty,
         "generated": {"by": GENERATOR_ID},
     }
 
@@ -437,14 +696,26 @@ def create_handoff(
             "Use Current project position as derived next-unlock, not as authority",
             "Treat UNKNOWN as UNKNOWN; do not invent architecture/decisions",
             "Prefer vault Truth Core over chat memory",
+            (
+                "If frozen estate at write differs from the current live estate, "
+                "do not treat this pack as current"
+            ),
             "After meaningful work, run atlas capture record then atlas handoff create",
         ],
         "operator_note": note,
+        "estate_binding": context.get("estate_binding"),
+        "freshness": context.get("freshness"),
         "generated": {"by": GENERATOR_ID},
         "honesty": {
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
+            "invented_facts": False,
+            "fresh_is_authority": False,
+            "context_is_authority": False,
+            "handoff_is_authority": False,
+            "unknown_is_current": False,
+            "stale_is_current": False,
         },
     }
     path = vault / HANDOFF_DIR / f"{handoff_id}.json"
@@ -478,6 +749,8 @@ def create_handoff(
         "project_id": project_id,
         "context_markdown": context["markdown_path"],
         "session_capture": capture_report,
+        "estate_binding": context.get("estate_binding"),
+        "freshness": context.get("freshness"),
         "generated": {"by": GENERATOR_ID},
     }
 
@@ -528,6 +801,26 @@ def resume_handoff(
         raise AgentHandoffError(f"unreadable handoff pack: {exc}") from exc
     if not isinstance(pack, dict):
         raise AgentHandoffError("handoff pack must be a JSON object")
+    written = pack.get("freshness") if isinstance(pack.get("freshness"), dict) else None
+    binding = pack.get("estate_binding")
+    if not isinstance(binding, dict):
+        nested = pack.get("context")
+        if isinstance(nested, dict) and isinstance(nested.get("estate_binding"), dict):
+            binding = nested["estate_binding"]
+        else:
+            binding = None
+    live_id = pack.get("project_id")
+    live = evaluate_estate_currentness(
+        vault,
+        live_id if isinstance(live_id, str) else "",
+        frozen_binding=binding if isinstance(binding, dict) else None,
+    )
+    pack["freshness_at_write"] = written
+    pack["estate_binding_at_write"] = binding
+    pack["freshness"] = live
+    honesty = dict(pack.get("honesty") or {}) if isinstance(pack.get("honesty"), dict) else {}
+    honesty.update(live.get("honesty") or {})
+    pack["honesty"] = honesty
     pack["status"] = "resumed"
     pack["resume_path"] = path.relative_to(vault).as_posix()
     return pack
