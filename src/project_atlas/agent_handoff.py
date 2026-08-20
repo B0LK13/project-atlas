@@ -28,10 +28,8 @@ from project_atlas.conversation_capture import (
     list_conversation_captures,
     render_conversation_captures_markdown,
 )
-from project_atlas.inventory_drift import (
-    PACKAGE_ID as DRIFT_PACKAGE,
-    attach_source_drift,
-)
+from project_atlas.inventory_drift import PACKAGE_ID as DRIFT_PACKAGE
+from project_atlas.inventory_drift import attach_source_drift
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.session_capture import (
     SessionCaptureError,
@@ -572,7 +570,10 @@ def create_handoff(
             "Use Current project position as derived next-unlock, not as authority",
             "Treat UNKNOWN as UNKNOWN; do not invent architecture/decisions",
             "Prefer vault Truth Core over chat memory",
-            "If context freshness is STALE or UNKNOWN, reconnect before treating this pack as current",
+            (
+                "If context freshness is STALE or UNKNOWN, "
+                "reconnect before treating this pack as current"
+            ),
             "After meaningful work, run atlas capture record then atlas handoff create",
         ],
         "operator_note": note,
@@ -587,7 +588,7 @@ def create_handoff(
             "unknown_is_fresh": False,
             "stale_is_current": False,
             "source_inventory_stale": bool(
-                ((context.get("honesty") or {}).get("source_inventory_stale"))
+                (context.get("honesty") or {}).get("source_inventory_stale")
             ),
         },
     }
@@ -626,7 +627,7 @@ def create_handoff(
         "honesty": {
             "stale_is_current": False,
             "source_inventory_stale": bool(
-                ((context.get("honesty") or {}).get("source_inventory_stale"))
+                (context.get("honesty") or {}).get("source_inventory_stale")
             ),
         },
         "generated": {"by": GENERATOR_ID},
