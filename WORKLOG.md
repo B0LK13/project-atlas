@@ -5,6 +5,29 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 / D-056
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-WAVE3-COORDINATED-ACTIVATION-AND-CRITICAL-PATH-EXPANSION-056
+**Lease:** `LEASE-IMPL-CTX-FRESH-ADV-056-A` (shared primary-governor write-back)
+**Branch:** `cursor/context-freshness-adv-current-001-5d32` from live `origin/main` `dc9d81df0ff7106438de44a4bd84df0b955535bc`
+**Mode:** Wave-3 primary implementation. Does not retarget `#378`. Does not duplicate owner-held `#419`. Does not merge.
+
+### Unique delta
+Frozen-at-write connect-manifest identity vs current live estate, including reconnect that refreshes the manifest while live files still match the new manifest.
+
+### Commands
+```
+PYTHONPATH=src python -m pytest tests/unit/test_as_coder_alpha_context_freshness_adv_001.py tests/unit/test_as_coder_alpha_context_handoff_001.py
+python -m ruff check src/project_atlas/agent_handoff.py tests/unit/test_as_coder_alpha_context_freshness_adv_001.py
+python -m mypy src/project_atlas/agent_handoff.py
+```
+
+### Honesty
+`STALE_IS_CURRENT=NO` `UNKNOWN_IS_CURRENT=NO` `FRESH_IS_AUTHORITY=NO` `MERGE_AUTHORIZATION=NOT_GRANTED`
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
