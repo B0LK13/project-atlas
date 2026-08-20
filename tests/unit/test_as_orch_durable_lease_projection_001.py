@@ -231,6 +231,16 @@ def test_foreign_package_rejected(tmp_path: Path) -> None:
     assert exc.value.code == "FOREIGN_PACKAGE"
 
 
+def test_released_lease_id_not_recyclable(tmp_path: Path) -> None:
+    first = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, first, live_main=PIN)
+    project_release(tmp_path, release_lease(first), live_main=PIN)
+    recycled = _lease(lease_id="LEASE-1", agent_id="worker-b", package_id="PKG-B", sequence=2)
+    with pytest.raises(ProjectionError, match="replay") as exc:
+        project_grant(tmp_path, recycled, live_main=PIN)
+    assert exc.value.code == "LEASE_REPLAY"
+
+
 def test_replay_fail_closed(tmp_path: Path) -> None:
     first = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
     replay = _lease(lease_id="LEASE-1", agent_id="worker-b", package_id="PKG-B", sequence=2)

@@ -190,15 +190,18 @@ def project_grant(store: Path, lease: AgentLease, *, live_main: str) -> LeasePro
         raise ProjectionError("stale lease base_pin rejected", code="STALE_LEASE")
 
     def _apply(current: LeaseProjection) -> LeaseProjection:
+        for row in current.leases:
+            if row.lease_id != lease.lease_id:
+                continue
+            if (
+                row.status == "ACTIVE"
+                and row.agent_id == lease.agent_id
+                and row.package_id == lease.package_id
+                and row.base_pin == lease.base_pin
+            ):
+                return current
+            raise ProjectionError("lease replay is forbidden", code="LEASE_REPLAY")
         for row in active_rows(current):
-            if row.lease_id == lease.lease_id:
-                if (
-                    row.agent_id == lease.agent_id
-                    and row.package_id == lease.package_id
-                    and row.base_pin == lease.base_pin
-                ):
-                    return current
-                raise ProjectionError("lease replay is forbidden", code="LEASE_REPLAY")
             if row.package_id == lease.package_id:
                 raise ProjectionError(
                     "duplicate active lease for package",
