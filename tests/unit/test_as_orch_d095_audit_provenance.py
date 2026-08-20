@@ -441,6 +441,67 @@ def test_writer_forged_repo_json_does_not_dispatch_iv_adv(tmp_path: Path) -> Non
     assert any(i.role == AgentRole.CLOUD_RUNTIME_AUDITOR for i in items)
 
 
+def test_matching_head_without_tree_backfills_and_does_not_crash(
+    tmp_path: Path,
+) -> None:
+    """Recovery with launch-time HEAD and no TREE must not die on CI PASS."""
+    persist_live_dag(
+        tmp_path,
+        LiveDagState(
+            bound_head=HEAD,
+            bound_tree=None,
+            ci_status="PASS",
+            ci_run_id="32410797403",
+            dag_generation=92,
+        ),
+    )
+    live = PrHeadRef(pr_number=429, head_sha=HEAD, tree_sha=TREE)
+    controller = LiveDagController(
+        tmp_path,
+        refresh=lambda: live,
+        observe=lambda _sha: CiObservation(
+            head_sha=HEAD,
+            run_id="32410797403",
+            status="PASS",
+            conclusion="success",
+            run_status="completed",
+        ),
+        real_sdk_backend=True,
+    )
+    state, items = controller.tick()
+    assert state.bound_head == HEAD
+    assert state.bound_tree == TREE
+    assert state.ci_status == "PASS"
+    assert any(i.role == AgentRole.CLOUD_RUNTIME_AUDITOR for i in items)
+
+
+def test_ci_pass_without_tree_fail_closed_when_refresh_omits_tree(
+    tmp_path: Path,
+) -> None:
+    persist_live_dag(
+        tmp_path,
+        LiveDagState(
+            bound_head=HEAD,
+            bound_tree=None,
+            ci_status="PASS",
+            ci_run_id="1",
+            dag_generation=92,
+        ),
+    )
+    live = PrHeadRef(pr_number=429, head_sha=HEAD, tree_sha=None)
+    controller = LiveDagController(
+        tmp_path,
+        refresh=lambda: live,
+        observe=lambda _sha: CiObservation(
+            head_sha=HEAD, run_id="1", status="PASS", conclusion="success"
+        ),
+        real_sdk_backend=True,
+    )
+    state, items = controller.tick()
+    assert state.bound_tree is None
+    assert items == []
+
+
 def test_invalidate_marks_assignment_stale(tmp_path: Path) -> None:
     persist_cloud_audit_assignment(tmp_path, _assignment())
     invalidate_cloud_audit_assignment(tmp_path)

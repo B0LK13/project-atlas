@@ -228,6 +228,18 @@ class LiveDagController:
             self._adopt_initial(live)
         elif live.head_sha != state.bound_head:
             self._adopt_moved_head(live)
+        elif live.tree_sha and self.state.bound_tree != live.tree_sha:
+            # Launch-time --candidate-head and observer bootstrap can bind
+            # HEAD without TREE. That is not a head-move and must not crash
+            # the supervisor when exact-head CI reaches PASS.
+            self.state.bound_tree = live.tree_sha
+            if self.state.bound_head:
+                update_package_route_on_head_move(
+                    self.root,
+                    head=self.state.bound_head,
+                    tree=live.tree_sha,
+                    dag_generation=self.state.dag_generation,
+                )
 
         assert self.state.bound_head is not None
         obs = self._observe(self.state.bound_head)
@@ -495,7 +507,8 @@ class LiveDagController:
             state.cloud_runtime_audit_pass and state.cloud_audit_consume_id
         )
         if state.ci_status == "PASS" and not audit_ok and not state.cloud_audit_dispatched:
-            assert state.bound_tree is not None
+            if not state.bound_tree:
+                return items
             assignment_id = f"assign-cloud-audit-g{state.dag_generation}"
             worker_id = f"cli-audit-{state.dag_generation}-{state.bound_head[:12]}"
             run_id = f"cloud-audit-run-g{state.dag_generation}"
