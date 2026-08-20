@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from project_atlas.domain import (
     AuthorityLevel,
     Claim,
@@ -55,6 +57,7 @@ def test_value_partition_skips_same_value_pairs() -> None:
     assert stats.candidate_count == stats.pair_evaluations
 
 
+@pytest.mark.product_perf
 def test_dense_10k_partitions_pairs_and_stays_deterministic() -> None:
     claims = [_claim(index, groups=50) for index in range(10000)]
     started = time.perf_counter()

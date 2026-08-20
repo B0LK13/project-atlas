@@ -39,6 +39,7 @@ addopts = "-q --cov=project_atlas --cov-report=term-missing --cov-report=xml --n
 markers = [
     "integration: end-to-end and cross-component tests",
     "security_regression: Alpha security regression suite seed / class guards (S08)",
+    "product_perf: dense product-performance gate calibrated uncovered (AS-CI-WINDOWS-PERF-GATE-001)",
 ]
 
 [tool.ruff]

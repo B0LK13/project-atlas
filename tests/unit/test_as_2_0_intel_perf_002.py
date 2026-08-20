@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from project_atlas.domain import (
     AuthorityLevel,
     Claim,
@@ -58,6 +60,7 @@ def test_ids_remain_deterministic_after_build_optimization() -> None:
     assert [item.candidate_id for item in first] == [item.candidate_id for item in second]
 
 
+@pytest.mark.product_perf
 def test_dense_10k_and_representative_100k_counts() -> None:
     dense = [_claim(index, groups=50) for index in range(10000)]
     started = time.perf_counter()
