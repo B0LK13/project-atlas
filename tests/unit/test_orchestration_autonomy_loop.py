@@ -7,6 +7,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from project_atlas.orchestration.autonomy.continuation_broker import (
+    SuccessorKind,
+    recover_broker,
+)
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
 from project_atlas.orchestration.autonomy.loop import (
@@ -18,6 +22,7 @@ from project_atlas.orchestration.autonomy.loop import (
     LoopPhase,
     LoopState,
     initial_loop_state,
+    load_loop_state,
     persist_loop_state,
     seal_loop_state,
     verify_loop_state,
@@ -313,3 +318,26 @@ def test_digest_roundtrip(tmp_path: Path) -> None:
 
 def test_package_id_constant() -> None:
     assert LOOP_PACKAGE_ID == "AS-ORCH-001E"
+
+
+def test_resource_boundary_enqueues_yield_not_owner(tmp_path: Path) -> None:
+    gov = _governor(_node("AS-ORCH-NEXT-001"))
+    loop = _loop(tmp_path, gov)
+    persist_loop_state(
+        tmp_path / "loop-store",
+        seal_loop_state(
+            loop.state.model_copy(
+                update={
+                    "ticks_in_invocation": MAX_TICKS_PER_INVOCATION,
+                    "record_digest": "00" * 32,
+                }
+            )
+        ),
+    )
+    loop._state = load_loop_state(tmp_path / "loop-store")
+    result = loop.tick()
+    assert result.stop_reason is StopReason.RESOURCE_BOUNDARY
+    recovered = recover_broker(tmp_path)
+    assert recovered is not None
+    assert recovered.kind is SuccessorKind.RESOURCE_YIELD
+    assert recovered.execution_authorized is False

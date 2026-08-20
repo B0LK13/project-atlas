@@ -344,6 +344,13 @@ def handle_stop_event(payload: object, *, root: Path) -> dict[str, str]:
         return {}
     if event.loop_count >= 1:
         return {}
+    from project_atlas.orchestration.autonomy.continuation_broker import (
+        emit_stop_followup,
+    )
+
+    broker = emit_stop_followup(root)
+    if broker:
+        return broker
     existing = load_state(root)
     if existing is None:
         return {}

@@ -2558,6 +2558,28 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
     )
+    orch_broker = orch_sub.add_parser(
+        "continuation-broker",
+        help=(
+            "AS-ORCH-CONTINUATION-BROKER-001: enqueue/consume/status for "
+            "one consume-once successor. Does not merge, dispatch, or "
+            "consume the 001C Cursor bridge slot."
+        ),
+    )
+    orch_broker.add_argument(
+        "broker_action",
+        choices=("enqueue", "consume", "status"),
+        help="Broker action.",
+    )
+    orch_broker.add_argument("--root", type=Path, default=None)
+    orch_broker.add_argument("--cycle-id", default=None)
+    orch_broker.add_argument(
+        "--kind",
+        default="CHECKPOINT_CONTINUE",
+        help="Successor kind (enqueue only).",
+    )
+    orch_broker.add_argument("--trusted-main", default=None)
+    orch_broker.add_argument("--trusted-tree", default=None)
     orch_dispatch_once = orch_sub.add_parser(
         "dispatch-once",
         help=(
@@ -4938,6 +4960,40 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
+        if args.orchestrator_command == "continuation-broker":
+            from project_atlas.orchestration.autonomy.continuation_broker import (
+                SuccessorKind,
+                consume_successor,
+                enqueue_successor,
+                status_report,
+            )
+
+            root = Path(getattr(args, "root", None) or Path.cwd())
+            action = str(getattr(args, "broker_action", ""))
+            try:
+                if action == "status":
+                    report = status_report(root)
+                    print(json.dumps(report, indent=2, sort_keys=True))
+                    return EXIT_OK if report.get("ok") else EXIT_ERROR
+                cycle_id = str(getattr(args, "cycle_id", "") or "")
+                if action == "consume":
+                    state = consume_successor(root, cycle_id)
+                    print(json.dumps(state.model_dump(mode="json"), indent=2, sort_keys=True))
+                    return EXIT_OK
+                kind = SuccessorKind(str(getattr(args, "kind", "CHECKPOINT_CONTINUE")))
+                result = enqueue_successor(
+                    root,
+                    cycle_id=cycle_id,
+                    kind=kind,
+                    trusted_main=str(getattr(args, "trusted_main", "") or ""),
+                    trusted_tree=str(getattr(args, "trusted_tree", "") or ""),
+                )
+                print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+                return EXIT_OK
+            except Exception as exc:
+                code = getattr(exc, "code", str(exc))
+                print(json.dumps({"ok": False, "error": code, "execution_authorized": False}))
+                return EXIT_ERROR
         if args.orchestrator_command == "dispatch-once":
             from project_atlas.orchestration.dispatcher import (
                 DispatcherConfig,
