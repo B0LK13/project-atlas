@@ -7,11 +7,16 @@ import json
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
 from project_atlas.orchestration.sdk.event_log import append_event
 from project_atlas.orchestration.sdk.models import PACKAGE_ID, STATE_DIR_RELATIVE
+from project_atlas.orchestration.sdk.windows_bridge import (
+    apply_windows_discovery_patch,
+    official_bridge_command,
+)
 
 REQUIRED_WORKSPACE = Path(
     r"D:\atlas-acceptance-d060\d-autonomous-governor-079\wt-broker"
@@ -289,7 +294,6 @@ def _run_sync_proof(root: Path) -> dict[str, object]:
         **_bridge_diagnostics(),
     }
     command = official_bridge_command()
-    launch_kw: dict[str, object] = {"workspace": workspace}
     if command is not None:
         ctx = CursorClient.launch_bridge(command, workspace=workspace)
     else:
