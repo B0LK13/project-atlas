@@ -7,6 +7,7 @@ byte-for-byte (AT-011). Not a plugin; not Layer B authority.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -17,7 +18,8 @@ from atlas_contracts.identity import safe_relative_component
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 
 PACKAGE_ID = "AS-CODER-ALPHA-OBSIDIAN-001"
-GENERATOR_ID = "atlas-coder-alpha-obsidian-001"
+PACKAGE_ID_R1 = "AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001"
+GENERATOR_ID = "atlas-coder-alpha-obsidian-r1-001"
 OBS_ROOT = Path("generated") / "obsidian" / "projects"
 _GENERATED_START = "<!-- atlas:generated:start -->"
 _GENERATED_END = "<!-- atlas:generated:end -->"
@@ -120,7 +122,78 @@ def _yaml_scalar(value: str) -> str:
     return value
 
 
-def _render_living_markdown(brief: dict[str, Any]) -> str:
+def _render_attention_section(attention: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Attention (what requires action)"]
+    if not attention:
+        lines.append("UNKNOWN")
+        return lines
+    lines.append("ATTENTION LENS != AUTHORITY. Not an objective health score.")
+    lines.append(f"rollup={attention.get('rollup') or 'UNKNOWN'}")
+    raw_care = attention.get("care_about")
+    care: list[Any] = raw_care if isinstance(raw_care, list) else []
+    if not care:
+        lines.append("- UNKNOWN")
+        return lines
+    for item in care[:8]:
+        if not isinstance(item, dict):
+            continue
+        lines.append(
+            f"- [{item.get('level')}] {item.get('reason_code')}: "
+            f"{item.get('why_seeing_this')} → {item.get('what_to_do')}"
+        )
+    return lines
+
+
+def _render_source_health_section(health: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Source health (failures / exclusions)"]
+    if not health:
+        lines.append("UNKNOWN")
+        return lines
+    lines.append("SOURCE HEALTH != AUTHORITY. No secret echo.")
+    lines.append(f"health_state={health.get('health_state') or 'UNKNOWN'}")
+    raw_rows = health.get("actionable")
+    rows: list[Any] = raw_rows if isinstance(raw_rows, list) else []
+    sample = [row for row in rows if isinstance(row, dict)][:6]
+    if not sample:
+        lines.append("- no failed/excluded sources in scoped report")
+        return lines
+    for row in sample:
+        lines.append(
+            f"- {row.get('source')} | {row.get('status')} | "
+            f"{row.get('reason_code')} | {row.get('suggested_next_action')}"
+        )
+    return lines
+
+
+def _render_roadmap_section(roadmap: dict[str, Any] | None) -> list[str]:
+    lines = ["", "## Current project position (derived roadmap)"]
+    if not roadmap:
+        lines.append("UNKNOWN — no roadmap lens")
+        return lines
+    raw_here = roadmap.get("you_are_here")
+    raw_nxt = roadmap.get("next_unlock")
+    here: dict[str, Any] = raw_here if isinstance(raw_here, dict) else {}
+    nxt: dict[str, Any] = raw_nxt if isinstance(raw_nxt, dict) else {}
+    lines.append("ROADMAP!=CANONICAL_TRUTH. DERIVED_STATUS!=AUTHORITY.")
+    lines.append(
+        f"you_are_here={here.get('title') or 'UNKNOWN'} "
+        f"[{here.get('status') or 'UNKNOWN'}/{here.get('lifecycle') or 'UNKNOWN'}]"
+    )
+    lines.append(
+        f"next_unlock={nxt.get('title') or 'UNKNOWN'} "
+        f"[{nxt.get('status') or 'UNKNOWN'}] "
+        f"why={nxt.get('why') or nxt.get('unlock_condition') or 'UNKNOWN'}"
+    )
+    return lines
+
+
+def _render_living_markdown(
+    brief: dict[str, Any],
+    *,
+    attention: dict[str, Any] | None = None,
+    source_health: dict[str, Any] | None = None,
+    roadmap: dict[str, Any] | None = None,
+) -> str:
     project_id = str(brief.get("project_id") or "UNKNOWN")
     next_work = brief.get("suggested_next_work") or []
     evidence = brief.get("evidence_links") or []
@@ -134,6 +207,7 @@ def _render_living_markdown(brief: dict[str, Any]) -> str:
         "authority_level: derived",
         "plugin_shipped: false",
         "canonical_writes: false",
+        "obsidian_ui_is_authority: false",
         "generated:",
         f"  by: {GENERATOR_ID}",
         "---",
@@ -169,9 +243,16 @@ def _render_living_markdown(brief: dict[str, Any]) -> str:
         "",
         "## Known problems / unknown / conflicting",
         str(brief.get("unknown_or_conflicting") or "UNKNOWN"),
-        "",
-        "## Suggested next work",
     ]
+    lines.extend(_render_roadmap_section(roadmap))
+    lines.extend(_render_attention_section(attention))
+    lines.extend(_render_source_health_section(source_health))
+    lines.extend(
+        [
+            "",
+            "## Suggested next work",
+        ]
+    )
     if isinstance(next_work, list) and next_work:
         lines.extend(f"- {item}" for item in next_work)
     else:
@@ -188,6 +269,9 @@ def _render_living_markdown(brief: dict[str, Any]) -> str:
             "- authentic_pilot: false",
             "- atlas_opt_wake_gate: CLOSED",
             "- lens_is_authority: false",
+            "- roadmap_is_canonical: false",
+            "- attention_is_health_score: false",
+            "- obsidian_ui_is_authority: false",
             "- plugin_shipped: false",
             "",
             _GENERATED_END,
@@ -225,7 +309,27 @@ def materialize_obsidian_projection(
             brief = build_project_brief(vault, pid, refresh=refresh_brief)
         except ProjectBriefError as exc:
             raise ObsidianProjectionError(str(exc)) from exc
-        rendered = _render_living_markdown(brief)
+        attention: dict[str, Any] | None = None
+        source_health: dict[str, Any] | None = None
+        roadmap: dict[str, Any] | None = None
+        with contextlib.suppress(Exception):
+            from project_atlas.attention_hygiene import classify_attention
+
+            attention = classify_attention(vault, pid)
+        with contextlib.suppress(Exception):
+            from project_atlas.source_health import explain_source_health
+
+            source_health = explain_source_health(vault, pid)
+        with contextlib.suppress(Exception):
+            from project_atlas.project_roadmap import build_roadmap_lens
+
+            roadmap = build_roadmap_lens(vault, pid)
+        rendered = _render_living_markdown(
+            brief,
+            attention=attention,
+            source_health=source_health,
+            roadmap=roadmap,
+        )
         path = project_note_path(vault, pid)
         existing = path.read_text(encoding="utf-8") if path.is_file() else None
         merged = _merge_protected_regions(
@@ -248,7 +352,10 @@ def materialize_obsidian_projection(
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
+            "obsidian_ui_is_authority": False,
+            "canonical_knowledge_remains_atlas": True,
         },
+        "r1_package": PACKAGE_ID_R1,
         "generated": {"by": GENERATOR_ID},
     }
     receipt_path = vault / "generated" / "ops" / "obsidian" / "living-projection-receipt.json"
