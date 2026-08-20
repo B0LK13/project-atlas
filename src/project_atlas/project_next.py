@@ -29,6 +29,10 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.inventory_drift import (
+    attach_source_drift,
+    evaluate_connect_inventory_drift,
+)
 
 PACKAGE_ID = "AS-CODER-ALPHA-NEXT-001"
 GENERATOR_ID = "atlas-coder-alpha-next-001"
@@ -37,6 +41,7 @@ ANSWERS_RELATIVE = Path("generated") / "answers"
 
 _KIND_RANK = {
     "blocking_attention": 10,
+    "stale_evidence": 15,
     "unresolved_conflict": 20,
     "pending_review": 30,
     "source_failure": 40,
@@ -406,6 +411,20 @@ def build_next_lens(vault: Path, project_id: str) -> dict[str, Any]:
         collected.extend(rows)
         inspected.extend(seen)
 
+    drift = evaluate_connect_inventory_drift(vault, project_id)
+    inventory_stale = drift.get("status") == "STALE"
+    if inventory_stale:
+        collected.append(
+            _queue_item(
+                kind="stale_evidence",
+                title="source inventory stale",
+                why="live active sources drifted from connect-manifest",
+                action="Re-run atlas connect before treating next-work as current",
+                evidence=["generated/ops/connect-manifest.json"],
+                source_package="AS-CODER-ALPHA-INVENTORY-DRIFT-001",
+            )
+        )
+
     deduped: list[dict[str, Any]] = []
     seen_keys: set[tuple[str, str, str]] = set()
     for item in collected:
@@ -429,48 +448,53 @@ def build_next_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if primary["kind"] == "unknown":
         summary = "UNKNOWN"
     suggested = _suggested_lines(queue)
-    return {
-        "schema_version": 1,
-        "schema": SCHEMA_ID,
-        "package": PACKAGE_ID,
-        "answer_id": f"ans-next-{project_id}",
-        "project_id": project_id,
-        "subject": project_id,
-        "field": "next",
-        "title": "What next",
-        "summary": summary,
-        "value": suggested[0] if suggested else "UNKNOWN",
-        "status": "derived" if primary["kind"] != "unknown" else "unknown",
-        "primary": primary,
-        "queue": queue,
-        "blockers": blockers,
-        "unknowns": unknowns,
-        "why_cannot_advance": why_blocked,
-        "suggested_next_work": suggested,
-        "inspected_artifacts": sorted(set(inspected)),
-        "generated": {"by": GENERATOR_ID},
-        "honesty": {
-            "authentic_pilot": False,
-            "release_certified": False,
-            "atlas_opt_wake_gate": "CLOSED",
-            "lens_is_authority": False,
-            "next_is_authority": False,
-            "next_is_command": False,
-            "auto_execution": False,
-            "unknown_is_valid": True,
-            "fabricated_fields": False,
-            "not_as_2_0_next_001": True,
-            "derived_only": True,
+    return attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": SCHEMA_ID,
+            "package": PACKAGE_ID,
+            "answer_id": f"ans-next-{project_id}",
+            "project_id": project_id,
+            "subject": project_id,
+            "field": "next",
+            "title": "What next",
+            "summary": summary,
+            "value": suggested[0] if suggested else "UNKNOWN",
+            "status": "derived" if primary["kind"] != "unknown" else "unknown",
+            "primary": primary,
+            "queue": queue,
+            "blockers": blockers,
+            "unknowns": unknowns,
+            "why_cannot_advance": why_blocked,
+            "suggested_next_work": suggested,
+            "inspected_artifacts": sorted(set(inspected)),
+            "generated": {"by": GENERATOR_ID},
+            "honesty": {
+                "authentic_pilot": False,
+                "release_certified": False,
+                "atlas_opt_wake_gate": "CLOSED",
+                "lens_is_authority": False,
+                "next_is_authority": False,
+                "next_is_command": False,
+                "auto_execution": False,
+                "unknown_is_valid": True,
+                "fabricated_fields": False,
+                "not_as_2_0_next_001": True,
+                "derived_only": True,
+                "answer_evidence_stale": inventory_stale,
+            },
+            "notes": [
+                "Coder Alpha What Next over derived lenses",
+                "NEXT!=AUTHORITY",
+                "NEXT!=COMMAND",
+                "UNKNOWN!=healthy",
+                "Not AS-2.0-NEXT-001 / not Wave 15-16 intelligence",
+            ],
+            "truth_boundary": "NEXT LENS != AUTHORITY / NEXT ACTION != COMMAND",
         },
-        "notes": [
-            "Coder Alpha What Next over derived lenses",
-            "NEXT!=AUTHORITY",
-            "NEXT!=COMMAND",
-            "UNKNOWN!=healthy",
-            "Not AS-2.0-NEXT-001 / not Wave 15-16 intelligence",
-        ],
-        "truth_boundary": "NEXT LENS != AUTHORITY / NEXT ACTION != COMMAND",
-    }
+        vault,
+        project_id,
+    )
 
 
 def derive_next_lenses(

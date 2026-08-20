@@ -20,6 +20,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import attach_source_drift
+
 PACKAGE_ID = "AS-CODER-ALPHA-STATE-001"
 GENERATOR_ID = "atlas-coder-alpha-state-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -242,7 +244,7 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if rollup == "unknown":
         notes.append("lifecycle/status insufficient; rollup stays UNKNOWN")
 
-    return {
+    lens = {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.state-lens.v1",
         "package": PACKAGE_ID,
@@ -271,6 +273,30 @@ def build_state_lens(vault: Path, project_id: str) -> dict[str, Any]:
         "notes": notes,
         "generated": {"by": GENERATOR_ID},
     }
+    lens = attach_source_drift(lens, vault, project_id)
+    source_drift = lens.get("source_drift")
+    drift_status = (
+        str(source_drift.get("status") or "UNKNOWN")
+        if isinstance(source_drift, dict)
+        else "UNKNOWN"
+    )
+    if drift_status == "STALE" and lens.get("rollup") == "stable":
+        lens["rollup"] = "unknown"
+        rewritten = lens.get("summary")
+        if isinstance(rewritten, str):
+            rewritten = rewritten.replace("rollup=stable", "rollup=unknown")
+            lens["summary"] = rewritten
+            if lens.get("value") is not None:
+                lens["value"] = rewritten
+        raw_notes = lens.get("notes")
+        extra_notes = (
+            [item for item in raw_notes if isinstance(item, str)]
+            if isinstance(raw_notes, list)
+            else []
+        )
+        extra_notes.append("source inventory STALE; rollup stable rewritten to unknown")
+        lens["notes"] = extra_notes
+    return lens
 
 
 def materialize_state_lenses(

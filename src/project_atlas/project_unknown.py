@@ -14,6 +14,11 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import (
+    attach_source_drift,
+    evaluate_connect_inventory_drift,
+)
+
 PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-001"
 GENERATOR_ID = "atlas-coder-alpha-unknown-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -195,6 +200,9 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
 
     if pending_unreadable:
         unknowns.append("pending_queue=unreadable")
+    drift = evaluate_connect_inventory_drift(vault, project_id)
+    if drift.get("status") == "STALE":
+        unknowns.append("source_inventory_stale")
     if conflict_count or sources_failed:
         rollup = "conflict"
     elif pending_count or stale or withheld:
@@ -223,35 +231,39 @@ def build_unknown_lens(vault: Path, project_id: str) -> dict[str, Any]:
     if pending_unreadable:
         notes.append("pending-queue-unreadable; not CLEAR; not stale knowledge-status")
 
-    return {
-        "schema_version": 1,
-        "schema": "atlas.coder-alpha.unknown-lens.v1",
-        "package": PACKAGE_ID,
-        "answer_id": f"ans-unknown-{project_id}",
-        "subject": project_id,
-        "field": "unknown_conflicts",
-        "title": "What is unknown or conflicting?",
-        "summary": summary,
-        "value": value,
-        "status": status,
-        "authority": "derived-lens",
-        "layer": "C",
-        "project_id": project_id,
-        "rollup": rollup,
-        "signals": {
-            "pending_reviews": pending_count,
-            "unresolved_conflicts": conflict_count,
-            "stale_claims": stale,
-            "claims_withheld": withheld,
-            "sources_failed": sources_failed,
-            "lifecycle": lifecycle,
-            "coverage_absent": absent_coverage,
-            "unknown_items": unknowns,
+    return attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": "atlas.coder-alpha.unknown-lens.v1",
+            "package": PACKAGE_ID,
+            "answer_id": f"ans-unknown-{project_id}",
+            "subject": project_id,
+            "field": "unknown_conflicts",
+            "title": "What is unknown or conflicting?",
+            "summary": summary,
+            "value": value,
+            "status": status,
+            "authority": "derived-lens",
+            "layer": "C",
+            "project_id": project_id,
+            "rollup": rollup,
+            "signals": {
+                "pending_reviews": pending_count,
+                "unresolved_conflicts": conflict_count,
+                "stale_claims": stale,
+                "claims_withheld": withheld,
+                "sources_failed": sources_failed,
+                "lifecycle": lifecycle,
+                "coverage_absent": absent_coverage,
+                "unknown_items": unknowns,
+            },
+            "inspected_artifacts": inspected,
+            "notes": notes,
+            "generated": {"by": GENERATOR_ID},
         },
-        "inspected_artifacts": inspected,
-        "notes": notes,
-        "generated": {"by": GENERATOR_ID},
-    }
+        vault,
+        project_id,
+    )
 
 
 def materialize_unknown_lenses(
