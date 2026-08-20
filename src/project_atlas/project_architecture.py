@@ -15,6 +15,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import attach_source_drift
+
 PACKAGE_ID = "AS-CODER-ALPHA-ARCH-002"
 GENERATOR_ID = "atlas-coder-alpha-architecture-002"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -842,41 +844,46 @@ def build_architecture_lens(vault: Path, project_id: str) -> dict[str, Any]:
     summary = _render_summary(slots)
     status = "derived" if summary else "unknown"
 
-    return {
-        "schema_version": 1,
-        "schema": "atlas.coder-alpha.architecture-lens.v1",
-        "package": PACKAGE_ID,
-        "answer_id": f"ans-architecture-{project_id}",
-        "subject": project_id,
-        "field": "architecture",
-        "title": "What is the architecture?",
-        "summary": summary,
-        "value": summary,
-        "slots": slots,
-        "status": status,
-        "authority": "derived-lens",
-        "layer": "C",
-        "project_id": project_id,
-        "evidence": evidence,
-        "inspected_artifacts": inspected,
-        "generated": {"by": GENERATOR_ID},
-        "honesty": {
-            "authentic_pilot": False,
-            "release_certified": False,
-            "atlas_opt_wake_gate": "CLOSED",
-            "lens_is_authority": False,
-            "fabricated_fields": False,
-            "unknown_is_valid": True,
-            "confidence_scores": False,
+    return attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": "atlas.coder-alpha.architecture-lens.v1",
+            "package": PACKAGE_ID,
+            "answer_id": f"ans-architecture-{project_id}",
+            "subject": project_id,
+            "field": "architecture",
+            "title": "What is the architecture?",
+            "summary": summary,
+            "value": summary,
+            "slots": slots,
+            "status": status,
+            "authority": "derived-lens",
+            "layer": "C",
+            "project_id": project_id,
+            "evidence": evidence,
+            "inspected_artifacts": inspected,
+            "generated": {"by": GENERATOR_ID},
+            "honesty": {
+                "authentic_pilot": False,
+                "release_certified": False,
+                "atlas_opt_wake_gate": "CLOSED",
+                "lens_is_authority": False,
+                "fabricated_fields": False,
+                "unknown_is_valid": True,
+                "confidence_scores": False,
+            },
+            "notes": [
+                "Derived from imported architecture-bearing docs selected through connect-manifest",
+                "README is not architecture authority",
+                "source path selects candidate docs only; slots require content signals",
+                "UNKNOWN when unsupported",
+                "MODEL_OUTPUT!=AUTHORITY",
+            ],
         },
-        "notes": [
-            "Derived from imported architecture-bearing docs selected through connect-manifest",
-            "README is not architecture authority",
-            "source path selects candidate docs only; slots require content signals",
-            "UNKNOWN when unsupported",
-            "MODEL_OUTPUT!=AUTHORITY",
-        ],
-    }
+        vault,
+        project_id,
+        path_filter=lambda path: _architecture_rank(path) is not None,
+    )
 
 
 def materialize_architecture_lenses(
