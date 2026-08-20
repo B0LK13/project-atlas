@@ -279,10 +279,14 @@ def test_aj_head_move_invalidates_audit(tmp_path: Path) -> None:
     )
     state, items = controller.tick()
     assert state.cloud_runtime_audit_pass is False
+    assert state.cloud_audit_consume_id is None
     assert state.iv_dispatched is False
-    assert items == []
-    stored = tmp_path / ".atlas" / "orchestration" / "sdk-runtime" / "cloud-audit-assignment.json"
-    assert '"stale": true' in stored.read_text(encoding="utf-8")
+    assert all(item.role != AgentRole.INDEPENDENT_VERIFIER for item in items)
+    assert all(item.role != AgentRole.SECURITY_REVIEWER for item in items)
+    # D098: independent cloud audit may arm in parallel with pending exact-head CI.
+    assert all(item.role == AgentRole.CLOUD_RUNTIME_AUDITOR for item in items)
+    assert items[0].candidate_head == PARENT
+    assert items[0].dag_generation == state.dag_generation
 
 
 def test_ak_candidate_evidence_file_cannot_arm_gate(tmp_path: Path) -> None:

@@ -17,6 +17,10 @@ from typing import Any
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.sdk.idempotency import build_idempotency_key
+from project_atlas.orchestration.sdk.lease_registry import (
+    require_scheduler_lease,
+    resolve_durable_lease,
+)
 from project_atlas.orchestration.sdk.models import (
     CANONICAL_REPO_URL,
     MUTATING_ROLES,
@@ -97,17 +101,26 @@ class CursorAgentCliExecutionPort:
     def _lease_for(self, request: ScheduleRequest) -> GovernorLease | None:
         if request.lease_id and request.lease_id in self._leases:
             return self._leases[request.lease_id]
-        return None
+        loaded = resolve_durable_lease(self.root, request.lease_id)
+        if loaded is not None:
+            self._leases[loaded.lease_id] = loaded
+        return loaded
 
     def _require_lease(self, request: ScheduleRequest) -> GovernorLease:
-        lease = self._lease_for(request)
         mutating = request.role in MUTATING_ROLES
+        if mutating:
+            lease = require_scheduler_lease(self.root, request, invocation=True)
+            if lease is None:
+                raise SdkRuntimeError("mutating lease missing after reload", code="LEASE_REQUIRED")
+            self._leases[lease.lease_id] = lease
+            return lease
+        lease = self._lease_for(request)
         return require_valid_lease(
             lease,
             role=request.role,
             dag_generation=request.dag_generation,
             package_id=request.package_id,
-            mutating=mutating,
+            mutating=False,
         )
 
     def _git_porcelain_paths(self) -> list[str] | None:

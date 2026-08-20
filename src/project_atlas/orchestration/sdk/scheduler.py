@@ -9,6 +9,7 @@ from pathlib import Path
 
 from project_atlas.orchestration.sdk.backend import ExecutionBackend
 from project_atlas.orchestration.sdk.cost_guard import CostGuard
+from project_atlas.orchestration.sdk.lease_registry import require_scheduler_lease
 from project_atlas.orchestration.sdk.models import (
     STATE_DIR_RELATIVE,
     AgentRole,
@@ -65,6 +66,8 @@ class ScheduleCycleResult:
     started: list[RunRecord] = field(default_factory=list)
     ingested: list[RunRecord] = field(default_factory=list)
     parked: list[str] = field(default_factory=list)
+    lease_rejections: list[str] = field(default_factory=list)
+    mutating_no_lease_backend_calls: int = 0
     owner_gates_held: int = 0
     human_scheduler_events: int = 0
     merge_authorized: bool = False
@@ -144,6 +147,13 @@ class DagToAgentScheduler:
                 continue
             if not self.pool.has_capacity(item.role) and not item.prefer_followup:
                 result.parked.append(item.node_id)
+                continue
+            try:
+                require_scheduler_lease(self.root, item, invocation=True)
+            except SdkRuntimeError as exc:
+                self._park_node(item.node_id, code=exc.code, attempt=item.attempt)
+                result.parked.append(item.node_id)
+                result.lease_rejections.append(f"{item.node_id}:{exc.code}")
                 continue
             existing = None
             if item.prefer_followup or item.existing_agent_id:

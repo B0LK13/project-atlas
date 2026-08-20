@@ -82,6 +82,7 @@ class GovernorLease(BaseModel):
     worktree: str | None = None
     candidate_head: str | None = None
     candidate_tree: str | None = None
+    base_main: str = "7e797468a2eca37c959920912b1fa264df4be638"
     active: bool = True
     expired: bool = False
     mutation_authorized: bool = False

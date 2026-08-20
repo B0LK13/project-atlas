@@ -27,6 +27,11 @@ from project_atlas.orchestration.sdk.ci_observer import (
 )
 from project_atlas.orchestration.sdk.event_log import append_event
 from project_atlas.orchestration.sdk.host import write_host_identity
+from project_atlas.orchestration.sdk.lease_registry import (
+    expire_stale_leases,
+    load_durable_leases,
+    persist_durable_lease,
+)
 from project_atlas.orchestration.sdk.models import (
     PACKAGE_ID,
     STATE_DIR_RELATIVE,
@@ -48,7 +53,6 @@ from project_atlas.orchestration.sdk.security_gates import (
 )
 
 LIVE_DAG_NAME = "live-dag.json"
-LEASES_NAME = "governor-leases.json"
 CANONICAL_BRANCH = "feat/as-orch-continuation-broker-001"
 TRUSTED_MAIN = "7e797468a2eca37c959920912b1fa264df4be638"
 # Read-only IV/ADV may only touch evidence under the package surface.
@@ -210,7 +214,7 @@ class LiveDagController:
             real_sdk_backend if worker_dispatch_enabled is None else worker_dispatch_enabled
         )
         self.state = load_live_dag(root)
-        self._leases: dict[str, GovernorLease] = {}
+        self._leases: dict[str, GovernorLease] = load_durable_leases(root)
 
     def tick(self) -> tuple[LiveDagState, list[ReadyWorkItem]]:
         live = self._refresh()
@@ -377,6 +381,11 @@ class LiveDagController:
             tree=live.tree_sha,
             dag_generation=self.state.dag_generation,
         )
+        self._leases = expire_stale_leases(
+            self.root,
+            live_generation=self.state.dag_generation,
+            live_head=live.head_sha,
+        )
         append_event(
             self.root,
             "NEW_HEAD_ADOPTED",
@@ -440,12 +449,10 @@ class LiveDagController:
             active=True,
             expired=False,
             mutation_authorized=mutating,
+            base_main=TRUSTED_MAIN,
         )
         self._leases[lease.lease_id] = lease
-        path = self.root / STATE_DIR_RELATIVE / LEASES_NAME
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {k: v.model_dump(mode="json") for k, v in self._leases.items()}
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        persist_durable_lease(self.root, lease)
         return lease
 
     def _failure_id_for_current(self) -> str | None:
@@ -506,7 +513,12 @@ class LiveDagController:
         audit_ok = bool(
             state.cloud_runtime_audit_pass and state.cloud_audit_consume_id
         )
-        if state.ci_status == "PASS" and not audit_ok and not state.cloud_audit_dispatched:
+        # Cloud audit may run in parallel with exact-head CI (not gated on CI PASS).
+        if (
+            state.ci_status in {"PASS", "PENDING"}
+            and not audit_ok
+            and not state.cloud_audit_dispatched
+        ):
             if not state.bound_tree:
                 return items
             assignment_id = f"assign-cloud-audit-g{state.dag_generation}"

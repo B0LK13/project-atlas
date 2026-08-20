@@ -12,7 +12,9 @@ from project_atlas.orchestration.sdk.auth import discover_auth, record_auth_prer
 from project_atlas.orchestration.sdk.backend import FakeCursorSDKBackend
 from project_atlas.orchestration.sdk.cost_guard import CostGuard
 from project_atlas.orchestration.sdk.idempotency import build_idempotency_key
+from project_atlas.orchestration.sdk.lease_registry import mint_governor_writer_lease
 from project_atlas.orchestration.sdk.models import (
+    PACKAGE_ID,
     PRIMARY_BACKEND,
     STOP_HOOK_BACKEND,
     AgentRole,
@@ -21,6 +23,7 @@ from project_atlas.orchestration.sdk.models import (
     ScheduleRequest,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.package_registry import update_package_route_on_head_move
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
 from project_atlas.orchestration.sdk.result_adapter import adapt_run_result
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
@@ -28,6 +31,8 @@ from project_atlas.orchestration.sdk.scheduler import DagToAgentScheduler, Ready
 from project_atlas.orchestration.sdk.supervisor import DurableAtlasSupervisor
 
 PIN = "7e797468a2eca37c959920912b1fa264df4be638"
+HEAD = "cf314cc2e8ccb419815d1bbdf2f03472bac8c1ed"
+TREE = "a92f886725c4d855464df750ea0cbb4bc100500e"
 
 
 def _backend(
@@ -195,18 +200,37 @@ def test_parallel_roles_get_separate_agents(tmp_path: Path) -> None:
     backend, agents, runs, pool = _backend(tmp_path)
     cost = CostGuard(runs)
     scheduler = DagToAgentScheduler(
-        backend=backend, agents=agents, runs=runs, pool=pool, cost=cost
+        backend=backend,
+        agents=agents,
+        runs=runs,
+        pool=pool,
+        cost=cost,
+        root=tmp_path,
+    )
+    update_package_route_on_head_move(tmp_path, head=HEAD, tree=TREE, dag_generation=4)
+    writer = mint_governor_writer_lease(
+        tmp_path,
+        lease_id="lease-082-impl-4",
+        role=AgentRole.IMPLEMENTER,
+        dag_generation=4,
+        candidate_head=HEAD,
+        candidate_tree=TREE,
+        worktree=str(tmp_path),
     )
 
     async def _run() -> None:
         items = [
             ReadyWorkItem(
                 role=AgentRole.IMPLEMENTER,
-                package_id="PKG-P",
+                package_id=PACKAGE_ID,
                 node_id="N-IMPL",
                 cycle_id="C-P1",
                 dag_generation=4,
                 base_main=PIN,
+                lease_id=writer.lease_id,
+                branch="feat/as-orch-continuation-broker-001",
+                candidate_head=HEAD,
+                candidate_tree=TREE,
                 prompt="implement",
                 critical_path_score=10,
             ),

@@ -253,7 +253,10 @@ def test_live_dag_adopts_new_head_and_new_ci(tmp_path: Path) -> None:
     assert "OLD_CI_SUPERSEDED" in names
     assert "NEW_HEAD_ADOPTED" in names
     assert "NEW_CI_ADOPTED" in names
-    assert items == []  # CI still pending
+    assert state.ci_status == "PENDING"
+    assert all(item.role != AgentRole.INDEPENDENT_VERIFIER for item in items)
+    assert all(item.role != AgentRole.SECURITY_REVIEWER for item in items)
+    assert all(item.role == AgentRole.CLOUD_RUNTIME_AUDITOR for item in items)
 
 
 def test_live_dag_dispatches_iv_and_adv_on_pass(tmp_path: Path) -> None:
