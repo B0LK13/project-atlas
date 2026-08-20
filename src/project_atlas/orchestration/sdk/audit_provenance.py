@@ -160,6 +160,26 @@ def invalidate_cloud_audit_assignment(root: Path) -> None:
     persist_cloud_audit_assignment(root, current.model_copy(update={"stale": True}))
 
 
+def rebind_cloud_audit_assignment(
+    root: Path,
+    *,
+    worker_id: str,
+    run_id: str,
+) -> CloudAuditAssignment | None:
+    """Bind governor assignment to the authentic launched auditor identity."""
+    current = load_cloud_audit_assignment(root)
+    if current is None or current.stale:
+        return None
+    if current.implementer_worker_id and worker_id == current.implementer_worker_id:
+        raise SdkRuntimeError(
+            "auditor identity matches implementer",
+            code="REJECT_INDEPENDENCE",
+        )
+    updated = current.model_copy(update={"worker_id": worker_id, "run_id": run_id})
+    persist_cloud_audit_assignment(root, updated)
+    return updated
+
+
 def consume_identity(assignment_id: str, run_id: str, result_digest: str) -> str:
     return f"{assignment_id}+{run_id}+{result_digest}"
 

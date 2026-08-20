@@ -13,7 +13,7 @@ import shutil
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.sdk.idempotency import build_idempotency_key
@@ -36,9 +36,11 @@ from project_atlas.orchestration.sdk.models import (
 )
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
 from project_atlas.orchestration.sdk.result_adapter import adapt_run_result
+from project_atlas.orchestration.sdk.result_plane import ResultEnvelope, append_result
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
 from project_atlas.orchestration.sdk.security_gates import (
     CANONICAL_BRANCH,
+    BoundWorkerResult,
     GovernorLease,
     WorkerBackend,
     WorkerLineage,
@@ -518,7 +520,70 @@ class CursorAgentCliExecutionPort:
                     update={"last_run_id": run_id, "state": AgentState.IDLE}
                 )
             )
+        self._publish_result_plane(session=session, request=request, record=record, text=text)
         return record
+
+    def _publish_result_plane(
+        self,
+        *,
+        session: _CliSession,
+        request: ScheduleRequest,
+        record: RunRecord,
+        text: str,
+    ) -> None:
+        """Independent/review roles must traverse the governed result plane."""
+        if request.role not in {
+            AgentRole.CLOUD_RUNTIME_AUDITOR,
+            AgentRole.INDEPENDENT_VERIFIER,
+            AgentRole.SECURITY_REVIEWER,
+        }:
+            return
+        if not record.lease_id or not record.node_id or not record.result_digest:
+            return
+        source: Literal[
+            "IV",
+            "ADV",
+            "CLOUD_RUNTIME_AUDITOR",
+        ] = {
+            AgentRole.CLOUD_RUNTIME_AUDITOR: "CLOUD_RUNTIME_AUDITOR",
+            AgentRole.INDEPENDENT_VERIFIER: "IV",
+            AgentRole.SECURITY_REVIEWER: "ADV",
+        }[request.role]
+        envelope_payload = _extract_structured_payload(text)
+        if request.role == AgentRole.CLOUD_RUNTIME_AUDITOR:
+            assignment_id = None
+            for token in request.prompt.split():
+                if token.startswith("assignment_id="):
+                    assignment_id = token.split("=", 1)[1].strip().rstrip(".")
+                    break
+            if assignment_id:
+                envelope_payload.setdefault("ASSIGNMENT_ID", assignment_id)
+            envelope_payload.setdefault(
+                "AUDIT_RESULT",
+                envelope_payload.get("AUDIT_RESULT") or "FAIL",
+            )
+            envelope_payload.setdefault(
+                "SIX_P1_RUNTIME_OPEN_COUNT",
+                envelope_payload.get("SIX_P1_RUNTIME_OPEN_COUNT", 1),
+            )
+        binding = BoundWorkerResult(
+            worker_backend=WorkerBackend.CURSOR_AGENT_CLI,
+            session_or_agent_id=session.agent_id,
+            run_id=record.run_id,
+            package_id=record.package_id,
+            dag_node=record.node_id,
+            dag_generation=record.dag_generation,
+            role=request.role,
+            lease_id=record.lease_id,
+            attempt=record.attempt,
+            result_digest=record.result_digest,
+            candidate_head=record.candidate_head,
+            candidate_tree=record.candidate_tree,
+        )
+        append_result(
+            self.root,
+            ResultEnvelope(source=source, binding=binding, payload=envelope_payload),
+        )
 
     async def resume_agent(self, agent_id: str) -> AgentRecord:
         stored = self.agents_reg.get(agent_id)
@@ -552,6 +617,27 @@ class CursorAgentCliExecutionPort:
         if stored.agent_id != agent_id:
             raise SdkRuntimeError("run/agent binding mismatch", code="BINDING_MISMATCH")
         return stored
+
+
+def _extract_structured_payload(text: str) -> dict[str, Any]:
+    """Best-effort JSON object extraction from CLI worker prose."""
+    stripped = text.strip()
+    if not stripped:
+        return {}
+    try:
+        parsed = json.loads(stripped)
+        return parsed if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        pass
+    start = stripped.find("{")
+    end = stripped.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            parsed = json.loads(stripped[start : end + 1])
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
 
 
 def re_fullmatch_id(value: str) -> bool:

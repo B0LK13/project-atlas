@@ -118,6 +118,14 @@ def run_governor_service(
     async def _cycle_and_mark() -> object:
         result = await original_cycle()
         for run in result.started:
+            if run.node_id == "CLOUD-AUDIT-LIVE" and run.agent_id and run.run_id:
+                from project_atlas.orchestration.sdk.audit_provenance import (
+                    rebind_cloud_audit_assignment,
+                )
+
+                rebind_cloud_audit_assignment(
+                    root, worker_id=run.agent_id, run_id=run.run_id
+                )
             if run.node_id:
                 controller.mark_dispatched(run.node_id)
         if controller.state.ci_status == "PASS":

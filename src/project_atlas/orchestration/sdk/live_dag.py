@@ -524,6 +524,21 @@ class LiveDagController:
             assignment_id = f"assign-cloud-audit-g{state.dag_generation}"
             worker_id = f"cli-audit-{state.dag_generation}-{state.bound_head[:12]}"
             run_id = f"cloud-audit-run-g{state.dag_generation}"
+            attempt = 1
+            runs_path = self.root / STATE_DIR_RELATIVE / "runs.json"
+            if runs_path.is_file():
+                try:
+                    runs_payload = json.loads(runs_path.read_text(encoding="utf-8"))
+                    for run in (runs_payload.get("runs") or {}).values():
+                        if (
+                            isinstance(run, dict)
+                            and run.get("node_id") == "CLOUD-AUDIT-LIVE"
+                            and run.get("dag_generation") == state.dag_generation
+                            and int(run.get("attempt") or 1) >= attempt
+                        ):
+                            attempt = int(run.get("attempt") or 1) + 1
+                except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                    pass
             assignment = mint_cloud_audit_assignment(
                 self.root,
                 assignment_id=assignment_id,
@@ -532,7 +547,7 @@ class LiveDagController:
                 candidate_tree=state.bound_tree,
                 worker_id=worker_id,
                 run_id=run_id,
-                attempt=1,
+                attempt=attempt,
             )
             state.cloud_audit_assignment_id = assignment.assignment_id
             lease = self._mint_lease(
@@ -545,13 +560,14 @@ class LiveDagController:
                     role=AgentRole.CLOUD_RUNTIME_AUDITOR,
                     package_id=PACKAGE_ID,
                     node_id="CLOUD-AUDIT-LIVE",
-                    cycle_id=f"AUDIT-{state.bound_head[:12]}",
+                    cycle_id=f"AUDIT-{state.bound_head[:12]}-a{attempt}",
                     dag_generation=state.dag_generation,
                     lease_id=lease.lease_id,
                     base_main=TRUSTED_MAIN,
                     branch=CANONICAL_BRANCH,
                     candidate_head=state.bound_head,
                     candidate_tree=state.bound_tree,
+                    attempt=attempt,
                     prompt=_cloud_audit_prompt(
                         state.bound_head,
                         state.bound_tree,
