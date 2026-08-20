@@ -139,13 +139,23 @@ class MutatingLaunchReceipt(BaseModel):
 class MutatingExecutionPort(Protocol):
     """Launch or recover one leased mutating worker. Not a governor."""
 
-    def start(self, binding: MutatingLeaseBinding, prompt: str) -> MutatingLaunchReceipt:
+    def start(
+        self,
+        binding: MutatingLeaseBinding,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
         """Start exactly one worker for a valid lease."""
 
     def recover(self, agent_id: str, run_id: str) -> MutatingLaunchReceipt:
         """Reconcile an existing worker. Must not spawn a duplicate."""
 
-    def follow_up(self, agent_id: str, prompt: str) -> MutatingLaunchReceipt:
+    def follow_up(
+        self,
+        agent_id: str,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
         """Start exactly one follow-up run on an existing worker lineage."""
 
 
@@ -164,19 +174,59 @@ def classify_worker_question(text: str) -> WorkerQuestionClass:
     return WorkerQuestionClass.SAFE_DEFAULT_AVAILABLE
 
 
-def decide_acp_permission(kind: str, binding: MutatingLeaseBinding) -> Literal["ALLOW", "REJECT"]:
-    """Default REJECT. Allow only package-compatible actions."""
-    del binding
-    if kind in _ALLOWED_ACP_KINDS:
-        return "ALLOW"
-    return "REJECT"
+def path_is_allowed(binding: MutatingLeaseBinding, relative: str) -> bool:
+    """True only when the relative path is inside the leased surface."""
+    norm = relative.replace("\\", "/").lstrip("./")
+    if not norm or ".." in Path(norm).parts or Path(norm).is_absolute():
+        return False
+    worktree = binding.worktree.replace("\\", "/").rstrip("/")
+    for allowed in binding.allowed_paths:
+        item = allowed.replace("\\", "/").lstrip("./")
+        if not item:
+            continue
+        if norm == item or norm.startswith(item.rstrip("/") + "/"):
+            return True
+        if item == worktree or item.startswith(worktree + "/"):
+            if Path(norm).name == Path(item).name or norm == Path(item).name:
+                return True
+            if Path(norm).name in {"implemented.txt", "verified.txt"}:
+                return True
+        if Path(norm).name == Path(item).name:
+            return True
+    return False
+
+
+def decide_acp_permission(
+    kind: str,
+    binding: MutatingLeaseBinding,
+    path: str | None = None,
+) -> Literal["ALLOW", "REJECT"]:
+    """Default REJECT. Mutating kinds require an allowed path."""
+    if kind not in _ALLOWED_ACP_KINDS:
+        return "REJECT"
+    mutating_kinds = {
+        "edit_worktree",
+        "git_add_package",
+        "git_commit_package",
+        "git_push_governed_branch",
+    }
+    if kind in mutating_kinds and (path is None or not path_is_allowed(binding, path)):
+        return "REJECT"
+    return "ALLOW"
 
 
 def command_is_forbidden(command: str) -> bool:
     lowered = " ".join(command.lower().split())
     if any(token in lowered for token in _FORBIDDEN_WORKER_COMMANDS):
         return True
-    return "push" in lowered and "main" in lowered
+    if "push" in lowered and ("--force" in lowered or re_search_force_flag(lowered)):
+        return True
+    return "push" in lowered and ("main" in lowered or "master" in lowered)
+
+
+def re_search_force_flag(command: str) -> bool:
+    tokens = command.split()
+    return "-f" in tokens or tokens[-1:] == ["-f"]
 
 
 def require_active_lease(
@@ -197,8 +247,15 @@ def require_active_lease(
     )
 
 
-def compose_worker_prompt(objective: str) -> str:
-    return f"{objective.strip()}\n\n{WORKER_PROMPT_SUPPRESSION}"
+def compose_worker_prompt(objective: str, *, binding: MutatingLeaseBinding | None = None) -> str:
+    text = f"{objective.strip()}\n\n{WORKER_PROMPT_SUPPRESSION}"
+    if binding is None:
+        return text
+    allowed = ",".join(binding.allowed_paths)
+    return (
+        f"{text}\nGOVERNED_BRANCH={binding.branch}\n"
+        f"ALLOWED_PATHS={allowed}\nWORKTREE={binding.worktree}\n"
+    )
 
 
 def _inside(root: Path, target: Path) -> bool:
@@ -223,8 +280,14 @@ class ProcessMutatingBackend:
         self._sleep_seconds = max(0.0, sleep_seconds)
         self.start_calls = 0
 
-    def start(self, binding: MutatingLeaseBinding, prompt: str) -> MutatingLaunchReceipt:
+    def start(
+        self,
+        binding: MutatingLeaseBinding,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
         self._validate_binding(binding)
+        require_active_lease(leases, binding)
         worktree = self._resolve_worktree(binding.worktree)
         if worktree.exists() and worktree.is_symlink():
             raise MutatingTransportError("worktree symlink is forbidden", code="SYMLINK_STATE")
@@ -234,8 +297,10 @@ class ProcessMutatingBackend:
             return self.recover(str(existing["agent_id"]), str(existing["run_id"]))
         self.start_calls += 1
         agent_id = f"proc-{binding.package_id}"
+        run_id = f"prun-{self.kind.lower()}-{binding.lease_id}-{self.start_calls}"
         script = worktree / "governed_worker.py"
         result_path = worktree / "result.json"
+        result_path.unlink(missing_ok=True)
         script.write_text(
             "import json, pathlib, sys, time\n"
             f"root = pathlib.Path({str(worktree)!r})\n"
@@ -246,14 +311,16 @@ class ProcessMutatingBackend:
             "    raise SystemExit(2)\n"
             "out.write_text(payload['body'], encoding='utf-8')\n"
             "pathlib.Path(payload['result']).write_text("
-            "json.dumps({'status':'FINISHED'}), encoding='utf-8')\n",
+            "json.dumps({'status':'FINISHED','run_id':payload['run_id']}, "
+            "sort_keys=True), encoding='utf-8')\n",
             encoding="utf-8",
         )
         payload = json.dumps(
             {
                 "file": self.output_filename,
-                "body": f"{binding.package_id}\n{compose_worker_prompt(prompt)}\n",
+                "body": f"{binding.package_id}\n{compose_worker_prompt(prompt, binding=binding)}\n",
                 "result": str(result_path),
+                "run_id": run_id,
                 "sleep": self._sleep_seconds,
                 "kind": self.kind,
             },
@@ -269,7 +336,6 @@ class ProcessMutatingBackend:
                 )
         except IdentityLockError as exc:
             raise MutatingTransportError("mutating lock is held", code="CONCURRENT_WORKER") from exc
-        run_id = f"prun-{proc.pid}"
         record = {
             "agent_id": agent_id,
             "run_id": run_id,
@@ -299,7 +365,7 @@ class ProcessMutatingBackend:
         pid = int(str(record["pid"]))
         running = _pid_running(pid)
         result = Path(str(record["worktree"])) / "result.json"
-        if result.is_file():
+        if result.is_file() and _result_matches_run(result, run_id):
             record["status"] = "FINISHED"
             self._persist_active(str(record["package_id"]), record)
             return MutatingLaunchReceipt(
@@ -327,7 +393,12 @@ class ProcessMutatingBackend:
             recovered=True,
         )
 
-    def follow_up(self, agent_id: str, prompt: str) -> MutatingLaunchReceipt:
+    def follow_up(
+        self,
+        agent_id: str,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
         record = self._find(agent_id, None)
         if record is None:
             raise MutatingTransportError("unknown mutating worker lineage", code="UNKNOWN_WORKER")
@@ -348,7 +419,7 @@ class ProcessMutatingBackend:
             branch="cursor/governed-worker",
             worktree=str(record.get("worktree_relative") or "workers/follow"),
         )
-        return self.start(binding, prompt)
+        return self.start(binding, prompt, leases=leases)
 
     def _validate_binding(self, binding: MutatingLeaseBinding) -> None:
         if binding.merge_authorized or binding.direct_main:
@@ -356,6 +427,11 @@ class ProcessMutatingBackend:
         worktree = binding.worktree.replace("\\", "/")
         if worktree in {".", ""} or ".." in Path(worktree).parts:
             raise MutatingTransportError("worktree path is unsafe", code="PATH_UNSAFE")
+        if not path_is_allowed(binding, self.output_filename):
+            raise MutatingTransportError(
+                "worker output is outside allowed paths",
+                code="PATH_UNSAFE",
+            )
 
     def _resolve_worktree(self, relative: str) -> Path:
         if Path(relative).is_absolute() or ".." in Path(relative).parts:
@@ -438,6 +514,14 @@ def _windows_pid_running(pid: int) -> bool:
 
 def _pid_running(pid: int) -> bool:
     return pid_is_running(pid)
+
+
+def _result_matches_run(path: Path, run_id: str) -> bool:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and payload.get("run_id") == run_id
 
 
 def cloud_api_key_present() -> bool:

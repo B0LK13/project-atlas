@@ -20,19 +20,22 @@ import os
 import re
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Final
 from uuid import uuid4
 
+from project_atlas.orchestration.autonomy.models import CANONICAL_REPOSITORY_IDENTITY
 from project_atlas.orchestration.autonomy.mutating_transport import (
     MutatingLaunchReceipt,
     MutatingLeaseBinding,
     MutatingTransportError,
     WorkerBackendType,
     compose_worker_prompt,
+    require_active_lease,
 )
 
 CLOUD_API_BASE: Final[str] = "https://api.cursor.com"
+CANONICAL_REPOSITORY_URL: Final[str] = "https://github.com/B0LK13/project-atlas"
 _AGENT_ID_RE = re.compile(
     r"^bc-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
@@ -53,9 +56,14 @@ class CursorCloudBackend:
         starting_ref: str | None = None,
     ) -> None:
         self._http = http or _stdlib_http
-        self._repository_url = repository_url
+        self._repository_url = repository_url.rstrip("/")
         self._starting_ref = starting_ref
         self._lineage: dict[str, str] = {}
+
+    def bind_lineage(self, package_id: str, agent_id: str) -> None:
+        if not _AGENT_ID_RE.fullmatch(agent_id):
+            raise MutatingTransportError("forged cloud agent id", code="FORGED_AGENT_ID")
+        self._lineage[package_id] = agent_id
 
     def stable_agent_id(self, package_id: str) -> str:
         known = self._lineage.get(package_id)
@@ -67,13 +75,19 @@ class CursorCloudBackend:
         self._lineage[package_id] = minted
         return minted
 
-    def start(self, binding: MutatingLeaseBinding, prompt: str) -> MutatingLaunchReceipt:
-        self._require_lease(binding)
+    def start(
+        self,
+        binding: MutatingLeaseBinding,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
+        require_active_lease(leases, binding)
+        self._require_binding(binding)
         agent_id = self.stable_agent_id(binding.package_id)
         body: dict[str, object] = {
             "agentId": agent_id,
             "mode": "agent",
-            "prompt": {"text": compose_worker_prompt(prompt)},
+            "prompt": {"text": compose_worker_prompt(prompt, binding=binding)},
             "workOnCurrentBranch": False,
             "repos": [
                 {
@@ -100,6 +114,7 @@ class CursorCloudBackend:
 
     def recover(self, agent_id: str, run_id: str) -> MutatingLaunchReceipt:
         self._require_ids(agent_id, run_id)
+        self._require_lineage(agent_id)
         status, payload = self._http("GET", f"/v1/agents/{agent_id}/runs/{run_id}", None)
         if status in {401, 403}:
             raise MutatingTransportError("cloud api credential rejected", code=f"API_{status}")
@@ -118,8 +133,24 @@ class CursorCloudBackend:
             recovered=True,
         )
 
-    def follow_up(self, agent_id: str, prompt: str) -> MutatingLaunchReceipt:
+    def follow_up(
+        self,
+        agent_id: str,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
         self._require_ids(agent_id, None)
+        self._require_lineage(agent_id)
+        package_id = next(pkg for pkg, known in self._lineage.items() if known == agent_id)
+        items = tuple(leases) if leases is not None else ()
+        if not any(
+            getattr(item, "package_id", None) == package_id and getattr(item, "active", False)
+            for item in items
+        ):
+            raise MutatingTransportError(
+                "mutating worker requires an active governor lease",
+                code="LEASE_MISSING",
+            )
         prompt_body: dict[str, object] = {"text": compose_worker_prompt(prompt)}
         body: dict[str, object] = {"prompt": prompt_body, "mode": "agent"}
         status, payload = self._http("POST", f"/v1/agents/{agent_id}/runs", body)
@@ -164,17 +195,36 @@ class CursorCloudBackend:
             return receipt
         raise MutatingTransportError("agent_busy without active run", code="AGENT_BUSY")
 
-    def _require_lease(self, binding: MutatingLeaseBinding) -> None:
+    def _require_binding(self, binding: MutatingLeaseBinding) -> None:
         if binding.merge_authorized or binding.direct_main:
             raise MutatingTransportError(
                 "cloud worker cannot carry merge authority",
                 code="AUTHORITY_DENIED",
             )
+        if binding.repository_identity != CANONICAL_REPOSITORY_IDENTITY:
+            raise MutatingTransportError(
+                "cloud worker cannot target a foreign repository identity",
+                code="CROSS_PROJECT",
+            )
+        if self._repository_url != CANONICAL_REPOSITORY_URL:
+            raise MutatingTransportError(
+                "cloud worker cannot target a foreign repository url",
+                code="FOREIGN_REPOSITORY",
+            )
+
+    def _require_lineage(self, agent_id: str) -> None:
+        if agent_id not in self._lineage.values():
+            raise MutatingTransportError(
+                "cloud agent is not in host lineage",
+                code="CROSS_PROJECT",
+            )
 
     def _require_ids(self, agent_id: str, run_id: str | None) -> None:
         if not _AGENT_ID_RE.fullmatch(agent_id):
             raise MutatingTransportError("forged cloud agent id", code="FORGED_AGENT_ID")
-        if run_id is not None and (not run_id.startswith("run-") or ".." in run_id):
+        if run_id is not None and (
+            not run_id.startswith("run-") or ".." in run_id or "/" in run_id or "\\" in run_id
+        ):
             raise MutatingTransportError("forged cloud run id", code="FORGED_RUN_ID")
 
 

@@ -47,6 +47,8 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "pending_iv_package_id": { "type": ["string", "null"] },
+    "active_worker_kind": { "type": ["string", "null"] },
     "merge_authorized": { "const": false },
     "record_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
   }

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -27,9 +28,12 @@ from project_atlas.orchestration.autonomy.host_install import (
     render_windows_schtasks_command,
 )
 from project_atlas.orchestration.autonomy.host_service import (
+    PLACEHOLDER_DIGEST,
     DurableHostService,
     HostError,
     HostServiceState,
+    load_host_state,
+    persist_host_state,
     request_stop,
     seal_host_state,
 )
@@ -202,6 +206,13 @@ def _binding(**overrides: object) -> MutatingLeaseBinding:
     return MutatingLeaseBinding.model_validate(payload)
 
 
+def _active_leases(binding: MutatingLeaseBinding | None = None) -> list[SimpleNamespace]:
+    item = binding or _binding()
+    return [
+        SimpleNamespace(lease_id=item.lease_id, package_id=item.package_id, active=True)
+    ]
+
+
 def test_schema_registered() -> None:
     assert "autonomy-host-state" in available_schemas()
     state = seal_host_state(
@@ -248,8 +259,12 @@ def test_acp_default_reject_and_forbid_main_push() -> None:
     assert handle_request_permission("read_secrets", binding) == "REJECT"
     assert handle_request_permission("git_status", binding) == "ALLOW"
     assert command_is_forbidden("git push origin main") is True
+    assert command_is_forbidden("git push origin master") is True
     assert command_is_forbidden("git push --force") is True
     assert handle_request_permission("run_tests", binding, command="git push main") == "REJECT"
+    assert handle_request_permission("edit_worktree", binding, path="implemented.txt") == "ALLOW"
+    assert handle_request_permission("edit_worktree", binding, path="secrets.env") == "REJECT"
+    assert handle_request_permission("edit_worktree", binding) == "REJECT"
 
 
 def test_mutating_binding_rejects_main_and_authority() -> None:
@@ -286,7 +301,7 @@ def test_three_package_process_dag(tmp_path: Path) -> None:
     mutating = ProcessMutatingBackend(root=tmp_path, store=tmp_path / "m")
     readonly = ProcessReadOnlyBackend(root=tmp_path, store=tmp_path / "r")
     service = _service(tmp_path, gov, mutating=mutating, readonly=readonly)
-    deadline = time.time() + 8
+    deadline = time.time() + 12
     while time.time() < deadline and len(service.state.completed_package_ids) < 3:
         service._step()
         time.sleep(0.02)
@@ -300,7 +315,7 @@ def test_three_package_process_dag(tmp_path: Path) -> None:
     assert (tmp_path / "workers" / "AS-ORCH-D080-PKGB-001" / "verified.txt").is_file()
     assert (tmp_path / "workers" / "AS-ORCH-D080-PKGC-001" / "implemented.txt").is_file()
     assert mutating.start_calls == 2
-    assert readonly.start_calls == 1
+    assert readonly.start_calls == 3
     assert service._broker.state.owner_notification_count == 1
     seeded = next(
         item
@@ -325,9 +340,13 @@ def test_restart_recovers_running_worker_without_duplicate(tmp_path: Path) -> No
     restarted.recover_active_worker()
     assert restarted.state.process_run_id is not None
     assert mutating.start_calls == 1
-    deadline = time.time() + 5
-    while time.time() < deadline and restarted.state.process_run_id is not None:
-        restarted.recover_active_worker()
+    deadline = time.time() + 6
+    completed = restarted.state.completed_package_ids
+    while time.time() < deadline and "AS-ORCH-D080-PKGA-001" not in completed:
+        restarted._step()
+        time.sleep(0.05)
+        completed = restarted.state.completed_package_ids
+        restarted._step()
         time.sleep(0.05)
     assert "AS-ORCH-D080-PKGA-001" in restarted.state.completed_package_ids
     assert mutating.start_calls == 1
@@ -447,7 +466,7 @@ def test_cloud_409_conflict_and_busy_recover() -> None:
     )
     backend = CursorCloudBackend(http=http)
     backend._lineage["AS-ORCH-D080-PKGA-001"] = agent
-    receipt = backend.start(_binding(), "implement")
+    receipt = backend.start(_binding(), "implement", leases=_active_leases())
     assert receipt.recovered is True
     assert receipt.run_id == "run-active"
     assert receipt.status == "RUNNING"
@@ -461,7 +480,7 @@ def test_cloud_409_conflict_and_busy_recover() -> None:
     )
     backend = CursorCloudBackend(http=busy)
     backend._lineage["AS-ORCH-D080-PKGA-001"] = agent
-    receipt = backend.start(_binding(), "implement")
+    receipt = backend.start(_binding(), "implement", leases=_active_leases())
     assert receipt.recovered is True
     assert receipt.status == "RUNNING"
 
@@ -478,20 +497,37 @@ def test_cloud_forged_ids_and_http_failures() -> None:
     denied = CursorCloudBackend(http=lambda *_a, **_k: (401, {"code": "unauthorized"}))
     denied._lineage["AS-ORCH-D080-PKGA-001"] = f"bc-{uuid4()}"
     with pytest.raises(MutatingTransportError) as exc:
-        denied.start(_binding(), "implement")
+        denied.start(_binding(), "implement", leases=_active_leases())
     assert exc.value.code == "API_401"
 
     transient = CursorCloudBackend(http=lambda *_a, **_k: (429, {"code": "rate"}))
     transient._lineage["AS-ORCH-D080-PKGA-001"] = f"bc-{uuid4()}"
     with pytest.raises(MutatingTransportError) as rate:
-        transient.start(_binding(), "implement")
+        transient.start(_binding(), "implement", leases=_active_leases())
     assert rate.value.code == "API_429"
+
+    with pytest.raises(MutatingTransportError) as missing:
+        backend.start(_binding(), "implement")
+    assert missing.value.code == "LEASE_MISSING"
+
+    foreign = CursorCloudBackend(
+        http=lambda *_a, **_k: (201, {"id": "run-1", "agentId": f"bc-{uuid4()}"}),
+        repository_url="https://github.com/evil/other",
+    )
+    with pytest.raises(MutatingTransportError) as repo:
+        foreign.start(_binding(), "implement", leases=_active_leases())
+    assert repo.value.code == "FOREIGN_REPOSITORY"
+
+    outsider = CursorCloudBackend(http=lambda *_a, **_k: (200, {"status": "FINISHED"}))
+    with pytest.raises(MutatingTransportError) as cross:
+        outsider.recover(f"bc-{uuid4()}", "run-1")
+    assert cross.value.code == "CROSS_PROJECT"
 
 
 def test_local_agent_absent_or_unauthenticated() -> None:
     backend = LocalAgentBackend()
     with pytest.raises(MutatingTransportError) as exc:
-        backend.start(_binding(), "implement")
+        backend.start(_binding(), "implement", leases=_active_leases())
     assert exc.value.code in {"LOCAL_AGENT_ABSENT", "LOCAL_AGENT_UNAUTHENTICATED"}
     assert select_mutating_backend_name() in {
         WorkerBackendType.CLOUD_API,
@@ -509,3 +545,107 @@ def test_install_renderers_have_no_secrets(tmp_path: Path) -> None:
     assert "CURSOR_API_KEY=" not in task
     assert "password" not in task.lower()
     assert "Environment=" not in unit
+
+
+def test_stale_result_does_not_finish_new_run(tmp_path: Path) -> None:
+    backend = ProcessMutatingBackend(root=tmp_path, store=tmp_path / "w", sleep_seconds=0.4)
+    binding = _binding()
+    first = backend.start(binding, "write", leases=_active_leases(binding))
+    deadline = time.time() + 3
+    recovered = backend.recover(first.agent_id, first.run_id)
+    while time.time() < deadline and recovered.status != "FINISHED":
+        time.sleep(0.05)
+        recovered = backend.recover(first.agent_id, first.run_id)
+    assert recovered.status == "FINISHED"
+    second = backend.follow_up(first.agent_id, "continue", leases=_active_leases(binding))
+    assert second.status == "RUNNING"
+    assert second.run_id != first.run_id
+    immediate = backend.recover(second.agent_id, second.run_id)
+    assert immediate.status == "RUNNING"
+
+
+def test_host_state_rollback_fails_closed(tmp_path: Path) -> None:
+    store = tmp_path / "host-store"
+    state = seal_host_state(
+        HostServiceState(
+            repository_identity=CANONICAL_REPOSITORY_IDENTITY,
+            main_sha=PIN,
+            main_tree=TREE,
+            dag_generation=5,
+            completed_package_ids=("AS-ORCH-D080-PKGA-001",),
+            record_digest=PLACEHOLDER_DIGEST,
+        )
+    )
+    persist_host_state(store, state)
+    rolled = seal_host_state(
+        state.model_copy(
+            update={
+                "dag_generation": 1,
+                "completed_package_ids": (),
+                "record_digest": PLACEHOLDER_DIGEST,
+            }
+        )
+    )
+    (store / "current.json").write_text(
+        json.dumps(rolled.model_dump(mode="json"), sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(HostError) as exc:
+        load_host_state(store)
+    assert exc.value.code == "STATE_ROLLBACK"
+
+
+def test_implementer_finish_does_not_self_certify(tmp_path: Path) -> None:
+    gov = _governor(_node("AS-ORCH-D080-PKGA-001"))
+    mutating = ProcessMutatingBackend(root=tmp_path, store=tmp_path / "m")
+    readonly = ProcessReadOnlyBackend(root=tmp_path, store=tmp_path / "r")
+    service = _service(tmp_path, gov, mutating=mutating, readonly=readonly)
+    service._step()
+    deadline = time.time() + 4
+    while time.time() < deadline and service.state.process_run_id is not None:
+        service.recover_active_worker()
+        time.sleep(0.02)
+    node = next(item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-D080-PKGA-001")
+    assert node.state is NodeState.VERIFYING
+    assert "AS-ORCH-D080-PKGA-001" not in service.state.completed_package_ids
+    assert service.state.pending_iv_package_id == "AS-ORCH-D080-PKGA-001"
+    deadline = time.time() + 4
+    completed = service.state.completed_package_ids
+    while time.time() < deadline and "AS-ORCH-D080-PKGA-001" not in completed:
+        service._step()
+        time.sleep(0.02)
+        completed = service.state.completed_package_ids
+    assert "AS-ORCH-D080-PKGA-001" in service.state.completed_package_ids
+    assert mutating.start_calls == 1
+    assert readonly.start_calls == 1
+
+
+def test_transient_cloud_error_parks_host_step(tmp_path: Path) -> None:
+    class _Boom:
+        def start(
+            self,
+            binding: MutatingLeaseBinding,
+            prompt: str,
+            leases: object = None,
+        ) -> object:
+            del binding, prompt, leases
+            raise MutatingTransportError("rate limited", code="API_429")
+
+        def recover(self, agent_id: str, run_id: str) -> object:
+            del agent_id, run_id
+            raise MutatingTransportError("rate limited", code="API_429")
+
+        def follow_up(
+            self,
+            agent_id: str,
+            prompt: str,
+            leases: object = None,
+        ) -> object:
+            del agent_id, prompt, leases
+            raise MutatingTransportError("rate limited", code="API_429")
+
+    gov = _governor(_node("AS-ORCH-D080-PKGA-001"))
+    service = _service(tmp_path, gov, mutating=_Boom())  # type: ignore[arg-type]
+    service._step()
+    assert service.state.process_run_id is None
+    assert service.state.cloud_run_id is None

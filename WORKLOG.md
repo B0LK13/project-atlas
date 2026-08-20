@@ -7015,3 +7015,17 @@ Inner-loop 001E supervision on `7ea26e49576b0c6a9e2e7ced8856bec3d4cb4b26` is PAS
 - `BATCH-B-CONTEXT-INTEGRATION-001` not reissued
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `BROKER_CERTIFICATION = NOT_GRANTED` until fresh CI + independent IV/ADV
+
+### D-080 ADV P1 remediation (same PR, new exact head)
+
+Same-session ADV `bc-33af8d3d` returned `ADV_VERDICT=FAIL` / `NEW_P0=0` / `NEW_P1=6` against `41754a7`. Bounded remediations on this branch:
+
+- Bind process `result.json` to `run_id`; leftover files cannot finish a new run
+- `start`/`follow_up` require an active lease on process, Cloud, and local ports
+- ACP mutating kinds require an allowed path; `git push origin master` is forbidden
+- Host high-water rejects generation / completion rollback
+- Cloud start refuses foreign repository identity/URL; recover requires lineage
+- Transient `API_NETWORK` / `429` / `5xx` park the durable loop
+- Implementer `FINISHED` routes independent VERIFY worker before `complete_verification`
+
+`MERGE_AUTHORIZATION = NOT_GRANTED`. Old CI `32397303686` does not transfer.

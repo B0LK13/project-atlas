@@ -6,6 +6,7 @@ API keys are never written to host/broker state.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from shutil import which
 
 from project_atlas.orchestration.autonomy.mutating_transport import (
@@ -14,14 +15,21 @@ from project_atlas.orchestration.autonomy.mutating_transport import (
     MutatingTransportError,
     WorkerBackendType,
     local_cursor_cli_present,
+    require_active_lease,
 )
 
 
 class LocalAgentBackend:
     """Discover-only until an authenticated Agent/ACP session is present."""
 
-    def start(self, binding: MutatingLeaseBinding, prompt: str) -> MutatingLaunchReceipt:
+    def start(
+        self,
+        binding: MutatingLeaseBinding,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
         del prompt
+        require_active_lease(leases, binding)
         if binding.merge_authorized or binding.direct_main:
             raise MutatingTransportError(
                 "local agent cannot carry merge authority",
@@ -38,8 +46,13 @@ class LocalAgentBackend:
         del agent_id, run_id
         raise MutatingTransportError("no local agent run to recover", code="UNKNOWN_WORKER")
 
-    def follow_up(self, agent_id: str, prompt: str) -> MutatingLaunchReceipt:
-        del agent_id, prompt
+    def follow_up(
+        self,
+        agent_id: str,
+        prompt: str,
+        leases: Iterable[object] | None = None,
+    ) -> MutatingLaunchReceipt:
+        del agent_id, prompt, leases
         raise MutatingTransportError("no local agent lineage", code="UNKNOWN_WORKER")
 
 

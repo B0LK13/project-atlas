@@ -28,6 +28,7 @@ from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
     AgentCapability,
+    AgentLease,
     ExecutionHostClass,
     NodeState,
     TrustedAnchorRecord,
@@ -57,11 +58,23 @@ HOST_PACKAGE_ID: Final[Literal["AS-ORCH-CONTINUATION-BROKER-001"]] = (
 )
 STATE_DIR_RELATIVE: Final[Path] = Path(".atlas") / "orchestration" / "host"
 CURRENT_NAME: Final[str] = "current.json"
+HIGH_WATER_NAME: Final[str] = "high-water.json"
 PID_NAME: Final[str] = "service.pid"
 STOP_NAME: Final[str] = "stop.requested"
 LOCK_NAME: Final[str] = ".host.lock"
 PLACEHOLDER_DIGEST: Final[str] = "0" * 64
 AUTHENTIC_BACKEND_REQUEST_ID: Final[str] = "AUTHENTIC-MUTATING-BACKEND-001"
+_PARKABLE_TRANSPORT: Final[frozenset[str]] = frozenset(
+    {
+        "API_UNAVAILABLE",
+        "API_401",
+        "API_403",
+        "API_NETWORK",
+        "API_429",
+        "LOCAL_AGENT_ABSENT",
+        "LOCAL_AGENT_UNAUTHENTICATED",
+    }
+)
 
 
 class HostError(ValueError):
@@ -100,6 +113,8 @@ class HostServiceState(BaseModel):
     parked_owner: bool = False
     authentic_backend_request_emitted: bool = False
     completed_package_ids: tuple[str, ...] = ()
+    pending_iv_package_id: str | None = None
+    active_worker_kind: str | None = None
     merge_authorized: Literal[False] = False
     record_digest: str = Field(min_length=64, max_length=64)
 
@@ -143,17 +158,54 @@ def _store_path(store: Path, name: str) -> Path:
     return target
 
 
+def _read_high_water(store: Path) -> tuple[int, int]:
+    path = store / HIGH_WATER_NAME
+    if not path.is_file():
+        return 0, 0
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise HostError("host high-water is unreadable", code="STATE_CORRUPT") from exc
+    if not isinstance(payload, dict):
+        raise HostError("host high-water is schema-invalid", code="STATE_CORRUPT")
+    try:
+        return int(payload.get("dag_generation", 0)), int(payload.get("completed_count", 0))
+    except (TypeError, ValueError) as exc:
+        raise HostError("host high-water is schema-invalid", code="STATE_CORRUPT") from exc
+
+
+def _reject_rollback(store: Path, state: HostServiceState) -> None:
+    high_gen, high_done = _read_high_water(store)
+    if state.dag_generation < high_gen:
+        raise HostError("host state rollback is forbidden", code="STATE_ROLLBACK")
+    if len(state.completed_package_ids) < high_done:
+        raise HostError("host completion rollback is forbidden", code="STATE_ROLLBACK")
+
+
 def persist_host_state(store: Path, state: HostServiceState) -> HostServiceState:
     sealed = verify_host_state(seal_host_state(state))
     store.mkdir(parents=True, exist_ok=True)
     lock = _store_path(store, LOCK_NAME)
     try:
         with ProjectIdentityLock(lock, wait_seconds=2.0, stale_seconds=30.0):
+            _reject_rollback(store, sealed)
             path = _store_path(store, CURRENT_NAME)
             encoded = json.dumps(sealed.model_dump(mode="json"), sort_keys=True, indent=2)
             tmp = path.with_name(f".{path.name}.tmp")
             tmp.write_text(encoded + "\n", encoding="utf-8")
             os.replace(tmp, path)
+            water = _store_path(store, HIGH_WATER_NAME)
+            water.write_text(
+                json.dumps(
+                    {
+                        "dag_generation": sealed.dag_generation,
+                        "completed_count": len(sealed.completed_package_ids),
+                    },
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
     except IdentityLockError as exc:
         raise HostError("host lock is held", code="SERVICE_DOUBLE_START") from exc
     return sealed
@@ -173,7 +225,9 @@ def load_host_state(store: Path) -> HostServiceState:
         state = HostServiceState.model_validate(payload)
     except Exception as exc:
         raise HostError("host state is schema-invalid", code="STATE_CORRUPT") from exc
-    return verify_host_state(state)
+    verified = verify_host_state(state)
+    _reject_rollback(store, verified)
+    return verified
 
 
 def request_stop(store: Path) -> None:
@@ -217,10 +271,7 @@ class DurableHostService:
         self._root = root
         self._trusted = trusted
         worker_root = root / ".atlas" / "orchestration" / "workers"
-        self._mutating = mutating or ProcessMutatingBackend(
-            root=root,
-            store=worker_root / "mutating",
-        )
+        self._mutating = mutating or _default_mutating_port(root, worker_root / "mutating")
         self._readonly = readonly or ProcessReadOnlyBackend(
             root=root,
             store=worker_root / "readonly",
@@ -243,6 +294,7 @@ class DurableHostService:
         self._state = load_host_state(store)
         if self._state.repository_identity != expected_repository_identity:
             raise HostError("foreign project host state", code="FOREIGN_PROJECT")
+        _seed_cloud_lineage(self._mutating, self._state)
         if claim_pid:
             _claim_pid(store)
 
@@ -269,6 +321,11 @@ class DurableHostService:
                     if exc.code in {"SAFETY_BOUNDARY", "STATE_CORRUPT"}:
                         return HostStopReason.SAFETY_STOP
                     raise
+                except MutatingTransportError as exc:
+                    if _is_parkable_transport(exc.code):
+                        time.sleep(self._owner_backoff)
+                        continue
+                    raise
         finally:
             _clear_pid(self._store)
 
@@ -278,7 +335,13 @@ class DurableHostService:
         if agent_id is None or run_id is None:
             return
         port = self._port_for_package(self._state.active_package_id)
-        receipt = port.recover(agent_id, run_id)
+        try:
+            receipt = port.recover(agent_id, run_id)
+        except MutatingTransportError as exc:
+            if _is_parkable_transport(exc.code):
+                time.sleep(self._poll_seconds)
+                return
+            raise
         if receipt.status in {"CREATING", "RUNNING"}:
             self._save(
                 cloud_agent_id=(
@@ -318,7 +381,21 @@ class DurableHostService:
         if agent_id is None:
             return
         port = self._port_for_package(self._state.active_package_id)
-        receipt = port.follow_up(agent_id, compose_worker_prompt(text))
+        leases = self._governor.snapshot().leases
+        binding = self._binding_for_active()
+        if binding is not None:
+            require_active_lease(leases, binding)
+        try:
+            receipt = port.follow_up(
+                agent_id,
+                compose_worker_prompt(text, binding=binding),
+                leases=leases,
+            )
+        except MutatingTransportError as exc:
+            if _is_parkable_transport(exc.code):
+                time.sleep(self._poll_seconds)
+                return
+            raise
         self._save(
             process_agent_id=(
                 receipt.agent_id
@@ -348,6 +425,9 @@ class DurableHostService:
             if self._state.cloud_run_id or self._state.process_run_id:
                 time.sleep(self._poll_seconds)
                 return
+        if self._state.pending_iv_package_id is not None:
+            self._launch_iv_worker(self._state.pending_iv_package_id)
+            return
         snapshot = self._governor.snapshot()
         decision = select_next(snapshot.nodes, hard_blockers=snapshot.hard_blockers)
         if decision.next_package_id is not None:
@@ -408,17 +488,16 @@ class DurableHostService:
             branch=lease.branch,
             worktree=lease.worktree,
         )
-        require_active_lease(self._governor.snapshot().leases, binding)
+        leases = self._governor.snapshot().leases
+        require_active_lease(leases, binding)
         try:
-            receipt = port.start(binding, compose_worker_prompt(node.objective))
+            receipt = port.start(
+                binding,
+                compose_worker_prompt(node.objective, binding=binding),
+                leases=leases,
+            )
         except MutatingTransportError as exc:
-            if exc.code in {
-                "API_UNAVAILABLE",
-                "API_401",
-                "API_403",
-                "LOCAL_AGENT_ABSENT",
-                "LOCAL_AGENT_UNAUTHENTICATED",
-            }:
+            if _is_parkable_transport(exc.code):
                 self._emit_backend_prerequisite()
                 time.sleep(self._owner_backoff)
                 return
@@ -427,6 +506,8 @@ class DurableHostService:
             active_package_id=node.package_id,
             active_lease_id=lease.lease_id,
             backend_type=receipt.backend,
+            active_worker_kind="MUTATING" if mutating else "VERIFY",
+            pending_iv_package_id=None,
             cloud_agent_id=(
                 receipt.agent_id if receipt.backend is WorkerBackendType.CLOUD_API else None
             ),
@@ -443,6 +524,58 @@ class DurableHostService:
             dag_generation=self._state.dag_generation + 1,
         )
 
+    def _launch_iv_worker(self, package_id: str) -> None:
+        node = self._live_node(package_id)
+        lease = self._active_lease()
+        if lease is None:
+            raise HostError("pending IV has no active lease", code="LEASE_MISSING")
+        allowed = node.mutation_surface.paths or ("verified.txt",)
+        binding = MutatingLeaseBinding(
+            package_id=package_id,
+            lease_id=lease.lease_id,
+            dispatch_id=f"iv-{lease.lease_id}",
+            cycle_id=self._broker.state.current_cycle_id or "BRKCYC-00000000",
+            repository_identity=self._state.repository_identity,
+            base_main=self._governor.snapshot().current_main,
+            role=MutatingRole.IMPLEMENTER,
+            allowed_paths=allowed,
+            branch=lease.branch,
+            worktree=lease.worktree,
+        )
+        leases = self._governor.snapshot().leases
+        require_active_lease(leases, binding)
+        try:
+            receipt = self._readonly.start(
+                binding,
+                compose_worker_prompt(f"verify {node.objective}", binding=binding),
+                leases=leases,
+            )
+        except MutatingTransportError as exc:
+            if _is_parkable_transport(exc.code):
+                time.sleep(self._owner_backoff)
+                return
+            raise
+        self._save(
+            active_package_id=package_id,
+            active_lease_id=lease.lease_id,
+            backend_type=receipt.backend,
+            active_worker_kind="VERIFY",
+            pending_iv_package_id=None,
+            process_agent_id=(
+                receipt.agent_id if receipt.backend is WorkerBackendType.PROCESS else None
+            ),
+            process_run_id=(
+                receipt.run_id if receipt.backend is WorkerBackendType.PROCESS else None
+            ),
+            cloud_agent_id=(
+                receipt.agent_id if receipt.backend is WorkerBackendType.CLOUD_API else None
+            ),
+            cloud_run_id=(
+                receipt.run_id if receipt.backend is WorkerBackendType.CLOUD_API else None
+            ),
+            dag_generation=self._state.dag_generation + 1,
+        )
+
     def _ingest_worker(self, status: str) -> None:
         package_id = self._state.active_package_id
         if package_id is None:
@@ -453,6 +586,25 @@ class DurableHostService:
             if node.state is NodeState.LEASED:
                 self._governor.transition(package_id, NodeState.ACTIVE, "HOST_WORKER_STARTED")
                 node = self._live_node(package_id)
+            needs_independent_iv = (
+                self._state.active_worker_kind == "MUTATING"
+                and node.iv_requirements.certification_required
+                and node.iv_requirements.implementer_cannot_verify
+            )
+            if needs_independent_iv:
+                implementer = self._lease_agent_id()
+                self._governor.route_and_verify(package_id, implementer_id=implementer)
+                self._save(
+                    pending_iv_package_id=package_id,
+                    active_package_id=package_id,
+                    active_lease_id=self._state.active_lease_id,
+                    cloud_agent_id=None,
+                    cloud_run_id=None,
+                    process_agent_id=None,
+                    process_run_id=None,
+                    active_worker_kind=None,
+                )
+                return
             if node.state is NodeState.ACTIVE:
                 self._governor.transition(package_id, NodeState.VERIFYING, "HOST_WORKER_FINISHED")
             self._governor.complete_verification(package_id, passed=True)
@@ -471,7 +623,47 @@ class DurableHostService:
             cloud_run_id=None,
             process_agent_id=None,
             process_run_id=None,
+            active_worker_kind=None,
+            pending_iv_package_id=None,
             **extra,
+        )
+
+    def _active_lease(self) -> AgentLease | None:
+        lease_id = self._state.active_lease_id
+        if lease_id is None:
+            return None
+        for item in self._governor.snapshot().leases:
+            if item.lease_id == lease_id and item.active:
+                return item
+        return None
+
+    def _lease_agent_id(self) -> str:
+        lease = self._active_lease()
+        if lease is None:
+            raise HostError("active lease is missing", code="LEASE_MISSING")
+        return str(lease.agent_id)
+
+    def _binding_for_active(self) -> MutatingLeaseBinding | None:
+        package_id = self._state.active_package_id
+        lease = self._active_lease()
+        if package_id is None or lease is None:
+            return None
+        node = self._live_node(package_id)
+        mutating = self._force_mutating or node_wants_mutation(node)
+        allowed = node.mutation_surface.paths or (
+            ("implemented.txt",) if mutating else ("verified.txt",)
+        )
+        return MutatingLeaseBinding(
+            package_id=package_id,
+            lease_id=lease.lease_id,
+            dispatch_id=f"mut-{lease.lease_id}",
+            cycle_id=self._broker.state.current_cycle_id or "BRKCYC-00000000",
+            repository_identity=self._state.repository_identity,
+            base_main=self._governor.snapshot().current_main,
+            role=MutatingRole.IMPLEMENTER,
+            allowed_paths=allowed,
+            branch=lease.branch,
+            worktree=lease.worktree,
         )
 
     def _emit_backend_prerequisite(self) -> None:
@@ -500,6 +692,10 @@ class DurableHostService:
         raise HostError("no capable agent for package", code="AGENT_UNAVAILABLE")
 
     def _port_for_package(self, package_id: str | None) -> MutatingExecutionPort:
+        if self._state.active_worker_kind == "VERIFY":
+            return self._readonly
+        if self._state.active_worker_kind == "MUTATING":
+            return self._mutating
         if package_id is None:
             return self._mutating
         node = self._live_node(package_id)
@@ -514,6 +710,32 @@ def _selected_backend() -> WorkerBackendType:
     if local_cursor_cli_present():
         return WorkerBackendType.LOCAL_AGENT
     return WorkerBackendType.PROCESS
+
+
+def _default_mutating_port(root: Path, store: Path) -> MutatingExecutionPort:
+    if cloud_api_key_present():
+        from project_atlas.orchestration.autonomy.cursor_cloud import CursorCloudBackend
+
+        return CursorCloudBackend()
+    if local_cursor_cli_present():
+        from project_atlas.orchestration.autonomy.local_agent import LocalAgentBackend
+
+        return LocalAgentBackend()
+    return ProcessMutatingBackend(root=root, store=store)
+
+
+def _seed_cloud_lineage(port: MutatingExecutionPort, state: HostServiceState) -> None:
+    bind = getattr(port, "bind_lineage", None)
+    if not callable(bind):
+        return
+    if state.cloud_agent_id and state.active_package_id:
+        bind(state.active_package_id, state.cloud_agent_id)
+
+
+def _is_parkable_transport(code: str) -> bool:
+    if code in _PARKABLE_TRANSPORT:
+        return True
+    return code.startswith("API_") and code[4:].isdigit() and int(code[4:]) >= 500
 
 
 def _claim_pid(store: Path) -> None:

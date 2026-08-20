@@ -69,9 +69,13 @@ src/project_atlas/orchestration/autonomy/broker.py
 ## Mutating port
 
 `MutatingExecutionPort` consumes an existing package-scoped lease. It never
-grants one. Required bindings: package ready, valid lease, exact base main,
-exact repository, role IMPLEMENTER|REMEDIATOR, allowed paths, governed
+grants one. `start` and `follow_up` fail closed without an active lease.
+Required bindings: package ready, valid lease, exact base main, exact
+canonical repository, role IMPLEMENTER|REMEDIATOR, allowed paths, governed
 branch/worktree, `merge_authorized=False`, `direct_main=False`.
+Cloud recover/follow-up accept only lineage-bound `bc-*` ids. Host persist
+rejects `dag_generation` / completion-count rollback. Implementer
+`FINISHED` routes a distinct read-only verifier and does not self-certify.
 
 Preferred backend when `CURSOR_API_KEY` is present: documented Cursor Cloud
 Agents API v1 (`POST/GET /v1/agents`, `POST/GET /v1/agents/{id}/runs`).

@@ -20,8 +20,9 @@ def handle_request_permission(
     binding: MutatingLeaseBinding,
     *,
     command: str | None = None,
+    path: str | None = None,
 ) -> Literal["ALLOW", "REJECT"]:
     """Broker-controlled ACP permission. Default REJECT."""
     if command is not None and command_is_forbidden(command):
         return "REJECT"
-    return decide_acp_permission(kind, binding)
+    return decide_acp_permission(kind, binding, path=path)
