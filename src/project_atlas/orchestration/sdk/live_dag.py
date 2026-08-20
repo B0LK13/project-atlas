@@ -431,7 +431,29 @@ class LiveDagController:
             failure_digest=obs.failure_digest,
         )
 
+    def _refresh_cloud_audit_gate(self) -> None:
+        """Accept cloud audit only from durable evidence for the bound head."""
+        path = (
+            self.root
+            / "docs"
+            / "evidence"
+            / "AS-ORCH-CONTINUATION-BROKER-001-d092-runtime-wiring-audit.json"
+        )
+        if not path.is_file() or not self.state.bound_head:
+            return
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(payload, dict):
+            return
+        open_count = payload.get("six_p1_runtime_open_count")
+        wiring = payload.get("wiring_verified")
+        if open_count == 0 and isinstance(wiring, dict):
+            self.state.cloud_runtime_audit_pass = True
+
     def _ready_items(self) -> list[ReadyWorkItem]:
+        self._refresh_cloud_audit_gate()
         state = self.state
         if not state.bound_head or not self.worker_dispatch_enabled:
             return []
