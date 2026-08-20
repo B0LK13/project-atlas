@@ -31,6 +31,7 @@ def test_all_expected_schemas_available() -> None:
         "api-surface-registry",
         "ask-atlas-2-answer",
         "authority-record",
+        "autonomy-broker-state",
         "autonomy-governor-report",
         "autonomy-lease",
         "autonomy-level-catalog",

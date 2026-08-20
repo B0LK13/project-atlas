@@ -566,6 +566,31 @@ Honesty (mandatory):
 - [ ] ORCH001E-008 Independent verification
 - [ ] ORCH001E-009 Owner merge gate (not this package)
 
+## AS-ORCH-CONTINUATION-BROKER-001 — Invocation supervisor
+
+_Status: **IMPLEMENTED — NOT CERTIFIED** (not merged; merge authorization not granted). Same-process supervisor connecting AS-ORCH-001E invocations to the landed AS-ORCH-001D `DispatchPort`. Does **not** create a second governor, DAG engine, lease engine, or dispatch authority. Does **not** merge or invent owner prompts._
+
+Honesty (mandatory):
+
+- `AUTONOMY_CONTINUATION_RUNTIME_GAP = CONFIRMED`
+- `CONTINUATION_BACKEND = SAME_PROCESS_SUPERVISOR_OVER_001E_WITH_001D_DISPATCHPORT`
+- `BROKER_IS_SECOND_GOVERNOR = NO`
+- `BROKER_CAN_AUTHORIZE_MERGE = NO`
+- `BROKER_CAN_BYPASS_OWNER_GATE = NO`
+- `OWNER_REQUEST_ID = BATCH-B-CONTEXT-INTEGRATION-001` already issued
+- `OWNER_REQUEST_REISSUE = FORBIDDEN` while fingerprint unchanged
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+- [x] ORCHBROKER-001 Same-process supervisor over 001E + wired 001D DispatchPort
+- [x] ORCHBROKER-002 Successor cycle start + checkpoint / result dedupe
+- [x] ORCHBROKER-003 Owner-request park/dedupe including seeded Batch-B gate
+- [x] ORCHBROKER-004 Resource-boundary yield into a fresh invocation
+- [x] ORCHBROKER-005 Crash/restart without duplicate dispatch or owner prompt
+- [x] ORCHBROKER-006 Multi-cycle no-human regression + adversarial matrix
+- [ ] ORCHBROKER-007 Independent verification
+- [ ] ORCHBROKER-008 Independent adversarial review
+- [ ] ORCHBROKER-009 Owner merge gate (not this package)
+
 ## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
 
 _Status: **IMPLEMENTED ON MAIN**. Formalizes a single logical autonomous governor, work DAG, leases, overlap gate, continuation, bounded remediation, IV routing, adversarial trigger, evidence hashing, and owner gates A–F. Process dispatch is owned by AS-ORCH-001D (this tree). Does **not** start AS-ORCH-001E, mutate #396, or merge._

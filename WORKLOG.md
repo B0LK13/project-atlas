@@ -6962,3 +6962,31 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - `NEW_HEAD != LOST_HEAD` (required)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `MERGE_PERFORMED = NO`
+
+---
+
+## AS-ORCH-CONTINUATION-BROKER-001 — invocation supervisor / D-078
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-CONTINUATION-BROKER-AND-OWNER-PROMPT-SUPPRESSION-078
+**Branch:** `cursor/orch-continuation-broker-001-5d32` (from `origin/main` `7e797468a2eca37c959920912b1fa264df4be638` / tree `3cb40645c343edf8f8ab95f6ddf3a819e2110ef2`)
+**Mode:** MANDATORY_CONTROL_PLANE_RELIABILITY_REMEDIATION. Does not mutate #419/#426. Does not merge. Does not create a second governor.
+
+### Finding
+`ORCH-CONTINUATION-SESSION-ONE-SHOT-001`: 001E correctly returns continuation while the session transport is one-shot. `governor-loop-tick` constructed `AutonomousLoop` without a `DispatchPort`, ran one `tick()`, and nobody re-invoked it.
+
+### Backend
+`SAME_PROCESS_SUPERVISOR_OVER_001E_WITH_001D_DISPATCHPORT` — reuse landed 001D `dispatch_once`/`recover` via `CallableDispatchPort`. No new token, webhook, or GitHub Actions scheduler.
+
+### Local verification
+- Focused broker + loop tests: 35 passed
+- Schema registry: `autonomy-broker-state` added
+- `ruff check` on package surfaces: pass
+- `mypy` on broker/loop/cli/schema: pass
+- Exact-head CI / IV / ADV: pending after draft PR
+
+### Honesty
+- `SECOND_GOVERNOR_CREATED = NO`
+- `OWNER_REQUEST_REISSUED = NO` (`BATCH-B-CONTEXT-INTEGRATION-001` seeded already-issued)
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `BROKER_CERTIFICATION = NOT_GRANTED`

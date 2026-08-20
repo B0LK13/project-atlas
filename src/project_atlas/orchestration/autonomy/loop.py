@@ -325,6 +325,48 @@ class AutonomousLoop:
                 return last
         return self._stop(StopReason.RESOURCE_BOUNDARY)
 
+    def begin_fresh_invocation(self) -> LoopState:
+        """Reset per-invocation counters. Does not grant authority or start work.
+
+        AS-ORCH-CONTINUATION-BROKER-001 uses this to treat RESOURCE_BOUNDARY as
+        an internal yield into a new invocation, not a human handoff.
+        """
+        verify_loop_state(self._state)
+        if self._state.phase == LoopPhase.FAILED_CLOSED:
+            raise LoopError(
+                "cannot start invocation from failed-closed loop",
+                code="SAFETY_BOUNDARY",
+            )
+        updates: dict[str, object] = {"ticks_in_invocation": 0}
+        if (
+            self._state.phase == LoopPhase.STOPPED
+            and self._state.stop_reason == StopReason.RESOURCE_BOUNDARY
+        ):
+            updates["phase"] = LoopPhase.IDLE
+            updates["stop_reason"] = None
+        self._save(**updates)
+        return self._state
+
+    def clear_owner_park_after_external_change(self) -> LoopState:
+        """Clear an OWNER_GATE stop after the DAG already changed externally.
+
+        The broker may call this only after an owner-authorized world-state
+        change is already visible on the governor. This does not grant the
+        gate, merge, or start work.
+        """
+        verify_loop_state(self._state)
+        if self._state.phase == LoopPhase.FAILED_CLOSED:
+            raise LoopError(
+                "cannot resume a failed-closed loop",
+                code="SAFETY_BOUNDARY",
+            )
+        if (
+            self._state.phase == LoopPhase.STOPPED
+            and self._state.stop_reason == StopReason.OWNER_GATE
+        ):
+            self._save(phase=LoopPhase.IDLE, stop_reason=None, ticks_in_invocation=0)
+        return self._state
+
     def recover(self) -> LoopTickResult:
         """Crash/restart recovery. Never respawns a duplicate process."""
         verify_loop_state(self._state)

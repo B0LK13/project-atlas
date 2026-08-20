@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/schemas/autonomy-broker-state.schema.json",
+  "title": "AutonomyBrokerState",
+  "description": "AS-ORCH-CONTINUATION-BROKER-001 persisted supervisor runtime. Not owner authority. Not a second governor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "package_id",
+    "repository_identity",
+    "main_sha",
+    "main_tree",
+    "dag_generation",
+    "owner_notification_count",
+    "invocation_count",
+    "merge_authorized",
+    "execution_authorized",
+    "authority_granted",
+    "broker_is_second_governor",
+    "record_digest"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "package_id": { "const": "AS-ORCH-CONTINUATION-BROKER-001" },
+    "repository_identity": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "main_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "main_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "current_cycle_id": { "type": ["string", "null"] },
+    "parent_cycle_id": { "type": ["string", "null"] },
+    "successor_cycle_id": { "type": ["string", "null"] },
+    "successor_started": { "type": "boolean" },
+    "checkpoint_digest": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "seen_checkpoint_digests": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "seen_cycle_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "seen_result_digests": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    },
+    "dag_generation": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "active_dispatch_id": { "type": ["string", "null"] },
+    "active_lease_id": { "type": ["string", "null"] },
+    "outcome": {
+      "type": ["string", "null"],
+      "enum": [
+        "CONTINUE",
+        "WAITING_RESULT",
+        "WAITING_OWNER",
+        "HARD_BLOCKED",
+        "SAFETY_STOP",
+        "COMPLETE",
+        null
+      ]
+    },
+    "owner_requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "owner_request_id",
+          "owner_gate_fingerprint",
+          "request_emitted",
+          "request_emitted_seq",
+          "main_sha",
+          "candidate_head",
+          "candidate_tree",
+          "authority_required"
+        ],
+        "properties": {
+          "owner_request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "owner_gate_fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "request_emitted": { "type": "boolean" },
+          "request_emitted_seq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "main_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "candidate_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "candidate_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "authority_required": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "stale": { "type": "boolean" },
+          "satisfied": { "type": "boolean" }
+        }
+      }
+    },
+    "owner_notification_count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "invocation_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "last_result_digest": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "last_checkpoint_replay": { "type": "string", "enum": ["NONE", "IGNORED"] },
+    "last_loop_phase": { "type": ["string", "null"] },
+    "last_stop_reason": { "type": ["string", "null"] },
+    "safe_work_remaining": { "type": "boolean" },
+    "merge_authorized": { "const": false },
+    "execution_authorized": { "const": false },
+    "authority_granted": { "const": false },
+    "broker_is_second_governor": { "const": false },
+    "record_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

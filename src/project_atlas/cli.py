@@ -2558,6 +2558,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
     )
+    orch_gov_broker = orch_sub.add_parser(
+        "governor-broker-run",
+        help=(
+            "AS-ORCH-CONTINUATION-BROKER-001: supervise 001E invocations "
+            "and start exactly one successor cycle after a nonterminal "
+            "checkpoint. Wires the existing 001D DispatchPort. "
+            "Does not merge, waive, or invent owner authority."
+        ),
+    )
+    orch_gov_broker.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Repository root (default: cwd).",
+    )
+    orch_gov_broker.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store.",
+    )
+    orch_gov_broker.add_argument(
+        "--loop-store",
+        type=Path,
+        default=None,
+        help="Optional 001E loop store (default: <root>/.atlas/orchestration/loop).",
+    )
+    orch_gov_broker.add_argument(
+        "--broker-store",
+        type=Path,
+        default=None,
+        help="Optional broker store (default: <root>/.atlas/orchestration/broker).",
+    )
+    orch_gov_broker.add_argument(
+        "--max-cycles",
+        type=int,
+        default=32,
+        help="Maximum successor cycles in this process (default: 32).",
+    )
     orch_dispatch_once = orch_sub.add_parser(
         "dispatch-once",
         help=(
@@ -4935,6 +4974,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 root=Path(getattr(args, "root", None) or Path.cwd()),
                 trust_store=getattr(args, "trust_store", None),
                 loop_store=getattr(args, "loop_store", None),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-broker-run":
+            from project_atlas.orchestration.autonomy.cli import run_governor_broker
+
+            report, exit_code = run_governor_broker(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                trust_store=getattr(args, "trust_store", None),
+                loop_store=getattr(args, "loop_store", None),
+                broker_store=getattr(args, "broker_store", None),
+                max_cycles=int(getattr(args, "max_cycles", 32)),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

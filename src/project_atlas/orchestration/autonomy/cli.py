@@ -220,6 +220,64 @@ def run_governor_pilot(
         }, EXIT_ERROR
 
 
+def run_governor_broker(
+    *,
+    root: Path,
+    trust_store: Path | None = None,
+    loop_store: Path | None = None,
+    broker_store: Path | None = None,
+    max_cycles: int = 32,
+) -> tuple[dict[str, object], int]:
+    """Supervise 001E invocations via AS-ORCH-CONTINUATION-BROKER-001.
+
+    Wires the existing 001D DispatchPort. Does not merge or grant owner
+    authority. Resource-boundary yields start a fresh invocation.
+    """
+    from project_atlas.orchestration.autonomy.broker import (
+        BROKER_PACKAGE_ID,
+        CONTINUATION_BACKEND_SELECTED,
+        BrokerError,
+        ContinuationBroker,
+        wire_001d_dispatch_port,
+    )
+    from project_atlas.orchestration.autonomy.broker import (
+        STATE_DIR_RELATIVE as BROKER_STATE_DIR,
+    )
+
+    try:
+        trusted = _load_trusted(trust_store=trust_store, allow_shipped=trust_store is None)
+        inventory = collect_live_inventory(root)
+        governor = AutonomousGovernor(
+            current_main=inventory.current_main,
+            current_tree=inventory.current_tree,
+            trusted_anchor=trusted,
+        )
+        store = broker_store or (root / BROKER_STATE_DIR)
+        broker = ContinuationBroker(
+            governor=governor,
+            trusted=trusted,
+            store=store,
+            root=root,
+            loop_store=loop_store,
+            dispatch=wire_001d_dispatch_port(),
+        )
+        result = broker.run(max_cycles=max_cycles)
+        payload = result.model_dump(mode="json")
+        payload["package_id"] = BROKER_PACKAGE_ID
+        payload["continuation_backend"] = CONTINUATION_BACKEND_SELECTED
+        payload["dispatchport_wired"] = True
+        payload["merge_authorized"] = False
+        payload["execution_authorized"] = False
+        payload["broker_is_second_governor"] = False
+        exit_code = EXIT_OK
+        if result.outcome.value in {"SAFETY_STOP", "HARD_BLOCKED"}:
+            exit_code = EXIT_ERROR
+        return payload, exit_code
+    except (TrustError, DiscoveryError, LoopError, BrokerError) as exc:
+        code = getattr(exc, "code", "BROKER_FAILED_CLOSED")
+        return _fail_closed(str(exc), blocker=code), EXIT_ERROR
+
+
 def run_governor_loop_tick(
     *,
     root: Path,

@@ -152,6 +152,7 @@ def test_schemas_registered() -> None:
     assert "autonomy-lease" in kinds
     assert "autonomy-trusted-anchor" in kinds
     assert "autonomy-loop-state" in kinds
+    assert "autonomy-broker-state" in kinds
 
 
 def test_work_node_and_plan_schema_parity() -> None:
