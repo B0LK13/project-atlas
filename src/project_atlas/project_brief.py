@@ -34,6 +34,8 @@ _UNVERIFIED_REASON_CODES = frozenset(
         "SOURCE_ROOT_UNVERIFIED",
         "MANIFEST_ABSENT",
         "NO_ACTIVE_SOURCES",
+        "INVALID_SOURCE_ROOT",
+        "PROJECT_REQUIRED",
     }
 )
 _STALE_NEXT_LINE = (
@@ -377,9 +379,10 @@ def build_project_brief(
             "MODEL_OUTPUT!=AUTHORITY",
             "UNKNOWN!=healthy",
             "BRIEF!=AUTHORITY",
-            "STALE!=CURRENT",
         ],
     }
+    # stale_is_current remains False always. Observed stale/unverified
+    # warnings are rendered only when that state is actually proven.
     if live_honesty["answer_evidence_stale"]:
         brief["notes"].append(
             "STALE NEXT EVIDENCE != CURRENT BRIEF RECOMMENDATION"

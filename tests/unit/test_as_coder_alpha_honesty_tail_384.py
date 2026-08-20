@@ -68,6 +68,8 @@ def test_stale_live_and_historical_unchanged_is_not_current(tmp_path: Path) -> N
     assert unchanged["delta"]["modified"] == []
     assert unchanged["delta"]["removed"] == []
     assert unchanged["honesty"]["unchanged_is_current"] is True
+    assert unchanged["honesty"]["stale_is_current"] is False
+    assert "reconnect" not in " ".join(unchanged["notes"]).lower()
 
     readme.write_text("# Honesty tail 384\n\nv2 live edit\n", encoding="utf-8")
     live = evaluate_connect_inventory_drift(vault, project_id)

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from project_atlas.connect import connect_project
 from project_atlas.project_brief import build_project_brief
 from project_atlas.source_identity import canonical_source_sha256
@@ -44,14 +46,24 @@ def test_brief_does_not_present_stale_next_as_current(tmp_path: Path) -> None:
     vault = Path(connected["vault"])
     project_id = str(connected["bound_project_id"])
     fresh = build_project_brief(vault, project_id, refresh=False)
+    assert fresh["source_drift"]["status"] == "FRESH"
     assert fresh["honesty"]["answer_evidence_stale"] is False
+    assert fresh["honesty"]["live_source_unverified"] is False
     assert fresh["honesty"]["stale_is_current"] is False
     assert fresh["honesty"]["brief_is_authority"] is False
     assert fresh["honesty"]["lens_is_authority"] is False
     assert fresh["honesty"]["unknown_is_healthy"] is False
+    fresh_notes = " ".join(fresh["notes"]).lower()
+    fresh_suggested = " ".join(fresh["suggested_next_work"]).lower()
+    assert "stale" not in fresh_notes
+    assert "reconnect" not in fresh_notes
+    assert "stale" not in fresh_suggested
+    assert "reconnect" not in fresh_suggested
+    assert "not current" not in fresh_suggested
 
     (project / "README.md").write_text("# Brief honesty\n\nv2 changed\n", encoding="utf-8")
     stale = build_project_brief(vault, project_id, refresh=False)
+    assert stale["source_drift"]["status"] == "STALE"
     assert stale["honesty"]["answer_evidence_stale"] is True
     assert stale["honesty"]["stale_is_current"] is False
     assert stale["honesty"]["brief_is_authority"] is False
@@ -60,6 +72,7 @@ def test_brief_does_not_present_stale_next_as_current(tmp_path: Path) -> None:
     suggested = " ".join(stale["suggested_next_work"]).lower()
     assert "not current" in suggested
     assert "stale" in suggested or "reconnect" in suggested
+    assert "stale" in " ".join(stale["notes"]).lower()
 
 
 def test_brief_preserves_live_source_unverified(tmp_path: Path) -> None:
@@ -75,13 +88,17 @@ def test_brief_preserves_live_source_unverified(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     brief = build_project_brief(vault, project_id, refresh=False)
+    assert brief["source_drift"]["status"] == "UNKNOWN"
     assert brief["honesty"]["live_source_unverified"] is True
+    assert brief["honesty"]["answer_evidence_stale"] is False
     assert brief["honesty"]["stale_is_current"] is False
     assert brief["honesty"]["unknown_is_healthy"] is False
     assert brief["honesty"]["brief_is_authority"] is False
     suggested = " ".join(brief["suggested_next_work"]).lower()
     assert "unverified" in suggested
-    assert "uncertainty" in " ".join(brief["notes"]).lower()
+    notes = " ".join(brief["notes"]).lower()
+    assert "uncertainty" in notes
+    assert "stale next evidence" not in notes
 
 
 def test_brief_does_not_echo_secret_or_sibling_after_stale_edit(tmp_path: Path) -> None:
@@ -118,3 +135,57 @@ def test_brief_does_not_echo_secret_or_sibling_after_stale_edit(tmp_path: Path) 
     assert "other.md" not in payload
     assert secret not in payload
     assert brief["honesty"]["brief_is_authority"] is False
+
+
+def test_next_stale_honesty_propagates_to_fresh_brief(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _seed_brief_project(tmp_path / "brief-next-stale")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+
+    def _stale_next(_vault: Path, _project_id: str) -> dict[str, object]:
+        return {
+            "answer_id": f"ans-next-{_project_id}",
+            "suggested_next_work": ["Ship the release"],
+            "honesty": {
+                "answer_evidence_stale": True,
+                "live_source_unverified": False,
+            },
+        }
+
+    monkeypatch.setattr("project_atlas.project_next.build_next_lens", _stale_next)
+    brief = build_project_brief(vault, project_id, refresh=False)
+    assert brief["source_drift"]["status"] == "FRESH"
+    assert brief["honesty"]["answer_evidence_stale"] is True
+    assert brief["honesty"]["stale_is_current"] is False
+    assert "not current" in " ".join(brief["suggested_next_work"]).lower()
+
+
+def test_next_unverified_honesty_propagates_to_fresh_brief(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _seed_brief_project(tmp_path / "brief-next-unknown")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+
+    def _unverified_next(_vault: Path, _project_id: str) -> dict[str, object]:
+        return {
+            "answer_id": f"ans-next-{_project_id}",
+            "suggested_next_work": ["Ship the release"],
+            "honesty": {
+                "answer_evidence_stale": False,
+                "live_source_unverified": True,
+            },
+        }
+
+    monkeypatch.setattr("project_atlas.project_next.build_next_lens", _unverified_next)
+    brief = build_project_brief(vault, project_id, refresh=False)
+    assert brief["source_drift"]["status"] == "FRESH"
+    assert brief["honesty"]["live_source_unverified"] is True
+    assert brief["honesty"]["answer_evidence_stale"] is False
+    assert brief["honesty"]["stale_is_current"] is False
+    assert "unverified" in " ".join(brief["suggested_next_work"]).lower()
+    assert "stale next evidence" not in " ".join(brief["notes"]).lower()

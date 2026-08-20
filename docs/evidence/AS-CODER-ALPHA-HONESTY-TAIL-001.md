@@ -2,13 +2,16 @@
 
 ```
 PACKAGE = AS-CODER-ALPHA-HONESTY-TAIL-001
-DIRECTIVE = D-AUTONOMOUS-MULTISTREAM-DAG-RECONCILE-048
+DIRECTIVE = D-AUTONOMOUS-REMEDIATION-AND-WEB-CANONICALIZATION-050
 BASE = dc9d81df0ff7106438de44a4bd84df0b955535bc
 DRAFT = YES
 CERTIFICATION = NOT_GRANTED
 MERGE_AUTHORIZATION = NOT_GRANTED
 INDEPENDENT_IV = BLOCKED
 SELF_REVIEW != INDEPENDENT_IV
+STALE_IS_CURRENT = FALSE
+OBSERVED_STALE != INVARIANT
+FRESH_NOT_REWRITTEN_STALE = YES
 ```
 
 Honesty tail for What Changed (#384) and project brief (#382) on current
@@ -45,8 +48,13 @@ LENS_IS_AUTHORITY=FALSE
 `project_next.py` was not edited. Current-main NEXT does not stamp
 `live_source_unverified`. Brief observes unverified inventory directly via
 `evaluate_connect_inventory_drift` (`SOURCE_ROOT_UNVERIFIED`,
-`MANIFEST_ABSENT`, `NO_ACTIVE_SOURCES`) and still copies NEXT honesty keys
-when a later lens adds them.
+`MANIFEST_ABSENT`, `NO_ACTIVE_SOURCES`, `INVALID_SOURCE_ROOT`) and still
+copies NEXT honesty keys when a later lens adds them.
+
+D-050 remediations: `honesty.stale_is_current` remains the global
+invariant (`false`). It does not stamp observed-stale notes or reconnect
+warnings onto FRESH evidence. UNKNOWN stays UNKNOWN (`live_source_unverified`)
+and is not rewritten as STALE.
 
 ```
 SECRET_CONTENT_ECHO = NO
