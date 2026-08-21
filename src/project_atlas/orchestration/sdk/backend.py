@@ -14,6 +14,10 @@ from typing import Any, Protocol
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.sdk.auth import AuthDiscovery, discover_auth
+from project_atlas.orchestration.sdk.cloud_run_recovery import (
+    CloudRunRecoveryClass,
+    recover_exact_cloud_run,
+)
 from project_atlas.orchestration.sdk.idempotency import build_idempotency_key
 from project_atlas.orchestration.sdk.lease_registry import (
     require_scheduler_lease,
@@ -37,7 +41,7 @@ from project_atlas.orchestration.sdk.mutation_attribution import (
     CloudRemoteGitAttributionProvider,
     RunGitInfo,
     collect_run_changed_paths,
-    extract_run_git,
+    extract_terminal_run_git,
     load_run_mutation_baseline,
     mint_cloud_run_baseline,
     persist_agent_remote_high_water,
@@ -451,7 +455,11 @@ class CursorSDKExecutionBackend:
                 code="LEASE_REQUIRED",
             )
         stored_agent = self.agents_reg.get(record.agent_id)
-        git_info = extract_run_git(terminal_git) if terminal_git is not None else None
+        git_info = (
+            extract_terminal_run_git(terminal_git)
+            if terminal_git is not None
+            else None
+        )
         runtime = self._resolve_mutating_runtime(
             record,
             stored_agent=stored_agent,
@@ -781,6 +789,67 @@ class CursorSDKExecutionBackend:
             raise SdkRuntimeError("run/agent binding mismatch", code="BINDING_MISMATCH")
         return status
 
+    def _terminalize_after_attribution(
+        self,
+        *,
+        run_id: str,
+        agent_id: str,
+        status: RunStatus,
+        result_digest: str | None,
+        token_usage_total: int | None = None,
+        terminal_git: Any = None,
+        agent_runtime: AgentRuntime | None = None,
+    ) -> RunRecord:
+        """ONE D-119/D-115 funnel: enforce attribution BEFORE durable mark_terminal."""
+        provisional = self.runs_reg.get(run_id)
+        if provisional is None:
+            raise SdkRuntimeError("run missing before path enforce", code="RUN_MISSING")
+        if provisional.agent_id != agent_id:
+            raise SdkRuntimeError("run/agent binding mismatch", code="BINDING_MISMATCH")
+        # Path enforce + HW persist must precede mark_terminal.
+        self._enforce_run_paths(
+            provisional, terminal_git=terminal_git, agent_runtime=agent_runtime
+        )
+        updated = self.runs_reg.mark_terminal(
+            run_id,
+            status=status,
+            result_digest=result_digest,
+            token_usage_total=token_usage_total,
+        )
+        stored = self.agents_reg.get(agent_id)
+        if stored is not None:
+            self.agents_reg.upsert(
+                stored.model_copy(update={"state": AgentState.IDLE})
+            )
+        return updated
+
+    async def recover_exact_cloud_run(
+        self, *, agent_id: str, run_id: str
+    ) -> Any:
+        """Public recovery primitive — never mark_terminal."""
+        stored_agent = self.agents_reg.get(agent_id)
+        stored_run = self.runs_reg.get(run_id)
+        if stored_agent is None or stored_run is None:
+            raise SdkRuntimeError(
+                "missing persisted agent/run for recovery",
+                code=CloudRunRecoveryClass.CLOUD_RUN_RECOVERY_UNDETERMINED.value,
+            )
+        client = await self._ensure_client()
+
+        async def _resume(aid: str) -> None:
+            await self.resume_agent(aid)
+
+        recovered = await recover_exact_cloud_run(
+            client=client,
+            agent=stored_agent,
+            run=stored_run,
+            agent_id=agent_id,
+            run_id=run_id,
+            api_key=self._api_key,
+            resume=_resume,
+        )
+        return recovered
+
     async def wait_run(self, run_id: str, *, agent_id: str) -> RunRecord:
         handle = self._handles.get(f"run:{run_id}")
         if handle is not None:
@@ -796,37 +865,64 @@ class CursorSDKExecutionBackend:
                 result_text=str(text) if text is not None else "",
                 token_usage_total=tokens,
             )
-            # Enforce scope while the run is still nonterminal so REJECTED_SCOPE_ESCAPE
-            # cannot leave a durable FINISHED record outside scheduler.nonterminal().
-            provisional = self.runs_reg.get(run_id)
-            if provisional is None:
-                raise SdkRuntimeError("run missing before path enforce", code="RUN_MISSING")
-            self._enforce_run_paths(provisional, terminal_git=result)
-            updated = self.runs_reg.mark_terminal(
-                run_id,
+            return self._terminalize_after_attribution(
+                run_id=run_id,
+                agent_id=agent_id,
                 status=ingested.status,
                 result_digest=ingested.result_digest,
                 token_usage_total=ingested.token_usage_total,
+                terminal_git=result,
             )
-            stored = self.agents_reg.get(agent_id)
-            if stored is not None:
-                self.agents_reg.upsert(stored.model_copy(update={"state": AgentState.IDLE}))
-            return updated
-        # Detached recovery path
-        status = await self.get_run_status(run_id, agent_id=agent_id)
-        if status not in {RunStatus.FINISHED, RunStatus.ERROR, RunStatus.CANCELLED}:
-            return self.runs_reg.get(run_id)  # type: ignore[return-value]
-        ingested = adapt_run_result(run_id=run_id, agent_id=agent_id, status=status)
-        provisional = self.runs_reg.get(run_id)
-        if provisional is None:
+        # Detached recovery path — exact Cloud reattach when possible
+        stored = self.runs_reg.get(run_id)
+        if stored is None:
             raise SdkRuntimeError("run missing before path enforce", code="RUN_MISSING")
-        terminal_git = None
-        try:
-            client = await self._ensure_client()
-            terminal_git = await client.agents.get_run(run_id)
-        except Exception:
-            terminal_git = None
-        self._enforce_run_paths(provisional, terminal_git=terminal_git)
-        return self.runs_reg.mark_terminal(
-            run_id, status=ingested.status, result_digest=ingested.result_digest
+        if stored.agent_id != agent_id:
+            raise SdkRuntimeError("run/agent binding mismatch", code="BINDING_MISMATCH")
+        stored_agent = self.agents_reg.get(agent_id)
+        terminal_git: Any = None
+        status: RunStatus | None = None
+        if (
+            stored_agent is not None
+            and stored_agent.runtime == AgentRuntime.CLOUD
+            and agent_id.startswith("bc-")
+        ):
+            try:
+                recovered = await self.recover_exact_cloud_run(
+                    agent_id=agent_id, run_id=run_id
+                )
+                terminal_git = recovered.snapshot
+                status = normalize_run_status(
+                    str(getattr(recovered.snapshot, "status", None) or "finished")
+                )
+            except SdkRuntimeError as exc:
+                # Undetermined recovery: keep NONTERMINAL; never mark_terminal.
+                if exc.code in {
+                    CloudRunRecoveryClass.CLOUD_RUN_RECOVERY_UNDETERMINED.value,
+                    CloudRunRecoveryClass.AMBIGUOUS_RECOVERED_RUN.value,
+                    CloudRunRecoveryClass.FOREIGN_RECOVERED_RUN.value,
+                }:
+                    raise
+                raise
+        else:
+            status = await self.get_run_status(run_id, agent_id=agent_id)
+            if status in {RunStatus.FINISHED, RunStatus.ERROR, RunStatus.CANCELLED}:
+                try:
+                    client = await self._ensure_client()
+                    terminal_git = await client.agents.get_run(run_id)
+                except Exception:
+                    terminal_git = None
+        if status is None or status not in {
+            RunStatus.FINISHED,
+            RunStatus.ERROR,
+            RunStatus.CANCELLED,
+        }:
+            return stored
+        ingested = adapt_run_result(run_id=run_id, agent_id=agent_id, status=status)
+        return self._terminalize_after_attribution(
+            run_id=run_id,
+            agent_id=agent_id,
+            status=ingested.status,
+            result_digest=ingested.result_digest,
+            terminal_git=terminal_git,
         )

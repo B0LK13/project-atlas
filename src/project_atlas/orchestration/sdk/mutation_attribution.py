@@ -278,39 +278,76 @@ def _agent_has_incomplete_cloud_baseline(root: Path, agent_id: str) -> bool:
     return False
 
 
-def extract_run_git(result: Any) -> RunGitInfo | None:
-    """Pull Run.git / git.branches[] from a Cursor run result object.
-
-    Live cursor_sdk places ``repo_url`` on each branch entry (not always on the
-    parent). Optional run-scoped SHAs are harvested when present for TOCTOU-safe
-    post_head binding.
-    """
-    git_obj = getattr(result, "git", None)
-    if git_obj is None and isinstance(result, dict):
-        git_obj = result.get("git")
-    if git_obj is None:
+def _mapping_or_attr(obj: Any, *names: str) -> Any:
+    """Read an explicit field from a typed object or mapping. No recursion."""
+    if obj is None:
         return None
-    repo = getattr(git_obj, "repo_url", None) or getattr(git_obj, "repoUrl", None)
-    if repo is None and isinstance(git_obj, dict):
-        repo = git_obj.get("repo_url") or git_obj.get("repoUrl") or git_obj.get("url")
-    head_sha = (
-        getattr(git_obj, "head_sha", None)
-        or getattr(git_obj, "headSha", None)
-        or getattr(git_obj, "commit_sha", None)
-        or getattr(git_obj, "commitSha", None)
-        or getattr(git_obj, "sha", None)
+    for name in names:
+        if isinstance(obj, dict) and name in obj:
+            return obj[name]
+        value = getattr(obj, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _locate_terminal_git_object(source: Any) -> Any | None:
+    """Bounded D-119 shapes only: source.git | source.run.git | dict forms."""
+    if source is None:
+        return None
+    git_obj = _mapping_or_attr(source, "git")
+    if git_obj is not None:
+        return git_obj
+    run_obj = _mapping_or_attr(source, "run")
+    if run_obj is not None:
+        return _mapping_or_attr(run_obj, "git")
+    return None
+
+
+def _read_repo_url_from_git_object(git_obj: Any) -> str | None:
+    """Explicit git.* fields only (plus observed branch-entry repo_url on git)."""
+    repo = _mapping_or_attr(git_obj, "repo_url", "repoUrl")
+    if repo is not None:
+        return str(repo)
+    nested = _mapping_or_attr(git_obj, "repo", "repository")
+    if nested is not None:
+        nested_url = _mapping_or_attr(nested, "url", "repo_url", "repoUrl")
+        if nested_url is not None:
+            return str(nested_url)
+    # Authentic cursor_sdk: repo_url may live on git.branches[] entries.
+    branches_raw = _mapping_or_attr(git_obj, "branches")
+    if isinstance(branches_raw, (list, tuple)):
+        for item in branches_raw:
+            if isinstance(item, str):
+                continue
+            item_repo = _mapping_or_attr(item, "repo_url", "repoUrl", "url")
+            if item_repo is not None:
+                return str(item_repo)
+    return None
+
+
+def _read_head_sha_from_git_object(git_obj: Any) -> str | None:
+    head_sha = _mapping_or_attr(
+        git_obj, "head_sha", "headSha", "commit_sha", "commitSha", "sha"
     )
-    if head_sha is None and isinstance(git_obj, dict):
-        head_sha = (
-            git_obj.get("head_sha")
-            or git_obj.get("headSha")
-            or git_obj.get("commit_sha")
-            or git_obj.get("commitSha")
-            or git_obj.get("sha")
-        )
-    branches_raw = getattr(git_obj, "branches", None)
-    if branches_raw is None and isinstance(git_obj, dict):
-        branches_raw = git_obj.get("branches")
+    branches_raw = _mapping_or_attr(git_obj, "branches")
+    if head_sha is None and isinstance(branches_raw, (list, tuple)):
+        for item in branches_raw:
+            if isinstance(item, str):
+                continue
+            head_sha = _mapping_or_attr(
+                item, "head_sha", "headSha", "commit_sha", "commitSha", "sha"
+            )
+            if head_sha is not None:
+                break
+    if head_sha is None:
+        return None
+    text = str(head_sha).strip()
+    return text if len(text) >= 7 else None
+
+
+def _read_branches_from_git_object(git_obj: Any) -> tuple[str, ...]:
+    branches_raw = _mapping_or_attr(git_obj, "branches")
     branches: list[str] = []
     if isinstance(branches_raw, (list, tuple)):
         for item in branches_raw:
@@ -318,50 +355,88 @@ def extract_run_git(result: Any) -> RunGitInfo | None:
                 name = item.strip()
             else:
                 name = str(
-                    getattr(item, "name", None)
-                    or getattr(item, "branch", None)
-                    or (item.get("name") if isinstance(item, dict) else "")
-                    or (item.get("branch") if isinstance(item, dict) else "")
-                    or ""
+                    _mapping_or_attr(item, "name", "branch") or ""
                 ).strip()
-                if repo is None:
-                    item_repo = getattr(item, "repo_url", None) or getattr(
-                        item, "repoUrl", None
-                    )
-                    if item_repo is None and isinstance(item, dict):
-                        item_repo = (
-                            item.get("repo_url")
-                            or item.get("repoUrl")
-                            or item.get("url")
-                        )
-                    if item_repo is not None:
-                        repo = item_repo
-                if head_sha is None:
-                    item_sha = (
-                        getattr(item, "head_sha", None)
-                        or getattr(item, "headSha", None)
-                        or getattr(item, "commit_sha", None)
-                        or getattr(item, "sha", None)
-                    )
-                    if item_sha is None and isinstance(item, dict):
-                        item_sha = (
-                            item.get("head_sha")
-                            or item.get("headSha")
-                            or item.get("commit_sha")
-                            or item.get("sha")
-                        )
-                    if item_sha is not None:
-                        head_sha = item_sha
             if name:
                 branches.append(name)
-    sha_text = str(head_sha).strip() if head_sha is not None else None
-    if sha_text is not None and len(sha_text) < 7:
-        sha_text = None
+    return tuple(branches)
+
+
+def extract_terminal_run_git(source: Any) -> RunGitInfo | None:
+    """D-119 bounded adapter: locate Run.git then read explicit fields only.
+
+    Allowed traversal: ``source.git``, ``source.run.git``, and dict equivalents.
+    No arbitrary recursive walk / substring search / prose parsing.
+    """
+    git_obj = _locate_terminal_git_object(source)
+    if git_obj is None:
+        return None
     return RunGitInfo(
-        repo_url=str(repo) if repo is not None else None,
-        branches=tuple(branches),
-        head_sha=sha_text,
+        repo_url=_read_repo_url_from_git_object(git_obj),
+        branches=_read_branches_from_git_object(git_obj),
+        head_sha=_read_head_sha_from_git_object(git_obj),
     )
+
+
+def extract_run_git(result: Any) -> RunGitInfo | None:
+    """Compatibility alias for :func:`extract_terminal_run_git`."""
+    return extract_terminal_run_git(result)
+
+
+def bind_terminal_git_repository(
+    terminal_git: RunGitInfo,
+    *,
+    attribution: RunMutationBaseline,
+) -> RunGitInfo:
+    """Apply trusted launch binding vs terminal SDK echo (D-119).
+
+    - ``REPO_URL_PRESENT_AND_FOREIGN`` → fail closed
+    - ``REPO_URL_ABSENT`` + valid canonical launch baseline → supply from baseline
+    - ``REPO_URL_ABSENT`` without valid baseline → fail closed
+    """
+    canon = canonical_repo_identity()
+    base_id = normalize_repo_identity(attribution.repository)
+    if terminal_git.repo_url is not None:
+        echo_id = normalize_repo_identity(terminal_git.repo_url)
+        if (
+            echo_id is None
+            or canon is None
+            or echo_id != canon
+            or base_id != canon
+            or echo_id != base_id
+        ):
+            raise SdkRuntimeError(
+                "foreign repository in terminal Run.git",
+                code="REMOTE_ATTRIBUTION_UNDETERMINED",
+            )
+        return terminal_git
+    # Omitted repo_url: launch baseline may supply ONLY under strict binding.
+    if attribution.runtime != AgentRuntime.CLOUD:
+        raise SdkRuntimeError(
+            "terminal Run.git missing repository",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    if attribution.package_id != PACKAGE_ID:
+        raise SdkRuntimeError(
+            "launch baseline package_id mismatch",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    if base_id != canon:
+        raise SdkRuntimeError(
+            "launch baseline repository is not canonical Atlas",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    if not attribution.remote_pre_head or len(attribution.remote_pre_head) < 7:
+        raise SdkRuntimeError(
+            "launch baseline remote_pre_head invalid",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    if not attribution.run_id or not attribution.agent_id:
+        raise SdkRuntimeError(
+            "launch baseline missing run/agent binding",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    return terminal_git.model_copy(update={"repo_url": attribution.repository})
 
 
 def select_canonical_remote_branch(
@@ -535,8 +610,13 @@ class CloudRemoteGitAttributionProvider:
                 "missing CLOUD remote baseline",
                 code="REMOTE_ATTRIBUTION_UNDETERMINED",
             )
+        # D-119: bind trusted launch repository when Run.git omits repo_url;
+        # foreign present echo always fails closed.
+        bound_git = bind_terminal_git_repository(
+            terminal_git, attribution=attribution
+        )
         branch = select_canonical_remote_branch(
-            terminal_git, expected_branch=attribution.remote_branch
+            bound_git, expected_branch=attribution.remote_branch
         )
         if (
             attribution.remote_branch
@@ -551,8 +631,8 @@ class CloudRemoteGitAttributionProvider:
         # resolution remains a documented residual hazard covered by regression
         # tests that prove SHA preference when present.
         post: str | None = None
-        if terminal_git.head_sha and len(terminal_git.head_sha) >= 7:
-            post = terminal_git.head_sha.strip()
+        if bound_git.head_sha and len(bound_git.head_sha) >= 7:
+            post = bound_git.head_sha.strip()
         else:
             post = self._resolve_head(attribution.repository, branch)
         if post is None or len(post) < 7:
