@@ -22,7 +22,7 @@ from project_atlas.orchestration.sdk.external_observers import (
     pending_external_count,
 )
 from project_atlas.orchestration.sdk.host import pid_is_alive
-from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, AgentRole
+from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
 from project_atlas.orchestration.sdk.nonblocking_scheduler import (
     bounded_sleep_seconds,
     register_ci_observer,
@@ -243,108 +243,66 @@ def _arm_consumed(root: Path, *, consumed: list[str], now: float) -> None:
         )
 
 
-def _default_ready(root: Path, *, now: float) -> list[ReadyWorkItem]:
-    """Meaningful independent READY nodes — never leave ticks as CI-only sleep."""
-    # Persist durable standing work cards so READY is never falsely empty.
-    cards = _runtime(root) / "d131-standing-ready.json"
-    standing = [
-        {
-            "package_id": "AS-DEMO-READINESS-DAG-001",
-            "node_id": "DEMO-AUTHENTIC-GAP-CARD",
-            "prompt": "maintain authentic demo gap DAG",
-            "critical_path_score": 80,
-        },
-        {
-            "package_id": "AS-RELEASE-READINESS-DAG-001",
-            "node_id": "RELEASE-GAP-CARD",
-            "prompt": "maintain release readiness DAG",
-            "critical_path_score": 60,
-        },
-        {
-            "package_id": "AS-CODER-ALPHA-AUTHENTIC-DEMO-PREP-001",
-            "node_id": "AUTHENTIC-PILOT-PREP",
-            "prompt": "prep authentic pilot independent of PR431 merge",
-            "critical_path_score": 75,
-        },
-    ]
-    cards.write_text(json.dumps({"nodes": standing, "at": now}, indent=2) + "\n", encoding="utf-8")
-
-    # Throttle identical node_id re-dispatch, but keep READY_NODE_COUNT > 0 visible.
-    last = _runtime(root) / "d131-last-progress-dispatch.json"
-    recently: set[str] = set()
-    if last.is_file():
-        try:
-            prev = json.loads(last.read_text(encoding="utf-8"))
-            if now - float(prev.get("at", 0)) < RECONCILE_INTERVAL_SEC:
-                recently = set(prev.get("nodes") or [])
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            recently = set()
-
-    items: list[ReadyWorkItem] = []
-    for row in standing:
-        nid = str(row["node_id"])
-        if nid in recently:
-            # Still count as READY for wake override — use epoch-suffixed id for dispatch
-            # only when throttle elapsed; otherwise expose as ready-but-parked via score.
-            continue
-        score = int(str(row["critical_path_score"]))
-        items.append(
-            ReadyWorkItem(
-                role=AgentRole.READ_ONLY_ANALYST,
-                package_id=str(row["package_id"]),
-                node_id=f"{nid}-{int(now)}",
-                cycle_id="d131",
-                dag_generation=1,
-                base_main="bd8faa8f97df454943181d19f1e14ee826900a20",
-                prompt=str(row["prompt"]),
-                critical_path_score=score,
-            )
+def _try_closed_loop(root: Path, *, now: float) -> dict[str, object] | None:
+    """Optional mission reconciler hook (PR436+). Never required for heartbeat."""
+    try:
+        from project_atlas.orchestration.sdk.mission_reconciler import (  # noqa: PLC0415
+            closed_loop_tick,
+            real_active_worker_count,
+            load_mission_state,
+            ready_work_items,
+            mission_reconcile,
         )
+    except ImportError:
+        return None
+    # Pace closed-loop generations (not every heartbeat)
+    marker = _runtime(root) / "d132-last-closed-loop.json"
+    if marker.is_file():
+        try:
+            prev = json.loads(marker.read_text(encoding="utf-8"))
+            if now - float(prev.get("at", 0)) < 20.0:
+                mission_reconcile(root)  # still replenish/dedupe
+                return {
+                    "paced": True,
+                    "REAL_ACTIVE_WORKER_COUNT": real_active_worker_count(root),
+                    "MISSION_PROGRESS_SEQUENCE": load_mission_state(root).PROGRESS_SEQUENCE,
+                    "at": now,
+                }
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            pass
+    items = ready_work_items(root, capacity=1)
     if not items:
-        # Only force backlog when nothing recently progressed — avoid busy-spin.
-        last = _runtime(root) / "d131-last-progress-dispatch.json"
-        force = True
-        if last.is_file():
-            try:
-                prev = json.loads(last.read_text(encoding="utf-8"))
-                if now - float(prev.get("at", 0)) < RECONCILE_INTERVAL_SEC:
-                    force = False
-            except (OSError, json.JSONDecodeError, TypeError, ValueError):
-                force = True
-        if force:
-            items.append(
-                ReadyWorkItem(
-                    role=AgentRole.READ_ONLY_ANALYST,
-                    package_id="AS-ORCH-SELF-WAKE-RESIDENT-DRIVER-001",
-                    node_id=f"BACKLOG-RECONCILE-{int(now)}",
-                    cycle_id="d131",
-                    dag_generation=1,
-                    base_main="bd8faa8f97df454943181d19f1e14ee826900a20",
-                    prompt="backlog reconcile while CI pending",
-                    critical_path_score=50,
-                )
-            )
-    return items
+        mission_reconcile(root)
+    result = closed_loop_tick(root)
+    state = load_mission_state(root)
+    result["REAL_ACTIVE_WORKER_COUNT"] = real_active_worker_count(root)
+    result["MISSION_PROGRESS_SEQUENCE"] = state.PROGRESS_SEQUENCE
+    result["at"] = now
+    marker.write_text(json.dumps({"at": now}, indent=2) + "\n", encoding="utf-8")
+    return result  # type: ignore[return-value]
+
+
+def _default_ready(root: Path, *, now: float) -> list[ReadyWorkItem]:
+    """Prefer mission-reconciler READY nodes. No standing-card spam."""
+    try:
+        from project_atlas.orchestration.sdk.mission_reconciler import (  # noqa: PLC0415
+            ready_work_items,
+            mission_reconcile,
+        )
+
+        items = ready_work_items(root, capacity=2)
+        if not items:
+            mission_reconcile(root)
+            items = ready_work_items(root, capacity=2)
+        return items
+    except ImportError:
+        # PR435-only: empty ready is honest; heartbeat continues; no fake workers.
+        return []
 
 
 def _record_dispatch_progress(root: Path, *, now: float, nodes: list[str]) -> None:
-    (_runtime(root) / "d131-last-progress-dispatch.json").write_text(
-        json.dumps({"at": now, "nodes": nodes}, indent=2) + "\n", encoding="utf-8"
-    )
-    (_runtime(root) / "d131-live-dispatch-proof.json").write_text(
-        json.dumps(
-            {
-                "NEW_WORKER_DISPATCHED": "YES" if nodes else "NO",
-                "NEW_DAG_NODE_TRANSITION": "YES" if nodes else "NO",
-                "nodes": nodes,
-                "WHILE_CI_PENDING": "YES",
-                "at": now,
-                "MERGE_AUTHORIZATION": "NOT_GRANTED",
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
+    (_runtime(root) / "d132-last-scheduler-dispatch.json").write_text(
+        json.dumps({"at": now, "nodes": nodes, "synthetic": False}, indent=2) + "\n",
         encoding="utf-8",
     )
 
@@ -356,13 +314,24 @@ def resident_tick(
     capacity: int = 3,
     ready: list[ReadyWorkItem] | None = None,
 ) -> ResidentTickResult:
-    """One self-wake scheduler tick. Never blocks on CI. Always considers READY work."""
+    """One self-wake scheduler tick. Never blocks on CI."""
     ts = time.time() if now is None else now
     mission = load_mission(root)
     ensure_active_observers(root, now=ts)
     snapshots = _ci_snapshots_for_due(root, now=ts)
 
+    # Closed-loop work producer (when mission reconciler package is present)
+    loop_result = _try_closed_loop(root, now=ts)
+
     work = ready if ready is not None else _default_ready(root, now=ts)
+    # If still empty after reconcile, count empty-queue reconciliation
+    if not work and loop_result is None:
+        (_runtime(root) / "d132-empty-ready-reconcile.json").write_text(
+            json.dumps({"at": ts, "note": "empty_ready_no_mission_reconciler"}, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
+
     tick = scheduler_tick(
         root,
         ready=work,
@@ -381,20 +350,19 @@ def resident_tick(
         )
 
     wake = tick.next_wake_at
-    if tick.ready_before > 0 and tick.dispatched:
-        sleep_sec = 0.05
-        wake = ts
-    elif tick.ready_before > 0:
-        sleep_sec = 0.0
-        wake = ts
-    else:
-        sleep_sec = bounded_sleep_seconds(
-            next_wake_at=wake, now=ts, cap_sec=mission.heartbeat_cap_sec
-        )
+    sleep_sec = bounded_sleep_seconds(
+        next_wake_at=wake, now=ts, cap_sec=mission.heartbeat_cap_sec
+    )
+    if tick.ready_before > 0:
+        sleep_sec = max(0.5, min(sleep_sec, mission.heartbeat_cap_sec))
+        wake = ts + sleep_sec
 
     owner_held = _owner_held_count(root)
     pending = pending_external_count(load_observer_registry(root))
-    progress = bool(tick.dispatched or consumed)
+    # PROJECT_PROGRESS only for real closed-loop outcomes or CI consume
+    real_progress = bool(consumed) or bool(
+        loop_result and int(loop_result.get("REAL_WORKER_DISPATCH_COUNT") or 0) > 0
+    )
 
     auth = discover_auth()
     status = load_status(root)
@@ -409,18 +377,27 @@ def resident_tick(
     status.scheduler_tick_sequence += 1
     status.DETACHED_SCHEDULER_TICK_COUNT = status.scheduler_tick_sequence
     status.LAST_SCHEDULER_TICK = ts
-    if progress:
+    if real_progress:
         status.LAST_PROGRESS_AT = ts
         status.progress_sequence += 1
     status.NEXT_WAKE_AT = wake if wake is not None else ts + sleep_sec
     status.READY_NODE_COUNT = tick.ready_before
-    status.ACTIVE_WORKER_COUNT = len(tick.dispatched)
+    # Never count synthetic READY cards as active workers
+    try:
+        from project_atlas.orchestration.sdk.mission_reconciler import (  # noqa: PLC0415
+            real_active_worker_count,
+        )
+
+        status.ACTIVE_WORKER_COUNT = real_active_worker_count(root)
+    except ImportError:
+        status.ACTIVE_WORKER_COUNT = 0
     status.PENDING_EXTERNAL_EVENT_COUNT = pending
     status.OWNER_HELD_COUNT = owner_held
     status.LAST_EVENT_CONSUMED = consumed[-1] if consumed else status.LAST_EVENT_CONSUMED
-    status.LAST_NODE_DISPATCHED = (
-        tick.dispatched[-1].node_id if tick.dispatched else status.LAST_NODE_DISPATCHED
-    )
+    if loop_result and loop_result.get("worker_id"):
+        status.LAST_NODE_DISPATCHED = str(loop_result.get("worker_id"))
+    elif tick.dispatched:
+        status.LAST_NODE_DISPATCHED = tick.dispatched[-1].node_id
     status.CURSOR_API_KEY_PRESENT = (
         "YES" if auth.cursor_api_key_available == "YES" else "NO"
     )
@@ -434,16 +411,23 @@ def resident_tick(
         if tick.governor_state == "OWNER_REQUIRED"
         and pending == 0
         and tick.ready_before == 0
+        and loop_result is None
         else "NO"
     )
     status.CASE = classify_runtime_case(
         process_exists=True,
         ticks_advance=True,
         ready_count=tick.ready_before,
-        useful_dispatch=bool(tick.dispatched) or tick.ready_before == 0,
+        useful_dispatch=real_progress or tick.ready_before == 0,
         watchdog_ok=True,
     )
     persist_status(root, status)
+
+    if loop_result is not None:
+        (_runtime(root) / "d132-closed-loop-last.json").write_text(
+            json.dumps(loop_result, indent=2, sort_keys=True, default=str) + "\n",
+            encoding="utf-8",
+        )
 
     result = ResidentTickResult(
         tick_at=ts,
@@ -453,7 +437,7 @@ def resident_tick(
         dispatched=[d.node_id for d in tick.dispatched],
         terminal_consumed=consumed,
         observers_polled=polled,
-        progress=progress,
+        progress=real_progress,
         sleep_sec=sleep_sec,
         owner_held=owner_held,
         global_owner_required=status.GLOBAL_OWNER_REQUIRED,
@@ -472,6 +456,8 @@ def resident_tick(
             "sleep": sleep_sec,
             "heartbeat": status.heartbeat_sequence,
             "progress_seq": status.progress_sequence,
+            "real_progress": real_progress,
+            "closed_loop": bool(loop_result),
             "package": PACKAGE_ID,
         },
     )
