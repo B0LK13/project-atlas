@@ -566,6 +566,60 @@ def test_empty_run_git_branch_ambiguous_new_auto_branches_fail_closed(
     assert "ambiguous" in str(exc.value).casefold()
 
 
+def test_cloud_provider_first_parent_fallback_when_base_main_diverges(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Empty Run.git + auto-branch: Cloud start SHA may differ from base_main."""
+    import project_atlas.orchestration.sdk.mutation_attribution as ma
+
+    parent = "cccccccccccccccccccccccccccccccccccccccc"
+    tip = "dddddddddddddddddddddddddddddddddddddddd"
+    calls: list[tuple[str, str]] = []
+
+    def fake_head(_repo: str, _branch: str) -> str:
+        return tip
+
+    def fake_diff(repo: str, pre: str, post: str, *, work_root: Path) -> list[str] | None:
+        calls.append((pre, post))
+        if pre == PIN:
+            raise SdkRuntimeError(
+                "remote terminal head is not a descendant of baseline",
+                code="REMOTE_ATTRIBUTION_UNDETERMINED",
+            )
+        if pre == parent and post == tip:
+            return ["tests/unit/smoke-v2-dev/x/run-1.txt"]
+        return None
+
+    monkeypatch.setattr(ma, "resolve_commit_first_parent", lambda *_a, **_k: parent)
+    provider = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=fake_head,
+        resolve_remote_diff=None,
+    )
+    monkeypatch.setattr(ma, "default_resolve_remote_diff", fake_diff)
+    monkeypatch.setattr(
+        ma,
+        "list_remote_auto_branches",
+        lambda _r: ("cursor/smoke-v2-dev-run1-x",),
+    )
+    attr = _baseline(
+        remote_branch=None,
+        remote_auto_branches_pre=(),
+        remote_pre_head=PIN,
+    )
+    paths = provider.collect_changed_paths(
+        root=tmp_path,
+        attribution=attr,
+        terminal_git=RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=()),
+        local_pre_head=None,
+    )
+    assert paths == ["tests/unit/smoke-v2-dev/x/run-1.txt"]
+    assert attr.remote_pre_head == parent
+    assert attr.remote_post_head == tip
+    assert attr.remote_branch == "cursor/smoke-v2-dev-run1-x"
+    assert (PIN, tip) in calls
+    assert (parent, tip) in calls
+
+
 def test_remote_diff_returns_none_when_objects_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -599,3 +653,17 @@ def test_remote_diff_returns_none_when_objects_missing(
     assert result is None
     assert any(c[:2] == ["git", "fetch"] for c in calls)
     assert not any("--depth=0" in c for c in calls)
+
+
+def test_extract_omitted_branch_name_from_authentic_wire_shape() -> None:
+    """Wire shape: git.branches[{repoUrl}] with no branch field → branches=()."""
+    info = extract_terminal_run_git(
+        {
+            "git": {
+                "branches": [{"repoUrl": "github.com/B0LK13/project-atlas"}],
+            }
+        }
+    )
+    assert info is not None
+    assert info.repo_url == "github.com/B0LK13/project-atlas"
+    assert info.branches == ()

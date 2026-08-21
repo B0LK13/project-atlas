@@ -543,6 +543,42 @@ def select_canonical_remote_branch(
     return branch
 
 
+def resolve_commit_first_parent(
+    repository: str, commit: str, *, work_root: Path
+) -> str | None:
+    """Return first parent SHA of ``commit`` after fetching into ``work_root``."""
+    import subprocess
+
+    try:
+        fetched = subprocess.run(
+            ["git", "fetch", "--no-tags", repository, commit],
+            cwd=str(work_root),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if fetched.returncode != 0:
+        pass
+    try:
+        probe = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{commit}^"],
+            cwd=str(work_root),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if probe.returncode != 0:
+        return None
+    parent = (probe.stdout or "").strip()
+    return parent if len(parent) >= 7 else None
+
+
 def default_resolve_remote_head(repository: str, branch: str) -> str | None:
     """Resolve remote branch HEAD via git ls-remote. None => undetermined."""
     import subprocess
@@ -726,17 +762,48 @@ class CloudRemoteGitAttributionProvider:
                 "remote terminal HEAD cannot be resolved",
                 code="REMOTE_ATTRIBUTION_UNDETERMINED",
             )
-        if self._resolve_diff is not None:
-            paths = self._resolve_diff(
-                attribution.repository, attribution.remote_pre_head, post
+        pre = attribution.remote_pre_head
+        paths: list[str] | None
+        try:
+            if self._resolve_diff is not None:
+                paths = self._resolve_diff(attribution.repository, pre, post)
+            else:
+                paths = default_resolve_remote_diff(
+                    attribution.repository,
+                    pre,
+                    post,
+                    work_root=root,
+                )
+        except SdkRuntimeError as exc:
+            # ORCH-SDK-CLOUD-STARTING-REF-PRE-MISMATCH-001: authentic Cloud may
+            # parent auto-branches on a SHA other than schedule base_main while
+            # Run.git omits branch names. Bind the single-commit delta via the
+            # tip's first parent — fail closed when branches were explicit.
+            if (
+                self._resolve_diff is not None
+                or exc.code != "REMOTE_ATTRIBUTION_UNDETERMINED"
+                or "not a descendant" not in str(exc).casefold()
+                or bound_git.branches
+                or attribution.remote_auto_branches_pre is None
+            ):
+                raise
+            parent = resolve_commit_first_parent(
+                attribution.repository, post, work_root=root
             )
-        else:
+            if parent is None or parent.casefold() == post.casefold():
+                raise
             paths = default_resolve_remote_diff(
                 attribution.repository,
-                attribution.remote_pre_head,
+                parent,
                 post,
                 work_root=root,
             )
+            if paths is None:
+                raise SdkRuntimeError(
+                    "remote changed-path diff undetermined after first-parent fallback",
+                    code="REMOTE_ATTRIBUTION_UNDETERMINED",
+                ) from exc
+            attribution.remote_pre_head = parent
         if paths is None:
             raise SdkRuntimeError(
                 "remote changed-path diff undetermined",
