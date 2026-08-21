@@ -135,11 +135,11 @@ from project_atlas.knowledge_diff import (
     read_as_of,
 )
 from project_atlas.knowledge_diff import diff_to_json as kdiff_diff_to_json
+from project_atlas.knowledge_diff import snapshot_to_json as kdiff_snapshot_to_json
 from project_atlas.knowledge_inbox import (
     KnowledgeInboxError,
     list_inbox_items,
 )
-from project_atlas.knowledge_diff import snapshot_to_json as kdiff_snapshot_to_json
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
