@@ -301,19 +301,29 @@ def _default_ready(root: Path, *, now: float) -> list[ReadyWorkItem]:
             )
         )
     if not items:
-        # Force at least one discovery/reconcile node so CASE D cannot idle forever.
-        items.append(
-            ReadyWorkItem(
-                role=AgentRole.READ_ONLY_ANALYST,
-                package_id="AS-ORCH-SELF-WAKE-RESIDENT-DRIVER-001",
-                node_id=f"BACKLOG-RECONCILE-{int(now)}",
-                cycle_id="d131",
-                dag_generation=1,
-                base_main="bd8faa8f97df454943181d19f1e14ee826900a20",
-                prompt="backlog reconcile while CI pending",
-                critical_path_score=50,
+        # Only force backlog when nothing recently progressed — avoid busy-spin.
+        last = _runtime(root) / "d131-last-progress-dispatch.json"
+        force = True
+        if last.is_file():
+            try:
+                prev = json.loads(last.read_text(encoding="utf-8"))
+                if now - float(prev.get("at", 0)) < RECONCILE_INTERVAL_SEC:
+                    force = False
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                force = True
+        if force:
+            items.append(
+                ReadyWorkItem(
+                    role=AgentRole.READ_ONLY_ANALYST,
+                    package_id="AS-ORCH-SELF-WAKE-RESIDENT-DRIVER-001",
+                    node_id=f"BACKLOG-RECONCILE-{int(now)}",
+                    cycle_id="d131",
+                    dag_generation=1,
+                    base_main="bd8faa8f97df454943181d19f1e14ee826900a20",
+                    prompt="backlog reconcile while CI pending",
+                    critical_path_score=50,
+                )
             )
-        )
     return items
 
 
@@ -518,7 +528,10 @@ def run_resident_loop(
 
     ticks = 0
     try:
-        while load_mission(root).service_enabled and not stop_requested(root):
+        while True:
+            mission = load_mission(root)
+            if not mission.service_enabled or stop_requested(root):
+                break
             ready = None
             if ready_provider is not None:
                 ready = ready_provider(root)
@@ -526,10 +539,13 @@ def run_resident_loop(
             ticks += 1
             if max_ticks is not None and ticks >= max_ticks:
                 break
-            if result.ready_count > 0:
-                time.sleep(min(max(result.sleep_sec, 0.0), 0.2))
-                continue
-            time.sleep(max(0.0, result.sleep_sec))
+            # READY overrides long sleep, but never busy-spin: floor after dispatch.
+            if result.ready_count > 0 and result.dispatched:
+                time.sleep(max(0.5, min(result.sleep_sec, mission.heartbeat_cap_sec)))
+            elif result.ready_count > 0:
+                time.sleep(max(0.2, min(result.sleep_sec, mission.heartbeat_cap_sec)))
+            else:
+                time.sleep(max(0.0, result.sleep_sec))
     finally:
         release_primary_lock(root)
     final = load_status(root)
