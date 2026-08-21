@@ -231,13 +231,15 @@ class _FakeClient:
         self._get_run_results = list(get_run_results or [])
         self._runs = runs or []
         self.agents = self
+        self.get_run_options_calls: list[object] = []
+        self.list_runs_options_calls: list[object] = []
 
     async def resume(self, agent_id: str, options: object = None) -> object:
         del options
         return SimpleNamespace(id=agent_id)
 
     async def get_run(self, run_id: str, options: object = None) -> object:
-        del options
+        self.get_run_options_calls.append(options)
         if not self._get_run_results:
             return SimpleNamespace(
                 id=run_id, agent_id=AGENT, status="FINISHED", git=None
@@ -250,7 +252,8 @@ class _FakeClient:
     async def list_runs(
         self, agent_id: str, options: object = None, cursor: str | None = None
     ) -> object:
-        del agent_id, options, cursor
+        del agent_id, cursor
+        self.list_runs_options_calls.append(options)
         return SimpleNamespace(items=list(self._runs), next_cursor="")
 
 
@@ -395,3 +398,56 @@ def test_mint_baseline_helper_still_binds(tmp_path: Path) -> None:
     )
     assert baselined.repository == CANONICAL_REPO_URL
     assert baselined.runtime == AgentRuntime.CLOUD
+
+
+def test_recover_passes_api_key_to_get_run_and_list_runs() -> None:
+    """ORCH-SDK-CLOUD-GET-RUN-OPTIONS-001: api_key must reach get_run/list_runs."""
+    api_key = "test-api-key-g107-get-run-options"
+    miss = Exception("invalid_argument: Run run-d119 not found")
+    listed = SimpleNamespace(id="run-d119", agent_id=AGENT, status="FINISHED")
+    ok = SimpleNamespace(id="run-d119", agent_id=AGENT, status="FINISHED", git=None)
+    client = _FakeClient(get_run_results=[miss, ok], runs=[listed])
+    recovered = asyncio.run(
+        recover_exact_cloud_run(
+            client=client,
+            agent=_agent(),
+            run=_run(),
+            agent_id=AGENT,
+            run_id="run-d119",
+            api_key=api_key,
+            resume=lambda _a: asyncio.sleep(0),
+        )
+    )
+    assert recovered.classification == CloudRunRecoveryClass.REATTACHED_GET_RUN_OK
+    assert client.get_run_options_calls
+    for opts in client.get_run_options_calls:
+        assert isinstance(opts, dict)
+        assert opts.get("api_key") == api_key
+    assert client.list_runs_options_calls
+    for opts in client.list_runs_options_calls:
+        assert isinstance(opts, dict)
+        assert opts.get("api_key") == api_key
+
+
+def test_backend_get_run_status_passes_api_key_options(tmp_path: Path) -> None:
+    """Backend get_run_status must forward configured api_key options."""
+    from project_atlas.orchestration.sdk.backend import CursorSDKExecutionBackend
+    from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
+    from project_atlas.orchestration.sdk.role_pool import AgentRolePool
+
+    api_key = "test-api-key-g107-backend-get-run"
+    client = _FakeClient()
+    backend = CursorSDKExecutionBackend(
+        root=tmp_path,
+        agents_reg=CloudAgentRegistry(tmp_path),
+        runs_reg=RunRegistry(tmp_path),
+        pool=AgentRolePool(CloudAgentRegistry(tmp_path)),
+        api_key=api_key,
+    )
+    backend._client = client
+    status = asyncio.run(backend.get_run_status("run-d119", agent_id=AGENT))
+    assert status == RunStatus.FINISHED
+    assert len(client.get_run_options_calls) == 1
+    opts = client.get_run_options_calls[0]
+    assert isinstance(opts, dict)
+    assert opts.get("api_key") == api_key

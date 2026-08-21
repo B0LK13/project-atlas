@@ -780,9 +780,15 @@ class CursorSDKExecutionBackend:
         self._handles[agent_id] = agent
         return stored
 
+    def _agent_run_options(self) -> dict[str, Any] | None:
+        """Runtime options for get_run / list_runs when api_key is configured."""
+        if not self._api_key:
+            return None
+        return {"api_key": self._api_key}
+
     async def get_run_status(self, run_id: str, *, agent_id: str) -> RunStatus:
         client = await self._ensure_client()
-        run = await client.agents.get_run(run_id)
+        run = await client.agents.get_run(run_id, self._agent_run_options())
         status = normalize_run_status(str(getattr(run, "status", None)))
         stored = self.runs_reg.get(run_id)
         if stored is not None and stored.agent_id != agent_id:
@@ -913,7 +919,9 @@ class CursorSDKExecutionBackend:
             }:
                 try:
                     client = await self._ensure_client()
-                    terminal_git = await client.agents.get_run(run_id)
+                    terminal_git = await client.agents.get_run(
+                        run_id, self._agent_run_options()
+                    )
                 except Exception:
                     terminal_git = None
         if detached_status is None or detached_status not in {

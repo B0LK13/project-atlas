@@ -178,12 +178,12 @@ async def recover_exact_cloud_run(
             agent_id, AgentOptions(**opts) if opts else AgentOptions()
         )
 
+    get_run_opts: dict[str, Any] | None = {"api_key": api_key} if api_key else None
+
     # 4. Primary get_run
     try:
-        snapshot = await client.agents.get_run(run_id)
-        bad = _validate_snapshot_binding(
-            snapshot, agent_id=agent_id, run_id=run_id
-        )
+        snapshot = await client.agents.get_run(run_id, get_run_opts)
+        bad = _validate_snapshot_binding(snapshot, agent_id=agent_id, run_id=run_id)
         if bad is not None:
             raise SdkRuntimeError(
                 "recovered run binding mismatch",
@@ -236,10 +236,8 @@ async def recover_exact_cloud_run(
 
     # Prefer full get_run after reattach when list only proves existence
     try:
-        snapshot = await client.agents.get_run(run_id)
-        bad = _validate_snapshot_binding(
-            snapshot, agent_id=agent_id, run_id=run_id
-        )
+        snapshot = await client.agents.get_run(run_id, get_run_opts)
+        bad = _validate_snapshot_binding(snapshot, agent_id=agent_id, run_id=run_id)
         if bad is not None:
             raise SdkRuntimeError(
                 "reattached get_run binding mismatch",
