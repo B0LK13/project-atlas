@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from project_atlas.orchestration.sdk.backend import ExecutionBackend
-from project_atlas.orchestration.sdk.event_log import read_events
+from project_atlas.orchestration.sdk.event_log import read_event_witness, read_events
 from project_atlas.orchestration.sdk.live_dag import load_live_dag
 from project_atlas.orchestration.sdk.models import (
     TERMINAL_RUN_STATUSES,
@@ -71,13 +71,29 @@ def _validate_loaded_against_high_water(
             checkpoint_sequence=high_water.checkpoint_sequence,
         )
         reject_host_rollback(current=high_water, proposed=proposed)
-    # Dual live-state + high-water rollback: the append-only event log is the
-    # witness. Restoring an older consistent pair while leaving newer events
-    # must fail closed.
     try:
         events = read_events(root)
-    except (OSError, ValueError):
-        events = []
+        witness = read_event_witness(root)
+    except (OSError, ValueError) as exc:
+        raise SdkRuntimeError(
+            "event log or witness unreadable",
+            code="HOST_ROLLBACK_REJECTED",
+        ) from exc
+    if len(events) < len(witness):
+        raise SdkRuntimeError(
+            "event log truncated relative to append-only witness",
+            code="HOST_ROLLBACK_REJECTED",
+        )
+    if high_water.event_sequence > len(events):
+        raise SdkRuntimeError(
+            "high-water event sequence ahead of readable events",
+            code="HOST_ROLLBACK_REJECTED",
+        )
+    if live.material_transitions > len(events):
+        raise SdkRuntimeError(
+            "live material_transitions ahead of readable events",
+            code="HOST_ROLLBACK_REJECTED",
+        )
     if events:
         max_logged_generation = max(event.dag_generation for event in events)
         if (
@@ -86,6 +102,22 @@ def _validate_loaded_against_high_water(
         ):
             raise SdkRuntimeError(
                 "event log generation ahead of live/high-water",
+                code="HOST_ROLLBACK_REJECTED",
+            )
+    if witness:
+        witness_generations: list[int] = []
+        for item in witness:
+            raw_generation = item.get("dag_generation")
+            witness_generations.append(
+                raw_generation if isinstance(raw_generation, int) else 0
+            )
+        max_witness_generation = max(witness_generations)
+        if (
+            live.dag_generation < max_witness_generation
+            or high_water.dag_generation < max_witness_generation
+        ):
+            raise SdkRuntimeError(
+                "event witness generation ahead of live/high-water",
                 code="HOST_ROLLBACK_REJECTED",
             )
 

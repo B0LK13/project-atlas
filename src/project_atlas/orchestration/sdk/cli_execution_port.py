@@ -48,9 +48,11 @@ from project_atlas.orchestration.sdk.security_gates import (
     classify_transient_failure,
     collect_actual_changed_paths,
     enforce_allowed_paths,
+    mint_creation_sequence,
     normalize_cli_identity,
     recovery_action,
     require_changed_paths_determined,
+    require_creation_sequence,
     require_valid_lease,
 )
 
@@ -179,6 +181,9 @@ class CursorAgentCliExecutionPort:
                 "agent registry missing lineage",
                 code="LINEAGE_MISSING",
             )
+        sequence = require_creation_sequence(
+            self.root, stored.agent_id, stored.creation_sequence
+        )
         return WorkerLineage(
             identity=stored.agent_id,
             backend=WorkerBackend(stored.worker_backend),
@@ -189,6 +194,7 @@ class CursorAgentCliExecutionPort:
             branch=stored.branch or CANONICAL_BRANCH,
             base_main=stored.base_main,
             creation_generation=stored.creation_generation,
+            creation_sequence=sequence,
         )
 
     def _persist_agent(
@@ -214,6 +220,7 @@ class CursorAgentCliExecutionPort:
             workspace=lineage.workspace,
             repository=lineage.repository,
             creation_generation=lineage.creation_generation,
+            creation_sequence=lineage.creation_sequence,
             lineage_id=f"lin-{agent_id}-{lineage.creation_generation}",
         )
         self.agents_reg.upsert(record)
@@ -365,6 +372,7 @@ class CursorAgentCliExecutionPort:
             branch=request.branch or CANONICAL_BRANCH,
             base_main=request.base_main,
             creation_generation=request.dag_generation,
+            creation_sequence=mint_creation_sequence(self.root, agent_id),
         )
         session = _CliSession(
             agent_id=agent_id,
@@ -415,7 +423,8 @@ class CursorAgentCliExecutionPort:
                 role=request.role,
                 branch=request.branch or CANONICAL_BRANCH,
                 base_main=request.base_main,
-                creation_generation=request.dag_generation,
+                creation_generation=stored_lineage.creation_generation,
+                creation_sequence=stored_lineage.creation_sequence,
                 expected=stored_lineage,
             )
             session = _CliSession(
@@ -439,7 +448,8 @@ class CursorAgentCliExecutionPort:
                 role=request.role,
                 branch=request.branch or CANONICAL_BRANCH,
                 base_main=request.base_main,
-                creation_generation=request.dag_generation,
+                creation_generation=session.lineage.creation_generation,
+                creation_sequence=session.lineage.creation_sequence,
                 expected=session.lineage,
             )
         session.lease = lease
@@ -529,7 +539,10 @@ class CursorAgentCliExecutionPort:
         }:
             return
         if not record.lease_id or not record.node_id or not record.result_digest:
-            return
+            raise SdkRuntimeError(
+                "result plane binding fields missing",
+                code="EXPECTED_BINDING_REQUIRED",
+            )
         source: Literal["IV", "ADV", "CLOUD_RUNTIME_AUDITOR"]
         if request.role == AgentRole.CLOUD_RUNTIME_AUDITOR:
             source = "CLOUD_RUNTIME_AUDITOR"
@@ -577,6 +590,11 @@ class CursorAgentCliExecutionPort:
         stored = self.agents_reg.get(agent_id)
         if stored is None:
             raise SdkRuntimeError("foreign CLI session", code="FOREIGN_IDENTITY")
+        if stored.workspace is None or Path(stored.workspace).resolve() != self.root.resolve():
+            raise SdkRuntimeError(
+                "workspace root mismatch: cross-worktree / transplanted worker state",
+                code="WORKSPACE_ROOT_MISMATCH",
+            )
         lineage = self._lineage_from_stored(stored)
         bind_worker_lineage(
             identity=agent_id,
@@ -589,7 +607,8 @@ class CursorAgentCliExecutionPort:
             role=stored.role,
             branch=stored.branch or CANONICAL_BRANCH,
             base_main=stored.base_main,
-            creation_generation=stored.creation_generation or 0,
+            creation_generation=lineage.creation_generation,
+            creation_sequence=lineage.creation_sequence,
             expected=lineage,
         )
         if agent_id not in self._sessions:

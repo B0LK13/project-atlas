@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal
@@ -11,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
 
 EVENT_LOG_NAME: Final[str] = "events.jsonl"
+EVENT_WITNESS_NAME: Final[str] = "event-witness.jsonl"
 
 SupervisorEventName = Literal[
     "TARGET_HEAD_OBSERVED",
@@ -52,6 +55,47 @@ def event_log_path(root: Path) -> Path:
     return root / STATE_DIR_RELATIVE / EVENT_LOG_NAME
 
 
+def event_witness_path(root: Path) -> Path:
+    """Append-only witness that is not part of the live/route/high-water trio."""
+    return root / STATE_DIR_RELATIVE / EVENT_WITNESS_NAME
+
+
+def _append_event_witness(root: Path, *, line: str, dag_generation: int) -> None:
+    path = event_witness_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    previous = ""
+    if path.is_file():
+        body = path.read_text(encoding="utf-8").splitlines()
+        if body:
+            previous = body[-1]
+    digest = hashlib.sha256(f"{previous}\n{line}".encode()).hexdigest()
+    record = {
+        "event_digest": hashlib.sha256(line.encode("utf-8")).hexdigest(),
+        "chain": digest,
+        "dag_generation": dag_generation,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def read_event_witness(root: Path) -> list[dict[str, object]]:
+    path = event_witness_path(root)
+    if not path.is_file():
+        return []
+    out: list[dict[str, object]] = []
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw.strip():
+            continue
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError("corrupt event witness") from exc
+        if not isinstance(item, dict):
+            raise ValueError("corrupt event witness")
+        out.append(item)
+    return out
+
+
 def _utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -81,8 +125,10 @@ def append_event(
     )
     path = event_log_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    line = record.model_dump_json()
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(record.model_dump_json() + "\n")
+        handle.write(line + "\n")
+    _append_event_witness(root, line=line, dag_generation=dag_generation)
     return record
 
 

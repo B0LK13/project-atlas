@@ -7,7 +7,6 @@ worker terminal, or owner-gate on one branch while independent work exists.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,6 +35,7 @@ from project_atlas.orchestration.sdk.recovery import RecoveryReport, recover_run
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
 from project_atlas.orchestration.sdk.result_plane import (
     ingest_pending_against_registry,
+    persist_result_quarantine,
     transport_state,
 )
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
@@ -67,6 +67,8 @@ class SupervisorStatus:
     execution_authorized: bool = False
     next_machine_action: str = "SUPERVISOR_SCHEDULE_CYCLE"
     next_machine_action_executing_or_scheduled: bool = True
+    last_cycle_error: str | None = None
+    contained_failures: int = 0
 
 
 @dataclass
@@ -170,20 +172,34 @@ class DurableAtlasSupervisor:
         backend = WorkerBackend.CURSOR_AGENT_CLI
         if isinstance(self.backend, CursorSDKExecutionBackend):
             backend = WorkerBackend.CURSOR_SDK
-        with contextlib.suppress(SdkRuntimeError):
+        try:
             ingest_pending_against_registry(
                 self.root, runs=self.runs, worker_backend=backend
             )
+        except SdkRuntimeError as exc:
+            persist_result_quarantine(self.root, code=exc.code, detail=str(exc))
+            self.status.last_cycle_error = exc.code
+            self.status.contained_failures += 1
+            self.status.next_machine_action = f"RESULT_QUARANTINED:{exc.code}"
         if self.status.last_recovery and self.status.last_recovery.safety_stop:
             self.status.cycles += 1
             return ScheduleCycleResult()
         ready: list[ReadyWorkItem] = []
         if self.ready_provider is not None:
-            provided = self.ready_provider()
-            if isinstance(provided, list):
-                ready = provided
-            else:
-                ready = await provided
+            try:
+                provided = self.ready_provider()
+                if isinstance(provided, list):
+                    ready = provided
+                else:
+                    ready = await provided
+            except (TimeoutError, OSError, SdkRuntimeError) as exc:
+                code = getattr(exc, "code", None) or type(exc).__name__
+                persist_result_quarantine(
+                    self.root, code=f"READY_PROVIDER:{code}", detail=str(exc)
+                )
+                self.status.last_cycle_error = str(code)
+                self.status.contained_failures += 1
+                ready = []
         result = await self.scheduler.cycle(ready)
         self.status.cycles += 1
         self.status.last_cycle = result
@@ -197,7 +213,26 @@ class DurableAtlasSupervisor:
         await self.startup_recovery()
         try:
             while not self._stop.is_set():
-                await self.schedule_cycle()
+                try:
+                    await self.schedule_cycle()
+                except asyncio.CancelledError:
+                    raise
+                except (TimeoutError, OSError, SdkRuntimeError) as exc:
+                    code = getattr(exc, "code", None) or type(exc).__name__
+                    if code in {"HOST_ROLLBACK_REJECTED"}:
+                        self.status.next_machine_action = "SAFETY_STOP_HOST_ROLLBACK"
+                        persist_result_quarantine(
+                            self.root, code=str(code), detail=str(exc)
+                        )
+                        self.status.contained_failures += 1
+                        self.status.last_cycle_error = str(code)
+                        break
+                    persist_result_quarantine(
+                        self.root, code=str(code), detail=str(exc)
+                    )
+                    self.status.last_cycle_error = str(code)
+                    self.status.contained_failures += 1
+                    self.status.cycles += 1
                 if self.max_cycles is not None and self.status.cycles >= self.max_cycles:
                     break
                 try:

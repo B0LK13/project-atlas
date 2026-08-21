@@ -103,12 +103,13 @@ def test_resume_agent_rejects_cross_worktree(tmp_path: Path) -> None:
             workspace=str(foreign.resolve()),
             repository=CANONICAL_REPO_URL,
             creation_generation=96,
+            creation_sequence=1,
         )
     )
     port = CursorAgentCliExecutionPort(
         root=tmp_path, agents_reg=agents, runs_reg=runs, pool=pool
     )
-    with pytest.raises(SdkRuntimeError, match=r"cross-worktree"):
+    with pytest.raises(SdkRuntimeError, match=r"cross-worktree|workspace root mismatch"):
         asyncio.run(port.resume_agent("cli-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
 
 

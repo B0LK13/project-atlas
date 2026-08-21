@@ -138,6 +138,7 @@ class WorkerLineage(BaseModel):
     branch: str
     base_main: str
     creation_generation: int
+    creation_sequence: int = Field(default=1, ge=1, le=1_000_000)
 
 
 class HostHighWater(BaseModel):
@@ -151,6 +152,64 @@ class HostHighWater(BaseModel):
     registry_revision: int = Field(default=0, ge=0)
     run_attempt: int = Field(default=0, ge=0)
     checkpoint_sequence: int = Field(default=0, ge=0)
+
+
+LINEAGE_SEQUENCE_NAME = "worker-creation-sequence.json"
+
+
+def lineage_sequence_path(root: Path) -> Path:
+    return root / STATE_DIR_RELATIVE / LINEAGE_SEQUENCE_NAME
+
+
+def _load_lineage_sequences(root: Path) -> dict[str, int]:
+    path = lineage_sequence_path(root)
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SdkRuntimeError(
+            "worker creation sequence unreadable",
+            code="STALE_WORKER_LINEAGE",
+        ) from exc
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, int] = {}
+    for key, value in raw.items():
+        if isinstance(value, int) and value >= 0:
+            out[str(key)] = value
+    return out
+
+
+def mint_creation_sequence(root: Path, agent_id: str) -> int:
+    """Monotonic per-host creation sequence. Never reused after rollback."""
+    data = _load_lineage_sequences(root)
+    nxt = int(data.get("_max", 0)) + 1
+    data[agent_id] = nxt
+    data["_max"] = nxt
+    path = lineage_sequence_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return nxt
+
+
+def require_creation_sequence(root: Path, agent_id: str, stored: int | None) -> int:
+    if stored is None or stored < 1:
+        raise SdkRuntimeError("stale worker lineage", code="STALE_WORKER_LINEAGE")
+    data = _load_lineage_sequences(root)
+    high = int(data.get(agent_id, 0))
+    if high and stored < high:
+        raise SdkRuntimeError(
+            "creation sequence rollback",
+            code="ROLLED_BACK_CREATION_SEQUENCE",
+        )
+    if agent_id not in data:
+        data[agent_id] = stored
+        data["_max"] = max(int(data.get("_max", 0)), stored)
+        path = lineage_sequence_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return stored
 
 
 def high_water_path(root: Path) -> Path:
@@ -335,37 +394,67 @@ def require_changed_paths_determined(changed_paths: list[str] | None) -> list[st
     return list(changed_paths)
 
 
+def _git_run(
+    root: Path, args: list[str], *, timeout: int = 30
+) -> Any:
+    import subprocess
+
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=timeout,
+    )
+
+
+def _canonical_workspace(path: str) -> str:
+    """Windows-safe resolved workspace identity."""
+    return str(Path(path).expanduser().resolve())
+
+
+def _contain_paths(root: Path, paths: set[str]) -> list[str] | None:
+    """Resolve each relative path against the governed root; fail closed on escape."""
+    resolved_root = root.resolve()
+    contained: set[str] = set()
+    for raw in paths:
+        try:
+            normalized = normalize_rel_path(raw, casefold=False)
+        except SdkRuntimeError:
+            return None
+        candidate = (resolved_root / normalized).resolve()
+        try:
+            relative = candidate.relative_to(resolved_root)
+        except ValueError:
+            return None
+        posix = relative.as_posix()
+        if posix == STATE_DIR_RELATIVE or posix.startswith(STATE_DIR_RELATIVE + "/"):
+            continue
+        contained.add(posix)
+    return sorted(contained)
+
+
 def collect_actual_changed_paths(
     root: Path,
     *,
     pre_head: str | None,
 ) -> list[str] | None:
-    """Committed + uncommitted + untracked paths since ``pre_head``.
+    """Committed + uncommitted + untracked + reflog-hidden paths since ``pre_head``.
 
     Porcelain alone is not an actual delta: a commit hides mutated files.
-    ``None`` means the post-run diff could not be determined (fail closed).
+    ``git reset --hard $pre_head`` after commit/push also hides the worktree
+    delta; reflog commits still reachable as descendants of ``pre_head`` must
+    be attributed. ``None`` means the post-run diff could not be determined.
     """
     import subprocess
 
     if not pre_head or len(pre_head) < 7:
         return None
     try:
-        diff = subprocess.run(
-            ["git", "diff", "--name-only", "--find-renames", pre_head],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=30,
-        )
-        porcelain = subprocess.run(
-            ["git", "status", "--porcelain", "-uall"],
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=30,
-        )
+        diff = _git_run(root, ["diff", "--name-only", "--find-renames", pre_head])
+        porcelain = _git_run(root, ["status", "--porcelain", "-uall"])
+        reflog = _git_run(root, ["log", "--walk-reflogs", "--pretty=%H", "-n", "32"])
     except (OSError, subprocess.TimeoutExpired):
         return None
     if diff.returncode != 0 or porcelain.returncode != 0:
@@ -384,7 +473,29 @@ def collect_actual_changed_paths(
         text = rest.strip().strip('"')
         if text:
             paths.add(text)
-    return sorted(paths)
+    if reflog.returncode != 0:
+        return None
+    seen_sha: set[str] = set()
+    for sha in (reflog.stdout or "").splitlines():
+        sha = sha.strip()
+        if len(sha) < 7 or sha in seen_sha or sha == pre_head:
+            continue
+        seen_sha.add(sha)
+        ancestor = _git_run(
+            root, ["merge-base", "--is-ancestor", pre_head, sha], timeout=15
+        )
+        if ancestor.returncode != 0:
+            continue
+        hidden = _git_run(
+            root, ["diff", "--name-only", "--find-renames", pre_head, sha]
+        )
+        if hidden.returncode != 0:
+            return None
+        for line in (hidden.stdout or "").splitlines():
+            text = line.strip().strip('"')
+            if text:
+                paths.add(text)
+    return _contain_paths(root, paths)
 
 
 def validate_result_binding(
@@ -465,6 +576,7 @@ def bind_worker_lineage(
     branch: str,
     base_main: str,
     creation_generation: int,
+    creation_sequence: int = 1,
     expected: WorkerLineage | None = None,
 ) -> WorkerLineage:
     """ORCH-SDK-AGENT-LINEAGE-001 — foreign identity / cross-worktree resume rejected."""
@@ -479,18 +591,21 @@ def bind_worker_lineage(
     lineage = WorkerLineage(
         identity=identity,
         backend=backend,
-        workspace=workspace,
+        workspace=_canonical_workspace(workspace),
         repository=repository,
         package_id=package_id,
         role=role,
         branch=branch,
         base_main=base_main,
         creation_generation=creation_generation,
+        creation_sequence=creation_sequence,
     )
     if expected is not None:
         if lineage.identity != expected.identity:
             raise SdkRuntimeError("foreign CLI/SDK session", code="FOREIGN_IDENTITY")
-        if lineage.workspace != expected.workspace:
+        if _canonical_workspace(lineage.workspace) != _canonical_workspace(
+            expected.workspace
+        ):
             raise SdkRuntimeError("cross-worktree resume rejected", code="FOREIGN_IDENTITY")
         if lineage.repository != expected.repository:
             raise SdkRuntimeError("foreign repository", code="FOREIGN_IDENTITY")
@@ -498,8 +613,14 @@ def bind_worker_lineage(
             raise SdkRuntimeError("foreign package", code="FOREIGN_IDENTITY")
         if lineage.role != expected.role:
             raise SdkRuntimeError("role lineage mismatch", code="FOREIGN_IDENTITY")
-        if lineage.creation_generation > creation_generation:
-            raise SdkRuntimeError("lineage generation rollback", code="FOREIGN_IDENTITY")
+        if expected.creation_sequence > lineage.creation_sequence:
+            raise SdkRuntimeError(
+                "creation sequence rollback",
+                code="ROLLED_BACK_CREATION_SEQUENCE",
+            )
+        if lineage.creation_generation != expected.creation_generation:
+            # Stored creation generation is immutable; request gen may move.
+            pass
     return lineage
 
 

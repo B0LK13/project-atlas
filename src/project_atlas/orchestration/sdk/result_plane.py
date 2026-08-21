@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -123,13 +125,54 @@ def _load_consumed(root: Path) -> set[str]:
     return set()
 
 
-def _save_consumed(root: Path, result_ids: set[str]) -> None:
+def _save_consumed(
+    root: Path,
+    result_ids: set[str],
+    *,
+    records: list[dict[str, Any]] | None = None,
+) -> None:
     path = ingested_index_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any] = {"result_ids": sorted(result_ids)}
+    if records is not None:
+        payload["records"] = records
     path.write_text(
-        json.dumps({"result_ids": sorted(result_ids)}, indent=2, sort_keys=True) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _load_consume_records(root: Path) -> list[dict[str, Any]]:
+    path = ingested_index_path(root)
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    records = data.get("records") if isinstance(data, dict) else None
+    if isinstance(records, list):
+        return [row for row in records if isinstance(row, dict)]
+    return []
+
+
+def persist_result_quarantine(root: Path, *, code: str, detail: str) -> Path:
+    path = root / STATE_DIR_RELATIVE / "result-plane-quarantine.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(
+        {
+            "code": code,
+            "detail": detail,
+            "consumed_at": datetime.now(UTC)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z"),
+        },
+        sort_keys=True,
+    )
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(line + "\n")
+    return path
 
 
 def expected_binding_from_run(
@@ -171,6 +214,7 @@ def ingest_pending_against_registry(
         return []
     proof = load_transport_proof(root).model_copy(update={"supervisor_discovered": True})
     consumed = _load_consumed(root)
+    consume_records = _load_consume_records(root)
     accepted: list[BoundWorkerResult] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -193,6 +237,26 @@ def ingest_pending_against_registry(
         )
         if stored.package_id != PACKAGE_ID:
             raise SdkRuntimeError("foreign package in run registry", code="FOREIGN_RESULT")
+        assigned = envelope.payload.get("ASSIGNMENT_ID") or envelope.payload.get(
+            "assignment_id"
+        )
+        if assigned in {"", "NONE", "none"}:
+            raise SdkRuntimeError("wrong assignment binding", code="WRONG_ASSIGNMENT")
+        try:
+            from project_atlas.orchestration.sdk.audit_provenance import (
+                load_cloud_audit_assignment,
+            )
+
+            live_assignment = load_cloud_audit_assignment(root)
+        except Exception:
+            live_assignment = None
+        if (
+            live_assignment is not None
+            and envelope.source in {"CLOUD_AUDITOR", "CLOUD_RUNTIME_AUDITOR"}
+            and assigned
+            and assigned != live_assignment.assignment_id
+        ):
+            raise SdkRuntimeError("wrong assignment binding", code="WRONG_ASSIGNMENT")
         validate_result_binding(
             binding,
             expected_backend=WorkerBackend(expected["worker_backend"]),
@@ -212,6 +276,20 @@ def ingest_pending_against_registry(
         proof = proof.model_copy(update={"binding_validated": True})
         consumed.add(rid)
         accepted.append(binding)
+        consume_records.append(
+            {
+                "run_id": binding.run_id,
+                "result_digest": binding.result_digest,
+                "lease_id": binding.lease_id,
+                "dag_generation": binding.dag_generation,
+                "transition_id": f"txn-{uuid.uuid4()}",
+                "consumed_at": datetime.now(UTC)
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "assignment_id": assigned or None,
+            }
+        )
         proof = proof.model_copy(
             update={
                 "result_consumed": True,
@@ -221,7 +299,7 @@ def ingest_pending_against_registry(
                 "dag_transition_occurred": bool(mark_dag_transition and accepted),
             }
         )
-    _save_consumed(root, consumed)
+    _save_consumed(root, consumed, records=consume_records)
     persist_transport_proof(root, proof)
     return accepted
 

@@ -126,6 +126,7 @@ class AgentRecord(BaseModel):
     workspace: str | None = None
     repository: str | None = None
     creation_generation: int | None = Field(default=None, ge=0, le=1_000_000)
+    creation_sequence: int | None = Field(default=None, ge=1, le=1_000_000)
     lineage_id: str | None = None
     merge_authorized: Literal[False] = False
     execution_authorized: Literal[False] = False

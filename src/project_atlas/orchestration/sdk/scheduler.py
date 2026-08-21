@@ -184,6 +184,19 @@ class DagToAgentScheduler:
                 else:
                     run = await self.backend.create_and_send(request)
                 result.started.append(run)
+            except (TimeoutError, OSError) as exc:
+                code = (
+                    "TRANSIENT_TIMEOUT"
+                    if isinstance(exc, TimeoutError)
+                    else "TRANSIENT_CLI_BRIDGE"
+                )
+                wrapped = SdkRuntimeError(
+                    f"backend {type(exc).__name__}",
+                    code=code,
+                )
+                self._park_node(item.node_id, code=wrapped.code, attempt=item.attempt)
+                result.parked.append(item.node_id)
+                continue
             except SdkRuntimeError as exc:
                 if exc.code == "AGENT_BUSY" and existing is not None and existing.last_run_id:
                     bound = await self.backend.wait_run(
