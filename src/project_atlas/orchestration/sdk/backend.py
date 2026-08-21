@@ -505,6 +505,17 @@ class CursorSDKExecutionBackend:
             persist_agent_remote_high_water(
                 self.root, record.agent_id, attribution.remote_post_head
             )
+            # Persist discovered Cloud auto-branch onto agent for follow-up lineage.
+            if (
+                stored_agent is not None
+                and attribution.remote_branch
+                and stored_agent.branch != attribution.remote_branch
+            ):
+                self.agents_reg.upsert(
+                    stored_agent.model_copy(
+                        update={"branch": attribution.remote_branch}
+                    )
+                )
 
     async def _ensure_client(self) -> Any:
         if self._client is not None:

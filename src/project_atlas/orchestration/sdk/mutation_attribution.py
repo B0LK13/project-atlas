@@ -68,6 +68,9 @@ class RunMutationBaseline(BaseModel):
     remote_branch: str | None = None
     remote_pre_head: str | None = None
     remote_post_head: str | None = None
+    # Snapshot of remote ``cursor/*`` heads at mint time. Used when authentic
+    # Cloud Run.git omits branch names (ORCH-SDK-CLOUD-RUN-GIT-EMPTY-BRANCH-001).
+    remote_auto_branches_pre: tuple[str, ...] | None = None
     dag_generation: int = Field(ge=0, le=1_000_000)
     lease_id: str | None = None
     package_id: str = PACKAGE_ID
@@ -439,10 +442,73 @@ def bind_terminal_git_repository(
     return terminal_git.model_copy(update={"repo_url": attribution.repository})
 
 
+def list_remote_auto_branches(repository: str) -> tuple[str, ...]:
+    """List remote ``cursor/*`` branch names via git ls-remote. Fail soft → ()."""
+    import subprocess
+
+    try:
+        completed = subprocess.run(
+            ["git", "ls-remote", "--heads", repository],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ()
+    if completed.returncode != 0:
+        return ()
+    names: list[str] = []
+    for line in (completed.stdout or "").splitlines():
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        ref = parts[1].strip()
+        prefix = "refs/heads/"
+        if not ref.startswith(prefix):
+            continue
+        name = ref[len(prefix) :]
+        if name.startswith("cursor/"):
+            names.append(name)
+    return tuple(sorted(set(names)))
+
+
+def discover_new_remote_auto_branch(
+    repository: str, *, pre_branches: tuple[str, ...] | None
+) -> str:
+    """Bind the unique new ``cursor/*`` branch created after mint snapshot.
+
+    Authentic Cloud GetRun often returns ``git.branches[].repoUrl`` with an
+    omitted/empty ``branch`` field. Fail closed unless exactly one new
+    ``cursor/*`` head appeared since ``remote_auto_branches_pre``.
+    """
+    if pre_branches is None:
+        raise SdkRuntimeError(
+            "terminal Run.git missing branches and no auto-branch mint snapshot",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    post = set(list_remote_auto_branches(repository))
+    pre = set(pre_branches)
+    new = sorted(post - pre)
+    if len(new) == 1:
+        return new[0]
+    if not new:
+        raise SdkRuntimeError(
+            "terminal Run.git missing branches and no new cursor/* auto-branch",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    raise SdkRuntimeError(
+        "ambiguous new cursor/* auto-branches after empty Run.git branch",
+        code="REMOTE_ATTRIBUTION_UNDETERMINED",
+    )
+
+
 def select_canonical_remote_branch(
     terminal_git: RunGitInfo,
     *,
     expected_branch: str | None,
+    auto_branches_pre: tuple[str, ...] | None = None,
+    repository: str | None = None,
 ) -> str:
     """Fail closed unless exactly one canonical Atlas branch can be bound."""
     repo_id = normalize_repo_identity(terminal_git.repo_url)
@@ -458,10 +524,11 @@ def select_canonical_remote_branch(
         )
     branches = [b for b in terminal_git.branches if b.strip()]
     if not branches:
-        raise SdkRuntimeError(
-            "terminal Run.git missing branches",
-            code="REMOTE_ATTRIBUTION_UNDETERMINED",
-        )
+        # ORCH-SDK-CLOUD-RUN-GIT-EMPTY-BRANCH-001: Cloud may omit branch names.
+        if expected_branch and expected_branch.strip():
+            return expected_branch.strip()
+        repo = repository or terminal_git.repo_url or CANONICAL_REPO_URL
+        return discover_new_remote_auto_branch(repo, pre_branches=auto_branches_pre)
     if len(branches) > 1:
         raise SdkRuntimeError(
             "ambiguous Atlas branches in Run.git",
@@ -616,7 +683,10 @@ class CloudRemoteGitAttributionProvider:
             terminal_git, attribution=attribution
         )
         branch = select_canonical_remote_branch(
-            bound_git, expected_branch=attribution.remote_branch
+            bound_git,
+            expected_branch=attribution.remote_branch,
+            auto_branches_pre=attribution.remote_auto_branches_pre,
+            repository=attribution.repository,
         )
         if (
             attribution.remote_branch
@@ -747,6 +817,7 @@ def mint_cloud_run_baseline(
             "invalid CLOUD remote baseline",
             code="REMOTE_ATTRIBUTION_UNDETERMINED",
         )
+    auto_pre = list_remote_auto_branches(repository)
     baseline = RunMutationBaseline(
         run_id=run_id,
         agent_id=agent_id,
@@ -756,6 +827,7 @@ def mint_cloud_run_baseline(
         remote_branch=branch,
         remote_pre_head=remote_pre,
         remote_post_head=None,
+        remote_auto_branches_pre=auto_pre,
         dag_generation=dag_generation,
         lease_id=lease_id,
         package_id=package_id,

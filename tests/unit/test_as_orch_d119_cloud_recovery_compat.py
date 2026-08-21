@@ -183,6 +183,7 @@ def test_cloud_provider_rejects_ambiguous_branches() -> None:
 
 
 def test_cloud_provider_rejects_missing_branches() -> None:
+    """Empty Run.git branches with no lineage/snapshot still fail closed."""
     provider = CloudRemoteGitAttributionProvider(
         resolve_remote_head=lambda _r, _b: H1,
         resolve_remote_diff=lambda *_a: ["x.py"],
@@ -190,7 +191,7 @@ def test_cloud_provider_rejects_missing_branches() -> None:
     with pytest.raises(SdkRuntimeError) as exc:
         provider.collect_changed_paths(
             root=Path("."),
-            attribution=_baseline(),
+            attribution=_baseline(remote_branch=None, remote_auto_branches_pre=None),
             terminal_git=RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=()),
             local_pre_head=None,
         )
@@ -509,3 +510,71 @@ def test_backend_get_run_status_passes_api_key_options(tmp_path: Path) -> None:
     assert opts.get("api_key") == api_key
     assert opts.get("runtime") == "cloud"
     assert opts.get("agent_id") == AGENT
+
+
+def test_empty_run_git_branch_uses_expected_lineage() -> None:
+    """ORCH-SDK-CLOUD-RUN-GIT-EMPTY-BRANCH-001: expected_branch fills omitted name."""
+    from project_atlas.orchestration.sdk.mutation_attribution import (
+        select_canonical_remote_branch,
+    )
+
+    branch = select_canonical_remote_branch(
+        RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=()),
+        expected_branch="cursor/smoke-v2-dev-run1-test",
+    )
+    assert branch == "cursor/smoke-v2-dev-run1-test"
+
+
+def test_empty_run_git_branch_discovers_unique_new_auto_branch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty Run.git branch + unique new cursor/* head since mint → bind it."""
+    import project_atlas.orchestration.sdk.mutation_attribution as ma
+
+    monkeypatch.setattr(
+        ma,
+        "list_remote_auto_branches",
+        lambda _repo: ("cursor/smoke-v2-dev-run1-new", "cursor/old"),
+    )
+    branch = ma.select_canonical_remote_branch(
+        RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=()),
+        expected_branch=None,
+        auto_branches_pre=("cursor/old",),
+        repository=CANONICAL_REPO_URL,
+    )
+    assert branch == "cursor/smoke-v2-dev-run1-new"
+
+
+def test_empty_run_git_branch_ambiguous_new_auto_branches_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import project_atlas.orchestration.sdk.mutation_attribution as ma
+
+    monkeypatch.setattr(
+        ma,
+        "list_remote_auto_branches",
+        lambda _repo: ("cursor/a", "cursor/b", "cursor/old"),
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        ma.select_canonical_remote_branch(
+            RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=()),
+            expected_branch=None,
+            auto_branches_pre=("cursor/old",),
+            repository=CANONICAL_REPO_URL,
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+    assert "ambiguous" in str(exc.value).casefold()
+
+
+def test_extract_omitted_branch_name_from_authentic_wire_shape() -> None:
+    """Wire shape: git.branches[{repoUrl}] with no branch field → branches=()."""
+    info = extract_terminal_run_git(
+        {
+            "git": {
+                "branches": [{"repoUrl": "github.com/B0LK13/project-atlas"}],
+            }
+        }
+    )
+    assert info is not None
+    assert info.repo_url == "github.com/B0LK13/project-atlas"
+    assert info.branches == ()
