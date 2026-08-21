@@ -33,6 +33,15 @@ from project_atlas.orchestration.sdk.models import (
     SdkRuntimeError,
     _utc_now,
 )
+from project_atlas.orchestration.sdk.mutation_attribution import (
+    CloudRemoteGitAttributionProvider,
+    collect_run_changed_paths,
+    extract_run_git,
+    load_run_mutation_baseline,
+    mint_cloud_run_baseline,
+    persist_agent_remote_high_water,
+    persist_run_mutation_baseline,
+)
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
 from project_atlas.orchestration.sdk.result_adapter import adapt_run_result, normalize_run_status
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
@@ -42,7 +51,6 @@ from project_atlas.orchestration.sdk.security_gates import (
     WorkerBackend,
     WorkerLineage,
     bind_worker_lineage,
-    collect_actual_changed_paths,
     enforce_allowed_paths,
     load_run_pre_head,
     mint_creation_sequence,
@@ -292,9 +300,16 @@ class CursorSDKExecutionBackend:
         self._handles: dict[str, Any] = {}
         self._leases: dict[str, GovernorLease] = {}
         self._pre_heads: dict[str, str | None] = {}
+        self._cloud_attribution = CloudRemoteGitAttributionProvider()
 
     def register_lease(self, lease: GovernorLease) -> None:
         self._leases[lease.lease_id] = lease
+
+    def register_cloud_attribution_provider(
+        self, provider: CloudRemoteGitAttributionProvider
+    ) -> None:
+        """Test/injection hook for remote head/diff resolvers."""
+        self._cloud_attribution = provider
 
     def _git_rev_parse_head(self) -> str | None:
         """Pin HEAD before a mutating run so commits cannot hide from the delta."""
@@ -388,7 +403,13 @@ class CursorSDKExecutionBackend:
             return self._pre_heads[run_id]
         return load_run_pre_head(self.root, run_id)
 
-    def _enforce_run_paths(self, record: RunRecord) -> None:
+    def _enforce_run_paths(
+        self,
+        record: RunRecord,
+        *,
+        terminal_git: Any = None,
+        agent_runtime: AgentRuntime | None = None,
+    ) -> None:
         if record.role not in MUTATING_ROLES:
             return
         lease = None
@@ -401,8 +422,30 @@ class CursorSDKExecutionBackend:
                 "mutating wait_run missing lease",
                 code="LEASE_REQUIRED",
             )
-        pre_head = self._resolve_pre_head(record.run_id)
-        changed = collect_actual_changed_paths(self.root, pre_head=pre_head)
+        stored_agent = self.agents_reg.get(record.agent_id)
+        runtime = agent_runtime or (
+            stored_agent.runtime if stored_agent is not None else AgentRuntime.LOCAL
+        )
+        git_info = extract_run_git(terminal_git) if terminal_git is not None else None
+        attribution = None
+        local_pre_head = None
+        if runtime == AgentRuntime.CLOUD:
+            attribution = load_run_mutation_baseline(self.root, record.run_id)
+            if attribution is None:
+                raise SdkRuntimeError(
+                    "missing CLOUD run mutation baseline",
+                    code="REMOTE_ATTRIBUTION_UNDETERMINED",
+                )
+        else:
+            local_pre_head = self._resolve_pre_head(record.run_id)
+        changed = collect_run_changed_paths(
+            self.root,
+            runtime=runtime,
+            attribution=attribution,
+            terminal_git=git_info,
+            local_pre_head=local_pre_head,
+            cloud_provider=self._cloud_attribution,
+        )
         determined = require_changed_paths_determined(changed)
         try:
             enforce_allowed_paths(
@@ -414,6 +457,15 @@ class CursorSDKExecutionBackend:
                 f"REJECTED_SCOPE_ESCAPE: {exc}",
                 code="REJECTED_SCOPE_ESCAPE",
             ) from exc
+        if (
+            runtime == AgentRuntime.CLOUD
+            and attribution is not None
+            and attribution.remote_post_head
+        ):
+            persist_run_mutation_baseline(self.root, attribution)
+            persist_agent_remote_high_water(
+                self.root, record.agent_id, attribution.remote_post_head
+            )
 
     async def _ensure_client(self) -> Any:
         if self._client is not None:
@@ -496,18 +548,6 @@ class CursorSDKExecutionBackend:
         self._require_mutating_lease(request)
 
         runtime = request.runtime or self.pool.preferred_runtime(request.role)
-        # Path attribution (_enforce_run_paths / collect_actual_changed_paths) is
-        # local-worktree-only. Mutating CLOUD sandboxes can escape without
-        # durable detection — force LOCAL (or fail closed) until remote
-        # attribution exists (ORCH-SDK-CLOUD-MUTATING-ATTRIBUTION-001).
-        if runtime == AgentRuntime.CLOUD and request.role in MUTATING_ROLES:
-            if self.discovery.local_sdk_available == "YES":
-                runtime = AgentRuntime.LOCAL
-            else:
-                raise SdkRuntimeError(
-                    "CLOUD_MUTATING_PATH_ATTRIBUTION_UNAVAILABLE",
-                    code="CLOUD_MUTATING_PATH_ATTRIBUTION_UNAVAILABLE",
-                )
         if runtime == AgentRuntime.CLOUD and self.discovery.cloud_sdk_runtime != "ENABLED":
             if self.discovery.local_sdk_available == "YES":
                 runtime = AgentRuntime.LOCAL
@@ -633,6 +673,17 @@ class CursorSDKExecutionBackend:
         run_id = str(getattr(run, "id", None) or run.run_id)
         self._pre_heads[run_id] = pre_head
         persist_run_pre_head(self.root, run_id, pre_head)
+        if stored.runtime == AgentRuntime.CLOUD and request.role in MUTATING_ROLES:
+            mint_cloud_run_baseline(
+                root=self.root,
+                run_id=run_id,
+                agent_id=stored.agent_id,
+                base_main=request.base_main,
+                branch=request.branch or stored.branch,
+                dag_generation=request.dag_generation,
+                lease_id=request.lease_id,
+                package_id=request.package_id,
+            )
         prompt_digest = hash_payload({"prompt": request.prompt})
         record = RunRecord(
             run_id=run_id,
@@ -719,7 +770,7 @@ class CursorSDKExecutionBackend:
             provisional = self.runs_reg.get(run_id)
             if provisional is None:
                 raise SdkRuntimeError("run missing before path enforce", code="RUN_MISSING")
-            self._enforce_run_paths(provisional)
+            self._enforce_run_paths(provisional, terminal_git=result)
             updated = self.runs_reg.mark_terminal(
                 run_id,
                 status=ingested.status,
@@ -738,7 +789,13 @@ class CursorSDKExecutionBackend:
         provisional = self.runs_reg.get(run_id)
         if provisional is None:
             raise SdkRuntimeError("run missing before path enforce", code="RUN_MISSING")
-        self._enforce_run_paths(provisional)
+        terminal_git = None
+        try:
+            client = await self._ensure_client()
+            terminal_git = await client.agents.get_run(run_id)
+        except Exception:
+            terminal_git = None
+        self._enforce_run_paths(provisional, terminal_git=terminal_git)
         return self.runs_reg.mark_terminal(
             run_id, status=ingested.status, result_digest=ingested.result_digest
         )
