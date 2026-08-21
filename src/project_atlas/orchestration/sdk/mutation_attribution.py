@@ -27,20 +27,32 @@ from project_atlas.orchestration.sdk.security_gates import collect_actual_change
 ATTRIBUTION_STORE_NAME: Final[str] = "run-mutation-attribution.json"
 AGENT_REMOTE_HIGH_WATER_NAME: Final[str] = "agent-remote-high-water.json"
 FINDING_ID: Final[str] = "ORCH-SDK-CLOUD-PATH-ATTRIBUTION-001"
+# Sentinel: prior remote post known undetermined — mint must not fall back to base_main.
+REMOTE_HIGH_WATER_UNDETERMINED: Final[str] = "__REMOTE_HIGH_WATER_UNDETERMINED__"
 
+# Exact host/path identity only. Never use search()/suffix match — foreign hosts that
+# embed "github.com/..." as a path segment must not collide with canonical.
 _REPO_HOST_PATH = re.compile(
-    r"(?:https?://)?(?:www\.)?github\.com[/:](?P<owner>[^/]+)/(?P<repo>[^/.]+)(?:\.git)?/?$",
+    r"^(?:https?://)?(?:www\.)?github\.com[/:](?P<owner>[^/]+)/(?P<repo>[^/.]+)(?:\.git)?/?$",
     re.IGNORECASE,
+)
+_OWNER_REPO_ONLY = re.compile(
+    r"^(?P<owner>[A-Za-z0-9_.-]+)/(?P<repo>[A-Za-z0-9_.-]+?)(?:\.git)?/?$",
 )
 
 
 class RunGitInfo(BaseModel):
-    """Terminal Run.git snapshot from Cursor SDK. Evidence only."""
+    """Terminal Run.git snapshot from Cursor SDK. Evidence only.
+
+    ``head_sha`` is optional run-scoped post evidence when the SDK surfaces it.
+    Prefer it over branch-tip ``ls-remote`` (ORCH-SDK-CLOUD-POST-HEAD-BRANCH-TIP-TOCTOU-001).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     repo_url: str | None = None
     branches: tuple[str, ...] = ()
+    head_sha: str | None = None
 
 
 class RunMutationBaseline(BaseModel):
@@ -75,24 +87,51 @@ class MutationAttributionProvider(Protocol):
 
 
 def normalize_repo_identity(raw: str | None) -> str | None:
-    """Normalize GitHub repo URLs/paths for identity comparison."""
+    """Normalize repo URLs to a comparable identity.
+
+    Accepts only:
+    - canonical GitHub host forms (``github.com/owner/repo`` with optional scheme)
+    - bare ``owner/repo`` (no foreign host labels)
+
+    Rejects foreign hosts (gitlab/evil/etc.) and suffix tricks such as
+    ``evil.com/github.com/B0LK13/project-atlas`` that previously matched via
+    ``re.search``.
+    """
     if raw is None:
         return None
-    text = raw.strip()
+    text = raw.strip().replace("\\", "/")
     if not text:
         return None
-    match = _REPO_HOST_PATH.search(text.replace("\\", "/"))
-    if match is None:
-        # Accept owner/repo already-normalized forms.
-        parts = text.strip("/").split("/")
-        if len(parts) >= 2 and "github.com" not in text.casefold():
-            owner, repo = parts[-2], parts[-1]
-            repo = repo.removesuffix(".git")
-            return f"https://github.com/{owner}/{repo}".casefold()
+    # git@github.com:owner/repo
+    if text.casefold().startswith("git@"):
+        _, remainder = text.split("@", 1)
+        text = remainder.replace(":", "/", 1)
+    for prefix in ("https://", "http://", "ssh://", "git://"):
+        if text.casefold().startswith(prefix):
+            text = text[len(prefix) :]
+            break
+    text = text.strip("/")
+    match = _REPO_HOST_PATH.fullmatch(text)
+    if match is not None:
+        owner = match.group("owner")
+        repo = match.group("repo")
+        return f"https://github.com/{owner}/{repo}".casefold()
+    # Bare owner/repo only — reject anything with an extra host/path segment.
+    bare = _OWNER_REPO_ONLY.fullmatch(text)
+    if bare is not None and "." not in bare.group("owner"):
+        owner = bare.group("owner")
+        repo = bare.group("repo")
+        return f"https://github.com/{owner}/{repo}".casefold()
+    # Foreign or malformed: return a stable non-canonical identity when a host
+    # is present so callers raise "foreign repository"; otherwise None.
+    parts = [p for p in text.split("/") if p]
+    if len(parts) >= 3 and "." in parts[0]:
+        host, owner, repo = parts[0], parts[1], parts[2].removesuffix(".git")
+        return f"https://{host}/{owner}/{repo}".casefold()
+    if len(parts) == 2 and "." in parts[0]:
+        # host/repo without owner — not a valid GitHub identity
         return text.rstrip("/").casefold()
-    owner = match.group("owner")
-    repo = match.group("repo")
-    return f"https://github.com/{owner}/{repo}".casefold()
+    return None
 
 
 def canonical_repo_identity() -> str:
@@ -202,8 +241,50 @@ def persist_agent_remote_high_water(root: Path, agent_id: str, sha: str) -> None
     tmp.replace(path)
 
 
+def mark_agent_remote_high_water_undetermined(root: Path, agent_id: str) -> None:
+    """Record that prior remote post is undetermined (disconnect / failed enforce).
+
+    ORCH-SDK-CLOUD-DISCONNECT-HW-GAP-001: subsequent mint must not silently
+    re-baseline to base_main.
+    """
+    persist_agent_remote_high_water(root, agent_id, REMOTE_HIGH_WATER_UNDETERMINED)
+
+
+def agent_remote_high_water_is_undetermined(value: str | None) -> bool:
+    return value == REMOTE_HIGH_WATER_UNDETERMINED
+
+
+def _agent_has_incomplete_cloud_baseline(root: Path, agent_id: str) -> bool:
+    """True when a prior CLOUD baseline for this agent never recorded post_head."""
+    path = attribution_store_path(root)
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return True
+    if not isinstance(data, dict):
+        return True
+    for row in data.values():
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("agent_id") or "") != agent_id:
+            continue
+        if str(row.get("runtime") or "") != AgentRuntime.CLOUD.value:
+            continue
+        post = row.get("remote_post_head")
+        if post is None or (isinstance(post, str) and len(post.strip()) < 7):
+            return True
+    return False
+
+
 def extract_run_git(result: Any) -> RunGitInfo | None:
-    """Pull Run.git / git.branches[] from a Cursor run result object."""
+    """Pull Run.git / git.branches[] from a Cursor run result object.
+
+    Live cursor_sdk places ``repo_url`` on each branch entry (not always on the
+    parent). Optional run-scoped SHAs are harvested when present for TOCTOU-safe
+    post_head binding.
+    """
     git_obj = getattr(result, "git", None)
     if git_obj is None and isinstance(result, dict):
         git_obj = result.get("git")
@@ -212,6 +293,21 @@ def extract_run_git(result: Any) -> RunGitInfo | None:
     repo = getattr(git_obj, "repo_url", None) or getattr(git_obj, "repoUrl", None)
     if repo is None and isinstance(git_obj, dict):
         repo = git_obj.get("repo_url") or git_obj.get("repoUrl") or git_obj.get("url")
+    head_sha = (
+        getattr(git_obj, "head_sha", None)
+        or getattr(git_obj, "headSha", None)
+        or getattr(git_obj, "commit_sha", None)
+        or getattr(git_obj, "commitSha", None)
+        or getattr(git_obj, "sha", None)
+    )
+    if head_sha is None and isinstance(git_obj, dict):
+        head_sha = (
+            git_obj.get("head_sha")
+            or git_obj.get("headSha")
+            or git_obj.get("commit_sha")
+            or git_obj.get("commitSha")
+            or git_obj.get("sha")
+        )
     branches_raw = getattr(git_obj, "branches", None)
     if branches_raw is None and isinstance(git_obj, dict):
         branches_raw = git_obj.get("branches")
@@ -225,13 +321,46 @@ def extract_run_git(result: Any) -> RunGitInfo | None:
                     getattr(item, "name", None)
                     or getattr(item, "branch", None)
                     or (item.get("name") if isinstance(item, dict) else "")
+                    or (item.get("branch") if isinstance(item, dict) else "")
                     or ""
                 ).strip()
+                if repo is None:
+                    item_repo = getattr(item, "repo_url", None) or getattr(
+                        item, "repoUrl", None
+                    )
+                    if item_repo is None and isinstance(item, dict):
+                        item_repo = (
+                            item.get("repo_url")
+                            or item.get("repoUrl")
+                            or item.get("url")
+                        )
+                    if item_repo is not None:
+                        repo = item_repo
+                if head_sha is None:
+                    item_sha = (
+                        getattr(item, "head_sha", None)
+                        or getattr(item, "headSha", None)
+                        or getattr(item, "commit_sha", None)
+                        or getattr(item, "sha", None)
+                    )
+                    if item_sha is None and isinstance(item, dict):
+                        item_sha = (
+                            item.get("head_sha")
+                            or item.get("headSha")
+                            or item.get("commit_sha")
+                            or item.get("sha")
+                        )
+                    if item_sha is not None:
+                        head_sha = item_sha
             if name:
                 branches.append(name)
+    sha_text = str(head_sha).strip() if head_sha is not None else None
+    if sha_text is not None and len(sha_text) < 7:
+        sha_text = None
     return RunGitInfo(
         repo_url=str(repo) if repo is not None else None,
         branches=tuple(branches),
+        head_sha=sha_text,
     )
 
 
@@ -417,7 +546,15 @@ class CloudRemoteGitAttributionProvider:
                 "cloud branch changed unexpectedly vs lineage",
                 code="REMOTE_ATTRIBUTION_UNDETERMINED",
             )
-        post = self._resolve_head(attribution.repository, branch)
+        # Prefer run-scoped SHA when SDK provides it (closes branch-tip TOCTOU
+        # for that run). Current cursor_sdk RunGitInfo has no SHA field — tip
+        # resolution remains a documented residual hazard covered by regression
+        # tests that prove SHA preference when present.
+        post: str | None = None
+        if terminal_git.head_sha and len(terminal_git.head_sha) >= 7:
+            post = terminal_git.head_sha.strip()
+        else:
+            post = self._resolve_head(attribution.repository, branch)
         if post is None or len(post) < 7:
             raise SdkRuntimeError(
                 "remote terminal HEAD cannot be resolved",
@@ -507,8 +644,23 @@ def mint_cloud_run_baseline(
     package_id: str = PACKAGE_ID,
     repository: str = CANONICAL_REPO_URL,
 ) -> RunMutationBaseline:
-    """First Cloud run baselines at base_main; follow-ups chain prior post head."""
+    """First Cloud run baselines at base_main; follow-ups chain prior post head.
+
+    ORCH-SDK-CLOUD-DISCONNECT-HW-GAP-001: refuse silent re-baseline to base_main
+    when prior remote high-water is undetermined or a prior CLOUD baseline never
+    recorded remote_post_head.
+    """
     prior = load_agent_remote_high_water(root, agent_id)
+    if agent_remote_high_water_is_undetermined(prior):
+        raise SdkRuntimeError(
+            "prior CLOUD remote high-water undetermined; refuse silent rebase to base_main",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
+    if prior is None and _agent_has_incomplete_cloud_baseline(root, agent_id):
+        raise SdkRuntimeError(
+            "incomplete prior CLOUD remote post; refuse silent rebase to base_main",
+            code="REMOTE_ATTRIBUTION_UNDETERMINED",
+        )
     remote_pre = prior if prior else base_main
     if not remote_pre or len(remote_pre) < 7:
         raise SdkRuntimeError(

@@ -475,3 +475,559 @@ def test_cloud_attr_missing_git_fail_closed(tmp_path: Path) -> None:
     with pytest.raises(SdkRuntimeError) as exc:
         asyncio.run(backend.wait_run("run-nogit", agent_id=AGENT))
     assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+# --- G107 ADV matrix expansion (foreign host, recovery, TOCTOU, HW gap) ---
+
+FOREIGN_URLS = [
+    "https://evil.com/github.com/B0LK13/project-atlas",
+    "evil.com/B0LK13/project-atlas",
+    "https://gitlab.com/B0LK13/project-atlas",
+    "notgithub.com/B0LK13/project-atlas",
+    "https://github.evil.com/B0LK13/project-atlas",
+    "https://github.com.evil/B0LK13/project-atlas",
+]
+
+
+@pytest.mark.parametrize("url", FOREIGN_URLS)
+def test_normalize_rejects_foreign_host_urls(url: str) -> None:
+    assert normalize_repo_identity(url) != normalize_repo_identity(CANONICAL_REPO_URL)
+
+
+def test_normalize_accepts_ssh_and_git_suffix() -> None:
+    assert normalize_repo_identity(
+        "git@github.com:B0LK13/project-atlas.git"
+    ) == normalize_repo_identity(CANONICAL_REPO_URL)
+
+
+def test_normalize_accepts_bare_owner_repo() -> None:
+    assert normalize_repo_identity("B0LK13/project-atlas") == normalize_repo_identity(
+        CANONICAL_REPO_URL
+    )
+
+
+def test_normalize_rejects_embedded_github_suffix() -> None:
+    spoofed = normalize_repo_identity("https://evil.com/github.com/B0LK13/project-atlas")
+    assert spoofed != normalize_repo_identity(CANONICAL_REPO_URL)
+
+
+@pytest.mark.parametrize("url", FOREIGN_URLS)
+def test_select_canonical_branch_rejects_foreign(url: str) -> None:
+    from project_atlas.orchestration.sdk.mutation_attribution import (
+        RunGitInfo,
+        select_canonical_remote_branch,
+    )
+
+    with pytest.raises(SdkRuntimeError) as exc:
+        select_canonical_remote_branch(
+            RunGitInfo(repo_url=url, branches=(BRANCH,)),
+            expected_branch=BRANCH,
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_e2e_gitlab_spoof_fail_closed(tmp_path: Path) -> None:
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-gitlab-spoof",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(
+            heads={BRANCH: H1},
+            diffs={(PIN, H1): ["src/project_atlas/orchestration/sdk/ok.py"]},
+        )
+    )
+    backend.runs_reg.upsert(_run("run-gitlab-spoof"))
+    backend._handles["run:run-gitlab-spoof"] = _GitWaitHandle(
+        repo="https://gitlab.com/B0LK13/project-atlas",
+        branches=[BRANCH],
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-gitlab-spoof", agent_id=AGENT))
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+    assert backend.runs_reg.get("run-gitlab-spoof").status == RunStatus.RUNNING  # type: ignore[union-attr]
+
+
+def test_e2e_evil_embedded_github_fail_closed(tmp_path: Path) -> None:
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-embed",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(
+            heads={BRANCH: H1},
+            diffs={(PIN, H1): ["src/project_atlas/orchestration/sdk/ok.py"]},
+        )
+    )
+    backend.runs_reg.upsert(_run("run-embed"))
+    backend._handles["run:run-embed"] = _GitWaitHandle(
+        repo="https://evil.com/github.com/B0LK13/project-atlas",
+        branches=[BRANCH],
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-embed", agent_id=AGENT))
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_branch_switch_fail_closed(tmp_path: Path) -> None:
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-switch",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(heads={BRANCH: H1, "other": H1}, diffs={(PIN, H1): []})
+    )
+    backend.runs_reg.upsert(_run("run-switch"))
+    backend._handles["run:run-switch"] = _GitWaitHandle(
+        repo=CANONICAL_REPO_URL, branches=["other"]
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-switch", agent_id=AGENT))
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_missing_baseline_fail_closed(tmp_path: Path) -> None:
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    backend.register_cloud_attribution_provider(
+        _provider(heads={BRANCH: H1}, diffs={(PIN, H1): []})
+    )
+    backend.runs_reg.upsert(_run("run-nobase"))
+    backend._handles["run:run-nobase"] = _GitWaitHandle(
+        repo=CANONICAL_REPO_URL, branches=[BRANCH]
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-nobase", agent_id=AGENT))
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_corrupt_baseline_store_fail_closed(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mutation_attribution import attribution_store_path
+
+    path = attribution_store_path(tmp_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not-json", encoding="utf-8")
+    with pytest.raises(SdkRuntimeError) as exc:
+        load_run_mutation_baseline(tmp_path, "run-x")
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_rename_outside_lease_rejected(tmp_path: Path) -> None:
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-ren-out",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(
+            heads={BRANCH: H1},
+            diffs={(PIN, H1): ["docs/secret.md", "README.md"]},
+        )
+    )
+    backend.runs_reg.upsert(_run("run-ren-out"))
+    backend._handles["run:run-ren-out"] = _GitWaitHandle(
+        repo=CANONICAL_REPO_URL, branches=[BRANCH]
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-ren-out", agent_id=AGENT))
+    assert exc.value.code == "REJECTED_SCOPE_ESCAPE"
+    assert backend.runs_reg.get("run-ren-out").status == RunStatus.RUNNING  # type: ignore[union-attr]
+
+
+def test_delete_outside_lease_rejected(tmp_path: Path) -> None:
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-del-out",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(
+            heads={BRANCH: H1},
+            diffs={(PIN, H1): [".github/workflows/ci.yml"]},
+        )
+    )
+    backend.runs_reg.upsert(_run("run-del-out"))
+    backend._handles["run:run-del-out"] = _GitWaitHandle(
+        repo=CANONICAL_REPO_URL, branches=[BRANCH]
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-del-out", agent_id=AGENT))
+    assert exc.value.code == "REJECTED_SCOPE_ESCAPE"
+
+
+def test_cloud_never_dispatches_local_provider(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mutation_attribution import (
+        RunGitInfo,
+        RunMutationBaseline,
+        collect_run_changed_paths,
+    )
+
+    local = tmp_path / "src" / "project_atlas" / "orchestration" / "sdk"
+    local.mkdir(parents=True)
+    (local / "local_only.py").write_text("x\n", encoding="utf-8")
+    baseline = RunMutationBaseline(
+        run_id="r",
+        agent_id=AGENT,
+        runtime=AgentRuntime.CLOUD,
+        base_main=PIN,
+        remote_branch=BRANCH,
+        remote_pre_head=PIN,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    cloud = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=lambda _r, _b: H1,
+        resolve_remote_diff=lambda _r, _pre, _post: ["docs/evil.md"],
+    )
+    paths = collect_run_changed_paths(
+        tmp_path,
+        runtime=AgentRuntime.CLOUD,
+        attribution=baseline,
+        terminal_git=RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=(BRANCH,)),
+        local_pre_head=PIN,
+        cloud_provider=cloud,
+    )
+    assert paths == ["docs/evil.md"]
+
+
+def test_run_scoped_sha_preferred_over_branch_tip(tmp_path: Path) -> None:
+    """ORCH-SDK-CLOUD-POST-HEAD-BRANCH-TIP-TOCTOU-001: prefer SDK head_sha."""
+    from project_atlas.orchestration.sdk.mutation_attribution import (
+        RunGitInfo,
+        RunMutationBaseline,
+        collect_run_changed_paths,
+    )
+
+    tip_calls: list[tuple[str, str]] = []
+
+    def resolve_head(repository: str, branch: str) -> str | None:
+        tip_calls.append((repository, branch))
+        return H2  # stale tip that must NOT win over run-scoped SHA
+
+    baseline = RunMutationBaseline(
+        run_id="run-sha",
+        agent_id=AGENT,
+        runtime=AgentRuntime.CLOUD,
+        base_main=PIN,
+        remote_branch=BRANCH,
+        remote_pre_head=PIN,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    cloud = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=resolve_head,
+        resolve_remote_diff=lambda _r, pre, post: (
+            ["src/project_atlas/orchestration/sdk/x.py"]
+            if (pre, post) == (PIN, H1)
+            else None
+        ),
+    )
+    paths = collect_run_changed_paths(
+        tmp_path,
+        runtime=AgentRuntime.CLOUD,
+        attribution=baseline,
+        terminal_git=RunGitInfo(
+            repo_url=CANONICAL_REPO_URL, branches=(BRANCH,), head_sha=H1
+        ),
+        local_pre_head=None,
+        cloud_provider=cloud,
+    )
+    assert paths == ["src/project_atlas/orchestration/sdk/x.py"]
+    assert tip_calls == []
+    assert baseline.remote_post_head == H1
+
+
+def test_branch_tip_used_when_run_scoped_sha_absent(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mutation_attribution import (
+        RunGitInfo,
+        RunMutationBaseline,
+        collect_run_changed_paths,
+    )
+
+    baseline = RunMutationBaseline(
+        run_id="run-tip",
+        agent_id=AGENT,
+        runtime=AgentRuntime.CLOUD,
+        base_main=PIN,
+        remote_branch=BRANCH,
+        remote_pre_head=PIN,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    cloud = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=lambda _r, _b: H1,
+        resolve_remote_diff=lambda _r, _pre, _post: [
+            "src/project_atlas/orchestration/sdk/x.py"
+        ],
+    )
+    paths = collect_run_changed_paths(
+        tmp_path,
+        runtime=AgentRuntime.CLOUD,
+        attribution=baseline,
+        terminal_git=RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=(BRANCH,)),
+        local_pre_head=None,
+        cloud_provider=cloud,
+    )
+    assert paths is not None
+    assert baseline.remote_post_head == H1
+
+
+def test_mint_refuses_undetermined_high_water(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mutation_attribution import (
+        mark_agent_remote_high_water_undetermined,
+    )
+
+    mark_agent_remote_high_water_undetermined(tmp_path, AGENT)
+    with pytest.raises(SdkRuntimeError) as exc:
+        mint_cloud_run_baseline(
+            root=tmp_path,
+            run_id="run-undetermined",
+            agent_id=AGENT,
+            base_main=PIN,
+            branch=BRANCH,
+            dag_generation=116,
+            lease_id=LEASE_ID,
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_mint_refuses_incomplete_prior_baseline_without_hw(tmp_path: Path) -> None:
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-incomplete",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        mint_cloud_run_baseline(
+            root=tmp_path,
+            run_id="run-follow-incomplete",
+            agent_id=AGENT,
+            base_main=PIN,
+            branch=BRANCH,
+            dag_generation=116,
+            lease_id=LEASE_ID,
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_recovery_cannot_bypass_cloud_attribution(tmp_path: Path) -> None:
+    """ORCH-SDK-CLOUD-RECOVERY-ATTRIBUTION-BYPASS-001."""
+    from project_atlas.orchestration.sdk.mutation_attribution import (
+        REMOTE_HIGH_WATER_UNDETERMINED,
+        load_agent_remote_high_water,
+    )
+    from project_atlas.orchestration.sdk.recovery import recover_runtime
+
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-rec-bypass",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(heads={BRANCH: H1}, diffs={(PIN, H1): ["docs/evil.md"]})
+    )
+    backend.runs_reg.upsert(_run("run-rec-bypass"))
+    backend._handles["run:run-rec-bypass"] = _GitWaitHandle(
+        repo=CANONICAL_REPO_URL, branches=[BRANCH]
+    )
+
+    class _StatusBackend:
+        """Wrap so get_run_status reports FINISHED while wait_run still enforces."""
+
+        def __init__(self, inner: CursorSDKExecutionBackend) -> None:
+            self._inner = inner
+            self.root = inner.root
+
+        async def resume_agent(self, agent_id: str) -> AgentRecord:
+            stored = self._inner.agents_reg.get(agent_id)
+            if stored is None:
+                raise SdkRuntimeError("unknown agent", code="UNKNOWN_AGENT")
+            return stored
+
+        async def get_run_status(self, run_id: str, *, agent_id: str) -> RunStatus:
+            del run_id, agent_id
+            return RunStatus.FINISHED
+
+        async def wait_run(self, run_id: str, *, agent_id: str) -> RunRecord:
+            return await self._inner.wait_run(run_id, agent_id=agent_id)
+
+    report = asyncio.run(
+        recover_runtime(
+            backend=_StatusBackend(backend),  # type: ignore[arg-type]
+            agents=backend.agents_reg,
+            runs=backend.runs_reg,
+            root=tmp_path,
+        )
+    )
+    stored = backend.runs_reg.get("run-rec-bypass")
+    assert stored is not None
+    assert stored.status == RunStatus.RUNNING
+    assert "run-rec-bypass" not in report.ingested_runs
+    assert "run-rec-bypass" in report.still_active_runs
+    assert report.safety_stop is True
+    assert load_agent_remote_high_water(tmp_path, AGENT) == REMOTE_HIGH_WATER_UNDETERMINED
+
+
+def test_recovery_preserves_nonterminal_on_wait_exception(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.recovery import recover_runtime
+
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    backend.runs_reg.upsert(_run("run-rec-exc"))
+
+    class _Boom:
+        root = tmp_path
+
+        async def resume_agent(self, agent_id: str) -> AgentRecord:
+            del agent_id
+            return _agent(tmp_path)
+
+        async def get_run_status(self, run_id: str, *, agent_id: str) -> RunStatus:
+            del run_id, agent_id
+            return RunStatus.FINISHED
+
+        async def wait_run(self, run_id: str, *, agent_id: str) -> RunRecord:
+            del run_id, agent_id
+            raise SdkRuntimeError(
+                "attribution failed", code="REMOTE_ATTRIBUTION_UNDETERMINED"
+            )
+
+    report = asyncio.run(
+        recover_runtime(
+            backend=_Boom(),  # type: ignore[arg-type]
+            agents=backend.agents_reg,
+            runs=backend.runs_reg,
+            root=tmp_path,
+        )
+    )
+    stored = backend.runs_reg.get("run-rec-exc")
+    assert stored is not None
+    assert stored.status == RunStatus.RUNNING
+    assert report.ingested_runs == []
+    assert report.safety_stop is True
+
+
+def test_hw_only_after_successful_enforce(tmp_path: Path) -> None:
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-hw-gap",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(heads={BRANCH: H1}, diffs={(PIN, H1): ["docs/evil.md"]})
+    )
+    backend.runs_reg.upsert(_run("run-hw-gap"))
+    backend._handles["run:run-hw-gap"] = _GitWaitHandle(
+        repo=CANONICAL_REPO_URL, branches=[BRANCH]
+    )
+    with pytest.raises(SdkRuntimeError):
+        asyncio.run(backend.wait_run("run-hw-gap", agent_id=AGENT))
+    assert load_agent_remote_high_water(tmp_path, AGENT) is None
+
+
+def test_extract_run_git_reads_branch_repo_url() -> None:
+    from project_atlas.orchestration.sdk.mutation_attribution import extract_run_git
+
+    result = SimpleNamespace(
+        git=SimpleNamespace(
+            branches=[
+                SimpleNamespace(
+                    repo_url="github.com/B0LK13/project-atlas",
+                    branch=BRANCH,
+                    head_sha=H1,
+                )
+            ]
+        )
+    )
+    info = extract_run_git(result)
+    assert info is not None
+    assert normalize_repo_identity(info.repo_url) == normalize_repo_identity(
+        CANONICAL_REPO_URL
+    )
+    assert BRANCH in info.branches
+    assert info.head_sha == H1
+
+
+def test_escape_leaves_status_running_ordering(tmp_path: Path) -> None:
+    """D115 ordering: REJECTED_SCOPE_ESCAPE before durable terminal."""
+    backend = _backend(tmp_path)
+    _lease(tmp_path)
+    backend.agents_reg.upsert(_agent(tmp_path))
+    mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-order",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=116,
+        lease_id=LEASE_ID,
+    )
+    backend.register_cloud_attribution_provider(
+        _provider(heads={BRANCH: H1}, diffs={(PIN, H1): ["secrets/key.pem"]})
+    )
+    backend.runs_reg.upsert(_run("run-order"))
+    backend._handles["run:run-order"] = _GitWaitHandle(
+        repo=CANONICAL_REPO_URL, branches=[BRANCH]
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-order", agent_id=AGENT))
+    assert exc.value.code == "REJECTED_SCOPE_ESCAPE"
+    assert backend.runs_reg.get("run-order").status == RunStatus.RUNNING  # type: ignore[union-attr]

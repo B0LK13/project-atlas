@@ -9,15 +9,19 @@ from project_atlas.orchestration.sdk.backend import ExecutionBackend
 from project_atlas.orchestration.sdk.event_log import read_event_witness, read_events
 from project_atlas.orchestration.sdk.live_dag import load_live_dag
 from project_atlas.orchestration.sdk.models import (
+    MUTATING_ROLES,
     TERMINAL_RUN_STATUSES,
+    AgentRuntime,
     AgentState,
     RunRecord,
     RunStatus,
     SdkRuntimeError,
 )
+from project_atlas.orchestration.sdk.mutation_attribution import (
+    mark_agent_remote_high_water_undetermined,
+)
 from project_atlas.orchestration.sdk.package_registry import load_package_route
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
-from project_atlas.orchestration.sdk.result_adapter import adapt_run_result
 from project_atlas.orchestration.sdk.security_gates import (
     HostHighWater,
     load_high_water,
@@ -150,6 +154,8 @@ async def recover_runtime(
     ingested: list[str] = []
     active: list[str] = []
     duplicates = 0
+    attribution_safety_stop = False
+    recovery_root = root if root is not None else getattr(agents, "root", None)
 
     for agent in agents.list_active():
         await backend.resume_agent(agent.agent_id)
@@ -161,14 +167,23 @@ async def recover_runtime(
             try:
                 updated = await backend.wait_run(run.run_id, agent_id=run.agent_id)
             except Exception:
-                ingested_result = adapt_run_result(
-                    run_id=run.run_id, agent_id=run.agent_id, status=status
-                )
-                updated = runs.mark_terminal(
-                    run.run_id,
-                    status=ingested_result.status,
-                    result_digest=ingested_result.result_digest,
-                )
+                # ORCH-SDK-CLOUD-RECOVERY-ATTRIBUTION-BYPASS-001: never mark
+                # durable FINISHED/ERROR success after swallowing wait_run
+                # failures — that skips _enforce_run_paths / high-water.
+                # Preserve nonterminal; mark remote HW undetermined for CLOUD
+                # mutating agents so mint cannot silently re-baseline.
+                attribution_safety_stop = True
+                active.append(run.run_id)
+                if recovery_root is not None and run.role in MUTATING_ROLES:
+                    stored_agent = agents.get(run.agent_id)
+                    cloud_shaped = stored_agent is not None and (
+                        stored_agent.runtime == AgentRuntime.CLOUD
+                    )
+                    if cloud_shaped or run.agent_id.startswith("bc-"):
+                        mark_agent_remote_high_water_undetermined(
+                            recovery_root, run.agent_id
+                        )
+                continue
             ingested.append(updated.run_id)
             stored = agents.get(run.agent_id)
             if stored is not None and stored.state == AgentState.BUSY:
@@ -186,6 +201,7 @@ async def recover_runtime(
         still_active_runs=active,
         duplicates_avoided=duplicates,
         high_water_validated=high_water_ok,
+        safety_stop=attribution_safety_stop,
     )
 
 
