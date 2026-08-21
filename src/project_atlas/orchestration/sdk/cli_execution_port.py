@@ -559,14 +559,6 @@ class CursorAgentCliExecutionPort:
                     break
             if assignment_id:
                 envelope_payload.setdefault("ASSIGNMENT_ID", assignment_id)
-            envelope_payload.setdefault(
-                "AUDIT_RESULT",
-                envelope_payload.get("AUDIT_RESULT") or "FAIL",
-            )
-            envelope_payload.setdefault(
-                "SIX_P1_RUNTIME_OPEN_COUNT",
-                envelope_payload.get("SIX_P1_RUNTIME_OPEN_COUNT", 1),
-            )
         binding = BoundWorkerResult(
             worker_backend=WorkerBackend.CURSOR_AGENT_CLI,
             session_or_agent_id=session.agent_id,

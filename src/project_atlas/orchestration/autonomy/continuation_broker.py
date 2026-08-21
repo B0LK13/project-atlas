@@ -1013,9 +1013,12 @@ def finalize_governor_checkpoint(
             progress_sequence=progress_sequence,
         )
         verified = recover_broker(root)
+        durable_phases = {BrokerPhase.QUEUED}
+        if owner_gate_fingerprint:
+            durable_phases.add(BrokerPhase.PARKED_OWNER)
         if (
             verified is None
-            or verified.phase != BrokerPhase.QUEUED
+            or verified.phase not in durable_phases
             or verified.cycle_id != cycle_id
         ):
             raise BrokerError(
@@ -1023,6 +1026,7 @@ def finalize_governor_checkpoint(
                 code="CONTINUATION_ENQUEUE_FAILED",
             )
         remains = True if safe_dag_work_remains is None else safe_dag_work_remains
+        owner_parked = verified.phase == BrokerPhase.PARKED_OWNER
         return FinalizeResult(
             result_class=result_class,
             successor_enqueued=True,
@@ -1031,10 +1035,10 @@ def finalize_governor_checkpoint(
             kind=verified.kind,
             next_machine_action=next_action_class,
             next_machine_action_scheduled=next_machine_action_receipt_valid(
-                executing=False, scheduled=True
+                executing=False, scheduled=not owner_parked
             ),
             final_response_allowed=final_response_allowed(
-                owner_action_required_now=False,
+                owner_action_required_now=owner_parked,
                 safe_dag_work_remains=remains,
                 successor_state=verified.phase.value,
             ),

@@ -308,8 +308,13 @@ def evaluate_cloud_audit(
             consume_identity=identity,
         )
     open_count = payload.get("SIX_P1_RUNTIME_OPEN_COUNT", payload.get("six_p1_runtime_open_count"))
-    audit_result = str(payload.get("AUDIT_RESULT") or payload.get("audit_result") or "")
+    audit_result_raw = payload.get("AUDIT_RESULT", payload.get("audit_result"))
+    audit_result = str(audit_result_raw or "")
     wiring = payload.get("WIRING_VERIFIED", payload.get("wiring_verified"))
+    if audit_result_raw in (None, "") and not isinstance(open_count, int):
+        return CloudAuditDecision(
+            accepted=False, gate="NOT_PASS", reason="INCOMPLETE_AUDIT"
+        )
     if audit_result == "FAIL":
         return CloudAuditDecision(
             accepted=True,

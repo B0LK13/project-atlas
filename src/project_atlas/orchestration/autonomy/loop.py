@@ -514,7 +514,7 @@ class AutonomousLoop:
         )
 
         cycle_id = f"YIELD-{self._state.sequence}"
-        finalize_governor_checkpoint(
+        result = finalize_governor_checkpoint(
             self._root,
             result_class="RESOURCE_YIELD",
             cycle_id=cycle_id,
@@ -525,6 +525,11 @@ class AutonomousLoop:
             dag_generation=self._state.sequence,
             safe_dag_work_remains=True,
         )
+        if not result.successor_enqueued:
+            self._fail(
+                "resource yield successor was not durable",
+                code=result.error_code or "CONTINUATION_ENQUEUE_FAILED",
+            )
 
     def _first_agent(self) -> str:
         for agent in self._governor.snapshot().agents:
