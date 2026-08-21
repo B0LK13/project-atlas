@@ -6962,3 +6962,38 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - `NEW_HEAD != LOST_HEAD` (required)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `MERGE_PERFORMED = NO`
+
+---
+
+## AS-ORCH-DURABLE-LEASE-PROJECTION-001 — durable read projection of governor leases
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-NO-PROMPT-PERSISTENT-GOVERNOR-060 / D-061
+**Branch:** `feat/as-orch-durable-lease-projection-001` (from `origin/main` `dc9d81df0ff7106438de44a4bd84df0b955535bc`)
+**Mode:** CONTROL_PLANE_RESILIENCE. Does not replace in-memory governor authority. Does not consume PR400. Does not merge.
+
+### Why
+`AutonomousGovernor._leases` is process-local. Subordinates cannot inspect another process's memory. That is a visibility gap, not a grant failure. This package projects grant/release to `leases.json` for restart/ack/audit.
+
+### Honesty
+- `PRIMARY_GOVERNOR_REMAINS_AUTHORITY = YES`
+- `DURABLE_PROJECTION_IS_AUTHORITY = NO`
+- `LEASE_GRANT_SOURCE = PRIMARY_GOVERNOR`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Local verification
+- Focused projection tests: 13 passed
+- Autonomy regression: 26 passed (unchanged default path)
+- ruff/mypy on touched modules: pass
+
+### D-069 remedi 1/2 — ORCH-LEASE-SYMLINK-ESCAPE-001
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-DUPLICATE-RECEIPT-SUPPRESSION-AND-PR427-FRESH-REVIEW-069
+**Parent head:** `5929b03fc2a61e81c9f9603ad14f763ffa987f35`
+**Mode:** SAME PACKAGE / SAME OBJECTIVE / NARROWER SURFACE. No rebase. No merge.
+**Finding:** `_write_atomic` used a predictable `.{name}.tmp` path and
+`Path.write_text`, so a pre-planted symlink escaped the store.
+**Fix:** unique exclusive `O_NOFOLLOW` tmp in the store directory; reject
+symlink projection files on read.
+**Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
+grant source and does not certify #427.
