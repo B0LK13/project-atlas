@@ -321,20 +321,19 @@ def scheduler_tick(
         and item.package_id not in held
         and item.node_id not in (parked_node_ids or set())
     )
+    idle = classify_idle(
+        ready_count=remaining_runnable,
+        pending_external=pending,
+        owner_held=owner_held_count,
+        runnable_independent=len(result.dispatched),
+    )
     state: Literal[
         "ACTIVE",
         "BOUNDED_IDLE",
         "OWNER_REQUIRED",
         "PROJECT_IDLE",
         "STALL_RECONCILING",
-    ] = classify_idle(
-        ready_count=remaining_runnable,
-        pending_external=pending,
-        owner_held=owner_held_count,
-        runnable_independent=len(result.dispatched),
-    )
-    if stall and not result.dispatched:
-        state = "STALL_RECONCILING"
+    ] = "STALL_RECONCILING" if (stall and not result.dispatched) else idle
     result.governor_state = state
 
     updated = SchedulerLiveness(
