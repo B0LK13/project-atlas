@@ -17,8 +17,8 @@ from __future__ import annotations
 import json
 import os
 import threading
-from collections.abc import Sequence
-from contextlib import suppress
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -27,6 +27,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from project_atlas.orchestration.sdk.models import SdkRuntimeError
+from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 
 SPECULATIVE_PACKAGE_ID: Final[Literal["AS-ORCH-SPECULATIVE-CERTIFICATION-001"]] = (
     "AS-ORCH-SPECULATIVE-CERTIFICATION-001"
@@ -64,19 +65,57 @@ PACKAGE_CERT_LANES: Final[tuple[str, ...]] = (
 _FULL_SHA_LEN: Final[int] = 40
 _MERGE_DENIED: Final[Literal["NOT_GRANTED"]] = "NOT_GRANTED"
 
-# Process-local single-writer lock; file lock coordinates cross-thread mutation.
-_ROOT_LOCKS: dict[str, threading.RLock] = {}
-_ROOT_LOCKS_GUARD = threading.Lock()
+# Process-local RLock plus ProjectIdentityLock for cross-process single-writer updates.
+class _DurableGuard:
+    def __init__(self) -> None:
+        self.thread_lock = threading.RLock()
+        self.depth = 0
+        self.file_lock: ProjectIdentityLock | None = None
 
 
-def _root_lock(root: Path) -> threading.RLock:
+_DURABLE_GUARDS: dict[str, _DurableGuard] = {}
+_DURABLE_GUARDS_GUARD = threading.Lock()
+
+
+def _durable_guard(root: Path) -> _DurableGuard:
     key = str(root.resolve())
-    with _ROOT_LOCKS_GUARD:
-        lock = _ROOT_LOCKS.get(key)
-        if lock is None:
-            lock = threading.RLock()
-            _ROOT_LOCKS[key] = lock
-        return lock
+    with _DURABLE_GUARDS_GUARD:
+        guard = _DURABLE_GUARDS.get(key)
+        if guard is None:
+            guard = _DurableGuard()
+            _DURABLE_GUARDS[key] = guard
+        return guard
+
+
+@contextmanager
+def _root_lock(root: Path) -> Iterator[None]:
+    """Reentrant in-process lock; outermost entry also acquires LOCK_FILE_NAME."""
+    guard = _durable_guard(root)
+    with guard.thread_lock:
+        acquired_file = False
+        if guard.depth == 0:
+            file_lock = ProjectIdentityLock(
+                speculative_cert_dir(root) / LOCK_FILE_NAME,
+                wait_seconds=2.0,
+                stale_seconds=30.0,
+            )
+            try:
+                file_lock.acquire()
+            except IdentityLockError as exc:
+                raise SdkRuntimeError(
+                    "speculative certification lock is held",
+                    code="SPECULATIVE_CERT_CONCURRENT",
+                ) from exc
+            guard.file_lock = file_lock
+            acquired_file = True
+        guard.depth += 1
+        try:
+            yield
+        finally:
+            guard.depth -= 1
+            if acquired_file and guard.file_lock is not None:
+                guard.file_lock.release()
+                guard.file_lock = None
 
 
 def _require_full_sha(value: str, *, field: str) -> str:
@@ -282,6 +321,36 @@ def _pending_lanes(
     }
 
 
+def _pending_barrier_from_seal(
+    seal: CandidateSeal, *, updated_at_utc: str
+) -> CertificationBarrier:
+    return CertificationBarrier(
+        generation=seal.generation,
+        sealed_head=seal.head,
+        sealed_tree=seal.tree,
+        sealed_base_main=seal.base_main,
+        required_lanes=seal.required_lanes,
+        state=CertificationState.CANDIDATE_SEALED,
+        lanes=_pending_lanes(
+            lanes=seal.required_lanes,
+            head=seal.head,
+            tree=seal.tree,
+            generation=seal.generation,
+        ),
+        updated_at_utc=updated_at_utc,
+    )
+
+
+def _barrier_binds_seal(barrier: CertificationBarrier, seal: CandidateSeal) -> bool:
+    return (
+        barrier.generation == seal.generation
+        and barrier.sealed_head == seal.head
+        and barrier.sealed_tree == seal.tree
+        and barrier.sealed_base_main == seal.base_main
+        and barrier.required_lanes == seal.required_lanes
+    )
+
+
 def _persist_seal(root: Path, seal: CandidateSeal) -> None:
     _write_json_atomic(
         speculative_cert_dir(root) / SEAL_FILE_NAME,
@@ -334,23 +403,14 @@ def seal_candidate(
         )
         path = speculative_cert_dir(root)
         path.mkdir(parents=True, exist_ok=True)
+        # Drop the prior barrier first so a crash cannot pair a new seal with a stale barrier.
+        barrier_path = path / BARRIER_FILE_NAME
+        if barrier_path.is_file():
+            barrier_path.unlink()
         _persist_seal(root, seal)
-        barrier = CertificationBarrier(
-            generation=seal.generation,
-            sealed_head=seal.head,
-            sealed_tree=seal.tree,
-            sealed_base_main=seal.base_main,
-            required_lanes=seal.required_lanes,
-            state=CertificationState.CANDIDATE_SEALED,
-            lanes=_pending_lanes(
-                lanes=seal.required_lanes,
-                head=seal.head,
-                tree=seal.tree,
-                generation=seal.generation,
-            ),
-            updated_at_utc=seal.sealed_at_utc,
+        _persist_barrier(
+            root, _pending_barrier_from_seal(seal, updated_at_utc=seal.sealed_at_utc)
         )
-        _persist_barrier(root, barrier)
         # Drop any prior promotion artifact from an older generation.
         promoted = path / PROMOTED_FILE_NAME
         if promoted.exists():
@@ -366,7 +426,7 @@ def load_candidate_seal(root: Path) -> CandidateSeal:
 
 
 def load_barrier(root: Path) -> CertificationBarrier:
-    """Load barrier; reconstruct pending barrier from seal if seal-only after crash."""
+    """Load barrier; rebuild from seal when missing or generation/pin-desynced."""
     with _root_lock(root):
         seal_path = speculative_cert_dir(root) / SEAL_FILE_NAME
         barrier_path = speculative_cert_dir(root) / BARRIER_FILE_NAME
@@ -375,32 +435,19 @@ def load_barrier(root: Path) -> CertificationBarrier:
                 "barrier missing",
                 code="SPECULATIVE_CERT_BARRIER_MISSING",
             )
-        if seal_path.is_file() and not barrier_path.is_file():
-            seal = CandidateSeal.model_validate(_read_json_object(seal_path))
-            barrier = CertificationBarrier(
-                generation=seal.generation,
-                sealed_head=seal.head,
-                sealed_tree=seal.tree,
-                sealed_base_main=seal.base_main,
-                required_lanes=seal.required_lanes,
-                state=CertificationState.CANDIDATE_SEALED,
-                lanes=_pending_lanes(
-                    lanes=seal.required_lanes,
-                    head=seal.head,
-                    tree=seal.tree,
-                    generation=seal.generation,
-                ),
-                updated_at_utc=_utc_now(),
-            )
-            _persist_barrier(root, barrier)
-            return barrier
         if barrier_path.is_file() and not seal_path.is_file():
             raise SdkRuntimeError(
                 "barrier present without seal",
                 code="SPECULATIVE_CERT_SEAL_MISSING",
             )
-        # merge_authorization is forced NOT_GRANTED inside _read_json_object.
-        return CertificationBarrier.model_validate(_read_json_object(barrier_path))
+        seal = CandidateSeal.model_validate(_read_json_object(seal_path))
+        if barrier_path.is_file():
+            barrier = CertificationBarrier.model_validate(_read_json_object(barrier_path))
+            if _barrier_binds_seal(barrier, seal):
+                return barrier
+        barrier = _pending_barrier_from_seal(seal, updated_at_utc=_utc_now())
+        _persist_barrier(root, barrier)
+        return barrier
 
 
 def observe_live_pins(
@@ -584,7 +631,7 @@ def promote_exact_pin_evidence(
     """Promote exact-pin evidence only while tip/main remain sealed and barrier CERTIFIED."""
     with _root_lock(root):
         seal = load_candidate_seal(root)
-        barrier = evaluate_barrier(root)
+        barrier = load_barrier(root)
         if barrier.state == CertificationState.EVIDENCE_PROMOTED:
             return barrier
         head_match, tree_match, target_moved = observe_live_pins(
@@ -595,6 +642,13 @@ def promote_exact_pin_evidence(
         )
         if not head_match or not tree_match:
             return cancel_for_tip_drift(root, live_head=live_head, live_tree=live_tree)
+        # Evaluate only after live tip matches — never persist CERTIFIED then cancel.
+        barrier = evaluate_barrier(root)
+        if not _barrier_binds_seal(barrier, seal):
+            raise SdkRuntimeError(
+                "barrier does not bind current sealed candidate",
+                code="SPECULATIVE_CERT_PIN_MISMATCH",
+            )
         if target_moved:
             raise SdkRuntimeError(
                 "target main moved; merge authorization remains NOT_GRANTED",

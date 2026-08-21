@@ -352,3 +352,56 @@ def test_package_cert_lanes_dogfood_path(tmp_path: Path) -> None:
     )
     assert load_candidate_seal(tmp_path).required_lanes == PACKAGE_CERT_LANES
     assert barrier.state == CertificationState.CERTIFIED
+
+
+def test_crash_recover_new_seal_stale_barrier(tmp_path: Path) -> None:
+    seal_candidate(tmp_path, generation=1, head=HEAD, tree=TREE, base_main=MAIN)
+    _pass_all(tmp_path, generation=1)
+    certified = evaluate_barrier(tmp_path)
+    assert certified.state == CertificationState.CERTIFIED
+    stale = (speculative_cert_dir(tmp_path) / "certification-barrier.json").read_text(
+        encoding="utf-8"
+    )
+    seal_candidate(tmp_path, generation=2, head=OTHER, tree=OTHER_TREE, base_main=MAIN)
+    # Crash window: new seal already durable, previous CERTIFIED barrier restored.
+    (speculative_cert_dir(tmp_path) / "certification-barrier.json").write_text(
+        stale, encoding="utf-8"
+    )
+    barrier = load_barrier(tmp_path)
+    assert barrier.generation == 2
+    assert barrier.sealed_head == OTHER
+    assert barrier.sealed_tree == OTHER_TREE
+    assert barrier.state == CertificationState.CANDIDATE_SEALED
+    assert all(receipt.result == LaneResult.PENDING for receipt in barrier.lanes.values())
+    record_lane_result(
+        tmp_path, _receipt("CI", generation=2, head=OTHER, tree=OTHER_TREE)
+    )
+    assert load_barrier(tmp_path).lanes["CI"].result == LaneResult.PASS
+    with pytest.raises(SdkRuntimeError) as exc:
+        promote_exact_pin_evidence(
+            tmp_path, live_head=OTHER, live_tree=OTHER_TREE, live_main=MAIN
+        )
+    assert exc.value.code == "SPECULATIVE_CERT_NOT_CERTIFIED"
+
+
+def test_promote_does_not_certify_before_tip_drift_cancel(tmp_path: Path) -> None:
+    seal_candidate(tmp_path, generation=20, head=HEAD, tree=TREE, base_main=MAIN)
+    _pass_all(tmp_path, generation=20)
+    drifted = promote_exact_pin_evidence(
+        tmp_path, live_head=OTHER, live_tree=TREE, live_main=MAIN
+    )
+    assert drifted.state == CertificationState.CANCELLED_TIP_DRIFT
+    assert load_barrier(tmp_path).state == CertificationState.CANCELLED_TIP_DRIFT
+
+
+def test_held_writer_lock_blocks_cross_process_writer(tmp_path: Path) -> None:
+    from project_atlas.source_identity import ProjectIdentityLock
+
+    seal_candidate(tmp_path, generation=21, head=HEAD, tree=TREE, base_main=MAIN)
+    lock_path = speculative_cert_dir(tmp_path) / ".speculative-cert.lock"
+    with ProjectIdentityLock(lock_path, wait_seconds=0.05, stale_seconds=30.0):
+        with pytest.raises(SdkRuntimeError) as exc:
+            record_lane_result(tmp_path, _receipt("CI", generation=21))
+        assert exc.value.code == "SPECULATIVE_CERT_CONCURRENT"
+    recorded = record_lane_result(tmp_path, _receipt("CI", generation=21))
+    assert recorded.lanes["CI"].result == LaneResult.PASS
