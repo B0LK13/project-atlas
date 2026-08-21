@@ -29,6 +29,7 @@ from project_atlas.orchestration.sdk.security_gates import (
     CANONICAL_BRANCH,
     GovernorLease,
     WorkerBackend,
+    mint_creation_sequence,
 )
 
 PIN = "7e797468a2eca37c959920912b1fa264df4be638"
@@ -128,6 +129,7 @@ def test_sdk_backend_resume_rejects_cross_worktree(tmp_path: Path) -> None:
             workspace=str(foreign.resolve()),
             repository=CANONICAL_REPO_URL,
             creation_generation=97,
+            creation_sequence=mint_creation_sequence(tmp_path, "agent-d106test0001"),
         )
     )
     with pytest.raises(SdkRuntimeError, match=r"cross-worktree"):
@@ -202,7 +204,11 @@ def test_sdk_backend_create_binds_and_persists_lineage(tmp_path: Path) -> None:
         lease_id=LEASE_ID,
         runtime=AgentRuntime.LOCAL,
     )
-    lineage = backend._bind_lineage(agent_id="agent-d106create01", request=request)
+    lineage = backend._bind_lineage(
+        agent_id="agent-d106create01",
+        request=request,
+        creation_sequence=mint_creation_sequence(tmp_path, "agent-d106create01"),
+    )
     record = AgentRecord(
         agent_id="agent-d106create01",
         runtime=AgentRuntime.LOCAL,
@@ -216,6 +222,7 @@ def test_sdk_backend_create_binds_and_persists_lineage(tmp_path: Path) -> None:
         workspace=lineage.workspace,
         repository=lineage.repository,
         creation_generation=lineage.creation_generation,
+        creation_sequence=lineage.creation_sequence,
         lineage_id=f"lin-agent-d106create01-{lineage.creation_generation}",
     )
     backend.agents_reg.upsert(record)
@@ -224,6 +231,7 @@ def test_sdk_backend_create_binds_and_persists_lineage(tmp_path: Path) -> None:
     assert stored.workspace == str(tmp_path.resolve())
     assert stored.repository == CANONICAL_REPO_URL
     assert stored.creation_generation == 97
+    assert stored.creation_sequence == lineage.creation_sequence
     assert stored.worker_backend == WorkerBackend.CURSOR_SDK.value
     stored_lineage = backend._lineage_from_stored(stored)
     backend._bind_lineage(

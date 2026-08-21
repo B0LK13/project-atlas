@@ -44,7 +44,11 @@ from project_atlas.orchestration.sdk.security_gates import (
     bind_worker_lineage,
     collect_actual_changed_paths,
     enforce_allowed_paths,
+    load_run_pre_head,
+    mint_creation_sequence,
+    persist_run_pre_head,
     require_changed_paths_determined,
+    require_creation_sequence,
 )
 
 
@@ -335,6 +339,9 @@ class CursorSDKExecutionBackend:
                 "agent registry missing lineage",
                 code="LINEAGE_MISSING",
             )
+        sequence = require_creation_sequence(
+            self.root, stored.agent_id, stored.creation_sequence
+        )
         return WorkerLineage(
             identity=stored.agent_id,
             backend=WorkerBackend(stored.worker_backend),
@@ -345,6 +352,7 @@ class CursorSDKExecutionBackend:
             branch=stored.branch or CANONICAL_BRANCH,
             base_main=stored.base_main,
             creation_generation=stored.creation_generation,
+            creation_sequence=sequence,
         )
 
     def _bind_lineage(
@@ -353,7 +361,13 @@ class CursorSDKExecutionBackend:
         agent_id: str,
         request: ScheduleRequest,
         expected: WorkerLineage | None = None,
+        creation_sequence: int | None = None,
     ) -> WorkerLineage:
+        sequence = creation_sequence
+        if sequence is None and expected is not None:
+            sequence = expected.creation_sequence
+        if sequence is None:
+            sequence = 1
         return bind_worker_lineage(
             identity=agent_id,
             backend=WorkerBackend.CURSOR_SDK,
@@ -364,8 +378,15 @@ class CursorSDKExecutionBackend:
             branch=request.branch or CANONICAL_BRANCH,
             base_main=request.base_main,
             creation_generation=request.dag_generation,
+            creation_sequence=sequence,
             expected=expected,
         )
+
+    def _resolve_pre_head(self, run_id: str) -> str | None:
+        """Actual pre-run HEAD only. Never substitute candidate_head."""
+        if run_id in self._pre_heads:
+            return self._pre_heads[run_id]
+        return load_run_pre_head(self.root, run_id)
 
     def _enforce_run_paths(self, record: RunRecord) -> None:
         if record.role not in MUTATING_ROLES:
@@ -380,9 +401,7 @@ class CursorSDKExecutionBackend:
                 "mutating wait_run missing lease",
                 code="LEASE_REQUIRED",
             )
-        pre_head = self._pre_heads.get(record.run_id)
-        if pre_head is None:
-            pre_head = record.candidate_head
+        pre_head = self._resolve_pre_head(record.run_id)
         changed = collect_actual_changed_paths(self.root, pre_head=pre_head)
         determined = require_changed_paths_determined(changed)
         try:
@@ -522,7 +541,11 @@ class CursorSDKExecutionBackend:
         agent = await client.agents.create(**kwargs)
         agent_id = str(getattr(agent, "agent_id", None) or agent.id)
         self._handles[agent_id] = agent
-        lineage = self._bind_lineage(agent_id=agent_id, request=request)
+        lineage = self._bind_lineage(
+            agent_id=agent_id,
+            request=request,
+            creation_sequence=mint_creation_sequence(self.root, agent_id),
+        )
         record = AgentRecord(
             agent_id=agent_id,
             runtime=runtime,
@@ -536,6 +559,7 @@ class CursorSDKExecutionBackend:
             workspace=lineage.workspace,
             repository=lineage.repository,
             creation_generation=lineage.creation_generation,
+            creation_sequence=lineage.creation_sequence,
             lineage_id=f"lin-{agent_id}-{lineage.creation_generation}",
         )
         self.agents_reg.upsert(record)
@@ -560,6 +584,7 @@ class CursorSDKExecutionBackend:
             agent_id=agent_id,
             request=request,
             expected=stored_lineage,
+            creation_sequence=stored_lineage.creation_sequence,
         )
         if stored.role != request.role:
             raise SdkRuntimeError("role change requires new agent", code="ROLE_CHANGE")
@@ -595,6 +620,7 @@ class CursorSDKExecutionBackend:
         run = await agent.send(request.prompt, **send_kwargs)
         run_id = str(getattr(run, "id", None) or run.run_id)
         self._pre_heads[run_id] = pre_head
+        persist_run_pre_head(self.root, run_id, pre_head)
         prompt_digest = hash_payload({"prompt": request.prompt})
         record = RunRecord(
             run_id=run_id,
@@ -637,6 +663,7 @@ class CursorSDKExecutionBackend:
             branch=stored.branch or CANONICAL_BRANCH,
             base_main=stored.base_main,
             creation_generation=stored.creation_generation or 0,
+            creation_sequence=stored_lineage.creation_sequence,
             expected=stored_lineage,
         )
         from cursor_sdk import AgentOptions

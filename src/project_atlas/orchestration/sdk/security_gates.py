@@ -212,6 +212,56 @@ def require_creation_sequence(root: Path, agent_id: str, stored: int | None) -> 
     return stored
 
 
+RUN_PRE_HEAD_NAME = "run-pre-heads.json"
+
+
+def run_pre_head_path(root: Path) -> Path:
+    return root / STATE_DIR_RELATIVE / RUN_PRE_HEAD_NAME
+
+
+def persist_run_pre_head(root: Path, run_id: str, pre_head: str | None) -> None:
+    """Durable pre-run HEAD. candidate_head is not a substitute."""
+    path = run_pre_head_path(root)
+    data: dict[str, str | None] = {}
+    if path.is_file():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SdkRuntimeError(
+                "run pre-head store unreadable",
+                code="DIFF_UNDETERMINED",
+            ) from exc
+        if isinstance(raw, dict):
+            for key, value in raw.items():
+                if value is None or (isinstance(value, str) and len(value) >= 7):
+                    data[str(key)] = value
+    data[run_id] = pre_head
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def load_run_pre_head(root: Path, run_id: str) -> str | None:
+    """Return persisted pre-run HEAD, or None when unknown (fail closed)."""
+    path = run_pre_head_path(root)
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SdkRuntimeError(
+            "run pre-head store unreadable",
+            code="DIFF_UNDETERMINED",
+        ) from exc
+    if not isinstance(raw, dict):
+        return None
+    value = raw.get(run_id)
+    if value is None:
+        return None
+    if isinstance(value, str) and len(value) >= 7:
+        return value
+    return None
+
+
 def high_water_path(root: Path) -> Path:
     return root / STATE_DIR_RELATIVE / "host-high-water.json"
 
