@@ -76,7 +76,10 @@ def test_dense_10k_partitions_pairs_and_stays_deterministic() -> None:
     assert left[0].candidate_id <= left[-1].candidate_id
 
 
+@pytest.mark.product_perf
 def test_representative_10k_remains_near_linear() -> None:
+    # Wall-clock bound is calibrated uncovered. Windows default pytest
+    # enables coverage and flakes a 2.0s cap (CI 32464023298: 2.177s).
     claims = [_claim(index, groups=2000) for index in range(10000)]
     started = time.perf_counter()
     _candidates, stats = find_contradiction_candidates_report(claims)

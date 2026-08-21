@@ -342,6 +342,19 @@ def handle_stop_event(payload: object, *, root: Path) -> dict[str, str]:
         return {}
     if event.status != COMPLETED_STATUS:
         return {}
+    from project_atlas.orchestration.autonomy.continuation_broker import (
+        emit_stop_followup,
+    )
+
+    # Broker continuation is independent of Cursor loop_count. Atlas owns
+    # no-progress bounds; Cursor's hook loop_limit must not become the DAG cap.
+    broker = emit_stop_followup(
+        root,
+        loop_count=event.loop_count,
+        session_id=event.conversation_id,
+    )
+    if broker:
+        return broker
     if event.loop_count >= 1:
         return {}
     existing = load_state(root)

@@ -2558,6 +2558,73 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
     )
+    orch_gov_service = orch_sub.add_parser(
+        "governor-service-run",
+        help=(
+            "D-083 durable Atlas supervisor: persistent Cursor SDK "
+            "runtime plus CI observer. Owns the DAG; SDK agents are workers. "
+            "Does not merge."
+        ),
+    )
+    orch_gov_service.add_argument("--root", type=Path, default=None)
+    orch_gov_service.add_argument(
+        "--max-cycles",
+        type=int,
+        default=None,
+        help="Optional cycle cap (default: run until stopped).",
+    )
+    orch_gov_service.add_argument(
+        "--poll-interval",
+        type=float,
+        default=2.0,
+        help="Seconds between schedule cycles.",
+    )
+    orch_gov_service.add_argument(
+        "--fake-backend",
+        action="store_true",
+        help="Use in-process fake SDK backend (tests / no API key).",
+    )
+    orch_gov_service.add_argument(
+        "--candidate-head",
+        default=None,
+        help="Optional initial 40-char candidate SHA. Live PR head is refreshed each cycle.",
+    )
+    orch_gov_service.add_argument(
+        "--pr",
+        type=int,
+        default=429,
+        help="Canonical continuation PR to refresh (default: 429).",
+    )
+    orch_sdk_auth = orch_sub.add_parser(
+        "sdk-auth-status",
+        help=(
+            "Detect CURSOR_API_KEY availability without printing the secret. "
+            "Records CURSOR_SDK_AUTH_REQUIRED at most once when needed."
+        ),
+    )
+    orch_sdk_auth.add_argument("--root", type=Path, default=None)
+    orch_broker = orch_sub.add_parser(
+        "continuation-broker",
+        help=(
+            "AS-ORCH-CONTINUATION-BROKER-001: enqueue/consume/status for "
+            "one consume-once successor. Stop-hook fallback only; primary "
+            "continuation is governor-service-run. Does not merge."
+        ),
+    )
+    orch_broker.add_argument(
+        "broker_action",
+        choices=("enqueue", "consume", "status"),
+        help="Broker action.",
+    )
+    orch_broker.add_argument("--root", type=Path, default=None)
+    orch_broker.add_argument("--cycle-id", default=None)
+    orch_broker.add_argument(
+        "--kind",
+        default="CHECKPOINT_CONTINUE",
+        help="Successor kind (enqueue only).",
+    )
+    orch_broker.add_argument("--trusted-main", default=None)
+    orch_broker.add_argument("--trusted-tree", default=None)
     orch_dispatch_once = orch_sub.add_parser(
         "dispatch-once",
         help=(
@@ -4938,6 +5005,73 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
+        if args.orchestrator_command == "sdk-auth-status":
+            from project_atlas.orchestration.sdk.cli import run_auth_status
+
+            report, exit_code = run_auth_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-run":
+            from project_atlas.orchestration.sdk.cli import run_governor_service
+
+            report, exit_code = run_governor_service(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                max_cycles=getattr(args, "max_cycles", None),
+                poll_interval_sec=float(getattr(args, "poll_interval", 2.0) or 2.0),
+                use_fake=bool(getattr(args, "fake_backend", False)),
+                candidate_head=getattr(args, "candidate_head", None),
+                pr_number=int(getattr(args, "pr", 429) or 429),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "continuation-broker":
+            from project_atlas.orchestration.autonomy.continuation_broker import (
+                SuccessorKind,
+                consume_successor,
+                enqueue_successor,
+                status_report,
+            )
+
+            broker_root = Path(getattr(args, "root", None) or Path.cwd())
+            action = str(getattr(args, "broker_action", ""))
+            try:
+                if action == "status":
+                    broker_status = status_report(broker_root)
+                    print(json.dumps(broker_status, indent=2, sort_keys=True))
+                    return EXIT_OK if broker_status.get("ok") else EXIT_ERROR
+                cycle_id = str(getattr(args, "cycle_id", "") or "")
+                if action == "consume":
+                    broker_state = consume_successor(broker_root, cycle_id)
+                    print(
+                        json.dumps(
+                            broker_state.model_dump(mode="json"),
+                            indent=2,
+                            sort_keys=True,
+                        )
+                    )
+                    return EXIT_OK
+                kind = SuccessorKind(str(getattr(args, "kind", "CHECKPOINT_CONTINUE")))
+                broker_enqueue = enqueue_successor(
+                    broker_root,
+                    cycle_id=cycle_id,
+                    kind=kind,
+                    trusted_main=str(getattr(args, "trusted_main", "") or ""),
+                    trusted_tree=str(getattr(args, "trusted_tree", "") or ""),
+                )
+                print(
+                    json.dumps(
+                        broker_enqueue.model_dump(mode="json"),
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+                return EXIT_OK
+            except Exception as exc:
+                code = getattr(exc, "code", str(exc))
+                print(json.dumps({"ok": False, "error": code, "execution_authorized": False}))
+                return EXIT_ERROR
         if args.orchestrator_command == "dispatch-once":
             from project_atlas.orchestration.dispatcher import (
                 DispatcherConfig,
