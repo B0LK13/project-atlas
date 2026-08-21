@@ -122,9 +122,13 @@ def _validate_snapshot_binding(
 async def _page_list_runs_exact(
     client: Any, *, agent_id: str, run_id: str, api_key: str | None
 ) -> list[Any]:
-    """Page list_runs; collect ONLY candidates whose id == run_id."""
+    """Page list_runs; collect ONLY candidates whose id == run_id.
+
+    Cloud agents require ``runtime=\"cloud\"`` on list_runs — without it the SDK
+    raises AgentNotFoundError even after a successful resume (D-121 probe).
+    """
     matches: list[Any] = []
-    opts: dict[str, Any] = {}
+    opts: dict[str, Any] = {"runtime": "cloud"}
     if api_key:
         opts["api_key"] = api_key
     cursor: str | None = None
@@ -133,10 +137,10 @@ async def _page_list_runs_exact(
         pages += 1
         if cursor:
             listing = await client.agents.list_runs(
-                agent_id, opts or None, cursor=cursor
+                agent_id, opts, cursor=cursor
             )
         else:
-            listing = await client.agents.list_runs(agent_id, opts or None)
+            listing = await client.agents.list_runs(agent_id, opts)
         items = getattr(listing, "items", None) or []
         for item in items:
             if _run_id_of(item) == run_id:

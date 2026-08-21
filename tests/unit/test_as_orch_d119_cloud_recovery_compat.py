@@ -427,6 +427,30 @@ def test_recover_passes_api_key_to_get_run_and_list_runs() -> None:
     for opts in client.list_runs_options_calls:
         assert isinstance(opts, dict)
         assert opts.get("api_key") == api_key
+        assert opts.get("runtime") == "cloud"
+
+
+def test_list_runs_always_sets_cloud_runtime_even_without_api_key() -> None:
+    """D-121 probe: list_runs without runtime=cloud raises AgentNotFoundError."""
+    miss = Exception("Run run-d119 not found")
+    listed = SimpleNamespace(id="run-d119", agent_id=AGENT, status="FINISHED")
+    client = _FakeClient(get_run_results=[miss, miss], runs=[listed])
+    recovered = asyncio.run(
+        recover_exact_cloud_run(
+            client=client,
+            agent=_agent(),
+            run=_run(),
+            agent_id=AGENT,
+            run_id="run-d119",
+            api_key=None,
+            resume=lambda _a: asyncio.sleep(0),
+        )
+    )
+    assert recovered.classification == CloudRunRecoveryClass.LIST_RUNS_EXACT_MATCH
+    assert client.list_runs_options_calls
+    for opts in client.list_runs_options_calls:
+        assert isinstance(opts, dict)
+        assert opts.get("runtime") == "cloud"
 
 
 def test_backend_get_run_status_passes_api_key_options(tmp_path: Path) -> None:
