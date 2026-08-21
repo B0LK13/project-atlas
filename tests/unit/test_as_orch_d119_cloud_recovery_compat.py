@@ -566,15 +566,36 @@ def test_empty_run_git_branch_ambiguous_new_auto_branches_fail_closed(
     assert "ambiguous" in str(exc.value).casefold()
 
 
-def test_extract_omitted_branch_name_from_authentic_wire_shape() -> None:
-    """Wire shape: git.branches[{repoUrl}] with no branch field → branches=()."""
-    info = extract_terminal_run_git(
-        {
-            "git": {
-                "branches": [{"repoUrl": "github.com/B0LK13/project-atlas"}],
-            }
-        }
+def test_remote_diff_returns_none_when_objects_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Incomplete fetch must be undetermined, not false non-descendant."""
+    import subprocess as sp
+
+    import project_atlas.orchestration.sdk.mutation_attribution as ma
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(list(cmd))
+        from types import SimpleNamespace
+
+        if cmd[:2] == ["git", "fetch"]:
+            assert "--depth=0" not in cmd
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if cmd[:3] == ["git", "cat-file", "-e"]:
+            return SimpleNamespace(returncode=1, stdout="", stderr="")
+        if "merge-base" in cmd:
+            raise AssertionError("merge-base must not run when objects missing")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(sp, "run", fake_run)
+    result = ma.default_resolve_remote_diff(
+        "https://github.com/B0LK13/project-atlas",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        work_root=tmp_path,
     )
-    assert info is not None
-    assert info.repo_url == "github.com/B0LK13/project-atlas"
-    assert info.branches == ()
+    assert result is None
+    assert any(c[:2] == ["git", "fetch"] for c in calls)
+    assert not any("--depth=0" in c for c in calls)

@@ -574,31 +574,47 @@ def default_resolve_remote_diff(
     """Fetch remote SHAs into object DB and diff names. Never uses worktree content."""
     import subprocess
 
-    try:
-        fetched = subprocess.run(
-            ["git", "fetch", "--no-tags", "--depth=0", repository, pre_head, post_head],
+    def _fetch() -> subprocess.CompletedProcess[str]:
+        # Avoid --depth=0 (invalid/flaky). Fetch the two SHAs fully so ancestry
+        # checks cannot false-positive as "not a descendant".
+        return subprocess.run(
+            ["git", "fetch", "--no-tags", repository, pre_head, post_head],
             cwd=str(work_root),
             capture_output=True,
             text=True,
             check=False,
             timeout=120,
         )
+
+    try:
+        fetched = _fetch()
     except (OSError, subprocess.TimeoutExpired):
-        # Shallow/depth flags vary; retry without depth.
         try:
-            fetched = subprocess.run(
-                ["git", "fetch", "--no-tags", repository, pre_head, post_head],
-                cwd=str(work_root),
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=120,
-            )
+            fetched = _fetch()
         except (OSError, subprocess.TimeoutExpired):
             return None
     if fetched.returncode != 0:
         # Objects may already exist locally from a prior fetch.
         pass
+
+    def _commit_exists(sha: str) -> bool:
+        try:
+            probe = subprocess.run(
+                ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                cwd=str(work_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return probe.returncode == 0
+
+    if not _commit_exists(pre_head) or not _commit_exists(post_head):
+        # Incomplete object DB — undetermined, not a positive non-descendant claim.
+        return None
+
     try:
         ancestor = subprocess.run(
             ["git", "merge-base", "--is-ancestor", pre_head, post_head],
