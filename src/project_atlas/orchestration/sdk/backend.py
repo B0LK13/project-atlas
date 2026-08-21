@@ -702,6 +702,12 @@ class CursorSDKExecutionBackend:
                 result_text=str(text) if text is not None else "",
                 token_usage_total=tokens,
             )
+            # Enforce scope while the run is still nonterminal so REJECTED_SCOPE_ESCAPE
+            # cannot leave a durable FINISHED record outside scheduler.nonterminal().
+            provisional = self.runs_reg.get(run_id)
+            if provisional is None:
+                raise SdkRuntimeError("run missing before path enforce", code="RUN_MISSING")
+            self._enforce_run_paths(provisional)
             updated = self.runs_reg.mark_terminal(
                 run_id,
                 status=ingested.status,
@@ -711,15 +717,16 @@ class CursorSDKExecutionBackend:
             stored = self.agents_reg.get(agent_id)
             if stored is not None:
                 self.agents_reg.upsert(stored.model_copy(update={"state": AgentState.IDLE}))
-            self._enforce_run_paths(updated)
             return updated
         # Detached recovery path
         status = await self.get_run_status(run_id, agent_id=agent_id)
         if status not in {RunStatus.FINISHED, RunStatus.ERROR, RunStatus.CANCELLED}:
             return self.runs_reg.get(run_id)  # type: ignore[return-value]
         ingested = adapt_run_result(run_id=run_id, agent_id=agent_id, status=status)
-        updated = self.runs_reg.mark_terminal(
+        provisional = self.runs_reg.get(run_id)
+        if provisional is None:
+            raise SdkRuntimeError("run missing before path enforce", code="RUN_MISSING")
+        self._enforce_run_paths(provisional)
+        return self.runs_reg.mark_terminal(
             run_id, status=ingested.status, result_digest=ingested.result_digest
         )
-        self._enforce_run_paths(updated)
-        return updated

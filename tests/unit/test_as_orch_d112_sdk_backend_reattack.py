@@ -181,6 +181,48 @@ def test_wait_run_persisted_pre_head_rejects_escape(tmp_path: Path) -> None:
     with pytest.raises(SdkRuntimeError) as exc:
         asyncio.run(backend.wait_run("run-persisted", agent_id=AGENT))
     assert exc.value.code == "REJECTED_SCOPE_ESCAPE"
+    # D-115: escape must not leave durable FINISHED outside nonterminal ingest.
+    stored = backend.runs_reg.get("run-persisted")
+    assert stored is not None
+    assert stored.status == RunStatus.RUNNING
+
+
+def test_wait_run_enforces_before_durable_terminal(tmp_path: Path) -> None:
+    """REJECTED_SCOPE_ESCAPE must occur before mark_terminal persists FINISHED."""
+    import subprocess
+
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", *args], cwd=str(tmp_path), capture_output=True, text=True, check=True
+        )
+        return completed.stdout.strip()
+
+    subprocess.run(["git", "init"], cwd=str(tmp_path), check=True, capture_output=True)
+    git("config", "user.email", "d115@invalid.local")
+    git("config", "user.name", "D115")
+    allowed = tmp_path / "src" / "project_atlas" / "orchestration" / "sdk"
+    allowed.mkdir(parents=True)
+    (allowed / "ok.py").write_text("ok\n", encoding="utf-8")
+    git("add", ".")
+    git("commit", "-m", "seed")
+    pre = git("rev-parse", "HEAD")
+    _lease(tmp_path, head=pre)
+    persist_run_pre_head(tmp_path, "run-order", pre)
+    evil = tmp_path / "docs" / "evil.md"
+    evil.parent.mkdir()
+    evil.write_text("escaped\n", encoding="utf-8")
+    git("add", "docs/evil.md")
+    git("commit", "-m", "escape")
+    backend = _backend(tmp_path)
+    backend.runs_reg.upsert(_run("run-order", git("rev-parse", "HEAD")))
+    backend._handles["run:run-order"] = _WaitHandle()
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.wait_run("run-order", agent_id=AGENT))
+    assert exc.value.code == "REJECTED_SCOPE_ESCAPE"
+    stored = backend.runs_reg.get("run-order")
+    assert stored is not None
+    assert stored.status is RunStatus.RUNNING
+    assert stored.run_id in {r.run_id for r in backend.runs_reg.nonterminal()}
 
 
 def test_resume_missing_creation_sequence(tmp_path: Path) -> None:
