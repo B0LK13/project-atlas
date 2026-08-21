@@ -154,6 +154,21 @@ async def _page_list_runs_exact(
     return matches
 
 
+def cloud_get_run_options(
+    *, agent_id: str, api_key: str | None = None
+) -> dict[str, Any]:
+    """Options required for Cloud GetRun (D-122 authentic probe).
+
+    Cloud get_run rejects requests without ``agent_id`` + ``runtime=\"cloud\"``.
+    ``api_key`` alone is insufficient (Run not found). Prefer snake_case keys;
+    the SDK accepts ``agent_id`` and normalizes ``runtime``.
+    """
+    opts: dict[str, Any] = {"runtime": "cloud", "agent_id": agent_id}
+    if api_key:
+        opts["api_key"] = api_key
+    return opts
+
+
 async def recover_exact_cloud_run(
     *,
     client: Any,
@@ -182,7 +197,7 @@ async def recover_exact_cloud_run(
             agent_id, AgentOptions(**opts) if opts else AgentOptions()
         )
 
-    get_run_opts: dict[str, Any] | None = {"api_key": api_key} if api_key else None
+    get_run_opts = cloud_get_run_options(agent_id=agent_id, api_key=api_key)
 
     # 4. Primary get_run
     try:

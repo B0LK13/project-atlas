@@ -423,11 +423,41 @@ def test_recover_passes_api_key_to_get_run_and_list_runs() -> None:
     for opts in client.get_run_options_calls:
         assert isinstance(opts, dict)
         assert opts.get("api_key") == api_key
+        assert opts.get("runtime") == "cloud"
+        assert opts.get("agent_id") == AGENT
     assert client.list_runs_options_calls
     for opts in client.list_runs_options_calls:
         assert isinstance(opts, dict)
         assert opts.get("api_key") == api_key
         assert opts.get("runtime") == "cloud"
+
+
+def test_cloud_get_run_requires_agent_id_and_runtime() -> None:
+    """ORCH-SDK-CLOUD-GET-RUN-AGENTID-RUNTIME-001: Cloud GetRun needs both."""
+    from project_atlas.orchestration.sdk.cloud_run_recovery import cloud_get_run_options
+
+    opts = cloud_get_run_options(agent_id=AGENT, api_key="k")
+    assert opts == {"runtime": "cloud", "agent_id": AGENT, "api_key": "k"}
+    opts_no_key = cloud_get_run_options(agent_id=AGENT)
+    assert opts_no_key == {"runtime": "cloud", "agent_id": AGENT}
+    assert "api_key" not in opts_no_key
+
+    ok = SimpleNamespace(id="run-d119", agent_id=AGENT, status="FINISHED", git=None)
+    client = _FakeClient(get_run_results=[ok], runs=[])
+    recovered = asyncio.run(
+        recover_exact_cloud_run(
+            client=client,
+            agent=_agent(),
+            run=_run(),
+            agent_id=AGENT,
+            run_id="run-d119",
+            api_key=None,
+            resume=lambda _a: asyncio.sleep(0),
+        )
+    )
+    assert recovered.classification == CloudRunRecoveryClass.DIRECT_GET_RUN_OK
+    assert client.get_run_options_calls[0].get("runtime") == "cloud"
+    assert client.get_run_options_calls[0].get("agent_id") == AGENT
 
 
 def test_list_runs_always_sets_cloud_runtime_even_without_api_key() -> None:
@@ -454,18 +484,20 @@ def test_list_runs_always_sets_cloud_runtime_even_without_api_key() -> None:
 
 
 def test_backend_get_run_status_passes_api_key_options(tmp_path: Path) -> None:
-    """Backend get_run_status must forward configured api_key options."""
+    """Backend get_run_status must forward Cloud agent_id+runtime+api_key options."""
     from project_atlas.orchestration.sdk.backend import CursorSDKExecutionBackend
     from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
     from project_atlas.orchestration.sdk.role_pool import AgentRolePool
 
     api_key = "test-api-key-g107-backend-get-run"
     client = _FakeClient()
+    agents = CloudAgentRegistry(tmp_path)
+    agents.upsert(_agent())
     backend = CursorSDKExecutionBackend(
         root=tmp_path,
-        agents_reg=CloudAgentRegistry(tmp_path),
+        agents_reg=agents,
         runs_reg=RunRegistry(tmp_path),
-        pool=AgentRolePool(CloudAgentRegistry(tmp_path)),
+        pool=AgentRolePool(agents),
         api_key=api_key,
     )
     backend._client = client
@@ -475,3 +507,5 @@ def test_backend_get_run_status_passes_api_key_options(tmp_path: Path) -> None:
     opts = client.get_run_options_calls[0]
     assert isinstance(opts, dict)
     assert opts.get("api_key") == api_key
+    assert opts.get("runtime") == "cloud"
+    assert opts.get("agent_id") == AGENT

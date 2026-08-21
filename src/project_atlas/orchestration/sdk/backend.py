@@ -780,15 +780,31 @@ class CursorSDKExecutionBackend:
         self._handles[agent_id] = agent
         return stored
 
-    def _agent_run_options(self) -> dict[str, Any] | None:
-        """Runtime options for get_run / list_runs when api_key is configured."""
-        if not self._api_key:
-            return None
-        return {"api_key": self._api_key}
+    def _agent_run_options(self, *, agent_id: str) -> dict[str, Any] | None:
+        """Runtime options for get_run / list_runs.
+
+        Cloud GetRun requires ``agent_id`` + ``runtime=\"cloud\"`` (D-122 probe).
+        ``api_key`` alone is insufficient. Local agents keep api_key-only opts.
+        """
+        stored = self.agents_reg.get(agent_id)
+        cloudish = agent_id.startswith("bc-") or (
+            stored is not None and stored.runtime == AgentRuntime.CLOUD
+        )
+        if cloudish:
+            from project_atlas.orchestration.sdk.cloud_run_recovery import (
+                cloud_get_run_options,
+            )
+
+            return cloud_get_run_options(agent_id=agent_id, api_key=self._api_key)
+        if self._api_key:
+            return {"api_key": self._api_key}
+        return None
 
     async def get_run_status(self, run_id: str, *, agent_id: str) -> RunStatus:
         client = await self._ensure_client()
-        run = await client.agents.get_run(run_id, self._agent_run_options())
+        run = await client.agents.get_run(
+            run_id, self._agent_run_options(agent_id=agent_id)
+        )
         status = normalize_run_status(str(getattr(run, "status", None)))
         stored = self.runs_reg.get(run_id)
         if stored is not None and stored.agent_id != agent_id:
@@ -920,7 +936,7 @@ class CursorSDKExecutionBackend:
                 try:
                     client = await self._ensure_client()
                     terminal_git = await client.agents.get_run(
-                        run_id, self._agent_run_options()
+                        run_id, self._agent_run_options(agent_id=agent_id)
                     )
                 except Exception:
                     terminal_git = None
