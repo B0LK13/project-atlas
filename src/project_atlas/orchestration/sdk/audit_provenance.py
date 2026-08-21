@@ -18,7 +18,11 @@ from project_atlas.orchestration.sdk.models import (
     SdkRuntimeError,
 )
 from project_atlas.orchestration.sdk.result_plane import ResultEnvelope, result_plane_path
-from project_atlas.orchestration.sdk.security_gates import BoundWorkerResult
+from project_atlas.orchestration.sdk.security_gates import (
+    BoundWorkerResult,
+    WorkerBackend,
+    is_valid_worker_identity,
+)
 
 ASSIGNMENT_NAME = "cloud-audit-assignment.json"
 CONSUMED_NAME = "cloud-audit-consumed.json"
@@ -238,6 +242,20 @@ def evaluate_cloud_audit(
         return CloudAuditDecision(
             accepted=False, gate="NOT_PASS", reason="REJECT_INDEPENDENCE"
         )
+    if not is_valid_worker_identity(
+        binding.session_or_agent_id, backend=binding.worker_backend
+    ):
+        return CloudAuditDecision(
+            accepted=False, gate="NOT_PASS", reason="REJECT_INDEPENDENCE"
+        )
+    if not is_valid_worker_identity(
+        assignment.worker_id, backend=WorkerBackend.CURSOR_AGENT_CLI
+    ) and not is_valid_worker_identity(
+        assignment.worker_id, backend=WorkerBackend.CURSOR_SDK
+    ):
+        return CloudAuditDecision(
+            accepted=False, gate="NOT_PASS", reason="PENDING_REBIND"
+        )
     if (
         assignment.implementer_worker_id
         and binding.session_or_agent_id == assignment.implementer_worker_id
@@ -357,6 +375,8 @@ def apply_cloud_audit_from_plane(
             already_consumed=frozenset(consumed),
             repo_json=repo_json,
         )
+    last_replay: CloudAuditDecision | None = None
+    last_reject: CloudAuditDecision | None = None
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -380,7 +400,15 @@ def apply_cloud_audit_from_plane(
         if decision.accepted and decision.consume_identity:
             consumed.add(decision.consume_identity)
             persist_consumed_identities(root, consumed)
-        return decision
+            return decision
+        if decision.reason == "REPLAY":
+            last_replay = decision
+            continue
+        last_reject = decision
+    if last_replay is not None:
+        return last_replay
+    if last_reject is not None:
+        return last_reject
     return evaluate_cloud_audit(
         assignment=assignment,
         binding=None,

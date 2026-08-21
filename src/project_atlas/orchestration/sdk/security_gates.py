@@ -335,6 +335,58 @@ def require_changed_paths_determined(changed_paths: list[str] | None) -> list[st
     return list(changed_paths)
 
 
+def collect_actual_changed_paths(
+    root: Path,
+    *,
+    pre_head: str | None,
+) -> list[str] | None:
+    """Committed + uncommitted + untracked paths since ``pre_head``.
+
+    Porcelain alone is not an actual delta: a commit hides mutated files.
+    ``None`` means the post-run diff could not be determined (fail closed).
+    """
+    import subprocess
+
+    if not pre_head or len(pre_head) < 7:
+        return None
+    try:
+        diff = subprocess.run(
+            ["git", "diff", "--name-only", "--find-renames", pre_head],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        porcelain = subprocess.run(
+            ["git", "status", "--porcelain", "-uall"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if diff.returncode != 0 or porcelain.returncode != 0:
+        return None
+    paths: set[str] = set()
+    for line in (diff.stdout or "").splitlines():
+        text = line.strip().strip('"')
+        if text:
+            paths.add(text)
+    for line in (porcelain.stdout or "").splitlines():
+        if len(line) < 4:
+            continue
+        rest = line[3:]
+        if " -> " in rest:
+            rest = rest.split(" -> ", 1)[1]
+        text = rest.strip().strip('"')
+        if text:
+            paths.add(text)
+    return sorted(paths)
+
+
 def validate_result_binding(
     result: BoundWorkerResult,
     *,

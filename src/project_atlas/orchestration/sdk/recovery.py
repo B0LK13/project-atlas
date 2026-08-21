@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from project_atlas.orchestration.sdk.backend import ExecutionBackend
+from project_atlas.orchestration.sdk.event_log import read_events
 from project_atlas.orchestration.sdk.live_dag import load_live_dag
 from project_atlas.orchestration.sdk.models import (
     TERMINAL_RUN_STATUSES,
@@ -70,6 +71,23 @@ def _validate_loaded_against_high_water(
             checkpoint_sequence=high_water.checkpoint_sequence,
         )
         reject_host_rollback(current=high_water, proposed=proposed)
+    # Dual live-state + high-water rollback: the append-only event log is the
+    # witness. Restoring an older consistent pair while leaving newer events
+    # must fail closed.
+    try:
+        events = read_events(root)
+    except (OSError, ValueError):
+        events = []
+    if events:
+        max_logged_generation = max(event.dag_generation for event in events)
+        if (
+            live.dag_generation < max_logged_generation
+            or high_water.dag_generation < max_logged_generation
+        ):
+            raise SdkRuntimeError(
+                "event log generation ahead of live/high-water",
+                code="HOST_ROLLBACK_REJECTED",
+            )
 
 
 async def recover_runtime(

@@ -375,7 +375,7 @@ class LiveDagController:
         self.state.target_move_detected = True
         self.state.new_head_adopted = True
         self.state.material_transitions += 1
-        update_package_route_on_head_move(
+        route = update_package_route_on_head_move(
             self.root,
             head=live.head_sha,
             tree=live.tree_sha,
@@ -406,6 +406,15 @@ class LiveDagController:
             head=live.head_sha,
             tree=live.tree_sha,
             run_id=new_obs.run_id,
+        )
+        # Head adoption is a material generation advance. High-water must
+        # move with live state so a dual live-dag + high-water restore
+        # cannot resurrect a superseded generation.
+        advance_high_water(
+            self.root,
+            dag_generation=self.state.dag_generation,
+            event_sequence=self.state.material_transitions,
+            registry_revision=route.registry_revision,
         )
 
     def _mint_lease(self, *, role: AgentRole, node_id: str, mutating: bool) -> GovernorLease:
@@ -522,8 +531,10 @@ class LiveDagController:
             if not state.bound_tree:
                 return items
             assignment_id = f"assign-cloud-audit-g{state.dag_generation}"
-            worker_id = f"cli-audit-{state.dag_generation}-{state.bound_head[:12]}"
-            run_id = f"cloud-audit-run-g{state.dag_generation}"
+            # Placeholder is not a valid CLI/SDK worker identity. evaluate_cloud_audit
+            # rejects it until cli.py rebinds to the authentic session.
+            worker_id = f"pending-audit-g{state.dag_generation}"
+            run_id = f"pending-audit-run-g{state.dag_generation}"
             attempt = 1
             runs_path = self.root / STATE_DIR_RELATIVE / "runs.json"
             if runs_path.is_file():

@@ -46,6 +46,7 @@ from project_atlas.orchestration.sdk.security_gates import (
     WorkerLineage,
     bind_worker_lineage,
     classify_transient_failure,
+    collect_actual_changed_paths,
     enforce_allowed_paths,
     normalize_cli_identity,
     recovery_action,
@@ -125,51 +126,40 @@ class CursorAgentCliExecutionPort:
             mutating=False,
         )
 
-    def _git_porcelain_paths(self) -> list[str] | None:
-        """Return changed paths from git status; None if undetermined."""
+    def _git_rev_parse_head(self) -> str | None:
+        """Pin HEAD before a mutating run so commits cannot hide from the delta."""
         import subprocess
 
         try:
             completed = subprocess.run(
-                ["git", "status", "--porcelain", "-uall"],
+                ["git", "rev-parse", "HEAD"],
                 cwd=str(self.root),
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=30,
+                timeout=15,
             )
         except (OSError, subprocess.TimeoutExpired):
             return None
         if completed.returncode != 0:
             return None
-        paths: list[str] = []
-        for line in (completed.stdout or "").splitlines():
-            if len(line) < 4:
-                continue
-            rest = line[3:]
-            if " -> " in rest:
-                rest = rest.split(" -> ", 1)[1]
-            paths.append(rest.strip().strip('"'))
-        return paths
+        head = (completed.stdout or "").strip()
+        return head if len(head) >= 7 else None
 
     def _enforce_post_run_paths(
         self,
         request: ScheduleRequest,
         lease: GovernorLease,
         *,
-        pre_paths: set[str] | None = None,
+        pre_head: str | None = None,
     ) -> None:
         if request.role not in MUTATING_ROLES:
             return
-        post = self._git_porcelain_paths()
-        determined = require_changed_paths_determined(post)
-        if pre_paths is not None:
-            changed = [p for p in determined if p not in pre_paths]
-        else:
-            changed = determined
+        changed = collect_actual_changed_paths(self.root, pre_head=pre_head)
+        determined = require_changed_paths_determined(changed)
         try:
             enforce_allowed_paths(
-                changed_paths=changed,
+                changed_paths=determined,
                 allowed_paths=lease.allowed_paths,
             )
         except SdkRuntimeError as exc:
@@ -355,7 +345,7 @@ class CursorAgentCliExecutionPort:
             return await self.send_followup(request.existing_agent_id, request)
 
         lease = self._require_lease(request)
-        pre_paths = set(self._git_porcelain_paths() or [])
+        pre_head = self._git_rev_parse_head()
         payload = await self._invoke(
             prompt=request.prompt,
             resume_session=None,
@@ -393,7 +383,7 @@ class CursorAgentCliExecutionPort:
             lineage=lineage,
             state=AgentState.BUSY,
         )
-        self._enforce_post_run_paths(request, lease, pre_paths=pre_paths)
+        self._enforce_post_run_paths(request, lease, pre_head=pre_head)
         return self._finalize_run(session, request, key, payload)
 
     async def send_followup(self, agent_id: str, request: ScheduleRequest) -> RunRecord:
@@ -453,7 +443,7 @@ class CursorAgentCliExecutionPort:
                 expected=session.lineage,
             )
         session.lease = lease
-        pre_paths = set(self._git_porcelain_paths() or [])
+        pre_head = self._git_rev_parse_head()
         payload = await self._invoke(
             prompt=request.prompt,
             resume_session=session.session_id,
@@ -462,7 +452,7 @@ class CursorAgentCliExecutionPort:
         returned = str(payload.get("session_id") or session.session_id).lower()
         if returned != session.session_id and normalize_cli_identity(returned) != agent_id:
             raise SdkRuntimeError("session identity drift", code="FOREIGN_IDENTITY")
-        self._enforce_post_run_paths(request, lease, pre_paths=pre_paths)
+        self._enforce_post_run_paths(request, lease, pre_head=pre_head)
         return self._finalize_run(session, request, key, payload)
 
     def _finalize_run(
@@ -588,6 +578,20 @@ class CursorAgentCliExecutionPort:
         if stored is None:
             raise SdkRuntimeError("foreign CLI session", code="FOREIGN_IDENTITY")
         lineage = self._lineage_from_stored(stored)
+        bind_worker_lineage(
+            identity=agent_id,
+            backend=WorkerBackend(
+                stored.worker_backend or WorkerBackend.CURSOR_AGENT_CLI.value
+            ),
+            workspace=str(self.root.resolve()),
+            repository=CANONICAL_REPO_URL,
+            package_id=stored.package_id,
+            role=stored.role,
+            branch=stored.branch or CANONICAL_BRANCH,
+            base_main=stored.base_main,
+            creation_generation=stored.creation_generation or 0,
+            expected=lineage,
+        )
         if agent_id not in self._sessions:
             self._sessions[agent_id] = _CliSession(
                 agent_id=agent_id,
