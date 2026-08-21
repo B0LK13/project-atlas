@@ -467,15 +467,62 @@ def mission_reconcile(
     fp = planning_fingerprint(root, main_head=main_head)
 
     if fp == state.last_planning_fingerprint and state.MISSION_GENERATION > 0:
-        # Identical analysis redirect prevention — still count empty-queue reconcile.
-        state.IDENTICAL_ANALYSIS_REDIRECT_COUNT += 0
+        # Identical fingerprint: still replenish empty READY (D-133 CASE A).
+        ready = [n for n in nodes.values() if n.status == "READY"]
+        created = 0
+        if not ready:
+            state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT += 1
+            unmet = [
+                o
+                for o in objectives
+                if o.current_state not in {"SATISFIED", "COMPLETE"}
+            ]
+            if unmet:
+                key = _idempotency_key(
+                    objective="O3",
+                    kind="RELEASE_VALIDATION",
+                    package=(
+                        f"AS-RELEASE-REPLENISH-{state.MISSION_GENERATION}-"
+                        f"{state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT}"
+                    ),
+                    surface="docs/",
+                )
+                if not any(key == n.IDEMPOTENCY_KEY for n in nodes.values()):
+                    nodes[f"O3-REPLENISH-{key}"] = WorkNode(
+                        NODE_ID=f"O3-REPLENISH-{key}",
+                        OBJECTIVE_ID="O3",
+                        PACKAGE_ID="AS-RELEASE-CLEAN-MACHINE-BOOTSTRAP-001",
+                        TASK_KIND="RELEASE_VALIDATION",
+                        PRIORITY=78,
+                        DEPENDENCIES=[],
+                        ALLOWED_PATHS=["docs/", "scripts/", "tests/"],
+                        SURFACE_SET=["docs/", "scripts/"],
+                        WORKER_ROLE="READ_ONLY_ANALYST",
+                        ACCEPTANCE_CRITERIA=(
+                            "Replenish READY after empty queue; enumerate release gaps"
+                        ),
+                        REQUIRED_VERIFICATION=["receipt"],
+                        OWNER_GATE="NONE",
+                        GENERATION=max(state.MISSION_GENERATION, 1),
+                        IDEMPOTENCY_KEY=key,
+                        status="READY",
+                        fingerprint=_fingerprint([main_head, key]),
+                    )
+                    created = 1
+                    state.MISSION_GENERATION += 1
+                    state.PROGRESS_SEQUENCE += 1
+                    persist_nodes(root, nodes)
         state.last_reconcile_at = ts
         persist_mission_state(root, state)
         ready = [n for n in nodes.values() if n.status == "READY"]
         return {
             "MISSION_GENERATION": state.MISSION_GENERATION,
-            "skipped_identical_fingerprint": True,
+            "skipped_identical_fingerprint": created == 0,
+            "nodes_created": created,
             "READY_NODE_COUNT": len(ready),
+            "EMPTY_READY_QUEUE_RECONCILIATION_COUNT": (
+                state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT
+            ),
             "UNMET_OBJECTIVE_COUNT": sum(
                 1 for o in objectives if o.current_state not in {"SATISFIED", "COMPLETE"}
             ),
@@ -520,7 +567,10 @@ def mission_reconcile(
             key = _idempotency_key(
                 objective="O3",
                 kind="RELEASE_VALIDATION",
-                package=f"AS-RELEASE-REPLENISH-{state.MISSION_GENERATION}",
+                package=(
+                    f"AS-RELEASE-REPLENISH-{state.MISSION_GENERATION}-"
+                    f"{state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT}"
+                ),
                 surface="docs/",
             )
             if not any(key == n.IDEMPOTENCY_KEY for n in nodes.values()):
