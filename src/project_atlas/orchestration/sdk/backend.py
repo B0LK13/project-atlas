@@ -15,6 +15,10 @@ from typing import Any, Protocol
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.sdk.auth import AuthDiscovery, discover_auth
 from project_atlas.orchestration.sdk.idempotency import build_idempotency_key
+from project_atlas.orchestration.sdk.lease_registry import (
+    require_scheduler_lease,
+    resolve_durable_lease,
+)
 from project_atlas.orchestration.sdk.models import (
     CANONICAL_REPO_URL,
     DEFAULT_MODEL,
@@ -32,6 +36,16 @@ from project_atlas.orchestration.sdk.models import (
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
 from project_atlas.orchestration.sdk.result_adapter import adapt_run_result, normalize_run_status
 from project_atlas.orchestration.sdk.role_pool import AgentRolePool
+from project_atlas.orchestration.sdk.security_gates import (
+    CANONICAL_BRANCH,
+    GovernorLease,
+    WorkerBackend,
+    WorkerLineage,
+    bind_worker_lineage,
+    collect_actual_changed_paths,
+    enforce_allowed_paths,
+    require_changed_paths_determined,
+)
 
 
 class ExecutionBackend(Protocol):
@@ -272,6 +286,115 @@ class CursorSDKExecutionBackend:
         )
         self._client: Any = None
         self._handles: dict[str, Any] = {}
+        self._leases: dict[str, GovernorLease] = {}
+        self._pre_heads: dict[str, str | None] = {}
+
+    def register_lease(self, lease: GovernorLease) -> None:
+        self._leases[lease.lease_id] = lease
+
+    def _git_rev_parse_head(self) -> str | None:
+        """Pin HEAD before a mutating run so commits cannot hide from the delta."""
+        import subprocess
+
+        try:
+            completed = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(self.root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if completed.returncode != 0:
+            return None
+        head = (completed.stdout or "").strip()
+        return head if len(head) >= 7 else None
+
+    def _require_mutating_lease(self, request: ScheduleRequest) -> GovernorLease | None:
+        if request.role not in MUTATING_ROLES:
+            return None
+        lease = require_scheduler_lease(self.root, request, invocation=True)
+        if lease is None:
+            raise SdkRuntimeError(
+                "mutating lease missing after reload",
+                code="LEASE_REQUIRED",
+            )
+        self._leases[lease.lease_id] = lease
+        return lease
+
+    def _lineage_from_stored(self, stored: AgentRecord) -> WorkerLineage:
+        if (
+            stored.workspace is None
+            or stored.repository is None
+            or stored.creation_generation is None
+            or stored.worker_backend is None
+        ):
+            raise SdkRuntimeError(
+                "agent registry missing lineage",
+                code="LINEAGE_MISSING",
+            )
+        return WorkerLineage(
+            identity=stored.agent_id,
+            backend=WorkerBackend(stored.worker_backend),
+            workspace=stored.workspace,
+            repository=stored.repository,
+            package_id=stored.package_id,
+            role=stored.role,
+            branch=stored.branch or CANONICAL_BRANCH,
+            base_main=stored.base_main,
+            creation_generation=stored.creation_generation,
+        )
+
+    def _bind_lineage(
+        self,
+        *,
+        agent_id: str,
+        request: ScheduleRequest,
+        expected: WorkerLineage | None = None,
+    ) -> WorkerLineage:
+        return bind_worker_lineage(
+            identity=agent_id,
+            backend=WorkerBackend.CURSOR_SDK,
+            workspace=str(self.root.resolve()),
+            repository=CANONICAL_REPO_URL,
+            package_id=request.package_id,
+            role=request.role,
+            branch=request.branch or CANONICAL_BRANCH,
+            base_main=request.base_main,
+            creation_generation=request.dag_generation,
+            expected=expected,
+        )
+
+    def _enforce_run_paths(self, record: RunRecord) -> None:
+        if record.role not in MUTATING_ROLES:
+            return
+        lease = None
+        if record.lease_id:
+            lease = self._leases.get(record.lease_id) or resolve_durable_lease(
+                self.root, record.lease_id
+            )
+        if lease is None:
+            raise SdkRuntimeError(
+                "mutating wait_run missing lease",
+                code="LEASE_REQUIRED",
+            )
+        pre_head = self._pre_heads.get(record.run_id)
+        if pre_head is None:
+            pre_head = record.candidate_head
+        changed = collect_actual_changed_paths(self.root, pre_head=pre_head)
+        determined = require_changed_paths_determined(changed)
+        try:
+            enforce_allowed_paths(
+                changed_paths=determined,
+                allowed_paths=lease.allowed_paths,
+            )
+        except SdkRuntimeError as exc:
+            raise SdkRuntimeError(
+                f"REJECTED_SCOPE_ESCAPE: {exc}",
+                code="REJECTED_SCOPE_ESCAPE",
+            ) from exc
 
     async def _ensure_client(self) -> Any:
         if self._client is not None:
@@ -351,6 +474,8 @@ class CursorSDKExecutionBackend:
         if request.prefer_followup and request.existing_agent_id:
             return await self.send_followup(request.existing_agent_id, request)
 
+        self._require_mutating_lease(request)
+
         runtime = request.runtime or self.pool.preferred_runtime(request.role)
         if runtime == AgentRuntime.CLOUD and self.discovery.cloud_sdk_runtime != "ENABLED":
             if self.discovery.local_sdk_available == "YES":
@@ -397,6 +522,7 @@ class CursorSDKExecutionBackend:
         agent = await client.agents.create(**kwargs)
         agent_id = str(getattr(agent, "agent_id", None) or agent.id)
         self._handles[agent_id] = agent
+        lineage = self._bind_lineage(agent_id=agent_id, request=request)
         record = AgentRecord(
             agent_id=agent_id,
             runtime=runtime,
@@ -406,6 +532,11 @@ class CursorSDKExecutionBackend:
             branch=request.branch,
             created_at=_utc_now(),
             state=AgentState.BUSY,
+            worker_backend=WorkerBackend.CURSOR_SDK.value,
+            workspace=lineage.workspace,
+            repository=lineage.repository,
+            creation_generation=lineage.creation_generation,
+            lineage_id=f"lin-{agent_id}-{lineage.creation_generation}",
         )
         self.agents_reg.upsert(record)
         return await self._send_on_agent(agent, record, request, key)
@@ -420,9 +551,16 @@ class CursorSDKExecutionBackend:
         existing = self.runs_reg.find_by_idempotency(key)
         if existing is not None:
             return existing
+        self._require_mutating_lease(request)
         stored = self.agents_reg.get(agent_id)
         if stored is None:
             stored = await self.resume_agent(agent_id)
+        stored_lineage = self._lineage_from_stored(stored)
+        self._bind_lineage(
+            agent_id=agent_id,
+            request=request,
+            expected=stored_lineage,
+        )
         if stored.role != request.role:
             raise SdkRuntimeError("role change requires new agent", code="ROLE_CHANGE")
         agent = self._handles.get(agent_id)
@@ -452,9 +590,11 @@ class CursorSDKExecutionBackend:
         request: ScheduleRequest,
         key: str,
     ) -> RunRecord:
+        pre_head = self._git_rev_parse_head()
         send_kwargs: dict[str, Any] = {"idempotency_key": key}
         run = await agent.send(request.prompt, **send_kwargs)
         run_id = str(getattr(run, "id", None) or run.run_id)
+        self._pre_heads[run_id] = pre_head
         prompt_digest = hash_payload({"prompt": request.prompt})
         record = RunRecord(
             run_id=run_id,
@@ -481,11 +621,26 @@ class CursorSDKExecutionBackend:
         return record
 
     async def resume_agent(self, agent_id: str) -> AgentRecord:
-        from cursor_sdk import AgentOptions
-
         stored = self.agents_reg.get(agent_id)
         if stored is None:
             raise SdkRuntimeError("resumed agent not in registry", code="FOREIGN_AGENT")
+        stored_lineage = self._lineage_from_stored(stored)
+        bind_worker_lineage(
+            identity=agent_id,
+            backend=WorkerBackend(
+                stored.worker_backend or WorkerBackend.CURSOR_SDK.value
+            ),
+            workspace=str(self.root.resolve()),
+            repository=CANONICAL_REPO_URL,
+            package_id=stored.package_id,
+            role=stored.role,
+            branch=stored.branch or CANONICAL_BRANCH,
+            base_main=stored.base_main,
+            creation_generation=stored.creation_generation or 0,
+            expected=stored_lineage,
+        )
+        from cursor_sdk import AgentOptions
+
         client = await self._ensure_client()
         opts: dict[str, Any] = {}
         if self._api_key:
@@ -529,12 +684,15 @@ class CursorSDKExecutionBackend:
             stored = self.agents_reg.get(agent_id)
             if stored is not None:
                 self.agents_reg.upsert(stored.model_copy(update={"state": AgentState.IDLE}))
+            self._enforce_run_paths(updated)
             return updated
         # Detached recovery path
         status = await self.get_run_status(run_id, agent_id=agent_id)
         if status not in {RunStatus.FINISHED, RunStatus.ERROR, RunStatus.CANCELLED}:
             return self.runs_reg.get(run_id)  # type: ignore[return-value]
         ingested = adapt_run_result(run_id=run_id, agent_id=agent_id, status=status)
-        return self.runs_reg.mark_terminal(
+        updated = self.runs_reg.mark_terminal(
             run_id, status=ingested.status, result_digest=ingested.result_digest
         )
+        self._enforce_run_paths(updated)
+        return updated
