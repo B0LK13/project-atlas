@@ -225,6 +225,143 @@ def test_wait_run_enforces_before_durable_terminal(tmp_path: Path) -> None:
     assert stored.run_id in {r.run_id for r in backend.runs_reg.nonterminal()}
 
 
+def test_mutating_cloud_runtime_forced_local_for_path_attribution(tmp_path: Path) -> None:
+    """Mutating CLOUD must launch LOCAL when only worktree path attribution exists."""
+    from project_atlas.orchestration.sdk.auth import AuthDiscovery
+    from project_atlas.orchestration.sdk.models import ScheduleRequest
+    from project_atlas.orchestration.sdk.package_registry import (
+        PackageRouteRecord,
+        persist_package_route,
+    )
+
+    backend = _backend(tmp_path)
+    backend.discovery = AuthDiscovery(
+        cursor_api_key_available="YES",
+        local_sdk_available="YES",
+        cloud_sdk_runtime="ENABLED",
+    )
+    persist_package_route(
+        tmp_path,
+        PackageRouteRecord(canonical_head=PIN, dag_generation=112, registry_revision=1),
+    )
+    _lease(tmp_path, head=PIN)
+    from project_atlas.orchestration.sdk.lease_registry import resolve_durable_lease
+
+    lease = resolve_durable_lease(tmp_path, LEASE_ID)
+    assert lease is not None
+    backend.register_lease(lease)
+    called: dict[str, object] = {}
+
+    class _Agents:
+        async def create(self, **kwargs: object) -> SimpleNamespace:
+            called["kwargs"] = kwargs
+
+            class _Agent:
+                id = "agent-forced-local"
+                agent_id = "agent-forced-local"
+
+                async def send(self, prompt: str, **send_kwargs: object) -> SimpleNamespace:
+                    return SimpleNamespace(id="run-forced-local", run_id="run-forced-local")
+
+            return _Agent()
+
+    class _Client:
+        agents = _Agents()
+
+    async def _no_model(_client: object) -> str | None:
+        return None
+
+    backend._client = _Client()
+    backend._discover_model = _no_model  # type: ignore[method-assign]
+    backend._git_rev_parse_head = lambda: PIN  # type: ignore[method-assign]
+    backend._local_tools = lambda _role: {}  # type: ignore[method-assign]
+
+    import sys
+    import types
+
+    fake_sdk = types.ModuleType("cursor_sdk")
+
+    class CloudAgentOptions:  # noqa: D401
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    class CloudRepository:  # noqa: D401
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    class LocalAgentOptions:  # noqa: D401
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    fake_sdk.CloudAgentOptions = CloudAgentOptions  # type: ignore[attr-defined]
+    fake_sdk.CloudRepository = CloudRepository  # type: ignore[attr-defined]
+    fake_sdk.LocalAgentOptions = LocalAgentOptions  # type: ignore[attr-defined]
+    sys.modules["cursor_sdk"] = fake_sdk
+
+    req = ScheduleRequest(
+        package_id=PACKAGE_ID,
+        role=AgentRole.REMEDIATOR,
+        prompt="mutate",
+        node_id="REMEDIATE-CLOUD-ATTR",
+        cycle_id="C-D115-CLOUD-ATTR",
+        dag_generation=112,
+        attempt=1,
+        base_main=PIN,
+        branch=CANONICAL_BRANCH,
+        lease_id=LEASE_ID,
+        candidate_head=PIN,
+        runtime=AgentRuntime.CLOUD,
+    )
+    asyncio.run(backend.create_and_send(req))
+    kwargs = called["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert "local" in kwargs
+    assert "cloud" not in kwargs
+
+
+def test_mutating_cloud_fail_closed_without_local_sdk(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.auth import AuthDiscovery
+    from project_atlas.orchestration.sdk.models import ScheduleRequest
+    from project_atlas.orchestration.sdk.package_registry import (
+        PackageRouteRecord,
+        persist_package_route,
+    )
+
+    backend = _backend(tmp_path)
+    backend.discovery = AuthDiscovery(
+        cursor_api_key_available="YES",
+        local_sdk_available="NO",
+        cloud_sdk_runtime="ENABLED",
+    )
+    persist_package_route(
+        tmp_path,
+        PackageRouteRecord(canonical_head=PIN, dag_generation=112, registry_revision=1),
+    )
+    _lease(tmp_path, head=PIN)
+    from project_atlas.orchestration.sdk.lease_registry import resolve_durable_lease
+
+    lease = resolve_durable_lease(tmp_path, LEASE_ID)
+    assert lease is not None
+    backend.register_lease(lease)
+    req = ScheduleRequest(
+        package_id=PACKAGE_ID,
+        role=AgentRole.REMEDIATOR,
+        prompt="mutate",
+        node_id="REMEDIATE-CLOUD-ATTR-FAIL",
+        cycle_id="C-D115-CLOUD-ATTR-FAIL",
+        dag_generation=112,
+        attempt=1,
+        base_main=PIN,
+        branch=CANONICAL_BRANCH,
+        lease_id=LEASE_ID,
+        candidate_head=PIN,
+        runtime=AgentRuntime.CLOUD,
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(backend.create_and_send(req))
+    assert exc.value.code == "CLOUD_MUTATING_PATH_ATTRIBUTION_UNAVAILABLE"
+
+
 def test_resume_missing_creation_sequence(tmp_path: Path) -> None:
     backend = _backend(tmp_path)
     backend.agents_reg.upsert(_agent(tmp_path))

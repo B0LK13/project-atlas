@@ -496,6 +496,18 @@ class CursorSDKExecutionBackend:
         self._require_mutating_lease(request)
 
         runtime = request.runtime or self.pool.preferred_runtime(request.role)
+        # Path attribution (_enforce_run_paths / collect_actual_changed_paths) is
+        # local-worktree-only. Mutating CLOUD sandboxes can escape without
+        # durable detection — force LOCAL (or fail closed) until remote
+        # attribution exists (ORCH-SDK-CLOUD-MUTATING-ATTRIBUTION-001).
+        if runtime == AgentRuntime.CLOUD and request.role in MUTATING_ROLES:
+            if self.discovery.local_sdk_available == "YES":
+                runtime = AgentRuntime.LOCAL
+            else:
+                raise SdkRuntimeError(
+                    "CLOUD_MUTATING_PATH_ATTRIBUTION_UNAVAILABLE",
+                    code="CLOUD_MUTATING_PATH_ATTRIBUTION_UNAVAILABLE",
+                )
         if runtime == AgentRuntime.CLOUD and self.discovery.cloud_sdk_runtime != "ENABLED":
             if self.discovery.local_sdk_available == "YES":
                 runtime = AgentRuntime.LOCAL
