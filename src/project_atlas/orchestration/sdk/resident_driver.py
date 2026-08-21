@@ -246,12 +246,12 @@ def _arm_consumed(root: Path, *, consumed: list[str], now: float) -> None:
 def _try_closed_loop(root: Path, *, now: float) -> dict[str, object] | None:
     """Optional mission reconciler hook (PR436+). Never required for heartbeat."""
     try:
-        from project_atlas.orchestration.sdk.mission_reconciler import (  # noqa: PLC0415
+        from project_atlas.orchestration.sdk.mission_reconciler import (
             closed_loop_tick,
-            real_active_worker_count,
             load_mission_state,
-            ready_work_items,
             mission_reconcile,
+            ready_work_items,
+            real_active_worker_count,
         )
     except ImportError:
         return None
@@ -285,9 +285,9 @@ def _try_closed_loop(root: Path, *, now: float) -> dict[str, object] | None:
 def _default_ready(root: Path, *, now: float) -> list[ReadyWorkItem]:
     """Prefer mission-reconciler READY nodes. No standing-card spam."""
     try:
-        from project_atlas.orchestration.sdk.mission_reconciler import (  # noqa: PLC0415
-            ready_work_items,
+        from project_atlas.orchestration.sdk.mission_reconciler import (
             mission_reconcile,
+            ready_work_items,
         )
 
         items = ready_work_items(root, capacity=2)
@@ -384,7 +384,7 @@ def resident_tick(
     status.READY_NODE_COUNT = tick.ready_before
     # Never count synthetic READY cards as active workers
     try:
-        from project_atlas.orchestration.sdk.mission_reconciler import (  # noqa: PLC0415
+        from project_atlas.orchestration.sdk.mission_reconciler import (
             real_active_worker_count,
         )
 
