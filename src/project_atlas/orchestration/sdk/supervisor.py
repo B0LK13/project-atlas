@@ -7,6 +7,7 @@ worker terminal, or owner-gate on one branch while independent work exists.
 from __future__ import annotations
 
 import asyncio
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,12 +25,20 @@ from project_atlas.orchestration.sdk.backend import (
 )
 from project_atlas.orchestration.sdk.cli_execution_port import CursorAgentCliExecutionPort
 from project_atlas.orchestration.sdk.cost_guard import CostGuard
+from project_atlas.orchestration.sdk.external_observers import (
+    load_observer_registry,
+    nearest_wake_at,
+)
 from project_atlas.orchestration.sdk.models import (
     DIRECTIVE_ID,
     PACKAGE_ID,
     PRIMARY_BACKEND,
     STOP_HOOK_BACKEND,
     SdkRuntimeError,
+)
+from project_atlas.orchestration.sdk.nonblocking_scheduler import (
+    bounded_sleep_seconds,
+    scheduler_tick,
 )
 from project_atlas.orchestration.sdk.recovery import RecoveryReport, recover_runtime
 from project_atlas.orchestration.sdk.registries import CloudAgentRegistry, RunRegistry
@@ -204,6 +213,22 @@ class DurableAtlasSupervisor:
         self.status.cycles += 1
         self.status.last_cycle = result
         self.status.human_scheduler_events = 0
+        # D-128: nonblocking liveness tick — pending externals never block ready work.
+        try:
+            scheduler_tick(
+                self.root,
+                ready=ready,
+                capacity=max(1, len(ready)),
+                running_workers=len(result.started),
+            )
+        except (TimeoutError, OSError, SdkRuntimeError, ValueError) as exc:
+            code = getattr(exc, "code", None) or type(exc).__name__
+            persist_result_quarantine(
+                self.root,
+                code=f"NONBLOCKING_TICK:{code}",
+                detail=str(exc),
+            )
+            self.status.contained_failures += 1
         if transport_state(self.root) == "CLOSED":
             self.status.next_machine_action = "RESULT_PLANE_CONSUMED"
         return result
@@ -235,10 +260,16 @@ class DurableAtlasSupervisor:
                     self.status.cycles += 1
                 if self.max_cycles is not None and self.status.cycles >= self.max_cycles:
                     break
+                # D-128: sleep only until nearest observer wake (capped). Never long CI wait.
+                registry = load_observer_registry(self.root)
+                wake = nearest_wake_at(registry)
+                timeout = bounded_sleep_seconds(
+                    next_wake_at=wake,
+                    now=time.time(),
+                    cap_sec=max(self.poll_interval_sec, 0.1),
+                )
                 try:
-                    await asyncio.wait_for(
-                        self._stop.wait(), timeout=self.poll_interval_sec
-                    )
+                    await asyncio.wait_for(self._stop.wait(), timeout=timeout)
                 except TimeoutError:
                     continue
         finally:

@@ -1,4 +1,9 @@
-"""DAG-to-agent scheduler. Parks transient failures; never exits primary loop."""
+"""DAG-to-agent scheduler. Parks transient failures; never exits primary loop.
+
+D-128 / AS-ORCH-NONBLOCKING-SCHEDULER-LIVENESS-001:
+  PENDING_EXTERNAL_EVENT != GLOBAL_SCHEDULER_BLOCK.
+  ingest_completions polls status only; never blocks the cycle on wait_run.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,7 @@ from project_atlas.orchestration.sdk.models import (
     STATE_DIR_RELATIVE,
     AgentRole,
     RunRecord,
+    RunStatus,
     ScheduleRequest,
     SdkRuntimeError,
 )
@@ -127,11 +133,24 @@ class DagToAgentScheduler:
         self._save_parked(parked)
 
     async def ingest_completions(self) -> list[RunRecord]:
+        """Poll-only ingest. Never blocks the scheduler on an in-flight wait_run.
+
+        When a run is already terminal per get_run_status, wait_run is used solely
+        as an attribution/finalize step (backends must return immediately for
+        already-terminal runs). Non-terminal runs stay observed, not waited upon.
+        """
         ingested: list[RunRecord] = []
         for run in self.runs.nonterminal():
             status = await self.backend.get_run_status(run.run_id, agent_id=run.agent_id)
-            if status.value in {"FINISHED", "ERROR", "CANCELLED"}:
-                updated = await self.backend.wait_run(run.run_id, agent_id=run.agent_id)
+            if status not in {
+                RunStatus.FINISHED,
+                RunStatus.ERROR,
+                RunStatus.CANCELLED,
+            }:
+                # LOCAL NODE WAIT only — leave run nonterminal; cycle continues.
+                continue
+            updated = await self.backend.wait_run(run.run_id, agent_id=run.agent_id)
+            if updated.is_terminal:
                 ingested.append(updated)
         return ingested
 
@@ -198,11 +217,11 @@ class DagToAgentScheduler:
                 result.parked.append(item.node_id)
                 continue
             except SdkRuntimeError as exc:
-                if exc.code == "AGENT_BUSY" and existing is not None and existing.last_run_id:
-                    bound = await self.backend.wait_run(
-                        existing.last_run_id, agent_id=existing.agent_id
-                    )
-                    result.ingested.append(bound)
+                if exc.code == "AGENT_BUSY":
+                    # D-128: do not block the cycle on wait_run. Park + retry.
+                    # RESOURCE_YIELD != OWNER_REQUIRED.
+                    self._park_node(item.node_id, code="AGENT_BUSY", attempt=item.attempt)
+                    result.parked.append(item.node_id)
                     continue
                 kind = classify_transient_failure(exc)
                 if exc.code in TRANSIENT_CODES or kind != TransientClass.NOT_TRANSIENT:
