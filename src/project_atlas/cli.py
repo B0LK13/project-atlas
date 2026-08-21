@@ -135,6 +135,10 @@ from project_atlas.knowledge_diff import (
     read_as_of,
 )
 from project_atlas.knowledge_diff import diff_to_json as kdiff_diff_to_json
+from project_atlas.knowledge_inbox import (
+    KnowledgeInboxError,
+    list_inbox_items,
+)
 from project_atlas.knowledge_diff import snapshot_to_json as kdiff_snapshot_to_json
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
@@ -313,6 +317,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "context",
         "handoff",
         "capture",
+        "inbox",
         "obsidian",
         "review",
     }:
@@ -1013,6 +1018,31 @@ def build_parser() -> argparse.ArgumentParser:
         dest="review_state",
     )
     capture_review.add_argument("--json", action="store_true", dest="as_json")
+
+    inbox_parser = subparsers.add_parser(
+        "inbox",
+        help=(
+            "Read Knowledge Inbox observations "
+            "(INBOX != AUTHORITY; list is read-only and project-scoped)."
+        ),
+    )
+    inbox_sub = inbox_parser.add_subparsers(dest="inbox_command", required=True)
+    inbox_list = inbox_sub.add_parser(
+        "list",
+        help=(
+            "List project-scoped inbox items in deterministic receipt_id order. "
+            "Requires --project or a single-project bind. No implicit portfolio-all."
+        ),
+    )
+    inbox_list.add_argument("--vault", type=Path, default=None)
+    inbox_list.add_argument("--project", default=None)
+    inbox_list.add_argument(
+        "--status",
+        default=None,
+        choices=sorted(["quarantined", "accepted-review", "rejected"]),
+    )
+    inbox_list.add_argument("--limit", type=int, default=20)
+    inbox_list.add_argument("--json", action="store_true", dest="as_json")
 
     obsidian_parser = subparsers.add_parser(
         "obsidian",
@@ -3309,6 +3339,376 @@ def main(argv: Sequence[str] | None = None) -> int:
             for item in report.get("resume_instructions") or []:
                 print(f"  - {item}")
         return EXIT_OK
+
+    if args.command == "inbox":
+        try:
+            if args.inbox_command != "list":
+                raise KnowledgeInboxError(
+                    "UNSUPPORTED_SCOPE",
+                    f"inbox command not implemented: {args.inbox_command}",
+                )
+            project_id = args.project
+            if project_id in {None, ""}:
+                try:
+                    project_id = resolve_bound_project_id(vault=args.vault)
+                except ConnectError as exc:
+                    raise KnowledgeInboxError(
+                        "UNSUPPORTED_SCOPE",
+                        "inbox list requires --project (no implicit portfolio-all)",
+                    ) from exc
+            report = list_inbox_items(
+                args.vault,
+                project_id=project_id,
+                status=args.status,
+                limit=args.limit,
+            )
+        except KnowledgeInboxError as exc:
+            _log.error("inbox failed: %s", exc)
+            inbox_error: dict[str, Any] = {
+                "status": "error",
+                "error": exc.code,
+                "message": str(exc),
+                "package": "AS-CODER-ALPHA-INBOX-LIST-001",
+                "promoted_to_authority": False,
+            }
+            if getattr(args, "as_json", False):
+                print(json.dumps(inbox_error, indent=2, sort_keys=True))
+            else:
+                print(f"atlas inbox list error [{exc.code}]: {exc}")
+            return EXIT_ERROR
+        except (OSError, ValueError) as exc:
+            _log.error("inbox failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            items = report.get("items") or []
+            print(f"atlas inbox list [{report.get('count', 0)}]")
+            print(f"  project:  {report.get('project_id')}")
+            print("  boundary: INBOX != AUTHORITY (observations, not Truth Core)")
+            if not items:
+                print("  UNKNOWN (no inbox items for project)")
+            for item in items:
+                print(
+                    f"  - {item.get('receipt_id')} [{item.get('status')}] "
+                    f"{item.get('summary')}"
+                )
+        return EXIT_OK
+
+    if args.command == "obsidian":
+        try:
+            report = materialize_obsidian_projection(
+                args.vault,
+                project_id=args.project,
+                refresh_brief=not args.no_refresh,
+            )
+        except (ObsidianProjectionError, OSError, ValueError) as exc:
+            _log.error("obsidian projection failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(f"atlas obsidian project [{report.get('status', 'ok')}]")
+            for path in report.get("notes_written") or []:
+                print(f"  note: {path}")
+            print(f"  receipt: {report.get('receipt_path')}")
+            print("  next: open generated/obsidian/projects/ in Obsidian (plugin!=shipped)")
+        return EXIT_OK
+
+    if args.command == "review":
+        try:
+            report = apply_review_decision(
+                args.vault,
+                project_id=args.project,
+                review_id=args.review_id,
+                decision=args.decision,
+                reason=args.reason,
+                winner_claim_id=args.winner_claim_id,
+            )
+        except (HumanLoopError, OSError, ValueError) as exc:
+            _log.error("review decide failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            decision = report.get("decision") or {}
+            print(f"atlas review decide [{report.get('status', 'ok')}]")
+            print(f"  review:   {decision.get('review_id')}")
+            print(f"  decision: {decision.get('decision')}")
+            print(f"  status:   {decision.get('status')}")
+            print(f"  receipt:  {report.get('receipt_path')}")
+            print("  next: atlas unknown --vault <vault> | re-run atlas connect to recompile")
+        return EXIT_OK
+
+    if args.command == "build-indexes":
+        try:
+            result = build_indexes(args.vault)
+        except (OSError, ValueError) as exc:
+            _log.error("build-indexes failed: %s", exc)
+            return EXIT_ERROR
+        print(f"indexed {result['projects']} projects and {result['sources']} sources")
+        return EXIT_OK
+
+    if args.command == "build-portfolio":
+        try:
+            result = build_portfolio(args.vault)
+            # AS-2.0-TEMPORAL-001 / AS-2.2-KDIFF-001: derive the validity-window
+            # catalog the shipped Time Machine reader consumes, from persisted
+            # claims + document-declared valid-time. Derived (D5) and rebuilt on
+            # every build, so it survives backup/restore via regeneration.
+            catalog = build_bitemporal_catalogs(args.vault)
+        except (OSError, ValueError) as exc:
+            _log.error("build-portfolio failed: %s", exc)
+            return EXIT_ERROR
+        print(f"portfolio built for {result['projects']} projects")
+        print(f"outputs: {', '.join(result['outputs'])}")
+        print(
+            "bitemporal catalogs: "
+            f"{catalog['catalog_count']} ({catalog['window_count']} windows)"
+        )
+        return EXIT_OK
+
+    if args.command == "migrate-v2":
+        try:
+            result = migrate_v2(args.vault, args.project)
+        except (OSError, RuntimeError, ValueError) as exc:
+            _log.error("migration failed: %s", exc)
+            return EXIT_ERROR
+        print(f"status: {result['status']}")
+        if "migrated_claims" in result:
+            print(f"migrated claims: {result['migrated_claims']}")
+        if "receipt" in result:
+            print(f"receipt: {result['receipt']}")
+        return EXIT_OK
+
+    if args.command == "validate":
+        try:
+            result = validate(args.vault)
+        except (OSError, ValueError) as exc:
+            _log.error("validate failed: %s", exc)
+            return EXIT_ERROR
+        # AS-H-010: severity→exit (ERROR→1; WARNING/INFO alone→0; preserve usage→2).
+        exit_code = validation_exit_code(result)
+        if exit_code != EXIT_OK:
+            logged: set[str] = set()
+            for error in result["errors"]:
+                _log.error("validation: %s", error)
+                logged.add(error)
+            for finding in result.get("findings") or []:
+                if not isinstance(finding, dict):
+                    continue
+                if finding.get("severity") != "error":
+                    continue
+                message = finding.get("message")
+                if isinstance(message, str) and message and message not in logged:
+                    _log.error("validation: %s", message)
+            return EXIT_ERROR
+        for finding in result.get("findings") or []:
+            if not isinstance(finding, dict):
+                continue
+            severity = finding.get("severity")
+            message = finding.get("message")
+            if not isinstance(message, str) or not message:
+                continue
+            if severity == "warning":
+                _log.warning("validation: %s", message)
+            elif severity == "info":
+                _log.info("validation: %s", message)
+        print(f"validated {result['markdown_files']} Markdown files")
+        return EXIT_OK
+
+    if args.command == "accept-graph":
+        try:
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise GraphAcceptanceError("manifest-not-object")
+            receipt = accept_graphify_artifacts(
+                project_root=args.source,
+                manifest=manifest,
+                config=config,
+                strict=args.strict,
+            )
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("accept-graph failed: %s", exc)
+            return EXIT_ERROR
+        summary = inspect_acceptance(receipt)
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        print(f"accepted: {receipt.accepted_count}")
+        print(f"rejected: {receipt.rejected_count}")
+        print(f"nodes: {receipt.node_count}")
+        print(f"edges: {receipt.edge_count}")
+        print(f"semantic: {receipt.semantic_status}")
+        print("authority: derived")
+        return EXIT_OK
+
+    if args.command == "resolve-graph":
+        try:
+            if args.write and args.vault is None:
+                raise GraphResolutionError("resolve-graph --write requires --vault")
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise GraphResolutionError("manifest-not-object")
+            mapping: dict[str, object] | None = None
+            if args.mapping is not None:
+                loaded = json.loads(args.mapping.read_text(encoding="utf-8"))
+                if not isinstance(loaded, dict):
+                    raise GraphResolutionError("mapping-table-malformed")
+                mapping = loaded
+            _receipt, resolution = resolve_from_acceptance(
+                project_root=args.source,
+                manifest=manifest,
+                mapping_table=mapping,
+                config=config,
+                local_project_uuid=args.project_uuid,
+                strict=args.strict,
+            )
+            written: list[str] = []
+            if args.write:
+                assert args.vault is not None
+                written = write_resolution_outputs(resolution, vault=args.vault)
+            summary = inspect_resolution(resolution)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            print(f"resolved: {resolution.resolved_count}")
+            print(f"quarantined: {resolution.quarantined_count}")
+            print("authority: derived")
+            if written:
+                print(f"written: {len(written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("resolve-graph failed: %s", exc)
+            return EXIT_ERROR
+        return EXIT_OK
+
+    if args.command == "store-graph":
+        try:
+            if args.write and args.vault is None:
+                raise GraphRelationshipError("store-graph --write requires --vault")
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            if not isinstance(manifest, dict):
+                raise GraphRelationshipError("manifest-not-object")
+            store_mapping: dict[str, object] | None = None
+            if args.mapping is not None:
+                loaded = json.loads(args.mapping.read_text(encoding="utf-8"))
+                if not isinstance(loaded, dict):
+                    raise GraphRelationshipError("mapping-table-malformed")
+                store_mapping = loaded
+            max_edges = args.max_edges
+            _receipt, _resolution, store = store_from_acceptance(
+                project_root=args.source,
+                manifest=manifest,
+                mapping_table=store_mapping,
+                config=config,
+                local_project_uuid=args.project_uuid,
+                strict=args.strict,
+                **({"max_edges": max_edges} if max_edges is not None else {}),
+            )
+            store_written: list[str] = []
+            if args.write:
+                assert args.vault is not None
+                store_written = write_relationship_outputs(store, vault=args.vault)
+            summary = inspect_relationship_store(store)
+            print(json.dumps(summary, indent=2, sort_keys=True))
+            print(f"retained: {store.retained_count}")
+            print(f"quarantined: {store.quarantined_count}")
+            print("authority: derived")
+            if store_written:
+                print(f"written: {len(store_written)}")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            _log.error("store-graph failed: %s", exc)
+            return EXIT_ERROR
+        return EXIT_OK
+
+    if args.command == "query":
+        field_args: list[str] | None = args.field_args
+        fields_csv: str | None = args.fields_csv
+        diag_shape = QueryShape.UNKNOWN
+        diag_field: str | None = None
+        diag_fields: list[str] | None = None
+        try:
+            if args.list:
+                if field_args or fields_csv:
+                    _log.error("query --list cannot be combined with --field/--fields")
+                    return EXIT_ERROR
+                diag_shape = QueryShape.LIST
+                if args.kind == "authoritative":
+                    answers = list_authoritative(args.vault, args.project)
+                elif args.kind == "temporal":
+                    answers = list_temporal(args.vault, args.project)
+                else:
+                    # AS-QUERY-001: unsupported list kind → fail-closed diagnostic
+                    raise KnowledgeQueryError(
+                        KnowledgeQueryErrorCode.UNSUPPORTED_KIND,
+                        f"query --list does not support --kind {args.kind!r}",
+                    )
+                print(answer_to_json(answers), end="")
+                return EXIT_OK
+            if field_args and fields_csv:
+                _log.error("query --field and --fields are mutually exclusive")
+                return EXIT_ERROR
+            if not args.subject:
+                _log.error(
+                    "query requires --subject and --field/--fields unless --list is set"
+                )
+                return EXIT_ERROR
+            if fields_csv is not None:
+                multifield = [part.strip() for part in fields_csv.split(",")]
+                diag_shape = QueryShape.MULTIFIELD
+                diag_fields = multifield
+                csv_answer = query_knowledge_fields(
+                    args.vault,
+                    args.project,
+                    args.subject,
+                    multifield,
+                    kind=args.kind,
+                )
+                print(answer_to_json(csv_answer), end="")
+                return EXIT_OK
+            if not field_args:
+                _log.error(
+                    "query requires --subject and --field/--fields unless --list is set"
+                )
+                return EXIT_ERROR
+            if len(field_args) == 1:
+                # Preserve AS-CORE-007 point-query CLI contract.
+                diag_shape = QueryShape.POINT
+                diag_field = field_args[0]
+                point_answer = query_knowledge(
+                    args.vault,
+                    args.project,
+                    args.subject,
+                    field_args[0],
+                    kind=args.kind,
+                )
+                print(answer_to_json(point_answer), end="")
+                return EXIT_OK
+            diag_shape = QueryShape.MULTIFIELD
+            diag_fields = list(field_args)
+            multi_answer = query_knowledge_fields(
+                args.vault,
+                args.project,
+                args.subject,
+                field_args,
+                kind=args.kind,
+            )
+            print(answer_to_json(multi_answer), end="")
+            return EXIT_OK
+        except KnowledgeQueryError as exc:
+            # AS-QUERY-DIAG-001-FR-009: structured stdout on integrity/request failures.
+            _log.error("query failed [%s]: %s", exc.code.value, exc.message)
+            diagnostic = query_diagnostic_from_error(
+                exc,
+                project_id=args.project,
+                subject=args.subject,
+                field=diag_field,
+                fields=diag_fields,
+                kind=args.kind,
+                query_shape=diag_shape,
+            )
+            print(diagnostic_to_json(diagnostic), end="")
+            return EXIT_ERROR
+        except (OSError, ValueError, TypeError) as exc:
+            _log.error("query failed: %s", exc)
+            return EXIT_ERROR
+
 
     if args.command == "capture":
         try:
