@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any, Final
 
 from project_atlas.orchestration.sdk.auth import discover_auth
+from project_atlas.orchestration.sdk.closed_loop_port import (
+    ensure_closed_loop_binding,
+    get_closed_loop_hook,
+    persist_governor_mode,
+)
 from project_atlas.orchestration.sdk.external_observers import (
     ObserverStatus,
     due_observers,
@@ -243,65 +248,102 @@ def _arm_consumed(root: Path, *, consumed: list[str], now: float) -> None:
         )
 
 
+def _dispatch_count(loop_result: dict[str, object] | None) -> int:
+    if loop_result is None:
+        return 0
+    raw = loop_result.get("REAL_WORKER_DISPATCH_COUNT", 0)
+    if isinstance(raw, bool):
+        return 0
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        return int(raw)
+    if isinstance(raw, str) and raw.isdigit():
+        return int(raw)
+    return 0
+
+
 def _try_closed_loop(root: Path, *, now: float) -> dict[str, object] | None:
-    """Optional mission reconciler hook (PR436+). Never required for heartbeat."""
-    try:
-        from project_atlas.orchestration.sdk.mission_reconciler import (
-            closed_loop_tick,
-            load_mission_state,
-            mission_reconcile,
-            ready_work_items,
-            real_active_worker_count,
-        )
-    except ImportError:
+    """Invoke registered closed-loop hook; never statically import PR436."""
+    mode = ensure_closed_loop_binding()
+    persist_governor_mode(root, mode=mode, now=now)
+    hook = get_closed_loop_hook()
+    if hook is None:
+        if mode == "DEGRADED_MISSION_RECONCILER_UNAVAILABLE":
+            return {
+                "degraded": True,
+                "GOVERNOR_MODE": mode,
+                "CLOSED_LOOP_AUTONOMY": "FAIL",
+                "REAL_WORKER_DISPATCH_COUNT": 0,
+                "at": now,
+            }
+        # RESIDENT_SCHEDULER_ONLY — self-wake continues without mission autonomy
         return None
-    # Pace closed-loop generations (not every heartbeat)
-    marker = _runtime(root) / "d132-last-closed-loop.json"
+
+    # Mandatory cycle when hook is bound
+    hook.reconcile(root, now=now)
+    marker = _runtime(root) / "d134-last-closed-loop.json"
     if marker.is_file():
         try:
             prev = json.loads(marker.read_text(encoding="utf-8"))
             if now - float(prev.get("at", 0)) < 20.0:
-                mission_reconcile(root)  # still replenish/dedupe
+                progress = hook.progress_state(root)
                 return {
                     "paced": True,
-                    "REAL_ACTIVE_WORKER_COUNT": real_active_worker_count(root),
-                    "MISSION_PROGRESS_SEQUENCE": load_mission_state(root).PROGRESS_SEQUENCE,
+                    "MISSION_RECONCILE_PER_PRODUCTIVE_TICK": "YES",
+                    "GOVERNOR_MODE": "CLOSED_LOOP_MANDATORY",
+                    "REAL_ACTIVE_WORKER_COUNT": hook.active_worker_count(root),
+                    "MISSION_PROGRESS_SEQUENCE": progress.get("PROGRESS_SEQUENCE", 0),
+                    "MISSION_GENERATION": progress.get("MISSION_GENERATION", 0),
                     "at": now,
                 }
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             pass
-    items = ready_work_items(root, capacity=1)
+
+    items = hook.ready_work(root, capacity=1)
     if not items:
-        mission_reconcile(root)
-    result = closed_loop_tick(root)
-    state = load_mission_state(root)
-    result["REAL_ACTIVE_WORKER_COUNT"] = real_active_worker_count(root)
-    result["MISSION_PROGRESS_SEQUENCE"] = state.PROGRESS_SEQUENCE
+        hook.reconcile(root, now=now)
+        items = hook.ready_work(root, capacity=1)
+
+    if items:
+        result = dict(hook.closed_loop_tick(root, now=now))
+    else:
+        progress = hook.progress_state(root)
+        result = {
+            "MISSION_GENERATION": progress.get("MISSION_GENERATION", 0),
+            "READY_NODE_COUNT": 0,
+            "REAL_WORKER_DISPATCH_COUNT": 0,
+            "note": "empty_ready_after_full_mission_reconcile",
+            "EMPTY_READY_QUEUE_RECONCILIATION_COUNT": progress.get(
+                "EMPTY_READY_QUEUE_RECONCILIATION_COUNT", 0
+            ),
+        }
+
+    progress = hook.progress_state(root)
+    result["REAL_ACTIVE_WORKER_COUNT"] = hook.active_worker_count(root)
+    result["MISSION_PROGRESS_SEQUENCE"] = progress.get("PROGRESS_SEQUENCE", 0)
+    result["MISSION_RECONCILE_PER_PRODUCTIVE_TICK"] = "YES"
+    result["GOVERNOR_MODE"] = "CLOSED_LOOP_MANDATORY"
     result["at"] = now
     marker.write_text(json.dumps({"at": now}, indent=2) + "\n", encoding="utf-8")
-    return result  # type: ignore[return-value]
+    return result
 
 
 def _default_ready(root: Path, *, now: float) -> list[ReadyWorkItem]:
-    """Prefer mission-reconciler READY nodes. No standing-card spam."""
-    try:
-        from project_atlas.orchestration.sdk.mission_reconciler import (
-            mission_reconcile,
-            ready_work_items,
-        )
-
-        items = ready_work_items(root, capacity=2)
-        if not items:
-            mission_reconcile(root)
-            items = ready_work_items(root, capacity=2)
-        return items
-    except ImportError:
-        # PR435-only: empty ready is honest; heartbeat continues; no fake workers.
+    """READY from closed-loop hook when bound; else empty (no synthetic cards)."""
+    ensure_closed_loop_binding()
+    hook = get_closed_loop_hook()
+    if hook is None:
         return []
+    items = hook.ready_work(root, capacity=2)
+    if not items:
+        hook.reconcile(root, now=now)
+        items = hook.ready_work(root, capacity=2)
+    return list(items)
 
 
 def _record_dispatch_progress(root: Path, *, now: float, nodes: list[str]) -> None:
-    (_runtime(root) / "d132-last-scheduler-dispatch.json").write_text(
+    (_runtime(root) / "d134-last-scheduler-dispatch.json").write_text(
         json.dumps({"at": now, "nodes": nodes, "synthetic": False}, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -360,8 +402,8 @@ def resident_tick(
     owner_held = _owner_held_count(root)
     pending = pending_external_count(load_observer_registry(root))
     # PROJECT_PROGRESS only for real closed-loop outcomes or CI consume
-    real_progress = bool(consumed) or bool(
-        loop_result and int(loop_result.get("REAL_WORKER_DISPATCH_COUNT") or 0) > 0
+    real_progress = bool(consumed) or _dispatch_count(loop_result) > 0 or bool(
+        loop_result and loop_result.get("created_successors")
     )
 
     auth = discover_auth()
@@ -382,15 +424,8 @@ def resident_tick(
         status.progress_sequence += 1
     status.NEXT_WAKE_AT = wake if wake is not None else ts + sleep_sec
     status.READY_NODE_COUNT = tick.ready_before
-    # Never count synthetic READY cards as active workers
-    try:
-        from project_atlas.orchestration.sdk.mission_reconciler import (
-            real_active_worker_count,
-        )
-
-        status.ACTIVE_WORKER_COUNT = real_active_worker_count(root)
-    except ImportError:
-        status.ACTIVE_WORKER_COUNT = 0
+    hook = get_closed_loop_hook()
+    status.ACTIVE_WORKER_COUNT = hook.active_worker_count(root) if hook else 0
     status.PENDING_EXTERNAL_EVENT_COUNT = pending
     status.OWNER_HELD_COUNT = owner_held
     status.LAST_EVENT_CONSUMED = consumed[-1] if consumed else status.LAST_EVENT_CONSUMED
