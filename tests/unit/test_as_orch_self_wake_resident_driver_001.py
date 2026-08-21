@@ -160,16 +160,19 @@ def test_next_wake_survives_restart(tmp_path: Path) -> None:
 def test_duplicate_timer_fire_idempotent(tmp_path: Path) -> None:
     persist_mission(tmp_path)
     ensure_pr434_observer(tmp_path, now=5000.0)
-    # Force terminal then consume twice via ticks with empty snapshots
     from project_atlas.orchestration.sdk.nonblocking_scheduler import apply_ci_poll_result
 
-    apply = apply_ci_poll_result
-    apply(tmp_path, "ci-pr434-d129", raw_status="completed", conclusion="success", now=5000.0)
+    apply_ci_poll_result(
+        tmp_path,
+        "ci-pr434-d130-g2",
+        raw_status="completed",
+        conclusion="success",
+        now=5000.0,
+    )
     r1 = resident_tick(tmp_path, now=5001.0, ready=[], capacity=0)
     r2 = resident_tick(tmp_path, now=5002.0, ready=[], capacity=0)
-    # First tick consumes terminal; second is idempotent (no re-consume).
-    assert "ci-pr434-d129" in r1.terminal_consumed
-    assert "ci-pr434-d129" not in r2.terminal_consumed
+    assert "ci-pr434-d130-g2" in r1.terminal_consumed
+    assert "ci-pr434-d130-g2" not in r2.terminal_consumed
 
 
 def test_loop_stop_file(tmp_path: Path) -> None:
@@ -184,5 +187,6 @@ def test_loop_stop_file(tmp_path: Path) -> None:
 def test_pr434_observer_registered(tmp_path: Path) -> None:
     ensure_pr434_observer(tmp_path, now=1.0)
     reg = load_observer_registry(tmp_path)
-    assert "ci-pr434-d129" in reg.observers
-    assert reg.observers["ci-pr434-d129"].external_id == "32502864813"
+    assert "ci-pr434-d130-g2" in reg.observers
+    assert reg.observers["ci-pr434-d130-g2"].external_id == "32504499868"
+    assert "ci-pr435-d130" in reg.observers
