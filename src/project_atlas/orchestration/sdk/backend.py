@@ -35,6 +35,7 @@ from project_atlas.orchestration.sdk.models import (
 )
 from project_atlas.orchestration.sdk.mutation_attribution import (
     CloudRemoteGitAttributionProvider,
+    RunGitInfo,
     collect_run_changed_paths,
     extract_run_git,
     load_run_mutation_baseline,
@@ -403,6 +404,33 @@ class CursorSDKExecutionBackend:
             return self._pre_heads[run_id]
         return load_run_pre_head(self.root, run_id)
 
+    def _resolve_mutating_runtime(
+        self,
+        record: RunRecord,
+        *,
+        stored_agent: AgentRecord | None,
+        agent_runtime: AgentRuntime | None,
+        git_info: RunGitInfo | None,
+    ) -> AgentRuntime:
+        """Never default a cloud-shaped mutating run to LOCAL worktree proof.
+
+        ORCH-SDK-CLOUD-MUTATING-ATTRIBUTION-001: a missing agent row plus
+        Run.git (or a `bc-` identity) must fail closed. Assuming LOCAL would
+        accept a clean local worktree and hide the remote Cloud delta.
+        Historical D106/D112 local tests without a registry row remain LOCAL
+        only when the run is not cloud-shaped.
+        """
+        if agent_runtime is not None:
+            return agent_runtime
+        if stored_agent is not None:
+            return stored_agent.runtime
+        if git_info is not None or record.agent_id.startswith("bc-"):
+            raise SdkRuntimeError(
+                "mutating wait_run missing agent runtime",
+                code="REMOTE_ATTRIBUTION_UNDETERMINED",
+            )
+        return AgentRuntime.LOCAL
+
     def _enforce_run_paths(
         self,
         record: RunRecord,
@@ -423,10 +451,13 @@ class CursorSDKExecutionBackend:
                 code="LEASE_REQUIRED",
             )
         stored_agent = self.agents_reg.get(record.agent_id)
-        runtime = agent_runtime or (
-            stored_agent.runtime if stored_agent is not None else AgentRuntime.LOCAL
-        )
         git_info = extract_run_git(terminal_git) if terminal_git is not None else None
+        runtime = self._resolve_mutating_runtime(
+            record,
+            stored_agent=stored_agent,
+            agent_runtime=agent_runtime,
+            git_info=git_info,
+        )
         attribution = None
         local_pre_head = None
         if runtime == AgentRuntime.CLOUD:
