@@ -281,15 +281,15 @@ def test_mutating_cloud_runtime_forced_local_for_path_attribution(tmp_path: Path
 
     fake_sdk = types.ModuleType("cursor_sdk")
 
-    class CloudAgentOptions:  # noqa: D401
+    class CloudAgentOptions:
         def __init__(self, **kwargs: object) -> None:
             self.kwargs = kwargs
 
-    class CloudRepository:  # noqa: D401
+    class CloudRepository:
         def __init__(self, **kwargs: object) -> None:
             self.kwargs = kwargs
 
-    class LocalAgentOptions:  # noqa: D401
+    class LocalAgentOptions:
         def __init__(self, **kwargs: object) -> None:
             self.kwargs = kwargs
 
