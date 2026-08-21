@@ -1,0 +1,397 @@
+"""D-119 authentic Run.git shape + exact Cloud run recovery matrix."""
+
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from project_atlas.orchestration.sdk.cloud_run_recovery import (
+    CloudRunRecoveryClass,
+    is_get_run_reconnect_miss,
+    recover_exact_cloud_run,
+)
+from project_atlas.orchestration.sdk.models import (
+    CANONICAL_REPO_URL,
+    PACKAGE_ID,
+    AgentRecord,
+    AgentRole,
+    AgentRuntime,
+    AgentState,
+    RunRecord,
+    RunStatus,
+    SdkRuntimeError,
+    _utc_now,
+)
+from project_atlas.orchestration.sdk.mutation_attribution import (
+    CloudRemoteGitAttributionProvider,
+    RunGitInfo,
+    RunMutationBaseline,
+    bind_terminal_git_repository,
+    extract_terminal_run_git,
+    mint_cloud_run_baseline,
+)
+from project_atlas.orchestration.sdk.security_gates import CANONICAL_BRANCH
+
+PIN = "7e797468a2eca37c959920912b1fa264df4be638"
+H1 = "1111111111111111111111111111111111111111"
+AGENT = "bc-d119cloudagent0001"
+BRANCH = CANONICAL_BRANCH
+
+
+def _baseline(**kw: object) -> RunMutationBaseline:
+    base = dict(
+        run_id="run-d119",
+        agent_id=AGENT,
+        runtime=AgentRuntime.CLOUD,
+        repository=CANONICAL_REPO_URL,
+        base_main=PIN,
+        remote_branch=BRANCH,
+        remote_pre_head=PIN,
+        dag_generation=119,
+        lease_id="lease-d119",
+        package_id=PACKAGE_ID,
+    )
+    base.update(kw)
+    return RunMutationBaseline(**base)  # type: ignore[arg-type]
+
+
+def test_extract_direct_run_result_git_repo_url() -> None:
+    src = SimpleNamespace(git=SimpleNamespace(repo_url=CANONICAL_REPO_URL, branches=[BRANCH]))
+    info = extract_terminal_run_git(src)
+    assert info is not None
+    assert info.repo_url == CANONICAL_REPO_URL
+    assert info.branches == (BRANCH,)
+
+
+def test_extract_nested_run_git_repo_url() -> None:
+    src = SimpleNamespace(
+        run=SimpleNamespace(
+            git=SimpleNamespace(repo_url=CANONICAL_REPO_URL, branches=[BRANCH])
+        )
+    )
+    info = extract_terminal_run_git(src)
+    assert info is not None
+    assert info.repo_url == CANONICAL_REPO_URL
+
+
+def test_extract_dict_run_git_shape() -> None:
+    src = {"run": {"git": {"repo_url": CANONICAL_REPO_URL, "branches": [BRANCH]}}}
+    info = extract_terminal_run_git(src)
+    assert info is not None
+    assert info.repo_url == CANONICAL_REPO_URL
+    assert info.branches == (BRANCH,)
+
+
+def test_extract_repo_url_on_branch_entry_empty_parent() -> None:
+    """Authentic Lane-G shape: repo_url nested under git.branches[]."""
+    src = SimpleNamespace(
+        git=SimpleNamespace(
+            repo_url=None,
+            branches=[SimpleNamespace(name=BRANCH, repo_url=CANONICAL_REPO_URL)],
+        )
+    )
+    info = extract_terminal_run_git(src)
+    assert info is not None
+    assert info.repo_url == CANONICAL_REPO_URL
+    assert info.branches == (BRANCH,)
+
+
+def test_bind_repo_omitted_valid_launch_baseline() -> None:
+    git = RunGitInfo(repo_url=None, branches=(BRANCH,))
+    bound = bind_terminal_git_repository(git, attribution=_baseline())
+    assert bound.repo_url == CANONICAL_REPO_URL
+
+
+def test_bind_repo_omitted_missing_baseline_pre_head() -> None:
+    git = RunGitInfo(repo_url=None, branches=(BRANCH,))
+    with pytest.raises(SdkRuntimeError) as exc:
+        bind_terminal_git_repository(
+            git, attribution=_baseline(remote_pre_head=None)
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_bind_repo_omitted_foreign_baseline() -> None:
+    git = RunGitInfo(repo_url=None, branches=(BRANCH,))
+    with pytest.raises(SdkRuntimeError) as exc:
+        bind_terminal_git_repository(
+            git,
+            attribution=_baseline(repository="https://gitlab.com/B0LK13/project-atlas"),
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_bind_repo_present_foreign_host() -> None:
+    git = RunGitInfo(
+        repo_url="https://gitlab.com/B0LK13/project-atlas", branches=(BRANCH,)
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        bind_terminal_git_repository(git, attribution=_baseline())
+    assert "foreign" in str(exc.value).casefold()
+
+
+def test_bind_nested_foreign_repo_url() -> None:
+    payload = {
+        "run": {
+            "git": {
+                "repo_url": "https://evil.com/B0LK13/project-atlas",
+                "branches": [BRANCH],
+            }
+        }
+    }
+    info = extract_terminal_run_git(payload)
+    assert info is not None
+    with pytest.raises(SdkRuntimeError):
+        bind_terminal_git_repository(info, attribution=_baseline())
+
+
+def test_cloud_provider_accepts_omitted_repo_with_baseline() -> None:
+    provider = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=lambda _r, _b: H1,
+        resolve_remote_diff=lambda _r, _a, _b: [
+            "src/project_atlas/orchestration/sdk/backend.py"
+        ],
+    )
+    paths = provider.collect_changed_paths(
+        root=Path("."),
+        attribution=_baseline(),
+        terminal_git=RunGitInfo(repo_url=None, branches=(BRANCH,)),
+        local_pre_head=None,
+    )
+    assert paths == ["src/project_atlas/orchestration/sdk/backend.py"]
+
+
+def test_cloud_provider_rejects_ambiguous_branches() -> None:
+    provider = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=lambda _r, _b: H1,
+        resolve_remote_diff=lambda *_a: ["x.py"],
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        provider.collect_changed_paths(
+            root=Path("."),
+            attribution=_baseline(),
+            terminal_git=RunGitInfo(
+                repo_url=CANONICAL_REPO_URL, branches=(BRANCH, "other")
+            ),
+            local_pre_head=None,
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_cloud_provider_rejects_missing_branches() -> None:
+    provider = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=lambda _r, _b: H1,
+        resolve_remote_diff=lambda *_a: ["x.py"],
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        provider.collect_changed_paths(
+            root=Path("."),
+            attribution=_baseline(),
+            terminal_git=RunGitInfo(repo_url=CANONICAL_REPO_URL, branches=()),
+            local_pre_head=None,
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_cloud_provider_rejects_unexpected_branch_switch() -> None:
+    provider = CloudRemoteGitAttributionProvider(
+        resolve_remote_head=lambda _r, _b: H1,
+        resolve_remote_diff=lambda *_a: ["x.py"],
+    )
+    with pytest.raises(SdkRuntimeError) as exc:
+        provider.collect_changed_paths(
+            root=Path("."),
+            attribution=_baseline(),
+            terminal_git=RunGitInfo(
+                repo_url=CANONICAL_REPO_URL, branches=("feat/wrong-branch",)
+            ),
+            local_pre_head=None,
+        )
+    assert exc.value.code == "REMOTE_ATTRIBUTION_UNDETERMINED"
+
+
+def test_is_get_run_reconnect_miss() -> None:
+    assert is_get_run_reconnect_miss(
+        Exception("invalid_argument: Run run-xyz not found")
+    )
+    assert not is_get_run_reconnect_miss(Exception("permission denied"))
+
+
+class _FakeClient:
+    def __init__(
+        self,
+        *,
+        get_run_results: list[object] | None = None,
+        runs: list[Any] | None = None,
+    ) -> None:
+        self._get_run_results = list(get_run_results or [])
+        self._runs = runs or []
+        self.agents = self
+
+    async def resume(self, agent_id: str, options: object = None) -> object:
+        del options
+        return SimpleNamespace(id=agent_id)
+
+    async def get_run(self, run_id: str, options: object = None) -> object:
+        del options
+        if not self._get_run_results:
+            return SimpleNamespace(
+                id=run_id, agent_id=AGENT, status="FINISHED", git=None
+            )
+        item = self._get_run_results.pop(0)
+        if isinstance(item, BaseException):
+            raise item
+        return item
+
+    async def list_runs(
+        self, agent_id: str, options: object = None, cursor: str | None = None
+    ) -> object:
+        del agent_id, options, cursor
+        return SimpleNamespace(items=list(self._runs), next_cursor="")
+
+
+def _agent() -> AgentRecord:
+    return AgentRecord(
+        agent_id=AGENT,
+        runtime=AgentRuntime.CLOUD,
+        role=AgentRole.REMEDIATOR,
+        package_id=PACKAGE_ID,
+        base_main=PIN,
+        branch=BRANCH,
+        created_at=_utc_now(),
+        state=AgentState.BUSY,
+        worker_backend="cursor_sdk",
+        workspace="/tmp",
+        repository=CANONICAL_REPO_URL,
+        creation_generation=119,
+        creation_sequence=1,
+    )
+
+
+def _run(run_id: str = "run-d119") -> RunRecord:
+    return RunRecord(
+        run_id=run_id,
+        agent_id=AGENT,
+        cycle_id="C-D119",
+        package_id=PACKAGE_ID,
+        lease_id="lease-d119",
+        role=AgentRole.REMEDIATOR,
+        prompt_digest="a" * 64,
+        idempotency_key=f"idemp-{run_id}",
+        status=RunStatus.RUNNING,
+        started_at=_utc_now(),
+        candidate_head=PIN,
+        candidate_tree="0" * 40,
+        node_id="REMEDIATE-D119",
+        dag_generation=119,
+    )
+
+
+def test_recover_direct_get_run_ok() -> None:
+    client = _FakeClient()
+    recovered = asyncio.run(
+        recover_exact_cloud_run(
+            client=client,
+            agent=_agent(),
+            run=_run(),
+            agent_id=AGENT,
+            run_id="run-d119",
+            resume=lambda _a: asyncio.sleep(0),
+        )
+    )
+    assert recovered.classification == CloudRunRecoveryClass.DIRECT_GET_RUN_OK
+
+
+def test_recover_get_run_miss_list_exact_match() -> None:
+    miss = Exception("invalid_argument: Run run-d119 not found")
+    listed = SimpleNamespace(id="run-d119", agent_id=AGENT, status="FINISHED")
+    ok = SimpleNamespace(id="run-d119", agent_id=AGENT, status="FINISHED", git=None)
+    client = _FakeClient(get_run_results=[miss, ok], runs=[listed])
+    recovered = asyncio.run(
+        recover_exact_cloud_run(
+            client=client,
+            agent=_agent(),
+            run=_run(),
+            agent_id=AGENT,
+            run_id="run-d119",
+            resume=lambda _a: asyncio.sleep(0),
+        )
+    )
+    assert recovered.classification == CloudRunRecoveryClass.REATTACHED_GET_RUN_OK
+
+
+def test_recover_get_run_miss_list_empty() -> None:
+    miss = Exception("Run run-d119 not found")
+    client = _FakeClient(get_run_results=[miss], runs=[])
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(
+            recover_exact_cloud_run(
+                client=client,
+                agent=_agent(),
+                run=_run(),
+                agent_id=AGENT,
+                run_id="run-d119",
+                resume=lambda _a: asyncio.sleep(0),
+            )
+        )
+    assert (
+        exc.value.code
+        == CloudRunRecoveryClass.CLOUD_RUN_RECOVERY_UNDETERMINED.value
+    )
+
+
+def test_recover_get_run_miss_only_other_run() -> None:
+    miss = Exception("Run run-d119 not found")
+    other = SimpleNamespace(id="run-other", agent_id=AGENT, status="FINISHED")
+    client = _FakeClient(get_run_results=[miss], runs=[other])
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(
+            recover_exact_cloud_run(
+                client=client,
+                agent=_agent(),
+                run=_run(),
+                agent_id=AGENT,
+                run_id="run-d119",
+                resume=lambda _a: asyncio.sleep(0),
+            )
+        )
+    assert (
+        exc.value.code
+        == CloudRunRecoveryClass.CLOUD_RUN_RECOVERY_UNDETERMINED.value
+    )
+
+
+def test_recover_rejects_wrong_agent_on_listed_run() -> None:
+    miss = Exception("not found")
+    listed = SimpleNamespace(id="run-d119", agent_id="bc-other", status="FINISHED")
+    client = _FakeClient(get_run_results=[miss, miss], runs=[listed])
+    with pytest.raises(SdkRuntimeError) as exc:
+        asyncio.run(
+            recover_exact_cloud_run(
+                client=client,
+                agent=_agent(),
+                run=_run(),
+                agent_id=AGENT,
+                run_id="run-d119",
+                resume=lambda _a: asyncio.sleep(0),
+            )
+        )
+    assert exc.value.code == CloudRunRecoveryClass.FOREIGN_RECOVERED_RUN.value
+
+
+def test_mint_baseline_helper_still_binds(tmp_path: Path) -> None:
+    baselined = mint_cloud_run_baseline(
+        root=tmp_path,
+        run_id="run-d119",
+        agent_id=AGENT,
+        base_main=PIN,
+        branch=BRANCH,
+        dag_generation=119,
+        lease_id="lease-d119",
+    )
+    assert baselined.repository == CANONICAL_REPO_URL
+    assert baselined.runtime == AgentRuntime.CLOUD
