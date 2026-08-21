@@ -795,7 +795,7 @@ class CursorSDKExecutionBackend:
         run_id: str,
         agent_id: str,
         status: RunStatus,
-        result_digest: str | None,
+        result_digest: str,
         token_usage_total: int | None = None,
         terminal_git: Any = None,
         agent_runtime: AgentRuntime | None = None,
@@ -881,7 +881,7 @@ class CursorSDKExecutionBackend:
             raise SdkRuntimeError("run/agent binding mismatch", code="BINDING_MISMATCH")
         stored_agent = self.agents_reg.get(agent_id)
         terminal_git: Any = None
-        status: RunStatus | None = None
+        detached_status: RunStatus | None = None
         if (
             stored_agent is not None
             and stored_agent.runtime == AgentRuntime.CLOUD
@@ -892,7 +892,7 @@ class CursorSDKExecutionBackend:
                     agent_id=agent_id, run_id=run_id
                 )
                 terminal_git = recovered.snapshot
-                status = normalize_run_status(
+                detached_status = normalize_run_status(
                     str(getattr(recovered.snapshot, "status", None) or "finished")
                 )
             except SdkRuntimeError as exc:
@@ -905,20 +905,26 @@ class CursorSDKExecutionBackend:
                     raise
                 raise
         else:
-            status = await self.get_run_status(run_id, agent_id=agent_id)
-            if status in {RunStatus.FINISHED, RunStatus.ERROR, RunStatus.CANCELLED}:
+            detached_status = await self.get_run_status(run_id, agent_id=agent_id)
+            if detached_status in {
+                RunStatus.FINISHED,
+                RunStatus.ERROR,
+                RunStatus.CANCELLED,
+            }:
                 try:
                     client = await self._ensure_client()
                     terminal_git = await client.agents.get_run(run_id)
                 except Exception:
                     terminal_git = None
-        if status is None or status not in {
+        if detached_status is None or detached_status not in {
             RunStatus.FINISHED,
             RunStatus.ERROR,
             RunStatus.CANCELLED,
         }:
             return stored
-        ingested = adapt_run_result(run_id=run_id, agent_id=agent_id, status=status)
+        ingested = adapt_run_result(
+            run_id=run_id, agent_id=agent_id, status=detached_status
+        )
         return self._terminalize_after_attribution(
             run_id=run_id,
             agent_id=agent_id,
