@@ -457,7 +457,7 @@ def collect_run_changed_paths(
 ) -> list[str] | None:
     """Dispatch attribution by runtime. CLOUD never falls back to local root."""
     if runtime == AgentRuntime.LOCAL:
-        provider = local_provider or LocalWorktreeAttributionProvider()
+        local_impl = local_provider or LocalWorktreeAttributionProvider()
         baseline = attribution or RunMutationBaseline(
             run_id="local",
             agent_id="local",
@@ -465,7 +465,7 @@ def collect_run_changed_paths(
             base_main=local_pre_head or "0" * 40,
             dag_generation=0,
         )
-        return provider.collect_changed_paths(
+        return local_impl.collect_changed_paths(
             root=root,
             attribution=baseline,
             terminal_git=terminal_git,
@@ -482,8 +482,8 @@ def collect_run_changed_paths(
                 "attribution runtime mismatch",
                 code="REMOTE_ATTRIBUTION_UNDETERMINED",
             )
-        provider = cloud_provider or CloudRemoteGitAttributionProvider()
-        return provider.collect_changed_paths(
+        cloud_impl = cloud_provider or CloudRemoteGitAttributionProvider()
+        return cloud_impl.collect_changed_paths(
             root=root,
             attribution=attribution,
             terminal_git=terminal_git,
