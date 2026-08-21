@@ -886,3 +886,45 @@ def closed_loop_tick(root: Path, *, main_head: str | None = None) -> dict[str, A
 
 def real_active_worker_count(root: Path) -> int:
     return sum(1 for w in load_workers(root).values() if w.status == "RUNNING")
+
+
+class MissionClosedLoopAdapter:
+    """PR436 implementation of the PR435 ClosedLoopHook contract."""
+
+    def reconcile(self, root: Path, *, now: float | None = None) -> dict[str, object]:
+        return dict(mission_reconcile(root, now=now))
+
+    def ready_work(self, root: Path, *, capacity: int = 2) -> list[ReadyWorkItem]:
+        return list(ready_work_items(root, capacity=capacity))
+
+    def active_worker_count(self, root: Path) -> int:
+        return real_active_worker_count(root)
+
+    def progress_state(self, root: Path) -> dict[str, object]:
+        state = load_mission_state(root)
+        return {
+            "MISSION_GENERATION": state.MISSION_GENERATION,
+            "PROGRESS_SEQUENCE": state.PROGRESS_SEQUENCE,
+            "WORKER_DISPATCH_SEQUENCE": state.WORKER_DISPATCH_SEQUENCE,
+            "RECEIPT_CONSUME_SEQUENCE": state.RECEIPT_CONSUME_SEQUENCE,
+            "SUCCESSOR_GENERATION_SEQUENCE": state.SUCCESSOR_GENERATION_SEQUENCE,
+            "EMPTY_READY_QUEUE_RECONCILIATION_COUNT": (
+                state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT
+            ),
+        }
+
+    def closed_loop_tick(
+        self, root: Path, *, now: float | None = None
+    ) -> dict[str, object]:
+        return dict(closed_loop_tick(root))
+
+
+def bind_closed_loop_hook() -> None:
+    """Register this package as the resident closed-loop provider."""
+    from project_atlas.orchestration.sdk.closed_loop_port import register_closed_loop_hook
+
+    register_closed_loop_hook(MissionClosedLoopAdapter())
+
+
+# Self-register when imported from a PR436 runtime (resident probes this module).
+bind_closed_loop_hook()
