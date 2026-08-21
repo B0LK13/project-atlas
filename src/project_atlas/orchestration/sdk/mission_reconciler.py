@@ -510,6 +510,41 @@ def mission_reconcile(
     ready = [n for n in nodes.values() if n.status == "READY"]
     if not ready:
         state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT += 1
+        # Owner-independent replenishment: re-open analysis when objectives unmet
+        unmet = [
+            o
+            for o in objectives
+            if o.current_state not in {"SATISFIED", "COMPLETE"}
+        ]
+        if unmet:
+            key = _idempotency_key(
+                objective="O3",
+                kind="RELEASE_VALIDATION",
+                package=f"AS-RELEASE-REPLENISH-{state.MISSION_GENERATION}",
+                surface="docs/",
+            )
+            if not any(n.IDEMPOTENCY_KEY == key for n in nodes.values()):
+                node = WorkNode(
+                    NODE_ID=f"O3-REPLENISH-{key}",
+                    OBJECTIVE_ID="O3",
+                    PACKAGE_ID="AS-RELEASE-CLEAN-MACHINE-BOOTSTRAP-001",
+                    TASK_KIND="RELEASE_VALIDATION",
+                    PRIORITY=78,
+                    DEPENDENCIES=[],
+                    ALLOWED_PATHS=["docs/", "scripts/", "tests/"],
+                    SURFACE_SET=["docs/", "scripts/"],
+                    WORKER_ROLE="READ_ONLY_ANALYST",
+                    ACCEPTANCE_CRITERIA="Replenish READY after empty queue; enumerate release gaps",
+                    REQUIRED_VERIFICATION=["receipt"],
+                    OWNER_GATE="NONE",
+                    GENERATION=state.MISSION_GENERATION,
+                    IDEMPOTENCY_KEY=key,
+                    status="READY",
+                    fingerprint=_fingerprint([main_head, key]),
+                )
+                nodes[node.NODE_ID] = node
+                created += 1
+        ready = [n for n in nodes.values() if n.status == "READY"]
 
     state.last_planning_fingerprint = fp
     state.last_reconcile_at = ts
