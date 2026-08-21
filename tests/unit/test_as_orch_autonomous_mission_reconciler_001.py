@@ -23,8 +23,9 @@ from project_atlas.orchestration.sdk.models import SdkRuntimeError
 
 @pytest.fixture()
 def root(tmp_path: Path) -> Path:
-    (tmp_path / ".atlas" / "orchestration" / "sdk-runtime").mkdir(parents=True)
-    (tmp_path / ".atlas" / "orchestration" / "sdk-runtime" / "d129-owner-merge-queue.json").write_text(
+    runtime = tmp_path / ".atlas" / "orchestration" / "sdk-runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "d129-owner-merge-queue.json").write_text(
         json.dumps(
             {
                 "QUEUE": [

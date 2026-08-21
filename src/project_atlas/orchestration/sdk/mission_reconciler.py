@@ -523,7 +523,7 @@ def mission_reconcile(
                 package=f"AS-RELEASE-REPLENISH-{state.MISSION_GENERATION}",
                 surface="docs/",
             )
-            if not any(n.IDEMPOTENCY_KEY == key for n in nodes.values()):
+            if not any(key == n.IDEMPOTENCY_KEY for n in nodes.values()):
                 node = WorkNode(
                     NODE_ID=f"O3-REPLENISH-{key}",
                     OBJECTIVE_ID="O3",
@@ -742,7 +742,7 @@ def interpret_receipt(root: Path, receipt_path: Path) -> dict[str, Any]:
             package=package,
             surface=str(succ.get("gap") or package),
         )
-        if any(n.IDEMPOTENCY_KEY == key for n in nodes.values()):
+        if any(key == n.IDEMPOTENCY_KEY for n in nodes.values()):
             continue
         status: NodeStatus = "BLOCKED_OWNER" if blocked else "READY"
         oid_raw = str(data.get("objective_id") or "O4")
