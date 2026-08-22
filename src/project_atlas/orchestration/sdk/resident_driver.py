@@ -5,9 +5,11 @@ D-131: singleton primary, useful READY every tick, stale-status defense.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -51,7 +53,10 @@ OWNER_QUEUE_NAME: Final[str] = "d129-owner-merge-queue.json"
 DRIVER_STOP_NAME: Final[str] = "resident-driver.stop"
 TICK_LOG_NAME: Final[str] = "resident-ticks.jsonl"
 LOCK_NAME: Final[str] = "resident-primary.lock"
+CI_SNAPSHOT_CACHE_NAME: Final[str] = "resident-ci-snapshots.json"
 RECONCILE_INTERVAL_SEC: Final[float] = 45.0
+_CI_POLL_GUARD = threading.Lock()
+_CI_POLL_INFLIGHT: set[str] = set()
 
 
 @dataclass
@@ -92,23 +97,46 @@ def _append_tick_log(root: Path, row: dict[str, Any]) -> None:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def _claim_primary_lock_exclusive(path: Path, *, pid: int) -> bool:
+    """Atomically create the primary lock. Returns False if the file already exists."""
+    payload = json.dumps({"pid": pid, "at": time.time()}, indent=2) + "\n"
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+    except OSError:
+        with contextlib.suppress(OSError):
+            path.unlink()
+        return False
+    return True
+
+
 def acquire_primary_lock(root: Path) -> bool:
     """Ensure ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1. Returns False if another live primary."""
     path = _runtime(root) / LOCK_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     me = os.getpid()
-    if path.is_file():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            other = int(data.get("pid", 0))
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            other = 0
-        if other > 0 and other != me and pid_is_alive(other):
-            return False
-    path.write_text(
-        json.dumps({"pid": me, "at": time.time()}, indent=2) + "\n", encoding="utf-8"
-    )
-    return True
+    if _claim_primary_lock_exclusive(path, pid=me):
+        return True
+    other = 0
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        other = int(data.get("pid", 0))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        other = 0
+    if other == me:
+        path.write_text(
+            json.dumps({"pid": me, "at": time.time()}, indent=2) + "\n", encoding="utf-8"
+        )
+        return True
+    if other > 0 and pid_is_alive(other):
+        return False
+    with contextlib.suppress(OSError):
+        path.unlink()
+    return _claim_primary_lock_exclusive(path, pid=me)
 
 
 def release_primary_lock(root: Path) -> None:
@@ -127,20 +155,23 @@ def poll_github_ci(run_id: str) -> tuple[str, str | None, str | None]:
     """Poll one Actions run. Returns (status, conclusion, head_sha). Never prints secrets."""
     if not run_id or run_id == "PENDING":
         return "in_progress", None, None
-    proc = subprocess.run(
-        [
-            "gh",
-            "run",
-            "view",
-            str(run_id),
-            "--json",
-            "status,conclusion,headSha",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                "gh",
+                "run",
+                "view",
+                str(run_id),
+                "--json",
+                "status,conclusion,headSha",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "in_progress", None, None
     if proc.returncode != 0:
         return "in_progress", None, None
     try:
@@ -204,7 +235,89 @@ def ensure_pr434_observer(root: Path, *, now: float | None = None) -> None:
     ensure_active_observers(root, now=now)
 
 
+def _ci_snapshot_cache_path(root: Path) -> Path:
+    return _runtime(root) / CI_SNAPSHOT_CACHE_NAME
+
+
+def _load_ci_snapshot_cache(root: Path) -> dict[str, tuple[str, str | None]]:
+    path = _ci_snapshot_cache_path(root)
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    snapshots: dict[str, tuple[str, str | None]] = {}
+    for key, value in data.items():
+        if not isinstance(value, list) or not value:
+            continue
+        conclusion = value[1] if len(value) > 1 else None
+        snapshots[str(key)] = (
+            str(value[0]),
+            str(conclusion) if conclusion else None,
+        )
+    return snapshots
+
+
+def _persist_ci_snapshot_cache(
+    root: Path, snapshots: dict[str, tuple[str, str | None]]
+) -> None:
+    path = _ci_snapshot_cache_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {key: [status, conclusion] for key, (status, conclusion) in snapshots.items()}
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    tmp.replace(path)
+
+
+def _run_background_ci_poll(root: Path, key: str) -> None:
+    try:
+        now = time.time()
+        snapshots = _load_ci_snapshot_cache(root)
+        for obs in due_observers(load_observer_registry(root), now=now):
+            if obs.observer_type != "GITHUB_CI":
+                continue
+            if obs.status in {
+                ObserverStatus.TERMINAL_PASS,
+                ObserverStatus.TERMINAL_FAIL,
+                ObserverStatus.CANCELLED,
+            }:
+                continue
+            status, conclusion, _head = poll_github_ci(obs.external_id)
+            snapshots[obs.observer_id] = (status, conclusion)
+        _persist_ci_snapshot_cache(root, snapshots)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return
+    finally:
+        with _CI_POLL_GUARD:
+            _CI_POLL_INFLIGHT.discard(key)
+
+
+def _schedule_ci_poll(root: Path) -> None:
+    try:
+        key = str(root.resolve())
+    except OSError:
+        return
+    with _CI_POLL_GUARD:
+        if key in _CI_POLL_INFLIGHT:
+            return
+        _CI_POLL_INFLIGHT.add(key)
+    threading.Thread(
+        target=_run_background_ci_poll,
+        args=(root, key),
+        daemon=True,
+        name="atlas-resident-ci-poll",
+    ).start()
+
+
 def _ci_snapshots_for_due(root: Path, *, now: float) -> dict[str, tuple[str, str | None]]:
+    """Return cached CI snapshots. Never blocks the tick on gh I/O."""
+    _schedule_ci_poll(root)
+    cached = _load_ci_snapshot_cache(root)
     snapshots: dict[str, tuple[str, str | None]] = {}
     for obs in due_observers(load_observer_registry(root), now=now):
         if obs.observer_type != "GITHUB_CI":
@@ -215,8 +328,9 @@ def _ci_snapshots_for_due(root: Path, *, now: float) -> dict[str, tuple[str, str
             ObserverStatus.CANCELLED,
         }:
             continue
-        status, conclusion, _head = poll_github_ci(obs.external_id)
-        snapshots[obs.observer_id] = (status, conclusion)
+        snap = cached.get(obs.observer_id)
+        if snap is not None:
+            snapshots[obs.observer_id] = snap
     return snapshots
 
 
@@ -446,7 +560,7 @@ def resident_tick(
         if tick.governor_state == "OWNER_REQUIRED"
         and pending == 0
         and tick.ready_before == 0
-        and loop_result is None
+        and (loop_result is None or loop_result.get("degraded") is True)
         else "NO"
     )
     status.CASE = classify_runtime_case(

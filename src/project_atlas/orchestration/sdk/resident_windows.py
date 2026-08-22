@@ -138,10 +138,11 @@ def detach_continuous_watchdog(
     """
     interpreter = python or sys.executable
     code = (
+        "import sys; "
         "from pathlib import Path; "
         "from project_atlas.orchestration.sdk.resident_windows import run_watchdog_loop; "
-        f"run_watchdog_loop(root=Path(r'{root}'), package_src=Path(r'{package_src}'), "
-        f"python=r'{interpreter}', interval_sec={interval_sec})"
+        "run_watchdog_loop(root=Path(sys.argv[1]), package_src=Path(sys.argv[2]), "
+        "python=sys.argv[3], interval_sec=float(sys.argv[4]))"
     )
     env = dict(os.environ)
     env["PYTHONPATH"] = str(package_src) + (
@@ -151,7 +152,15 @@ def detach_continuous_watchdog(
     log_dir.mkdir(parents=True, exist_ok=True)
     log = (log_dir / "resident-watchdog.stdout.log").open("a", encoding="utf-8")
     proc = subprocess.Popen(
-        [interpreter, "-c", code],
+        [
+            interpreter,
+            "-c",
+            code,
+            str(root),
+            str(package_src),
+            str(interpreter),
+            str(interval_sec),
+        ],
         cwd=str(root),
         stdout=log,
         stderr=subprocess.STDOUT,
