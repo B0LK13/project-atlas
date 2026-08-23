@@ -66,6 +66,9 @@ AFTER_STATUS BLOCKED_OWNER
 BYPASS False
 ```
 
+Mission reconciler no longer rewrites a SUPERSEDED `MERGE` node to
+`CREDENTIAL` (two-step escalation closed).
+
 ### Honesty
 
 - `AUTHENTIC_ESTATE_AVAILABILITY_GRANTS_OWNER_AUTHORITY = NO`

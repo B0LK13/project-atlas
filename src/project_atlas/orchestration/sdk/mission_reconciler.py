@@ -17,6 +17,7 @@ from typing import Any, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    PROTECTED_OWNER_GATES,
     authentic_estate_available,
     d148_evidence_applies,
 )
@@ -759,7 +760,8 @@ def mission_reconcile(
                 and existing.PACKAGE_ID == node.PACKAGE_ID
             ):
                 existing.status = "BLOCKED_OWNER"
-                existing.OWNER_GATE = node.OWNER_GATE
+                if existing.OWNER_GATE not in PROTECTED_OWNER_GATES:
+                    existing.OWNER_GATE = node.OWNER_GATE
                 existing.DEPENDENCIES = list(node.DEPENDENCIES)
                 existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
                 continue
@@ -769,8 +771,8 @@ def mission_reconcile(
                 and existing.OWNER_GATE == "MERGE"
                 and node.OWNER_GATE == "CREDENTIAL"
             ):
+                # D-149: MERGE is not rewritten to a consumable CREDENTIAL gate.
                 existing.status = "BLOCKED_OWNER"
-                existing.OWNER_GATE = "CREDENTIAL"
                 existing.DEPENDENCIES = list(node.DEPENDENCIES)
                 existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
                 continue
