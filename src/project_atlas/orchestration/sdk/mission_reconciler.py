@@ -703,6 +703,16 @@ def mission_reconcile(
             if (
                 existing.status == "SUPERSEDED"
                 and node.status == "BLOCKED_OWNER"
+                and existing.PACKAGE_ID == node.PACKAGE_ID
+            ):
+                existing.status = "BLOCKED_OWNER"
+                existing.OWNER_GATE = node.OWNER_GATE
+                existing.DEPENDENCIES = list(node.DEPENDENCIES)
+                existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
+                continue
+            if (
+                existing.status == "SUPERSEDED"
+                and node.status == "BLOCKED_OWNER"
                 and existing.OWNER_GATE == "MERGE"
                 and node.OWNER_GATE == "CREDENTIAL"
             ):
