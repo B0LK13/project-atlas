@@ -16,11 +16,14 @@ from typing import Any
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    apply_authentic_estate_mutations,
     characterize_estate,
     refresh_authentic_o2_node_states,
     resolve_authentic_estate_root,
+    restore_orchestration_state,
     run_estate_preflight,
-    write_estate_credential,
+    snapshot_orchestration_state,
+    validate_authentic_o2_pre_mutation,
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import (
     closure_integrity_pass,
@@ -163,137 +166,157 @@ def run_authentic_o2(
     preflight = run_estate_preflight(estate)
     if not preflight.preflight_pass:
         raise SystemExit(f"estate preflight failed: {preflight.model_dump()}")
-    characterization = characterize_estate(estate)
-    write_estate_credential(repo_root, estate, preflight)
-    refresh_authentic_o2_node_states(repo_root)
 
     cert_head, cert_tree = read_operational_pins(repo_root)
+    if not cert_head:
+        raise SystemExit("closure integrity failed before authentic O2")
     integrity = inspect_closure_integrity(
         repo_root,
-        certification_target_head=cert_head or "",
+        certification_target_head=cert_head,
         certification_target_tree=cert_tree,
     )
     if not closure_integrity_pass(integrity):
         raise SystemExit("closure integrity failed before authentic O2")
+    try:
+        validate_authentic_o2_pre_mutation(repo_root, estate, integrity=integrity)
+    except Exception as exc:
+        raise SystemExit(f"authentic O2 pre-mutation guard failed: {exc}") from exc
 
-    bind_path = estate / BIND_RELATIVE
+    characterization = characterize_estate(estate)
+    snapshot = snapshot_orchestration_state(repo_root)
+    work_parent: Path | None = None
     prior_bind: str | None = None
-    if bind_path.is_file():
-        prior_bind = bind_path.read_text(encoding="utf-8")
+    try:
+        apply_authentic_estate_mutations(
+            repo_root,
+            estate,
+            preflight,
+            integrity=integrity,
+        )
 
-    work_parent = Path(tempfile.mkdtemp(prefix="atlas-d148-"))
-    vault = work_parent / "vault"
-    vault.mkdir(parents=True)
-    steps: dict[str, Any] = {}
-    project_id = preflight.project_id or "dark-factory-02ee94d0"
+        bind_path = estate / BIND_RELATIVE
+        if bind_path.is_file():
+            prior_bind = bind_path.read_text(encoding="utf-8")
 
-    steps["connect"] = main(["connect", str(estate), "--vault", str(vault)]) == EXIT_OK
-    connect_report_path = vault / "generated" / "ops" / "connect-receipt.json"
-    if connect_report_path.is_file():
-        try:
-            connect_report = json.loads(connect_report_path.read_text(encoding="utf-8"))
-            steps["connect_documents"] = connect_report.get("documents_ingested")
-            steps["connect_projects"] = connect_report.get("projects")
-        except (OSError, json.JSONDecodeError):
-            pass
+        work_parent = Path(tempfile.mkdtemp(prefix="atlas-d148-"))
+        vault = work_parent / "vault"
+        vault.mkdir(parents=True)
+        steps: dict[str, Any] = {}
+        project_id = preflight.project_id or "dark-factory-02ee94d0"
 
-    ingest_pass = bool(steps["connect"]) and int(steps.get("connect_documents") or 0) > 0
+        steps["connect"] = main(["connect", str(estate), "--vault", str(vault)]) == EXIT_OK
+        connect_report_path = vault / "generated" / "ops" / "connect-receipt.json"
+        if connect_report_path.is_file():
+            try:
+                connect_report = json.loads(connect_report_path.read_text(encoding="utf-8"))
+                steps["connect_documents"] = connect_report.get("documents_ingested")
+                steps["connect_projects"] = connect_report.get("projects")
+            except (OSError, json.JSONDecodeError):
+                pass
 
-    if ingest_pass:
-        steps["build_indexes"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-        steps["build_portfolio"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
-        steps["validate_1"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
-        first_hashes = _hash_generated_tree(vault)
-        steps["build_indexes_2"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-        steps["build_portfolio_2"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
-        second_hashes = _hash_generated_tree(vault)
-        steps["validate_2"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
-        steps["compile_hash_stable"] = first_hashes == second_hashes and bool(first_hashes)
-    else:
-        steps["build_indexes"] = False
-        steps["build_portfolio"] = False
-        steps["validate_1"] = False
-        steps["build_indexes_2"] = False
-        steps["build_portfolio_2"] = False
-        steps["validate_2"] = False
-        steps["compile_hash_stable"] = False
+        ingest_pass = bool(steps["connect"]) and int(steps.get("connect_documents") or 0) > 0
 
-    queries = [
-        ("direct_fact", "What is the primary purpose of this project?", False),
-        ("readme", "What does the README describe?", False),
-        ("negative", "What is the quarterly revenue for harbor-api?", True),
-        ("project_wide", "List main technologies used", False),
-        ("diagnostic", "What validation warnings exist?", False),
-    ]
-    query_results = [
-        _run_ask(vault, project_id, question, repo_root, expect_unknown=expect_unknown)
-        for _, question, expect_unknown in queries
-    ]
-    steps["queries"] = query_results
-    positive_pass = sum(
-        1 for q in query_results if not q.get("expect_unknown") and q.get("pass")
-    )
-    negative_pass = any(
-        q.get("expect_unknown") and q.get("pass") for q in query_results
-    )
-    steps["query_pass"] = positive_pass >= 3 and negative_pass
+        if ingest_pass:
+            steps["build_indexes"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
+            steps["build_portfolio"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
+            steps["validate_1"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
+            first_hashes = _hash_generated_tree(vault)
+            steps["build_indexes_2"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
+            steps["build_portfolio_2"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
+            second_hashes = _hash_generated_tree(vault)
+            steps["validate_2"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
+            steps["compile_hash_stable"] = first_hashes == second_hashes and bool(first_hashes)
+        else:
+            steps["build_indexes"] = False
+            steps["build_portfolio"] = False
+            steps["validate_1"] = False
+            steps["build_indexes_2"] = False
+            steps["build_portfolio_2"] = False
+            steps["validate_2"] = False
+            steps["compile_hash_stable"] = False
 
-    compile_pass = ingest_pass and all(
-        steps.get(k) for k in ("build_indexes", "build_portfolio", "validate_1")
-    )
-    compile_idempotent = ingest_pass and bool(steps.get("compile_hash_stable"))
-    query_pass = ingest_pass and compile_pass and bool(steps["query_pass"])
+        queries = [
+            ("direct_fact", "What is the primary purpose of this project?", False),
+            ("readme", "What does the README describe?", False),
+            ("negative", "What is the quarterly revenue for harbor-api?", True),
+            ("project_wide", "List main technologies used", False),
+            ("diagnostic", "What validation warnings exist?", False),
+        ]
+        query_results = [
+            _run_ask(vault, project_id, question, repo_root, expect_unknown=expect_unknown)
+            for _, question, expect_unknown in queries
+        ]
+        steps["queries"] = query_results
+        positive_pass = sum(
+            1 for q in query_results if not q.get("expect_unknown") and q.get("pass")
+        )
+        negative_pass = any(
+            q.get("expect_unknown") and q.get("pass") for q in query_results
+        )
+        steps["query_pass"] = positive_pass >= 3 and negative_pass
 
-    cert = {
-        "directive": "D-148",
-        "AUTHENTIC_ESTATE_ROOT": str(estate),
-        "estate_fingerprint": preflight.estate_fingerprint,
-        "project_id": project_id,
-        "project_uuid": preflight.project_uuid,
-        "characterization": characterization,
-        "preflight": preflight.model_dump(),
-        "AUTHENTIC_INGEST_SATISFIED": ingest_pass,
-        "AUTHENTIC_COMPILE_SATISFIED": compile_pass and compile_idempotent,
-        "AUTHENTIC_QUERY_SATISFIED": query_pass,
-        "AUTHENTIC_PILOT": ingest_pass and compile_pass and compile_idempotent and query_pass,
-        "ACCEPTANCE_WORKFLOW_PILOT": ingest_pass and compile_pass and query_pass,
-        "authentic_estate_root_used": True,
-        "demo_fixture_is_authentic_pilot": False,
-        "FIXTURE_ONLY": False,
-        "steps": steps,
-        "live_main_head": integrity.live_main_head,
-        "certification_target_head": integrity.certification_target_head,
-        "merge_authorized": False,
-        "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
-    _write(_rt(repo_root) / "d148-o2-certification.json", cert)
+        compile_pass = ingest_pass and all(
+            steps.get(k) for k in ("build_indexes", "build_portfolio", "validate_1")
+        )
+        compile_idempotent = ingest_pass and bool(steps.get("compile_hash_stable"))
+        query_pass = ingest_pass and compile_pass and bool(steps["query_pass"])
 
-    if ingest_pass:
-        _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-INGEST-001")
-    if compile_pass and compile_idempotent:
-        _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001")
-    if query_pass:
-        _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-QUERY-001")
+        cert = {
+            "directive": "D-148",
+            "AUTHENTIC_ESTATE_ROOT": str(estate),
+            "estate_fingerprint": preflight.estate_fingerprint,
+            "project_id": project_id,
+            "project_uuid": preflight.project_uuid,
+            "characterization": characterization,
+            "preflight": preflight.model_dump(),
+            "AUTHENTIC_INGEST_SATISFIED": ingest_pass,
+            "AUTHENTIC_COMPILE_SATISFIED": compile_pass and compile_idempotent,
+            "AUTHENTIC_QUERY_SATISFIED": query_pass,
+            "AUTHENTIC_PILOT": ingest_pass and compile_pass and compile_idempotent and query_pass,
+            "ACCEPTANCE_WORKFLOW_PILOT": ingest_pass and compile_pass and query_pass,
+            "authentic_estate_root_used": True,
+            "demo_fixture_is_authentic_pilot": False,
+            "FIXTURE_ONLY": False,
+            "steps": steps,
+            "live_main_head": integrity.live_main_head,
+            "certification_target_head": integrity.certification_target_head,
+            "merge_authorized": False,
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        _write(_rt(repo_root) / "d148-o2-certification.json", cert)
 
-    _update_o2_objectives(repo_root, cert)
-    refresh_authentic_o2_node_states(repo_root)
-    load_mission_state_placeholder(repo_root)
-    mission_reconcile(repo_root, main_head=integrity.live_main_head)
+        if ingest_pass:
+            _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-INGEST-001")
+        if compile_pass and compile_idempotent:
+            _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001")
+        if query_pass:
+            _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-QUERY-001")
 
-    if not keep_vault:
-        shutil.rmtree(work_parent, ignore_errors=True)
+        _update_o2_objectives(repo_root, cert)
+        refresh_authentic_o2_node_states(repo_root, integrity=integrity)
+        load_mission_state_placeholder(repo_root)
+        mission_reconcile(repo_root, main_head=integrity.live_main_head)
+
+        if not keep_vault:
+            shutil.rmtree(work_parent, ignore_errors=True)
+            _restore_estate_bind(estate, prior_bind)
+        else:
+            cert["vault_path"] = str(vault)
+
+        checkpoint = {
+            "directive": "D-148",
+            "closure_integrity_pass": closure_integrity_pass(integrity),
+            "authentic_o2_cert": cert,
+            "merge_authorized": False,
+        }
+        _write(_rt(repo_root) / "d148-checkpoint.json", checkpoint)
+        return checkpoint
+    except BaseException:
+        restore_orchestration_state(repo_root, snapshot)
+        if work_parent is not None:
+            shutil.rmtree(work_parent, ignore_errors=True)
         _restore_estate_bind(estate, prior_bind)
-    else:
-        cert["vault_path"] = str(vault)
-
-    checkpoint = {
-        "directive": "D-148",
-        "closure_integrity_pass": closure_integrity_pass(integrity),
-        "authentic_o2_cert": cert,
-        "merge_authorized": False,
-    }
-    _write(_rt(repo_root) / "d148-checkpoint.json", checkpoint)
-    return checkpoint
+        raise
 
 
 def load_mission_state_placeholder(repo_root: Path) -> None:
