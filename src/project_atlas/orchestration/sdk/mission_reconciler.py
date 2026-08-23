@@ -16,6 +16,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from project_atlas.orchestration.autonomy.authentic_estate import authentic_estate_available
 from project_atlas.orchestration.autonomy.exact_main_closure import cert_evidence_applies_to_head
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, AgentRole, SdkRuntimeError
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
@@ -355,16 +356,50 @@ def _runbook_pin_current(root: Path, *, main_head: str) -> bool:
     return main_head in text
 
 
+def _load_d148_evidence(root: Path) -> dict[str, Any]:
+    path = _rt(root) / "d148-o2-certification.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
 def _gap_statuses(root: Path, *, main_head: str) -> dict[str, str]:
     """Evidence-bound gap classification for analysis receipts."""
     evidence = _load_cert_evidence(root)
     if not _cert_evidence_applies(evidence, main_head, root):
         evidence = {}
-    authentic = "BLOCKED_OWNER"
+    d148 = _load_d148_evidence(root)
+    estate_ready = authentic_estate_available(root)
+    if d148.get("AUTHENTIC_INGEST_SATISFIED"):
+        authentic_ingest = "SATISFIED"
+    elif estate_ready:
+        authentic_ingest = "NOT_IMPLEMENTED"
+    else:
+        authentic_ingest = "BLOCKED_OWNER"
+    if d148.get("AUTHENTIC_COMPILE_SATISFIED"):
+        authentic_compile = "SATISFIED"
+    elif estate_ready and d148.get("AUTHENTIC_INGEST_SATISFIED"):
+        authentic_compile = "NOT_IMPLEMENTED"
+    elif estate_ready:
+        authentic_compile = "BLOCKED_OWNER"
+    else:
+        authentic_compile = "BLOCKED_OWNER"
+    if d148.get("AUTHENTIC_QUERY_SATISFIED"):
+        authentic_query = "SATISFIED"
+    elif estate_ready and d148.get("AUTHENTIC_COMPILE_SATISFIED"):
+        authentic_query = "NOT_IMPLEMENTED"
+    elif estate_ready and d148.get("AUTHENTIC_INGEST_SATISFIED"):
+        authentic_query = "BLOCKED_OWNER"
+    else:
+        authentic_query = "BLOCKED_OWNER"
     gaps: dict[str, str] = {
-        "AUTHENTIC_INGEST": authentic,
-        "AUTHENTIC_COMPILE": authentic,
-        "AUTHENTIC_QUERY": authentic,
+        "AUTHENTIC_INGEST": authentic_ingest,
+        "AUTHENTIC_COMPILE": authentic_compile,
+        "AUTHENTIC_QUERY": authentic_query,
         "API": "NOT_IMPLEMENTED",
         "WEB": "NOT_IMPLEMENTED",
         "CLEAN_MACHINE_BOOTSTRAP": "NOT_IMPLEMENTED",
