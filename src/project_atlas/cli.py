@@ -136,6 +136,10 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.knowledge_diff import diff_to_json as kdiff_diff_to_json
 from project_atlas.knowledge_diff import snapshot_to_json as kdiff_snapshot_to_json
+from project_atlas.knowledge_inbox import (
+    KnowledgeInboxError,
+    list_inbox_items,
+)
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
@@ -313,6 +317,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "context",
         "handoff",
         "capture",
+        "inbox",
         "obsidian",
         "review",
     }:
@@ -1013,6 +1018,31 @@ def build_parser() -> argparse.ArgumentParser:
         dest="review_state",
     )
     capture_review.add_argument("--json", action="store_true", dest="as_json")
+
+    inbox_parser = subparsers.add_parser(
+        "inbox",
+        help=(
+            "Read Knowledge Inbox observations "
+            "(INBOX != AUTHORITY; list is read-only and project-scoped)."
+        ),
+    )
+    inbox_sub = inbox_parser.add_subparsers(dest="inbox_command", required=True)
+    inbox_list = inbox_sub.add_parser(
+        "list",
+        help=(
+            "List project-scoped inbox items in deterministic receipt_id order. "
+            "Requires --project or a single-project bind. No implicit portfolio-all."
+        ),
+    )
+    inbox_list.add_argument("--vault", type=Path, default=None)
+    inbox_list.add_argument("--project", default=None)
+    inbox_list.add_argument(
+        "--status",
+        default=None,
+        choices=sorted(["quarantined", "accepted-review", "rejected"]),
+    )
+    inbox_list.add_argument("--limit", type=int, default=20)
+    inbox_list.add_argument("--json", action="store_true", dest="as_json")
 
     obsidian_parser = subparsers.add_parser(
         "obsidian",
@@ -3329,82 +3359,57 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"  - {item}")
         return EXIT_OK
 
-    if args.command == "capture":
+    if args.command == "inbox":
         try:
-            if args.capture_command == "record":
-                report = capture_session(
-                    args.vault,
-                    args.project,
-                    summary=args.summary,
-                    kind=args.kind,
-                    decisions=args.decision,
-                    changes=args.change,
-                    next_work=args.next_work,
-                    unknowns=args.unknowns,
-                    source="explicit",
+            if args.inbox_command != "list":
+                raise KnowledgeInboxError(
+                    "UNSUPPORTED_SCOPE",
+                    f"inbox command not implemented: {args.inbox_command}",
                 )
-            elif args.capture_command == "conversation":
-                envelope = _load_conversation_envelope(args)
-                report = capture_conversation(
-                    args.vault,
-                    envelope,
-                    requested_project_id=args.project,
-                )
-            elif args.capture_command == "review":
-                report = set_conversation_review_state(
-                    args.vault,
-                    args.capture_id,
-                    args.review_state,
-                )
-            else:
-                report = {
-                    "schema_version": 1,
-                    "package": "AS-CODER-ALPHA-CAPTURE-001",
-                    "status": "ok",
-                    "captures": list_captures(
-                        args.vault,
-                        project_id=args.project,
-                        limit=args.limit,
-                    ),
-                }
-        except ConversationCaptureError as exc:
-            _log.error("capture failed: %s", exc)
-            error_body = {
+            project_id = args.project
+            if project_id in {None, ""}:
+                try:
+                    project_id = resolve_bound_project_id(vault=args.vault)
+                except ConnectError as exc:
+                    raise KnowledgeInboxError(
+                        "UNSUPPORTED_SCOPE",
+                        "inbox list requires --project (no implicit portfolio-all)",
+                    ) from exc
+            report = list_inbox_items(
+                args.vault,
+                project_id=project_id,
+                status=args.status,
+                limit=args.limit,
+            )
+        except KnowledgeInboxError as exc:
+            _log.error("inbox failed: %s", exc)
+            inbox_error: dict[str, Any] = {
                 "status": "error",
                 "error": exc.code,
                 "message": str(exc),
-                "package": "AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001",
+                "package": "AS-CODER-ALPHA-INBOX-LIST-001",
+                "promoted_to_authority": False,
             }
             if getattr(args, "as_json", False):
-                print(json.dumps(error_body, indent=2, sort_keys=True))
+                print(json.dumps(inbox_error, indent=2, sort_keys=True))
             else:
-                print(f"atlas capture conversation error [{exc.code}]: {exc}")
+                print(f"atlas inbox list error [{exc.code}]: {exc}")
             return EXIT_ERROR
-        except (SessionCaptureError, OSError, ValueError) as exc:
-            _log.error("capture failed: %s", exc)
+        except (OSError, ValueError) as exc:
+            _log.error("inbox failed: %s", exc)
             return EXIT_ERROR
         if args.as_json:
             print(json.dumps(report, indent=2, sort_keys=True))
-        elif args.capture_command == "record":
-            print(f"atlas capture record [{report.get('status', 'ok')}]")
-            print(f"  capture:  {report.get('capture_id')}")
-            print(f"  project:  {report.get('project_id')}")
-            print(f"  path:     {report.get('path')}")
-            print("  next: atlas context / atlas handoff create to surface session memory")
-        elif args.capture_command in {"conversation", "review"}:
-            print(f"atlas capture {args.capture_command} [{report.get('status', 'ok')}]")
-            print(f"  capture:  {report.get('capture_id')}")
-            print(f"  project:  {report.get('project_id')}")
-            print(f"  review:   {report.get('review_state')}")
-            print("  authority: NON_CANONICAL quarantined evidence (not Truth Core)")
         else:
-            captures = report.get("captures") or []
-            print(f"atlas capture list [{len(captures)}]")
-            if not captures:
-                print("  UNKNOWN (no session captures yet)")
-            for item in captures:
+            items = report.get("items") or []
+            print(f"atlas inbox list [{report.get('count', 0)}]")
+            print(f"  project:  {report.get('project_id')}")
+            print("  boundary: INBOX != AUTHORITY (observations, not Truth Core)")
+            if not items:
+                print("  UNKNOWN (no inbox items for project)")
+            for item in items:
                 print(
-                    f"  - {item.get('capture_id')} [{item.get('kind')}] "
+                    f"  - {item.get('receipt_id')} [{item.get('status')}] "
                     f"{item.get('summary')}"
                 )
         return EXIT_OK
@@ -3722,6 +3727,87 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ValueError, TypeError) as exc:
             _log.error("query failed: %s", exc)
             return EXIT_ERROR
+
+
+    if args.command == "capture":
+        try:
+            if args.capture_command == "record":
+                report = capture_session(
+                    args.vault,
+                    args.project,
+                    summary=args.summary,
+                    kind=args.kind,
+                    decisions=args.decision,
+                    changes=args.change,
+                    next_work=args.next_work,
+                    unknowns=args.unknowns,
+                    source="explicit",
+                )
+            elif args.capture_command == "conversation":
+                envelope = _load_conversation_envelope(args)
+                report = capture_conversation(
+                    args.vault,
+                    envelope,
+                    requested_project_id=args.project,
+                )
+            elif args.capture_command == "review":
+                report = set_conversation_review_state(
+                    args.vault,
+                    args.capture_id,
+                    args.review_state,
+                )
+            else:
+                report = {
+                    "schema_version": 1,
+                    "package": "AS-CODER-ALPHA-CAPTURE-001",
+                    "status": "ok",
+                    "captures": list_captures(
+                        args.vault,
+                        project_id=args.project,
+                        limit=args.limit,
+                    ),
+                }
+        except ConversationCaptureError as exc:
+            _log.error("capture failed: %s", exc)
+            error_body = {
+                "status": "error",
+                "error": exc.code,
+                "message": str(exc),
+                "package": "AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001",
+            }
+            if getattr(args, "as_json", False):
+                print(json.dumps(error_body, indent=2, sort_keys=True))
+            else:
+                print(f"atlas capture conversation error [{exc.code}]: {exc}")
+            return EXIT_ERROR
+        except (SessionCaptureError, OSError, ValueError) as exc:
+            _log.error("capture failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        elif args.capture_command == "record":
+            print(f"atlas capture record [{report.get('status', 'ok')}]")
+            print(f"  capture:  {report.get('capture_id')}")
+            print(f"  project:  {report.get('project_id')}")
+            print(f"  path:     {report.get('path')}")
+            print("  next: atlas context / atlas handoff create to surface session memory")
+        elif args.capture_command in {"conversation", "review"}:
+            print(f"atlas capture {args.capture_command} [{report.get('status', 'ok')}]")
+            print(f"  capture:  {report.get('capture_id')}")
+            print(f"  project:  {report.get('project_id')}")
+            print(f"  review:   {report.get('review_state')}")
+            print("  authority: NON_CANONICAL quarantined evidence (not Truth Core)")
+        else:
+            captures = report.get("captures") or []
+            print(f"atlas capture list [{len(captures)}]")
+            if not captures:
+                print("  UNKNOWN (no session captures yet)")
+            for item in captures:
+                print(
+                    f"  - {item.get('capture_id')} [{item.get('kind')}] "
+                    f"{item.get('summary')}"
+                )
+        return EXIT_OK
 
     if args.command == "ops":
         if args.ops_command == "health":
