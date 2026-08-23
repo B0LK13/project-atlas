@@ -36,6 +36,18 @@ Adversarial MERGE replay: `BYPASS=True` (`OWNER_GATE` MERGE → NONE).
 `tests/unit/test_d149_owner_gate_non_escalation.py` covers the D-149 matrix
 plus D-148 preflight regression.
 
+Night-cycle residual close (this branch, after independent review of `#445`):
+
+- `apply_authentic_estate_mutations()` checks closure integrity and preflight
+  **before** writing the availability credential. A failing integrity check is
+  a raise + no durable write (not a credential write + refresh no-op).
+- A present credential is fail-closed: missing `AUTHENTIC_ESTATE_ROOT`,
+  `estate_fingerprint`, or `live_main_head` (when the repo has a HEAD) is
+  rejected. Skip-if-absent applied only to the whole credential file.
+- Mission `_gap_statuses()` uses bound estate readiness
+  (`authentic_estate_ready_for_orchestration`), so a stale present
+  credential cannot classify O2 gaps as agent-runnable.
+
 ## Not claimed
 
 - `AUTHENTIC_PILOT=YES` (no authentic estate in this environment)

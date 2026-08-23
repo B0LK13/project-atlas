@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.autonomy.authentic_estate import (
     PROTECTED_OWNER_GATES,
-    authentic_estate_available,
+    authentic_estate_ready_for_orchestration,
     d148_evidence_applies,
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import cert_evidence_applies_to_head
@@ -379,7 +379,7 @@ def _gap_statuses(root: Path, *, main_head: str) -> dict[str, str]:
     d148 = _load_d148_evidence(root)
     if not d148_evidence_applies(d148, main_head, root):
         d148 = {}
-    estate_ready = authentic_estate_available(root)
+    estate_ready = authentic_estate_ready_for_orchestration(root)
     if d148.get("AUTHENTIC_INGEST_SATISFIED"):
         authentic_ingest = "SATISFIED"
     elif estate_ready:

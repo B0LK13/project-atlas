@@ -5,6 +5,55 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-D149R-OWNER-GATE-BINDING-001 — D-149 residual close
+
+**Date:** 2026-08-23
+**Directive:** D-149 residual / night-cycle independent review of `#445`
+**Base:** live `origin/main` `4e71cce0d1c97f408347e256300a41590da4c352` / tree `e9919f5d04bd1613df7254e3281badcdd7832b86`
+**Branch:** `cursor/atlas-autonomous-night-cycle-0e68`
+**Mode:** BOUNDED_SECURITY_REMEDIATION. Does not merge. Does not claim authentic pilot.
+
+### Defect (post-#445 independent review)
+
+Primary MERGE/SECURITY rewrite paths on `#445` / `79ecb5a` are closed.
+Two remediable residuals remained:
+
+1. `apply_authentic_estate_mutations()` wrote the availability credential
+   then called `refresh_authentic_o2_node_states()`, which returns `[]` on
+   integrity failure without raising. That left a durable credential after
+   an integrity no-op.
+2. `estate_credential_binding_current()` skipped absent fingerprint / root /
+   live-main fields. A present credential omitting those fields was treated
+   as current.
+
+### Fix
+
+- Integrity and preflight are checked before any durable write in `apply()`.
+- A present credential must bind estate root, fingerprint, and live-main
+  head (when the repo has HEAD). Missing fields fail closed.
+
+### Commands / results
+
+```
+pytest tests/unit/test_d149_owner_gate_non_escalation.py tests/unit/test_d148_authentic_estate.py tests/unit/test_d147_broker_reconcile_adv.py --no-cov
+38 passed
+
+ruff check authentic_estate.py mission_reconciler.py test_d149_owner_gate_non_escalation.py
+All checks passed
+
+mypy authentic_estate.py mission_reconciler.py
+Success: no issues found
+```
+
+### Honesty
+
+- `AUTHENTIC_ESTATE_AVAILABILITY_GRANTS_OWNER_AUTHORITY = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RERUN` (no AUTHENTIC_ESTATE_ROOT in this environment)
+- `IMPLEMENTER_EQUALS_INDEPENDENT_VERIFIER = NO` (same-session focused gates)
+
+---
+
 ## AS-D149-OWNER-GATE-NON-ESCALATION-001 — D-148 owner-gate non-escalation
 
 **Date:** 2026-08-23
