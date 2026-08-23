@@ -478,9 +478,10 @@ def final_response_allowed(
         if isinstance(return_state, AutonomyReturnState):
             if not may_emit_final_return(return_state):
                 return False
-        elif isinstance(return_state, dict):
-            if not may_emit_final_return(AutonomyReturnState.model_validate(return_state)):
-                return False
+        elif isinstance(return_state, dict) and not may_emit_final_return(
+            AutonomyReturnState.model_validate(return_state)
+        ):
+            return False
     if owner_action_required_now or not safe_dag_work_remains:
         return True
     return successor_state in FINAL_RESPONSE_SUCCESSOR_STATES
