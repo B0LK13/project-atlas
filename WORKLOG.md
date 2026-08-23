@@ -7234,3 +7234,32 @@ grant source and does not certify #427.
 
 `OWNER_GATE=MERGE`, `DEPENDENCIES=['PR431']`, `BLOCKED_OWNER`,
 `OWNER_CAPABILITY_GRANTED=False`, `BYPASS=False`.
+
+---
+
+## AS-ORCH-INTEGRATION-IV-001A — independent IV for AS-ORCH-001A / ORCH001A-007
+
+**Date:** 2026-08-23
+**Directive:** AS-ORCH-INTEGRATION-IV-001A
+**Branch:** `cursor/atlas-autonomous-night-cycle-742c`
+**Parent head:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Mode:** INDEPENDENT_INTEGRATION_VERIFICATION. Does not dispatch, merge, or grant authority.
+
+### What changed
+- Added `tests/integration/test_orchestration_iv_001a.py` — subprocess CLI chain
+  for `atlas orchestrator validate-result` (cases A–E).
+- Evidence: `docs/evidence/AS-ORCH-INTEGRATION-IV-001A.md`
+- Backlog: ORCH001A-007 checked.
+
+### Commands
+```bash
+.venv/bin/python -m ruff check tests/integration/test_orchestration_iv_001a.py
+.venv/bin/python -m pytest tests/integration/test_orchestration_iv_001a.py -v
+```
+
+### Results
+- ruff: PASS
+- pytest: 5 passed
+
+### Honesty
+IV != merge authorization. Classification != execution.
