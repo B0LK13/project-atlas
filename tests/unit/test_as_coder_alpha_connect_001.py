@@ -119,6 +119,18 @@ def test_connect_compiles_project_and_is_idempotent(tmp_path: Path) -> None:
     assert "at" not in bind.get("generated", {})
 
 
+def test_connect_portfolio_builds_bitemporal_catalogs(tmp_path: Path) -> None:
+    """CLI build-portfolio parity: --portfolio must derive Time Machine catalogs."""
+    project = _seed_project(tmp_path / "portfolio-proj")
+    report = connect_project(project, include_portfolio=True)
+    assert report["status"] == "connected"
+    vault = Path(report["vault"])
+    assert (vault / "generated" / "portfolio").is_dir()
+    assert "build_bitemporal_catalogs" in report["steps"]
+    # Catalog writer is invoked even when a fixture has no validity windows.
+    assert "build_portfolio" in report["steps"]
+
+
 def test_project_slug_from_dirname_is_safe() -> None:
     assert project_slug_from_dirname("My Cool App") == "my-cool-app"
     assert project_slug_from_dirname("123-start") == "p-123-start"

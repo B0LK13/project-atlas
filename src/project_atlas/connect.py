@@ -590,6 +590,7 @@ def connect_project(
     ]
     if include_portfolio:
         steps.append("build_portfolio")
+        steps.append("build_bitemporal_catalogs")
     if not skip_validate:
         steps.append("validate")
     steps.extend(
@@ -740,9 +741,12 @@ def connect_project(
         )
         index_result = build_indexes(vault_path)
         if include_portfolio:
+            from project_atlas.bitemporal_catalog import build_bitemporal_catalogs
             from project_atlas.portfolio import build_portfolio as run_build_portfolio
 
             run_build_portfolio(vault_path)
+            # CLI ``atlas build-portfolio`` always derives Time Machine catalogs.
+            build_bitemporal_catalogs(vault_path)
         if not skip_validate:
             validate(vault_path)
 
