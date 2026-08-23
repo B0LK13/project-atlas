@@ -619,10 +619,21 @@ def mission_reconcile(
 def _refresh_merge_gate_state(root: Path) -> None:
     try:
         from project_atlas.orchestration.sdk.merge_sequence_gate import (
+            observe_live_main_identity,
             refresh_dependent_merge_gate_state,
         )
 
-        refresh_dependent_merge_gate_state(root, child_pr_number=436)
+        live = observe_live_main_identity(root)
+        if live is None:
+            return
+        live_main, live_tree = live
+        refresh_dependent_merge_gate_state(
+            root,
+            child_pr_number=436,
+            parent_merge_commit=live_main,
+            live_main_sha=live_main,
+            live_tree_sha=live_tree,
+        )
     except Exception:
         return
 

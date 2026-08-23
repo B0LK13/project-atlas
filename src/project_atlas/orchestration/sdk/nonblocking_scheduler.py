@@ -36,6 +36,7 @@ from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
 
 STALL_INTERVAL_SEC: Final[float] = 30.0
 BOUNDED_IDLE_CAP_SEC: Final[float] = 5.0
+POLL_ERROR_FAIL_AFTER: Final[int] = 3
 
 
 @dataclass
@@ -152,27 +153,35 @@ def _maybe_mint_stacked_parent_seal(root: Path, obs: ExternalObserver) -> None:
         return
     from project_atlas.orchestration.sdk.ci_observer import observe_exact_head_ci
     from project_atlas.orchestration.sdk.merge_sequence_gate import (
+        observe_live_main_identity,
         on_ci_terminal_pass_for_stacked_merge,
         refresh_dependent_merge_gate_state,
     )
 
-    ci_obs = observe_exact_head_ci(head_sha=obs.expected_head)
+    live = observe_live_main_identity(root)
+    if live is None:
+        return
+    live_main, live_tree = live
+    # PR-branch expected_head is not post-merge main identity (D-138).
+    if live_main == obs.expected_head:
+        return
+    ci_obs = observe_exact_head_ci(head_sha=live_main)
     on_ci_terminal_pass_for_stacked_merge(
         root,
         package_id=obs.package_id,
         ci_observation=ci_obs,
-        parent_merge_commit=obs.expected_head,
-        parent_post_merge_main_sha=obs.expected_head,
-        parent_post_merge_tree=obs.expected_tree,
+        parent_merge_commit=live_main,
+        parent_post_merge_main_sha=live_main,
+        parent_post_merge_tree=live_tree,
     )
     refresh_dependent_merge_gate_state(
         root,
         child_pr_number=436,
         child_merge_authorized=False,
         parent_merged=True,
-        parent_merge_commit=obs.expected_head,
-        live_main_sha=obs.expected_head,
-        live_tree_sha=obs.expected_tree,
+        parent_merge_commit=live_main,
+        live_main_sha=live_main,
+        live_tree_sha=live_tree,
         ci_observation=ci_obs,
     )
 
@@ -190,6 +199,28 @@ def apply_ci_poll_result(
     ts = time.time() if now is None else now
     status_l = raw_status.lower()
     conc_l = (conclusion or "").lower() or None
+    if status_l == "error" or conc_l in {"not_found", "poll_failed", "inaccessible"}:
+        registry = load_observer_registry(root)
+        current = registry.observers.get(observer_id)
+        retries = (current.retry_count + 1) if current is not None else 1
+        if retries >= POLL_ERROR_FAIL_AFTER:
+            cancelled = conc_l in {"not_found", "inaccessible"}
+            return update_observer_status(
+                root,
+                observer_id,
+                status=ObserverStatus.CANCELLED if cancelled else ObserverStatus.TERMINAL_FAIL,
+                next_poll_at=ts,
+                retry_count=retries,
+                last_error=conc_l or "POLL_ERROR",
+            )
+        return update_observer_status(
+            root,
+            observer_id,
+            status=ObserverStatus.RUNNING,
+            next_poll_at=ts + poll_interval_sec,
+            retry_count=retries,
+            last_error=conc_l or "POLL_ERROR",
+        )
     if status_l in {"queued", "in_progress", "waiting", "pending"}:
         return update_observer_status(
             root,
@@ -344,7 +375,8 @@ def scheduler_tick(
     wake = nearest_wake_at(registry)
     result.next_wake_at = wake
 
-    progress = bool(result.dispatched or result.terminal_consumed or result.stall_reconciled)
+    # Selection is not progress — only terminal consume or stall self-reconcile.
+    progress = bool(result.terminal_consumed or result.stall_reconciled)
     # Count only independently runnable remaining work (exclude owner-held packages).
     held = owner_held_packages or set()
     remaining_runnable = sum(

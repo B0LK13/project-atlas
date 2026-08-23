@@ -92,23 +92,59 @@ def _append_tick_log(root: Path, row: dict[str, Any]) -> None:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def _lock_holder_pid(path: Path) -> int:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return int(data.get("pid", 0))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return 0
+
+
+def _try_create_primary_lock(path: Path, pid: int) -> bool:
+    """Atomic exclusive create. Returns False if the lock file already exists."""
+    payload = (json.dumps({"pid": pid, "at": time.time()}, indent=2) + "\n").encode(
+        "utf-8"
+    )
+    try:
+        fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    try:
+        os.write(fd, payload)
+    finally:
+        os.close(fd)
+    return True
+
+
+def lock_held_by_live_primary(root: Path) -> bool:
+    """True when another live process already owns the primary lock."""
+    path = _runtime(root) / LOCK_NAME
+    if not path.is_file():
+        return False
+    other = _lock_holder_pid(path)
+    return other > 0 and other != os.getpid() and pid_is_alive(other)
+
+
 def acquire_primary_lock(root: Path) -> bool:
     """Ensure ACTIVE_PRIMARY_GOVERNOR_COUNT <= 1. Returns False if another live primary."""
     path = _runtime(root) / LOCK_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     me = os.getpid()
-    if path.is_file():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            other = int(data.get("pid", 0))
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            other = 0
-        if other > 0 and other != me and pid_is_alive(other):
+    for _ in range(2):
+        if _try_create_primary_lock(path, me):
+            return True
+        other = _lock_holder_pid(path)
+        if other == me:
+            return True
+        if other > 0 and pid_is_alive(other):
             return False
-    path.write_text(
-        json.dumps({"pid": me, "at": time.time()}, indent=2) + "\n", encoding="utf-8"
-    )
-    return True
+        # Stale/corrupt lock: unlink only if the holder pid is still the dead one.
+        try:
+            if _lock_holder_pid(path) == other:
+                path.unlink()
+        except FileNotFoundError:
+            pass
+    return _try_create_primary_lock(path, me)
 
 
 def release_primary_lock(root: Path) -> None:
@@ -127,26 +163,37 @@ def poll_github_ci(run_id: str) -> tuple[str, str | None, str | None]:
     """Poll one Actions run. Returns (status, conclusion, head_sha). Never prints secrets."""
     if not run_id or run_id == "PENDING":
         return "in_progress", None, None
-    proc = subprocess.run(
-        [
-            "gh",
-            "run",
-            "view",
-            str(run_id),
-            "--json",
-            "status,conclusion,headSha",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=60,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                "gh",
+                "run",
+                "view",
+                str(run_id),
+                "--json",
+                "status,conclusion,headSha",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "error", "poll_failed", None
     if proc.returncode != 0:
-        return "in_progress", None, None
+        err = f"{proc.stderr or ''} {proc.stdout or ''}".lower()
+        if any(
+            token in err
+            for token in ("not found", "could not find", "http 404", "does not exist")
+        ):
+            return "error", "not_found", None
+        if any(token in err for token in ("http 401", "http 403", "authentication")):
+            return "error", "inaccessible", None
+        return "error", "poll_failed", None
     try:
         data = json.loads(proc.stdout or "{}")
     except json.JSONDecodeError:
-        return "in_progress", None, None
+        return "error", "poll_failed", None
     status = str(data.get("status") or "in_progress")
     conclusion = data.get("conclusion")
     conclusion_s = str(conclusion) if conclusion else None
@@ -232,19 +279,22 @@ def _arm_consumed(root: Path, *, consumed: list[str], now: float) -> None:
             from project_atlas.orchestration.sdk.ci_observer import observe_exact_head_ci
             from project_atlas.orchestration.sdk.merge_sequence_gate import (
                 gate_state_path,
+                observe_live_main_identity,
                 refresh_dependent_merge_gate_state,
             )
 
-            if obs.expected_head and obs.expected_tree:
-                ci_obs = observe_exact_head_ci(head_sha=obs.expected_head)
+            live = observe_live_main_identity(root)
+            if live is not None:
+                live_main, live_tree = live
+                ci_obs = observe_exact_head_ci(head_sha=live_main)
                 decision = refresh_dependent_merge_gate_state(
                     root,
                     child_pr_number=436,
                     child_merge_authorized=False,
-                    parent_merged=True,
-                    parent_merge_commit=obs.expected_head,
-                    live_main_sha=obs.expected_head,
-                    live_tree_sha=obs.expected_tree,
+                    parent_merged=live_main != obs.expected_head,
+                    parent_merge_commit=live_main,
+                    live_main_sha=live_main,
+                    live_tree_sha=live_tree,
                     ci_observation=ci_obs,
                 )
                 gate_state = {
@@ -387,7 +437,7 @@ def resident_tick(
     """One self-wake scheduler tick. Never blocks on CI."""
     ts = time.time() if now is None else now
     mission = load_mission(root)
-    ensure_active_observers(root, now=ts)
+    # Reconstruct from durable registry only — do not inject proof-era run IDs.
     snapshots = _ci_snapshots_for_due(root, now=ts)
 
     # Closed-loop work producer (when mission reconciler package is present)
@@ -414,10 +464,11 @@ def resident_tick(
     consumed = list(tick.terminal_consumed)
     _arm_consumed(root, consumed=consumed, now=ts)
 
-    if tick.dispatched:
-        _record_dispatch_progress(
-            root, now=ts, nodes=[d.node_id for d in tick.dispatched]
-        )
+    if _dispatch_count(loop_result) > 0 and loop_result is not None:
+        worker = loop_result.get("worker_id")
+        nodes = [str(worker)] if worker else []
+        if nodes:
+            _record_dispatch_progress(root, now=ts, nodes=nodes)
 
     wake = tick.next_wake_at
     sleep_sec = bounded_sleep_seconds(
@@ -459,8 +510,6 @@ def resident_tick(
     status.LAST_EVENT_CONSUMED = consumed[-1] if consumed else status.LAST_EVENT_CONSUMED
     if loop_result and loop_result.get("worker_id"):
         status.LAST_NODE_DISPATCHED = str(loop_result.get("worker_id"))
-    elif tick.dispatched:
-        status.LAST_NODE_DISPATCHED = tick.dispatched[-1].node_id
     status.CURSOR_API_KEY_PRESENT = (
         "YES" if auth.cursor_api_key_available == "YES" else "NO"
     )
@@ -470,12 +519,7 @@ def resident_tick(
     status.RESIDENT_GOVERNOR = "YES"
     status.ACTIVE_PRIMARY_GOVERNOR_COUNT = 1
     status.GLOBAL_OWNER_REQUIRED = (
-        "YES"
-        if tick.governor_state == "OWNER_REQUIRED"
-        and pending == 0
-        and tick.ready_before == 0
-        and loop_result is None
-        else "NO"
+        "YES" if tick.governor_state == "OWNER_REQUIRED" else "NO"
     )
     status.CASE = classify_runtime_case(
         process_exists=True,

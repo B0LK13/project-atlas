@@ -7,6 +7,7 @@ durable seal is recorded and bound to exact Git identity.
 from __future__ import annotations
 
 import json
+import subprocess
 import time
 from enum import StrEnum
 from pathlib import Path
@@ -212,6 +213,36 @@ def load_parent_seal(root: Path) -> ParentPostMergeSeal | None:
     return ParentPostMergeSeal.model_validate(payload)
 
 
+def observe_live_main_identity(root: Path) -> tuple[str, str] | None:
+    """Observe origin/main SHA and tree. Fail closed if git identity is unavailable."""
+
+    def _rev(spec: str) -> str | None:
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", spec],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if proc.returncode != 0:
+            return None
+        value = proc.stdout.strip().lower()
+        if len(value) == 40 and all(ch in "0123456789abcdef" for ch in value):
+            return value
+        return None
+
+    sha = _rev("origin/main") or _rev("refs/heads/main")
+    if sha is None:
+        return None
+    tree = _rev(f"{sha}^{{tree}}")
+    if tree is None:
+        return None
+    return sha, tree
+
+
 def seal_matches_live(
     seal: ParentPostMergeSeal,
     *,
@@ -372,12 +403,7 @@ def refresh_dependent_merge_gate_state(
 ) -> DependentMergeDecision:
     """Evaluate and persist gate state for the canonical stacked child PR."""
     parent_seal = load_parent_seal(root)
-    if not parent_merge_commit and parent_seal is not None:
-        parent_merge_commit = parent_seal.parent_merge_commit
-    if not live_main_sha and parent_seal is not None:
-        live_main_sha = parent_seal.parent_post_merge_main_sha
-    if not live_tree_sha and parent_seal is not None:
-        live_tree_sha = parent_seal.parent_post_merge_tree
+    # Empty live identity must not fall back to the seal (self-validation).
     decision = evaluate_dependent_merge_allowed(
         parent_merged=parent_merged,
         parent_seal=parent_seal,
