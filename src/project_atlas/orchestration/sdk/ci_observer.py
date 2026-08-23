@@ -38,6 +38,15 @@ FailureClass = Literal[
     "NONE",
 ]
 
+# D-144: local `gh run watch` exit must not be treated as CI terminal failure.
+CiWatchDisposition = Literal[
+    "OBSERVER_EXITED",
+    "CI_STILL_RUNNING",
+    "CI_TERMINAL_PASS",
+    "CI_TERMINAL_FAIL",
+    "CI_UNKNOWN",
+]
+
 
 class CiJobObservation(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -379,6 +388,31 @@ def refresh_pr_head(
     except (OSError, subprocess.TimeoutExpired):
         tree = None
     return PrHeadRef(pr_number=pr_number, head_sha=head, tree_sha=tree)
+
+
+def classify_watch_session(
+    *,
+    watch_exit_code: int,
+    watch_timed_out: bool,
+    observation: CiObservation | None = None,
+) -> CiWatchDisposition:
+    """Map a local watch subprocess outcome to durable CI disposition.
+
+    A timed-out or non-zero watch exit is OBSERVER_EXITED — never CI_TERMINAL_FAIL.
+    """
+    if observation is None:
+        if watch_timed_out or watch_exit_code != 0:
+            return "OBSERVER_EXITED"
+        return "CI_UNKNOWN"
+    if observation.status == "PENDING":
+        return "CI_STILL_RUNNING"
+    if observation.status == "PASS":
+        return "CI_TERMINAL_PASS"
+    if observation.status == "FAIL":
+        return "CI_TERMINAL_FAIL"
+    if watch_timed_out or watch_exit_code != 0:
+        return "OBSERVER_EXITED"
+    return "CI_UNKNOWN"
 
 
 def persist_observation(root: Path, observation: CiObservation) -> Path:
