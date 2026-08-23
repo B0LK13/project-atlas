@@ -322,8 +322,8 @@ def _objective_autonomous_met(obj: MissionObjective) -> bool:
     return obj.current_state in _AUTONOMOUS_MET_STATES
 
 
-def _cert_evidence_applies(evidence: dict[str, Any], main_head: str) -> bool:
-    """Checkpoint certification applies only to the reconciled exact main head."""
+def _cert_evidence_applies(evidence: dict[str, Any], main_head: str, root: Path) -> bool:
+    """Checkpoint certification applies to reconcile head or its certified ancestor."""
     if not evidence:
         return False
     pins = [
@@ -331,8 +331,16 @@ def _cert_evidence_applies(evidence: dict[str, Any], main_head: str) -> bool:
         str(evidence.get("RELEASE_MAIN_SHA") or ""),
         str(evidence.get("POST_MERGE_MAIN") or ""),
         str(evidence.get("INITIAL_MAIN") or ""),
+        str(evidence.get("CERTIFICATION_TARGET_HEAD") or ""),
     ]
-    return main_head in pins
+    if main_head in pins:
+        return True
+    from project_atlas.orchestration.autonomy.exact_main_closure import is_ancestor
+
+    for pin in pins:
+        if len(pin) == 40 and is_ancestor(root, pin, main_head):
+            return True
+    return False
 
 
 def _gap_package_id(gap: str, *, prefix: str = "AS-CODER-ALPHA") -> str:
@@ -365,7 +373,7 @@ def _runbook_pin_current(root: Path, *, main_head: str) -> bool:
 def _gap_statuses(root: Path, *, main_head: str) -> dict[str, str]:
     """Evidence-bound gap classification for analysis receipts."""
     evidence = _load_cert_evidence(root)
-    if not _cert_evidence_applies(evidence, main_head):
+    if not _cert_evidence_applies(evidence, main_head, root):
         evidence = {}
     authentic = "BLOCKED_OWNER"
     gaps: dict[str, str] = {

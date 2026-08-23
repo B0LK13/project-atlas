@@ -8,6 +8,12 @@ import time
 from pathlib import Path
 from typing import Any
 
+from project_atlas.orchestration.autonomy.exact_main_closure import (
+    closure_integrity_pass,
+    closure_integrity_report,
+    inspect_closure_integrity,
+    read_operational_pins,
+)
 from project_atlas.orchestration.sdk.mission_reconciler import (
     _runbook_pin_current,
     load_nodes,
@@ -17,8 +23,6 @@ from project_atlas.orchestration.sdk.mission_reconciler import (
     persist_objectives,
 )
 
-CERTIFIED_MAIN = "94648b66d1adb226ce83fc2bd1a7aa24a962c309"
-CERTIFIED_TREE = "229e0e3eac71c69c42a765a0c1996076b8bf5bd0"
 READY_NODE_ID = "O3-REPLENISH-9d292a88ddd4028debd01328"
 BOOTSTRAP_PACKAGE = "AS-RELEASE-CLEAN-MACHINE-BOOTSTRAP-001"
 
@@ -31,7 +35,14 @@ def _write(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def close_ready_bootstrap(root: Path) -> dict[str, Any]:
+def _certification_target(root: Path) -> tuple[str, str]:
+    pin_head, pin_tree = read_operational_pins(root)
+    if not pin_head or not pin_tree:
+        raise SystemExit("operational certification pins missing from runbook")
+    return pin_head, pin_tree
+
+
+def close_ready_bootstrap(root: Path, cert_head: str, cert_tree: str) -> dict[str, Any]:
     nodes = load_nodes(root)
     node = nodes.get(READY_NODE_ID)
     if node is None:
@@ -43,8 +54,8 @@ def close_ready_bootstrap(root: Path) -> dict[str, Any]:
         "node_id": READY_NODE_ID,
         "package_id": BOOTSTRAP_PACKAGE,
         "classification": "EVIDENCE_ALREADY_SATISFIES_NODE",
-        "main_head": CERTIFIED_MAIN,
-        "main_tree": CERTIFIED_TREE,
+        "certification_target_head": cert_head,
+        "certification_target_tree": cert_tree,
         "evidence": [
             "docs/productization/CLEAN-MACHINE-PREP-RUNBOOK.md",
             "docs/scripts/d144_certification_runner.py",
@@ -68,15 +79,15 @@ def close_ready_bootstrap(root: Path) -> dict[str, Any]:
     }
 
 
-def clear_stale_owner_queue(root: Path) -> None:
+def clear_stale_owner_queue(root: Path, cert_head: str) -> None:
     path = _rt(root) / "d129-owner-merge-queue.json"
     merged = {
         "DIRECTIVE": "D-147",
         "FUTURE_AUTO_MERGE": "NO",
         "UPDATED_AT": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "QUEUE": [],
-        "MERGED_TO_MAIN": [431, 432, 433, 434, 439],
-        "CERTIFIED_MAIN": CERTIFIED_MAIN,
+        "MERGED_TO_MAIN": [431, 432, 433, 434, 439, 440, 441],
+        "CERTIFICATION_TARGET_HEAD": cert_head,
         "NOTE": "Integration wave complete; owner merge queue cleared",
     }
     _write(path, merged)
@@ -98,7 +109,7 @@ def supersede_stale_blocked_owner(root: Path) -> list[str]:
     return changed
 
 
-def refresh_objectives(root: Path) -> None:
+def refresh_objectives(root: Path, cert_head: str) -> None:
     objectives = load_objectives(root)
     for obj in objectives:
         if obj.objective_id == "O1":
@@ -109,7 +120,7 @@ def refresh_objectives(root: Path) -> None:
             obj.current_state = "ACCEPTANCE_WORKFLOW_SATISFIED"
             obj.blockers = ["AUTHENTIC_ESTATE_ROOT"]
             obj.evidence = [
-                "ACCEPTANCE_WORKFLOW_PILOT=true on 6c3e749",
+                f"ACCEPTANCE_WORKFLOW_PILOT=true on {cert_head}",
                 "AUTHENTIC_PILOT=false (demo fixture boundary)",
             ]
         elif obj.objective_id == "O3":
@@ -123,11 +134,11 @@ def refresh_objectives(root: Path) -> None:
             obj.current_state = "SATISFIED"
             obj.evidence = ["D-146 INTEGRATED_IV/ADV pass"]
         elif obj.objective_id == "O6":
-            pin_ok = _runbook_pin_current(root, main_head=CERTIFIED_MAIN)
+            pin_ok = _runbook_pin_current(root, main_head=cert_head)
             obj.current_state = "SATISFIED" if pin_ok else "PARTIAL"
             obj.blockers = [] if pin_ok else ["stale_operational_pin"]
-            obj.evidence = ["runbook pin 6c3e749"] if pin_ok else [
-                "runbook pin pending 6c3e749 update"
+            obj.evidence = [f"runbook pin {cert_head}"] if pin_ok else [
+                "runbook pin pending certification target update"
             ]
     persist_objectives(root, objectives)
 
@@ -153,18 +164,29 @@ def main() -> int:
     args = parser.parse_args()
     root = args.root.resolve()
 
-    bootstrap = close_ready_bootstrap(root)
-    clear_stale_owner_queue(root)
-    superseded = supersede_stale_blocked_owner(root)
-    refresh_objectives(root)
+    cert_head, cert_tree = _certification_target(root)
+    integrity = inspect_closure_integrity(
+        root,
+        certification_target_head=cert_head,
+        certification_target_tree=cert_tree,
+    )
+    closure_report = closure_integrity_report(integrity)
+    if not closure_integrity_pass(integrity):
+        print(json.dumps(closure_report, indent=2))
+        return 1
 
-    reconcile = mission_reconcile(root, main_head=CERTIFIED_MAIN)
+    bootstrap = close_ready_bootstrap(root, cert_head, cert_tree)
+    clear_stale_owner_queue(root, cert_head)
+    superseded = supersede_stale_blocked_owner(root)
+    refresh_objectives(root, cert_head)
+
+    reconcile = mission_reconcile(root, main_head=integrity.live_main_head)
     counts = snapshot_counts(root)
 
     audit_path = _rt(root) / "d147-owner-block-audit.json"
     audit = {
-        "directive": "D-147",
-        "main_head": CERTIFIED_MAIN,
+        "directive": "D-147R",
+        "closure": closure_report,
         "superseded_nodes": superseded,
         "bootstrap_close": bootstrap,
         "owner_queue_cleared": True,
@@ -174,17 +196,21 @@ def main() -> int:
     _write(audit_path, audit)
 
     checkpoint = {
-        "directive": "D-147",
-        "main_head": CERTIFIED_MAIN,
-        "main_tree": CERTIFIED_TREE,
+        "directive": "D-147R",
+        "semantic_model": integrity.semantic_model,
+        "live_main_head": integrity.live_main_head,
+        "live_main_tree": integrity.live_main_tree,
+        "certification_target_head": integrity.certification_target_head,
+        "certification_target_tree": integrity.certification_target_tree,
+        "HEAD_TREE_COHERENCE": closure_report["HEAD_TREE_COHERENCE"],
+        "closure_integrity_pass": True,
         **counts,
         "uncertified_changes": 0,
         "integratable": 0,
         "certification_pending": 0,
-        "remediation_pending": 1,
+        "remediation_pending": 0,
         "stale_blocks": 0,
         "return_gate": counts["ready"] > 0 or counts["derivable"] > 0,
-        "continuation_reason": "broker_reconciled_pending_pin_pr",
     }
     _write(_rt(root) / "d147-checkpoint.json", checkpoint)
     print(json.dumps(checkpoint, indent=2))

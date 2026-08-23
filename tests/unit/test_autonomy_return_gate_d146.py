@@ -45,8 +45,13 @@ def test_case6_preparable_blocked_denies_return() -> None:
 
 
 def test_case7_owner_frontier_allows_return_when_exhausted() -> None:
-    state = _state(genuine_owner_frontier=True)
+    state = _state(genuine_owner_frontier=True, closure_integrity_pass=True)
     assert may_emit_final_return(state) is True
+
+
+def test_owner_frontier_without_closure_integrity_denies_return() -> None:
+    state = _state(genuine_owner_frontier=True, closure_integrity_pass=False)
+    assert may_emit_final_return(state) is False
 
 
 def test_case8_terminal_allows_return() -> None:

@@ -30,5 +30,6 @@ def test_owner_frontier_only_when_exhausted() -> None:
         genuine_owner_frontier=True,
         integration_ready=0,
         post_merge_seal_pending=0,
+        closure_integrity_pass=True,
     )
     assert may_emit_final_return(state) is True

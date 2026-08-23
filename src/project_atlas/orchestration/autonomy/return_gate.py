@@ -26,6 +26,7 @@ class AutonomyReturnState(BaseModel):
     preparable_blocked_work: int = Field(default=0, ge=0)
     integration_ready: int = Field(default=0, ge=0)
     post_merge_seal_pending: int = Field(default=0, ge=0)
+    closure_integrity_pass: bool = False
     genuine_owner_frontier: bool = False
     external_hard_blocker: bool = False
     project_terminal: bool = False
@@ -49,6 +50,8 @@ def autonomous_work_exists(state: AutonomyReturnState) -> bool:
 def may_emit_final_return(state: AutonomyReturnState) -> bool:
     """Return True only when no autonomous work remains and a frontier exists."""
     if autonomous_work_exists(state):
+        return False
+    if state.genuine_owner_frontier and not state.closure_integrity_pass:
         return False
     return (
         state.genuine_owner_frontier
