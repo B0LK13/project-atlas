@@ -5,6 +5,31 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-D148-ESTATE-CORPUS-FINGERPRINT-001 — corpus-bound estate identity
+
+**Date:** 2026-08-23
+**Directive:** D-150 / PR #444 Codex P1 follow-through
+**Base:** live `origin/main` `4e71cce0d1c97f408347e256300a41590da4c352`
+**Branch:** `cursor/atlas-autonomous-night-cycle-0e68`
+**Mode:** BOUNDED_SECURITY_REMEDIATION.
+
+### Defect
+
+`estate_fingerprint()` hashed only `.atlas-project.yaml`. Estate document
+edits left D-148/D-149 credentials and certificates current.
+
+### Fix
+
+Fingerprint is SHA-256 over marker bytes plus a deterministic corpus of
+estate files (excludes VCS/vendor/`.atlas`; 5000-file cap).
+
+### Honesty
+
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RERUN`
+
+---
+
 ## AS-D149R-OWNER-GATE-BINDING-001 — D-149 residual close
 
 **Date:** 2026-08-23

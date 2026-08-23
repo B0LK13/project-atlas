@@ -5,7 +5,10 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from project_atlas.orchestration.autonomy.authentic_estate import run_estate_preflight
+from project_atlas.orchestration.autonomy.authentic_estate import (
+    estate_fingerprint,
+    run_estate_preflight,
+)
 from project_atlas.orchestration.autonomy.exact_main_closure import reject_mixed_head_tree_packet
 
 
@@ -45,3 +48,18 @@ def test_estate_preflight_fails_malformed_marker(tmp_path: Path) -> None:
 def test_reject_malformed_hash(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
     assert reject_mixed_head_tree_packet("short", "also-short", repo)
+
+
+def test_estate_fingerprint_changes_when_document_changes(tmp_path: Path) -> None:
+    """Marker-only hashes must not survive a corpus edit (D-148/D-150)."""
+    repo = _init_repo(tmp_path)
+    before = estate_fingerprint(repo)
+    (repo / "README.md").write_text("hello — edited corpus\n", encoding="utf-8")
+    after = estate_fingerprint(repo)
+    assert before
+    assert before != after
+    marker = (repo / ".atlas-project.yaml").read_text(encoding="utf-8")
+    (repo / "README.md").write_text("hello\n", encoding="utf-8")
+    assert estate_fingerprint(repo) == before
+    (repo / ".atlas-project.yaml").write_text(marker, encoding="utf-8")
+    assert estate_fingerprint(repo) == before
