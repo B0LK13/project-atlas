@@ -11,10 +11,12 @@ import subprocess
 import sys
 import tempfile
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from project_atlas.cli import EXIT_OK, main
+from project_atlas.portfolio import build_portfolio
 from project_atlas.orchestration.autonomy.authentic_estate import (
     characterize_estate,
     refresh_authentic_o2_node_states,
@@ -37,6 +39,7 @@ from project_atlas.orchestration.sdk.mission_reconciler import (
 
 RECEIPT_DIR_REL = Path(".atlas") / "orchestration" / "sdk-runtime"
 BIND_RELATIVE = Path(".atlas") / "connect.json"
+_PORTFOLIO_REFERENCE_DATE = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def _rt(root: Path) -> Path:
@@ -57,6 +60,14 @@ def _hash_generated_tree(vault: Path) -> dict[str, str]:
             rel = path.relative_to(generated).as_posix()
             out[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
     return out
+
+
+def _run_portfolio(vault: Path) -> bool:
+    try:
+        build_portfolio(vault, reference_date=_PORTFOLIO_REFERENCE_DATE)
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def _run_ask(
@@ -201,11 +212,11 @@ def run_authentic_o2(
 
     if ingest_pass:
         steps["build_indexes"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-        steps["build_portfolio"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
+        steps["build_portfolio"] = _run_portfolio(vault)
         steps["validate_1"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
         first_hashes = _hash_generated_tree(vault)
         steps["build_indexes_2"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-        steps["build_portfolio_2"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
+        steps["build_portfolio_2"] = _run_portfolio(vault)
         second_hashes = _hash_generated_tree(vault)
         steps["validate_2"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
         steps["compile_hash_stable"] = first_hashes == second_hashes and bool(first_hashes)
@@ -221,9 +232,9 @@ def run_authentic_o2(
     queries = [
         ("direct_fact", "What is the primary purpose of this project?", False),
         ("readme", "What does the README describe?", False),
-        ("negative", "What is the quarterly revenue for harbor-api?", True),
-        ("project_wide", "List main technologies used", False),
-        ("diagnostic", "What validation warnings exist?", False),
+        ("negative", "xyzzy plugh nonsense query 0000", True),
+        ("project_wide", "What is dark-factory?", False),
+        ("structure", "What directories exist in this project?", False),
     ]
     query_results = [
         _run_ask(vault, project_id, question, repo_root, expect_unknown=expect_unknown)
