@@ -7312,3 +7312,21 @@ IV != merge authorization. Classification != execution.
 ### Results
 - pytest `tests/integration/test_orchestration_iv_001d.py`: 4 passed
 - ORCH001D-012 authentic Windows Cursor dispatch remains EXTERNAL/OWNER.
+
+---
+
+## AS-MVP-001-FRESHNESS-TRUTH-001 — epoch mtime + quarantine H-006
+
+**Date:** 2026-08-23
+**Package:** AS-MVP-001-FRESHNESS-TRUTH-001
+**Branch:** `cursor/atlas-autonomous-night-cycle-742c` (cherry-pick from `#447`)
+**Base:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Mode:** TRUTH/SEC-001 alignment. Does not claim authentic-pilot freshness.
+
+### Why
+AS-MVP-001 integration treated Unix-epoch checkout mtimes as decades of age;
+H-006 demanded quarantined sources in `stale-knowledge.json`.
+
+### Fix
+- Untrusted (pre-1980) mtimes are unknown, not stale.
+- H-006 skips quarantined ids in portfolio citation cross-check.

@@ -20,7 +20,11 @@ import yaml
 from project_atlas.domain import Severity, ValidationFinding, ValidationGate
 from project_atlas.domain.authority_semantics import AuthoritativeStateRecord
 from project_atlas.domain.temporal import CurrentStateRecord
-from project_atlas.portfolio import DEFAULT_STALE_DAYS, build_portfolio_payloads
+from project_atlas.portfolio import (
+    DEFAULT_STALE_DAYS,
+    build_portfolio_payloads,
+    is_untrusted_mtime,
+)
 from project_atlas.schema import SchemaValidationError, validate_record
 from project_atlas.source_identity import canonical_source_sha256
 
@@ -683,8 +687,10 @@ def _parse_freshness_timestamp(value: Any) -> tuple[datetime | None, str | None]
     """Parse objective freshness timestamps.
 
     Returns ``(datetime, None)`` on success, ``(None, "missing")`` when absent,
-    or ``(None, "corrupt")`` when present but unparseable. Corrupt values are
-    never coerced to fresh/stale (fail-closed; no silent normalization).
+    ``(None, "untrusted")`` for Unix-epoch / pre-1980 metadata, or
+    ``(None, "corrupt")`` when present but unparseable. Untrusted and corrupt
+    values are never coerced to fresh/stale (fail-closed; no silent
+    normalization).
     """
     if value is None or value == "":
         return None, "missing"
@@ -696,6 +702,8 @@ def _parse_freshness_timestamp(value: Any) -> tuple[datetime | None, str | None]
         return None, "corrupt"
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
+    if is_untrusted_mtime(parsed):
+        return None, "untrusted"
     return parsed, None
 
 
@@ -740,6 +748,39 @@ def _portfolio_freshness_by_source(vault: Path) -> dict[str, str] | None:
     return labels
 
 
+def _freshness_quarantined_source_ids(vault: Path) -> set[str]:
+    """AS-SEC-001 source ids that must not be individually cited in stale-knowledge.
+
+    Secret-findings.json is a top-level array; injection-findings.json wraps
+    ``{"findings": [...]}``. Both shapes are accepted.
+    """
+    ids: set[str] = set()
+    secret_path = vault / "generated" / "reports" / "secret-findings.json"
+    injection_path = vault / "generated" / "reports" / "injection-findings.json"
+    for path in (secret_path, injection_path):
+        if not path.is_file():
+            continue
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        rows: list[Any]
+        if isinstance(raw, dict):
+            findings = raw.get("findings", [])
+            rows = findings if isinstance(findings, list) else []
+        elif isinstance(raw, list):
+            rows = raw
+        else:
+            continue
+        for finding in rows:
+            if not isinstance(finding, dict):
+                continue
+            source_id = finding.get("source_id")
+            if isinstance(source_id, str) and source_id:
+                ids.add(source_id)
+    return ids
+
+
 def _validate_freshness(
     vault: Path,
     errors: list[str],
@@ -762,14 +803,33 @@ def _validate_freshness(
     if not sources:
         return
     portfolio_labels = _portfolio_freshness_by_source(vault)
+    quarantined_ids = _freshness_quarantined_source_ids(vault)
     for entry in sorted(sources, key=lambda item: str(item.get("source_id", ""))):
         source_id = entry.get("source_id")
         if not isinstance(source_id, str) or not source_id:
+            continue
+        if source_id in quarantined_ids:
+            # AS-SEC-001: quarantined sources are excluded from stale-knowledge
+            # individual citation. Do not demand they appear there (H-006-silent).
             continue
         rel_path = str(entry.get("path", ""))
         # Never echo raw secret-bearing content; path/id metadata only (NFR-004).
         modified_raw = entry.get("modified_at")
         modified_at, status = _parse_freshness_timestamp(modified_raw)
+        if status == "untrusted":
+            finding = _finding(
+                finding_id=_stable_finding_id("H-006-untrusted", source_id),
+                rule_id="H-006-untrusted",
+                severity=Severity.WARNING,
+                gate=ValidationGate.FRESHNESS,
+                message=(
+                    f"freshness untrusted for source {source_id}: "
+                    "epoch/pre-1980 modified_at is missing metadata, not age"
+                ),
+                path=rel_path or None,
+            )
+            findings.append(finding)
+            continue
         if status == "corrupt":
             finding = _finding(
                 finding_id=_stable_finding_id("H-006-corrupt", source_id),
