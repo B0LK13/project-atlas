@@ -383,6 +383,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-D149-OWNER-GATE-NON-ESCALATION-001 authentic estate availability must not rewrite MERGE/SECURITY/other owner gates or set OWNER_CAPABILITY_GRANTED (implemented; MERGE_AUTHORIZATION NOT_GRANTED; authentic O2 post-merge seal OWNER_BLOCKED until AUTHENTIC_ESTATE_ROOT)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
 
