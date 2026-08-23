@@ -310,17 +310,17 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
             continue
         if node.status == "COMPLETED":
             continue
-        if _authentic_o2_package_ready(
+        ready = _authentic_o2_package_ready(
             node.PACKAGE_ID,
             ingest_done=ingest_done,
             compile_done=compile_done,
             query_done=query_done,
-        ):
-            if node.status != "READY":
-                node.status = "READY"
-                node.DEPENDENCIES = []
-                node.OWNER_GATE = "NONE"
-                changed.append(node.NODE_ID)
+        )
+        if ready and node.status != "READY":
+            node.status = "READY"
+            node.DEPENDENCIES = []
+            node.OWNER_GATE = "NONE"
+            changed.append(node.NODE_ID)
     if changed:
         persist_nodes(repo_root, nodes)
     return changed
