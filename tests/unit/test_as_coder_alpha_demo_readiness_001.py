@@ -36,7 +36,7 @@ def test_demo_readiness_harbor_journey_is_honest(tmp_path: Path) -> None:
     assert report["checks"]["drift_consumed"] is True
     assert report["checks"]["next_api_landed"] is False
     assert report["next_api"] == "PENDING_OWNER_HELD_406"
-    assert report["inbox_list"] == "NOT_IMPLEMENTED"
+    assert report["inbox_list"] == "READY"
     by_name = {row["name"]: row for row in report["stages"]}
     assert tuple(row["name"] for row in report["stages"] if row["name"] in JOURNEY) == JOURNEY
     assert by_name["project_root"]["state"] == "READY"
@@ -47,7 +47,7 @@ def test_demo_readiness_harbor_journey_is_honest(tmp_path: Path) -> None:
     assert by_name["overview"]["state"] == "READY"
     assert by_name["architecture"]["state"] in {"READY", "PARTIAL"}
     assert by_name["next"]["state"] == "PARTIAL"
-    assert by_name["inbox"]["state"] == "NOT_IMPLEMENTED"
+    assert by_name["inbox"]["state"] == "READY"
     assert by_name["api_cli_web"]["state"] == "PARTIAL"
     assert "MISSING" not in {row["state"] for row in report["stages"]}
     for stamp in STAMPS:
@@ -63,4 +63,5 @@ def test_demo_readiness_never_claims_ga_or_missing_pass(tmp_path: Path) -> None:
     assert report["honesty"]["demo_is_release"] is False
     assert "MISSING == PASS" not in dumped
     assert report["demo_readiness"] != "PASS"
-    assert report["inbox_list"] != "READY"
+    assert report["inbox_list"] == "READY"
+    assert report["checks"]["inbox_list_implemented"] is True
