@@ -29,6 +29,11 @@ _STACKED_MERGE_BY_PACKAGE: Final[dict[str, tuple[int, int]]] = {
     "AS-ORCH-SELF-WAKE-RESIDENT-DRIVER-001": (435, 436),
 }
 
+
+def stacked_merge_pair_for_package(package_id: str) -> tuple[int, int] | None:
+    """Return (parent_pr, child_pr) for stacked parent packages; else None."""
+    return _STACKED_MERGE_BY_PACKAGE.get(package_id)
+
 # Non-terminal CI / seal states that must deny dependent merge (fail closed).
 _BLOCKING_CI: Final[frozenset[CiStatus]] = frozenset(
     {"PENDING", "UNKNOWN", "CANCELLED", "STALE_SUPERSEDED"}
@@ -255,10 +260,13 @@ def evaluate_dependent_merge_allowed(
         seal_pass = seal_sha_match and parent_seal.ci_conclusion == "success"
 
     # Durable seal is authoritative once written; live CI must not regress below.
+    # ci_observation=None means "no live observation this refresh", not MISSING.
     if parent_seal is None:
         effective = prereq
     elif not seal_pass:
         effective = PrerequisiteSealState.STALE
+    elif ci_observation is None:
+        effective = PrerequisiteSealState.TERMINAL_PASS
     elif prereq not in _TERMINAL_PASS_ONLY:
         # Seal exists but live CI degraded — deny (fail closed).
         effective = (

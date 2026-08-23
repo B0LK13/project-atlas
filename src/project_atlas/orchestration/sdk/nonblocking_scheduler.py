@@ -146,18 +146,28 @@ def bounded_sleep_seconds(
     return min(delay, cap_sec)
 
 
-def _maybe_mint_stacked_parent_seal(root: Path, obs: ExternalObserver) -> None:
-    """Wire D-138 gate: mint parent seal on stacked post-merge CI TERMINAL_PASS."""
-    if obs.expected_head is None or obs.expected_tree is None:
-        return
-    from project_atlas.orchestration.sdk.ci_observer import observe_exact_head_ci
+def _maybe_mint_stacked_parent_seal(root: Path, obs: ExternalObserver) -> bool:
+    """Mint parent seal on stacked post-merge CI TERMINAL_PASS.
+
+    Returns True when the terminal event may be consumed. Returns False when a
+    stacked parent still needs a later remint (transient CI / mint miss).
+    Non-stacked observers never refresh the 435→436 gate artifact.
+    """
     from project_atlas.orchestration.sdk.merge_sequence_gate import (
         on_ci_terminal_pass_for_stacked_merge,
         refresh_dependent_merge_gate_state,
+        stacked_merge_pair_for_package,
     )
 
+    pair = stacked_merge_pair_for_package(obs.package_id)
+    if pair is None:
+        return True
+    if obs.expected_head is None or obs.expected_tree is None:
+        return True
+    from project_atlas.orchestration.sdk.ci_observer import observe_exact_head_ci
+
     ci_obs = observe_exact_head_ci(head_sha=obs.expected_head)
-    on_ci_terminal_pass_for_stacked_merge(
+    seal = on_ci_terminal_pass_for_stacked_merge(
         root,
         package_id=obs.package_id,
         ci_observation=ci_obs,
@@ -165,9 +175,11 @@ def _maybe_mint_stacked_parent_seal(root: Path, obs: ExternalObserver) -> None:
         parent_post_merge_main_sha=obs.expected_head,
         parent_post_merge_tree=obs.expected_tree,
     )
+    if seal is None:
+        return False
     refresh_dependent_merge_gate_state(
         root,
-        child_pr_number=436,
+        child_pr_number=pair[1],
         child_merge_authorized=False,
         parent_merged=True,
         parent_merge_commit=obs.expected_head,
@@ -175,6 +187,7 @@ def _maybe_mint_stacked_parent_seal(root: Path, obs: ExternalObserver) -> None:
         live_tree_sha=obs.expected_tree,
         ci_observation=ci_obs,
     )
+    return True
 
 
 def apply_ci_poll_result(
@@ -281,13 +294,15 @@ def scheduler_tick(
         }:
             continue
         event_key = f"{obs.observer_id}:{obs.status.value}:{obs.external_id}"
+        if obs.status == ObserverStatus.TERMINAL_PASS and not _maybe_mint_stacked_parent_seal(
+            root, obs
+        ):
+            continue
         first = consume_terminal_event(
             root, observer_id=obs.observer_id, event_key=event_key
         )
         if first:
             result.terminal_consumed.append(obs.observer_id)
-            if obs.status == ObserverStatus.TERMINAL_PASS:
-                _maybe_mint_stacked_parent_seal(root, obs)
         else:
             result.duplicate_event_skips += 1
 

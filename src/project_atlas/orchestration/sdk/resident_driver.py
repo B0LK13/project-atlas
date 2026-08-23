@@ -233,13 +233,15 @@ def _arm_consumed(root: Path, *, consumed: list[str], now: float) -> None:
             from project_atlas.orchestration.sdk.merge_sequence_gate import (
                 gate_state_path,
                 refresh_dependent_merge_gate_state,
+                stacked_merge_pair_for_package,
             )
 
-            if obs.expected_head and obs.expected_tree:
+            pair = stacked_merge_pair_for_package(obs.package_id)
+            if pair is not None and obs.expected_head and obs.expected_tree:
                 ci_obs = observe_exact_head_ci(head_sha=obs.expected_head)
                 decision = refresh_dependent_merge_gate_state(
                     root,
-                    child_pr_number=436,
+                    child_pr_number=pair[1],
                     child_merge_authorized=False,
                     parent_merged=True,
                     parent_merge_commit=obs.expected_head,
