@@ -7045,3 +7045,24 @@ Full-suite on this host failed three AS-MVP-001 integration tests: nebula `stale
 ### Validation
 - focused unit + AS-MVP-001 integration — pass
 - ruff/mypy on `portfolio.py` `validation.py` — pass
+
+---
+
+## AS-CODER-ALPHA-ISOLATION-ADV-HARNESS-001 — adversarial isolation on current main
+
+**Date:** 2026-08-23
+**Package:** AS-CODER-ALPHA-ISOLATION-ADV-HARNESS-001
+**Branch:** `cursor/atlas-autonomous-night-cycle-7efe`
+**Base:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Mode:** TESTS_FIRST reconstruction of draft `#423` on live main. No production rewrite.
+
+### Why
+`AS-CODER-ALPHA-044-HIGH` core remediations already pass on main. Remaining executable gap is an adversarial isolation harness (cross-project leak, unknown project, forged id, missing receipt, Windows path forms).
+
+### Honesty
+- `WINDOWS_STRANGER_IV = NOT_CLAIMED`
+- `LENS != AUTHORITY`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Validation
+- `pytest tests/unit/test_as_coder_alpha_isolation_adv_001.py --no-cov` — 11 passed
