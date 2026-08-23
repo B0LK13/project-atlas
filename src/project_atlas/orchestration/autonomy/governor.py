@@ -317,14 +317,14 @@ class AutonomousGovernor:
             worktree=worktree,
             sequence=self._sequence,
         )
+        self._leases.append(lease)
+        self.transition(package_id, NodeState.LEASED, f"LEASED_TO_{agent_id}")
         if self._lease_projection_store is not None:
             project_grant(
                 self._lease_projection_store,
                 lease,
                 live_main=self._current_main,
             )
-        self._leases.append(lease)
-        self.transition(package_id, NodeState.LEASED, f"LEASED_TO_{agent_id}")
         return lease
 
     def execute_leased(self, lease_id: str) -> EvidenceBundle:

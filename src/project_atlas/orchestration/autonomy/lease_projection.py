@@ -288,6 +288,8 @@ def project_grant(store: Path, lease: AgentLease, *, live_main: str) -> LeasePro
                 return current
             raise ProjectionError("lease replay is forbidden", code="LEASE_REPLAY")
         for row in active_rows(current):
+            if row.base_pin != live_main:
+                continue
             if row.package_id == lease.package_id:
                 raise ProjectionError(
                     "duplicate active lease for package",
@@ -314,7 +316,6 @@ def project_release(store: Path, lease: AgentLease, *, live_main: str) -> LeaseP
             found = True
             reject_foreign_worker(row=row, agent_id=lease.agent_id)
             reject_foreign_package(row=row, package_id=lease.package_id)
-            reject_stale_base(row=row, live_main=live_main)
             rows.append(
                 row.model_copy(
                     update={"status": "RELEASED", "released_sequence": lease.sequence}
