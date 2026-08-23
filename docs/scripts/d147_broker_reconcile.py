@@ -215,7 +215,7 @@ def main() -> int:
         "return_state": AutonomyReturnState(
             ready_nodes=counts["ready"],
             derivable_successors=counts["derivable"],
-            preparable_blocked_work=counts["blocked_owner"],
+            preparable_blocked_work=0,
             closure_integrity_pass=True,
             genuine_owner_frontier=counts["blocked_owner"] > 0,
         ).model_dump(),

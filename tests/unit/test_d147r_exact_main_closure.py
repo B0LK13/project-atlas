@@ -118,7 +118,13 @@ def test_operational_pins_disagree_fails_closure(tmp_path: Path) -> None:
     assert not closure_integrity_pass(integrity)
 
 
-def test_case_b_forbidden_on_mixed_packet_state() -> None:
+def test_case_b_owner_frontier_allows_return_when_exhausted() -> None:
+    state = AutonomyReturnState(
+        genuine_owner_frontier=True,
+        closure_integrity_pass=True,
+        preparable_blocked_work=0,
+    )
+    assert may_emit_final_return(state) is True
     state = AutonomyReturnState(
         genuine_owner_frontier=True,
         closure_integrity_pass=False,

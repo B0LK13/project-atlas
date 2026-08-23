@@ -88,7 +88,7 @@ def is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     return proc.returncode == 0
 
 
-def delta_paths(repo: Path, ancestor: str, descendant: str) -> list[str]:
+def delta_paths(repo: Path, ancestor: str, descendant: str) -> list[str] | None:
     if ancestor == descendant:
         return []
     proc = subprocess.run(
@@ -99,7 +99,7 @@ def delta_paths(repo: Path, ancestor: str, descendant: str) -> list[str]:
         check=False,
     )
     if proc.returncode != 0:
-        return []
+        return None
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
@@ -111,7 +111,10 @@ def is_metadata_only_post_cert_delta(
         return True
     if not is_ancestor(repo, ancestor, descendant):
         return False
-    for path in delta_paths(repo, ancestor, descendant):
+    paths = delta_paths(repo, ancestor, descendant)
+    if paths is None:
+        return False
+    for path in paths:
         if not any(path.startswith(prefix) for prefix in _POST_CERT_METADATA_PREFIXES):
             return False
     return True
