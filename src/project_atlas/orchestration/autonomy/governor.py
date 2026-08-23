@@ -14,6 +14,7 @@ from project_atlas.orchestration.autonomy.dag import IllegalTransitionError, app
 from project_atlas.orchestration.autonomy.discovery import collect_live_inventory, discover
 from project_atlas.orchestration.autonomy.evidence import make_bundle, write_bundle
 from project_atlas.orchestration.autonomy.iv_routing import IvRoutingError, route_iv
+from project_atlas.orchestration.autonomy.lease_projection import project_grant, project_release
 from project_atlas.orchestration.autonomy.leases import grant_lease, release_lease
 from project_atlas.orchestration.autonomy.models import (
     AUTONOMY_PACKAGE_ID,
@@ -95,8 +96,10 @@ class AutonomousGovernor:
         current_tree: str,
         trusted_anchor: TrustedAnchorRecord,
         agents: tuple[AgentRecord, ...] = DEFAULT_AGENTS,
+        lease_projection_store: Path | None = None,
     ) -> None:
         self._trusted = trusted_anchor
+        self._lease_projection_store = lease_projection_store
         target_moved = evaluate_target_moved(current_main, current_tree, trusted_anchor)
         self._nodes: list[WorkNode] = []
         self._agents = list(agents)
@@ -314,6 +317,12 @@ class AutonomousGovernor:
             worktree=worktree,
             sequence=self._sequence,
         )
+        if self._lease_projection_store is not None:
+            project_grant(
+                self._lease_projection_store,
+                lease,
+                live_main=self._current_main,
+            )
         self._leases.append(lease)
         self.transition(package_id, NodeState.LEASED, f"LEASED_TO_{agent_id}")
         return lease
@@ -432,9 +441,16 @@ class AutonomousGovernor:
         continuation = select_next(tuple(self._nodes), hard_blockers=tuple(self._hard_blockers))
         for item in self._leases:
             if item.lease_id == lease.lease_id:
+                released = release_lease(item)
+                if self._lease_projection_store is not None:
+                    project_release(
+                        self._lease_projection_store,
+                        released,
+                        live_main=self._current_main,
+                    )
                 self._leases = [
-                    release_lease(item) if item.lease_id == lease.lease_id else item
-                    for item in self._leases
+                    released if row.lease_id == lease.lease_id else row
+                    for row in self._leases
                 ]
                 break
         evidence_path = None
