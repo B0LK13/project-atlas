@@ -6997,3 +6997,51 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-D149R2-EVIDENCE-BINDING-001 — D-148 cert fingerprint fail-closed
+
+**Date:** 2026-08-23
+**Package:** AS-D149R2-EVIDENCE-BINDING-001
+**Branch:** `cursor/atlas-autonomous-night-cycle-7efe`
+**Base:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Mode:** BOUNDED residual. Does not re-implement D-149 owner-gate non-escalation (draft `#446`). Does not merge.
+
+### Why
+Independent review of `#446` found P1-1 still on live `main`: `d148_evidence_applies()` treated a missing `estate_fingerprint` as current. Combined with env-only estate resolution, a drifted corpus could keep `AUTHENTIC_INGEST_SATISFIED` live.
+
+### Fix
+Require recorded root + fingerprint. Empty current fingerprint (marker gone) rejects. Mismatch rejects.
+
+### Honesty
+- `OWNER_GATE_ESCALATION_ON_MAIN = STILL_PRESENT` (`#446` OWNER_BLOCKED merge)
+- `AUTHENTIC_PILOT = NOT_CLAIMED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Validation
+- `pytest tests/unit/test_d148_authentic_estate.py --no-cov` — pass
+- ruff/mypy on `authentic_estate.py` — pass
+
+---
+
+## AS-MVP-001-FRESHNESS-TRUTH-001 — epoch mtime + quarantine H-006
+
+**Date:** 2026-08-23
+**Package:** AS-MVP-001-FRESHNESS-TRUTH-001
+**Branch:** `cursor/atlas-autonomous-night-cycle-7efe`
+**Base:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Mode:** TRUTH/SEC-001 alignment. Does not claim authentic-pilot freshness.
+
+### Why
+Full-suite on this host failed three AS-MVP-001 integration tests: nebula `stale_count=6` from epoch checkout mtimes; K-007 validate failed because H-006 demanded a quarantined source in `stale-knowledge.json`.
+
+### Fix
+- Untrusted (pre-1980) mtimes are unknown, not stale.
+- H-006 `H-006-untrusted` warning; skip silent/launder for those sources.
+- H-006 skips quarantined ids in portfolio citation cross-check.
+- Pilot scenario tests pin copied mtimes.
+
+### Validation
+- focused unit + AS-MVP-001 integration — pass
+- ruff/mypy on `portfolio.py` `validation.py` — pass

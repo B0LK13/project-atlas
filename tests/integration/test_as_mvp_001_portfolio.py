@@ -31,7 +31,13 @@ def _copy_pilots(tmp_path: Path) -> Path:
     regardless of the real filesystem clock or git checkout time."""
     root = tmp_path / "pilots"
     shutil.copytree(PILOTS, root)
-    old = time.time() - STALE_AGE_DAYS * 86400
+    # Pin every copied file to "now" so checkout/container epoch mtimes
+    # cannot falsely age nebula (AS-MVP-001-FRESHNESS-TRUTH-001).
+    now = time.time()
+    for path in root.rglob("*"):
+        if path.is_file():
+            os.utime(path, (now, now))
+    old = now - STALE_AGE_DAYS * 86400
     stale_file = root / "black-agency-os" / "README.md"
     os.utime(stale_file, (old, old))
     return root
