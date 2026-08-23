@@ -254,6 +254,7 @@ def list_inbox_items(
                     receipt_path = _inbox_receipt_path(vault, cid).relative_to(vault).as_posix()
                 except (KnowledgeInboxError, ValueError):
                     receipt_path = "UNKNOWN"
+            receipt_count = receipt.get("item_count") if receipt is not None else None
             items.append(
                 {
                     "receipt_id": cid,
@@ -261,8 +262,9 @@ def list_inbox_items(
                     "status": row_status,
                     "promoted_to_authority": False,
                     "item_count": int(
-                        (receipt.get("item_count") if receipt is not None else None)
-                        or len(payload.get("capture_items") or [])
+                        receipt_count
+                        if receipt_count is not None
+                        else len(payload.get("capture_items") or [])
                     ),
                     "source_kind": "conversation-capture",
                     "summary": _safe_summary(payload.get("summary")),

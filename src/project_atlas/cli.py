@@ -3387,7 +3387,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             print("  boundary: INBOX != AUTHORITY (observations, not Truth Core)")
             if not items:
-                print("  UNKNOWN (no inbox items for project)")
+                print(
+                    f"  {report.get('unknown') or 'UNKNOWN (no inbox items for project)'}"
+                )
             for item in items:
                 print(
                     f"  - {item.get('receipt_id')} [{item.get('status')}] "
