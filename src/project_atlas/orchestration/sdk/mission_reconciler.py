@@ -16,7 +16,10 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from project_atlas.orchestration.autonomy.authentic_estate import authentic_estate_available
+from project_atlas.orchestration.autonomy.authentic_estate import (
+    authentic_estate_available,
+    d148_evidence_applies,
+)
 from project_atlas.orchestration.autonomy.exact_main_closure import cert_evidence_applies_to_head
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, AgentRole, SdkRuntimeError
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
@@ -373,6 +376,8 @@ def _gap_statuses(root: Path, *, main_head: str) -> dict[str, str]:
     if not _cert_evidence_applies(evidence, main_head, root):
         evidence = {}
     d148 = _load_d148_evidence(root)
+    if not d148_evidence_applies(d148, main_head, root):
+        d148 = {}
     estate_ready = authentic_estate_available(root)
     if d148.get("AUTHENTIC_INGEST_SATISFIED"):
         authentic_ingest = "SATISFIED"
@@ -522,20 +527,40 @@ def seed_demo_release_nodes(
             ("AUTHENTIC_COMPILE", "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001"),
             ("AUTHENTIC_QUERY", "AS-CODER-ALPHA-AUTHENTIC-QUERY-001"),
         ):
-            if gaps.get(gap) != "BLOCKED_OWNER":
+            gap_status = gaps.get(gap)
+            if gap_status in _GAP_SATISFIED_STATES:
                 continue
-            add(
-                oid="O2",
-                package=package,
-                kind="IMPLEMENTATION",
-                priority=92,
-                criteria=f"Authentic {gap.lower().replace('_', ' ')} on AUTHENTIC_ESTATE_ROOT",
-                surfaces=["src/project_atlas/", "tests/"],
-                role="IMPLEMENTER",
-                owner_gate="CREDENTIAL",
-                status="BLOCKED_OWNER",
-                deps=["AUTHENTIC_ESTATE_ROOT"],
-            )
+            if gap_status == "NOT_IMPLEMENTED":
+                deps: list[str] = []
+                if gap == "AUTHENTIC_COMPILE":
+                    deps = ["AS-CODER-ALPHA-AUTHENTIC-INGEST-001"]
+                elif gap == "AUTHENTIC_QUERY":
+                    deps = ["AS-CODER-ALPHA-AUTHENTIC-COMPILE-001"]
+                add(
+                    oid="O2",
+                    package=package,
+                    kind="IMPLEMENTATION",
+                    priority=92,
+                    criteria=f"Authentic {gap.lower().replace('_', ' ')} on AUTHENTIC_ESTATE_ROOT",
+                    surfaces=["src/project_atlas/", "tests/"],
+                    role="IMPLEMENTER",
+                    owner_gate="NONE",
+                    status="READY",
+                    deps=deps,
+                )
+            elif gap_status == "BLOCKED_OWNER":
+                add(
+                    oid="O2",
+                    package=package,
+                    kind="IMPLEMENTATION",
+                    priority=92,
+                    criteria=f"Authentic {gap.lower().replace('_', ' ')} on AUTHENTIC_ESTATE_ROOT",
+                    surfaces=["src/project_atlas/", "tests/"],
+                    role="IMPLEMENTER",
+                    owner_gate="CREDENTIAL",
+                    status="BLOCKED_OWNER",
+                    deps=["AUTHENTIC_ESTATE_ROOT"],
+                )
     if gaps.get("CLEAN_MACHINE_BOOTSTRAP") not in _GAP_SATISFIED_STATES:
         add(
             oid="O3",

@@ -95,15 +95,55 @@ def estate_fingerprint(estate_root: Path) -> str:
     return ""
 
 
+def d148_evidence_applies(
+    evidence: dict[str, Any],
+    main_head: str,
+    repo_root: Path,
+) -> bool:
+    """D-148 certification applies only to current main head and estate identity."""
+    if not evidence:
+        return False
+    pin = str(evidence.get("live_main_head") or "")
+    if not pin or len(pin) != 40:
+        return False
+    from project_atlas.orchestration.autonomy.exact_main_closure import (
+        cert_evidence_applies_to_head,
+        is_ancestor,
+        is_metadata_only_post_cert_delta,
+    )
+
+    head_ok = pin == main_head or cert_evidence_applies_to_head(
+        {"CERTIFICATION_TARGET_HEAD": pin},
+        main_head,
+        repo_root,
+    )
+    if not head_ok and is_ancestor(repo_root, pin, main_head):
+        head_ok = is_metadata_only_post_cert_delta(repo_root, pin, main_head)
+    if not head_ok:
+        return False
+    estate = resolve_authentic_estate_root(repo_root)
+    if estate is None:
+        return False
+    recorded_root = str(evidence.get("AUTHENTIC_ESTATE_ROOT") or "").strip()
+    if recorded_root and str(estate.resolve()) != recorded_root:
+        return False
+    recorded_fp = str(evidence.get("estate_fingerprint") or "").strip()
+    if recorded_fp:
+        current_fp = estate_fingerprint(estate)
+        if current_fp and recorded_fp != current_fp:
+            return False
+    return True
+
+
 def run_estate_preflight(estate_root: Path) -> EstatePreflight:
     root = estate_root.resolve()
     marker = root / MARKER
     lowered = str(root).lower()
     not_fixture = not any(frag in lowered for frag in _NON_AUTHENTIC_FRAGMENTS)
     not_demo = "demo" not in lowered or "dev-ai" in lowered
-    authentic_marker = marker.is_file() and not is_fixture_or_temp_marker(marker)
     project_id: str | None = None
     project_uuid: str | None = None
+    marker_parse_ok = False
     if marker.is_file():
         try:
             import yaml
@@ -112,10 +152,20 @@ def run_estate_preflight(estate_root: Path) -> EstatePreflight:
             if isinstance(data, dict):
                 proj = data.get("project")
                 if isinstance(proj, dict):
-                    project_id = str(proj.get("id") or "") or None
-                project_uuid = str(data.get("project_uuid") or "") or None
+                    raw_id = str(proj.get("id") or "").strip()
+                    if raw_id:
+                        project_id = raw_id
+                        marker_parse_ok = True
+                raw_uuid = str(data.get("project_uuid") or "").strip()
+                if raw_uuid:
+                    project_uuid = raw_uuid
         except Exception:
-            pass
+            marker_parse_ok = False
+    authentic_marker = (
+        marker.is_file()
+        and marker_parse_ok
+        and not is_fixture_or_temp_marker(marker)
+    )
     readable = os.access(root, os.R_OK)
     preflight_pass = all(
         [
@@ -225,6 +275,15 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
                 d148 = raw
         except (OSError, json.JSONDecodeError):
             d148 = {}
+    proc = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    main_head = proc.stdout.strip() if proc.returncode == 0 else ""
+    if not d148_evidence_applies(d148, main_head, repo_root):
+        d148 = {}
     ingest_done = bool(d148.get("AUTHENTIC_INGEST_SATISFIED"))
     compile_done = bool(d148.get("AUTHENTIC_COMPILE_SATISFIED"))
     query_done = bool(d148.get("AUTHENTIC_QUERY_SATISFIED"))
@@ -239,9 +298,17 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
         pkg = node.PACKAGE_ID
         if pkg == "AS-CODER-ALPHA-AUTHENTIC-INGEST-001" and not ingest_done:
             target = "READY"
-        elif pkg == "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001" and ingest_done and not compile_done:
+        elif (
+            pkg == "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001"
+            and ingest_done
+            and not compile_done
+        ):
             target = "READY"
-        elif pkg == "AS-CODER-ALPHA-AUTHENTIC-QUERY-001" and compile_done and not query_done:
+        elif (
+            pkg == "AS-CODER-ALPHA-AUTHENTIC-QUERY-001"
+            and compile_done
+            and not query_done
+        ):
             target = "READY"
         if target and node.status != target:
             node.status = target

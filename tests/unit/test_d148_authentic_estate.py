@@ -33,6 +33,15 @@ def test_estate_preflight_passes_clean_marker(tmp_path: Path) -> None:
     assert preflight.project_id == "sample"
 
 
+def test_estate_preflight_fails_malformed_marker(tmp_path: Path) -> None:
+    repo = tmp_path / "estate"
+    repo.mkdir()
+    (repo / ".atlas-project.yaml").write_text("not: valid: yaml: [[", encoding="utf-8")
+    preflight = run_estate_preflight(repo)
+    assert not preflight.preflight_pass
+    assert preflight.project_id is None
+
+
 def test_reject_malformed_hash(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
     assert reject_mixed_head_tree_packet("short", "also-short", repo)

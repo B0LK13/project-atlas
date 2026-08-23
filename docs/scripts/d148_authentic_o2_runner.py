@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -35,6 +36,7 @@ from project_atlas.orchestration.sdk.mission_reconciler import (
 )
 
 RECEIPT_DIR_REL = Path(".atlas") / "orchestration" / "sdk-runtime"
+BIND_RELATIVE = Path(".atlas") / "connect.json"
 
 
 def _rt(root: Path) -> Path:
@@ -45,7 +47,26 @@ def _write(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _run_ask(vault: Path, project: str, question: str, repo: Path) -> dict[str, Any]:
+def _hash_generated_tree(vault: Path) -> dict[str, str]:
+    generated = vault / "generated"
+    if not generated.is_dir():
+        return {}
+    out: dict[str, str] = {}
+    for path in sorted(generated.rglob("*")):
+        if path.is_file():
+            rel = path.relative_to(generated).as_posix()
+            out[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return out
+
+
+def _run_ask(
+    vault: Path,
+    project: str,
+    question: str,
+    repo: Path,
+    *,
+    expect_unknown: bool = False,
+) -> dict[str, Any]:
     proc = subprocess.run(
         [
             sys.executable,
@@ -67,17 +88,23 @@ def _run_ask(vault: Path, project: str, question: str, repo: Path) -> dict[str, 
     )
     out: dict[str, Any] = {
         "question": question,
+        "expect_unknown": expect_unknown,
         "exit_code": proc.returncode,
         "pass": False,
     }
     if proc.returncode == 0:
         try:
             payload = json.loads(proc.stdout)
+            status = payload.get("status")
+            evidence_count = int(payload.get("evidence_count") or 0)
             out["payload"] = {
-                "status": payload.get("status"),
-                "evidence_count": payload.get("evidence_count"),
+                "status": status,
+                "evidence_count": evidence_count,
             }
-            out["pass"] = payload.get("status") in {"known", "unknown"}
+            if expect_unknown:
+                out["pass"] = status == "unknown"
+            else:
+                out["pass"] = status == "known" and evidence_count > 0
         except json.JSONDecodeError:
             out["stderr_tail"] = proc.stderr[-500:]
     else:
@@ -111,6 +138,15 @@ def _update_o2_objectives(root: Path, cert: dict[str, Any]) -> None:
     persist_objectives(root, objectives)
 
 
+def _restore_estate_bind(estate: Path, prior_bind: str | None) -> None:
+    bind_path = estate / BIND_RELATIVE
+    if prior_bind is not None:
+        bind_path.parent.mkdir(parents=True, exist_ok=True)
+        bind_path.write_text(prior_bind, encoding="utf-8")
+    elif bind_path.is_file():
+        bind_path.unlink()
+
+
 def run_authentic_o2(
     repo_root: Path,
     *,
@@ -140,6 +176,11 @@ def run_authentic_o2(
     if not closure_integrity_pass(integrity):
         raise SystemExit("closure integrity failed before authentic O2")
 
+    bind_path = estate / BIND_RELATIVE
+    prior_bind: str | None = None
+    if bind_path.is_file():
+        prior_bind = bind_path.read_text(encoding="utf-8")
+
     work_parent = Path(tempfile.mkdtemp(prefix="atlas-d148-"))
     vault = work_parent / "vault"
     vault.mkdir(parents=True)
@@ -156,26 +197,52 @@ def run_authentic_o2(
         except (OSError, json.JSONDecodeError):
             pass
 
-    steps["build_indexes"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-    steps["build_portfolio"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
-    steps["validate_1"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
-    steps["validate_2"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
+    ingest_pass = bool(steps["connect"]) and int(steps.get("connect_documents") or 0) > 0
+
+    if ingest_pass:
+        steps["build_indexes"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
+        steps["build_portfolio"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
+        steps["validate_1"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
+        first_hashes = _hash_generated_tree(vault)
+        steps["build_indexes_2"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
+        steps["build_portfolio_2"] = main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
+        second_hashes = _hash_generated_tree(vault)
+        steps["validate_2"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
+        steps["compile_hash_stable"] = first_hashes == second_hashes and bool(first_hashes)
+    else:
+        steps["build_indexes"] = False
+        steps["build_portfolio"] = False
+        steps["validate_1"] = False
+        steps["build_indexes_2"] = False
+        steps["build_portfolio_2"] = False
+        steps["validate_2"] = False
+        steps["compile_hash_stable"] = False
 
     queries = [
-        ("direct_fact", "What is the primary purpose of this project?"),
-        ("readme", "What does the README describe?"),
-        ("negative", "What is the quarterly revenue for harbor-api?"),
-        ("project_wide", "List main technologies used"),
-        ("diagnostic", "What validation warnings exist?"),
+        ("direct_fact", "What is the primary purpose of this project?", False),
+        ("readme", "What does the README describe?", False),
+        ("negative", "What is the quarterly revenue for harbor-api?", True),
+        ("project_wide", "List main technologies used", False),
+        ("diagnostic", "What validation warnings exist?", False),
     ]
-    query_results = [_run_ask(vault, project_id, q, repo_root) for _, q in queries]
+    query_results = [
+        _run_ask(vault, project_id, question, repo_root, expect_unknown=expect_unknown)
+        for _, question, expect_unknown in queries
+    ]
     steps["queries"] = query_results
-    steps["query_pass"] = sum(1 for q in query_results if q.get("pass")) >= 3
+    positive_pass = sum(
+        1 for q in query_results if not q.get("expect_unknown") and q.get("pass")
+    )
+    negative_pass = any(
+        q.get("expect_unknown") and q.get("pass") for q in query_results
+    )
+    steps["query_pass"] = positive_pass >= 3 and negative_pass
 
-    ingest_pass = steps["connect"] and steps.get("connect_documents", 0) > 0
-    compile_pass = steps["build_indexes"] and steps["build_portfolio"] and steps["validate_1"]
-    compile_idempotent = steps["validate_2"]
-    query_pass = bool(steps["query_pass"])
+    compile_pass = ingest_pass and all(
+        steps.get(k) for k in ("build_indexes", "build_portfolio", "validate_1")
+    )
+    compile_idempotent = ingest_pass and bool(steps.get("compile_hash_stable"))
+    query_pass = ingest_pass and compile_pass and bool(steps["query_pass"])
 
     cert = {
         "directive": "D-148",
@@ -215,6 +282,7 @@ def run_authentic_o2(
 
     if not keep_vault:
         shutil.rmtree(work_parent, ignore_errors=True)
+        _restore_estate_bind(estate, prior_bind)
     else:
         cert["vault_path"] = str(vault)
 
