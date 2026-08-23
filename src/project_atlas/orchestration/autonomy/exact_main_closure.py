@@ -14,6 +14,12 @@ PACKAGE_ID: Final[str] = "AS-D147R-EXACT-MAIN-CLOSURE-001"
 _RUNBOOK_REL = Path("docs/productization/CLEAN-MACHINE-PREP-RUNBOOK.md")
 _RUNBOOK_HEAD_RE = re.compile(r'\$TARGET_HEAD\s*=\s*"([0-9a-f]{40})"')
 _RUNBOOK_TREE_LINE_RE = re.compile(r'`TREE`\s*=\s*`([0-9a-f]{40})`')
+_SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+_POST_CERT_METADATA_PREFIXES: Final[tuple[str, ...]] = (
+    "docs/",
+    "tests/",
+    "src/project_atlas/orchestration/",
+)
 
 
 class GitObjectPin(BaseModel):
@@ -42,6 +48,8 @@ class ClosureIntegrity(BaseModel):
     operational_pin_tree: str | None = None
     operational_pins_match_cert_target: bool = False
     live_main_advanced_past_cert_target: bool = False
+    post_cert_delta_metadata_only: bool = True
+    live_matches_integrated_main: bool = True
     semantic_model: str = "IMMUTABLE_CERTIFICATION_TARGET"
 
 
@@ -80,6 +88,48 @@ def is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
     return proc.returncode == 0
 
 
+def delta_paths(repo: Path, ancestor: str, descendant: str) -> list[str]:
+    if ancestor == descendant:
+        return []
+    proc = subprocess.run(
+        ["git", "diff", "--name-only", ancestor, descendant],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        return []
+    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def is_metadata_only_post_cert_delta(
+    repo: Path, ancestor: str, descendant: str
+) -> bool:
+    """Post-cert main advance must touch orchestration/docs/tests surfaces only."""
+    if ancestor == descendant:
+        return True
+    if not is_ancestor(repo, ancestor, descendant):
+        return False
+    for path in delta_paths(repo, ancestor, descendant):
+        if not any(path.startswith(prefix) for prefix in _POST_CERT_METADATA_PREFIXES):
+            return False
+    return True
+
+
+def is_integrated_main_head(repo: Path, head: str) -> bool:
+    """Live tip must match origin/main when that ref is available."""
+    proc = subprocess.run(
+        ["git", "rev-parse", "--verify", "refs/remotes/origin/main"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        return True
+    return head == proc.stdout.strip()
+
+
 def read_operational_pins(repo: Path) -> tuple[str | None, str | None]:
     runbook = repo / _RUNBOOK_REL
     if not runbook.is_file():
@@ -107,6 +157,11 @@ def inspect_closure_integrity(
     pin_head, pin_tree = read_operational_pins(repo)
     cert_ancestor = is_ancestor(repo, certification_target_head, live.head)
     pins_match = pin_head == certification_target_head and pin_tree == cert_tree
+    advanced = live.head != certification_target_head and cert_ancestor
+    metadata_only = is_metadata_only_post_cert_delta(
+        repo, certification_target_head, live.head
+    )
+    integrated_main = is_integrated_main_head(repo, live.head)
     return ClosureIntegrity(
         live_main_head=live.head,
         live_main_tree=live.tree,
@@ -118,20 +173,40 @@ def inspect_closure_integrity(
         operational_pin_head=pin_head,
         operational_pin_tree=pin_tree,
         operational_pins_match_cert_target=pins_match,
-        live_main_advanced_past_cert_target=live.head != certification_target_head,
+        live_main_advanced_past_cert_target=advanced,
+        post_cert_delta_metadata_only=metadata_only,
+        live_matches_integrated_main=integrated_main,
         semantic_model="IMMUTABLE_CERTIFICATION_TARGET",
     )
 
 
 def closure_integrity_pass(integrity: ClosureIntegrity) -> bool:
-    return all(
+    base = all(
         [
             integrity.live_head_tree_coherent,
             integrity.cert_target_head_tree_coherent,
             integrity.certification_target_is_ancestor_of_live_main,
             integrity.operational_pins_match_cert_target,
+            integrity.live_matches_integrated_main,
         ]
     )
+    if not base:
+        return False
+    if integrity.live_main_advanced_past_cert_target:
+        return integrity.post_cert_delta_metadata_only
+    return True
+
+
+def _live_main_classification(integrity: ClosureIntegrity) -> str:
+    if integrity.live_main_head == integrity.certification_target_head:
+        return "AT_TARGET"
+    if not integrity.certification_target_is_ancestor_of_live_main:
+        return "FAIL_NOT_ANCESTOR"
+    if not integrity.live_matches_integrated_main:
+        return "FAIL_NOT_INTEGRATED_MAIN"
+    if integrity.post_cert_delta_metadata_only:
+        return "PASS"
+    return "FAIL_UNCERTIFIED_DELTA"
 
 
 def closure_integrity_report(integrity: ClosureIntegrity) -> dict[str, Any]:
@@ -142,9 +217,7 @@ def closure_integrity_report(integrity: ClosureIntegrity) -> dict[str, Any]:
         "HEAD_TREE_COHERENCE": "PASS" if (
             integrity.live_head_tree_coherent and integrity.cert_target_head_tree_coherent
         ) else "FAIL",
-        "LIVE_MAIN_CLASSIFICATION": (
-            "PASS" if integrity.live_main_advanced_past_cert_target else "AT_TARGET"
-        ),
+        "LIVE_MAIN_CLASSIFICATION": _live_main_classification(integrity),
         "CERTIFICATION_PIN_SEMANTICS": (
             "PASS" if integrity.operational_pins_match_cert_target else "FAIL"
         ),
@@ -156,11 +229,40 @@ def closure_integrity_report(integrity: ClosureIntegrity) -> dict[str, Any]:
         "certification_target_is_ancestor_of_live_main": (
             integrity.certification_target_is_ancestor_of_live_main
         ),
+        "post_cert_delta_metadata_only": integrity.post_cert_delta_metadata_only,
+        "live_matches_integrated_main": integrity.live_matches_integrated_main,
         "merge_authorized": False,
     }
 
 
 def reject_mixed_head_tree_packet(head: str, tree: str, repo: Path) -> bool:
     """True when packet must be rejected (incoherent HEAD/TREE pair)."""
+    if not _SHA40_RE.fullmatch(head) or not _SHA40_RE.fullmatch(tree):
+        return True
     pin = GitObjectPin(head=head, tree=tree)
     return not validate_head_tree_coherence(pin, repo)
+
+
+def cert_evidence_applies_to_head(
+    evidence: dict[str, Any],
+    main_head: str,
+    repo: Path,
+) -> bool:
+    """Certification evidence applies to head or metadata-only post-cert descendant."""
+    if not evidence:
+        return False
+    pins = [
+        str(evidence.get("MERGE_COMMIT") or ""),
+        str(evidence.get("RELEASE_MAIN_SHA") or ""),
+        str(evidence.get("POST_MERGE_MAIN") or ""),
+        str(evidence.get("INITIAL_MAIN") or ""),
+        str(evidence.get("CERTIFICATION_TARGET_HEAD") or ""),
+    ]
+    if main_head in pins:
+        return True
+    return any(
+        len(pin) == 40
+        and is_ancestor(repo, pin, main_head)
+        and is_metadata_only_post_cert_delta(repo, pin, main_head)
+        for pin in pins
+    )

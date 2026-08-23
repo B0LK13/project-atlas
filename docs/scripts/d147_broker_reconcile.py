@@ -14,6 +14,7 @@ from project_atlas.orchestration.autonomy.exact_main_closure import (
     inspect_closure_integrity,
     read_operational_pins,
 )
+from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
 from project_atlas.orchestration.sdk.mission_reconciler import (
     _runbook_pin_current,
     load_nodes,
@@ -211,6 +212,13 @@ def main() -> int:
         "remediation_pending": 0,
         "stale_blocks": 0,
         "return_gate": counts["ready"] > 0 or counts["derivable"] > 0,
+        "return_state": AutonomyReturnState(
+            ready_nodes=counts["ready"],
+            derivable_successors=counts["derivable"],
+            preparable_blocked_work=counts["blocked_owner"],
+            closure_integrity_pass=True,
+            genuine_owner_frontier=counts["blocked_owner"] > 0,
+        ).model_dump(),
     }
     _write(_rt(root) / "d147-checkpoint.json", checkpoint)
     print(json.dumps(checkpoint, indent=2))

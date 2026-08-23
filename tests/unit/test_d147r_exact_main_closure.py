@@ -90,8 +90,7 @@ def test_immutable_target_ancestor_model(tmp_path: Path) -> None:
         f'$TARGET_HEAD = "{cert_head}"\n- `TREE` = `{cert_tree}`\n',
         encoding="utf-8",
     )
-    (repo / "meta.txt").write_text("pin\n", encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "add", runbook], cwd=repo, check=True, capture_output=True)
     subprocess.run(["git", "commit", "-m", "metadata"], cwd=repo, check=True, capture_output=True)
     integrity = inspect_closure_integrity(
         repo, certification_target_head=cert_head, certification_target_tree=cert_tree
@@ -125,6 +124,32 @@ def test_case_b_forbidden_on_mixed_packet_state() -> None:
         closure_integrity_pass=False,
     )
     assert may_emit_final_return(state) is False
+
+
+def test_malformed_hash_packet_rejected(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    assert reject_mixed_head_tree_packet("short", "also-short", repo)
+
+
+def test_production_delta_fails_closure(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    cert_head = _head(repo)
+    cert_tree = _tree(repo, cert_head)
+    (repo / "docs" / "productization").mkdir(parents=True)
+    runbook = repo / "docs/productization/CLEAN-MACHINE-PREP-RUNBOOK.md"
+    runbook.write_text(
+        f'$TARGET_HEAD = "{cert_head}"\n- `TREE` = `{cert_tree}`\n',
+        encoding="utf-8",
+    )
+    (repo / "src").mkdir()
+    (repo / "src" / "production.py").write_text("x = 1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "prod"], cwd=repo, check=True, capture_output=True)
+    integrity = inspect_closure_integrity(
+        repo, certification_target_head=cert_head, certification_target_tree=cert_tree
+    )
+    assert not integrity.post_cert_delta_metadata_only
+    assert not closure_integrity_pass(integrity)
 
 
 def test_closure_model_fields() -> None:

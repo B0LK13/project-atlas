@@ -16,7 +16,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from project_atlas.orchestration.autonomy.exact_main_closure import is_ancestor
+from project_atlas.orchestration.autonomy.exact_main_closure import cert_evidence_applies_to_head
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, AgentRole, SdkRuntimeError
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
 
@@ -324,19 +324,8 @@ def _objective_autonomous_met(obj: MissionObjective) -> bool:
 
 
 def _cert_evidence_applies(evidence: dict[str, Any], main_head: str, root: Path) -> bool:
-    """Checkpoint certification applies to reconcile head or its certified ancestor."""
-    if not evidence:
-        return False
-    pins = [
-        str(evidence.get("MERGE_COMMIT") or ""),
-        str(evidence.get("RELEASE_MAIN_SHA") or ""),
-        str(evidence.get("POST_MERGE_MAIN") or ""),
-        str(evidence.get("INITIAL_MAIN") or ""),
-        str(evidence.get("CERTIFICATION_TARGET_HEAD") or ""),
-    ]
-    if main_head in pins:
-        return True
-    return any(len(pin) == 40 and is_ancestor(root, pin, main_head) for pin in pins)
+    """Checkpoint certification applies to reconcile head or metadata-only descendant."""
+    return cert_evidence_applies_to_head(evidence, main_head, root)
 
 
 def _gap_package_id(gap: str, *, prefix: str = "AS-CODER-ALPHA") -> str:
