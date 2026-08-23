@@ -386,6 +386,8 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-D149-OWNER-GATE-NON-ESCALATION-001 authentic estate availability must not rewrite MERGE/SECURITY/other owner gates or set OWNER_CAPABILITY_GRANTED (implemented; MERGE_AUTHORIZATION NOT_GRANTED; authentic O2 post-merge seal OWNER_BLOCKED until AUTHENTIC_ESTATE_ROOT)
 - [x] AS-D149R-OWNER-GATE-BINDING-001 D-149 residual close: apply() must not write availability on integrity failure; present credential missing fingerprint/root/head is rejected (implemented; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-D148-ESTATE-CORPUS-FINGERPRINT-001 estate fingerprint binds marker plus source corpus so document edits invalidate stale D-148/D-149 credentials (implemented; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-CONNECT-PORTFOLIO-BITEMPORAL-PARITY-001 ``atlas connect --portfolio`` derives bitemporal catalogs like CLI ``build-portfolio``; incremental skip refuses missing portfolio artifacts (implemented; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-ORCH-D147-TERMINAL-NONTERMINAL-STATES-001 D-147 snapshot/return-state counts DISPATCHED/RUNNING/FAILED/BLOCKED_DEPENDENCY so project_terminal cannot ignore active work (implemented; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
 

@@ -16,6 +16,7 @@ from project_atlas.orchestration.autonomy.exact_main_closure import (
 )
 from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
 from project_atlas.orchestration.sdk.mission_reconciler import (
+    _objective_autonomous_met,
     _runbook_pin_current,
     load_nodes,
     load_objectives,
@@ -144,18 +145,40 @@ def refresh_objectives(root: Path, cert_head: str) -> None:
     persist_objectives(root, objectives)
 
 
+def _project_terminal(root: Path, counts: dict[str, int]) -> bool:
+    """True only when every objective is autonomously met and no node is active."""
+    if counts.get("active_nonterminal", 0) > 0:
+        return False
+    objectives = load_objectives(root)
+    if not objectives:
+        return False
+    return all(_objective_autonomous_met(obj) for obj in objectives)
+
+
 def snapshot_counts(root: Path) -> dict[str, int]:
     nodes = load_nodes(root)
     from collections import Counter
 
     c = Counter(n.status for n in nodes.values())
+    active_nonterminal = (
+        c.get("READY", 0)
+        + c.get("DISPATCHED", 0)
+        + c.get("RUNNING", 0)
+        + c.get("FAILED", 0)
+        + c.get("BLOCKED_DEPENDENCY", 0)
+    )
     return {
         "ready": c.get("READY", 0),
         "derivable": c.get("DERIVABLE", 0),
+        "dispatched": c.get("DISPATCHED", 0),
+        "running": c.get("RUNNING", 0),
+        "failed": c.get("FAILED", 0),
+        "blocked_dependency": c.get("BLOCKED_DEPENDENCY", 0),
         "blocked_owner": c.get("BLOCKED_OWNER", 0),
         "blocked_external": c.get("BLOCKED_EXTERNAL", 0),
         "completed": c.get("COMPLETED", 0),
         "superseded": c.get("SUPERSEDED", 0),
+        "active_nonterminal": active_nonterminal,
     }
 
 
@@ -211,13 +234,16 @@ def main() -> int:
         "certification_pending": 0,
         "remediation_pending": 0,
         "stale_blocks": 0,
-        "return_gate": counts["ready"] > 0 or counts["derivable"] > 0,
+        "return_gate": counts["active_nonterminal"] > 0 or counts["derivable"] > 0,
         "return_state": AutonomyReturnState(
             ready_nodes=counts["ready"],
+            running_nodes=counts["dispatched"] + counts["running"],
+            recoverable_failed_nodes=counts["failed"],
             derivable_successors=counts["derivable"],
-            preparable_blocked_work=0,
+            preparable_blocked_work=counts["blocked_dependency"],
             closure_integrity_pass=True,
             genuine_owner_frontier=counts["blocked_owner"] > 0,
+            project_terminal=_project_terminal(root, counts),
         ).model_dump(),
     }
     _write(_rt(root) / "d147-checkpoint.json", checkpoint)

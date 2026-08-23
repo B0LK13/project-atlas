@@ -5,6 +5,64 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-ORCH-D147-TERMINAL-NONTERMINAL-STATES-001 — terminal detection honesty
+
+**Date:** 2026-08-23
+**Base:** live `origin/main` `4e71cce0d1c97f408347e256300a41590da4c352`
+**Branch:** `cursor/atlas-autonomous-night-cycle-0e68`
+
+### Defect
+
+``snapshot_counts()`` ignored DISPATCHED/RUNNING/FAILED/BLOCKED_DEPENDENCY.
+``AutonomyReturnState`` left ``running_nodes`` and ``recoverable_failed_nodes``
+at zero, so a satisfied objective set could look terminal while work was active.
+
+### Fix
+
+Counts now include those states. ``project_terminal`` requires every objective
+autonomously met **and** ``active_nonterminal == 0``.
+
+### Commands / results
+
+```
+pytest tests/unit/test_d147_broker_reconcile_adv.py --no-cov
+5 passed
+```
+
+---
+
+## AS-CONNECT-PORTFOLIO-BITEMPORAL-PARITY-001 — connect --portfolio Time Machine
+
+**Date:** 2026-08-23
+**Base:** live `origin/main` `4e71cce0d1c97f408347e256300a41590da4c352`
+**Branch:** `cursor/atlas-autonomous-night-cycle-0e68`
+**Mode:** BOUNDED_PARITY_FIX.
+
+### Defect
+
+``connect_project(include_portfolio=True)`` called ``build_portfolio()`` only.
+CLI ``atlas build-portfolio`` also derives ``generated/ops/bitemporal/``.
+Incremental skip checked indexes but not portfolio artifacts.
+
+### Fix
+
+Connect --portfolio now runs ``build_bitemporal_catalogs``. Incremental
+reconnect with ``include_portfolio`` refuses skip when ``generated/portfolio``
+is absent.
+
+### Commands / results
+
+```
+pytest tests/unit/test_as_coder_alpha_connect_001.py tests/unit/test_as_coder_alpha_incremental_connect_001.py --no-cov
+23 passed
+```
+
+### Honesty
+
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
 ## AS-D148-ESTATE-CORPUS-FINGERPRINT-001 — corpus-bound estate identity
 
 **Date:** 2026-08-23

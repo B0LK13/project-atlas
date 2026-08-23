@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from project_atlas.orchestration.sdk.mission_reconciler import (
     interpret_receipt,
     load_nodes,
     mission_reconcile,
+    persist_nodes,
 )
 
 
@@ -147,3 +149,63 @@ def test_closed_loop_no_ready_replenish_when_objectives_met(tmp_path: Path) -> N
     closed_loop_tick(tmp_path, main_head="6c3e74964d023cdcb55c3b77d6d029b095d578c6")
     nodes = load_nodes(tmp_path)
     assert sum(1 for n in nodes.values() if n.status == "READY") == 0
+
+
+def _load_d147_script() -> object:
+    path = Path(__file__).resolve().parents[2] / "docs" / "scripts" / "d147_broker_reconcile.py"
+    spec = importlib.util.spec_from_file_location("d147_broker_reconcile", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_snapshot_counts_include_active_nonterminal_states(tmp_path: Path) -> None:
+    d147 = _load_d147_script()
+    persist_nodes(
+        tmp_path,
+        {
+            "run": WorkNode(
+                NODE_ID="run",
+                OBJECTIVE_ID="O1",
+                PACKAGE_ID="AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001",
+                TASK_KIND="IMPLEMENTATION",
+                PRIORITY=50,
+                DEPENDENCIES=[],
+                ALLOWED_PATHS=["src/"],
+                SURFACE_SET=["src/"],
+                WORKER_ROLE="IMPLEMENTER",
+                ACCEPTANCE_CRITERIA="running",
+                REQUIRED_VERIFICATION=["unit"],
+                OWNER_GATE="NONE",
+                GENERATION=1,
+                IDEMPOTENCY_KEY="run",
+                status="RUNNING",
+                fingerprint="run",
+            ),
+            "fail": WorkNode(
+                NODE_ID="fail",
+                OBJECTIVE_ID="O1",
+                PACKAGE_ID="AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001",
+                TASK_KIND="IMPLEMENTATION",
+                PRIORITY=50,
+                DEPENDENCIES=[],
+                ALLOWED_PATHS=["src/"],
+                SURFACE_SET=["src/"],
+                WORKER_ROLE="IMPLEMENTER",
+                ACCEPTANCE_CRITERIA="failed",
+                REQUIRED_VERIFICATION=["unit"],
+                OWNER_GATE="NONE",
+                GENERATION=1,
+                IDEMPOTENCY_KEY="fail",
+                status="FAILED",
+                fingerprint="fail",
+            ),
+        },
+    )
+    counts = d147.snapshot_counts(tmp_path)
+    assert counts["running"] == 1
+    assert counts["failed"] == 1
+    assert counts["ready"] == 0
+    assert counts["active_nonterminal"] == 2
+    assert d147._project_terminal(tmp_path, counts) is False
