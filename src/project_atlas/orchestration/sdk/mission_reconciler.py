@@ -322,6 +322,24 @@ def _objective_autonomous_met(obj: MissionObjective) -> bool:
     return obj.current_state in _AUTONOMOUS_MET_STATES
 
 
+def _cert_evidence_applies(evidence: dict[str, Any], main_head: str) -> bool:
+    """Checkpoint certification applies only to the reconciled exact main head."""
+    if not evidence:
+        return False
+    pins = [
+        str(evidence.get("MERGE_COMMIT") or ""),
+        str(evidence.get("RELEASE_MAIN_SHA") or ""),
+        str(evidence.get("POST_MERGE_MAIN") or ""),
+        str(evidence.get("INITIAL_MAIN") or ""),
+    ]
+    return main_head in pins
+
+
+def _gap_package_id(gap: str, *, prefix: str = "AS-CODER-ALPHA") -> str:
+    slug = gap.replace("_", "-")
+    return f"{prefix}-{slug}-001"
+
+
 def _load_cert_evidence(root: Path) -> dict[str, Any]:
     path = _rt(root) / "d146-checkpoint.json"
     if not path.is_file():
@@ -333,7 +351,7 @@ def _load_cert_evidence(root: Path) -> dict[str, Any]:
         return {}
 
 
-def _runbook_pin_current(root: Path) -> bool:
+def _runbook_pin_current(root: Path, *, main_head: str) -> bool:
     runbook = root / "docs" / "productization" / "CLEAN-MACHINE-PREP-RUNBOOK.md"
     if not runbook.is_file():
         return False
@@ -341,19 +359,21 @@ def _runbook_pin_current(root: Path) -> bool:
         text = runbook.read_text(encoding="utf-8")
     except OSError:
         return False
-    return _CERTIFIED_MAIN_HEAD in text
+    return main_head in text
 
 
-def _gap_statuses(root: Path) -> dict[str, str]:
+def _gap_statuses(root: Path, *, main_head: str) -> dict[str, str]:
     """Evidence-bound gap classification for analysis receipts."""
     evidence = _load_cert_evidence(root)
+    if not _cert_evidence_applies(evidence, main_head):
+        evidence = {}
     authentic = "BLOCKED_OWNER"
     gaps: dict[str, str] = {
         "AUTHENTIC_INGEST": authentic,
         "AUTHENTIC_COMPILE": authentic,
         "AUTHENTIC_QUERY": authentic,
-        "API": "FIXTURE_SATISFIED",
-        "WEB": "FIXTURE_SATISFIED",
+        "API": "NOT_IMPLEMENTED",
+        "WEB": "NOT_IMPLEMENTED",
         "CLEAN_MACHINE_BOOTSTRAP": "NOT_IMPLEMENTED",
         "RELEASE_ARTIFACT": "NOT_IMPLEMENTED",
     }
@@ -364,7 +384,7 @@ def _gap_statuses(root: Path) -> dict[str, str]:
     if evidence.get("ACCEPTANCE_WORKFLOW_PILOT"):
         gaps["API"] = "FIXTURE_SATISFIED"
         gaps["WEB"] = "FIXTURE_SATISFIED"
-    if _runbook_pin_current(root):
+    if _runbook_pin_current(root, main_head=main_head):
         gaps["STALE_OPERATIONAL_PIN"] = "SATISFIED"
     return gaps
 
@@ -389,7 +409,7 @@ def seed_demo_release_nodes(
         o.objective_id == "O2" and _objective_autonomous_met(o) for o in objectives
     )
     all_met = all(_objective_autonomous_met(o) for o in objectives)
-    gaps = _gap_statuses(root)
+    gaps = _gap_statuses(root, main_head=main_head)
     nodes: list[WorkNode] = []
 
     def add(
@@ -534,6 +554,17 @@ def seed_demo_release_nodes(
     return nodes
 
 
+_STALE_SEED_PACKAGES: Final[frozenset[str]] = frozenset(
+    {
+        "AS-CODER-ALPHA-AUTHENTIC-DEMO-PREP-001",
+        "AS-RELEASE-CLEAN-MACHINE-BOOTSTRAP-001",
+        "AS-RELEASE-ARTIFACT-GAP-001",
+        "AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001",
+        "AS-ORCH-SPECULATIVE-CERTIFICATION-001",
+    }
+)
+
+
 def _prune_stale_ready_nodes(
     root: Path,
     *,
@@ -541,24 +572,30 @@ def _prune_stale_ready_nodes(
     main_head: str,
     nodes: dict[str, WorkNode],
 ) -> int:
-    """Supersede READY nodes no longer eligible under current evidence/objectives."""
+    """Supersede stale seeded READY nodes; never prune replenish or receipt successors."""
     expected_keys = {
         n.IDEMPOTENCY_KEY
         for n in seed_demo_release_nodes(root, generation=generation, main_head=main_head)
     }
+    gaps = _gap_statuses(root, main_head=main_head)
     pruned = 0
     for node in nodes.values():
         if node.status != "READY":
             continue
-        if node.TASK_KIND == "RELEASE_VALIDATION" and node.PACKAGE_ID.endswith("BOOTSTRAP-001"):
-            gaps = _gap_statuses(root)
-            if gaps.get("CLEAN_MACHINE_BOOTSTRAP") in _GAP_SATISFIED_STATES:
-                node.status = "SUPERSEDED"
-                pruned += 1
+        if node.PACKAGE_ID not in _STALE_SEED_PACKAGES:
+            continue
+        if node.IDEMPOTENCY_KEY in expected_keys:
+            continue
+        if node.PACKAGE_ID == "AS-RELEASE-CLEAN-MACHINE-BOOTSTRAP-001":
+            if gaps.get("CLEAN_MACHINE_BOOTSTRAP") not in _GAP_SATISFIED_STATES:
                 continue
-        if node.IDEMPOTENCY_KEY not in expected_keys and node.OWNER_GATE == "NONE":
-            node.status = "SUPERSEDED"
-            pruned += 1
+        elif (
+            node.PACKAGE_ID == "AS-RELEASE-ARTIFACT-GAP-001"
+            and gaps.get("RELEASE_ARTIFACT") not in _GAP_SATISFIED_STATES
+        ):
+            continue
+        node.status = "SUPERSEDED"
+        pruned += 1
     return pruned
 
 
@@ -809,6 +846,7 @@ def dispatch_local_analysis_worker(
     root: Path,
     node: WorkNode,
     *,
+    main_head: str | None = None,
     now: float | None = None,
 ) -> RealWorkerBinding:
     """Bind a real local PID worker that writes an analysis receipt (read-only)."""
@@ -821,18 +859,20 @@ def dispatch_local_analysis_worker(
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Execute analysis inline but record real PID binding (this process).
-    gaps = _gap_statuses(root)
+    head = main_head or _CERTIFIED_MAIN_HEAD
+    gaps = _gap_statuses(root, main_head=head)
     successors: list[dict[str, Any]] = []
+    skip_statuses = _GAP_SATISFIED_STATES | frozenset({"BLOCKED_OWNER"})
     # Every analysis receipt must feed the next planning cycle.
     if node.OBJECTIVE_ID in {"O1", "O2", "O5"} or node.TASK_KIND == "ARCHITECTURE_ANALYSIS":
         for gap in ("AUTHENTIC_INGEST", "AUTHENTIC_COMPILE", "AUTHENTIC_QUERY", "API", "WEB"):
             status = gaps[gap]
-            if status in _GAP_SATISFIED_STATES:
+            if status in skip_statuses:
                 continue
             successors.append(
                 {
                     "action": "CREATE_SUCCESSOR_NODE",
-                    "package": f"AS-CODER-ALPHA-{gap}-001",
+                    "package": _gap_package_id(gap),
                     "blocked": status == "BLOCKED_OWNER",
                     "gap": gap,
                     "status": status,
@@ -844,12 +884,12 @@ def dispatch_local_analysis_worker(
     }:
         for gap in ("CLEAN_MACHINE_BOOTSTRAP", "RELEASE_ARTIFACT"):
             status = gaps[gap]
-            if status in _GAP_SATISFIED_STATES:
+            if status in skip_statuses:
                 continue
             successors.append(
                 {
                     "action": "CREATE_SUCCESSOR_NODE",
-                    "package": f"AS-RELEASE-{gap}-001",
+                    "package": _gap_package_id(gap, prefix="AS-RELEASE"),
                     "blocked": False,
                     "gap": gap,
                     "status": status,
@@ -866,6 +906,7 @@ def dispatch_local_analysis_worker(
             "successors": successors,
             "NO_ACTION": True,
             "NO_ACTION_PROOF": "all_gaps_satisfied_or_owner_blocked",
+            "main_head": head,
             "at": ts,
             "pid": os.getpid(),
             "merge_authorized": False,
@@ -880,6 +921,7 @@ def dispatch_local_analysis_worker(
             "gaps": gaps,
             "successors": successors,
             "NO_ACTION": False,
+            "main_head": head,
             "at": ts,
             "pid": os.getpid(),
             "merge_authorized": False,
@@ -935,7 +977,7 @@ def interpret_receipt(root: Path, receipt_path: Path) -> dict[str, Any]:
         if succ.get("action") != "CREATE_SUCCESSOR_NODE":
             continue
         gap_status = str(succ.get("status") or "")
-        if gap_status in _GAP_SATISFIED_STATES:
+        if gap_status in _GAP_SATISFIED_STATES or gap_status == "BLOCKED_OWNER":
             continue
         package = str(succ.get("package") or "UNKNOWN")
         blocked = bool(succ.get("blocked")) or gap_status == "BLOCKED_OWNER"
@@ -956,7 +998,7 @@ def interpret_receipt(root: Path, receipt_path: Path) -> dict[str, Any]:
             PACKAGE_ID=package,
             TASK_KIND="IMPLEMENTATION" if not blocked else "ARCHITECTURE_ANALYSIS",
             PRIORITY=88 if not blocked else 50,
-            DEPENDENCIES=["PR431"] if blocked else [],
+            DEPENDENCIES=["AUTHENTIC_ESTATE_ROOT"] if blocked else [],
             ALLOWED_PATHS=["src/project_atlas/", "tests/", "docs/"],
             SURFACE_SET=["src/project_atlas/"],
             WORKER_ROLE="IMPLEMENTER" if not blocked else "READ_ONLY_ANALYST",
@@ -984,7 +1026,8 @@ def interpret_receipt(root: Path, receipt_path: Path) -> dict[str, Any]:
     persist_mission_state(root, state)
 
     # Replenish via reconcile
-    mission_reconcile(root)
+    reconcile_head = str(data.get("main_head") or _CERTIFIED_MAIN_HEAD)
+    mission_reconcile(root, main_head=reconcile_head)
 
     return {
         "outcome": "CREATE_SUCCESSOR_NODE" if created else "NO_ACTION_WITH_PROOF",
@@ -1017,7 +1060,7 @@ def closed_loop_tick(root: Path, *, main_head: str | None = None) -> dict[str, A
     if node.status == "BLOCKED_OWNER":
         return {**summary, "REAL_WORKER_DISPATCH_COUNT": 0, "note": "top_ready_blocked_owner"}
 
-    binding = dispatch_local_analysis_worker(root, node)
+    binding = dispatch_local_analysis_worker(root, node, main_head=head)
     interp = interpret_receipt(root, Path(binding.expected_receipt))
     state = load_mission_state(root)
     workers = load_workers(root)

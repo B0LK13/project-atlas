@@ -123,9 +123,10 @@ def refresh_objectives(root: Path) -> None:
             obj.current_state = "SATISFIED"
             obj.evidence = ["D-146 INTEGRATED_IV/ADV pass"]
         elif obj.objective_id == "O6":
-            obj.current_state = "SATISFIED" if _runbook_pin_current(root) else "PARTIAL"
-            obj.blockers = [] if _runbook_pin_current(root) else ["stale_operational_pin"]
-            obj.evidence = ["runbook pin 6c3e749"] if _runbook_pin_current(root) else [
+            pin_ok = _runbook_pin_current(root, main_head=CERTIFIED_MAIN)
+            obj.current_state = "SATISFIED" if pin_ok else "PARTIAL"
+            obj.blockers = [] if pin_ok else ["stale_operational_pin"]
+            obj.evidence = ["runbook pin 6c3e749"] if pin_ok else [
                 "runbook pin pending 6c3e749 update"
             ]
     persist_objectives(root, objectives)

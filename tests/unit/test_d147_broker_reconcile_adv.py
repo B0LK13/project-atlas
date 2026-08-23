@@ -38,6 +38,7 @@ def test_gap_statuses_honor_certified_evidence(tmp_path: Path) -> None:
     (rt / "d146-checkpoint.json").write_text(
         json.dumps(
             {
+                "MERGE_COMMIT": "6c3e74964d023cdcb55c3b77d6d029b095d578c6",
                 "CLEAN_MACHINE_FINAL": True,
                 "RELEASE_READINESS": "CERTIFIED",
                 "ACCEPTANCE_WORKFLOW_PILOT": True,
@@ -49,7 +50,7 @@ def test_gap_statuses_honor_certified_evidence(tmp_path: Path) -> None:
     runbook = tmp_path / "docs" / "productization" / "CLEAN-MACHINE-PREP-RUNBOOK.md"
     runbook.parent.mkdir(parents=True)
     runbook.write_text("HEAD = 6c3e74964d023cdcb55c3b77d6d029b095d578c6\n", encoding="utf-8")
-    gaps = _gap_statuses(tmp_path)
+    gaps = _gap_statuses(tmp_path, main_head="6c3e74964d023cdcb55c3b77d6d029b095d578c6")
     assert gaps["CLEAN_MACHINE_BOOTSTRAP"] == "SATISFIED"
     assert gaps["RELEASE_ARTIFACT"] == "SATISFIED"
     assert gaps["AUTHENTIC_INGEST"] == "BLOCKED_OWNER"
@@ -63,6 +64,7 @@ def test_release_validation_skips_satisfied_successors(tmp_path: Path) -> None:
     (rt / "d146-checkpoint.json").write_text(
         json.dumps(
             {
+                "MERGE_COMMIT": "6c3e74964d023cdcb55c3b77d6d029b095d578c6",
                 "CLEAN_MACHINE_FINAL": True,
                 "RELEASE_READINESS": "CERTIFIED",
                 "ACCEPTANCE_WORKFLOW_PILOT": True,
@@ -116,6 +118,7 @@ def test_closed_loop_no_ready_replenish_when_objectives_met(tmp_path: Path) -> N
     (rt / "d146-checkpoint.json").write_text(
         json.dumps(
             {
+                "MERGE_COMMIT": "6c3e74964d023cdcb55c3b77d6d029b095d578c6",
                 "CLEAN_MACHINE_FINAL": True,
                 "RELEASE_READINESS": "CERTIFIED",
                 "ACCEPTANCE_WORKFLOW_PILOT": True,
