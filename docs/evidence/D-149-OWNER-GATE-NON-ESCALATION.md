@@ -48,6 +48,17 @@ Night-cycle residual close (this branch, after independent review of `#445`):
   (`authentic_estate_ready_for_orchestration`), so a stale present
   credential cannot classify O2 gaps as agent-runnable.
 
+Night-cycle D-149R3 residual close (independent IV of draft `#446`):
+
+- SUPERSEDED MERGE/SECURITY nodes keep their original `DEPENDENCIES`.
+  Authentic estate must not replace `PR431` with `AUTHENTIC_ESTATE_ROOT`.
+- `d148_evidence_applies()` is fail-closed: missing estate root, missing
+  fingerprint, empty current fingerprint, or mismatch rejects the packet
+  (no skip-if-absent).
+
+Pre-remediation on live main `4e71cce`: adversarial MERGE replay
+`OWNER_GATE=MERGE` → `NONE`, `OWNER_CAPABILITY_GRANTED=True`, `BYPASS=True`.
+
 ## Not claimed
 
 - `AUTHENTIC_PILOT=YES` (no authentic estate in this environment)

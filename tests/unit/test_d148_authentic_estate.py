@@ -6,7 +6,10 @@ import importlib.util
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    d148_evidence_applies,
     estate_fingerprint,
     run_estate_preflight,
 )
@@ -89,3 +92,103 @@ def test_acceptance_pilot_does_not_overstate_query_blocker(tmp_path: Path) -> No
     o2 = next(obj for obj in load_objectives(repo) if obj.objective_id == "O2")
     assert o2.blockers == ["AUTHENTIC_COMPILE_IDEMPOTENCY"]
     assert "AUTHENTIC_QUERY" not in o2.blockers
+
+
+def _bound_evidence(estate: Path, *, head: str, fingerprint: str | None) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "live_main_head": head,
+        "AUTHENTIC_ESTATE_ROOT": str(estate.resolve()),
+        "AUTHENTIC_INGEST_SATISFIED": True,
+    }
+    if fingerprint is not None:
+        payload["estate_fingerprint"] = fingerprint
+    return payload
+
+
+def test_d148_evidence_requires_fingerprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-149R2/R3: cert without estate_fingerprint cannot stay current."""
+    estate = _init_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=estate,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    monkeypatch.setenv("AUTHENTIC_ESTATE_ROOT", str(estate))
+    evidence = _bound_evidence(estate, head=head, fingerprint=None)
+    assert d148_evidence_applies(evidence, head, estate) is False
+
+
+def test_d148_evidence_rejects_empty_current_fingerprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Marker removed → current fingerprint empty → stale cert rejected."""
+    estate = _init_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=estate,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    fingerprint = estate_fingerprint(estate)
+    assert fingerprint
+    monkeypatch.setenv("AUTHENTIC_ESTATE_ROOT", str(estate))
+    (estate / ".atlas-project.yaml").unlink()
+    evidence = _bound_evidence(estate, head=head, fingerprint=fingerprint)
+    assert d148_evidence_applies(evidence, head, estate) is False
+
+
+def test_d148_evidence_rejects_fingerprint_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _init_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=estate,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    monkeypatch.setenv("AUTHENTIC_ESTATE_ROOT", str(estate))
+    evidence = _bound_evidence(estate, head=head, fingerprint="0" * 64)
+    assert d148_evidence_applies(evidence, head, estate) is False
+
+
+def test_d148_evidence_rejects_missing_estate_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _init_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=estate,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    monkeypatch.setenv("AUTHENTIC_ESTATE_ROOT", str(estate))
+    evidence = {
+        "live_main_head": head,
+        "estate_fingerprint": estate_fingerprint(estate),
+        "AUTHENTIC_INGEST_SATISFIED": True,
+    }
+    assert d148_evidence_applies(evidence, head, estate) is False
+
+
+def test_d148_evidence_accepts_bound_current_estate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _init_repo(tmp_path)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=estate,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    monkeypatch.setenv("AUTHENTIC_ESTATE_ROOT", str(estate))
+    evidence = _bound_evidence(estate, head=head, fingerprint=estate_fingerprint(estate))
+    assert d148_evidence_applies(evidence, head, estate) is True

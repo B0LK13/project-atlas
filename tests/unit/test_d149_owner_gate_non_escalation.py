@@ -489,6 +489,7 @@ def test_reconciler_does_not_rewrite_superseded_merge_to_credential(
                 node_id="merge",
                 owner_gate="MERGE",
                 status="SUPERSEDED",
+                dependencies=["PR431"],
             )
         },
     )
@@ -504,6 +505,46 @@ def test_reconciler_does_not_rewrite_superseded_merge_to_credential(
     mission_reconcile(repo, main_head="0" * 40)
     after = next(n for n in load_nodes(repo).values() if key == n.IDEMPOTENCY_KEY)
     assert after.OWNER_GATE == "MERGE"
+    assert after.DEPENDENCIES == ["PR431"]
+    assert "AUTHENTIC_ESTATE_ROOT" not in after.DEPENDENCIES
+
+
+def test_reconciler_preserves_superseded_merge_dependencies(
+    tmp_path: Path,
+) -> None:
+    """D-149R3: SUPERSEDED MERGE must not have PR431 replaced by estate root."""
+    repo = _atlas_repo(tmp_path)
+    key = _idempotency_key(
+        objective="O2",
+        kind="IMPLEMENTATION",
+        package="AS-CODER-ALPHA-AUTHENTIC-INGEST-001",
+        surface="src/project_atlas/,tests/",
+    )
+    persist_nodes(
+        repo,
+        {
+            "merge": _o2_node(
+                node_id="merge",
+                owner_gate="MERGE",
+                status="SUPERSEDED",
+                dependencies=["PR431", "HUMAN_SIGNOFF"],
+            )
+        },
+    )
+    nodes = load_nodes(repo)
+    nodes["merge"].IDEMPOTENCY_KEY = key
+    persist_nodes(repo, nodes)
+    mission_reconcile(repo, main_head="0" * 40)
+    objs = load_objectives(repo)
+    for obj in objs:
+        if obj.objective_id == "O2":
+            obj.current_state = "SATISFIED"
+    persist_objectives(repo, objs)
+    mission_reconcile(repo, main_head="0" * 40)
+    after = next(n for n in load_nodes(repo).values() if key == n.IDEMPOTENCY_KEY)
+    assert after.OWNER_GATE == "MERGE"
+    assert after.DEPENDENCIES == ["PR431", "HUMAN_SIGNOFF"]
+    assert "AUTHENTIC_ESTATE_ROOT" not in after.DEPENDENCIES
 
 
 def test_apply_does_not_write_credential_when_integrity_fails(
