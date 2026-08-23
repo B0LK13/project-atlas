@@ -260,6 +260,22 @@ AUTHENTIC_O2_PACKAGES: Final[tuple[str, ...]] = (
 )
 
 
+def _authentic_o2_package_ready(
+    package_id: str,
+    *,
+    ingest_done: bool,
+    compile_done: bool,
+    query_done: bool,
+) -> bool:
+    if package_id == "AS-CODER-ALPHA-AUTHENTIC-INGEST-001":
+        return not ingest_done
+    if package_id == "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001":
+        return ingest_done and not compile_done
+    if package_id == "AS-CODER-ALPHA-AUTHENTIC-QUERY-001":
+        return compile_done and not query_done
+    return False
+
+
 def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
     """Unblock O2 credential nodes when estate credential is satisfied (sequential)."""
     from project_atlas.orchestration.sdk.mission_reconciler import load_nodes, persist_nodes
@@ -296,18 +312,11 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
             continue
         target: str | None = None
         pkg = node.PACKAGE_ID
-        if pkg == "AS-CODER-ALPHA-AUTHENTIC-INGEST-001" and not ingest_done:
-            target = "READY"
-        elif (
-            pkg == "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001"
-            and ingest_done
-            and not compile_done
-        ):
-            target = "READY"
-        elif (
-            pkg == "AS-CODER-ALPHA-AUTHENTIC-QUERY-001"
-            and compile_done
-            and not query_done
+        if _authentic_o2_package_ready(
+            pkg,
+            ingest_done=ingest_done,
+            compile_done=compile_done,
+            query_done=query_done,
         ):
             target = "READY"
         if target and node.status != target:
