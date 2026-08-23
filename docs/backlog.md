@@ -376,7 +376,8 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-ATTENTION-002 care_about triage + source-failure collapse
 - [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
-- [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations (core remediations landed; Windows stranger IV + isolation harness remain)
+- [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations (core remediations landed; isolation harness tests added; Windows stranger IV remains)
+- [x] AS-CODER-ALPHA-ISOLATION-ADV-HARNESS-001 adversarial isolation harness on current main (tests-first; WINDOWS_STRANGER_IV = NOT_CLAIMED)
 - [x] AS-D149R2-EVIDENCE-BINDING-001 D-148 cert requires estate fingerprint (missing/empty/mismatch fail closed; owner-gate MERGE→NONE remains on `#446`)
 - [x] AS-MVP-001-FRESHNESS-TRUTH-001 epoch mtimes are unknown not stale; H-006 skips quarantined citation
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)

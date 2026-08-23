@@ -7330,3 +7330,23 @@ H-006 demanded quarantined sources in `stale-knowledge.json`.
 ### Fix
 - Untrusted (pre-1980) mtimes are unknown, not stale.
 - H-006 skips quarantined ids in portfolio citation cross-check.
+- Pilot scenario tests pin copied mtimes.
+
+---
+
+## AS-CODER-ALPHA-ISOLATION-ADV-HARNESS-001 — adversarial isolation on current main
+
+**Date:** 2026-08-23
+**Package:** AS-CODER-ALPHA-ISOLATION-ADV-HARNESS-001
+**Branch:** `cursor/atlas-autonomous-night-cycle-742c` (cherry-pick from `#447`)
+**Base:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Mode:** TESTS_FIRST reconstruction of draft `#423` on live main. No production rewrite.
+
+### Why
+`AS-CODER-ALPHA-044-HIGH` core remediations already pass on main. Remaining
+executable gap is an adversarial isolation harness.
+
+### Honesty
+- `WINDOWS_STRANGER_IV = NOT_CLAIMED`
+- `LENS != AUTHORITY`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
