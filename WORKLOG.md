@@ -7263,3 +7263,17 @@ grant source and does not certify #427.
 
 ### Honesty
 IV != merge authorization. Classification != execution.
+
+---
+
+## AS-ORCH-INTEGRATION-IV-001B — independent IV for AS-ORCH-001B / ORCH001B-008
+
+**Date:** 2026-08-23
+**Directive:** AS-ORCH-INTEGRATION-IV-001B
+**Branch:** `cursor/atlas-autonomous-night-cycle-742c`
+**Mode:** INDEPENDENT_INTEGRATION_VERIFICATION. Routing != dispatch.
+
+### Results
+- ruff: PASS
+- pytest `tests/integration/test_orchestration_iv_001b.py`: 5 passed
+- Honesty: `dispatchable` may be true; `execution_authorized` stays false.
