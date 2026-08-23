@@ -28,8 +28,12 @@ from project_atlas.orchestration.autonomy.exact_main_closure import (
 )
 from project_atlas.orchestration.sdk.mission_reconciler import (
     WorkNode,
+    _idempotency_key,
     load_nodes,
+    load_objectives,
+    mission_reconcile,
     persist_nodes,
+    persist_objectives,
 )
 
 
@@ -462,6 +466,41 @@ def test_stale_certification_does_not_advance_compile(
     assert node.status == "BLOCKED_OWNER"
     assert node.DEPENDENCIES == []
     assert node.OWNER_GATE == "NONE"
+
+
+def test_reconciler_does_not_rewrite_superseded_merge_to_credential(
+    tmp_path: Path,
+) -> None:
+    """Two-step escalation: SUPERSEDED MERGE must not become CREDENTIAL."""
+    repo = _atlas_repo(tmp_path)
+    key = _idempotency_key(
+        objective="O2",
+        kind="IMPLEMENTATION",
+        package="AS-CODER-ALPHA-AUTHENTIC-INGEST-001",
+        surface="src/project_atlas/,tests/",
+    )
+    persist_nodes(
+        repo,
+        {
+            "merge": _o2_node(
+                node_id="merge",
+                owner_gate="MERGE",
+                status="SUPERSEDED",
+            )
+        },
+    )
+    nodes = load_nodes(repo)
+    nodes["merge"].IDEMPOTENCY_KEY = key
+    persist_nodes(repo, nodes)
+    mission_reconcile(repo, main_head="0" * 40)
+    objs = load_objectives(repo)
+    for obj in objs:
+        if obj.objective_id == "O2":
+            obj.current_state = "SATISFIED"
+    persist_objectives(repo, objs)
+    mission_reconcile(repo, main_head="0" * 40)
+    after = next(n for n in load_nodes(repo).values() if key == n.IDEMPOTENCY_KEY)
+    assert after.OWNER_GATE == "MERGE"
 
 
 def test_env_restored_after_module_use() -> None:
