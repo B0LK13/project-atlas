@@ -143,8 +143,14 @@ def run_demo_readiness(
     first = connect_project(harbor)
     vault = Path(str(first["vault"]))
     second = connect_project(harbor)
-    decoy_report = connect_project(decoy, vault=vault)
     harbor_id = str(first.get("bound_project_id") or "")
+    # D-050 last-writer: connect-manifest.json is a single-root commit.
+    # Classify harbor inventory/drift against harbor's committed manifest
+    # before the decoy overwrite (isolation still uses the shared vault).
+    manifest = vault / "generated" / "ops" / "connect-manifest.json"
+    inventory_present = manifest.is_file()
+    drift = evaluate_connect_inventory_drift(vault, harbor_id)
+    decoy_report = connect_project(decoy, vault=vault)
     decoy_id = str(decoy_report.get("bound_project_id") or decoy_name)
 
     overview = build_overview_lens(vault, harbor_id)
@@ -162,7 +168,6 @@ def run_demo_readiness(
     obsidian = materialize_obsidian_projection(
         vault, project_id=harbor_id, refresh_brief=False
     )
-    drift = evaluate_connect_inventory_drift(vault, harbor_id)
     decoy_health = explain_source_health(vault, decoy_id)
     decoy_ctx = export_agent_context(vault, decoy_id, refresh_brief=False)
 
@@ -188,8 +193,6 @@ def run_demo_readiness(
     harbor_in_decoy = harbor_id in decoy_dump and "postgresql" in decoy_dump.lower()
     leak_count = 0 if not (leaked or harbor_in_decoy) else 1
 
-    manifest = vault / "generated" / "ops" / "connect-manifest.json"
-    inventory_present = manifest.is_file()
     drift_status = str(drift.get("status") or "UNKNOWN")
     arch_status = str(architecture.get("status") or "unknown")
     inbox_available = _inbox_list_available()

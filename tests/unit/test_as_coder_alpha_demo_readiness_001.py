@@ -43,7 +43,7 @@ def test_demo_readiness_harbor_journey_is_honest(tmp_path: Path) -> None:
     assert by_name["connect_discover"]["state"] == "READY"
     assert by_name["project_identity"]["state"] == "READY"
     assert by_name["source_inventory"]["state"] == "READY"
-    assert by_name["drift_state"]["state"] in {"READY", "UNKNOWN"}
+    assert by_name["drift_state"]["state"] == "READY"
     assert by_name["overview"]["state"] == "READY"
     assert by_name["architecture"]["state"] in {"READY", "PARTIAL"}
     assert by_name["next"]["state"] == "PARTIAL"
