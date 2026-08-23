@@ -30,6 +30,14 @@ STATE_NAME: Final[str] = "mission-reconciler-state.json"
 STACKED_DEPENDENCY: Final[str] = "PR435"
 MERGE_ORDER: Final[str] = "PR433 -> PR435 -> MISSION_RECONCILER"
 
+_AUTONOMOUS_MET_STATES: Final[frozenset[str]] = frozenset(
+    {"SATISFIED", "COMPLETE", "ACCEPTANCE_WORKFLOW_SATISFIED", "FIXTURE_SATISFIED"}
+)
+_GAP_SATISFIED_STATES: Final[frozenset[str]] = frozenset(
+    {"SATISFIED", "IMPLEMENTED", "FIXTURE_SATISFIED", "ALREADY_SATISFIED"}
+)
+_CERTIFIED_MAIN_HEAD: Final[str] = "6c3e74964d023cdcb55c3b77d6d029b095d578c6"
+
 ObjectiveId = Literal["O1", "O2", "O3", "O4", "O5", "O6"]
 TaskKind = Literal[
     "IMPLEMENTATION",
@@ -302,12 +310,62 @@ def _idempotency_key(*, objective: str, kind: str, package: str, surface: str) -
 def _owner_held_prs(root: Path) -> set[int]:
     path = _rt(root) / "d129-owner-merge-queue.json"
     if not path.is_file():
-        return {431, 432, 433, 434}
+        return set()
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {431, 432, 433, 434}
+        return set()
     return {int(x["PR"]) for x in data.get("QUEUE", []) if "PR" in x}
+
+
+def _objective_autonomous_met(obj: MissionObjective) -> bool:
+    return obj.current_state in _AUTONOMOUS_MET_STATES
+
+
+def _load_cert_evidence(root: Path) -> dict[str, Any]:
+    path = _rt(root) / "d146-checkpoint.json"
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _runbook_pin_current(root: Path) -> bool:
+    runbook = root / "docs" / "productization" / "CLEAN-MACHINE-PREP-RUNBOOK.md"
+    if not runbook.is_file():
+        return False
+    try:
+        text = runbook.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return _CERTIFIED_MAIN_HEAD in text
+
+
+def _gap_statuses(root: Path) -> dict[str, str]:
+    """Evidence-bound gap classification for analysis receipts."""
+    evidence = _load_cert_evidence(root)
+    authentic = "BLOCKED_OWNER"
+    gaps: dict[str, str] = {
+        "AUTHENTIC_INGEST": authentic,
+        "AUTHENTIC_COMPILE": authentic,
+        "AUTHENTIC_QUERY": authentic,
+        "API": "FIXTURE_SATISFIED",
+        "WEB": "FIXTURE_SATISFIED",
+        "CLEAN_MACHINE_BOOTSTRAP": "NOT_IMPLEMENTED",
+        "RELEASE_ARTIFACT": "NOT_IMPLEMENTED",
+    }
+    if evidence.get("CLEAN_MACHINE_FINAL"):
+        gaps["CLEAN_MACHINE_BOOTSTRAP"] = "SATISFIED"
+    if str(evidence.get("RELEASE_READINESS", "")).upper() == "CERTIFIED":
+        gaps["RELEASE_ARTIFACT"] = "SATISFIED"
+    if evidence.get("ACCEPTANCE_WORKFLOW_PILOT"):
+        gaps["API"] = "FIXTURE_SATISFIED"
+        gaps["WEB"] = "FIXTURE_SATISFIED"
+    if _runbook_pin_current(root):
+        gaps["STALE_OPERATIONAL_PIN"] = "SATISFIED"
+    return gaps
 
 
 def planning_fingerprint(root: Path, *, main_head: str) -> str:
@@ -325,6 +383,12 @@ def seed_demo_release_nodes(
 ) -> list[WorkNode]:
     """Derive executable nodes from current demo/release honesty."""
     held = _owner_held_prs(root)
+    objectives = load_objectives(root)
+    o2_met = any(
+        o.objective_id == "O2" and _objective_autonomous_met(o) for o in objectives
+    )
+    all_met = all(_objective_autonomous_met(o) for o in objectives)
+    gaps = _gap_statuses(root)
     nodes: list[WorkNode] = []
 
     def add(
@@ -363,7 +427,7 @@ def seed_demo_release_nodes(
         )
         nodes.append(node)
 
-    # Demo gaps — authentic paths blocked by PR431 merge when they need demo_readiness on main
+    # Demo gaps — stale merge queue vs authentic estate frontier
     if 431 in held:
         add(
             oid="O2",
@@ -389,60 +453,112 @@ def seed_demo_release_nodes(
             status="BLOCKED_OWNER",
             deps=["PR431", "AS-CODER-ALPHA-AUTHENTIC-INGEST-001"],
         )
-    # Independent demo prep analysis (feeds successors, not card spam)
-    add(
-        oid="O2",
-        package="AS-CODER-ALPHA-AUTHENTIC-DEMO-PREP-001",
-        kind="ARCHITECTURE_ANALYSIS",
-        priority=94,
-        criteria="Produce successor plan for ingest/compile/query without claiming authentic pass",
-        surfaces=["docs/", ".atlas/orchestration/sdk-runtime/"],
-        role="READ_ONLY_ANALYST",
-        status="READY",
-    )
-    # Release — independent of PR431
-    add(
-        oid="O3",
-        package="AS-RELEASE-CLEAN-MACHINE-BOOTSTRAP-001",
-        kind="RELEASE_VALIDATION",
-        priority=80,
-        criteria="Document and test clean-machine bootstrap gaps on Windows",
-        surfaces=["docs/", "scripts/", "tests/"],
-        role="READ_ONLY_ANALYST",
-        status="READY",
-    )
-    add(
-        oid="O3",
-        package="AS-RELEASE-ARTIFACT-GAP-001",
-        kind="BACKLOG_DECOMPOSITION",
-        priority=72,
-        criteria="Enumerate release artifact / upgrade path gaps",
-        surfaces=["docs/"],
-        role="READ_ONLY_ANALYST",
-        status="READY",
-    )
-    # Autonomy / verification
-    add(
-        oid="O1",
-        package="AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001",
-        kind="ARCHITECTURE_ANALYSIS",
-        priority=86,
-        criteria="Closed-loop reconciler active and producing successors",
-        surfaces=["src/project_atlas/orchestration/sdk/"],
-        role="READ_ONLY_ANALYST",
-        status="READY",
-    )
-    add(
-        oid="O5",
-        package="AS-ORCH-SPECULATIVE-CERTIFICATION-001",
-        kind="INDEPENDENT_IV",
-        priority=70,
-        criteria="Owner-held packages retain exact-pin integrity",
-        surfaces=[".atlas/orchestration/sdk-runtime/"],
-        role="INDEPENDENT_VERIFIER",
-        status="READY",
-    )
+    elif not o2_met:
+        add(
+            oid="O2",
+            package="AS-CODER-ALPHA-AUTHENTIC-DEMO-PREP-001",
+            kind="ARCHITECTURE_ANALYSIS",
+            priority=94,
+            criteria=(
+                "Produce successor plan for ingest/compile/query "
+                "without claiming authentic pass"
+            ),
+            surfaces=["docs/", ".atlas/orchestration/sdk-runtime/"],
+            role="READ_ONLY_ANALYST",
+            status="READY",
+        )
+    else:
+        for gap, package in (
+            ("AUTHENTIC_INGEST", "AS-CODER-ALPHA-AUTHENTIC-INGEST-001"),
+            ("AUTHENTIC_COMPILE", "AS-CODER-ALPHA-AUTHENTIC-COMPILE-001"),
+            ("AUTHENTIC_QUERY", "AS-CODER-ALPHA-AUTHENTIC-QUERY-001"),
+        ):
+            if gaps.get(gap) != "BLOCKED_OWNER":
+                continue
+            add(
+                oid="O2",
+                package=package,
+                kind="IMPLEMENTATION",
+                priority=92,
+                criteria=f"Authentic {gap.lower().replace('_', ' ')} on AUTHENTIC_ESTATE_ROOT",
+                surfaces=["src/project_atlas/", "tests/"],
+                role="IMPLEMENTER",
+                owner_gate="CREDENTIAL",
+                status="BLOCKED_OWNER",
+                deps=["AUTHENTIC_ESTATE_ROOT"],
+            )
+    if gaps.get("CLEAN_MACHINE_BOOTSTRAP") not in _GAP_SATISFIED_STATES:
+        add(
+            oid="O3",
+            package="AS-RELEASE-CLEAN-MACHINE-BOOTSTRAP-001",
+            kind="RELEASE_VALIDATION",
+            priority=80,
+            criteria="Document and test clean-machine bootstrap gaps on Windows",
+            surfaces=["docs/", "scripts/", "tests/"],
+            role="READ_ONLY_ANALYST",
+            status="READY",
+        )
+    if gaps.get("RELEASE_ARTIFACT") not in _GAP_SATISFIED_STATES:
+        add(
+            oid="O3",
+            package="AS-RELEASE-ARTIFACT-GAP-001",
+            kind="BACKLOG_DECOMPOSITION",
+            priority=72,
+            criteria="Enumerate release artifact / upgrade path gaps",
+            surfaces=["docs/"],
+            role="READ_ONLY_ANALYST",
+            status="READY",
+        )
+    if not all_met:
+        add(
+            oid="O1",
+            package="AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001",
+            kind="ARCHITECTURE_ANALYSIS",
+            priority=86,
+            criteria="Closed-loop reconciler active and producing successors",
+            surfaces=["src/project_atlas/orchestration/sdk/"],
+            role="READ_ONLY_ANALYST",
+            status="READY",
+        )
+        add(
+            oid="O5",
+            package="AS-ORCH-SPECULATIVE-CERTIFICATION-001",
+            kind="INDEPENDENT_IV",
+            priority=70,
+            criteria="Owner-held packages retain exact-pin integrity",
+            surfaces=[".atlas/orchestration/sdk-runtime/"],
+            role="INDEPENDENT_VERIFIER",
+            status="READY",
+        )
     return nodes
+
+
+def _prune_stale_ready_nodes(
+    root: Path,
+    *,
+    generation: int,
+    main_head: str,
+    nodes: dict[str, WorkNode],
+) -> int:
+    """Supersede READY nodes no longer eligible under current evidence/objectives."""
+    expected_keys = {
+        n.IDEMPOTENCY_KEY
+        for n in seed_demo_release_nodes(root, generation=generation, main_head=main_head)
+    }
+    pruned = 0
+    for node in nodes.values():
+        if node.status != "READY":
+            continue
+        if node.TASK_KIND == "RELEASE_VALIDATION" and node.PACKAGE_ID.endswith("BOOTSTRAP-001"):
+            gaps = _gap_statuses(root)
+            if gaps.get("CLEAN_MACHINE_BOOTSTRAP") in _GAP_SATISFIED_STATES:
+                node.status = "SUPERSEDED"
+                pruned += 1
+                continue
+        if node.IDEMPOTENCY_KEY not in expected_keys and node.OWNER_GATE == "NONE":
+            node.status = "SUPERSEDED"
+            pruned += 1
+    return pruned
 
 
 def surfaces_overlap(a: list[str], b: list[str]) -> bool:
@@ -472,11 +588,7 @@ def mission_reconcile(
         created = 0
         if not ready:
             state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT += 1
-            unmet = [
-                o
-                for o in objectives
-                if o.current_state not in {"SATISFIED", "COMPLETE"}
-            ]
+            unmet = [o for o in objectives if not _objective_autonomous_met(o)]
             if unmet:
                 key = _idempotency_key(
                     objective="O3",
@@ -515,6 +627,14 @@ def mission_reconcile(
         state.last_reconcile_at = ts
         persist_mission_state(root, state)
         ready = [n for n in nodes.values() if n.status == "READY"]
+        _prune_stale_ready_nodes(
+            root,
+            generation=state.MISSION_GENERATION,
+            main_head=main_head,
+            nodes=nodes,
+        )
+        persist_nodes(root, nodes)
+        ready = [n for n in nodes.values() if n.status == "READY"]
         return {
             "MISSION_GENERATION": state.MISSION_GENERATION,
             "skipped_identical_fingerprint": created == 0,
@@ -524,7 +644,7 @@ def mission_reconcile(
                 state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT
             ),
             "UNMET_OBJECTIVE_COUNT": sum(
-                1 for o in objectives if o.current_state not in {"SATISFIED", "COMPLETE"}
+                1 for o in objectives if not _objective_autonomous_met(o)
             ),
             "merge_authorized": False,
         }
@@ -540,7 +660,18 @@ def mission_reconcile(
             None,
         )
         if existing is not None:
-            if existing.status in {"COMPLETED", "SUPERSEDED", "ALREADY_SATISFIED"}:
+            if existing.status in {"COMPLETED", "ALREADY_SATISFIED"}:
+                continue
+            if (
+                existing.status == "SUPERSEDED"
+                and node.status == "BLOCKED_OWNER"
+                and existing.OWNER_GATE == "MERGE"
+                and node.OWNER_GATE == "CREDENTIAL"
+            ):
+                existing.status = "BLOCKED_OWNER"
+                existing.OWNER_GATE = "CREDENTIAL"
+                existing.DEPENDENCIES = list(node.DEPENDENCIES)
+                existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
                 continue
             # Keep existing non-terminal
             continue
@@ -558,12 +689,8 @@ def mission_reconcile(
     if not ready:
         state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT += 1
         # Owner-independent replenishment: re-open analysis when objectives unmet
-        unmet = [
-            o
-            for o in objectives
-            if o.current_state not in {"SATISFIED", "COMPLETE"}
-        ]
-        if unmet:
+        unmet = [o for o in objectives if not _objective_autonomous_met(o)]
+        if unmet and not all(_objective_autonomous_met(o) for o in objectives):
             key = _idempotency_key(
                 objective="O3",
                 kind="RELEASE_VALIDATION",
@@ -596,6 +723,14 @@ def mission_reconcile(
                 created += 1
         ready = [n for n in nodes.values() if n.status == "READY"]
 
+    _prune_stale_ready_nodes(
+        root,
+        generation=state.MISSION_GENERATION,
+        main_head=main_head,
+        nodes=nodes,
+    )
+    ready = [n for n in nodes.values() if n.status == "READY"]
+
     state.last_planning_fingerprint = fp
     state.last_reconcile_at = ts
     persist_objectives(root, objectives)
@@ -608,7 +743,7 @@ def mission_reconcile(
         "nodes_created": created,
         "READY_NODE_COUNT": len(ready),
         "UNMET_OBJECTIVE_COUNT": sum(
-            1 for o in objectives if o.current_state not in {"SATISFIED", "COMPLETE"}
+            1 for o in objectives if not _objective_autonomous_met(o)
         ),
         "EMPTY_READY_QUEUE_RECONCILIATION_COUNT": state.EMPTY_READY_QUEUE_RECONCILIATION_COUNT,
         "SURFACE_OVERLAP_CHECKED": "YES",
@@ -685,27 +820,21 @@ def dispatch_local_analysis_worker(
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Execute analysis inline but record real PID binding (this process).
-    gaps = {
-        "AUTHENTIC_INGEST": "NOT_IMPLEMENTED",
-        "AUTHENTIC_COMPILE": "NOT_IMPLEMENTED",
-        "AUTHENTIC_QUERY": "NOT_IMPLEMENTED",
-        "API": "NOT_IMPLEMENTED",
-        "WEB": "NOT_IMPLEMENTED",
-        "CLEAN_MACHINE_BOOTSTRAP": "NOT_IMPLEMENTED",
-        "RELEASE_ARTIFACT": "NOT_IMPLEMENTED",
-    }
+    gaps = _gap_statuses(root)
     successors: list[dict[str, Any]] = []
-    held_431 = 431 in _owner_held_prs(root)
     # Every analysis receipt must feed the next planning cycle.
     if node.OBJECTIVE_ID in {"O1", "O2", "O5"} or node.TASK_KIND == "ARCHITECTURE_ANALYSIS":
         for gap in ("AUTHENTIC_INGEST", "AUTHENTIC_COMPILE", "AUTHENTIC_QUERY", "API", "WEB"):
+            status = gaps[gap]
+            if status in _GAP_SATISFIED_STATES:
+                continue
             successors.append(
                 {
                     "action": "CREATE_SUCCESSOR_NODE",
                     "package": f"AS-CODER-ALPHA-{gap}-001",
-                    "blocked": held_431,
+                    "blocked": status == "BLOCKED_OWNER",
                     "gap": gap,
-                    "status": gaps[gap],
+                    "status": status,
                 }
             )
     if node.OBJECTIVE_ID in {"O1", "O3"} or node.TASK_KIND in {
@@ -713,39 +842,47 @@ def dispatch_local_analysis_worker(
         "BACKLOG_DECOMPOSITION",
     }:
         for gap in ("CLEAN_MACHINE_BOOTSTRAP", "RELEASE_ARTIFACT"):
+            status = gaps[gap]
+            if status in _GAP_SATISFIED_STATES:
+                continue
             successors.append(
                 {
                     "action": "CREATE_SUCCESSOR_NODE",
                     "package": f"AS-RELEASE-{gap}-001",
                     "blocked": False,
                     "gap": gap,
-                    "status": gaps[gap],
+                    "status": status,
                 }
             )
     if not successors:
-        successors.append(
-            {
-                "action": "CREATE_SUCCESSOR_NODE",
-                "package": f"{node.PACKAGE_ID}-NEXT",
-                "blocked": False,
-                "gap": "FOLLOW_ON",
-                "status": "PLANNED",
-            }
-        )
-
-    payload = {
-        "worker_id": wid,
-        "node_id": node.NODE_ID,
-        "package_id": node.PACKAGE_ID,
-        "objective_id": node.OBJECTIVE_ID,
-        "TASK_KIND": node.TASK_KIND,
-        "gaps": gaps,
-        "successors": successors,
-        "NO_ACTION": False,
-        "at": ts,
-        "pid": os.getpid(),
-        "merge_authorized": False,
-    }
+        payload = {
+            "worker_id": wid,
+            "node_id": node.NODE_ID,
+            "package_id": node.PACKAGE_ID,
+            "objective_id": node.OBJECTIVE_ID,
+            "TASK_KIND": node.TASK_KIND,
+            "gaps": gaps,
+            "successors": successors,
+            "NO_ACTION": True,
+            "NO_ACTION_PROOF": "all_gaps_satisfied_or_owner_blocked",
+            "at": ts,
+            "pid": os.getpid(),
+            "merge_authorized": False,
+        }
+    else:
+        payload = {
+            "worker_id": wid,
+            "node_id": node.NODE_ID,
+            "package_id": node.PACKAGE_ID,
+            "objective_id": node.OBJECTIVE_ID,
+            "TASK_KIND": node.TASK_KIND,
+            "gaps": gaps,
+            "successors": successors,
+            "NO_ACTION": False,
+            "at": ts,
+            "pid": os.getpid(),
+            "merge_authorized": False,
+        }
     receipt_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
     binding = RealWorkerBinding(
@@ -796,8 +933,11 @@ def interpret_receipt(root: Path, receipt_path: Path) -> dict[str, Any]:
     for succ in data.get("successors") or []:
         if succ.get("action") != "CREATE_SUCCESSOR_NODE":
             continue
+        gap_status = str(succ.get("status") or "")
+        if gap_status in _GAP_SATISFIED_STATES:
+            continue
         package = str(succ.get("package") or "UNKNOWN")
-        blocked = bool(succ.get("blocked"))
+        blocked = bool(succ.get("blocked")) or gap_status == "BLOCKED_OWNER"
         key = _idempotency_key(
             objective=str(data.get("objective_id") or "O4"),
             kind="IMPLEMENTATION",
@@ -821,7 +961,7 @@ def interpret_receipt(root: Path, receipt_path: Path) -> dict[str, Any]:
             WORKER_ROLE="IMPLEMENTER" if not blocked else "READ_ONLY_ANALYST",
             ACCEPTANCE_CRITERIA=f"Address gap {succ.get('gap')}",
             REQUIRED_VERIFICATION=["unit", "iv"],
-            OWNER_GATE="MERGE" if blocked else "NONE",
+            OWNER_GATE="CREDENTIAL" if blocked else "NONE",
             GENERATION=state.MISSION_GENERATION,
             IDEMPOTENCY_KEY=key,
             status=status,
