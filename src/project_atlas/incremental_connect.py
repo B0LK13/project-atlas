@@ -539,6 +539,13 @@ def evaluate_incremental_reconnect(
             delta=delta,
             prior_ok=True,
         )
+    if include_portfolio and not (vault / "generated" / "portfolio").is_dir():
+        return _decision(
+            "dirty_prior_full_recompile",
+            "portfolio_absent",
+            delta=delta,
+            prior_ok=True,
+        )
 
     return _decision(
         "no_change_skip",

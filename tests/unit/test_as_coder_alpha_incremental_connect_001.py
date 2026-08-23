@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -406,3 +407,19 @@ def test_cross_project_skip_does_not_leak(tmp_path: Path) -> None:
     ]
     assert leaked == []
     assert len(after_ids) == len(set(after_ids))
+
+
+def test_portfolio_reconnect_refuses_skip_when_portfolio_missing(
+    tmp_path: Path,
+) -> None:
+    project = _seed(tmp_path / "portfolio-skip")
+    first = connect_project(project, include_portfolio=True)
+    vault = Path(first["vault"])
+    assert (vault / "generated" / "portfolio").is_dir()
+    second = connect_project(project, include_portfolio=True)
+    assert _incr(second)["disposition"] == "no_change_skip"
+    shutil.rmtree(vault / "generated" / "portfolio")
+    third = connect_project(project, include_portfolio=True)
+    incr = _incr(third)
+    assert incr["disposition"] == "dirty_prior_full_recompile"
+    assert incr["reason"] == "portfolio_absent"
