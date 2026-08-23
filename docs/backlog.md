@@ -385,6 +385,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-D149-OWNER-GATE-NON-ESCALATION-001 authentic estate availability must not rewrite MERGE/SECURITY/other owner gates or set OWNER_CAPABILITY_GRANTED (implemented; MERGE_AUTHORIZATION NOT_GRANTED; authentic O2 post-merge seal OWNER_BLOCKED until AUTHENTIC_ESTATE_ROOT)
 - [x] AS-D149R-OWNER-GATE-BINDING-001 D-149 residual close: apply() must not write availability on integrity failure; present credential missing fingerprint/root/head is rejected (implemented; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-D148-ESTATE-CORPUS-FINGERPRINT-001 estate fingerprint binds marker plus source corpus so document edits invalidate stale D-148/D-149 credentials (implemented; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
 

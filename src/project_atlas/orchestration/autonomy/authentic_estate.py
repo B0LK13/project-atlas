@@ -269,13 +269,49 @@ def resolve_authentic_estate_root(
     return None
 
 
-def estate_fingerprint(estate_root: Path) -> str:
-    marker = estate_root / MARKER
-    if marker.is_file():
-        import hashlib
+_FINGERPRINT_EXCLUDE_DIRS: Final[frozenset[str]] = frozenset(
+    {".git", ".hg", ".svn", "node_modules", ".venv", "venv", "__pycache__", ".atlas"}
+)
+_FINGERPRINT_FILE_CAP: Final[int] = 5000
 
-        return hashlib.sha256(marker.read_bytes()).hexdigest()
-    return ""
+
+def estate_fingerprint(estate_root: Path) -> str:
+    """Bind estate identity to marker + source corpus, not the marker alone.
+
+    A document edit that leaves `.atlas-project.yaml` unchanged must change
+    the fingerprint so D-148/D-149 evidence cannot stay current on a drifted
+    corpus (AS-D148-ESTATE-CORPUS-FINGERPRINT-001).
+    """
+    import hashlib
+
+    root = estate_root.resolve()
+    digest = hashlib.sha256()
+    marker = root / MARKER
+    if marker.is_file():
+        digest.update(b"marker:")
+        digest.update(marker.read_bytes())
+    collected: list[Path] = []
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root)
+        if any(part in _FINGERPRINT_EXCLUDE_DIRS for part in rel.parts):
+            continue
+        collected.append(path)
+    collected.sort(key=lambda item: item.relative_to(root).as_posix())
+    for path in collected[:_FINGERPRINT_FILE_CAP]:
+        rel_posix = path.relative_to(root).as_posix()
+        digest.update(rel_posix.encode("utf-8"))
+        digest.update(b"\0")
+        file_digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            while True:
+                chunk = handle.read(65536)
+                if not chunk:
+                    break
+                file_digest.update(chunk)
+        digest.update(file_digest.digest())
+    return digest.hexdigest()
 
 
 def d148_evidence_applies(

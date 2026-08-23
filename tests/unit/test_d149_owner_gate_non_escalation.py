@@ -625,6 +625,21 @@ def test_cross_project_uuid_mismatch_rejected(
     assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
 
 
+def test_corpus_edit_rejects_stale_estate_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Document edit without marker change must invalidate the bound credential."""
+    estate = _valid_estate(tmp_path)
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    (estate / "README.md").write_text("corpus drifted after credential\n", encoding="utf-8")
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+    assert authentic_estate_ready_for_orchestration(repo) is False
+
+
 def test_stale_credential_does_not_make_reconcile_treat_estate_ready(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
