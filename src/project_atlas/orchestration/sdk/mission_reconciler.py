@@ -601,6 +601,7 @@ def mission_reconcile(
     persist_objectives(root, objectives)
     persist_nodes(root, nodes)
     persist_mission_state(root, state)
+    _refresh_merge_gate_state(root)
 
     return {
         "MISSION_GENERATION": state.MISSION_GENERATION,
@@ -613,6 +614,17 @@ def mission_reconcile(
         "SURFACE_OVERLAP_CHECKED": "YES",
         "merge_authorized": False,
     }
+
+
+def _refresh_merge_gate_state(root: Path) -> None:
+    try:
+        from project_atlas.orchestration.sdk.merge_sequence_gate import (
+            refresh_dependent_merge_gate_state,
+        )
+
+        refresh_dependent_merge_gate_state(root, child_pr_number=436)
+    except Exception:
+        return
 
 
 def ready_work_items(root: Path, *, capacity: int = 2) -> list[ReadyWorkItem]:
