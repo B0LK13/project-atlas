@@ -7202,3 +7202,35 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-D149R3-DEPENDENCY-AND-EVIDENCE-001 — night cycle 2026-08-23 23:35Z
+
+**Date:** 2026-08-23
+**Branch:** `cursor/atlas-autonomous-night-cycle-742c`
+**Base main:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Mode:** D-149 residual close after independent IV of draft `#446`.
+**Does not merge. AUTHENTIC_ESTATE_ROOT unset. Merge authorization NOT_GRANTED.**
+
+### Live-main pre-remediation replay
+
+`refresh_authentic_o2_node_states()` on `4e71cce`:
+`OWNER_GATE=MERGE` → `NONE`, `DEPENDENCIES=[]`, `READY`,
+`OWNER_CAPABILITY_GRANTED=True`, `BYPASS=True`.
+
+### Residuals on `#446` (`CERTIFY_WITH_RESIDUALS`)
+
+1. SUPERSEDED MERGE nodes had `DEPENDENCIES` overwritten with
+   `AUTHENTIC_ESTATE_ROOT`.
+2. `d148_evidence_applies()` skip-if-absent on missing fingerprint.
+
+### Fix
+
+- Protected owner gates keep original dependencies.
+- D-148 evidence requires recorded root + fingerprint match.
+
+### Post-remediation replay
+
+`OWNER_GATE=MERGE`, `DEPENDENCIES=['PR431']`, `BLOCKED_OWNER`,
+`OWNER_CAPABILITY_GRANTED=False`, `BYPASS=False`.
