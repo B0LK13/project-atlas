@@ -2625,6 +2625,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=429,
         help="Canonical continuation PR to refresh (default: 429).",
     )
+    orch_gov_resident = orch_sub.add_parser(
+        "governor-resident-run",
+        help=(
+            "D-130 resident self-wake driver: owns NEXT_WAKE_AT and "
+            "scheduler ticks without chat/owner heartbeats. Does not merge."
+        ),
+    )
+    orch_gov_resident.add_argument("--root", type=Path, default=None)
+    orch_gov_resident.add_argument(
+        "--max-ticks",
+        type=int,
+        default=None,
+        help="Optional tick cap (default: run until stop file).",
+    )
+    orch_gov_resident.add_argument(
+        "--detached-worker",
+        action="store_true",
+        help="Internal: launched as detached resident worker (no extra stdout).",
+    )
     orch_sdk_auth = orch_sub.add_parser(
         "sdk-auth-status",
         help=(
@@ -5112,6 +5131,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
+        if args.orchestrator_command == "governor-resident-run":
+            from project_atlas.orchestration.sdk.resident_driver import run_resident_loop
+            from project_atlas.orchestration.sdk.resident_mission import persist_mission
+            from project_atlas.orchestration.sdk.resident_status import load_status
+
+            resident_root = Path(getattr(args, "root", None) or Path.cwd())
+            persist_mission(resident_root)
+            status = run_resident_loop(
+                resident_root,
+                max_ticks=getattr(args, "max_ticks", None),
+            )
+            if not bool(getattr(args, "detached_worker", False)):
+                print(json.dumps(status.model_dump(mode="json"), indent=2, sort_keys=True))
+            else:
+                final = load_status(resident_root)
+                print(
+                    json.dumps(
+                        {"ok": True, "ticks": final.DETACHED_SCHEDULER_TICK_COUNT},
+                        sort_keys=True,
+                    )
+                )
+            return EXIT_OK
         if args.orchestrator_command == "continuation-broker":
             from project_atlas.orchestration.autonomy.continuation_broker import (
                 SuccessorKind,
