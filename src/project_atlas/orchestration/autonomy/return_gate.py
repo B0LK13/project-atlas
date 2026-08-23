@@ -26,6 +26,7 @@ class AutonomyReturnState(BaseModel):
     preparable_blocked_work: int = Field(default=0, ge=0)
     integration_ready: int = Field(default=0, ge=0)
     post_merge_seal_pending: int = Field(default=0, ge=0)
+    closure_integrity_pass: bool = False
     genuine_owner_frontier: bool = False
     external_hard_blocker: bool = False
     project_terminal: bool = False
@@ -50,22 +51,25 @@ def may_emit_final_return(state: AutonomyReturnState) -> bool:
     """Return True only when no autonomous work remains and a frontier exists."""
     if autonomous_work_exists(state):
         return False
-    return (
-        state.genuine_owner_frontier
-        or state.external_hard_blocker
-        or state.project_terminal
-    )
+    if state.external_hard_blocker or state.project_terminal:
+        return True
+    return state.genuine_owner_frontier and state.closure_integrity_pass
 
 
 def final_response_precheck(state: AutonomyReturnState) -> dict[str, object]:
     """Machine-enforced precheck before outer agent final response."""
     work = autonomous_work_exists(state)
     allowed = may_emit_final_return(state)
+    frontier = (
+        state.genuine_owner_frontier
+        or state.external_hard_blocker
+        or state.project_terminal
+    )
     return {
         "package_id": PACKAGE_ID,
         "autonomous_work_exists": work,
         "may_emit_final_return": allowed,
-        "suppress_final_response": work and not allowed,
+        "suppress_final_response": not allowed and (work or frontier),
         "continue_dag": work,
         "merge_authorized": False,
     }
