@@ -24,6 +24,8 @@ class AutonomyReturnState(BaseModel):
     uncertified_changes: int = Field(default=0, ge=0)
     derivable_successors: int = Field(default=0, ge=0)
     preparable_blocked_work: int = Field(default=0, ge=0)
+    integration_ready: int = Field(default=0, ge=0)
+    post_merge_seal_pending: int = Field(default=0, ge=0)
     genuine_owner_frontier: bool = False
     external_hard_blocker: bool = False
     project_terminal: bool = False
@@ -38,6 +40,8 @@ def autonomous_work_exists(state: AutonomyReturnState) -> bool:
             state.uncertified_changes > 0,
             state.derivable_successors > 0,
             state.preparable_blocked_work > 0,
+            state.integration_ready > 0,
+            state.post_merge_seal_pending > 0,
         ]
     )
 
