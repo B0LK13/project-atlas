@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 from pathlib import Path
 
@@ -10,6 +11,10 @@ from project_atlas.orchestration.autonomy.authentic_estate import (
     run_estate_preflight,
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import reject_mixed_head_tree_packet
+from project_atlas.orchestration.sdk.mission_reconciler import (
+    load_objectives,
+    persist_objectives,
+)
 
 
 def _init_repo(tmp_path: Path) -> Path:
@@ -63,3 +68,24 @@ def test_estate_fingerprint_changes_when_document_changes(tmp_path: Path) -> Non
     assert estate_fingerprint(repo) == before
     (repo / ".atlas-project.yaml").write_text(marker, encoding="utf-8")
     assert estate_fingerprint(repo) == before
+
+
+def test_acceptance_pilot_does_not_overstate_query_blocker(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    persist_objectives(repo, load_objectives(repo))
+    path = Path(__file__).resolve().parents[2] / "docs" / "scripts" / "d148_authentic_o2_runner.py"
+    spec = importlib.util.spec_from_file_location("d148_authentic_o2_runner", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module._update_o2_objectives(
+        repo,
+        {
+            "ACCEPTANCE_WORKFLOW_PILOT": True,
+            "AUTHENTIC_COMPILE_SATISFIED": False,
+            "AUTHENTIC_PILOT": False,
+        },
+    )
+    o2 = next(obj for obj in load_objectives(repo) if obj.objective_id == "O2")
+    assert o2.blockers == ["AUTHENTIC_COMPILE_IDEMPOTENCY"]
+    assert "AUTHENTIC_QUERY" not in o2.blockers

@@ -135,6 +135,13 @@ def _update_o2_objectives(root: Path, cert: dict[str, Any]) -> None:
                 "D-148 authentic ingest/compile/query on AUTHENTIC_ESTATE_ROOT",
                 f"estate_fingerprint={cert.get('estate_fingerprint')}",
             ]
+        elif cert.get("ACCEPTANCE_WORKFLOW_PILOT"):
+            obj.current_state = "ACCEPTANCE_WORKFLOW_SATISFIED"
+            obj.blockers = (
+                []
+                if cert.get("AUTHENTIC_COMPILE_SATISFIED")
+                else ["AUTHENTIC_COMPILE_IDEMPOTENCY"]
+            )
         elif cert.get("AUTHENTIC_INGEST_SATISFIED"):
             obj.current_state = "ACCEPTANCE_WORKFLOW_SATISFIED"
             obj.blockers = ["AUTHENTIC_COMPILE", "AUTHENTIC_QUERY"]
