@@ -227,6 +227,34 @@ def _arm_consumed(root: Path, *, consumed: list[str], now: float) -> None:
         if obs is None:
             continue
         arm = _runtime(root) / f"d131-{oid}-armed.json"
+        gate_state: dict[str, object] = {"MERGE_AUTHORIZATION": "NOT_GRANTED"}
+        try:
+            from project_atlas.orchestration.sdk.ci_observer import observe_exact_head_ci
+            from project_atlas.orchestration.sdk.merge_sequence_gate import (
+                gate_state_path,
+                refresh_dependent_merge_gate_state,
+            )
+
+            if obs.expected_head and obs.expected_tree:
+                ci_obs = observe_exact_head_ci(head_sha=obs.expected_head)
+                decision = refresh_dependent_merge_gate_state(
+                    root,
+                    child_pr_number=436,
+                    child_merge_authorized=False,
+                    parent_merged=True,
+                    parent_merge_commit=obs.expected_head,
+                    live_main_sha=obs.expected_head,
+                    live_tree_sha=obs.expected_tree,
+                    ci_observation=ci_obs,
+                )
+                gate_state = {
+                    "DEPENDENT_MERGE_ALLOWED": decision.allowed,
+                    "DEPENDENT_MERGE_REASON": decision.reason,
+                    "GATE_STATE_PATH": str(gate_state_path(root)),
+                    "MERGE_AUTHORIZATION": "NOT_GRANTED",
+                }
+        except Exception:
+            pass
         arm.write_text(
             json.dumps(
                 {
@@ -238,7 +266,7 @@ def _arm_consumed(root: Path, *, consumed: list[str], now: float) -> None:
                     "NEXT": "SPECULATIVE_CERT_LANES"
                     if obs.status == ObserverStatus.TERMINAL_PASS
                     else "CLASSIFY_AND_NARROW_REMEDIATOR",
-                    "MERGE_AUTHORIZATION": "NOT_GRANTED",
+                    **gate_state,
                 },
                 indent=2,
                 sort_keys=True,
