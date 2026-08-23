@@ -30,8 +30,8 @@ from project_atlas.orchestration.sdk.resident_windows import (
     read_watchdog_pid,
 )
 
-TARGET_HEAD = "6c3e74964d023cdcb55c3b77d6d029b095d578c6"
-TARGET_TREE = "7de1ab285a99357a0e7a195158aba50ad9f084d6"
+TARGET_HEAD = "94648b66d1adb226ce83fc2bd1a7aa24a962c309"
+TARGET_TREE = "229e0e3eac71c69c42a765a0c1996076b8bf5bd0"
 RECEIPT_DIR_REL = Path(".atlas") / "orchestration" / "sdk-runtime"
 HARBOR_FIXTURE_REL = Path("tests/fixtures/demo/estate/harbor-api")
 PR431_MERGE_SHA = "72b6d255aa6a6a7d987cdc59f75657c0d4122136"
