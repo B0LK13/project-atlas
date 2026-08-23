@@ -16,6 +16,7 @@ from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from project_atlas.orchestration.autonomy.exact_main_closure import is_ancestor
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, AgentRole, SdkRuntimeError
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
 
@@ -335,12 +336,7 @@ def _cert_evidence_applies(evidence: dict[str, Any], main_head: str, root: Path)
     ]
     if main_head in pins:
         return True
-    from project_atlas.orchestration.autonomy.exact_main_closure import is_ancestor
-
-    for pin in pins:
-        if len(pin) == 40 and is_ancestor(root, pin, main_head):
-            return True
-    return False
+    return any(len(pin) == 40 and is_ancestor(root, pin, main_head) for pin in pins)
 
 
 def _gap_package_id(gap: str, *, prefix: str = "AS-CODER-ALPHA") -> str:
