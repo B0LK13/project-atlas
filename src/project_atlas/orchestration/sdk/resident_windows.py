@@ -193,6 +193,26 @@ def ensure_resident_alive(
     python: str | None = None,
 ) -> dict[str, object]:
     """Restart resident if not live. Idempotent."""
+    from project_atlas.orchestration.sdk.resident_driver import (
+        clear_stop,
+        read_primary_lock_pid,
+    )
+    from project_atlas.orchestration.sdk.resident_mission import persist_mission
+
+    for _ in range(12):
+        status = load_status(root)
+        if status_claims_live(status):
+            return {
+                "action": "noop",
+                "pid": status.GOVERNOR_PID,
+                "live": True,
+            }
+        holder = read_primary_lock_pid(root)
+        if holder > 0:
+            time.sleep(0.5)
+            continue
+        break
+
     status = load_status(root)
     if status_claims_live(status):
         return {
@@ -200,8 +220,6 @@ def ensure_resident_alive(
             "pid": status.GOVERNOR_PID,
             "live": True,
         }
-    from project_atlas.orchestration.sdk.resident_driver import clear_stop
-    from project_atlas.orchestration.sdk.resident_mission import persist_mission
 
     persist_mission(root)
     clear_stop(root)

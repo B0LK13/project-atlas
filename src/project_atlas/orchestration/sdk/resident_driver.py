@@ -111,6 +111,21 @@ def acquire_primary_lock(root: Path) -> bool:
     return True
 
 
+def read_primary_lock_pid(root: Path) -> int:
+    """Return live primary lock holder PID, or 0."""
+    path = _runtime(root) / LOCK_NAME
+    if not path.is_file():
+        return 0
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        other = int(data.get("pid", 0))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return 0
+    if other > 0 and pid_is_alive(other):
+        return other
+    return 0
+
+
 def release_primary_lock(root: Path) -> None:
     path = _runtime(root) / LOCK_NAME
     if not path.is_file():
