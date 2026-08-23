@@ -221,6 +221,14 @@ def ensure_resident_alive(
             "live": True,
         }
 
+    holder = read_primary_lock_pid(root)
+    if holder > 0:
+        return {
+            "action": "noop",
+            "pid": holder,
+            "live": True,
+        }
+
     persist_mission(root)
     clear_stop(root)
     pid = detach_resident_driver(root=root, package_src=package_src, python=python)

@@ -955,6 +955,7 @@ def finalize_governor_checkpoint(
     progress_sequence: int = 0,
     owner_action_required_now: bool = False,
     safe_dag_work_remains: bool | None = None,
+    return_state: object | None = None,
 ) -> FinalizeResult:
     """Authoritative checkpoint path. CHECKPOINT_CONTINUE implies successor queued."""
     if result_class in TERMINAL_RESULT_CLASSES or owner_action_required_now:
@@ -975,6 +976,7 @@ def finalize_governor_checkpoint(
                 == TerminalResultClass.WAITING_OWNER,
                 safe_dag_work_remains=remains,
                 successor_state=phase.value,
+                return_state=return_state,
             ),
         )
     if result_class not in ENQUEUEABLE_RESULT_CLASSES:
@@ -1051,6 +1053,7 @@ def finalize_governor_checkpoint(
                 owner_action_required_now=False,
                 safe_dag_work_remains=remains,
                 successor_state=verified.phase.value,
+                return_state=return_state,
             ),
             no_progress_count=verified.no_progress_count,
         )
@@ -1075,6 +1078,7 @@ def finalize_governor_checkpoint(
                         owner_action_required_now=False,
                         safe_dag_work_remains=True,
                         successor_state=BrokerPhase.AWAITING_RESULT.value,
+                        return_state=return_state,
                     ),
                     error_code=exc.code,
                     no_progress_count=parked.no_progress_count,
