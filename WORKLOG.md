@@ -5,6 +5,76 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-D149-OWNER-GATE-NON-ESCALATION-001 — D-148 owner-gate non-escalation
+
+**Date:** 2026-08-23
+**Directive:** D-149
+**Base:** live `origin/main` `4e71cce0d1c97f408347e256300a41590da4c352` / tree `e9919f5d04bd1613df7254e3281badcdd7832b86`
+**Branch:** `cursor/atlas-autonomous-night-cycle-9eb3`
+**Mode:** BOUNDED_SECURITY_REMEDIATION. Does not redesign orchestration. Does not merge.
+
+### Defect (pre-remediation, live main)
+
+`refresh_authentic_o2_node_states()` rewrote any sequential O2 node to
+`status=READY`, `DEPENDENCIES=[]`, `OWNER_GATE=NONE` whenever an authentic
+estate preflight passed. `write_estate_credential()` set
+`OWNER_CAPABILITY_GRANTED=True` from filesystem/marker validation.
+The D-148 runner mutated credential + nodes *before* closure-integrity
+validation.
+
+Adversarial reproduction on `4e71cce0d1c97f408347e256300a41590da4c352`:
+
+```
+PREFLIGHT_PASS True
+OWNER_CAPABILITY_GRANTED True
+AFTER_GATE NONE
+AFTER_STATUS READY
+BYPASS True
+```
+
+### Fix
+
+- Consume `AUTHENTIC_ESTATE_ROOT` only when `OWNER_GATE==CREDENTIAL`.
+- Never rewrite MERGE / SECURITY / HUMAN / OWNER / RELEASE / GOVERNOR / SIGNOFF.
+- Preserve unrelated dependencies.
+- `OWNER_CAPABILITY_GRANTED` is always false; estate availability ≠ owner authority.
+- Reject stale credential / stale main / cross-project bindings.
+- Validate closure integrity before durable mutation; restore snapshot on failure.
+
+### Commands / results
+
+```
+pytest tests/unit/test_d149_owner_gate_non_escalation.py tests/unit/test_d148_authentic_estate.py --no-cov
+25 passed
+
+pytest tests/unit/test_d149_owner_gate_non_escalation.py tests/unit/test_d148_authentic_estate.py tests/unit/test_d147_broker_reconcile_adv.py tests/unit/test_d147r_exact_main_closure.py tests/unit/test_d146_remediation_adv.py
+43 passed
+
+ruff check authentic_estate.py d148_authentic_o2_runner.py test_d149_owner_gate_non_escalation.py
+All checks passed
+
+mypy src/project_atlas/orchestration/autonomy/authentic_estate.py
+Success: no issues found
+```
+
+Post-remediation adversarial replay:
+
+```
+OWNER_CAPABILITY_GRANTED False
+AFTER_GATE MERGE
+AFTER_STATUS BLOCKED_OWNER
+BYPASS False
+```
+
+### Honesty
+
+- `AUTHENTIC_ESTATE_AVAILABILITY_GRANTS_OWNER_AUTHORITY = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RERUN` (no AUTHENTIC_ESTATE_ROOT in this environment)
+- `IMPLEMENTER_EQUALS_INDEPENDENT_VERIFIER = NO` (same-session focused gates only)
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
