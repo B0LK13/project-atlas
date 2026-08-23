@@ -100,7 +100,11 @@ def d148_evidence_applies(
     main_head: str,
     repo_root: Path,
 ) -> bool:
-    """D-148 certification applies only to current main head and estate identity."""
+    """D-148 certification applies only to current main head and estate identity.
+
+    Fail-closed: missing estate root, missing fingerprint, empty current
+    fingerprint, or any mismatch rejects the packet (D-149R2).
+    """
     if not evidence:
         return False
     pin = str(evidence.get("live_main_head") or "")
@@ -125,14 +129,21 @@ def d148_evidence_applies(
     if estate is None:
         return False
     recorded_root = str(evidence.get("AUTHENTIC_ESTATE_ROOT") or "").strip()
-    if recorded_root and str(estate.resolve()) != recorded_root:
+    if not recorded_root:
         return False
-    recorded_fp = str(evidence.get("estate_fingerprint") or "").strip()
-    if recorded_fp:
-        current_fp = estate_fingerprint(estate)
-        if current_fp and recorded_fp != current_fp:
+    try:
+        if str(estate.resolve()) != str(Path(recorded_root).resolve()):
             return False
-    return True
+    except OSError:
+        return False
+    # D-149R2: certification is fail-closed on estate identity. A missing
+    # fingerprint, an unreadable current fingerprint, or a mismatch must
+    # reject the packet — never skip-if-absent (AS-D149R2-EVIDENCE-BINDING-001).
+    recorded_fp = str(evidence.get("estate_fingerprint") or "").strip()
+    if not recorded_fp:
+        return False
+    current_fp = estate_fingerprint(estate)
+    return bool(current_fp) and recorded_fp == current_fp
 
 
 def run_estate_preflight(estate_root: Path) -> EstatePreflight:
