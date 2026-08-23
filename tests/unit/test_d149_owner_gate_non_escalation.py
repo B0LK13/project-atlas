@@ -14,6 +14,8 @@ from project_atlas.orchestration.autonomy.authentic_estate import (
     AUTHENTIC_ESTATE_DEPENDENCY,
     AuthenticO2PreflightError,
     apply_authentic_estate_mutations,
+    authentic_estate_ready_for_orchestration,
+    estate_credential_binding_current,
     estate_fingerprint,
     estate_prerequisite_consumable,
     load_estate_credential,
@@ -28,6 +30,7 @@ from project_atlas.orchestration.autonomy.exact_main_closure import (
 )
 from project_atlas.orchestration.sdk.mission_reconciler import (
     WorkNode,
+    _gap_statuses,
     _idempotency_key,
     load_nodes,
     load_objectives,
@@ -501,6 +504,144 @@ def test_reconciler_does_not_rewrite_superseded_merge_to_credential(
     mission_reconcile(repo, main_head="0" * 40)
     after = next(n for n in load_nodes(repo).values() if key == n.IDEMPOTENCY_KEY)
     assert after.OWNER_GATE == "MERGE"
+
+
+def test_apply_does_not_write_credential_when_integrity_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P2 residual: apply() must not persist availability on an integrity no-op."""
+    estate = _valid_estate(tmp_path)
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    preflight = run_estate_preflight(estate)
+    integrity = _failing_integrity(repo)
+    with pytest.raises(AuthenticO2PreflightError, match="closure integrity"):
+        apply_authentic_estate_mutations(repo, estate, preflight, integrity=integrity)
+    cred = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    assert not cred.is_file()
+    node = load_nodes(repo)["n1"]
+    assert node.OWNER_GATE == "CREDENTIAL"
+    assert node.status == "BLOCKED_OWNER"
+
+
+def test_apply_does_not_write_credential_when_preflight_fails(tmp_path: Path) -> None:
+    estate = _init_git(tmp_path / "estate")
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    preflight = run_estate_preflight(estate)
+    assert not preflight.preflight_pass
+    with pytest.raises(AuthenticO2PreflightError, match="estate preflight"):
+        apply_authentic_estate_mutations(repo, estate, preflight)
+    cred = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    assert not cred.is_file()
+
+
+def test_present_credential_missing_fingerprint_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _valid_estate(tmp_path)
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    cred_path = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    payload = json.loads(cred_path.read_text(encoding="utf-8"))
+    payload.pop("estate_fingerprint", None)
+    cred_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+
+
+def test_present_credential_missing_head_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _valid_estate(tmp_path)
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    cred_path = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    payload = json.loads(cred_path.read_text(encoding="utf-8"))
+    payload.pop("live_main_head", None)
+    cred_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].status == "BLOCKED_OWNER"
+
+
+def test_present_credential_missing_root_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _valid_estate(tmp_path)
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    cred_path = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    payload = json.loads(cred_path.read_text(encoding="utf-8"))
+    payload.pop("AUTHENTIC_ESTATE_ROOT", None)
+    payload.pop("root", None)
+    cred_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    preflight = run_estate_preflight(estate)
+    assert not estate_credential_binding_current(
+        payload, estate_root=estate, preflight=preflight, repo_root=repo
+    )
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+
+
+def test_human_and_owner_gates_remain_unchanged() -> None:
+    """Required matrix item 4: HUMAN/OWNER stay intact (helper + in-memory)."""
+    deps = [AUTHENTIC_ESTATE_DEPENDENCY]
+    for gate in ("HUMAN", "OWNER", "RELEASE", "GOVERNOR", "SIGNOFF"):
+        assert not estate_prerequisite_consumable(owner_gate=gate, dependencies=deps)
+
+
+def test_cross_project_uuid_mismatch_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _valid_estate(tmp_path, project_id="same")
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    cred_path = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    payload = json.loads(cred_path.read_text(encoding="utf-8"))
+    payload["project_uuid"] = "11111111-1111-4111-8111-111111111111"
+    cred_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+
+
+def test_stale_credential_does_not_make_reconcile_treat_estate_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P2 residual: gap classification must use bound estate readiness."""
+    estate = _valid_estate(tmp_path)
+    repo = _atlas_repo(tmp_path)
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    cred_path = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    payload = json.loads(cred_path.read_text(encoding="utf-8"))
+    payload["estate_fingerprint"] = "0" * 64
+    cred_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    assert authentic_estate_ready_for_orchestration(repo) is False
+    gaps = _gap_statuses(repo, main_head="0" * 40)
+    assert gaps["AUTHENTIC_INGEST"] == "BLOCKED_OWNER"
 
 
 def test_env_restored_after_module_use() -> None:

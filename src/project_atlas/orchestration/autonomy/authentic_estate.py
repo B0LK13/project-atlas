@@ -163,20 +163,27 @@ def estate_credential_binding_current(
     preflight: EstatePreflight,
     repo_root: Path,
 ) -> bool:
-    """Reject stale/cross-project/cross-head credential bindings (D-149)."""
+    """Reject stale/cross-project/cross-head credential bindings (D-149).
+
+    A present credential is fail-closed: missing estate root, fingerprint, or
+    live-main pin cannot be treated as current. Absence of a credential file is
+    handled by the caller (env/preflight may still satisfy the estate input).
+    """
     if not credential:
         return False
     recorded_root = str(
         credential.get("AUTHENTIC_ESTATE_ROOT") or credential.get("root") or ""
     ).strip()
-    if recorded_root:
-        try:
-            if Path(recorded_root).resolve() != estate_root.resolve():
-                return False
-        except OSError:
+    if not recorded_root:
+        return False
+    try:
+        if Path(recorded_root).resolve() != estate_root.resolve():
             return False
+    except OSError:
+        return False
     recorded_fp = str(credential.get("estate_fingerprint") or "").strip()
-    if recorded_fp and preflight.estate_fingerprint and recorded_fp != preflight.estate_fingerprint:
+    current_fp = str(preflight.estate_fingerprint or "").strip()
+    if not recorded_fp or not current_fp or recorded_fp != current_fp:
         return False
     recorded_project = str(credential.get("project_id") or "").strip()
     if recorded_project and preflight.project_id and recorded_project != preflight.project_id:
@@ -185,9 +192,11 @@ def estate_credential_binding_current(
     if recorded_uuid and preflight.project_uuid and recorded_uuid != preflight.project_uuid:
         return False
     recorded_head = str(credential.get("live_main_head") or "").strip()
-    if recorded_head and len(recorded_head) == 40:
-        live_head, _live_tree = _repo_git_pin(repo_root)
-        if live_head and recorded_head != live_head:
+    live_head, _live_tree = _repo_git_pin(repo_root)
+    if live_head:
+        if not recorded_head or len(recorded_head) != 40:
+            return False
+        if recorded_head != live_head:
             from project_atlas.orchestration.autonomy.exact_main_closure import (
                 is_ancestor,
                 is_metadata_only_post_cert_delta,
@@ -198,6 +207,8 @@ def estate_credential_binding_current(
                 and is_metadata_only_post_cert_delta(repo_root, recorded_head, live_head)
             ):
                 return False
+    elif recorded_head and len(recorded_head) == 40:
+        return False
     return True
 
 
@@ -401,6 +412,25 @@ def authentic_estate_available(repo_root: Path) -> bool:
     return preflight.preflight_pass
 
 
+def authentic_estate_ready_for_orchestration(repo_root: Path) -> bool:
+    """Estate input is satisfied only when preflight passes and any present credential binds."""
+    estate = resolve_authentic_estate_root(repo_root)
+    if estate is None:
+        return False
+    preflight = run_estate_preflight(estate)
+    if not preflight.preflight_pass:
+        return False
+    cred = load_estate_credential(repo_root)
+    if not cred:
+        return True
+    return estate_credential_binding_current(
+        cred,
+        estate_root=estate,
+        preflight=preflight,
+        repo_root=repo_root,
+    )
+
+
 def characterize_estate(estate_root: Path) -> dict[str, Any]:
     root = estate_root.resolve()
     proc = subprocess.run(
@@ -500,7 +530,19 @@ def apply_authentic_estate_mutations(
     *,
     integrity: Any | None = None,
 ) -> list[str]:
-    """Write availability credential then refresh eligible nodes; restore on failure."""
+    """Write availability credential then refresh eligible nodes; restore on failure.
+
+    Integrity that can invalidate execution is checked before any durable write.
+    A failing check is a no-op (no credential, no gate widening).
+    """
+    from project_atlas.orchestration.autonomy.exact_main_closure import (
+        closure_integrity_pass,
+    )
+
+    if integrity is not None and not closure_integrity_pass(integrity):
+        raise AuthenticO2PreflightError("closure integrity failed")
+    if not preflight.preflight_pass:
+        raise AuthenticO2PreflightError("estate preflight failed")
     snapshot = snapshot_orchestration_state(repo_root)
     try:
         write_estate_credential(repo_root, estate, preflight)
