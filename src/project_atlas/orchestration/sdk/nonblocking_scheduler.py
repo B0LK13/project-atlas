@@ -146,6 +146,37 @@ def bounded_sleep_seconds(
     return min(delay, cap_sec)
 
 
+def _maybe_mint_stacked_parent_seal(root: Path, obs: ExternalObserver) -> None:
+    """Wire D-138 gate: mint parent seal on stacked post-merge CI TERMINAL_PASS."""
+    if obs.expected_head is None or obs.expected_tree is None:
+        return
+    from project_atlas.orchestration.sdk.ci_observer import observe_exact_head_ci
+    from project_atlas.orchestration.sdk.merge_sequence_gate import (
+        on_ci_terminal_pass_for_stacked_merge,
+        refresh_dependent_merge_gate_state,
+    )
+
+    ci_obs = observe_exact_head_ci(head_sha=obs.expected_head)
+    on_ci_terminal_pass_for_stacked_merge(
+        root,
+        package_id=obs.package_id,
+        ci_observation=ci_obs,
+        parent_merge_commit=obs.expected_head,
+        parent_post_merge_main_sha=obs.expected_head,
+        parent_post_merge_tree=obs.expected_tree,
+    )
+    refresh_dependent_merge_gate_state(
+        root,
+        child_pr_number=436,
+        child_merge_authorized=False,
+        parent_merged=True,
+        parent_merge_commit=obs.expected_head,
+        live_main_sha=obs.expected_head,
+        live_tree_sha=obs.expected_tree,
+        ci_observation=ci_obs,
+    )
+
+
 def apply_ci_poll_result(
     root: Path,
     observer_id: str,
@@ -255,6 +286,8 @@ def scheduler_tick(
         )
         if first:
             result.terminal_consumed.append(obs.observer_id)
+            if obs.status == ObserverStatus.TERMINAL_PASS:
+                _maybe_mint_stacked_parent_seal(root, obs)
         else:
             result.duplicate_event_skips += 1
 
