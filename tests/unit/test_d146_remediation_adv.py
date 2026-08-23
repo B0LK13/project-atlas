@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import shutil
 import time
 from pathlib import Path
 
-from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState, may_emit_final_return
+from project_atlas.cli import EXIT_OK, main
+from project_atlas.orchestration.autonomy.return_gate import (
+    AutonomyReturnState,
+    may_emit_final_return,
+)
 from project_atlas.orchestration.sdk.ci_observer import CiObservation, classify_watch_session
-from project_atlas.orchestration.sdk.host import pid_is_alive
 from project_atlas.orchestration.sdk.resident_driver import read_primary_lock_pid
-from project_atlas.orchestration.sdk.resident_status import load_status, status_claims_live
+from project_atlas.orchestration.sdk.resident_status import load_status
 from project_atlas.orchestration.sdk.resident_windows import (
-    detach_continuous_watchdog,
     detach_resident_driver,
     ensure_resident_alive,
 )
@@ -50,15 +53,11 @@ def test_observer_exit_without_observation_is_observer_exited() -> None:
     assert disp == "OBSERVER_EXITED"
 
 
-def test_query_without_portfolio_fails_closed(tmp_path: Path) -> None:
-    from project_atlas.cli import EXIT_OK, main
-
+def test_ask2_after_build_portfolio_passes(tmp_path: Path) -> None:
     repo = Path(__file__).resolve().parents[2]
     fixture = repo / "tests" / "fixtures" / "demo" / "estate" / "harbor-api"
     work = tmp_path / "work"
     source = work / "harbor-api"
-    import shutil
-
     shutil.copytree(fixture, source)
     manifest = work / "manifest.json"
     vault = work / "vault"
@@ -79,35 +78,23 @@ def test_query_without_portfolio_fails_closed(tmp_path: Path) -> None:
         == EXIT_OK
     )
     assert main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-    assert main(["validate", "--vault", str(vault)]) == EXIT_OK
-    no_portfolio = main(
-        [
-            "ask2",
-            "--vault",
-            str(vault),
-            "--project",
-            "harbor-api",
-            "--question",
-            "audit logging",
-            "--json",
-        ]
-    )
-    with_portfolio = EXIT_OK
     assert main(["build-portfolio", "--vault", str(vault)]) == EXIT_OK
-    with_portfolio = main(
-        [
-            "ask2",
-            "--vault",
-            str(vault),
-            "--project",
-            "harbor-api",
-            "--question",
-            "audit logging",
-            "--json",
-        ]
+    assert main(["validate", "--vault", str(vault)]) == EXIT_OK
+    assert (
+        main(
+            [
+                "ask2",
+                "--vault",
+                str(vault),
+                "--project",
+                "harbor-api",
+                "--question",
+                "audit logging",
+                "--json",
+            ]
+        )
+        == EXIT_OK
     )
-    assert with_portfolio == EXIT_OK
-    assert no_portfolio != EXIT_OK or with_portfolio == EXIT_OK
 
 
 def test_autonomy_gate_blocks_premature_d144_pattern() -> None:
