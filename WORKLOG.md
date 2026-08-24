@@ -7350,3 +7350,13 @@ executable gap is an adversarial isolation harness.
 - `WINDOWS_STRANGER_IV = NOT_CLAIMED`
 - `LENS != AUTHORITY`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-CROSS-SURFACE-002 — stale inventory must not look current
+
+**Date:** 2026-08-23
+**Mode:** Integration IV. Lens != authority.
+
+### Results
+- pytest `tests/integration/test_cross_surface_drift_honesty_001.py`: 1 passed

@@ -369,6 +369,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-ATTENTION-001 Attention hygiene classifier (`atlas attention`)
 - [x] AS-CODER-ALPHA-ARCH-002 Structured architecture lens (multi-slot, honest UNKNOWN)
 - [x] AS-CODER-ALPHA-CROSS-SURFACE-001 Disk/Web/Obsidian/Agent brief consistency tests
+- [x] AS-CODER-ALPHA-CROSS-SURFACE-002 stale inventory must not look current on brief/overview/state/agent-context (IV on this branch; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-V2 Decide → rematerialize → no pending resurrection
 - [x] AS-CODER-ALPHA-SOURCE-HEALTH-001 Source failure explainability (`atlas source-health`)
 - [x] AS-CODER-ALPHA-DECISIONS-002 Decision status labels (active/superseded/…)
