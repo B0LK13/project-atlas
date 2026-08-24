@@ -173,6 +173,67 @@ def test_project_scope_does_not_import_sibling_receipts(tmp_path: Path) -> None:
     assert report["metrics"]["REEXPLANATION_RATE"]["status"] == "UNKNOWN"
 
 
+def test_malformed_foreign_capture_never_fabricates_measured_zero(tmp_path: Path) -> None:
+    root = tmp_path / "generated" / "ops" / "session-captures"
+    _write(
+        root / "capture-foreign-valid.json",
+        {
+            "capture_id": "capture-foreign-valid",
+            "project_id": "project-a",
+            "changes": ["foreign change"],
+        },
+    )
+    _write(
+        root / "capture-malformed-scope.json",
+        {"capture_id": "capture-malformed-scope", "changes": ["missing project_id"]},
+    )
+    (root / "capture-unreadable.json").write_text("{not-json", encoding="utf-8")
+    report = compile_workflow_metrics(tmp_path, project_id="project-b")
+    metric = report["metrics"]["MEANINGFUL_CHANGES_CAPTURED"]
+    assert metric["status"] == "UNKNOWN"
+    assert metric["value"] is None
+    assert metric["value"] != 0.0
+
+
+def test_reexplanation_requires_strict_json_boolean(tmp_path: Path) -> None:
+    root = tmp_path / "generated" / "ops" / "fresh-agent"
+    matrix: list[tuple[str, object]] = [
+        ("true-bool", True),
+        ("false-bool", False),
+        ("int-one", 1),
+        ("int-zero", 0),
+        ("float-one", 1.0),
+        ("float-zero", 0.0),
+        ("str-true", "true"),
+        ("str-false", "false"),
+        ("null", None),
+        ("str-random", "maybe"),
+    ]
+    for name, value in matrix:
+        payload: dict[str, object] = {"project_id": "harbor-api"}
+        if value is not None:
+            payload["reexplanation_required"] = value
+        _write(root / f"{name}.json", payload)
+    report = compile_workflow_metrics(tmp_path, project_id="harbor-api")
+    metric = report["metrics"]["REEXPLANATION_RATE"]
+    assert metric["status"] == "MEASURED"
+    assert metric["value"] == 0.5
+
+
+def test_bool_subclass_does_not_count_as_numeric_metric(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "generated" / "ops" / "fresh-agent" / "harbor-api.json",
+        {
+            "project_id": "harbor-api",
+            "metrics": {"UNKNOWN_HONESTY": True},
+        },
+    )
+    report = compile_workflow_metrics(tmp_path, project_id="harbor-api")
+    metric = report["metrics"]["UNKNOWN_HONESTY"]
+    assert metric["status"] == "UNKNOWN"
+    assert metric["value"] is None
+
+
 def test_receipt_write_is_deterministic(tmp_path: Path) -> None:
     first = write_workflow_metrics_receipt(tmp_path)
     second = write_workflow_metrics_receipt(tmp_path)

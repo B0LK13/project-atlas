@@ -80,6 +80,30 @@ def _read_json(path: Path) -> tuple[str, dict[str, Any] | None]:
     return "ok", raw
 
 
+def _receipt_in_project_scope(payload: dict[str, Any], project_id: str | None) -> bool:
+    if not project_id:
+        return True
+    scoped = payload.get("project_id")
+    if not isinstance(scoped, str) or not scoped.strip():
+        return False
+    return scoped == project_id
+
+
+def _strict_json_bool(value: object) -> bool | None:
+    """Accept only JSON booleans — never bool-subclass int coercion."""
+    if type(value) is bool:
+        return value
+    return None
+
+
+def _numeric_metric_value(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
 def _metric(
     metric_id: str,
     *,
@@ -185,7 +209,7 @@ def _handoff_success_rate(vault: Path, project_id: str | None) -> dict[str, Any]
         status, payload = _read_json(path)
         if status != "ok" or payload is None:
             continue
-        if project_id and payload.get("project_id") != project_id:
+        if not _receipt_in_project_scope(payload, project_id):
             continue
         scoped += 1
     if not resume_receipts:
@@ -210,7 +234,7 @@ def _handoff_success_rate(vault: Path, project_id: str | None) -> dict[str, Any]
         if status != "ok" or payload is None:
             resumes_total += 1
             continue
-        if project_id and payload.get("project_id") != project_id:
+        if not _receipt_in_project_scope(payload, project_id):
             continue
         resumes_total += 1
         if payload.get("status") == "resumed":
@@ -268,7 +292,7 @@ def _rate_from_receipts(
         status, payload = _read_json(path)
         if status != "ok" or payload is None:
             continue
-        if project_id and payload.get("project_id") != project_id:
+        if not _receipt_in_project_scope(payload, project_id):
             continue
         cursor: Any = payload
         for key in field_path:
@@ -276,9 +300,11 @@ def _rate_from_receipts(
                 cursor = None
                 break
             cursor = cursor[key]
-        if isinstance(cursor, (int, float)):
-            values.append(float(cursor))
-            evidence.append(path.relative_to(vault).as_posix())
+        numeric = _numeric_metric_value(cursor)
+        if numeric is None:
+            continue
+        values.append(numeric)
+        evidence.append(path.relative_to(vault).as_posix())
     if not values:
         return _metric(
             metric_id,
@@ -316,12 +342,23 @@ def _meaningful_changes(vault: Path, project_id: str | None) -> dict[str, Any]:
         status, payload = _read_json(path)
         if status != "ok" or payload is None:
             continue
-        if project_id and payload.get("project_id") != project_id:
+        if not _receipt_in_project_scope(payload, project_id):
             continue
         counted += 1
         changes = payload.get("changes")
         if isinstance(changes, list) and any(str(item).strip() for item in changes):
             meaningful += 1
+    if counted == 0:
+        return _metric(
+            "MEANINGFUL_CHANGES_CAPTURED",
+            status="UNKNOWN",
+            value=None,
+            evidence=["generated/ops/session-captures/"],
+            note=(
+                "No valid in-scope capture receipts; absent evidence is not "
+                "measured zero."
+            ),
+        )
     return _metric(
         "MEANINGFUL_CHANGES_CAPTURED",
         status="MEASURED",
@@ -360,12 +397,13 @@ def _reexplanation_rate(vault: Path, project_id: str | None) -> dict[str, Any]:
         status, payload = _read_json(path)
         if status != "ok" or payload is None:
             continue
-        if project_id and payload.get("project_id") != project_id:
+        if not _receipt_in_project_scope(payload, project_id):
             continue
-        if "reexplanation_required" not in payload:
+        flag = _strict_json_bool(payload.get("reexplanation_required"))
+        if flag is None:
             continue
         total += 1
-        if payload.get("reexplanation_required") is True:
+        if flag:
             required += 1
         evidence.append(path.relative_to(vault).as_posix())
     if total == 0:
