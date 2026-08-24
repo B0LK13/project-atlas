@@ -740,9 +740,11 @@ def connect_project(
         )
         index_result = build_indexes(vault_path)
         if include_portfolio:
+            from project_atlas.bitemporal_catalog import build_bitemporal_catalogs
             from project_atlas.portfolio import build_portfolio as run_build_portfolio
 
             run_build_portfolio(vault_path)
+            build_bitemporal_catalogs(vault_path)
         if not skip_validate:
             validate(vault_path)
 

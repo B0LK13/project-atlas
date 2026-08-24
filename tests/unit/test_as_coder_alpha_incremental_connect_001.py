@@ -406,3 +406,38 @@ def test_cross_project_skip_does_not_leak(tmp_path: Path) -> None:
     ]
     assert leaked == []
     assert len(after_ids) == len(set(after_ids))
+
+
+def test_portfolio_connect_writes_bitemporal_catalogs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from project_atlas.bitemporal_catalog import build_bitemporal_catalogs as real_tm
+
+    calls = {"n": 0}
+
+    def wrapped(vault: Path) -> object:
+        calls["n"] += 1
+        return real_tm(vault)
+
+    monkeypatch.setattr(
+        "project_atlas.bitemporal_catalog.build_bitemporal_catalogs", wrapped
+    )
+    project = _seed(tmp_path / "portfolio-tm")
+    report = connect_project(project, include_portfolio=True)
+    vault = Path(report["vault"])
+    assert (vault / "generated" / "portfolio").is_dir()
+    assert calls["n"] == 1
+
+
+def test_portfolio_skip_refuses_missing_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = _seed(tmp_path / "portfolio-missing")
+    first = connect_project(project, include_portfolio=True)
+    vault = Path(first["vault"])
+    import shutil
+
+    shutil.rmtree(vault / "generated" / "portfolio")
+    second = connect_project(project, include_portfolio=True)
+    assert _incr(second)["disposition"] == "dirty_prior_full_recompile"
+    assert _incr(second)["reason"] == "portfolio_artifacts_absent"

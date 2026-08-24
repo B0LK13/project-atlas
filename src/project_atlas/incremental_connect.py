@@ -494,6 +494,12 @@ def evaluate_incremental_reconnect(
     opt_ok, opt_reason = options_compatible(receipt, options)
     if not opt_ok:
         return _decision("dirty_prior_full_recompile", opt_reason, prior_ok=True)
+    if include_portfolio and not (vault / "generated" / "portfolio").is_dir():
+        return _decision(
+            "dirty_prior_full_recompile",
+            "portfolio_artifacts_absent",
+            prior_ok=True,
+        )
 
     manifest_status, prior_manifest = _read_json_object(vault / manifest_relative)
     if manifest_status == "absent":
