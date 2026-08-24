@@ -109,7 +109,7 @@ def test_d154_stop_hook_blocks_when_counter_nonzero(
         },
     )
     _assert_terminal_blocked(handle_stop_event(_stop(), root=tmp_path))
-    _assert_terminal_blocked(emit_stop_followup(tmp_path))
+    _assert_terminal_blocked(emit_stop_followup(tmp_path, loop_count=1))
 
 
 def test_d154_case1_all_clear_allows_terminal(tmp_path: Path) -> None:
@@ -154,7 +154,7 @@ def test_d154_case13_external_ci_blocked_but_ready_work_forbids_return(
 
 def test_d154_case14_missing_checkpoint_fails_closed(tmp_path: Path) -> None:
     _assert_terminal_blocked(handle_stop_event(_stop(), root=tmp_path))
-    _assert_terminal_blocked(emit_stop_followup(tmp_path))
+    _assert_terminal_blocked(emit_stop_followup(tmp_path, loop_count=1))
 
 
 def test_d154_case15_corrupt_checkpoint_fails_closed(tmp_path: Path) -> None:

@@ -842,6 +842,9 @@ def emit_stop_followup(
             event_type="STOP_HOOK_RETURN_GATE_BLOCKED",
         )
     if existing is None:
+        # loop_count=0: broker idle — defer to bridge / non-terminal hook path.
+        if loop_count == 0:
+            return {}
         if stop_hook_terminal_return_allowed(root):
             append_hook_trace(
                 root,

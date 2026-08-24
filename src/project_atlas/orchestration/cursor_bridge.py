@@ -361,6 +361,8 @@ def handle_stop_event(payload: object, *, root: Path) -> dict[str, str]:
     )
 
     def _terminal_stop_response() -> dict[str, str]:
+        if event.loop_count < 1:
+            return {}
         if stop_hook_terminal_return_allowed(root):
             return {}
         return {"followup_message": render_stop_hook_dag_continuation()}
@@ -378,7 +380,7 @@ def handle_stop_event(payload: object, *, root: Path) -> dict[str, str]:
     if verified.followup_emitted:
         return _terminal_stop_response()
     if verified.route.route_kind == RouteKind.TERMINAL:
-        return _terminal_stop_response()
+        return {}
     packet = build_handoff_packet(verified, transport=CompletionTransport.HOOK)
     message = render_followup_from_packet(packet)
     if message is None:

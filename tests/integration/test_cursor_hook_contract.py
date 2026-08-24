@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from project_atlas.orchestration.autonomy.return_gate import STOP_HOOK_RETURN_GATE_MARKER
 from project_atlas.orchestration.cursor_bridge import STATE_RELATIVE, stage_result
 
 REPO = Path(__file__).resolve().parents[2]
@@ -104,7 +105,9 @@ def test_hook_owner_gate_and_terminal_and_aborted(tmp_path: Path) -> None:
     code, stdout, _stderr = _invoke(hook, {"status": "error", "loop_count": 0}, cwd=tmp_path)
     assert json.loads(stdout) == {}
     code, stdout, _stderr = _invoke(hook, {"status": "completed", "loop_count": 1}, cwd=tmp_path)
-    assert json.loads(stdout) == {}
+    parsed = json.loads(stdout)
+    assert "followup_message" in parsed
+    assert STOP_HOOK_RETURN_GATE_MARKER in parsed["followup_message"]
 
 
 def test_hook_invalid_stdin_and_missing_state(tmp_path: Path) -> None:
