@@ -71,6 +71,7 @@ STAMPS = (
     "MISSING != PASS",
 )
 NEXT_API_STATUS: Final[str] = "PENDING_OWNER_HELD_406"
+INBOX_API_STATUS: Final[str] = "IMPLEMENTED"
 LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/ask",
     "/v1/projects",
@@ -78,6 +79,7 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/knowledge",
     "/v1/brief",
     "/v1/roadmap",
+    "/v1/inbox",
     "/v1/source-health",
     "/v1/project-state",
     "/v1/conflicts",
@@ -255,7 +257,7 @@ def run_demo_readiness(
             "inbox",
             "READY" if inbox_available else "NOT_IMPLEMENTED",
             note=(
-                "inbox list surface present on this runtime"
+                "inbox list CLI + GET /v1/inbox; listing != mutation != command"
                 if inbox_available
                 else "inbox list is absent on live main; listing != mutation != command"
             ),
@@ -265,7 +267,7 @@ def run_demo_readiness(
             "PARTIAL",
             note=(
                 "CLI + LIVE_API + web presentation exist; "
-                f"NEXT_API={NEXT_API_STATUS}; /v1/inbox=NOT_IMPLEMENTED; "
+                f"NEXT_API={NEXT_API_STATUS}; /v1/inbox={INBOX_API_STATUS}; "
                 "UI != canonical truth"
             ),
         ),
@@ -295,13 +297,19 @@ def run_demo_readiness(
         "obsidian_present": bool(obsidian.get("notes_written") or obsidian.get("receipt_path")),
         "drift_consumed": drift.get("package") == "AS-CODER-ALPHA-INVENTORY-DRIFT-001",
         "inbox_list_implemented": inbox_available,
+        "inbox_api_landed": True,
         "next_api_landed": False,
         "cross_project_leak_count": leak_count,
     }
     failed = [
         name
         for name, ok in checks.items()
-        if name not in {"cross_project_leak_count", "inbox_list_implemented", "next_api_landed"}
+        if name not in {
+            "cross_project_leak_count",
+            "inbox_list_implemented",
+            "inbox_api_landed",
+            "next_api_landed",
+        }
         and not ok
     ]
     if leak_count != 0:
@@ -334,6 +342,7 @@ def run_demo_readiness(
         "failed_checks": failed,
         "live_api_present": list(LIVE_API_PRESENT),
         "next_api": NEXT_API_STATUS,
+        "inbox_api": INBOX_API_STATUS,
         "inbox_list": "READY" if inbox_available else "NOT_IMPLEMENTED",
         "stamps": list(STAMPS),
         "honesty": dict(HONESTY),

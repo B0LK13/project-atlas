@@ -6997,3 +6997,46 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## D-149 independent verification (PR #477) — 2026-08-24 night cycle
+
+**Verifier branch:** `cursor/atlas-autonomous-night-cycle-a791`
+**Candidate:** `c54f9ea79eab7a30a95f8286c2023d407f00e371` / TREE `a9e709185848544b9adece9fdb0adbf00b002901`
+**Live main:** `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** INDEPENDENT VERIFIER != implementer of #477. Does not merge.
+
+### Live-main residual (CODE REALITY)
+Authentic estate availability on live main still clears `OWNER_GATE=CREDENTIAL` when the node is waiting on `SOME_OTHER_CREDENTIAL` (`CREDENTIAL_OTHER_WIDENED = True`). `MERGE` is already preserved on main. #477 closes the CREDENTIAL-other path and removes the reconciler MERGE→CREDENTIAL rewrite.
+
+### IV commands (worktree `/tmp/atlas-iv-477`)
+- D-149 matrix + D-146/D-147/D-148/D-154/reconciler + NEXT-API + stale-guard: 110 passed
+- ruff/mypy on D-149 surfaces: pass
+- Reviews/threads on #477: none
+- `AUTHENTIC_ESTATE_ROOT`: unset → authentic O2 remains owner-blocked
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Classification of #477 D-149
+VALID bounded security remediation. Not transferred to this branch (do not duplicate). Owner merge remains owner-only.
+
+---
+
+## AS-CODER-ALPHA-INBOX-API-001 — read-only GET /v1/inbox
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-a791`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`
+**Mode:** CLI/API parity. Does not grant merge. Does not claim authentic O2. Does not copy stale #372/#413.
+
+### Scope
+- LIVE_API `GET /v1/inbox?project=` projects `list_inbox_items`
+- Fail-closed project id; writes forbidden; listing != mutation != command
+- Cross-project isolation; unknown-project stays UNKNOWN
+- Demo-readiness honesty: `INBOX_API = IMPLEMENTED` (NEXT_API remains `PENDING_OWNER_HELD_406`)
+
+### Honesty
+- `INBOX != AUTHORITY`
+- `LISTING != MUTATION != COMMAND`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN`

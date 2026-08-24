@@ -36,7 +36,10 @@ def test_demo_readiness_harbor_journey_is_honest(tmp_path: Path) -> None:
     assert report["checks"]["drift_consumed"] is True
     assert report["checks"]["next_api_landed"] is False
     assert report["next_api"] == "PENDING_OWNER_HELD_406"
+    assert report["checks"]["inbox_api_landed"] is True
+    assert report["inbox_api"] == "IMPLEMENTED"
     assert report["inbox_list"] == "READY"
+    assert "/v1/inbox" in report["live_api_present"]
     by_name = {row["name"]: row for row in report["stages"]}
     assert tuple(row["name"] for row in report["stages"] if row["name"] in JOURNEY) == JOURNEY
     assert by_name["project_root"]["state"] == "READY"

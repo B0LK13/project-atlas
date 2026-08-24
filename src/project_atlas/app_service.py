@@ -18,6 +18,7 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebInboxError,
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
@@ -34,6 +35,7 @@ from project_atlas.web_api import (
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
+    read_project_inbox,
     read_project_roadmap,
     read_project_state,
     read_source_health,
@@ -112,6 +114,23 @@ class AppService:
         try:
             return read_source_health(self.vault, project_id)
         except WebSourceHealthError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def inbox(
+        self,
+        project_id: str,
+        *,
+        status: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
+        """Coder Alpha inbox list (read-only; listing != mutation != command)."""
+        try:
+            return read_project_inbox(
+                self.vault, project_id, status=status, limit=limit
+            )
+        except WebInboxError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc

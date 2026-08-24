@@ -15,7 +15,7 @@ Journey (each stage is READY | PARTIAL | BLOCKED | UNKNOWN | NOT_IMPLEMENTED):
 7. ARCHITECTURE
 8. NEXT (lens/CLI landed; `NEXT_API = PENDING_OWNER_HELD_406`)
 9. STATE / ATTENTION / DECISIONS
-10. INBOX (`NOT_IMPLEMENTED` on live main; #368 reconstruction is a sibling lane)
+10. INBOX (list CLI + read-only `GET /v1/inbox`; `INBOX_API = IMPLEMENTED`; listing != mutation != command)
 11. API / CLI / WEB PRESENTATION
 
 Honesty:
