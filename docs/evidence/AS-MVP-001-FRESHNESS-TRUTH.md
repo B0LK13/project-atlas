@@ -1,8 +1,10 @@
 # Evidence — AS-MVP-001-FRESHNESS-TRUTH-001
 
 Package: `AS-MVP-001-FRESHNESS-TRUTH-001`
-Date: 2026-08-23
+Date: 2026-08-24
 Base: `4e71cce0d1c97f408347e256300a41590da4c352`
+Branch: `cursor/atlas-autonomous-night-cycle-4926`
+Extracted from draft `#447` without `authentic_estate.py`.
 
 ## Purpose
 
@@ -31,6 +33,6 @@ Portfolio stale-knowledge and H-006 must not:
 ```
 pytest tests/unit/test_as_mvp_001_freshness_truth.py \
        tests/unit/test_as_val_001_freshness_orphan.py \
-       tests/integration/test_as_mvp_001_portfolio.py \
-       tests/integration/test_as_mvp_001_release_closure.py --no-cov
+       tests/integration/test_as_mvp_001_portfolio.py --no-cov
+# 26 passed
 ```

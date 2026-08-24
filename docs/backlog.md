@@ -694,6 +694,15 @@ Honesty (mandatory):
 - [x] D149-009h Independent IV residual: DISPATCHED/SUPERSEDED/FAILED are not consumed
 - [x] D149-009i Independent IV residual: bound D-148 evidence still requires authentic preflight
 - [ ] D149-010 Independent verification (implementer ≠ verifier)
+
+## AS-MVP-001-FRESHNESS-TRUTH-001 — epoch mtimes are unknown, not stale
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION**. Extracted from draft `#447` onto current main. Does not grant merge authority._
+
+- [x] FRESH-001 Unix-epoch / pre-1980 `modified_at` is `unknown`, not 50-year stale
+- [x] FRESH-002 H-006 emits `H-006-untrusted` and does not demand quarantined sources in stale-knowledge
+- [x] FRESH-003 Pilot portfolio tests pin copied mtimes so checkout epoch cannot age nebula
+- [ ] FRESH-004 Independent verification / owner merge
 - [ ] D149-011 Owner merge gate (not this package)
 - [ ] D149-012 Authentic O2 post-merge seal (`AUTHENTIC_ESTATE_ROOT` owner-blocked)
 
