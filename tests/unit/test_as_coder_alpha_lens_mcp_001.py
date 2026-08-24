@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from project_atlas.mcp_server import (
+    DECISIONS_PACKAGE_ID,
     OVERVIEW_PACKAGE_ID,
     STATE_PACKAGE_ID,
     UNKNOWN_PACKAGE_ID,
@@ -46,6 +47,7 @@ def _seed(root: Path) -> Path:
         ("atlas.overview.read", OVERVIEW_PACKAGE_ID, "overview"),
         ("atlas.unknown.read", UNKNOWN_PACKAGE_ID, "unknown"),
         ("atlas.state.read", STATE_PACKAGE_ID, "state"),
+        ("atlas.decisions.read", DECISIONS_PACKAGE_ID, "decisions"),
     ],
 )
 def test_lens_tool_allow_listed_and_unknown_empty(
@@ -72,6 +74,7 @@ def test_lens_tool_allow_listed_and_unknown_empty(
         ("atlas.overview.read", "overview"),
         ("atlas.unknown.read", "unknown"),
         ("atlas.state.read", "state"),
+        ("atlas.decisions.read", "decisions"),
     ],
 )
 def test_lens_cross_project_and_no_write(

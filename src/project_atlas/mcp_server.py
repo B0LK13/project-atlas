@@ -20,6 +20,7 @@ from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
 from project_atlas.overview import OverviewError, build_overview_lens
+from project_atlas.project_decisions import ProjectDecisionsError, build_decisions_lens
 from project_atlas.project_state import ProjectStateError, build_state_lens
 from project_atlas.project_unknown import ProjectUnknownError, build_unknown_lens
 
@@ -30,6 +31,7 @@ NEXT_PACKAGE_ID = "AS-CODER-ALPHA-NEXT-MCP-001"
 OVERVIEW_PACKAGE_ID = "AS-CODER-ALPHA-OVERVIEW-MCP-001"
 UNKNOWN_PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-MCP-001"
 STATE_PACKAGE_ID = "AS-CODER-ALPHA-STATE-MCP-001"
+DECISIONS_PACKAGE_ID = "AS-CODER-ALPHA-DECISIONS-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -282,6 +284,16 @@ def read_vault_states(service: AppService) -> dict[str, Any]:
     )
 
 
+def read_vault_decisions(service: AppService) -> dict[str, Any]:
+    return _read_vault_coder_alpha_lenses(
+        service,
+        package_id=DECISIONS_PACKAGE_ID,
+        field="decisions",
+        builder=build_decisions_lens,
+        error_types=(ProjectDecisionsError, OSError),
+    )
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -297,6 +309,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.overview.read": lambda: read_vault_overviews(service),
         "atlas.unknown.read": lambda: read_vault_unknowns(service),
         "atlas.state.read": lambda: read_vault_states(service),
+        "atlas.decisions.read": lambda: read_vault_decisions(service),
     }
 
 
