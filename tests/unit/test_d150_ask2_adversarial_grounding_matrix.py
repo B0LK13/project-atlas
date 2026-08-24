@@ -302,3 +302,39 @@ def test_d150_matrix_categories_cover_required_surface() -> None:
     }
     assert normalized >= _REQUIRED_UNKNOWN_CATEGORIES
     assert len(_SUPPORTED_CASES) >= 4
+
+
+def test_d150_numeric_only_discriminator_stays_unknown(tmp_path: Path) -> None:
+    """SHADOW-A-002: numeric tokens alone must not ground unsupported claims."""
+    vault = _adversarial_corpus_vault(tmp_path)
+    answer = _ask(vault, "2024 revenue forecast")
+    _assert_unsupported_stays_unknown(answer)
+
+
+def test_d150_record_id_slug_without_body_terms_stays_unknown(tmp_path: Path) -> None:
+    """SHADOW-A-003: record_id/path slugs must not ground without substantive text."""
+    vault = tmp_path / "vault"
+    _empty_indexes(vault)
+    # Body lacks 'xyzzy'; record_id carries xyzzy-special-token.
+    record_id = "xyzzy-special-token"
+    _wr(
+        vault / "concepts" / f"{record_id}.json",
+        {
+            "schema_version": 1,
+            "concept_id": record_id,
+            "project_id": "demo",
+            "summary": "Helix margin report summarizes quarterly operating costs.",
+            "provenance": [{"source_lineage_id": "lineage-margin"}],
+        },
+    )
+    _wr(
+        vault / "indexes" / "concept-index.json",
+        {
+            "schema_version": 1,
+            "by_concept_id": {record_id: [record_id]},
+            "by_type": {"concept": [record_id]},
+            "by_project_id": {"demo": [record_id]},
+        },
+    )
+    answer = _ask(vault, "xyzzy special token")
+    _assert_unsupported_stays_unknown(answer)
