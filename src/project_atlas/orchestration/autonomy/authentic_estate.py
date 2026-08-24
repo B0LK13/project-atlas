@@ -274,7 +274,10 @@ def estate_credential_binding_ok(repo_root: Path) -> bool:
         return False
     if data.get("OWNER_CAPABILITY_GRANTED") is True:
         return False
-    if data.get("preflight_pass") is False or data.get("AUTHENTIC_ESTATE_CREDENTIAL_SATISFIED") is False:
+    credential_failed = data.get("preflight_pass") is False or (
+        data.get("AUTHENTIC_ESTATE_CREDENTIAL_SATISFIED") is False
+    )
+    if credential_failed:
         return False
     recorded_root = str(data.get("AUTHENTIC_ESTATE_ROOT") or data.get("root") or "").strip()
     if recorded_root and str(estate.resolve()) != recorded_root:

@@ -41,7 +41,10 @@ def _git_init(repo: Path) -> None:
 def _init_estate(path: Path, *, project_id: str = "sample") -> Path:
     path.mkdir(parents=True)
     _git_init(path)
-    (path / "README.md").write_text(f"# {project_id}\n\nPurpose: inventory tooling.\n", encoding="utf-8")
+    (path / "README.md").write_text(
+        f"# {project_id}\n\nPurpose: inventory tooling.\n",
+        encoding="utf-8",
+    )
     (path / "docs").mkdir()
     (path / "docs" / "overview.md").write_text(f"Overview of {project_id}.\n", encoding="utf-8")
     (path / ".atlas-project.yaml").write_text(
@@ -144,7 +147,7 @@ def test_owner_held_gates_never_cleared_by_estate(tmp_path: Path, gate: str) -> 
     changed = refresh_authentic_o2_node_states(root)
     after = load_nodes(root)["held"]
     assert "held" not in changed
-    assert after.OWNER_GATE == gate
+    assert gate == after.OWNER_GATE
     assert after.OWNER_GATE != "NONE"
     assert _snapshot(after) == prior
 
