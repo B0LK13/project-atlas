@@ -394,6 +394,24 @@ def test_cross_project_credential_rejected(
     assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
 
 
+def test_demo_path_segment_fails_even_under_dev_ai(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A demo/ segment is non-authentic even when a parent is named dev-ai."""
+    fixture = _init_git(tmp_path / "dev-ai" / "demo" / "estate")
+    _write_marker(fixture, project_id="sample")
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, fixture)
+    preflight = run_estate_preflight(fixture)
+    assert not preflight.preflight_pass
+    assert not preflight.root_is_not_synthetic_demo
+    write_estate_credential(repo, fixture, preflight)
+    assert load_estate_credential(repo)["OWNER_CAPABILITY_GRANTED"] is False
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+
+
 def test_demo_fixture_cannot_masquerade(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

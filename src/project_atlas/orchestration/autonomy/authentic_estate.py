@@ -370,7 +370,8 @@ def run_estate_preflight(estate_root: Path) -> EstatePreflight:
     marker = root / MARKER
     lowered = str(root).lower()
     not_fixture = not any(frag in lowered for frag in _NON_AUTHENTIC_FRAGMENTS)
-    not_demo = "demo" not in lowered or "dev-ai" in lowered
+    # Path-segment check only. A "dev-ai" ancestor must not exempt a `demo/` segment.
+    not_demo = "demo" not in {part.lower() for part in root.parts}
     project_id: str | None = None
     project_uuid: str | None = None
     marker_parse_ok = False

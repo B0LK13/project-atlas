@@ -60,8 +60,19 @@ Night-cycle D-149R3 residual close (independent IV of draft `#446`):
 Pre-remediation on live main `4e71cce`: adversarial MERGE replay
 `OWNER_GATE=MERGE` → `NONE`, `OWNER_CAPABILITY_GRANTED=True`, `BYPASS=True`.
 
+## Observed GitHub checks on `1c558b1ae94f201e809fed84527f2dfdbe4ec2f0`
+
+Recorded from PR `#449` (not guessed):
+
+- `ci / quality (ubuntu-latest, 3.12, full)` — SUCCESS
+- `ci / quality (ubuntu-latest, 3.13, compat)` — SUCCESS
+- `ci / quality (windows-latest, 3.12, windows)` — SUCCESS
+- `ci / control-plane` — SUCCESS
+
+A later commit on this branch invalidates that exact-head CI pin.
+
 ## Not claimed
 
 - `AUTHENTIC_PILOT=YES` (no authentic estate in this environment)
-- Independent verifier ≠ implementer certification
 - Merge eligibility
+- `1c558b1` CI success does not transfer to a later HEAD
