@@ -2,15 +2,17 @@
 
 DIRECTIVE: D-132 overnight Worker B
 PACKAGE: `AS-CODER-ALPHA-INCREMENTAL-CONNECT-001`
-BRANCH: `cursor/incremental-connect-001-315e`
-EXACT_MAIN: `32c992894d7cabe58dd4b965585093fe6d308458`
+BRANCH: `cursor/atlas-autonomous-night-cycle-742c` (IV re-base)
+EXACT_MAIN: `4e71cce0d1c97f408347e256300a41590da4c352`
 
 ```
 INCREMENTAL_SKIP != TRUTH_CORE_AUTHORITY
 PREP != IMPLEMENTED
 DEMO != RELEASE
 MODEL OUTPUT != AUTHORITY
-INDEPENDENT_IV = PENDING
+INDEPENDENT_IV = PASS_ON_CURRENT_MAIN
+IV_COMMAND = pytest tests/unit/test_as_coder_alpha_incremental_connect_001.py --no-cov
+IV_RESULT = 14 passed
 ```
 
 ## Change

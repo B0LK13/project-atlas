@@ -7290,3 +7290,25 @@ IV != merge authorization. Classification != execution.
 - pytest `tests/integration/test_orchestration_iv_001c.py`: 5 passed
 - ruff: PASS
 - ORCH001C-010 Windows stop-event observation remains ENVIRONMENT_DEPENDENT.
+
+---
+
+## AS-CODER-ALPHA-INCREMENTAL-CONNECT-001-IV-CLOSE
+
+**Date:** 2026-08-23
+**Mode:** Independent re-verification of already-implemented reconnect skip.
+
+### Results
+- pytest `tests/unit/test_as_coder_alpha_incremental_connect_001.py`: 14 passed
+- Honesty: incremental skip is operational, not Truth Core authority.
+
+---
+
+## AS-ORCH-INTEGRATION-IV-001D — owner/terminal non-dispatch IV / ORCH001D-011
+
+**Date:** 2026-08-23
+**Mode:** INDEPENDENT_INTEGRATION_VERIFICATION. Does not launch a real agent.
+
+### Results
+- pytest `tests/integration/test_orchestration_iv_001d.py`: 4 passed
+- ORCH001D-012 authentic Windows Cursor dispatch remains EXTERNAL/OWNER.

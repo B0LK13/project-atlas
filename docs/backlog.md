@@ -380,7 +380,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
-- [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
+- [x] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest (implemented on main; IV re-run 14 passed on `cursor/atlas-autonomous-night-cycle-742c`; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-D149-OWNER-GATE-NON-ESCALATION-001 authentic estate availability must not rewrite MERGE/SECURITY/other owner gates or set OWNER_CAPABILITY_GRANTED (implemented; MERGE_AUTHORIZATION NOT_GRANTED; authentic O2 post-merge seal OWNER_BLOCKED until AUTHENTIC_ESTATE_ROOT)
@@ -516,7 +516,7 @@ Honesty (mandatory):
 - [x] ORCH001D-008 `atlas orchestrator dispatch-once` / `dispatch-status`
 - [x] ORCH001D-009 Mutating remediation fail closed (`CAPABILITY_REQUIRED`)
 - [x] ORCH001D-010 Focused unit + schema tests
-- [ ] ORCH001D-011 Independent verification
+- [x] ORCH001D-011 Independent verification (owner/terminal non-start CLI IV on current main; authentic Windows dispatch ORCH001D-012 remains pending)
 - [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
