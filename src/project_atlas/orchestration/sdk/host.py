@@ -8,7 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE
+from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, SdkRuntimeError
+
+SUPERVISOR_STOP_NAME = "supervisor.stop"
+SUPERVISOR_LOCK_NAME = "supervisor.lock"
 
 
 def host_state_dir(root: Path) -> Path:
@@ -94,3 +97,71 @@ def detach_governor_service(
         start_new_session=(os.name != "nt"),
     )
     return int(proc.pid)
+
+
+def stop_requested(root: Path) -> bool:
+    return (host_state_dir(root) / SUPERVISOR_STOP_NAME).is_file()
+
+
+def request_supervisor_stop(root: Path) -> None:
+    path = host_state_dir(root) / SUPERVISOR_STOP_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("stop\n", encoding="utf-8")
+
+
+def clear_supervisor_stop(root: Path) -> None:
+    path = host_state_dir(root) / SUPERVISOR_STOP_NAME
+    if path.is_file():
+        path.unlink()
+
+
+def read_supervisor_lock_pid(root: Path) -> int:
+    path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
+    if not path.is_file():
+        return 0
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        other = int(data.get("pid", 0))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return 0
+    if other > 0 and pid_is_alive(other):
+        return other
+    return 0
+
+
+def acquire_supervisor_lock(root: Path) -> bool:
+    """Fail closed when another live supervisor already owns the host lock."""
+    path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    me = os.getpid()
+    if path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            other = int(data.get("pid", 0))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            other = 0
+        if other > 0 and other != me and pid_is_alive(other):
+            return False
+    path.write_text(json.dumps({"pid": me}, indent=2) + "\n", encoding="utf-8")
+    return True
+
+
+def release_supervisor_lock(root: Path) -> None:
+    path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
+    if not path.is_file():
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if int(data.get("pid", 0)) != os.getpid():
+            return
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return
+    path.unlink()
+
+
+def assert_single_supervisor_or_raise(root: Path) -> None:
+    if not acquire_supervisor_lock(root):
+        raise SdkRuntimeError(
+            "another live supervisor already owns this host",
+            code="SERVICE_DOUBLE_START",
+        )

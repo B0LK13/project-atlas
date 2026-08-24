@@ -29,6 +29,7 @@ from project_atlas.orchestration.sdk.external_observers import (
     load_observer_registry,
     nearest_wake_at,
 )
+from project_atlas.orchestration.sdk.host import stop_requested
 from project_atlas.orchestration.sdk.models import (
     DIRECTIVE_ID,
     PACKAGE_ID,
@@ -238,6 +239,9 @@ class DurableAtlasSupervisor:
         await self.startup_recovery()
         try:
             while not self._stop.is_set():
+                if stop_requested(self.root):
+                    self._stop.set()
+                    break
                 try:
                     await self.schedule_cycle()
                 except asyncio.CancelledError:
