@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from project_atlas.orchestration.autonomy.authentic_estate import d148_evidence_applies
 from project_atlas.orchestration.autonomy.exact_main_closure import (
     closure_integrity_pass,
     closure_integrity_report,
@@ -110,7 +111,20 @@ def supersede_stale_blocked_owner(root: Path) -> list[str]:
     return changed
 
 
-def refresh_objectives(root: Path, cert_head: str) -> None:
+def _load_d148(root: Path) -> dict[str, Any]:
+    path = _rt(root) / "d148-o2-certification.json"
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def refresh_objectives(root: Path, cert_head: str, *, live_main_head: str) -> None:
+    d148 = _load_d148(root)
+    d148_ok = d148_evidence_applies(d148, live_main_head, root)
     objectives = load_objectives(root)
     for obj in objectives:
         if obj.objective_id == "O1":
@@ -118,12 +132,29 @@ def refresh_objectives(root: Path, cert_head: str) -> None:
             obj.blockers = []
             obj.evidence = ["D-146 landed-main liveness certified"]
         elif obj.objective_id == "O2":
-            obj.current_state = "ACCEPTANCE_WORKFLOW_SATISFIED"
-            obj.blockers = ["AUTHENTIC_ESTATE_ROOT"]
-            obj.evidence = [
-                f"ACCEPTANCE_WORKFLOW_PILOT=true on {cert_head}",
-                "AUTHENTIC_PILOT=false (demo fixture boundary)",
-            ]
+            if d148_ok and d148.get("AUTHENTIC_PILOT"):
+                obj.current_state = "SATISFIED"
+                obj.blockers = []
+                obj.evidence = [
+                    "D-148 authentic ingest/compile/query on AUTHENTIC_ESTATE_ROOT",
+                    f"estate_fingerprint={d148.get('estate_fingerprint')}",
+                ]
+            elif d148_ok and d148.get("ACCEPTANCE_WORKFLOW_PILOT"):
+                obj.current_state = "ACCEPTANCE_WORKFLOW_SATISFIED"
+                # Query already passed for acceptance pilot; remaining gap is
+                # compile idempotency (AUTHENTIC_COMPILE_SATISFIED).
+                obj.blockers = ["AUTHENTIC_COMPILE"]
+                obj.evidence = [
+                    f"ACCEPTANCE_WORKFLOW_PILOT=true on {live_main_head}",
+                    "AUTHENTIC_PILOT pending full O2 chain",
+                ]
+            else:
+                obj.current_state = "ACCEPTANCE_WORKFLOW_SATISFIED"
+                obj.blockers = ["AUTHENTIC_ESTATE_ROOT"]
+                obj.evidence = [
+                    f"ACCEPTANCE_WORKFLOW_PILOT=true on {cert_head}",
+                    "AUTHENTIC_PILOT=false (demo fixture boundary)",
+                ]
         elif obj.objective_id == "O3":
             obj.current_state = "SATISFIED"
             obj.blockers = []
@@ -179,10 +210,13 @@ def main() -> int:
     bootstrap = close_ready_bootstrap(root, cert_head, cert_tree)
     clear_stale_owner_queue(root, cert_head)
     superseded = supersede_stale_blocked_owner(root)
-    refresh_objectives(root, cert_head)
+    refresh_objectives(root, cert_head, live_main_head=integrity.live_main_head)
 
     reconcile = mission_reconcile(root, main_head=integrity.live_main_head)
     counts = snapshot_counts(root)
+    objectives = load_objectives(root)
+    all_satisfied = all(o.current_state == "SATISFIED" for o in objectives)
+    project_terminal = all_satisfied and counts["ready"] == 0 and counts["derivable"] == 0
 
     audit_path = _rt(root) / "d147-owner-block-audit.json"
     audit = {
@@ -218,6 +252,7 @@ def main() -> int:
             preparable_blocked_work=0,
             closure_integrity_pass=True,
             genuine_owner_frontier=counts["blocked_owner"] > 0,
+            project_terminal=project_terminal,
         ).model_dump(),
     }
     _write(_rt(root) / "d147-checkpoint.json", checkpoint)

@@ -831,6 +831,10 @@ def test_d148_runner_validates_integrity_before_mutation() -> None:
     assert "write_estate_credential(" not in text
     assert "snapshot_orchestration_state(" in text
     assert "restore_orchestration_state(" in text
+    assert "_run_portfolio(" in text
+    assert "build_bitemporal_catalogs(" in text
+    assert "xyzzy plugh nonsense query 0000" in text
+    assert "harbor-api?" not in text
 
 
 def test_fingerprint_overflow_inventory_invalidates_unhashed_file(

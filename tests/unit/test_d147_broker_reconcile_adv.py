@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from project_atlas.orchestration.sdk.mission_reconciler import (
     WorkNode,
@@ -147,3 +150,83 @@ def test_closed_loop_no_ready_replenish_when_objectives_met(tmp_path: Path) -> N
     closed_loop_tick(tmp_path, main_head="6c3e74964d023cdcb55c3b77d6d029b095d578c6")
     nodes = load_nodes(tmp_path)
     assert sum(1 for n in nodes.values() if n.status == "READY") == 0
+
+
+def _load_broker_module() -> Any:
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[2] / "docs" / "scripts" / "d147_broker_reconcile.py"
+    spec = importlib.util.spec_from_file_location("d147_broker_reconcile_mod", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_broker_keeps_estate_block_without_bound_d148(tmp_path: Path) -> None:
+    from project_atlas.orchestration.sdk.mission_reconciler import load_objectives
+
+    module = _load_broker_module()
+    module.refresh_objectives(tmp_path, "a" * 40, live_main_head="b" * 40)
+    o2 = next(o for o in load_objectives(tmp_path) if o.objective_id == "O2")
+    assert o2.blockers == ["AUTHENTIC_ESTATE_ROOT"]
+    assert o2.current_state == "ACCEPTANCE_WORKFLOW_SATISFIED"
+
+
+def test_broker_honors_bound_authentic_pilot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from project_atlas.orchestration.autonomy.authentic_estate import (
+        estate_fingerprint,
+        run_estate_preflight,
+        write_estate_credential,
+    )
+    from project_atlas.orchestration.sdk.mission_reconciler import load_objectives
+
+    estate = tmp_path / "estate"
+    estate.mkdir()
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=estate, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=estate, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=estate, check=True)
+    (estate / "README.md").write_text("hello\n", encoding="utf-8")
+    (estate / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: sample\n  name: Sample\nproject_uuid: "
+        "00000000-0000-4000-8000-000000000001\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "-A"], cwd=estate, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=estate, check=True, capture_output=True)
+    repo = tmp_path / "atlas"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    (repo / "README.md").write_text("atlas\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True)
+    monkeypatch.setenv("AUTHENTIC_ESTATE_ROOT", str(estate))
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    rt = _runtime(repo)
+    rt.mkdir(parents=True, exist_ok=True)
+    (rt / "d148-o2-certification.json").write_text(
+        json.dumps(
+            {
+                "AUTHENTIC_PILOT": True,
+                "ACCEPTANCE_WORKFLOW_PILOT": True,
+                "live_main_head": head,
+                "AUTHENTIC_ESTATE_ROOT": str(estate.resolve()),
+                "estate_fingerprint": estate_fingerprint(estate),
+            }
+        ),
+        encoding="utf-8",
+    )
+    module = _load_broker_module()
+    module.refresh_objectives(repo, head, live_main_head=head)
+    o2 = next(o for o in load_objectives(repo) if o.objective_id == "O2")
+    assert o2.current_state == "SATISFIED"
+    assert o2.blockers == []
