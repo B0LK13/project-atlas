@@ -27,8 +27,8 @@ from project_atlas.orchestration.autonomy.continuation_broker import (
     session_exit_does_not_end_dag,
     status_report,
 )
-from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
 from project_atlas.orchestration.autonomy.models import CANONICAL_REPOSITORY_IDENTITY
+from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
 from project_atlas.orchestration.cursor_bridge import (
     handle_stop_event,
     load_state,
