@@ -23,8 +23,8 @@ Three VALID residuals remained:
 
 ## Fixes
 
-- `estate_fingerprint()` binds full path+size inventory before the capped
-  content hash.
+- `estate_fingerprint()` binds full path+size inventory and streamed
+  content hashes for every collected file, including overflow files.
 - `estate_credential_binding_current()` fail-closes when live HEAD cannot be
   resolved.
 - `run_authentic_o2()` snapshots orchestration state before mutation and
@@ -42,5 +42,3 @@ Three VALID residuals remained:
 
 - `AUTHENTIC_PILOT=YES`
 - Owner merge authorization
-- Content-only same-size edits beyond the hash cap (inventory binds size, not
-  overflow content)

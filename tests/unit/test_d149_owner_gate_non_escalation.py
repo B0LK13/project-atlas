@@ -836,6 +836,26 @@ def test_fingerprint_overflow_inventory_invalidates_unhashed_file(
     assert authentic_estate_ready_for_orchestration(repo) is False
 
 
+def test_fingerprint_overflow_same_size_content_edit_invalidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same-size overflow edit must change the fingerprint (D149R5-05)."""
+    monkeypatch.setattr(ae, "_FINGERPRINT_FILE_CAP", 1)
+    estate = _valid_estate(tmp_path)
+    overflow = estate / "zzz-overflow.txt"
+    overflow.write_text("aaaa\n", encoding="utf-8")
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    before = estate_fingerprint(estate)
+    overflow.write_text("bbbb\n", encoding="utf-8")
+    after = estate_fingerprint(estate)
+    assert before != after
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+
+
 def test_fingerprint_overflow_new_file_invalidates_credential(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -859,12 +879,24 @@ def test_nongit_repo_cannot_bind_present_credential(
     repo.mkdir()
     persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
     _bind_estate(monkeypatch, estate)
-    write_estate_credential(repo, estate, run_estate_preflight(estate))
-    cred = load_estate_credential(repo)
     preflight = run_estate_preflight(estate)
-    assert cred.get("live_main_head") in {None, ""}
+    with pytest.raises(AuthenticO2PreflightError, match="git HEAD"):
+        write_estate_credential(repo, estate, preflight)
+    cred_path = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    assert not cred_path.is_file()
+    planted = {
+        "AUTHENTIC_ESTATE_ROOT": str(estate.resolve()),
+        "estate_fingerprint": preflight.estate_fingerprint,
+        "project_id": preflight.project_id,
+        "project_uuid": preflight.project_uuid,
+        "OWNER_CAPABILITY_GRANTED": False,
+    }
+    cred_path.parent.mkdir(parents=True, exist_ok=True)
+    cred_path.write_text(json.dumps(planted, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     assert not estate_credential_binding_current(
-        cred, estate_root=estate, preflight=preflight, repo_root=repo
+        planted, estate_root=estate, preflight=preflight, repo_root=repo
     )
     assert refresh_authentic_o2_node_states(repo) == []
     assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"

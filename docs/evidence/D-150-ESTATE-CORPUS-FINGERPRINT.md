@@ -13,9 +13,9 @@ and O2 certificates remained current.
 ## Fix
 
 Fingerprint binds marker bytes plus a deterministic SHA-256 of estate source
-files (excludes `.git` / `.atlas` / VCS and common vendor dirs; 5000-file
-content-hash cap). D-149R5 also binds the full path+size inventory and file
-count so added or resized files beyond the cap still invalidate credentials.
+files (excludes `.git` / `.atlas` / VCS and common vendor dirs). D-149R5 binds
+the full path+size inventory and streamed content hashes for every collected
+file so same-size overflow edits still invalidate credentials.
 
 ## Tests
 
