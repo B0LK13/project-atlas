@@ -24,6 +24,8 @@ PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 SOURCE_HEALTH_PACKAGE_ID = "AS-CODER-ALPHA-SOURCE-HEALTH-MCP-001"
+PROJECT_STATE_PACKAGE_ID = "AS-CODER-ALPHA-PROJECT-STATE-MCP-001"
+ROADMAP_PACKAGE_ID = "AS-CODER-ALPHA-ROADMAP-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -32,6 +34,14 @@ BRIEF_TRUTH_BOUNDARY = (
 SOURCE_HEALTH_TRUTH_BOUNDARY = (
     "MCP SOURCE HEALTH != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL / NO SECRET ECHO"
+)
+PROJECT_STATE_TRUTH_BOUNDARY = (
+    "MCP PROJECT STATE != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL / DERIVED != TRUTH CORE"
+)
+ROADMAP_TRUTH_BOUNDARY = (
+    "MCP ROADMAP != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL / ROADMAP != CANONICAL"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -189,6 +199,102 @@ def read_vault_source_health(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_project_state_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "status": "UNKNOWN",
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "derived_is_authority": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def read_vault_project_state(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped project-state read. Current derived state only."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            report = service.project_state(pid)
+        except AppServiceError:
+            report = _unknown_project_state_row(pid)
+        rows.append({"project_id": pid, "project_state": report})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": PROJECT_STATE_PACKAGE_ID,
+        "truth_boundary": PROJECT_STATE_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "states": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "derived_is_authority": False,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "request_contains_as_of": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+        },
+    }
+
+
+def _unknown_roadmap_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "status": "UNKNOWN",
+        "items": [],
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "roadmap_is_canonical": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def read_vault_roadmaps(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped roadmap read. Does not invent completion."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            report = service.roadmap(pid)
+        except AppServiceError:
+            report = _unknown_roadmap_row(pid)
+        rows.append({"project_id": pid, "roadmap": report})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": ROADMAP_PACKAGE_ID,
+        "truth_boundary": ROADMAP_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "roadmaps": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "roadmap_is_canonical": False,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -201,6 +307,8 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.source-health.read": lambda: read_vault_source_health(service),
+        "atlas.project-state.read": lambda: read_vault_project_state(service),
+        "atlas.roadmap.read": lambda: read_vault_roadmaps(service),
     }
 
 

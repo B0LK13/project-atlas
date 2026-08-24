@@ -373,6 +373,8 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-SOURCE-HEALTH-001 Source failure explainability (`atlas source-health`)
 - [x] AS-CODER-ALPHA-SOURCE-HEALTH-WEB-001 `#/source-health` page over existing `/v1/source-health` (UI≠canonical; UNKNOWN≠healthy; no implicit portfolio-all)
 - [x] AS-CODER-ALPHA-SOURCE-HEALTH-MCP-001 zero-arg `atlas.source-health.read` MCP tool (vault-scoped; MCP≠authority; no request args)
+- [x] AS-CODER-ALPHA-PROJECT-STATE-MCP-001 zero-arg `atlas.project-state.read` MCP tool (vault-scoped; derived≠authority; no as-of args)
+- [x] AS-CODER-ALPHA-ROADMAP-MCP-001 zero-arg `atlas.roadmap.read` MCP tool (vault-scoped; ROADMAP≠canonical)
 - [x] AS-CODER-ALPHA-DECISIONS-002 Decision status labels (active/superseded/…)
 - [x] AS-CODER-ALPHA-DECISIONS-003 ACTIVE_GOVERNING authority gate
 - [x] AS-CODER-ALPHA-ATTENTION-002 care_about triage + source-failure collapse
