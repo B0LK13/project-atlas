@@ -12,6 +12,7 @@ from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, SdkRuntim
 
 SUPERVISOR_STOP_NAME = "supervisor.stop"
 SUPERVISOR_LOCK_NAME = "supervisor.lock"
+_LOCK_ACQUIRE_ATTEMPTS = 8
 
 
 def host_state_dir(root: Path) -> Path:
@@ -103,10 +104,21 @@ def stop_requested(root: Path) -> bool:
     return (host_state_dir(root) / SUPERVISOR_STOP_NAME).is_file()
 
 
+def _write_atomic_text(path: Path, content: str) -> None:
+    """Replace ``path`` atomically via same-directory temp + os.replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
+    try:
+        tmp.write_text(content, encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+
+
 def request_supervisor_stop(root: Path) -> None:
     path = host_state_dir(root) / SUPERVISOR_STOP_NAME
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("stop\n", encoding="utf-8")
+    _write_atomic_text(path, "stop\n")
 
 
 def clear_supervisor_stop(root: Path) -> None:
@@ -129,21 +141,53 @@ def read_supervisor_lock_pid(root: Path) -> int:
     return 0
 
 
+def _lock_payload(pid: int) -> bytes:
+    return (json.dumps({"pid": pid}, indent=2) + "\n").encode("utf-8")
+
+
+def _read_lock_holder_pid(path: Path) -> int | None:
+    """Return holder pid, None when absent, -1 when corrupt/unreadable."""
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return int(data.get("pid", 0))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return -1
+
+
 def acquire_supervisor_lock(root: Path) -> bool:
     """Fail closed when another live supervisor already owns the host lock."""
     path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     me = os.getpid()
-    if path.is_file():
+    payload = _lock_payload(me)
+    for _attempt in range(_LOCK_ACQUIRE_ATTEMPTS):
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            other = int(data.get("pid", 0))
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
-            other = 0
-        if other > 0 and other != me and pid_is_alive(other):
+            fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            holder = _read_lock_holder_pid(path)
+            if holder is None:
+                continue
+            if holder == -1:
+                return False
+            if holder > 0 and holder != me and pid_is_alive(holder):
+                return False
+            if holder == me:
+                return True
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                return False
+            continue
+        except OSError:
             return False
-    path.write_text(json.dumps({"pid": me}, indent=2) + "\n", encoding="utf-8")
-    return True
+        try:
+            os.write(fd, payload)
+            return True
+        finally:
+            os.close(fd)
+    return False
 
 
 def release_supervisor_lock(root: Path) -> None:

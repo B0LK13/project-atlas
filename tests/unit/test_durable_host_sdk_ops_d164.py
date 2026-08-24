@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from unittest.mock import patch
 
 import pytest
 
 from project_atlas.orchestration.sdk.cli import run_governor_service, run_supervisor_stop
 from project_atlas.orchestration.sdk.host import (
+    SUPERVISOR_LOCK_NAME,
     acquire_supervisor_lock,
     assert_single_supervisor_or_raise,
     clear_supervisor_stop,
+    host_state_dir,
     read_supervisor_lock_pid,
     release_supervisor_lock,
     request_supervisor_stop,
@@ -74,3 +77,37 @@ def test_run_forever_honors_stop_file(tmp_path) -> None:
     release_supervisor_lock(tmp_path)
     assert status.running is False
     assert read_supervisor_lock_pid(tmp_path) == 0
+
+
+def test_concurrent_acquire_only_one_holder(tmp_path) -> None:
+    """PR476-IV-P1-001 — exclusive create prevents TOCTOU double acquisition."""
+    results: list[bool] = []
+    barrier = threading.Barrier(2)
+
+    def worker() -> None:
+        barrier.wait()
+        results.append(acquire_supervisor_lock(tmp_path))
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(results) == [False, True]
+    release_supervisor_lock(tmp_path)
+
+
+def test_corrupt_lock_fails_closed(tmp_path) -> None:
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text("{not-json", encoding="utf-8")
+    assert acquire_supervisor_lock(tmp_path) is False
+
+
+def test_stale_lock_reclaimed_when_holder_dead(tmp_path) -> None:
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text('{"pid": 424242}\n', encoding="utf-8")
+    with patch("project_atlas.orchestration.sdk.host.pid_is_alive", return_value=False):
+        assert acquire_supervisor_lock(tmp_path) is True
+    release_supervisor_lock(tmp_path)
