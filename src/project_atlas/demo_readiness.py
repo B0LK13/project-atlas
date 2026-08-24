@@ -70,7 +70,7 @@ STAMPS = (
     "MODEL_OUTPUT != AUTHORITY",
     "MISSING != PASS",
 )
-NEXT_API_STATUS: Final[str] = "PENDING_OWNER_HELD_406"
+NEXT_API_STATUS: Final[str] = "IMPLEMENTED"
 LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/ask",
     "/v1/projects",
@@ -78,6 +78,7 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/knowledge",
     "/v1/brief",
     "/v1/roadmap",
+    "/v1/next",
     "/v1/source-health",
     "/v1/project-state",
     "/v1/conflicts",
@@ -295,7 +296,7 @@ def run_demo_readiness(
         "obsidian_present": bool(obsidian.get("notes_written") or obsidian.get("receipt_path")),
         "drift_consumed": drift.get("package") == "AS-CODER-ALPHA-INVENTORY-DRIFT-001",
         "inbox_list_implemented": inbox_available,
-        "next_api_landed": False,
+        "next_api_landed": True,
         "cross_project_leak_count": leak_count,
     }
     failed = [

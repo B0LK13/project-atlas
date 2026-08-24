@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebNextError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -34,6 +35,7 @@ from project_atlas.web_api import (
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
+    read_project_next,
     read_project_roadmap,
     read_project_state,
     read_source_health,
@@ -106,6 +108,15 @@ class AppService:
             return read_project_roadmap(self.vault, project_id)
         except WebRoadmapError as exc:
             raise AppServiceError(str(exc)) from exc
+
+    def next_work(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha What Next lens (read-only; NEXT != command/authority)."""
+        try:
+            return read_project_next(self.vault, project_id)
+        except WebNextError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
 
     def source_health(self, project_id: str) -> dict[str, Any]:
         """Project-scoped source-health lens (read-only; != authority)."""
