@@ -30,6 +30,7 @@ Three VALID residuals remained:
 - `run_authentic_o2()` snapshots orchestration state before mutation and
   restores nodes/credential/objectives/cert/checkpoint/mission-state if the
   post-mutation pipeline raises.
+- A `demo/` path segment fails preflight even when a parent is named `dev-ai`.
 
 ## Tests
 

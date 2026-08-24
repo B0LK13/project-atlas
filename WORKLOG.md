@@ -7052,3 +7052,7 @@ Closed:
 - fail-closed present-credential binding when git HEAD is unresolvable
 - D-148 runner restores snapshot if the post-mutation O2 pipeline raises
 Does not grant merge authority. Does not claim AUTHENTIC_PILOT.
+
+### D-149R5 demo-path residual
+Ported from parallel `#449` `091b5af`: a `dev-ai` ancestor no longer exempts a
+`demo/` path segment. Exact-head CI on `05a85fc` is stale after this commit.

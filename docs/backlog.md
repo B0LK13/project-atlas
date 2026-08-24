@@ -689,6 +689,7 @@ Honesty (mandatory):
 - [x] D149-009c Independent IV residual: overflow-cap inventory still invalidates fingerprint
 - [x] D149-009d Independent IV residual: missing git HEAD fail-closes present credentials
 - [x] D149-009e Independent IV residual: post-mutation O2 exception restores DAG/credential
+- [x] D149-009f Independent IV residual: demo/ path segment fails even under a dev-ai ancestor
 - [ ] D149-010 Independent verification (implementer ≠ verifier) — this cycle independently reviewed `#449` and closed R5 residuals
 - [ ] D149-011 Owner merge gate (not this package)
 - [ ] D149-012 Authentic O2 post-merge seal (`AUTHENTIC_ESTATE_ROOT` owner-blocked)
