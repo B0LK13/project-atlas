@@ -663,3 +663,28 @@ Honesty (mandatory):
 - [ ] ORCHLEASE-006 Exact-head CI + independent IV + adversarial control-plane review
 - [ ] ORCHLEASE-007 Owner merge gate (not this package)
 
+## AS-D149-OWNER-GATE-NON-ESCALATION-001 — authentic estate must not grant owner authority
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Bounded security remediation after merged D-148 (`#443`). Authentic estate availability may satisfy an `AUTHENTIC_ESTATE_ROOT` prerequisite. It must not rewrite unrelated owner gates or set `OWNER_CAPABILITY_GRANTED` from filesystem/marker validation. Does **not** grant merge authority. Does **not** claim `AUTHENTIC_PILOT`._
+
+Honesty (mandatory):
+
+- `AUTHENTIC_ESTATE_AVAILABILITY_GRANTS_OWNER_AUTHORITY = NO`
+- `OWNER_CAPABILITY_GRANTED_FROM_FILESYSTEM = NO`
+- `PROTECTED_OWNER_GATES_PRESERVED = YES`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+
+- [x] D149-001 CREDENTIAL + AUTHENTIC_ESTATE_ROOT becomes runnable
+- [x] D149-002 MERGE / SECURITY / HUMAN / OWNER gates stay intact
+- [x] D149-003 Other credentials and remaining dependencies preserved
+- [x] D149-004 Invalid / missing / malformed / fixture estates do not widen authority
+- [x] D149-005 Stale credential, stale main, missing fingerprint/root rejected
+- [x] D149-006 Closure-integrity failure and post-preflight exception restore prior state
+- [x] D149-007 Repeated reconciliation and existing READY nodes are idempotent
+- [x] D149-008 SUPERSEDED MERGE dependencies (PR431) are not replaced by AUTHENTIC_ESTATE_ROOT
+- [x] D149-009 D-148 runner validates closure integrity before durable mutation
+- [ ] D149-010 Independent verification (implementer ≠ verifier)
+- [ ] D149-011 Owner merge gate (not this package)
+- [ ] D149-012 Authentic O2 post-merge seal (`AUTHENTIC_ESTATE_ROOT` owner-blocked)
+

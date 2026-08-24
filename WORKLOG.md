@@ -6997,3 +6997,39 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-D149-OWNER-GATE-NON-ESCALATION-001 — authentic estate must not grant owner authority
+
+**Date:** 2026-08-24
+**Directive:** D-149 / D-149 OWNER-GATE NON-ESCALATION
+**Branch:** `cursor/atlas-autonomous-night-cycle-dfe9` (from live `origin/main` `4e71cce0d1c97f408347e256300a41590da4c352` / tree `e9919f5d04bd1613df7254e3281badcdd7832b86`)
+**Mode:** BOUNDED_SECURITY_REMEDIATION. Does not redesign orchestration. Does not merge. Does not claim AUTHENTIC_PILOT.
+
+### Why
+Merged D-148 (`#443`) consumed authentic-estate availability by rewriting sequential O2 nodes to `OWNER_GATE=NONE` / empty dependencies and by setting `OWNER_CAPABILITY_GRANTED=True` from filesystem/marker preflight. The D-148 runner mutated durable credential/node state before closure-integrity validation. Mission reconcile could rewrite SUPERSEDED MERGE nodes to CREDENTIAL, opening a two-step path to `OWNER_GATE=NONE`.
+
+Pre-remediation on live main `4e71cce`: MERGE → NONE, `OWNER_CAPABILITY_GRANTED=True`, `BYPASS=True`.
+
+### Contract
+- Consumable transition only: `OWNER_GATE==CREDENTIAL` AND dependency `AUTHENTIC_ESTATE_ROOT`
+- Protected gates (`MERGE`, `SECURITY`, `HUMAN`, `OWNER`, `RELEASE`, `GOVERNOR`, `SIGNOFF`) stay intact
+- Consume only the satisfied estate dependency; preserve unrelated dependencies
+- `OWNER_CAPABILITY_GRANTED` is never derived from estate/marker validation
+- Validate live state / closure integrity / estate / authority before durable mutation
+- Restore prior DAG/credential bytes if mutation later fails
+- D-148 evidence is fail-closed on estate root + fingerprint + live/main binding
+
+### Local verification
+- Focused D-149 + D-148 estate tests + D-146/D-147/D-147R regression: pass
+- Mission reconciler unit tests: pass
+- Independent MERGE-bypass replay on this tree: `OWNER_GATE=MERGE`, `OWNER_CAPABILITY_GRANTED=false`, `BYPASS=false`
+- ruff + mypy on touched modules: pass
+
+### Honesty
+- `AUTHENTIC_ESTATE_AVAILABILITY_GRANTS_OWNER_AUTHORITY = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+- Draft `#448` remains a broader kitchen-sink night-cycle PR; this package is the focused D-149 security reconstruction
+- Independent verification (implementer ≠ verifier) is still required before certification

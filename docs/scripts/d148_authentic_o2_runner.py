@@ -16,11 +16,12 @@ from typing import Any
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    AuthenticO2PreflightError,
+    apply_authentic_estate_mutations,
     characterize_estate,
     refresh_authentic_o2_node_states,
     resolve_authentic_estate_root,
     run_estate_preflight,
-    write_estate_credential,
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import (
     closure_integrity_pass,
@@ -164,8 +165,6 @@ def run_authentic_o2(
     if not preflight.preflight_pass:
         raise SystemExit(f"estate preflight failed: {preflight.model_dump()}")
     characterization = characterize_estate(estate)
-    write_estate_credential(repo_root, estate, preflight)
-    refresh_authentic_o2_node_states(repo_root)
 
     cert_head, cert_tree = read_operational_pins(repo_root)
     integrity = inspect_closure_integrity(
@@ -175,6 +174,12 @@ def run_authentic_o2(
     )
     if not closure_integrity_pass(integrity):
         raise SystemExit("closure integrity failed before authentic O2")
+    try:
+        apply_authentic_estate_mutations(
+            repo_root, estate, preflight, integrity=integrity
+        )
+    except AuthenticO2PreflightError as exc:
+        raise SystemExit(str(exc)) from exc
 
     bind_path = estate / BIND_RELATIVE
     prior_bind: str | None = None
@@ -276,7 +281,7 @@ def run_authentic_o2(
         _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-QUERY-001")
 
     _update_o2_objectives(repo_root, cert)
-    refresh_authentic_o2_node_states(repo_root)
+    refresh_authentic_o2_node_states(repo_root, integrity=integrity)
     load_mission_state_placeholder(repo_root)
     mission_reconcile(repo_root, main_head=integrity.live_main_head)
 
