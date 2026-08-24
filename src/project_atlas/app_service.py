@@ -21,6 +21,7 @@ from project_atlas.web_api import (
     WebBriefError,
     WebInboxError,
     WebIntelligenceError,
+    WebOverviewError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -38,6 +39,7 @@ from project_atlas.web_api import (
     read_project_attention_hygiene,
     read_project_brief,
     read_project_inbox,
+    read_project_overview,
     read_project_roadmap,
     read_project_state,
     read_source_health,
@@ -116,6 +118,15 @@ class AppService:
         try:
             return read_source_health(self.vault, project_id)
         except WebSourceHealthError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def overview(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha overview lens (read-only; != Layer B authority)."""
+        try:
+            return read_project_overview(self.vault, project_id)
+        except WebOverviewError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc

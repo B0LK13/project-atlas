@@ -7061,3 +7061,23 @@ VALID bounded security remediation. Not transferred to this branch (do not dupli
 - `ATTENTION != AUTHORITY`
 - `HYGIENE != INTELLIGENCE RANK`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-OVERVIEW-API-001 — read-only GET /v1/overview
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-a791`
+**PR:** https://github.com/B0LK13/project-atlas/pull/478
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`
+**Mode:** CLI/API parity. Does not write overview answers. Does not grant merge.
+
+### Scope
+- LIVE_API `GET /v1/overview?project=` projects `build_overview_lens`
+- Fail-closed project id; writes forbidden; missing project.md stays UNKNOWN
+- Demo-readiness honesty: `OVERVIEW_API = IMPLEMENTED`
+
+### Honesty
+- `OVERVIEW != AUTHORITY`
+- `LENS != LAYER B`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
