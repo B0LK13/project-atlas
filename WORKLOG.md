@@ -7033,3 +7033,11 @@ Pre-remediation on live main `4e71cce`: MERGE → NONE, `OWNER_CAPABILITY_GRANTE
 - `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
 - Draft `#448` remains a broader kitchen-sink night-cycle PR; this package is the focused D-149 security reconstruction
 - Independent verification (implementer ≠ verifier) is still required before certification
+
+### D-149R4 independent-IV residual close
+Independent explore IV of `b7084b0`: `CERTIFY_WITH_RESIDUALS`.
+Closed self-remediable P2s:
+- `_mark_package_complete()` no longer completes MERGE/SECURITY nodes
+- SUPERSEDED CREDENTIAL revive unions dependencies instead of replacing them
+Added SUPERSEDED SECURITY reconcile coverage.
+Re-run: `tests/unit/test_d149_owner_gate_non_escalation.py` 37 passed.
