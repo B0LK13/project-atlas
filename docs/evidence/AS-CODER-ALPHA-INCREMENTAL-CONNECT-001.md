@@ -10,7 +10,7 @@ INCREMENTAL_SKIP != TRUTH_CORE_AUTHORITY
 PREP != IMPLEMENTED
 DEMO != RELEASE
 MODEL OUTPUT != AUTHORITY
-INDEPENDENT_IV = PENDING
+INDEPENDENT_IV = PASS (2026-08-24T23:10Z; verifier ≠ implementer; tests/unit/test_as_coder_alpha_incremental_connect_001.py + test_as_coder_alpha_connect_001.py)
 ```
 
 ## Change
