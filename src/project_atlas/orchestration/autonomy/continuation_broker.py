@@ -31,14 +31,18 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    ValidationError,
     field_validator,
     model_validator,
 )
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.models import CANONICAL_REPOSITORY_IDENTITY
-from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
+from project_atlas.orchestration.autonomy.return_gate import (
+    AutonomyReturnState,
+    load_authoritative_return_state,
+    render_stop_hook_dag_continuation,
+    stop_hook_terminal_return_allowed,
+)
 from project_atlas.orchestration.autonomy.trust import require_full_pin
 from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 
@@ -477,23 +481,7 @@ def _coerce_return_state(return_state: object) -> AutonomyReturnState:
 
 
 def _load_d147_return_state(root: Path) -> AutonomyReturnState | None:
-    """Load persisted D-147 return gate state when callers omit ``return_state``."""
-    checkpoint_path = (
-        root / ".atlas" / "orchestration" / "sdk-runtime" / "d147-checkpoint.json"
-    )
-    if not checkpoint_path.is_file():
-        return None
-    try:
-        payload = json.loads(checkpoint_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    raw = payload.get("return_state")
-    if not isinstance(raw, dict):
-        return None
-    try:
-        return AutonomyReturnState.model_validate(raw)
-    except ValidationError:
-        return None
+    return load_authoritative_return_state(root)
 
 
 def _resolve_return_state(
@@ -502,13 +490,38 @@ def _resolve_return_state(
     *,
     terminal_path: bool,
 ) -> object | None:
-    """Fail-closed terminal paths require a concrete return gate snapshot."""
     if return_state is not None:
         return return_state
     if not terminal_path:
         return None
-    loaded = _load_d147_return_state(root)
-    return loaded
+    return _load_d147_return_state(root)
+
+
+def _stop_hook_block_terminal_return(
+    root: Path,
+    *,
+    session_id: str | None,
+    loop_count: int,
+    event_type: str,
+    broker_phase: str | None = None,
+    cycle_id: str | None = None,
+    dag_generation: int | None = None,
+) -> dict[str, str]:
+    """Emit trusted DAG continuation when final return is forbidden."""
+    append_hook_trace(
+        root,
+        {
+            "event_type": event_type,
+            "session_id": session_id,
+            "cycle_id": cycle_id,
+            "loop_count": loop_count,
+            "broker_phase": broker_phase,
+            "dag_generation": dag_generation,
+            "followup_returned": True,
+            "final_return_blocked": True,
+        },
+    )
+    return {"followup_message": render_stop_hook_dag_continuation()}
 
 
 def final_response_allowed(
@@ -820,34 +833,61 @@ def emit_stop_followup(
                 "followup_returned": False,
             },
         )
-        return {}
-    if existing is None:
-        append_hook_trace(
+        if stop_hook_terminal_return_allowed(root):
+            return {}
+        return _stop_hook_block_terminal_return(
             root,
-            {
-                "event_type": "STOP_HOOK_NO_BROKER_STATE",
-                "session_id": session_id,
-                "loop_count": loop_count,
-                "broker_phase": BrokerPhase.IDLE.value,
-                "followup_returned": False,
-            },
+            session_id=session_id,
+            loop_count=loop_count,
+            event_type="STOP_HOOK_RETURN_GATE_BLOCKED",
         )
-        return {}
+    if existing is None:
+        if stop_hook_terminal_return_allowed(root):
+            append_hook_trace(
+                root,
+                {
+                    "event_type": "STOP_HOOK_NO_BROKER_STATE",
+                    "session_id": session_id,
+                    "loop_count": loop_count,
+                    "broker_phase": BrokerPhase.IDLE.value,
+                    "followup_returned": False,
+                    "final_return_allowed": True,
+                },
+            )
+            return {}
+        return _stop_hook_block_terminal_return(
+            root,
+            session_id=session_id,
+            loop_count=loop_count,
+            event_type="STOP_HOOK_NO_BROKER_STATE_BLOCKED",
+            broker_phase=BrokerPhase.IDLE.value,
+        )
     message = render_broker_followup(existing)
     if message is None:
-        append_hook_trace(
+        if stop_hook_terminal_return_allowed(root):
+            append_hook_trace(
+                root,
+                {
+                    "event_type": "STOP_HOOK_NO_FOLLOWUP",
+                    "session_id": session_id,
+                    "cycle_id": existing.cycle_id,
+                    "loop_count": loop_count,
+                    "broker_phase": existing.phase.value,
+                    "dag_generation": existing.dag_generation,
+                    "followup_returned": False,
+                    "final_return_allowed": True,
+                },
+            )
+            return {}
+        return _stop_hook_block_terminal_return(
             root,
-            {
-                "event_type": "STOP_HOOK_NO_FOLLOWUP",
-                "session_id": session_id,
-                "cycle_id": existing.cycle_id,
-                "loop_count": loop_count,
-                "broker_phase": existing.phase.value,
-                "dag_generation": existing.dag_generation,
-                "followup_returned": False,
-            },
+            session_id=session_id,
+            loop_count=loop_count,
+            event_type="STOP_HOOK_NO_FOLLOWUP_BLOCKED",
+            broker_phase=existing.phase.value,
+            cycle_id=existing.cycle_id,
+            dag_generation=existing.dag_generation,
         )
-        return {}
     if existing.phase == BrokerPhase.QUEUED:
         persist_broker_state(
             store,
