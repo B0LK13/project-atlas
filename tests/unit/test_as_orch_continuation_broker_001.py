@@ -27,6 +27,7 @@ from project_atlas.orchestration.autonomy.continuation_broker import (
     session_exit_does_not_end_dag,
     status_report,
 )
+from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
 from project_atlas.orchestration.autonomy.models import CANONICAL_REPOSITORY_IDENTITY
 from project_atlas.orchestration.cursor_bridge import (
     handle_stop_event,
@@ -413,8 +414,34 @@ def test_final_response_guard_requires_durable_successor() -> None:
             owner_action_required_now=True,
             safe_dag_work_remains=True,
             successor_state="NONE",
+            return_state=None,
+        )
+        is False
+    )
+    assert (
+        final_response_allowed(
+            owner_action_required_now=True,
+            safe_dag_work_remains=True,
+            successor_state="NONE",
+            return_state=AutonomyReturnState(
+                genuine_owner_frontier=True,
+                closure_integrity_pass=True,
+            ),
         )
         is True
+    )
+
+
+def test_final_response_terminal_path_blocks_when_work_remains() -> None:
+    """SHADOW-B-001: terminal path cannot bypass return gate when work remains."""
+    assert (
+        final_response_allowed(
+            owner_action_required_now=False,
+            safe_dag_work_remains=False,
+            successor_state="NONE",
+            return_state=AutonomyReturnState(ready_nodes=1),
+        )
+        is False
     )
 
 

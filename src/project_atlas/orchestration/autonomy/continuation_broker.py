@@ -462,6 +462,14 @@ def progress_fingerprint(
     )
 
 
+def _coerce_return_state(return_state: object) -> "AutonomyReturnState":
+    from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
+
+    if isinstance(return_state, AutonomyReturnState):
+        return return_state
+    return AutonomyReturnState.model_validate(return_state)
+
+
 def final_response_allowed(
     *,
     owner_action_required_now: bool,
@@ -469,21 +477,26 @@ def final_response_allowed(
     successor_state: str,
     return_state: object | None = None,
 ) -> bool:
-    if return_state is not None:
-        from project_atlas.orchestration.autonomy.return_gate import (
-            AutonomyReturnState,
-            may_emit_final_return,
-        )
+    """Whether the outer session may emit a final response.
 
-        if isinstance(return_state, AutonomyReturnState):
-            if not may_emit_final_return(return_state):
-                return False
-        elif isinstance(return_state, dict) and not may_emit_final_return(
-            AutonomyReturnState.model_validate(return_state)
-        ):
-            return False
+    Terminal / owner-wait paths require a mandatory D-146 return gate (fail closed
+    when ``return_state`` is omitted). Continuation follow-up may proceed when a
+    durable successor exists even while autonomous work remains.
+    """
+    from project_atlas.orchestration.autonomy.return_gate import (
+        may_emit_final_return,
+    )
+
     if owner_action_required_now or not safe_dag_work_remains:
-        return True
+        if return_state is None:
+            return False
+        return may_emit_final_return(_coerce_return_state(return_state))
+
+    if return_state is not None and not may_emit_final_return(
+        _coerce_return_state(return_state)
+    ):
+        return successor_state in FINAL_RESPONSE_SUCCESSOR_STATES
+
     return successor_state in FINAL_RESPONSE_SUCCESSOR_STATES
 
 
