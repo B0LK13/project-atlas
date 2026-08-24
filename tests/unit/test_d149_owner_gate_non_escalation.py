@@ -569,3 +569,46 @@ def test_reconciler_does_not_rewrite_merge_to_credential(tmp_path: Path) -> None
     assert after.OWNER_GATE == "MERGE"
     assert after.OWNER_GATE != "NONE"
     assert after.OWNER_GATE != "CREDENTIAL"
+
+
+def test_reconciler_preserves_superseded_non_estate_credential(tmp_path: Path) -> None:
+    root = tmp_path / "atlas"
+    runtime = root / ".atlas" / "orchestration" / "sdk-runtime"
+    runtime.mkdir(parents=True)
+    key = _idempotency_key(
+        objective="O2",
+        kind="IMPLEMENTATION",
+        package="AS-CODER-ALPHA-AUTHENTIC-INGEST-001",
+        surface="src/project_atlas/,tests/",
+    )
+    persist_nodes(
+        root,
+        {
+            f"O2-IMPLEMENTATION-{key}": WorkNode(
+                NODE_ID=f"O2-IMPLEMENTATION-{key}",
+                OBJECTIVE_ID="O2",
+                PACKAGE_ID="AS-CODER-ALPHA-AUTHENTIC-INGEST-001",
+                TASK_KIND="IMPLEMENTATION",
+                PRIORITY=92,
+                DEPENDENCIES=["SOME_OTHER_CREDENTIAL"],
+                ALLOWED_PATHS=["src/project_atlas/", "tests/"],
+                SURFACE_SET=["src/project_atlas/", "tests/"],
+                WORKER_ROLE="IMPLEMENTER",
+                ACCEPTANCE_CRITERIA="Wait for an unrelated credential",
+                REQUIRED_VERIFICATION=["receipt", "idempotent"],
+                OWNER_GATE="CREDENTIAL",
+                GENERATION=1,
+                IDEMPOTENCY_KEY=key,
+                status="SUPERSEDED",
+            )
+        },
+    )
+    mission_reconcile(root, main_head="a" * 40)
+    state = load_mission_state(root)
+    state.last_planning_fingerprint = ""
+    persist_mission_state(root, state)
+    mission_reconcile(root, main_head="b" * 40)
+    after = load_nodes(root)[f"O2-IMPLEMENTATION-{key}"]
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert after.DEPENDENCIES == ["SOME_OTHER_CREDENTIAL"]
+    assert "AUTHENTIC_ESTATE_ROOT" not in after.DEPENDENCIES

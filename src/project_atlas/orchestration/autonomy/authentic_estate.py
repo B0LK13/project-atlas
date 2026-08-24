@@ -29,7 +29,7 @@ _NON_AUTHENTIC_FRAGMENTS: Final[tuple[str, ...]] = (
     "synthetic",
 )
 # Owner-held gates that authentic-estate availability must never rewrite.
-_IMMUTABLE_OWNER_GATES: Final[frozenset[str]] = frozenset(
+IMMUTABLE_OWNER_GATES: Final[frozenset[str]] = frozenset(
     {
         "MERGE",
         "SECURITY",
@@ -457,7 +457,7 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
         if node.status == "COMPLETED":
             continue
         # Estate credential must never escalate MERGE/SECURITY/etc. to NONE.
-        if node.OWNER_GATE in _IMMUTABLE_OWNER_GATES:
+        if node.OWNER_GATE in IMMUTABLE_OWNER_GATES:
             continue
         estate_dep_present = _ESTATE_DEPENDENCY in node.DEPENDENCIES
         # CREDENTIAL for some other capability, or no estate dep to consume.

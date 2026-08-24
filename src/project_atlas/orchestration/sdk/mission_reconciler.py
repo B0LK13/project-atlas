@@ -17,6 +17,7 @@ from typing import Any, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    IMMUTABLE_OWNER_GATES,
     authentic_estate_available,
     d148_evidence_applies,
 )
@@ -770,15 +771,16 @@ def mission_reconcile(
             ):
                 # D-149: never rewrite an owner-held MERGE/SECURITY/… gate to CREDENTIAL
                 # merely because an authentic estate became available.
-                if existing.OWNER_GATE in {
-                    "MERGE",
-                    "SECURITY",
-                    "HUMAN",
-                    "OWNER",
-                    "RELEASE",
-                    "GOVERNOR",
-                    "SIGNOFF",
-                } and node.OWNER_GATE in {"NONE", "CREDENTIAL"}:
+                if (
+                    existing.OWNER_GATE in IMMUTABLE_OWNER_GATES
+                    and node.OWNER_GATE in {"NONE", "CREDENTIAL"}
+                ):
+                    continue
+                # CREDENTIAL held for a different capability must keep its deps/gate.
+                if (
+                    existing.OWNER_GATE == "CREDENTIAL"
+                    and "AUTHENTIC_ESTATE_ROOT" not in existing.DEPENDENCIES
+                ):
                     continue
                 existing.status = "BLOCKED_OWNER"
                 existing.OWNER_GATE = node.OWNER_GATE
