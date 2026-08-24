@@ -6997,3 +6997,36 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-D149-OWNER-GATE-NON-ESCALATION-001 — night cycle 4926
+
+**Date:** 2026-08-24
+**Directive:** D-149 / autonomous night cycle
+**Branch:** `cursor/atlas-autonomous-night-cycle-4926`
+**Base main:** `4e71cce0d1c97f408347e256300a41590da4c352`
+**Base tree:** `e9919f5d04bd1613df7254e3281badcdd7832b86`
+**Mode:** BOUNDED_SECURITY_REMEDIATION. Reconstructs D-149 from live main.
+Predecessor drafts `#445`–`#450` are not authority. Does not merge.
+
+### Why this lane
+Merged D-148 (`#443`) lets authentic-estate availability rewrite
+`OWNER_GATE` to `NONE` and sets `OWNER_CAPABILITY_GRANTED=True` from
+filesystem preflight. Competing night-cycle drafts exist; this branch
+takes the R5 semantics from `#450` and closes the `#450` demo-path
+residual (`dev-ai` ancestor must not exempt a `demo/` segment).
+
+### Contract
+- Consumable transition: `OWNER_GATE==CREDENTIAL` AND dependency
+  `AUTHENTIC_ESTATE_ROOT` only
+- Protected gates stay intact (`MERGE`, `SECURITY`, `HUMAN`, `OWNER`,
+  `RELEASE`, `GOVERNOR`, `SIGNOFF`)
+- `OWNER_CAPABILITY_GRANTED=False` even when preflight passes
+- Closure integrity before durable mutation; restore on later failure
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+
+### Evidence
+`docs/evidence/D-149-OWNER-GATE-NON-ESCALATION.md`
+`docs/evidence/D-149R5-IV-RESIDUALS.md`

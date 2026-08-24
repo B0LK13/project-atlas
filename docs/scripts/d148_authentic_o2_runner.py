@@ -16,11 +16,15 @@ from typing import Any
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    PROTECTED_OWNER_GATES,
+    AuthenticO2PreflightError,
+    apply_authentic_estate_mutations,
     characterize_estate,
     refresh_authentic_o2_node_states,
     resolve_authentic_estate_root,
+    restore_orchestration_state,
     run_estate_preflight,
-    write_estate_credential,
+    snapshot_orchestration_state,
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import (
     closure_integrity_pass,
@@ -115,8 +119,12 @@ def _run_ask(
 def _mark_package_complete(root: Path, package_id: str) -> None:
     nodes = load_nodes(root)
     for node in nodes.values():
-        if package_id == node.PACKAGE_ID and node.status != "COMPLETED":
-            node.status = "COMPLETED"
+        if package_id != node.PACKAGE_ID or node.status == "COMPLETED":
+            continue
+        if node.OWNER_GATE in PROTECTED_OWNER_GATES:
+            # D-149R4: authentic O2 success does not complete MERGE/SECURITY nodes.
+            continue
+        node.status = "COMPLETED"
     persist_nodes(root, nodes)
 
 
@@ -164,8 +172,6 @@ def run_authentic_o2(
     if not preflight.preflight_pass:
         raise SystemExit(f"estate preflight failed: {preflight.model_dump()}")
     characterization = characterize_estate(estate)
-    write_estate_credential(repo_root, estate, preflight)
-    refresh_authentic_o2_node_states(repo_root)
 
     cert_head, cert_tree = read_operational_pins(repo_root)
     integrity = inspect_closure_integrity(
@@ -175,7 +181,38 @@ def run_authentic_o2(
     )
     if not closure_integrity_pass(integrity):
         raise SystemExit("closure integrity failed before authentic O2")
+    snapshot = snapshot_orchestration_state(repo_root)
+    try:
+        apply_authentic_estate_mutations(
+            repo_root, estate, preflight, integrity=integrity
+        )
+    except AuthenticO2PreflightError as exc:
+        raise SystemExit(str(exc)) from exc
 
+    try:
+        return _execute_authentic_o2_after_preflight(
+            repo_root,
+            estate=estate,
+            preflight=preflight,
+            characterization=characterization,
+            integrity=integrity,
+            keep_vault=keep_vault,
+        )
+    except BaseException:
+        # D-149R5: post-mutation O2 failure must not leave a widened DAG/credential.
+        restore_orchestration_state(repo_root, snapshot)
+        raise
+
+
+def _execute_authentic_o2_after_preflight(
+    repo_root: Path,
+    *,
+    estate: Path,
+    preflight: Any,
+    characterization: dict[str, Any],
+    integrity: Any,
+    keep_vault: bool,
+) -> dict[str, Any]:
     bind_path = estate / BIND_RELATIVE
     prior_bind: str | None = None
     if bind_path.is_file():
@@ -276,7 +313,7 @@ def run_authentic_o2(
         _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-QUERY-001")
 
     _update_o2_objectives(repo_root, cert)
-    refresh_authentic_o2_node_states(repo_root)
+    refresh_authentic_o2_node_states(repo_root, integrity=integrity)
     load_mission_state_placeholder(repo_root)
     mission_reconcile(repo_root, main_head=integrity.live_main_head)
 

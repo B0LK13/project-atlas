@@ -17,7 +17,8 @@ from typing import Any, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.autonomy.authentic_estate import (
-    authentic_estate_available,
+    PROTECTED_OWNER_GATES,
+    authentic_estate_ready_for_orchestration,
     d148_evidence_applies,
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import cert_evidence_applies_to_head
@@ -378,7 +379,7 @@ def _gap_statuses(root: Path, *, main_head: str) -> dict[str, str]:
     d148 = _load_d148_evidence(root)
     if not d148_evidence_applies(d148, main_head, root):
         d148 = {}
-    estate_ready = authentic_estate_available(root)
+    estate_ready = authentic_estate_ready_for_orchestration(root)
     if d148.get("AUTHENTIC_INGEST_SATISFIED"):
         authentic_ingest = "SATISFIED"
     elif estate_ready:
@@ -759,9 +760,19 @@ def mission_reconcile(
                 and existing.PACKAGE_ID == node.PACKAGE_ID
             ):
                 existing.status = "BLOCKED_OWNER"
-                existing.OWNER_GATE = node.OWNER_GATE
-                existing.DEPENDENCIES = list(node.DEPENDENCIES)
-                existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
+                if existing.OWNER_GATE not in PROTECTED_OWNER_GATES:
+                    existing.OWNER_GATE = node.OWNER_GATE
+                    # D-149R4: union seed deps with existing unrelated credentials.
+                    # Do not replace OTHER_OWNER_CREDENTIAL with AUTHENTIC_ESTATE_ROOT.
+                    merged_deps = list(existing.DEPENDENCIES)
+                    for dep in node.DEPENDENCIES:
+                        if dep not in merged_deps:
+                            merged_deps.append(dep)
+                    existing.DEPENDENCIES = merged_deps
+                    existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
+                # D-149R3: protected gates keep original dependencies.
+                # Authentic estate must not replace PR431/MERGE prerequisites
+                # with AUTHENTIC_ESTATE_ROOT.
                 continue
             if (
                 existing.status == "SUPERSEDED"
@@ -769,10 +780,9 @@ def mission_reconcile(
                 and existing.OWNER_GATE == "MERGE"
                 and node.OWNER_GATE == "CREDENTIAL"
             ):
+                # D-149: MERGE is not rewritten to a consumable CREDENTIAL gate.
+                # D-149R3: do not clobber MERGE-node dependencies either.
                 existing.status = "BLOCKED_OWNER"
-                existing.OWNER_GATE = "CREDENTIAL"
-                existing.DEPENDENCIES = list(node.DEPENDENCIES)
-                existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
                 continue
             # Keep existing non-terminal
             continue
