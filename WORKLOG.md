@@ -5,6 +5,37 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-UNKNOWN-API-001 / AS-CODER-ALPHA-CHANGED-API-001 — night cycle 2026-08-24T22:15Z
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-3135`
+**Exact base:** `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** SUCCESSOR CLI/API PARITY. Does not duplicate D-149 (#477) or inbox/attention/overview/decisions (#478). Does not merge.
+
+### Live-state reconciliation
+
+- Historical D-148 pin `4e71cce0` / PR #443 is superseded.
+- D-149 owner-gate non-escalation remains on draft #477 (`c54f9ea`). Independent IV this cycle: live main still widens `CREDENTIAL` when `AUTHENTIC_ESTATE_ROOT` is absent from remaining deps; #477 consumes the estate dep first. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- `AUTHENTIC_ESTATE_ROOT` unset → authentic O2 owner-blocked.
+- Ready successor after #478: `GET /v1/unknown` and `GET /v1/changed`.
+
+### Contract
+
+Read-only LIVE_API projections of landed CLI lenses. Explicit project token. Writes forbidden. UNKNOWN != healthy. CHANGED != kdiff. Missing inventory is UNKNOWN history, not invented UNCHANGED. No inventory rotation. No answer-file materialization.
+
+### Validation
+
+Focused pytest + ruff + mypy recorded in the PR body after the run.
+
+### Honesty
+
+- `AUTHENTIC_PILOT = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `D-149 = OWNER_HELD (#477)`
+- `PROJECT_TERMINAL = NO`
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19

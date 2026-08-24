@@ -71,6 +71,8 @@ STAMPS = (
     "MISSING != PASS",
 )
 NEXT_API_STATUS: Final[str] = "PENDING_OWNER_HELD_406"
+UNKNOWN_API_STATUS: Final[str] = "IMPLEMENTED"
+CHANGED_API_STATUS: Final[str] = "IMPLEMENTED"
 LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/ask",
     "/v1/projects",
@@ -78,6 +80,8 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/knowledge",
     "/v1/brief",
     "/v1/roadmap",
+    "/v1/unknown",
+    "/v1/changed",
     "/v1/source-health",
     "/v1/project-state",
     "/v1/conflicts",
@@ -266,6 +270,8 @@ def run_demo_readiness(
             note=(
                 "CLI + LIVE_API + web presentation exist; "
                 f"NEXT_API={NEXT_API_STATUS}; /v1/inbox=NOT_IMPLEMENTED; "
+                f"/v1/unknown={UNKNOWN_API_STATUS}; "
+                f"/v1/changed={CHANGED_API_STATUS}; "
                 "UI != canonical truth"
             ),
         ),
@@ -296,12 +302,21 @@ def run_demo_readiness(
         "drift_consumed": drift.get("package") == "AS-CODER-ALPHA-INVENTORY-DRIFT-001",
         "inbox_list_implemented": inbox_available,
         "next_api_landed": False,
+        "unknown_api_landed": True,
+        "changed_api_landed": True,
         "cross_project_leak_count": leak_count,
     }
     failed = [
         name
         for name, ok in checks.items()
-        if name not in {"cross_project_leak_count", "inbox_list_implemented", "next_api_landed"}
+        if name
+        not in {
+            "cross_project_leak_count",
+            "inbox_list_implemented",
+            "next_api_landed",
+            "unknown_api_landed",
+            "changed_api_landed",
+        }
         and not ok
     ]
     if leak_count != 0:
@@ -334,6 +349,8 @@ def run_demo_readiness(
         "failed_checks": failed,
         "live_api_present": list(LIVE_API_PRESENT),
         "next_api": NEXT_API_STATUS,
+        "unknown_api": UNKNOWN_API_STATUS,
+        "changed_api": CHANGED_API_STATUS,
         "inbox_list": "READY" if inbox_available else "NOT_IMPLEMENTED",
         "stamps": list(STAMPS),
         "honesty": dict(HONESTY),

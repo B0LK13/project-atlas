@@ -16,7 +16,7 @@ Journey (each stage is READY | PARTIAL | BLOCKED | UNKNOWN | NOT_IMPLEMENTED):
 8. NEXT (lens/CLI landed; `NEXT_API = PENDING_OWNER_HELD_406`)
 9. STATE / ATTENTION / DECISIONS
 10. INBOX (`NOT_IMPLEMENTED` on live main; #368 reconstruction is a sibling lane)
-11. API / CLI / WEB PRESENTATION
+11. API / CLI / WEB PRESENTATION (`GET /v1/unknown` and `GET /v1/changed` land on this lane; inbox/attention/overview/decisions APIs remain sibling #478; `NEXT_API = PENDING_OWNER_HELD_406`)
 
 Honesty:
 
