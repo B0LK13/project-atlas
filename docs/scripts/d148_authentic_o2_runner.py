@@ -49,6 +49,54 @@ def _rt(root: Path) -> Path:
     return root / RECEIPT_DIR_REL
 
 
+def _estate_query_subject(estate: Path, project_id: str | None) -> str:
+    """Derive a contentful ask2 subject from the estate marker (not WH-scaffolding).
+
+    Ask2 claim grounding ignores interrogative scaffolding (purpose/describe/…).
+    Certification probes must therefore include a discriminative corpus subject
+    such as the project name; otherwise required_terms is empty and answers stay
+    unknown by design.
+    """
+    marker = estate / ".atlas-project.yaml"
+    if marker.is_file():
+        try:
+            import yaml
+
+            data = yaml.safe_load(marker.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                proj = data.get("project")
+                if isinstance(proj, dict):
+                    name = str(proj.get("name") or "").strip()
+                    if name:
+                        return name
+        except (OSError, ImportError, ValueError, TypeError):
+            pass
+    if project_id:
+        # Prefer human stem when id looks like ``name-<hex>``.
+        stem, _, suffix = project_id.rpartition("-")
+        if stem and suffix and len(suffix) >= 6 and all(
+            ch in "0123456789abcdef" for ch in suffix.lower()
+        ):
+            return stem
+        return project_id
+    return estate.name
+
+
+def _authentic_query_probes(subject: str) -> list[tuple[str, str, bool]]:
+    """Build positive/negative ask2 probes with contentful claim anchors."""
+    return [
+        ("identity", f"What is {subject}?", False),
+        ("purpose", f"What is the purpose of {subject}?", False),
+        ("readme", f"What does the {subject} README describe?", False),
+        ("negative", "xyzzy plugh nonsense query 0000", True),
+        (
+            "stack",
+            f"What is the Next.js and SQLite stack for {subject}?",
+            False,
+        ),
+    ]
+
+
 def _write(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -349,13 +397,9 @@ def run_authentic_o2(
             steps["validate_2"] = False
             steps["compile_hash_stable"] = False
 
-        queries = [
-            ("direct_fact", "What is the primary purpose of this project?", False),
-            ("readme", "What does the README describe?", False),
-            ("negative", "xyzzy plugh nonsense query 0000", True),
-            ("project_wide", "What is dark-factory?", False),
-            ("structure", "What directories exist in this project?", False),
-        ]
+        subject = _estate_query_subject(estate, project_id)
+        steps["query_subject"] = subject
+        queries = _authentic_query_probes(subject)
         query_results = [
             _run_ask(vault, project_id, question, repo_root, expect_unknown=expect_unknown)
             for _, question, expect_unknown in queries
