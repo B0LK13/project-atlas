@@ -7030,3 +7030,18 @@ residual (`dev-ai` ancestor must not exempt a `demo/` segment).
 ### Evidence
 `docs/evidence/D-149-OWNER-GATE-NON-ESCALATION.md`
 `docs/evidence/D-149R5-IV-RESIDUALS.md`
+
+---
+
+## D-148 runner idempotency + broker O2 (complementary to #444)
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-4926`
+**Mode:** ORTHOGONAL_TO_D149. Does not change owner-gate consume rules.
+
+Pinned `build_portfolio(..., reference_date=2026-01-01)` plus
+`build_bitemporal_catalogs` so authentic compile hash-stability is not
+wall-clock flaky. Grounded O2 queries no longer mention harbor-api.
+Broker `refresh_objectives` honors bound D-148 evidence and records
+`project_terminal`. Stale Coder Alpha backlog rows for incremental-connect
+and 044-HIGH marked already landed.
