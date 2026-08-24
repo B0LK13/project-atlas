@@ -318,22 +318,27 @@ def test_d150_record_id_slug_without_body_terms_stays_unknown(tmp_path: Path) ->
     # Body lacks 'xyzzy'; record_id carries xyzzy-special-token.
     record_id = "xyzzy-special-token"
     _wr(
-        vault / "concepts" / f"{record_id}.json",
+        vault / "generated" / "indexes" / "concepts.json",
         {
-            "schema_version": 1,
-            "concept_id": record_id,
-            "project_id": "demo",
-            "summary": "Helix margin report summarizes quarterly operating costs.",
-            "provenance": [{"source_lineage_id": "lineage-margin"}],
+            "by_concept_id": {record_id: [record_id]},
+            "by_type": {"capability": [record_id]},
+            "by_project_id": {"demo": [record_id]},
+            "by_tag": {},
+            "by_relationship_target": {},
         },
     )
     _wr(
-        vault / "indexes" / "concept-index.json",
+        vault / "state" / "concepts" / "demo.json",
         {
-            "schema_version": 1,
-            "by_concept_id": {record_id: [record_id]},
-            "by_type": {"concept": [record_id]},
-            "by_project_id": {"demo": [record_id]},
+            "concepts": [
+                {
+                    "concept_id": record_id,
+                    "type": "capability",
+                    "project_id": "demo",
+                    "summary": "Helix margin report summarizes quarterly operating costs.",
+                    "provenance": [{"source_lineage_id": "lineage-margin"}],
+                }
+            ]
         },
     )
     answer = _ask(vault, "xyzzy special token")
