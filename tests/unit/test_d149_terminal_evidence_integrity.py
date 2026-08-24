@@ -416,3 +416,34 @@ def test_authentic_o2_rollback_restores_credential_on_refresh_failure(
         d148.run_authentic_o2(root, estate_root=estate)
     assert cred.read_text(encoding="utf-8") == prior
 
+
+def test_estate_query_subject_prefers_marker_name(tmp_path: Path) -> None:
+    d148 = _load_d148()
+    estate = _init_estate(tmp_path)
+    assert d148._estate_query_subject(estate, "sample-02ee94d0") == "Sample"
+
+
+def test_estate_query_subject_strips_hex_suffix() -> None:
+    d148 = _load_d148()
+    missing = Path("/nonexistent-estate-for-subject")
+    assert d148._estate_query_subject(missing, "dark-factory-02ee94d0") == "dark-factory"
+
+
+def test_authentic_query_probes_carry_discriminative_claim_terms() -> None:
+    """Scaffold-only probes must not be used; every positive probe needs claim terms."""
+    from project_atlas.ask2 import _question_claim_terms
+
+    d148 = _load_d148()
+    probes = d148._authentic_query_probes("dark-factory")
+    positives = [q for label, q, unknown in probes if not unknown]
+    negatives = [q for label, q, unknown in probes if unknown]
+    assert len(positives) >= 3
+    assert negatives
+    for question in positives:
+        terms = _question_claim_terms(question)
+        assert terms, f"empty claim terms for probe: {question!r}"
+        assert "dark" in terms and "factory" in terms
+    for question in negatives:
+        # Absent-subject probe must stay unknown without matching corpus nouns.
+        assert "dark" not in _question_claim_terms(question)
+
