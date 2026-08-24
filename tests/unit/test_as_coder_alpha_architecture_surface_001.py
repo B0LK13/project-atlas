@@ -171,6 +171,21 @@ def test_read_returns_structured_slots_without_write(tmp_path: Path) -> None:
     assert not (vault / "generated" / "answers").exists()
 
 
+def test_authority_ranked_source_secret_redacted_not_echoed(tmp_path: Path) -> None:
+    """IV-472-SECRET-ECHO-001 — authority-ranked docs must not echo secrets."""
+    vault = tmp_path / "v"
+    _seed_two_project_vault(vault)
+    plan = vault / "sources" / "imported-documents" / "harbor-plan.md"
+    plan.write_text(
+        _plan_text(purpose="Harbor API persistence brain.", token=_SECRET),
+        encoding="utf-8",
+    )
+    report = read_architecture(vault, "harbor-api")
+    blob = json.dumps(report)
+    assert _SECRET not in blob
+    assert "[redacted: secret-shaped value]" in blob
+
+
 def test_http_architecture_scope_writes_and_leak(tmp_path: Path) -> None:
     vault = tmp_path / "v"
     _seed_two_project_vault(vault)

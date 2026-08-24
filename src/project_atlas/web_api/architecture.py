@@ -15,12 +15,14 @@ from project_atlas.project_architecture import (
     ProjectArchitectureError,
     build_architecture_lens,
 )
+from project_atlas.secrets import scan_text
 
 PACKAGE_ID = "AS-CODER-ALPHA-ARCHITECTURE-SURFACE-001"
 TRUTH_BOUNDARY = (
     "ARCHITECTURE LENS != AUTHORITY / UI != CANONICAL / "
     "UNKNOWN != STACK / API != TRUTH CORE / NO SECRET ECHO"
 )
+_REDACTED_VALUE = "[redacted: secret-shaped value]"
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
 
@@ -50,6 +52,17 @@ def _safe_project_id(project_id: str) -> str:
     return token
 
 
+def _redact_payload(value: object) -> object:
+    """Defence-in-depth: never echo secret-shaped strings in architecture responses."""
+    if isinstance(value, str):
+        return _REDACTED_VALUE if scan_text(value) else value
+    if isinstance(value, dict):
+        return {key: _redact_payload(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_payload(item) for item in value]
+    return value
+
+
 def read_architecture(vault: Path, project_id: str) -> dict[str, Any]:
     """Return project-scoped architecture lens (read-only, derived, no writes)."""
     token = _safe_project_id(project_id)
@@ -68,4 +81,4 @@ def read_architecture(vault: Path, project_id: str) -> dict[str, Any]:
     honesty["lens_is_authority"] = False
     honesty["ui_is_canonical"] = False
     payload["honesty"] = honesty
-    return payload
+    return _redact_payload(payload)  # type: ignore[return-value]
