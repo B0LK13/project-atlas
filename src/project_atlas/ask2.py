@@ -33,7 +33,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from project_atlas.compat_anchor import (
     SNAPSHOT_ID,
@@ -157,15 +157,63 @@ def _record_provenance(hit: RetrievalResult) -> list[dict[str, str]]:
     return pointers
 
 
+_RECORD_TEXT_KEYS: Final[tuple[str, ...]] = (
+    "title",
+    "name",
+    "label",
+    "summary",
+    "description",
+    "body",
+    "text",
+    "content",
+    "claim",
+    "statement",
+    "question",
+    "answer",
+    "rationale",
+    "note",
+    "notes",
+    "excerpt",
+    "path",
+    "field",  # claim attribute under discussion (substantive, not a schema-key leak)
+    "subject",
+    "value",
+)
+
+
+def _collect_record_text(value: Any, *, depth: int = 0) -> list[str]:
+    """Extract substantive text fields from a record (never schema key names)."""
+    if depth > 6:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, dict):
+        out: list[str] = []
+        for key, item in value.items():
+            key_l = str(key).lower()
+            if key_l in _RECORD_TEXT_KEYS or key_l.endswith(("_text", "_body", "_name", "_title")):
+                out.extend(_collect_record_text(item, depth=depth + 1))
+            elif isinstance(item, (dict, list, tuple)):
+                # Descend into nested containers but only harvest known text keys.
+                out.extend(_collect_record_text(item, depth=depth + 1))
+        return out
+    if isinstance(value, (list, tuple)):
+        out = []
+        for item in value:
+            out.extend(_collect_record_text(item, depth=depth + 1))
+        return out
+    return []
+
+
 def _question_claim_terms(question: str) -> frozenset[str]:
     """Extract explicit, discriminative claim terms from a natural-language query.
 
     Retrieval ranking is deliberately broad; it can return a record merely
     because it shares a generic word with the question.  Grounding is stricter:
     every non-function term asserted by the question must be present in the
-    candidate's canonical record text.  This lexical entailment floor is
-    deterministic and fail-closed; it does not claim synonym or embedding
-    support that the current retrieval substrate cannot demonstrate.
+    candidate's substantive record text.  An empty term set means the question
+    has no discriminative claim content and cannot ground an answer.
     """
     return frozenset(
         token
@@ -175,13 +223,13 @@ def _question_claim_terms(question: str) -> frozenset[str]:
 
 
 def _record_tokens(hit: RetrievalResult) -> frozenset[str]:
-    """Return canonical lexical support tokens for one retrieved record."""
-    text = json.dumps(
-        {"record_id": hit.record_id, "record": hit.record},
-        ensure_ascii=True,
-        sort_keys=True,
-    )
-    return frozenset(tokenize(text))
+    """Return lexical support tokens from substantive record text only."""
+    parts = _collect_record_text(hit.record)
+    # Include record_id basename tokens only when they look contentful (not bare UUIDs).
+    rid = str(hit.record_id or "")
+    if rid and any(ch.isalpha() for ch in rid):
+        parts.append(rid)
+    return frozenset(tokenize("\n".join(parts)))
 
 
 def _build_candidate(
@@ -192,6 +240,8 @@ def _build_candidate(
     required_terms: frozenset[str],
 ) -> dict[str, Any] | None:
     """Resolve a claim-supporting record into a compile-context candidate."""
+    if not required_terms:
+        return None
     try:
         hits = retriever.lookup(kind, record_id, prefix=False, project_id=scope)
     except ValueError:
