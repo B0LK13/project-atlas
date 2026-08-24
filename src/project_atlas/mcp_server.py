@@ -19,11 +19,17 @@ from project_atlas.app_service import AppService, AppServiceError, open_app_serv
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.overview import OverviewError, build_overview_lens
+from project_atlas.project_state import ProjectStateError, build_state_lens
+from project_atlas.project_unknown import ProjectUnknownError, build_unknown_lens
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 NEXT_PACKAGE_ID = "AS-CODER-ALPHA-NEXT-MCP-001"
+OVERVIEW_PACKAGE_ID = "AS-CODER-ALPHA-OVERVIEW-MCP-001"
+UNKNOWN_PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-MCP-001"
+STATE_PACKAGE_ID = "AS-CODER-ALPHA-STATE-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -31,6 +37,10 @@ BRIEF_TRUTH_BOUNDARY = (
 )
 NEXT_TRUTH_BOUNDARY = (
     "MCP NEXT != AUTHORITY / NEXT != COMMAND / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+LENS_TRUTH_BOUNDARY = (
+    "MCP LENS != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
 
@@ -188,6 +198,90 @@ def read_vault_next(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_lens_row(project_id: str, field: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "field": field,
+        "summary": "UNKNOWN",
+        "status": "unknown",
+        "available": False,
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def _read_vault_coder_alpha_lenses(
+    service: AppService,
+    *,
+    package_id: str,
+    field: str,
+    builder: Callable[[Path, str], dict[str, Any]],
+    error_types: tuple[type[Exception], ...],
+) -> dict[str, Any]:
+    """Zero-arg vault-scoped Coder Alpha lens read. Does not write."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            lens = builder(service.vault, pid)
+        except error_types:
+            lens = _unknown_lens_row(pid, field)
+        rows.append({"project_id": pid, field: lens})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": package_id,
+        "truth_boundary": LENS_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "lenses": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+        },
+    }
+
+
+def read_vault_overviews(service: AppService) -> dict[str, Any]:
+    return _read_vault_coder_alpha_lenses(
+        service,
+        package_id=OVERVIEW_PACKAGE_ID,
+        field="overview",
+        builder=build_overview_lens,
+        error_types=(OverviewError, OSError),
+    )
+
+
+def read_vault_unknowns(service: AppService) -> dict[str, Any]:
+    return _read_vault_coder_alpha_lenses(
+        service,
+        package_id=UNKNOWN_PACKAGE_ID,
+        field="unknown",
+        builder=build_unknown_lens,
+        error_types=(ProjectUnknownError, OSError),
+    )
+
+
+def read_vault_states(service: AppService) -> dict[str, Any]:
+    return _read_vault_coder_alpha_lenses(
+        service,
+        package_id=STATE_PACKAGE_ID,
+        field="state",
+        builder=build_state_lens,
+        error_types=(ProjectStateError, OSError),
+    )
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -200,6 +294,9 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.next.read": lambda: read_vault_next(service),
+        "atlas.overview.read": lambda: read_vault_overviews(service),
+        "atlas.unknown.read": lambda: read_vault_unknowns(service),
+        "atlas.state.read": lambda: read_vault_states(service),
     }
 
 

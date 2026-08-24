@@ -7027,3 +7027,15 @@ grant source and does not certify #427.
 
 `NEXT != AUTHORITY`. `NEXT != COMMAND`. `UI != CANONICAL`. `MCP != AUTHORITY`.
 Does not resurrect `#406` as merge authority. Does not claim authentic O2.
+
+---
+
+## AS-CODER-ALPHA-OVERVIEW/UNKNOWN/STATE-MCP-001 — same night cycle
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-02ff`
+**Mode:** SUCCESSOR MCP PARITY. Does not duplicate `#478`/`#479` HTTP APIs. Does not implement D-149.
+
+Zero-arg vault-scoped MCP tools over existing Coder Alpha derive functions:
+`atlas.overview.read`, `atlas.unknown.read`, `atlas.state.read`.
+No Layer B writes. MCP ≠ authority. UNKNOWN remains valid.
