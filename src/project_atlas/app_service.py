@@ -18,9 +18,11 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebChangedError,
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
+    WebUnknownError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -34,8 +36,10 @@ from project_atlas.web_api import (
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
+    read_project_changed,
     read_project_roadmap,
     read_project_state,
+    read_project_unknown,
     read_source_health,
     read_status,
     read_vault_health,
@@ -112,6 +116,24 @@ class AppService:
         try:
             return read_source_health(self.vault, project_id)
         except WebSourceHealthError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def unknown(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha unknown/conflict lens (read-only; UNKNOWN != healthy)."""
+        try:
+            return read_project_unknown(self.vault, project_id)
+        except WebUnknownError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def changed(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha What Changed lens (read-only; != kdiff authority)."""
+        try:
+            return read_project_changed(self.vault, project_id)
+        except WebChangedError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc

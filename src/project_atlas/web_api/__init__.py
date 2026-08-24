@@ -17,6 +17,7 @@ from project_atlas.web_api.brief import (
     filter_knowledge_by_project,
     read_project_brief,
 )
+from project_atlas.web_api.changed import WebChangedError, read_project_changed
 from project_atlas.web_api.conflicts import list_project_conflicts
 from project_atlas.web_api.discovery import load_estate_discovery_view
 from project_atlas.web_api.graph import impact_graph_summary, read_impact_graph
@@ -44,6 +45,7 @@ from project_atlas.web_api.source_health import (
     WebSourceHealthError,
     read_source_health,
 )
+from project_atlas.web_api.unknown import WebUnknownError, read_project_unknown
 
 __all__ = [
     "OBS_HEALTH_SNAPSHOT_RELATIVE",
@@ -52,9 +54,11 @@ __all__ = [
     "ReadStatus",
     "VaultHealthView",
     "WebBriefError",
+    "WebChangedError",
     "WebIntelligenceError",
     "WebRoadmapError",
     "WebSourceHealthError",
+    "WebUnknownError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
     "list_knowledge_answers",
@@ -69,8 +73,10 @@ __all__ = [
     "read_portfolio_state",
     "read_project_attention",
     "read_project_brief",
+    "read_project_changed",
     "read_project_roadmap",
     "read_project_state",
+    "read_project_unknown",
     "read_source_health",
     "read_status",
     "read_vault_health",

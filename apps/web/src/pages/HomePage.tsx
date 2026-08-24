@@ -54,6 +54,16 @@ const PROD = [
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",
   },
+  {
+    to: "/unknown",
+    title: "Unknown",
+    blurb: "Unknown/conflict lens — UNKNOWN≠healthy; UNKNOWN≠authority.",
+  },
+  {
+    to: "/changed",
+    title: "What Changed",
+    blurb: "Last-connect inventory lens — CHANGED≠kdiff; UI≠canonical.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

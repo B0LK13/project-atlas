@@ -22,6 +22,8 @@ PROJECT_AWARE = {
     "/ask",
     "/time-machine",
     "/roadmap",
+    "/unknown",
+    "/changed",
     "/workspace",
 }
 

@@ -5,6 +5,25 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-UNKNOWN/CHANGED API+WEB — night cycle 2026-08-24T23:45Z
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-63c0` (from live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`)
+**Mode:** CODER_ALPHA_SURFACE. Does not mutate D-149 / #477. Does not claim MCP (owner-held #479). Does not merge.
+
+### Why
+Coder Alpha journey still lacked dedicated unknown/changed LIVE_API + Web pages on live main. `#479` already has API+MCP; this package lands API + `#/unknown` + `#/changed` so the pages work without waiting for that merge.
+
+### Honesty
+- `UI != CANONICAL`
+- `UNKNOWN != HEALTHY`
+- `CHANGED != KDIFF`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+- `D149_DUPLICATED = NO`
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19

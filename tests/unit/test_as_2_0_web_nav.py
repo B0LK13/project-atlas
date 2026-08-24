@@ -14,6 +14,8 @@ HARBOR = "harbor-api"
 PROJECT_AWARE = {
     "/knowledge",
     "/intelligence",
+    "/unknown",
+    "/changed",
     "/context",
     "/ask",
     "/time-machine",

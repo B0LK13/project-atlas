@@ -355,6 +355,10 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CHANGED-001 What Changed defaults
 - [x] AS-CODER-ALPHA-DECISIONS-001 Decision memory
 - [x] AS-CODER-ALPHA-UNKNOWN-001 Unknown/conflict bundle
+- [x] AS-CODER-ALPHA-UNKNOWN-API-001 read-only `GET /v1/unknown` (CLI/API parity; UNKNOWN!=healthy; no Layer B writes)
+- [x] AS-CODER-ALPHA-CHANGED-API-001 read-only `GET /v1/changed` (CLI/API parity; CHANGED!=kdiff; missing inventory stays UNKNOWN history)
+- [x] AS-CODER-ALPHA-UNKNOWN-WEB-001 Web `#/unknown` (UI!=canonical; UNKNOWN!=healthy; explicit `?project=` only)
+- [x] AS-CODER-ALPHA-CHANGED-WEB-001 Web `#/changed` (UI!=canonical; CHANGED!=kdiff; no invented UNCHANGED)
 - [x] AS-CODER-ALPHA-BRIEF-001 Unified project brief (`atlas brief`)
 - [x] AS-CODER-ALPHA-CAPTURE-001 Session capture defaults
 - [x] AS-CODER-ALPHA-HANDOFF-001 `atlas handoff` create/resume
