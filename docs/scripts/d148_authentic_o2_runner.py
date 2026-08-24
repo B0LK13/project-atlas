@@ -83,17 +83,19 @@ def _estate_query_subject(estate: Path, project_id: str | None) -> str:
 
 
 def _authentic_query_probes(subject: str) -> list[tuple[str, str, bool]]:
-    """Build positive/negative ask2 probes with contentful claim anchors."""
+    """Build positive/negative ask2 probes with contentful claim anchors.
+
+    Each positive probe must retain discriminative claim terms after
+    interrogative-scaffolding removal, and those terms must co-occur in a
+    single grounded record (ask2 entailment is per-hit, not corpus-union).
+    Prefer short subject+property questions over multi-aspect stacks.
+    """
     return [
         ("identity", f"What is {subject}?", False),
         ("purpose", f"What is the purpose of {subject}?", False),
-        ("readme", f"What does the {subject} README describe?", False),
+        ("local_first", f"Is {subject} local-first?", False),
         ("negative", "xyzzy plugh nonsense query 0000", True),
-        (
-            "stack",
-            f"What is the Next.js and SQLite stack for {subject}?",
-            False,
-        ),
+        ("mvp", f"Is {subject} an MVP?", False),
     ]
 
 
