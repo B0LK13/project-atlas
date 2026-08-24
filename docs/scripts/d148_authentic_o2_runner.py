@@ -292,9 +292,31 @@ def run_authentic_o2(
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     run_started = datetime.now(UTC)
+    prior_estate_env = os.environ.get("AUTHENTIC_ESTATE_ROOT")
     os.environ["AUTHENTIC_ESTATE_ROOT"] = str(
         estate_root or resolve_authentic_estate_root(repo_root) or ""
     )
+    try:
+        return _run_authentic_o2_body(
+            repo_root,
+            estate_root=estate_root,
+            keep_vault=keep_vault,
+            run_started=run_started,
+        )
+    finally:
+        if prior_estate_env is None:
+            os.environ.pop("AUTHENTIC_ESTATE_ROOT", None)
+        else:
+            os.environ["AUTHENTIC_ESTATE_ROOT"] = prior_estate_env
+
+
+def _run_authentic_o2_body(
+    repo_root: Path,
+    *,
+    estate_root: Path | None,
+    keep_vault: bool,
+    run_started: datetime,
+) -> dict[str, Any]:
     estate = resolve_authentic_estate_root(repo_root)
     if estate is None:
         raise SystemExit("AUTHENTIC_ESTATE_ROOT could not be resolved")
