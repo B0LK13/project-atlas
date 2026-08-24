@@ -380,7 +380,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
-- [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
+- [x] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest (implemented on main; IV still independent)
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
@@ -662,4 +662,34 @@ Honesty (mandatory):
 - [x] ORCHLEASE-005 Focused + concurrent + control-plane tests
 - [ ] ORCHLEASE-006 Exact-head CI + independent IV + adversarial control-plane review
 - [ ] ORCHLEASE-007 Owner merge gate (not this package)
+
+## AS-D149-OWNER-GATE-NON-ESCALATION-001 — authentic estate must not grant owner authority
+
+_Status: **IMPLEMENTED — READY FOR INDEPENDENT VERIFICATION** (not merge-eligible; not owner-approved; not production-ready). Bounded security remediation after merged D-148 (`#443`). Authentic estate availability may satisfy an `AUTHENTIC_ESTATE_ROOT` prerequisite. It must not rewrite unrelated owner gates or set `OWNER_CAPABILITY_GRANTED` from filesystem/marker validation. Does **not** grant merge authority. Does **not** claim `AUTHENTIC_PILOT`._
+
+Honesty (mandatory):
+
+- `AUTHENTIC_ESTATE_AVAILABILITY_GRANTS_OWNER_AUTHORITY = NO`
+- `OWNER_CAPABILITY_GRANTED_FROM_FILESYSTEM = NO`
+- `PROTECTED_OWNER_GATES_PRESERVED = YES`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+
+- [x] D149-001 CREDENTIAL + AUTHENTIC_ESTATE_ROOT becomes runnable
+- [x] D149-002 MERGE / SECURITY / HUMAN / OWNER gates stay intact
+- [x] D149-003 Other credentials and remaining dependencies preserved
+- [x] D149-004 Invalid / missing / malformed / fixture estates do not widen authority
+- [x] D149-005 Stale credential, stale main, missing fingerprint/root rejected
+- [x] D149-006 Closure-integrity failure and post-preflight exception restore prior state
+- [x] D149-007 Repeated reconciliation and existing READY nodes are idempotent
+- [x] D149-008 SUPERSEDED MERGE dependencies (PR431) are not replaced by AUTHENTIC_ESTATE_ROOT
+- [x] D149-009 D-148 runner validates closure integrity before durable mutation
+- [x] D149-009a Independent IV residual: MERGE-gated O2 nodes are not marked COMPLETED
+- [x] D149-009b Independent IV residual: SUPERSEDED CREDENTIAL deps are unioned, not replaced
+- [x] D149-009c Independent IV residual: overflow-cap inventory still invalidates fingerprint
+- [x] D149-009d Independent IV residual: missing git HEAD fail-closes present credentials
+- [x] D149-009e Independent IV residual: post-mutation O2 exception restores DAG/credential
+- [ ] D149-010 Independent verification (implementer ≠ verifier) — this cycle independently reviewed `#449` and closed R5 residuals
+- [ ] D149-011 Owner merge gate (not this package)
+- [ ] D149-012 Authentic O2 post-merge seal (`AUTHENTIC_ESTATE_ROOT` owner-blocked)
 
