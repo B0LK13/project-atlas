@@ -7277,3 +7277,16 @@ IV != merge authorization. Classification != execution.
 - ruff: PASS
 - pytest `tests/integration/test_orchestration_iv_001b.py`: 5 passed
 - Honesty: `dispatchable` may be true; `execution_authorized` stays false.
+
+---
+
+## AS-ORCH-INTEGRATION-IV-001C — independent IV for AS-ORCH-001C / ORCH001C-009
+
+**Date:** 2026-08-23
+**Directive:** AS-ORCH-INTEGRATION-IV-001C
+**Mode:** INDEPENDENT_INTEGRATION_VERIFICATION. Handoff != dispatch.
+
+### Results
+- pytest `tests/integration/test_orchestration_iv_001c.py`: 5 passed
+- ruff: PASS
+- ORCH001C-010 Windows stop-event observation remains ENVIRONMENT_DEPENDENT.
