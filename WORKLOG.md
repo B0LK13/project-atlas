@@ -7045,3 +7045,21 @@ Historical D-148 pin `4e71cce0` is superseded. D-149/D-150/D-152/D-154 already l
 - `NEXT ACTION != COMMAND`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `AUTHENTIC_PILOT = NOT_RUN`
+
+---
+
+## AS-CODER-ALPHA-CONTEXT-STALE-GUARD-001 — stale context must not look current
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-93df`
+**PR:** https://github.com/B0LK13/project-atlas/pull/477
+
+### Scope
+- `export_agent_context` / `create_handoff` consume `inventory_drift`
+- JSON + markdown honesty include `source_inventory_stale` / `stale_is_current=false`
+- Does not invent reconnect; does not treat stale as current
+
+### Honesty
+- `STALE != CURRENT`
+- `CONTEXT != AUTHORITY`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
