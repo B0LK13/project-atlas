@@ -238,10 +238,6 @@ def _question_claim_terms(question: str) -> frozenset[str]:
 def _record_tokens(hit: RetrievalResult) -> frozenset[str]:
     """Return lexical support tokens from substantive record text only."""
     parts = _collect_record_text(hit.record)
-    # Include record_id basename tokens only when they look contentful (not bare UUIDs).
-    rid = str(hit.record_id or "")
-    if rid and any(ch.isalpha() for ch in rid):
-        parts.append(rid)
     return frozenset(tokenize("\n".join(parts)))
 
 
