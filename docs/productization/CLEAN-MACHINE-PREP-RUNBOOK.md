@@ -18,7 +18,7 @@
 ## Clone command
 
 ```powershell
-$TARGET_HEAD = "3d39d0ddcb106c7dd404884878849539db489094"
+$TARGET_HEAD = "4d13853a76343c7ca777ae7a3fc6a644cab3a153"
 $WORK = Join-Path $env:TEMP "atlas-clean-machine-cert"
 Remove-Item -Recurse -Force $WORK -ErrorAction SilentlyContinue
 git clone --depth 1 https://github.com/B0LK13/project-atlas.git $WORK
@@ -36,8 +36,8 @@ git rev-parse 'HEAD^{tree}'
 
 Expected at D-144 certification:
 
-- `HEAD` = `3d39d0ddcb106c7dd404884878849539db489094`
-- `TREE` = `9581a0a8a4e3a4fe1c4ba4ba000eb583a77bb0cb`
+- `HEAD` = `4d13853a76343c7ca777ae7a3fc6a644cab3a153`
+- `TREE` = `5da3476e7801f73a222774859ce864d0bd73d2f2`
 
 Fail closed if either differs.
 
