@@ -6997,3 +6997,30 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## D-149 — owner-gate non-escalation (authentic estate)
+
+**Date:** 2026-08-24
+**Directive:** autonomous night cycle / D-149
+**Branch:** `cursor/atlas-autonomous-night-cycle-93df`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED SECURITY REMEDIATION. Does not grant merge. Does not claim authentic O2.
+
+### Live-state note
+Historical D-148 pin `4e71cce0` is superseded. D-149/D-150/D-152/D-154 already landed on main. This package hardens residual CREDENTIAL-other and MERGE-rewrite paths.
+
+### Scope
+- `refresh_authentic_o2_node_states` consumes only `AUTHENTIC_ESTATE_ROOT` when that dependency is explicit
+- CREDENTIAL held for another capability is not cleared
+- MERGE/SECURITY/HUMAN/OWNER/RELEASE/GOVERNOR/SIGNOFF remain immutable
+- stale/cross-project/failed credentials and closure-integrity failures refuse durable mutation
+- mission reconciler no longer rewrites owner-held MERGE to CREDENTIAL
+- `write_estate_credential` records `OWNER_CAPABILITY_GRANTED=false` and does not mark a failed preflight satisfied
+
+### Honesty
+- `AUTHENTIC_ESTATE_AVAILABILITY != OWNER_AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN` (`AUTHENTIC_ESTATE_ROOT` unset in this environment)
