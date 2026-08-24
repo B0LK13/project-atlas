@@ -32,6 +32,14 @@ from project_atlas.semantic_compiler import COVERAGE_RULES, coverage_for
 
 GENERATED_PORTFOLIO_ROOT = "generated/portfolio"
 DEFAULT_STALE_DAYS = 180
+# Checkout/container copies often preserve st_mtime == 0 (Unix epoch).
+# That is missing metadata, not a 50-year-old document (AS-MVP-001-FRESHNESS-TRUTH-001).
+_UNTRUSTED_MTIME_YEAR = 1980
+
+
+def is_untrusted_mtime(value: datetime) -> bool:
+    """True for Unix-epoch / pre-1980 timestamps that are not real document age."""
+    return value.year < _UNTRUSTED_MTIME_YEAR
 
 # Coverage categories a project must satisfy for a "high maturity" signal;
 # mirrors the "partial on a single match" categories in semantic_compiler.py.
@@ -325,7 +333,8 @@ def stale_knowledge(
             # never as an individually cited source_id/path here.
             continue
         modified_at = _parse_datetime(entry.get("modified_at"))
-        if modified_at is None:
+        if modified_at is None or is_untrusted_mtime(modified_at):
+            # Epoch / untrusted mtimes are unknown, never assumed stale.
             freshness = "unknown"
         else:
             age_days = (reference_date - modified_at).days
