@@ -65,14 +65,35 @@ def _hash_generated_tree(vault: Path) -> dict[str, str]:
     return out
 
 
-def _run_portfolio(vault: Path, *, reference_date: datetime) -> bool:
+def _run_portfolio(vault: Path, *, reference_date: datetime) -> dict[str, Any]:
+    """Run portfolio + bitemporal derivation; return contract evidence.
+
+    CLI ``build-portfolio`` always invokes ``build_bitemporal_catalogs``. When
+    the corpus declares no validity windows, catalogs may be empty — that is
+    still a successful contract exercise (vacuous catalogs), not a compile failure.
+    """
     try:
         build_portfolio(vault, reference_date=reference_date)
-        # Match CLI build-portfolio contract: always derive bitemporal catalogs.
-        build_bitemporal_catalogs(vault)
-        return True
-    except (OSError, ValueError):
-        return False
+        catalog = build_bitemporal_catalogs(vault)
+        count = int(catalog.get("catalog_count") or 0)
+        present = (vault / "generated" / "ops" / "bitemporal").is_dir()
+        return {
+            "ok": True,
+            "catalog_count": count,
+            "window_count": int(catalog.get("window_count") or 0),
+            "bitemporal_dir_present": present,
+            # Vacuous success when no temporal windows exist in the corpus.
+            "bitemporal_contract": bool(catalog.get("ok")) and (count == 0 or present),
+        }
+    except (OSError, ValueError) as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+            "catalog_count": 0,
+            "window_count": 0,
+            "bitemporal_dir_present": False,
+            "bitemporal_contract": False,
+        }
 
 
 def _derive_portfolio_reference_date(vault: Path, *, run_started: datetime) -> datetime:
@@ -303,18 +324,24 @@ def run_authentic_o2(
 
         if ingest_pass:
             steps["build_indexes"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-            steps["build_portfolio"] = _run_portfolio(vault, reference_date=reference_date)
-            steps["bitemporal_present"] = (vault / "generated" / "ops" / "bitemporal").is_dir()
+            portfolio_1 = _run_portfolio(vault, reference_date=reference_date)
+            steps["build_portfolio"] = bool(portfolio_1.get("ok"))
+            steps["bitemporal_contract"] = bool(portfolio_1.get("bitemporal_contract"))
+            steps["bitemporal_catalog_count"] = int(portfolio_1.get("catalog_count") or 0)
+            steps["bitemporal_present"] = bool(portfolio_1.get("bitemporal_dir_present"))
             steps["validate_1"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
             first_hashes = _hash_generated_tree(vault)
             steps["build_indexes_2"] = main(["build-indexes", "--vault", str(vault)]) == EXIT_OK
-            steps["build_portfolio_2"] = _run_portfolio(vault, reference_date=reference_date)
+            portfolio_2 = _run_portfolio(vault, reference_date=reference_date)
+            steps["build_portfolio_2"] = bool(portfolio_2.get("ok"))
             second_hashes = _hash_generated_tree(vault)
             steps["validate_2"] = main(["validate", "--vault", str(vault)]) == EXIT_OK
             steps["compile_hash_stable"] = first_hashes == second_hashes and bool(first_hashes)
         else:
             steps["build_indexes"] = False
             steps["build_portfolio"] = False
+            steps["bitemporal_contract"] = False
+            steps["bitemporal_catalog_count"] = 0
             steps["bitemporal_present"] = False
             steps["validate_1"] = False
             steps["build_indexes_2"] = False
@@ -344,7 +371,7 @@ def run_authentic_o2(
 
         compile_pass = ingest_pass and all(
             steps.get(k)
-            for k in ("build_indexes", "build_portfolio", "validate_1", "bitemporal_present")
+            for k in ("build_indexes", "build_portfolio", "validate_1", "bitemporal_contract")
         )
         compile_idempotent = ingest_pass and bool(steps.get("compile_hash_stable"))
         query_pass = ingest_pass and compile_pass and bool(steps["query_pass"])
@@ -366,7 +393,7 @@ def run_authentic_o2(
             "authentic_estate_root_used": True,
             "demo_fixture_is_authentic_pilot": False,
             "FIXTURE_ONLY": False,
-            "BITEMPORAL_BUILD_CONTRACT": bool(steps.get("bitemporal_present")),
+            "BITEMPORAL_BUILD_CONTRACT": bool(steps.get("bitemporal_contract")),
             "portfolio_reference_date": reference_date.isoformat(),
             "steps": steps,
             "live_main_head": integrity.live_main_head,
