@@ -89,6 +89,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Living Project Roadmap V1 (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.conflicts.read",
+        "vault-read",
+        True,
+        "allow-list candidate; unresolved project conflicts (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

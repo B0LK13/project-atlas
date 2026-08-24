@@ -7046,19 +7046,6 @@ grant source and does not certify #427.
 
 ---
 
-## AS-CODER-ALPHA-PROJECT-STATE-MCP-001 / ROADMAP-MCP-001 — night cycle 2026-08-24T22:35Z
+## AS-CODER-ALPHA-CONFLICTS-MCP-001 — night cycle 2026-08-24T22:35Z
 
-**Date:** 2026-08-24
-**Branch:** `cursor/atlas-autonomous-night-cycle-f792` (PR #480)
-**Base:** `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`
-**Mode:** SUCCESSOR PACKAGE. Does not implement D-149. Does not merge.
-
-### This package
-- Zero-arg MCP `atlas.project-state.read` over existing `/v1/project-state`.
-- Zero-arg MCP `atlas.roadmap.read` over existing `/v1/roadmap`.
-- Honesty: MCP≠authority, ROADMAP≠canonical, no as-of/project request args.
-
-### Honesty
-- `D149_DUPLICATED = NO`
-- `AUTHENTIC_PILOT = NO`
-- `MERGE_AUTHORIZATION = NOT_GRANTED`
+Zero-arg MCP `atlas.conflicts.read` over existing `/v1/conflicts`. No resolution. Secret-shaped claims stay redacted. `MERGE_AUTHORIZATION=NOT_GRANTED`.
