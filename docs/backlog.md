@@ -476,7 +476,7 @@ Honesty (mandatory):
 - [x] ORCH001C-R1-001 Typed `HandoffPacket` shared by hook adapter and explicit completion
 - [x] ORCH001C-R1-002 `complete_staged_handoff` / `atlas orchestrator cursor-complete` (no Cursor event required)
 - [x] ORCH001C-R1-003 Transport-equivalence + tamper + idempotence proofs
-- [ ] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move)
+- [x] ORCH001C-009 Independent integration verification (`tests/integration/test_orchestration_iv_001c.py`; extracted from draft `#448` onto current main)
 - [ ] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
