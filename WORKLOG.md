@@ -38,6 +38,8 @@ Focused pytest + ruff + mypy recorded in the PR body after the run.
 
 Zero-arg MCP `atlas.unknown.read` / `atlas.changed.read` on the same branch (`#479`). Vault-scoped, no request args, no writes.
 
+AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 is already on live main; focused unit 13 passed this cycle. Skip remains operational only.
+
 ---
 
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
