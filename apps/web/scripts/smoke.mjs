@@ -27,6 +27,8 @@ const required = [
   "src/pages/production/CommandCenterPage.tsx",
   "src/pages/production/MissionControlPage.tsx",
   "src/pages/production/WorkspacePage.tsx",
+  "src/pages/production/SourceHealthPage.tsx",
+  "src/hooks/useLiveSourceHealth.ts",
   "src/pages/design-lab/LedgerDeskPage.tsx",
   "src/pages/design-lab/SignalRackPage.tsx",
   "src/pages/design-lab/CartographQuietPage.tsx",
@@ -104,6 +106,7 @@ for (const route of [
   "/command-center",
   "/mission-control",
   "/workspace",
+  "/source-health",
   "/design-lab/ledger-desk",
   "/design-lab/signal-rack",
   "/design-lab/cartograph-quiet",
@@ -198,10 +201,11 @@ const pageChecks = [
   ["src/pages/production/CommandCenterPage.tsx", ["ui_canonical", "graph_authority"]],
   ["src/pages/production/MissionControlPage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority", "LensModeSwitcher", "LIVE", "DEMO", "FIXTURE"]],
   ["src/pages/production/WorkspacePage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority", "LensModeSwitcher", "LIVE", "DEMO", "FIXTURE"]],
+  ["src/pages/production/SourceHealthPage.tsx", ["ui_canonical", "unknown≠healthy", "source_health≠authority", "UNKNOWN"]],
   ["src/components/LensModeSwitcher.tsx", ["LIVE", "DEMO", "FIXTURE", "mode-switcher"]],
   ["src/components/ReadStatusPanel.tsx", ["ui_canonical", "graph_authority", "unknown_equals_healthy"]],
   ["src/components/ProdShell.tsx", ["skip-link", "Skip to main"]],
-  ["src/components/ProdNav.tsx", ["/mission-control", "Mission Control", "/workspace", "Workspace"]],
+  ["src/components/ProdNav.tsx", ["/mission-control", "Mission Control", "/workspace", "Workspace", "/source-health", "Source health"]],
 ];
 for (const [rel, needles] of pageChecks) {
   const body = readFileSync(join(root, rel), "utf8").toLowerCase();
@@ -311,6 +315,7 @@ for (const hookRel of [
   "src/hooks/useLiveMissionWorkspace.ts",
   "src/hooks/useOpsReceipts.ts",
   "src/hooks/useReadStatus.ts",
+  "src/hooks/useLiveSourceHealth.ts",
 ]) {
   const body = readFileSync(join(root, hookRel), "utf8");
   if (!body.includes("liveApiFetch") && !body.includes('../api/liveApi')) {

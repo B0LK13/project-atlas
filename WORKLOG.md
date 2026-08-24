@@ -6997,3 +6997,30 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-SOURCE-HEALTH-WEB-001 / MCP-001 — night cycle 2026-08-24T22:35Z
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-f792`
+**Base:** `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`
+**Mode:** SUCCESSOR PACKAGE after D-149 IV. Does not implement D-149. Does not merge.
+
+### Live-state reconciliation
+- Historical `4e71cce0` / `#443` superseded.
+- D-149 remains on draft `#477` (`c54f9ea`). Independent IV: main still widens non-estate CREDENTIAL and rewrites SUPERSEDED MERGE→CREDENTIAL; `#477` remediates (25+17 tests).
+- `#478` owns inbox/attention/overview/decisions API. `#479` owns unknown/changed API+MCP. `#477` also owns `/v1/next`.
+- `AUTHENTIC_ESTATE_ROOT=UNSET`. Authentic O2 owner-blocked.
+- `MERGE_AUTHORIZATION=NOT_GRANTED`.
+
+### This package
+- Web `#/source-health` over existing `GET /v1/source-health`.
+- Zero-arg MCP `atlas.source-health.read` (vault-scoped; no request args).
+- Honesty: UI≠canonical, SOURCE HEALTH≠authority, UNKNOWN≠healthy, no secret echo.
+
+### Honesty
+- `D149_DUPLICATED = NO`
+- `AUTHENTIC_PILOT = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_PERFORMED = NO`

@@ -371,6 +371,8 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CROSS-SURFACE-001 Disk/Web/Obsidian/Agent brief consistency tests
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-V2 Decide → rematerialize → no pending resurrection
 - [x] AS-CODER-ALPHA-SOURCE-HEALTH-001 Source failure explainability (`atlas source-health`)
+- [x] AS-CODER-ALPHA-SOURCE-HEALTH-WEB-001 `#/source-health` page over existing `/v1/source-health` (UI≠canonical; UNKNOWN≠healthy; no implicit portfolio-all)
+- [x] AS-CODER-ALPHA-SOURCE-HEALTH-MCP-001 zero-arg `atlas.source-health.read` MCP tool (vault-scoped; MCP≠authority; no request args)
 - [x] AS-CODER-ALPHA-DECISIONS-002 Decision status labels (active/superseded/…)
 - [x] AS-CODER-ALPHA-DECISIONS-003 ACTIVE_GOVERNING authority gate
 - [x] AS-CODER-ALPHA-ATTENTION-002 care_about triage + source-failure collapse
@@ -380,7 +382,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
-- [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
+- [x] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest (implemented on main; night-cycle 22:35Z unit IV 13+ focused suite PASS; IV≠merge)
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 

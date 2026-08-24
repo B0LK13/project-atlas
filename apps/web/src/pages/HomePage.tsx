@@ -50,6 +50,11 @@ const PROD = [
     blurb: "Living Project Roadmap V1 — derived; ROADMAP≠canonical.",
   },
   {
+    to: "/source-health",
+    title: "Source health",
+    blurb: "Explainable source failures — derived; UNKNOWN≠healthy.",
+  },
+  {
     to: "/intelligence",
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",

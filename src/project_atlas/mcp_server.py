@@ -23,10 +23,15 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+SOURCE_HEALTH_PACKAGE_ID = "AS-CODER-ALPHA-SOURCE-HEALTH-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+SOURCE_HEALTH_TRUTH_BOUNDARY = (
+    "MCP SOURCE HEALTH != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL / NO SECRET ECHO"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -134,6 +139,56 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_source_health_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "health_state": "UNKNOWN",
+        "available": False,
+        "actionable": [],
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "unreadable_as_healthy": False,
+            "secrets_echoed": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def read_vault_source_health(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped source-health read. Does not invent projects or write."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            report = service.source_health(pid)
+        except AppServiceError:
+            report = _unknown_source_health_row(pid)
+        rows.append({"project_id": pid, "source_health": report})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": SOURCE_HEALTH_PACKAGE_ID,
+        "truth_boundary": SOURCE_HEALTH_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "reports": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "unreadable_as_healthy": False,
+            "secrets_echoed": False,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +200,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.source-health.read": lambda: read_vault_source_health(service),
     }
 
 
