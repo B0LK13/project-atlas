@@ -74,6 +74,7 @@ NEXT_API_STATUS: Final[str] = "PENDING_OWNER_HELD_406"
 INBOX_API_STATUS: Final[str] = "IMPLEMENTED"
 ATTENTION_API_STATUS: Final[str] = "IMPLEMENTED"
 OVERVIEW_API_STATUS: Final[str] = "IMPLEMENTED"
+DECISIONS_API_STATUS: Final[str] = "IMPLEMENTED"
 LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/ask",
     "/v1/projects",
@@ -82,6 +83,7 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/brief",
     "/v1/roadmap",
     "/v1/overview",
+    "/v1/decisions",
     "/v1/attention",
     "/v1/inbox",
     "/v1/source-health",
@@ -274,6 +276,7 @@ def run_demo_readiness(
                 f"NEXT_API={NEXT_API_STATUS}; /v1/inbox={INBOX_API_STATUS}; "
                 f"/v1/attention={ATTENTION_API_STATUS}; "
                 f"/v1/overview={OVERVIEW_API_STATUS}; "
+                f"/v1/decisions={DECISIONS_API_STATUS}; "
                 "UI != canonical truth"
             ),
         ),
@@ -306,6 +309,7 @@ def run_demo_readiness(
         "inbox_api_landed": True,
         "attention_api_landed": True,
         "overview_api_landed": True,
+        "decisions_api_landed": True,
         "next_api_landed": False,
         "cross_project_leak_count": leak_count,
     }
@@ -318,6 +322,7 @@ def run_demo_readiness(
             "inbox_api_landed",
             "attention_api_landed",
             "overview_api_landed",
+            "decisions_api_landed",
             "next_api_landed",
         }
         and not ok
@@ -355,6 +360,7 @@ def run_demo_readiness(
         "inbox_api": INBOX_API_STATUS,
         "attention_api": ATTENTION_API_STATUS,
         "overview_api": OVERVIEW_API_STATUS,
+        "decisions_api": DECISIONS_API_STATUS,
         "inbox_list": "READY" if inbox_available else "NOT_IMPLEMENTED",
         "stamps": list(STAMPS),
         "honesty": dict(HONESTY),

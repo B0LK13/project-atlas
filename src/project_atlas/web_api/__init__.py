@@ -22,6 +22,7 @@ from project_atlas.web_api.brief import (
     read_project_brief,
 )
 from project_atlas.web_api.conflicts import list_project_conflicts
+from project_atlas.web_api.decisions import WebDecisionsError, read_project_decisions
 from project_atlas.web_api.discovery import load_estate_discovery_view
 from project_atlas.web_api.graph import impact_graph_summary, read_impact_graph
 from project_atlas.web_api.health import (
@@ -59,6 +60,7 @@ __all__ = [
     "VaultHealthView",
     "WebAttentionError",
     "WebBriefError",
+    "WebDecisionsError",
     "WebInboxError",
     "WebIntelligenceError",
     "WebOverviewError",
@@ -79,6 +81,7 @@ __all__ = [
     "read_project_attention",
     "read_project_attention_hygiene",
     "read_project_brief",
+    "read_project_decisions",
     "read_project_inbox",
     "read_project_overview",
     "read_project_roadmap",

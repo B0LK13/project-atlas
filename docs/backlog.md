@@ -385,6 +385,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-INBOX-API-001 read-only `GET /v1/inbox` (projects inbox list; listing!=mutation!=command; no implicit portfolio-all; not merged)
 - [x] AS-CODER-ALPHA-ATTENTION-API-001 read-only `GET /v1/attention` (projects attention hygiene; != `/v1/project-attention` intelligence rank; not merged)
 - [x] AS-CODER-ALPHA-OVERVIEW-API-001 read-only `GET /v1/overview` (projects overview lens; missing project.md stays UNKNOWN; not merged)
+- [x] AS-CODER-ALPHA-DECISIONS-API-001 read-only `GET /v1/decisions` (projects decisions lens; empty evidence stays UNKNOWN; not merged)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification

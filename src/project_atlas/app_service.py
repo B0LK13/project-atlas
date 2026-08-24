@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebAttentionError,
     WebBriefError,
+    WebDecisionsError,
     WebInboxError,
     WebIntelligenceError,
     WebOverviewError,
@@ -38,6 +39,7 @@ from project_atlas.web_api import (
     read_project_attention,
     read_project_attention_hygiene,
     read_project_brief,
+    read_project_decisions,
     read_project_inbox,
     read_project_overview,
     read_project_roadmap,
@@ -118,6 +120,15 @@ class AppService:
         try:
             return read_source_health(self.vault, project_id)
         except WebSourceHealthError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def decisions(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha decisions lens (read-only; != Layer B authority)."""
+        try:
+            return read_project_decisions(self.vault, project_id)
+        except WebDecisionsError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc

@@ -7081,3 +7081,23 @@ VALID bounded security remediation. Not transferred to this branch (do not dupli
 - `OVERVIEW != AUTHORITY`
 - `LENS != LAYER B`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-DECISIONS-API-001 — read-only GET /v1/decisions
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-a791`
+**PR:** https://github.com/B0LK13/project-atlas/pull/478
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`
+**Mode:** CLI/API parity. Empty evidence stays UNKNOWN. Does not grant merge.
+
+### Scope
+- LIVE_API `GET /v1/decisions?project=` projects `build_decisions_lens`
+- Fail-closed project id; writes forbidden
+- Demo-readiness honesty: `DECISIONS_API = IMPLEMENTED`
+
+### Honesty
+- `DECISIONS != AUTHORITY`
+- `LENS != LAYER B`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
