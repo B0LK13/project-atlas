@@ -7041,3 +7041,9 @@ Closed self-remediable P2s:
 - SUPERSEDED CREDENTIAL revive unions dependencies instead of replacing them
 Added SUPERSEDED SECURITY reconcile coverage.
 Re-run: `tests/unit/test_d149_owner_gate_non_escalation.py` 37 passed.
+
+### D-149R5 — demo path-segment residual + exact-head CI
+Independent IV P2: `"dev-ai" in path` no longer exempts a `demo/` segment.
+Exact-head CI on `1c558b1ae94f201e809fed84527f2dfdbe4ec2f0` (superseded by this commit):
+`quality (ubuntu-latest, 3.12, full)`, `quality (ubuntu-latest, 3.13, compat)`,
+`quality (windows-latest, 3.12, windows)`, `control-plane` — all SUCCESS.
