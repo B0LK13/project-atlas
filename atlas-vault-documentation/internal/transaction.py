@@ -56,9 +56,16 @@ class ProjectLock:
                 self._acquired = True
                 return
             except FileExistsError:
-                age = time.time() - self.lock_path.stat().st_mtime
+                try:
+                    age = time.time() - self.lock_path.stat().st_mtime
+                except FileNotFoundError:
+                    # Lock released between create-fail and stat — retry.
+                    continue
                 if age > self.stale_seconds:
-                    self.lock_path.unlink()
+                    try:
+                        self.lock_path.unlink()
+                    except FileNotFoundError:
+                        pass
                     self.reclaimed_stale = True
                     continue
                 if time.monotonic() >= deadline:
