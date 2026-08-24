@@ -300,5 +300,5 @@ def test_d150_matrix_categories_cover_required_surface() -> None:
         else c
         for c in present
     }
-    assert _REQUIRED_UNKNOWN_CATEGORIES <= normalized
+    assert normalized >= _REQUIRED_UNKNOWN_CATEGORIES
     assert len(_SUPPORTED_CASES) >= 4
