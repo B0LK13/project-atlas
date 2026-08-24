@@ -71,6 +71,18 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha project briefs (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.unknown.read",
+        "vault-read",
+        True,
+        "allow-list candidate; Coder Alpha unknown/conflict lens (vault-scoped, read-only)",
+    ),
+    McpTool(
+        "atlas.changed.read",
+        "vault-read",
+        True,
+        "allow-list candidate; Coder Alpha What Changed lens (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

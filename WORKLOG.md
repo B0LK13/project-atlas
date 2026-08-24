@@ -34,6 +34,10 @@ Focused pytest + ruff + mypy recorded in the PR body after the run.
 - `D-149 = OWNER_HELD (#477)`
 - `PROJECT_TERMINAL = NO`
 
+### Successor this cycle
+
+Zero-arg MCP `atlas.unknown.read` / `atlas.changed.read` on the same branch (`#479`). Vault-scoped, no request args, no writes.
+
 ---
 
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014

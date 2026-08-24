@@ -23,9 +23,15 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+UNKNOWN_MCP_PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-MCP-001"
+CHANGED_MCP_PACKAGE_ID = "AS-CODER-ALPHA-CHANGED-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+LENS_MCP_TRUTH_BOUNDARY = (
+    "MCP LENS != AUTHORITY / UNKNOWN VALID / CHANGED != KDIFF / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
 
@@ -134,6 +140,98 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_lens_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "status": "unknown",
+        "rollup": "unknown",
+        "available": False,
+        "honesty": {
+            "unknown_is_valid": True,
+            "unknown_is_healthy": False,
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+        },
+    }
+
+
+def _changed_lens_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "status": "unknown",
+        "rollup": "baseline",
+        "available": False,
+        "honesty": {
+            "unknown_is_valid": True,
+            "changed_is_kdiff": False,
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+        },
+    }
+
+
+def _vault_lens_honesty() -> dict[str, Any]:
+    return {
+        "lens_is_authority": False,
+        "mcp_is_authority": False,
+        "unknown_is_valid": True,
+        "unknown_is_healthy": False,
+        "fabricated_fields": False,
+        "request_contains_project": False,
+        "zero_arg_vault_scope": True,
+        "portfolio_implicit_all": False,
+        "auto_execution": False,
+    }
+
+
+def read_vault_unknowns(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped unknown lens. Does not invent CLEAR or write."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            lens = service.unknown(pid)
+        except AppServiceError:
+            lens = _unknown_lens_row(pid)
+        rows.append({"project_id": pid, "unknown": lens})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": UNKNOWN_MCP_PACKAGE_ID,
+        "truth_boundary": LENS_MCP_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "unknowns": rows,
+        "honesty": _vault_lens_honesty(),
+    }
+
+
+def read_vault_changed(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped What Changed lens. Does not invent UNCHANGED or write."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            lens = service.changed(pid)
+        except AppServiceError:
+            lens = _changed_lens_row(pid)
+        rows.append({"project_id": pid, "changed": lens})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    honesty = _vault_lens_honesty()
+    honesty["changed_is_kdiff"] = False
+    return {
+        "schema_version": 1,
+        "package_id": CHANGED_MCP_PACKAGE_ID,
+        "truth_boundary": LENS_MCP_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "changed": rows,
+        "honesty": honesty,
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +243,8 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.unknown.read": lambda: read_vault_unknowns(service),
+        "atlas.changed.read": lambda: read_vault_changed(service),
     }
 
 
