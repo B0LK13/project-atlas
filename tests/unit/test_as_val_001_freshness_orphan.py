@@ -133,6 +133,55 @@ def test_h006_portfolio_acknowledged_stale_not_laundering(tmp_path: Path) -> Non
     assert not any("laundering" in err for err in result["errors"])
 
 
+def test_h006_quarantined_stale_source_is_not_silent_error(tmp_path: Path) -> None:
+    """AS-SEC-001: quarantined sources must not be demanded in stale-knowledge."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-secret",
+                "path": "docs/canary.env",
+                "likely_project": "demo",
+                "modified_at": "2020-01-01T00:00:00+00:00",
+            }
+        ],
+    )
+    reports = vault / "generated" / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    (reports / "secret-findings.json").write_text(
+        json.dumps([{"source_id": "src-secret", "rule": "aws-access-key"}], indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert not any(f["rule_id"] == "H-006-silent" for f in result["findings"])
+    assert not any("missing from portfolio" in err for err in result["errors"])
+    assert result["ok"] is True
+
+
+def test_h006_epoch_mtime_is_untrusted_warning_not_stale(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-epoch",
+                "path": "docs/copied.md",
+                "likely_project": "demo",
+                "modified_at": "1970-01-01T00:00:00+00:00",
+            }
+        ],
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert any(f["rule_id"] == "H-006-untrusted" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-stale" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-silent" for f in result["findings"])
+    assert result["ok"] is True
+
+
 def test_h006_unknown_missing_timestamp_fails_closed(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     _seed_vault(vault)
