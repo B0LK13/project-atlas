@@ -443,7 +443,8 @@ def test_authentic_query_probes_carry_discriminative_claim_terms() -> None:
         terms = _question_claim_terms(question)
         assert terms, f"empty claim terms for probe: {question!r}"
         assert "dark" in terms and "factory" in terms
+        # Multi-aspect stacks (many required nouns) fail per-hit entailment.
+        assert len(terms) <= 4, f"probe too multi-aspect: {question!r} -> {terms}"
     for question in negatives:
-        # Absent-subject probe must stay unknown without matching corpus nouns.
         assert "dark" not in _question_claim_terms(question)
 
