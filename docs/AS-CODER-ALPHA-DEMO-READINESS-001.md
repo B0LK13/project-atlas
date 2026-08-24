@@ -13,7 +13,7 @@ Journey (each stage is READY | PARTIAL | BLOCKED | UNKNOWN | NOT_IMPLEMENTED):
 5. DRIFT STATE (consumes `inventory_drift`; does not duplicate it)
 6. OVERVIEW
 7. ARCHITECTURE
-8. NEXT (lens/CLI landed; `NEXT_API = PENDING_OWNER_HELD_406`)
+8. NEXT (lens/CLI + `GET /v1/next` on current main; `NEXT_API = IMPLEMENTED_CURRENT_MAIN`)
 9. STATE / ATTENTION / DECISIONS
 10. INBOX (`NOT_IMPLEMENTED` on live main; #368 reconstruction is a sibling lane)
 11. API / CLI / WEB PRESENTATION

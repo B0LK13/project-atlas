@@ -70,7 +70,7 @@ STAMPS = (
     "MODEL_OUTPUT != AUTHORITY",
     "MISSING != PASS",
 )
-NEXT_API_STATUS: Final[str] = "PENDING_OWNER_HELD_406"
+NEXT_API_STATUS: Final[str] = "IMPLEMENTED_CURRENT_MAIN"
 LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/ask",
     "/v1/projects",
@@ -80,6 +80,7 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/roadmap",
     "/v1/source-health",
     "/v1/project-state",
+    "/v1/next",
     "/v1/conflicts",
     "/v1/kdiff",
 )
@@ -240,10 +241,11 @@ def run_demo_readiness(
         ),
         _stage(
             "next",
-            "PARTIAL" if nxt else "UNKNOWN",
+            "READY" if nxt else "UNKNOWN",
             note=(
-                "CLI/lens next exists on live main; "
-                f"NEXT_API={NEXT_API_STATUS}; does not duplicate the Next engine"
+                "CLI/lens next + GET /v1/next on this runtime; "
+                f"NEXT_API={NEXT_API_STATUS}; NEXT!=command; "
+                "does not duplicate AS-2.0-NEXT-001"
             ),
         ),
         _stage(
@@ -266,6 +268,7 @@ def run_demo_readiness(
             note=(
                 "CLI + LIVE_API + web presentation exist; "
                 f"NEXT_API={NEXT_API_STATUS}; /v1/inbox=NOT_IMPLEMENTED; "
+                "/v1/unknown=NOT_IMPLEMENTED; /v1/changed=NOT_IMPLEMENTED; "
                 "UI != canonical truth"
             ),
         ),
@@ -295,13 +298,13 @@ def run_demo_readiness(
         "obsidian_present": bool(obsidian.get("notes_written") or obsidian.get("receipt_path")),
         "drift_consumed": drift.get("package") == "AS-CODER-ALPHA-INVENTORY-DRIFT-001",
         "inbox_list_implemented": inbox_available,
-        "next_api_landed": False,
+        "next_api_landed": True,
         "cross_project_leak_count": leak_count,
     }
     failed = [
         name
         for name, ok in checks.items()
-        if name not in {"cross_project_leak_count", "inbox_list_implemented", "next_api_landed"}
+        if name not in {"cross_project_leak_count", "inbox_list_implemented"}
         and not ok
     ]
     if leak_count != 0:

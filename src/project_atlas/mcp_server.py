@@ -23,9 +23,14 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+NEXT_PACKAGE_ID = "AS-CODER-ALPHA-NEXT-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+NEXT_TRUTH_BOUNDARY = (
+    "MCP NEXT != AUTHORITY / NEXT != COMMAND / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
 
@@ -134,6 +139,55 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_next_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "summary": "UNKNOWN",
+        "status": "unknown",
+        "available": False,
+        "suggested_next_work": [],
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "next_is_command": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def read_vault_next(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped What Next read. Does not invent work or write."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            lens = service.project_next(pid)
+        except AppServiceError:
+            lens = _unknown_next_row(pid)
+        rows.append({"project_id": pid, "next": lens})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": NEXT_PACKAGE_ID,
+        "truth_boundary": NEXT_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "lenses": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "next_is_command": False,
+            "auto_execution": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +199,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.next.read": lambda: read_vault_next(service),
     }
 
 

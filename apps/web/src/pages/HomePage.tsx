@@ -50,6 +50,11 @@ const PROD = [
     blurb: "Living Project Roadmap V1 — derived; ROADMAP≠canonical.",
   },
   {
+    to: "/next",
+    title: "What Next",
+    blurb: "Daily What Next lens — derived; NEXT≠command; NEXT≠authority.",
+  },
+  {
     to: "/intelligence",
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",

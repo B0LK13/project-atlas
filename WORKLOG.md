@@ -6997,3 +6997,33 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-NEXT-API/WEB/MCP-001 — night cycle 2026-08-24T23:10Z
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-02ff`
+**Exact base:** `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** SUCCESSOR CLI/API/WEB/MCP PARITY. Does not implement D-149. Does not merge.
+
+### Live-state reconciliation
+
+- Historical D-148 pin `4e71cce0` / PR `#443` is superseded.
+- D-149 remains on draft `#477` (`c54f9ea`). Independent IV this cycle: live
+  main still clears non-estate `CREDENTIAL` and rewrites `SUPERSEDED MERGE` →
+  `CREDENTIAL`; `#477` remediates (25+17 tests). `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- `AUTHENTIC_ESTATE_ROOT` unset. Authentic O2 owner-blocked.
+- Do not duplicate `#471`–`#480`.
+
+### Scope
+
+- `GET /v1/next?project=` read-only adapter over `build_next_lens`
+- Web `#/next` + ProdNav + Home hub
+- Zero-arg vault-scoped `atlas.next.read`
+- Demo-readiness `NEXT_API = IMPLEMENTED_CURRENT_MAIN`
+
+### Honesty
+
+`NEXT != AUTHORITY`. `NEXT != COMMAND`. `UI != CANONICAL`. `MCP != AUTHORITY`.
+Does not resurrect `#406` as merge authority. Does not claim authentic O2.

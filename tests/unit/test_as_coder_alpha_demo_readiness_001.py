@@ -34,8 +34,8 @@ def test_demo_readiness_harbor_journey_is_honest(tmp_path: Path) -> None:
     assert report["checks"]["context_present"] is True
     assert report["checks"]["obsidian_present"] is True
     assert report["checks"]["drift_consumed"] is True
-    assert report["checks"]["next_api_landed"] is False
-    assert report["next_api"] == "PENDING_OWNER_HELD_406"
+    assert report["checks"]["next_api_landed"] is True
+    assert report["next_api"] == "IMPLEMENTED_CURRENT_MAIN"
     assert report["inbox_list"] == "READY"
     by_name = {row["name"]: row for row in report["stages"]}
     assert tuple(row["name"] for row in report["stages"] if row["name"] in JOURNEY) == JOURNEY
@@ -46,7 +46,7 @@ def test_demo_readiness_harbor_journey_is_honest(tmp_path: Path) -> None:
     assert by_name["drift_state"]["state"] in {"READY", "UNKNOWN"}
     assert by_name["overview"]["state"] == "READY"
     assert by_name["architecture"]["state"] in {"READY", "PARTIAL"}
-    assert by_name["next"]["state"] == "PARTIAL"
+    assert by_name["next"]["state"] == "READY"
     assert by_name["inbox"]["state"] == "READY"
     assert by_name["api_cli_web"]["state"] == "PARTIAL"
     assert "MISSING" not in {row["state"] for row in report["stages"]}
