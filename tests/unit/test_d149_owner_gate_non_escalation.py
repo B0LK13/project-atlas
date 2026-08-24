@@ -818,6 +818,43 @@ def test_mark_package_complete_skips_protected_gates(tmp_path: Path) -> None:
     assert nodes["ok"].status == "COMPLETED"
 
 
+def test_fingerprint_same_size_content_edit_invalidates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same-size corpus edit must change the fingerprint and reject the credential."""
+    estate = _valid_estate(tmp_path)
+    overflow = estate / "zzz-overflow.txt"
+    overflow.write_text("aaaa\n", encoding="utf-8")
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    write_estate_credential(repo, estate, run_estate_preflight(estate))
+    before = estate_fingerprint(estate)
+    overflow.write_text("bbbb\n", encoding="utf-8")
+    after = estate_fingerprint(estate)
+    assert before != after
+    assert refresh_authentic_o2_node_states(repo) == []
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+
+
+def test_headless_repo_cannot_persist_estate_credential(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    estate = _valid_estate(tmp_path)
+    repo = tmp_path / "nongit-atlas"
+    repo.mkdir()
+    persist_nodes(repo, {"n1": _o2_node(node_id="n1")})
+    _bind_estate(monkeypatch, estate)
+    preflight = run_estate_preflight(estate)
+    with pytest.raises(AuthenticO2PreflightError, match="git HEAD"):
+        write_estate_credential(repo, estate, preflight)
+    cred_path = (
+        repo / ".atlas" / "orchestration" / "sdk-runtime" / "d148-authentic-estate-credential.json"
+    )
+    assert not cred_path.is_file()
+    assert load_nodes(repo)["n1"].OWNER_GATE == "CREDENTIAL"
+
+
 def test_d148_runner_validates_integrity_before_mutation() -> None:
     """D-149 mutation-order: runner must not write credentials before integrity."""
     path = Path(__file__).resolve().parents[2] / "docs" / "scripts" / "d148_authentic_o2_runner.py"

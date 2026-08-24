@@ -299,8 +299,24 @@ def estate_fingerprint(estate_root: Path) -> str:
             continue
         collected.append(path)
     collected.sort(key=lambda item: item.relative_to(root).as_posix())
-    for path in collected[:_FINGERPRINT_FILE_CAP]:
+    if _FINGERPRINT_FILE_CAP < 1:
+        raise ValueError("estate fingerprint file cap must be positive")
+    # Inventory + full streamed content. The cap is a positivity guard / test
+    # seam, not a license to skip overflow bytes (same-size edits included).
+    digest.update(b"inventory-count:")
+    digest.update(str(len(collected)).encode("ascii"))
+    digest.update(b"\n")
+    for path in collected:
         rel_posix = path.relative_to(root).as_posix()
+        size = path.stat().st_size
+        digest.update(b"inventory:")
+        digest.update(rel_posix.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(size).encode("ascii"))
+        digest.update(b"\n")
+    for path in collected:
+        rel_posix = path.relative_to(root).as_posix()
+        digest.update(b"content:")
         digest.update(rel_posix.encode("utf-8"))
         digest.update(b"\0")
         file_digest = hashlib.sha256()
@@ -428,6 +444,10 @@ def write_estate_credential(repo_root: Path, estate_root: Path, preflight: Estat
     """Record estate availability. Never derives OWNER_CAPABILITY_GRANTED from FS."""
     path = repo_root / _CREDENTIAL_REL
     live_head, live_tree = _repo_git_pin(repo_root)
+    if not live_head or len(live_head) != 40:
+        raise AuthenticO2PreflightError(
+            "cannot persist estate credential without a resolvable git HEAD"
+        )
     available = bool(preflight.preflight_pass)
     payload = {
         "directive": "D-148",
