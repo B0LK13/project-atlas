@@ -24,6 +24,7 @@ from project_atlas.conversation_capture import (
     list_conversation_captures,
     render_conversation_captures_markdown,
 )
+from project_atlas.inventory_drift import attach_source_drift
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 from project_atlas.session_capture import (
     SessionCaptureError,
@@ -274,6 +275,7 @@ def _render_context_markdown(
             "- lens_is_authority: false",
             "- roadmap_is_canonical: false",
             "- next_is_command: false",
+            "- stale_is_current: false",
             "",
         ]
     )
@@ -370,8 +372,19 @@ def export_agent_context(
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
             "invented_facts": False,
+            "stale_is_current": False,
         },
     }
+    payload = attach_source_drift(payload, vault, project_id)
+    raw_honesty = payload.get("honesty")
+    honesty = dict(raw_honesty) if isinstance(raw_honesty, dict) else {}
+    stale = bool(honesty.get("source_inventory_stale"))
+    markdown = markdown.rstrip() + "\n- source_inventory_stale: " + (
+        "true" if stale else "false"
+    ) + "\n"
+    if stale:
+        markdown += "- STALE SOURCE INVENTORY != CURRENT CONTEXT; reconnect first\n"
+    payload["markdown"] = markdown
     md_path = vault / CONTEXT_DIR / f"{project_id}.md"
     json_path = vault / CONTEXT_DIR / f"{project_id}.json"
     _write_atomic(md_path, markdown.encode("utf-8"))
@@ -388,6 +401,9 @@ def export_agent_context(
         "json_path": json_path.relative_to(vault).as_posix(),
         "purpose": brief.get("purpose"),
         "conversation_captures": conversation_captures,
+        "source_inventory_stale": stale,
+        "source_drift": payload.get("source_drift"),
+        "honesty": honesty,
         "generated": {"by": GENERATOR_ID},
     }
 
@@ -445,6 +461,10 @@ def create_handoff(
             "authentic_pilot": False,
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
+            "stale_is_current": False,
+            "source_inventory_stale": bool(
+                (context.get("honesty") or {}).get("source_inventory_stale")
+            ),
         },
     }
     path = vault / HANDOFF_DIR / f"{handoff_id}.json"

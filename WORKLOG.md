@@ -7024,3 +7024,24 @@ Historical D-148 pin `4e71cce0` is superseded. D-149/D-150/D-152/D-154 already l
 - `OWNER_CAPABILITY_GRANTED = false`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `AUTHENTIC_PILOT = NOT_RUN` (`AUTHENTIC_ESTATE_ROOT` unset in this environment)
+
+---
+
+## AS-CODER-ALPHA-NEXT-API-001 — read-only GET /v1/next
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-93df`
+**PR:** https://github.com/B0LK13/project-atlas/pull/477
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`
+
+### Scope
+- LIVE_API `GET /v1/next?project=` projects the existing What Next lens
+- Fail-closed project id; writes forbidden; `NEXT != AUTHORITY / COMMAND`
+- Demo-readiness honesty: `NEXT_API = IMPLEMENTED` (no longer `PENDING_OWNER_HELD_406`)
+- Does not copy stale owner-held `#406`
+
+### Honesty
+- `NEXT LENS != AUTHORITY`
+- `NEXT ACTION != COMMAND`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN`
