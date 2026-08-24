@@ -64,6 +64,11 @@ const PROD = [
     title: "What Changed",
     blurb: "Last-connect inventory lens — CHANGED≠kdiff; UI≠canonical.",
   },
+  {
+    to: "/inbox",
+    title: "Inbox",
+    blurb: "Knowledge inbox list — listing≠command; INBOX≠authority.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

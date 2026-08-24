@@ -5,6 +5,19 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-INBOX API+WEB — night cycle 2026-08-24T23:45Z
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-63c0`
+**Mode:** CODER_ALPHA_SURFACE. Does not mutate D-149 / #477. Does not merge.
+
+Read-only `GET /v1/inbox` + Web `#/inbox`. Listing != mutation != command.
+
+- `INBOX != AUTHORITY`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
 ## AS-CODER-ALPHA-UNKNOWN/CHANGED API+WEB — night cycle 2026-08-24T23:45Z
 
 **Date:** 2026-08-24

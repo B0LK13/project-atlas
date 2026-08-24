@@ -16,6 +16,7 @@ PROJECT_AWARE = {
     "/intelligence",
     "/unknown",
     "/changed",
+    "/inbox",
     "/context",
     "/ask",
     "/time-machine",

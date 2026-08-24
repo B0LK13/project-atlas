@@ -73,6 +73,7 @@ STAMPS = (
 NEXT_API_STATUS: Final[str] = "PENDING_OWNER_HELD_406"
 UNKNOWN_API_STATUS: Final[str] = "IMPLEMENTED"
 CHANGED_API_STATUS: Final[str] = "IMPLEMENTED"
+INBOX_API_STATUS: Final[str] = "IMPLEMENTED"
 LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/ask",
     "/v1/projects",
@@ -82,6 +83,7 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/roadmap",
     "/v1/unknown",
     "/v1/changed",
+    "/v1/inbox",
     "/v1/source-health",
     "/v1/project-state",
     "/v1/conflicts",
@@ -269,7 +271,8 @@ def run_demo_readiness(
             "PARTIAL",
             note=(
                 "CLI + LIVE_API + web presentation exist; "
-                f"NEXT_API={NEXT_API_STATUS}; /v1/inbox=NOT_IMPLEMENTED; "
+                f"NEXT_API={NEXT_API_STATUS}; "
+                f"/v1/inbox={INBOX_API_STATUS}; "
                 f"/v1/unknown={UNKNOWN_API_STATUS}; "
                 f"/v1/changed={CHANGED_API_STATUS}; "
                 "UI != canonical truth"
@@ -351,6 +354,7 @@ def run_demo_readiness(
         "next_api": NEXT_API_STATUS,
         "unknown_api": UNKNOWN_API_STATUS,
         "changed_api": CHANGED_API_STATUS,
+        "inbox_api": INBOX_API_STATUS,
         "inbox_list": "READY" if inbox_available else "NOT_IMPLEMENTED",
         "stamps": list(STAMPS),
         "honesty": dict(HONESTY),
