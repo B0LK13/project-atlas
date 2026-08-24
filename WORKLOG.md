@@ -7040,3 +7040,24 @@ VALID bounded security remediation. Not transferred to this branch (do not dupli
 - `LISTING != MUTATION != COMMAND`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `AUTHENTIC_PILOT = NOT_RUN`
+
+---
+
+## AS-CODER-ALPHA-ATTENTION-API-001 — read-only GET /v1/attention
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-a791`
+**PR:** https://github.com/B0LK13/project-atlas/pull/478
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`
+**Mode:** CLI/API parity. Distinct from `/v1/project-attention`. Does not grant merge.
+
+### Scope
+- LIVE_API `GET /v1/attention?project=` projects `classify_attention`
+- Fail-closed project id; writes forbidden; hygiene != intelligence rank
+- Empty vault stays UNKNOWN, never CLEAR
+- Demo-readiness honesty: `ATTENTION_API = IMPLEMENTED`
+
+### Honesty
+- `ATTENTION != AUTHORITY`
+- `HYGIENE != INTELLIGENCE RANK`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

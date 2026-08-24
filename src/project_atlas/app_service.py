@@ -17,6 +17,7 @@ from project_atlas.knowledge_diff import (
     read_as_of,
 )
 from project_atlas.web_api import (
+    WebAttentionError,
     WebBriefError,
     WebInboxError,
     WebIntelligenceError,
@@ -34,6 +35,7 @@ from project_atlas.web_api import (
     read_intelligence_query,
     read_portfolio_state,
     read_project_attention,
+    read_project_attention_hygiene,
     read_project_brief,
     read_project_inbox,
     read_project_roadmap,
@@ -114,6 +116,15 @@ class AppService:
         try:
             return read_source_health(self.vault, project_id)
         except WebSourceHealthError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def attention_hygiene(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha attention hygiene (read-only; != intelligence rank)."""
+        try:
+            return read_project_attention_hygiene(self.vault, project_id)
+        except WebAttentionError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc

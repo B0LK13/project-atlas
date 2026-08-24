@@ -12,6 +12,10 @@ Normative (ADR-008):
 
 from __future__ import annotations
 
+from project_atlas.web_api.attention import (
+    WebAttentionError,
+    read_project_attention_hygiene,
+)
 from project_atlas.web_api.brief import (
     WebBriefError,
     filter_knowledge_by_project,
@@ -52,6 +56,7 @@ __all__ = [
     "ProjectSummary",
     "ReadStatus",
     "VaultHealthView",
+    "WebAttentionError",
     "WebBriefError",
     "WebInboxError",
     "WebIntelligenceError",
@@ -70,6 +75,7 @@ __all__ = [
     "read_intelligence_query",
     "read_portfolio_state",
     "read_project_attention",
+    "read_project_attention_hygiene",
     "read_project_brief",
     "read_project_inbox",
     "read_project_roadmap",
