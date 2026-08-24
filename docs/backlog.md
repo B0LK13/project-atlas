@@ -388,6 +388,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-OVERVIEW-MCP-001 zero-arg `atlas.overview.read` (vault-scoped; MCP≠authority)
 - [x] AS-CODER-ALPHA-UNKNOWN-MCP-001 zero-arg `atlas.unknown.read` (vault-scoped; UNKNOWN valid; MCP≠authority)
 - [x] AS-CODER-ALPHA-STATE-MCP-001 zero-arg `atlas.state.read` (Coder Alpha state lens; not AS-2.0 `/v1/project-state`; MCP≠authority)
+- [x] AS-CODER-ALPHA-DECISIONS-MCP-001 zero-arg `atlas.decisions.read` (vault-scoped; MCP≠authority; lens≠ACTIVE_GOVERNING grant)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification

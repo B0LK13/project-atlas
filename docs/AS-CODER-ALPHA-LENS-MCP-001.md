@@ -7,6 +7,7 @@ Zero-arg vault-scoped MCP tools for existing Coder Alpha derive lenses:
 | `atlas.overview.read` | `build_overview_lens` |
 | `atlas.unknown.read` | `build_unknown_lens` |
 | `atlas.state.read` | `build_state_lens` |
+| `atlas.decisions.read` | `build_decisions_lens` |
 
 Honesty:
 
