@@ -405,7 +405,7 @@ Honesty (mandatory):
 - [x] ORCH001A-004 Owner gate (`MERGE_ELIGIBLE` → `OWNER_REQUIRED`, never `MERGE`)
 - [x] ORCH001A-005 Read-only CLI `atlas orchestrator validate-result`
 - [x] ORCH001A-006 Focused unit tests + schema/model parity
-- [ ] ORCH001A-007 Independent integration verification
+- [x] ORCH001A-007 Independent integration verification (`tests/integration/test_orchestration_iv_001a.py`; extracted from draft `#448`; implementer of this extract ≠ 001A author)
 - [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
@@ -438,7 +438,7 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 - [x] ORCH001B-005 Read-only CLI `atlas orchestrator route-result`
 - [x] ORCH001B-006 Shipped JSON schemas + model/schema parity tests
 - [x] ORCH001B-007 Focused unit + composition + privilege-invariant tests
-- [ ] ORCH001B-008 Independent integration verification
+- [x] ORCH001B-008 Independent integration verification (`tests/integration/test_orchestration_iv_001b.py`; extracted from draft `#448`; implementer of this extract ≠ 001B author)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
