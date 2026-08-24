@@ -782,6 +782,7 @@ def test_mark_package_complete_skips_protected_gates(tmp_path: Path) -> None:
         repo,
         {
             "merge": _o2_node(node_id="merge", owner_gate="MERGE", dependencies=["PR431"]),
+            "sec": _o2_node(node_id="sec", owner_gate="SECURITY", dependencies=["SECURITY_REVIEW"]),
             "ok": _o2_node(node_id="ok", owner_gate="CREDENTIAL"),
         },
     )
@@ -794,6 +795,8 @@ def test_mark_package_complete_skips_protected_gates(tmp_path: Path) -> None:
     nodes = load_nodes(repo)
     assert nodes["merge"].status == "BLOCKED_OWNER"
     assert nodes["merge"].OWNER_GATE == "MERGE"
+    assert nodes["sec"].status == "BLOCKED_OWNER"
+    assert nodes["sec"].OWNER_GATE == "SECURITY"
     assert nodes["ok"].status == "COMPLETED"
 
 
