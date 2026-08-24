@@ -27,10 +27,18 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.models import CANONICAL_REPOSITORY_IDENTITY
+from project_atlas.orchestration.autonomy.return_gate import AutonomyReturnState
 from project_atlas.orchestration.autonomy.trust import require_full_pin
 from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 
@@ -466,6 +474,41 @@ def _coerce_return_state(return_state: object) -> AutonomyReturnState:
     if isinstance(return_state, AutonomyReturnState):
         return return_state
     return AutonomyReturnState.model_validate(return_state)
+
+
+def _load_d147_return_state(root: Path) -> AutonomyReturnState | None:
+    """Load persisted D-147 return gate state when callers omit ``return_state``."""
+    checkpoint_path = (
+        root / ".atlas" / "orchestration" / "sdk-runtime" / "d147-checkpoint.json"
+    )
+    if not checkpoint_path.is_file():
+        return None
+    try:
+        payload = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    raw = payload.get("return_state")
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return AutonomyReturnState.model_validate(raw)
+    except ValidationError:
+        return None
+
+
+def _resolve_return_state(
+    root: Path,
+    return_state: object | None,
+    *,
+    terminal_path: bool,
+) -> object | None:
+    """Fail-closed terminal paths require a concrete return gate snapshot."""
+    if return_state is not None:
+        return return_state
+    if not terminal_path:
+        return None
+    loaded = _load_d147_return_state(root)
+    return loaded
 
 
 def final_response_allowed(
@@ -969,6 +1012,14 @@ def finalize_governor_checkpoint(
     return_state: object | None = None,
 ) -> FinalizeResult:
     """Authoritative checkpoint path. CHECKPOINT_CONTINUE implies successor queued."""
+    terminal_path = (
+        result_class in TERMINAL_RESULT_CLASSES or owner_action_required_now
+    )
+    return_state = _resolve_return_state(
+        root,
+        return_state,
+        terminal_path=terminal_path,
+    )
     if result_class in TERMINAL_RESULT_CLASSES or owner_action_required_now:
         phase = (
             BrokerPhase.PARKED_OWNER

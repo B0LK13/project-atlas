@@ -445,6 +445,35 @@ def test_final_response_terminal_path_blocks_when_work_remains() -> None:
     )
 
 
+def test_finalize_terminal_loads_return_state_from_d147_checkpoint(
+    tmp_path: Path,
+) -> None:
+    """SHADOW-B-001: production terminal finalize must load persisted return gate."""
+    runtime = tmp_path / ".atlas" / "orchestration" / "sdk-runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "d147-checkpoint.json").write_text(
+        json.dumps({"return_state": AutonomyReturnState(ready_nodes=1).model_dump()}),
+        encoding="utf-8",
+    )
+    result = _finalize(
+        tmp_path,
+        "CYCLE-TERM",
+        result_class="WAITING_OWNER",
+        safe_dag_work_remains=False,
+    )
+    assert result.final_response_allowed is False
+
+
+def test_finalize_terminal_without_checkpoint_fails_closed(tmp_path: Path) -> None:
+    result = _finalize(
+        tmp_path,
+        "CYCLE-TERM2",
+        result_class="WAITING_OWNER",
+        safe_dag_work_remains=False,
+    )
+    assert result.final_response_allowed is False
+
+
 def test_no_progress_loop_parks_after_threshold(tmp_path: Path) -> None:
     for index in range(3):
         if index:
