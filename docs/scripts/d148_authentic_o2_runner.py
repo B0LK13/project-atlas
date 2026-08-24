@@ -16,6 +16,7 @@ from typing import Any
 
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    PROTECTED_OWNER_GATES,
     AuthenticO2PreflightError,
     apply_authentic_estate_mutations,
     characterize_estate,
@@ -116,8 +117,12 @@ def _run_ask(
 def _mark_package_complete(root: Path, package_id: str) -> None:
     nodes = load_nodes(root)
     for node in nodes.values():
-        if package_id == node.PACKAGE_ID and node.status != "COMPLETED":
-            node.status = "COMPLETED"
+        if package_id != node.PACKAGE_ID or node.status == "COMPLETED":
+            continue
+        if node.OWNER_GATE in PROTECTED_OWNER_GATES:
+            # D-149R4: authentic O2 success does not complete MERGE/SECURITY nodes.
+            continue
+        node.status = "COMPLETED"
     persist_nodes(root, nodes)
 
 

@@ -700,6 +700,103 @@ def test_stale_credential_does_not_make_reconcile_treat_estate_ready(
     assert gaps["AUTHENTIC_INGEST"] == "BLOCKED_OWNER"
 
 
+def test_reconciler_preserves_superseded_security_dependencies(
+    tmp_path: Path,
+) -> None:
+    repo = _atlas_repo(tmp_path)
+    key = _idempotency_key(
+        objective="O2",
+        kind="IMPLEMENTATION",
+        package="AS-CODER-ALPHA-AUTHENTIC-INGEST-001",
+        surface="src/project_atlas/,tests/",
+    )
+    persist_nodes(
+        repo,
+        {
+            "sec": _o2_node(
+                node_id="sec",
+                owner_gate="SECURITY",
+                status="SUPERSEDED",
+                dependencies=["SECURITY_REVIEW"],
+            )
+        },
+    )
+    nodes = load_nodes(repo)
+    nodes["sec"].IDEMPOTENCY_KEY = key
+    persist_nodes(repo, nodes)
+    mission_reconcile(repo, main_head="0" * 40)
+    objs = load_objectives(repo)
+    for obj in objs:
+        if obj.objective_id == "O2":
+            obj.current_state = "SATISFIED"
+    persist_objectives(repo, objs)
+    mission_reconcile(repo, main_head="0" * 40)
+    after = next(n for n in load_nodes(repo).values() if key == n.IDEMPOTENCY_KEY)
+    assert after.OWNER_GATE == "SECURITY"
+    assert after.DEPENDENCIES == ["SECURITY_REVIEW"]
+    assert "AUTHENTIC_ESTATE_ROOT" not in after.DEPENDENCIES
+
+
+def test_reconciler_does_not_clobber_superseded_credential_deps(
+    tmp_path: Path,
+) -> None:
+    """D-149R4: SUPERSEDED CREDENTIAL must keep unrelated credential deps."""
+    repo = _atlas_repo(tmp_path)
+    key = _idempotency_key(
+        objective="O2",
+        kind="IMPLEMENTATION",
+        package="AS-CODER-ALPHA-AUTHENTIC-INGEST-001",
+        surface="src/project_atlas/,tests/",
+    )
+    persist_nodes(
+        repo,
+        {
+            "cred": _o2_node(
+                node_id="cred",
+                owner_gate="CREDENTIAL",
+                status="SUPERSEDED",
+                dependencies=["OTHER_OWNER_CREDENTIAL"],
+            )
+        },
+    )
+    nodes = load_nodes(repo)
+    nodes["cred"].IDEMPOTENCY_KEY = key
+    persist_nodes(repo, nodes)
+    mission_reconcile(repo, main_head="0" * 40)
+    objs = load_objectives(repo)
+    for obj in objs:
+        if obj.objective_id == "O2":
+            obj.current_state = "SATISFIED"
+    persist_objectives(repo, objs)
+    mission_reconcile(repo, main_head="0" * 40)
+    after = next(n for n in load_nodes(repo).values() if key == n.IDEMPOTENCY_KEY)
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert "OTHER_OWNER_CREDENTIAL" in after.DEPENDENCIES
+
+
+def test_mark_package_complete_skips_protected_gates(tmp_path: Path) -> None:
+    import importlib.util
+
+    repo = _atlas_repo(tmp_path)
+    persist_nodes(
+        repo,
+        {
+            "merge": _o2_node(node_id="merge", owner_gate="MERGE", dependencies=["PR431"]),
+            "ok": _o2_node(node_id="ok", owner_gate="CREDENTIAL"),
+        },
+    )
+    path = Path(__file__).resolve().parents[2] / "docs" / "scripts" / "d148_authentic_o2_runner.py"
+    spec = importlib.util.spec_from_file_location("d148_authentic_o2_runner", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module._mark_package_complete(repo, "AS-CODER-ALPHA-AUTHENTIC-INGEST-001")
+    nodes = load_nodes(repo)
+    assert nodes["merge"].status == "BLOCKED_OWNER"
+    assert nodes["merge"].OWNER_GATE == "MERGE"
+    assert nodes["ok"].status == "COMPLETED"
+
+
 def test_d148_runner_validates_integrity_before_mutation() -> None:
     """D-149 mutation-order: runner must not write credentials before integrity."""
     path = Path(__file__).resolve().parents[2] / "docs" / "scripts" / "d148_authentic_o2_runner.py"

@@ -762,7 +762,13 @@ def mission_reconcile(
                 existing.status = "BLOCKED_OWNER"
                 if existing.OWNER_GATE not in PROTECTED_OWNER_GATES:
                     existing.OWNER_GATE = node.OWNER_GATE
-                    existing.DEPENDENCIES = list(node.DEPENDENCIES)
+                    # D-149R4: union seed deps with existing unrelated credentials.
+                    # Do not replace OTHER_OWNER_CREDENTIAL with AUTHENTIC_ESTATE_ROOT.
+                    merged_deps = list(existing.DEPENDENCIES)
+                    for dep in node.DEPENDENCIES:
+                        if dep not in merged_deps:
+                            merged_deps.append(dep)
+                    existing.DEPENDENCIES = merged_deps
                     existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
                 # D-149R3: protected gates keep original dependencies.
                 # Authentic estate must not replace PR431/MERGE prerequisites

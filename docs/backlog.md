@@ -684,7 +684,9 @@ Honesty (mandatory):
 - [x] D149-007 Repeated reconciliation and existing READY nodes are idempotent
 - [x] D149-008 SUPERSEDED MERGE dependencies (PR431) are not replaced by AUTHENTIC_ESTATE_ROOT
 - [x] D149-009 D-148 runner validates closure integrity before durable mutation
-- [ ] D149-010 Independent verification (implementer ≠ verifier)
+- [x] D149-009a Independent IV residual: MERGE-gated O2 nodes are not marked COMPLETED
+- [x] D149-009b Independent IV residual: SUPERSEDED CREDENTIAL deps are unioned, not replaced
+- [ ] D149-010 Independent verification (implementer ≠ verifier) — first pass CERTIFY_WITH_RESIDUALS; R4 residuals closed
 - [ ] D149-011 Owner merge gate (not this package)
 - [ ] D149-012 Authentic O2 post-merge seal (`AUTHENTIC_ESTATE_ROOT` owner-blocked)
 
