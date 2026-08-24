@@ -448,3 +448,31 @@ def test_authentic_query_probes_carry_discriminative_claim_terms() -> None:
     for question in negatives:
         assert "dark" not in _question_claim_terms(question)
 
+
+def test_authentic_o2_restores_estate_env_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-148 must not leak AUTHENTIC_ESTATE_ROOT into subsequent tests."""
+    d148 = _load_d148()
+    estate = _init_estate(tmp_path)
+    root, _head = _init_atlas_repo(tmp_path, estate)
+    monkeypatch.delenv('AUTHENTIC_ESTATE_ROOT', raising=False)
+
+    def boom(*_args: object, **_kwargs: object) -> list[str]:
+        raise RuntimeError('injected refresh failure')
+
+    monkeypatch.setattr(d148, 'refresh_authentic_o2_node_states', boom)
+    monkeypatch.setattr(d148, 'closure_integrity_pass', lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        d148,
+        'inspect_closure_integrity',
+        lambda *_a, **_k: type(
+            'I',
+            (),
+            {'live_main_head': 'a' * 40, 'certification_target_head': 'a' * 40},
+        )(),
+    )
+    monkeypatch.setattr(d148, 'read_operational_pins', lambda *_a, **_k: ('a' * 40, 'b' * 40))
+    with pytest.raises(RuntimeError, match='injected refresh failure'):
+        d148.run_authentic_o2(root, estate_root=estate)
+    assert 'AUTHENTIC_ESTATE_ROOT' not in __import__('os').environ

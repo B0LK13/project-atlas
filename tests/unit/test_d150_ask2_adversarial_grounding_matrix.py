@@ -19,7 +19,6 @@ Categories:
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -238,7 +237,10 @@ def test_d150_ask2_has_no_production_question_allowlist() -> None:
     ids=[category for _, category in _UNSUPPORTED_CASES],
 )
 def test_d150_unsupported_claim_stays_unknown_despite_nearby_hits(
-    tmp_path: Path, question: str, category: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    question: str,
+    category: str,
 ) -> None:
     assert category in {
         "nonexistent-financial",
@@ -249,9 +251,9 @@ def test_d150_unsupported_claim_stays_unknown_despite_nearby_hits(
         "near-semantic-wrong-subject",
         "lexical-overlap-distractor",
     }
-    assert os.environ.get("AUTHENTIC_ESTATE_ROOT") in (None, ""), (
-        "AUTHENTIC_ESTATE_ROOT must be unset for synthetic D-150 matrix"
-    )
+    # Synthetic matrix must not resolve a live authentic estate via env leakage
+    # from other tests (e.g. D-148 runner temporarily sets AUTHENTIC_ESTATE_ROOT).
+    monkeypatch.delenv("AUTHENTIC_ESTATE_ROOT", raising=False)
     required = _question_claim_terms(question)
     assert required, "adversarial questions must carry discriminative claim terms"
     vault = _adversarial_corpus_vault(tmp_path)
