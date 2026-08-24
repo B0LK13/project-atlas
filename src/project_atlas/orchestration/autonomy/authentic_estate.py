@@ -86,13 +86,37 @@ def resolve_authentic_estate_root(
     return None
 
 
-def estate_fingerprint(estate_root: Path) -> str:
+def marker_fingerprint(estate_root: Path) -> str:
+    """SHA-256 of the project marker alone (not sufficient for O2 binding)."""
     marker = estate_root / MARKER
     if marker.is_file():
         import hashlib
 
         return hashlib.sha256(marker.read_bytes()).hexdigest()
     return ""
+
+
+def estate_content_fingerprint(estate_root: Path) -> str:
+    """Deterministic digest of ingest-eligible estate source corpus.
+
+    Uses discovery inventory active sources (include/exclude contract), so:
+    - certified source document changes invalidate the fingerprint
+    - excluded/transient paths (``.git``, ``node_modules``, ``__pycache__``,
+      generated caches) do not affect the digest
+    """
+    from project_atlas.discovery import discover
+    from project_atlas.incremental_connect import inventory_fingerprint
+
+    try:
+        manifest = discover(estate_root)
+    except (OSError, ValueError):
+        return ""
+    return str(inventory_fingerprint(manifest)["digest"])
+
+
+def estate_fingerprint(estate_root: Path) -> str:
+    """Canonical estate identity for D-148 evidence binding (content corpus)."""
+    return estate_content_fingerprint(estate_root)
 
 
 def d148_evidence_applies(
@@ -128,11 +152,11 @@ def d148_evidence_applies(
     if recorded_root and str(estate.resolve()) != recorded_root:
         return False
     recorded_fp = str(evidence.get("estate_fingerprint") or "").strip()
-    if recorded_fp:
-        current_fp = estate_fingerprint(estate)
-        if current_fp and recorded_fp != current_fp:
-            return False
-    return True
+    if not recorded_fp:
+        # Fail closed: marker-only / missing content binding is not acceptable.
+        return False
+    current_fp = estate_fingerprint(estate)
+    return bool(current_fp) and recorded_fp == current_fp
 
 
 def run_estate_preflight(estate_root: Path) -> EstatePreflight:
@@ -200,10 +224,13 @@ def write_estate_credential(repo_root: Path, estate_root: Path, preflight: Estat
         "directive": "D-148",
         "AUTHENTIC_ESTATE_ROOT": str(estate_root.resolve()),
         "AUTHENTIC_ESTATE_ROOT_AVAILABLE": True,
-        "OWNER_CAPABILITY_GRANTED": True,
+        # Valid estate path satisfies AUTHENTIC_ESTATE_ROOT only — not owner authority.
+        "AUTHENTIC_ESTATE_CREDENTIAL_SATISFIED": True,
+        "OWNER_CAPABILITY_GRANTED": False,
         "preflight": preflight.model_dump(),
         "preflight_pass": preflight.preflight_pass,
         "estate_fingerprint": preflight.estate_fingerprint,
+        "marker_fingerprint": marker_fingerprint(estate_root),
         "project_id": preflight.project_id,
         "project_uuid": preflight.project_uuid,
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -276,8 +303,46 @@ def _authentic_o2_package_ready(
     return False
 
 
+def snapshot_o2_nodes(repo_root: Path) -> dict[str, dict[str, Any]]:
+    """Capture dependency/gate/status for rollback after failed mutation."""
+    from project_atlas.orchestration.sdk.mission_reconciler import load_nodes
+
+    out: dict[str, dict[str, Any]] = {}
+    for node_id, node in load_nodes(repo_root).items():
+        if node.PACKAGE_ID not in AUTHENTIC_O2_PACKAGES:
+            continue
+        out[node_id] = {
+            "status": node.status,
+            "DEPENDENCIES": list(node.DEPENDENCIES),
+            "OWNER_GATE": node.OWNER_GATE,
+        }
+    return out
+
+
+def restore_o2_node_snapshot(repo_root: Path, snapshot: dict[str, dict[str, Any]]) -> None:
+    """Restore O2 node authority fields from a prior snapshot (fail-closed)."""
+    from project_atlas.orchestration.sdk.mission_reconciler import load_nodes, persist_nodes
+
+    if not snapshot:
+        return
+    nodes = load_nodes(repo_root)
+    for node_id, prior in snapshot.items():
+        node = nodes.get(node_id)
+        if node is None:
+            continue
+        node.status = prior["status"]
+        node.DEPENDENCIES = list(prior["DEPENDENCIES"])
+        node.OWNER_GATE = prior["OWNER_GATE"]
+    persist_nodes(repo_root, nodes)
+
+
 def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
-    """Unblock O2 credential nodes when estate credential is satisfied (sequential)."""
+    """Unblock O2 credential nodes when estate credential is satisfied (sequential).
+
+    Consumes only ``AUTHENTIC_ESTATE_ROOT`` when ``OWNER_GATE == CREDENTIAL``.
+    Never clears MERGE/SECURITY (or other non-credential) gates, and never
+    blanks unrelated dependencies.
+    """
     from project_atlas.orchestration.sdk.mission_reconciler import load_nodes, persist_nodes
 
     if not authentic_estate_available(repo_root):
@@ -310,16 +375,34 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
             continue
         if node.status == "COMPLETED":
             continue
-        ready = _authentic_o2_package_ready(
+        # Estate credential must never escalate MERGE/SECURITY/etc. to NONE.
+        if node.OWNER_GATE not in {"NONE", "CREDENTIAL"}:
+            continue
+        package_ready = _authentic_o2_package_ready(
             node.PACKAGE_ID,
             ingest_done=ingest_done,
             compile_done=compile_done,
             query_done=query_done,
         )
-        if ready and node.status != "READY":
-            node.status = "READY"
-            node.DEPENDENCIES = []
+        if not package_ready:
+            continue
+        mutated = False
+        if "AUTHENTIC_ESTATE_ROOT" in node.DEPENDENCIES:
+            node.DEPENDENCIES = [d for d in node.DEPENDENCIES if d != "AUTHENTIC_ESTATE_ROOT"]
+            mutated = True
+        if node.OWNER_GATE == "CREDENTIAL" and "AUTHENTIC_ESTATE_ROOT" not in node.DEPENDENCIES:
+            # Credential gate was for estate availability; clear only that gate.
             node.OWNER_GATE = "NONE"
+            mutated = True
+        if (
+            node.OWNER_GATE == "NONE"
+            and not node.DEPENDENCIES
+            and node.status
+            not in {"READY", "DISPATCHED", "RUNNING", "COMPLETED"}
+        ):
+            node.status = "READY"
+            mutated = True
+        if mutated:
             changed.append(node.NODE_ID)
     if changed:
         persist_nodes(repo_root, nodes)

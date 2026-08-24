@@ -141,7 +141,9 @@ def refresh_objectives(root: Path, cert_head: str, *, live_main_head: str) -> No
                 ]
             elif d148_ok and d148.get("ACCEPTANCE_WORKFLOW_PILOT"):
                 obj.current_state = "ACCEPTANCE_WORKFLOW_SATISFIED"
-                obj.blockers = ["AUTHENTIC_COMPILE", "AUTHENTIC_QUERY"]
+                # Acceptance workflow already covers ingest+compile+query;
+                # remaining gap is authentic compile idempotency / full pilot.
+                obj.blockers = ["AUTHENTIC_COMPILE"]
                 obj.evidence = [
                     f"ACCEPTANCE_WORKFLOW_PILOT=true on {live_main_head}",
                     "AUTHENTIC_PILOT pending full O2 chain",
@@ -177,15 +179,52 @@ def snapshot_counts(root: Path) -> dict[str, int]:
     nodes = load_nodes(root)
     from collections import Counter
 
+    from project_atlas.orchestration.sdk.mission_reconciler import load_workers
+
     c = Counter(n.status for n in nodes.values())
+    workers = load_workers(root)
+    active_workers = sum(1 for w in workers.values() if w.status == "RUNNING")
+    # FAILED is treated as recoverable unless an explicit terminal failure class exists.
+    recoverable_failed = c.get("FAILED", 0)
+    # Dependency-blocked nodes that agents can self-remediate by closing deps.
+    blocked_dependency = c.get("BLOCKED_DEPENDENCY", 0)
     return {
         "ready": c.get("READY", 0),
         "derivable": c.get("DERIVABLE", 0),
+        "dispatched": c.get("DISPATCHED", 0),
+        "running": c.get("RUNNING", 0) + active_workers,
+        "failed_recoverable": recoverable_failed,
+        "blocked_dependency": blocked_dependency,
+        "blocked_dependency_self_remediable": blocked_dependency,
+        "review_required": c.get("REVIEW_REQUIRED", 0),
+        "uncertified": c.get("UNCERTIFIED", 0),
         "blocked_owner": c.get("BLOCKED_OWNER", 0),
         "blocked_external": c.get("BLOCKED_EXTERNAL", 0),
         "completed": c.get("COMPLETED", 0),
         "superseded": c.get("SUPERSEDED", 0),
+        "active_workers": active_workers,
     }
+
+
+def graph_is_quiescent(counts: dict[str, int]) -> bool:
+    """True only when no unfinished / recoverable / review-required work remains."""
+    unfinished_keys = (
+        "ready",
+        "derivable",
+        "dispatched",
+        "running",
+        "failed_recoverable",
+        "blocked_dependency",
+        "blocked_dependency_self_remediable",
+        "review_required",
+        "uncertified",
+        "active_workers",
+    )
+    return all(int(counts.get(k, 0) or 0) == 0 for k in unfinished_keys)
+
+
+def compute_project_terminal(*, all_objectives_satisfied: bool, counts: dict[str, int]) -> bool:
+    return bool(all_objectives_satisfied) and graph_is_quiescent(counts)
 
 
 def main() -> int:
@@ -214,7 +253,10 @@ def main() -> int:
     counts = snapshot_counts(root)
     objectives = load_objectives(root)
     all_satisfied = all(o.current_state == "SATISFIED" for o in objectives)
-    project_terminal = all_satisfied and counts["ready"] == 0 and counts["derivable"] == 0
+    project_terminal = compute_project_terminal(
+        all_objectives_satisfied=all_satisfied,
+        counts=counts,
+    )
 
     audit_path = _rt(root) / "d147-owner-block-audit.json"
     audit = {
@@ -238,16 +280,19 @@ def main() -> int:
         "HEAD_TREE_COHERENCE": closure_report["HEAD_TREE_COHERENCE"],
         "closure_integrity_pass": True,
         **counts,
-        "uncertified_changes": 0,
+        "uncertified_changes": counts.get("uncertified", 0),
         "integratable": 0,
         "certification_pending": 0,
         "remediation_pending": 0,
         "stale_blocks": 0,
-        "return_gate": counts["ready"] > 0 or counts["derivable"] > 0,
+        "return_gate": not graph_is_quiescent(counts),
         "return_state": AutonomyReturnState(
             ready_nodes=counts["ready"],
+            running_nodes=counts["running"],
+            recoverable_failed_nodes=counts["failed_recoverable"],
+            uncertified_changes=counts.get("uncertified", 0),
             derivable_successors=counts["derivable"],
-            preparable_blocked_work=0,
+            preparable_blocked_work=counts.get("blocked_dependency_self_remediable", 0),
             closure_integrity_pass=True,
             genuine_owner_frontier=counts["blocked_owner"] > 0,
             project_terminal=project_terminal,
