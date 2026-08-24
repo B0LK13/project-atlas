@@ -198,6 +198,21 @@ def _restore_estate_bind(estate: Path, prior_bind: str | None) -> None:
         bind_path.unlink()
 
 
+def _snapshot_text(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    return path.read_text(encoding="utf-8")
+
+
+def _restore_text(path: Path, prior: str | None) -> None:
+    if prior is None:
+        if path.is_file():
+            path.unlink()
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(prior, encoding="utf-8")
+
+
 def run_authentic_o2(
     repo_root: Path,
     *,
@@ -227,21 +242,44 @@ def run_authentic_o2(
     if not closure_integrity_pass(integrity):
         raise SystemExit("closure integrity failed before authentic O2")
 
+    rt = _rt(repo_root)
+    credential_path = rt / "d148-authentic-estate-credential.json"
+    cert_path = rt / "d148-o2-certification.json"
+    checkpoint_path = rt / "d148-checkpoint.json"
+    nodes_path = rt / "mission-nodes.json"
+    objectives_path = rt / "mission-objectives.json"
+    mission_state_path = rt / "mission-reconciler-state.json"
+
+    prior_files = {
+        "credential": _snapshot_text(credential_path),
+        "cert": _snapshot_text(cert_path),
+        "checkpoint": _snapshot_text(checkpoint_path),
+        "nodes": _snapshot_text(nodes_path),
+        "objectives": _snapshot_text(objectives_path),
+        "mission_state": _snapshot_text(mission_state_path),
+    }
     node_snapshot = snapshot_o2_nodes(repo_root)
-    credential_path = _rt(repo_root) / "d148-authentic-estate-credential.json"
-    prior_credential = (
-        credential_path.read_text(encoding="utf-8") if credential_path.is_file() else None
-    )
+    bind_path = estate / BIND_RELATIVE
+    prior_bind: str | None = _snapshot_text(bind_path) if bind_path.is_file() else None
+    work_parent: Path | None = None
     mutated = False
+
+    def _rollback() -> None:
+        restore_o2_node_snapshot(repo_root, node_snapshot)
+        _restore_text(credential_path, prior_files["credential"])
+        _restore_text(cert_path, prior_files["cert"])
+        _restore_text(checkpoint_path, prior_files["checkpoint"])
+        _restore_text(nodes_path, prior_files["nodes"])
+        _restore_text(objectives_path, prior_files["objectives"])
+        _restore_text(mission_state_path, prior_files["mission_state"])
+        _restore_estate_bind(estate, prior_bind)
+        if work_parent is not None:
+            shutil.rmtree(work_parent, ignore_errors=True)
+
     try:
         write_estate_credential(repo_root, estate, preflight)
-        refresh_authentic_o2_node_states(repo_root)
         mutated = True
-
-        bind_path = estate / BIND_RELATIVE
-        prior_bind: str | None = None
-        if bind_path.is_file():
-            prior_bind = bind_path.read_text(encoding="utf-8")
+        refresh_authentic_o2_node_states(repo_root)
 
         work_parent = Path(tempfile.mkdtemp(prefix="atlas-d148-"))
         vault = work_parent / "vault"
@@ -336,7 +374,7 @@ def run_authentic_o2(
             "merge_authorized": False,
             "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
-        _write(_rt(repo_root) / "d148-o2-certification.json", cert)
+        _write(cert_path, cert)
 
         if ingest_pass:
             _mark_package_complete(repo_root, "AS-CODER-ALPHA-AUTHENTIC-INGEST-001")
@@ -352,6 +390,7 @@ def run_authentic_o2(
 
         if not keep_vault:
             shutil.rmtree(work_parent, ignore_errors=True)
+            work_parent = None
             _restore_estate_bind(estate, prior_bind)
         else:
             cert["vault_path"] = str(vault)
@@ -362,17 +401,11 @@ def run_authentic_o2(
             "authentic_o2_cert": cert,
             "merge_authorized": False,
         }
-        _write(_rt(repo_root) / "d148-checkpoint.json", checkpoint)
+        _write(checkpoint_path, checkpoint)
         return checkpoint
     except Exception:
         if mutated:
-            restore_o2_node_snapshot(repo_root, node_snapshot)
-            if prior_credential is None:
-                if credential_path.is_file():
-                    credential_path.unlink()
-            else:
-                credential_path.parent.mkdir(parents=True, exist_ok=True)
-                credential_path.write_text(prior_credential, encoding="utf-8")
+            _rollback()
         raise
 
 

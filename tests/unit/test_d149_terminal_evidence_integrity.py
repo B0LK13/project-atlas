@@ -8,6 +8,8 @@ import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from project_atlas.orchestration.autonomy.authentic_estate import (
     AUTHENTIC_O2_PACKAGES,
     d148_evidence_applies,
@@ -332,9 +334,85 @@ def test_derive_reference_date_not_historical_constant(tmp_path: Path) -> None:
 
 def test_o2_blockers_omit_satisfied_query(tmp_path: Path) -> None:
     d147 = _load_d147()
-    # Simulate acceptance pilot with query already proven via ACCEPTANCE_WORKFLOW_PILOT.
-    # refresh_objectives path: blockers must not include AUTHENTIC_QUERY.
-    # Unit-level: the branch sets blockers to AUTHENTIC_COMPILE only.
-    blockers = ["AUTHENTIC_COMPILE"]
-    assert "AUTHENTIC_QUERY" not in blockers
-    assert d147 is not None
+    estate = _init_estate(tmp_path)
+    root, head = _init_atlas_repo(tmp_path, estate)
+    rt = root / ".atlas" / "orchestration" / "sdk-runtime"
+    (rt / "d148-o2-certification.json").write_text(
+        json.dumps(
+            {
+                "live_main_head": head,
+                "AUTHENTIC_ESTATE_ROOT": str(estate.resolve()),
+                "estate_fingerprint": estate_fingerprint(estate),
+                "ACCEPTANCE_WORKFLOW_PILOT": True,
+                "AUTHENTIC_PILOT": False,
+                "AUTHENTIC_COMPILE_SATISFIED": False,
+                "AUTHENTIC_QUERY_SATISFIED": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    from project_atlas.orchestration.sdk.mission_reconciler import (
+        MissionObjective,
+        persist_objectives,
+    )
+
+    persist_objectives(
+        root,
+        [
+            MissionObjective(
+                objective_id="O2",
+                desired_state="SATISFIED",
+                current_state="ACCEPTANCE_WORKFLOW_SATISFIED",
+                blockers=["AUTHENTIC_COMPILE", "AUTHENTIC_QUERY"],
+                completion_criteria="authentic O2",
+            )
+        ],
+    )
+    d147.refresh_objectives(root, cert_head=head, live_main_head=head)
+    from project_atlas.orchestration.sdk.mission_reconciler import load_objectives
+
+    o2 = next(o for o in load_objectives(root) if o.objective_id == "O2")
+    assert o2.blockers == ["AUTHENTIC_COMPILE"]
+    assert "AUTHENTIC_QUERY" not in o2.blockers
+
+
+def test_authentic_o2_rollback_restores_credential_on_refresh_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Credential write must roll back if later mutation fails (mutated flag early)."""
+    d148 = _load_d148()
+    estate = _init_estate(tmp_path)
+    root, _head = _init_atlas_repo(tmp_path, estate)
+    # Force stale pins so closure integrity fails AFTER we inject a mid-flight failure path.
+    # Instead: patch refresh to raise after credential write by calling internal sequence.
+    cred = root / ".atlas/orchestration/sdk-runtime/d148-authentic-estate-credential.json"
+    assert cred.is_file()
+    prior = cred.read_text(encoding="utf-8")
+
+    def boom(*_args: object, **_kwargs: object) -> list[str]:
+        raise RuntimeError("injected refresh failure")
+
+    monkeypatch.setattr(d148, "refresh_authentic_o2_node_states", boom)
+    monkeypatch.setattr(
+        d148,
+        "closure_integrity_pass",
+        lambda *_a, **_k: True,
+    )
+    monkeypatch.setattr(
+        d148,
+        "inspect_closure_integrity",
+        lambda *_a, **_k: type(
+            "I",
+            (),
+            {
+                "live_main_head": "a" * 40,
+                "certification_target_head": "a" * 40,
+            },
+        )(),
+    )
+    monkeypatch.setattr(d148, "read_operational_pins", lambda *_a, **_k: ("a" * 40, "b" * 40))
+    with pytest.raises(RuntimeError, match="injected refresh failure"):
+        d148.run_authentic_o2(root, estate_root=estate)
+    assert cred.read_text(encoding="utf-8") == prior
+
