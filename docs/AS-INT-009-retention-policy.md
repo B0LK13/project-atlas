@@ -44,6 +44,8 @@ Malformed policy fails closed. Missing policy → no automatic deletion
 
 ```bash
 atlas retention apply --vault <vault> [--max-packages N] [--max-bytes N] [--dry-run] [--json]
+atlas retention report --vault <vault> [--json]   # read-only; never applies/writes
+atlas retention show --vault <vault> [--json]     # alias for report
 ```
 
 Report path: `generated/ops/retention-report.json` (`sort_keys=True`, no

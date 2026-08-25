@@ -18,6 +18,7 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebEventRetentionError,
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
@@ -33,6 +34,7 @@ from project_atlas.web_api import (
     read_intelligence_query,
     read_portfolio_state,
     read_project_attention,
+    read_event_retention,
     read_project_brief,
     read_project_roadmap,
     read_project_state,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def event_retention(self) -> dict[str, Any]:
+        """Vault-scoped event-retention REPORT READ (never applies, never writes)."""
+        try:
+            return read_event_retention(self.vault)
+        except WebEventRetentionError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

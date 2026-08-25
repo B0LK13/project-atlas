@@ -71,6 +71,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha project briefs (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.event.retention.read",
+        "vault-read",
+        True,
+        "allow-list candidate; event-retention REPORT READ (never applies)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
@@ -371,6 +372,39 @@ def write_report(vault: Path, report: dict[str, Any]) -> Path:
     payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
     _write_atomic(target, payload.encode("utf-8"))
     return target
+
+
+def _load_json(path: Path) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RetentionError(f"malformed JSON at {path}: {exc}") from exc
+
+
+def read_report(vault: Path) -> dict[str, Any] | None:
+    """Read a persisted event-retention report. Never applies. Never writes.
+
+    Missing report → ``None`` (absence is not an apply). Malformed JSON /
+    schema / path-escape fail closed.
+    """
+    vault = vault.expanduser().resolve()
+    if not vault.is_dir():
+        raise RetentionError(f"vault is not a directory: {vault}")
+    unresolved = vault / REPORT_RELATIVE
+    if not unresolved.exists():
+        return None
+    if unresolved.is_symlink() or not unresolved.is_file():
+        raise RetentionError("event-retention report is not a regular file")
+    path = _inside(vault, unresolved)
+    loaded = _load_json(path)
+    if not isinstance(loaded, Mapping):
+        raise RetentionError("event-retention report must be a JSON object")
+    report = dict(loaded)
+    try:
+        validate_record(report, REPORT_SCHEMA)
+    except Exception as exc:
+        raise RetentionError(f"malformed event-retention report: {exc}") from exc
+    return report
 
 
 def apply_event_retention(

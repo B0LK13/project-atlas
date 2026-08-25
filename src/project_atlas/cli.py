@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.event_retention import (
+    WebEventRetentionError,
+    read_event_retention,
+    render_event_retention_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1552,8 +1557,9 @@ def build_parser() -> argparse.ArgumentParser:
     retention_parser = subparsers.add_parser(
         "retention",
         help=(
-            "Apply deterministic raw-package and receipt retention caps "
-            "(AS-INT-009; count/size only; never Layer B / never INT-010 tombstones)."
+            "Apply or inspect deterministic raw-package and receipt retention "
+            "caps (AS-INT-009; count/size only; never Layer B). "
+            "`report`/`show` are read-only and never apply."
         ),
     )
     retention_sub = retention_parser.add_subparsers(
@@ -1585,6 +1591,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print the retention report JSON to stdout.",
+    )
+    retention_report = retention_sub.add_parser(
+        "report",
+        help=(
+            "Read the persisted event-retention report "
+            "(never applies, never writes, never deletes)."
+        ),
+    )
+    retention_report.add_argument("--vault", type=Path, required=True)
+    retention_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the event-retention REPORT READ JSON to stdout.",
+    )
+    retention_show = retention_sub.add_parser(
+        "show",
+        help="Alias for `retention report` (read-only; does not apply).",
+    )
+    retention_show.add_argument("--vault", type=Path, required=True)
+    retention_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the event-retention REPORT READ JSON to stdout.",
     )
 
     # AS-INT-011 — receipt revocation / invalidation (operational; not authority).
@@ -4031,6 +4060,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     f"report: {args.vault / 'generated' / 'ops' / 'retention-report.json'}"
                 )
+            return EXIT_OK
+        if args.retention_command in {"report", "show"}:
+            try:
+                view = read_event_retention(args.vault)
+            except (WebEventRetentionError, RetentionError, OSError) as exc:
+                _log.error("retention report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_event_retention_text(view), end="")
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown retention command: {args.retention_command}"

@@ -7179,3 +7179,31 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## AS-CODER-ALPHA-EVENT-RETENTION-READ-001 — vault-scoped event-retention REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-event-retention-f4d3` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`.
+
+### Why
+AS-INT-009 already persists `generated/ops/retention-report.json` and
+exposes write/apply CLI (`atlas retention apply`). Humans and agents had
+no first-class read-only CLI/API/MCP lens, so a missing report could look
+like "applied" or a read could accidentally re-apply retention.
+
+### Surfaces
+- `atlas retention report --vault <dir> [--json]` (alias: `atlas retention show`)
+- `GET /v1/event-retention`
+- MCP `atlas.event.retention.read` (zero-arg, vault-scoped)
+- AppService `event_retention()` + `web_api.event_retention`
+- Web page skipped (would bloat)
+
+### Honesty
+- `REPORT != AUTHORITY`
+- `RETENTION REPORT != APPLY`
+- `LENS != TRUTH CORE`
+- Missing report is UNKNOWN, never applied
+- Read never writes Layer B and never applies retention
