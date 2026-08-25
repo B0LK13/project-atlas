@@ -1,6 +1,6 @@
 """Shared Atlas 3 contracts, honesty stamps, and atomic helpers.
 
-D-191 / D-192. Isolated namespace. No wall-clock in generated content.
+D-191 / D-192 / D-193. Isolated namespace. No wall-clock in generated content.
 """
 
 from __future__ import annotations

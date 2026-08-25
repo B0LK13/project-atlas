@@ -7,8 +7,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from project_atlas.atlas3.capabilities import list_capabilities
+from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
-from project_atlas.atlas3.ledger import append_event, ledger_status, list_events
+from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.providers import memory_providers
 from project_atlas.atlas3.memory.search import search_memory
@@ -16,13 +18,16 @@ from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.pulse import compile_pulse
 from project_atlas.atlas3.start import compile_start
 
-ATLAS3_COMMANDS = frozenset({"pulse", "start", "proof", "memory"})
+ATLAS3_COMMANDS = frozenset({"pulse", "start", "proof", "memory", "capabilities", "compat"})
 
 
 def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None:
     pulse = subparsers.add_parser(
         "pulse",
-        help="Atlas 3 Pulse lens (derived; changed/matters/stale/conflicts/failed/decided/next).",
+        help=(
+            "Atlas 3 Pulse lens (derived; changed/matters/stale/conflicts/"
+            "failed/decided/attention/next)."
+        ),
     )
     pulse.add_argument("--vault", type=Path, required=True, help="Vault directory.")
     pulse.add_argument("--project", required=True, help="Project id.")
@@ -36,6 +41,12 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     start.add_argument("--project", required=True)
     start.add_argument("--budget", type=int, required=True, help="Token/context budget.")
     start.add_argument("--task", default=None, help="Optional current task text.")
+    start.add_argument(
+        "--freshness",
+        default="UNKNOWN",
+        choices=["CURRENT", "ALLOW_STALE_HISTORICAL", "UNKNOWN"],
+        help="Freshness requirement. CURRENT refuses stale-as-current-truth.",
+    )
     start.add_argument("--json", action="store_true")
 
     proof = subparsers.add_parser(
@@ -82,12 +93,35 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     append = led_sub.add_parser("append")
     append.add_argument("--vault", type=Path, required=True)
     append.add_argument("--project", required=True)
-    append.add_argument("--kind", required=True)
+    append.add_argument("--kind", default=None)
+    append.add_argument("--event-type", default=None)
     append.add_argument("--summary", required=True)
     append.add_argument("--plane", default="engineering")
     listed = led_sub.add_parser("list")
     listed.add_argument("--vault", type=Path, required=True)
     listed.add_argument("--project", required=True)
+    listed.add_argument("--kind", default=None)
+    listed.add_argument("--event-type", default=None)
+    queried = led_sub.add_parser("query")
+    queried.add_argument("--vault", type=Path, required=True)
+    queried.add_argument("--project", required=True)
+    queried.add_argument("--event-type", default=None)
+    queried.add_argument("--kind", default=None)
+    queried.add_argument("--observed-from", default=None)
+    queried.add_argument("--observed-to", default=None)
+
+    caps = subparsers.add_parser(
+        "capabilities",
+        help="Atlas 3 semantic capability registry (surfaces are projections).",
+    )
+    caps.add_argument("--json", action="store_true")
+
+    compat = subparsers.add_parser(
+        "compat",
+        help="Atlas 3 2.x→3.x compatibility prover (additive; no truth write).",
+    )
+    compat.add_argument("--vault", type=Path, required=True)
+    compat.add_argument("--json", action="store_true")
 
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
@@ -109,9 +143,14 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     args.project,
                     token_budget=int(args.budget),
                     current_task=getattr(args, "task", None),
+                    freshness_requirement=str(getattr(args, "freshness", "UNKNOWN")),
                 ),
                 as_json=True,
             )
+        if command == "capabilities":
+            return _dump(list_capabilities(), as_json=True)
+        if command == "compat":
+            return _dump(prove_compatibility(args.vault), as_json=True)
         if command == "proof":
             evidence = None
             if getattr(args, "evidence", None):
@@ -174,7 +213,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     append_event(
                         args.vault,
                         args.project,
-                        kind=args.kind,
+                        kind=getattr(args, "kind", None),
+                        event_type=getattr(args, "event_type", None),
                         source_plane=args.plane,
                         summary=args.summary,
                     ),
@@ -182,7 +222,28 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 )
             if sub == "list":
                 return _dump(
-                    {"events": list_events(args.vault, args.project)},
+                    {
+                        "events": list_events(
+                            args.vault,
+                            args.project,
+                            kind=getattr(args, "kind", None),
+                            event_type=getattr(args, "event_type", None),
+                        )
+                    },
+                    as_json=True,
+                )
+            if sub == "query":
+                return _dump(
+                    {
+                        "events": query_events(
+                            args.vault,
+                            project_id=args.project,
+                            event_type=getattr(args, "event_type", None),
+                            kind=getattr(args, "kind", None),
+                            observed_from=getattr(args, "observed_from", None),
+                            observed_to=getattr(args, "observed_to", None),
+                        )
+                    },
                     as_json=True,
                 )
     except Atlas3Error as exc:

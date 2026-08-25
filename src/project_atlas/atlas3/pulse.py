@@ -1,10 +1,10 @@
 """AT3-015 — Atlas Pulse derived lens.
 
 Answers: what changed / matters / became stale / conflicts / failed /
-was decided / should I look at next.
+was decided / requires attention / should I look at next.
 
 Composes landed Coder Alpha answers + the Atlas 3 ledger.
-Does not invent history. UNKNOWN stays UNKNOWN.
+Does not invent history. UNKNOWN stays UNKNOWN. Stale ≠ changed.
 """
 
 from __future__ import annotations
@@ -31,8 +31,13 @@ PULSE_QUESTIONS: Final[tuple[str, ...]] = (
     "what_conflicts",
     "what_failed",
     "what_was_decided",
+    "what_requires_attention",
     "what_should_i_look_at_next",
 )
+FAILURE_EVENT_TYPES: Final[frozenset[str]] = frozenset(
+    {"AGENT_FAILED", "TEST_FAILED", "INCIDENT_OPENED"}
+)
+DECISION_EVENT_TYPES: Final[frozenset[str]] = frozenset({"DECISION_RECORDED"})
 
 
 def _unknown(reason: str) -> dict[str, Any]:
@@ -60,13 +65,40 @@ def compile_pulse(vault: Any, project_id: str) -> dict[str, Any]:
     nxt = load_answer(root, f"ans-next-{pid}")
     attention = load_answer(root, f"ans-attention-{pid}")
     events = list_events(root, pid)
-    failures = [item for item in events if item.get("kind") in {"failure", "incident"}]
-    decisions_ev = [item for item in events if item.get("kind") == "decision"]
+    failures = [
+        item
+        for item in events
+        if item.get("kind") in {"failure", "incident"}
+        or item.get("event_type") in FAILURE_EVENT_TYPES
+    ]
+    decisions_ev = [
+        item
+        for item in events
+        if item.get("kind") == "decision" or item.get("event_type") in DECISION_EVENT_TYPES
+    ]
     stale_events = [
         item
         for item in events
         if (item.get("payload") or {}).get("freshness") == "STALE"
+        or item.get("event_type") == "CONTEXT_INVALIDATED"
     ]
+    conflict_block = _from_answer(unknown, missing="unknown/conflict lens not materialized")
+    failed_block = (
+        {"status": "derived", "items": failures, "authority": "derived"}
+        if failures
+        else _unknown("no failure events in atlas3 ledger")
+    )
+    attention_items: list[Any] = []
+    if attention is not None:
+        attention_items.append(attention)
+    if unknown is not None:
+        attention_items.append(unknown)
+    attention_items.extend(failures)
+    attention_block = (
+        {"status": "derived", "items": attention_items, "authority": "derived"}
+        if attention_items
+        else _unknown("no attention, conflict, or failure evidence")
+    )
 
     questions = {
         "what_changed": _from_answer(changed, missing="changed lens not materialized"),
@@ -79,17 +111,14 @@ def compile_pulse(vault: Any, project_id: str) -> dict[str, Any]:
             if stale_events
             else _unknown("no stale ledger evidence")
         ),
-        "what_conflicts": _from_answer(unknown, missing="unknown/conflict lens not materialized"),
-        "what_failed": (
-            {"status": "derived", "items": failures, "authority": "derived"}
-            if failures
-            else _unknown("no failure events in atlas3 ledger")
-        ),
+        "what_conflicts": conflict_block,
+        "what_failed": failed_block,
         "what_was_decided": (
             {"status": "derived", "items": decisions_ev, "authority": "derived"}
             if decisions_ev
             else _from_answer(decisions, missing="decisions lens not materialized")
         ),
+        "what_requires_attention": attention_block,
         "what_should_i_look_at_next": _from_answer(
             nxt,
             missing="next lens not materialized",

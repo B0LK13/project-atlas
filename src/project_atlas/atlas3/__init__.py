@@ -1,4 +1,4 @@
-"""Atlas 3.0 isolated runtime (D-191 / D-192).
+"""Atlas 3.0 isolated runtime (D-191 / D-192 / D-193).
 
 Additive derived plane. Does not rewrite Truth Core, ChatGPT bridge, LIVE_API,
 or other certified 2.x surfaces.

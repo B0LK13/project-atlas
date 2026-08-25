@@ -61,6 +61,7 @@ def append_event(
         "event_id": record["event_id"],
         "path": str(LEDGER_RELATIVE / f"{pid}.jsonl"),
         "kind": record.get("kind"),
+        "event_type": record.get("event_type"),
     }
 
 
@@ -69,7 +70,21 @@ def list_events(
     project_id: str,
     *,
     kind: str | None = None,
+    event_type: str | None = None,
 ) -> list[dict[str, Any]]:
+    return query_events(vault, project_id=project_id, kind=kind, event_type=event_type)
+
+
+def query_events(
+    vault: Path,
+    *,
+    project_id: str,
+    event_type: str | None = None,
+    kind: str | None = None,
+    observed_from: str | None = None,
+    observed_to: str | None = None,
+) -> list[dict[str, Any]]:
+    """Project-scoped temporal query. Fail-closed if the JSONL is malformed."""
     root = require_vault(vault)
     pid = require_project(root, project_id)
     path = _ledger_path(root, pid)
@@ -83,24 +98,39 @@ def list_events(
             item = json.loads(raw_line)
         except json.JSONDecodeError as exc:
             raise Atlas3Error("LEDGER_CORRUPT", f"malformed ledger line: {exc}") from exc
-        if isinstance(item, dict) and (kind is None or item.get("kind") == kind):
-            rows.append(item)
+        if not isinstance(item, dict):
+            raise Atlas3Error("LEDGER_CORRUPT", "ledger line is not an object")
+        if kind is not None and item.get("kind") != kind:
+            continue
+        if event_type is not None and item.get("event_type") != event_type:
+            continue
+        observed = str(item.get("observed_at") or "")
+        if observed_from and observed < observed_from:
+            continue
+        if observed_to and observed > observed_to:
+            continue
+        rows.append(item)
     return rows
 
 
 def ledger_status(vault: Path, project_id: str) -> dict[str, Any]:
     rows = list_events(vault, project_id)
     kinds: dict[str, int] = {}
+    types: dict[str, int] = {}
     for row in rows:
-        key = str(row.get("kind") or "unknown")
-        kinds[key] = kinds.get(key, 0) + 1
+        kind_key = str(row.get("kind") or "unknown")
+        type_key = str(row.get("event_type") or "unknown")
+        kinds[kind_key] = kinds.get(kind_key, 0) + 1
+        types[type_key] = types.get(type_key, 0) + 1
     payload = {
         "package": PACKAGE_ID,
         "project_id": project_id,
         "event_count": len(rows),
         "kinds": dict(sorted(kinds.items())),
+        "event_types": dict(sorted(types.items())),
         "store": str(LEDGER_RELATIVE / f"{project_id}.jsonl"),
         "dual_writes_ops_events": False,
+        "truth_core": False,
     }
     write_json_atomic(
         require_vault(vault) / OPS_RELATIVE / "ledger" / f"{project_id}.status.json",

@@ -21,6 +21,9 @@ from project_atlas.atlas3.contracts import (
 from project_atlas.atlas3.pulse import compile_pulse
 
 PACKAGE_ID: Final[str] = "AT3-030"
+FRESHNESS_REQUIREMENTS: Final[frozenset[str]] = frozenset(
+    {"CURRENT", "ALLOW_STALE_HISTORICAL", "UNKNOWN"}
+)
 START_SECTIONS: Final[tuple[str, ...]] = (
     "project_identity",
     "current_verified_truth",
@@ -62,11 +65,18 @@ def compile_start(
     *,
     token_budget: int,
     current_task: str | None = None,
+    freshness_requirement: str = "UNKNOWN",
 ) -> dict[str, Any]:
     if token_budget <= 0:
         raise Atlas3Error(
             "TOKEN_BUDGET_REQUIRED",
             "atlas start requires an explicit positive --budget / token_budget",
+        )
+    freshness = freshness_requirement.strip().upper() or "UNKNOWN"
+    if freshness not in FRESHNESS_REQUIREMENTS:
+        raise Atlas3Error(
+            "UNKNOWN_FRESHNESS_REQUIREMENT",
+            f"unsupported freshness requirement {freshness_requirement!r}",
         )
     root = require_vault(vault)
     pid = require_project(root, project_id)
@@ -87,9 +97,14 @@ def compile_start(
     sections["project_identity"] = take("derived", identity_text)
 
     state = load_answer(root, f"ans-state-{pid}")
+    stale_block = (pulse.get("questions") or {}).get("what_became_stale") or {}
+    stale_items = stale_block.get("items") or []
     truth_text = "UNKNOWN — state lens not materialized"
     truth_status = "UNKNOWN"
-    if state is not None:
+    if freshness == "CURRENT" and stale_items and state is None:
+        truth_text = "UNKNOWN — stale evidence refused as current truth"
+        truth_status = "UNKNOWN"
+    elif state is not None:
         truth_text = str(state.get("summary") or state.get("title") or "state lens present")
         truth_status = "derived"
     sections["current_verified_truth"] = take(truth_status, truth_text)
@@ -142,6 +157,8 @@ def compile_start(
         "project_id": pid,
         "token_budget": token_budget,
         "tokens_remaining": remaining,
+        "freshness_requirement": freshness,
+        "stale_presented_as_current": False,
         "rag_dump": False,
         "sections": sections,
         "section_order": list(START_SECTIONS),
