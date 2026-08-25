@@ -47,11 +47,16 @@ def human_print(
     sep: str = " ",
     end: str = "\n",
     file: TextIO | None = None,
+    flush: bool = False,
 ) -> None:
-    """Print human-facing text with encoding-aware decorative fallbacks."""
+    """Print human-facing text with encoding-aware decorative fallbacks.
+
+    ``flush`` defaults to False to match built-in ``print()``. No repository
+    contract requires unconditional per-line flush (SHADOW-C-002).
+    """
     stream = file or sys.stdout
     text = sep.join(str(p) for p in parts) + end
     safe = adapt_human_text(text, encoding=_stream_encoding(stream))
     stream.write(safe)
-    if getattr(stream, "flush", None):
+    if flush and getattr(stream, "flush", None):
         stream.flush()
