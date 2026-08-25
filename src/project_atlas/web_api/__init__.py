@@ -73,7 +73,6 @@ __all__ = [
     "read_intelligence_explain",
     "read_intelligence_index",
     "read_intelligence_query",
-    "render_intelligence_text",
     "read_portfolio_state",
     "read_project_attention",
     "read_project_brief",
@@ -82,4 +81,5 @@ __all__ = [
     "read_source_health",
     "read_status",
     "read_vault_health",
+    "render_intelligence_text",
 ]
