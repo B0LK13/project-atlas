@@ -17,12 +17,25 @@ from typing import Any, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.autonomy.authentic_estate import (
+    IMMUTABLE_OWNER_GATES,
     authentic_estate_available,
     d148_evidence_applies,
 )
 from project_atlas.orchestration.autonomy.exact_main_closure import cert_evidence_applies_to_head
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, AgentRole, SdkRuntimeError
 from project_atlas.orchestration.sdk.scheduler import ReadyWorkItem
+
+OwnerGate = Literal[
+    "NONE",
+    "MERGE",
+    "CREDENTIAL",
+    "SECURITY",
+    "HUMAN",
+    "OWNER",
+    "RELEASE",
+    "GOVERNOR",
+    "SIGNOFF",
+]
 
 PACKAGE_ID: Final[Literal["AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001"]] = (
     "AS-ORCH-AUTONOMOUS-MISSION-RECONCILER-001"
@@ -98,7 +111,7 @@ class WorkNode(BaseModel):
     WORKER_ROLE: str
     ACCEPTANCE_CRITERIA: str
     REQUIRED_VERIFICATION: list[str] = Field(default_factory=list)
-    OWNER_GATE: Literal["NONE", "MERGE", "CREDENTIAL", "SECURITY"] = "NONE"
+    OWNER_GATE: OwnerGate = "NONE"
     GENERATION: int = Field(ge=0)
     IDEMPOTENCY_KEY: str
     status: NodeStatus = "READY"
@@ -454,7 +467,7 @@ def seed_demo_release_nodes(
         criteria: str,
         surfaces: list[str],
         role: str,
-        owner_gate: Literal["NONE", "MERGE", "CREDENTIAL", "SECURITY"] = "NONE",
+        owner_gate: OwnerGate = "NONE",
         deps: list[str] | None = None,
         status: NodeStatus = "READY",
     ) -> None:
@@ -758,23 +771,26 @@ def mission_reconcile(
                 and node.status == "BLOCKED_OWNER"
                 and existing.PACKAGE_ID == node.PACKAGE_ID
             ):
+                # D-149: never rewrite an owner-held MERGE/SECURITY/… gate to CREDENTIAL
+                # merely because an authentic estate became available.
+                if (
+                    existing.OWNER_GATE in IMMUTABLE_OWNER_GATES
+                    and node.OWNER_GATE in {"NONE", "CREDENTIAL"}
+                ):
+                    continue
+                # CREDENTIAL held for a different capability must keep its deps/gate.
+                if (
+                    existing.OWNER_GATE == "CREDENTIAL"
+                    and "AUTHENTIC_ESTATE_ROOT" not in existing.DEPENDENCIES
+                ):
+                    continue
                 existing.status = "BLOCKED_OWNER"
                 existing.OWNER_GATE = node.OWNER_GATE
                 existing.DEPENDENCIES = list(node.DEPENDENCIES)
                 existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
                 continue
-            if (
-                existing.status == "SUPERSEDED"
-                and node.status == "BLOCKED_OWNER"
-                and existing.OWNER_GATE == "MERGE"
-                and node.OWNER_GATE == "CREDENTIAL"
-            ):
-                existing.status = "BLOCKED_OWNER"
-                existing.OWNER_GATE = "CREDENTIAL"
-                existing.DEPENDENCIES = list(node.DEPENDENCIES)
-                existing.ACCEPTANCE_CRITERIA = node.ACCEPTANCE_CRITERIA
-                continue
-            # Keep existing non-terminal
+            # Keep existing non-terminal. MERGE must never be rewritten to CREDENTIAL
+            # across package identity just because estate seeding changed.
             continue
         nodes[node.NODE_ID] = node
         created += 1
@@ -873,11 +889,12 @@ def ready_work_items(root: Path, *, capacity: int = 2) -> list[ReadyWorkItem]:
     # Surface conflict gate — skip overlapping with already selected
     selected: list[WorkNode] = []
     for node in ready:
-        if any(surfaces_overlap(node.SURFACE_SET, s.SURFACE_SET) for s in selected):
-            continue
-        if node.OWNER_GATE == "MERGE" and node.status == "READY":
-            # Should have been BLOCKED_OWNER — fail closed
+        if node.OWNER_GATE in IMMUTABLE_OWNER_GATES and node.status == "READY":
+            # Owner-held gate must never be schedulable as READY.
+            # Check before surface overlap so the demotion is always durable.
             node.status = "BLOCKED_OWNER"
+            continue
+        if any(surfaces_overlap(node.SURFACE_SET, s.SURFACE_SET) for s in selected):
             continue
         selected.append(node)
         if len(selected) >= capacity:
