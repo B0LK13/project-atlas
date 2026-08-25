@@ -7179,3 +7179,36 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## AS-CODER-ALPHA-AUTHZ-READ-001 -- vault-scoped authz REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-authz-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`. IMPLEMENTER != VERIFIER.
+
+### Why
+`GET /v1/authz` already projects the AS-2.1-AUTHZ-001 operator profile
+(`authority=false`, `write_enabled=false`). Humans and agents had no
+first-class zero-arg vault-scoped wrap, so a capability list could look
+like an owner gate or a write grant.
+
+### Surfaces
+- `atlas authz report --vault <dir> [--json]` (alias: `atlas authz show`)
+- `GET /v1/authz/report` (honesty wrap; does not replace `GET /v1/authz`)
+- MCP `atlas.authz.read` (zero-arg, vault-scoped, vault-read)
+- AppService `authz_profile()` + `web_api.authz_read`
+- Web page skipped (existing `/v1/authz` already owns the live profile)
+
+### Honesty
+- `AUTHZ != AUTHORITY`
+- `PROFILE != GRANT`
+- `CAPABILITY_LIST != OWNER_GATE`
+- `WRITE_ENABLED=false`
+- `MCP != AUTHORITY`
+- `D149_TOUCHED = NO`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Read never grants write
+- Read never invents OWNER / MERGE / SECURITY authority

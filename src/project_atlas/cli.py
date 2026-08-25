@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.authz_read import (
+    WebAuthzReadError,
+    read_authz_profile,
+    render_authz_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2055,6 +2060,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bound subject+field fanout (default 500; max 5000).",
     )
     kdiff_parser.add_argument("--json", action="store_true")
+    # AS-CODER-ALPHA-AUTHZ-READ-001 -- vault-scoped GET /v1/authz wrap.
+    authz_parser = subparsers.add_parser(
+        "authz",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of the GET /v1/authz operator profile "
+            "(AS-CODER-ALPHA-AUTHZ-READ-001; never writes; "
+            "AUTHZ != AUTHORITY; PROFILE != GRANT)."
+        ),
+    )
+    authz_sub = authz_parser.add_subparsers(dest="authz_command", required=True)
+    authz_report = authz_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read the vault-scoped GET /v1/authz operator profile "
+            "(never grants write; never invents OWNER/MERGE/SECURITY authority)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas authz report --vault /path/to/vault\n"
+            "  atlas authz report --vault /path/to/vault --json"
+        ),
+    )
+    authz_report.add_argument("--vault", type=Path, required=True)
+    authz_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the authz REPORT READ JSON to stdout.",
+    )
+    authz_show = authz_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `authz report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas authz show --vault /path/to/vault\n"
+            "  atlas authz show --vault /path/to/vault --json"
+        ),
+    )
+    authz_show.add_argument("--vault", type=Path, required=True)
+    authz_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the authz REPORT READ JSON to stdout.",
+    )
     # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler).
     ask2_parser = subparsers.add_parser(
         "ask2",
@@ -4649,6 +4700,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"truncated: {report['truncated']}")
             print(f"truth_boundary: {report['truth_boundary']}")
         return EXIT_OK
+    if args.command == "authz":
+        if args.authz_command in {"report", "show"}:
+            try:
+                view = read_authz_profile(args.vault)
+            except (WebAuthzReadError, OSError) as exc:
+                _log.error("authz report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_authz_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown authz command: {args.authz_command}"
+        )
     if args.command == "ask2":
         kinds = tuple(args.kind_args) if args.kind_args else ("concept", "claim")
         try:

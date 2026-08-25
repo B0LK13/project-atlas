@@ -12,6 +12,11 @@ Normative (ADR-008):
 
 from __future__ import annotations
 
+from project_atlas.web_api.authz_read import (
+    WebAuthzReadError,
+    read_authz_profile,
+    render_authz_text,
+)
 from project_atlas.web_api.brief import (
     WebBriefError,
     filter_knowledge_by_project,
@@ -51,6 +56,7 @@ __all__ = [
     "ProjectSummary",
     "ReadStatus",
     "VaultHealthView",
+    "WebAuthzReadError",
     "WebBriefError",
     "WebIntelligenceError",
     "WebRoadmapError",
@@ -61,6 +67,7 @@ __all__ = [
     "list_project_conflicts",
     "list_projects",
     "load_estate_discovery_view",
+    "read_authz_profile",
     "read_impact_graph",
     "read_intelligence_conflicts",
     "read_intelligence_evidence",
@@ -74,4 +81,5 @@ __all__ = [
     "read_source_health",
     "read_status",
     "read_vault_health",
+    "render_authz_text",
 ]

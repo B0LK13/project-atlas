@@ -71,6 +71,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha project briefs (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.authz.read",
+        "vault-read",
+        True,
+        "allow-list candidate; GET /v1/authz operator profile wrap (vault-scoped)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,
