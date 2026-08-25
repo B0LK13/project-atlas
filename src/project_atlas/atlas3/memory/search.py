@@ -6,18 +6,32 @@ from typing import Any
 
 from project_atlas.atlas3.contracts import (
     OPS_RELATIVE,
+    Atlas3Error,
     require_project,
     require_vault,
     write_json_atomic,
 )
 from project_atlas.atlas3.memory.privacy import scan_or_raise
+from project_atlas.atlas3.memory.routing import assert_items_project_scope
 
 
 def search_memory(
     items: list[dict[str, Any]],
     query: str,
+    *,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     scan_or_raise(query)
+    if project_id is not None:
+        assert_items_project_scope(items, project_id=project_id)
+    else:
+        scoped = {str(item.get("project_id") or "") for item in items if isinstance(item, dict)}
+        scoped.discard("")
+        if len(scoped) > 1:
+            raise Atlas3Error(
+                "PROJECT_MISMATCH",
+                f"mixed-project memory search: {sorted(scoped)}",
+            )
     needle = query.strip().lower()
     tokens = [part for part in needle.split() if part]
     hits: list[dict[str, Any]] = []

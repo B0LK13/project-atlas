@@ -13,6 +13,7 @@ from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.providers import memory_providers
+from project_atlas.atlas3.memory.routing import assert_items_project_scope
 from project_atlas.atlas3.memory.search import search_memory
 from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.pulse import compile_pulse
@@ -198,8 +199,12 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     Path(args.vault) / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
                 )
                 items = ((recon or {}).get("reconciliation") or {}).get("items") or []
+                assert_items_project_scope(items, project_id=args.project)
                 if sub == "search":
-                    return _dump(search_memory(items, args.query), as_json=True)
+                    return _dump(
+                        search_memory(items, args.query, project_id=args.project),
+                        as_json=True,
+                    )
                 if sub == "conflicts":
                     return _dump(
                         ((recon or {}).get("reconciliation") or {}).get("conflicts")
@@ -207,6 +212,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         as_json=True,
                     )
                 stale = ((recon or {}).get("reconciliation") or {}).get("stale_memories") or []
+                assert_items_project_scope(stale, project_id=args.project)
                 return _dump({"stale_count": len(stale), "items": stale}, as_json=True)
         if command == "ledger":
             sub = getattr(args, "ledger_command", "")

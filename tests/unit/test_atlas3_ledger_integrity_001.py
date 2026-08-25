@@ -73,7 +73,8 @@ def test_event_id_collision_fail_closed(tmp_path: Path) -> None:
     )
     with pytest.raises(Atlas3Error) as exc:
         query_events(vault, project_id="harbor-api")
-    assert exc.value.code == "EVENT_ID_COLLISION"
+    # Stolen event_id on a different payload fails the hash binding first.
+    assert exc.value.code in {"EVENT_ID_COLLISION", "CONTENT_HASH_MISMATCH"}
 
 
 def test_malformed_json_fail_closed(tmp_path: Path) -> None:
@@ -126,6 +127,23 @@ def test_mixed_valid_and_corrupt_no_partial_results(tmp_path: Path) -> None:
     )
     with pytest.raises(Atlas3Error):
         list_events(vault, "harbor-api")
+
+
+def test_forged_event_id_fail_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    event = normalize_engineering_event(
+        project_id="harbor-api",
+        event_type="TEST_PASSED",
+        source_plane="engineering",
+        summary="ok",
+    )
+    event["event_id"] = "a3ev-FORGEDIDENTIFIER"
+    path = _ledger_path(vault)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(event, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(Atlas3Error) as exc:
+        list_events(vault, "harbor-api")
+    assert exc.value.code == "CONTENT_HASH_MISMATCH"
 
 
 def test_identical_replay_collapsed_on_read(tmp_path: Path) -> None:

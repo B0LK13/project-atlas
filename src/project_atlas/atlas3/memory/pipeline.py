@@ -60,7 +60,7 @@ def run_memory_vertical(
         stronger_evidence=stronger_evidence,
         current_state_text=current_state_text,
     )
-    searched = search_memory(reconciled["items"], query)
+    searched = search_memory(reconciled["items"], query, project_id=pid)
     ranked = rank_context_layers(
         project_evidence=[current_state_text],
         derived_truth=[],

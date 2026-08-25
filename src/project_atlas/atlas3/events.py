@@ -212,6 +212,12 @@ def verify_engineering_event(record: dict[str, Any], *, expected_project_id: str
     expected_digest = _canonical_hash(_body_for_hash(record))
     if digest != expected_digest:
         raise Atlas3Error("CONTENT_HASH_MISMATCH", "engineering event content_hash mismatch")
+    expected_id = "a3ev-" + expected_digest[7:23]
+    if event_id != expected_id:
+        raise Atlas3Error(
+            "CONTENT_HASH_MISMATCH",
+            "event_id is not bound to content_hash",
+        )
 
 
 def ingest_existing_agent_event(raw: dict[str, Any], *, project_id: str) -> dict[str, Any]:

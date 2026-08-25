@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pytest
 
-from project_atlas.atlas3.contracts import Atlas3Error
+from project_atlas.atlas3.cli import dispatch_atlas3, register_atlas3_parsers
+from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, write_json_atomic
 from project_atlas.atlas3.memory.pipeline import ingest_provider_turns, run_memory_vertical
 from project_atlas.atlas3.memory.routing import (
     assert_items_project_scope,
     assert_turns_project_scope,
 )
+from project_atlas.atlas3.memory.search import search_memory
 
 
 def _vault(tmp_path: Path) -> Path:
@@ -118,6 +121,29 @@ def test_forged_provider_metadata_cannot_override_routing() -> None:
             project_id="harbor-api",
         )
     assert exc.value.code == "PROJECT_MISMATCH"
+
+
+def test_search_and_cli_reject_leaked_mixed_reconcile(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    leaked = {
+        "reconciliation": {
+            "items": _items("harbor-api") + _items("other-api", text="FOREIGN-MARKER"),
+        }
+    }
+    write_json_atomic(
+        vault / OPS_RELATIVE / "memory" / "harbor-api" / "reconcile.json",
+        leaked,
+    )
+    with pytest.raises(Atlas3Error) as search_exc:
+        search_memory(leaked["reconciliation"]["items"], "FOREIGN")
+    assert search_exc.value.code == "PROJECT_MISMATCH"
+    parser = argparse.ArgumentParser()
+    register_atlas3_parsers(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(
+        ["memory", "search", "FOREIGN", "--vault", str(vault), "--project", "harbor-api"]
+    )
+    rc = dispatch_atlas3(args)
+    assert rc == 1
 
 
 def test_ingest_turn_project_mismatch() -> None:
