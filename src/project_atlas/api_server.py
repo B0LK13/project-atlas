@@ -466,6 +466,31 @@ def make_handler(
                         },
                     )
                 return
+            if path == "/v1/state":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "state-requires-project",
+                            "package_id": "AS-CODER-ALPHA-STATE-API-001",
+                            "honesty": "UNSUPPORTED_SCOPE",
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.state(project))
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-STATE-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                return
             if path == "/v1/attention":
                 project = (qs.get("project") or qs.get("project_id") or [""])[0]
                 if not project:
@@ -698,6 +723,7 @@ def make_handler(
                     "overview_live": True,
                     "decisions_live": True,
                     "attention_live": True,
+                    "state_live": True,
                     "source_health_live": True,
                     "discovery_live": True,
                     "truth_ux_live": True,

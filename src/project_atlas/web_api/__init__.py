@@ -52,6 +52,7 @@ from project_atlas.web_api.source_health import (
     WebSourceHealthError,
     read_source_health,
 )
+from project_atlas.web_api.state import WebStateError, read_project_current_state
 from project_atlas.web_api.unknown import WebUnknownError, read_project_unknown
 
 __all__ = [
@@ -69,6 +70,7 @@ __all__ = [
     "WebOverviewError",
     "WebRoadmapError",
     "WebSourceHealthError",
+    "WebStateError",
     "WebUnknownError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
@@ -86,6 +88,7 @@ __all__ = [
     "read_project_attention_hygiene",
     "read_project_brief",
     "read_project_changed",
+    "read_project_current_state",
     "read_project_decisions",
     "read_project_inbox",
     "read_project_overview",

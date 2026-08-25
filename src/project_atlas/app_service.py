@@ -26,6 +26,7 @@ from project_atlas.web_api import (
     WebOverviewError,
     WebRoadmapError,
     WebSourceHealthError,
+    WebStateError,
     WebUnknownError,
     filter_knowledge_by_project,
     impact_graph_summary,
@@ -42,6 +43,7 @@ from project_atlas.web_api import (
     read_project_attention_hygiene,
     read_project_brief,
     read_project_changed,
+    read_project_current_state,
     read_project_decisions,
     read_project_inbox,
     read_project_overview,
@@ -186,6 +188,15 @@ class AppService:
         try:
             return read_project_attention_hygiene(self.vault, project_id)
         except WebAttentionError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def state(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha current-state lens (read-only; != /v1/project-state)."""
+        try:
+            return read_project_current_state(self.vault, project_id)
+        except WebStateError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc

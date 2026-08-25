@@ -367,6 +367,8 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-DECISIONS-WEB-001 Web `#/decisions` (UI!=canonical; DECISIONS!=authority; explicit `?project=` only)
 - [x] AS-CODER-ALPHA-ATTENTION-API-001 read-only `GET /v1/attention` (hygiene classifier; != `/v1/project-attention`)
 - [x] AS-CODER-ALPHA-ATTENTION-WEB-001 Web `#/attention` (UI!=canonical; CLEAR!=default; explicit `?project=` only)
+- [x] AS-CODER-ALPHA-STATE-API-001 read-only `GET /v1/state` (CLI/API parity; != `/v1/project-state`; no generated/answers writes)
+- [x] AS-CODER-ALPHA-STATE-WEB-001 Web `#/state` (UI!=canonical; STATE!=authority; explicit `?project=` only)
 - [x] AS-CODER-ALPHA-BRIEF-001 Unified project brief (`atlas brief`)
 - [x] AS-CODER-ALPHA-CAPTURE-001 Session capture defaults
 - [x] AS-CODER-ALPHA-HANDOFF-001 `atlas handoff` create/resume

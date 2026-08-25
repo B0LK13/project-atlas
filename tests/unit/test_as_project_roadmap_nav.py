@@ -28,6 +28,7 @@ PROJECT_AWARE = {
     "/overview",
     "/decisions",
     "/attention",
+    "/state",
     "/workspace",
 }
 

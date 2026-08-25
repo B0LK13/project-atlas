@@ -23,6 +23,7 @@ import InboxPage from "./pages/production/InboxPage";
 import OverviewPage from "./pages/production/OverviewPage";
 import DecisionsPage from "./pages/production/DecisionsPage";
 import AttentionPage from "./pages/production/AttentionPage";
+import StatePage from "./pages/production/StatePage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -48,6 +49,7 @@ export default function App() {
       <Route path="/overview" element={<OverviewPage />} />
       <Route path="/decisions" element={<DecisionsPage />} />
       <Route path="/attention" element={<AttentionPage />} />
+      <Route path="/state" element={<StatePage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />
       <Route path="/design-lab/cartograph-quiet" element={<CartographQuietPage />} />

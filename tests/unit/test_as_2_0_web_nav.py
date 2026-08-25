@@ -20,6 +20,7 @@ PROJECT_AWARE = {
     "/overview",
     "/decisions",
     "/attention",
+    "/state",
     "/context",
     "/ask",
     "/time-machine",

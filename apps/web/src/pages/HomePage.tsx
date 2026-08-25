@@ -84,6 +84,11 @@ const PROD = [
     title: "Attention",
     blurb: "Attention hygiene — ATTENTION≠authority; CLEAR requires inspection.",
   },
+  {
+    to: "/state",
+    title: "Current state",
+    blurb: "Current-state lens — STATE≠authority; ROLLUP≠trust; !=project-state.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

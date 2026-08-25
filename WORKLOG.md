@@ -5,6 +5,22 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-STATE API+WEB — night cycle 2026-08-24T23:45Z
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-63c0`
+**Mode:** CODER_ALPHA_SURFACE. Does not mutate D-149 / #477. Does not claim MCP.
+Does not merge.
+
+Read-only `GET /v1/state` + Web `#/state` wrapping `build_state_lens`.
+Distinct from intelligence `/v1/project-state`.
+
+- `STATE != AUTHORITY`
+- `ROLLUP != TRUST SCORE`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
 ## AS-CODER-ALPHA-OVERVIEW/DECISIONS/ATTENTION API+WEB — night cycle 2026-08-24T23:45Z
 
 **Date:** 2026-08-24
