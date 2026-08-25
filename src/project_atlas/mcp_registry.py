@@ -83,6 +83,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; LIVE_API facade snapshot (vault-scoped, read-only; != backup)",
     ),
     McpTool(
+        "atlas.discovery.read",
+        "vault-read",
+        True,
+        "allow-list candidate; estate discovery projection (vault-scoped, read-only; != ingest)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

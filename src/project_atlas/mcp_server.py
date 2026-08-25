@@ -38,6 +38,11 @@ SNAPSHOT_TRUTH_BOUNDARY = (
     "MCP SNAPSHOT != AUTHORITY / != BACKUP BUNDLE / UNKNOWN VALID / NO WRITE / "
     "FACADE SNAPSHOT != ATLAS SNAPSHOT/RESTORE"
 )
+DISCOVERY_PACKAGE_ID = "AS-CODER-ALPHA-DISCOVERY-MCP-001"
+DISCOVERY_TRUTH_BOUNDARY = (
+    "MCP DISCOVERY != INGEST != TRUST != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "ABSENT REPORT != PILOT ROOTS"
+)
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
 _ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool"})
@@ -218,6 +223,41 @@ def read_vault_snapshot(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_discovery(service: AppService) -> dict[str, Any]:
+    """Zero-arg estate discovery projection. Missing report invents no roots."""
+    raw = service.estate_discovery()
+    categories = dict(raw.get("categories") or {})
+    counts = dict(raw.get("counts") or {})
+    return {
+        "schema_version": 1,
+        "package_id": DISCOVERY_PACKAGE_ID,
+        "truth_boundary": DISCOVERY_TRUTH_BOUNDARY,
+        "present": bool(raw.get("present")),
+        "authorized_root": raw.get("authorized_root"),
+        "volume_root_authorized": bool(raw.get("volume_root_authorized")),
+        "volume_root_kind": raw.get("volume_root_kind") or "NONE",
+        "counts": counts,
+        "categories": categories,
+        "scan": raw.get("scan"),
+        "note": raw.get("note"),
+        "authority": "derived",
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+            "ingest": False,
+            "invented_pilot_roots": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -231,6 +271,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.conflicts.read": lambda: read_vault_conflicts(service),
         "atlas.snapshot.read": lambda: read_vault_snapshot(service),
+        "atlas.discovery.read": lambda: read_vault_discovery(service),
     }
 
 
