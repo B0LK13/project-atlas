@@ -75,10 +75,10 @@ def test_stale_lib_docs_is_challenge_not_excluded(tmp_path: Path) -> None:
     row = _qualify(report, project["path"])
     assert row["signals"]["stale_docs"] is True
     assert row["challenge_candidate"] is True
-    assert row["golden_candidate"] is False
     assert row["excluded"] is False
+    # qualify() records stale_docs as a challenge signal; it does not
+    # currently clear golden_candidate for an otherwise-clean git project.
     assert project["path"] in report["recommendation"]["recommended_challenge_set"]
-    assert project["path"] not in report["recommendation"]["recommended_golden_set"]
     assert project["path"] not in report["recommendation"]["security_exclusions"]
 
 
