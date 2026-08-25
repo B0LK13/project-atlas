@@ -17,7 +17,18 @@ from estate import fingerprint  # noqa: E402
 
 @pytest.mark.parametrize(
     "action",
-    ["DELETE", "MOVE", "RENAME", "GIT_CLEAN", "GIT_RESET", "AUTO_COMMIT", "AUTO_PUSH"],
+    [
+        "DELETE",
+        "MOVE",
+        "RENAME",
+        "GIT_CLEAN",
+        "GIT_RESET",
+        "AUTO_COMMIT",
+        "AUTO_PUSH",
+        "SOURCE_MODIFY",
+        "HISTORY_REWRITE",
+        "AUTO_MERGE",
+    ],
 )
 def test_mutation_actions_fail_closed(action: str) -> None:
     with pytest.raises(CuratorError) as exc:
@@ -25,7 +36,10 @@ def test_mutation_actions_fail_closed(action: str) -> None:
     assert exc.value.code == "MUTATION_FORBIDDEN"
 
 
-@pytest.mark.parametrize("phase", ["COPY", "GOLDENIZE", "BASELINE_FREEZE", "FREEZE_ESTATE"])
+@pytest.mark.parametrize(
+    "phase",
+    ["COPY", "GOLDENIZE", "BASELINE_FREEZE", "FREEZE_ESTATE", "INDEPENDENT_VERIFY"],
+)
 def test_owner_gated_phases_fail_closed(tmp_path: Path, fixture_estate: Path, phase: str) -> None:
     source = fixture_estate
     with pytest.raises(CuratorError) as exc:
@@ -42,6 +56,17 @@ def test_cli_delete_and_git_clean_fail(tmp_path: Path, fixture_estate: Path) -> 
     assert main(["--source-root", str(source), "--phase", "COPY"]) == 1
     assert fingerprint(source) == before
     assert (source / "dirty-worktree" / "scratch.txt").is_file()
+
+
+def test_unsupported_mode_fails_closed(tmp_path: Path, fixture_estate: Path) -> None:
+    source = fixture_estate
+    before = fingerprint(source)
+    with pytest.raises(CuratorError) as exc:
+        curate(source, mode="WRITE")
+    assert exc.value.code == "UNSUPPORTED_MODE"
+    assert main(["--source-root", str(source), "--mode", "GOLDENIZE"]) == 1
+    assert fingerprint(source) == before
+    assert not (source / "malicious-build" / "EXECUTED").exists()
 
 
 def test_path_traversal_and_unc_fail() -> None:
