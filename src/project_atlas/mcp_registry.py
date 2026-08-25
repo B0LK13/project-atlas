@@ -95,6 +95,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha what-changed lens (vault-scoped, no inventory rotate)",
     ),
     McpTool(
+        "atlas.architecture.read",
+        "vault-read",
+        True,
+        "allow-list candidate; Coder Alpha architecture lens (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

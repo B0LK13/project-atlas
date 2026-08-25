@@ -7031,3 +7031,6 @@ read them without request args or writes.
 - Focused: `test_as_coder_alpha_lens_mcp_001.py` + MCP brief/adv/registry: 29 passed
 - `ruff check` on touched files: pass
 - `mypy` on `mcp_server.py` / `mcp_registry.py`: pass
+
+### Follow-on (same branch)
+- `atlas.architecture.read` (`AS-CODER-ALPHA-ARCHITECTURE-MCP-001`): 6 focused + lens/adv/brief regression 31 passed

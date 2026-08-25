@@ -20,6 +20,10 @@ from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
 from project_atlas.overview import OverviewError, build_overview_lens
+from project_atlas.project_architecture import (
+    ProjectArchitectureError,
+    build_architecture_lens,
+)
 from project_atlas.project_changed import (
     INVENTORY_RELATIVE,
     PREV_INVENTORY_RELATIVE,
@@ -37,6 +41,7 @@ OVERVIEW_PACKAGE_ID = "AS-CODER-ALPHA-OVERVIEW-MCP-001"
 DECISIONS_PACKAGE_ID = "AS-CODER-ALPHA-DECISIONS-MCP-001"
 UNKNOWN_PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-MCP-001"
 CHANGED_PACKAGE_ID = "AS-CODER-ALPHA-CHANGED-MCP-001"
+ARCHITECTURE_PACKAGE_ID = "AS-CODER-ALPHA-ARCHITECTURE-MCP-001"
 LENS_PACKAGE_ID = "AS-CODER-ALPHA-LENS-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
@@ -396,6 +401,49 @@ def read_vault_changed(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_architectures(service: AppService) -> dict[str, Any]:
+    """Zero-arg architecture read. Does not materialize answers or invent slots."""
+    rows: list[dict[str, Any]] = []
+    for pid in _vault_project_ids(service):
+        try:
+            lens = build_architecture_lens(service.vault, pid)
+            raw_slots = lens.get("slots")
+            slots: dict[str, Any] = raw_slots if isinstance(raw_slots, dict) else {}
+            known = {
+                str(key): value
+                for key, value in slots.items()
+                if isinstance(value, str) and value and value != "UNKNOWN"
+            }
+            rows.append(
+                {
+                    "project_id": pid,
+                    "architecture": {
+                        "project_id": pid,
+                        "available": True,
+                        "status": lens.get("status"),
+                        "summary": lens.get("summary"),
+                        "value": lens.get("value"),
+                        "known_slot_count": len(known),
+                        "slots": known,
+                        "evidence": list(lens.get("evidence") or []),
+                        "honesty": _overlay_honesty(lens),
+                    },
+                }
+            )
+        except (ProjectArchitectureError, AppServiceError, OSError):
+            rows.append({"project_id": pid, "architecture": _unknown_lens_row(pid)})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": ARCHITECTURE_PACKAGE_ID,
+        "family_package_id": LENS_PACKAGE_ID,
+        "truth_boundary": LENS_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "projects": rows,
+        "honesty": _lens_honesty(),
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -411,6 +459,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.decisions.read": lambda: read_vault_decisions(service),
         "atlas.unknown.read": lambda: read_vault_unknowns(service),
         "atlas.changed.read": lambda: read_vault_changed(service),
+        "atlas.architecture.read": lambda: read_vault_architectures(service),
     }
 
 
