@@ -5,6 +5,26 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001 — mission/workspace MCP
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-e7ea`
+**Mode:** THIN_READ_WRAP. Does not mutate D-149 / PR #483. Does not merge.
+
+### Why this lane
+`/v1/mission` and `/v1/workspace` plus Web pages already exist on main.
+No MCP wrap and no open PR. Compose stays non-authoritative: a
+`generated/ops/pilot` directory is an ops surface flag, not AUTHENTIC_PILOT.
+
+### Contract
+Zero-arg vault-scoped read. `pilot_estate_rows=[]`, `authentic_pilot=false`,
+`owner_capability_granted=false` hard overlay. `D149_TOUCHED=NO`.
+
+### Evidence
+`docs/AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001.md`
+
+---
+
 ## AS-CODER-ALPHA-ROADMAP-MCP-001 — vault-scoped `atlas.roadmap.read`
 
 **Date:** 2026-08-25

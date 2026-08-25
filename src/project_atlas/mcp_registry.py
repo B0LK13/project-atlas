@@ -77,6 +77,18 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha living roadmaps (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.mission.read",
+        "vault-read",
+        True,
+        "allow-list candidate; mission-control compose (vault-scoped, read-only)",
+    ),
+    McpTool(
+        "atlas.workspace.read",
+        "vault-read",
+        True,
+        "allow-list candidate; workspace compose (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

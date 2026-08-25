@@ -19,11 +19,16 @@ from project_atlas.app_service import AppService, AppServiceError, open_app_serv
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.web_mission_workspace import (
+    build_mission_view,
+    build_workspace_view,
+)
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 ROADMAP_PACKAGE_ID = "AS-CODER-ALPHA-ROADMAP-MCP-001"
+MISSION_WS_PACKAGE_ID = "AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -32,6 +37,10 @@ BRIEF_TRUTH_BOUNDARY = (
 ROADMAP_TRUTH_BOUNDARY = (
     "MCP ROADMAP != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL / ROADMAP != CANONICAL"
+)
+MISSION_WS_TRUTH_BOUNDARY = (
+    "MCP MISSION/WORKSPACE != AUTHORITY / NO PILOT INVENT / NO WRITE / "
+    "UI != CANONICAL / AUTHENTIC_PILOT = FALSE"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -234,6 +243,57 @@ def read_vault_roadmaps(service: AppService) -> dict[str, Any]:
     }
 
 
+def _compose_mission_workspace(
+    service: AppService,
+    *,
+    lens: str,
+    builder: Callable[[Path], dict[str, Any]],
+) -> dict[str, Any]:
+    """Read-only mission/workspace compose. Never invents PILOT rows."""
+    view = dict(builder(service.vault))
+    view["authentic_pilot"] = False
+    view["pilot_estate_rows"] = []
+    view["ui_canonical"] = False
+    view["graph_authority"] = False
+    view["unknown_equals_healthy"] = False
+    honesty = {
+        "lens_is_authority": False,
+        "mcp_is_authority": False,
+        "unknown_is_valid": True,
+        "fabricated_fields": False,
+        "request_contains_project": False,
+        "zero_arg_vault_scope": True,
+        "canonical_write": False,
+        "auto_execution": False,
+        "owner_capability_granted": False,
+        "authentic_pilot": False,
+        "pilot_invented": False,
+        "ui_is_canonical": False,
+    }
+    return {
+        "schema_version": 1,
+        "package_id": MISSION_WS_PACKAGE_ID,
+        "truth_boundary": MISSION_WS_TRUTH_BOUNDARY,
+        "lens": lens,
+        "view": view,
+        "honesty": honesty,
+    }
+
+
+def read_vault_mission(service: AppService) -> dict[str, Any]:
+    """Zero-arg mission-control read. Does not invent PILOT estates."""
+    return _compose_mission_workspace(
+        service, lens="mission", builder=build_mission_view
+    )
+
+
+def read_vault_workspace(service: AppService) -> dict[str, Any]:
+    """Zero-arg workspace read. Does not invent PILOT estates."""
+    return _compose_mission_workspace(
+        service, lens="workspace", builder=build_workspace_view
+    )
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -246,6 +306,8 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.roadmap.read": lambda: read_vault_roadmaps(service),
+        "atlas.mission.read": lambda: read_vault_mission(service),
+        "atlas.workspace.read": lambda: read_vault_workspace(service),
     }
 
 
