@@ -342,6 +342,9 @@ def test_cli_lifecycle_help_is_ascii(capsys: pytest.CaptureFixture[str]) -> None
     assert exit_info.value.code == 0
     parent = capsys.readouterr().out
     assert all(ord(char) < 128 for char in parent)
+    parent_flat = " ".join(parent.split())
+    assert "fixture lifecycle matrix" in parent_flat
+    assert "write an ops report" in parent_flat
     with pytest.raises(SystemExit) as report_info:
         main(["lifecycle", "report", "--help"])
     assert report_info.value.code == 0
@@ -358,8 +361,9 @@ def test_cli_lifecycle_help_is_ascii(capsys: pytest.CaptureFixture[str]) -> None
     certify = capsys.readouterr().out
     assert all(ord(char) < 128 for char in certify)
     certify_flat = " ".join(certify.split())
-    assert "fixture lifecycle matrix" in certify_flat
-    assert "write an ops report" in certify_flat
+    assert "--work-root" in certify_flat
+    assert "--report-vault" in certify_flat
+    assert "certification report JSON" in certify_flat
 
 
 def test_mcp_tool_is_allow_listed() -> None:
