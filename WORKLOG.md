@@ -7078,3 +7078,30 @@ could not list existing conversation receipts without a submit/review path.
 - `CAPTURE != TRUTH CORE`
 - `D149_TOUCHED = NO`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-SESSION-CAPTURE-READ-001 — session inventory
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0325 continuation
+**Branch:** `cursor/atlas-autonomous-night-cycle-5723`
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149 / #483. Does not merge.
+
+### Why
+`atlas capture list` already listed session-capture ops receipts. Agents and
+Web had no dedicated inventory (conversation-capture #489 is a different
+quarantine plane). Also remediates #489 CI ruff E501 on the conversation
+tool reason string.
+
+### Scope
+- Zero-arg `atlas.session-capture.read`
+- `GET /v1/session-captures` (+ optional `?project=`)
+- Web `#/session-captures`
+- CLI `atlas capture list` unchanged (still read-only)
+- Symlinked `generated/ops/session-captures` root/files ignored
+
+### Honesty
+- `OPS_RECEIPT != TRUTH CORE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

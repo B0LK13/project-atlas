@@ -23,6 +23,7 @@ from project_atlas.web_api import (
     WebIntelligenceError,
     WebObsidianError,
     WebRoadmapError,
+    WebSessionCaptureError,
     WebSourceHealthError,
     filter_knowledge_by_project,
     impact_graph_summary,
@@ -32,6 +33,7 @@ from project_atlas.web_api import (
     list_obsidian_notes,
     list_project_conflicts,
     list_projects,
+    list_session_capture_inventory,
     load_estate_discovery_view,
     read_intelligence_conflicts,
     read_intelligence_evidence,
@@ -141,6 +143,13 @@ class AppService:
         try:
             return list_conversation_capture_inventory(self.vault, project_id=project_id)
         except WebConversationCaptureError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def session_captures(self, project_id: str | None = None) -> dict[str, Any]:
+        """Vault-scoped session-capture inventory (read-only; != Truth Core)."""
+        try:
+            return list_session_capture_inventory(self.vault, project_id=project_id)
+        except WebSessionCaptureError as exc:
             raise AppServiceError(str(exc)) from exc
 
     def graph_summary(self) -> dict[str, Any]:

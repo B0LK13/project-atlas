@@ -69,6 +69,11 @@ const PROD = [
     title: "Conversation captures",
     blurb: "Read-only quarantined conversation inventory — CAPTURE≠Truth Core.",
   },
+  {
+    to: "/session-captures",
+    title: "Session captures",
+    blurb: "Read-only session-capture inventory — OPS_RECEIPT≠Truth Core.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

@@ -46,6 +46,10 @@ from project_atlas.web_api.knowledge import KnowledgeAnswerSummary, list_knowled
 from project_atlas.web_api.obsidian import WebObsidianError, list_obsidian_notes
 from project_atlas.web_api.projects import ProjectSummary, list_projects
 from project_atlas.web_api.roadmap import WebRoadmapError, read_project_roadmap
+from project_atlas.web_api.session_captures import (
+    WebSessionCaptureError,
+    list_session_capture_inventory,
+)
 from project_atlas.web_api.source_health import (
     WebSourceHealthError,
     read_source_health,
@@ -63,6 +67,7 @@ __all__ = [
     "WebIntelligenceError",
     "WebObsidianError",
     "WebRoadmapError",
+    "WebSessionCaptureError",
     "WebSourceHealthError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
@@ -72,6 +77,7 @@ __all__ = [
     "list_obsidian_notes",
     "list_project_conflicts",
     "list_projects",
+    "list_session_capture_inventory",
     "load_estate_discovery_view",
     "read_impact_graph",
     "read_intelligence_conflicts",

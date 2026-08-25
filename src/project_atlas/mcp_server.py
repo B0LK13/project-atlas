@@ -35,6 +35,16 @@ from project_atlas.web_api.doctor import WebDoctorError, list_doctor
 from project_atlas.web_api.obsidian import PACKAGE_ID as OBSIDIAN_PACKAGE_ID
 from project_atlas.web_api.obsidian import TRUTH_BOUNDARY as OBSIDIAN_TRUTH_BOUNDARY
 from project_atlas.web_api.obsidian import WebObsidianError, list_obsidian_notes
+from project_atlas.web_api.session_captures import (
+    PACKAGE_ID as SESSION_CAPTURE_PACKAGE_ID,
+)
+from project_atlas.web_api.session_captures import (
+    TRUTH_BOUNDARY as SESSION_CAPTURE_TRUTH_BOUNDARY,
+)
+from project_atlas.web_api.session_captures import (
+    WebSessionCaptureError,
+    list_session_capture_inventory,
+)
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
@@ -42,6 +52,7 @@ BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 DOCTOR_MCP_PACKAGE_ID = DOCTOR_PACKAGE_ID
 OBSIDIAN_MCP_PACKAGE_ID = OBSIDIAN_PACKAGE_ID
 CONVERSATION_MCP_PACKAGE_ID = CONVERSATION_PACKAGE_ID
+SESSION_CAPTURE_MCP_PACKAGE_ID = SESSION_CAPTURE_PACKAGE_ID
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -255,6 +266,45 @@ def read_vault_conversations(service: AppService) -> dict[str, Any]:
     return payload
 
 
+def read_vault_session_captures(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped session-capture read. Does not record/write."""
+    try:
+        report = list_session_capture_inventory(service.vault)
+    except (AppServiceError, WebSessionCaptureError):
+        report = {
+            "schema_version": 1,
+            "package_id": SESSION_CAPTURE_MCP_PACKAGE_ID,
+            "truth_boundary": SESSION_CAPTURE_TRUTH_BOUNDARY,
+            "project_id": None,
+            "capture_count": 0,
+            "captures": [],
+            "available": False,
+            "honesty": {
+                "unknown_is_valid": True,
+                "unknown_equals_healthy": False,
+                "mcp_is_authority": False,
+                "fabricated_fields": False,
+                "record_or_write": False,
+                "truth_core_promotion": False,
+                "conversation_surface": False,
+                "owner_gate_grant": False,
+            },
+        }
+    payload = dict(report)
+    payload["package_id"] = SESSION_CAPTURE_MCP_PACKAGE_ID
+    payload["truth_boundary"] = SESSION_CAPTURE_TRUTH_BOUNDARY
+    honesty = dict(payload.get("honesty") or {})
+    honesty["mcp_is_authority"] = False
+    honesty["request_contains_project"] = False
+    honesty["zero_arg_vault_scope"] = True
+    honesty["record_or_write"] = False
+    honesty["truth_core_promotion"] = False
+    honesty["conversation_surface"] = False
+    honesty["owner_gate_grant"] = False
+    payload["honesty"] = honesty
+    return payload
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -269,6 +319,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.doctor.read": lambda: read_vault_doctor(service),
         "atlas.obsidian.read": lambda: read_vault_obsidian(service),
         "atlas.conversation.read": lambda: read_vault_conversations(service),
+        "atlas.session-capture.read": lambda: read_vault_session_captures(service),
     }
 
 

@@ -168,11 +168,20 @@ def list_captures(
     root = vault / CAPTURE_DIR
     if not root.is_dir():
         return []
+    try:
+        resolved_root = root.resolve()
+    except OSError:
+        return []
+    if not resolved_root.is_relative_to(vault):
+        return []
     items: list[dict[str, Any]] = []
     for path in sorted(root.glob("capture-*.json"), reverse=True):
+        if path.is_symlink():
+            continue
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            rel = path.relative_to(vault).as_posix()
+        except (OSError, json.JSONDecodeError, ValueError):
             continue
         if not isinstance(payload, dict):
             continue
@@ -185,7 +194,7 @@ def list_captures(
                 "kind": payload.get("kind"),
                 "source": payload.get("source"),
                 "summary": payload.get("summary"),
-                "path": path.relative_to(vault).as_posix(),
+                "path": rel,
                 "decisions": payload.get("decisions") or [],
                 "changes": payload.get("changes") or [],
                 "next_work": payload.get("next_work") or [],
