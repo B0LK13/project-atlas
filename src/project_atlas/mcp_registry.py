@@ -77,6 +77,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; vault-scoped structural validate (read-only, != authority)",
     ),
     McpTool(
+        "atlas.actions.ledger.read",
+        "vault-read",
+        True,
+        "allow-list candidate; vault-scoped web action ledger (GET only, != authority)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

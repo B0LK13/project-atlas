@@ -18,6 +18,7 @@ import AskPage from "./pages/production/AskPage";
 import RoadmapPage from "./pages/production/RoadmapPage";
 import IntelligencePage from "./pages/production/IntelligencePage";
 import ValidatePage from "./pages/production/ValidatePage";
+import ActionsPage from "./pages/production/ActionsPage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -38,6 +39,7 @@ export default function App() {
       <Route path="/roadmap" element={<RoadmapPage />} />
       <Route path="/intelligence" element={<IntelligencePage />} />
       <Route path="/validate" element={<ValidatePage />} />
+      <Route path="/actions" element={<ActionsPage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />
       <Route path="/design-lab/cartograph-quiet" element={<CartographQuietPage />} />

@@ -35,6 +35,11 @@ const PROD = [
     blurb: "Structural validate — OK ≠ healthy ≠ PILOT.",
   },
   {
+    to: "/actions",
+    title: "Actions",
+    blurb: "Web action ledger — GET ≠ POST ≠ Truth Core.",
+  },
+  {
     to: "/command-center",
     title: "Command Center",
     blurb: "Mode switcher: overview · projects · ops · impact.",

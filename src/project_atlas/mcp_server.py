@@ -19,6 +19,7 @@ from project_atlas.app_service import AppService, AppServiceError, open_app_serv
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.web_actions import load_action_ledger
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
@@ -32,6 +33,11 @@ BRIEF_TRUTH_BOUNDARY = (
 VALIDATE_TRUTH_BOUNDARY = (
     "MCP VALIDATE != AUTHORITY / != PILOT / UNKNOWN VALID / NO WRITE / "
     "OK!=HEALTHY / OK!=RELEASE / VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+ACTIONS_PACKAGE_ID = "AS-CODER-ALPHA-ACTIONS-LEDGER-MCP-001"
+ACTIONS_TRUTH_BOUNDARY = (
+    "MCP ACTION LEDGER != AUTHORITY / != TRUTH CORE / UNKNOWN VALID / "
+    "GET!=POST / EMPTY!=HEALTHY / NO WRITE"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -178,6 +184,37 @@ def read_vault_validate(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_actions(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped action ledger. GET projection only; no POST."""
+    raw = load_action_ledger(service.vault)
+    transactions = list(raw.get("transactions") or [])
+    return {
+        "schema_version": 1,
+        "package_id": ACTIONS_PACKAGE_ID,
+        "truth_boundary": ACTIONS_TRUTH_BOUNDARY,
+        "transaction_count": len(transactions),
+        "transactions": transactions,
+        "ledger_package_id": raw.get("package_id"),
+        "authority": "derived",
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+            "empty_is_healthy": False,
+            "get_is_post": False,
+            "ledger_is_truth_core": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -190,6 +227,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.validate.read": lambda: read_vault_validate(service),
+        "atlas.actions.ledger.read": lambda: read_vault_actions(service),
     }
 
 

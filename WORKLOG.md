@@ -23,6 +23,19 @@ vault knowledge. `/v1/obs` remains write-on-read.
 - `D149_TOUCHED = NO`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 
+## AS-CODER-ALPHA-ACTIONS-LEDGER-MCP-001 — vault-scoped action ledger
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-f2d9`
+**Mode:** UNIQUE unused zero-arg GET wrap. Does not POST. Does not merge.
+
+### Honesty
+- `LEDGER != TRUTH CORE`
+- `GET != POST`
+- `EMPTY != HEALTHY`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
 ---
 
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
