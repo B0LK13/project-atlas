@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.provider import (
+    WebProviderError,
+    read_provider,
+    render_provider_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1823,11 +1828,13 @@ def build_parser() -> argparse.ArgumentParser:
     fed_join.add_argument("--json", action="store_true")
 
     # AS-2.0-PROV-001 — optional provider adapters (disabled by default).
+    # AS-CODER-ALPHA-PROVIDER-READ-001 — persisted report read (never generates).
     provider_parser = subparsers.add_parser(
         "provider",
         help=(
-            "Provider adapter registry and quarantine helpers "
-            "(AS-2.0-PROV-001; disabled-by-default; never authority)."
+            "Provider adapter registry, quarantine helpers, and persisted-report read "
+            "(AS-2.0-PROV-001 / AS-CODER-ALPHA-PROVIDER-READ-001; "
+            "disabled-by-default; never authority; never live SDK)."
         ),
     )
     provider_sub = provider_parser.add_subparsers(
@@ -1864,6 +1871,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Opt-in scan/quarantine path (still never promotes to authority).",
     )
     provider_quarantine.add_argument("--json", action="store_true")
+    provider_report = provider_sub.add_parser(
+        "report",
+        help=(
+            "Read persisted provider registry/quarantine reports "
+            "(AS-CODER-ALPHA-PROVIDER-READ-001; never writes; never enables "
+            "live SDKs; never calls generate)."
+        ),
+    )
+    provider_report.add_argument("--vault", type=Path, required=True)
+    provider_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the provider REPORT READ JSON to stdout.",
+    )
+    provider_show = provider_sub.add_parser(
+        "show",
+        help="Alias for `provider report` (read-only; does not write or generate).",
+    )
+    provider_show.add_argument("--vault", type=Path, required=True)
+    provider_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the provider REPORT READ JSON to stdout.",
+    )
 
     # AS-2.0-KCI-001 — consume-only compile request / receipt envelopes.
     kci_parser = subparsers.add_parser(
@@ -4419,6 +4450,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "provider":
+        if args.provider_command in {"report", "show"}:
+            try:
+                view = read_provider(args.vault)
+            except (WebProviderError, OSError) as exc:
+                _log.error("provider report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_provider_text(view), end="")
+            return EXIT_OK
         if args.provider_command == "registry":
             try:
                 adapters: list[ProviderAdapter] = []

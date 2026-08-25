@@ -7179,3 +7179,46 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## AS-CODER-ALPHA-PROVIDER-READ-001 -- vault-scoped provider REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-provider-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`. IMPLEMENTER != VERIFIER.
+
+### Why
+AS-2.0-PROV-001 already persists a disabled-by-default adapter registry
+and metadata-only quarantine envelopes. Humans and agents had no
+first-class read-only CLI/API/MCP lens, so a missing vault or empty ops
+directory could look ENABLED / healthy, and a read could accidentally
+enable live SDKs or dispatch generate.
+
+### Surfaces
+- `atlas provider report --vault <dir> [--json]` (alias: `atlas provider show`)
+- `GET /v1/provider`
+- MCP `atlas.provider.read` (zero-arg, vault-scoped, vault-read)
+- AppService `provider()` + `web_api.provider`
+- Web page skipped (would bloat)
+- Existing `atlas provider registry` / `atlas provider quarantine` writers unchanged
+
+### Honesty
+- `PROVIDER != AUTHORITY`
+- `REGISTRY != LIVE SDK`
+- `QUARANTINE != APPROVED`
+- `MISSING != ENABLED`
+- `EMPTY != HEALTHY`
+- `MCP != AUTHORITY`
+- `WRITE_APPLIED = false`
+- `D149_TOUCHED = NO`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Read never writes registry/quarantine, never enables live SDKs, never
+  dispatches generate
+
+### Out of scope
+- `atlas.obs.read` (do not implement)
+- kci / lifecycle / xproj / schema-compat / #511 (do not retouch)
+- Live SDK enablement
+- `atlas.provider.generate`

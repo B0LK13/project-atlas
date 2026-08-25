@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebProviderError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -36,6 +37,7 @@ from project_atlas.web_api import (
     read_project_brief,
     read_project_roadmap,
     read_project_state,
+    read_provider,
     read_source_health,
     read_status,
     read_vault_health,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def provider(self) -> dict[str, Any]:
+        """Vault-scoped provider registry/quarantine REPORT READ (never writes)."""
+        try:
+            return read_provider(self.vault)
+        except WebProviderError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
