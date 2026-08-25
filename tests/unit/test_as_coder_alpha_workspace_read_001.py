@@ -271,7 +271,8 @@ def test_cli_report_does_not_write(tmp_path: Path) -> None:
 
 
 def test_cli_missing_vault_exits_error(tmp_path: Path) -> None:
-    assert main(["workspace", "report", "--vault", str(tmp_path / "absent"), "--json"]) == EXIT_ERROR
+    missing = tmp_path / "absent"
+    assert main(["workspace", "report", "--vault", str(missing), "--json"]) == EXIT_ERROR
 
 
 def test_cli_workspace_names_are_free() -> None:
@@ -363,7 +364,8 @@ def test_api_existing_workspace_projection_unchanged(tmp_path: Path) -> None:
         with urlopen(Request(f"http://{host}:{port}/v1/meta", headers=auth), timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
         assert meta["workspace_live"] is True
-        with urlopen(Request(f"http://{host}:{port}/v1/workspace", headers=auth), timeout=2) as resp:
+        workspace_url = f"http://{host}:{port}/v1/workspace"
+        with urlopen(Request(workspace_url, headers=auth), timeout=2) as resp:
             body = json.loads(resp.read().decode("utf-8"))
         assert body["package_id"] == "AS-2.1-WEB-MISSION-WORKSPACE-LIVE-001"
         assert body["authentic_pilot"] is False
