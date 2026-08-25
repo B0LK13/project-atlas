@@ -54,6 +54,9 @@ RESUME_STALE_WARNING = (
     "WARNING: frozen estate at write != live estate; "
     "do not treat this pack as current"
 )
+UNBOUND_FROZEN_ESTATE = (
+    "MISSING OR MALFORMED ESTATE_BINDING != CURRENT; fail closed UNKNOWN"
+)
 
 
 class AgentHandoffError(ValueError):
@@ -198,6 +201,21 @@ def bind_estate_at_write(vault: Path, project_id: str) -> dict[str, Any]:
     }
 
 
+def _usable_frozen_binding(written: dict[str, Any] | None) -> bool:
+    """True when a write-time binding exists to compare against live estate.
+
+    A non-empty ``manifest_sha256`` is sufficient identity. An explicit
+    ``status_at_write`` without a digest still counts as a written record
+    (UNKNOWN-at-write must stay UNKNOWN). Missing/empty objects do not.
+    """
+    if not isinstance(written, dict) or not written:
+        return False
+    sha = written.get("manifest_sha256")
+    if isinstance(sha, str) and bool(sha.strip()):
+        return True
+    return written.get("status_at_write") in {"UNKNOWN", "STALE", "FRESH"}
+
+
 def evaluate_estate_currentness(
     vault: Path,
     project_id: str,
@@ -228,7 +246,12 @@ def evaluate_estate_currentness(
     notes: list[str] = []
     status = live_status
     reason_code = str(drift.get("reason_code") or "LIVE_INVENTORY")
-    if live_status in {"STALE", "UNKNOWN"}:
+    if not _usable_frozen_binding(written):
+        # Legacy / missing / malformed bindings never inherit live FRESH.
+        status = "UNKNOWN"
+        reason_code = "UNBOUND_FROZEN_ESTATE"
+        notes.append(UNBOUND_FROZEN_ESTATE)
+    elif live_status in {"STALE", "UNKNOWN"}:
         status = live_status
     elif written_status == "UNKNOWN":
         status = "UNKNOWN"
@@ -257,12 +280,16 @@ def evaluate_estate_currentness(
         "status": status,
         "is_current": is_current,
         "reason": (
-            drift.get("reason")
-            if status == live_status and live_status != "FRESH"
+            UNBOUND_FROZEN_ESTATE
+            if reason_code == "UNBOUND_FROZEN_ESTATE"
             else (
-                "frozen estate at write is not the current live estate"
-                if status == "STALE"
-                else drift.get("reason")
+                drift.get("reason")
+                if status == live_status and live_status != "FRESH"
+                else (
+                    "frozen estate at write is not the current live estate"
+                    if status == "STALE"
+                    else drift.get("reason")
+                )
             )
         ),
         "reason_code": reason_code,

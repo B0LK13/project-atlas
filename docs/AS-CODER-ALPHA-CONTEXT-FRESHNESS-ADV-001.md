@@ -22,6 +22,9 @@ frozen binding is not current, resume emits `resume_warning` (human CLI
 prints `warning:`; `--json` includes the field).
 
 D-183 recert against live main `6709ad7751f2135b507b74013808ecfe2198a3a3`.
+D-185: rebound onto post-#474 main `b2d15866622c31efd0999b320e16340711d3dba6`.
+Missing or malformed `estate_binding` is UNKNOWN / not-current and never
+inherits live FRESH.
 
 ## Honesty
 

@@ -13,6 +13,7 @@ from project_atlas.agent_handoff import (
     FROZEN_ESTATE_NOT_CURRENT,
     PACKAGE_FRESHNESS_ADV,
     RESUME_STALE_WARNING,
+    UNBOUND_FROZEN_ESTATE,
     bind_estate_at_write,
     create_handoff,
     evaluate_estate_currentness,
@@ -242,6 +243,49 @@ def test_sibling_project_rows_do_not_leak(tmp_path: Path) -> None:
     assert report["status"] == "UNKNOWN"
     assert report["honesty"]["unknown_is_healthy"] is False
     assert report["changed_paths"] == []
+
+
+def test_unbound_legacy_handoff_does_not_inherit_live_fresh(tmp_path: Path) -> None:
+    """Unbound / pre-upgrade pack must stay UNKNOWN, never inherit live FRESH."""
+    project = tmp_path / "legacy"
+    project.mkdir()
+    (project / "README.md").write_text("# Legacy\n\nv1\n", encoding="utf-8")
+    (project / "docs").mkdir()
+    (project / "docs" / "DECISIONS.md").write_text("# D\n\nKeep.\n", encoding="utf-8")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    created = create_handoff(vault, project_id, note="legacy", refresh_brief=False)
+    assert (created.get("freshness") or {}).get("status") == "FRESH"
+    pack_path = vault / created["path"]
+    payload = json.loads(pack_path.read_text(encoding="utf-8"))
+    payload.pop("estate_binding", None)
+    nested = payload.get("context")
+    if isinstance(nested, dict):
+        nested.pop("estate_binding", None)
+        payload["context"] = nested
+    pack_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    unbound = evaluate_estate_currentness(vault, project_id, frozen_binding=None)
+    assert unbound["status"] == "UNKNOWN"
+    assert unbound["is_current"] is False
+    assert unbound["reason_code"] == "UNBOUND_FROZEN_ESTATE"
+    assert UNBOUND_FROZEN_ESTATE in unbound["notes"]
+    assert unbound["honesty"]["unknown_is_fresh"] is False
+    resumed = resume_handoff(vault, handoff_id=created["handoff_id"])
+    assert resumed["status"] == "resumed"
+    assert resumed["freshness"]["status"] == "UNKNOWN"
+    assert resumed["freshness"]["is_current"] is False
+    assert resumed["estate_binding_at_write"] is None
+    assert resumed["resume_warning"] == RESUME_STALE_WARNING
+    malformed = evaluate_estate_currentness(
+        vault, project_id, frozen_binding={"manifest_sha256": ""}
+    )
+    assert malformed["status"] == "UNKNOWN"
+    assert malformed["is_current"] is False
+    assert malformed["reason_code"] == "UNBOUND_FROZEN_ESTATE"
+    empty = evaluate_estate_currentness(vault, project_id, frozen_binding={})
+    assert empty["reason_code"] == "UNBOUND_FROZEN_ESTATE"
+    assert empty["is_current"] is False
 
 
 def test_no_secret_echo_or_layer_b_writes(tmp_path: Path) -> None:

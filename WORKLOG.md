@@ -5,6 +5,23 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-185 — #471 unbound-pack + post-#474 rebind
+
+**Date:** 2026-08-25
+**Directive:** D-185
+**Rebind:** post-#474 main `b2d15866622c31efd0999b320e16340711d3dba6`
+**Mode:** Same canonical #471. MERGE_AUTHORIZATION remaining = NOT_GRANTED.
+
+### Finding
+Resume of a pack with no usable `estate_binding` inherited live FRESH when
+the current manifest matched. Codex thread: unbound legacy != current.
+
+### Fix
+`evaluate_estate_currentness` fail-closes to `UNKNOWN` /
+`UNBOUND_FROZEN_ESTATE` when frozen identity is missing or malformed.
+Resume emits `resume_warning`. Target movement vs #474: `cli.py` regions
+disjoint (attention encoding vs handoff freshness).
+
 ## D-183 — #471 recert against post-#508 main
 
 **Date:** 2026-08-25
