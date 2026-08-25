@@ -1,0 +1,200 @@
+{
+  "directive": "D-199",
+  "timestamp_utc": "2026-08-25T20:15:00Z",
+  "generation": "end-of-day-safe-stop",
+  "live_main_head": "f1b5256510cb66e037e6774aa49d753bdb7dd96f",
+  "live_main_tree": "8df56184bb25b1cf1b6a9102cf34e77248287940",
+  "active_prs": [
+    {
+      "number": 511,
+      "title": "D-193 Atlas 3.0 foundation convergence (isolated, no merge)",
+      "branch": "cursor/atlas3-foundation-convergence-b8f1",
+      "state": "OPEN",
+      "draft": true,
+      "head": "3cee22857829b6359f2b8159b8971c12fc8fe74a",
+      "tree": "9a3f7da876913c4310ff175fea8cd381b73bae1b",
+      "base_head": "f1b5256510cb66e037e6774aa49d753bdb7dd96f",
+      "code_head": "bc4f5dd9bcb7ad0c879482262aa8170dd81851bd",
+      "code_tree": "fa16373ffd97c53ce001572015d0da27ec379aa6",
+      "ci_runs": [
+        {
+          "run_id": 32894461043,
+          "head": "3cee22857829b6359f2b8159b8971c12fc8fe74a",
+          "status": "pending",
+          "note": "docs-only evidence commit; successor CI"
+        },
+        {
+          "run_id": 32893705088,
+          "head": "bc4f5dd9bcb7ad0c879482262aa8170dd81851bd",
+          "status": "in_progress",
+          "jobs_completed": ["control-plane"],
+          "jobs_pending": [
+            "quality (ubuntu-latest, 3.12, full)",
+            "quality (ubuntu-latest, 3.13, compat)",
+            "quality (windows-latest, 3.12, windows)"
+          ]
+        },
+        {
+          "run_id": 32890964673,
+          "head": "41f96d1b8e308dd2ccee66834321570c2119fbfa",
+          "status": "success",
+          "note": "historical; pre-D-197 test harness"
+        }
+      ],
+      "iv_state": "DISPATCHED_NOT_CONFIRMED",
+      "adv_state": "LOCAL_PASS_ON_bc4f5dd9_UNCERTIFIED",
+      "valid_p0": 0,
+      "valid_p1": 0,
+      "valid_p1_certification": "REMEDIATED_BUT_UNCERTIFIED",
+      "owner_ready": false,
+      "unresolved_review_threads": 0,
+      "p1_memory_routing": "REMEDIATED",
+      "p1_ledger_read_integrity": "REMEDIATED",
+      "certification": "NOT_GRANTED"
+    },
+    {
+      "number": 512,
+      "title": "D-194 Atlas Golden Estate Curator skill (DISCOVER_ONLY)",
+      "branch": "cursor/atlas-golden-estate-skill-b8f1",
+      "state": "OPEN",
+      "draft": true,
+      "head": "0c505a791d8d441e6c57ff7581b7e5202027059f",
+      "tree": "8f4710cc4cf0be902d9da564b0fd85ab365063cf",
+      "base_head": "f1b5256510cb66e037e6774aa49d753bdb7dd96f",
+      "ci_runs": [
+        {
+          "run_id": 32888254926,
+          "head": "0c505a791d8d441e6c57ff7581b7e5202027059f",
+          "status": "success"
+        }
+      ],
+      "skill_certification": "SYNTHETIC_CI_PASS",
+      "authentic_d_drive": "NOT_RUN",
+      "iv_state": "NOT_REQUESTED",
+      "adv_state": "FIXTURE_SUITE_PASS"
+    },
+    {
+      "number": 510,
+      "title": "D-191/D-192 Atlas 3.0 program inception",
+      "state": "OPEN",
+      "head": "0fd350108d4f4735eb2618a95576f720a78096b8",
+      "superseded_by": 511,
+      "unique_required_delta": "NONE"
+    }
+  ],
+  "canonical_prs": [511],
+  "superseded_prs": [510],
+  "certification_targets": {
+    "pr511": {
+      "required_head_ci": true,
+      "required_independent_iv": true,
+      "required_adv_20_control": true,
+      "merge_authorization": "NOT_GRANTED"
+    }
+  },
+  "valid_p0": 0,
+  "valid_p1": 0,
+  "valid_p1_note": "Foundation P1s remediated in code on bc4f5dd9+; exact-head IV/ADV/CI not complete on final HEAD",
+  "completed_packages": [
+    "D-196-P1-A-memory-routing",
+    "D-196-P1-B-ledger-read-integrity",
+    "D-197-test-matrices",
+    "D-197-20-control-adv-harness-local"
+  ],
+  "in_progress_packages": [
+    "D-197-exact-head-recertification",
+    "D-194-golden-estate-authentic-d-drive"
+  ],
+  "local_worktrees": [
+    {
+      "path": "D:/atlas-worktrees/d196-511",
+      "branch": "cursor/atlas3-foundation-convergence-b8f1",
+      "head": "3cee22857829b6359f2b8159b8971c12fc8fe74a",
+      "clean": true,
+      "role": "PR511 canonical mutation carrier"
+    },
+    {
+      "path": "D:/project-atlas",
+      "branch": "main",
+      "head": "f1b5256510cb66e037e6774aa49d753bdb7dd96f",
+      "uncommitted": "untracked .tmp-d170-* analysis artifacts only",
+      "role": "live main checkout"
+    }
+  ],
+  "cloud_readonly_lanes": [],
+  "ci_running": [
+    {"run_id": 32893705088, "head": "bc4f5dd9bcb7ad0c879482262aa8170dd81851bd"},
+    {"run_id": 32894461043, "head": "3cee22857829b6359f2b8159b8971c12fc8fe74a"}
+  ],
+  "ci_failed": [],
+  "ci_pending": [32893705088, 32894461043],
+  "owner_only": [
+    "PR511 merge authorization",
+    "PR510 close governance",
+    "PR512 merge authorization"
+  ],
+  "external_blocked": [],
+  "subagents": [
+    {
+      "agent_id": "fc8d2f06-dc08-4a39-a4df-20889cf108f9",
+      "role": "Independent IV PR511",
+      "package": "D-197",
+      "worktree": "D:/atlas-worktrees/d196-511",
+      "mutating": false,
+      "state": "DISPATCHED_BACKGROUND",
+      "last_confirmed_result": "UNKNOWN",
+      "remaining_action": "Re-run tomorrow on live HEAD if not completed",
+      "safe_to_stop": true
+    }
+  ],
+  "active_mutating_workers": 0,
+  "tomorrow_ready": [
+    {
+      "id": "TOMORROW_READY_1",
+      "package": "PR511 exact-head recertification",
+      "dependencies": ["overnight CI terminal on 3cee2285 / bc4f5dd9"],
+      "can_run_local": true,
+      "can_run_cloud": true,
+      "mutating": false,
+      "owner_dependency": false,
+      "external_dependency": false,
+      "exact_starting_head": "RECONCILE_LIVE_THEN_BIND"
+    },
+    {
+      "id": "TOMORROW_READY_2",
+      "package": "PR511 independent IV + 20-control ADV on exact HEAD",
+      "dependencies": ["TOMORROW_READY_1 CI green or failure triage"],
+      "can_run_local": true,
+      "can_run_cloud": true,
+      "mutating": false,
+      "owner_dependency": false,
+      "external_dependency": false,
+      "exact_starting_head": "RECONCILE_LIVE_THEN_BIND"
+    },
+    {
+      "id": "TOMORROW_READY_3",
+      "package": "PR512 authentic D:\\ Golden Estate discovery (Local Windows)",
+      "dependencies": ["Windows agent", "PR512 HEAD 0c505a79"],
+      "can_run_local": true,
+      "can_run_cloud": false,
+      "mutating": false,
+      "owner_dependency": false,
+      "external_dependency": false,
+      "exact_starting_head": "0c505a791d8d441e6c57ff7581b7e5202027059f"
+    }
+  ],
+  "evidence_paths": [
+    "docs/evidence/D-197-RETURN-PACKET.md",
+    "docs/evidence/D-199-END-OF-DAY-HANDOFF.md",
+    ".atlas/night-cycle/end-of-day.json"
+  ],
+  "resume_instructions": [
+    "RECONCILE LIVE GIT (main, PR511, PR512 heads)",
+    "READ .atlas/night-cycle/end-of-day.json",
+    "VERIFY checkpoint against live git; invalidate stale SHAs",
+    "Inspect overnight CI runs 32894461043 and 32893705088",
+    "If code HEAD unchanged at bc4f5dd9+, rerun IV/ADV; if HEAD moved, recertify fresh",
+    "Do not resume AT3-014 persistence expansion until PR511 certified"
+  ],
+  "merge_authorization": "NOT_GRANTED"
+}
