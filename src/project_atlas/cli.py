@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.mission_read import (
+    WebMissionReadError,
+    read_mission_view,
+    render_mission_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2055,6 +2060,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bound subject+field fanout (default 500; max 5000).",
     )
     kdiff_parser.add_argument("--json", action="store_true")
+    # AS-CODER-ALPHA-MISSION-READ-001 -- vault-scoped GET /v1/mission wrap.
+    mission_parser = subparsers.add_parser(
+        "mission",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of the GET /v1/mission derived view "
+            "(AS-CODER-ALPHA-MISSION-READ-001; never writes; "
+            "MISSION != AUTHORITY; VIEW != TRUTH CORE)."
+        ),
+    )
+    mission_sub = mission_parser.add_subparsers(dest="mission_command", required=True)
+    mission_report = mission_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read the vault-scoped GET /v1/mission derived view "
+            "(never writes mission state; EMPTY != HEALTHY; UNKNOWN != HEALTHY)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas mission report --vault /path/to/vault\n"
+            "  atlas mission report --vault /path/to/vault --json"
+        ),
+    )
+    mission_report.add_argument("--vault", type=Path, required=True)
+    mission_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the mission REPORT READ JSON to stdout.",
+    )
+    mission_show = mission_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `mission report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas mission show --vault /path/to/vault\n"
+            "  atlas mission show --vault /path/to/vault --json"
+        ),
+    )
+    mission_show.add_argument("--vault", type=Path, required=True)
+    mission_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the mission REPORT READ JSON to stdout.",
+    )
     # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler).
     ask2_parser = subparsers.add_parser(
         "ask2",
@@ -4649,6 +4700,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"truncated: {report['truncated']}")
             print(f"truth_boundary: {report['truth_boundary']}")
         return EXIT_OK
+    if args.command == "mission":
+        if args.mission_command in {"report", "show"}:
+            try:
+                view = read_mission_view(args.vault)
+            except (WebMissionReadError, OSError) as exc:
+                _log.error("mission report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_mission_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown mission command: {args.mission_command}"
+        )
     if args.command == "ask2":
         kinds = tuple(args.kind_args) if args.kind_args else ("concept", "claim")
         try:

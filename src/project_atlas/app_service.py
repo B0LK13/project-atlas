@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebMissionReadError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -31,6 +32,7 @@ from project_atlas.web_api import (
     read_intelligence_evidence,
     read_intelligence_explain,
     read_intelligence_query,
+    read_mission_view,
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def mission_view(self) -> dict[str, Any]:
+        """Vault-scoped GET /v1/mission wrap. Never writes mission state."""
+        try:
+            return read_mission_view(self.vault)
+        except WebMissionReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

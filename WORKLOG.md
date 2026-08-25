@@ -7179,3 +7179,42 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## AS-CODER-ALPHA-MISSION-READ-001 -- vault-scoped mission REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-mission-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`. IMPLEMENTER != VERIFIER.
+
+### Why
+`GET /v1/mission` already composes the AS-2.1 live mission derived view
+(`authentic_pilot=false`, empty PILOT rows). Humans and agents had no
+first-class zero-arg vault-scoped wrap, so an empty or unknown mission
+board could look healthy or authoritative.
+
+### Surfaces
+- `atlas mission report --vault <dir> [--json]` (alias: `atlas mission show`)
+- `GET /v1/mission/report` (honesty wrap; does not replace `GET /v1/mission`)
+- MCP `atlas.mission.read` (zero-arg, vault-scoped, vault-read)
+- AppService `mission_view()` + `web_api.mission_read`
+- Web page skipped (existing `/v1/mission` already owns the live view)
+
+### Honesty
+- `MISSION != AUTHORITY`
+- `VIEW != TRUTH CORE`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != HEALTHY`
+- `MCP != AUTHORITY`
+- `WRITE_APPLIED = false`
+- `D149_TOUCHED = NO`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Read never writes mission state
+- Read never invents PILOT rows
+
+### Local verification
+- Focused package tests: pending at commit (run after push of implementation)
+- IMPLEMENTER != VERIFIER
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
