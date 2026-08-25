@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.intelligence_read import (
+    WebIntelligenceReadError,
+    read_intelligence_index,
+    render_intelligence_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2055,6 +2060,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bound subject+field fanout (default 500; max 5000).",
     )
     kdiff_parser.add_argument("--json", action="store_true")
+    # AS-CODER-ALPHA-INTELLIGENCE-READ-001 -- vault-scoped intelligence route index.
+    intelligence_parser = subparsers.add_parser(
+        "intelligence",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only derived intelligence route index "
+            "(AS-CODER-ALPHA-INTELLIGENCE-READ-001; never writes; "
+            "INTELLIGENCE != AUTHORITY)."
+        ),
+    )
+    intelligence_sub = intelligence_parser.add_subparsers(
+        dest="intelligence_command", required=True
+    )
+    intelligence_report = intelligence_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read the vault-scoped /v1/intelligence route index "
+            "(never writes Layer B; never computes evidence/conflicts/explain/query)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas intelligence report --vault /path/to/vault\n"
+            "  atlas intelligence report --vault /path/to/vault --json"
+        ),
+    )
+    intelligence_report.add_argument("--vault", type=Path, required=True)
+    intelligence_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the intelligence REPORT READ JSON to stdout.",
+    )
+    intelligence_show = intelligence_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `intelligence report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas intelligence show --vault /path/to/vault\n"
+            "  atlas intelligence show --vault /path/to/vault --json"
+        ),
+    )
+    intelligence_show.add_argument("--vault", type=Path, required=True)
+    intelligence_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the intelligence REPORT READ JSON to stdout.",
+    )
     # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler).
     ask2_parser = subparsers.add_parser(
         "ask2",
@@ -4649,6 +4702,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"truncated: {report['truncated']}")
             print(f"truth_boundary: {report['truth_boundary']}")
         return EXIT_OK
+    if args.command == "intelligence":
+        if args.intelligence_command in {"report", "show"}:
+            try:
+                view = read_intelligence_index(args.vault)
+            except (WebIntelligenceReadError, OSError) as exc:
+                _log.error("intelligence report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_intelligence_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown intelligence command: {args.intelligence_command}"
+        )
     if args.command == "ask2":
         kinds = tuple(args.kind_args) if args.kind_args else ("concept", "claim")
         try:

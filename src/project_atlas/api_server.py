@@ -347,6 +347,18 @@ def make_handler(
                 except ValueError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/intelligence":
+                try:
+                    self._send(200, service.intelligence_index())
+                except AppServiceError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-INTELLIGENCE-READ-001",
+                        },
+                    )
+                return
             if path in {
                 "/v1/intelligence/evidence",
                 "/v1/intelligence/conflicts",

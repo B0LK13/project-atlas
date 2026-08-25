@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebIntelligenceReadError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -30,6 +31,7 @@ from project_atlas.web_api import (
     read_intelligence_conflicts,
     read_intelligence_evidence,
     read_intelligence_explain,
+    read_intelligence_index,
     read_intelligence_query,
     read_portfolio_state,
     read_project_attention,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def intelligence_index(self) -> dict[str, Any]:
+        """Vault-scoped intelligence route index (never writes Layer B)."""
+        try:
+            return read_intelligence_index(self.vault)
+        except WebIntelligenceReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

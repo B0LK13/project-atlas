@@ -7179,3 +7179,36 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-INTELLIGENCE-READ-001 -- vault-scoped intelligence REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-intel-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`. IMPLEMENTER != VERIFIER.
+
+### Why
+`/v1/intelligence/{evidence,conflicts,explain,query}` already exist as
+project-scoped derived readers. Humans and agents had no first-class
+zero-arg vault-scoped index, so a missing or empty vault could look
+healthy, and a read could look like Truth Core.
+
+### Surfaces
+- `atlas intelligence report --vault <dir> [--json]` (alias: `atlas intelligence show`)
+- `GET /v1/intelligence` (index/status; does not collide with sub-routes)
+- MCP `atlas.intelligence.read` (zero-arg, vault-scoped)
+- AppService `intelligence_index()` + `web_api.intelligence_read`
+- Web page skipped (existing `#/intelligence` already owns the views)
+
+### Honesty
+- `INTELLIGENCE != AUTHORITY`
+- `GRAPH != AUTHORITY`
+- `DERIVED != TRUTH CORE`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != HEALTHY`
+- `MCP != AUTHORITY`
+- `WRITE_APPLIED = false`
+- `D149_TOUCHED = NO`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Read never computes evidence/conflicts/explain/query answers
+- Read never writes Layer B
