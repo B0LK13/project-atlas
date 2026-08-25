@@ -268,6 +268,19 @@ def make_handler(
                     },
                 )
                 return
+            if path == "/v1/doctor":
+                try:
+                    self._send(200, service.doctor())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/obsidian":
+                project_filter = (qs.get("project") or [""])[0] or None
+                try:
+                    self._send(200, service.obsidian(project_filter))
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/brief":
                 project = (qs.get("project") or [""])[0]
                 if not project:

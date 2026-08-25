@@ -6997,3 +6997,60 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-DOCTOR-MCP-001 — vault-scoped doctor read
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0325
+**Branch:** `cursor/atlas-autonomous-night-cycle-5723`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149 / #483. Does not merge.
+
+### Why
+Main MCP still only exposed brief + ops/knowledge/explain/projects. `atlas
+doctor` already exists as a write-free CLI; agents and Web could not read the
+same checks without inventing a repair/grant path.
+
+### Scope
+- Zero-arg `atlas.doctor.read` MCP tool
+- `GET /v1/doctor`
+- Web `#/doctor`
+- Host-absolute vault paths redacted from the projection
+- Honesty-close stale backlog checkboxes for incremental-connect and D-044 HIGH (already on main)
+
+### Honesty
+- `DOCTOR != AUTHORITY`
+- `UNKNOWN != HEALTHY`
+- `OWNER_GATE_GRANT = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+
+---
+
+## AS-CODER-ALPHA-OBSIDIAN-READ-001 — vault-scoped living-note inventory
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0325 successor
+**Branch:** `cursor/atlas-autonomous-night-cycle-5723`
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149 / #483. Does not merge.
+
+### Why
+`atlas obsidian project` writes living notes; agents and Web could not list
+existing projections without triggering materialization.
+
+### Scope
+- Zero-arg `atlas.obsidian.read`
+- `GET /v1/obsidian` (+ optional `?project=`)
+- Web `#/obsidian`
+- CLI `atlas obsidian list` (read-only; `project` unchanged)
+- Human-region text is not echoed
+
+### Honesty
+- `PROJECTION != AUTHORITY`
+- `PROJECTION != PLUGIN`
+- `MCP != WRITE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

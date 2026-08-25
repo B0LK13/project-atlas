@@ -18,12 +18,16 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebDoctorError,
     WebIntelligenceError,
+    WebObsidianError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
     impact_graph_summary,
+    list_doctor,
     list_knowledge_answers,
+    list_obsidian_notes,
     list_project_conflicts,
     list_projects,
     load_estate_discovery_view,
@@ -115,6 +119,20 @@ class AppService:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc
+
+    def doctor(self) -> dict[str, Any]:
+        """Vault-scoped doctor projection (read-only; DOCTOR != authority)."""
+        try:
+            return list_doctor(self.vault)
+        except WebDoctorError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def obsidian(self, project_id: str | None = None) -> dict[str, Any]:
+        """Vault-scoped living-note inventory (read-only; never materializes)."""
+        try:
+            return list_obsidian_notes(self.vault, project_id=project_id)
+        except WebObsidianError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def graph_summary(self) -> dict[str, Any]:
         summary = impact_graph_summary(self.vault)

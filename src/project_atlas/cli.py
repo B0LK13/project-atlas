@@ -265,6 +265,7 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.obsidian import WebObsidianError, list_obsidian_notes
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -352,7 +353,10 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "brief",
         "source-health",
         "obsidian",
-    }:
+    } and not (
+        getattr(args, "command", None) == "obsidian"
+        and getattr(args, "obsidian_command", None) == "list"
+    ):
         projects = getattr(args, "projects", None)
         if projects is None and getattr(args, "project", None) in {None, ""}:
             only = resolve_bound_project_id(vault=getattr(args, "vault", None))
@@ -1047,8 +1051,9 @@ def build_parser() -> argparse.ArgumentParser:
     obsidian_parser = subparsers.add_parser(
         "obsidian",
         help=(
-            "Materialize living Obsidian projections from Core "
-            "(AS-CODER-ALPHA-OBSIDIAN-001; derived!=plugin!=authority)."
+            "List or materialize living Obsidian projections from Core "
+            "(AS-CODER-ALPHA-OBSIDIAN-001 / OBSIDIAN-READ-001; "
+            "derived!=plugin!=authority)."
         ),
     )
     obsidian_sub = obsidian_parser.add_subparsers(dest="obsidian_command", required=True)
@@ -1064,6 +1069,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not refresh underlying brief/lenses before projecting.",
     )
     obsidian_project.add_argument("--json", action="store_true", dest="as_json")
+    obsidian_list = obsidian_sub.add_parser(
+        "list",
+        help="Read-only inventory of existing living notes (does not materialize).",
+    )
+    obsidian_list.add_argument("--vault", type=Path, default=None)
+    obsidian_list.add_argument("--project", default=None)
+    obsidian_list.add_argument("--json", action="store_true", dest="as_json")
 
     review_parser = subparsers.add_parser(
         "review",
@@ -3415,6 +3427,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "obsidian":
+        if args.obsidian_command == "list":
+            if args.vault is None:
+                _log.error("obsidian list failed: vault required")
+                return EXIT_ERROR
+            try:
+                report = list_obsidian_notes(args.vault, project_id=args.project)
+            except (WebObsidianError, OSError, ValueError) as exc:
+                _log.error("obsidian list failed: %s", exc)
+                return EXIT_ERROR
+            if args.as_json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                print(f"atlas obsidian list [{report.get('note_count', 0)}]")
+                if not report.get("notes"):
+                    print("  UNKNOWN — no living notes. Run atlas obsidian project.")
+                for row in report.get("notes") or []:
+                    human = " human" if row.get("has_human_notes") else ""
+                    print(
+                        f"  {row.get('project_id')}  {row.get('path')}{human}"
+                    )
+            return EXIT_OK
         try:
             report = materialize_obsidian_projection(
                 args.vault,

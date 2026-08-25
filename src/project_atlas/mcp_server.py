@@ -19,10 +19,18 @@ from project_atlas.app_service import AppService, AppServiceError, open_app_serv
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.web_api.doctor import PACKAGE_ID as DOCTOR_PACKAGE_ID
+from project_atlas.web_api.doctor import TRUTH_BOUNDARY as DOCTOR_TRUTH_BOUNDARY
+from project_atlas.web_api.doctor import WebDoctorError, list_doctor
+from project_atlas.web_api.obsidian import PACKAGE_ID as OBSIDIAN_PACKAGE_ID
+from project_atlas.web_api.obsidian import TRUTH_BOUNDARY as OBSIDIAN_TRUTH_BOUNDARY
+from project_atlas.web_api.obsidian import WebObsidianError, list_obsidian_notes
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+DOCTOR_MCP_PACKAGE_ID = DOCTOR_PACKAGE_ID
+OBSIDIAN_MCP_PACKAGE_ID = OBSIDIAN_PACKAGE_ID
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -134,6 +142,74 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_doctor(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped doctor read. Does not write or grant gates."""
+    try:
+        report = list_doctor(service.vault)
+    except (AppServiceError, WebDoctorError):
+        report = {
+            "schema_version": 1,
+            "package_id": DOCTOR_MCP_PACKAGE_ID,
+            "truth_boundary": DOCTOR_TRUTH_BOUNDARY,
+            "rollup": "unknown",
+            "ok": False,
+            "check_count": 0,
+            "checks": [],
+            "available": False,
+            "authority": False,
+            "honesty": {
+                "unknown_is_valid": True,
+                "mcp_is_authority": False,
+                "unknown_equals_healthy": False,
+                "fabricated_fields": False,
+                "owner_gate_grant": False,
+            },
+        }
+    payload = dict(report)
+    payload["package_id"] = DOCTOR_MCP_PACKAGE_ID
+    payload["truth_boundary"] = DOCTOR_TRUTH_BOUNDARY
+    honesty = dict(payload.get("honesty") or {})
+    honesty["mcp_is_authority"] = False
+    honesty["request_contains_project"] = False
+    honesty["zero_arg_vault_scope"] = True
+    honesty["owner_gate_grant"] = False
+    payload["honesty"] = honesty
+    return payload
+
+
+def read_vault_obsidian(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped living-note read. Does not materialize notes."""
+    try:
+        report = list_obsidian_notes(service.vault)
+    except (AppServiceError, WebObsidianError):
+        report = {
+            "schema_version": 1,
+            "package_id": OBSIDIAN_MCP_PACKAGE_ID,
+            "truth_boundary": OBSIDIAN_TRUTH_BOUNDARY,
+            "project_id": None,
+            "note_count": 0,
+            "notes": [],
+            "available": False,
+            "honesty": {
+                "unknown_is_valid": True,
+                "mcp_is_authority": False,
+                "fabricated_fields": False,
+                "materialize_or_write": False,
+                "plugin_shipped": False,
+            },
+        }
+    payload = dict(report)
+    payload["package_id"] = OBSIDIAN_MCP_PACKAGE_ID
+    payload["truth_boundary"] = OBSIDIAN_TRUTH_BOUNDARY
+    honesty = dict(payload.get("honesty") or {})
+    honesty["mcp_is_authority"] = False
+    honesty["request_contains_project"] = False
+    honesty["zero_arg_vault_scope"] = True
+    honesty["materialize_or_write"] = False
+    payload["honesty"] = honesty
+    return payload
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +221,8 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.doctor.read": lambda: read_vault_doctor(service),
+        "atlas.obsidian.read": lambda: read_vault_obsidian(service),
     }
 
 

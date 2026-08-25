@@ -6,6 +6,8 @@ const PROD_LINKS = [
   { to: "/discovery", label: "Discovery" },
   { to: "/knowledge", label: "Knowledge" },
   { to: "/intelligence", label: "Intelligence" },
+  { to: "/doctor", label: "Doctor" },
+  { to: "/obsidian", label: "Obsidian" },
   { to: "/context", label: "Context" },
   { to: "/ask", label: "Ask" },
   { to: "/time-machine", label: "Time Machine" },
@@ -21,6 +23,7 @@ const PROD_LINKS = [
 const PROJECT_AWARE_PATHS = new Set([
   "/knowledge",
   "/intelligence",
+  "/obsidian",
   "/context",
   "/ask",
   "/time-machine",

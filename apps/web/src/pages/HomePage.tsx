@@ -54,6 +54,16 @@ const PROD = [
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",
   },
+  {
+    to: "/doctor",
+    title: "Doctor",
+    blurb: "Read-only atlas doctor projection — DOCTOR≠authority.",
+  },
+  {
+    to: "/obsidian",
+    title: "Obsidian",
+    blurb: "Read-only living-note inventory — PROJECTION≠plugin.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

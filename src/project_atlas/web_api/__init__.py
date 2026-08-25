@@ -19,6 +19,7 @@ from project_atlas.web_api.brief import (
 )
 from project_atlas.web_api.conflicts import list_project_conflicts
 from project_atlas.web_api.discovery import load_estate_discovery_view
+from project_atlas.web_api.doctor import WebDoctorError, list_doctor
 from project_atlas.web_api.graph import impact_graph_summary, read_impact_graph
 from project_atlas.web_api.health import (
     OBS_HEALTH_SNAPSHOT_RELATIVE,
@@ -38,6 +39,7 @@ from project_atlas.web_api.intelligence import (
     read_project_state,
 )
 from project_atlas.web_api.knowledge import KnowledgeAnswerSummary, list_knowledge_answers
+from project_atlas.web_api.obsidian import WebObsidianError, list_obsidian_notes
 from project_atlas.web_api.projects import ProjectSummary, list_projects
 from project_atlas.web_api.roadmap import WebRoadmapError, read_project_roadmap
 from project_atlas.web_api.source_health import (
@@ -52,12 +54,16 @@ __all__ = [
     "ReadStatus",
     "VaultHealthView",
     "WebBriefError",
+    "WebDoctorError",
     "WebIntelligenceError",
+    "WebObsidianError",
     "WebRoadmapError",
     "WebSourceHealthError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
+    "list_doctor",
     "list_knowledge_answers",
+    "list_obsidian_notes",
     "list_project_conflicts",
     "list_projects",
     "load_estate_discovery_view",
