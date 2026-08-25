@@ -17,7 +17,7 @@ from project_atlas.atlas3.contracts import (
     require_vault,
     write_json_atomic,
 )
-from project_atlas.atlas3.events import normalize_engineering_event
+from project_atlas.atlas3.events import normalize_engineering_event, verify_engineering_event
 
 PACKAGE_ID: Final[str] = "AT3-014"
 LEDGER_RELATIVE: Final[Path] = OPS_RELATIVE / "ledger"
@@ -91,15 +91,34 @@ def query_events(
     if not path.is_file():
         return []
     rows: list[dict[str, Any]] = []
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    seen: dict[str, str] = {}
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not raw_line.strip():
             continue
         try:
             item = json.loads(raw_line)
         except json.JSONDecodeError as exc:
             raise Atlas3Error("LEDGER_CORRUPT", f"malformed ledger line: {exc}") from exc
-        if not isinstance(item, dict):
-            raise Atlas3Error("LEDGER_CORRUPT", "ledger line is not an object")
+        try:
+            verify_engineering_event(item, expected_project_id=pid)
+        except Atlas3Error as exc:
+            if exc.code == "PROJECT_MISMATCH":
+                raise Atlas3Error(
+                    "PROJECT_MISMATCH",
+                    f"foreign project row at line {line_number}",
+                ) from exc
+            raise
+        event_id = str(item["event_id"])
+        content_hash = str(item["content_hash"])
+        prior = seen.get(event_id)
+        if prior is not None:
+            if prior == content_hash:
+                continue
+            raise Atlas3Error(
+                "EVENT_ID_COLLISION",
+                f"event_id {event_id!r} reused with altered payload at line {line_number}",
+            )
+        seen[event_id] = content_hash
         if kind is not None and item.get("kind") != kind:
             continue
         if event_type is not None and item.get("event_type") != event_type:

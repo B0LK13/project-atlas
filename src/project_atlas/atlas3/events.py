@@ -184,6 +184,36 @@ def normalize_engineering_event(
     return body
 
 
+def _body_for_hash(record: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in record.items() if key not in {"event_id", "content_hash"}}
+
+
+def verify_engineering_event(record: dict[str, Any], *, expected_project_id: str) -> None:
+    """Fail-closed read-path validation for ledger rows."""
+    if not isinstance(record, dict):
+        raise Atlas3Error("LEDGER_CORRUPT", "ledger line is not an object")
+    if record.get("schema") != SCHEMA_NAME:
+        raise Atlas3Error("LEDGER_SCHEMA_INVALID", "engineering event schema mismatch")
+    schema_version = record.get("schema_version")
+    if schema_version not in {1, "1"}:
+        raise Atlas3Error("LEDGER_SCHEMA_INVALID", "unsupported schema_version")
+    pid = str(record.get("project_id") or "")
+    if pid != expected_project_id:
+        raise Atlas3Error("PROJECT_MISMATCH", "ledger row project_id does not match scope")
+    event_id = str(record.get("event_id") or "")
+    if not event_id:
+        raise Atlas3Error("LEDGER_SCHEMA_INVALID", "event_id is required")
+    event_type = str(record.get("event_type") or "")
+    if event_type not in EVENT_TYPES:
+        raise Atlas3Error("LEDGER_SCHEMA_INVALID", f"unsupported event_type {event_type!r}")
+    digest = str(record.get("content_hash") or "")
+    if not digest.startswith("sha256:"):
+        raise Atlas3Error("LEDGER_SCHEMA_INVALID", "content_hash is required")
+    expected_digest = _canonical_hash(_body_for_hash(record))
+    if digest != expected_digest:
+        raise Atlas3Error("CONTENT_HASH_MISMATCH", "engineering event content_hash mismatch")
+
+
 def ingest_existing_agent_event(raw: dict[str, Any], *, project_id: str) -> dict[str, Any]:
     """Wrap a landed AgentEvent-shaped dict. Does not mutate the source."""
     if not isinstance(raw, dict):

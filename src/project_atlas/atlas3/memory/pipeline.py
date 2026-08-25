@@ -16,6 +16,10 @@ from project_atlas.atlas3.memory.compiler import next_agent_must_not_claim_pg16,
 from project_atlas.atlas3.memory.extract import extract_items
 from project_atlas.atlas3.memory.normalize import normalize_turns
 from project_atlas.atlas3.memory.reconcile import reconcile_memories
+from project_atlas.atlas3.memory.routing import (
+    assert_items_project_scope,
+    assert_turns_project_scope,
+)
 from project_atlas.atlas3.memory.search import search_memory
 
 
@@ -28,6 +32,7 @@ def ingest_provider_turns(
     import_mode: str = "EXPORT",
     owner_origin: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
+    assert_turns_project_scope(turns, project_id=project_id)
     envelopes = normalize_turns(
         turns,
         provider=provider,
@@ -49,6 +54,7 @@ def run_memory_vertical(
 ) -> dict[str, Any]:
     root = require_vault(vault)
     pid = require_project(root, project_id)
+    assert_items_project_scope(provider_items, project_id=pid)
     reconciled = reconcile_memories(
         provider_items,
         stronger_evidence=stronger_evidence,
