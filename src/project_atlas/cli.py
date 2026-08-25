@@ -114,6 +114,11 @@ from project_atlas.graph_resolution import (
     write_resolution_outputs,
 )
 from project_atlas.human_loop import HumanLoopError, apply_review_decision
+from project_atlas.index_status import (
+    IndexStatusError,
+    build_index_status,
+    render_index_status_text,
+)
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.kci import (
@@ -320,6 +325,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "inbox",
         "obsidian",
         "review",
+        "index-status",
     }:
         args.vault = resolve_bound_vault()
     # Single-project commands
@@ -598,6 +604,26 @@ def build_parser() -> argparse.ArgumentParser:
         "build-indexes", help="Build deterministic lexical indexes under generated/ (FR-010)."
     )
     indexes_parser.add_argument("--vault", type=Path, required=True)
+
+    index_status_parser = subparsers.add_parser(
+        "index-status",
+        help=(
+            "Read lexical index readiness under generated/indexes/ "
+            "(AS-CODER-ALPHA-INDEX-STATUS-001; UNKNOWN != HEALTHY)."
+        ),
+    )
+    index_status_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help="Vault directory (default: .atlas/connect.json bind / .atlas-vault).",
+    )
+    index_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the index-status JSON to stdout (sorted keys).",
+    )
 
     portfolio_parser = subparsers.add_parser(
         "build-portfolio",
@@ -3498,6 +3524,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"migrated claims: {result['migrated_claims']}")
         if "receipt" in result:
             print(f"receipt: {result['receipt']}")
+        return EXIT_OK
+
+    if args.command == "index-status":
+        try:
+            vault = args.vault
+            if vault is None:
+                raise IndexStatusError("index-status-vault-missing")
+            report = build_index_status(vault)
+        except (IndexStatusError, OSError) as exc:
+            _log.error("index-status failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_index_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "validate":

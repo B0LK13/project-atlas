@@ -71,6 +71,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha project briefs (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.indexes.status.read",
+        "vault-read",
+        True,
+        "allow-list candidate; vault-scoped lexical index readiness (read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

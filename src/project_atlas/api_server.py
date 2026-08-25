@@ -497,6 +497,7 @@ def make_handler(
                 "/v1/health": lambda: service.health(),
                 "/v1/graph": lambda: service.graph_summary(),
                 "/v1/snapshot": lambda: service.snapshot(),
+                "/v1/index-status": lambda: service.index_status(),
                 "/v1/actions": lambda: load_action_ledger(service.vault),
                 "/v1/mcp/tools": lambda: list_mcp_tools(operator=operator),
                 "/v1/obs": lambda: build_live_observability_receipt(
@@ -525,6 +526,7 @@ def make_handler(
                     "conflicts_live": True,
                     "intelligence_live": True,
                     "kdiff_live": True,
+                    "index_status_live": True,
                     "brief_live": True,
                     "source_health_live": True,
                     "discovery_live": True,

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.index_status import IndexStatusError, build_index_status
 from project_atlas.knowledge_diff import (
     KnowledgeDiffError,
     diff_knowledge,
@@ -261,6 +262,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def index_status(self) -> dict[str, Any]:
+        """Vault-scoped index-status read (AS-CODER-ALPHA-INDEX-STATUS-001)."""
+        try:
+            return build_index_status(self.vault)
+        except IndexStatusError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
