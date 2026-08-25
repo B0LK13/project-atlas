@@ -23,11 +23,17 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+PORTFOLIO_PACKAGE_ID = "AS-CODER-ALPHA-PORTFOLIO-INDEX-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
+PORTFOLIO_TRUTH_BOUNDARY = (
+    "MCP PORTFOLIO != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != IMPLICIT-ALL / EMPTY-ARG PORTFOLIO-STATE FORBIDDEN"
+)
+_PORTFOLIO_PROJECT_ID_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
 _ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool"})
@@ -134,6 +140,81 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def _portfolio_honesty() -> dict[str, Any]:
+    return {
+        "lens_is_authority": False,
+        "mcp_is_authority": False,
+        "unknown_is_valid": True,
+        "fabricated_fields": False,
+        "request_contains_project": False,
+        "zero_arg_vault_scope": True,
+        "portfolio_implicit_all": False,
+        "empty_arg_portfolio_state": False,
+        "auto_execution": False,
+        "owner_capability_granted": False,
+        "authentic_pilot": False,
+    }
+
+
+def read_vault_portfolio_state(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped portfolio read. Enumerates projects first.
+
+    Never calls ``portfolio_state()`` with an empty id tuple (UNSUPPORTED_SCOPE).
+    Invalid project tokens are skipped, not invented.
+    """
+    ids: list[str] = []
+    skipped: list[str] = []
+    seen: set[str] = set()
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+        if not _PORTFOLIO_PROJECT_ID_RE.fullmatch(pid):
+            skipped.append(pid)
+            continue
+        ids.append(pid)
+    ids.sort()
+    skipped.sort()
+    if not ids:
+        return {
+            "schema_version": 1,
+            "package_id": PORTFOLIO_PACKAGE_ID,
+            "truth_boundary": PORTFOLIO_TRUTH_BOUNDARY,
+            "project_count": 0,
+            "project_ids": [],
+            "skipped_invalid_ids": skipped,
+            "portfolio": None,
+            "available": False,
+            "honesty": _portfolio_honesty(),
+        }
+    try:
+        portfolio = service.portfolio_state(tuple(ids))
+    except AppServiceError:
+        return {
+            "schema_version": 1,
+            "package_id": PORTFOLIO_PACKAGE_ID,
+            "truth_boundary": PORTFOLIO_TRUTH_BOUNDARY,
+            "project_count": len(ids),
+            "project_ids": ids,
+            "skipped_invalid_ids": skipped,
+            "portfolio": None,
+            "available": False,
+            "honesty": _portfolio_honesty(),
+        }
+    return {
+        "schema_version": 1,
+        "package_id": PORTFOLIO_PACKAGE_ID,
+        "truth_boundary": PORTFOLIO_TRUTH_BOUNDARY,
+        "project_count": len(ids),
+        "project_ids": ids,
+        "skipped_invalid_ids": skipped,
+        "portfolio": portfolio,
+        "available": True,
+        "honesty": _portfolio_honesty(),
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +226,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.portfolio.state.read": lambda: read_vault_portfolio_state(service),
     }
 
 

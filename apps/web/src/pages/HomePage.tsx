@@ -54,6 +54,11 @@ const PROD = [
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",
   },
+  {
+    to: "/portfolio",
+    title: "Portfolio",
+    blurb: "Vault-scoped portfolio state — PORTFOLIO≠authority.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

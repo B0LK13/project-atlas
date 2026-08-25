@@ -6997,3 +6997,32 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-PORTFOLIO-INDEX-001 — vault-scoped portfolio index
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle
+**Branch:** `cursor/atlas-autonomous-night-cycle-ae6a`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** UNIQUE UNUSED WRAP. Does not grant merge. Does not claim authentic O2. Does not touch D-149.
+
+### Live-state note
+D-149 remains draft `#483`. `#478`–`#494` already wrap other Coder Alpha surfaces. This package is the unused vault-scoped portfolio compose: `#/portfolio` + `atlas.portfolio.state.read` over existing `/v1/projects` + `/v1/portfolio-state`.
+
+### Scope
+- Web `#/portfolio` enumerates read-status projects, then GETs `/v1/portfolio-state` with those explicit ids
+- MCP `atlas.portfolio.state.read` is zero-arg and enumerates `projects/` the same way
+- Empty vault / demo stub does not fabricate a portfolio body
+- Empty-arg `/v1/portfolio-state` remains `UNSUPPORTED_SCOPE`
+- No `/v1/portfolio` protocol
+
+### Honesty
+- `PORTFOLIO != AUTHORITY`
+- `UI != CANONICAL`
+- `MCP != AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN` (`AUTHENTIC_ESTATE_ROOT` unset)

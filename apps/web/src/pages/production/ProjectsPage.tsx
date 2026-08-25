@@ -58,6 +58,8 @@ export default function ProjectsPage() {
                       <Link to={`/time-machine?project=${encodeURIComponent(id)}`}>
                         Time Machine
                       </Link>
+                      {" · "}
+                      <Link to="/portfolio">Portfolio</Link>
                     </span>
                   </li>
                 );
