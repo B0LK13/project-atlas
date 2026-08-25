@@ -201,6 +201,7 @@ def test_other_credential_remains_blocked(tmp_path: Path) -> None:
 
 
 def test_estate_dep_consumed_other_deps_preserved(tmp_path: Path) -> None:
+    """D149-001 CASE C: estate + HUMAN_APPROVAL must not widen gate to NONE."""
     estate = _init_estate(tmp_path / "estate")
     root = _init_atlas_repo(tmp_path, estate)
     persist_nodes(
@@ -217,6 +218,8 @@ def test_estate_dep_consumed_other_deps_preserved(tmp_path: Path) -> None:
     after = load_nodes(root)["mixed"]
     assert after.DEPENDENCIES == ["HUMAN_APPROVAL"]
     assert "AUTHENTIC_ESTATE_ROOT" not in after.DEPENDENCIES
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert after.OWNER_GATE != "NONE"
     assert after.status == "BLOCKED_OWNER"
 
 
@@ -738,3 +741,220 @@ def test_reconciler_preserves_superseded_non_estate_credential(tmp_path: Path) -
     assert after.OWNER_GATE == "CREDENTIAL"
     assert after.DEPENDENCIES == ["SOME_OTHER_CREDENTIAL"]
     assert "AUTHENTIC_ESTATE_ROOT" not in after.DEPENDENCIES
+
+# ---------------------------------------------------------------------------
+# D-176 / D149-001 — residual-dependency non-widening ADV matrix
+# ---------------------------------------------------------------------------
+
+
+def test_d149_001_case_a_estate_only_clears_gate(tmp_path: Path) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "a": _o2_node(
+                "a",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT"],
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["a"]
+    assert after.DEPENDENCIES == []
+    assert after.OWNER_GATE == "NONE"
+    assert after.status == "READY"
+
+
+def test_d149_001_case_b_other_credential_keeps_gate(tmp_path: Path) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "b": _o2_node(
+                "b",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT", "OTHER_CREDENTIAL"],
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["b"]
+    assert after.DEPENDENCIES == ["OTHER_CREDENTIAL"]
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert after.status == "BLOCKED_OWNER"
+
+
+def test_d149_001_case_c_human_approval_keeps_blocking_gate(tmp_path: Path) -> None:
+    """Claude reproduction: CREDENTIAL + estate + HUMAN_APPROVAL must not → NONE."""
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "c": _o2_node(
+                "c",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+                status="BLOCKED_OWNER",
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["c"]
+    assert after.DEPENDENCIES == ["HUMAN_APPROVAL"]
+    assert after.OWNER_GATE != "NONE"
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert after.status == "BLOCKED_OWNER"
+
+
+def test_d149_001_two_residual_deps_keep_gate(tmp_path: Path) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "two": _o2_node(
+                "two",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL", "OTHER_CREDENTIAL"],
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["two"]
+    assert after.DEPENDENCIES == ["HUMAN_APPROVAL", "OTHER_CREDENTIAL"]
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert after.OWNER_GATE != "NONE"
+
+
+def test_d149_001_duplicated_estate_dep_cleared_once(tmp_path: Path) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "dup": _o2_node(
+                "dup",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT", "AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["dup"]
+    assert after.DEPENDENCIES == ["HUMAN_APPROVAL"]
+    assert "AUTHENTIC_ESTATE_ROOT" not in after.DEPENDENCIES
+    assert after.OWNER_GATE == "CREDENTIAL"
+
+
+@pytest.mark.parametrize(
+    "gate",
+    ["MERGE", "SECURITY", "HUMAN", "OWNER", "RELEASE", "GOVERNOR", "SIGNOFF"],
+)
+def test_d149_001_case_d_immutable_gates_unchanged(tmp_path: Path, gate: str) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "imm": _o2_node(
+                "imm",
+                owner_gate=gate,
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+            )
+        },
+    )
+    prior = _snapshot(load_nodes(root)["imm"])
+    assert refresh_authentic_o2_node_states(root) == []
+    assert _snapshot(load_nodes(root)["imm"]) == prior
+
+
+@pytest.mark.parametrize("status", ["SUPERSEDED", "DISPATCHED", "RUNNING", "COMPLETED"])
+def test_d149_001_case_f_terminal_statuses_not_resurrected(
+    tmp_path: Path, status: str
+) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "term": _o2_node(
+                "term",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+                status=status,
+            )
+        },
+    )
+    prior = _snapshot(load_nodes(root)["term"])
+    assert refresh_authentic_o2_node_states(root) == []
+    assert _snapshot(load_nodes(root)["term"]) == prior
+
+
+def test_d149_001_residual_invariant_global(tmp_path: Path) -> None:
+    """RESIDUAL_DEPENDENCIES > 0 → OWNER_GATE != NONE after refresh."""
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "r": _o2_node(
+                "r",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+                status="BLOCKED_OWNER",
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["r"]
+    assert len(after.DEPENDENCIES) > 0
+    assert after.OWNER_GATE != "NONE"
+
+
+def test_d149_001_repeated_refresh_idempotent_with_residual(tmp_path: Path) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "id": _o2_node(
+                "id",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+            )
+        },
+    )
+    first = refresh_authentic_o2_node_states(root)
+    snap = _snapshot(load_nodes(root)["id"])
+    second = refresh_authentic_o2_node_states(root)
+    assert first == ["id"]
+    assert second == []
+    assert _snapshot(load_nodes(root)["id"]) == snap
+    assert snap["OWNER_GATE"] == "CREDENTIAL"
+    assert snap["DEPENDENCIES"] == ["HUMAN_APPROVAL"]
+
+def test_d149_001_none_gate_with_residual_restored_to_credential(tmp_path: Path) -> None:
+    """Absolute invariant: residual deps must not leave OWNER_GATE as NONE."""
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "none_res": _o2_node(
+                "none_res",
+                owner_gate="NONE",
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+                status="BLOCKED_OWNER",
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["none_res"]
+    assert after.DEPENDENCIES == ["HUMAN_APPROVAL"]
+    assert after.OWNER_GATE != "NONE"
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert after.status == "BLOCKED_OWNER"
