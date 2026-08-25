@@ -464,6 +464,12 @@ def make_handler(
                         },
                     )
                 return
+            if path == "/v1/schema-compat":
+                try:
+                    self._send(200, service.schema_compat())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/conflicts":
                 project = (qs.get("project") or [""])[0]
                 try:
@@ -527,6 +533,7 @@ def make_handler(
                     "kdiff_live": True,
                     "brief_live": True,
                     "source_health_live": True,
+                    "schema_compat_live": True,
                     "discovery_live": True,
                     "truth_ux_live": True,
                     "authz_profile": True,

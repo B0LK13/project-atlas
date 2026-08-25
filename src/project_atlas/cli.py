@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.schema_compat import (
+    WebSchemaCompatError,
+    read_schema_compat,
+    render_schema_compat_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1687,6 +1692,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print the migration plan report JSON to stdout.",
+    )
+    schema_report = schema_sub.add_parser(
+        "report",
+        help=(
+            "Read the persisted schema-compat report "
+            "(never scans, never writes, never migrates)."
+        ),
+    )
+    schema_report.add_argument("--vault", type=Path, required=True)
+    schema_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the schema-compat REPORT READ JSON to stdout.",
+    )
+    schema_show = schema_sub.add_parser(
+        "show",
+        help="Alias for `schema report` (read-only; does not migrate).",
+    )
+    schema_show.add_argument("--vault", type=Path, required=True)
+    schema_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the schema-compat REPORT READ JSON to stdout.",
     )
 
     # AS-CORE2-010 — fixture-safe lifecycle certification (≠ estate PILOT PASS).
@@ -4146,6 +4174,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "report: "
                     f"{args.vault / 'generated' / 'ops' / 'schema-compat-report.json'}"
                 )
+            return EXIT_OK
+        if args.schema_command in {"report", "show"}:
+            try:
+                view = read_schema_compat(args.vault)
+            except (WebSchemaCompatError, SchemaCompatError, OSError) as exc:
+                _log.error("schema report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_schema_compat_text(view), end="")
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown schema command: {args.schema_command}"

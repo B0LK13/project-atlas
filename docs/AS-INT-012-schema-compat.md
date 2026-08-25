@@ -24,6 +24,8 @@ Default scan targets:
 ```bash
 atlas schema compat --vault <vault> [--json]
 atlas schema migrate --vault <vault> [--json]   # dry-run only (no auto-apply)
+atlas schema report --vault <vault> [--json]    # read-only; never scans/writes
+atlas schema show --vault <vault> [--json]      # alias for report
 ```
 
 ## Explicit non-goals

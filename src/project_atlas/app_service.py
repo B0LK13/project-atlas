@@ -20,6 +20,7 @@ from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
     WebRoadmapError,
+    WebSchemaCompatError,
     WebSourceHealthError,
     filter_knowledge_by_project,
     impact_graph_summary,
@@ -36,6 +37,7 @@ from project_atlas.web_api import (
     read_project_brief,
     read_project_roadmap,
     read_project_state,
+    read_schema_compat,
     read_source_health,
     read_status,
     read_vault_health,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def schema_compat(self) -> dict[str, Any]:
+        """Vault-scoped schema-compat REPORT READ (never migrates, never writes)."""
+        try:
+            return read_schema_compat(self.vault)
+        except WebSchemaCompatError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

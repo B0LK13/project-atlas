@@ -40,6 +40,11 @@ from project_atlas.web_api.intelligence import (
 from project_atlas.web_api.knowledge import KnowledgeAnswerSummary, list_knowledge_answers
 from project_atlas.web_api.projects import ProjectSummary, list_projects
 from project_atlas.web_api.roadmap import WebRoadmapError, read_project_roadmap
+from project_atlas.web_api.schema_compat import (
+    WebSchemaCompatError,
+    read_schema_compat,
+    render_schema_compat_text,
+)
 from project_atlas.web_api.source_health import (
     WebSourceHealthError,
     read_source_health,
@@ -54,6 +59,7 @@ __all__ = [
     "WebBriefError",
     "WebIntelligenceError",
     "WebRoadmapError",
+    "WebSchemaCompatError",
     "WebSourceHealthError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
@@ -71,7 +77,9 @@ __all__ = [
     "read_project_brief",
     "read_project_roadmap",
     "read_project_state",
+    "read_schema_compat",
     "read_source_health",
     "read_status",
     "read_vault_health",
+    "render_schema_compat_text",
 ]

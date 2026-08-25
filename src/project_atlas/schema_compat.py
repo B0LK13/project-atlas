@@ -326,3 +326,29 @@ def scan_compat(vault: Path, *, write: bool = True) -> dict[str, Any]:
 def migrate_dry_run(vault: Path, *, write: bool = True) -> dict[str, Any]:
     """Convenience: dry-run migration plan (never mutates scanned artifacts)."""
     return build_report(vault, mode="migrate-dry-run", write=write)
+
+
+def read_report(vault: Path) -> dict[str, Any] | None:
+    """Read a persisted schema-compat report. Never scans. Never writes.
+
+    Missing report → ``None`` (absence is not compatible and is not a
+    migration apply). Malformed JSON / schema / path-escape fail closed.
+    """
+    vault = vault.expanduser().resolve()
+    if not vault.is_dir():
+        raise SchemaCompatError(f"vault is not a directory: {vault}")
+    unresolved = vault / REPORT_RELATIVE
+    if not unresolved.exists():
+        return None
+    if unresolved.is_symlink() or not unresolved.is_file():
+        raise SchemaCompatError("schema-compat report is not a regular file")
+    path = _inside(vault, unresolved)
+    loaded = _load_json(path)
+    if not isinstance(loaded, Mapping):
+        raise SchemaCompatError("schema-compat report must be a JSON object")
+    report = dict(loaded)
+    try:
+        validate_record(report, REPORT_SCHEMA)
+    except Exception as exc:
+        raise SchemaCompatError(f"malformed schema-compat report: {exc}") from exc
+    return report
