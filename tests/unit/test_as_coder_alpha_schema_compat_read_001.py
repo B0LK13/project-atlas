@@ -187,17 +187,15 @@ def test_cli_missing_vault_exits_error(tmp_path: Path) -> None:
 def test_existing_schema_compat_write_cli_unchanged() -> None:
     from project_atlas.cli import build_parser
 
-    help_text = build_parser().format_help()
-    assert "schema" in help_text
-    schema_help = build_parser().parse_args
-    _ = schema_help
     parser = build_parser()
-    schema = next(
-        action
-        for action in parser._subparsers._group_actions  # noqa: SLF001
-        if action.dest == "command"
-    )
-    assert "schema" in (schema.choices or {})
+    help_text = parser.format_help()
+    assert "schema" in help_text
+    write_args = parser.parse_args(["schema", "compat", "--vault", "/tmp/vault"])
+    assert write_args.schema_command == "compat"
+    read_args = parser.parse_args(["schema", "report", "--vault", "/tmp/vault"])
+    assert read_args.schema_command == "report"
+    show_args = parser.parse_args(["schema", "show", "--vault", "/tmp/vault"])
+    assert show_args.schema_command == "show"
 
 
 def test_mcp_tool_is_allow_listed() -> None:
