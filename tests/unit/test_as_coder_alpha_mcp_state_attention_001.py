@@ -10,6 +10,7 @@ import pytest
 
 from project_atlas.authz import AuthzError, OperatorProfile
 from project_atlas.mcp_server import (
+    ROADMAP_PACKAGE_ID,
     STATE_ATTENTION_PACKAGE_ID,
     McpServerError,
     handle_mcp_request_line,
@@ -86,6 +87,7 @@ def test_state_and_attention_tools_are_allow_listed() -> None:
     listing = list_mcp_tools()
     assert "atlas.project-state.read" in listing["tools"]
     assert "atlas.project-attention.read" in listing["tools"]
+    assert "atlas.roadmap.read" in listing["tools"]
     assert listing["write_tools"] == []
 
 
@@ -180,3 +182,26 @@ def test_determinism(tmp_path: Path) -> None:
         for row in a["result"]["attentions"]
     ]
     assert ids == sorted(ids)
+
+
+def test_roadmap_tool_empty_and_zero_arg(tmp_path: Path) -> None:
+    vault = tmp_path / "empty"
+    vault.mkdir()
+    report = invoke_mcp_tool(vault, "atlas.roadmap.read")
+    result = report["result"]
+    assert result["package_id"] == ROADMAP_PACKAGE_ID
+    assert result["roadmaps"] == []
+    assert result["honesty"]["roadmap_is_canonical"] is False
+    assert result["honesty"]["mcp_is_authority"] is False
+    seeded = _seed_vault(tmp_path / "seeded")
+    before = _snapshot(seeded)
+    line = json.dumps({"tool": "atlas.roadmap.read"}, sort_keys=True)
+    first = handle_mcp_request_line(seeded, line)
+    second = handle_mcp_request_line(seeded, line)
+    assert first == second
+    assert _snapshot(seeded) == before
+    with pytest.raises(McpServerError, match="mcp-request-forbidden-key"):
+        handle_mcp_request_line(
+            seeded,
+            json.dumps({"tool": "atlas.roadmap.read", "args": {"project": "alpha-state"}}),
+        )

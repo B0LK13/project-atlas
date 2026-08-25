@@ -21,6 +21,7 @@ MCP tools (zero-arg, vault-scoped, no request project selector):
 
 - `atlas.project-state.read`
 - `atlas.project-attention.read`
+- `atlas.roadmap.read`
 
 ## Honesty
 

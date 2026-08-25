@@ -24,6 +24,7 @@ PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 STATE_ATTENTION_PACKAGE_ID = "AS-CODER-ALPHA-MCP-STATE-ATTENTION-001"
+ROADMAP_PACKAGE_ID = "AS-CODER-ALPHA-MCP-ROADMAP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -206,6 +207,46 @@ def read_vault_project_attentions(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_roadmap_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "status": "unknown",
+        "items": [],
+        "blockers": [],
+        "unknowns": ["roadmap-unavailable"],
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "roadmap_is_canonical": False,
+            "ui_is_canonical": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def read_vault_roadmaps(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped roadmap read. ROADMAP != canonical. No writes."""
+    rows: list[dict[str, Any]] = []
+    for pid in _iter_project_ids(service):
+        try:
+            roadmap = service.roadmap(pid)
+        except AppServiceError:
+            roadmap = _unknown_roadmap_row(pid)
+        rows.append({"project_id": pid, "roadmap": roadmap})
+    return {
+        "schema_version": 1,
+        "package_id": ROADMAP_PACKAGE_ID,
+        "truth_boundary": STATE_ATTENTION_TRUTH_BOUNDARY + " / ROADMAP != CANONICAL",
+        "project_count": len(rows),
+        "roadmaps": rows,
+        "honesty": {
+            **_lens_honesty(),
+            "roadmap_is_canonical": False,
+        },
+    }
+
+
 def read_vault_briefs(service: AppService) -> dict[str, Any]:
     """Zero-arg vault-scoped brief read. Does not invent projects or write."""
     rows: list[dict[str, Any]] = []
@@ -251,6 +292,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.project-state.read": lambda: read_vault_project_states(service),
         "atlas.project-attention.read": lambda: read_vault_project_attentions(service),
+        "atlas.roadmap.read": lambda: read_vault_roadmaps(service),
     }
 
 
