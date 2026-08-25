@@ -1,0 +1,11 @@
+# Evidence — AS-CODER-ALPHA-REVIEW-MCP-001
+
+PACKAGE: `AS-CODER-ALPHA-REVIEW-MCP-001`
+DATE: 2026-08-25
+BASE: `f0e0c979e8ead0fdad4cc51682c560299db0a074`
+BRANCH: `cursor/atlas-autonomous-night-cycle-035a`
+D149_TOUCHED: NO
+MERGE_AUTHORIZATION: NOT_GRANTED
+AUTHENTIC_PILOT: NO
+
+Focused tests (with handoff + MCP ADV + D-149 regression): 60 passed.

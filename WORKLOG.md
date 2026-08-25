@@ -7027,3 +7027,29 @@ read stored packs without inventing a create/resume path.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
 
+---
+
+## AS-CODER-ALPHA-REVIEW-MCP-001 — vault-scoped review read
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0305 successor
+**Branch:** `cursor/atlas-autonomous-night-cycle-035a`
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149 / #483. Does not merge.
+
+### Why
+Human-loop CLI (`atlas review decide`) exists; agents and Web could not read
+pending queues without a decide/promote path.
+
+### Scope
+- Zero-arg `atlas.review.read`
+- `GET /v1/reviews`
+- Web `#/reviews`
+- Read-only pending + recorded human decisions
+
+### Honesty
+- `REVIEW READ != AUTHORITY`
+- `MCP != DECIDE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+

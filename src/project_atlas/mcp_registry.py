@@ -77,6 +77,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha handoff inventory (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.review.read",
+        "vault-read",
+        True,
+        "allow-list candidate; Coder Alpha pending-review inventory (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

@@ -22,11 +22,15 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 from project_atlas.web_api.handoffs import PACKAGE_ID as HANDOFF_PACKAGE_ID
 from project_atlas.web_api.handoffs import TRUTH_BOUNDARY as HANDOFF_TRUTH_BOUNDARY
 from project_atlas.web_api.handoffs import WebHandoffError, list_handoffs
+from project_atlas.web_api.reviews import PACKAGE_ID as REVIEW_PACKAGE_ID
+from project_atlas.web_api.reviews import TRUTH_BOUNDARY as REVIEW_TRUTH_BOUNDARY
+from project_atlas.web_api.reviews import WebReviewError, list_reviews
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 HANDOFF_MCP_PACKAGE_ID = HANDOFF_PACKAGE_ID
+REVIEW_MCP_PACKAGE_ID = REVIEW_PACKAGE_ID
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -171,6 +175,40 @@ def read_vault_handoffs(service: AppService) -> dict[str, Any]:
     return payload
 
 
+def read_vault_reviews(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped review read. Does not decide or promote."""
+    try:
+        report = list_reviews(service.vault)
+    except (AppServiceError, WebReviewError):
+        report = {
+            "schema_version": 1,
+            "package_id": REVIEW_MCP_PACKAGE_ID,
+            "truth_boundary": REVIEW_TRUTH_BOUNDARY,
+            "project_id": None,
+            "pending_count": 0,
+            "pending_reviews": [],
+            "human_decision_count": 0,
+            "human_decisions": [],
+            "available": False,
+            "honesty": {
+                "unknown_is_valid": True,
+                "mcp_is_authority": False,
+                "fabricated_fields": False,
+                "decide_or_promote": False,
+            },
+        }
+    payload = dict(report)
+    payload["package_id"] = REVIEW_MCP_PACKAGE_ID
+    payload["truth_boundary"] = REVIEW_TRUTH_BOUNDARY
+    honesty = dict(payload.get("honesty") or {})
+    honesty["mcp_is_authority"] = False
+    honesty["request_contains_project"] = False
+    honesty["zero_arg_vault_scope"] = True
+    honesty["decide_or_promote"] = False
+    payload["honesty"] = honesty
+    return payload
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -183,6 +221,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.handoff.read": lambda: read_vault_handoffs(service),
+        "atlas.review.read": lambda: read_vault_reviews(service),
     }
 
 

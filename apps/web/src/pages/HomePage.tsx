@@ -59,6 +59,11 @@ const PROD = [
     title: "Handoffs",
     blurb: "Read-only atlas handoff inventory — HANDOFF≠authority.",
   },
+  {
+    to: "/reviews",
+    title: "Reviews",
+    blurb: "Read-only pending-review inventory — REVIEW≠decide.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

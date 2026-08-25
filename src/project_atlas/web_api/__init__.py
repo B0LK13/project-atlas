@@ -40,6 +40,7 @@ from project_atlas.web_api.intelligence import (
 )
 from project_atlas.web_api.knowledge import KnowledgeAnswerSummary, list_knowledge_answers
 from project_atlas.web_api.projects import ProjectSummary, list_projects
+from project_atlas.web_api.reviews import WebReviewError, list_reviews
 from project_atlas.web_api.roadmap import WebRoadmapError, read_project_roadmap
 from project_atlas.web_api.source_health import (
     WebSourceHealthError,
@@ -55,6 +56,7 @@ __all__ = [
     "WebBriefError",
     "WebHandoffError",
     "WebIntelligenceError",
+    "WebReviewError",
     "WebRoadmapError",
     "WebSourceHealthError",
     "filter_knowledge_by_project",
@@ -63,6 +65,7 @@ __all__ = [
     "list_knowledge_answers",
     "list_project_conflicts",
     "list_projects",
+    "list_reviews",
     "load_estate_discovery_view",
     "read_impact_graph",
     "read_intelligence_conflicts",

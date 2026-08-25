@@ -20,6 +20,7 @@ from project_atlas.web_api import (
     WebBriefError,
     WebHandoffError,
     WebIntelligenceError,
+    WebReviewError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -28,6 +29,7 @@ from project_atlas.web_api import (
     list_knowledge_answers,
     list_project_conflicts,
     list_projects,
+    list_reviews,
     load_estate_discovery_view,
     read_intelligence_conflicts,
     read_intelligence_evidence,
@@ -123,6 +125,13 @@ class AppService:
         try:
             return list_handoffs(self.vault, project_id=project_id)
         except WebHandoffError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def reviews(self, project_id: str | None = None) -> dict[str, Any]:
+        """Vault-scoped pending-review inventory (read-only; REVIEW != decide)."""
+        try:
+            return list_reviews(self.vault, project_id=project_id)
+        except WebReviewError as exc:
             raise AppServiceError(str(exc)) from exc
 
     def graph_summary(self) -> dict[str, Any]:
