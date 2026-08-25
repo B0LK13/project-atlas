@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import threading
 from unittest.mock import patch
 
@@ -15,6 +16,7 @@ from project_atlas.orchestration.sdk.host import (
     assert_single_supervisor_or_raise,
     clear_supervisor_stop,
     host_state_dir,
+    new_supervisor_instance_id,
     read_supervisor_lock_pid,
     release_supervisor_lock,
     request_supervisor_stop,
@@ -80,12 +82,13 @@ def test_run_forever_honors_stop_file(tmp_path) -> None:
 
 
 def test_concurrent_acquire_only_one_holder(tmp_path) -> None:
-    """PR476-IV-P1-001 — exclusive create prevents TOCTOU double acquisition."""
+    """PR476-IV-P1-001 — two independent instances → exactly one lock owner."""
     results: list[bool] = []
     barrier = threading.Barrier(2)
 
     def worker() -> None:
         barrier.wait()
+        # Distinct auto-minted instance tokens (OWNERSHIP_IDENTITY != PID_ONLY).
         results.append(acquire_supervisor_lock(tmp_path))
 
     threads = [threading.Thread(target=worker) for _ in range(2)]
@@ -97,11 +100,118 @@ def test_concurrent_acquire_only_one_holder(tmp_path) -> None:
     release_supervisor_lock(tmp_path)
 
 
+def test_n_thread_concurrent_acquire_only_one_holder(tmp_path) -> None:
+    n = 8
+    results: list[bool] = []
+    barrier = threading.Barrier(n)
+    lock = threading.Lock()
+
+    def worker() -> None:
+        barrier.wait()
+        ok = acquire_supervisor_lock(tmp_path)
+        with lock:
+            results.append(ok)
+
+    threads = [threading.Thread(target=worker) for _ in range(n)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert results.count(True) == 1
+    assert results.count(False) == n - 1
+    release_supervisor_lock(tmp_path)
+
+
+def test_same_pid_different_instance_token_blocked(tmp_path) -> None:
+    a = new_supervisor_instance_id()
+    b = new_supervisor_instance_id()
+    assert acquire_supervisor_lock(tmp_path, instance_id=a) is True
+    assert acquire_supervisor_lock(tmp_path, instance_id=b) is False
+    release_supervisor_lock(tmp_path, instance_id=a)
+
+
+def test_same_owner_reentry_idempotent(tmp_path) -> None:
+    token = new_supervisor_instance_id()
+    assert acquire_supervisor_lock(tmp_path, instance_id=token) is True
+    assert acquire_supervisor_lock(tmp_path, instance_id=token) is True
+    release_supervisor_lock(tmp_path, instance_id=token)
+    assert acquire_supervisor_lock(tmp_path, instance_id=token) is True
+    release_supervisor_lock(tmp_path, instance_id=token)
+
+
+def test_live_foreign_pid_blocked(tmp_path) -> None:
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text(
+        '{"pid": 424242, "instance_id": "foreign-token", '
+        '"process_start_identity": "linux:1"}\n',
+        encoding="utf-8",
+    )
+    with patch("project_atlas.orchestration.sdk.host.pid_is_alive", return_value=True):
+        assert acquire_supervisor_lock(tmp_path) is False
+
+
+def test_dead_owner_reclaimed(tmp_path) -> None:
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text(
+        '{"pid": 424242, "instance_id": "dead-token", '
+        '"process_start_identity": "linux:1"}\n',
+        encoding="utf-8",
+    )
+    with patch("project_atlas.orchestration.sdk.host.pid_is_alive", return_value=False):
+        assert acquire_supervisor_lock(tmp_path) is True
+    release_supervisor_lock(tmp_path)
+
+
+def test_pid_reuse_does_not_inherit_ownership(tmp_path) -> None:
+    """Live PID with mismatched start identity is treated as stale, not inherited."""
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    me = os.getpid()
+    lock_path.write_text(
+        f'{{"pid": {me}, "instance_id": "old-generation", '
+        f'"process_start_identity": "linux:999999999"}}\n',
+        encoding="utf-8",
+    )
+    with (
+        patch("project_atlas.orchestration.sdk.host.pid_is_alive", return_value=True),
+        patch(
+            "project_atlas.orchestration.sdk.host.process_start_identity",
+            return_value="linux:1",
+        ),
+    ):
+        assert acquire_supervisor_lock(tmp_path) is True
+    release_supervisor_lock(tmp_path)
+
+
 def test_corrupt_lock_fails_closed(tmp_path) -> None:
     lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path.write_text("{not-json", encoding="utf-8")
     assert acquire_supervisor_lock(tmp_path) is False
+
+
+def test_empty_lock_fails_closed(tmp_path) -> None:
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text("", encoding="utf-8")
+    assert acquire_supervisor_lock(tmp_path) is False
+
+
+def test_truncated_lock_fails_closed(tmp_path) -> None:
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text('{"pid": 1, "instance_id":', encoding="utf-8")
+    assert acquire_supervisor_lock(tmp_path) is False
+
+
+def test_legacy_pid_only_live_lock_fails_closed(tmp_path) -> None:
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path.write_text('{"pid": 424242}\n', encoding="utf-8")
+    with patch("project_atlas.orchestration.sdk.host.pid_is_alive", return_value=True):
+        assert acquire_supervisor_lock(tmp_path) is False
 
 
 def test_stale_lock_reclaimed_when_holder_dead(tmp_path) -> None:
@@ -111,3 +221,38 @@ def test_stale_lock_reclaimed_when_holder_dead(tmp_path) -> None:
     with patch("project_atlas.orchestration.sdk.host.pid_is_alive", return_value=False):
         assert acquire_supervisor_lock(tmp_path) is True
     release_supervisor_lock(tmp_path)
+
+
+def test_foreign_owner_release_denied(tmp_path) -> None:
+    owner = new_supervisor_instance_id()
+    assert acquire_supervisor_lock(tmp_path, instance_id=owner) is True
+    release_supervisor_lock(tmp_path, instance_id="not-the-owner")
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    assert lock_path.is_file()
+    release_supervisor_lock(tmp_path, instance_id=owner)
+    assert not lock_path.is_file()
+
+
+def test_true_owner_release_succeeds(tmp_path) -> None:
+    owner = new_supervisor_instance_id()
+    assert acquire_supervisor_lock(tmp_path, instance_id=owner) is True
+    release_supervisor_lock(tmp_path, instance_id=owner)
+    assert not (host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME).is_file()
+
+
+def test_crash_between_create_and_payload_fails_closed(tmp_path) -> None:
+    """O_EXCL file with empty body must not be treated as free or owned."""
+    lock_path = host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    os.close(fd)
+    assert lock_path.stat().st_size == 0
+    assert acquire_supervisor_lock(tmp_path) is False
+
+
+def test_repeated_acquire_release_deterministic(tmp_path) -> None:
+    for _ in range(5):
+        token = new_supervisor_instance_id()
+        assert acquire_supervisor_lock(tmp_path, instance_id=token) is True
+        release_supervisor_lock(tmp_path, instance_id=token)
+    assert not (host_state_dir(tmp_path) / SUPERVISOR_LOCK_NAME).is_file()

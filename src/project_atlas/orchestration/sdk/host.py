@@ -6,13 +6,20 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import uuid
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from project_atlas.orchestration.sdk.models import STATE_DIR_RELATIVE, SdkRuntimeError
 
 SUPERVISOR_STOP_NAME = "supervisor.stop"
 SUPERVISOR_LOCK_NAME = "supervisor.lock"
 _LOCK_ACQUIRE_ATTEMPTS = 8
+_HELD_LOCKS_GUARD = threading.Lock()
+# root-key → instance_id for owners that acquired without an explicit release token
+_HELD_INSTANCE_IDS: dict[str, str] = {}
 
 
 def host_state_dir(root: Path) -> Path:
@@ -127,54 +134,198 @@ def clear_supervisor_stop(root: Path) -> None:
         path.unlink()
 
 
+def new_supervisor_instance_id() -> str:
+    """Mint a supervisor instance token. Ownership is instance-scoped, not PID-only."""
+    return uuid.uuid4().hex
+
+
+def process_start_identity(pid: int) -> str:
+    """Best-effort process start identity so PID reuse cannot inherit ownership."""
+    if pid <= 0:
+        return "unknown"
+    if os.name == "nt":
+        try:
+            ps_cmd = (
+                f"(Get-Process -Id {int(pid)} -ErrorAction Stop)"
+                ".StartTime.ToUniversalTime().Ticks"
+            )
+            proc = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    ps_cmd,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            ticks = (proc.stdout or "").strip()
+            if proc.returncode == 0 and ticks.isdigit():
+                return f"win:{ticks}"
+        except OSError:
+            pass
+        return "unknown"
+    try:
+        raw = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+        close = raw.rfind(")")
+        if close < 0:
+            return "unknown"
+        fields = raw[close + 1 :].split()
+        # Field 22 in /proc/<pid>/stat is starttime (index 19 after comm).
+        return f"linux:{fields[19]}"
+    except (OSError, IndexError, ValueError):
+        return "unknown"
+
+
+def _root_key(root: Path) -> str:
+    try:
+        return str(root.resolve())
+    except OSError:
+        return str(root)
+
+
+def _remember_held_instance(root: Path, instance_id: str) -> None:
+    with _HELD_LOCKS_GUARD:
+        _HELD_INSTANCE_IDS[_root_key(root)] = instance_id
+
+
+def _forget_held_instance(root: Path, instance_id: str | None = None) -> None:
+    key = _root_key(root)
+    with _HELD_LOCKS_GUARD:
+        held = _HELD_INSTANCE_IDS.get(key)
+        if held is None:
+            return
+        if instance_id is None or held == instance_id:
+            _HELD_INSTANCE_IDS.pop(key, None)
+
+
+def _lookup_held_instance(root: Path) -> str | None:
+    with _HELD_LOCKS_GUARD:
+        return _HELD_INSTANCE_IDS.get(_root_key(root))
+
+
+@dataclass(frozen=True)
+class SupervisorLockRecord:
+    pid: int
+    instance_id: str
+    process_start_identity: str
+
+
 def read_supervisor_lock_pid(root: Path) -> int:
     path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
-    if not path.is_file():
+    record = _read_lock_record(path)
+    if record is None or record == "corrupt":
         return 0
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        other = int(data.get("pid", 0))
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        return 0
-    if other > 0 and pid_is_alive(other):
-        return other
+    if record.pid > 0 and pid_is_alive(record.pid):
+        live_start = process_start_identity(record.pid)
+        if (
+            record.process_start_identity not in {"", "unknown"}
+            and live_start not in {"", "unknown"}
+            and live_start != record.process_start_identity
+        ):
+            return 0
+        return record.pid
     return 0
 
 
-def _lock_payload(pid: int) -> bytes:
-    return (json.dumps({"pid": pid}, indent=2) + "\n").encode("utf-8")
+def _lock_payload(pid: int, instance_id: str) -> bytes:
+    payload = {
+        "pid": pid,
+        "instance_id": instance_id,
+        "process_start_identity": process_start_identity(pid),
+    }
+    return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def _read_lock_holder_pid(path: Path) -> int | None:
-    """Return holder pid, None when absent, -1 when corrupt/unreadable."""
+def _read_lock_record(path: Path) -> SupervisorLockRecord | None | Literal["corrupt"]:
+    """Return lock record, None when absent, 'corrupt' when unreadable/incomplete."""
     if not path.is_file():
         return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return int(data.get("pid", 0))
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return "corrupt"
+    if not raw.strip():
+        return "corrupt"
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return "corrupt"
+        pid = int(data.get("pid", 0))
+        instance_id = data.get("instance_id")
+        start = data.get("process_start_identity", "unknown")
+        if not isinstance(instance_id, str) or not instance_id.strip():
+            # Legacy/partial PID-only locks: treat as reclaimable only when dead.
+            if pid > 0 and not pid_is_alive(pid):
+                return SupervisorLockRecord(
+                    pid=pid,
+                    instance_id="",
+                    process_start_identity="unknown",
+                )
+            return "corrupt"
+        if not isinstance(start, str) or not start:
+            start = "unknown"
+        return SupervisorLockRecord(
+            pid=pid,
+            instance_id=instance_id.strip(),
+            process_start_identity=start,
+        )
     except (OSError, json.JSONDecodeError, TypeError, ValueError):
-        return -1
+        return "corrupt"
 
 
-def acquire_supervisor_lock(root: Path) -> bool:
-    """Fail closed when another live supervisor already owns the host lock."""
+def _live_foreign_owner(record: SupervisorLockRecord, me: int, my_id: str) -> bool:
+    """True when an independent live supervisor still owns the lock."""
+    if record.pid == me and record.instance_id == my_id:
+        return False
+    if record.pid > 0 and pid_is_alive(record.pid):
+        live_start = process_start_identity(record.pid)
+        if (
+            record.process_start_identity not in {"", "unknown"}
+            and live_start not in {"", "unknown"}
+            and live_start != record.process_start_identity
+        ):
+            # PID reused by a new process — prior ownership must not be inherited.
+            return False
+    if record.pid == me and record.instance_id != my_id:
+        # Same process, different supervisor instance — must not share ownership.
+        return True
+    if record.pid <= 0:
+        return False
+    return pid_is_alive(record.pid)
+
+
+def acquire_supervisor_lock(root: Path, *, instance_id: str | None = None) -> bool:
+    """Fail closed when another live supervisor instance already owns the host lock.
+
+    Ownership is (pid + instance_id [+ process_start_identity]), not PID alone.
+    Omitting ``instance_id`` mints a fresh instance token (independent contender).
+    Same exact instance may re-enter idempotently when the same token is supplied
+    or when this process still holds the remembered token for ``root``.
+    """
     path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     me = os.getpid()
-    payload = _lock_payload(me)
+    # Omitting instance_id always mints a fresh instance token so two contenders
+    # in the same process cannot silently share PID-only ownership.
+    my_id = instance_id if instance_id is not None else new_supervisor_instance_id()
+    payload = _lock_payload(me, my_id)
     for _attempt in range(_LOCK_ACQUIRE_ATTEMPTS):
         try:
             fd = os.open(str(path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
         except FileExistsError:
-            holder = _read_lock_holder_pid(path)
-            if holder is None:
+            record = _read_lock_record(path)
+            if record is None:
                 continue
-            if holder == -1:
+            if record == "corrupt":
                 return False
-            if holder > 0 and holder != me and pid_is_alive(holder):
-                return False
-            if holder == me:
+            assert isinstance(record, SupervisorLockRecord)
+            if record.pid == me and record.instance_id == my_id:
+                _remember_held_instance(root, my_id)
                 return True
+            if _live_foreign_owner(record, me, my_id):
+                return False
             try:
                 path.unlink(missing_ok=True)
             except OSError:
@@ -184,28 +335,44 @@ def acquire_supervisor_lock(root: Path) -> bool:
             return False
         try:
             os.write(fd, payload)
+            _remember_held_instance(root, my_id)
             return True
         finally:
             os.close(fd)
     return False
 
 
-def release_supervisor_lock(root: Path) -> None:
+def release_supervisor_lock(root: Path, *, instance_id: str | None = None) -> None:
+    """Release only when this exact supervisor instance owns the lock."""
     path = host_state_dir(root) / SUPERVISOR_LOCK_NAME
     if not path.is_file():
+        _forget_held_instance(root, instance_id)
+        return
+    token = instance_id or _lookup_held_instance(root)
+    me = os.getpid()
+    record = _read_lock_record(path)
+    if record is None or record == "corrupt":
+        return
+    assert isinstance(record, SupervisorLockRecord)
+    if record.pid != me:
+        return
+    if token is None or record.instance_id != token:
         return
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if int(data.get("pid", 0)) != os.getpid():
-            return
-    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        path.unlink()
+    except OSError:
         return
-    path.unlink()
+    _forget_held_instance(root, token)
 
 
-def assert_single_supervisor_or_raise(root: Path) -> None:
-    if not acquire_supervisor_lock(root):
+def assert_single_supervisor_or_raise(
+    root: Path, *, instance_id: str | None = None
+) -> str:
+    """Acquire the singleton lock or raise SERVICE_DOUBLE_START. Returns instance id."""
+    token = instance_id or new_supervisor_instance_id()
+    if not acquire_supervisor_lock(root, instance_id=token):
         raise SdkRuntimeError(
             "another live supervisor already owns this host",
             code="SERVICE_DOUBLE_START",
         )
+    return token
