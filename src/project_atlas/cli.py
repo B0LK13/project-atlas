@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.obs import (
+    WebObsError,
+    read_obs,
+    render_obs_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1271,13 +1276,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    # AS-OBS-001 / AS-OBS-002 / AS-OBS-003 - operational observability (ops plane only).
+    # AS-OBS-001 / AS-OBS-002 / AS-OBS-003 / AS-CODER-ALPHA-OBS-READ-001.
     ops_parser = subparsers.add_parser(
         "ops",
         help=(
             "Operational observability commands "
-            "(AS-OBS-001 health / AS-OBS-002 events / AS-OBS-003 report; "
-            "health != authority)."
+            "(AS-OBS-001 health / AS-OBS-002 events / AS-OBS-003 report / "
+            "AS-CODER-ALPHA-OBS-READ-001 obs; health != authority)."
         ),
     )
     ops_sub = ops_parser.add_subparsers(dest="ops_command", required=True)
@@ -1373,6 +1378,21 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=50,
         help="Archive retention cap (default 50).",
+    )
+    # AS-CODER-ALPHA-OBS-READ-001 — read-only wrap of GET /v1/obs.
+    obs_parser = ops_sub.add_parser(
+        "obs",
+        help=(
+            "Read the live observability receipt "
+            "(AS-CODER-ALPHA-OBS-READ-001; OBS != AUTHORITY; never writes). "
+            "Examples: atlas ops obs --vault <dir> --json"
+        ),
+    )
+    obs_parser.add_argument("--vault", type=Path, required=True)
+    obs_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the observability REPORT READ JSON to stdout.",
     )
 
     # AS-XPROJ-001 - global entity registry (derived; explicit registration only).
@@ -3889,6 +3909,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     f"report: {args.vault / 'generated' / 'ops' / 'ops-report.json'}"
                 )
+            return EXIT_OK
+        if args.ops_command == "obs":
+            try:
+                view = read_obs(args.vault)
+            except (WebObsError, OSError, ValueError, TypeError) as exc:
+                _log.error("ops obs failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_obs_text(view), end="")
             return EXIT_OK
         parser.error(f"unknown ops command: {args.ops_command}")  # pragma: no cover
 

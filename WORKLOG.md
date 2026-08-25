@@ -7179,3 +7179,33 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## AS-CODER-ALPHA-OBS-READ-001 — vault-scoped live observability REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-obs-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`.
+**IMPLEMENTER != VERIFIER.** MERGE_AUTHORIZATION = NOT_GRANTED.
+
+### Why
+GET `/v1/obs` already exists on main via `build_live_observability_receipt`.
+Humans and agents had no first-class CLI / AppService / MCP read wrap, so a
+live receipt or empty optional-marker set could be read as health or
+certification.
+
+### Surfaces
+- `atlas ops obs --vault <dir> [--json]` (ops already had health/events/report)
+- MCP `atlas.obs.read` (zero-arg, vault-read, enabled)
+- AppService `obs()`
+- Web page skipped (`/v1/obs` already serves JSON)
+
+### Honesty
+- `OBS != AUTHORITY`
+- `LIVE_RECEIPT != CERTIFICATION`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != HEALTHY`
+- `MCP != AUTHORITY`
+- `WRITE_APPLIED=false`
+

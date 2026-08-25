@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebObsError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -31,6 +32,7 @@ from project_atlas.web_api import (
     read_intelligence_evidence,
     read_intelligence_explain,
     read_intelligence_query,
+    read_obs,
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def obs(self) -> dict[str, Any]:
+        """Vault-scoped live observability REPORT READ (never writes)."""
+        try:
+            return read_obs(self.vault)
+        except WebObsError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

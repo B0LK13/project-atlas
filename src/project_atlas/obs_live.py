@@ -41,8 +41,13 @@ def build_live_observability_receipt(
     vault: Path,
     *,
     receipt_id: str = "live-obs",
+    write: bool = True,
 ) -> dict[str, Any]:
-    """Build a deterministic live-surface observability receipt."""
+    """Build a deterministic live-surface observability receipt.
+
+    ``write=False`` computes the same payload without persisting
+    ``generated/ops/obs/``. Presence flags only; unknown != healthy.
+    """
     require_compatibility_anchor()
     ops = vault / "generated" / "ops"
     surfaces = {
@@ -109,6 +114,7 @@ def build_live_observability_receipt(
         "authority_plane": "none",
         "generated": {"by": "project-atlas"},
     }
-    out = ops / "obs" / f"{receipt_id}-live.json"
-    _atomic_write_json(out, payload)
+    if write:
+        out = ops / "obs" / f"{receipt_id}-live.json"
+        _atomic_write_json(out, payload)
     return payload
