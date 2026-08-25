@@ -127,7 +127,6 @@ from project_atlas.kf2_fabric import (
     register_namespace,
     register_relationship,
 )
-from project_atlas.web_api.kf2 import WebKf2Error, read_kf2, render_kf2_text
 from project_atlas.knowledge_diff import (
     AS_OF_KIND,
     DEFAULT_SUBJECT_CAP,
@@ -267,6 +266,7 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.kf2 import WebKf2Error, read_kf2, render_kf2_text
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1793,6 +1793,7 @@ def build_parser() -> argparse.ArgumentParser:
     kf2_rel.add_argument("--json", action="store_true")
     kf2_report = kf2_sub.add_parser(
         "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help=(
             "Read persisted KF2 namespace/entity/rel projections "
             "(AS-CODER-ALPHA-KF2-READ-001; never writes; never registers)."
@@ -1811,6 +1812,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     kf2_show = kf2_sub.add_parser(
         "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         help="Alias for `kf2 report` (read-only; does not register or write).",
         epilog=(
             "Examples:\n"
