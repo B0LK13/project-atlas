@@ -7027,3 +7027,27 @@ zero-arg `atlas.captures.list.read`, and `#/captures`.
 - ruff/mypy on touched modules: pass
 - `apps/web` `tsc -b`: pass
 - Independent IV: PASS (working-tree code)
+- GitHub CI on `#491` HEAD `4d3fa7f5d0452269b07857e0e7ecc9faf095fab5`:
+  `control-plane`, `quality (ubuntu-latest, 3.12, full)`,
+  `quality (ubuntu-latest, 3.13, compat)`,
+  `quality (windows-latest, 3.12, windows)` — all pass
+
+---
+
+## AS-2.1-OBS-READ-001 — read-only observability compute + MCP
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25T04:20Z continuation (post-#491 CI)
+**Branch:** `cursor/atlas-autonomous-night-cycle-894f`
+**Mode:** READ_SURFACE. Does not write Layer B. Does not merge. Does not touch D-149.
+
+### Why
+`GET /v1/obs` persisted an ops receipt on every read, so a GET mutated the
+vault and MCP could not wrap the surface without violating read-only.
+
+### Honesty
+- `OBS != AUTHORITY`
+- `UNKNOWN != HEALTHY`
+- `GET/MCP != PERSIST`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `D149_TOUCHED = NO`

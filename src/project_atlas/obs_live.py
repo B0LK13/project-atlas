@@ -17,6 +17,7 @@ from project_atlas.compat_anchor import SNAPSHOT_ID, require_compatibility_ancho
 
 PACKAGE_ID = "AS-2.1-OBS-LIVE-001"
 DEEPEN_PACKAGE_ID = "AS-2.1-OBS-PERF-001"
+READ_PACKAGE_ID = "AS-2.1-OBS-READ-001"
 TRUTH_BOUNDARY = "OBS LIVE != AUTHORITY / UNKNOWN!=HEALTHY"
 
 
@@ -37,12 +38,12 @@ def _count_json(directory: Path) -> int:
     return sum(1 for p in directory.iterdir() if p.is_file() and p.suffix == ".json")
 
 
-def build_live_observability_receipt(
+def compute_live_observability_receipt(
     vault: Path,
     *,
     receipt_id: str = "live-obs",
 ) -> dict[str, Any]:
-    """Build a deterministic live-surface observability receipt."""
+    """Compute a live-surface observability receipt without writing."""
     require_compatibility_anchor()
     ops = vault / "generated" / "ops"
     surfaces = {
@@ -109,6 +110,16 @@ def build_live_observability_receipt(
         "authority_plane": "none",
         "generated": {"by": "project-atlas"},
     }
-    out = ops / "obs" / f"{receipt_id}-live.json"
+    return payload
+
+
+def build_live_observability_receipt(
+    vault: Path,
+    *,
+    receipt_id: str = "live-obs",
+) -> dict[str, Any]:
+    """Persist a live-surface observability receipt (explicit ops write)."""
+    payload = compute_live_observability_receipt(vault, receipt_id=receipt_id)
+    out = vault / "generated" / "ops" / "obs" / f"{receipt_id}-live.json"
     _atomic_write_json(out, payload)
     return payload

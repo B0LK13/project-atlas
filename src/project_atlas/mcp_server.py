@@ -147,6 +147,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.captures.list.read": lambda: service.session_captures(),
+        "atlas.obs.read": lambda: service.observability(),
     }
 
 

@@ -16,6 +16,7 @@ from project_atlas.knowledge_diff import (
     diff_knowledge,
     read_as_of,
 )
+from project_atlas.obs_live import compute_live_observability_receipt
 from project_atlas.session_capture import SessionCaptureError, read_vault_session_captures
 from project_atlas.web_api import (
     WebBriefError,
@@ -79,6 +80,10 @@ class AppService:
             "read_status": status,
             "vault_health": view,
         }
+
+    def observability(self) -> dict[str, Any]:
+        """Read-only live observability receipt (no vault write)."""
+        return compute_live_observability_receipt(self.vault, receipt_id="app-svc-obs")
 
     def projects(self) -> list[dict[str, Any]]:
         return [dict(row) for row in list_projects(self.vault)]

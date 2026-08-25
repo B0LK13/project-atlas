@@ -39,7 +39,7 @@ from project_atlas.conversation_capture import (
     capture_conversation,
 )
 from project_atlas.mcp_server import list_mcp_tools
-from project_atlas.obs_live import build_live_observability_receipt
+from project_atlas.obs_live import compute_live_observability_receipt
 from project_atlas.ops_receipts import inventory_ops_receipts
 from project_atlas.web_actions import (
     WebActionError,
@@ -523,7 +523,7 @@ def make_handler(
                 "/v1/snapshot": lambda: service.snapshot(),
                 "/v1/actions": lambda: load_action_ledger(service.vault),
                 "/v1/mcp/tools": lambda: list_mcp_tools(operator=operator),
-                "/v1/obs": lambda: build_live_observability_receipt(
+                "/v1/obs": lambda: compute_live_observability_receipt(
                     service.vault, receipt_id="api-obs"
                 ),
                 "/v1/mission": lambda: build_mission_view(service.vault),

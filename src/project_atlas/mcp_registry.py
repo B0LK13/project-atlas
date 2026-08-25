@@ -77,6 +77,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha session-capture list (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.obs.read",
+        "vault-read",
+        True,
+        "allow-list candidate; live observability receipt (vault-scoped, read-only, no write)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,
