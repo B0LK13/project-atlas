@@ -238,7 +238,9 @@ def _lock_payload(pid: int, instance_id: str) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def _read_lock_record(path: Path) -> SupervisorLockRecord | None | Literal["corrupt"]:
+def _read_lock_record(
+    path: Path,
+) -> SupervisorLockRecord | Literal["corrupt"] | None:
     """Return lock record, None when absent, 'corrupt' when unreadable/incomplete."""
     if not path.is_file():
         return None
