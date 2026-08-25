@@ -5,6 +5,26 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-OVERVIEW/DECISIONS/ATTENTION API+WEB — night cycle 2026-08-24T23:45Z
+
+**Date:** 2026-08-24
+**Branch:** `cursor/atlas-autonomous-night-cycle-63c0`
+**Mode:** CODER_ALPHA_SURFACE. Does not mutate D-149 / #477. Does not claim MCP
+(owner-held #478/#481). Does not merge.
+
+Read-only `GET /v1/overview`, `/v1/decisions`, `/v1/attention` plus Web
+`#/overview`, `#/decisions`, `#/attention`. Wraps existing CLI lenses. Never
+writes Layer B or generated answers.
+
+- `OVERVIEW != AUTHORITY`
+- `DECISIONS != AUTHORITY`
+- `ATTENTION != AUTHORITY`
+- `/v1/attention` != `/v1/project-attention`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO`
+
+---
+
 ## AS-CODER-ALPHA-INBOX API+WEB — night cycle 2026-08-24T23:45Z
 
 **Date:** 2026-08-24

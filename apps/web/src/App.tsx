@@ -20,6 +20,9 @@ import IntelligencePage from "./pages/production/IntelligencePage";
 import UnknownPage from "./pages/production/UnknownPage";
 import ChangedPage from "./pages/production/ChangedPage";
 import InboxPage from "./pages/production/InboxPage";
+import OverviewPage from "./pages/production/OverviewPage";
+import DecisionsPage from "./pages/production/DecisionsPage";
+import AttentionPage from "./pages/production/AttentionPage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -42,6 +45,9 @@ export default function App() {
       <Route path="/unknown" element={<UnknownPage />} />
       <Route path="/changed" element={<ChangedPage />} />
       <Route path="/inbox" element={<InboxPage />} />
+      <Route path="/overview" element={<OverviewPage />} />
+      <Route path="/decisions" element={<DecisionsPage />} />
+      <Route path="/attention" element={<AttentionPage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />
       <Route path="/design-lab/cartograph-quiet" element={<CartographQuietPage />} />

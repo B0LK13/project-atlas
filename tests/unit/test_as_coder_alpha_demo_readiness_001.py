@@ -41,6 +41,12 @@ def test_demo_readiness_harbor_journey_is_honest(tmp_path: Path) -> None:
     assert report["unknown_api"] == "IMPLEMENTED"
     assert report["changed_api"] == "IMPLEMENTED"
     assert report["inbox_api"] == "IMPLEMENTED"
+    assert report["overview_api"] == "IMPLEMENTED"
+    assert report["decisions_api"] == "IMPLEMENTED"
+    assert report["attention_api"] == "IMPLEMENTED"
+    assert report["checks"]["overview_api_landed"] is True
+    assert report["checks"]["decisions_api_landed"] is True
+    assert report["checks"]["attention_api_landed"] is True
     assert report["inbox_list"] == "READY"
     by_name = {row["name"]: row for row in report["stages"]}
     assert tuple(row["name"] for row in report["stages"] if row["name"] in JOURNEY) == JOURNEY

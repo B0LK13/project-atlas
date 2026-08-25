@@ -74,6 +74,9 @@ NEXT_API_STATUS: Final[str] = "PENDING_OWNER_HELD_406"
 UNKNOWN_API_STATUS: Final[str] = "IMPLEMENTED"
 CHANGED_API_STATUS: Final[str] = "IMPLEMENTED"
 INBOX_API_STATUS: Final[str] = "IMPLEMENTED"
+OVERVIEW_API_STATUS: Final[str] = "IMPLEMENTED"
+DECISIONS_API_STATUS: Final[str] = "IMPLEMENTED"
+ATTENTION_API_STATUS: Final[str] = "IMPLEMENTED"
 LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/ask",
     "/v1/projects",
@@ -84,6 +87,9 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/unknown",
     "/v1/changed",
     "/v1/inbox",
+    "/v1/overview",
+    "/v1/decisions",
+    "/v1/attention",
     "/v1/source-health",
     "/v1/project-state",
     "/v1/conflicts",
@@ -275,6 +281,9 @@ def run_demo_readiness(
                 f"/v1/inbox={INBOX_API_STATUS}; "
                 f"/v1/unknown={UNKNOWN_API_STATUS}; "
                 f"/v1/changed={CHANGED_API_STATUS}; "
+                f"/v1/overview={OVERVIEW_API_STATUS}; "
+                f"/v1/decisions={DECISIONS_API_STATUS}; "
+                f"/v1/attention={ATTENTION_API_STATUS}; "
                 "UI != canonical truth"
             ),
         ),
@@ -307,6 +316,9 @@ def run_demo_readiness(
         "next_api_landed": False,
         "unknown_api_landed": True,
         "changed_api_landed": True,
+        "overview_api_landed": True,
+        "decisions_api_landed": True,
+        "attention_api_landed": True,
         "cross_project_leak_count": leak_count,
     }
     failed = [
@@ -319,6 +331,9 @@ def run_demo_readiness(
             "next_api_landed",
             "unknown_api_landed",
             "changed_api_landed",
+            "overview_api_landed",
+            "decisions_api_landed",
+            "attention_api_landed",
         }
         and not ok
     ]
@@ -355,6 +370,9 @@ def run_demo_readiness(
         "unknown_api": UNKNOWN_API_STATUS,
         "changed_api": CHANGED_API_STATUS,
         "inbox_api": INBOX_API_STATUS,
+        "overview_api": OVERVIEW_API_STATUS,
+        "decisions_api": DECISIONS_API_STATUS,
+        "attention_api": ATTENTION_API_STATUS,
         "inbox_list": "READY" if inbox_available else "NOT_IMPLEMENTED",
         "stamps": list(STAMPS),
         "honesty": dict(HONESTY),

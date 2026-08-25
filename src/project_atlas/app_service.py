@@ -17,10 +17,13 @@ from project_atlas.knowledge_diff import (
     read_as_of,
 )
 from project_atlas.web_api import (
+    WebAttentionError,
     WebBriefError,
     WebChangedError,
+    WebDecisionsError,
     WebInboxError,
     WebIntelligenceError,
+    WebOverviewError,
     WebRoadmapError,
     WebSourceHealthError,
     WebUnknownError,
@@ -36,9 +39,12 @@ from project_atlas.web_api import (
     read_intelligence_query,
     read_portfolio_state,
     read_project_attention,
+    read_project_attention_hygiene,
     read_project_brief,
     read_project_changed,
+    read_project_decisions,
     read_project_inbox,
+    read_project_overview,
     read_project_roadmap,
     read_project_state,
     read_project_unknown,
@@ -153,6 +159,33 @@ class AppService:
                 self.vault, project_id, status=status, limit=limit
             )
         except WebInboxError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def overview(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha project overview (read-only; != Layer B authority)."""
+        try:
+            return read_project_overview(self.vault, project_id)
+        except WebOverviewError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def decisions(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha decision memory (read-only; != governing authority)."""
+        try:
+            return read_project_decisions(self.vault, project_id)
+        except WebDecisionsError as exc:
+            error = AppServiceError(str(exc))
+            error.honesty = exc.honesty
+            raise error from exc
+
+    def attention(self, project_id: str) -> dict[str, Any]:
+        """Coder Alpha attention hygiene (read-only; != /v1/project-attention)."""
+        try:
+            return read_project_attention_hygiene(self.vault, project_id)
+        except WebAttentionError as exc:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc

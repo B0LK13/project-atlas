@@ -416,6 +416,81 @@ def make_handler(
                         },
                     )
                 return
+            if path == "/v1/overview":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "overview-requires-project",
+                            "package_id": "AS-CODER-ALPHA-OVERVIEW-API-001",
+                            "honesty": "UNSUPPORTED_SCOPE",
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.overview(project))
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-OVERVIEW-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                return
+            if path == "/v1/decisions":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "decisions-requires-project",
+                            "package_id": "AS-CODER-ALPHA-DECISIONS-API-001",
+                            "honesty": "UNSUPPORTED_SCOPE",
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.decisions(project))
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-DECISIONS-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                return
+            if path == "/v1/attention":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "attention-requires-project",
+                            "package_id": "AS-CODER-ALPHA-ATTENTION-API-001",
+                            "honesty": "UNSUPPORTED_SCOPE",
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.attention(project))
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-ATTENTION-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                return
             if path == "/v1/actions/recent":
                 try:
                     limit = _parse_limit(qs, default=20)
@@ -620,6 +695,9 @@ def make_handler(
                     "unknown_live": True,
                     "changed_live": True,
                     "inbox_live": True,
+                    "overview_live": True,
+                    "decisions_live": True,
+                    "attention_live": True,
                     "source_health_live": True,
                     "discovery_live": True,
                     "truth_ux_live": True,

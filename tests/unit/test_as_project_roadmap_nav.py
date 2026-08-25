@@ -25,6 +25,9 @@ PROJECT_AWARE = {
     "/unknown",
     "/changed",
     "/inbox",
+    "/overview",
+    "/decisions",
+    "/attention",
     "/workspace",
 }
 

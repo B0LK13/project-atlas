@@ -12,6 +12,10 @@ Normative (ADR-008):
 
 from __future__ import annotations
 
+from project_atlas.web_api.attention import (
+    WebAttentionError,
+    read_project_attention_hygiene,
+)
 from project_atlas.web_api.brief import (
     WebBriefError,
     filter_knowledge_by_project,
@@ -19,6 +23,7 @@ from project_atlas.web_api.brief import (
 )
 from project_atlas.web_api.changed import WebChangedError, read_project_changed
 from project_atlas.web_api.conflicts import list_project_conflicts
+from project_atlas.web_api.decisions import WebDecisionsError, read_project_decisions
 from project_atlas.web_api.discovery import load_estate_discovery_view
 from project_atlas.web_api.graph import impact_graph_summary, read_impact_graph
 from project_atlas.web_api.health import (
@@ -40,6 +45,7 @@ from project_atlas.web_api.intelligence import (
     read_project_state,
 )
 from project_atlas.web_api.knowledge import KnowledgeAnswerSummary, list_knowledge_answers
+from project_atlas.web_api.overview import WebOverviewError, read_project_overview
 from project_atlas.web_api.projects import ProjectSummary, list_projects
 from project_atlas.web_api.roadmap import WebRoadmapError, read_project_roadmap
 from project_atlas.web_api.source_health import (
@@ -54,10 +60,13 @@ __all__ = [
     "ProjectSummary",
     "ReadStatus",
     "VaultHealthView",
+    "WebAttentionError",
     "WebBriefError",
     "WebChangedError",
+    "WebDecisionsError",
     "WebInboxError",
     "WebIntelligenceError",
+    "WebOverviewError",
     "WebRoadmapError",
     "WebSourceHealthError",
     "WebUnknownError",
@@ -74,9 +83,12 @@ __all__ = [
     "read_intelligence_query",
     "read_portfolio_state",
     "read_project_attention",
+    "read_project_attention_hygiene",
     "read_project_brief",
     "read_project_changed",
+    "read_project_decisions",
     "read_project_inbox",
+    "read_project_overview",
     "read_project_roadmap",
     "read_project_state",
     "read_project_unknown",

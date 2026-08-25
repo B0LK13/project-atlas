@@ -69,6 +69,21 @@ const PROD = [
     title: "Inbox",
     blurb: "Knowledge inbox list — listing≠command; INBOX≠authority.",
   },
+  {
+    to: "/overview",
+    title: "Overview",
+    blurb: "Project overview lens — OVERVIEW≠authority; UNKNOWN≠healthy.",
+  },
+  {
+    to: "/decisions",
+    title: "Decisions",
+    blurb: "Decision memory — DECISIONS≠authority; ACTIVE_GOVERNING≠trust.",
+  },
+  {
+    to: "/attention",
+    title: "Attention",
+    blurb: "Attention hygiene — ATTENTION≠authority; CLEAR requires inspection.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
