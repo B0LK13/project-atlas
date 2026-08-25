@@ -7179,3 +7179,39 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## AS-CODER-ALPHA-LIFECYCLE-READ-001 -- vault-scoped lifecycle REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-lifecycle-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`. IMPLEMENTER != VERIFIER.
+
+### Why
+AS-CORE2-010 already persists a fixture-safe lifecycle certification
+report at `generated/ops/lifecycle-cert-report.json`. Humans and agents
+had no first-class read-only CLI/API/MCP lens, so a missing vault or
+empty ops directory could look like CERTIFIED / healthy, and a read
+could accidentally run `lifecycle certify`.
+
+### Surfaces
+- `atlas lifecycle report --vault <dir> [--json]` (alias: `atlas lifecycle show`)
+- `GET /v1/lifecycle`
+- MCP `atlas.lifecycle.read` (zero-arg, vault-scoped)
+- AppService `lifecycle()` + `web_api.lifecycle`
+- Web page skipped (would bloat)
+- Existing `atlas lifecycle certify` writer unchanged
+
+### Honesty
+- `LIFECYCLE != AUTHORITY`
+- `CERTIFY_REPORT != PILOT PASS`
+- `MISSING != CERTIFIED`
+- `EMPTY != HEALTHY`
+- `MCP != AUTHORITY`
+- `WRITE_APPLIED = false`
+- `D149_TOUCHED = NO`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Read never calls certify / write_report / build_report
+

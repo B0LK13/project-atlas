@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.lifecycle import (
+    WebLifecycleError,
+    read_lifecycle,
+    render_lifecycle_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1690,11 +1695,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # AS-CORE2-010 — fixture-safe lifecycle certification (≠ estate PILOT PASS).
+    # AS-CODER-ALPHA-LIFECYCLE-READ-001 — persisted report read (never certifies).
     lifecycle_parser = subparsers.add_parser(
         "lifecycle",
         help=(
-            "Run fixture-safe source lifecycle certification "
-            "(AS-CORE2-010; never claims ESTATE PILOT PASSED)."
+            "Fixture-safe source lifecycle certification and persisted-report read "
+            "(AS-CORE2-010 / AS-CODER-ALPHA-LIFECYCLE-READ-001; "
+            "never claims ESTATE PILOT PASSED)."
         ),
     )
     lifecycle_sub = lifecycle_parser.add_subparsers(
@@ -1720,6 +1727,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print the certification report JSON to stdout.",
+    )
+    lifecycle_report = lifecycle_sub.add_parser(
+        "report",
+        help=(
+            "Read persisted lifecycle-certify report "
+            "(AS-CODER-ALPHA-LIFECYCLE-READ-001; never certifies; never writes)."
+        ),
+    )
+    lifecycle_report.add_argument("--vault", type=Path, required=True)
+    lifecycle_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the lifecycle REPORT READ JSON to stdout.",
+    )
+    lifecycle_show = lifecycle_sub.add_parser(
+        "show",
+        help="Alias for `lifecycle report` (read-only; does not certify or write).",
+    )
+    lifecycle_show.add_argument("--vault", type=Path, required=True)
+    lifecycle_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the lifecycle REPORT READ JSON to stdout.",
     )
 
     # AS-2.0-COMPAT-001 — verify machine-readable 1.0 compatibility anchor.
@@ -4152,6 +4182,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "lifecycle":
+        if args.lifecycle_command in {"report", "show"}:
+            try:
+                view = read_lifecycle(args.vault)
+            except (WebLifecycleError, OSError) as exc:
+                _log.error("lifecycle report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_lifecycle_text(view), end="")
+            return EXIT_OK
         if args.lifecycle_command == "certify":
             try:
                 report = run_fixture_lifecycle_certification(
