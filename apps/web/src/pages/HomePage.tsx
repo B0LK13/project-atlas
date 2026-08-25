@@ -30,6 +30,11 @@ const PROD = [
   { to: "/projects", title: "Projects", blurb: "Read-only inventory lens." },
   { to: "/ops", title: "Ops health", blurb: "OBS/sample consume — unknown ≠ healthy." },
   {
+    to: "/conversation-captures",
+    title: "Conversation captures",
+    blurb: "Quarantined conversation inventory — CAPTURE≠TRUTH CORE; REVIEWED≠PROMOTED.",
+  },
+  {
     to: "/command-center",
     title: "Command Center",
     blurb: "Mode switcher: overview · projects · ops · impact.",

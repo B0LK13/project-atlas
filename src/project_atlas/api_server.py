@@ -38,6 +38,10 @@ from project_atlas.conversation_capture import (
     ConversationCaptureError,
     capture_conversation,
 )
+from project_atlas.conversation_captures_read import (
+    ConversationCapturesReadError,
+    build_conversation_captures_read,
+)
 from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.obs_live import build_live_observability_receipt
 from project_atlas.ops_receipts import inventory_ops_receipts
@@ -333,6 +337,21 @@ def make_handler(
                     return
                 self._send(200, list_recent_actions(service.vault, limit=limit))
                 return
+            if path == "/v1/conversation-captures":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                try:
+                    limit = _parse_limit(qs, default=20)
+                    self._send(
+                        200,
+                        build_conversation_captures_read(
+                            service.vault,
+                            project.strip() or None,
+                            limit=limit,
+                        ),
+                    )
+                except (ConversationCapturesReadError, ApiServerError, ValueError) as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/ops/receipts":
                 try:
                     limit = _parse_limit(qs, default=100)
@@ -520,6 +539,7 @@ def make_handler(
                     "ask_atlas_live": True,
                     "obs_live": True,
                     "ops_receipts": True,
+                    "conversation_captures_live": True,
                     "mission_live": True,
                     "workspace_live": True,
                     "conflicts_live": True,

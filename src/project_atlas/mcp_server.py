@@ -18,6 +18,7 @@ from typing import Any, Final
 from project_atlas.app_service import AppService, AppServiceError, open_app_service
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.conversation_captures_read import build_conversation_captures_read
 from project_atlas.mcp_registry import DEFAULT_TOOLS
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
@@ -145,6 +146,9 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.conversation.captures.read": lambda: build_conversation_captures_read(
+            service.vault
+        ),
     }
 
 

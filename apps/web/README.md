@@ -31,6 +31,7 @@ npm run dev
 | `#/knowledge` | Knowledge lens |
 | `#/graph` | Graph lens (derived ≠ authority) |
 | `#/ops` | Ops Health + receipt evidence (read-only unknown stub) |
+| `#/conversation-captures` | Conversation-capture inventory (read-only; CAPTURE≠TRUTH CORE) |
 | `#/command-center` | Command Center modes |
 | `#/mission-control` | Mission Control — LIVE-first; `?mode=live\|demo\|fixture` |
 | `#/workspace` | Workspace — LIVE-first; `?mode=live\|demo\|fixture` |

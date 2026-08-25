@@ -67,6 +67,11 @@ from project_atlas.conversation_capture import (
     envelope_from_cli_items,
     set_conversation_review_state,
 )
+from project_atlas.conversation_captures_read import (
+    ConversationCapturesReadError,
+    build_conversation_captures_read,
+    render_conversation_captures_read_text,
+)
 from project_atlas.discovery import discover, write_manifest
 from project_atlas.doctor import render_text as doctor_render_text
 from project_atlas.doctor import run_doctor
@@ -677,6 +682,35 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the connect receipt JSON to stdout (sorted keys).",
+    )
+
+    conversation_captures_parser = subparsers.add_parser(
+        "conversation-captures",
+        help=(
+            "Read-only vault-scoped conversation-capture inventory "
+            "(AS-CODER-ALPHA-CONVERSATION-CAPTURES-READ-001; never writes; "
+            "CAPTURE!=TRUTH CORE; REVIEWED!=PROMOTED; EMPTY!=HEALTHY)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas conversation-captures --vault .tmp/vault --json\n"
+            "  atlas conversation-captures --vault .tmp/vault --project harbor-api\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    conversation_captures_parser.add_argument("--vault", type=Path, required=True)
+    conversation_captures_parser.add_argument("--project", default=None)
+    conversation_captures_parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Maximum captures to list (default: 20).",
+    )
+    conversation_captures_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Print the honesty-bound conversation-capture JSON to stdout.",
     )
 
     overview_parser = subparsers.add_parser(
@@ -3058,6 +3092,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 obsidian_notes = report.get("obsidian_notes") or []
                 if obsidian_notes:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
+        return EXIT_OK
+
+    if args.command == "conversation-captures":
+        try:
+            report = build_conversation_captures_read(
+                args.vault,
+                args.project,
+                limit=args.limit,
+            )
+        except (ConversationCapturesReadError, OSError, ValueError, TypeError) as exc:
+            _log.error("conversation-captures read failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+        else:
+            print(render_conversation_captures_read_text(report), end="")
         return EXIT_OK
 
     if args.command == "overview":

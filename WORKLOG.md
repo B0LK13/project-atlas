@@ -6997,3 +6997,37 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-CONVERSATION-CAPTURES-READ-001 — vault-scoped capture lens
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-1267` (from `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge.
+
+### Why
+CAPTURE-002 already persists quarantined conversation evidence under
+`generated/ops/conversation-captures/`. Humans and agents had no first-class
+CLI/API/Web/MCP list surface, so quarantined notes could look vanished from
+the product lenses. `atlas capture list` remains session-capture only.
+
+### Surfaces
+- `atlas conversation-captures --vault <dir> [--project <id>] [--json]`
+- `GET /v1/conversation-captures` (optional `?project=`)
+- Web `#/conversation-captures`
+- MCP `atlas.conversation.captures.read` (zero-arg vault-scoped)
+
+### Honesty
+- `CAPTURE != TRUTH CORE`
+- `REVIEWED != PROMOTED`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != CLEAN`
+- `QUARANTINE != AUTHORITY`
+- `LENS != AUTHORITY`
+- `UI != CANONICAL`
+- `MCP != AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `AUTHENTIC_PILOT = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

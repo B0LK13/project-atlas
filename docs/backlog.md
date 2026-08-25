@@ -382,6 +382,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
+- [x] AS-CODER-ALPHA-CONVERSATION-CAPTURES-READ-001 vault-scoped conversation-capture lens (`atlas conversation-captures`, `/v1/conversation-captures`, `#/conversation-captures`, `atlas.conversation.captures.read`; CAPTURE!=TRUTH CORE; REVIEWED!=PROMOTED; EMPTY!=HEALTHY; UNKNOWN!=CLEAN; LENS!=AUTHORITY; draft; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
