@@ -1384,8 +1384,13 @@ def build_parser() -> argparse.ArgumentParser:
         "obs",
         help=(
             "Read the live observability receipt "
-            "(AS-CODER-ALPHA-OBS-READ-001; OBS != AUTHORITY; never writes). "
-            "Examples: atlas ops obs --vault <dir> --json"
+            "(AS-CODER-ALPHA-OBS-READ-001; OBS != AUTHORITY; never writes)."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  atlas ops obs --vault /path/to/vault --json\n"
+            "  atlas ops obs --vault /path/to/vault"
         ),
     )
     obs_parser.add_argument("--vault", type=Path, required=True)
