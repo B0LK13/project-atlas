@@ -464,6 +464,12 @@ def make_handler(
                         },
                     )
                 return
+            if path == "/v1/kf2":
+                try:
+                    self._send(200, service.kf2())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/conflicts":
                 project = (qs.get("project") or [""])[0]
                 try:
@@ -525,6 +531,7 @@ def make_handler(
                     "conflicts_live": True,
                     "intelligence_live": True,
                     "kdiff_live": True,
+                    "kf2_live": True,
                     "brief_live": True,
                     "source_health_live": True,
                     "discovery_live": True,

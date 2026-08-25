@@ -127,6 +127,7 @@ from project_atlas.kf2_fabric import (
     register_namespace,
     register_relationship,
 )
+from project_atlas.web_api.kf2 import WebKf2Error, read_kf2, render_kf2_text
 from project_atlas.knowledge_diff import (
     AS_OF_KIND,
     DEFAULT_SUBJECT_CAP,
@@ -1752,7 +1753,8 @@ def build_parser() -> argparse.ArgumentParser:
         "kf2",
         help=(
             "Knowledge Fabric Wave 1 helpers "
-            "(AS-KF2-NS/ENTITY/REL; derived != authority)."
+            "(AS-KF2-NS/ENTITY/REL writers plus AS-CODER-ALPHA-KF2-READ-001 report; "
+            "derived != authority)."
         ),
     )
     kf2_sub = kf2_parser.add_subparsers(dest="kf2_command", required=True)
@@ -1789,6 +1791,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     kf2_rel.add_argument("--notes", default=None)
     kf2_rel.add_argument("--json", action="store_true")
+    kf2_report = kf2_sub.add_parser(
+        "report",
+        help=(
+            "Read persisted KF2 namespace/entity/rel projections "
+            "(AS-CODER-ALPHA-KF2-READ-001; never writes; never registers)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas kf2 report --vault /path/to/vault\n"
+            "  atlas kf2 report --vault /path/to/vault --json"
+        ),
+    )
+    kf2_report.add_argument("--vault", type=Path, required=True)
+    kf2_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the kf2 REPORT READ JSON to stdout.",
+    )
+    kf2_show = kf2_sub.add_parser(
+        "show",
+        help="Alias for `kf2 report` (read-only; does not register or write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas kf2 show --vault /path/to/vault\n"
+            "  atlas kf2 show --vault /path/to/vault --json"
+        ),
+    )
+    kf2_show.add_argument("--vault", type=Path, required=True)
+    kf2_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the kf2 REPORT READ JSON to stdout.",
+    )
 
     # AS-2.0-FED-001 — operator-declared federation join inventory.
     fed_parser = subparsers.add_parser(
@@ -4309,6 +4344,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "kf2":
+        if args.kf2_command in {"report", "show"}:
+            try:
+                view = read_kf2(args.vault)
+            except (WebKf2Error, OSError) as exc:
+                _log.error("kf2 report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_kf2_text(view), end="")
+            return EXIT_OK
         if args.kf2_command == "namespace":
             try:
                 ns_record = register_namespace(

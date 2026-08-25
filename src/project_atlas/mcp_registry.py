@@ -71,6 +71,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha project briefs (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.kf2.read",
+        "vault-read",
+        True,
+        "allow-list candidate; Knowledge Fabric projection read (vault-scoped)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

@@ -7179,3 +7179,35 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-KF2-READ-001 -- vault-scoped Knowledge Fabric REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-kf2-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`. IMPLEMENTER != VERIFIER.
+
+### Why
+AS-KF2-NS-001 / AS-KF2-ENTITY-001 / AS-KF2-REL-001 already persist
+namespace/entity/rel projections under `generated/kf2/`. Humans and
+agents had no first-class read-only CLI/API/MCP lens, so a missing vault
+or empty directory could look registered or healthy, and a read could
+accidentally register fabric records.
+
+### Surfaces
+- `atlas kf2 report --vault <dir> [--json]` (alias: `atlas kf2 show`)
+- `GET /v1/kf2`
+- MCP `atlas.kf2.read` (zero-arg, vault-scoped)
+- AppService `kf2()` + `web_api.kf2`
+- Web page skipped (would bloat)
+
+### Honesty
+- `KF2 != AUTHORITY`
+- `NAME != IDENTITY`
+- `MISSING != REGISTERED`
+- `EMPTY != HEALTHY`
+- `MCP != AUTHORITY`
+- `WRITE_APPLIED = false`
+- `D149_TOUCHED = NO`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Read never registers a namespace, entity, or relationship

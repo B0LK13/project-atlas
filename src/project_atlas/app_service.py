@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebKf2Error,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -31,6 +32,7 @@ from project_atlas.web_api import (
     read_intelligence_evidence,
     read_intelligence_explain,
     read_intelligence_query,
+    read_kf2,
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def kf2(self) -> dict[str, Any]:
+        """Vault-scoped Knowledge Fabric REPORT READ (never registers or writes)."""
+        try:
+            return read_kf2(self.vault)
+        except WebKf2Error as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
