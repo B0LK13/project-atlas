@@ -7040,3 +7040,22 @@ conflicts only and never selects a winner.
 - `RESOLUTION_SELECTED = NO`
 - `D149_TOUCHED = NO`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-KDIFF-MCP-001 — validity-catalog inventory MCP
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0155 successor
+**Branch:** `cursor/atlas-autonomous-night-cycle-ee6c`
+**Mode:** CODER_ALPHA_TRUTH_SURFACE. Does not invent as-of. Does not merge.
+
+### Why
+Agents can list derived bitemporal catalogs without choosing a time or
+claiming Time Machine authority. Missing catalogs stay empty.
+
+### Honesty
+- `KDIFF != AUTHORITY`
+- `AS_OF_INVENTED = NO`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

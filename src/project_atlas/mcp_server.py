@@ -26,6 +26,7 @@ ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 CONTEXT_PACKAGE_ID = "AS-CODER-ALPHA-CONTEXT-MCP-001"
 CONFLICTS_PACKAGE_ID = "AS-CODER-ALPHA-CONFLICTS-MCP-001"
+KDIFF_PACKAGE_ID = "AS-CODER-ALPHA-KDIFF-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -38,6 +39,10 @@ CONTEXT_TRUTH_BOUNDARY = (
 CONFLICTS_TRUTH_BOUNDARY = (
     "MCP CONFLICTS != AUTHORITY / != RESOLUTION / UNKNOWN VALID / "
     "NO WRITE / VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+KDIFF_TRUTH_BOUNDARY = (
+    "MCP KDIFF != AUTHORITY / != WALL-CLOCK NOW / NO INVENTED AS-OF / "
+    "CATALOG INVENTORY ONLY / NO WRITE"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -287,6 +292,84 @@ def read_vault_conflicts(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_kdiff_catalogs(service: AppService) -> dict[str, Any]:
+    """Zero-arg inventory of derived validity catalogs. Never invents as-of."""
+    root = service.vault / "generated" / "ops" / "bitemporal"
+    catalogs: list[dict[str, Any]] = []
+    if root.is_dir():
+        for path in sorted(root.glob("*-validity-catalog.json")):
+            if not path.is_file():
+                continue
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                catalogs.append(
+                    {
+                        "catalog_id": path.stem.replace("-validity-catalog", ""),
+                        "available": False,
+                        "window_count": 0,
+                        "path": path.relative_to(service.vault).as_posix(),
+                        "honesty": {
+                            "unknown_is_valid": True,
+                            "as_of_invented": False,
+                            "kdiff_is_authority": False,
+                            "catalog_unreadable": True,
+                        },
+                    }
+                )
+                continue
+            if not isinstance(raw, dict):
+                catalogs.append(
+                    {
+                        "catalog_id": path.stem.replace("-validity-catalog", ""),
+                        "available": False,
+                        "window_count": 0,
+                        "path": path.relative_to(service.vault).as_posix(),
+                        "honesty": {
+                            "unknown_is_valid": True,
+                            "as_of_invented": False,
+                            "kdiff_is_authority": False,
+                            "catalog_unreadable": True,
+                        },
+                    }
+                )
+                continue
+            catalog_id = raw.get("catalog_id")
+            window_count = raw.get("window_count")
+            catalogs.append(
+                {
+                    "catalog_id": catalog_id if isinstance(catalog_id, str) else path.stem,
+                    "available": True,
+                    "window_count": int(window_count) if isinstance(window_count, int) else 0,
+                    "path": path.relative_to(service.vault).as_posix(),
+                    "honesty": {
+                        "unknown_is_valid": True,
+                        "as_of_invented": False,
+                        "kdiff_is_authority": False,
+                        "catalog_unreadable": False,
+                    },
+                }
+            )
+    return {
+        "schema_version": 1,
+        "package_id": KDIFF_PACKAGE_ID,
+        "truth_boundary": KDIFF_TRUTH_BOUNDARY,
+        "catalog_count": len(catalogs),
+        "catalogs": catalogs,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "kdiff_is_authority": False,
+            "as_of_invented": False,
+            "wall_clock_now": False,
+            "unknown_is_valid": True,
+            "request_contains_time": False,
+            "zero_arg_vault_scope": True,
+            "auto_execution": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -300,6 +383,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.context.read": lambda: read_vault_contexts(service),
         "atlas.conflicts.read": lambda: read_vault_conflicts(service),
+        "atlas.kdiff.read": lambda: read_vault_kdiff_catalogs(service),
     }
 
 

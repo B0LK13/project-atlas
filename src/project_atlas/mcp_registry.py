@@ -83,6 +83,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; unresolved conflicts (vault-scoped, read-only, no resolution)",
     ),
     McpTool(
+        "atlas.kdiff.read",
+        "vault-read",
+        True,
+        "allow-list candidate; validity-catalog inventory (vault-scoped, no invented as-of)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,
