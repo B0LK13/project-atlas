@@ -54,6 +54,11 @@ const PROD = [
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",
   },
+  {
+    to: "/handoffs",
+    title: "Handoffs",
+    blurb: "Read-only atlas handoff inventory — HANDOFF≠authority.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

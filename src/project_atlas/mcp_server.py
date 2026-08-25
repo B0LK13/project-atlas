@@ -19,10 +19,14 @@ from project_atlas.app_service import AppService, AppServiceError, open_app_serv
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.web_api.handoffs import PACKAGE_ID as HANDOFF_PACKAGE_ID
+from project_atlas.web_api.handoffs import TRUTH_BOUNDARY as HANDOFF_TRUTH_BOUNDARY
+from project_atlas.web_api.handoffs import WebHandoffError, list_handoffs
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+HANDOFF_MCP_PACKAGE_ID = HANDOFF_PACKAGE_ID
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -134,6 +138,39 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_handoffs(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped handoff read. Does not create or resume packs."""
+    try:
+        report = list_handoffs(service.vault)
+    except (AppServiceError, WebHandoffError):
+        report = {
+            "schema_version": 1,
+            "package_id": HANDOFF_MCP_PACKAGE_ID,
+            "truth_boundary": HANDOFF_TRUTH_BOUNDARY,
+            "project_id": None,
+            "handoff_count": 0,
+            "handoffs": [],
+            "latest": None,
+            "available": False,
+            "honesty": {
+                "unknown_is_valid": True,
+                "mcp_is_authority": False,
+                "fabricated_fields": False,
+                "create_or_resume": False,
+            },
+        }
+    payload = dict(report)
+    payload["package_id"] = HANDOFF_MCP_PACKAGE_ID
+    payload["truth_boundary"] = HANDOFF_TRUTH_BOUNDARY
+    honesty = dict(payload.get("honesty") or {})
+    honesty["mcp_is_authority"] = False
+    honesty["request_contains_project"] = False
+    honesty["zero_arg_vault_scope"] = True
+    honesty["create_or_resume"] = False
+    payload["honesty"] = honesty
+    return payload
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +182,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.handoff.read": lambda: read_vault_handoffs(service),
     }
 
 

@@ -17,6 +17,7 @@ import ContextPage from "./pages/production/ContextPage";
 import AskPage from "./pages/production/AskPage";
 import RoadmapPage from "./pages/production/RoadmapPage";
 import IntelligencePage from "./pages/production/IntelligencePage";
+import HandoffsPage from "./pages/production/HandoffsPage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/workspace" element={<WorkspacePage />} />
       <Route path="/time-machine" element={<TimeMachinePage />} />
       <Route path="/context" element={<ContextPage />} />
+      <Route path="/handoffs" element={<HandoffsPage />} />
       <Route path="/ask" element={<AskPage />} />
       <Route path="/roadmap" element={<RoadmapPage />} />
       <Route path="/intelligence" element={<IntelligencePage />} />

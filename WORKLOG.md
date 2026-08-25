@@ -6997,3 +6997,33 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-HANDOFF-MCP-001 — vault-scoped handoff read
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0305
+**Branch:** `cursor/atlas-autonomous-night-cycle-035a`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149 / #483. Does not merge.
+
+### Why
+Main MCP still only exposed brief + ops/knowledge/explain/projects. Handoff
+CLI (`atlas handoff create/resume`) already exists; agents and Web could not
+read stored packs without inventing a create/resume path.
+
+### Scope
+- Zero-arg `atlas.handoff.read` MCP tool
+- `GET /v1/handoffs` (+ optional `?project=`)
+- Web `#/handoffs`
+- Read-only summaries; no create/resume/write
+- Honesty-close stale backlog checkboxes for incremental-connect and D-044 HIGH (already on main)
+
+### Honesty
+- `HANDOFF != AUTHORITY`
+- `MCP != WRITE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+

@@ -268,6 +268,13 @@ def make_handler(
                     },
                 )
                 return
+            if path == "/v1/handoffs":
+                project = (qs.get("project") or [""])[0] or None
+                try:
+                    self._send(200, service.handoffs(project))
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/brief":
                 project = (qs.get("project") or [""])[0]
                 if not project:

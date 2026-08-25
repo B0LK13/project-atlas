@@ -18,11 +18,13 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebHandoffError,
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
     impact_graph_summary,
+    list_handoffs,
     list_knowledge_answers,
     list_project_conflicts,
     list_projects,
@@ -115,6 +117,13 @@ class AppService:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc
+
+    def handoffs(self, project_id: str | None = None) -> dict[str, Any]:
+        """Vault-scoped handoff inventory (read-only; HANDOFF != authority)."""
+        try:
+            return list_handoffs(self.vault, project_id=project_id)
+        except WebHandoffError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def graph_summary(self) -> dict[str, Any]:
         summary = impact_graph_summary(self.vault)
