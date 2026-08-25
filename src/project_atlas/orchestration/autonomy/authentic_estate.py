@@ -28,6 +28,19 @@ _NON_AUTHENTIC_FRAGMENTS: Final[tuple[str, ...]] = (
     "harbor-api",
     "synthetic",
 )
+# Owner-held gates that authentic-estate availability must never rewrite.
+IMMUTABLE_OWNER_GATES: Final[frozenset[str]] = frozenset(
+    {
+        "MERGE",
+        "SECURITY",
+        "HUMAN",
+        "OWNER",
+        "RELEASE",
+        "GOVERNOR",
+        "SIGNOFF",
+    }
+)
+_ESTATE_DEPENDENCY: Final[str] = "AUTHENTIC_ESTATE_ROOT"
 
 
 class EstatePreflight(BaseModel):
@@ -220,12 +233,14 @@ def run_estate_preflight(estate_root: Path) -> EstatePreflight:
 def write_estate_credential(repo_root: Path, estate_root: Path, preflight: EstatePreflight) -> Path:
     path = _rt(repo_root) / "d148-authentic-estate-credential.json"
     path.parent.mkdir(parents=True, exist_ok=True)
+    satisfied = bool(preflight.preflight_pass)
     payload = {
         "directive": "D-148",
         "AUTHENTIC_ESTATE_ROOT": str(estate_root.resolve()),
-        "AUTHENTIC_ESTATE_ROOT_AVAILABLE": True,
+        # Failed preflight is recorded honestly; it never grants estate availability.
+        "AUTHENTIC_ESTATE_ROOT_AVAILABLE": satisfied,
         # Valid estate path satisfies AUTHENTIC_ESTATE_ROOT only — not owner authority.
-        "AUTHENTIC_ESTATE_CREDENTIAL_SATISFIED": True,
+        "AUTHENTIC_ESTATE_CREDENTIAL_SATISFIED": satisfied,
         "OWNER_CAPABILITY_GRANTED": False,
         "preflight": preflight.model_dump(),
         "preflight_pass": preflight.preflight_pass,
@@ -236,8 +251,70 @@ def write_estate_credential(repo_root: Path, estate_root: Path, preflight: Estat
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "merge_authorized": False,
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
     return path
+
+
+def estate_credential_binding_ok(repo_root: Path) -> bool:
+    """Reject stale, cross-project, or failed credential files before DAG mutation."""
+    estate = resolve_authentic_estate_root(repo_root)
+    if estate is None:
+        return False
+    cred_path = _rt(repo_root) / "d148-authentic-estate-credential.json"
+    if not cred_path.is_file():
+        # Env/explicit root may satisfy availability without a persisted credential.
+        return run_estate_preflight(estate).preflight_pass
+    try:
+        data = json.loads(cred_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    if data.get("OWNER_CAPABILITY_GRANTED") is True:
+        return False
+    credential_failed = data.get("preflight_pass") is False or (
+        data.get("AUTHENTIC_ESTATE_CREDENTIAL_SATISFIED") is False
+    )
+    if credential_failed:
+        return False
+    recorded_root = str(data.get("AUTHENTIC_ESTATE_ROOT") or data.get("root") or "").strip()
+    if recorded_root and str(estate.resolve()) != recorded_root:
+        return False
+    recorded_fp = str(data.get("estate_fingerprint") or "").strip()
+    current_fp = estate_fingerprint(estate)
+    # Credential files must bind a live content fingerprint. Missing/empty
+    # fingerprints are stale evidence and must not authorize mutation.
+    if not recorded_fp or not current_fp or recorded_fp != current_fp:
+        return False
+    recorded_project = str(data.get("project_id") or "").strip()
+    live = run_estate_preflight(estate)
+    if recorded_project and live.project_id and recorded_project != live.project_id:
+        return False
+    return live.preflight_pass
+
+
+def _durable_refresh_integrity_ok(repo_root: Path) -> bool:
+    """When operational pins exist, refuse mutation on closure-integrity failure."""
+    from project_atlas.orchestration.autonomy.exact_main_closure import (
+        closure_integrity_pass,
+        inspect_closure_integrity,
+        read_operational_pins,
+    )
+
+    cert_head, cert_tree = read_operational_pins(repo_root)
+    if not cert_head:
+        return True
+    try:
+        integrity = inspect_closure_integrity(
+            repo_root,
+            certification_target_head=cert_head,
+            certification_target_tree=cert_tree,
+        )
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        return False
+    return closure_integrity_pass(integrity)
 
 
 def authentic_estate_available(repo_root: Path) -> bool:
@@ -339,13 +416,19 @@ def restore_o2_node_snapshot(repo_root: Path, snapshot: dict[str, dict[str, Any]
 def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
     """Unblock O2 credential nodes when estate credential is satisfied (sequential).
 
-    Consumes only ``AUTHENTIC_ESTATE_ROOT`` when ``OWNER_GATE == CREDENTIAL``.
-    Never clears MERGE/SECURITY (or other non-credential) gates, and never
+    Eligible consumption requires ``OWNER_GATE == CREDENTIAL`` (or already
+    ``NONE``) **and** an explicit ``AUTHENTIC_ESTATE_ROOT`` dependency.
+    Never clears MERGE/SECURITY/HUMAN/OWNER/RELEASE/GOVERNOR/SIGNOFF, never
+    clears a CREDENTIAL gate held for a different capability, and never
     blanks unrelated dependencies.
     """
     from project_atlas.orchestration.sdk.mission_reconciler import load_nodes, persist_nodes
 
     if not authentic_estate_available(repo_root):
+        return []
+    if not estate_credential_binding_ok(repo_root):
+        return []
+    if not _durable_refresh_integrity_ok(repo_root):
         return []
     cert_path = _rt(repo_root) / "d148-o2-certification.json"
     d148: dict[str, Any] = {}
@@ -373,9 +456,15 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
     for node in nodes.values():
         if node.PACKAGE_ID not in AUTHENTIC_O2_PACKAGES:
             continue
-        if node.status == "COMPLETED":
+        if node.status in {"COMPLETED", "SUPERSEDED", "DISPATCHED", "RUNNING"}:
             continue
         # Estate credential must never escalate MERGE/SECURITY/etc. to NONE.
+        if node.OWNER_GATE in IMMUTABLE_OWNER_GATES:
+            continue
+        estate_dep_present = _ESTATE_DEPENDENCY in node.DEPENDENCIES
+        # CREDENTIAL for some other capability, or no estate dep to consume.
+        if not estate_dep_present:
+            continue
         if node.OWNER_GATE not in {"NONE", "CREDENTIAL"}:
             continue
         package_ready = _authentic_o2_package_ready(
@@ -386,14 +475,11 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
         )
         if not package_ready:
             continue
-        mutated = False
-        if "AUTHENTIC_ESTATE_ROOT" in node.DEPENDENCIES:
-            node.DEPENDENCIES = [d for d in node.DEPENDENCIES if d != "AUTHENTIC_ESTATE_ROOT"]
-            mutated = True
-        if node.OWNER_GATE == "CREDENTIAL" and "AUTHENTIC_ESTATE_ROOT" not in node.DEPENDENCIES:
-            # Credential gate was for estate availability; clear only that gate.
+        node.DEPENDENCIES = [d for d in node.DEPENDENCIES if d != _ESTATE_DEPENDENCY]
+        mutated = True
+        if node.OWNER_GATE == "CREDENTIAL":
+            # Clear CREDENTIAL only after the estate dependency itself was consumed.
             node.OWNER_GATE = "NONE"
-            mutated = True
         if (
             node.OWNER_GATE == "NONE"
             and not node.DEPENDENCIES
@@ -401,7 +487,6 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
             not in {"READY", "DISPATCHED", "RUNNING", "COMPLETED"}
         ):
             node.status = "READY"
-            mutated = True
         if mutated:
             changed.append(node.NODE_ID)
     if changed:

@@ -6997,3 +6997,45 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## D-149 — owner-gate non-escalation (authentic estate, clean package)
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle / D-149
+**Branch:** `cursor/atlas-autonomous-night-cycle-69a2`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED SECURITY REMEDIATION. Does not grant merge. Does not claim authentic O2. Does not mix NEXT-API or other Coder Alpha surfaces.
+
+### Live-state note
+Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-estate `CREDENTIAL` gate to `NONE` and rewrote `SUPERSEDED MERGE` to `CREDENTIAL` during mission reconcile. Draft `#477` already contains a mixed D-149+NEXT fix; this package is D-149-only.
+
+### Pre-remediation probe (main `f0e0c979`)
+- `CREDENTIAL` + `SOME_OTHER_CREDENTIAL` → `OWNER_GATE=NONE` (`PROBE1_CREDENTIAL_OTHER_WIDENED=True`)
+- `SUPERSEDED MERGE` + estate-absent O2 reseed → `OWNER_GATE=CREDENTIAL` (`PROBE2_MERGE_TO_CREDENTIAL=True`)
+- Refresh-path `MERGE` was already preserved on main
+
+### Scope
+- `refresh_authentic_o2_node_states` consumes only an explicit `AUTHENTIC_ESTATE_ROOT` dependency
+- `CREDENTIAL` held for another capability is not cleared
+- `MERGE`/`SECURITY`/`HUMAN`/`OWNER`/`RELEASE`/`GOVERNOR`/`SIGNOFF` remain immutable
+- Failed preflight does not mark the estate credential satisfied
+- Stale/cross-project/fixture/missing-fingerprint credentials refuse durable mutation
+- Closure-integrity pin failure refuses durable mutation
+- Mission reconciler no longer rewrites owner-held `MERGE` to `CREDENTIAL`
+- `ready_work_items` demotes every immutable owner gate before surface-overlap skip
+- `SUPERSEDED`/`DISPATCHED`/`RUNNING` nodes are not resurrected by estate refresh
+
+### Honesty
+- `AUTHENTIC_ESTATE_AVAILABILITY != OWNER_AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN` (`AUTHENTIC_ESTATE_ROOT` unset)
+- Independent verifier: `IV_RESULT=PASS` after P1 remediations
+
+### Local verification
+- Focused D-149/D-148/reconciler: 56 passed (`--no-cov`)
+- Autonomy regression D-146/147/149/154: 84 passed
+- ruff + mypy on touched modules: pass
+- Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
