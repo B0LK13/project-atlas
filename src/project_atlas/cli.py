@@ -259,6 +259,7 @@ from project_atlas.session_capture import (
     list_captures,
 )
 from project_atlas.source_health import SourceHealthError, explain_source_health
+from project_atlas.terminal_io import human_print
 from project_atlas.twin_fixtures import (
     TwinFixtureError,
     TwinProjectRow,
@@ -3241,7 +3242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             care = report.get("care_about") or []
             print(f"care_about ({len(care)}):")
             for item in care:
-                print(
+                human_print(
                     f"  [{item.get('level')}] {item.get('reason_code')}: "
                     f"{item.get('why_seeing_this')} → {item.get('what_to_do')}"
                 )
