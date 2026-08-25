@@ -137,6 +137,9 @@ class AppService:
             )
         except KnowledgeDiffError as exc:
             raise AppServiceError(str(exc)) from exc
+        except (TypeError, ValueError) as exc:
+            # LIVE_API must return JSON and never empty-reset the connection.
+            raise AppServiceError(f"kdiff as_of failed: {exc}") from exc
 
     def kdiff_diff(self, project_id: str, t1: str, t2: str) -> dict[str, Any]:
         """Time Machine T1→T2 diff (AS-2.2-KDIFF-001; read-only, ≠ authority)."""
@@ -144,6 +147,8 @@ class AppService:
             return diff_knowledge(self.vault, project_id=project_id, t1=t1, t2=t2)
         except KnowledgeDiffError as exc:
             raise AppServiceError(str(exc)) from exc
+        except (TypeError, ValueError) as exc:
+            raise AppServiceError(f"kdiff diff failed: {exc}") from exc
 
     def intelligence_evidence(
         self,

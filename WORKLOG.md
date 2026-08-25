@@ -5,6 +5,49 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-178 P1-A — KDIFF_TZ_AWARE_CRASH (UTC-aware comparison)
+
+**Date:** 2026-08-25
+**Package:** D-178 / KDIFF_TZ_AWARE_CRASH
+**Branch:** `cursor/kdiff-tz-aware-crash-b38f`
+**Base:** `origin/main` `a17949c6df9b4d004ffe03eb47b0934e3735204d` / tree `e646392c12fa525dcfd017c33e1b6226c5bfb40a`
+**Mode:** P1 remediation carrier. Does not merge. Does not touch Ask2 or #505.
+
+### Why
+`atlas kdiff --as-of <timestamp>Z` and `+00:00` raised `TypeError` in
+`bitemporal.py::_covers` (aware vs naive). Date-only form worked. LIVE_API
+`/v1/kdiff?as_of=…Z` empty-reset the connection (curl 52) because the
+uncaught TypeError was not mapped to `AppServiceError`.
+
+### Root cause
+`_parse_instant` returned naive midnight for `YYYY-MM-DD` and aware UTC for
+`Z` / offsets. Catalog windows are typically date-only. `_covers` compared
+mixed types. CLI and API share `evaluate_as_of` → same root cause, different
+symptoms.
+
+### Canonical policy
+UTC-aware everywhere. Naive date-only / naive ISO clocks are UTC, not local.
+Offsets are converted, never stripped.
+
+### Validation
+```
+.venv/bin/python -m pytest tests/unit/test_d178_kdiff_tz_aware.py \
+  tests/unit/test_as_2_0_temporal_001.py tests/unit/test_as_2_2_kdiff_001.py -q
+# 76 passed
+.venv/bin/python -m ruff check src/project_atlas/bitemporal.py \
+  src/project_atlas/app_service.py src/project_atlas/knowledge_diff.py \
+  tests/unit/test_d178_kdiff_tz_aware.py
+.venv/bin/python -m mypy src/project_atlas/bitemporal.py \
+  src/project_atlas/app_service.py src/project_atlas/knowledge_diff.py
+```
+
+### Honesty
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Independent ADV/IV still required on this exact tip
+- Does not claim `FULL_LIVE_DEMO_READY`
+
+---
+
 ## AS-CORE-007-R1 — AX-AUTH-005 consume fail-closed
 
 **Date:** 2026-08-25
