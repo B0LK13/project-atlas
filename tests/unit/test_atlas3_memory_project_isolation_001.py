@@ -108,6 +108,15 @@ def test_unknown_project_rejected(tmp_path: Path) -> None:
     assert exc.value.code == "UNKNOWN_PROJECT"
 
 
+def test_missing_project_id_rejected() -> None:
+    with pytest.raises(Atlas3Error) as exc:
+        assert_items_project_scope(
+            [{"item_type": "claim_candidate", "text": "no project binding"}],
+            project_id="harbor-api",
+        )
+    assert exc.value.code == "PROJECT_MISMATCH"
+
+
 def test_forged_provider_metadata_cannot_override_routing() -> None:
     with pytest.raises(Atlas3Error) as exc:
         assert_turns_project_scope(
