@@ -18,6 +18,7 @@ from typing import Any, Final
 from project_atlas.app_service import AppService, AppServiceError, open_app_service
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.knowledge_inbox import KnowledgeInboxError, list_inbox_items
 from project_atlas.mcp_registry import DEFAULT_TOOLS
 from project_atlas.overview import OverviewError, build_overview_lens
 from project_atlas.project_architecture import (
@@ -42,6 +43,7 @@ DECISIONS_PACKAGE_ID = "AS-CODER-ALPHA-DECISIONS-MCP-001"
 UNKNOWN_PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-MCP-001"
 CHANGED_PACKAGE_ID = "AS-CODER-ALPHA-CHANGED-MCP-001"
 ARCHITECTURE_PACKAGE_ID = "AS-CODER-ALPHA-ARCHITECTURE-MCP-001"
+INBOX_PACKAGE_ID = "AS-CODER-ALPHA-INBOX-MCP-001"
 LENS_PACKAGE_ID = "AS-CODER-ALPHA-LENS-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
@@ -444,6 +446,54 @@ def read_vault_architectures(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_inbox(service: AppService) -> dict[str, Any]:
+    """Zero-arg inbox list. Never promotes, accepts, or writes Layer B."""
+    rows: list[dict[str, Any]] = []
+    for pid in _vault_project_ids(service):
+        try:
+            payload = list_inbox_items(service.vault, project_id=pid)
+            rows.append(
+                {
+                    "project_id": pid,
+                    "inbox": {
+                        "project_id": pid,
+                        "available": True,
+                        "count": int(payload.get("count") or 0),
+                        "unknown": payload.get("unknown"),
+                        "items": list(payload.get("items") or []),
+                        "promoted_to_authority": False,
+                        "layer_b_writes": 0,
+                        "honesty": {
+                            "unknown_is_valid": True,
+                            "lens_is_authority": False,
+                            "mcp_is_authority": False,
+                            "inbox_is_authority": False,
+                            "fabricated_fields": False,
+                            "canonical_write": False,
+                            "owner_capability_granted": False,
+                            "promoted_to_authority": False,
+                        },
+                    },
+                }
+            )
+        except (KnowledgeInboxError, AppServiceError, OSError):
+            row = _unknown_lens_row(pid)
+            row["count"] = 0
+            row["items"] = []
+            row["promoted_to_authority"] = False
+            rows.append({"project_id": pid, "inbox": row})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": INBOX_PACKAGE_ID,
+        "family_package_id": LENS_PACKAGE_ID,
+        "truth_boundary": LENS_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "projects": rows,
+        "honesty": _lens_honesty(),
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -460,6 +510,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.unknown.read": lambda: read_vault_unknowns(service),
         "atlas.changed.read": lambda: read_vault_changed(service),
         "atlas.architecture.read": lambda: read_vault_architectures(service),
+        "atlas.inbox.read": lambda: read_vault_inbox(service),
     }
 
 

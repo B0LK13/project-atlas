@@ -90,6 +90,7 @@ def test_adv_write_via_read_leaves_vault_unchanged(tmp_path: Path) -> None:
         "atlas.unknown.read",
         "atlas.changed.read",
         "atlas.architecture.read",
+        "atlas.inbox.read",
     ):
         report = invoke_mcp_tool(vault, tool)
         assert report["live_mcp_read"] is True

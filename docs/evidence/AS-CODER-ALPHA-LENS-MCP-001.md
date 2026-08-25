@@ -26,6 +26,7 @@ Zero-arg vault-scoped MCP tools:
 - `atlas.unknown.read`
 - `atlas.changed.read`
 - `atlas.architecture.read`
+- `atlas.inbox.read`
 
 Changed reads existing connect inventories only. It does not rotate
 `connect-inventory.json` and does not write `generated/answers`.

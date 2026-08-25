@@ -9,6 +9,7 @@ Vault-scoped, zero-arg MCP tools for the existing Coder Alpha lenses:
 | `atlas.unknown.read` | `AS-CODER-ALPHA-UNKNOWN-MCP-001` | What is unknown / conflicting? |
 | `atlas.changed.read` | `AS-CODER-ALPHA-CHANGED-MCP-001` | What changed? |
 | `atlas.architecture.read` | `AS-CODER-ALPHA-ARCHITECTURE-MCP-001` | What is the architecture? |
+| `atlas.inbox.read` | `AS-CODER-ALPHA-INBOX-MCP-001` | What is in the knowledge inbox? |
 
 ## What this is
 
