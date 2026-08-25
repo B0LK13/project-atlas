@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "id": "AT3-PACKAGE-MATURITY-001",
+  "title": "Atlas 3.0 package capability-maturity source of truth",
+  "description": "Per-package maturity for Atlas 3. Isolated runtime under src/project_atlas/atlas3/ may be implementation-unlocked without unlocking certified 2.x surfaces. prep-frozen packages remain docs/contracts only for any declared 2.x production_surface.",
+  "maturities": ["prep-frozen", "implementation-unlocked"],
+  "gates": {
+    "FULL_LIVE_DEMO_READY": "NO",
+    "ATLAS_3_CERTIFIED_SURFACE_MUTATION": "DENY",
+    "MERGE_AUTHORIZATION": "NOT_GRANTED",
+    "note": "Demo closure outranks Atlas 3 mutation of certified 2.x surfaces."
+  },
+  "packages": {
+    "at3-003-events": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/events.py"],
+      "evidence": "Isolated engineering event model; does not mutate atlas_contracts.EventType.",
+      "guard_tests": ["tests/unit/test_atlas3_events_001.py"]
+    },
+    "at3-014-ledger": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/ledger.py"],
+      "evidence": "Isolated append-only ledger under generated/ops/atlas3/ledger/.",
+      "guard_tests": ["tests/unit/test_atlas3_ledger_001.py"]
+    },
+    "at3-015-pulse": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/pulse.py"],
+      "evidence": "Derived Pulse lens composing 2.x answers + ledger.",
+      "guard_tests": ["tests/unit/test_atlas3_pulse_001.py"]
+    },
+    "at3-030-start": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/start.py"],
+      "evidence": "Budgeted Start compiler; no RAG dump.",
+      "guard_tests": ["tests/unit/test_atlas3_start_001.py"]
+    },
+    "at3-050-proof": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/proof.py"],
+      "evidence": "AGENT_PROOF chain; model claim != proof.",
+      "guard_tests": ["tests/unit/test_atlas3_proof_001.py"]
+    },
+    "at3-035-connector": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/connector.py"],
+      "evidence": "Provider-neutral connector registry + capability honesty.",
+      "guard_tests": ["tests/unit/test_atlas3_memory_001.py"]
+    },
+    "at3-036-chatgpt": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/chatgpt.py"],
+      "evidence": "Wraps parse_chat_export; does not replace chatgpt_bridge.py.",
+      "guard_tests": ["tests/unit/test_atlas3_memory_001.py"]
+    },
+    "at3-037-claude": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": [],
+      "evidence": "Capability honesty + fixture ingest only. Native history sync NOT IMPLEMENTED.",
+      "guard_tests": ["tests/unit/test_atlas3_program_docs_001.py"]
+    },
+    "at3-038-gemini": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": [],
+      "evidence": "Capability honesty + fixture ingest only. Native history sync NOT IMPLEMENTED.",
+      "guard_tests": ["tests/unit/test_atlas3_program_docs_001.py"]
+    },
+    "chatgpt-live-2x": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/chatgpt-live/",
+      "production_surface": [
+        "src/project_atlas/chatgpt_bridge.py",
+        "src/project_atlas/chatgpt_capture.py"
+      ],
+      "evidence": "Atlas 3 must not mutate the frozen 2.2 ChatGPT live surface.",
+      "guard_tests": ["tests/unit/test_atlas3_demo_isolation_001.py"]
+    }
+  }
+}

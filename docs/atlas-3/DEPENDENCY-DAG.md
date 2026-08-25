@@ -1,0 +1,90 @@
+# Atlas 3.0 — Dependency DAG
+
+## First product vertical
+
+```text
+AT3-003 Engineering Event Model
+        ↓
+AT3-014 Universal Event Ledger
+        ↓
+   ┌────┴────┐
+   ↓         ↓
+AT3-015   AT3-030
+Pulse     Start
+   └────┬────┘
+        ↓
+AT3-050 Agent Proof-of-Work
+```
+
+Start may read Pulse, but Pulse must not require Start.
+Proof may read the ledger; it must not require a UI.
+
+## D-192 memory DAG
+
+```text
+AT3-047 Privacy / security ─────────────────────────────┐
+                                                         │
+AT3-035 Connector Framework                              │
+        ↓                                                │
+AT3-039 Conversation Normalization                       │
+        ↓                                                │
+AT3-040 Knowledge Extraction ← existing ITEM_TYPES       │
+        ↓                                                │
+AT3-041 Deduplication                                    │
+        ↓                                                │
+AT3-042 Conflict Detection                               │
+        ↓                                                │
+AT3-044 Freshness / Invalidation                         │
+        ↓                                                │
+AT3-049 Reconciliation                                   │
+        ↓                                                │
+AT3-048 Unified Memory Search                            │
+        ↓                                                │
+Context Compiler (consume-only; 2.x runtime_22)          │
+                                                         │
+Parallel after AT3-035:                                  │
+  AT3-036 ChatGPT (first)                                │
+  AT3-037 Claude                                         │
+  AT3-038 Gemini                                         │
+                                                         │
+AT3-043 Decision + intent  (fail-closed owner_origin)    │
+AT3-045 Session lineage                                  │
+AT3-046 Incremental sync   (not live ChatGPT history)    │
+```
+
+## Cross-program edges
+
+```text
+Truth Core ──────────► Pulse / Start / memory freshness (read)
+Bitemporal / kdiff ─► Time fields / stale queries (read)
+conversation_capture ► AT3-040 taxonomy (reuse, do not fork)
+chatgpt_bridge ─────► AT3-036 (compose, do not replace)
+Ask2 / runtime_22 ──► consume reconciled memory later (not in this slice as write)
+Orch DAG / leases ──► AT3-050 / AT3-053 (project, do not redefine)
+AS-GRAPH-003 ───────► twin relationships (derived)
+FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
+```
+
+## Forbidden edges
+
+- Memory ─x─► Truth Core auto-promote
+- UI ─x─► new domain model
+- Graph ─x─► authority winner
+- Model completion claim ─x─► AGENT_PROOF
+- Connector ─x─► scrape authenticated UI as default
+- Atlas 3 ─x─► dual-write `ops_events` stream
+- Atlas 3 ─x─► second temporal engine
+
+## What can run now (`FULL_LIVE_DEMO_READY = NO`)
+
+Independent isolated lanes:
+
+- AT3-003 / 014 / 015 / 030 / 050
+- AT3-035 / 036 / 039 / 040 / 041 / 042 / 044 / 047 / 048 / 049
+
+Must wait for demo terminal state before mutating:
+
+- `knowledge_compiler.py`, `api_server.py`, `authz.py`
+- `chatgpt_bridge.py`, `chatgpt_capture.py`
+- `discovery.py`, `ingestion.py`
+- golden demo fixtures

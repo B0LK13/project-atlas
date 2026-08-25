@@ -1,0 +1,35 @@
+# Atlas 3 — Provider capability matrix
+
+Honesty: local fixture coverage ≠ synchronized provider.
+
+| Provider | Structured capture | Export import | Live full history | Bootstrap adapter | Atlas 3 state |
+|---|---|---|---|---|---|
+| ChatGPT | Yes (`chatgpt`) | **Implemented** (`chatgpt_bridge`, `oai-import`, `parse_chat_export`) | **Not generalized** (chatgpt-live PREP; `live_api=false`) | MCP read demo | `EXPORT_ONLY` + structured |
+| Claude | Yes (`claude`) | Not a Core bridge | Not implemented; do not invent APIs | `CLAUDE.md` ≠ ingestion | `EXPORT_ONLY` / `MANUAL_CAPTURE` |
+| Gemini | Opaque token `gemini` | Not a Core bridge | Not implemented | `GEMINI.md` ≠ ingestion | `EXPORT_ONLY` / `MANUAL_CAPTURE` |
+| Cursor | Yes (`cursor`) | Local/session capture | N/A as account history | `AGENTS.md` / Cursor rules | `LOCAL_SESSION` / `STRUCTURED_SUBMISSION` |
+| Codex | Yes (`codex`) | Structured / local | N/A | agent adapters | `STRUCTURED_SUBMISSION` |
+| Copilot | Future token | Unsupported | Unsupported | None | `UNSUPPORTED` |
+| Generic SDK | AT3-035 registry | Adapter-defined | Adapter-defined | N/A | Fail closed if undeclared |
+
+## Priority
+
+1. ChatGPT (strongest substrate)
+2. Claude
+3. Gemini
+4. Cursor
+5. Codex
+6. Generic provider SDK
+
+## Commands (design before proliferation)
+
+Target:
+
+```text
+atlas provider register
+atlas provider capabilities
+atlas provider sync
+```
+
+This slice exposes `atlas memory providers` as a read of the matrix.
+It does not invent live sync.
