@@ -95,6 +95,22 @@ def test_resume_receipts_measure_handoff_success_rate(tmp_path: Path) -> None:
     assert metric["value"] == 0.5
 
 
+def test_malformed_resume_never_fabricates_handoff_measured_zero(tmp_path: Path) -> None:
+    """F-473-01 / WFM-001 — unreadable resumes are not evidence."""
+    _write(
+        tmp_path / "generated" / "ops" / "handoffs" / "handoff-aaa.json",
+        {"handoff_id": "handoff-aaa", "project_id": "harbor-api"},
+    )
+    root = tmp_path / "generated" / "ops" / "handoffs"
+    (root / "resume-unreadable.json").write_text("{not-json", encoding="utf-8")
+    (root / "resume-list.json").write_text("[1, 2, 3]\n", encoding="utf-8")
+    report = compile_workflow_metrics(tmp_path, project_id="harbor-api")
+    metric = report["metrics"]["HANDOFF_SUCCESS_RATE"]
+    assert metric["status"] == "UNKNOWN"
+    assert metric["value"] is None
+    assert metric["value"] != 0.0
+
+
 def test_session_captures_measure_meaningful_changes(tmp_path: Path) -> None:
     _write(
         tmp_path / "generated" / "ops" / "session-captures" / "capture-1.json",
@@ -208,6 +224,8 @@ def test_reexplanation_requires_strict_json_boolean(tmp_path: Path) -> None:
         ("str-false", "false"),
         ("null", None),
         ("str-random", "maybe"),
+        ("obj-empty", {}),
+        ("list-empty", []),
     ]
     for name, value in matrix:
         payload: dict[str, object] = {"project_id": "harbor-api"}

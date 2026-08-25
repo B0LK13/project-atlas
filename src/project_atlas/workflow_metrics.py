@@ -231,8 +231,8 @@ def _handoff_success_rate(vault: Path, project_id: str | None) -> dict[str, Any]
     resumes_total = 0
     for path in resume_receipts:
         status, payload = _read_json(path)
+        # Malformed / unreadable resumes are not evidence (WFM-001).
         if status != "ok" or payload is None:
-            resumes_total += 1
             continue
         if not _receipt_in_project_scope(payload, project_id):
             continue
