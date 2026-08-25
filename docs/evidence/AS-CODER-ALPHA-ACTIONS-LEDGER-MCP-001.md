@@ -19,4 +19,6 @@ BASE_MAIN: `f0e0c979e8ead0fdad4cc51682c560299db0a074`
 - MCP `atlas.actions.ledger.read` (zero-arg)
 - Web `#/actions` over existing `GET /v1/actions`
 
-Independent verification pending at this candidate HEAD.
+Independent IV PASS at `f280af05635232a61652d834cfb6863b1e826c88` /
+TREE `fb764c229fc548f58d83637d127c726040df64c0` (23 passed; P0=0 P1=0).
+Implementer ≠ verifier. Do not transfer to later HEADs without re-run.

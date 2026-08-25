@@ -24,7 +24,10 @@ BASE_TREE: `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
 
 ## Independent verification
 
-Pending at this candidate HEAD. Implementer ≠ verifier.
+IV_RESULT=PASS at `7c5c64a630731d62701703d210e899789b2e97ad` /
+TREE `f9922bc4d956053fa3cd0399d6b732ae937417a4` (worktree
+`/tmp/iv-validate-mcp-f2d9`; 24 passed; P0=0 P1=0). Implementer ≠ verifier.
+Do not transfer this IV to later HEADs without re-run.
 
 ## D-149
 

@@ -7,6 +7,9 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ## AS-CODER-ALPHA-VALIDATE-MCP-001 — vault-scoped validate
 
+Independent IV PASS at `7c5c64a` / TREE `f9922bc` (24 tests; P0=0 P1=0).
+Later HEADs require re-IV.
+
 **Date:** 2026-08-25
 **Branch:** `cursor/atlas-autonomous-night-cycle-f2d9` (from `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`)
 **Mode:** UNIQUE unused zero-arg wrap. Does not duplicate D-149 `#483`. Does not merge.
@@ -35,6 +38,8 @@ vault knowledge. `/v1/obs` remains write-on-read.
 - `EMPTY != HEALTHY`
 - `D149_TOUCHED = NO`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+Independent IV PASS at `f280af0` / TREE `fb764c2` (23 tests; P0=0 P1=0).
 
 ---
 
