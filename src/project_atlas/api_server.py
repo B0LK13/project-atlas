@@ -492,6 +492,18 @@ def make_handler(
                 except AppServiceError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/fed/report":
+                try:
+                    self._send(200, service.fed_view())
+                except AppServiceError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-FED-READ-001",
+                        },
+                    )
+                return
             routes: dict[str, Any] = {
                 "/health": lambda: service.health(),
                 "/v1/health": lambda: service.health(),

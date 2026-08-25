@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.fed_read import (
+    WebFedReadError,
+    read_fed_view,
+    render_fed_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1821,6 +1826,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Vault that receives generated/federation/<id>-join-inventory.json.",
     )
     fed_join.add_argument("--json", action="store_true")
+    fed_report = fed_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing federation artifacts only "
+            "(never writes; FED != AUTHORITY; FED != CROSS-VAULT PROMOTE)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas federation report --vault /path/to/vault\n"
+            "  atlas federation report --vault /path/to/vault --json"
+        ),
+    )
+    fed_report.add_argument("--vault", type=Path, required=True)
+    fed_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the federation REPORT READ JSON to stdout.",
+    )
+    fed_show = fed_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `federation report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas federation show --vault /path/to/vault\n"
+            "  atlas federation show --vault /path/to/vault --json"
+        ),
+    )
+    fed_show.add_argument("--vault", type=Path, required=True)
+    fed_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the federation REPORT READ JSON to stdout.",
+    )
 
     # AS-2.0-PROV-001 — optional provider adapters (disabled by default).
     provider_parser = subparsers.add_parser(
@@ -4372,6 +4412,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "federation":
+        if args.federation_command in {"report", "show"}:
+            try:
+                view = read_fed_view(args.vault)
+            except (WebFedReadError, OSError) as exc:
+                _log.error("federation report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_fed_text(view), end="")
+            return EXIT_OK
         if args.federation_command == "join":
             try:
                 parsed_members: list[FederationMember] = []
