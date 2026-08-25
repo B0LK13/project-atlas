@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -70,6 +70,19 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
+def _as_utc(instant: datetime) -> datetime:
+    """Canonical comparison form: UTC-aware. Naive instants are UTC, not local.
+
+    D-178 / KDIFF_TZ_AWARE_CRASH: mixed aware/naive comparison is forbidden.
+    Date-only and offset-naive ISO strings keep legacy chronology as midnight
+    UTC / the written clock interpreted as UTC. Offsets are converted, never
+    stripped, so ``T00:00:00+01:00`` is not the same instant as ``T00:00:00Z``.
+    """
+    if instant.tzinfo is None:
+        return instant.replace(tzinfo=UTC)
+    return instant.astimezone(UTC)
+
+
 def _parse_instant(raw: str, *, field: str) -> datetime:
     text = raw.strip()
     if not text:
@@ -79,10 +92,12 @@ def _parse_instant(raw: str, *, field: str) -> datetime:
         raise BitemporalError(f"bitemporal-{field}-wall-clock-forbidden")
     try:
         if len(text) == 10 and text[4] == "-" and text[7] == "-":
-            return datetime.combine(date.fromisoformat(text), datetime.min.time())
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+            parsed = datetime.combine(date.fromisoformat(text), datetime.min.time())
+        else:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError as exc:
         raise BitemporalError(f"bitemporal-{field}-invalid:{text}") from exc
+    return _as_utc(parsed)
 
 
 def normalize_validity_window(window: ClaimValidityWindow) -> dict[str, Any]:
@@ -141,13 +156,14 @@ def normalize_validity_window(window: ClaimValidityWindow) -> dict[str, Any]:
 
 
 def _covers(window: dict[str, Any], as_of: datetime) -> bool:
+    instant = _as_utc(as_of)
     start = _parse_instant(str(window["valid_from"]), field="valid-from")
-    if as_of < start:
+    if instant < start:
         return False
     if "valid_to" not in window or window["valid_to"] is None:
         return True
     end = _parse_instant(str(window["valid_to"]), field="valid-to")
-    return as_of <= end
+    return instant <= end
 
 
 def evaluate_as_of(
@@ -192,7 +208,32 @@ def evaluate_as_of(
         validate_record(result, "bitemporal-as-of-result")
         return result
 
-    covering = [w for w in normalized if _covers(w, as_of)]
+    try:
+        covering = [w for w in normalized if _covers(w, as_of)]
+    except TypeError as exc:
+        # Fail closed if a window still cannot be compared after UTC
+        # normalization. This is not the primary fix; mixed naive/aware
+        # comparison is prevented by `_as_utc`.
+        result = {
+            "schema_version": 1,
+            "package_id": PACKAGE_ID,
+            "compat_snapshot_id": SNAPSHOT_ID,
+            "subject": subject_token,
+            "field": field_token,
+            "as_of_valid_time": as_of_valid_time.strip(),
+            "status": "rejected_malformed",
+            "selected_claim_id": None,
+            "candidate_claim_ids": [],
+            "rationale": f"invalid temporal comparison: {exc}",
+            "authority": {
+                "level": "derived",
+                "note": "Fail-closed: incomparable validity instants never select current",
+            },
+            "truth_boundary": "AS-OF RESULT ≠ AUTHORITY / ≠ WALL-CLOCK NOW",
+            "generated": {"by": "project-atlas"},
+        }
+        validate_record(result, "bitemporal-as-of-result")
+        return result
     covering.sort(key=lambda w: (w["claim_id"], w["valid_from"]))
 
     if not covering:
