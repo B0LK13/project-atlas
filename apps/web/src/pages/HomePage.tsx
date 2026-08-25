@@ -50,6 +50,16 @@ const PROD = [
     blurb: "Living Project Roadmap V1 — derived; ROADMAP≠canonical.",
   },
   {
+    to: "/state",
+    title: "State",
+    blurb: "Current State lens — derived; STATE≠authority; unknown≠healthy.",
+  },
+  {
+    to: "/attention",
+    title: "Attention",
+    blurb: "Attention hygiene — not a score; risk≠fact; unknown≠healthy.",
+  },
+  {
     to: "/intelligence",
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",

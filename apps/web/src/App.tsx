@@ -17,6 +17,8 @@ import ContextPage from "./pages/production/ContextPage";
 import AskPage from "./pages/production/AskPage";
 import RoadmapPage from "./pages/production/RoadmapPage";
 import IntelligencePage from "./pages/production/IntelligencePage";
+import StatePage from "./pages/production/StatePage";
+import AttentionPage from "./pages/production/AttentionPage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -35,6 +37,8 @@ export default function App() {
       <Route path="/context" element={<ContextPage />} />
       <Route path="/ask" element={<AskPage />} />
       <Route path="/roadmap" element={<RoadmapPage />} />
+      <Route path="/state" element={<StatePage />} />
+      <Route path="/attention" element={<AttentionPage />} />
       <Route path="/intelligence" element={<IntelligencePage />} />
       <Route path="/design-lab/ledger-desk" element={<LedgerDeskPage />} />
       <Route path="/design-lab/signal-rack" element={<SignalRackPage />} />

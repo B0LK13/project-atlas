@@ -5,6 +5,37 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-STATE-ATTENTION-WEB-MCP-001 — first-class state/attention surfaces
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle 2026-08-25T01:30Z
+**Branch:** `cursor/atlas-autonomous-night-cycle-3f9e`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED CODER-ALPHA SURFACE. Does not grant merge. Does not claim authentic O2. Does not duplicate D-149 #483 or AX-AUTH-005 #484.
+
+### Live-state note
+Historical D-148 pin `4e71cce0` / PR #443 is superseded. D-149 remains draft `#483` (CI green, IV PASS, owner merge). `#484` remains AX-AUTH-005. `AUTHENTIC_ESTATE_ROOT` unset.
+
+### Scope
+- First-class web `/state` and `/attention` over existing `/v1/project-state` and `/v1/project-attention`
+- Vault-scoped zero-arg MCP `atlas.project-state.read` / `atlas.project-attention.read`
+- Incremental-connect independent IV recorded (21/21 PASS on live main)
+
+### Honesty
+- `UI != CANONICAL`
+- `MCP != AUTHORITY`
+- `ATTENTION != SCORE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN`
+
+### Local verification
+- Focused MCP + ADV + API: 34 passed (`--no-cov`)
+- ruff + mypy on touched MCP modules: pass
+- Independent IV: PASS; P0/P1 none; D149_TOUCHED=NO
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19

@@ -23,10 +23,15 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+STATE_ATTENTION_PACKAGE_ID = "AS-CODER-ALPHA-MCP-STATE-ATTENTION-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+STATE_ATTENTION_TRUTH_BOUNDARY = (
+    "MCP STATE/ATTENTION != AUTHORITY / UNKNOWN VALID / RISK != FACT / "
+    "NO WRITE / VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -102,6 +107,105 @@ def _unknown_brief_row(project_id: str) -> dict[str, Any]:
     }
 
 
+def _lens_honesty() -> dict[str, Any]:
+    return {
+        "lens_is_authority": False,
+        "mcp_is_authority": False,
+        "unknown_is_valid": True,
+        "fabricated_fields": False,
+        "request_contains_project": False,
+        "zero_arg_vault_scope": True,
+        "portfolio_implicit_all": False,
+        "auto_execution": False,
+        "risk_is_fact": False,
+        "empty_is_not_health_grade": True,
+    }
+
+
+def _unknown_state_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "honesty": "NO_DATA",
+        "authority_note": "derived-state-not-canonical",
+        "known_facts": [],
+        "unknown_facts": [],
+        "stale_facts": [],
+        "contested_facts": [],
+        "attention_candidates": [],
+        "honesty_flags": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def _unknown_attention_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "honesty": "NO_DATA",
+        "authority_note": "risk-is-not-fact",
+        "risks": [],
+        "attention_rank_is_score": "NO",
+        "numeric_priority_score": None,
+        "honesty_flags": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "fabricated_fields": False,
+            "risk_is_fact": False,
+        },
+    }
+
+
+def _iter_project_ids(service: AppService) -> list[str]:
+    ids: list[str] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if pid:
+            ids.append(pid)
+    return sorted(ids)
+
+
+def read_vault_project_states(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped project-state read. Does not invent projects or write."""
+    rows: list[dict[str, Any]] = []
+    for pid in _iter_project_ids(service):
+        try:
+            state = service.project_state(pid)
+        except AppServiceError:
+            state = _unknown_state_row(pid)
+        rows.append({"project_id": pid, "state": state})
+    return {
+        "schema_version": 1,
+        "package_id": STATE_ATTENTION_PACKAGE_ID,
+        "truth_boundary": STATE_ATTENTION_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "states": rows,
+        "honesty": _lens_honesty(),
+    }
+
+
+def read_vault_project_attentions(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped attention read. Risk is not fact. No writes."""
+    rows: list[dict[str, Any]] = []
+    for pid in _iter_project_ids(service):
+        try:
+            attention = service.project_attention(pid)
+        except AppServiceError:
+            attention = _unknown_attention_row(pid)
+        rows.append({"project_id": pid, "attention": attention})
+    return {
+        "schema_version": 1,
+        "package_id": STATE_ATTENTION_PACKAGE_ID,
+        "truth_boundary": STATE_ATTENTION_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "attentions": rows,
+        "honesty": _lens_honesty(),
+    }
+
+
 def read_vault_briefs(service: AppService) -> dict[str, Any]:
     """Zero-arg vault-scoped brief read. Does not invent projects or write."""
     rows: list[dict[str, Any]] = []
@@ -145,6 +249,8 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.project-state.read": lambda: read_vault_project_states(service),
+        "atlas.project-attention.read": lambda: read_vault_project_attentions(service),
     }
 
 
