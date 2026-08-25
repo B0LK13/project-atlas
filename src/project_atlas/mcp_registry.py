@@ -89,6 +89,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; workspace compose (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.graph.read",
+        "vault-read",
+        True,
+        "allow-list candidate; impact-graph summary (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

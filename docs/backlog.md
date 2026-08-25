@@ -385,6 +385,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-ROADMAP-MCP-001 zero-arg `atlas.roadmap.read` MCP tool (vault-scoped living roadmap; ROADMAP!=canonical; MCP!=authority; no request args; D149_TOUCHED=NO; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001 zero-arg `atlas.mission.read` / `atlas.workspace.read` (LIVE compose wrap; no PILOT invent; MCP!=authority; D149_TOUCHED=NO; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-CODER-ALPHA-GRAPH-MCP-001 zero-arg `atlas.graph.read` (impact-graph summary wrap; GRAPH!=authority; absent≠fabricated; D149_TOUCHED=NO; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
 

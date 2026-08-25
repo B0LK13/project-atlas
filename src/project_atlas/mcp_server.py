@@ -29,6 +29,7 @@ ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 ROADMAP_PACKAGE_ID = "AS-CODER-ALPHA-ROADMAP-MCP-001"
 MISSION_WS_PACKAGE_ID = "AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001"
+GRAPH_PACKAGE_ID = "AS-CODER-ALPHA-GRAPH-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -41,6 +42,10 @@ ROADMAP_TRUTH_BOUNDARY = (
 MISSION_WS_TRUTH_BOUNDARY = (
     "MCP MISSION/WORKSPACE != AUTHORITY / NO PILOT INVENT / NO WRITE / "
     "UI != CANONICAL / AUTHENTIC_PILOT = FALSE"
+)
+GRAPH_TRUTH_BOUNDARY = (
+    "MCP GRAPH != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "ABSENT GRAPH != FABRICATED EDGES"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -294,6 +299,39 @@ def read_vault_workspace(service: AppService) -> dict[str, Any]:
     )
 
 
+def read_vault_graph(service: AppService) -> dict[str, Any]:
+    """Zero-arg impact-graph summary. Missing graph stays UNKNOWN."""
+    summary = service.graph_summary()
+    available = bool(summary.get("available"))
+    return {
+        "schema_version": 1,
+        "package_id": GRAPH_PACKAGE_ID,
+        "truth_boundary": GRAPH_TRUTH_BOUNDARY,
+        "graph": {
+            "available": available,
+            "node_count": int(summary.get("node_count") or 0),
+            "edge_count": int(summary.get("edge_count") or 0),
+            "graph_authority": False,
+            "authority": "derived",
+            "note": summary.get("note"),
+            "truth_boundary": summary.get("truth_boundary"),
+        },
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "graph_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "fabricated_edges": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -308,6 +346,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.roadmap.read": lambda: read_vault_roadmaps(service),
         "atlas.mission.read": lambda: read_vault_mission(service),
         "atlas.workspace.read": lambda: read_vault_workspace(service),
+        "atlas.graph.read": lambda: read_vault_graph(service),
     }
 
 

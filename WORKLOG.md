@@ -5,6 +5,27 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-GRAPH-MCP-001 — vault-scoped `atlas.graph.read`
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-e7ea`
+**Mode:** THIN_READ_WRAP. Does not mutate D-149 / PR #483. Does not merge.
+
+### Why this lane
+`GET /v1/graph` and Web `/graph` already exist on main. MCP only exposed the
+graph as a side-channel of `atlas.explain.receipt.read`. No open first-class
+graph MCP PR.
+
+### Contract
+Zero-arg vault-scoped read. Absent/unreadable/elevated-authority files stay
+UNKNOWN with zero fabricated edges. `graph_authority=false`,
+`owner_capability_granted=false`. `D149_TOUCHED=NO`.
+
+### Evidence
+`docs/AS-CODER-ALPHA-GRAPH-MCP-001.md`
+
+---
+
 ## AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001 — mission/workspace MCP
 
 **Date:** 2026-08-25
