@@ -357,8 +357,9 @@ def test_cli_lifecycle_help_is_ascii(capsys: pytest.CaptureFixture[str]) -> None
     assert certify_info.value.code == 0
     certify = capsys.readouterr().out
     assert all(ord(char) < 128 for char in certify)
-    assert "fixture lifecycle matrix" in certify
-    assert "write an ops report" in certify
+    certify_flat = " ".join(certify.split())
+    assert "fixture lifecycle matrix" in certify_flat
+    assert "write an ops report" in certify_flat
 
 
 def test_mcp_tool_is_allow_listed() -> None:
