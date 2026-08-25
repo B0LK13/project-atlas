@@ -5,6 +5,15 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-HANDOFF/REVIEW-MCP-001 — mypy remediations
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-035a`
+**HEAD after remediations:** `dd695f51d5a5a454a53324e38337face8b980657`
+**Mode:** SAME PACKAGE. Ubuntu 3.12 mypy `[unreachable]` remediating. No merge.
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
