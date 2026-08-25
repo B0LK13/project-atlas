@@ -24,6 +24,8 @@ estate dependency was removed, without requiring `DEPENDENCIES == []`.
 
 Clear CREDENTIAL to NONE only when the dependency list is empty after estate consumption.
 Preserve blocking CREDENTIAL when residuals (e.g. `HUMAN_APPROVAL`, other credentials) remain.
+If gate was already NONE with residual deps after estate consume, restore CREDENTIAL
+(absolute: residual ⇒ OWNER_GATE ≠ NONE).
 No typed gate remapping invented here.
 
 ## Acceptance
