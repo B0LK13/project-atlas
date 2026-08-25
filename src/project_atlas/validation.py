@@ -17,6 +17,7 @@ from typing import Any
 
 import yaml
 
+from project_atlas.authority_registry import persisted_authority_binding_matches_live
 from project_atlas.domain import Severity, ValidationFinding, ValidationGate
 from project_atlas.domain.authority_semantics import AuthoritativeStateRecord
 from project_atlas.domain.temporal import CurrentStateRecord
@@ -386,8 +387,36 @@ def _validate_current_and_authoritative_state(vault: Path, errors: list[str]) ->
             if not isinstance(raw, dict):
                 errors.append(f"invalid authoritative-state root {path.relative_to(vault)}")
                 continue
+            file_reg = raw.get("authority_registry_version")
+            if file_reg is not None and not persisted_authority_binding_matches_live(
+                recorded_registry_version=file_reg
+            ):
+                errors.append(
+                    f"authoritative-state registry version does not match live "
+                    f"owner-certified registry {path.relative_to(vault)}"
+                )
             for item in raw.get("authoritative_states", []):
-                AuthoritativeStateRecord.model_validate(item)
+                auth_record = AuthoritativeStateRecord.model_validate(item)
+                if not persisted_authority_binding_matches_live(
+                    recorded_trust_root=auth_record.trust_root,
+                    recorded_registry_version=auth_record.registry_version,
+                ):
+                    errors.append(
+                        f"authoritative-state trust binding does not match live "
+                        f"owner-certified registry {path.relative_to(vault)}"
+                    )
+                    continue
+                if any(
+                    not persisted_authority_binding_matches_live(
+                        recorded_trust_root=evidence.trust_root,
+                        recorded_registry_version=evidence.registry_version,
+                    )
+                    for evidence in auth_record.evidence
+                ):
+                    errors.append(
+                        f"authoritative-state evidence trust binding does not "
+                        f"match live owner-certified registry {path.relative_to(vault)}"
+                    )
         except (
             OSError,
             UnicodeError,

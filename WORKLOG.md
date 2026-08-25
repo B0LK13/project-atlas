@@ -5,6 +5,45 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CORE-007-R1 — AX-AUTH-005 consume fail-closed
+
+**Date:** 2026-08-25
+**Package:** AS-CORE-007-R1 / AX-AUTH-005
+**Branch:** `cursor/atlas-autonomous-night-cycle-575f`
+**Base:** `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED_CONSUME_INTEGRITY. Does not merge. Does not claim authentic O2. Does not duplicate D-149 #483.
+
+### Why
+Live-main probe: `query_knowledge` echoed `trust_root=forged-trust-root-not-owner-certified` and `registry_version=999` as `status=ok`. ACCEPT-001 had this as an explicit xfail owned by AS-CORE-007.
+
+### What changed
+- Persist-to-live binding helper rejects mismatched / bool / float registry encodings
+- Query snapshot consume and `atlas validate` fail-closed on forged file, record, and evidence bindings
+- Domain records reject bool/float `registry_version` before coercion to live v1
+- ACCEPT-001 AX-AUTH-005 xfail removed (consume now required)
+
+### Validation
+```
+PRE_PROBE consume_fail_closed=False (echoed forged trust_root + 999)
+POST_PROBE consume_fail_closed=True
+pytest tests/unit/test_as_core_007_knowledge_query.py tests/unit/test_as_accept_001_authority.py tests/unit/test_as_core_006_authority.py tests/unit/test_as_query_diag_001.py tests/unit/test_as_accept_002_authority_temporal.py
+# 62 passed (plus related 008 suite 76 total with conflict/review)
+ruff/mypy on touched modules: pass
+Independent verifier: IV_RESULT=PASS; P0/P1 remaining=NONE
+```
+
+### Honesty
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO`
+- D-149 remains owner-merge of #483 (CI green; IV PASS; do not duplicate)
+
+### Night-cycle reconcile (2026-08-25T00:55Z)
+- LIVE_MAIN_HEAD = f0e0c979e8ead0fdad4cc51682c560299db0a074
+- D-149 #483 HEAD 36a5f54 CI: control-plane + quality 3.12/3.13/windows PASS
+- AUTHENTIC_ESTATE_ROOT = UNSET
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
