@@ -6997,3 +6997,22 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-BRIEF-INDEX-WEB-001 — vault-scoped Web brief index
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-65e7` (from `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`)
+**Mode:** CODER_ALPHA_READ_LENS. Does not invent `/v1/briefs`. Does not touch D-149. Does not merge.
+
+### Why
+`atlas.brief.read` MCP and `/v1/brief?project=` already exist. Production Web had Knowledge (single-project) but no vault-scoped brief cards. `#/briefs` composes existing read-status + brief GET.
+
+### Honesty
+- `UI != CANONICAL`
+- `BRIEF != AUTHORITY`
+- `MCP != AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

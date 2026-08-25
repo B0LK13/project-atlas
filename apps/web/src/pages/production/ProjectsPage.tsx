@@ -55,6 +55,8 @@ export default function ProjectsPage() {
                         Knowledge
                       </Link>
                       {" · "}
+                      <Link to="/briefs">Briefs</Link>
+                      {" · "}
                       <Link to={`/time-machine?project=${encodeURIComponent(id)}`}>
                         Time Machine
                       </Link>
