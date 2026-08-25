@@ -10,6 +10,7 @@ const PROD_LINKS = [
   { to: "/ask", label: "Ask" },
   { to: "/time-machine", label: "Time Machine" },
   { to: "/roadmap", label: "Roadmap" },
+  { to: "/captures", label: "Captures" },
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
   { to: "/command-center", label: "Command Center" },
@@ -26,6 +27,7 @@ const PROJECT_AWARE_PATHS = new Set([
   "/time-machine",
   "/roadmap",
   "/workspace",
+  "/captures",
 ]);
 
 /** Build a nav href. Copies project=P only; does not invent a default project. */

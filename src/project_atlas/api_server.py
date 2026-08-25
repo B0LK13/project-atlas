@@ -325,6 +325,30 @@ def make_handler(
                         },
                     )
                 return
+            if path == "/v1/captures":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0].strip()
+                try:
+                    limit = _parse_limit(qs, default=50)
+                except ApiServerError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                    return
+                try:
+                    self._send(
+                        200,
+                        service.session_captures(
+                            project_id=project or None,
+                            limit=limit,
+                        ),
+                    )
+                except AppServiceError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-CAPTURE-LIST-001",
+                        },
+                    )
+                return
             if path == "/v1/actions/recent":
                 try:
                     limit = _parse_limit(qs, default=20)
@@ -526,6 +550,7 @@ def make_handler(
                     "intelligence_live": True,
                     "kdiff_live": True,
                     "brief_live": True,
+                    "captures_live": True,
                     "source_health_live": True,
                     "discovery_live": True,
                     "truth_ux_live": True,

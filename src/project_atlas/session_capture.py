@@ -16,9 +16,15 @@ from typing import Any
 from atlas_contracts.identity import safe_relative_component
 
 PACKAGE_ID = "AS-CODER-ALPHA-CAPTURE-001"
+LIST_PACKAGE_ID = "AS-CODER-ALPHA-CAPTURE-LIST-001"
 GENERATOR_ID = "atlas-coder-alpha-capture-001"
 CAPTURE_DIR = Path("generated") / "ops" / "session-captures"
 ALLOWED_KINDS = frozenset({"milestone", "decision", "blocker", "note", "handoff"})
+LIST_TRUTH_BOUNDARY = (
+    "CAPTURE LIST != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+DEFAULT_LIST_LIMIT = 50
 
 
 class SessionCaptureError(ValueError):
@@ -195,6 +201,39 @@ def list_captures(
         if len(items) >= limit:
             break
     return items
+
+
+def read_vault_session_captures(
+    vault: Path,
+    *,
+    project_id: str | None = None,
+    limit: int = DEFAULT_LIST_LIMIT,
+) -> dict[str, Any]:
+    """Vault-scoped read envelope for session captures (ops receipts, not Layer B)."""
+    items = list_captures(vault, project_id=project_id, limit=limit)
+    scoped = project_id is not None
+    return {
+        "schema_version": 1,
+        "package_id": LIST_PACKAGE_ID,
+        "truth_boundary": LIST_TRUTH_BOUNDARY,
+        "capture_count": len(items),
+        "captures": items,
+        "project_id": project_id,
+        "limit": limit,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": scoped,
+            "zero_arg_vault_scope": not scoped,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+            "capture_is_layer_b": False,
+            "authentic_pilot": False,
+        },
+        "generated": {"by": GENERATOR_ID},
+    }
 
 
 def render_captures_markdown(captures: list[dict[str, Any]]) -> list[str]:

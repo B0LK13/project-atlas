@@ -6997,3 +6997,33 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-CAPTURE-LIST-001 — vault-scoped session-capture list
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25T04:20Z
+**Branch:** `cursor/atlas-autonomous-night-cycle-894f` (from `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not write Layer B. Does not merge. Does not touch D-149.
+
+### Why
+`atlas capture record` / `list_captures()` already exist on main. Agents and
+the web shell could not read that inventory without inventing a request-arg
+protocol. This package adds a vault-scoped list envelope, `GET /v1/captures`,
+zero-arg `atlas.captures.list.read`, and `#/captures`.
+
+### Honesty
+- `CAPTURE != LAYER B / != AUTHORITY`
+- `MCP != AUTHORITY`
+- `UI != CANONICAL`
+- `AUTHENTIC_PILOT = NO` on this lens
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `D149_TOUCHED = NO`
+
+### Local verification
+- Focused capture-list + MCP/API regression: 68 passed
+- Full unit suite: passed
+- ruff/mypy on touched modules: pass
+- `apps/web` `tsc -b`: pass
+- Independent IV: PASS (working-tree code)

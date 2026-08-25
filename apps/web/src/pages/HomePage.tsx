@@ -54,6 +54,11 @@ const PROD = [
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",
   },
+  {
+    to: "/captures",
+    title: "Session captures",
+    blurb: "Ops session-memory receipts — capture≠Layer B.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

@@ -16,6 +16,7 @@ from project_atlas.knowledge_diff import (
     diff_knowledge,
     read_as_of,
 )
+from project_atlas.session_capture import SessionCaptureError, read_vault_session_captures
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
@@ -115,6 +116,20 @@ class AppService:
             error = AppServiceError(str(exc))
             error.honesty = exc.honesty
             raise error from exc
+
+    def session_captures(
+        self,
+        *,
+        project_id: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """Vault-scoped session-capture list (ops receipts; != Layer B)."""
+        try:
+            return read_vault_session_captures(
+                self.vault, project_id=project_id, limit=limit
+            )
+        except SessionCaptureError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def graph_summary(self) -> dict[str, Any]:
         summary = impact_graph_summary(self.vault)
