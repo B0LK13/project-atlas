@@ -265,6 +265,8 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.handoffs import WebHandoffError, list_handoffs
+from project_atlas.web_api.reviews import WebReviewError, list_reviews
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -913,8 +915,8 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_parser = subparsers.add_parser(
         "handoff",
         help=(
-            "Create or resume an agent handoff pack "
-            "(AS-CODER-ALPHA-HANDOFF-001)."
+            "Create, list, or resume an agent handoff pack "
+            "(AS-CODER-ALPHA-HANDOFF-001 / HANDOFF-MCP-001)."
         ),
     )
     handoff_sub = handoff_parser.add_subparsers(dest="handoff_command", required=True)
@@ -937,6 +939,13 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--vault", type=Path, default=None)
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
+    handoff_list = handoff_sub.add_parser(
+        "list",
+        help="Read-only inventory of stored handoff packs (does not create/resume).",
+    )
+    handoff_list.add_argument("--vault", type=Path, default=None)
+    handoff_list.add_argument("--project", default=None)
+    handoff_list.add_argument("--json", action="store_true", dest="as_json")
 
     capture_parser = subparsers.add_parser(
         "capture",
@@ -1068,8 +1077,8 @@ def build_parser() -> argparse.ArgumentParser:
     review_parser = subparsers.add_parser(
         "review",
         help=(
-            "Human review decisions into Truth Core "
-            "(AS-CODER-ALPHA-HUMAN-LOOP-001; fail-closed)."
+            "List pending reviews or record human decisions into Truth Core "
+            "(AS-CODER-ALPHA-HUMAN-LOOP-001 / REVIEW-MCP-001; fail-closed)."
         ),
     )
     review_sub = review_parser.add_subparsers(dest="review_command", required=True)
@@ -1091,6 +1100,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Required for conflict accept; no silent winners.",
     )
     review_decide.add_argument("--json", action="store_true", dest="as_json")
+    review_list = review_sub.add_parser(
+        "list",
+        help="Read-only pending-review inventory (does not decide or promote).",
+    )
+    review_list.add_argument("--vault", type=Path, default=None)
+    review_list.add_argument("--project", default=None)
+    review_list.add_argument("--json", action="store_true", dest="as_json")
 
     accept_graph_parser = subparsers.add_parser(
         "accept-graph",
@@ -3334,13 +3350,32 @@ def main(argv: Sequence[str] | None = None) -> int:
                     refresh_brief=not args.no_refresh,
                     auto_capture=not args.no_capture,
                 )
+            elif args.handoff_command == "list":
+                report = list_handoffs(args.vault, project_id=args.project)
             else:
                 report = resume_handoff(args.vault, handoff_id=args.handoff_id)
-        except (AgentHandoffError, SessionCaptureError, OSError, ValueError) as exc:
+        except (
+            AgentHandoffError,
+            WebHandoffError,
+            SessionCaptureError,
+            OSError,
+            ValueError,
+        ) as exc:
             _log.error("handoff failed: %s", exc)
             return EXIT_ERROR
         if args.as_json:
             print(json.dumps(report, indent=2, sort_keys=True))
+        elif args.handoff_command == "list":
+            print(f"atlas handoff list [{report.get('handoff_count', 0)}]")
+            if not report.get("handoffs"):
+                print("  UNKNOWN — no handoff packs")
+            for row in report.get("handoffs") or []:
+                latest = " latest" if row.get("latest") else ""
+                print(
+                    f"  {row.get('handoff_id')}  {row.get('project_id')}  "
+                    f"{row.get('purpose')}{latest}"
+                )
+            return EXIT_OK
         elif args.handoff_command == "create":
             print(f"atlas handoff create [{report.get('status', 'ok')}]")
             print(f"  handoff:  {report.get('handoff_id')}")
@@ -3435,6 +3470,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "review":
+        if args.review_command == "list":
+            try:
+                report = list_reviews(args.vault, project_id=args.project)
+            except (WebReviewError, OSError, ValueError) as exc:
+                _log.error("review list failed: %s", exc)
+                return EXIT_ERROR
+            if args.as_json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                print(f"atlas review list [{report.get('pending_count', 0)} pending]")
+                if not report.get("pending_reviews") and not report.get("human_decisions"):
+                    print("  UNKNOWN — no pending reviews or recorded decisions")
+                for row in report.get("pending_reviews") or []:
+                    print(
+                        f"  {row.get('review_id')}  {row.get('project_id')}  "
+                        f"{row.get('status')}  {row.get('reason')}"
+                    )
+            return EXIT_OK
         try:
             report = apply_review_decision(
                 args.vault,

@@ -13,6 +13,7 @@ import pytest
 
 from project_atlas.api_server import serve_api, session_credentials
 from project_atlas.authz import AuthzError, OperatorProfile
+from project_atlas.cli import EXIT_OK, main
 from project_atlas.mcp_server import (
     REVIEW_MCP_PACKAGE_ID,
     McpServerError,
@@ -154,6 +155,16 @@ def test_mcp_read_required(tmp_path: Path) -> None:
     bare = OperatorProfile(operator_id="no-mcp", capabilities=frozenset({"api.read"}))
     with pytest.raises(AuthzError, match=r"authz-denied:mcp\.read"):
         invoke_mcp_tool(vault, "atlas.review.read", operator=bare)
+
+
+def test_cli_review_list_is_read_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    vault = _seed_vault(tmp_path)
+    before = _snapshot(vault)
+    assert main(["review", "list", "--vault", str(vault), "--json"]) == EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["pending_count"] == 2
+    assert payload["honesty"]["decide_or_promote"] is False
+    assert _snapshot(vault) == before
 
 
 def test_live_api_list_and_filter(tmp_path: Path) -> None:

@@ -13,6 +13,7 @@ import pytest
 
 from project_atlas.api_server import serve_api, session_credentials
 from project_atlas.authz import AuthzError, OperatorProfile
+from project_atlas.cli import EXIT_OK, main
 from project_atlas.mcp_server import (
     HANDOFF_MCP_PACKAGE_ID,
     McpServerError,
@@ -221,6 +222,16 @@ def test_live_api_list_and_filter(tmp_path: Path) -> None:
         assert exc.value.code == 400
     finally:
         server.shutdown()
+
+
+def test_cli_handoff_list_is_read_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    vault = _seed_vault(tmp_path)
+    before = _snapshot(vault)
+    assert main(["handoff", "list", "--vault", str(vault), "--json"]) == EXIT_OK
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["handoff_count"] == 2
+    assert payload["honesty"]["create_or_resume"] is False
+    assert _snapshot(vault) == before
 
 
 def test_repeated_list_is_idempotent(tmp_path: Path) -> None:
