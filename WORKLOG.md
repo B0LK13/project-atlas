@@ -5,6 +5,14 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-LIFECYCLE-READ-001 — Windows CI rebind
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-lifecycle-7f43`
+**Prior HEAD:** `c118f16cfb7f741cffbc5f4686db33e515d55ff2`
+**Mode:** SAME PACKAGE. Re-fire GHA after windows quality job was cancelled mid golden-fixture step (run 32908002330). No product change. MERGE_AUTHORIZATION = NOT_GRANTED.
+
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
