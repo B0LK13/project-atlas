@@ -6997,3 +6997,37 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-LENS-MCP-001 — vault-scoped overview/decisions/unknown/changed MCP
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0250
+**Branch:** `cursor/atlas-autonomous-night-cycle-b4cd`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149 / #483. Does not merge.
+
+### Why
+Main MCP still only exposed brief + ops/knowledge/explain/projects. Overview,
+decisions, unknown, and changed already exist as CLI lenses. Agents could not
+read them without request args or writes.
+
+### Scope
+- Allow-list `atlas.overview.read`, `atlas.decisions.read`, `atlas.unknown.read`,
+  `atlas.changed.read`
+- Zero-arg vault-scoped readers over existing `build_*_lens` helpers
+- Changed path never rotates inventory and never writes `generated/answers`
+- Honesty: MCP != authority; UNKNOWN stays UNKNOWN; owner capability not granted
+
+### Honesty
+- `MCP_LENS != AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `D149_TOUCHED = NO`
+- `AUTHENTIC_PILOT = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Local verification
+- Focused: `test_as_coder_alpha_lens_mcp_001.py` + MCP brief/adv/registry: 29 passed
+- `ruff check` on touched files: pass
+- `mypy` on `mcp_server.py` / `mcp_registry.py`: pass
