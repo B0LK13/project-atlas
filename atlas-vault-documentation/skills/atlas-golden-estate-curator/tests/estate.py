@@ -122,3 +122,48 @@ def build_fixture_estate(root: Path) -> Path:
     script.chmod(0o755)
 
     return root
+
+
+def build_name_duplicate_estate(root: Path) -> Path:
+    """Two clean git projects that collide on folder-name identity.
+
+    Distinct from the mixed estate's yaml `id: shared-id` pair.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    _init_repo(root / "group-a" / "widget", readme="# Widget A\n")
+    _init_repo(root / "group-b" / "widget", readme="# Widget B\n")
+    return root
+
+
+def build_stale_lib_docs_estate(root: Path) -> Path:
+    """README older than lib/ while src/ is not newer than README.
+
+    Distinct from the mixed estate's src/-only stale-docs project.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    project = root / "stale-lib-docs"
+    _init_repo(project, readme="# Old lib docs\n")
+    lib = project / "lib"
+    lib.mkdir()
+    (lib / "core.py").write_text("x = 1\n", encoding="utf-8")
+    _git(project, "add", ".")
+    _git(project, "commit", "-m", "lib")
+    os.utime(project / "README.md", (1_000_000, 1_000_000))
+    os.utime(project / "src" / "app.py", (1_000_000, 1_000_000))
+    os.utime(lib / "core.py", (2_000_000_000, 2_000_000_000))
+    return root
+
+
+def build_apps_monorepo_estate(root: Path) -> Path:
+    """Clean git monorepo detected via apps/ (not packages/).
+
+    Distinct from the mixed estate's packages/ monorepo.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    mono = root / "apps-monorepo"
+    _init_repo(mono, readme="# Apps mono\n")
+    (mono / "apps" / "web").mkdir(parents=True)
+    (mono / "apps" / "web" / "package.json").write_text('{"name":"web"}\n', encoding="utf-8")
+    _git(mono, "add", ".")
+    _git(mono, "commit", "-m", "apps")
+    return root
