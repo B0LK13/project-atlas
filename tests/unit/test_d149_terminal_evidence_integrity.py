@@ -236,7 +236,9 @@ def test_owner_gate_non_escalation_preserves_merge_and_extra_deps(tmp_path: Path
     assert after["merge-node"].status == "BLOCKED_OWNER"
     assert "OTHER_DEP" in after["cred-node"].DEPENDENCIES
     assert "AUTHENTIC_ESTATE_ROOT" not in after["cred-node"].DEPENDENCIES
-    assert after["cred-node"].OWNER_GATE == "NONE"
+    # D149-001: residual OTHER_DEP ⇒ OWNER_GATE must stay blocking (not NONE).
+    assert after["cred-node"].OWNER_GATE == "CREDENTIAL"
+    assert after["cred-node"].OWNER_GATE != "NONE"
     assert after["cred-node"].status == "BLOCKED_OWNER"  # remaining OTHER_DEP
 
 

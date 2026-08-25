@@ -50,6 +50,10 @@ HANDOFF_DIR = Path("generated") / "ops" / "handoffs"
 FROZEN_ESTATE_NOT_CURRENT = (
     "FROZEN CONTEXT AT WRITE != CURRENT LIVE ESTATE; reconnect first"
 )
+RESUME_STALE_WARNING = (
+    "WARNING: frozen estate at write != live estate; "
+    "do not treat this pack as current"
+)
 
 
 class AgentHandoffError(ValueError):
@@ -823,4 +827,9 @@ def resume_handoff(
     pack["honesty"] = honesty
     pack["status"] = "resumed"
     pack["resume_path"] = path.relative_to(vault).as_posix()
+    # Forged freshness on disk is never authority: live recompute above wins.
+    if live.get("is_current") is True:
+        pack["resume_warning"] = None
+    else:
+        pack["resume_warning"] = RESUME_STALE_WARNING
     return pack

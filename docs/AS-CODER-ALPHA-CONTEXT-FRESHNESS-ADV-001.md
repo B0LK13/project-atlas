@@ -16,7 +16,12 @@ This package stores a minimal non-authoritative `estate_binding` at write:
 - source digest tuples **copied from** that manifest (no second source hasher)
 
 At read/resume it reuses `project_atlas.inventory_drift` and compares the
-frozen binding to the current manifest identity.
+frozen binding to the current manifest identity. Resume recomputes live
+freshness. A forged on-disk `freshness` field is not authority. When the
+frozen binding is not current, resume emits `resume_warning` (human CLI
+prints `warning:`; `--json` includes the field).
+
+D-183 recert against live main `6709ad7751f2135b507b74013808ecfe2198a3a3`.
 
 ## Honesty
 
@@ -34,5 +39,6 @@ frozen binding to the current manifest identity.
 - Historical `#378` is not retargeted, rebased, or merged
 - No second source-hash / fingerprint / ownership / manifest engine
 - `inventory_drift.py` is not modified
-- CLI is unchanged
+- CLI surfaces computed resume freshness + `resume_warning` only; it does
+  not mint authority
 - Binding metadata is not Truth Core and is not authority

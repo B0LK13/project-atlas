@@ -71,6 +71,7 @@ If `compilation_id` differs across present state layers, query fails closed
 | Disposition `authority-pending` / `authority-conflict` / `unresolved` | Structured non-answer; `value=null` (exit 0) |
 | No record for subject+field | `status=not_found` (exit 0) |
 | Missing / corrupt / mismatched state | Integrity error (CLI exit 1); no invented value |
+| Forged `trust_root` / `registry_version` (AX-AUTH-005) | Integrity error on query consume and `validate`; regenerate ignores forgery |
 
 **Never invent a value** from newest claim, file order, lexical order, or raw
 source content.

@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from project_atlas.authority_registry import AUTHORITY_REGISTRY_VERSION, trust_root
 from project_atlas.cli import main as cli_main
 from project_atlas.domain.knowledge_query import AnswerStatus, QueryKind
 from project_atlas.knowledge_compiler import compile_knowledge, render_bundle
@@ -498,6 +499,217 @@ def test_mismatched_subject_field_not_found(tmp_path: Path) -> None:
     )
     assert answer.status is AnswerStatus.NOT_FOUND
     assert answer.value is None
+
+
+def _forge_authoritative_binding(
+    vault: Path,
+    *,
+    trust: str | None = "forged-trust-root-not-owner-certified",
+    registry_version: int | None = 999,
+    file_registry_version: int | None = 999,
+) -> None:
+    auth_path = vault / "state" / "authoritative-state" / "project-atlas.json"
+    raw = json.loads(auth_path.read_text(encoding="utf-8"))
+    if file_registry_version is not None:
+        raw["authority_registry_version"] = file_registry_version
+    for item in raw.get("authoritative_states", []):
+        if trust is not None:
+            item["trust_root"] = trust
+        if registry_version is not None:
+            item["registry_version"] = registry_version
+    auth_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def test_forged_trust_root_query_fail_closed(tmp_path: Path) -> None:
+    """AX-AUTH-005 / AS-CORE-007 consume: forged trust_root is not echoed."""
+    vault = _materialize_vault(tmp_path)
+    _forge_authoritative_binding(vault)
+    with pytest.raises(KnowledgeQueryError) as excinfo:
+        query_knowledge(
+            vault, "project-atlas", "wp:AS-ID-001", "title", kind="authoritative"
+        )
+    assert excinfo.value.code is KnowledgeQueryErrorCode.STATE_CORRUPT
+    assert "forged-trust-root" not in str(excinfo.value).lower()
+
+
+def test_forged_registry_version_only_fail_closed(tmp_path: Path) -> None:
+    vault = _materialize_vault(tmp_path)
+    _forge_authoritative_binding(
+        vault,
+        trust=trust_root(),
+        registry_version=999,
+        file_registry_version=AUTHORITY_REGISTRY_VERSION,
+    )
+    with pytest.raises(KnowledgeQueryError) as excinfo:
+        query_knowledge(
+            vault, "project-atlas", "wp:AS-ID-001", "title", kind="authoritative"
+        )
+    assert excinfo.value.code is KnowledgeQueryErrorCode.STATE_CORRUPT
+
+
+def test_forged_file_level_registry_version_fail_closed(tmp_path: Path) -> None:
+    vault = _materialize_vault(tmp_path)
+    _forge_authoritative_binding(
+        vault,
+        trust=trust_root(),
+        registry_version=AUTHORITY_REGISTRY_VERSION,
+        file_registry_version=999,
+    )
+    with pytest.raises(KnowledgeQueryError) as excinfo:
+        query_knowledge(
+            vault, "project-atlas", "wp:AS-ID-001", "title", kind="authoritative"
+        )
+    assert excinfo.value.code is KnowledgeQueryErrorCode.STATE_CORRUPT
+
+
+def test_bool_registry_version_on_record_fail_closed(tmp_path: Path) -> None:
+    """JSON true must not coerce to live registry version 1."""
+    vault = _materialize_vault(tmp_path)
+    auth_path = vault / "state" / "authoritative-state" / "project-atlas.json"
+    raw = json.loads(auth_path.read_text(encoding="utf-8"))
+    raw["authority_registry_version"] = AUTHORITY_REGISTRY_VERSION
+    for item in raw.get("authoritative_states", []):
+        item["trust_root"] = trust_root()
+        item["registry_version"] = True
+    auth_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(KnowledgeQueryError) as excinfo:
+        query_knowledge(
+            vault, "project-atlas", "wp:AS-ID-001", "title", kind="authoritative"
+        )
+    assert excinfo.value.code is KnowledgeQueryErrorCode.STATE_CORRUPT
+
+
+def test_forged_evidence_trust_root_fail_closed(tmp_path: Path) -> None:
+    """Record-level live binding must not launder forged evidence bindings."""
+    vault = _materialize_vault(tmp_path)
+    auth_path = vault / "state" / "authoritative-state" / "project-atlas.json"
+    raw = json.loads(auth_path.read_text(encoding="utf-8"))
+    raw["authority_registry_version"] = AUTHORITY_REGISTRY_VERSION
+    for item in raw.get("authoritative_states", []):
+        item["trust_root"] = trust_root()
+        item["registry_version"] = AUTHORITY_REGISTRY_VERSION
+        for ev in item.get("evidence") or []:
+            ev["trust_root"] = "forged-trust-root-not-owner-certified"
+            ev["registry_version"] = 999
+    auth_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(KnowledgeQueryError) as excinfo:
+        query_knowledge(
+            vault, "project-atlas", "wp:AS-ID-001", "title", kind="authoritative"
+        )
+    assert excinfo.value.code is KnowledgeQueryErrorCode.STATE_CORRUPT
+    assert "forged-trust-root" not in str(excinfo.value).lower()
+
+
+def test_legitimate_binding_still_queries(tmp_path: Path) -> None:
+    vault = _materialize_vault(tmp_path)
+    answer = query_knowledge(
+        vault, "project-atlas", "wp:AS-ID-001", "title", kind="authoritative"
+    )
+    assert answer.status is AnswerStatus.OK
+    assert answer.trust_root == trust_root()
+    assert answer.registry_version == AUTHORITY_REGISTRY_VERSION
+
+
+def test_validate_forged_trust_root_fail_closed(tmp_path: Path) -> None:
+    """FR-011 consume: forged trust_root on present 006 state fails validate."""
+    vault = tmp_path / "validate-forged-binding"
+    for rel in (
+        "index.md",
+        "projects/index.md",
+        "sources/index.md",
+        "01-portfolio/index.md",
+    ):
+        path = vault / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# x\n", encoding="utf-8")
+    auth = vault / "state" / "authoritative-state" / "project-atlas.json"
+    auth.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "schema_version": 1,
+        "subject": "wp:AS-ID-001",
+        "field": "title",
+        "authority_domain": "work_package.durable_title",
+        "disposition": "authoritative",
+        "rationale": "fixture",
+        "compilation_id": "compile-test",
+        "registry_version": 999,
+        "trust_root": "forged-trust-root-not-owner-certified",
+    }
+    auth.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_id": "project-atlas",
+                "compilation_id": "compile-test",
+                "authority_registry_version": 999,
+                "authoritative_states": [record],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = validate(vault)
+    assert result["ok"] is False
+    assert any("trust binding" in err or "registry version" in err for err in result["errors"])
+
+
+def test_validate_forged_evidence_binding_fail_closed(tmp_path: Path) -> None:
+    vault = tmp_path / "validate-forged-evidence"
+    for rel in (
+        "index.md",
+        "projects/index.md",
+        "sources/index.md",
+        "01-portfolio/index.md",
+    ):
+        path = vault / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# x\n", encoding="utf-8")
+    auth = vault / "state" / "authoritative-state" / "project-atlas.json"
+    auth.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "schema_version": 1,
+        "subject": "wp:AS-ID-001",
+        "field": "title",
+        "authority_domain": "work_package.durable_title",
+        "disposition": "authoritative",
+        "rationale": "fixture",
+        "compilation_id": "compile-test",
+        "registry_version": AUTHORITY_REGISTRY_VERSION,
+        "trust_root": trust_root(),
+        "evidence": [
+            {
+                "schema_version": 1,
+                "rule_id": "R-TITLE-001",
+                "trust_root": "forged-trust-root-not-owner-certified",
+                "registry_version": 999,
+                "artifact_role": "package_genesis_receipt",
+                "claim_id": "claim-aaaaaaaaaaaaaaaa",
+                "source_id": "source-aaaaaaaaaaaaaaaa",
+                "source_path": "docs/evidence/AS-ID-001-receipt.yaml",
+                "temporal_status": "current",
+            }
+        ],
+    }
+    auth.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "project_id": "project-atlas",
+                "compilation_id": "compile-test",
+                "authority_registry_version": AUTHORITY_REGISTRY_VERSION,
+                "authoritative_states": [record],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = validate(vault)
+    assert result["ok"] is False
+    assert any("evidence trust binding" in err for err in result["errors"])
 
 
 def test_cli_library_semantic_parity(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

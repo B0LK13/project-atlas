@@ -12,6 +12,7 @@ from pathlib import Path
 from project_atlas.agent_handoff import (
     FROZEN_ESTATE_NOT_CURRENT,
     PACKAGE_FRESHNESS_ADV,
+    RESUME_STALE_WARNING,
     bind_estate_at_write,
     create_handoff,
     evaluate_estate_currentness,
@@ -143,6 +144,8 @@ def test_case_b_handoff_written_fresh_then_source_changes(tmp_path: Path) -> Non
     assert resumed["honesty"]["stale_is_current"] is False
     assert resumed["honesty"]["handoff_is_authority"] is False
     assert resumed["estate_binding_at_write"]["manifest_sha256"]
+    assert resumed["resume_warning"] == RESUME_STALE_WARNING
+    assert "frozen estate at write != live estate" in resumed["resume_warning"]
 
 
 def test_case_c_written_unknown_does_not_become_fresh(tmp_path: Path) -> None:
@@ -264,6 +267,115 @@ def test_no_second_drift_engine() -> None:
     assert "sha256_file" not in handoff
     assert PACKAGE_FRESHNESS_ADV
     assert DRIFT_PACKAGE == "AS-CODER-ALPHA-INVENTORY-DRIFT-001"
+
+
+def test_case_a_no_source_change_same_manifest_is_fresh(tmp_path: Path) -> None:
+    """A: no source change + same manifest → FRESH. Binding is not authority."""
+    vault, _root = _pair(tmp_path, drift=False)
+    ctx = export_agent_context(vault, "harbor", refresh_brief=False)
+    assert ctx["freshness"]["status"] == "FRESH"
+    assert ctx["freshness"]["is_current"] is True
+    later = evaluate_written_context(vault, "harbor")
+    assert later["status"] == "FRESH"
+    assert later["is_current"] is True
+    assert later["honesty"]["fresh_is_authority"] is False
+    assert later["honesty"]["stale_is_current"] is False
+    created = create_handoff(vault, "harbor", note="stable", refresh_brief=False)
+    resumed = resume_handoff(vault, handoff_id=created["handoff_id"])
+    assert resumed["freshness"]["status"] == "FRESH"
+    assert resumed["freshness"]["is_current"] is True
+    assert resumed["resume_warning"] is None
+
+
+def test_case_g_missing_manifest_is_unknown(tmp_path: Path) -> None:
+    """G: missing connect-manifest → UNKNOWN / fail closed. Never FRESH."""
+    vault, _root = _pair(tmp_path, drift=False)
+    export_agent_context(vault, "harbor", refresh_brief=False)
+    manifest = vault / "generated" / "ops" / "connect-manifest.json"
+    assert manifest.is_file()
+    manifest.unlink()
+    later = evaluate_written_context(vault, "harbor")
+    assert later["status"] == "UNKNOWN"
+    assert later["is_current"] is False
+    assert later["honesty"]["unknown_is_fresh"] is False
+    assert later["source_drift"]["reason_code"] == "MANIFEST_ABSENT"
+
+
+def test_case_h_malformed_manifest_is_unknown(tmp_path: Path) -> None:
+    """H: malformed connect-manifest → UNKNOWN / fail closed. Never FRESH."""
+    vault, _root = _pair(tmp_path, drift=False)
+    export_agent_context(vault, "harbor", refresh_brief=False)
+    manifest = vault / "generated" / "ops" / "connect-manifest.json"
+    manifest.write_text("{not-json", encoding="utf-8")
+    later = evaluate_written_context(vault, "harbor")
+    assert later["status"] == "UNKNOWN"
+    assert later["is_current"] is False
+    assert later["honesty"]["unknown_is_fresh"] is False
+    assert later["source_drift"]["reason_code"] == "MANIFEST_ABSENT"
+
+
+def test_case_i_forged_freshness_field_is_not_authority(tmp_path: Path) -> None:
+    """I: forged freshness on disk is overwritten by live recompute."""
+    project = tmp_path / "forged"
+    project.mkdir()
+    (project / "README.md").write_text("# Forge\n\nv1\n", encoding="utf-8")
+    (project / "docs").mkdir()
+    (project / "docs" / "DECISIONS.md").write_text("# D\n\nKeep honest.\n", encoding="utf-8")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    created = create_handoff(vault, project_id, note="forge", refresh_brief=False)
+    pack_path = vault / created["path"]
+    (project / "README.md").write_text("# Forge\n\nv2 drifted\n", encoding="utf-8")
+    payload = json.loads(pack_path.read_text(encoding="utf-8"))
+    payload["freshness"] = {
+        "status": "FRESH",
+        "is_current": True,
+        "reason_code": "FORGED",
+    }
+    pack_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    resumed = resume_handoff(vault, handoff_id=created["handoff_id"])
+    assert resumed["freshness"]["status"] == "STALE"
+    assert resumed["freshness"]["is_current"] is False
+    assert resumed["freshness"]["reason_code"] != "FORGED"
+    assert resumed["freshness_at_write"]["status"] == "FRESH"
+    assert resumed["resume_warning"] == RESUME_STALE_WARNING
+    assert resumed["honesty"]["stale_is_current"] is False
+
+
+def test_case_j_layer_b_contamination_rejected(tmp_path: Path) -> None:
+    """J: freshness/resume never writes Layer B (projects/)."""
+    vault, root = _pair(tmp_path, drift=False)
+    before = _layer_b_snapshot(vault)
+    created = create_handoff(vault, "harbor", note="layer-b", refresh_brief=False)
+    (root / "README.md").write_text("# Harbor\n\ncontaminate-attempt\n", encoding="utf-8")
+    target = vault / "projects" / "harbor" / "injected.md"
+    # Caller-side write is outside this package; resume must not add/alter notes.
+    resumed = resume_handoff(vault, handoff_id=created["handoff_id"])
+    assert resumed["freshness"]["status"] == "STALE"
+    assert resumed["resume_warning"] == RESUME_STALE_WARNING
+    assert _layer_b_snapshot(vault) == before
+    assert not target.exists()
+
+
+def test_case_k_resume_emits_stale_warning(tmp_path: Path) -> None:
+    """K: handoff resume includes warning when frozen estate != live estate."""
+    project = tmp_path / "warn"
+    project.mkdir()
+    (project / "README.md").write_text("# Warn\n\nv1\n", encoding="utf-8")
+    (project / "docs").mkdir()
+    (project / "docs" / "DECISIONS.md").write_text("# D\n\nHonest.\n", encoding="utf-8")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    created = create_handoff(vault, project_id, note="k", refresh_brief=False)
+    (project / "README.md").write_text("# Warn\n\nv2\n", encoding="utf-8")
+    resumed = resume_handoff(vault, handoff_id=created["handoff_id"])
+    assert resumed["status"] == "resumed"
+    assert resumed["estate_binding"] or resumed["estate_binding_at_write"]
+    assert resumed["freshness"]["status"] == "STALE"
+    assert resumed["freshness"]["is_current"] is False
+    assert resumed["resume_warning"] == RESUME_STALE_WARNING
 
 
 def test_bind_estate_is_not_authority(tmp_path: Path) -> None:
