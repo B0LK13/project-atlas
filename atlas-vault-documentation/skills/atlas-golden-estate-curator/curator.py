@@ -355,18 +355,9 @@ def qualify(project: dict[str, Any]) -> dict[str, Any]:
             project.get("kind") == "non-git",
         ]
     )
-    golden = (
-        project.get("kind") == "git"
-        and not project.get("dirty_worktree")
-        and not project.get("missing_readme")
-        and not project.get("secret_findings")
-        and not project.get("malicious_build_script")
-        and not project.get("duplicate_identity")
-        and not project.get("nested_repo")
-        and not project.get("test_failure_signal")
-        and not project.get("build_failure_signal")
-        and not blockers
-    )
+    # QUALIFICATION.md: challenge signals (including stale_docs) cannot
+    # remain golden_candidate. Blockers are exclusive exclusions.
+    golden = project.get("kind") == "git" and not challenge and not blockers
     return {
         "identity": project.get("identity"),
         "path": project.get("path"),
