@@ -11,6 +11,7 @@
 
 1. [`AS-DEMO-2.1-001.md`](AS-DEMO-2.1-001.md) — normative charter
 2. [`MODE-BANNER.md`](MODE-BANNER.md) — required operator / UI / launcher banner text
+3. [`D-183-TIME-MACHINE-AND-QUERY.md`](D-183-TIME-MACHINE-AND-QUERY.md) — D-177 estate T1/T2 + honest query story
 
 ## Required labels
 
