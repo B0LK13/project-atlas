@@ -116,6 +116,11 @@ from project_atlas.graph_resolution import (
 from project_atlas.human_loop import HumanLoopError, apply_review_decision
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
+from project_atlas.inventory_drift_read import (
+    InventoryDriftReadError,
+    build_inventory_drift_read,
+    render_inventory_drift_read_text,
+)
 from project_atlas.kci import (
     KciError,
     build_compile_request,
@@ -677,6 +682,29 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the connect receipt JSON to stdout (sorted keys).",
+    )
+
+    inventory_drift_parser = subparsers.add_parser(
+        "inventory-drift",
+        help=(
+            "Read-only vault-scoped connect-inventory freshness "
+            "(AS-CODER-ALPHA-INVENTORY-DRIFT-READ-001; never writes; "
+            "STALE!=CURRENT; UNKNOWN!=FRESH)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas inventory-drift --vault .tmp/vault --json\n"
+            "  atlas inventory-drift --vault .tmp/vault --project harbor\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    inventory_drift_parser.add_argument("--vault", type=Path, required=True)
+    inventory_drift_parser.add_argument("--project", default=None)
+    inventory_drift_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Print the honesty-bound inventory-drift JSON to stdout.",
     )
 
     overview_parser = subparsers.add_parser(
@@ -3058,6 +3086,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 obsidian_notes = report.get("obsidian_notes") or []
                 if obsidian_notes:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
+        return EXIT_OK
+
+    if args.command == "inventory-drift":
+        try:
+            report = build_inventory_drift_read(args.vault, args.project)
+        except (InventoryDriftReadError, OSError, ValueError, TypeError) as exc:
+            _log.error("inventory-drift read failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+        else:
+            print(render_inventory_drift_read_text(report), end="")
         return EXIT_OK
 
     if args.command == "overview":

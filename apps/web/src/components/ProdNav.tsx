@@ -12,6 +12,7 @@ const PROD_LINKS = [
   { to: "/roadmap", label: "Roadmap" },
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
+  { to: "/inventory-drift", label: "Inventory drift" },
   { to: "/command-center", label: "Command Center" },
   { to: "/mission-control", label: "Mission Control" },
   { to: "/workspace", label: "Workspace" },
@@ -26,6 +27,7 @@ const PROJECT_AWARE_PATHS = new Set([
   "/time-machine",
   "/roadmap",
   "/workspace",
+  "/inventory-drift",
 ]);
 
 /** Build a nav href. Copies project=P only; does not invent a default project. */

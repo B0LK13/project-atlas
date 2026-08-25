@@ -38,6 +38,10 @@ from project_atlas.conversation_capture import (
     ConversationCaptureError,
     capture_conversation,
 )
+from project_atlas.inventory_drift_read import (
+    InventoryDriftReadError,
+    build_inventory_drift_read,
+)
 from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.obs_live import build_live_observability_receipt
 from project_atlas.ops_receipts import inventory_ops_receipts
@@ -347,6 +351,19 @@ def make_handler(
                 except ValueError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/inventory-drift":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                try:
+                    self._send(
+                        200,
+                        build_inventory_drift_read(
+                            service.vault,
+                            project.strip() or None,
+                        ),
+                    )
+                except (InventoryDriftReadError, ValueError) as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path in {
                 "/v1/intelligence/evidence",
                 "/v1/intelligence/conflicts",
@@ -520,6 +537,7 @@ def make_handler(
                     "ask_atlas_live": True,
                     "obs_live": True,
                     "ops_receipts": True,
+                    "inventory_drift_live": True,
                     "mission_live": True,
                     "workspace_live": True,
                     "conflicts_live": True,

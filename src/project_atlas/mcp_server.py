@@ -18,6 +18,7 @@ from typing import Any, Final
 from project_atlas.app_service import AppService, AppServiceError, open_app_service
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.inventory_drift_read import build_inventory_drift_read
 from project_atlas.mcp_registry import DEFAULT_TOOLS
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
@@ -102,6 +103,16 @@ def _unknown_brief_row(project_id: str) -> dict[str, Any]:
     }
 
 
+def _read_vault_inventory_drift(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped inventory drift. Does not invent FRESH or write."""
+    extra: list[str] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if pid:
+            extra.append(pid)
+    return build_inventory_drift_read(service.vault, extra_project_ids=extra)
+
+
 def read_vault_briefs(service: AppService) -> dict[str, Any]:
     """Zero-arg vault-scoped brief read. Does not invent projects or write."""
     rows: list[dict[str, Any]] = []
@@ -145,6 +156,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.inventory.drift.read": lambda: _read_vault_inventory_drift(service),
     }
 
 

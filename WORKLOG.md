@@ -6997,3 +6997,34 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-INVENTORY-DRIFT-READ-001 — vault-scoped inventory-drift lens
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-a8e6` (from `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge.
+
+### Why
+Connect-inventory drift already exists as a library and is embedded in other
+lenses. Humans and agents had no first-class CLI/API/Web/MCP surface to inspect
+whether live sources still match `generated/ops/connect-manifest.json`.
+
+### Surfaces
+- `atlas inventory-drift --vault <dir> [--project <id>] [--json]`
+- `GET /v1/inventory-drift` (optional `?project=`)
+- Web `#/inventory-drift`
+- MCP `atlas.inventory.drift.read` (zero-arg vault-scoped)
+
+### Honesty
+- `STALE != CURRENT`
+- `UNKNOWN != FRESH`
+- `LENS != AUTHORITY`
+- `UI != CANONICAL`
+- `MCP != AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `AUTHENTIC_PILOT = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
