@@ -6997,3 +6997,35 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+## AS-CODER-ALPHA-OPS-EVENTS-READ-001 — vault-scoped ops-event stream read
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle / Coder Alpha wrap
+**Branch:** `cursor/atlas-autonomous-night-cycle-f6c6`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED READ WRAP. Does not grant merge. Does not claim authentic O2. Does not touch D-149.
+
+### Why
+`atlas ops events` already reads/mutates the AS-OBS-002 stream. Agents and the
+LIVE_API/Web/MCP plane had no vault-scoped read of that stream. Receipts
+(`#492` sibling) are a different artifact.
+
+### Scope
+- `atlas ops-events` read-only CLI
+- `GET /v1/ops/events`
+- MCP `atlas.ops.events.read` (zero-arg)
+- Web `#/ops-events` with demo stub UNKNOWN
+- Honesty: EMPTY != HEALTHY; ABSENT != FABRICATED; events != authority
+
+### Honesty
+- `D149_TOUCHED = NO`
+- `AUTHENTIC_PILOT = NO` (`AUTHENTIC_ESTATE_ROOT` unset)
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Independent verifier: `IV_RESULT=PASS`
+
+### Local verification
+- Focused ops-events + MCP ADV: 28 passed (`--no-cov`)
+- Sibling MCP/demo/ops regression: 45 passed
+- ruff + mypy on touched modules: pass
+

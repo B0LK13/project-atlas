@@ -16,6 +16,7 @@ from project_atlas.knowledge_diff import (
     diff_knowledge,
     read_as_of,
 )
+from project_atlas.ops_events_read import OpsEventsReadError, build_ops_events_read
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
@@ -261,6 +262,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def ops_events(self, *, limit: int = 100) -> dict[str, Any]:
+        """Read-only OPS-EVT stream projection (never emits or retains)."""
+        try:
+            return build_ops_events_read(self.vault, limit=limit)
+        except OpsEventsReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

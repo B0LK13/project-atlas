@@ -180,6 +180,11 @@ from project_atlas.ops_events import (
     read_events,
     record_health_transition,
 )
+from project_atlas.ops_events_read import (
+    OpsEventsReadError,
+    build_ops_events_read,
+    render_ops_events_read_text,
+)
 from project_atlas.ops_health import (
     OpsHealthError,
     emit_health_snapshot,
@@ -320,6 +325,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "inbox",
         "obsidian",
         "review",
+        "ops-events",
     }:
         args.vault = resolve_bound_vault()
     # Single-project commands
@@ -598,6 +604,32 @@ def build_parser() -> argparse.ArgumentParser:
         "build-indexes", help="Build deterministic lexical indexes under generated/ (FR-010)."
     )
     indexes_parser.add_argument("--vault", type=Path, required=True)
+
+    ops_events_read_parser = subparsers.add_parser(
+        "ops-events",
+        help=(
+            "Read the operational event stream under generated/ops/events/ "
+            "(AS-CODER-ALPHA-OPS-EVENTS-READ-001; EMPTY != HEALTHY)."
+        ),
+    )
+    ops_events_read_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help="Vault directory (default: .atlas/connect.json bind / .atlas-vault).",
+    )
+    ops_events_read_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the ops-events JSON to stdout (sorted keys).",
+    )
+    ops_events_read_parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Newest N events to return (default 100, max 500).",
+    )
 
     portfolio_parser = subparsers.add_parser(
         "build-portfolio",
@@ -3498,6 +3530,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"migrated claims: {result['migrated_claims']}")
         if "receipt" in result:
             print(f"receipt: {result['receipt']}")
+        return EXIT_OK
+
+    if args.command == "ops-events":
+        try:
+            vault = args.vault
+            if vault is None:
+                raise OpsEventsReadError("ops-events-vault-missing")
+            report = build_ops_events_read(vault, limit=args.limit)
+        except (OpsEventsReadError, OSError) as exc:
+            _log.error("ops-events failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_ops_events_read_text(report), end="")
         return EXIT_OK
 
     if args.command == "validate":

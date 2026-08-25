@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { ProdShell } from "../../components/ProdShell";
 import { useOpsReceipts } from "../../hooks/useOpsReceipts";
 import { useReadStatus } from "../../hooks/useReadStatus";
@@ -117,6 +118,15 @@ export default function OpsHealthPage() {
           </p>
           <p className="disclaimer">
             Inventory only · never completion claim · never PILOT PASS · never release cert
+          </p>
+        </section>
+
+        <section className="panel" aria-label="Ops event stream">
+          <h2>Ops event stream</h2>
+          <p>
+            Read-only AS-OBS-002 inventory lives on{" "}
+            <Link to="/ops-events">Ops events</Link>. This page does not emit
+            or retain events.
           </p>
         </section>
 

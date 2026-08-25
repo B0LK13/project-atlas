@@ -9,6 +9,7 @@ import DiscoveryPage from "./pages/production/DiscoveryPage";
 import KnowledgePage from "./pages/production/KnowledgePage";
 import GraphPage from "./pages/production/GraphPage";
 import OpsHealthPage from "./pages/production/OpsHealthPage";
+import OpsEventsPage from "./pages/production/OpsEventsPage";
 import CommandCenterPage from "./pages/production/CommandCenterPage";
 import MissionControlPage from "./pages/production/MissionControlPage";
 import WorkspacePage from "./pages/production/WorkspacePage";
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/knowledge" element={<KnowledgePage />} />
       <Route path="/graph" element={<GraphPage />} />
       <Route path="/ops" element={<OpsHealthPage />} />
+      <Route path="/ops-events" element={<OpsEventsPage />} />
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/mission-control" element={<MissionControlPage />} />
       <Route path="/workspace" element={<WorkspacePage />} />

@@ -347,6 +347,17 @@ def make_handler(
                 except ValueError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/ops/events":
+                try:
+                    limit = _parse_limit(qs, default=100)
+                except ApiServerError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                    return
+                try:
+                    self._send(200, service.ops_events(limit=limit))
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path in {
                 "/v1/intelligence/evidence",
                 "/v1/intelligence/conflicts",
@@ -520,6 +531,7 @@ def make_handler(
                     "ask_atlas_live": True,
                     "obs_live": True,
                     "ops_receipts": True,
+                    "ops_events_live": True,
                     "mission_live": True,
                     "workspace_live": True,
                     "conflicts_live": True,
