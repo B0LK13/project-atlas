@@ -1,0 +1,28 @@
+"""Read-only provider matrix for `atlas memory providers`."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from project_atlas.atlas3.memory.chatgpt import chatgpt_capability
+from project_atlas.atlas3.memory.connector import provider_capabilities
+
+
+def memory_providers() -> dict[str, Any]:
+    caps = provider_capabilities()
+    return {
+        **caps,
+        "chatgpt_detail": chatgpt_capability(),
+        "claude_current": {
+            "conversation_sync": "NOT_IMPLEMENTED",
+            "bootstrap_adapter": "CLAUDE.md",
+            "bootstrap_is_ingestion": False,
+            "state": "EXPORT_ONLY",
+        },
+        "gemini_current": {
+            "conversation_sync": "NOT_IMPLEMENTED",
+            "bootstrap_adapter": "GEMINI.md",
+            "bootstrap_is_ingestion": False,
+            "state": "EXPORT_ONLY",
+        },
+    }

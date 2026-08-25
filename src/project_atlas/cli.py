@@ -2794,6 +2794,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional trusted-anchor store. When omitted, the shipped record is used.",
     )
 
+    # Atlas 3 additive commands (D-191 / D-192). Existing parsers are unchanged.
+    from project_atlas.atlas3.cli import register_atlas3_parsers
+
+    register_atlas3_parsers(subparsers)
+
     return parser
 
 
@@ -5274,6 +5279,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(  # pragma: no cover
             f"unknown orchestrator command: {args.orchestrator_command}"
         )
+
+    from project_atlas.atlas3.cli import dispatch_atlas3
+
+    atlas3_exit = dispatch_atlas3(args)
+    if atlas3_exit is not None:
+        return atlas3_exit
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 

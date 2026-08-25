@@ -1,0 +1,47 @@
+"""AT3-042 — Cross-LLM conflict detection. Does not collapse state/intent/history."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+_PG = re.compile(r"postgresql?\s*(\d+)", re.I)
+_INTENT = re.compile(r"\b(planned|later|after|migrate|migration)\b", re.I)
+
+
+def detect_conflicts(
+    items: list[dict[str, Any]],
+    *,
+    current_state_text: str | None = None,
+) -> dict[str, Any]:
+    versions: dict[str, list[str]] = {}
+    intents: list[str] = []
+    for item in items:
+        text = str(item.get("text") or "")
+        match = _PG.search(text)
+        if not match:
+            continue
+        version = match.group(1)
+        provider = str(item.get("provider") or "unknown")
+        if _INTENT.search(text):
+            intents.append(f"{provider}:{version}")
+        else:
+            versions.setdefault(version, []).append(provider)
+
+    current = None
+    if current_state_text:
+        found = _PG.search(current_state_text)
+        if found:
+            current = found.group(1)
+
+    conflicted = len(versions) > 1 or (
+        current is not None and any(version != current for version in versions)
+    )
+    return {
+        "package": "AT3-042",
+        "current_state": current,
+        "observed_versions": {key: sorted(set(value)) for key, value in sorted(versions.items())},
+        "intent_versions": sorted(set(intents)),
+        "conflicted_history": conflicted,
+        "collapsed_to_scalar": False,
+    }
