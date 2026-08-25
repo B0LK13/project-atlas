@@ -259,6 +259,7 @@ from project_atlas.session_capture import (
     list_captures,
 )
 from project_atlas.source_health import SourceHealthError, explain_source_health
+from project_atlas.terminal_io import human_print
 from project_atlas.twin_fixtures import (
     TwinFixtureError,
     TwinProjectRow,
@@ -2641,6 +2642,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=429,
         help="Canonical continuation PR to refresh (default: 429).",
     )
+    orch_gov_stop = orch_sub.add_parser(
+        "governor-service-stop",
+        help=(
+            "Request graceful stop of a durable SDK supervisor via stop file. "
+            "Does not merge."
+        ),
+    )
+    orch_gov_stop.add_argument("--root", type=Path, default=None)
     orch_gov_resident = orch_sub.add_parser(
         "governor-resident-run",
         help=(
@@ -3249,7 +3258,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             care = report.get("care_about") or []
             print(f"care_about ({len(care)}):")
             for item in care:
-                print(
+                human_print(
                     f"  [{item.get('level')}] {item.get('reason_code')}: "
                     f"{item.get('why_seeing_this')} → {item.get('what_to_do')}"
                 )
@@ -3390,6 +3399,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             context = report.get("context") or {}
             print(f"  context:  {context.get('markdown_path')}")
+            raw_freshness = report.get("freshness")
+            freshness: dict[str, Any] = (
+                raw_freshness if isinstance(raw_freshness, dict) else {}
+            )
+            print(f"  freshness: {freshness.get('status', 'UNKNOWN')}")
+            warning = report.get("resume_warning")
+            if warning:
+                print(f"  warning:  {warning}")
             for item in report.get("resume_instructions") or []:
                 print(f"  - {item}")
         return EXIT_OK
@@ -5181,6 +5198,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 use_fake=bool(getattr(args, "fake_backend", False)),
                 candidate_head=getattr(args, "candidate_head", None),
                 pr_number=int(getattr(args, "pr", 429) or 429),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-stop":
+            from project_atlas.orchestration.sdk.cli import run_supervisor_stop
+
+            report, exit_code = run_supervisor_stop(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

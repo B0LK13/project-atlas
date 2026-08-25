@@ -11,8 +11,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from project_atlas.authority_evaluator import SourceArtifact, evaluate_disposition
 from project_atlas.authority_registry import AUTHORITY_REGISTRY_VERSION, trust_root
 from project_atlas.domain import Claim, ProvenanceReference
@@ -255,12 +253,9 @@ def test_ax_auth_005_forged_trust_root_fail_closed_or_regenerate(
         assert item["registry_version"] == AUTHORITY_REGISTRY_VERSION
         assert item["trust_root"] != "forged-trust-root-not-owner-certified"
 
-    if not consume_fail_closed:
-        pytest.xfail(
-            "BLOCKED_CASE AX-AUTH-005 consume: query does not fail-closed on "
-            "forged trust_root/registry_version — owning package AS-CORE-007 "
-            "(consume integrity); regenerate path asserted green"
-        )
+    assert consume_fail_closed, (
+        "AX-AUTH-005 consume must fail-closed on forged trust_root/registry_version"
+    )
 
 
 def test_ax_auth_009_equal_genesis_conflict_no_lexical_tiebreak() -> None:

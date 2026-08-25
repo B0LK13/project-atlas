@@ -2,7 +2,7 @@
 
 Wave-A2 P0: AX2-ATF-001, AX2-ATF-004.
 INV-A07 / INV-A08 — re-invoke ACCEPT-001; do not amend Wave-A modules.
-AX-AUTH-005 remains CORE-007 owned (xfail) — not claimed here.
+AX-AUTH-005 consume integrity is owned by AS-CORE-007 (query/validate fail-closed).
 """
 
 from __future__ import annotations

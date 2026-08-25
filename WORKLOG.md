@@ -5,6 +5,150 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-185 — #471 unbound-pack + post-#474 rebind
+
+**Date:** 2026-08-25
+**Directive:** D-185
+**Rebind:** post-#474 main `b2d15866622c31efd0999b320e16340711d3dba6`
+**Mode:** Same canonical #471. MERGE_AUTHORIZATION remaining = NOT_GRANTED.
+
+### Finding
+Resume of a pack with no usable `estate_binding` inherited live FRESH when
+the current manifest matched. Codex thread: unbound legacy != current.
+
+### Fix
+`evaluate_estate_currentness` fail-closes to `UNKNOWN` /
+`UNBOUND_FROZEN_ESTATE` when frozen identity is missing or malformed.
+Resume emits `resume_warning`. Target movement vs #474: `cli.py` regions
+disjoint (attention encoding vs handoff freshness).
+
+## D-183 — #471 recert against post-#508 main
+
+**Date:** 2026-08-25
+**Directive:** D-183 FINAL DEMO-BLOCKER CONVERGENCE
+**Branch:** `feat/d156-lane426-freshness-adv` (canonical #471, no replacement PR)
+**Rebind:** live main `6709ad7751f2135b507b74013808ecfe2198a3a3` / tree `ecb2079a7ae5ff8f2748f16cdbb92f94338345b2`
+**Mode:** Full recert successor. MERGE_AUTHORIZATION = NOT_GRANTED.
+
+### Why
+Cloud independently proved the product gap on main: after source mutation,
+`handoff resume` returned `status=resumed` with estate_binding / freshness
+lens / stale warning ABSENT. Stale pre-#508 owner evidence is not reused.
+
+### Unique delta
+- Frozen `estate_binding` at export/create (manifest sha256 + copied digests)
+- Resume recomputes live freshness vs frozen binding
+- `resume_warning` when frozen estate != live estate
+- Forged on-disk freshness is not authority
+- Missing/malformed connect-manifest stays UNKNOWN (fail closed)
+- No Layer-B writes; no secret echo; no second hash engine
+
+### Honesty
+`STALE_IS_CURRENT=FALSE` `FRESH_IS_AUTHORITY=FALSE`
+`ESTATE_BINDING_IS_AUTHORITY=FALSE` `UNKNOWN_AT_WRITE` cannot later
+masquerade as certified FRESH.
+
+## AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 / D-056
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-WAVE3-COORDINATED-ACTIVATION-AND-CRITICAL-PATH-EXPANSION-056
+**Lease:** `LEASE-IMPL-CTX-FRESH-ADV-056-A` (shared primary-governor write-back)
+**Branch:** `cursor/context-freshness-adv-current-001-5d32` from live `origin/main` `dc9d81df0ff7106438de44a4bd84df0b955535bc`
+**Mode:** Wave-3 primary implementation. Does not retarget `#378`. Does not duplicate owner-held `#419`. Does not merge.
+
+### Unique delta
+Frozen-at-write connect-manifest identity vs current live estate, including reconnect that refreshes the manifest while live files still match the new manifest.
+
+### Honesty
+`STALE_IS_CURRENT=NO` `UNKNOWN_IS_CURRENT=NO` `FRESH_IS_AUTHORITY=NO` `MERGE_AUTHORIZATION=NOT_GRANTED`
+
+
+## D-178 P1-A — KDIFF_TZ_AWARE_CRASH (UTC-aware comparison)
+
+**Date:** 2026-08-25
+**Package:** D-178 / KDIFF_TZ_AWARE_CRASH
+**Branch:** `cursor/kdiff-tz-aware-crash-b38f`
+**Base:** `origin/main` `a17949c6df9b4d004ffe03eb47b0934e3735204d` / tree `e646392c12fa525dcfd017c33e1b6226c5bfb40a`
+**Mode:** P1 remediation carrier. Does not merge. Does not touch Ask2 or #505.
+
+### Why
+`atlas kdiff --as-of <timestamp>Z` and `+00:00` raised `TypeError` in
+`bitemporal.py::_covers` (aware vs naive). Date-only form worked. LIVE_API
+`/v1/kdiff?as_of=…Z` empty-reset the connection (curl 52) because the
+uncaught TypeError was not mapped to `AppServiceError`.
+
+### Root cause
+`_parse_instant` returned naive midnight for `YYYY-MM-DD` and aware UTC for
+`Z` / offsets. Catalog windows are typically date-only. `_covers` compared
+mixed types. CLI and API share `evaluate_as_of` → same root cause, different
+symptoms.
+
+### Canonical policy
+UTC-aware everywhere. Naive date-only / naive ISO clocks are UTC, not local.
+Offsets are converted, never stripped.
+
+### Validation
+```
+.venv/bin/python -m pytest tests/unit/test_d178_kdiff_tz_aware.py \
+  tests/unit/test_as_2_0_temporal_001.py tests/unit/test_as_2_2_kdiff_001.py -q
+# 76 passed
+.venv/bin/python -m ruff check src/project_atlas/bitemporal.py \
+  src/project_atlas/app_service.py src/project_atlas/knowledge_diff.py \
+  tests/unit/test_d178_kdiff_tz_aware.py
+.venv/bin/python -m mypy src/project_atlas/bitemporal.py \
+  src/project_atlas/app_service.py src/project_atlas/knowledge_diff.py
+```
+
+### Honesty
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Independent ADV/IV still required on this exact tip
+- Does not claim `FULL_LIVE_DEMO_READY`
+
+---
+
+## AS-CORE-007-R1 — AX-AUTH-005 consume fail-closed
+
+**Date:** 2026-08-25
+**Package:** AS-CORE-007-R1 / AX-AUTH-005
+**Branch:** `cursor/atlas-autonomous-night-cycle-575f`
+**Base:** `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED_CONSUME_INTEGRITY. Does not merge. Does not claim authentic O2. Does not duplicate D-149 #483.
+
+### Why
+Live-main probe: `query_knowledge` echoed `trust_root=forged-trust-root-not-owner-certified` and `registry_version=999` as `status=ok`. ACCEPT-001 had this as an explicit xfail owned by AS-CORE-007.
+
+### What changed
+- Persist-to-live binding helper rejects mismatched / bool / float registry encodings
+- Query snapshot consume and `atlas validate` fail-closed on forged file, record, and evidence bindings
+- Domain records reject bool/float `registry_version` before coercion to live v1
+- ACCEPT-001 AX-AUTH-005 xfail removed (consume now required)
+
+### Validation
+```
+PRE_PROBE consume_fail_closed=False (echoed forged trust_root + 999)
+POST_PROBE consume_fail_closed=True
+pytest tests/unit/test_as_core_007_knowledge_query.py tests/unit/test_as_accept_001_authority.py tests/unit/test_as_core_006_authority.py tests/unit/test_as_query_diag_001.py tests/unit/test_as_accept_002_authority_temporal.py
+# 62 passed (plus related 008 suite 76 total with conflict/review)
+ruff/mypy on touched modules: pass
+Independent verifier: IV_RESULT=PASS; P0/P1 remaining=NONE
+```
+
+### Honesty
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO`
+- D-149 remains owner-merge of #483 (CI green; IV PASS; do not duplicate)
+
+### Night-cycle reconcile (2026-08-25T00:55Z)
+- LIVE_MAIN_HEAD = f0e0c979e8ead0fdad4cc51682c560299db0a074
+- D-149 #483 HEAD 36a5f54 CI: control-plane + quality 3.12/3.13/windows PASS
+- AUTHENTIC_ESTATE_ROOT = UNSET
+
+## AS-CODER-ALPHA-HANDOFF/REVIEW-MCP-001 — rebind onto live main
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-035a`
+**Mode:** SAME PACKAGE. Merge `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` to restore mergeability and re-fire GHA. WORKLOG-only conflict. No force-push. MERGE_AUTHORIZATION = NOT_GRANTED.
+
 ## AS-CODER-ALPHA-HANDOFF/REVIEW-MCP-001 — mypy remediations
 
 **Date:** 2026-08-25
@@ -7008,6 +7152,47 @@ symlink projection files on read.
 grant source and does not certify #427.
 
 ---
+
+## D-149 — owner-gate non-escalation (authentic estate, clean package)
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle / D-149
+**Branch:** `cursor/atlas-autonomous-night-cycle-69a2`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED SECURITY REMEDIATION. Does not grant merge. Does not claim authentic O2. Does not mix NEXT-API or other Coder Alpha surfaces.
+
+### Live-state note
+Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-estate `CREDENTIAL` gate to `NONE` and rewrote `SUPERSEDED MERGE` to `CREDENTIAL` during mission reconcile. Draft `#477` already contains a mixed D-149+NEXT fix; this package is D-149-only.
+
+### Pre-remediation probe (main `f0e0c979`)
+- `CREDENTIAL` + `SOME_OTHER_CREDENTIAL` → `OWNER_GATE=NONE` (`PROBE1_CREDENTIAL_OTHER_WIDENED=True`)
+- `SUPERSEDED MERGE` + estate-absent O2 reseed → `OWNER_GATE=CREDENTIAL` (`PROBE2_MERGE_TO_CREDENTIAL=True`)
+- Refresh-path `MERGE` was already preserved on main
+
+### Scope
+- `refresh_authentic_o2_node_states` consumes only an explicit `AUTHENTIC_ESTATE_ROOT` dependency
+- `CREDENTIAL` held for another capability is not cleared
+- `MERGE`/`SECURITY`/`HUMAN`/`OWNER`/`RELEASE`/`GOVERNOR`/`SIGNOFF` remain immutable
+- Failed preflight does not mark the estate credential satisfied
+- Stale/cross-project/fixture/missing-fingerprint credentials refuse durable mutation
+- Closure-integrity pin failure refuses durable mutation
+- Mission reconciler no longer rewrites owner-held `MERGE` to `CREDENTIAL`
+- `ready_work_items` demotes every immutable owner gate before surface-overlap skip
+- `SUPERSEDED`/`DISPATCHED`/`RUNNING` nodes are not resurrected by estate refresh
+
+### Honesty
+- `AUTHENTIC_ESTATE_AVAILABILITY != OWNER_AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN` (`AUTHENTIC_ESTATE_ROOT` unset)
+- Independent verifier: `IV_RESULT=PASS` after P1 remediations
+
+### Local verification
+- Focused D-149/D-148/reconciler: 56 passed (`--no-cov`)
+- Autonomy regression D-146/147/149/154: 84 passed
+- ruff + mypy on touched modules: pass
+- Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
 
 ## AS-CODER-ALPHA-HANDOFF-MCP-001 — vault-scoped handoff read
 
