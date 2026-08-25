@@ -95,6 +95,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; impact-graph summary (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.conflicts.read",
+        "vault-read",
+        True,
+        "allow-list candidate; unresolved conflicts (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

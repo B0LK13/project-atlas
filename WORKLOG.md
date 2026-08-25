@@ -5,6 +5,27 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-CONFLICTS-MCP-001 — vault-scoped `atlas.conflicts.read`
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-e7ea`
+**Mode:** THIN_READ_WRAP. Does not mutate D-149 / PR #483. Does not merge.
+
+### Why this lane
+`GET /v1/conflicts` already exists on main. No first-class MCP wrap and no
+open conflicts-MCP PR. Parallel cycle `#491` covers session-capture list, not
+conflicts.
+
+### Contract
+Zero-arg vault-scoped read. Never resolves. Empty/missing file is an honest
+empty list, not a resolution. Secret-shaped claims stay redacted.
+`owner_capability_granted=false`. `D149_TOUCHED=NO`.
+
+### Evidence
+`docs/AS-CODER-ALPHA-CONFLICTS-MCP-001.md`
+
+---
+
 ## AS-CODER-ALPHA-GRAPH-MCP-001 — vault-scoped `atlas.graph.read`
 
 **Date:** 2026-08-25
