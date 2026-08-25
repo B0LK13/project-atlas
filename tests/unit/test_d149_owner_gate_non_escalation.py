@@ -505,6 +505,29 @@ def test_demo_fixture_estate_cannot_masquerade(tmp_path: Path) -> None:
     assert _snapshot(load_nodes(root)["merge"]) == prior_merge
 
 
+def test_owner_capability_granted_string_true_is_rejected(tmp_path: Path) -> None:
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    cred = root / ".atlas/orchestration/sdk-runtime/d148-authentic-estate-credential.json"
+    payload = json.loads(cred.read_text(encoding="utf-8"))
+    payload["OWNER_CAPABILITY_GRANTED"] = "true"
+    cred.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    persist_nodes(
+        root,
+        {
+            "cred": _o2_node(
+                "cred",
+                owner_gate="CREDENTIAL",
+                deps=["AUTHENTIC_ESTATE_ROOT"],
+            )
+        },
+    )
+    prior = _snapshot(load_nodes(root)["cred"])
+    assert estate_credential_binding_ok(root) is False
+    assert refresh_authentic_o2_node_states(root) == []
+    assert _snapshot(load_nodes(root)["cred"]) == prior
+
+
 def test_missing_fingerprint_on_credential_file_is_rejected(tmp_path: Path) -> None:
     """P1 from IV: empty estate_fingerprint must not authorize mutation."""
     estate = _init_estate(tmp_path / "estate")

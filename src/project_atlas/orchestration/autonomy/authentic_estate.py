@@ -272,7 +272,8 @@ def estate_credential_binding_ok(repo_root: Path) -> bool:
         return False
     if not isinstance(data, dict):
         return False
-    if data.get("OWNER_CAPABILITY_GRANTED") is True:
+    granted = data.get("OWNER_CAPABILITY_GRANTED")
+    if granted is True or str(granted).strip().lower() in {"true", "1", "yes"}:
         return False
     credential_failed = data.get("preflight_pass") is False or (
         data.get("AUTHENTIC_ESTATE_CREDENTIAL_SATISFIED") is False
