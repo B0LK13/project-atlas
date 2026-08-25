@@ -59,6 +59,11 @@ const PROD = [
     title: "Conflicts",
     blurb: "Vault-scoped unresolved conflicts — projection≠resolution.",
   },
+  {
+    to: "/snapshot",
+    title: "Snapshot",
+    blurb: "LIVE_API facade snapshot — facade≠backup ≠authority.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */

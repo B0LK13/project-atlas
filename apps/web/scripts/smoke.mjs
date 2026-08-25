@@ -29,6 +29,8 @@ const required = [
   "src/pages/production/WorkspacePage.tsx",
   "src/pages/production/ConflictsPage.tsx",
   "src/hooks/useLiveConflicts.ts",
+  "src/pages/production/SnapshotPage.tsx",
+  "src/hooks/useLiveSnapshot.ts",
   "src/pages/design-lab/LedgerDeskPage.tsx",
   "src/pages/design-lab/SignalRackPage.tsx",
   "src/pages/design-lab/CartographQuietPage.tsx",
@@ -107,6 +109,7 @@ for (const route of [
   "/mission-control",
   "/workspace",
   "/conflicts",
+  "/snapshot",
   "/design-lab/ledger-desk",
   "/design-lab/signal-rack",
   "/design-lab/cartograph-quiet",
@@ -202,10 +205,11 @@ const pageChecks = [
   ["src/pages/production/MissionControlPage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority", "LensModeSwitcher", "LIVE", "DEMO", "FIXTURE"]],
   ["src/pages/production/WorkspacePage.tsx", ["ui_canonical", "graph_authority", "unknown", "UI ≠ canonical", "Graph ≠ authority", "LensModeSwitcher", "LIVE", "DEMO", "FIXTURE"]],
   ["src/pages/production/ConflictsPage.tsx", ["ui_canonical", "graph_authority", "unknown", "does not pick a winner", "useLiveConflicts"]],
+  ["src/pages/production/SnapshotPage.tsx", ["ui_canonical", "graph_authority", "unknown", "facade≠backup", "useLiveSnapshot"]],
   ["src/components/LensModeSwitcher.tsx", ["LIVE", "DEMO", "FIXTURE", "mode-switcher"]],
   ["src/components/ReadStatusPanel.tsx", ["ui_canonical", "graph_authority", "unknown_equals_healthy"]],
   ["src/components/ProdShell.tsx", ["skip-link", "Skip to main"]],
-  ["src/components/ProdNav.tsx", ["/mission-control", "Mission Control", "/workspace", "Workspace", "/conflicts", "Conflicts"]],
+  ["src/components/ProdNav.tsx", ["/mission-control", "Mission Control", "/workspace", "Workspace", "/conflicts", "Conflicts", "/snapshot", "Snapshot"]],
 ];
 for (const [rel, needles] of pageChecks) {
   const body = readFileSync(join(root, rel), "utf8").toLowerCase();

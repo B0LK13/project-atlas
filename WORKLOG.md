@@ -7025,3 +7025,17 @@ identified `atlas.conflicts.read` as the remaining unique unused wrap after
 - `GET /v1/conflicts?project=` unchanged
 - MCP `atlas.conflicts.read` (zero-arg)
 - Web `#/conflicts`
+
+---
+
+## AS-CODER-ALPHA-SNAPSHOT-MCP-001 — vault-scoped facade snapshot
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-b3ab`
+**Mode:** CODER ALPHA SURFACE PARITY. Does not touch D-149. Does not merge.
+
+### Honesty
+- `FACADE SNAPSHOT != BACKUP BUNDLE`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

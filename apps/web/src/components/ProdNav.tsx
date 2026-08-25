@@ -10,6 +10,7 @@ const PROD_LINKS = [
   { to: "/ask", label: "Ask" },
   { to: "/time-machine", label: "Time Machine" },
   { to: "/conflicts", label: "Conflicts" },
+  { to: "/snapshot", label: "Snapshot" },
   { to: "/roadmap", label: "Roadmap" },
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },

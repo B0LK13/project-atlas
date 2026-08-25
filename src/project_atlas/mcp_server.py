@@ -33,6 +33,11 @@ CONFLICTS_TRUTH_BOUNDARY = (
     "MCP CONFLICTS != AUTHORITY / != RESOLUTION / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
+SNAPSHOT_PACKAGE_ID = "AS-CODER-ALPHA-SNAPSHOT-MCP-001"
+SNAPSHOT_TRUTH_BOUNDARY = (
+    "MCP SNAPSHOT != AUTHORITY / != BACKUP BUNDLE / UNKNOWN VALID / NO WRITE / "
+    "FACADE SNAPSHOT != ATLAS SNAPSHOT/RESTORE"
+)
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
 _ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool"})
@@ -172,6 +177,47 @@ def read_vault_conflicts(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_snapshot(service: AppService) -> dict[str, Any]:
+    """Zero-arg LIVE_API facade snapshot. Not a backup bundle."""
+    raw = service.snapshot()
+    projects = list(raw.get("projects") or [])
+    knowledge = list(raw.get("knowledge") or [])
+    graph = dict(raw.get("graph") or {})
+    return {
+        "schema_version": 1,
+        "package_id": SNAPSHOT_PACKAGE_ID,
+        "truth_boundary": SNAPSHOT_TRUTH_BOUNDARY,
+        "project_count": len(projects),
+        "knowledge_count": len(knowledge),
+        "projects": projects,
+        "knowledge": knowledge,
+        "graph": {
+            "available": bool(graph.get("available")),
+            "node_count": int(graph.get("node_count") or 0),
+            "edge_count": int(graph.get("edge_count") or 0),
+            "graph_authority": False,
+            "authority": "derived",
+        },
+        "health": raw.get("health"),
+        "authority": "derived",
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+            "backup_bundle": False,
+            "atlas_snapshot_restore": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -184,6 +230,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.conflicts.read": lambda: read_vault_conflicts(service),
+        "atlas.snapshot.read": lambda: read_vault_snapshot(service),
     }
 
 

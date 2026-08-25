@@ -77,6 +77,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; unresolved conflict index (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.snapshot.read",
+        "vault-read",
+        True,
+        "allow-list candidate; LIVE_API facade snapshot (vault-scoped, read-only; != backup)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,
