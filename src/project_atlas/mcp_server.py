@@ -31,6 +31,7 @@ ROADMAP_PACKAGE_ID = "AS-CODER-ALPHA-ROADMAP-MCP-001"
 MISSION_WS_PACKAGE_ID = "AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001"
 GRAPH_PACKAGE_ID = "AS-CODER-ALPHA-GRAPH-MCP-001"
 CONFLICTS_PACKAGE_ID = "AS-CODER-ALPHA-CONFLICTS-MCP-001"
+DISCOVERY_PACKAGE_ID = "AS-CODER-ALPHA-DISCOVERY-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -51,6 +52,10 @@ GRAPH_TRUTH_BOUNDARY = (
 CONFLICTS_TRUTH_BOUNDARY = (
     "MCP CONFLICTS != AUTHORITY / != RESOLUTION / UNKNOWN VALID / NO WRITE / "
     "EMPTY LIST != RESOLVED"
+)
+DISCOVERY_TRUTH_BOUNDARY = (
+    "MCP DISCOVERY != SCAN / != INGEST / != AUTHORITY / NO WRITE / "
+    "REPORT ABSENT != INVENTED ROOTS / VOLUME ROOT != OWNER"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -411,6 +416,46 @@ def read_vault_conflicts(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_discovery(service: AppService) -> dict[str, Any]:
+    """Zero-arg discovery-report read. Never scans, never invents roots."""
+    view = dict(service.estate_discovery())
+    present = bool(view.get("present"))
+    return {
+        "schema_version": 1,
+        "package_id": DISCOVERY_PACKAGE_ID,
+        "truth_boundary": DISCOVERY_TRUTH_BOUNDARY,
+        "discovery": {
+            "present": present,
+            "authorized_root": view.get("authorized_root") if present else None,
+            "authorized_root_mode": view.get("authorized_root_mode") if present else None,
+            "volume_root_authorized": bool(view.get("volume_root_authorized"))
+            if present
+            else False,
+            "volume_root_kind": view.get("volume_root_kind") or "NONE",
+            "counts": view.get("counts") or {},
+            "scan": view.get("scan") or {},
+            "categories": view.get("categories") or {},
+            "note": view.get("note"),
+        },
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "invented_roots": False,
+            "estate_scan": False,
+            "ingest": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+            "volume_root_is_owner_authority": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -427,6 +472,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.workspace.read": lambda: read_vault_workspace(service),
         "atlas.graph.read": lambda: read_vault_graph(service),
         "atlas.conflicts.read": lambda: read_vault_conflicts(service),
+        "atlas.discovery.read": lambda: read_vault_discovery(service),
     }
 
 

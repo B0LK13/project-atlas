@@ -5,6 +5,27 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-DISCOVERY-MCP-001 — vault-scoped `atlas.discovery.read`
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-e7ea`
+**Mode:** THIN_READ_WRAP. Does not mutate D-149 / PR #483. Does not merge.
+
+### Why this lane
+`GET /v1/discovery` already exists on main. No discovery-report MCP wrap.
+`atlas.estate.scan` remains denied. A persisted `volume_root_authorized`
+flag is not owner authority.
+
+### Contract
+Zero-arg vault-scoped read of `estate-discovery-report.json` only.
+Absent report → no invented roots. `owner_capability_granted=false`,
+`authentic_pilot=false`. `D149_TOUCHED=NO`.
+
+### Evidence
+`docs/AS-CODER-ALPHA-DISCOVERY-MCP-001.md`
+
+---
+
 ## AS-CODER-ALPHA-CONFLICTS-MCP-001 — vault-scoped `atlas.conflicts.read`
 
 **Date:** 2026-08-25

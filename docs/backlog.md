@@ -387,6 +387,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-MISSION-WORKSPACE-MCP-001 zero-arg `atlas.mission.read` / `atlas.workspace.read` (LIVE compose wrap; no PILOT invent; MCP!=authority; D149_TOUCHED=NO; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-GRAPH-MCP-001 zero-arg `atlas.graph.read` (impact-graph summary wrap; GRAPH!=authority; absent≠fabricated; D149_TOUCHED=NO; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-CONFLICTS-MCP-001 zero-arg `atlas.conflicts.read` (unresolved conflict projection; !=resolution; empty≠resolved; D149_TOUCHED=NO; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-CODER-ALPHA-DISCOVERY-MCP-001 zero-arg `atlas.discovery.read` (persisted discovery report only; !=estate.scan; volume root≠owner; D149_TOUCHED=NO; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
 
