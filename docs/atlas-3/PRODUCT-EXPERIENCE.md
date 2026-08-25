@@ -17,6 +17,7 @@ Must answer:
 | What conflicts? | Core conflicts + memory conflicts |
 | What failed? | ledger failures + handoff/proof failures |
 | What was decided? | decisions lens + confirmed owner items only |
+| What requires attention? | failures + conflicts + attention lens; not a change fallback |
 | What should I look at next? | next lens; stale/unverified stay honest |
 
 Pulse is a **derived lens**. It is not Truth Core.
@@ -25,6 +26,8 @@ Pulse is a **derived lens**. It is not Truth Core.
 
 Compile a bounded context briefing. No arbitrary RAG dump.
 **Token/context budget is required.**
+**Freshness requirement is required** (`CURRENT` | `ALLOW_STALE_HISTORICAL` |
+`UNKNOWN`). `CURRENT` refuses stale evidence as current verified truth.
 
 Required sections:
 
@@ -68,9 +71,11 @@ TASK → IMPLEMENTATION → TESTS → CI → INDEPENDENT VERIFICATION
 
 ```text
 atlas pulse  --vault <dir> --project <id> [--json]
-atlas start  --vault <dir> --project <id> --budget <n> [--json]
+atlas start  --vault <dir> --project <id> --budget <n> [--freshness CURRENT] [--json]
 atlas proof  <task-id> --vault <dir> [--json]
 atlas memory sync|status|search|conflicts|stale|providers
+atlas capabilities
+atlas compat --vault <dir>
 ```
 
 `atlas memory sync` is a status/capability command in this slice, not a live

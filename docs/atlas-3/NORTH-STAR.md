@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Directive | D-191 |
+| Directive | D-191 / D-193 |
 | Status | **CANONICAL SUCCESSOR PROGRAM DIRECTION** |
 | Current main | `f1b5256510cb66e037e6774aa49d753bdb7dd96f` |
 | Precedence | Owner directives > landed `main` truth > this document > historical roadmaps |
@@ -18,6 +18,9 @@ SOFTWARE PROJECTS, HUMANS, AND AUTONOMOUS AGENTS
 Atlas 3 does not replace the Atlas 2.x knowledge compiler. It is the program
 that turns landed Truth / Time / Context foundations into a **verifiable
 project digital twin** that humans and every LLM provider can share.
+
+Foundation layer ownership and exit criteria: `docs/atlas-3/FOUNDATION.md`.
+Chronicle / Ambient Knowledge remains `ROADMAP_HORIZON`.
 
 ## Promises
 

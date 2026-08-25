@@ -5,6 +5,41 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-193 — Atlas 3.0 foundation convergence
+
+**Date:** 2026-08-25
+**Directive:** D-193
+**Branch:** `cursor/atlas3-foundation-convergence-b8f1`
+**Base:** D-191/D-192 tip `0fd350108d4f4735eb2618a95576f720a78096b8`
+**Current main pin:** `f1b5256510cb66e037e6774aa49d753bdb7dd96f`
+**Mode:** Maximum-safe autonomous foundation convergence.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`FULL_LIVE_DEMO_READY = NO` so certified 2.x surfaces were not rewritten.
+
+### What landed
+- Foundation ownership + exit criteria (`docs/atlas-3/FOUNDATION.md`)
+- Threat catalog (`docs/atlas-3/SECURITY.md`)
+- Chronicle horizon notes only (`docs/atlas-3/chronicle/HORIZON.md`)
+- Twin / event / capability JSON schemas under `docs/atlas-3/contracts/`
+- Isolated runtime: twin constructors, canonical event envelope,
+  capability registry, compatibility prover, Pulse attention question,
+  Start freshness requirement, ledger temporal query
+- Additive CLI: `atlas capabilities`, `atlas compat`, `atlas start --freshness`,
+  `atlas ledger query`
+
+### Honesty
+- Chronicle runtime = NOT IMPLEMENTED (`ROADMAP_HORIZON`)
+- Native Claude/Gemini history sync = still NOT IMPLEMENTED
+- Ledger is evidence substrate, not Truth Core
+- Compatibility prover is isolated-store proof, not a vault rewrite
+- Threat model is reviewed, not externally certified
+- Demo interference intended = NONE
+
+### Validation
+See subsequent pytest / ruff / mypy results on this branch.
+
+---
+
 ## D-191 / D-192 — Atlas 3.0 program inception + cross-LLM memory
 
 **Date:** 2026-08-25

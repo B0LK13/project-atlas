@@ -32,9 +32,29 @@ DEMO != RELEASE
 |---|---|---|
 | AT3-003 | Engineering events normalize to one envelope | Rewriting `EventType` enum |
 | AT3-014 | Append-only project ledger under atlas3/ | Dual-write ops_events |
-| AT3-015 | Pulse answers the seven questions honestly | Inventing changes |
-| AT3-030 | Start requires a token budget | RAG dump |
+| AT3-015 | Pulse answers the eight questions honestly | Inventing changes |
+| AT3-030 | Start requires a token budget and freshness | RAG dump / stale-as-current |
 | AT3-050 | Proof chain; model claim ≠ proven | Auto-complete from LLM text |
+
+## D-193 foundation acceptance
+
+| Criterion | Ready means |
+|---|---|
+| NORTH_STAR | Coherent stack + FOUNDATION.md layer ownership |
+| PROJECT_TWIN_SCHEMA | 19 nodes / 15 relationships; provenance required |
+| ENGINEERING_EVENT_SCHEMA | 21 families; required envelope fields present |
+| EVENT_LEDGER_CONTRACT | Append-only, idempotent, not Truth Core |
+| CAPABILITY_REGISTRY | Semantic once; surfaces are projections |
+| COMPATIBILITY_PLAN | Seven invariants proven on isolated vaults |
+| SECURITY_MODEL | 12 threats reviewed; not externally certified |
+| PULSE_SPEC | Eight questions including attention |
+| START_SPEC | Budget + freshness; no RAG dump |
+| LLM_CONNECTOR_FRAMEWORK | Substrate + honesty matrix only |
+| PROOF_OF_WORK | Chain exists; model claim ≠ proof |
+| Chronicle | ROADMAP_HORIZON design notes only |
+
+`NEW_P0 = 0` and `NEW_P1 = 0` for this foundation slice.
+Certified 2.x demo surfaces remain unmodified.
 
 ## D-192 acceptance (see llm-memory/ACCEPTANCE.md)
 

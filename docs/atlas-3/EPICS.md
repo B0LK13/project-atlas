@@ -2,9 +2,10 @@
 
 | Field | Value |
 |---|---|
-| Directive | D-191 / D-192 |
+| Directive | D-191 / D-192 / D-193 |
 | Epic count | **61** |
 | First vertical | AT3-003, AT3-014, AT3-015, AT3-030, AT3-050 |
+| Foundation priority | AT3-001, 002, 003, 004, 005, 014, 015, 030, 035, 050 |
 
 Status vocabulary: `PREP` · `ISOLATED_RUNTIME` · `LANDED_2X_REUSE` · `BLOCKED_DEMO` · `NOT_STARTED`.
 
@@ -15,12 +16,16 @@ does not mutate certified 2.x production surfaces.
 
 | ID | Title | Status | Reuse |
 |---|---|---|---|
-| AT3-001 | Program charter / north star | PREP (this tree) | Coder Alpha north star |
-| AT3-002 | Twin domain model | PREP + vocabulary catalog | AS-2.0-TWIN-001 honesty; AS-GRAPH-003 types |
-| AT3-003 | Engineering event model | ISOLATED_RUNTIME | `atlas_contracts.agent_event`, ops events |
-| AT3-004 | Temporal contract reuse | LANDED_2X_REUSE | `bitemporal.py`, kdiff |
-| AT3-005 | Authority / UNKNOWN reuse | LANDED_2X_REUSE | knowledge_compiler, authority_evaluator |
-| AT3-006 | Program security / threat model | PREP + isolated guards | secrets, authz, path guards |
+| AT3-001 | Program charter / north star | PREP (this tree + FOUNDATION.md) | Coder Alpha north star |
+| AT3-002 | Project twin schema | ISOLATED_RUNTIME | constructors + JSON schemas; graph ≠ authority |
+| AT3-003 | Engineering event model | ISOLATED_RUNTIME | canonical envelope; `kind` remains alias |
+| AT3-004 | Capability registry | ISOLATED_RUNTIME | D-193 remap; surfaces ≠ capabilities |
+| AT3-005 | 2.x→3.x compatibility contract | ISOLATED_RUNTIME | D-193 remap; `prove_compatibility()` |
+| AT3-006 | Program security / threat model | PREP + catalog | `SECURITY.md`; catalog ≠ certification |
+
+D-191 used AT3-004 for temporal reuse and AT3-005 for authority reuse.
+Those remain **LANDED_2X_REUSE constraints** in `FOUNDATION.md` (no second
+clock, no second Truth Core). They were not dropped.
 
 ## Wave B — Engineering estate
 

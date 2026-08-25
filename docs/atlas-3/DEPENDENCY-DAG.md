@@ -1,5 +1,22 @@
 # Atlas 3.0 — Dependency DAG
 
+## Foundation hard chain (D-193)
+
+```text
+AT3-001 North Star / FOUNDATION.md
+        ↓
+AT3-002 Project Twin schema
+        ↓
+AT3-003 Engineering Event Model
+        ↓
+AT3-014 Universal Event Ledger
+        ↓
+AT3-015 Atlas Pulse
+```
+
+Parallel after stable contracts: AT3-030 · AT3-035 · AT3-050.
+AT3-004 (capability registry) and AT3-005 (compatibility) run from the start.
+
 ## First product vertical
 
 ```text
@@ -79,8 +96,9 @@ FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 
 Independent isolated lanes:
 
-- AT3-003 / 014 / 015 / 030 / 050
+- AT3-002 / 003 / 004 / 005 / 014 / 015 / 030 / 050
 - AT3-035 / 036 / 039 / 040 / 041 / 042 / 044 / 047 / 048 / 049
+- Chronicle remains ROADMAP_HORIZON (no runtime)
 
 Must wait for demo terminal state before mutating:
 

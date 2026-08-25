@@ -42,6 +42,7 @@ generated/ops/atlas3/proof/<task-id>.json
 generated/ops/atlas3/memory/<project>/envelopes/
 generated/ops/atlas3/memory/<project>/items/
 generated/ops/atlas3/memory/<project>/reconcile.json
+generated/ops/atlas3/compat/receipt.json
 ```
 
 Deleting these stores must not corrupt Layer A/B. They are rebuildable.
@@ -67,6 +68,22 @@ Existing commands keep their contracts.
 | `transcript_extraction` | Still **not** implemented in Core |
 | chatgpt-live PREP | Still not live full-history sync |
 | CLAUDE.md / GEMINI.md | Bootstrap only; not conversation ingestion |
+
+## Compatibility invariants (AT3-005)
+
+Proved by `atlas compat` / `prove_compatibility()` on isolated stores:
+
+```text
+NO_TRUTH_LOSS
+NO_PROJECT_ID_ROTATION
+NO_PROVENANCE_LOSS
+NO_TEMPORAL_RESET
+NO_AUTHORITY_ESCALATION
+NO_CONTEXT_FRESHNESS_REGRESSION
+NO_OWNER_GATE_REGRESSION
+```
+
+Prefer additive schemas. Atlas 3 must not write Layer B.
 
 ## Honesty during migration
 

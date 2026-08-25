@@ -11,6 +11,27 @@
     "note": "Demo closure outranks Atlas 3 mutation of certified 2.x surfaces."
   },
   "packages": {
+    "at3-002-twin": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/contracts/",
+      "production_surface": ["src/project_atlas/atlas3/twin.py"],
+      "evidence": "Derived twin constructors; provenance required; no Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_twin_002.py"]
+    },
+    "at3-004-capabilities": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/contracts/",
+      "production_surface": ["src/project_atlas/atlas3/capabilities.py"],
+      "evidence": "Semantic capability registry; wrapper inflation fails closed.",
+      "guard_tests": ["tests/unit/test_atlas3_capabilities_004.py"]
+    },
+    "at3-005-compat": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/compat.py"],
+      "evidence": "Additive 2.x→3.x compatibility prover; no Layer B write.",
+      "guard_tests": ["tests/unit/test_atlas3_compat_005.py"]
+    },
     "at3-003-events": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
@@ -29,14 +50,14 @@
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
       "production_surface": ["src/project_atlas/atlas3/pulse.py"],
-      "evidence": "Derived Pulse lens composing 2.x answers + ledger.",
+      "evidence": "Derived Pulse lens with eight questions including attention.",
       "guard_tests": ["tests/unit/test_atlas3_pulse_001.py"]
     },
     "at3-030-start": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
       "production_surface": ["src/project_atlas/atlas3/start.py"],
-      "evidence": "Budgeted Start compiler; no RAG dump.",
+      "evidence": "Budgeted Start compiler with freshness requirement; no RAG dump.",
       "guard_tests": ["tests/unit/test_atlas3_start_001.py"]
     },
     "at3-050-proof": {

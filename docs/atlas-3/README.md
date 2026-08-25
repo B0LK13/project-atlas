@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Directives | D-191 (program inception) · D-192 (universal LLM memory) |
-| Status | **PROGRAM ESTABLISHED** — isolated first-vertical runtime prepared |
+| Directives | D-191 · D-192 · D-193 (foundation convergence) |
+| Status | **FOUNDATION CONVERGENCE** — isolated contracts + first-vertical runtime |
 | Current main pin | `f1b5256510cb66e037e6774aa49d753bdb7dd96f` |
 | `FULL_LIVE_DEMO_READY` | **NO** |
 | `MERGE_AUTHORIZATION` | **NOT_GRANTED** |
@@ -16,6 +16,9 @@ Atlas 3.0 is the successor **program**, not a rewrite of Atlas 2.x.
 | Document | Role |
 |---|---|
 | [NORTH-STAR.md](NORTH-STAR.md) | Product north star |
+| [FOUNDATION.md](FOUNDATION.md) | D-193 layer ownership + exit criteria |
+| [SECURITY.md](SECURITY.md) | Foundation threat model (reviewed, not certified) |
+| [chronicle/HORIZON.md](chronicle/HORIZON.md) | Chronicle remains ROADMAP_HORIZON |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Canonical stack, twin domain, reuse map |
 | [MASTER-ROADMAP.md](MASTER-ROADMAP.md) | Waves A–L |
 | [EPICS.md](EPICS.md) | Epic catalog |
