@@ -34,6 +34,7 @@ from project_atlas.project_changed import (
 )
 from project_atlas.project_decisions import ProjectDecisionsError, build_decisions_lens
 from project_atlas.project_unknown import ProjectUnknownError, build_unknown_lens
+from project_atlas.session_capture import SessionCaptureError, list_captures
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
@@ -44,6 +45,7 @@ UNKNOWN_PACKAGE_ID = "AS-CODER-ALPHA-UNKNOWN-MCP-001"
 CHANGED_PACKAGE_ID = "AS-CODER-ALPHA-CHANGED-MCP-001"
 ARCHITECTURE_PACKAGE_ID = "AS-CODER-ALPHA-ARCHITECTURE-MCP-001"
 INBOX_PACKAGE_ID = "AS-CODER-ALPHA-INBOX-MCP-001"
+CAPTURES_PACKAGE_ID = "AS-CODER-ALPHA-CAPTURES-MCP-001"
 LENS_PACKAGE_ID = "AS-CODER-ALPHA-LENS-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
@@ -494,6 +496,49 @@ def read_vault_inbox(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_captures(service: AppService) -> dict[str, Any]:
+    """Zero-arg session-capture list. Never records or writes captures."""
+    rows: list[dict[str, Any]] = []
+    for pid in _vault_project_ids(service):
+        try:
+            items = list_captures(service.vault, project_id=pid)
+            rows.append(
+                {
+                    "project_id": pid,
+                    "captures": {
+                        "project_id": pid,
+                        "available": True,
+                        "count": len(items),
+                        "items": items,
+                        "honesty": {
+                            "unknown_is_valid": True,
+                            "lens_is_authority": False,
+                            "mcp_is_authority": False,
+                            "capture_is_authority": False,
+                            "fabricated_fields": False,
+                            "canonical_write": False,
+                            "owner_capability_granted": False,
+                        },
+                    },
+                }
+            )
+        except (SessionCaptureError, AppServiceError, OSError):
+            row = _unknown_lens_row(pid)
+            row["count"] = 0
+            row["items"] = []
+            rows.append({"project_id": pid, "captures": row})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": CAPTURES_PACKAGE_ID,
+        "family_package_id": LENS_PACKAGE_ID,
+        "truth_boundary": LENS_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "projects": rows,
+        "honesty": _lens_honesty(),
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -511,6 +556,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.changed.read": lambda: read_vault_changed(service),
         "atlas.architecture.read": lambda: read_vault_architectures(service),
         "atlas.inbox.read": lambda: read_vault_inbox(service),
+        "atlas.captures.read": lambda: read_vault_captures(service),
     }
 
 

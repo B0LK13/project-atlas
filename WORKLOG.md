@@ -7035,3 +7035,4 @@ read them without request args or writes.
 ### Follow-on (same branch)
 - `atlas.architecture.read` (`AS-CODER-ALPHA-ARCHITECTURE-MCP-001`): 6 focused + lens/adv/brief regression 31 passed
 - `atlas.inbox.read` (`AS-CODER-ALPHA-INBOX-MCP-001`): inbox/architecture/lens/adv/brief 36 passed; no promote; Layer B writes 0
+- `atlas.captures.read` (`AS-CODER-ALPHA-CAPTURES-MCP-001`): family regression 41 passed; no capture record write

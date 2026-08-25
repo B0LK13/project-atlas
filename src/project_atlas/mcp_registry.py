@@ -107,6 +107,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha inbox list (vault-scoped, read-only, no promote)",
     ),
     McpTool(
+        "atlas.captures.read",
+        "vault-read",
+        True,
+        "allow-list candidate; Coder Alpha session captures (vault-scoped, read-only, no record)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

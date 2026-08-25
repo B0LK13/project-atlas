@@ -10,6 +10,7 @@ Vault-scoped, zero-arg MCP tools for the existing Coder Alpha lenses:
 | `atlas.changed.read` | `AS-CODER-ALPHA-CHANGED-MCP-001` | What changed? |
 | `atlas.architecture.read` | `AS-CODER-ALPHA-ARCHITECTURE-MCP-001` | What is the architecture? |
 | `atlas.inbox.read` | `AS-CODER-ALPHA-INBOX-MCP-001` | What is in the knowledge inbox? |
+| `atlas.captures.read` | `AS-CODER-ALPHA-CAPTURES-MCP-001` | What session captures exist? |
 
 ## What this is
 
