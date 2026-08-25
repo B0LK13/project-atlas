@@ -75,7 +75,7 @@ atlas start  --vault <dir> --project <id> --budget <n> [--freshness CURRENT] [--
 atlas proof  <task-id> --vault <dir> [--json]
 atlas memory sync|status|search|conflicts|stale|providers
 atlas capabilities
-atlas compat --vault <dir>
+atlas compatibility --vault <dir>
 ```
 
 `atlas memory sync` is a status/capability command in this slice, not a live

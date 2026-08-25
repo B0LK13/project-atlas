@@ -18,7 +18,9 @@ from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.pulse import compile_pulse
 from project_atlas.atlas3.start import compile_start
 
-ATLAS3_COMMANDS = frozenset({"pulse", "start", "proof", "memory", "capabilities", "compat"})
+ATLAS3_COMMANDS = frozenset(
+    {"pulse", "start", "proof", "memory", "capabilities", "compatibility"}
+)
 
 
 def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None:
@@ -116,12 +118,12 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     )
     caps.add_argument("--json", action="store_true")
 
-    compat = subparsers.add_parser(
-        "compat",
+    compatibility = subparsers.add_parser(
+        "compatibility",
         help="Atlas 3 2.x→3.x compatibility prover (additive; no truth write).",
     )
-    compat.add_argument("--vault", type=Path, required=True)
-    compat.add_argument("--json", action="store_true")
+    compatibility.add_argument("--vault", type=Path, required=True)
+    compatibility.add_argument("--json", action="store_true")
 
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
@@ -149,7 +151,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             )
         if command == "capabilities":
             return _dump(list_capabilities(), as_json=True)
-        if command == "compat":
+        if command == "compatibility":
             return _dump(prove_compatibility(args.vault), as_json=True)
         if command == "proof":
             evidence = None

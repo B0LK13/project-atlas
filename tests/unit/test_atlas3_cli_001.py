@@ -24,7 +24,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "memory",
         "ledger",
         "capabilities",
-        "compat",
+        "compatibility",
         "connect",
         "ask2",
         "kdiff",
@@ -73,7 +73,7 @@ def test_pulse_and_start_and_proof_and_memory(tmp_path: Path, capsys: object) ->
         == EXIT_OK
     )
     assert main(["capabilities", "--json"]) == EXIT_OK
-    assert main(["compat", "--vault", str(vault), "--json"]) == EXIT_OK
+    assert main(["compatibility", "--vault", str(vault), "--json"]) == EXIT_OK
     assert (
         main(
             [

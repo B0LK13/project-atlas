@@ -46,8 +46,8 @@ def foundation_readiness() -> dict[str, Any]:
     start_ready = (
         "current_task" in START_SECTIONS
         and len(START_SECTIONS) == 11
-        and FRESHNESS_REQUIREMENTS
-        == frozenset({"CURRENT", "ALLOW_STALE_HISTORICAL", "UNKNOWN"})
+        and frozenset({"CURRENT", "ALLOW_STALE_HISTORICAL", "UNKNOWN"})
+        == FRESHNESS_REQUIREMENTS
     )
     security_ready = len(THREATS) == 12
     connector_ready = "atlas3.llm-connector" in caps["capabilities"]

@@ -71,7 +71,7 @@ Existing commands keep their contracts.
 
 ## Compatibility invariants (AT3-005)
 
-Proved by `atlas compat` / `prove_compatibility()` on isolated stores:
+Proved by `atlas compatibility` / `prove_compatibility()` on isolated stores:
 
 ```text
 NO_TRUTH_LOSS

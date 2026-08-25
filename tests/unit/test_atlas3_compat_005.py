@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from project_atlas.atlas3.compat import INVARIANTS, prove_compatibility
-from project_atlas.conversation_capture import ITEM_TYPES as CORE_ITEM_TYPES
 from project_atlas.atlas3.contracts import ITEM_TYPES as AT3_ITEM_TYPES
+from project_atlas.conversation_capture import ITEM_TYPES as CORE_ITEM_TYPES
 
 
 def test_item_types_are_not_forked() -> None:

@@ -24,8 +24,8 @@ exact commands run, exact results, deviations, and remaining risks.
 - Isolated runtime: twin constructors, canonical event envelope,
   capability registry, compatibility prover, Pulse attention question,
   Start freshness requirement, ledger temporal query
-- Additive CLI: `atlas capabilities`, `atlas compat`, `atlas start --freshness`,
-  `atlas ledger query`
+- Additive CLI: `atlas capabilities`, `atlas compatibility` (does not replace
+  2.x `atlas compat`), `atlas start --freshness`, `atlas ledger query`
 
 ### Honesty
 - Chronicle runtime = NOT IMPLEMENTED (`ROADMAP_HORIZON`)

@@ -52,11 +52,12 @@ def test_start_current_refuses_stale_as_truth(tmp_path: Path) -> None:
     briefing = compile_start(
         vault,
         "harbor-api",
-        token_budget=240,
+        token_budget=2000,
         freshness_requirement="CURRENT",
     )
     assert briefing["freshness_requirement"] == "CURRENT"
     assert briefing["stale_presented_as_current"] is False
+    assert briefing["sections"]["current_verified_truth"]["status"] == "UNKNOWN"
     assert "stale evidence refused" in briefing["sections"]["current_verified_truth"]["text"]
 
 

@@ -126,7 +126,10 @@ def register_capability(capability: Capability) -> Capability:
     if not cid.startswith("atlas3."):
         raise Atlas3Error("INVALID_CAPABILITY_ID", cid)
     if cid in REGISTRY:
-        raise Atlas3Error("CAPABILITY_EXISTS", f"{cid} already registered; surfaces are projections")
+        raise Atlas3Error(
+            "CAPABILITY_EXISTS",
+            f"{cid} already registered; surfaces are projections",
+        )
     semantic = str(capability.get("semantic_contract") or "")
     for existing in REGISTRY.values():
         if existing["semantic_contract"] == semantic and semantic:
