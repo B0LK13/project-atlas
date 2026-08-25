@@ -26,6 +26,7 @@ AUTHENTIC_ESTATE_ROOT: UNSET
 ```
 
 RESULT: focused handoff + MCP ADV + demo readiness = 26 passed.
+CLI: `atlas handoff list --json` added (read-only; create/resume unchanged).
 D-148/D-149 + brief + context/handoff CLI regression included in earlier 56-pass run.
 
 ```

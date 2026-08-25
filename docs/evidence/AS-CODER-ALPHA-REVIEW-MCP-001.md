@@ -9,3 +9,4 @@ MERGE_AUTHORIZATION: NOT_GRANTED
 AUTHENTIC_PILOT: NO
 
 Focused tests (with handoff + MCP ADV + D-149 regression): 60 passed.
+CLI: `atlas review list --json` added (read-only; decide unchanged).
