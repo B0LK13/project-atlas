@@ -5,6 +5,64 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-185 — #471 unbound-pack + post-#474 rebind
+
+**Date:** 2026-08-25
+**Directive:** D-185
+**Rebind:** post-#474 main `b2d15866622c31efd0999b320e16340711d3dba6`
+**Mode:** Same canonical #471. MERGE_AUTHORIZATION remaining = NOT_GRANTED.
+
+### Finding
+Resume of a pack with no usable `estate_binding` inherited live FRESH when
+the current manifest matched. Codex thread: unbound legacy != current.
+
+### Fix
+`evaluate_estate_currentness` fail-closes to `UNKNOWN` /
+`UNBOUND_FROZEN_ESTATE` when frozen identity is missing or malformed.
+Resume emits `resume_warning`. Target movement vs #474: `cli.py` regions
+disjoint (attention encoding vs handoff freshness).
+
+## D-183 — #471 recert against post-#508 main
+
+**Date:** 2026-08-25
+**Directive:** D-183 FINAL DEMO-BLOCKER CONVERGENCE
+**Branch:** `feat/d156-lane426-freshness-adv` (canonical #471, no replacement PR)
+**Rebind:** live main `6709ad7751f2135b507b74013808ecfe2198a3a3` / tree `ecb2079a7ae5ff8f2748f16cdbb92f94338345b2`
+**Mode:** Full recert successor. MERGE_AUTHORIZATION = NOT_GRANTED.
+
+### Why
+Cloud independently proved the product gap on main: after source mutation,
+`handoff resume` returned `status=resumed` with estate_binding / freshness
+lens / stale warning ABSENT. Stale pre-#508 owner evidence is not reused.
+
+### Unique delta
+- Frozen `estate_binding` at export/create (manifest sha256 + copied digests)
+- Resume recomputes live freshness vs frozen binding
+- `resume_warning` when frozen estate != live estate
+- Forged on-disk freshness is not authority
+- Missing/malformed connect-manifest stays UNKNOWN (fail closed)
+- No Layer-B writes; no secret echo; no second hash engine
+
+### Honesty
+`STALE_IS_CURRENT=FALSE` `FRESH_IS_AUTHORITY=FALSE`
+`ESTATE_BINDING_IS_AUTHORITY=FALSE` `UNKNOWN_AT_WRITE` cannot later
+masquerade as certified FRESH.
+
+## AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 / D-056
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-WAVE3-COORDINATED-ACTIVATION-AND-CRITICAL-PATH-EXPANSION-056
+**Lease:** `LEASE-IMPL-CTX-FRESH-ADV-056-A` (shared primary-governor write-back)
+**Branch:** `cursor/context-freshness-adv-current-001-5d32` from live `origin/main` `dc9d81df0ff7106438de44a4bd84df0b955535bc`
+**Mode:** Wave-3 primary implementation. Does not retarget `#378`. Does not duplicate owner-held `#419`. Does not merge.
+
+### Unique delta
+Frozen-at-write connect-manifest identity vs current live estate, including reconnect that refreshes the manifest while live files still match the new manifest.
+
+### Honesty
+`STALE_IS_CURRENT=NO` `UNKNOWN_IS_CURRENT=NO` `FRESH_IS_AUTHORITY=NO` `MERGE_AUTHORIZATION=NOT_GRANTED`
+
+
 ## D-178 P1-A — KDIFF_TZ_AWARE_CRASH (UTC-aware comparison)
 
 **Date:** 2026-08-25
