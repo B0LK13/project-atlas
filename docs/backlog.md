@@ -664,3 +664,24 @@ Honesty (mandatory):
 - [ ] ORCHLEASE-006 Exact-head CI + independent IV + adversarial control-plane review
 - [ ] ORCHLEASE-007 Owner merge gate (not this package)
 
+## Atlas 3.0 program (D-191 / D-192)
+
+_Status: **PROGRAM ESTABLISHED — ISOLATED FIRST VERTICAL PREPARED**. Canonical
+docs live under `docs/atlas-3/`. Runtime lives under `src/project_atlas/atlas3/`.
+Does **not** rewrite certified 2.x demo surfaces. `FULL_LIVE_DEMO_READY = NO`.
+`MERGE_AUTHORIZATION = NOT_GRANTED`. Historical roadmaps are classified as
+inputs and are not erased._
+
+- [x] AT3-DOC Program documents (north star, architecture, roadmap, epics, DAG, migration, UX, competitive, acceptance)
+- [x] AT3-DOC-LLM D-192 LLM memory program documents
+- [x] AT3-003 Isolated engineering event model
+- [x] AT3-014 Isolated universal event ledger
+- [x] AT3-015 Isolated Atlas Pulse
+- [x] AT3-030 Isolated Atlas Start (budget required)
+- [x] AT3-050 Isolated AGENT_PROOF
+- [x] AT3-035/036/039/040/041/042/044/047/048/049 Isolated ChatGPT-first memory vertical
+- [ ] AT3-037 Claude native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
+- [ ] AT3-038 Gemini native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
+- [ ] AT3-046 Incremental live provider sync
+- [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`
+

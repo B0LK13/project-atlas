@@ -5,6 +5,38 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-191 / D-192 — Atlas 3.0 program inception + cross-LLM memory
+
+**Date:** 2026-08-25
+**Directive:** D-191 + D-192
+**Branch:** `cursor/atlas3-program-inception-b8f1`
+**Base:** `main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`
+**Mode:** Autonomous architecture + isolated first-vertical runtime.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`FULL_LIVE_DEMO_READY = NO` so certified 2.x surfaces were not rewritten.
+
+### What landed
+- Canonical Atlas 3 program docs under `docs/atlas-3/`
+- D-192 LLM memory docs under `docs/atlas-3/llm-memory/`
+- Historical roadmaps classified as inputs (not erased)
+- Isolated runtime `src/project_atlas/atlas3/` for AT3-003/014/015/030/050
+  and ChatGPT-first memory vertical AT3-035/036/039/040/041/042/044/047/048/049
+- Additive CLI: `atlas pulse|start|proof|memory|ledger`
+- PostgreSQL multi-provider acceptance fixture
+
+### Honesty
+- Claude/Gemini native history sync = NOT IMPLEMENTED
+- Transcript extraction in Core = still NOT IMPLEMENTED
+- `chatgpt_bridge.py` not replaced
+- Pulse/Start/Proof/Memory are derived / non-authoritative
+- Model claim of completion != proof
+- Demo interference intended = NONE
+
+### Validation
+See subsequent pytest / ruff / mypy results on this branch.
+
+---
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
