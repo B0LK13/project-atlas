@@ -266,6 +266,7 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.kci import WebKciError, read_kci, render_kci_text
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1931,6 +1932,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Vault that receives generated/kci/<id>-compile-receipt.json.",
     )
     kci_receipt.add_argument("--json", action="store_true")
+    kci_report = kci_sub.add_parser(
+        "report",
+        help=(
+            "Read persisted Knowledge CI receipts/reports "
+            "(AS-CODER-ALPHA-KCI-READ-001; never writes; never requests; "
+            "never runs the harness)."
+        ),
+    )
+    kci_report.add_argument("--vault", type=Path, required=True)
+    kci_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the kci REPORT READ JSON to stdout.",
+    )
+    kci_show = kci_sub.add_parser(
+        "show",
+        help="Alias for `kci report` (read-only; does not write or request).",
+    )
+    kci_show.add_argument("--vault", type=Path, required=True)
+    kci_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the kci REPORT READ JSON to stdout.",
+    )
 
     # AS-2.2-RUNTIME-001 — Hybrid Retrieval + Context Compiler P0 (read-only).
     runtime_parser = subparsers.add_parser(
@@ -4480,6 +4505,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "kci":
+        if args.kci_command in {"report", "show"}:
+            try:
+                view = read_kci(args.vault)
+            except (WebKciError, OSError) as exc:
+                _log.error("kci report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_kci_text(view), end="")
+            return EXIT_OK
         if args.kci_command == "request":
             try:
                 report = build_compile_request(

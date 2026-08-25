@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebKciError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -31,6 +32,7 @@ from project_atlas.web_api import (
     read_intelligence_evidence,
     read_intelligence_explain,
     read_intelligence_query,
+    read_kci,
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def kci(self) -> dict[str, Any]:
+        """Vault-scoped Knowledge CI REPORT READ (never writes or runs harness)."""
+        try:
+            return read_kci(self.vault)
+        except WebKciError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
