@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.context_pack_read import (
+    WebContextPackReadError,
+    read_context_pack_view,
+    render_context_pack_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2129,6 +2134,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Vault that receives generated/context/<id>-context-pack.json.",
     )
     ctx_build.add_argument("--json", action="store_true")
+    ctx_report = ctx_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing context-pack artifacts only "
+            "(never writes; CONTEXT PACK != ESTATE FACTS)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas context-pack report --vault /path/to/vault\n"
+            "  atlas context-pack report --vault /path/to/vault --json"
+        ),
+    )
+    ctx_report.add_argument("--vault", type=Path, required=True)
+    ctx_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the context-pack REPORT READ JSON to stdout.",
+    )
+    ctx_show = ctx_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `context-pack report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas context-pack show --vault /path/to/vault\n"
+            "  atlas context-pack show --vault /path/to/vault --json"
+        ),
+    )
+    ctx_show.add_argument("--vault", type=Path, required=True)
+    ctx_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the context-pack REPORT READ JSON to stdout.",
+    )
 
     # AS-2.0-TWIN-FIXTURE-001 — disposable twin projection fixtures (≠ TWIN-001 READY).
     twin_fixture_parser = subparsers.add_parser(
@@ -4678,6 +4718,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "context-pack":
+        if args.context_pack_command in {"report", "show"}:
+            try:
+                view = read_context_pack_view(args.vault)
+            except (WebContextPackReadError, OSError) as exc:
+                _log.error("context-pack report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_context_pack_text(view), end="")
+            return EXIT_OK
         if args.context_pack_command == "build":
             try:
                 pointers: list[ProvenancePointer] = []
