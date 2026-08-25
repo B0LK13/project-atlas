@@ -7207,3 +7207,15 @@ like "applied" or a read could accidentally re-apply retention.
 - `LENS != TRUTH CORE`
 - Missing report is UNKNOWN, never applied
 - Read never writes Layer B and never applies retention
+
+### Local verification
+```
+PYTHONPATH=src python -m pytest tests/unit/test_as_coder_alpha_event_retention_read_001.py tests/unit/test_as_int_009_retention.py tests/unit/test_as_2_1_mcp_adv_001.py tests/unit/test_as_2_1_mcp_brief_001.py tests/unit/test_as_2_0_mcp_001.py -q --tb=short --no-cov
+54 passed
+
+python -m ruff check src/project_atlas/event_retention.py src/project_atlas/web_api/event_retention.py src/project_atlas/web_api/__init__.py src/project_atlas/app_service.py src/project_atlas/cli.py src/project_atlas/api_server.py src/project_atlas/mcp_registry.py src/project_atlas/mcp_server.py tests/unit/test_as_coder_alpha_event_retention_read_001.py tests/unit/test_as_2_1_mcp_adv_001.py
+All checks passed
+
+PYTHONPATH=src python -m mypy src/project_atlas/event_retention.py src/project_atlas/web_api/event_retention.py src/project_atlas/web_api/__init__.py src/project_atlas/app_service.py src/project_atlas/cli.py src/project_atlas/api_server.py src/project_atlas/mcp_registry.py src/project_atlas/mcp_server.py
+Success: no issues found in 8 source files
+```
