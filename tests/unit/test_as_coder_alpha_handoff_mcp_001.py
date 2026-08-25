@@ -85,6 +85,12 @@ def _seed_vault(root: Path) -> Path:
     return vault
 
 
+def test_cli_import_does_not_circular_import() -> None:
+    from project_atlas.cli import main as cli_main
+
+    assert callable(cli_main)
+
+
 def test_handoff_tool_is_allow_listed() -> None:
     listing = list_mcp_tools()
     assert "atlas.handoff.read" in listing["tools"]

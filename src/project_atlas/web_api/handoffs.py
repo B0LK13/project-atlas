@@ -11,9 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
-from project_atlas.agent_handoff import HANDOFF_DIR, PACKAGE_HANDOFF
 
 PACKAGE_ID = "AS-CODER-ALPHA-HANDOFF-MCP-001"
+PACKAGE_HANDOFF = "AS-CODER-ALPHA-HANDOFF-001"
+HANDOFF_DIR = Path("generated") / "ops" / "handoffs"
 TRUTH_BOUNDARY = (
     "HANDOFF READ != AUTHORITY / MCP != WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL / UI != CANONICAL"
