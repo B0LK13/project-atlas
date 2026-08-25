@@ -24,6 +24,12 @@ Design invariants (fail-closed):
   ``legacy_compatibility`` with ``authoritative=false`` / ``subordinate=true``
   and can never flip ``status`` to grounded — eliminating the dangerous
   ambiguity where a legacy match masquerades as a grounded answer.
+* **Question-term filtering must not drop a primary relational predicate**
+  (D-181). ``use`` / ``claim`` are scaffolding only inside closed
+  ``claim* … to use*`` constructions — never global stop-words.
+* **Retrieved entity co-occurrence ≠ relational support.** Negated /
+  rejected / migrated relation text cannot ground a positive ``use`` query.
+* **Recall improvements must not reduce grounding precision.**
 
 Bound to the Atlas 1.0 compatibility anchor (AS-2.0-COMPAT-001). Never Layer B.
 """
@@ -32,6 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any, Final, Literal
 
@@ -138,6 +145,43 @@ _QUESTION_FUNCTION_WORDS = frozenset(
         "would",
     }
 )
+# Closed meta-linguistic claim*/use* lemmas. Stripped from required terms ONLY
+# when they appear inside a closed claim-to-use scaffolding phrase (D-181).
+_CLAIM_SCAFFOLD_LEMMAS = frozenset({"claim", "claims", "claiming", "claimed"})
+_USE_SCAFFOLD_LEMMAS = frozenset({"use", "uses", "using", "used"})
+# Present-tense use* forms that may satisfy a required relational "use" token.
+# Past "used" is intentionally excluded so historical use ≠ current use.
+_USE_PRESENT_SUPPORT = frozenset({"use", "uses", "using"})
+# Closed engine aliases that may satisfy question term "database" / "databases".
+# Do not alias D-150 leftover nouns (target/forecast/vault/ledger/…).
+_DATABASE_SUPPORT_TOKENS = frozenset(
+    {
+        "database",
+        "databases",
+        "datastore",
+        "db",
+        "mongodb",
+        "mysql",
+        "postgres",
+        "postgresql",
+        "sqlite",
+    }
+)
+# claim* … to … use* (≤3 intervening tokens). Deterministic; no fuzzy NLP.
+_CLAIM_TO_USE_SCAFFOLD = re.compile(
+    r"\b(?:claims?|claiming|claimed)(?:\s+\w+){0,3}\s+to\s+"
+    r"(?:uses?|using|used)\b",
+    re.IGNORECASE,
+)
+# Closed negative / non-affirming relation markers on record text (D-181).
+_NEGATIVE_RELATION_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r"\bdo(?:es)?\s+not\s+use\b", re.IGNORECASE),
+    re.compile(r"\bdon'?t\s+use\b", re.IGNORECASE),
+    re.compile(r"\bnever\s+uses?\b", re.IGNORECASE),
+    re.compile(r"\brejected\b", re.IGNORECASE),
+    re.compile(r"\bevaluated\b.{0,80}\brejected\b", re.IGNORECASE),
+    re.compile(r"\bmigrated\s+(?:away\s+from|to)\b", re.IGNORECASE),
+)
 
 Status = Literal["known", "unknown", "conflict"]
 
@@ -219,6 +263,21 @@ def _collect_record_text(value: Any, *, depth: int = 0) -> list[str]:
     return []
 
 
+def _claim_to_use_scaffold_tokens(question: str) -> frozenset[str]:
+    """Return claim*/use* tokens that are meta scaffolding in this question.
+
+    Only tokens matched by the closed ``claim* … to use*`` phrase rule are
+    returned. A bare relational ``use`` (e.g. ``Does Helix use PostgreSQL?``)
+    is never scaffolding.
+    """
+    drop: set[str] = set()
+    for match in _CLAIM_TO_USE_SCAFFOLD.finditer(question):
+        for token in tokenize(match.group(0)):
+            if token in _CLAIM_SCAFFOLD_LEMMAS or token in _USE_SCAFFOLD_LEMMAS:
+                drop.add(token)
+    return frozenset(drop)
+
+
 def _question_claim_terms(question: str) -> frozenset[str]:
     """Extract explicit, discriminative claim terms from a natural-language query.
 
@@ -227,11 +286,18 @@ def _question_claim_terms(question: str) -> frozenset[str]:
     every non-function term asserted by the question must be present in the
     candidate's substantive record text.  An empty term set means the question
     has no discriminative claim content and cannot ground an answer.
+
+    D-181: ``claim*`` / ``use*`` are removed only inside closed claim-to-use
+    scaffolding phrases — never as global stop-words — so a primary relational
+    predicate cannot be silently discarded.
     """
+    scaffold = _claim_to_use_scaffold_tokens(question)
     return frozenset(
         token
         for token in tokenize(question)
-        if token not in _QUESTION_FUNCTION_WORDS and len(token) > 1
+        if token not in _QUESTION_FUNCTION_WORDS
+        and token not in scaffold
+        and len(token) > 1
     )
 
 
@@ -239,6 +305,43 @@ def _record_tokens(hit: RetrievalResult) -> frozenset[str]:
     """Return lexical support tokens from substantive record text only."""
     parts = _collect_record_text(hit.record)
     return frozenset(tokenize("\n".join(parts)))
+
+
+def _record_text_blob(hit: RetrievalResult) -> str:
+    """Joined substantive record text for closed negative-relation scans."""
+    return "\n".join(_collect_record_text(hit.record))
+
+
+def _record_has_negative_relation(hit: RetrievalResult) -> bool:
+    """True when record text negates / rejects / migrates away from a relation."""
+    blob = _record_text_blob(hit)
+    return any(pattern.search(blob) for pattern in _NEGATIVE_RELATION_PATTERNS)
+
+
+def _term_supported_by_record(term: str, record_tokens: frozenset[str]) -> bool:
+    """Closed, auditable support check for one required question term."""
+    if term in record_tokens:
+        return True
+    # Present-tense use* may satisfy relational "use"; past "used" does not.
+    if term == "use" and bool(record_tokens & _USE_PRESENT_SUPPORT):
+        return True
+    if term in {"database", "databases"}:
+        return bool(record_tokens & _DATABASE_SUPPORT_TOKENS)
+    return False
+
+
+def _record_supports_required_terms(
+    hit: RetrievalResult, required_terms: frozenset[str]
+) -> bool:
+    """True when record text relationally supports every required term.
+
+    Entity co-occurrence alone is insufficient when the record carries a
+    closed negative/rejected/migrated relation marker (D-181 precision).
+    """
+    if _record_has_negative_relation(hit):
+        return False
+    tokens = _record_tokens(hit)
+    return all(_term_supported_by_record(term, tokens) for term in required_terms)
 
 
 def _build_candidate(
@@ -256,7 +359,7 @@ def _build_candidate(
     except ValueError:
         return None
     hit = next((item for item in hits if item.record_id == record_id), None)
-    if hit is None or not required_terms.issubset(_record_tokens(hit)):
+    if hit is None or not _record_supports_required_terms(hit, required_terms):
         return None
     return {
         "record_type": kind,
