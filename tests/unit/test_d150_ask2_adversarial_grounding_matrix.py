@@ -223,7 +223,28 @@ def test_d150_ask2_has_no_production_question_allowlist() -> None:
     for fragment in forbidden_fragments:
         assert fragment not in src, f"unexpected production coupling: {fragment!r}"
     assert "_question_claim_terms" in src
-    assert "issubset(_record_tokens" in src
+    assert "_record_supports_required_terms" in src
+
+
+def test_nl_meta_claim_to_use_is_scaffolding_not_global_stopword() -> None:
+    """D-181: claim/use stripped only inside claim-to-use phrases."""
+    for word in ("claim", "claims", "claiming", "claimed", "use", "uses", "using", "used"):
+        assert word not in _QUESTION_FUNCTION_WORDS
+
+    meta = _question_claim_terms("What database does project-a claim to use?")
+    assert "database" in meta
+    assert "claim" not in meta
+    assert "use" not in meta
+
+    claimed = _question_claim_terms("What database is project-a claimed to use?")
+    assert "database" in claimed
+    assert "claimed" not in claimed
+    assert "use" not in claimed
+
+    relational = _question_claim_terms("Does Helix use PostgreSQL?")
+    assert "use" in relational
+    assert "helix" in relational
+    assert "postgresql" in relational
 
 
 # --------------------------------------------------------------------------- #
@@ -343,12 +364,3 @@ def test_d150_record_id_slug_without_body_terms_stays_unknown(tmp_path: Path) ->
     )
     answer = _ask(vault, "xyzzy special token")
     _assert_unsupported_stays_unknown(answer)
-
-def test_nl_meta_verbs_are_function_words_not_required_claim_terms() -> None:
-    """D-178A ASK2_NO_GROUNDING: 'claim'/'use' in NL questions must not block grounding."""
-    for word in ("claim", "claims", "use", "uses", "using", "used"):
-        assert word in _QUESTION_FUNCTION_WORDS
-    terms = _question_claim_terms("What database does project-a claim to use?")
-    assert "database" in terms
-    assert "claim" not in terms
-    assert "use" not in terms
