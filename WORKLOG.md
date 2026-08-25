@@ -7212,3 +7212,11 @@ like an owner gate or a write grant.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - Read never grants write
 - Read never invents OWNER / MERGE / SECURITY authority
+
+### Local verification
+- Focused package tests: 20 passed (`tests/unit/test_as_coder_alpha_authz_read_001.py`, `--no-cov`)
+- MCP adv + package: 29 passed (includes `atlas.authz.read` no-write loop)
+- Related mcp/authz regression: 28 passed
+- ruff + mypy on touched modules: pass
+- IMPLEMENTER != VERIFIER
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
