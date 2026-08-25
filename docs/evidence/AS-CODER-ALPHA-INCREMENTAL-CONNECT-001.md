@@ -10,8 +10,10 @@ INCREMENTAL_SKIP != TRUTH_CORE_AUTHORITY
 PREP != IMPLEMENTED
 DEMO != RELEASE
 MODEL OUTPUT != AUTHORITY
-INDEPENDENT_IV = PENDING
+INDEPENDENT_IV = PASS (2026-08-25; candidate main f0e0c979; 21/21 tests; writes=NO)
 ```
+BACKLOG_CHECKBOX = YES (reconciled on night-cycle f2d9; implementation already on main)
+
 
 ## Change
 
