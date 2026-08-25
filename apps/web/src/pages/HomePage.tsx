@@ -30,6 +30,11 @@ const PROD = [
   { to: "/projects", title: "Projects", blurb: "Read-only inventory lens." },
   { to: "/ops", title: "Ops health", blurb: "OBS/sample consume — unknown ≠ healthy." },
   {
+    to: "/event-tombstones",
+    title: "Event tombstones",
+    blurb: "Removed event units stay visible — DELETED≠VANISHED; EMPTY≠HEALTHY.",
+  },
+  {
     to: "/command-center",
     title: "Command Center",
     blurb: "Mode switcher: overview · projects · ops · impact.",

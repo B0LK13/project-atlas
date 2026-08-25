@@ -6997,3 +6997,35 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-EVENT-TOMBSTONES-READ-001 — vault-scoped tombstone lens
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-e71b` (from `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge.
+
+### Why
+AS-INT-010 already records removed agent-event units under
+`generated/ops/event-tombstones.json`. Humans and agents had no first-class
+CLI/API/Web/MCP surface to inspect that inventory, so deletions could look
+vanished from the product lenses.
+
+### Surfaces
+- `atlas event-tombstones --vault <dir> [--project <id>] [--json]`
+- `GET /v1/event-tombstones` (optional `?project=`)
+- Web `#/event-tombstones`
+- MCP `atlas.event.tombstones.read` (zero-arg vault-scoped)
+
+### Honesty
+- `DELETED != VANISHED`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != CLEAN`
+- `LENS != AUTHORITY`
+- `UI != CANONICAL`
+- `MCP != AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `AUTHENTIC_PILOT = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

@@ -101,6 +101,7 @@ for (const route of [
   "/knowledge",
   "/graph",
   "/ops",
+  "/event-tombstones",
   "/command-center",
   "/mission-control",
   "/workspace",

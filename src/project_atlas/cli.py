@@ -91,6 +91,11 @@ from project_atlas.event_retention import (
     RetentionError,
     apply_event_retention,
 )
+from project_atlas.event_tombstones_read import (
+    EventTombstonesReadError,
+    build_event_tombstones_read,
+    render_event_tombstones_read_text,
+)
 from project_atlas.federation import (
     FederationError,
     FederationMember,
@@ -677,6 +682,29 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the connect receipt JSON to stdout (sorted keys).",
+    )
+
+    event_tombstones_parser = subparsers.add_parser(
+        "event-tombstones",
+        help=(
+            "Read-only vault-scoped event-tombstone inventory "
+            "(AS-CODER-ALPHA-EVENT-TOMBSTONES-READ-001; never writes; "
+            "DELETED!=VANISHED; EMPTY!=HEALTHY)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas event-tombstones --vault .tmp/vault --json\n"
+            "  atlas event-tombstones --vault .tmp/vault --project harbor\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    event_tombstones_parser.add_argument("--vault", type=Path, required=True)
+    event_tombstones_parser.add_argument("--project", default=None)
+    event_tombstones_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Print the honesty-bound event-tombstone JSON to stdout.",
     )
 
     overview_parser = subparsers.add_parser(
@@ -3058,6 +3086,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 obsidian_notes = report.get("obsidian_notes") or []
                 if obsidian_notes:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
+        return EXIT_OK
+
+    if args.command == "event-tombstones":
+        try:
+            report = build_event_tombstones_read(args.vault, args.project)
+        except (EventTombstonesReadError, OSError, ValueError, TypeError) as exc:
+            _log.error("event-tombstones read failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+        else:
+            print(render_event_tombstones_read_text(report), end="")
         return EXIT_OK
 
     if args.command == "overview":
