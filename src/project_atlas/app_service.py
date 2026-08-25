@@ -274,6 +274,12 @@ class AppService:
             "generated": {"by": "project-atlas"},
         }
 
+    def validate_vault(self) -> dict[str, Any]:
+        """Read-only structural/provenance validation (FR-012). Never writes."""
+        from project_atlas.validation import validate
+
+        return validate(self.vault)
+
 
 def open_app_service(vault: Path) -> AppService:
     """Open a read-first application service for a vault root."""

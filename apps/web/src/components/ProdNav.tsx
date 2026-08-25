@@ -12,6 +12,7 @@ const PROD_LINKS = [
   { to: "/roadmap", label: "Roadmap" },
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
+  { to: "/validate", label: "Validate" },
   { to: "/command-center", label: "Command Center" },
   { to: "/mission-control", label: "Mission Control" },
   { to: "/workspace", label: "Workspace" },

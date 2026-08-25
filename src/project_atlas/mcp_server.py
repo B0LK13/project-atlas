@@ -23,10 +23,15 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+VALIDATE_PACKAGE_ID = "AS-CODER-ALPHA-VALIDATE-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+VALIDATE_TRUTH_BOUNDARY = (
+    "MCP VALIDATE != AUTHORITY / != PILOT / UNKNOWN VALID / NO WRITE / "
+    "OK!=HEALTHY / OK!=RELEASE / VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -134,6 +139,45 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_validate(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped validate. Does not write or grant authority."""
+    from project_atlas.validation import validation_exit_code
+
+    raw = service.validate_vault()
+    errors = sorted(str(item) for item in (raw.get("errors") or []))
+    findings = list(raw.get("findings") or [])
+    ok = bool(raw.get("ok")) and not errors
+    return {
+        "schema_version": 1,
+        "package_id": VALIDATE_PACKAGE_ID,
+        "truth_boundary": VALIDATE_TRUTH_BOUNDARY,
+        "ok": ok,
+        "exit_code": validation_exit_code(raw),
+        "error_count": len(errors),
+        "finding_count": len(findings),
+        "markdown_files": int(raw.get("markdown_files") or 0),
+        "errors": errors,
+        "findings": findings,
+        "authority": "derived",
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+            "ok_is_healthy": False,
+            "ok_is_release": False,
+            "ok_is_authority": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +189,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.validate.read": lambda: read_vault_validate(service),
     }
 
 

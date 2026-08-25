@@ -5,6 +5,26 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-VALIDATE-MCP-001 — vault-scoped validate
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-f2d9` (from `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`)
+**Mode:** UNIQUE unused zero-arg wrap. Does not duplicate D-149 `#483`. Does not merge.
+
+### Why
+`atlas validate` was CLI-only on live main. LIVE_API / MCP / Web had no
+vault-scoped structural validate projection. Portfolio-state still requires
+project ids (implicit-all forbidden). Authz/meta are session metadata, not
+vault knowledge. `/v1/obs` remains write-on-read.
+
+### Honesty
+- `VALIDATE != AUTHORITY`
+- `OK != HEALTHY != PILOT != RELEASE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
