@@ -19,6 +19,7 @@ from project_atlas.app_service import AppService, AppServiceError, open_app_serv
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.ops_receipts import inventory_ops_receipts
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
@@ -42,6 +43,11 @@ DISCOVERY_PACKAGE_ID = "AS-CODER-ALPHA-DISCOVERY-MCP-001"
 DISCOVERY_TRUTH_BOUNDARY = (
     "MCP DISCOVERY != INGEST != TRUST != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "ABSENT REPORT != PILOT ROOTS"
+)
+RECEIPTS_PACKAGE_ID = "AS-CODER-ALPHA-OPS-RECEIPTS-MCP-001"
+RECEIPTS_TRUTH_BOUNDARY = (
+    "MCP OPS RECEIPTS != COMPLETION / UNKNOWN!=HEALTHY / != AUTHORITY / "
+    "PRESENCE != PILOT / NO WRITE"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -258,6 +264,40 @@ def read_vault_discovery(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_ops_receipts(service: AppService) -> dict[str, Any]:
+    """Zero-arg ops receipt inventory. Presence never becomes healthy."""
+    raw = inventory_ops_receipts(service.vault)
+    return {
+        "schema_version": 1,
+        "package_id": RECEIPTS_PACKAGE_ID,
+        "truth_boundary": RECEIPTS_TRUTH_BOUNDARY,
+        "available": bool(raw.get("available")),
+        "receipt_rows": int(raw.get("receipt_rows") or 0),
+        "receipts": list(raw.get("receipts") or []),
+        "kinds": dict(raw.get("kinds") or {}),
+        "unscanned_kinds": list(raw.get("unscanned_kinds") or []),
+        "ops_root": raw.get("ops_root"),
+        "rollup": "unknown",
+        "health": "unknown",
+        "authority": False,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "unknown_equals_healthy": False,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+            "completion_claimed": False,
+            "release_certified": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -272,6 +312,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.conflicts.read": lambda: read_vault_conflicts(service),
         "atlas.snapshot.read": lambda: read_vault_snapshot(service),
         "atlas.discovery.read": lambda: read_vault_discovery(service),
+        "atlas.ops.receipts.read": lambda: read_vault_ops_receipts(service),
     }
 
 

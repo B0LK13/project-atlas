@@ -7054,3 +7054,18 @@ identified `atlas.conflicts.read` as the remaining unique unused wrap after
 - `OWNER_CAPABILITY_GRANTED = false`
 - `D149_TOUCHED = NO`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-OPS-RECEIPTS-MCP-001 — vault-scoped ops receipt inventory
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-b3ab`
+**Mode:** CODER ALPHA SURFACE PARITY. Does not touch D-149. Does not merge.
+
+### Honesty
+- `PRESENCE != HEALTHY`
+- `UNKNOWN != HEALTHY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

@@ -89,6 +89,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; estate discovery projection (vault-scoped, read-only; != ingest)",
     ),
     McpTool(
+        "atlas.ops.receipts.read",
+        "vault-read",
+        True,
+        "allow-list candidate; ops receipt inventory (vault-scoped, read-only; != healthy)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

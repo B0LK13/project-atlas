@@ -88,6 +88,7 @@ def test_adv_write_via_read_leaves_vault_unchanged(tmp_path: Path) -> None:
         "atlas.conflicts.read",
         "atlas.snapshot.read",
         "atlas.discovery.read",
+        "atlas.ops.receipts.read",
     ):
         report = invoke_mcp_tool(vault, tool)
         assert report["live_mcp_read"] is True
