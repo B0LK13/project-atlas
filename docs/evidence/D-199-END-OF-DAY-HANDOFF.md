@@ -37,7 +37,7 @@
 | --- | --- |
 | PR511 exact-head CI on `bc4f5dd9` | Run `32893705088` **IN_PROGRESS** at shutdown |
 | PR511 exact-head CI on `3cee2285` | Run `32894461043` **PENDING** (docs-only HEAD) |
-| PR511 independent IV | Dispatched; **not confirmed complete** |
+| PR511 independent IV | **PASS** on code HEAD `bc4f5dd9` (41 tests; reproducers closed) |
 | PR511 cloud ADV on final HEAD | **NOT complete** (local only) |
 | PR511 certification / owner-ready | **NOT GRANTED** |
 | PR512 authentic D:\ discovery | **NOT RUN** (Local Windows tomorrow) |
@@ -134,9 +134,9 @@ None identified at shutdown.
 | `D:\atlas-worktrees\d196-511` | YES | Clean; canonical PR511 carrier @ `3cee2285` |
 | `D:\project-atlas` | YES | Main @ `f1b52565`; untracked `.tmp-d170-*` preserved |
 
-## Subagents parked
+## Subagents completed
 
-- `fc8d2f06` Independent IV PR511 — background dispatch not confirmed; re-run tomorrow.
+- Independent IV PR511 — **PASS** on `bc4f5dd9`; no re-run needed unless code HEAD moves.
 
 ---
 

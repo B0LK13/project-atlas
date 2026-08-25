@@ -41,7 +41,9 @@
           "note": "historical; pre-D-197 test harness"
         }
       ],
-      "iv_state": "DISPATCHED_NOT_CONFIRMED",
+      "iv_state": "PASS_ON_bc4f5dd9",
+      "iv_agent": "fc8d2f06-dc08-4a39-a4df-20889cf108f9",
+      "iv_result": "41 passed; memory+ledger reproducers PASS; cp1252 PASS",
       "adv_state": "LOCAL_PASS_ON_bc4f5dd9_UNCERTIFIED",
       "valid_p0": 0,
       "valid_p1": 0,
@@ -123,11 +125,14 @@
   ],
   "cloud_readonly_lanes": [],
   "ci_running": [
-    {"run_id": 32893705088, "head": "bc4f5dd9bcb7ad0c879482262aa8170dd81851bd"},
-    {"run_id": 32894461043, "head": "3cee22857829b6359f2b8159b8971c12fc8fe74a"}
+    {"run_id": 32894581688, "head": "1f63e8b556b3750581f48683e0d4a8720b81e62b"}
   ],
   "ci_failed": [],
-  "ci_pending": [32893705088, 32894461043],
+  "ci_pending": [32894581688],
+  "ci_cancelled": [
+    {"run_id": 32893705088, "head": "bc4f5dd9bcb7ad0c879482262aa8170dd81851bd", "note": "superseded"},
+    {"run_id": 32894461043, "head": "3cee22857829b6359f2b8159b8971c12fc8fe74a", "note": "superseded"}
+  ],
   "owner_only": [
     "PR511 merge authorization",
     "PR510 close governance",
@@ -141,9 +146,9 @@
       "package": "D-197",
       "worktree": "D:/atlas-worktrees/d196-511",
       "mutating": false,
-      "state": "DISPATCHED_BACKGROUND",
-      "last_confirmed_result": "UNKNOWN",
-      "remaining_action": "Re-run tomorrow on live HEAD if not completed",
+      "state": "COMPLETED",
+      "last_confirmed_result": "PASS on bc4f5dd9 (41 tests; VALID_P0/P1=0)",
+      "remaining_action": "NONE unless HEAD moves beyond docs-only",
       "safe_to_stop": true
     }
   ],
