@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 from typing import Any
 
-from project_atlas.atlas3.contracts import Atlas3Error
+from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.providers import memory_providers
@@ -21,9 +22,9 @@ ATLAS3_COMMANDS = frozenset({"pulse", "start", "proof", "memory"})
 def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None:
     pulse = subparsers.add_parser(
         "pulse",
-        help="Atlas 3 Pulse lens (derived; what changed/matters/stale/conflicts/failed/decided/next).",
+        help="Atlas 3 Pulse lens (derived; changed/matters/stale/conflicts/failed/decided/next).",
     )
-    pulse.add_argument("--vault", required=True, help="Vault directory.")
+    pulse.add_argument("--vault", type=Path, required=True, help="Vault directory.")
     pulse.add_argument("--project", required=True, help="Project id.")
     pulse.add_argument("--json", action="store_true")
 
@@ -31,7 +32,7 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         "start",
         help="Atlas 3 Start briefing (requires --budget; no RAG dump).",
     )
-    start.add_argument("--vault", required=True)
+    start.add_argument("--vault", type=Path, required=True)
     start.add_argument("--project", required=True)
     start.add_argument("--budget", type=int, required=True, help="Token/context budget.")
     start.add_argument("--task", default=None, help="Optional current task text.")
@@ -42,7 +43,7 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Atlas 3 agent proof-of-work (model claim != proof).",
     )
     proof.add_argument("task_id")
-    proof.add_argument("--vault", required=True)
+    proof.add_argument("--vault", type=Path, required=True)
     proof.add_argument("--project", required=True)
     proof.add_argument("--evidence", default=None, help="Optional JSON object of stage evidence.")
     proof.add_argument("--model-claims-complete", action="store_true")
@@ -55,11 +56,11 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     mem_sub = memory.add_subparsers(dest="memory_command", required=True)
     mem_sub.add_parser("providers", help="Honest provider capability matrix.")
     status = mem_sub.add_parser("status", help="Connector + ledger status.")
-    status.add_argument("--vault", required=True)
+    status.add_argument("--vault", type=Path, required=True)
     status.add_argument("--project", required=True)
     search = mem_sub.add_parser("search", help="Search extracted memory items.")
     search.add_argument("query")
-    search.add_argument("--vault", required=True)
+    search.add_argument("--vault", type=Path, required=True)
     search.add_argument("--project", required=True)
     sync = mem_sub.add_parser(
         "sync",
@@ -67,8 +68,10 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     )
     sync.add_argument("--json", action="store_true")
     for name in ("conflicts", "stale"):
-        parser = mem_sub.add_parser(name, help=f"Memory {name} (requires prior reconcile artifact).")
-        parser.add_argument("--vault", required=True)
+        parser = mem_sub.add_parser(
+            name, help=f"Memory {name} (requires prior reconcile artifact)."
+        )
+        parser.add_argument("--vault", type=Path, required=True)
         parser.add_argument("--project", required=True)
 
     ledger = subparsers.add_parser(
@@ -77,13 +80,13 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     )
     led_sub = ledger.add_subparsers(dest="ledger_command", required=True)
     append = led_sub.add_parser("append")
-    append.add_argument("--vault", required=True)
+    append.add_argument("--vault", type=Path, required=True)
     append.add_argument("--project", required=True)
     append.add_argument("--kind", required=True)
     append.add_argument("--summary", required=True)
     append.add_argument("--plane", default="engineering")
     listed = led_sub.add_parser("list")
-    listed.add_argument("--vault", required=True)
+    listed.add_argument("--vault", type=Path, required=True)
     listed.add_argument("--project", required=True)
 
 
@@ -136,10 +139,6 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 )
                 return _dump(caps, as_json=True)
             if sub == "status":
-                from project_atlas.atlas3.contracts import read_json
-                from project_atlas.atlas3.contracts import OPS_RELATIVE
-                from pathlib import Path
-
                 vault = Path(args.vault)
                 recon = read_json(
                     vault / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
@@ -154,10 +153,6 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     as_json=True,
                 )
             if sub in {"search", "conflicts", "stale"}:
-                from pathlib import Path
-
-                from project_atlas.atlas3.contracts import OPS_RELATIVE, read_json
-
                 recon = read_json(
                     Path(args.vault) / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
                 )
@@ -194,6 +189,11 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
         print(json.dumps({"ok": False, "error": exc.code, "detail": str(exc)}, sort_keys=True))
         return 1
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(json.dumps({"ok": False, "error": "ATLAS3_ERROR", "detail": str(exc)}, sort_keys=True))
+        print(
+            json.dumps(
+                {"ok": False, "error": "ATLAS3_ERROR", "detail": str(exc)},
+                sort_keys=True,
+            )
+        )
         return 1
     return None

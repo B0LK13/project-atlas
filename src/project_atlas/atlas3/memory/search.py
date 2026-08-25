@@ -19,13 +19,14 @@ def search_memory(
 ) -> dict[str, Any]:
     scan_or_raise(query)
     needle = query.strip().lower()
+    tokens = [part for part in needle.split() if part]
     hits: list[dict[str, Any]] = []
     for item in items:
         hay = " ".join(
             str(item.get(key) or "")
             for key in ("text", "item_type", "provider", "freshness")
         ).lower()
-        if needle and needle in hay:
+        if needle and (needle in hay or any(token in hay for token in tokens)):
             hits.append(
                 {
                     "item_type": item.get("item_type"),

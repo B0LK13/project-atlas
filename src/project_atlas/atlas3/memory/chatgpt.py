@@ -30,7 +30,7 @@ def import_chatgpt_export(
         turns = parse_chat_export_file(source)
     else:
         turns = parse_chat_export(source)
-    payload = [turn.as_dict() if hasattr(turn, "as_dict") else dict(turn) for turn in turns]
+    payload = [turn.as_dict() for turn in turns]
     return normalize_turns(
         payload,
         provider="chatgpt",

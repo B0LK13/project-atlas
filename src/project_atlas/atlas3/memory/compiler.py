@@ -56,7 +56,7 @@ def rank_context_layers(
         "layers": layers,
         "recent_llm_outranks_project_evidence": False,
         "stale_presented_as_current": False,
-        "must_not_claim_production_postgres_16": len(forbidden) == 0 or True,
+        "must_not_claim_production_postgres_16": not forbidden,
         "forbidden_current_claims": [
             "current production is PostgreSQL 16",
         ],

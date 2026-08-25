@@ -33,7 +33,8 @@ def normalize_turns(
     for index, turn in enumerate(turns):
         raw_role = str(turn.get("role") or "assistant").strip().lower()
         role = ROLE_ALIASES.get(raw_role, raw_role)
-        text = apply_privacy(str(turn.get("text") or turn.get("content") or ""), privacy_class=privacy_class)
+        raw_text = str(turn.get("text") or turn.get("content") or "")
+        text = apply_privacy(raw_text, privacy_class=privacy_class)
         message_id = str(turn.get("message_id") or f"msg-{index + 1}")
         envelopes.append(
             build_envelope(

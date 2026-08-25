@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Directive | D-191 / D-192 |
-| Epic count | **58** |
+| Epic count | **61** |
 | First vertical | AT3-003, AT3-014, AT3-015, AT3-030, AT3-050 |
 
 Status vocabulary: `PREP` · `ISOLATED_RUNTIME` · `LANDED_2X_REUSE` · `BLOCKED_DEMO` · `NOT_STARTED`.
@@ -16,7 +16,7 @@ does not mutate certified 2.x production surfaces.
 | ID | Title | Status | Reuse |
 |---|---|---|---|
 | AT3-001 | Program charter / north star | PREP (this tree) | Coder Alpha north star |
-| AT3-002 | Twin domain model | ISOLATED_RUNTIME | AS-2.0-TWIN-001 honesty; AS-GRAPH-003 types |
+| AT3-002 | Twin domain model | PREP + vocabulary catalog | AS-2.0-TWIN-001 honesty; AS-GRAPH-003 types |
 | AT3-003 | Engineering event model | ISOLATED_RUNTIME | `atlas_contracts.agent_event`, ops events |
 | AT3-004 | Temporal contract reuse | LANDED_2X_REUSE | `bitemporal.py`, kdiff |
 | AT3-005 | Authority / UNKNOWN reuse | LANDED_2X_REUSE | knowledge_compiler, authority_evaluator |
@@ -29,7 +29,7 @@ does not mutate certified 2.x production surfaces.
 | AT3-010 | Repository / component inventory | NOT_STARTED | connect / architecture lens |
 | AT3-011 | File / symbol graph | NOT_STARTED | discovery inventory |
 | AT3-012 | Service / environment nodes | NOT_STARTED | fixture twin only today |
-| AT3-013 | PR / commit / test / build nodes | ISOLATED_RUNTIME | event kinds in AT3-003 |
+| AT3-013 | PR / commit / test / build nodes | PREP (event kinds only) | event kinds in AT3-003 |
 | AT3-014 | Universal event ledger | ISOLATED_RUNTIME | new store; do not dual-write ops_events |
 
 ## Wave C — Truth Graph 2
@@ -134,4 +134,4 @@ does not mutate certified 2.x production surfaces.
 
 ## Count
 
-58 epics (AT3-001…006, 010…015, 020…023, 030, 035…050, 051…053, 060…062, 070…072, 080…082, 090…096, 100…102, 110…112, 120…122).
+61 unique epics (AT3-001…006, 010…015, 020…023, 030, 035…053, 060…062, 070…072, 080…082, 090…096, 100…102, 110…112, 120…122).

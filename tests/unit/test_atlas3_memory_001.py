@@ -41,7 +41,10 @@ def test_chatgpt_live_sync_not_claimed() -> None:
 
 def test_chatgpt_export_wraps_parser(tmp_path: Path) -> None:
     export = tmp_path / "chat.md"
-    export.write_text("User: What database?\nAssistant: Project uses PostgreSQL 16\n", encoding="utf-8")
+    export.write_text(
+        "User: What database?\nAssistant: Project uses PostgreSQL 16\n",
+        encoding="utf-8",
+    )
     envelopes = import_chatgpt_export(
         export, conversation_id="exp-1", project_id="harbor-api"
     )

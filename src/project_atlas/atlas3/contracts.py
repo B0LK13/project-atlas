@@ -75,8 +75,8 @@ def safe_project_id(project_id: str) -> str:
         raise Atlas3Error("UNSAFE_PROJECT_ID", str(exc)) from exc
 
 
-def require_vault(vault: Path) -> Path:
-    resolved = vault.expanduser().resolve()
+def require_vault(vault: Path | str) -> Path:
+    resolved = Path(vault).expanduser().resolve()
     if not resolved.is_dir():
         raise Atlas3Error("VAULT_NOT_FOUND", f"vault is not a directory: {resolved}")
     return resolved

@@ -72,10 +72,19 @@ def compile_start(
     pid = require_project(root, project_id)
     pulse = compile_pulse(root, pid)
     remaining = token_budget
+    per_section = max(8, token_budget // len(START_SECTIONS))
     sections: dict[str, Any] = {}
 
+    def take(status: str, text: str) -> dict[str, Any]:
+        nonlocal remaining
+        allowance = min(per_section, remaining) if remaining else 0
+        block, leftover_in_allowance = _section(status, text, remaining=allowance)
+        unused = leftover_in_allowance
+        remaining = max(0, remaining - (allowance - unused))
+        return block
+
     identity_text = f"project_id={pid}"
-    sections["project_identity"], remaining = _section("derived", identity_text, remaining=remaining)
+    sections["project_identity"] = take("derived", identity_text)
 
     state = load_answer(root, f"ans-state-{pid}")
     truth_text = "UNKNOWN — state lens not materialized"
@@ -83,9 +92,7 @@ def compile_start(
     if state is not None:
         truth_text = str(state.get("summary") or state.get("title") or "state lens present")
         truth_status = "derived"
-    sections["current_verified_truth"], remaining = _section(
-        truth_status, truth_text, remaining=remaining
-    )
+    sections["current_verified_truth"] = take(truth_status, truth_text)
 
     mapping = (
         ("recent_material_changes", "what_changed"),
@@ -106,31 +113,26 @@ def compile_start(
         else:
             text = str(block.get("reason") or "UNKNOWN")
             status = "UNKNOWN"
-        sections[section_key], remaining = _section(status, text, remaining=remaining)
+        sections[section_key] = take(status, text)
 
     if current_task and current_task.strip():
-        sections["current_task"], remaining = _section(
-            "derived", current_task.strip(), remaining=remaining
-        )
+        sections["current_task"] = take("derived", current_task.strip())
     else:
-        sections["current_task"], remaining = _section(
+        sections["current_task"] = take(
             "UNKNOWN",
             "UNKNOWN — current task was not supplied",
-            remaining=remaining,
         )
 
     constraints = load_answer(root, f"ans-decisions-{pid}")
     if constraints is None:
-        sections["owner_constraints"], remaining = _section(
+        sections["owner_constraints"] = take(
             "UNKNOWN",
             "UNKNOWN — owner constraints not materialized",
-            remaining=remaining,
         )
     else:
-        sections["owner_constraints"], remaining = _section(
+        sections["owner_constraints"] = take(
             "derived",
             "decisions lens present; not automatically owner constraints",
-            remaining=remaining,
         )
 
     briefing = {

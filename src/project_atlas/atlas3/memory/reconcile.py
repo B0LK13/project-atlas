@@ -43,9 +43,11 @@ def reconcile_memories(
         "intent": (
             "PostgreSQL 16 later"
             if any("16" in item for item in conflicts.get("intent_versions") or [])
-            or any("16" in str(item.get("text")) and "later" in str(item.get("text")).lower()
-                   or "migrat" in str(item.get("text")).lower()
-                   for item in fresh)
+            or any(
+                ("16" in str(item.get("text")) and "later" in str(item.get("text")).lower())
+                or "migrat" in str(item.get("text")).lower()
+                for item in fresh
+            )
             else "UNKNOWN"
         ),
         "conflicted_history": conflicts["conflicted_history"],

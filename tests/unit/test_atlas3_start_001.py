@@ -26,11 +26,11 @@ def test_start_requires_budget(tmp_path: Path) -> None:
 def test_start_is_budgeted_and_not_rag(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     briefing = compile_start(
-        vault, "harbor-api", token_budget=80, current_task="Prepare Pulse demo"
+        vault, "harbor-api", token_budget=240, current_task="Prepare Pulse demo"
     )
     assert briefing["rag_dump"] is False
-    assert briefing["token_budget"] == 80
+    assert briefing["token_budget"] == 240
     assert briefing["tokens_remaining"] >= 0
     assert briefing["sections"]["current_task"]["text"].startswith("Prepare Pulse")
     assert "UNKNOWN" in briefing["sections"]["current_verified_truth"]["text"]
-    assert len(briefing["sections"]["project_identity"]["text"]) <= 80
+    assert len(briefing["sections"]["project_identity"]["text"]) <= 240

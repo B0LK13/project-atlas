@@ -77,7 +77,7 @@ def compile_pulse(vault: Any, project_id: str) -> dict[str, Any]:
         "what_became_stale": (
             {"status": "derived", "items": stale_events, "authority": "derived"}
             if stale_events
-            else _from_answer(changed, missing="no stale evidence; changed lens absent")
+            else _unknown("no stale ledger evidence")
         ),
         "what_conflicts": _from_answer(unknown, missing="unknown/conflict lens not materialized"),
         "what_failed": (

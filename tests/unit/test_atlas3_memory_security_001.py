@@ -34,6 +34,32 @@ def test_oversized_message_fails_closed() -> None:
     assert exc.value.code == "OVERSIZED_MESSAGE"
 
 
+def test_cross_project_routing_fails_closed(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    (vault / "projects" / "harbor-api").mkdir(parents=True)
+    (vault / "projects" / "other-api").mkdir(parents=True)
+    from project_atlas.atlas3.memory.pipeline import ingest_provider_turns, run_memory_vertical
+
+    items = ingest_provider_turns(
+        [{"role": "assistant", "text": "Project uses PostgreSQL 16"}],
+        provider="chatgpt",
+        conversation_id="leak",
+        project_id="harbor-api",
+    )
+    run_memory_vertical(
+        vault,
+        "harbor-api",
+        provider_items=items,
+        stronger_evidence=[{"kind": "deployment", "text": "PostgreSQL 15"}],
+        current_state_text="PostgreSQL 15",
+        query="postgresql",
+    )
+    from project_atlas.atlas3.contracts import OPS_RELATIVE, read_json
+
+    other = read_json(vault / OPS_RELATIVE / "memory" / "other-api" / "reconcile.json")
+    assert other is None
+
+
 def test_forged_project_and_owner_do_not_promote(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     (vault / "projects" / "harbor-api").mkdir(parents=True)

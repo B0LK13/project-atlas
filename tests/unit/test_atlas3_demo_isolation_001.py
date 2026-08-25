@@ -68,8 +68,11 @@ def test_cli_mutation_is_additive_only() -> None:
     text = diff.stdout
     assert "register_atlas3_parsers" in text
     assert "dispatch_atlas3" in text
-    assert "def build_parser" not in text.replace("def build_parser", "", 1) or True
-    # Existing command names stay present in the working file.
+    lines = text.splitlines()
+    added = [line for line in lines if line.startswith("+") and not line.startswith("+++")]
+    removed = [line for line in lines if line.startswith("-") and not line.startswith("---")]
+    assert removed == []
+    assert any("register_atlas3_parsers" in line for line in added)
     source = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
     for command in ("connect", "ask2", "kdiff", "brief", "capture"):
         assert f'"{command}"' in source or f"'{command}'" in source
