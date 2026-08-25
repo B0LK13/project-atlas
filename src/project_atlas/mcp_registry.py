@@ -83,6 +83,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha living-note inventory (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.conversation.read",
+        "vault-read",
+        True,
+        "allow-list candidate; Coder Alpha conversation-capture inventory (vault-scoped, read-only)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

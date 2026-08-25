@@ -281,6 +281,13 @@ def make_handler(
                 except AppServiceError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/conversation-captures":
+                project_filter = (qs.get("project") or [""])[0] or None
+                try:
+                    self._send(200, service.conversation_captures(project_filter))
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/brief":
                 project = (qs.get("project") or [""])[0]
                 if not project:

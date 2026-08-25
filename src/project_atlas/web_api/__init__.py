@@ -18,6 +18,10 @@ from project_atlas.web_api.brief import (
     read_project_brief,
 )
 from project_atlas.web_api.conflicts import list_project_conflicts
+from project_atlas.web_api.conversation_captures import (
+    WebConversationCaptureError,
+    list_conversation_capture_inventory,
+)
 from project_atlas.web_api.discovery import load_estate_discovery_view
 from project_atlas.web_api.doctor import WebDoctorError, list_doctor
 from project_atlas.web_api.graph import impact_graph_summary, read_impact_graph
@@ -54,6 +58,7 @@ __all__ = [
     "ReadStatus",
     "VaultHealthView",
     "WebBriefError",
+    "WebConversationCaptureError",
     "WebDoctorError",
     "WebIntelligenceError",
     "WebObsidianError",
@@ -61,6 +66,7 @@ __all__ = [
     "WebSourceHealthError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
+    "list_conversation_capture_inventory",
     "list_doctor",
     "list_knowledge_answers",
     "list_obsidian_notes",

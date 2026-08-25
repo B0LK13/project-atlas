@@ -382,6 +382,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
 - [x] AS-CODER-ALPHA-DOCTOR-MCP-001 zero-arg `atlas.doctor.read` + `GET /v1/doctor` + `#/doctor` (vault-scoped; DOCTOR!=authority; no gate grant)
 - [x] AS-CODER-ALPHA-OBSIDIAN-READ-001 zero-arg `atlas.obsidian.read` + `GET /v1/obsidian` + `#/obsidian` + `atlas obsidian list` (vault-scoped; PROJECTION!=plugin; no materialize)
+- [x] AS-CODER-ALPHA-CONVERSATION-CAPTURE-MCP-001 zero-arg `atlas.conversation.read` + `GET /v1/conversation-captures` + `#/conversation-captures` (vault-scoped; CAPTURE!=Truth Core; no submit/review)
 - [x] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest CLOSED (runtime on `main`: `src/project_atlas/incremental_connect.py`; honesty close only — not a new implementation)
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)

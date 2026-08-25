@@ -265,6 +265,10 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.conversation_captures import (
+    WebConversationCaptureError,
+    list_conversation_capture_inventory,
+)
 from project_atlas.web_api.obsidian import WebObsidianError, list_obsidian_notes
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
@@ -1022,6 +1026,16 @@ def build_parser() -> argparse.ArgumentParser:
         dest="review_state",
     )
     capture_review.add_argument("--json", action="store_true", dest="as_json")
+    capture_conversations = capture_sub.add_parser(
+        "conversations",
+        help=(
+            "Read-only inventory of quarantined conversation captures "
+            "(does not submit or review)."
+        ),
+    )
+    capture_conversations.add_argument("--vault", type=Path, default=None)
+    capture_conversations.add_argument("--project", default=None)
+    capture_conversations.add_argument("--json", action="store_true", dest="as_json")
 
     inbox_parser = subparsers.add_parser(
         "inbox",
@@ -3789,6 +3803,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.capture_id,
                     args.review_state,
                 )
+            elif args.capture_command == "conversations":
+                if args.vault is None:
+                    raise ValueError("vault required")
+                report = list_conversation_capture_inventory(
+                    args.vault, project_id=args.project
+                )
             else:
                 report = {
                     "schema_version": 1,
@@ -3813,7 +3833,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 print(f"atlas capture conversation error [{exc.code}]: {exc}")
             return EXIT_ERROR
-        except (SessionCaptureError, OSError, ValueError) as exc:
+        except (WebConversationCaptureError, SessionCaptureError, OSError, ValueError) as exc:
             _log.error("capture failed: %s", exc)
             return EXIT_ERROR
         if args.as_json:
@@ -3824,6 +3844,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             print(f"  path:     {report.get('path')}")
             print("  next: atlas context / atlas handoff create to surface session memory")
+        elif args.capture_command == "conversations":
+            print(f"atlas capture conversations [{report.get('capture_count', 0)}]")
+            if not report.get("captures"):
+                print("  UNKNOWN — no conversation captures")
+            for item in report.get("captures") or []:
+                print(
+                    f"  {item.get('capture_id')}  {item.get('project_id')}  "
+                    f"{item.get('review_state')}  {item.get('summary')}"
+                )
         elif args.capture_command in {"conversation", "review"}:
             print(f"atlas capture {args.capture_command} [{report.get('status', 'ok')}]")
             print(f"  capture:  {report.get('capture_id')}")

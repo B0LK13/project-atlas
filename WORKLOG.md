@@ -7054,3 +7054,27 @@ existing projections without triggering materialization.
 - `MCP != WRITE`
 - `D149_TOUCHED = NO`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-CONVERSATION-CAPTURE-MCP-001 — conversation inventory
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0325 successor
+**Branch:** `cursor/atlas-autonomous-night-cycle-5723`
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149 / #483. Does not merge.
+
+### Why
+POST `/v1/captures/conversation` already writes quarantine. Agents and Web
+could not list existing conversation receipts without a submit/review path.
+
+### Scope
+- Zero-arg `atlas.conversation.read`
+- `GET /v1/conversation-captures`
+- Web `#/conversation-captures`
+- CLI `atlas capture conversations`
+
+### Honesty
+- `CAPTURE != TRUTH CORE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

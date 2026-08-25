@@ -64,6 +64,11 @@ const PROD = [
     title: "Obsidian",
     blurb: "Read-only living-note inventory — PROJECTION≠plugin.",
   },
+  {
+    to: "/conversation-captures",
+    title: "Conversation captures",
+    blurb: "Read-only quarantined conversation inventory — CAPTURE≠Truth Core.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
