@@ -18,6 +18,13 @@ REQUIRED = (
     "PRODUCT-EXPERIENCE.md",
     "COMPETITIVE-POSITIONING.md",
     "ACCEPTANCE.md",
+    "FOUNDATION.md",
+    "SECURITY.md",
+    "chronicle/HORIZON.md",
+    "contracts/twin-node.schema.json",
+    "contracts/twin-relationship.schema.json",
+    "contracts/engineering-event.schema.json",
+    "contracts/capability.schema.json",
     "HISTORICAL-INPUTS.md",
     "PACKAGE-MATURITY.json",
     "llm-memory/ARCHITECTURE.md",
@@ -54,6 +61,10 @@ def test_north_star_promises_and_stack() -> None:
     assert "AUTONOMY" in text
     assert "FULL_LIVE_DEMO_READY" in text
     assert "NOT_GRANTED" in text
+    foundation = (ATLAS3 / "FOUNDATION.md").read_text(encoding="utf-8")
+    assert "NO duplicated truth engines" in foundation
+    assert "AT3-001" in foundation
+    assert "ROADMAP_HORIZON" in (ATLAS3 / "chronicle" / "HORIZON.md").read_text(encoding="utf-8")
 
 
 def test_epics_count_and_first_vertical() -> None:

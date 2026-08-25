@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from project_atlas.atlas3.contracts import Atlas3Error
+from project_atlas.atlas3.ledger import append_event
 from project_atlas.atlas3.start import compile_start
 
 
@@ -34,3 +35,38 @@ def test_start_is_budgeted_and_not_rag(tmp_path: Path) -> None:
     assert briefing["sections"]["current_task"]["text"].startswith("Prepare Pulse")
     assert "UNKNOWN" in briefing["sections"]["current_verified_truth"]["text"]
     assert len(briefing["sections"]["project_identity"]["text"]) <= 240
+    assert briefing["freshness_requirement"] == "UNKNOWN"
+    assert briefing["stale_presented_as_current"] is False
+
+
+def test_start_current_refuses_stale_as_truth(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    append_event(
+        vault,
+        "harbor-api",
+        event_type="CONTEXT_INVALIDATED",
+        source_plane="engineering",
+        summary="memory stale",
+        payload={"freshness": "STALE"},
+    )
+    briefing = compile_start(
+        vault,
+        "harbor-api",
+        token_budget=240,
+        freshness_requirement="CURRENT",
+    )
+    assert briefing["freshness_requirement"] == "CURRENT"
+    assert briefing["stale_presented_as_current"] is False
+    assert "stale evidence refused" in briefing["sections"]["current_verified_truth"]["text"]
+
+
+def test_start_unknown_freshness_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    with pytest.raises(Atlas3Error) as exc:
+        compile_start(
+            vault,
+            "harbor-api",
+            token_budget=64,
+            freshness_requirement="FRESH_ENOUGH",
+        )
+    assert exc.value.code == "UNKNOWN_FRESHNESS_REQUIREMENT"

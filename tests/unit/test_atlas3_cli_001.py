@@ -17,7 +17,18 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
     from project_atlas.cli import build_parser
 
     text = build_parser().format_help()
-    for name in ("pulse", "start", "proof", "memory", "ledger", "connect", "ask2", "kdiff"):
+    for name in (
+        "pulse",
+        "start",
+        "proof",
+        "memory",
+        "ledger",
+        "capabilities",
+        "compat",
+        "connect",
+        "ask2",
+        "kdiff",
+    ):
         assert name in text
 
 
@@ -57,6 +68,25 @@ def test_pulse_and_start_and_proof_and_memory(tmp_path: Path, capsys: object) ->
                 "commit",
                 "--summary",
                 "cli append",
+            ]
+        )
+        == EXIT_OK
+    )
+    assert main(["capabilities", "--json"]) == EXIT_OK
+    assert main(["compat", "--vault", str(vault), "--json"]) == EXIT_OK
+    assert (
+        main(
+            [
+                "start",
+                "--vault",
+                str(vault),
+                "--project",
+                "harbor-api",
+                "--budget",
+                "64",
+                "--freshness",
+                "CURRENT",
+                "--json",
             ]
         )
         == EXIT_OK

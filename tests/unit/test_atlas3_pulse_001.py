@@ -43,3 +43,13 @@ def test_pulse_composes_changed_and_failures(tmp_path: Path) -> None:
     assert report["questions"]["what_changed"]["status"] == "derived"
     assert report["questions"]["what_failed"]["status"] == "derived"
     assert report["questions"]["what_failed"]["items"]
+    assert report["questions"]["what_requires_attention"]["status"] == "derived"
+    assert report["questions"]["what_requires_attention"]["items"]
+
+
+def test_pulse_stale_is_not_changed_and_attention_unknown(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    report = compile_pulse(vault, "harbor-api")
+    assert report["questions"]["what_became_stale"]["status"] == "UNKNOWN"
+    assert report["questions"]["what_changed"]["status"] == "UNKNOWN"
+    assert report["questions"]["what_requires_attention"]["status"] == "UNKNOWN"
