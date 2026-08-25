@@ -44,6 +44,11 @@ from project_atlas.web_api.source_health import (
     WebSourceHealthError,
     read_source_health,
 )
+from project_atlas.web_api.workspace_read import (
+    WebWorkspaceReadError,
+    read_workspace_view,
+    render_workspace_text,
+)
 
 __all__ = [
     "OBS_HEALTH_SNAPSHOT_RELATIVE",
@@ -55,6 +60,7 @@ __all__ = [
     "WebIntelligenceError",
     "WebRoadmapError",
     "WebSourceHealthError",
+    "WebWorkspaceReadError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
     "list_knowledge_answers",
@@ -74,4 +80,6 @@ __all__ = [
     "read_source_health",
     "read_status",
     "read_vault_health",
+    "read_workspace_view",
+    "render_workspace_text",
 ]

@@ -21,6 +21,7 @@ from project_atlas.web_api import (
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
+    WebWorkspaceReadError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -39,6 +40,7 @@ from project_atlas.web_api import (
     read_source_health,
     read_status,
     read_vault_health,
+    read_workspace_view,
 )
 
 PACKAGE_ID = "AS-2.1-APP-SVC-001"
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def workspace_view(self) -> dict[str, Any]:
+        """Vault-scoped GET /v1/workspace wrap. Never writes workspace state."""
+        try:
+            return read_workspace_view(self.vault)
+        except WebWorkspaceReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

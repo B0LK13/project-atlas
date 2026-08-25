@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.workspace_read import (
+    WebWorkspaceReadError,
+    read_workspace_view,
+    render_workspace_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2055,6 +2060,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bound subject+field fanout (default 500; max 5000).",
     )
     kdiff_parser.add_argument("--json", action="store_true")
+    # AS-CODER-ALPHA-WORKSPACE-READ-001 -- vault-scoped GET /v1/workspace wrap.
+    workspace_parser = subparsers.add_parser(
+        "workspace",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of the GET /v1/workspace derived view "
+            "(AS-CODER-ALPHA-WORKSPACE-READ-001; never writes; "
+            "WORKSPACE != AUTHORITY; VIEW != TRUTH CORE)."
+        ),
+    )
+    workspace_sub = workspace_parser.add_subparsers(
+        dest="workspace_command", required=True
+    )
+    workspace_report = workspace_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read the vault-scoped GET /v1/workspace derived view "
+            "(never writes workspace state; EMPTY != HEALTHY; UNKNOWN != HEALTHY)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas workspace report --vault /path/to/vault\n"
+            "  atlas workspace report --vault /path/to/vault --json"
+        ),
+    )
+    workspace_report.add_argument("--vault", type=Path, required=True)
+    workspace_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the workspace REPORT READ JSON to stdout.",
+    )
+    workspace_show = workspace_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `workspace report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas workspace show --vault /path/to/vault\n"
+            "  atlas workspace show --vault /path/to/vault --json"
+        ),
+    )
+    workspace_show.add_argument("--vault", type=Path, required=True)
+    workspace_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the workspace REPORT READ JSON to stdout.",
+    )
     # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler).
     ask2_parser = subparsers.add_parser(
         "ask2",
@@ -4649,6 +4702,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"truncated: {report['truncated']}")
             print(f"truth_boundary: {report['truth_boundary']}")
         return EXIT_OK
+    if args.command == "workspace":
+        if args.workspace_command in {"report", "show"}:
+            try:
+                view = read_workspace_view(args.vault)
+            except (WebWorkspaceReadError, OSError) as exc:
+                _log.error("workspace report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_workspace_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown workspace command: {args.workspace_command}"
+        )
     if args.command == "ask2":
         kinds = tuple(args.kind_args) if args.kind_args else ("concept", "claim")
         try:
