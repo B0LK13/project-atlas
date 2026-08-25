@@ -5,6 +5,9 @@ Requires authz mcp.read. Does not load remote MCP SDKs.
 
 AS-2.1-MCP-ADV-001 hardens request parsing: unknown tools, write escalation,
 path traversal, and malformed args fail closed. MCP stays READ ONLY.
+
+AS-CODER-ALPHA-MCP-LENS-PARITY-001 adds project-scoped read tools for
+source-health / attention / next. MCP != authority. Helpers stay derived.
 """
 
 from __future__ import annotations
@@ -16,21 +19,38 @@ from pathlib import Path
 from typing import Any, Final
 
 from project_atlas.app_service import AppService, AppServiceError, open_app_service
+from project_atlas.attention_hygiene import AttentionHygieneError, classify_attention
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.project_next import ProjectNextError, derive_next_lenses
+from project_atlas.source_health import SourceHealthError, explain_source_health
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+LENS_PACKAGE_ID = "AS-CODER-ALPHA-MCP-LENS-PARITY-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
+LENS_TRUTH_BOUNDARY = (
+    "MCP LENS != AUTHORITY / PROJECT-SCOPE REQUIRED / "
+    "NO WRITE / NO SECRET ECHO / UNKNOWN VALID"
+)
+WRITE_CONTROLS: Final[int] = 0
+PROJECT_SCOPED_TOOLS: Final[frozenset[str]] = frozenset(
+    {
+        "atlas.source-health.read",
+        "atlas.attention.read",
+        "atlas.next.read",
+    }
+)
+_PROJECT_ID_RE: Final[re.Pattern[str]] = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 
-# Allow-listed request keys for JSON-line invoke (no path/write/args surface).
-_ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool"})
+# Allow-listed request keys. ``project`` is valid only for project-scoped tools.
+_ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool", "project"})
 _FORBIDDEN_REQUEST_KEYS: Final[frozenset[str]] = frozenset(
     {
         "path",
@@ -88,6 +108,89 @@ def _assert_safe_tool_id(tool_id: str) -> str:
     return tid
 
 
+def _assert_safe_project_id(project_id: str) -> str:
+    """Reject empty, traversal, or malformed project identifiers."""
+    token = project_id.strip()
+    if not token:
+        raise McpServerError("mcp-project-required")
+    if "\x00" in token:
+        raise McpServerError("mcp-project-id-nul")
+    lowered = token.lower()
+    if (
+        ".." in token
+        or "/" in token
+        or "\\" in token
+        or ":" in token
+        or token.startswith(".")
+        or "%2e" in lowered
+        or "%2f" in lowered
+        or "%5c" in lowered
+    ):
+        raise McpServerError(f"mcp-project-path-traversal:{token}")
+    if not _PROJECT_ID_RE.fullmatch(token):
+        raise McpServerError(f"mcp-project-id-malformed:{token}")
+    return token
+
+
+def _lens_honesty(report: Mapping[str, Any]) -> dict[str, Any]:
+    honesty = dict(report.get("honesty") or {}) if isinstance(report.get("honesty"), dict) else {}
+    honesty.update(
+        {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "project_scope_required": True,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+            "secrets_echoed": False,
+            "write": False,
+        }
+    )
+    return honesty
+
+
+def _wrap_lens(report: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(report)
+    payload["mcp_package"] = LENS_PACKAGE_ID
+    payload["authority"] = "derived"
+    payload["truth_boundary"] = LENS_TRUTH_BOUNDARY
+    payload["honesty"] = _lens_honesty(report)
+    return payload
+
+
+def read_mcp_source_health(vault: Path, project_id: str) -> dict[str, Any]:
+    """Project-scoped source-health. Delegates to explain_source_health."""
+    try:
+        report = explain_source_health(vault, project_id)
+    except SourceHealthError as exc:
+        raise McpServerError(f"mcp-source-health-failed:{exc}") from exc
+    return _wrap_lens(report)
+
+
+def read_mcp_attention(vault: Path, project_id: str) -> dict[str, Any]:
+    """Project-scoped attention. Delegates to classify_attention."""
+    try:
+        report = classify_attention(vault, project_id)
+    except AttentionHygieneError as exc:
+        raise McpServerError(f"mcp-attention-failed:{exc}") from exc
+    return _wrap_lens(report)
+
+
+def read_mcp_next(vault: Path, project_id: str) -> dict[str, Any]:
+    """Project-scoped What Next. Delegates to derive_next_lenses (never writes)."""
+    try:
+        report = derive_next_lenses(vault, project_ids=[project_id])
+    except ProjectNextError as exc:
+        raise McpServerError(f"mcp-next-failed:{exc}") from exc
+    payload = _wrap_lens(report)
+    honesty = dict(payload["honesty"])
+    honesty["next_is_command"] = False
+    honesty["read_only"] = True
+    payload["honesty"] = honesty
+    return payload
+
+
 def _unknown_brief_row(project_id: str) -> dict[str, Any]:
     return {
         "project_id": project_id,
@@ -134,9 +237,13 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
-def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
-    """Map allow-listed tool ids to AppService callables."""
-    return {
+def build_tool_dispatch(
+    service: AppService,
+    *,
+    project_id: str | None = None,
+) -> Mapping[str, Callable[[], dict[str, Any]]]:
+    """Map allow-listed tool ids to AppService / lens callables."""
+    dispatch: dict[str, Callable[[], dict[str, Any]]] = {
         "atlas.ops.health.read": lambda: service.health(),
         "atlas.knowledge.query.read": lambda: {"knowledge": service.knowledge()},
         "atlas.explain.receipt.read": lambda: {
@@ -146,6 +253,16 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
     }
+    if project_id is not None:
+        pid = project_id
+        dispatch["atlas.source-health.read"] = lambda: read_mcp_source_health(
+            service.vault, pid
+        )
+        dispatch["atlas.attention.read"] = lambda: read_mcp_attention(
+            service.vault, pid
+        )
+        dispatch["atlas.next.read"] = lambda: read_mcp_next(service.vault, pid)
+    return dispatch
 
 
 def list_mcp_tools(
@@ -163,6 +280,8 @@ def list_mcp_tools(
         "truth_boundary": TRUTH_BOUNDARY,
         "tools": tools,
         "write_tools": [],
+        "write_controls": WRITE_CONTROLS,
+        "project_scoped_tools": sorted(PROJECT_SCOPED_TOOLS),
         "live_mcp_read": True,
         "operator_id": op.operator_id,
         "generated": {"by": "project-atlas"},
@@ -174,6 +293,7 @@ def invoke_mcp_tool(
     tool_id: str,
     *,
     operator: OperatorProfile | None = None,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     """Invoke one allow-listed read tool against a vault."""
     require_compatibility_anchor()
@@ -182,20 +302,32 @@ def invoke_mcp_tool(
     tid = _assert_safe_tool_id(tool_id)
     if tid not in _enabled_read_tools():
         raise McpServerError(f"mcp-tool-denied:{tid}")
+    token: str | None = None
+    if tid in PROJECT_SCOPED_TOOLS:
+        if project_id is None or not str(project_id).strip():
+            raise McpServerError("mcp-project-required")
+        token = _assert_safe_project_id(str(project_id))
+    elif project_id is not None:
+        raise McpServerError("mcp-request-unexpected-key:project")
     service = open_app_service(vault)
-    dispatch = build_tool_dispatch(service)
+    dispatch = build_tool_dispatch(service, project_id=token)
     if tid not in dispatch:
         raise McpServerError(f"mcp-tool-unbound:{tid}")
     result = dispatch[tid]()
-    return {
+    envelope: dict[str, Any] = {
         "schema_version": 1,
         "package_id": PACKAGE_ID,
         "truth_boundary": TRUTH_BOUNDARY,
         "tool_id": tid,
         "live_mcp_read": True,
         "result": result,
+        "write_controls": WRITE_CONTROLS,
         "generated": {"by": "project-atlas"},
     }
+    if token is not None:
+        envelope["project_id"] = token
+        envelope["truth_boundary"] = LENS_TRUTH_BOUNDARY
+    return envelope
 
 
 def handle_mcp_request_line(
@@ -208,6 +340,7 @@ def handle_mcp_request_line(
 
     Rejects malformed JSON, non-objects, missing/empty tool, forbidden
     write/path/args keys, and unknown extra keys (AS-2.1-MCP-ADV-001).
+    Project is accepted only for allow-listed project-scoped lens tools.
     """
     try:
         payload = json.loads(line)
@@ -225,5 +358,18 @@ def handle_mcp_request_line(
     tool = payload.get("tool")
     if not isinstance(tool, str) or not tool.strip():
         raise McpServerError("mcp-tool-missing")
-    response = invoke_mcp_tool(vault, tool.strip(), operator=operator)
+    tid = _assert_safe_tool_id(tool.strip())
+    if tid not in _enabled_read_tools():
+        raise McpServerError(f"mcp-tool-denied:{tid}")
+    if tid not in PROJECT_SCOPED_TOOLS and "project" in payload:
+        raise McpServerError("mcp-request-unexpected-key:project")
+    project_id: str | None = None
+    if tid in PROJECT_SCOPED_TOOLS:
+        project = payload.get("project")
+        if not isinstance(project, str) or not project.strip():
+            raise McpServerError("mcp-project-required")
+        project_id = project
+    response = invoke_mcp_tool(
+        vault, tid, operator=operator, project_id=project_id
+    )
     return json.dumps(response, sort_keys=True)
