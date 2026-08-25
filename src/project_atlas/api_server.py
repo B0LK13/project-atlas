@@ -465,9 +465,12 @@ def make_handler(
                     )
                 return
             if path == "/v1/conflicts":
-                project = (qs.get("project") or [""])[0]
+                project = (qs.get("project") or [""])[0].strip()
                 try:
-                    self._send(200, service.conflicts(project))
+                    if project:
+                        self._send(200, service.conflicts(project))
+                    else:
+                        self._send(200, service.conflict_index())
                 except AppServiceError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return

@@ -9,6 +9,7 @@ const PROD_LINKS = [
   { to: "/context", label: "Context" },
   { to: "/ask", label: "Ask" },
   { to: "/time-machine", label: "Time Machine" },
+  { to: "/conflicts", label: "Conflicts" },
   { to: "/roadmap", label: "Roadmap" },
   { to: "/graph", label: "Graph" },
   { to: "/ops", label: "Ops" },
@@ -24,6 +25,7 @@ const PROJECT_AWARE_PATHS = new Set([
   "/context",
   "/ask",
   "/time-machine",
+  "/conflicts",
   "/roadmap",
   "/workspace",
 ]);

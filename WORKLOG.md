@@ -6997,3 +6997,31 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-CONFLICTS-MCP-001 — vault-scoped conflict index
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-b3ab` (from live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074`)
+**Mode:** CODER ALPHA SURFACE PARITY. Does not touch D-149. Does not merge.
+
+### Why
+Project-scoped `GET /v1/conflicts?project=` already existed. MCP and the home
+shell had no vault-scoped zero-arg conflict index. Night-cycle reconcile
+identified `atlas.conflicts.read` as the remaining unique unused wrap after
+#478–#491 drafts.
+
+### Honesty
+- `CONFLICT PROJECTION != AUTHORITY`
+- `CONFLICT PROJECTION != RESOLUTION`
+- `OWNER_CAPABILITY_GRANTED = false` (hardcoded)
+- `D149_TOUCHED = NO`
+- `AUTHENTIC_PILOT = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Surfaces
+- `GET /v1/conflicts` without project → vault index
+- `GET /v1/conflicts?project=` unchanged
+- MCP `atlas.conflicts.read` (zero-arg)
+- Web `#/conflicts`

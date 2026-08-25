@@ -107,3 +107,71 @@ def list_project_conflicts(vault: Path, project_id: str) -> dict[str, Any]:
         "conflicts": rows,
         "authority": "derived",
     }
+
+
+INDEX_PACKAGE_ID = "AS-CODER-ALPHA-CONFLICTS-MCP-001"
+INDEX_TRUTH_BOUNDARY = (
+    "CONFLICT INDEX != AUTHORITY / != RESOLUTION / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+
+
+def list_vault_conflicts(vault: Path) -> dict[str, Any]:
+    """Zero-arg vault-scoped conflict index (read-only, no resolution).
+
+    Iterates ``projects/`` only. Missing or unreadable conflict files stay
+    empty — never fabricated, never resolved. Does not grant owner capability.
+    """
+    from project_atlas.web_api.projects import list_projects
+
+    rows: list[dict[str, Any]] = []
+    skipped_invalid_ids = 0
+    for project in list_projects(vault):
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        if not _ID_RE.match(pid):
+            skipped_invalid_ids += 1
+            continue
+        projection = list_project_conflicts(vault, pid)
+        rows.append(
+            {
+                "project_id": pid,
+                "conflict_count": int(projection.get("conflict_count") or 0),
+                "conflicts": list(projection.get("conflicts") or []),
+                "available": True,
+                "honesty": {
+                    "unknown_is_valid": True,
+                    "lens_is_authority": False,
+                    "conflict_is_resolution": False,
+                    "fabricated_fields": False,
+                },
+            }
+        )
+    rows.sort(key=lambda row: str(row["project_id"]))
+    total = sum(int(row["conflict_count"]) for row in rows)
+    return {
+        "schema_version": 1,
+        "package_id": INDEX_PACKAGE_ID,
+        "truth_boundary": INDEX_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "conflict_count": total,
+        "projects": rows,
+        "skipped_invalid_ids": skipped_invalid_ids,
+        "authority": "derived",
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "conflict_is_resolution": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+        },
+        "generated": {"by": "project-atlas"},
+    }

@@ -28,6 +28,11 @@ BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
+CONFLICTS_PACKAGE_ID = "AS-CODER-ALPHA-CONFLICTS-MCP-001"
+CONFLICTS_TRUTH_BOUNDARY = (
+    "MCP CONFLICTS != AUTHORITY / != RESOLUTION / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
 _ALLOWED_REQUEST_KEYS: Final[frozenset[str]] = frozenset({"tool"})
@@ -134,6 +139,39 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def read_vault_conflicts(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped conflict index. Does not resolve or write."""
+    index = service.conflict_index()
+    honesty = dict(index.get("honesty") or {})
+    honesty.update(
+        {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "conflict_is_resolution": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "authentic_pilot": False,
+        }
+    )
+    return {
+        "schema_version": 1,
+        "package_id": CONFLICTS_PACKAGE_ID,
+        "truth_boundary": CONFLICTS_TRUTH_BOUNDARY,
+        "project_count": int(index.get("project_count") or 0),
+        "conflict_count": int(index.get("conflict_count") or 0),
+        "projects": list(index.get("projects") or []),
+        "skipped_invalid_ids": int(index.get("skipped_invalid_ids") or 0),
+        "authority": "derived",
+        "honesty": honesty,
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +183,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.conflicts.read": lambda: read_vault_conflicts(service),
     }
 
 

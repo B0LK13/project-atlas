@@ -26,6 +26,7 @@ from project_atlas.web_api import (
     list_knowledge_answers,
     list_project_conflicts,
     list_projects,
+    list_vault_conflicts,
     load_estate_discovery_view,
     read_intelligence_conflicts,
     read_intelligence_evidence,
@@ -128,6 +129,10 @@ class AppService:
             return list_project_conflicts(self.vault, project_id)
         except ValueError as exc:
             raise AppServiceError(str(exc)) from exc
+
+    def conflict_index(self) -> dict[str, Any]:
+        """Vault-scoped conflict index (read-only; no resolution)."""
+        return list_vault_conflicts(self.vault)
 
     def kdiff_as_of(self, project_id: str, as_of: str) -> dict[str, Any]:
         """Time Machine as-of read (AS-2.2-KDIFF-001; read-only, ≠ authority)."""

@@ -54,6 +54,11 @@ const PROD = [
     title: "Intelligence",
     blurb: "Read-only derived intelligence — DERIVED≠authority.",
   },
+  {
+    to: "/conflicts",
+    title: "Conflicts",
+    blurb: "Vault-scoped unresolved conflicts — projection≠resolution.",
+  },
 ] as const;
 
 /** Production home hub + design-lab links. WEB ACCEPTED not claimed. */
