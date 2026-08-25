@@ -343,3 +343,12 @@ def test_d150_record_id_slug_without_body_terms_stays_unknown(tmp_path: Path) ->
     )
     answer = _ask(vault, "xyzzy special token")
     _assert_unsupported_stays_unknown(answer)
+
+def test_nl_meta_verbs_are_function_words_not_required_claim_terms() -> None:
+    """D-178A ASK2_NO_GROUNDING: 'claim'/'use' in NL questions must not block grounding."""
+    for word in ("claim", "claims", "use", "uses", "using", "used"):
+        assert word in _QUESTION_FUNCTION_WORDS
+    terms = _question_claim_terms("What database does project-a claim to use?")
+    assert "database" in terms
+    assert "claim" not in terms
+    assert "use" not in terms
