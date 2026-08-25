@@ -10,7 +10,7 @@ INCREMENTAL_SKIP != TRUTH_CORE_AUTHORITY
 PREP != IMPLEMENTED
 DEMO != RELEASE
 MODEL OUTPUT != AUTHORITY
-INDEPENDENT_IV = PENDING
+INDEPENDENT_IV = PASS (13/13 `test_as_coder_alpha_incremental_connect_001.py` on `f0e0c979` / this cycle HEAD; not a merge grant)
 ```
 
 ## Change
