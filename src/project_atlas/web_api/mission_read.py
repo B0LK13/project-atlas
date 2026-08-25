@@ -25,9 +25,7 @@ from typing import Any, Final, Literal
 PACKAGE_ID: Final[str] = "AS-CODER-ALPHA-MISSION-READ-001"
 GENERATOR_ID: Final[str] = "atlas-coder-alpha-mission-read-001"
 SCHEMA_ID: Final[str] = "atlas.coder-alpha.mission-read.v1"
-SOURCE_PACKAGES: Final[tuple[str, ...]] = (
-    "AS-2.1-WEB-MISSION-WORKSPACE-LIVE-001",
-)
+SOURCE_PACKAGES: Final[tuple[str, ...]] = ("AS-2.1-WEB-MISSION-WORKSPACE-LIVE-001",)
 SOURCE_ROUTE: Final[str] = "/v1/mission"
 TRUTH_BOUNDARY: Final[str] = (
     "MISSION != AUTHORITY / VIEW != TRUTH CORE / EMPTY != HEALTHY / "

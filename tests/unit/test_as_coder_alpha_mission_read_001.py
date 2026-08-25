@@ -37,9 +37,7 @@ def _snapshot(vault: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     for path in sorted(vault.rglob("*")):
         if path.is_file():
-            out[path.relative_to(vault).as_posix()] = hashlib.sha256(
-                path.read_bytes()
-            ).hexdigest()
+            out[path.relative_to(vault).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     return out
 
 
@@ -223,9 +221,7 @@ def test_vault_bind_does_not_import_sibling_projects(tmp_path: Path) -> None:
 
 def test_reader_module_does_not_write_or_reconcile() -> None:
     root = Path(__file__).resolve().parents[2]
-    source = (root / "src/project_atlas/web_api/mission_read.py").read_text(
-        encoding="utf-8"
-    )
+    source = (root / "src/project_atlas/web_api/mission_read.py").read_text(encoding="utf-8")
     forbidden = (
         "persist_mission",
         "mission_reconciler",
@@ -253,9 +249,7 @@ def test_appservice_mission_view(tmp_path: Path) -> None:
         open_app_service(tmp_path / "absent")
 
 
-def test_cli_json_report_and_show(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_json_report_and_show(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     vault = tmp_path / "vault"
     vault.mkdir()
     assert main(["mission", "report", "--vault", str(vault), "--json"]) == EXIT_OK
@@ -276,10 +270,7 @@ def test_cli_report_does_not_write(tmp_path: Path) -> None:
 
 
 def test_cli_missing_vault_exits_error(tmp_path: Path) -> None:
-    assert (
-        main(["mission", "report", "--vault", str(tmp_path / "absent"), "--json"])
-        == EXIT_ERROR
-    )
+    assert main(["mission", "report", "--vault", str(tmp_path / "absent"), "--json"]) == EXIT_ERROR
 
 
 def test_cli_mission_names_are_free() -> None:
@@ -367,14 +358,10 @@ def test_api_existing_mission_projection_unchanged(tmp_path: Path) -> None:
     thread.start()
     try:
         auth = session_credentials(server).auth_headers()
-        with urlopen(
-            Request(f"http://{host}:{port}/v1/meta", headers=auth), timeout=2
-        ) as resp:
+        with urlopen(Request(f"http://{host}:{port}/v1/meta", headers=auth), timeout=2) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
         assert meta["mission_live"] is True
-        with urlopen(
-            Request(f"http://{host}:{port}/v1/mission", headers=auth), timeout=2
-        ) as resp:
+        with urlopen(Request(f"http://{host}:{port}/v1/mission", headers=auth), timeout=2) as resp:
             body = json.loads(resp.read().decode("utf-8"))
         assert body["package_id"] == "AS-2.1-WEB-MISSION-WORKSPACE-LIVE-001"
         assert body["authentic_pilot"] is False
@@ -420,12 +407,12 @@ def test_api_mission_report_is_get_only(tmp_path: Path) -> None:
 
 def test_d149_and_atlas3_untouched() -> None:
     root = Path(__file__).resolve().parents[2]
-    authentic = (
-        root / "src/project_atlas/orchestration/autonomy/authentic_estate.py"
-    ).read_text(encoding="utf-8")
-    reconciler = (
-        root / "src/project_atlas/orchestration/sdk/mission_reconciler.py"
-    ).read_text(encoding="utf-8")
+    authentic = (root / "src/project_atlas/orchestration/autonomy/authentic_estate.py").read_text(
+        encoding="utf-8"
+    )
+    reconciler = (root / "src/project_atlas/orchestration/sdk/mission_reconciler.py").read_text(
+        encoding="utf-8"
+    )
     assert "AS-CODER-ALPHA-MISSION-READ-001" not in authentic
     assert "AS-CODER-ALPHA-MISSION-READ-001" not in reconciler
     atlas3 = root / "src/project_atlas/atlas3"

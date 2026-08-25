@@ -7215,6 +7215,9 @@ board could look healthy or authoritative.
 - Read never invents PILOT rows
 
 ### Local verification
-- Focused package tests: pending at commit (run after push of implementation)
+- Focused package tests: 24 passed (`tests/unit/test_as_coder_alpha_mission_read_001.py`, `--no-cov`)
+- MCP adv + package: 33 passed (includes `atlas.mission.read` no-write loop)
+- Related mission/brief regression: 46 passed with track-b + brief suites
+- ruff + mypy on touched modules: pass
 - IMPLEMENTER != VERIFIER
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
