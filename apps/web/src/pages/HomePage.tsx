@@ -28,6 +28,26 @@ const THEMES = [
 
 const PROD = [
   { to: "/projects", title: "Projects", blurb: "Read-only inventory lens." },
+  {
+    to: "/knowledge",
+    title: "Knowledge",
+    blurb: "Read-only knowledge answers — UI≠canonical.",
+  },
+  {
+    to: "/context",
+    title: "Agent context",
+    blurb: "Paste-ready pack so the next agent is not re-briefed. LENS≠authority.",
+  },
+  {
+    to: "/ask",
+    title: "Ask Atlas",
+    blurb: "Read-only Ask Atlas 2 — MODEL_OUTPUT≠authority.",
+  },
+  {
+    to: "/time-machine",
+    title: "Time Machine",
+    blurb: "Conflicts + kdiff as-of / T1→T2 — kdiff≠authority.",
+  },
   { to: "/ops", title: "Ops health", blurb: "OBS/sample consume — unknown ≠ healthy." },
   {
     to: "/command-center",

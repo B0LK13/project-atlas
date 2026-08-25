@@ -15,6 +15,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, Final
 
+from project_atlas.agent_handoff import AgentHandoffError, compose_readonly_agent_context
 from project_atlas.app_service import AppService, AppServiceError, open_app_service
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
@@ -23,10 +24,15 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+CONTEXT_PACKAGE_ID = "AS-CODER-ALPHA-CONTEXT-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+CONTEXT_TRUTH_BOUNDARY = (
+    "MCP CONTEXT != AUTHORITY / != ATLAS_CONTEXT_FILE / UNKNOWN VALID / "
+    "NO WRITE / VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -134,6 +140,82 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_context_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "purpose": "UNKNOWN",
+        "markdown": "",
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "fabricated_fields": False,
+            "canonical_write": False,
+            "atlas_context_file": False,
+        },
+    }
+
+
+def _project_context_row(project_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    brief = payload.get("brief")
+    purpose = "UNKNOWN"
+    if isinstance(brief, Mapping):
+        raw_purpose = brief.get("purpose")
+        if isinstance(raw_purpose, str) and raw_purpose.strip():
+            purpose = raw_purpose
+    markdown = payload.get("markdown")
+    return {
+        "project_id": project_id,
+        "available": True,
+        "purpose": purpose,
+        "markdown": markdown if isinstance(markdown, str) else "",
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "fabricated_fields": False,
+            "canonical_write": False,
+            "atlas_context_file": False,
+            "authentic_pilot": False,
+        },
+    }
+
+
+def read_vault_contexts(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped agent-context read. Does not write context files."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            payload = compose_readonly_agent_context(service.vault, pid)
+            rows.append({"project_id": pid, "context": _project_context_row(pid, payload)})
+        except (AgentHandoffError, AppServiceError):
+            rows.append({"project_id": pid, "context": _unknown_context_row(pid)})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": CONTEXT_PACKAGE_ID,
+        "truth_boundary": CONTEXT_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "contexts": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "canonical_write": False,
+            "atlas_context_file": False,
+            "auto_execution": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +227,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.context.read": lambda: read_vault_contexts(service),
     }
 
 

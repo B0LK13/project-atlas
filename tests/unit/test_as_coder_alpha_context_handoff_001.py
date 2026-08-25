@@ -5,7 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from project_atlas.agent_handoff import create_handoff, export_agent_context, resume_handoff
+from project_atlas.agent_handoff import (
+    compose_readonly_agent_context,
+    create_handoff,
+    export_agent_context,
+    resume_handoff,
+)
 from project_atlas.cli import EXIT_OK, main
 from project_atlas.connect import connect_project
 
@@ -102,3 +107,26 @@ def test_cli_context_and_handoff(tmp_path: Path) -> None:
         (vault / "generated" / "ops" / "handoffs" / "latest.json").read_text(encoding="utf-8")
     )
     assert latest["project_id"] == project_id
+
+
+def test_compose_readonly_does_not_write_context_files(tmp_path: Path) -> None:
+    project = _seed(tmp_path / "readonly-context")
+    connected = connect_project(project)
+    vault = Path(connected["vault"])
+    project_id = str(connected["bound_project_id"])
+    before = {
+        path.relative_to(vault).as_posix()
+        for path in vault.rglob("*")
+        if path.is_file()
+    }
+    payload = compose_readonly_agent_context(vault, project_id)
+    assert payload["project_id"] == project_id
+    assert "UNKNOWN stays UNKNOWN" in str(payload["markdown"])
+    assert payload["honesty"]["canonical_write"] is False
+    after = {
+        path.relative_to(vault).as_posix()
+        for path in vault.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
+    assert not (vault / "generated" / "ops" / "agent-context").exists()

@@ -6997,3 +6997,26 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-CONTEXT-MCP-001 — vault-scoped agent context MCP
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0155 (live main `f0e0c979`)
+**Branch:** `cursor/atlas-autonomous-night-cycle-ee6c`
+**Mode:** CODER_ALPHA_AGENT_SURFACE. Does not touch D-149. Does not merge.
+
+### Why
+Coder Alpha's agent promise is paste-ready context so the next session is not
+re-briefed. CLI `atlas context` writes files. MCP had `atlas.brief.read` only.
+This package adds zero-arg `atlas.context.read` over the existing read-only
+compose path and lists Context / Time Machine / Ask / Knowledge on the home hub.
+
+### Honesty
+- `MCP_CONTEXT != AUTHORITY`
+- `MCP_CONTEXT != ATLAS_CONTEXT_FILE`
+- `CANONICAL_WRITE = NO`
+- `D149_TOUCHED = NO`
+- `AUTHENTIC_ESTATE_ROOT = UNSET`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

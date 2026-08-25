@@ -280,13 +280,13 @@ def _render_context_markdown(
     return "\n".join(lines)
 
 
-def export_agent_context(
+def _compose_agent_context_payload(
     vault: Path,
     project_id: str,
     *,
-    refresh_brief: bool = True,
+    refresh_brief: bool,
 ) -> dict[str, Any]:
-    """Export paste-ready agent context for ``project_id``."""
+    """Compose the paste-ready payload. Does not write vault files."""
     vault = vault.expanduser().resolve()
     project_id = _safe_project_id(project_id)
     if not vault.is_dir():
@@ -328,7 +328,7 @@ def export_agent_context(
         roadmap=roadmap,
         nxt=nxt,
     )
-    payload = {
+    return {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.agent-context.v1",
         "package": PACKAGE_CONTEXT,
@@ -370,8 +370,31 @@ def export_agent_context(
             "atlas_opt_wake_gate": "CLOSED",
             "lens_is_authority": False,
             "invented_facts": False,
+            "canonical_write": False,
         },
     }
+
+
+def compose_readonly_agent_context(vault: Path, project_id: str) -> dict[str, Any]:
+    """Read-only paste pack. Never writes. Never refreshes/materializes lenses."""
+    return _compose_agent_context_payload(vault, project_id, refresh_brief=False)
+
+
+def export_agent_context(
+    vault: Path,
+    project_id: str,
+    *,
+    refresh_brief: bool = True,
+) -> dict[str, Any]:
+    """Export paste-ready agent context for ``project_id``."""
+    payload = _compose_agent_context_payload(
+        vault, project_id, refresh_brief=refresh_brief
+    )
+    vault = vault.expanduser().resolve()
+    project_id = str(payload["project_id"])
+    brief = payload["brief"]
+    conversation_captures = list(payload["conversation_captures"])
+    markdown = str(payload["markdown"])
     md_path = vault / CONTEXT_DIR / f"{project_id}.md"
     json_path = vault / CONTEXT_DIR / f"{project_id}.json"
     _write_atomic(md_path, markdown.encode("utf-8"))
@@ -386,7 +409,7 @@ def export_agent_context(
         "project_id": project_id,
         "markdown_path": md_path.relative_to(vault).as_posix(),
         "json_path": json_path.relative_to(vault).as_posix(),
-        "purpose": brief.get("purpose"),
+        "purpose": brief.get("purpose") if isinstance(brief, dict) else None,
         "conversation_captures": conversation_captures,
         "generated": {"by": GENERATOR_ID},
     }
