@@ -6997,3 +6997,30 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 symlink projection files on read.
 **Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
 grant source and does not certify #427.
+
+---
+
+## AS-CODER-ALPHA-CONNECT-STATUS-001 — vault-scoped last-connect read
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle / Coder Alpha productization
+**Branch:** `cursor/atlas-autonomous-night-cycle-90c8`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED READ LENS. Does not grant merge. Does not touch D-149. Does not claim authentic O2.
+
+### Live-state note
+D-149 remains draft `#483`. Coder Alpha wraps `#478`–`#495` already cover the prior zero-arg surfaces. This package is the unused connect-receipt freshness read.
+
+### Scope
+- `atlas connect-status` read-only CLI
+- `GET /v1/connect-status`
+- Web `#/connect`
+- MCP `atlas.connect.status.read`
+
+### Honesty
+- `CONNECT_STATUS != AUTHORITY`
+- `UNKNOWN != FRESH`
+- `SKIP != TRUTH CORE`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN`

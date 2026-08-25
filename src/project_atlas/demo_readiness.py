@@ -82,6 +82,7 @@ LIVE_API_PRESENT: Final[tuple[str, ...]] = (
     "/v1/project-state",
     "/v1/conflicts",
     "/v1/kdiff",
+    "/v1/connect-status",
 )
 
 

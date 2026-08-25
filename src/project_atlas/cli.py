@@ -55,6 +55,11 @@ from project_atlas.connect import (
     resolve_bound_project_id,
     resolve_bound_vault,
 )
+from project_atlas.connect_status import (
+    ConnectStatusError,
+    build_connect_status,
+    render_connect_status_text,
+)
 from project_atlas.context_pack import (
     ContextEntry,
     ContextPackError,
@@ -320,6 +325,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "inbox",
         "obsidian",
         "review",
+        "connect-status",
     }:
         args.vault = resolve_bound_vault()
     # Single-project commands
@@ -677,6 +683,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the connect receipt JSON to stdout (sorted keys).",
+    )
+
+    connect_status_parser = subparsers.add_parser(
+        "connect-status",
+        help=(
+            "Read last connect / incremental-connect receipts "
+            "(AS-CODER-ALPHA-CONNECT-STATUS-001; UNKNOWN != FRESH)."
+        ),
+    )
+    connect_status_parser.add_argument(
+        "--vault",
+        type=Path,
+        default=None,
+        help=(
+            "Vault directory (default: .atlas/connect.json bind / .atlas-vault)."
+        ),
+    )
+    connect_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit the connect-status JSON to stdout (sorted keys).",
     )
 
     overview_parser = subparsers.add_parser(
@@ -3058,6 +3086,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 obsidian_notes = report.get("obsidian_notes") or []
                 if obsidian_notes:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
+        return EXIT_OK
+
+    if args.command == "connect-status":
+        try:
+            vault = args.vault
+            if vault is None:
+                raise ConnectStatusError("connect-status-vault-missing")
+            report = build_connect_status(vault)
+        except (ConnectStatusError, OSError) as exc:
+            _log.error("connect-status failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_connect_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "overview":

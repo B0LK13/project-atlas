@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.compat_anchor import require_compatibility_anchor
+from project_atlas.connect_status import ConnectStatusError, build_connect_status
 from project_atlas.knowledge_diff import (
     KnowledgeDiffError,
     diff_knowledge,
@@ -261,6 +262,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def connect_status(self) -> dict[str, Any]:
+        """Vault-scoped connect-status read (AS-CODER-ALPHA-CONNECT-STATUS-001)."""
+        try:
+            return build_connect_status(self.vault)
+        except ConnectStatusError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
