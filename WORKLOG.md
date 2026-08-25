@@ -7179,3 +7179,10 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-COMPAT-READ-001 (2026-08-25 night cycle)
+
+Vault-scoped REPORT READ wrap of `atlas compat verify` / `load_compatibility_anchor`.
+Does not change verify. Does not write. COMPAT != AUTHORITY; CERTIFIED != GA.
+MERGE_AUTHORIZATION = NOT_GRANTED.
+

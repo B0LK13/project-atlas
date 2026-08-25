@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.compat_read import (
+    WebCompatReadError,
+    read_compat_view,
+    render_compat_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1745,6 +1750,41 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print the verified anchor JSON to stdout.",
+    )
+    compat_report = compat_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of the AS-2.0-COMPAT-001 pin "
+            "(never writes; COMPAT != AUTHORITY; CERTIFIED != GA)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas compat report --vault /path/to/vault\n"
+            "  atlas compat report --vault /path/to/vault --json"
+        ),
+    )
+    compat_report.add_argument("--vault", type=Path, required=True)
+    compat_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the compatibility REPORT READ JSON to stdout.",
+    )
+    compat_show = compat_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `compat report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas compat show --vault /path/to/vault\n"
+            "  atlas compat show --vault /path/to/vault --json"
+        ),
+    )
+    compat_show.add_argument("--vault", type=Path, required=True)
+    compat_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the compatibility REPORT READ JSON to stdout.",
     )
 
     # AS-KF2-* Wave 1 — Knowledge Fabric namespace/entity/relationship (derived).
@@ -4287,6 +4327,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "compat":
+        if args.compat_command in {"report", "show"}:
+            try:
+                view = read_compat_view(args.vault)
+            except (WebCompatReadError, OSError) as exc:
+                _log.error("compat report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_compat_text(view), end="")
+            return EXIT_OK
         if args.compat_command == "verify":
             try:
                 anchor = load_compatibility_anchor(args.anchor)
