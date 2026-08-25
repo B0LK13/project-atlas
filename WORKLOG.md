@@ -5,6 +5,22 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-INCREMENTAL-CONNECT-READ-001 — vault-scoped skip receipt / night-cycle 0007
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle (cron 07:10Z)
+**Branch:** `cursor/atlas-autonomous-night-cycle-0007` (from live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`)
+**Mode:** BOUNDED_CODER_ALPHA_READ_WRAP. Does not mutate D-149 `#483` / `#477`. Does not merge.
+
+### Why this lane
+D-149 remains owner-held on `#483`. `#496` already wraps last-connect status. This package wraps the distinct incremental-connect receipt so operators can inspect skip vs full compile without granting owner authority. AUTHENTIC_ESTATE_ROOT is unset.
+
+### Contract
+Read-only CLI `atlas incremental-connect`, LIVE_API `GET /v1/ops/incremental-connect`, Web `#/incremental-connect`, MCP `atlas.ops.incremental-connect.read`. Never writes or runs connect. Demo stub stays UNKNOWN. ABSENT != SKIP. SKIP != VALIDATE. SKIP != AUTHORITY.
+
+### Evidence
+Focused unit tests in `tests/unit/test_as_coder_alpha_incremental_connect_read_001.py`. D149_TOUCHED=NO.
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19

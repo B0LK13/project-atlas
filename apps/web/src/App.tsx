@@ -17,6 +17,7 @@ import ContextPage from "./pages/production/ContextPage";
 import AskPage from "./pages/production/AskPage";
 import RoadmapPage from "./pages/production/RoadmapPage";
 import IntelligencePage from "./pages/production/IntelligencePage";
+import IncrementalConnectPage from "./pages/production/IncrementalConnectPage";
 
 /** Client router — production shell + design-lab. UI ≠ canonical. */
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/knowledge" element={<KnowledgePage />} />
       <Route path="/graph" element={<GraphPage />} />
       <Route path="/ops" element={<OpsHealthPage />} />
+      <Route path="/incremental-connect" element={<IncrementalConnectPage />} />
       <Route path="/command-center" element={<CommandCenterPage />} />
       <Route path="/mission-control" element={<MissionControlPage />} />
       <Route path="/workspace" element={<WorkspacePage />} />

@@ -114,6 +114,11 @@ from project_atlas.graph_resolution import (
     write_resolution_outputs,
 )
 from project_atlas.human_loop import HumanLoopError, apply_review_decision
+from project_atlas.incremental_connect_read import (
+    IncrementalConnectReadError,
+    build_incremental_connect_read,
+    render_incremental_connect_read_text,
+)
 from project_atlas.indexes import build_indexes
 from project_atlas.ingestion import ingest
 from project_atlas.kci import (
@@ -677,6 +682,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the connect receipt JSON to stdout (sorted keys).",
+    )
+
+    incremental_connect_parser = subparsers.add_parser(
+        "incremental-connect",
+        help=(
+            "Read-only vault-scoped incremental-connect receipt "
+            "(AS-CODER-ALPHA-INCREMENTAL-CONNECT-READ-001; never writes; "
+            "SKIP!=AUTHORITY; ABSENT!=SKIP)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas incremental-connect --vault .tmp/vault --json\n"
+            "  atlas incremental-connect --vault .tmp/vault\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    incremental_connect_parser.add_argument("--vault", type=Path, required=True)
+    incremental_connect_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Print the honesty-bound incremental-connect receipt JSON to stdout.",
     )
 
     overview_parser = subparsers.add_parser(
@@ -3058,6 +3085,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 obsidian_notes = report.get("obsidian_notes") or []
                 if obsidian_notes:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
+        return EXIT_OK
+
+    if args.command == "incremental-connect":
+        try:
+            report = build_incremental_connect_read(args.vault)
+        except (IncrementalConnectReadError, OSError, ValueError, TypeError) as exc:
+            _log.error("incremental-connect read failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+        else:
+            print(render_incremental_connect_read_text(report), end="")
         return EXIT_OK
 
     if args.command == "overview":
