@@ -422,6 +422,10 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
     Never clears MERGE/SECURITY/HUMAN/OWNER/RELEASE/GOVERNOR/SIGNOFF, never
     clears a CREDENTIAL gate held for a different capability, and never
     blanks unrelated dependencies.
+
+    D149-001 invariant: after consuming ``AUTHENTIC_ESTATE_ROOT``, if any
+    residual dependencies remain, ``OWNER_GATE`` must not become ``NONE``.
+    Estate availability is not authority over unrelated outstanding deps.
     """
     from project_atlas.orchestration.sdk.mission_reconciler import load_nodes, persist_nodes
 
@@ -478,8 +482,12 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
             continue
         node.DEPENDENCIES = [d for d in node.DEPENDENCIES if d != _ESTATE_DEPENDENCY]
         mutated = True
-        if node.OWNER_GATE == "CREDENTIAL":
-            # Clear CREDENTIAL only after the estate dependency itself was consumed.
+        # D149-001: estate satisfaction must not widen OWNER_GATE to NONE while
+        # residual dependencies remain. CREDENTIAL is cleared only when the
+        # dependency list is empty after AUTHENTIC_ESTATE_ROOT consumption.
+        # Residual deps (HUMAN_APPROVAL, other credentials, etc.) keep a
+        # blocking CREDENTIAL gate — do not invent typed gate remaps here.
+        if node.OWNER_GATE == "CREDENTIAL" and not node.DEPENDENCIES:
             node.OWNER_GATE = "NONE"
         if (
             node.OWNER_GATE == "NONE"
