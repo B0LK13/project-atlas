@@ -154,6 +154,59 @@ def build_stale_lib_docs_estate(root: Path) -> Path:
     return root
 
 
+def build_stale_app_docs_estate(root: Path) -> Path:
+    """README older than app/ while src/ is not newer than README.
+
+    Distinct from the mixed estate's src/-only stale-docs and the
+    #513 lib/ stale-docs fixture.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    project = root / "stale-app-docs"
+    _init_repo(project, readme="# Old app docs\n")
+    app = project / "app"
+    app.mkdir()
+    (app / "main.py").write_text("x = 1\n", encoding="utf-8")
+    _git(project, "add", ".")
+    _git(project, "commit", "-m", "app")
+    os.utime(project / "README.md", (1_000_000, 1_000_000))
+    os.utime(project / "src" / "app.py", (1_000_000, 1_000_000))
+    os.utime(app / "main.py", (2_000_000_000, 2_000_000_000))
+    return root
+
+
+def build_malicious_build_sh_name_estate(root: Path) -> Path:
+    """Name-based malice: malicious-build.sh present, never executed.
+
+    Distinct from the mixed estate's build.sh containing 'rm -rf'.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    project = root / "named-malice"
+    _init_repo(project, readme="# Named malice\n")
+    script = project / "malicious-build.sh"
+    script.write_text("#!/bin/sh\necho should-not-run\n", encoding="utf-8")
+    script.chmod(0o755)
+    _git(project, "add", ".")
+    _git(project, "commit", "-m", "malice-name")
+    return root
+
+
+def build_content_only_secret_estate(root: Path) -> Path:
+    """Secret-shaped content in a non-sensitive filename.
+
+    Distinct from the mixed estate's .env filename match.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    project = root / "content-secret"
+    _init_repo(project, readme="# Notes\n")
+    (project / "notes.txt").write_text(
+        "-----BEGIN RSA PRIVATE KEY-----\nNOT_A_REAL_KEY_MATERIAL\n",
+        encoding="utf-8",
+    )
+    _git(project, "add", ".")
+    _git(project, "commit", "-m", "notes")
+    return root
+
+
 def build_apps_monorepo_estate(root: Path) -> Path:
     """Clean git monorepo detected via apps/ (not packages/).
 
