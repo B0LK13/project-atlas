@@ -111,4 +111,4 @@ jobs:
           PYTHONPATH: src
         # --no-cov: pyproject addopts enables Core coverage; CP suite must not inherit it
         # (avoids module-not-imported / no-data-collected noise without changing Core gates).
-        run: python -m pytest atlas-vault-documentation/tests --tb=short -q --no-cov
+        run: python -m pytest atlas-vault-documentation/tests atlas-vault-documentation/skills/atlas-golden-estate-curator/tests --tb=short -q --no-cov

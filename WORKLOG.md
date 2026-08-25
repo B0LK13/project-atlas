@@ -5,6 +5,33 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-194 — Atlas Golden Estate Curator skill
+
+**Date:** 2026-08-25
+**Directive:** D-194-CLOUD Lane B
+**Branch:** `cursor/atlas-golden-estate-skill-b8f1`
+**Base:** `main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`
+**Mode:** Isolated test-estate infrastructure. Does not mutate PR #511.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`AUTHENTIC_D_DRIVE_TEST = LOCAL_WINDOWS_REQUIRED`.
+
+### What landed
+- Reusable skill `atlas-vault-documentation/skills/atlas-golden-estate-curator/`
+- Read-only curator (`DISCOVER_ONLY` → OWNER_GATE)
+- Synthetic fixture estate + adversarial tests
+- Windows D:\\ runbook (cloud ≠ D-drive pilot)
+
+### Honesty
+- COPY / GOLDENIZE not implemented
+- Secrets never echoed
+- Source mutations = 0 in discover mode
+- Cloud fixture certification is not authentic D:\\ validation
+
+### Validation
+`pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests --no-cov` — 19 passed.
+
+---
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
