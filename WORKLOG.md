@@ -7179,3 +7179,11 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-OPT-GATE-READ-001 (2026-08-25 night cycle)
+
+Vault-scoped REPORT READ wrap of AS-OPT-GATE-001 sealed policies.
+Does not run experiments, seal envelopes, or wake OPT.
+OPT-GATE != OPT; PROMOTE_ELIGIBLE != MERGED; WAKE_GATE = CLOSED.
+MERGE_AUTHORIZATION = NOT_GRANTED.
+

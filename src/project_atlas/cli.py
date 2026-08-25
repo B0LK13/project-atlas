@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.opt_gate_read import (
+    WebOptGateReadError,
+    read_opt_gate_view,
+    render_opt_gate_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2055,6 +2060,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Bound subject+field fanout (default 500; max 5000).",
     )
     kdiff_parser.add_argument("--json", action="store_true")
+    # AS-CODER-ALPHA-OPT-GATE-READ-001 -- vault-scoped AS-OPT-GATE-001 wrap.
+    opt_gate_parser = subparsers.add_parser(
+        "opt-gate",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of the AS-OPT-GATE-001 sealed policy surface "
+            "(AS-CODER-ALPHA-OPT-GATE-READ-001; never writes; never wakes OPT; "
+            "OPT-GATE != OPT; PROMOTE_ELIGIBLE != MERGED)."
+        ),
+    )
+    opt_gate_sub = opt_gate_parser.add_subparsers(dest="opt_gate_command", required=True)
+    opt_gate_report = opt_gate_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read the sealed opt-gate policies "
+            "(never runs an experiment; WAKE_GATE = CLOSED)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas opt-gate report --vault /path/to/vault\n"
+            "  atlas opt-gate report --vault /path/to/vault --json"
+        ),
+    )
+    opt_gate_report.add_argument("--vault", type=Path, required=True)
+    opt_gate_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the opt-gate REPORT READ JSON to stdout.",
+    )
+    opt_gate_show = opt_gate_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `opt-gate report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas opt-gate show --vault /path/to/vault\n"
+            "  atlas opt-gate show --vault /path/to/vault --json"
+        ),
+    )
+    opt_gate_show.add_argument("--vault", type=Path, required=True)
+    opt_gate_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the opt-gate REPORT READ JSON to stdout.",
+    )
     # AS-2.2-ASK2-001 — Ask Atlas 2 answer lens (project-scoped hybrid + p2 compiler).
     ask2_parser = subparsers.add_parser(
         "ask2",
@@ -4649,6 +4700,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"truncated: {report['truncated']}")
             print(f"truth_boundary: {report['truth_boundary']}")
         return EXIT_OK
+    if args.command == "opt-gate":
+        if args.opt_gate_command in {"report", "show"}:
+            try:
+                view = read_opt_gate_view(args.vault)
+            except (WebOptGateReadError, OSError) as exc:
+                _log.error("opt-gate report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_opt_gate_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown opt-gate command: {args.opt_gate_command}"
+        )
     if args.command == "ask2":
         kinds = tuple(args.kind_args) if args.kind_args else ("concept", "claim")
         try:

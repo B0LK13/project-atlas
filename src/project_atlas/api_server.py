@@ -492,6 +492,18 @@ def make_handler(
                 except AppServiceError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/opt-gate/report":
+                try:
+                    self._send(200, service.opt_gate_view())
+                except AppServiceError as exc:
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-OPT-GATE-READ-001",
+                        },
+                    )
+                return
             routes: dict[str, Any] = {
                 "/health": lambda: service.health(),
                 "/v1/health": lambda: service.health(),
