@@ -138,6 +138,49 @@ _QUESTION_FUNCTION_WORDS = frozenset(
         "would",
     }
 )
+# Closed NL attribute fillers. These are not discriminative claim nouns
+# (D-150 leftover nouns such as target/forecast/vault/ledger stay required).
+_QUESTION_ATTRIBUTE_FILLERS = frozenset(
+    {
+        "claim",
+        "claimed",
+        "claims",
+        "current",
+        "currently",
+        "major",
+        "minor",
+        "run",
+        "running",
+        "runs",
+        "use",
+        "used",
+        "uses",
+        "using",
+        "version",
+        "versions",
+    }
+)
+# Closed entity aliases so a natural-language kind ("database") can be
+# satisfied by an evidenced engine token. Do not alias D-150 distractors.
+_DATABASE_SUPPORT_TOKENS = frozenset(
+    {
+        "database",
+        "databases",
+        "datastore",
+        "db",
+        "mongodb",
+        "mysql",
+        "postgres",
+        "postgresql",
+        "sqlite",
+    }
+)
+_TERM_ALIASES: dict[str, frozenset[str]] = {
+    "database": _DATABASE_SUPPORT_TOKENS,
+    "databases": _DATABASE_SUPPORT_TOKENS,
+    "datastore": _DATABASE_SUPPORT_TOKENS,
+    "db": _DATABASE_SUPPORT_TOKENS,
+}
 
 Status = Literal["known", "unknown", "conflict"]
 
@@ -219,7 +262,9 @@ def _collect_record_text(value: Any, *, depth: int = 0) -> list[str]:
     return []
 
 
-def _question_claim_terms(question: str) -> frozenset[str]:
+def _question_claim_terms(
+    question: str, *, project_id: str | None = None
+) -> frozenset[str]:
     """Extract explicit, discriminative claim terms from a natural-language query.
 
     Retrieval ranking is deliberately broad; it can return a record merely
@@ -227,12 +272,32 @@ def _question_claim_terms(question: str) -> frozenset[str]:
     every non-function term asserted by the question must be present in the
     candidate's substantive record text.  An empty term set means the question
     has no discriminative claim content and cannot ground an answer.
+
+    Project-id tokens and a closed attribute-filler set are not claim nouns
+    (D-178 / ASK2_NO_GROUNDING). D-150 leftover specific nouns stay required.
     """
+    scope_tokens = frozenset(tokenize(project_id)) if project_id else frozenset()
     return frozenset(
         token
         for token in tokenize(question)
-        if token not in _QUESTION_FUNCTION_WORDS and len(token) > 1
+        if token not in _QUESTION_FUNCTION_WORDS
+        and token not in _QUESTION_ATTRIBUTE_FILLERS
+        and token not in scope_tokens
+        and len(token) > 1
     )
+
+
+def _terms_supported(
+    required_terms: frozenset[str], record_tokens: frozenset[str]
+) -> bool:
+    """True when every required term is present or closed-alias-supported."""
+    for term in required_terms:
+        if term in record_tokens:
+            continue
+        aliases = _TERM_ALIASES.get(term)
+        if aliases is None or aliases.isdisjoint(record_tokens):
+            return False
+    return True
 
 
 def _record_tokens(hit: RetrievalResult) -> frozenset[str]:
@@ -256,7 +321,12 @@ def _build_candidate(
     except ValueError:
         return None
     hit = next((item for item in hits if item.record_id == record_id), None)
-    if hit is None or not required_terms.issubset(_record_tokens(hit)):
+    if hit is None:
+        return None
+    # Exact D-150 subset check first; closed aliases are a second, narrower gate.
+    if not required_terms.issubset(_record_tokens(hit)) and not _terms_supported(
+        required_terms, _record_tokens(hit)
+    ):
         return None
     return {
         "record_type": kind,
@@ -421,7 +491,7 @@ def ask_atlas_2(
         raise Ask2Error(f"ask2-retrieval-cap-invalid:{retrieval_cap!r}")
 
     retriever = VaultRetriever(vault)
-    required_terms = _question_claim_terms(q)
+    required_terms = _question_claim_terms(q, project_id=scope)
     candidates: list[dict[str, Any]] = []
     total_results = 0
     for kind in probed:

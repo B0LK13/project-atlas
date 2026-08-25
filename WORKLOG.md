@@ -5,6 +5,45 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-178 P1-B — ASK2_NO_GROUNDING (NL claim-term grounding)
+
+**Date:** 2026-08-25
+**Package:** D-178 / ASK2_NO_GROUNDING
+**Branch:** `cursor/ask2-no-grounding-b38f`
+**Base:** `origin/main` `a17949c6df9b4d004ffe03eb47b0934e3735204d` / tree `e646392c12fa525dcfd017c33e1b6226c5bfb40a`
+**Mode:** Core Ask2 remediation carrier. Separate from #505 harness. Does not merge.
+
+### Why
+Harbor compile + `/v1/conflicts` showed PostgreSQL 15 vs 16, but `atlas ask2`
+returned `status=unknown`, `ANSWER=null`, `unresolved_count=0`. Cross-surface
+truth inconsistency.
+
+### Root cause
+Grounding required every leftover question token to be a subset of record
+text. NL demo questions leftover `{postgresql, major, version, harbor, api, use}`
+against claim text `PostgreSQL 16`. Hits existed; all candidates dropped;
+conflicts never entered the compiler.
+
+### Fix
+Keep D-150 term-subset entailment. Additionally strip project-id tokens and a
+closed attribute-filler set, plus closed database-engine aliases. Compiler
+conflict sidecars then stamp `status=conflict` when unresolved claims ground.
+
+### Validation
+```
+.venv/bin/python -m pytest tests/unit/test_d178_ask2_grounding_matrix.py \
+  tests/unit/test_d150_ask2_adversarial_grounding_matrix.py \
+  tests/unit/test_as_2_2_ask2_answer_lens_001.py -q
+# 60 passed
+```
+
+### Honesty
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Independent ADV/IV still required on this exact tip
+- Does not claim `FULL_LIVE_DEMO_READY`
+
+---
+
 ## AS-CORE-007-R1 — AX-AUTH-005 consume fail-closed
 
 **Date:** 2026-08-25
