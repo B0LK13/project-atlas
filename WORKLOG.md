@@ -5,6 +5,34 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## ATLAS-GOLDEN-ESTATE-INVENTORY-HONESTY-001
+
+**Date:** 2026-08-25
+**Directive:** ATLAS-GOLDEN-ESTATE-INVENTORY-HONESTY-001 (Lane A)
+**Branch:** `cursor/atlas-golden-estate-inventory-honesty-7f43`
+**Base:** `origin/cursor/atlas-golden-estate-qualify-fixtures-f4d3` `814a1e0b` / tree `08b503b5` (PR #513)
+**Mode:** Isolated successor of #513 only. Does not mutate #511, #512, or Core atlas3.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`DEFAULT_MODE = DISCOVER_ONLY`.
+`COPY/GOLDENIZE/AUTHENTIC D:\\ = OWNER_ONLY`.
+
+### What landed
+- `qualify()`: `stale_docs` clears `golden_candidate` (QUALIFICATION.md; closes #513 dual-class leak)
+- Mixed-estate inventory honesty tests (candidate_table, disk_estimate, generated_directories, phase_reached)
+- Adversarial fail-closed: INDEPENDENT_VERIFY, SOURCE_MODIFY, HISTORY_REWRITE, AUTO_MERGE, UNSUPPORTED_MODE
+- Isolated builders for untested paths: `app/` stale, `malicious-build.sh` name, content-only secret
+
+### Honesty
+- `source_mutations == 0`
+- `copy_authorized=false` / `goldenize_authorized=false` / `owner_gate=STOP`
+- `CLOUD_FIXTURE != AUTHENTIC_D_DRIVE`
+- Secrets metadata only
+
+### Validation
+`/workspace/.venv/bin/python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests --tb=short -v --no-cov` — 32 passed.
+
+---
+
 ## D-194 — Atlas Golden Estate Curator skill
 
 **Date:** 2026-08-25
