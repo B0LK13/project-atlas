@@ -19,6 +19,7 @@ from project_atlas.app_service import AppService, AppServiceError, open_app_serv
 from project_atlas.authz import OperatorProfile, default_operator
 from project_atlas.compat_anchor import require_compatibility_anchor
 from project_atlas.mcp_registry import DEFAULT_TOOLS
+from project_atlas.revocations_read import build_revocations_read
 
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
@@ -145,6 +146,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.ops.revocations.read": lambda: build_revocations_read(service.vault),
     }
 
 

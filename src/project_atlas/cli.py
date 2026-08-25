@@ -230,6 +230,11 @@ from project_atlas.receipt_revocation import (
     receipt_trust_disposition,
     revoke_receipt,
 )
+from project_atlas.revocations_read import (
+    RevocationsReadError,
+    build_revocations_read,
+    render_revocations_read_text,
+)
 from project_atlas.runtime_22 import (
     Runtime22Error,
 )
@@ -1650,6 +1655,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help="Print disposition JSON to stdout.",
+    )
+
+    revocations_parser = subparsers.add_parser(
+        "revocations",
+        help=(
+            "Read-only vault-scoped receipt-revocation list "
+            "(AS-CODER-ALPHA-REVOCATIONS-READ-001; never writes; "
+            "EMPTY!=HEALTHY; ABSENT!=FABRICATED)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas revocations --vault .tmp/vault --json\n"
+            "  atlas revocations --vault .tmp/vault --limit 20\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    revocations_parser.add_argument("--vault", type=Path, required=True)
+    revocations_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Print the honesty-bound revocation list JSON to stdout.",
+    )
+    revocations_parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Maximum revocation rows to return (1-500; default 100).",
     )
 
     # AS-INT-012 — schema compatibility / migration tooling (operational).
@@ -4093,6 +4126,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(  # pragma: no cover
             f"unknown revocation command: {args.revocation_command}"
         )
+
+    if args.command == "revocations":
+        try:
+            report = build_revocations_read(args.vault, limit=args.limit)
+        except (RevocationsReadError, OSError, ValueError, TypeError) as exc:
+            _log.error("revocations read failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True) + "\n", end="")
+        else:
+            print(render_revocations_read_text(report), end="")
+        return EXIT_OK
 
     if args.command == "schema":
         if args.schema_command == "compat":

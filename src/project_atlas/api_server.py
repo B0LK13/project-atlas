@@ -41,6 +41,10 @@ from project_atlas.conversation_capture import (
 from project_atlas.mcp_server import list_mcp_tools
 from project_atlas.obs_live import build_live_observability_receipt
 from project_atlas.ops_receipts import inventory_ops_receipts
+from project_atlas.revocations_read import (
+    RevocationsReadError,
+    build_revocations_read,
+)
 from project_atlas.web_actions import (
     WebActionError,
     list_recent_actions,
@@ -347,6 +351,20 @@ def make_handler(
                 except ValueError as exc:
                     self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
                 return
+            if path == "/v1/ops/revocations":
+                try:
+                    limit = _parse_limit(qs, default=100)
+                except ApiServerError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                    return
+                try:
+                    self._send(
+                        200,
+                        build_revocations_read(service.vault, limit=limit),
+                    )
+                except (RevocationsReadError, ValueError) as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path in {
                 "/v1/intelligence/evidence",
                 "/v1/intelligence/conflicts",
@@ -520,6 +538,7 @@ def make_handler(
                     "ask_atlas_live": True,
                     "obs_live": True,
                     "ops_receipts": True,
+                    "ops_revocations_live": True,
                     "mission_live": True,
                     "workspace_live": True,
                     "conflicts_live": True,

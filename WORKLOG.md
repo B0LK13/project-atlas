@@ -5,6 +5,22 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-REVOCATIONS-READ-001 — vault-scoped revocation list / night-cycle 030c
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle (cron 06:55Z)
+**Branch:** `cursor/atlas-autonomous-night-cycle-030c` (from live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`)
+**Mode:** BOUNDED_CODER_ALPHA_READ_WRAP. Does not mutate D-149 `#483` / `#477`. Does not merge.
+
+### Why this lane
+Prior night cycle named the unused high-value wrap as a vault-scoped revocation list. D-149 remains owner-held on `#483`. AUTHENTIC_ESTATE_ROOT is unset. This package wraps `list_revocations` with honesty: ABSENT != FABRICATED, EMPTY != HEALTHY, REVOCATION != AUTHORITY.
+
+### Contract
+Read-only CLI `atlas revocations`, LIVE_API `GET /v1/ops/revocations`, Web `#/revocations`, MCP `atlas.ops.revocations.read`. No revoke/write surface. Demo stub stays UNKNOWN. Existing `atlas revocation list` JSON contract unchanged.
+
+### Evidence
+Focused unit tests in `tests/unit/test_as_coder_alpha_revocations_read_001.py`. D149_TOUCHED=NO.
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
