@@ -482,13 +482,16 @@ def refresh_authentic_o2_node_states(repo_root: Path) -> list[str]:
             continue
         node.DEPENDENCIES = [d for d in node.DEPENDENCIES if d != _ESTATE_DEPENDENCY]
         mutated = True
-        # D149-001: estate satisfaction must not widen OWNER_GATE to NONE while
-        # residual dependencies remain. CREDENTIAL is cleared only when the
+        # D149-001: estate satisfaction must not leave OWNER_GATE as NONE while
+        # residual dependencies remain. CREDENTIAL clears to NONE only when the
         # dependency list is empty after AUTHENTIC_ESTATE_ROOT consumption.
-        # Residual deps (HUMAN_APPROVAL, other credentials, etc.) keep a
-        # blocking CREDENTIAL gate — do not invent typed gate remaps here.
-        if node.OWNER_GATE == "CREDENTIAL" and not node.DEPENDENCIES:
-            node.OWNER_GATE = "NONE"
+        # Pre-existing NONE + residual (inconsistent) is restored to CREDENTIAL
+        # so UNRESOLVED_DEPENDENCY ⇒ OWNER_GATE != NONE always holds here.
+        if not node.DEPENDENCIES:
+            if node.OWNER_GATE == "CREDENTIAL":
+                node.OWNER_GATE = "NONE"
+        elif node.OWNER_GATE == "NONE":
+            node.OWNER_GATE = "CREDENTIAL"
         if (
             node.OWNER_GATE == "NONE"
             and not node.DEPENDENCIES

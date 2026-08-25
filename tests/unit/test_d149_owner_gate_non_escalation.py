@@ -936,3 +936,25 @@ def test_d149_001_repeated_refresh_idempotent_with_residual(tmp_path: Path) -> N
     assert _snapshot(load_nodes(root)["id"]) == snap
     assert snap["OWNER_GATE"] == "CREDENTIAL"
     assert snap["DEPENDENCIES"] == ["HUMAN_APPROVAL"]
+
+def test_d149_001_none_gate_with_residual_restored_to_credential(tmp_path: Path) -> None:
+    """Absolute invariant: residual deps must not leave OWNER_GATE as NONE."""
+    estate = _init_estate(tmp_path / "estate")
+    root = _init_atlas_repo(tmp_path, estate)
+    persist_nodes(
+        root,
+        {
+            "none_res": _o2_node(
+                "none_res",
+                owner_gate="NONE",
+                deps=["AUTHENTIC_ESTATE_ROOT", "HUMAN_APPROVAL"],
+                status="BLOCKED_OWNER",
+            )
+        },
+    )
+    refresh_authentic_o2_node_states(root)
+    after = load_nodes(root)["none_res"]
+    assert after.DEPENDENCIES == ["HUMAN_APPROVAL"]
+    assert after.OWNER_GATE != "NONE"
+    assert after.OWNER_GATE == "CREDENTIAL"
+    assert after.status == "BLOCKED_OWNER"
