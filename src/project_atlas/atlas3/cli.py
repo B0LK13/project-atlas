@@ -120,7 +120,7 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
 
     compatibility = subparsers.add_parser(
         "compatibility",
-        help="Atlas 3 2.x→3.x compatibility prover (additive; no truth write).",
+        help="Atlas 3 2.x-to-3.x compatibility prover (additive; no truth write).",
     )
     compatibility.add_argument("--vault", type=Path, required=True)
     compatibility.add_argument("--json", action="store_true")

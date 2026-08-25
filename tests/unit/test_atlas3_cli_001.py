@@ -17,6 +17,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
     from project_atlas.cli import build_parser
 
     text = build_parser().format_help()
+    text.encode("cp1252")
     for name in (
         "pulse",
         "start",
