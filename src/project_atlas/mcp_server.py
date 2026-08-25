@@ -23,10 +23,15 @@ from project_atlas.mcp_registry import DEFAULT_TOOLS
 PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
+ROADMAP_PACKAGE_ID = "AS-CODER-ALPHA-ROADMAP-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
     "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+ROADMAP_TRUTH_BOUNDARY = (
+    "MCP ROADMAP != AUTHORITY / UNKNOWN VALID / NO WRITE / "
+    "VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL / ROADMAP != CANONICAL"
 )
 
 # Allow-listed request keys for JSON-line invoke (no path/write/args surface).
@@ -134,6 +139,101 @@ def read_vault_briefs(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_roadmap_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "status": "unknown",
+        "summary": None,
+        "you_are_here": None,
+        "next_unlock": None,
+        "items": [],
+        "blockers": [],
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "roadmap_is_canonical": False,
+            "fabricated_fields": False,
+            "canonical_write": False,
+            "owner_capability_granted": False,
+        },
+    }
+
+
+def _roadmap_honesty(payload: Mapping[str, Any] | None) -> dict[str, Any]:
+    honesty = {
+        "unknown_is_valid": True,
+        "lens_is_authority": False,
+        "mcp_is_authority": False,
+        "roadmap_is_canonical": False,
+        "derived_status_is_authority": False,
+        "ui_is_canonical": False,
+        "fabricated_fields": False,
+        "canonical_write": False,
+        "owner_capability_granted": False,
+    }
+    if isinstance(payload, Mapping):
+        raw = payload.get("honesty")
+        if isinstance(raw, Mapping):
+            for key, value in raw.items():
+                if key not in honesty:
+                    honesty[str(key)] = value
+    return honesty
+
+
+def read_vault_roadmaps(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped roadmap read. Does not materialize answers."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            lens = service.roadmap(pid)
+        except AppServiceError:
+            rows.append(_unknown_roadmap_row(pid))
+            continue
+        rows.append(
+            {
+                "project_id": pid,
+                "roadmap": {
+                    "project_id": pid,
+                    "available": bool(lens.get("available")),
+                    "status": lens.get("status"),
+                    "summary": lens.get("summary"),
+                    "you_are_here": lens.get("you_are_here"),
+                    "next_unlock": lens.get("next_unlock"),
+                    "items": list(lens.get("items") or []),
+                    "blockers": list(lens.get("blockers") or []),
+                    "unknowns": list(lens.get("unknowns") or []),
+                    "honesty": _roadmap_honesty(lens),
+                },
+            }
+        )
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": ROADMAP_PACKAGE_ID,
+        "truth_boundary": ROADMAP_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "roadmaps": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "canonical_write": False,
+            "auto_execution": False,
+            "owner_capability_granted": False,
+            "roadmap_is_canonical": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -145,6 +245,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.roadmap.read": lambda: read_vault_roadmaps(service),
     }
 
 

@@ -5,6 +5,27 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-ROADMAP-MCP-001 — vault-scoped `atlas.roadmap.read`
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-e7ea` (from live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`)
+**Mode:** THIN_READ_WRAP. Does not mutate D-149 / PR #483. Does not merge.
+
+### Why this lane
+CLI + GET `/v1/roadmap` + Web `#/roadmap` already exist on main. Night-cycle
+drafts #478–#489 wrap other Coder Alpha lenses as MCP. Roadmap was the remaining
+unique unused wrap (no open PR, no MCP tool). Authentic estate availability is
+not an owner grant; this package hard-overlays `owner_capability_granted=false`.
+
+### Contract
+Zero-arg vault-scoped read. `service.roadmap()` only (no `materialize_roadmap_lenses`).
+UNKNOWN stays UNKNOWN. Write tools remain denied. `D149_TOUCHED=NO`.
+
+### Evidence
+`docs/AS-CODER-ALPHA-ROADMAP-MCP-001.md`
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
