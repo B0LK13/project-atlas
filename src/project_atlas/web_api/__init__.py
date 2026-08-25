@@ -79,7 +79,7 @@ __all__ = [
     "read_project_state",
     "read_provider",
     "read_source_health",
-    "render_provider_text",
     "read_status",
     "read_vault_health",
+    "render_provider_text",
 ]

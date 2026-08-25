@@ -1836,6 +1836,11 @@ def build_parser() -> argparse.ArgumentParser:
             "(AS-2.0-PROV-001 / AS-CODER-ALPHA-PROVIDER-READ-001; "
             "disabled-by-default; never authority; never live SDK)."
         ),
+        description=(
+            "Provider adapter registry, quarantine helpers, and persisted-report read "
+            "(AS-2.0-PROV-001 / AS-CODER-ALPHA-PROVIDER-READ-001; "
+            "disabled-by-default; never authority; never live SDK)."
+        ),
     )
     provider_sub = provider_parser.add_subparsers(
         dest="provider_command", required=True

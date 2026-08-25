@@ -7222,3 +7222,9 @@ enable live SDKs or dispatch generate.
 - kci / lifecycle / xproj / schema-compat / #511 (do not retouch)
 - Live SDK enablement
 - `atlas.provider.generate`
+
+### Local verification
+- Focused provider-read + mcp-adv: 42 passed (`--no-cov`; 33 provider-read + 9 mcp-adv)
+- Existing AS-2.0-PROV-001 writer tests: 6 passed (unchanged)
+- ruff on touched modules: pass
+- mypy on touched modules: pass
