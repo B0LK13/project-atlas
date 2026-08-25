@@ -383,7 +383,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CONTEXT-MCP-001 zero-arg `atlas.context.read` MCP tool (vault-scoped Coder Alpha agent context; MCP!=authority; no write; home hub Context/Time Machine/Ask/Knowledge; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-CONFLICTS-MCP-001 zero-arg `atlas.conflicts.read` MCP tool (vault-scoped unresolved conflicts; MCP!=authority; no resolution; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-KDIFF-MCP-001 zero-arg `atlas.kdiff.read` MCP tool (vault-scoped validity-catalog inventory; kdiff!=authority; no invented as-of; MERGE_AUTHORIZATION NOT_GRANTED)
-- [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
+- [x] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest (CLOSED on live main `f0e0c979`; independent IV PASS 21/21; MERGE_AUTHORIZATION already on main; checkbox was stale)
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
