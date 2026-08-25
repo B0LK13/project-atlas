@@ -25,6 +25,7 @@ PACKAGE_ID = "AS-2.1-MCP-SERVER-001"
 ADV_PACKAGE_ID = "AS-2.1-MCP-ADV-001"
 BRIEF_PACKAGE_ID = "AS-2.1-MCP-BRIEF-001"
 CONTEXT_PACKAGE_ID = "AS-CODER-ALPHA-CONTEXT-MCP-001"
+CONFLICTS_PACKAGE_ID = "AS-CODER-ALPHA-CONFLICTS-MCP-001"
 TRUTH_BOUNDARY = "MCP_READ LIVE != WRITE / != AUTHORITY / != ESTATE SCAN"
 BRIEF_TRUTH_BOUNDARY = (
     "MCP BRIEF != AUTHORITY / UNKNOWN VALID / NO WRITE / "
@@ -32,6 +33,10 @@ BRIEF_TRUTH_BOUNDARY = (
 )
 CONTEXT_TRUTH_BOUNDARY = (
     "MCP CONTEXT != AUTHORITY / != ATLAS_CONTEXT_FILE / UNKNOWN VALID / "
+    "NO WRITE / VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
+)
+CONFLICTS_TRUTH_BOUNDARY = (
+    "MCP CONFLICTS != AUTHORITY / != RESOLUTION / UNKNOWN VALID / "
     "NO WRITE / VAULT-SCOPED != PORTFOLIO IMPLICIT-ALL"
 )
 
@@ -216,6 +221,72 @@ def read_vault_contexts(service: AppService) -> dict[str, Any]:
     }
 
 
+def _unknown_conflicts_row(project_id: str) -> dict[str, Any]:
+    return {
+        "project_id": project_id,
+        "available": False,
+        "conflict_count": 0,
+        "conflicts": [],
+        "honesty": {
+            "unknown_is_valid": True,
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "resolution_selected": False,
+            "fabricated_fields": False,
+        },
+    }
+
+
+def read_vault_conflicts(service: AppService) -> dict[str, Any]:
+    """Zero-arg vault-scoped unresolved-conflict read. Never resolves."""
+    rows: list[dict[str, Any]] = []
+    for project in service.projects():
+        pid = str(project.get("project_id") or "").strip()
+        if not pid:
+            continue
+        try:
+            payload = service.conflicts(pid)
+            rows.append(
+                {
+                    "project_id": pid,
+                    "conflicts": {
+                        "project_id": pid,
+                        "available": True,
+                        "conflict_count": int(payload.get("conflict_count") or 0),
+                        "conflicts": list(payload.get("conflicts") or []),
+                        "honesty": {
+                            "unknown_is_valid": True,
+                            "lens_is_authority": False,
+                            "mcp_is_authority": False,
+                            "resolution_selected": False,
+                            "fabricated_fields": False,
+                        },
+                    },
+                }
+            )
+        except AppServiceError:
+            rows.append({"project_id": pid, "conflicts": _unknown_conflicts_row(pid)})
+    rows.sort(key=lambda row: str(row["project_id"]))
+    return {
+        "schema_version": 1,
+        "package_id": CONFLICTS_PACKAGE_ID,
+        "truth_boundary": CONFLICTS_TRUTH_BOUNDARY,
+        "project_count": len(rows),
+        "projects": rows,
+        "honesty": {
+            "lens_is_authority": False,
+            "mcp_is_authority": False,
+            "unknown_is_valid": True,
+            "fabricated_fields": False,
+            "resolution_selected": False,
+            "request_contains_project": False,
+            "zero_arg_vault_scope": True,
+            "portfolio_implicit_all": False,
+            "auto_execution": False,
+        },
+    }
+
+
 def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[str, Any]]]:
     """Map allow-listed tool ids to AppService callables."""
     return {
@@ -228,6 +299,7 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
         "atlas.context.read": lambda: read_vault_contexts(service),
+        "atlas.conflicts.read": lambda: read_vault_conflicts(service),
     }
 
 

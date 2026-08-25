@@ -7020,3 +7020,23 @@ compose path and lists Context / Time Machine / Ask / Knowledge on the home hub.
 - `D149_TOUCHED = NO`
 - `AUTHENTIC_ESTATE_ROOT = UNSET`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+---
+
+## AS-CODER-ALPHA-CONFLICTS-MCP-001 — vault-scoped unresolved conflict MCP
+
+**Date:** 2026-08-25
+**Directive:** Autonomous night cycle 2026-08-25-0155 successor
+**Branch:** `cursor/atlas-autonomous-night-cycle-ee6c`
+**Mode:** CODER_ALPHA_TRUTH_SURFACE. Does not touch D-149. Does not merge.
+
+### Why
+Time Machine / conflicts already exist as LIVE_API + web. Agents had no
+zero-arg MCP read for unresolved conflicts. This package projects persisted
+conflicts only and never selects a winner.
+
+### Honesty
+- `MCP_CONFLICTS != AUTHORITY`
+- `RESOLUTION_SELECTED = NO`
+- `D149_TOUCHED = NO`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

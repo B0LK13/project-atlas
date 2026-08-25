@@ -77,6 +77,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha agent context (vault-scoped, read-only, no write)",
     ),
     McpTool(
+        "atlas.conflicts.read",
+        "vault-read",
+        True,
+        "allow-list candidate; unresolved conflicts (vault-scoped, read-only, no resolution)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,
