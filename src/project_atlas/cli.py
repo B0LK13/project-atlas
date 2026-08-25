@@ -3363,7 +3363,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             context = report.get("context") or {}
             print(f"  context:  {context.get('markdown_path')}")
-            freshness = report.get("freshness") if isinstance(report.get("freshness"), dict) else {}
+            raw_freshness = report.get("freshness")
+            freshness: dict[str, Any] = (
+                raw_freshness if isinstance(raw_freshness, dict) else {}
+            )
             print(f"  freshness: {freshness.get('status', 'UNKNOWN')}")
             warning = report.get("resume_warning")
             if warning:
