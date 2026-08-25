@@ -7209,3 +7209,10 @@ certification.
 - `MCP != AUTHORITY`
 - `WRITE_APPLIED=false`
 
+### Local verification (implementer; IMPLEMENTER != VERIFIER)
+- Focused pytest: 52 passed
+  (`test_as_coder_alpha_obs_read_001`, `test_as_2_1_mcp_adv_001`,
+  `test_as_2_1_mcp_brief_001`, `test_as_2_1_adv_live_001`,
+  `test_as_2_1_obs_perf_001`, `test_as_2_1_ops_receipt_adapter`)
+- ruff + mypy on touched modules: pass
+

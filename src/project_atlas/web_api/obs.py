@@ -19,12 +19,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Final
 
-from project_atlas.obs_live import (
-    PACKAGE_ID as SOURCE_PACKAGE,
-    build_live_observability_receipt,
-)
+from project_atlas.obs_live import build_live_observability_receipt
 
 PACKAGE_ID: Final[str] = "AS-CODER-ALPHA-OBS-READ-001"
+SOURCE_PACKAGE: Final[str] = "AS-2.1-OBS-LIVE-001"
 GENERATOR_ID: Final[str] = "atlas-coder-alpha-obs-read-001"
 SCHEMA_ID: Final[str] = "atlas.coder-alpha.obs-read.v1"
 TRUTH_BOUNDARY: Final[str] = (
