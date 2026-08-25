@@ -38,6 +38,22 @@ exact commands run, exact results, deviations, and remaining risks.
 ### Validation
 See subsequent pytest / ruff / mypy results on this branch.
 
+### D-196 residual read-path (night cycle)
+
+**Date:** 2026-08-25
+**Parent HEAD:** `3afd1e184ed535a3dfa865ecf183ab71739033bf`
+**Mode:** SAME PACKAGE / SAME BRANCH. No merge.
+
+D-196 closed persist-path P1-A and ledger P1-B. Independent ADV still
+reproduced:
+
+- CLI / `search_memory` emitted foreign items from a planted mixed
+  `reconcile.json` (`OUTPUT_PROJECT_SCOPE` leak)
+- Forged `event_id` with intact `content_hash` was accepted
+
+Remediation: consume-path project scope on search/CLI; bind `event_id` to
+content hash. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
 ---
 
 ## D-191 / D-192 — Atlas 3.0 program inception + cross-LLM memory
