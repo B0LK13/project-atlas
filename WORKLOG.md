@@ -7179,3 +7179,37 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## AS-CODER-ALPHA-XPROJ-READ-001 — vault-scoped xproj REPORT READ
+
+**Date:** 2026-08-25
+**Branch:** `cursor/atlas-autonomous-night-cycle-xproj-7f43` (from `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`)
+**Mode:** CODER_ALPHA_READ_SURFACE. Does not mutate D-149. Does not merge. Does not touch `atlas3/`. IMPLEMENTER != VERIFIER.
+
+### Why
+AS-XPROJ-001/002/003 already persist registry, edges, and duplicate-candidate
+projections. Humans and agents had no first-class read-only CLI/API/MCP lens,
+so a missing vault or empty projection could look like "no edges" / healthy,
+and a read could accidentally register, join, or write edges.
+
+### Surfaces
+- `atlas xproj report --vault <dir> [--json]` (alias: `atlas xproj show`)
+- `GET /v1/xproj`
+- MCP `atlas.xproj.read` (zero-arg, vault-scoped)
+- AppService `xproj()` + `web_api.xproj`
+- Web page skipped (would bloat)
+
+### Honesty
+- `XPROJ != AUTHORITY`
+- `GRAPH != AUTHORITY`
+- `LENS != TRUTH CORE`
+- `MISSING != NO_EDGES` / `MISSING != HEALTHY`
+- `EMPTY != HEALTHY`
+- `MCP != AUTHORITY`
+- `WRITE_APPLIED = false`
+- `D149_TOUCHED = NO`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Read never writes edges and never merges identities

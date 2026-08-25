@@ -21,6 +21,7 @@ from project_atlas.web_api import (
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
+    WebXprojError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -39,6 +40,7 @@ from project_atlas.web_api import (
     read_source_health,
     read_status,
     read_vault_health,
+    read_xproj,
 )
 
 PACKAGE_ID = "AS-2.1-APP-SVC-001"
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def xproj(self) -> dict[str, Any]:
+        """Vault-scoped xproj REPORT READ (never writes edges, never merges)."""
+        try:
+            return read_xproj(self.vault)
+        except WebXprojError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.xproj import (
+    WebXprojError,
+    read_xproj,
+    render_xproj_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1467,6 +1472,41 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         dest="approved_monorepo_roots",
         help="Approved monorepo root for path-prefix overlap (repeatable).",
+    )
+
+    # AS-CODER-ALPHA-XPROJ-READ-001 -- read-only aliases over persisted projections.
+    xproj_read_parser = subparsers.add_parser(
+        "xproj",
+        help=(
+            "Read persisted cross-project registry/edges/duplicates "
+            "(AS-CODER-ALPHA-XPROJ-READ-001; never writes; never merges identities)."
+        ),
+    )
+    xproj_read_sub = xproj_read_parser.add_subparsers(
+        dest="xproj_command", required=True
+    )
+    xproj_report = xproj_read_sub.add_parser(
+        "report",
+        help=(
+            "Read persisted xproj projections "
+            "(never writes, never registers, never merges identities)."
+        ),
+    )
+    xproj_report.add_argument("--vault", type=Path, required=True)
+    xproj_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the xproj REPORT READ JSON to stdout.",
+    )
+    xproj_show = xproj_read_sub.add_parser(
+        "show",
+        help="Alias for `xproj report` (read-only; does not write).",
+    )
+    xproj_show.add_argument("--vault", type=Path, required=True)
+    xproj_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the xproj REPORT READ JSON to stdout.",
     )
 
     # AS-BACKUP-001: verified snapshot / fixture restore (ops durability != authority).
@@ -3891,6 +3931,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             return EXIT_OK
         parser.error(f"unknown ops command: {args.ops_command}")  # pragma: no cover
+
+    if args.command == "xproj":
+        if args.xproj_command in {"report", "show"}:
+            try:
+                view = read_xproj(args.vault)
+            except (WebXprojError, OSError) as exc:
+                _log.error("xproj report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_xproj_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown xproj command: {args.xproj_command}"
+        )
 
     if args.command == "register-global-entity":
         try:
