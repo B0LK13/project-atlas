@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-095-impact-ux": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/impact_ux.py"],
+      "evidence": "Composes AT3-080 impact-explorer data for UX. No new CLI. Graph != authority. Trust scores fail closed.",
+      "guard_tests": ["tests/unit/test_atlas3_impact_ux_095.py"]
+    },
     "at3-096-mission": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

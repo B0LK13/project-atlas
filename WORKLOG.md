@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-095 (2026-08-26)
+
+Isolated Impact Explorer UX stacked on AT3-096.
+
+- `compile_impact_ux` composes AT3-080
+- No new CLI command (surface remains `atlas impact-explorer`)
+- Graph != authority; trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-096 (2026-08-26)
 
 Isolated Mission Command Center stacked on AT3-092.
