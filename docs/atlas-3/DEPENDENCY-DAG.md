@@ -31,6 +31,8 @@ Pulse     Start
    └────┬────┘
         ↓
 AT3-050 Agent Proof-of-Work
+        ↓
+AT3-051 Independent verification binding (IV != MERGE)
 ```
 
 Start may read Pulse, but Pulse must not require Start.
