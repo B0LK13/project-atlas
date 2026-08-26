@@ -14,5 +14,6 @@ Objective only. No trust scores.
 | Secret-shaped file | | | yes |
 | Malicious build script present | | | yes (never executed) |
 | Duplicate identity | | | yes |
+| Incomplete inspection (`INACCESSIBLE_PATH`) | | | yes |
 
 Monorepo is recorded as a signal, not auto-excluded.
