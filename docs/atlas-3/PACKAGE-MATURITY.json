@@ -221,6 +221,13 @@
       "evidence": "Binds IV to exact HEAD/TREE. IMPLEMENTER != VERIFIER. IV != MERGE.",
       "guard_tests": ["tests/unit/test_atlas3_iv_bind_051.py"]
     },
+    "at3-020-claim-nodes": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/claim_nodes.py"],
+      "evidence": "Declared claim/decision/requirement nodes. Graph != authority. Model paraphrase != owner. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_claim_nodes_020.py"]
+    },
     "at3-021-rel-expand": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

@@ -10,6 +10,7 @@ from typing import Any
 from project_atlas.atlas3.adv_bind import bind_adversarial_result
 from project_atlas.atlas3.capabilities import list_capabilities
 from project_atlas.atlas3.causal import compile_causal_graph
+from project_atlas.atlas3.claim_nodes import compile_claim_nodes
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.decided import compile_decided_by
@@ -76,6 +77,7 @@ ATLAS3_COMMANDS = frozenset(
         "mission",
         "multi-project-twin",
         "org-identity",
+        "claim-nodes",
     }
 )
 
@@ -414,6 +416,18 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     )
     org_identity.add_argument("--vault", type=Path, required=True)
 
+    claim_nodes = subparsers.add_parser(
+        "claim-nodes",
+        help=(
+            "Atlas 3 claim/decision/requirement nodes (declared; graph is not authority)."
+        ),
+        description=(
+            "Atlas 3 claim/decision/requirement nodes (declared; graph is not authority)."
+        ),
+    )
+    claim_nodes.add_argument("--vault", type=Path, required=True)
+    claim_nodes.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -469,6 +483,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             )
         if command == "org-identity":
             return _dump(compile_org_identity(args.vault), as_json=True)
+        if command == "claim-nodes":
+            return _dump(compile_claim_nodes(args.vault, args.project), as_json=True)
         if command == "multi-project-twin":
             return _dump(
                 compile_multi_project_twin(

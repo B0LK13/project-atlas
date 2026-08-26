@@ -7521,4 +7521,16 @@ Isolated surface contract stacked on AT3-052.
 - Unknown surface or authority/merge/owner claim fails closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-020 (2026-08-26)
+
+Isolated claim/decision/requirement nodes stacked on AT3-006 tip `#568`.
+
+- `compile_claim_nodes` + CLI `atlas claim-nodes`
+- Declared claim / decision / requirement twin nodes only
+- Missing stays UNKNOWN; provenance required
+- Graph != authority; winners / trust scores / model-as-owner fail closed
+- Does not write Truth Core or AS-GRAPH-003
+- Distinct from AT3-092 UX and AT3-094 explorer
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
