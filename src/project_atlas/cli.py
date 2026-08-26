@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    index_status_parser = subparsers.add_parser(
+        "index-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing lexical index artifacts "
+            "(AS-CODER-ALPHA-INDEX-STATUS-001; never writes; "
+            "INDEX_STATUS != AUTHORITY; PRESENCE != VALIDATE)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/indexes/*.json "
+            "artifacts. Never writes. Never materializes. "
+            "INDEX_STATUS != AUTHORITY. PRESENCE != VALIDATE."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas index-status --vault /path/to/vault\n"
+            "  atlas index-status --vault /path/to/vault --json"
+        ),
+    )
+    index_status_parser.add_argument("--vault", type=Path, required=True)
+    index_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the index-status REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3156,6 +3182,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
             for lens in report.get("lenses") or []:
                 print(render_next_text(lens))
+        return EXIT_OK
+
+    if args.command == "index-status":
+        from project_atlas.web_api.index_status import (
+            WebIndexStatusError,
+            read_index_status,
+            render_index_status_text,
+        )
+
+        try:
+            report = read_index_status(args.vault)
+        except (WebIndexStatusError, OSError, ValueError) as exc:
+            _log.error("index-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_index_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "changed":

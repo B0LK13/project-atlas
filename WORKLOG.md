@@ -5,6 +5,44 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-INDEX-STATUS-001 — vault-scoped lexical index REPORT READ
+
+**Date:** 2026-08-26
+**Directive:** nightly autonomous DAG / Coder Alpha persist-lens
+**Branch:** `cursor/atlas-autonomous-night-cycle-index-status-e5c5`
+**Base:** live `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / TREE `8df56184bb25b1cf1b6a9102cf34e77248287940`
+**Mode:** consume-only REPORT READ. Does not rematerialize. Does not merge.
+
+### Purpose
+Agents need a vault-scoped read of existing `generated/indexes/*.json`
+without invoking `build_indexes`. Presence is not validate-pass or freshness.
+EMPTY and mixed-corrupt stay non-healthy. Obsolete `indexes/` is never consumed.
+
+### Surfaces
+- Library: `project_atlas.web_api.index_status.read_index_status`
+- CLI: `atlas index-status --vault <dir> [--json]`
+- MCP: `atlas.indexes.read` (zero-arg, vault-scoped)
+- LIVE_API: `GET /v1/index-status`
+
+### Honesty
+- `INDEX_STATUS != AUTHORITY`
+- `PRESENCE != VALIDATE`
+- `PRESENCE != FRESH`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != HEALTHY`
+- `WRITE_APPLIED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+
+### Not this package
+- Does not replace or merge stale `#497` (CONFLICTING on old base)
+- Does not rematerialize `atlas doctor` / `atlas validate` (`#489` / `#493`)
+- Does not add `atlas.query.read`
+- Does not start Chronicle / marketplace / Copilot
+- Does not grant merge
+
+---
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
