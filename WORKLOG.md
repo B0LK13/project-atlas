@@ -7347,4 +7347,13 @@ Isolated service/environment nodes stacked on AT3-011.
 - Authentic estate / pilot claims fail closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-061 (2026-08-26)
+
+Isolated intent vs current-state honesty wrapper stacked on AT3-012.
+
+- `wrap_intent_state_honesty` + CLI `atlas memory honesty`
+- Composes AT3-043; layers must not collapse
+- INTENT != CURRENT STATE; STALE != CURRENT; promotion fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

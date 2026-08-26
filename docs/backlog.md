@@ -694,6 +694,9 @@ Historical roadmaps are classified as inputs and are not erased._
 - [ ] AT3-037 Claude native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
 - [x] AT3-038 Isolated Gemini fixture/export ingest (native history sync remains NOT IMPLEMENTED)
 - [ ] AT3-038 Gemini native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
+- [x] AT3-043 Isolated conversation decision + intent extraction
+- [x] AT3-045 Isolated provider session lineage
+- [x] AT3-061 Isolated intent vs current-state honesty wrapper
 - [ ] AT3-046 Incremental live provider sync
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`

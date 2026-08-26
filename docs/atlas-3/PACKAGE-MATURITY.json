@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-061-honesty": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/memory/honesty.py"],
+      "evidence": "Fail-closed INTENT vs CURRENT STATE wrapper. Layers must not collapse. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_honesty_061.py"]
+    },
     "at3-036-chatgpt": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

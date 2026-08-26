@@ -18,6 +18,7 @@ from project_atlas.atlas3.ledger import append_event, ledger_status, list_events
 from project_atlas.atlas3.memory.claude import import_claude_export
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.gemini import import_gemini_export
+from project_atlas.atlas3.memory.honesty import wrap_intent_state_honesty
 from project_atlas.atlas3.memory.intent import extract_intent_report
 from project_atlas.atlas3.memory.lineage import build_session_lineage
 from project_atlas.atlas3.memory.providers import memory_providers
@@ -119,6 +120,13 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         )
         parser.add_argument("--vault", type=Path, required=True)
         parser.add_argument("--project", required=True)
+    honesty = mem_sub.add_parser(
+        "honesty",
+        help="Intent vs current-state honesty wrapper (does not collapse layers).",
+        description="Intent vs current-state honesty wrapper (does not collapse layers).",
+    )
+    honesty.add_argument("--vault", type=Path, required=True)
+    honesty.add_argument("--project", required=True)
 
     ledger = subparsers.add_parser(
         "ledger",
@@ -308,7 +316,7 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     },
                     as_json=True,
                 )
-            if sub in {"search", "conflicts", "stale", "intent", "lineage"}:
+            if sub in {"search", "conflicts", "stale", "intent", "lineage", "honesty"}:
                 recon = read_json(
                     Path(args.vault) / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
                 )
@@ -317,6 +325,11 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 if sub == "lineage":
                     return _dump(
                         build_session_lineage(items, requested_project_id=args.project),
+                        as_json=True,
+                    )
+                if sub == "honesty":
+                    return _dump(
+                        wrap_intent_state_honesty(items, requested_project_id=args.project),
                         as_json=True,
                     )
                 if sub == "intent":

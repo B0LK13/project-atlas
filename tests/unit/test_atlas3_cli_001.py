@@ -59,6 +59,7 @@ def test_pulse_and_start_and_proof_and_memory(tmp_path: Path, capsys: object) ->
     )
     assert main(["memory", "providers"]) == EXIT_OK
     assert main(["memory", "sync", "--json"]) == EXIT_OK
+    assert main(["memory", "honesty", "--vault", str(vault), "--project", "harbor-api"]) == EXIT_OK
     assert (
         main(
             [
