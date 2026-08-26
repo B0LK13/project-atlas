@@ -1,0 +1,147 @@
+{
+  "directive": "D-037",
+  "purpose": "canonical Golden Estate carrier reconciliation between #608 and #609",
+  "live_objects": {
+    "main_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "main_tree": "9c670d710ec63d36fea70c6a181c088b79294336",
+    "pr607_head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+    "pr607_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+    "pr608_head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+    "pr608_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+    "pr608_base_head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+    "pr608_base_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+    "pr609_head": "4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+    "pr609_tree": "b53de8667e48e625d0fdcea540a52f6b42f28b22",
+    "pr609_base_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "pr609_base_tree": "9c670d710ec63d36fea70c6a181c088b79294336"
+  },
+  "d036_binding_revocation": {
+    "d036_pr608_tree_binding_valid": false,
+    "reason": "D-036's packet described PR608_TREE as 'computable' rather than resolving it; the abbreviated head shown there was correct but the tree was never stated as a full 40-char value in that turn's prose",
+    "recomputed_pr608_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+    "d036_windows_tree_binding_valid": false,
+    "reason_windows": "bound to a superseded PR608 head from before this session's own updates; superseded by this document's canonical_windows_tree below"
+  },
+  "transparency_note_on_directive_provenance": {
+    "finding": "A remote branch (origin/d029-governance-evidence, commit 2cc9aaaa) contains a commit dated 2026-08-26T21:09:20+02:00 with subject 'docs(d037): canonical GE path reconciliation -- PR609 canonical, PR608 superseded' -- i.e. a pre-written statement of this exact directive's eventual conclusion, discovered while investigating an unrelated file reference.",
+    "handling": "This was NOT used as evidence for the conclusion below. The canonical-carrier determination in this document was derived independently: the WORKLOG corruption was found via direct hex/byte inspection of PR609's own diff BEFORE this branch was discovered, and the GE payload equivalence was found via direct SHA-256 comparison. The pre-written branch is disclosed here for transparency, not relied upon.",
+    "d027_supersession_packet_also_found": "docs/evidence/D-027-SUPERSESSION-PACKET.json exists on 2 branches (d029-governance-evidence, d029-pr542-carrier), not on any branch reachable from main, and not previously found because an earlier search (D-033/D-034) was truncated to the first 80 of 643 remote branches -- a real gap in that search's methodology, now corrected. Its content (55-PR supersession proposal, count=44 open at time of writing, closure_authority=NOT_GRANTED_BY_D027) is narrower than the broader Windows/ADV/P0-P1 project-wide certification claims previously refused in D-033/D-034/D-035 -- those broader claims were NOT found in this file or anywhere else, and remain UNSUBSTANTIATED."
+  },
+  "ge_payload_comparison": {
+    "ge_608_file_count": 19,
+    "ge_609_file_count": 19,
+    "ge_common_file_count": 19,
+    "ge_608_only_files": [],
+    "ge_609_only_files": [],
+    "ge_byte_identical_count": 19,
+    "ge_differing_file_count": 0,
+    "ge_byte_equivalence": "PASS",
+    "ge_semantic_equivalence": "PASS",
+    "method": "git show <ref>:<path> | sha256sum for every file under atlas-vault-documentation/skills/atlas-golden-estate-curator/, both directions"
+  },
+  "worklog_integrity": {
+    "pr608_stack": "CLEAN -- correct UTF-8 throughout, verified byte-for-byte in D-033/D-034/D-035 and reconfirmed",
+    "pr609": {
+      "worklog_encoding_corruption": true,
+      "evidence": "raw hex comparison: main's WORKLOG.md byte '# WORKLOG \\xe2\\x80\\x94 Project Atlas' (correct UTF-8 em-dash) vs PR609's '# WORKLOG \\xc3\\xa2\\xe2\\x82\\xac\\xe2\\x80\\x9d Project Atlas' (double-encoded mojibake)",
+      "scope": "759 insertions / 643 deletions across 1402 changed lines in WORKLOG.md alone -- affects the majority of historical entries containing em-dashes, arrows, or ellipses, AND affects #609's own newly-added content (same corruption pattern found in its own D-194 section)",
+      "root_cause_hypothesis": "classic UTF-8 read as Latin-1/cp1252 then re-saved as UTF-8, likely from a Windows-side tool or editor session that mishandled the file's encoding while appending new content",
+      "pr609_worklog_also_omits_605_restoration": "YES -- PR609 built directly on main (which lost #605's Lane C provenance block via D-025's -X theirs resolution) and does not restore it; only PR607+PR608 do"
+    }
+  },
+  "four_way_delta_summary": {
+    "pr607_required_unique_delta": "WORKLOG.md restoration (32-line #605 provenance block) + D-028/D-029 evidence docs -- GOVERNANCE/EVIDENCE class only",
+    "pr608_required_unique_delta": "0 beyond what #607 already carries (GE payload identical to #609; #608's own unique content is D-034/D-035 evidence docs -- also GOVERNANCE/EVIDENCE class)",
+    "pr609_required_unique_delta": "3 tooling scripts (scripts/d028_*.py) + 3 evidence docs (D-028-PR-BODY.md, D-028-RETURN-PACKET.json, D-028-SUPERSESSION-VERIFY.json) -- TOOLING/EVIDENCE class, not RUNTIME/PRODUCTION; automate work already manually completed and verified in the #607/#608 lineage",
+    "pr608_only_required_delta": 0,
+    "pr609_only_required_delta": 0,
+    "note": "Both carriers' *unique* content is governance/tooling, not required runtime delta -- neither blocks the other on required-content grounds. The deciding factor is the WORKLOG corruption defect."
+  },
+  "ci_semantics": {
+    "main": "python -m pytest atlas-vault-documentation/tests --tb=short -q --no-cov",
+    "pr607": "unchanged from main (PR607 doesn't touch ci.yml)",
+    "pr608": "additive: appends the golden-estate-curator test path; 1 insertion/1 deletion, no risk keywords",
+    "pr609": "identical additive change to #608's, independently arriving at the same one-line diff",
+    "ci_trigger_change": false,
+    "ci_permission_change": false,
+    "ci_job_removal": false,
+    "ci_existing_test_removal": false,
+    "ci_test_scope_reduction": false,
+    "ci_gate_weakening": false,
+    "ci_ge_addition": true,
+    "conclusion": "Both carriers pass CI-semantics requirements identically."
+  },
+  "fresh_ge_test_correction": {
+    "note": "D-034/D-035 reported GE_TESTS=24/24 for #608. Re-running the identical command in this session against both #608 and #609 independently produced 48/48 for BOTH. This is a correction to D-034/D-035's own count (likely truncated tail output at the time), not a discrepancy between carriers -- both carriers are identical here.",
+    "pr608_ge_tests_reverified": "48 passed, 0 failed",
+    "pr609_ge_tests_verified": "48 passed, 0 failed (matches PR609's own embedded claim of '48 passed', independently reproduced rather than trusted)",
+    "ruff_pr609": "PASS"
+  },
+  "pr542": {
+    "disposition": "BACKLOG_OPTIONAL",
+    "rationale": "Real, valid production defect (Windows-only os.replace race in src/project_atlas/ingestion.py, FileNotFoundError when a concurrent promoter loses the race). Confirmed NOT present on current main (ingestion.py untouched by the D-025 stack). However it is orthogonal to Golden Estate/#607/#608/#609 (different subsystem, no path overlap), and no current correctness/certification/release invariant in the active GE reconciliation scope depends on it. Removed from required owner-node count; remains a legitimate standalone backlog item."
+  },
+  "canonical_carrier_decision": {
+    "case": "C3 -- PR608 stack objectively superior",
+    "canonical_carrier": "PR608_STACK (PR607 -> PR608)",
+    "canonical_carrier_head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+    "canonical_carrier_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+    "pr609_disposition": "SUPERSEDED",
+    "pr609_not_closed": true,
+    "rationale": [
+      "GE payload byte-identical between both carriers -- no content-quality difference there.",
+      "PR609 has a real, severe, independently-confirmed WORKLOG.md encoding corruption defect (1402 changed lines, verified via raw byte comparison) that PR608 does not have.",
+      "PR609 also does not restore the #605 Lane C provenance block that PR607/PR608 restore -- it inherits main's existing WORKLOG loss without repairing it.",
+      "PR609's unique tooling scripts are valuable automation but not required content -- the outcomes they automate are already manually achieved and independently verified in the #607/#608 lineage.",
+      "Therefore PR608's stack is the correct integration path; PR609 is superseded pending correction of its own encoding defect, not closed."
+    ],
+    "pr607_disposition": "REQUIRED_BEFORE_CANONICAL_CARRIER -- #608 is stacked on it and depends on its WORKLOG restoration; #607 also has no unique required content beyond what #609 lacks entirely (the #605 restoration), so it cannot be dropped in favor of #609 either"
+  },
+  "canonical_windows_packet": {
+    "canonical_windows_head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+    "canonical_windows_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+    "canonical_windows_packet_path": "docs/evidence/D-AUG26-EVIDENCE-GROUNDED-GOLDEN-ESTATE-034.json#windows_verification.execution_packet (on PR608's branch, docs/d029-governance-provenance-seal + owner/d033-golden-estate-rebind)",
+    "pr609_windows_packet_status": "SUPERSEDED_DO_NOT_EXECUTE -- no packet was ever prepared for PR609 by this session in any case",
+    "active_windows_targets": 1
+  },
+  "supersession_43_update": {
+    "supersession_set_size_pre": 43,
+    "supersession_set_size_post": 43,
+    "supersession_drift": 0,
+    "newly_superseded_ge_carriers": [
+      "PR609 (superseded by canonicalization decision above, NOT part of the 43-PR historical-embedding set, NOT closed)"
+    ],
+    "note": "PR609 is a separate node from the 43-PR historical AT3-stack set; it is not added to that list. It gets its own disposition (SUPERSEDED, not closed) as recorded above."
+  },
+  "global_dag_recount": {
+    "READY": 0,
+    "DERIVABLE": 0,
+    "UNKNOWN_REQUIRES_AUDIT": 0,
+    "AUTONOMOUS_REMEDIATIONS": 0,
+    "BLOCKED_BY_OWNER": 4,
+    "blocked_by_owner_nodes": [
+      "PR607 merge decision",
+      "PR608 merge decision (post-retarget)",
+      "PR609 disposition confirmation (supersede, not close, pending owner agreement)",
+      "43-PR supersession cleanup authorization"
+    ],
+    "BLOCKED_EXTERNAL": 1,
+    "blocked_external_nodes": [
+      "Authentic Windows execution of the canonical packet"
+    ],
+    "SUPERSEDED": 1,
+    "superseded_nodes": [
+      "PR609 (Golden Estate payload superseded by PR608 stack; NOT closed)"
+    ],
+    "ALREADY_COMPLETE": 2,
+    "already_complete_nodes": [
+      "SEC021 investigation (D-034)",
+      "D-027/D-027-adjacent evidence archaeology (this session, corrected for the earlier truncation bug)"
+    ],
+    "BACKLOG_OPTIONAL": 2,
+    "backlog_optional_nodes": [
+      "SEC021 test-hermeticity improvement (D-035)",
+      "PR542 Windows lost-race ingestion fix"
+    ]
+  }
+}
