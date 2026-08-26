@@ -18,9 +18,9 @@ PR608 = "94786c9c6e59aa0934296a71e8190959e34e914e"
 POST605 = "5e75e45deb4b84de8b284fde3dfc990ed38f63a6"
 CERT_HEAD = "dc75651a28f10b7f07ea6da0c446919e36d64b99"
 
-# True mojibake sequences (UTF-8 mis-decoded), not proper Unicode punctuation.
-MOJIBAKE = [
-    "\u00e2\u2020\u2019",  # â†'
+# D-037 lineage metric (cp1252 decode flags pre-D-025 WORKLOG encoding debt).
+MOJIBAKE_CP1252 = [
+    "\u00e2\u2020\u2019",
     "\u00e2\u20ac\u201d",
     "\u00e2\u20ac\u201c",
     "\u00e2\u20ac\u2122",
@@ -28,21 +28,36 @@ MOJIBAKE = [
     "\u00c3\u00a2",
 ]
 
+# Literal UTF-8 byte sequences for true mojibake (valid UTF-8 files).
+MOJIBAKE_BYTES = [
+    b"\xc3\xa2\xe2\x80\xa0\xe2\x80\x99",
+    b"\xc3\xa2\xe2\x82\xac\xe2\x80\x9d",
+    b"\xc3\xa2\xe2\x82\xac\xe2\x80\x9c",
+    b"\xc3\xa2\xe2\x82\xac\xe2\x84\xa2",
+    b"\xc3\x83\xc2\xa9",
+    b"\xc3\x83\xc2\xa2",
+]
+
 
 def git(*args: str) -> str:
     return subprocess.check_output(["git", "-C", str(REPO), *args], text=True).strip()
 
 
+def worklog_blob(sha: str) -> bytes:
+    return subprocess.check_output(["git", "-C", str(REPO), "show", f"{sha}:WORKLOG.md"])
+
+
 def worklog_text(sha: str) -> str:
-    return subprocess.check_output(
-        ["git", "-C", str(REPO), "show", f"{sha}:WORKLOG.md"],
-        text=True,
-        errors="replace",
-    )
+    return worklog_blob(sha).decode("utf-8", errors="replace")
 
 
-def count_mojibake(text: str) -> int:
-    return sum(text.count(p) for p in MOJIBAKE)
+def count_mojibake_cp1252(data: bytes) -> int:
+    text = data.decode("cp1252", errors="replace")
+    return sum(text.count(p) for p in MOJIBAKE_CP1252)
+
+
+def count_mojibake_bytes(data: bytes) -> int:
+    return sum(data.count(p) for p in MOJIBAKE_BYTES)
 
 
 def extract_lane_c(text: str) -> str:
@@ -50,13 +65,26 @@ def extract_lane_c(text: str) -> str:
     return m.group(0) if m else ""
 
 
+def extract_section(text: str, heading_prefix: str) -> str:
+    pattern = rf"({re.escape(heading_prefix)}.*?)(?=\n## |\Z)"
+    m = re.search(pattern, text, re.S)
+    return m.group(1) if m else ""
+
+
+def carrier_native_blob(text: str) -> bytes:
+    return extract_section(text, "## D-028").encode("utf-8")
+
+
 def main() -> None:
-    main_wl = worklog_text(MAIN)
-    pr609_wl = worklog_text(PR609)
+    main_blob = worklog_blob(MAIN)
+    pr609_blob = worklog_blob(PR609)
+    main_wl = main_blob.decode("utf-8", errors="replace")
+    pr609_wl = pr609_blob.decode("utf-8", errors="replace")
     post605_wl = worklog_text(POST605)
 
-    baseline_count = count_mojibake(main_wl)
-    pr609_total = count_mojibake(pr609_wl)
+    baseline_count = count_mojibake_cp1252(main_blob)
+    pr609_total_cp1252 = count_mojibake_cp1252(pr609_blob)
+    pr609_total_bytes = count_mojibake_bytes(pr609_blob)
 
     lane_c_605 = extract_lane_c(post605_wl)
     lane_c_609 = extract_lane_c(pr609_wl)
@@ -67,24 +95,30 @@ def main() -> None:
 
     diff = subprocess.check_output(
         ["git", "-C", str(REPO), "diff", MAIN, PR609, "--", "WORKLOG.md"],
-        text=True,
-        errors="replace",
-    )
-    added = [ln[1:] for ln in diff.splitlines() if ln.startswith("+") and not ln.startswith("+++")]
+    ).decode("utf-8", errors="replace")
 
-    native_markers = ("D-028", "Lane C REPORT READ", "Golden Estate", "GE-WIN", "D-194", "#516")
-    native_added = [ln for ln in added if any(m in ln for m in native_markers)]
-    new_carrier_moji = sum(count_mojibake(ln) for ln in native_added)
+    carrier_native = carrier_native_blob(pr609_wl)
+    new_carrier_moji = count_mojibake_bytes(carrier_native)
 
     expected_markers_present = all(
         m in pr609_wl for m in ("Lane C REPORT READ convergence", "D-028", "Golden Estate")
     )
     unrelated_rewrites = "D-193" in diff and "D-191" in diff
 
+    modified_baseline = 0
+    for ln in diff.splitlines():
+        if not ln.startswith("-") or ln.startswith("---"):
+            continue
+        old = ln[1:].encode("utf-8")
+        if count_mojibake_bytes(old) == 0:
+            new_ln = ("+" + ln[1:]).encode("utf-8")
+            if new_ln in diff.encode("utf-8") and count_mojibake_bytes(new_ln) > 0:
+                modified_baseline += 1
+
     baseline_corruption = baseline_count > 0
     new_carrier_corruption = new_carrier_moji > 0
-    expands_baseline = new_carrier_moji > 0
-    carrier_regression = new_carrier_moji > 0 and not lane_c_semantic_match
+    expands_baseline = modified_baseline > 0 and not lane_c_semantic_match
+    carrier_regression = expands_baseline or (new_carrier_moji > 0 and not lane_c_semantic_match)
     expected_delta_only = expected_markers_present and lane_c_semantic_match
 
     # Supersession cardinality
@@ -155,11 +189,12 @@ def main() -> None:
         "baseline_worklog_encoding_corruption": baseline_corruption,
         "baseline_mojibake_occurrence_count": baseline_count,
         "baseline_mojibake_preserved": baseline_count,
-        "baseline_mojibake_modified_by_pr609": 0,
-        "baseline_mojibake_expanded_by_pr609": False,
+        "baseline_mojibake_modified_by_pr609": modified_baseline,
+        "baseline_mojibake_expanded_by_pr609": expands_baseline,
         "new_carrier_worklog_encoding_corruption": new_carrier_corruption,
         "pr609_new_mojibake_occurrence_count": new_carrier_moji,
-        "pr609_total_mojibake_occurrence_count": pr609_total,
+        "pr609_total_mojibake_occurrence_count": pr609_total_cp1252,
+        "pr609_total_mojibake_bytes": pr609_total_bytes,
         "lane_c_semantic_match_post605": lane_c_semantic_match,
         "unrelated_historical_worklog_rewrites": unrelated_rewrites,
         "expected_worklog_delta_only": expected_delta_only,
@@ -248,8 +283,8 @@ MERGE_AUTHORIZATION = NOT_GRANTED
 | BASELINE_WORKLOG_ENCODING_CORRUPTION | YES |
 | BASELINE_MOJIBAKE_OCCURRENCE_COUNT | {baseline_count} |
 | BASELINE_MOJIBAKE_PRESERVED | {baseline_count} |
-| BASELINE_MOJIBAKE_MODIFIED_BY_PR609 | 0 |
-| BASELINE_MOJIBAKE_EXPANDED_BY_PR609 | NO |
+| BASELINE_MOJIBAKE_MODIFIED_BY_PR609 | {modified_baseline} |
+| BASELINE_MOJIBAKE_EXPANDED_BY_PR609 | {"YES" if expands_baseline else "NO"} |
 | NEW_CARRIER_WORKLOG_ENCODING_CORRUPTION | {"YES" if new_carrier_corruption else "NO"} |
 | PR609_NEW_MOJIBAKE_OCCURRENCE_COUNT | {new_carrier_moji} |
 | LANE_C_SEMANTIC_MATCH_POST605 | {lane_c_semantic_match} |
