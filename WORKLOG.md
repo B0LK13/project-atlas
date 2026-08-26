@@ -7179,3 +7179,35 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+---
+
+## Lane C REPORT READ convergence (#593-#603)
+
+**Date:** 2026-08-26
+**Branch:** `cursor/aug26-report-read-convergence-f3ff`
+**Base:** `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / TREE `8df56184bb25b1cf1b6a9102cf34e77248287940`
+**Mode:** consume-only dependency convergence. Does not grant merge. Does not write vaults. Does not widen authority.
+
+### Source objects (tips, not PR bodies)
+- `#593` `d45c1d2` `atlas.next.read` `/v1/next-status`
+- `#594` `3557f7d` `atlas.changed.read` `/v1/changed-status`
+- `#595` `227c044` `atlas.overview.read` `/v1/overview-status`
+- `#596` `296f0db` `atlas.decisions.read` `/v1/decisions-status`
+- `#597` `d5bf486` `atlas.unknown.read` `/v1/unknown-status`
+- `#598` `f4ee09e` `atlas.state.read` `/v1/state-status`
+- `#599` `5f68364` `atlas.architecture.read` `/v1/architecture-status`
+- `#600` `67d6f13` `atlas.roadmap.read` `/v1/roadmap-status`
+- `#601` `c1d5938` `atlas.portfolio.read` `/v1/portfolio-status`
+- `#602` `04c0ea8` `atlas.bitemporal.read` `/v1/bitemporal-status`
+- `#603` `0e66476` `atlas.indexes.read` `/v1/index-status`
+
+### Method
+Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared files (`cli.py`, `app_service.py`, `api_server.py`, `mcp_registry.py`, `mcp_server.py`, `web_api/__init__.py`, `test_as_2_1_mcp_adv_001.py`) hand-unioned additively. Existing ADV cases retained.
+
+### Honesty
+- `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN`
+- `REPORT READ != AUTHORITY`
+- `EMPTY/UNKNOWN != HEALTHY`
+- `WRITE_APPLIED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

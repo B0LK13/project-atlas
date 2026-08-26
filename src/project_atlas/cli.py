@@ -939,6 +939,292 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    next_status_parser = subparsers.add_parser(
+        "next-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing What Next answer artifacts "
+            "(AS-CODER-ALPHA-NEXT-READ-001; never writes; "
+            "NEXT != AUTHORITY; NEXT != COMMAND)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-next-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "NEXT != AUTHORITY. NEXT != COMMAND."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas next-status --vault /path/to/vault\n"
+            "  atlas next-status --vault /path/to/vault --json"
+        ),
+    )
+    next_status_parser.add_argument("--vault", type=Path, required=True)
+    next_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the What Next REPORT READ JSON to stdout.",
+    )
+
+    changed_status_parser = subparsers.add_parser(
+        "changed-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing What Changed answer artifacts "
+            "(AS-CODER-ALPHA-CHANGED-READ-001; never writes; "
+            "CHANGED != AUTHORITY; STALE != CURRENT)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-changed-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "CHANGED != AUTHORITY. CHANGED != LIVE ESTATE. STALE != CURRENT."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas changed-status --vault /path/to/vault\n"
+            "  atlas changed-status --vault /path/to/vault --json"
+        ),
+    )
+    changed_status_parser.add_argument("--vault", type=Path, required=True)
+    changed_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the What Changed REPORT READ JSON to stdout.",
+    )
+
+    overview_status_parser = subparsers.add_parser(
+        "overview-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Project Overview answer artifacts "
+            "(AS-CODER-ALPHA-OVERVIEW-READ-001; never writes; "
+            "OVERVIEW != AUTHORITY; UI != CANONICAL)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-overview-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "OVERVIEW != AUTHORITY. UI != CANONICAL."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas overview-status --vault /path/to/vault\n"
+            "  atlas overview-status --vault /path/to/vault --json"
+        ),
+    )
+    overview_status_parser.add_argument("--vault", type=Path, required=True)
+    overview_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Overview REPORT READ JSON to stdout.",
+    )
+
+    decisions_status_parser = subparsers.add_parser(
+        "decisions-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Decision memory answer artifacts "
+            "(AS-CODER-ALPHA-DECISIONS-READ-001; never writes; "
+            "DECISIONS != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-decisions-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "DECISIONS != AUTHORITY. MODEL PARAPHRASE != OWNER DECISION."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas decisions-status --vault /path/to/vault\n"
+            "  atlas decisions-status --vault /path/to/vault --json"
+        ),
+    )
+    decisions_status_parser.add_argument("--vault", type=Path, required=True)
+    decisions_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Decisions REPORT READ JSON to stdout.",
+    )
+
+    unknown_status_parser = subparsers.add_parser(
+        "unknown-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Unknown/conflict answer artifacts "
+            "(AS-CODER-ALPHA-UNKNOWN-READ-001; never writes; "
+            "UNKNOWN != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-unknown-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "UNKNOWN != AUTHORITY. UNKNOWN != RESOLVED."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas unknown-status --vault /path/to/vault\n"
+            "  atlas unknown-status --vault /path/to/vault --json"
+        ),
+    )
+    unknown_status_parser.add_argument("--vault", type=Path, required=True)
+    unknown_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Unknown REPORT READ JSON to stdout.",
+    )
+
+    state_status_parser = subparsers.add_parser(
+        "state-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Current State answer artifacts "
+            "(AS-CODER-ALPHA-STATE-READ-001; never writes; "
+            "STATE != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-state-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "STATE != AUTHORITY. STALE != CURRENT."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas state-status --vault /path/to/vault\n"
+            "  atlas state-status --vault /path/to/vault --json"
+        ),
+    )
+    state_status_parser.add_argument("--vault", type=Path, required=True)
+    state_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the State REPORT READ JSON to stdout.",
+    )
+
+    architecture_status_parser = subparsers.add_parser(
+        "architecture-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Architecture answer artifacts "
+            "(AS-CODER-ALPHA-ARCHITECTURE-READ-001; never writes; "
+            "ARCHITECTURE != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-architecture-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "ARCHITECTURE != AUTHORITY. README != ARCHITECTURE AUTHORITY."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas architecture-status --vault /path/to/vault\n"
+            "  atlas architecture-status --vault /path/to/vault --json"
+        ),
+    )
+    architecture_status_parser.add_argument("--vault", type=Path, required=True)
+    architecture_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Architecture REPORT READ JSON to stdout.",
+    )
+
+    roadmap_status_parser = subparsers.add_parser(
+        "roadmap-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Roadmap answer artifacts "
+            "(AS-CODER-ALPHA-ROADMAP-READ-001; never writes; "
+            "ROADMAP != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-roadmap-*.json "
+            "artifacts. Never writes. Never materializes. Never derives. "
+            "ROADMAP != AUTHORITY. ROADMAP != CANONICAL_TRUTH."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas roadmap-status --vault /path/to/vault\n"
+            "  atlas roadmap-status --vault /path/to/vault --json"
+        ),
+    )
+    roadmap_status_parser.add_argument("--vault", type=Path, required=True)
+    roadmap_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Roadmap answers REPORT READ JSON to stdout.",
+    )
+
+    portfolio_status_parser = subparsers.add_parser(
+        "portfolio-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Layer C portfolio artifacts "
+            "(AS-CODER-ALPHA-PORTFOLIO-READ-001; never writes; "
+            "PORTFOLIO != AUTHORITY; LAYER C != TRUTH CORE)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/portfolio/*.json "
+            "artifacts. Never writes. Never materializes. "
+            "PORTFOLIO != AUTHORITY. LAYER C != TRUTH CORE."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas portfolio-status --vault /path/to/vault\n"
+            "  atlas portfolio-status --vault /path/to/vault --json"
+        ),
+    )
+    portfolio_status_parser.add_argument("--vault", type=Path, required=True)
+    portfolio_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the portfolio REPORT READ JSON to stdout.",
+    )
+
+    bitemporal_status_parser = subparsers.add_parser(
+        "bitemporal-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing validity-catalog artifacts "
+            "(AS-CODER-ALPHA-BITEMPORAL-READ-001; never writes; "
+            "CATALOG != AUTHORITY; GRAPH != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/ops/bitemporal/"
+            "*-validity-catalog.json artifacts. Never writes. "
+            "Never materializes. CATALOG != AUTHORITY. GRAPH != AUTHORITY."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas bitemporal-status --vault /path/to/vault\n"
+            "  atlas bitemporal-status --vault /path/to/vault --json"
+        ),
+    )
+    bitemporal_status_parser.add_argument("--vault", type=Path, required=True)
+    bitemporal_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the bitemporal REPORT READ JSON to stdout.",
+    )
+
+    index_status_parser = subparsers.add_parser(
+        "index-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing lexical index artifacts "
+            "(AS-CODER-ALPHA-INDEX-STATUS-001; never writes; "
+            "INDEX_STATUS != AUTHORITY; PRESENCE != VALIDATE)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/indexes/*.json "
+            "artifacts. Never writes. Never materializes. "
+            "INDEX_STATUS != AUTHORITY. PRESENCE != VALIDATE."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas index-status --vault /path/to/vault\n"
+            "  atlas index-status --vault /path/to/vault --json"
+        ),
+    )
+    index_status_parser.add_argument("--vault", type=Path, required=True)
+    index_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the index-status REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3069,6 +3355,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
         return EXIT_OK
 
+    if args.command == "overview-status":
+        from project_atlas.web_api.overview_read import (
+            WebOverviewReadError,
+            read_overview_view,
+            render_overview_status_text,
+        )
+
+        try:
+            report = read_overview_view(args.vault)
+        except (WebOverviewReadError, OSError, ValueError) as exc:
+            _log.error("overview-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_overview_status_text(report), end="")
+        return EXIT_OK
+
     if args.command == "overview":
         try:
             report = materialize_overview_lenses(
@@ -3091,6 +3395,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     f"  {lens.get('project_id')}: [{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "state-status":
+        from project_atlas.web_api.state_read import (
+            WebStateReadError,
+            read_state_view,
+            render_state_status_text,
+        )
+
+        try:
+            report = read_state_view(args.vault)
+        except (WebStateReadError, OSError, ValueError) as exc:
+            _log.error("state-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_state_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "state":
@@ -3116,6 +3438,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('rollup')}/{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "roadmap-status":
+        from project_atlas.web_api.roadmap_read import (
+            WebRoadmapAnswersReadError,
+            read_roadmap_answers_view,
+            render_roadmap_status_text,
+        )
+
+        try:
+            report = read_roadmap_answers_view(args.vault)
+        except (WebRoadmapAnswersReadError, OSError, ValueError) as exc:
+            _log.error("roadmap-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_roadmap_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "roadmap":
@@ -3158,6 +3498,96 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(render_next_text(lens))
         return EXIT_OK
 
+    if args.command == "next-status":
+        from project_atlas.web_api.next_read import (
+            WebNextReadError,
+            read_next_view,
+            render_next_status_text,
+        )
+
+        try:
+            report = read_next_view(args.vault)
+        except (WebNextReadError, OSError, ValueError) as exc:
+            _log.error("next-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_next_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "changed-status":
+        from project_atlas.web_api.changed_read import (
+            WebChangedReadError,
+            read_changed_view,
+            render_changed_status_text,
+        )
+
+        try:
+            report = read_changed_view(args.vault)
+        except (WebChangedReadError, OSError, ValueError) as exc:
+            _log.error("changed-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_changed_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "portfolio-status":
+        from project_atlas.web_api.portfolio_read import (
+            WebPortfolioReadError,
+            read_portfolio_view,
+            render_portfolio_status_text,
+        )
+
+        try:
+            report = read_portfolio_view(args.vault)
+        except (WebPortfolioReadError, OSError, ValueError) as exc:
+            _log.error("portfolio-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_portfolio_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "bitemporal-status":
+        from project_atlas.web_api.bitemporal_read import (
+            WebBitemporalReadError,
+            read_bitemporal_view,
+            render_bitemporal_status_text,
+        )
+
+        try:
+            report = read_bitemporal_view(args.vault)
+        except (WebBitemporalReadError, OSError, ValueError) as exc:
+            _log.error("bitemporal-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_bitemporal_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "index-status":
+        from project_atlas.web_api.index_status import (
+            WebIndexStatusError,
+            read_index_status,
+            render_index_status_text,
+        )
+
+        try:
+            report = read_index_status(args.vault)
+        except (WebIndexStatusError, OSError, ValueError) as exc:
+            _log.error("index-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_index_status_text(report), end="")
+        return EXIT_OK
+
     if args.command == "changed":
         try:
             report = materialize_changed_lenses(
@@ -3191,6 +3621,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         return EXIT_OK
 
+    if args.command == "decisions-status":
+        from project_atlas.web_api.decisions_read import (
+            WebDecisionsReadError,
+            read_decisions_view,
+            render_decisions_status_text,
+        )
+
+        try:
+            report = read_decisions_view(args.vault)
+        except (WebDecisionsReadError, OSError, ValueError) as exc:
+            _log.error("decisions-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_decisions_status_text(report), end="")
+        return EXIT_OK
+
     if args.command == "decisions":
         try:
             report = materialize_decisions_lenses(
@@ -3208,6 +3656,42 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('status')}] {lens.get('summary') or 'UNKNOWN'}"
                 )
+        return EXIT_OK
+
+    if args.command == "architecture-status":
+        from project_atlas.web_api.architecture_read import (
+            WebArchitectureReadError,
+            read_architecture_view,
+            render_architecture_status_text,
+        )
+
+        try:
+            report = read_architecture_view(args.vault)
+        except (WebArchitectureReadError, OSError, ValueError) as exc:
+            _log.error("architecture-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_architecture_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "unknown-status":
+        from project_atlas.web_api.unknown_read import (
+            WebUnknownReadError,
+            read_unknown_view,
+            render_unknown_status_text,
+        )
+
+        try:
+            report = read_unknown_view(args.vault)
+        except (WebUnknownReadError, OSError, ValueError) as exc:
+            _log.error("unknown-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_unknown_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "unknown":
