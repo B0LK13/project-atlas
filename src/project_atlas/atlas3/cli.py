@@ -42,6 +42,7 @@ from project_atlas.atlas3.start import compile_start
 from project_atlas.atlas3.surface import compile_surface_contract, evaluate_surface_claim
 from project_atlas.atlas3.timeline import compile_timeline
 from project_atlas.atlas3.transport import prove_transport_is_not_authority
+from project_atlas.atlas3.truth_graph import compile_truth_graph
 from project_atlas.atlas3.twin_health import compile_twin_health
 
 ATLAS3_COMMANDS = frozenset(
@@ -68,6 +69,7 @@ ATLAS3_COMMANDS = frozenset(
         "home",
         "timeline",
         "decision-explorer",
+        "truth-graph",
     }
 )
 
@@ -375,6 +377,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     decision_explorer.add_argument("--vault", type=Path, required=True)
     decision_explorer.add_argument("--project", required=True)
 
+    truth_graph = subparsers.add_parser(
+        "truth-graph",
+        help="Atlas 3 Truth Graph UX (declared; graph is not authority).",
+        description="Atlas 3 Truth Graph UX (declared; graph is not authority).",
+    )
+    truth_graph.add_argument("--vault", type=Path, required=True)
+    truth_graph.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -428,6 +438,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "truth-graph":
+            return _dump(compile_truth_graph(args.vault, args.project), as_json=True)
         if command == "decision-explorer":
             return _dump(compile_decision_explorer(args.vault, args.project), as_json=True)
         if command == "timeline":

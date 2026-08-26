@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-092-truth-graph": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/truth_graph.py"],
+      "evidence": "Declared Truth Graph UX. Graph != authority. Winners and trust scores fail closed. Does not write AS-GRAPH-003.",
+      "guard_tests": ["tests/unit/test_atlas3_truth_graph_092.py"]
+    },
     "at3-094-decision-explorer": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

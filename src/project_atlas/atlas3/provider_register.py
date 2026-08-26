@@ -41,6 +41,7 @@ ALLOWED_CLI: Final[frozenset[str]] = frozenset(
         "home",
         "timeline",
         "decision-explorer",
+        "truth-graph",
     }
 )
 FORBIDDEN_CLI: Final[frozenset[str]] = frozenset(

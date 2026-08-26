@@ -94,6 +94,7 @@ AT3-100 twin-health ► derived signals (health != authority; estate != authoriz
 AT3-090 home ───────► Pulse + Start + twin health (UI != truth)
 AT3-091 timeline ───► ledger valid-time order (wall-clock != valid-time)
 AT3-094 decisions ──► declared owner_origin only (model paraphrase != owner)
+AT3-092 truth-graph ► declared claims/relationships (graph != authority; no winners)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

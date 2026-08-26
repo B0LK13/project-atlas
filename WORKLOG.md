@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-092 (2026-08-26)
+
+Isolated Truth Graph UX stacked on AT3-094.
+
+- `compile_truth_graph` + CLI `atlas truth-graph`
+- Declared nodes/edges only; missing stays UNKNOWN
+- Graph != authority; winners and trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-094 (2026-08-26)
 
 Isolated Decision Explorer stacked on AT3-091.

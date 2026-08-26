@@ -710,6 +710,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-090 Isolated Atlas Home composer (Pulse+Start+twin health; UI != truth)
 - [x] AT3-091 Isolated Timeline (declared valid-time; wall-clock != valid-time)
 - [x] AT3-094 Isolated Decision Explorer (declared owner_origin; model paraphrase != owner)
+- [x] AT3-092 Isolated Truth Graph UX (declared claims/relationships; graph != authority)
 - [ ] AT3-046 Incremental live provider sync
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`
