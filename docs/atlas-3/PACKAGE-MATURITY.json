@@ -290,6 +290,13 @@
       "evidence": "Canonical envelope only. Mixed valid+corrupt turns fail closed. Graph != authority. No new CLI.",
       "guard_tests": ["tests/unit/test_atlas3_normalize_039.py"]
     },
+    "at3-040-extract": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/extract.py"],
+      "evidence": "Landed ITEM_TYPES only. Heuristic extraction. LLM != authority. Forged owner stays proposed. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_extract_040.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

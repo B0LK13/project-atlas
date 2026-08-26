@@ -39,14 +39,30 @@ def _classify(text: str, *, role: str, owner_origin: dict[str, Any] | None) -> s
     return "observation"
 
 
+def extract_capability() -> dict[str, Any]:
+    return {
+        "package": PACKAGE_ID,
+        "extractor_version": EXTRACTOR_VERSION,
+        "extraction_class": "deterministic_heuristic",
+        "llm_assisted": False,
+        "authority": "NON_CANONICAL",
+        "auto_promote_to_truth_core": False,
+        "item_types": sorted(ITEM_TYPES),
+    }
+
+
 def extract_items(
     envelopes: list[dict[str, Any]],
     *,
     owner_origin: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Heuristic extraction. LLM-assisted extraction is not invoked here."""
+    if not isinstance(envelopes, list):
+        raise Atlas3Error("EXTRACT_INVALID", "envelopes must be a list")
     items: list[dict[str, Any]] = []
     for envelope in envelopes:
+        if not isinstance(envelope, dict):
+            raise Atlas3Error("EXTRACT_INVALID", "envelope is not an object")
         text = str(envelope.get("content_reference") or "").strip()
         if not text:
             continue

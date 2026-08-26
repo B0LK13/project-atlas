@@ -7621,4 +7621,14 @@ Isolated conversation normalization stacked on AT3-036 `#578`.
 - Graph != authority; raw transcript not persisted
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-040 (2026-08-26)
+
+Isolated conversation extractor stacked on AT3-039 `#579`.
+
+- `extract_items` fail-closed on non-list / non-object envelopes
+- Landed ITEM_TYPES only; heuristic, not LLM-assisted
+- Forged owner paraphrase stays proposed_decision
+- Authority NON_CANONICAL; no Truth Core write
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
