@@ -110,7 +110,7 @@
     "blocked_by_owner_nodes": ["PR607 merge decision", "PR608 merge decision (unreachable until PR607 merges + autonomous retarget)", "43-PR supersession cleanup authorization"],
     "BLOCKED_EXTERNAL": 1,
     "blocked_external_nodes": ["Authentic Windows execution, bound to PR608"],
-    "BACKLOG_OPTIONAL": 2,
+    "BACKLOG_OPTIONAL": 3,
     "backlog_optional_nodes": ["SEC021 hermeticity", "PR542", "PR609 WORKLOG repair if anyone wants to rescue it specifically"],
     "SUPERSEDED": 1,
     "superseded_nodes": ["PR609"],
