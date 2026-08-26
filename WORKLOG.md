@@ -7631,4 +7631,13 @@ Isolated conversation extractor stacked on AT3-039 `#579`.
 - Authority NON_CANONICAL; no Truth Core write
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-041 (2026-08-26)
+
+Isolated cross-LLM dedup stacked on AT3-040 `#580`.
+
+- `deduplicate_items` fail-closed on non-list / non-object items
+- Original provenance is not erased
+- Does not collapse state / intent / history
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

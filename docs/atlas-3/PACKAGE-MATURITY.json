@@ -297,6 +297,13 @@
       "evidence": "Landed ITEM_TYPES only. Heuristic extraction. LLM != authority. Forged owner stays proposed. No Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_extract_040.py"]
     },
+    "at3-041-dedup": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/dedup.py"],
+      "evidence": "Exact/near duplicate collapse. Provenance retained. Does not collapse state/intent/history. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_dedup_041.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

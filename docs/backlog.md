@@ -692,6 +692,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-036 Isolated ChatGPT export ingest (parse_chat_export compose; live history claim fails closed; does not replace chatgpt_bridge)
 - [x] AT3-039 Isolated conversation normalization (canonical envelope; mixed corrupt fail-closed; no new CLI)
 - [x] AT3-040 Isolated conversation extractor (landed ITEM_TYPES; forged owner stays proposed; no Truth Core)
+- [x] AT3-041 Isolated cross-LLM dedup (provenance retained; no state/intent/history collapse)
 - [x] AT3-CHRONICLE Horizon design notes only (no runtime)
 - [x] AT3-037 Isolated Claude fixture/export ingest (native history sync remains NOT IMPLEMENTED)
 - [ ] AT3-037 Claude native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)

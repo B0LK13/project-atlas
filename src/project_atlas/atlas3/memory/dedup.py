@@ -3,9 +3,21 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Final
 
+from project_atlas.atlas3.contracts import Atlas3Error
+
+PACKAGE_ID: Final[str] = "AT3-041"
 _TOKEN = re.compile(r"[a-z0-9]+")
+
+
+def dedup_capability() -> dict[str, Any]:
+    return {
+        "package": PACKAGE_ID,
+        "original_provenance_erased": False,
+        "auto_promote_to_truth_core": False,
+        "collapses_state_intent_history": False,
+    }
 
 
 def _normalize_text(text: str) -> str:
@@ -17,9 +29,13 @@ def _tokens(text: str) -> set[str]:
 
 
 def deduplicate_items(items: list[dict[str, Any]]) -> dict[str, Any]:
+    if not isinstance(items, list):
+        raise Atlas3Error("DEDUP_INVALID", "items must be a list")
     groups: dict[str, list[dict[str, Any]]] = {}
     order: list[str] = []
     for item in items:
+        if not isinstance(item, dict):
+            raise Atlas3Error("DEDUP_INVALID", "item is not an object")
         key = _normalize_text(str(item.get("text") or ""))
         if not key:
             key = str(item.get("source_content_hash") or id(item))
@@ -60,7 +76,7 @@ def deduplicate_items(items: list[dict[str, Any]]) -> dict[str, Any]:
         seen.append(tokens)
 
     return {
-        "package": "AT3-041",
+        "package": PACKAGE_ID,
         "items": collapsed,
         "input_count": len(items),
         "collapsed_count": len(collapsed),
