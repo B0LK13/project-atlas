@@ -7337,4 +7337,14 @@ Isolated file/symbol graph stacked on AT3-013.
 - Path traversal, CROSS_PROJECT, and authority claims fail closed
 - GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-012 (2026-08-26)
+
+Isolated service/environment nodes stacked on AT3-011.
+
+- `compile_estate_nodes` + CLI `atlas estate-nodes`
+- Missing declarations stay UNKNOWN
+- Estate availability is not owner authorization
+- Authentic estate / pilot claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

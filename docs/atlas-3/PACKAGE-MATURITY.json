@@ -18,6 +18,13 @@
       "evidence": "Derived twin constructors; provenance required; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_twin_002.py"]
     },
+    "at3-012-estate-nodes": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/estate_nodes.py"],
+      "evidence": "Declared service/environment nodes. Estate availability != owner authority.",
+      "guard_tests": ["tests/unit/test_atlas3_estate_nodes_012.py"]
+    },
     "at3-011-file-graph": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

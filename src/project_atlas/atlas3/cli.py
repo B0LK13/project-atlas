@@ -11,6 +11,7 @@ from project_atlas.atlas3.capabilities import list_capabilities
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
+from project_atlas.atlas3.estate_nodes import compile_estate_nodes
 from project_atlas.atlas3.file_graph import compile_file_graph
 from project_atlas.atlas3.inventory import compile_inventory
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
@@ -36,6 +37,7 @@ ATLAS3_COMMANDS = frozenset(
         "compatibility",
         "inventory",
         "file-graph",
+        "estate-nodes",
     }
 )
 
@@ -181,6 +183,15 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     file_graph.add_argument("--project", required=True)
     file_graph.add_argument("--json", action="store_true")
 
+    estate_nodes = subparsers.add_parser(
+        "estate-nodes",
+        help="Atlas 3 service/environment nodes (declared fixture; not authentic estate).",
+        description="Atlas 3 service/environment nodes (declared fixture; not authentic estate).",
+    )
+    estate_nodes.add_argument("--vault", type=Path, required=True)
+    estate_nodes.add_argument("--project", required=True)
+    estate_nodes.add_argument("--json", action="store_true")
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -213,6 +224,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(compile_inventory(args.vault, args.project), as_json=True)
         if command == "file-graph":
             return _dump(compile_file_graph(args.vault, args.project), as_json=True)
+        if command == "estate-nodes":
+            return _dump(compile_estate_nodes(args.vault, args.project), as_json=True)
         if command == "proof":
             evidence = None
             if getattr(args, "evidence", None):

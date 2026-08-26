@@ -28,6 +28,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "compatibility",
         "inventory",
         "file-graph",
+        "estate-nodes",
         "connect",
         "ask2",
         "kdiff",
