@@ -32,6 +32,7 @@ def _qualification_class(project: dict[str, Any]) -> str:
         or project.get("malicious_build_script")
         or project.get("duplicate_identity")
         or project.get("nested_repo")
+        or project.get("inspection_complete") is False
     ):
         return "excluded"
     if (

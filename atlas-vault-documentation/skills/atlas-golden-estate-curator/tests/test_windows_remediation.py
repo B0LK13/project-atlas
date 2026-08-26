@@ -7,6 +7,7 @@ path strings and OSError/WinError 1920 failures at multiple traversal stages.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -32,6 +33,26 @@ WIN1920 = (1920, "The file cannot be accessed by the system")
 
 def _win1920(path: Path) -> OSError:
     return OSError(WIN1920[0], WIN1920[1], str(path))
+
+
+def _commit(project: Path, message: str, *paths: str) -> None:
+    add = ["git", "-C", str(project), "add"]
+    if paths:
+        add.extend(["-f", *paths])
+    else:
+        add.append(".")
+    subprocess.run(
+        add,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(project), "commit", "-m", message],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
 
 def _relative_fields(report: dict) -> list[str]:
@@ -185,6 +206,9 @@ def test_ge_win_002_iterdir_failure_continues(
     assert "healthy-git" in names
     assert INACCESSIBLE_REASON in {item["reason"] for item in report["exclusions"]}
     assert "locked-dir" not in report["recommendation"]["recommended_golden_set"]
+    locked = next(item for item in report["inventory"] if item["name"] == "locked-dir")
+    assert locked["inspection_complete"] is False
+    assert locked["path"] not in report["recommendation"]["recommended_golden_set"]
 
 
 def test_ge_win_002_secret_scan_metadata_failure(
@@ -212,6 +236,9 @@ def test_ge_win_002_secret_scan_metadata_failure(
     names = {item["name"] for item in report["inventory"]}
     assert "healthy-git" in names
     assert INACCESSIBLE_REASON in {item["reason"] for item in report["exclusions"]}
+    healthy = next(item for item in report["inventory"] if item["name"] == "healthy-git")
+    assert healthy["inspection_complete"] is False
+    assert healthy["path"] not in report["recommendation"]["recommended_golden_set"]
     payload = json.dumps(report)
     assert WIN1920[1] not in payload
 
@@ -249,6 +276,9 @@ def test_ge_win_002_stale_doc_subtree_failure(
         path not in report["recommendation"]["recommended_golden_set"]
         for path in inaccessible_paths
     )
+    stale = next(item for item in report["inventory"] if item["name"] == "stale-docs")
+    assert stale["inspection_complete"] is False
+    assert stale["path"] not in report["recommendation"]["recommended_golden_set"]
 
 
 def test_ge_win_002_root_inaccessible_is_terminal(
@@ -296,3 +326,100 @@ def test_ge_win_002_permission_error_is_also_skipped(
     assert "healthy-git" in {item["name"] for item in report["inventory"]}
     assert INACCESSIBLE_REASON in {item["reason"] for item in report["exclusions"]}
     assert "denied" not in report["recommendation"]["recommended_golden_set"]
+
+
+def test_ge_win_002_inaccessible_git_is_not_golden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """IV P1: iterdir 1920 on a clean git repo must not recommend golden."""
+    source = tmp_path / "estate"
+    source.mkdir()
+    _init_repo(source / "healthy-git", readme="# Healthy\n")
+    _init_repo(source / "locked-git", readme="# Locked\n")
+
+    original = Path.iterdir
+
+    def flaky_iterdir(self: Path) -> object:
+        if self.name == "locked-git":
+            raise _win1920(self)
+        return original(self)
+
+    monkeypatch.setattr(Path, "iterdir", flaky_iterdir)
+    dest = tmp_path / "win002-locked-git.json"
+    before = fingerprint(source)
+    report = curate(source, output=dest)
+    assert fingerprint(source) == before
+    assert dest.is_file()
+    assert report["source_mutations"] == 0
+    locked = next(item for item in report["inventory"] if item["name"] == "locked-git")
+    healthy = next(item for item in report["inventory"] if item["name"] == "healthy-git")
+    assert locked["inspection_complete"] is False
+    assert locked["kind"] == "git"
+    assert locked["path"] not in report["recommendation"]["recommended_golden_set"]
+    assert healthy["path"] in report["recommendation"]["recommended_golden_set"]
+    row = next(item for item in report["qualification"] if item["path"] == locked["path"])
+    assert row["golden_candidate"] is False
+    assert row["excluded"] is True
+    assert INACCESSIBLE_REASON in row["blockers"]
+    assert report["discovery"]["inaccessible_is_golden"] is False
+    assert report["discovery"]["inaccessible_is_safe"] is False
+    payload = json.dumps(report)
+    assert WIN1920[1] not in payload
+
+
+def test_ge_win_002_inaccessible_secret_child_blocks_golden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "estate"
+    source.mkdir()
+    project = source / "secret-locked"
+    _init_repo(project, readme="# Secret locked\n")
+    env = project / ".env"
+    env.write_text("aws_secret_access_key=IV_MUST_NOT_ECHO_THIS_VALUE\n", encoding="utf-8")
+    _commit(project, "env", ".env")
+    original_stat = Path.stat
+
+    def flaky_stat(self: Path, *args: object, **kwargs: object) -> object:
+        if self.name == ".env":
+            raise _win1920(self)
+        return original_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", flaky_stat)
+    dest = tmp_path / "win002-secret-child.json"
+    report = curate(source, output=dest)
+    assert dest.is_file()
+    assert report["source_mutations"] == 0
+    item = next(row for row in report["inventory"] if row["name"] == "secret-locked")
+    assert item["path"] not in report["recommendation"]["recommended_golden_set"]
+    assert item["secret_findings"] or item["inspection_complete"] is False
+    payload = json.dumps(report)
+    assert "IV_MUST_NOT_ECHO_THIS_VALUE" not in payload
+    assert WIN1920[1] not in payload
+
+
+def test_ge_win_002_inaccessible_build_script_blocks_golden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "estate"
+    source.mkdir()
+    project = source / "maybe-malice"
+    _init_repo(project, readme="# Maybe\n")
+    script = project / "build.sh"
+    script.write_text("#!/bin/sh\nrm -rf /tmp/should-not-happen\n", encoding="utf-8")
+    _commit(project, "build")
+    original = Path.is_file
+
+    def flaky_is_file(self: Path) -> object:
+        if self.name == "build.sh":
+            raise _win1920(self)
+        return original(self)
+
+    monkeypatch.setattr(Path, "is_file", flaky_is_file)
+    dest = tmp_path / "win002-malice.json"
+    report = curate(source, output=dest)
+    assert dest.is_file()
+    item = next(row for row in report["inventory"] if row["name"] == "maybe-malice")
+    assert item["malicious_build_script"] is False
+    assert item["inspection_complete"] is False
+    assert item["path"] not in report["recommendation"]["recommended_golden_set"]
+    assert not (project / "EXECUTED").exists()
