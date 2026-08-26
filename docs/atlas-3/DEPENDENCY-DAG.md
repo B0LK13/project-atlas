@@ -97,6 +97,7 @@ AT3-094 decisions ──► declared owner_origin only (model paraphrase != owne
 AT3-092 truth-graph ► declared claims/relationships (graph != authority; no winners)
 AT3-096 mission ────► declared orch DAG/leases (self-merge forbidden; estate != authorization)
 AT3-095 impact-ux ──► composes AT3-080 (no new CLI; graph != authority)
+AT3-110 multi-proj ► declared siblings (federation != authority; no org mint)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

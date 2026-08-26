@@ -32,6 +32,7 @@ from project_atlas.atlas3.memory.providers import memory_providers
 from project_atlas.atlas3.memory.routing import assert_items_project_scope
 from project_atlas.atlas3.memory.search import search_memory
 from project_atlas.atlas3.mission import compile_mission
+from project_atlas.atlas3.multi_project import compile_multi_project_twin
 from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.provider_register import (
     assert_cli_design,
@@ -72,6 +73,7 @@ ATLAS3_COMMANDS = frozenset(
         "decision-explorer",
         "truth-graph",
         "mission",
+        "multi-project-twin",
     }
 )
 
@@ -395,6 +397,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     mission.add_argument("--vault", type=Path, required=True)
     mission.add_argument("--project", required=True)
 
+    multi_project = subparsers.add_parser(
+        "multi-project-twin",
+        help="Atlas 3 multi-project twin (declared siblings; federation is not authority).",
+        description="Atlas 3 multi-project twin (declared siblings; federation is not authority).",
+    )
+    multi_project.add_argument("--vault", type=Path, required=True)
+    multi_project.add_argument("--project", default=None, help="Optional requested project id.")
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -445,6 +455,14 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     iv_result=str(args.iv_result),
                     verifier_id=str(args.verifier),
                     package_id=str(args.package),
+                ),
+                as_json=True,
+            )
+        if command == "multi-project-twin":
+            return _dump(
+                compile_multi_project_twin(
+                    args.vault,
+                    requested_project_id=getattr(args, "project", None),
                 ),
                 as_json=True,
             )

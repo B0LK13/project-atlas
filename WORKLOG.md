@@ -7401,6 +7401,16 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-110 (2026-08-26)
+
+Isolated multi-project twin stacked on AT3-095.
+
+- `compile_multi_project_twin` + CLI `atlas multi-project-twin`
+- Declared sibling rows only; missing stays UNKNOWN
+- Federation != authority; no org identity mint
+- CROSS_PROJECT_LEAK_COUNT = 0
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-095 (2026-08-26)
 
 Isolated Impact Explorer UX stacked on AT3-096.

@@ -44,6 +44,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "decision-explorer",
         "truth-graph",
         "mission",
+        "multi-project-twin",
         "connect",
         "ask2",
         "kdiff",
