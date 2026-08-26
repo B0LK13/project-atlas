@@ -47,6 +47,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "multi-project-twin",
         "org-identity",
         "claim-nodes",
+        "conflict-unknown",
         "connect",
         "ask2",
         "kdiff",

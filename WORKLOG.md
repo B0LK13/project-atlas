@@ -7533,4 +7533,15 @@ Isolated claim/decision/requirement nodes stacked on AT3-006 tip `#568`.
 - Distinct from AT3-092 UX and AT3-094 explorer
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-022 (2026-08-26)
+
+Isolated conflict/UNKNOWN projection stacked on AT3-020 `#569`.
+
+- `compile_conflict_unknown` + CLI `atlas conflict-unknown`
+- Declared conflicts and unknowns only; missing stays UNKNOWN
+- UNKNOWN remains UNKNOWN; no conflict winner
+- Healthy-filter / silent corruption drop fails closed
+- Distinct from AT3-081 Pulse/memory compose
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

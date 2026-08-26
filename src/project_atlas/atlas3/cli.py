@@ -12,6 +12,7 @@ from project_atlas.atlas3.capabilities import list_capabilities
 from project_atlas.atlas3.causal import compile_causal_graph
 from project_atlas.atlas3.claim_nodes import compile_claim_nodes
 from project_atlas.atlas3.compat import prove_compatibility
+from project_atlas.atlas3.conflict_unknown import compile_conflict_unknown
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.decided import compile_decided_by
 from project_atlas.atlas3.decision_explorer import compile_decision_explorer
@@ -78,6 +79,7 @@ ATLAS3_COMMANDS = frozenset(
         "multi-project-twin",
         "org-identity",
         "claim-nodes",
+        "conflict-unknown",
     }
 )
 
@@ -428,6 +430,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     claim_nodes.add_argument("--vault", type=Path, required=True)
     claim_nodes.add_argument("--project", required=True)
 
+    conflict_unknown = subparsers.add_parser(
+        "conflict-unknown",
+        help="Atlas 3 conflict/UNKNOWN projection (UNKNOWN remains UNKNOWN).",
+        description="Atlas 3 conflict/UNKNOWN projection (UNKNOWN remains UNKNOWN).",
+    )
+    conflict_unknown.add_argument("--vault", type=Path, required=True)
+    conflict_unknown.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -485,6 +495,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(compile_org_identity(args.vault), as_json=True)
         if command == "claim-nodes":
             return _dump(compile_claim_nodes(args.vault, args.project), as_json=True)
+        if command == "conflict-unknown":
+            return _dump(compile_conflict_unknown(args.vault, args.project), as_json=True)
         if command == "multi-project-twin":
             return _dump(
                 compile_multi_project_twin(
