@@ -7179,3 +7179,9 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 backlog honesty (2026-08-26 night cycle)
+
+Backlog checkbox SATISFIED against live main: package already implemented
+(`src/project_atlas/incremental_connect.py`) with 13 unit tests passing.
+No behavior change. Skip remains operational only. MERGE_AUTHORIZATION = NOT_GRANTED.
