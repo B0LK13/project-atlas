@@ -116,6 +116,47 @@ def test_healthy_filter_and_cross_project_fail_closed(tmp_path: Path) -> None:
     assert cross.value.code == "CROSS_PROJECT"
 
 
+def test_resolved_true_without_status_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_declared(
+        vault,
+        {
+            "project_id": "harbor-api",
+            "conflicts": [
+                {
+                    "conflict_id": "pg",
+                    "sides": ["15", "16"],
+                    "evidence_refs": ["doc:x"],
+                    "resolved": True,
+                }
+            ],
+        },
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        compile_conflict_unknown(vault, "harbor-api")
+    assert exc.value.code == "CONFLICT_STATE_INCOHERENT"
+
+
+def test_whitespace_only_sides_fail_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_declared(
+        vault,
+        {
+            "project_id": "harbor-api",
+            "conflicts": [
+                {
+                    "conflict_id": "pg",
+                    "sides": ["  ", "\t"],
+                    "evidence_refs": ["doc:x"],
+                }
+            ],
+        },
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        compile_conflict_unknown(vault, "harbor-api")
+    assert exc.value.code == "CONFLICT_SIDES_REQUIRED"
+
+
 def test_corrupt_json_fails_closed(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     path = (

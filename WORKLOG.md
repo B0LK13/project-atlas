@@ -7544,4 +7544,9 @@ Isolated conflict/UNKNOWN projection stacked on AT3-020 `#569`.
 - Distinct from AT3-081 Pulse/memory compose
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+### P1 remedi on `#570`
+
+- P1-022-001: `resolved=true` with omitted status now fail-closes (`CONFLICT_STATE_INCOHERENT`)
+- P1-022-002: whitespace-only sides now fail-close (`CONFLICT_SIDES_REQUIRED`)
+
 

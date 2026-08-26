@@ -61,7 +61,8 @@ def _conflicts(raw: object, *, project_id: str) -> list[dict[str, Any]]:
                 "GRAPH_WINNER_CLAIMED",
                 "conflict projection must not pick an authority winner",
             )
-        if item.get("resolved") is True and item.get("status") == "open":
+        status = str(item.get("status") or "open").strip() or "open"
+        if item.get("resolved") is True and status == "open":
             raise Atlas3Error(
                 "CONFLICT_STATE_INCOHERENT",
                 "open conflicts cannot be marked resolved",
@@ -76,7 +77,13 @@ def _conflicts(raw: object, *, project_id: str) -> list[dict[str, Any]]:
                 "conflict project_id does not match request",
             )
         sides = item.get("sides") or item.get("claims")
-        if not isinstance(sides, list) or len(sides) < 2:
+        if not isinstance(sides, list):
+            raise Atlas3Error(
+                "CONFLICT_SIDES_REQUIRED",
+                f"{conflict_id} requires at least two sides",
+            )
+        cleaned_sides = [str(side).strip() for side in sides if str(side).strip()]
+        if len(cleaned_sides) < 2:
             raise Atlas3Error(
                 "CONFLICT_SIDES_REQUIRED",
                 f"{conflict_id} requires at least two sides",
@@ -91,8 +98,8 @@ def _conflicts(raw: object, *, project_id: str) -> list[dict[str, Any]]:
             {
                 "conflict_id": conflict_id,
                 "project_id": project_id,
-                "sides": [str(side).strip() for side in sides if str(side).strip()],
-                "status": str(item.get("status") or "open").strip() or "open",
+                "sides": cleaned_sides,
+                "status": status,
                 "winner": None,
                 "evidence_refs": refs,
                 "authority": "derived",
