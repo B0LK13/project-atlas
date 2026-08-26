@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from project_atlas.atlas3.adv_bind import bind_adversarial_result
 from project_atlas.atlas3.capabilities import list_capabilities
 from project_atlas.atlas3.causal import compile_causal_graph
 from project_atlas.atlas3.compat import prove_compatibility
@@ -47,6 +48,7 @@ ATLAS3_COMMANDS = frozenset(
         "decided-by",
         "rel-expand",
         "iv-bind",
+        "adv-bind",
     }
 )
 
@@ -248,6 +250,19 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     iv_bind.add_argument("--iv-result", required=True, choices=["PASS", "FAIL"])
     iv_bind.add_argument("--verifier", required=True)
 
+    adv_bind = subparsers.add_parser(
+        "adv-bind",
+        help="Atlas 3 ADV binding (exact HEAD/TREE; does not grant merge).",
+        description="Atlas 3 ADV binding (exact HEAD/TREE; does not grant merge).",
+    )
+    adv_bind.add_argument("--package", required=True)
+    adv_bind.add_argument("--candidate-head", required=True)
+    adv_bind.add_argument("--candidate-tree", required=True)
+    adv_bind.add_argument("--observed-head", required=True)
+    adv_bind.add_argument("--observed-tree", required=True)
+    adv_bind.add_argument("--adv-result", required=True, choices=["PASS", "FAIL"])
+    adv_bind.add_argument("--adv-id", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -297,6 +312,19 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     observed_tree=str(args.observed_tree),
                     iv_result=str(args.iv_result),
                     verifier_id=str(args.verifier),
+                    package_id=str(args.package),
+                ),
+                as_json=True,
+            )
+        if command == "adv-bind":
+            return _dump(
+                bind_adversarial_result(
+                    candidate_head=str(args.candidate_head),
+                    candidate_tree=str(args.candidate_tree),
+                    observed_head=str(args.observed_head),
+                    observed_tree=str(args.observed_tree),
+                    adv_result=str(args.adv_result),
+                    adv_id=str(args.adv_id),
                     package_id=str(args.package),
                 ),
                 as_json=True,

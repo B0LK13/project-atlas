@@ -7392,4 +7392,13 @@ Isolated independent-verification binding stacked on AT3-021.
 - IMPLEMENTER != VERIFIER; IV != MERGE
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-052 (2026-08-26)
+
+Isolated ADV binding stacked on AT3-051.
+
+- `bind_adversarial_result` + CLI `atlas adv-bind`
+- Exact HEAD/TREE only; target movement fails closed
+- ADV != MERGE; ADV != SECURITY CERTIFICATION
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
