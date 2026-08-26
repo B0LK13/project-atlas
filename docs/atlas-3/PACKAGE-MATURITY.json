@@ -270,6 +270,13 @@
       "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. GEMINI.md != ingestion.",
       "guard_tests": ["tests/unit/test_atlas3_gemini_038.py"]
     },
+    "at3-102-provider-sync": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/provider_sync.py"],
+      "evidence": "Honest provider sync status. Live history != sync. AT3-046 incremental sync remains EXTERNAL_BLOCKED.",
+      "guard_tests": ["tests/unit/test_atlas3_provider_sync_102.py"]
+    },
     "at3-101-ledger-obs": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
