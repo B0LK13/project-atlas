@@ -268,6 +268,72 @@ def make_handler(
                     },
                 )
                 return
+            if path == "/v1/next-status":
+                try:
+                    self._send(200, service.next_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/changed-status":
+                try:
+                    self._send(200, service.changed_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/overview-status":
+                try:
+                    self._send(200, service.overview_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/decisions-status":
+                try:
+                    self._send(200, service.decisions_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/unknown-status":
+                try:
+                    self._send(200, service.unknown_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/state-status":
+                try:
+                    self._send(200, service.state_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/architecture-status":
+                try:
+                    self._send(200, service.architecture_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/roadmap-status":
+                try:
+                    self._send(200, service.roadmap_answers_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/portfolio-status":
+                try:
+                    self._send(200, service.portfolio_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/bitemporal-status":
+                try:
+                    self._send(200, service.bitemporal_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/index-status":
+                try:
+                    self._send(200, service.index_status())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/brief":
                 project = (qs.get("project") or [""])[0]
                 if not project:
