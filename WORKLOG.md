@@ -52,6 +52,8 @@ Second IV on `24e9759`: project-level kill closed; descendant/`estimate_disk` in
 
 Third IV on `703cc93`: required attacks 1–8 closed; new P1 when `source_root` itself is the git project (`path=.`) and a descendant is inaccessible. Closed by treating `.` as covering every `INACCESSIBLE_PATH`. Do not transfer certification from `703cc93`.
 
+Fourth IV on `7667a12`: required attacks 1–9 closed; new P1 `_read_text_limited` swallowed `Path.open` 1920 so a committed secret-shaped `notes.txt` stayed golden and `complete=true`. Closed by returning None on open failure and treating that as inaccessible / incomplete. Do not transfer certification from `7667a12`.
+
 ---
 
 ## ATLAS-GOLDEN-ESTATE-INVENTORY-HONESTY-001
