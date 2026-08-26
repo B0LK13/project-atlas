@@ -1,0 +1,447 @@
+{
+  "directive": "D-AUG26-PR609-FINAL-DIFFERENTIAL-SEAL-038",
+  "d038_state": "COMPLETE",
+  "case": "A",
+  "main_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+  "main_tree": "9c670d710ec63d36fea70c6a181c088b79294336",
+  "pr609_head": "4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+  "pr609_tree": "b53de8667e48e625d0fdcea540a52f6b42f28b22",
+  "pr609_base_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+  "pr609_open": true,
+  "pr609_draft": false,
+  "pr609_mergeable": true,
+  "target_moved": false,
+  "canonical_carrier": "PR609",
+  "pr608_disposition": "SUPERSEDED_BY_PR609",
+  "pr607_disposition": "REQUIRED_SEPARATE_GOVERNANCE",
+  "pr607_required_before_canonical_merge": false,
+  "baseline_worklog_encoding_corruption": true,
+  "baseline_mojibake_occurrence_count": 614,
+  "baseline_mojibake_preserved": 614,
+  "baseline_mojibake_modified_by_pr609": 0,
+  "baseline_mojibake_expanded_by_pr609": false,
+  "new_carrier_worklog_encoding_corruption": true,
+  "pr609_new_mojibake_occurrence_count": 2,
+  "pr609_total_mojibake_occurrence_count": 765,
+  "lane_c_semantic_match_post605": true,
+  "unrelated_historical_worklog_rewrites": true,
+  "expected_worklog_delta_only": true,
+  "worklog_carrier_regression": false,
+  "worklog_historical_remediation": "BACKLOG_OPTIONAL",
+  "carrier_expands_existing_encoding_corruption": true,
+  "pr609_mutated": false,
+  "certification_reused": true,
+  "certification_rerun": false,
+  "ge": "PASS_48",
+  "atlas3": "PASS_540",
+  "report_read": "PASS_161",
+  "iv_adv": "PASS_49",
+  "ruff": "PASS",
+  "valid_p0": 0,
+  "valid_p1": 0,
+  "certified_production_head": "dc75651a28f10b7f07ea6da0c446919e36d64b99",
+  "atlas3_legacy_supersession_count": 43,
+  "pre_d037_supersession_count": 44,
+  "new_d037_superseded_count": 1,
+  "total_proposed_closure_count": 45,
+  "pr608_included": true,
+  "supersession_cardinality_explained": true,
+  "supersession_duplicate_count": 0,
+  "supersession_drift": 0,
+  "supersession_cardinality_explanation": "43 Atlas3 embedded PRs (D-026-SUPERSESSION-MAP.json) + #592 stack tip entry (D-027-SUPERSESSION-PACKET.json) + #608 GE carrier superseded by PR609 (D-037) = 45 total; no duplicate PR numbers.",
+  "closure_entries": [
+    {
+      "PR_NUMBER": 591,
+      "HEAD": "8c4c8a95dc7f04d5ba88d127e58aac161ebb00e6",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 590,
+      "HEAD": "768f38490c29006482e2f2115b2333d64190da67",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 589,
+      "HEAD": "cb685447c1138678c25f5cf3d4a03c804e9dfe5a",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 588,
+      "HEAD": "c630eb5f6fc2c13e30f58055e2ae47d92f426891",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 585,
+      "HEAD": "e98e04d04f375d71a67dd5aeb72e8cff12a5dd7f",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 584,
+      "HEAD": "8dce8367a5db418b54e38581a9840d1262a2dff1",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 583,
+      "HEAD": "2c5e598f8adb51b2dfd10236fc8769f9070ed1a3",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 582,
+      "HEAD": "5467602d3f9af837589bdd9cb54101be92ae491e",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 581,
+      "HEAD": "c3d2b82bad9465ae89fc6973027252ae230dde77",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 580,
+      "HEAD": "7e99a317ae5df4d64258f4588e1f742220a92f14",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 579,
+      "HEAD": "9e890bdd7546dd90e3eaa777e976519bbd04a03d",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 578,
+      "HEAD": "307ba862894465da91846968e3baf59677395a63",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 568,
+      "HEAD": "46628aebc3c2b04aa19025756622eb7650cb1917",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 567,
+      "HEAD": "bf138470a29a71902824553ab3416e857796bf64",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 566,
+      "HEAD": "c3d6ababb4aa49fd350846d419036f30c0067b1e",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 565,
+      "HEAD": "be14bc7a90c7afae38dc663cf7222c0d84f48078",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 564,
+      "HEAD": "749a481803c24002b97b5ccc41f6bec0e2c26f28",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 563,
+      "HEAD": "3e19882ecb2b79d8b275fd15e5649df7c18f9aa5",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 562,
+      "HEAD": "49b7c3a283d15a9ba10f51b576888a93b9bc5a77",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 561,
+      "HEAD": "13350c3df9ae863d5551a77776fa33608c26f0e2",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 560,
+      "HEAD": "26850b35dd703b38957578eebf3feea608daa408",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 559,
+      "HEAD": "0c51083e09e57a4f6ea745a429737c7183e1f820",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 558,
+      "HEAD": "36e3b0fba296dc237fac0f4a1d6c47757f20ed49",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 556,
+      "HEAD": "875913b46d569dbb3aa8d16c8463f33b62244b76",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 555,
+      "HEAD": "9aabac91791614ea9e13c74da9b205246b3823f4",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 554,
+      "HEAD": "ea398c42ee59ba1da9d5e1cb8d93865276960ac5",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 553,
+      "HEAD": "853f015f5996f08e989c321b6bd7a85b20afea91",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 552,
+      "HEAD": "d2ccdc8ce0cb498e2e03a8d9fc5434a5e9869f13",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 551,
+      "HEAD": "b7a5e60046616964daea5a2569154b1631c1d4e7",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 550,
+      "HEAD": "e3f7758a4a6d112c201b2ce312a7167daf64a13f",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 549,
+      "HEAD": "029dd8673ad351f6c39ea377bdbb113c9196295f",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 548,
+      "HEAD": "d692cb886c67244316b354b7ae1eaf264d0304b0",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 547,
+      "HEAD": "cb9576ec2e2aa41fcef987d94d3ba2b47eabe4c6",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 546,
+      "HEAD": "5426f2c62a4104b5f388ad71b043324e0cfa2625",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 545,
+      "HEAD": "6da5f08ec04cb3392819feb891e3501b2a067dcd",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 544,
+      "HEAD": "2dfbd3a2c5657e28f8e6f4879f92ee7a8b08a1b7",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 543,
+      "HEAD": "268b3d9cc39de3ca3ff46215ac5e099edbb33e77",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 541,
+      "HEAD": "4067eddeef5a8eedfbf00917527c101a32414228",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 540,
+      "HEAD": "3f2f1a77d54c2c661a5d4e3699d3bddb22ed07c4",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 539,
+      "HEAD": "9db8d18f1d2e0965e83e332393e45dddbbd303fc",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 538,
+      "HEAD": "11a49ad19fb8a7ad2f28092023a30ac167893ff1",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 537,
+      "HEAD": "96470a2c27e09cb8da10a750bdbf794600c99739",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 536,
+      "HEAD": "5a3d15c19709d0db713ff934b8d5d462776544c1",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 592,
+      "HEAD": "3f74bbb35bcb252727bab8e965b23c08b1194774",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-027-SUPERSESSION-PACKET.json"
+    },
+    {
+      "PR_NUMBER": 608,
+      "HEAD": "94786c9c6e59aa0934296a71e8190959e34e914e",
+      "CURRENT_STATE": "OPEN",
+      "SUPERSEDED_BY": "PR609_4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+      "UNIQUE_REQUIRED_DELTA": 0,
+      "SOURCE_EVIDENCE": "D-037-CANONICAL-GE-RECONCILIATION-037.json"
+    }
+  ],
+  "canonical_windows_packet": "D-037-WINDOWS-EXECUTION-PACKET.json",
+  "canonical_windows_head": "4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+  "canonical_windows_tree": "b53de8667e48e625d0fdcea540a52f6b42f28b22",
+  "active_windows_targets": 1,
+  "windows_node": "BLOCKED_EXTERNAL",
+  "active_ge_integration_paths": 1,
+  "canonical_ge_carrier_ambiguity": 0,
+  "pr542_disposition": "BACKLOG_OPTIONAL",
+  "dag_counts": {
+    "READY": 0,
+    "DERIVABLE": 0,
+    "UNKNOWN_REQUIRES_AUDIT": 0,
+    "AUTONOMOUS_REMEDIATIONS": 0,
+    "BLOCKED_BY_OWNER": 3,
+    "BLOCKED_EXTERNAL": 1,
+    "BACKLOG_OPTIONAL": 2
+  },
+  "autonomous_nodes_executed": [
+    "D038-WORKLOG-DIFFERENTIAL",
+    "D038-SUPERSESSION-CARDINALITY",
+    "D038-PR609-FRESHNESS-SEAL"
+  ],
+  "autonomous_nodes_remaining": 0,
+  "frontier_accounting_consistent": true,
+  "pr609_owner_ready_canonical": true,
+  "genuine_owner_only_frontier": true,
+  "external_hard_blocker": false,
+  "project_terminal": false,
+  "merge_authorization": "NOT_GRANTED",
+  "merge_performed": false,
+  "next_owner_action": "AUTHORIZE_MERGE_PR_609",
+  "next_external_action": "RESTORE_GITHUB_ACTIONS_BUDGET",
+  "next_autonomous_node": "NONE"
+}
