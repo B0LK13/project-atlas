@@ -254,12 +254,12 @@ def _escapes(path: Path, root: Path) -> bool:
     return root not in resolved.parents and resolved != root
 
 
-def _read_text_limited(path: Path, limit: int = 4096) -> str:
+def _read_text_limited(path: Path, limit: int = 4096) -> str | None:
     try:
         with path.open("rb") as handle:
             raw = handle.read(limit)
     except OSError:
-        return ""
+        return None
     return raw.decode("utf-8", errors="replace")
 
 
@@ -272,6 +272,8 @@ def _secret_hit(path: Path) -> dict[str, str] | None:
     st = _safe_stat(path) if is_file else None
     if is_file and st is not None and st.st_size < 65536:
         text = _read_text_limited(path)
+        if text is None:
+            raise OSError("secret-scan content inaccessible")
         if SECRET_TEXT_RE.search(text):
             return {"kind": "content", "pattern": "secret-shaped", "path": str(path.name)}
     if is_file and st is None:
@@ -385,17 +387,21 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
         is_project = git_here or marker_file or (readme_file and current != root)
 
         if is_project:
+            inspection_complete = True
             identity = current.name
             if marker_file:
                 text = _read_text_limited(marker)
-                match = re.search(r"(?m)^id:\s*(\S+)", text)
-                if match:
-                    identity = match.group(1)
+                if text is None:
+                    _record_inaccessible(exclusions, marker, root)
+                    inspection_complete = False
+                else:
+                    match = re.search(r"(?m)^id:\s*(\S+)", text)
+                    if match:
+                        identity = match.group(1)
             rel = report_relpath(current, root)
             duplicate = identity in seen_ids
             seen_ids.setdefault(identity, rel)
             secret_findings: list[dict[str, str]] = []
-            inspection_complete = True
             exclusion_mark = len(exclusions)
             secret_children = _safe_iterdir(current)
             if secret_children is None:
@@ -532,7 +538,10 @@ def _malicious_build(project: Path) -> bool | None:
     if build_file is None:
         return None
     if build_file is True:
-        return "rm -rf" in _read_text_limited(build)
+        text = _read_text_limited(build)
+        if text is None:
+            return None
+        return "rm -rf" in text
     return False
 
 
