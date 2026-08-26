@@ -48,6 +48,8 @@ An inaccessible clean git repo (`iterdir` WinError 1920) was still placed in `re
 
 Closed on this branch: `inspection_complete=false` → `INACCESSIBLE_PATH` blocker; filename secret match does not require a readable file; `discovery.inaccessible_is_golden` is derived. Do not transfer certification from `38347a2`.
 
+Second IV on `24e9759`: project-level kill closed; descendant/`estimate_disk` inaccessible under a parent still left the parent golden. Closed by covering-project post-pass after disk estimate, then re-qualify. Do not transfer certification from `24e9759`.
+
 ---
 
 ## ATLAS-GOLDEN-ESTATE-INVENTORY-HONESTY-001
