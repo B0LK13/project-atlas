@@ -7684,4 +7684,14 @@ Isolated memory reconciliation stacked on AT3-048 `#585`.
 - Does not pick a winner
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-046 (2026-08-26)
+
+Isolated incremental conversation sync stacked on AT3-049 `#586`.
+
+- Local export-cursor incremental apply is implemented
+- Live provider incremental sync remains EXTERNAL_BLOCKED
+- Credentials, history API claims, and import_mode=API fail closed
+- Mixed corrupt / cross-project / conversation mismatch fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

@@ -30,6 +30,11 @@ from project_atlas.atlas3.memory.claude import import_claude_export
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.gemini import import_gemini_export
 from project_atlas.atlas3.memory.honesty import wrap_intent_state_honesty
+from project_atlas.atlas3.memory.incremental import (
+    apply_local_incremental,
+    incremental_capability,
+    load_envelope_list,
+)
 from project_atlas.atlas3.memory.intent import extract_intent_report
 from project_atlas.atlas3.memory.lineage import build_session_lineage
 from project_atlas.atlas3.memory.providers import memory_providers
@@ -144,6 +149,29 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Report sync capability honesty (does not invent live provider APIs).",
     )
     sync.add_argument("--json", action="store_true")
+    incremental = mem_sub.add_parser(
+        "incremental",
+        help="Local export-cursor incremental apply (not a live provider API).",
+    )
+    incremental.add_argument(
+        "--accepted",
+        type=Path,
+        default=None,
+        help="JSON list of already-accepted envelopes.",
+    )
+    incremental.add_argument(
+        "--incoming",
+        type=Path,
+        default=None,
+        help="JSON list of incoming envelopes.",
+    )
+    incremental.add_argument(
+        "--cursor",
+        default=None,
+        help="Cursor from the last accepted envelope.",
+    )
+    incremental.add_argument("--conversation-id", default=None, help="Conversation id to bind.")
+    incremental.add_argument("--project", default=None, help="Governed project id.")
     chatgpt = mem_sub.add_parser(
         "chatgpt",
         help="Import a ChatGPT export fixture (not a live history API).",
@@ -615,6 +643,31 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     "live full-history sync is not implemented."
                 )
                 return _dump(caps, as_json=True)
+            if sub == "incremental":
+                incoming_path = getattr(args, "incoming", None)
+                if incoming_path is None:
+                    return _dump(incremental_capability(), as_json=True)
+                conversation_id = getattr(args, "conversation_id", None)
+                project_id = getattr(args, "project", None)
+                if not conversation_id or not project_id:
+                    raise Atlas3Error(
+                        "INCREMENTAL_INVALID",
+                        "incremental apply requires --conversation-id and --project",
+                    )
+                accepted_path = getattr(args, "accepted", None)
+                accepted = (
+                    load_envelope_list(Path(accepted_path)) if accepted_path is not None else []
+                )
+                return _dump(
+                    apply_local_incremental(
+                        accepted,
+                        load_envelope_list(Path(incoming_path)),
+                        cursor=getattr(args, "cursor", None),
+                        conversation_id=str(conversation_id),
+                        project_id=str(project_id),
+                    ),
+                    as_json=True,
+                )
             if sub == "chatgpt":
                 envelopes = import_chatgpt_export(
                     Path(args.export),

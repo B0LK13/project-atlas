@@ -339,6 +339,13 @@
       "evidence": "Composes AT3-041/042/044. Never auto-promotes. Does not pick a winner.",
       "guard_tests": ["tests/unit/test_atlas3_reconcile_049.py"]
     },
+    "at3-046-incremental": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/incremental.py"],
+      "evidence": "Local export-cursor incremental apply. Live provider incremental sync remains EXTERNAL_BLOCKED. Credentials and history APIs fail closed.",
+      "guard_tests": ["tests/unit/test_atlas3_incremental_046.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",
