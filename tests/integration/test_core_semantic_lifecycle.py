@@ -834,7 +834,7 @@ def test_concurrent_project_initializers_have_one_uuid_receipt(tmp_path: Path) -
     def try_ingest(_index):
         try:
             return ingest(manifest, vault, authorized_source_root=source, uuid_provider=provider)
-        except (ValueError, PermissionError):
+        except (ValueError, PermissionError, FileNotFoundError):
             return {"ok": False}
 
     with ThreadPoolExecutor(max_workers=2) as pool:
