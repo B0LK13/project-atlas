@@ -24,6 +24,7 @@ from curator import (  # noqa: E402
     CuratorError,
     canonicalize_report_path,
     curate,
+    estimate_disk,
     report_relpath,
 )
 from estate import _init_repo, build_name_duplicate_estate, fingerprint  # noqa: E402
@@ -423,3 +424,76 @@ def test_ge_win_002_inaccessible_build_script_blocks_golden(
     assert item["inspection_complete"] is False
     assert item["path"] not in report["recommendation"]["recommended_golden_set"]
     assert not (project / "EXECUTED").exists()
+
+
+def test_ge_win_002_inaccessible_descendant_blocks_parent_golden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "estate"
+    source.mkdir()
+    _init_repo(source / "healthy-git", readme="# Healthy\n")
+    partial = source / "partial-git"
+    _init_repo(partial, readme="# Partial\n")
+    locked = partial / "docs" / "locked.bin"
+    locked.parent.mkdir()
+    locked.write_text("x\n", encoding="utf-8")
+    _commit(partial, "docs", "docs/locked.bin")
+    dest = tmp_path / "win002-descendant.json"
+    before = fingerprint(source)
+
+    original = Path.lstat
+
+    def flaky_lstat(self: Path) -> object:
+        if self.name == "locked.bin":
+            raise _win1920(self)
+        return original(self)
+
+    monkeypatch.setattr(Path, "lstat", flaky_lstat)
+    report = curate(source, output=dest)
+    monkeypatch.setattr(Path, "lstat", original)
+    assert fingerprint(source) == before
+    assert dest.is_file()
+    healthy = next(item for item in report["inventory"] if item["name"] == "healthy-git")
+    blocked = next(item for item in report["inventory"] if item["name"] == "partial-git")
+    assert blocked["inspection_complete"] is False
+    assert blocked["path"] not in report["recommendation"]["recommended_golden_set"]
+    assert healthy["path"] in report["recommendation"]["recommended_golden_set"]
+    assert report["discovery"]["inaccessible_is_golden"] is False
+    assert any(
+        item["path"] == "partial-git/docs/locked.bin"
+        for item in report["exclusions"]
+        if item["reason"] == INACCESSIBLE_REASON
+    )
+
+
+def test_ge_win_002_disk_estimate_inaccessible_blocks_parent_golden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "estate"
+    source.mkdir()
+    _init_repo(source / "healthy-git", readme="# Healthy\n")
+
+    def wrapped(root: Path, exclusions: list | None = None) -> dict:
+        result = estimate_disk(root, exclusions)
+        if exclusions is not None:
+            exclusions.append(
+                {
+                    "path": "healthy-git/docs/estimate-only.bin",
+                    "reason": INACCESSIBLE_REASON,
+                    "action": "skip",
+                    "inspected": False,
+                }
+            )
+        return result
+
+    monkeypatch.setattr(
+        "curator.estimate_disk",
+        wrapped,
+    )
+    dest = tmp_path / "win002-disk.json"
+    report = curate(source, output=dest)
+    assert dest.is_file()
+    healthy = next(item for item in report["inventory"] if item["name"] == "healthy-git")
+    assert healthy["inspection_complete"] is False
+    assert healthy["path"] not in report["recommendation"]["recommended_golden_set"]
+    assert report["discovery"]["inaccessible_is_golden"] is False
