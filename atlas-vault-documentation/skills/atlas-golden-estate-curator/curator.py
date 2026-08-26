@@ -682,6 +682,19 @@ def recommend(qualifications: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _inaccessible_covers_project(project_path: str, inaccessible_paths: set[str]) -> bool:
+    rel = canonicalize_report_path(project_path)
+    if not rel:
+        return False
+    for item in inaccessible_paths:
+        exc = canonicalize_report_path(item)
+        if not exc:
+            continue
+        if exc == rel or exc.startswith(f"{rel}/"):
+            return True
+    return False
+
+
 def estimate_disk(
     root: Path, exclusions: list[dict[str, Any]] | None = None
 ) -> dict[str, int]:
@@ -746,22 +759,27 @@ def curate(
         item["path"] = canonicalize_report_path(str(item.get("path") or ""))
         if item.get("duplicate_of"):
             item["duplicate_of"] = canonicalize_report_path(str(item["duplicate_of"]))
-    qualifications = [qualify(item) for item in projects]
-    rec = recommend(qualifications)
     disk = estimate_disk(root, walked["exclusions"])
     generated = [
         canonicalize_report_path(item) for item in walked["generated_directories"]
     ]
     for item in walked["exclusions"]:
         item["path"] = canonicalize_report_path(str(item.get("path") or ""))
-        if "\\" in str(item.get("path") or ""):
-            item["path"] = canonicalize_report_path(item["path"])
+    inaccessible_paths = {
+        canonicalize_report_path(str(item.get("path") or ""))
+        for item in walked["exclusions"]
+        if item.get("reason") == INACCESSIBLE_REASON
+    }
+    for item in projects:
+        if _inaccessible_covers_project(str(item.get("path") or ""), inaccessible_paths):
+            item["inspection_complete"] = False
+    qualifications = [qualify(item) for item in projects]
+    rec = recommend(qualifications)
     inaccessible = [
         item
         for item in walked["exclusions"]
         if item.get("reason") == INACCESSIBLE_REASON
     ]
-    inaccessible_paths = {str(item.get("path") or "") for item in inaccessible}
     golden_set = {str(item) for item in rec["recommended_golden_set"]}
     inaccessible_is_golden = any(
         path in golden_set
