@@ -82,6 +82,7 @@ chatgpt_bridge ─────► AT3-036 (compose, do not replace)
 Ask2 / runtime_22 ──► consume reconciled memory later (not in this slice as write)
 Orch DAG / leases ──► AT3-050 / AT3-053 (project, do not redefine)
 AS-GRAPH-003 ───────► twin relationships (derived)
+AT3-021 rel-expand ─► GRAPH_REUSE aliases only (no AS-GRAPH-003 write)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

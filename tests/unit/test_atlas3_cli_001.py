@@ -31,6 +31,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "estate-nodes",
         "causal-graph",
         "decided-by",
+        "rel-expand",
         "connect",
         "ask2",
         "kdiff",

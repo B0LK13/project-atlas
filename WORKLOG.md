@@ -7374,4 +7374,13 @@ Isolated DECIDED_BY provenance stacked on AT3-060.
 - Graph != authority; missing stays UNKNOWN
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-021 (2026-08-26)
+
+Isolated derived relationship expansion stacked on AT3-062.
+
+- `expand_relationships` + CLI `atlas rel-expand`
+- GRAPH_REUSE aliases only; does not write AS-GRAPH-003
+- Does not pick conflict winners; graph != authority
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

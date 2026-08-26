@@ -28,6 +28,7 @@ from project_atlas.atlas3.memory.routing import assert_items_project_scope
 from project_atlas.atlas3.memory.search import search_memory
 from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.pulse import compile_pulse
+from project_atlas.atlas3.rel_expand import expand_relationships
 from project_atlas.atlas3.start import compile_start
 
 ATLAS3_COMMANDS = frozenset(
@@ -43,6 +44,7 @@ ATLAS3_COMMANDS = frozenset(
         "estate-nodes",
         "causal-graph",
         "decided-by",
+        "rel-expand",
     }
 )
 
@@ -222,6 +224,15 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     decided_by.add_argument("--project", required=True)
     decided_by.add_argument("--json", action="store_true")
 
+    rel_expand = subparsers.add_parser(
+        "rel-expand",
+        help="Atlas 3 derived relationship expansion (graph is not authority).",
+        description="Atlas 3 derived relationship expansion (graph is not authority).",
+    )
+    rel_expand.add_argument("--vault", type=Path, required=True)
+    rel_expand.add_argument("--project", required=True)
+    rel_expand.add_argument("--json", action="store_true")
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -260,6 +271,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(compile_causal_graph(args.vault, args.project), as_json=True)
         if command == "decided-by":
             return _dump(compile_decided_by(args.vault, args.project), as_json=True)
+        if command == "rel-expand":
+            return _dump(expand_relationships(args.vault, args.project), as_json=True)
         if command == "proof":
             evidence = None
             if getattr(args, "evidence", None):

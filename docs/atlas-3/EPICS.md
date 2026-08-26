@@ -42,7 +42,7 @@ clock, no second Truth Core). They were not dropped.
 | ID | Title | Status | Reuse |
 |---|---|---|---|
 | AT3-020 | Claim / decision / requirement nodes | LANDED_2X_REUSE | claims, decisions lens |
-| AT3-021 | Derived relationship expansion | PREP | AS-GRAPH-003 + twin aliases |
+| AT3-021 | Derived relationship expansion | ISOLATED_RUNTIME | AS-GRAPH-003 aliases; no store write |
 | AT3-022 | Conflict / UNKNOWN projection | LANDED_2X_REUSE | conflicts, unknown lens |
 | AT3-023 | Graph ≠ authority enforcement | LANDED_2X_REUSE | GRAPH-001–005 invariants |
 

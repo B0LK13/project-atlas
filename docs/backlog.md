@@ -699,6 +699,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-061 Isolated intent vs current-state honesty wrapper
 - [x] AT3-060 Isolated causal graph (declared CAUSED_BY; graph != authority)
 - [x] AT3-062 Isolated DECIDED_BY provenance (owner_origin required)
+- [x] AT3-021 Isolated derived relationship expansion (GRAPH_REUSE aliases; no AS-GRAPH-003 write)
 - [ ] AT3-046 Incremental live provider sync
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`
