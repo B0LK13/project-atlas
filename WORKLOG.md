@@ -18,6 +18,21 @@ Vault-scoped Unknown/conflict REPORT READ from live main
 - UNKNOWN != RESOLVED
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+Focused gates (isolated worktree):
+
+```
+PYTHONPATH=src .venv/bin/python -m pytest tests/unit/test_as_coder_alpha_unknown_read_001.py \
+  tests/unit/test_as_2_1_mcp_adv_001.py tests/unit/test_as_2_0_mcp_001.py \
+  tests/unit/test_as_2_1_mcp_brief_001.py --no-cov
+# 36 passed
+ruff check <touched paths>
+# All checks passed
+mypy src/project_atlas/web_api/unknown_read.py src/project_atlas/web_api/__init__.py \
+  src/project_atlas/app_service.py src/project_atlas/api_server.py \
+  src/project_atlas/mcp_registry.py src/project_atlas/mcp_server.py
+# Success: no issues found in 6 source files
+```
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
