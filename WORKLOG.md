@@ -7356,4 +7356,13 @@ Isolated intent vs current-state honesty wrapper stacked on AT3-012.
 - INTENT != CURRENT STATE; STALE != CURRENT; promotion fails closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-060 (2026-08-26)
+
+Isolated causal graph stacked on AT3-061.
+
+- `compile_causal_graph` + CLI `atlas causal-graph`
+- Declared CAUSED_BY edges only; missing stays UNKNOWN
+- Graph != authority; provenance required
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

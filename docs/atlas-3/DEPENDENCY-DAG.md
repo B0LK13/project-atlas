@@ -66,6 +66,7 @@ Parallel after AT3-035:                                  │
                                                          │
 AT3-043 Decision + intent  (fail-closed owner_origin)    │
 AT3-061 Honesty wrapper    (INTENT != CURRENT STATE)     │
+AT3-060 Causal graph       (declared CAUSED_BY)          │
 AT3-045 Session lineage                                  │
 AT3-046 Incremental sync   (not live ChatGPT history)    │
 ```

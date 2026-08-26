@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-060-causal": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/causal.py"],
+      "evidence": "Declared CAUSED_BY edges only. Graph != authority. UNKNOWN if undeclared.",
+      "guard_tests": ["tests/unit/test_atlas3_causal_060.py"]
+    },
     "at3-061-honesty": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

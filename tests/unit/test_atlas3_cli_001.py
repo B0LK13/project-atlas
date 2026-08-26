@@ -29,6 +29,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "inventory",
         "file-graph",
         "estate-nodes",
+        "causal-graph",
         "connect",
         "ask2",
         "kdiff",

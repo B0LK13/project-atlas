@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from project_atlas.atlas3.capabilities import list_capabilities
+from project_atlas.atlas3.causal import compile_causal_graph
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
@@ -39,6 +40,7 @@ ATLAS3_COMMANDS = frozenset(
         "inventory",
         "file-graph",
         "estate-nodes",
+        "causal-graph",
     }
 )
 
@@ -200,6 +202,15 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     estate_nodes.add_argument("--project", required=True)
     estate_nodes.add_argument("--json", action="store_true")
 
+    causal_graph = subparsers.add_parser(
+        "causal-graph",
+        help="Atlas 3 causal graph (declared CAUSED_BY; graph is not authority).",
+        description="Atlas 3 causal graph (declared CAUSED_BY; graph is not authority).",
+    )
+    causal_graph.add_argument("--vault", type=Path, required=True)
+    causal_graph.add_argument("--project", required=True)
+    causal_graph.add_argument("--json", action="store_true")
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -234,6 +245,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(compile_file_graph(args.vault, args.project), as_json=True)
         if command == "estate-nodes":
             return _dump(compile_estate_nodes(args.vault, args.project), as_json=True)
+        if command == "causal-graph":
+            return _dump(compile_causal_graph(args.vault, args.project), as_json=True)
         if command == "proof":
             evidence = None
             if getattr(args, "evidence", None):

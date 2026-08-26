@@ -70,7 +70,7 @@ clock, no second Truth Core). They were not dropped.
 
 | ID | Title | Status |
 |---|---|---|
-| AT3-060 | Causal graph (CAUSED_BY) | NOT_STARTED |
+| AT3-060 | Causal graph (CAUSED_BY) | ISOLATED_RUNTIME |
 | AT3-061 | Intent vs current-state separation | ISOLATED_RUNTIME |
 | AT3-062 | DECIDED_BY provenance | PREP (owner_origin reuse) |
 
