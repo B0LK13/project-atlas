@@ -9,7 +9,6 @@ in this implementation (owner-only frontier).
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -77,6 +76,19 @@ SECRET_TEXT_RE: Final[re.Pattern[str]] = re.compile(
     r"(?i)(aws_secret_access_key|begin (rsa |openssh )?private key|xox[baprs]-)"
 )
 WINDOWS_LONG_PATH: Final[int] = 240
+CANONICAL_REPORT_PATH_SEPARATOR: Final[str] = "/"
+INACCESSIBLE_REASON: Final[str] = "INACCESSIBLE_PATH"
+
+# Closed exclusion taxonomy. INACCESSIBLE != SAFE != GOLDEN.
+# SKIPPED != SCANNED. PARTIAL_DISCOVERY != COMPLETE_DISCOVERY.
+EXCLUSION_REASONS: Final[frozenset[str]] = frozenset(
+    {
+        "LONG_PATH",
+        "SYMLINK",
+        "SYMLINK_OR_JUNCTION_ESCAPE",
+        INACCESSIBLE_REASON,
+    }
+)
 
 
 class CuratorError(ValueError):
@@ -104,6 +116,90 @@ def _is_unc(raw: str) -> bool:
     return value.startswith("\\\\") or raw.startswith("//")
 
 
+def canonicalize_report_path(value: str | Path) -> str:
+    """OS-independent report-relative identity. Never a native FS path.
+
+    INTERNAL_FILESYSTEM_PATH = PLATFORM_NATIVE
+    REPORT_RELATIVE_IDENTITY = POSIX_STYLE
+    """
+    text = os.fspath(value).replace("\\", CANONICAL_REPORT_PATH_SEPARATOR)
+    while "//" in text:
+        text = text.replace("//", CANONICAL_REPORT_PATH_SEPARATOR)
+    if text.startswith("./"):
+        text = text[2:]
+    return text
+
+
+def report_relpath(path: Path, root: Path) -> str:
+    """Relative identity for serialized report fields. Uses '/' on every OS."""
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return canonicalize_report_path(path.name)
+    return canonicalize_report_path(rel.as_posix())
+
+
+def _record_inaccessible(
+    exclusions: list[dict[str, Any]], path: Path, root: Path
+) -> None:
+    rel = report_relpath(path, root)
+    if any(
+        item.get("path") == rel and item.get("reason") == INACCESSIBLE_REASON
+        for item in exclusions
+    ):
+        return
+    exclusions.append(
+        {
+            "path": rel,
+            "reason": INACCESSIBLE_REASON,
+            "action": "skip",
+            "inspected": False,
+        }
+    )
+
+
+def _safe_lstat(path: Path) -> os.stat_result | None:
+    try:
+        return path.lstat()
+    except OSError:
+        return None
+
+
+def _safe_stat(path: Path) -> os.stat_result | None:
+    try:
+        return path.stat()
+    except OSError:
+        return None
+
+
+def _safe_is_dir(path: Path) -> bool | None:
+    try:
+        return path.is_dir()
+    except OSError:
+        return None
+
+
+def _safe_is_file(path: Path) -> bool | None:
+    try:
+        return path.is_file()
+    except OSError:
+        return None
+
+
+def _safe_exists(path: Path) -> bool | None:
+    try:
+        return path.exists()
+    except OSError:
+        return None
+
+
+def _safe_iterdir(path: Path) -> list[Path] | None:
+    try:
+        return list(path.iterdir())
+    except OSError:
+        return None
+
+
 def resolve_source_root(source_root: Path | str) -> Path:
     raw = os.fspath(source_root)
     if _is_unc(raw):
@@ -114,7 +210,10 @@ def resolve_source_root(source_root: Path | str) -> Path:
         resolved = Path(raw).expanduser().resolve(strict=False)
     except (OSError, RuntimeError) as exc:
         _fail("UNRESOLVABLE_ROOT", str(exc))
-    if not resolved.is_dir():
+    root_dir = _safe_is_dir(resolved)
+    if root_dir is None:
+        _fail("SOURCE_ROOT_INACCESSIBLE", "requested source root cannot be inspected")
+    if root_dir is False:
         _fail("SOURCE_ROOT_NOT_DIR", f"source root is not a directory: {resolved}")
     if len(str(resolved)) > WINDOWS_LONG_PATH:
         # Discover may continue with a warning classification, but the root
@@ -133,15 +232,18 @@ def resolve_output_path(output: Path | str, *, source_root: Path) -> Path:
     return dest
 
 
-def _is_symlink_or_junction(path: Path) -> bool:
-    try:
-        st = path.lstat()
-    except OSError:
-        return False
+def _is_reparse(st: os.stat_result) -> bool:
     if stat.S_ISLNK(st.st_mode):
         return True
     # Windows reparse/junction bit (IO_REPARSE_TAG) when available.
     return bool(getattr(st, "st_file_attributes", 0) & 0x400)
+
+
+def _is_symlink_or_junction(path: Path) -> bool:
+    st = _safe_lstat(path)
+    if st is None:
+        return False
+    return _is_reparse(st)
 
 
 def _escapes(path: Path, root: Path) -> bool:
@@ -164,10 +266,16 @@ def _read_text_limited(path: Path, limit: int = 4096) -> str:
 def _secret_hit(path: Path) -> dict[str, str] | None:
     if SECRET_NAME_RE.search(path.name):
         return {"kind": "filename", "pattern": "sensitive-name", "path": str(path.name)}
-    if path.is_file() and path.stat().st_size < 65536:
+    is_file = _safe_is_file(path)
+    if is_file is None:
+        raise OSError("secret-scan metadata inaccessible")
+    st = _safe_stat(path) if is_file else None
+    if is_file and st is not None and st.st_size < 65536:
         text = _read_text_limited(path)
         if SECRET_TEXT_RE.search(text):
             return {"kind": "content", "pattern": "secret-shaped", "path": str(path.name)}
+    if is_file and st is None:
+        raise OSError("secret-scan stat inaccessible")
     return None
 
 
@@ -184,7 +292,8 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def _is_git_repo(path: Path) -> bool:
-    return (path / ".git").exists()
+    exists = _safe_exists(path / ".git")
+    return bool(exists)
 
 
 def _dirty(path: Path) -> bool:
@@ -202,63 +311,133 @@ def _remote_url(path: Path) -> str | None:
 
 def _walk_projects(root: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    exclusions: list[dict[str, str]] = []
+    exclusions: list[dict[str, Any]] = []
     generated: list[str] = []
     seen_ids: dict[str, str] = {}
 
     def visit(current: Path, *, parent_git: bool) -> None:
         if len(str(current)) > WINDOWS_LONG_PATH:
             exclusions.append(
-                {"path": str(current.name), "reason": "LONG_PATH", "action": "skip"}
+                {
+                    "path": report_relpath(current, root),
+                    "reason": "LONG_PATH",
+                    "action": "skip",
+                }
             )
             return
-        if _is_symlink_or_junction(current):
+
+        st = _safe_lstat(current)
+        if st is None:
+            if current == root:
+                _fail(
+                    "SOURCE_ROOT_INACCESSIBLE",
+                    "requested source root cannot be inspected",
+                )
+            _record_inaccessible(exclusions, current, root)
+            return
+        if _is_reparse(st):
             if _escapes(current, root):
                 exclusions.append(
                     {
-                        "path": current.name,
+                        "path": report_relpath(current, root),
                         "reason": "SYMLINK_OR_JUNCTION_ESCAPE",
                         "action": "fail_closed_skip",
                     }
                 )
                 return
             exclusions.append(
-                {"path": current.name, "reason": "SYMLINK", "action": "skip_follow"}
+                {
+                    "path": report_relpath(current, root),
+                    "reason": "SYMLINK",
+                    "action": "skip_follow",
+                }
             )
             return
-        if not current.is_dir():
+
+        is_dir = _safe_is_dir(current)
+        if is_dir is None:
+            if current == root:
+                _fail(
+                    "SOURCE_ROOT_INACCESSIBLE",
+                    "requested source root cannot be inspected",
+                )
+            _record_inaccessible(exclusions, current, root)
+            return
+        if is_dir is False:
             return
         if current.name in SKIP_DIR_NAMES and current != root:
             if current.name in {"node_modules", "dist", "build", "generated", ".venv"}:
-                generated.append(str(current.relative_to(root)))
+                generated.append(report_relpath(current, root))
             return
 
         git_here = _is_git_repo(current)
         marker = current / ".atlas-project.yaml"
         readme = current / "README.md"
         signals = current / ".atlas-estate" / "signals"
-        is_project = git_here or marker.is_file() or (readme.is_file() and current != root)
+        marker_file = _safe_is_file(marker)
+        readme_file = _safe_is_file(readme)
+        if marker_file is None:
+            _record_inaccessible(exclusions, marker, root)
+            marker_file = False
+        if readme_file is None:
+            _record_inaccessible(exclusions, readme, root)
+            readme_file = False
+        is_project = git_here or marker_file or (readme_file and current != root)
 
         if is_project:
             identity = current.name
-            if marker.is_file():
+            if marker_file:
                 text = _read_text_limited(marker)
                 match = re.search(r"(?m)^id:\s*(\S+)", text)
                 if match:
                     identity = match.group(1)
+            rel = report_relpath(current, root)
             duplicate = identity in seen_ids
-            seen_ids.setdefault(identity, str(current.relative_to(root)))
+            seen_ids.setdefault(identity, rel)
             secret_findings: list[dict[str, str]] = []
-            for child in current.iterdir():
-                if child.name in SKIP_DIR_NAMES:
-                    continue
-                if child.is_file():
-                    hit = _secret_hit(child)
-                    if hit:
-                        secret_findings.append(hit)
+            secret_children = _safe_iterdir(current)
+            if secret_children is None:
+                _record_inaccessible(exclusions, current, root)
+            else:
+                for child in secret_children:
+                    if child.name in SKIP_DIR_NAMES:
+                        continue
+                    child_file = _safe_is_file(child)
+                    if child_file is None:
+                        _record_inaccessible(exclusions, child, root)
+                        continue
+                    if child_file:
+                        try:
+                            hit = _secret_hit(child)
+                        except OSError:
+                            _record_inaccessible(exclusions, child, root)
+                            continue
+                        if hit:
+                            secret_findings.append(hit)
+            packages_dir = _safe_is_dir(current / "packages")
+            apps_dir = _safe_is_dir(current / "apps")
+            if packages_dir is None:
+                _record_inaccessible(exclusions, current / "packages", root)
+                packages_dir = False
+            if apps_dir is None:
+                _record_inaccessible(exclusions, current / "apps", root)
+                apps_dir = False
+            test_signal = _safe_is_file(signals / "test_failed")
+            build_signal = _safe_is_file(signals / "build_failed")
+            if test_signal is None:
+                _record_inaccessible(exclusions, signals / "test_failed", root)
+                test_signal = False
+            if build_signal is None:
+                _record_inaccessible(exclusions, signals / "build_failed", root)
+                build_signal = False
+            try:
+                stale = _stale_docs(current, exclusions, root)
+            except OSError:
+                _record_inaccessible(exclusions, current, root)
+                stale = False
             records.append(
                 {
-                    "path": str(current.relative_to(root)),
+                    "path": rel,
                     "name": current.name,
                     "identity": identity,
                     "kind": (
@@ -270,13 +449,12 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
                     ),
                     "git": git_here,
                     "nested_repo": bool(git_here and parent_git),
-                    "monorepo": (current / "packages").is_dir()
-                    or (current / "apps").is_dir(),
+                    "monorepo": bool(packages_dir or apps_dir),
                     "dirty_worktree": _dirty(current) if git_here else False,
-                    "missing_readme": not readme.is_file(),
-                    "stale_docs": _stale_docs(current),
-                    "test_failure_signal": (signals / "test_failed").is_file(),
-                    "build_failure_signal": (signals / "build_failed").is_file(),
+                    "missing_readme": not readme_file,
+                    "stale_docs": stale,
+                    "test_failure_signal": bool(test_signal),
+                    "build_failure_signal": bool(build_signal),
                     "secret_findings": secret_findings,
                     "duplicate_identity": duplicate,
                     "duplicate_of": seen_ids.get(identity) if duplicate else None,
@@ -288,54 +466,110 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
             )
 
         next_parent_git = parent_git or git_here
-        try:
-            children = list(current.iterdir())
-        except OSError:
+        children = _safe_iterdir(current)
+        if children is None:
+            _record_inaccessible(exclusions, current, root)
             return
         for child in children:
             if child.name in SKIP_DIR_NAMES:
                 if child.name in {"node_modules", "dist", "build", "generated", ".venv"}:
-                    generated.append(str(child.relative_to(root)))
+                    generated.append(report_relpath(child, root))
                 continue
             visit(child, parent_git=next_parent_git)
 
     visit(root, parent_git=False)
     return [
-        {"projects": records, "exclusions": exclusions, "generated_directories": generated}
+        {
+            "projects": records,
+            "exclusions": exclusions,
+            "generated_directories": [
+                canonicalize_report_path(item) for item in generated
+            ],
+        }
     ]
 
 
 def _malicious_build(project: Path) -> bool:
-    if (project / "malicious-build.sh").is_file():
+    named = _safe_is_file(project / "malicious-build.sh")
+    if named is True:
         return True
     build = project / "build.sh"
-    return build.is_file() and "rm -rf" in _read_text_limited(build)
+    if _safe_is_file(build) is True:
+        return "rm -rf" in _read_text_limited(build)
+    return False
 
 
-def _stale_docs(project: Path) -> bool:
+def _stale_docs(
+    project: Path,
+    exclusions: list[dict[str, Any]] | None = None,
+    root: Path | None = None,
+) -> bool:
     readme = project / "README.md"
-    if not readme.is_file():
+    readme_file = _safe_is_file(readme)
+    if readme_file is None:
+        if exclusions is not None and root is not None:
+            _record_inaccessible(exclusions, readme, root)
+        return False
+    if readme_file is False:
         return False
     newest_src = 0.0
     for folder in (project / "src", project / "lib", project / "app"):
-        if not folder.is_dir():
+        folder_dir = _safe_is_dir(folder)
+        if folder_dir is None:
+            if exclusions is not None and root is not None:
+                _record_inaccessible(exclusions, folder, root)
             continue
-        for item in folder.rglob("*"):
-            if item.is_file() and not _is_symlink_or_junction(item):
-                try:
-                    newest_src = max(newest_src, item.stat().st_mtime)
-                except OSError:
+        if folder_dir is False:
+            continue
+        try:
+            items = list(folder.rglob("*"))
+        except OSError:
+            if exclusions is not None and root is not None:
+                _record_inaccessible(exclusions, folder, root)
+            continue
+        for item in items:
+            st = _safe_lstat(item)
+            if st is None:
+                if exclusions is not None and root is not None:
+                    _record_inaccessible(exclusions, item, root)
+                continue
+            if _is_reparse(st):
+                continue
+            if not stat.S_ISREG(st.st_mode):
+                file_flag = _safe_is_file(item)
+                if file_flag is None:
+                    if exclusions is not None and root is not None:
+                        _record_inaccessible(exclusions, item, root)
                     continue
+                if file_flag is False:
+                    continue
+            meta = _safe_stat(item)
+            if meta is None:
+                if exclusions is not None and root is not None:
+                    _record_inaccessible(exclusions, item, root)
+                continue
+            newest_src = max(newest_src, meta.st_mtime)
     if newest_src <= 0:
         return False
-    try:
-        return readme.stat().st_mtime + 1 < newest_src
-    except OSError:
+    readme_meta = _safe_stat(readme)
+    if readme_meta is None:
+        if exclusions is not None and root is not None:
+            _record_inaccessible(exclusions, readme, root)
         return False
+    return readme_meta.st_mtime + 1 < newest_src
 
 
 def qualify(project: dict[str, Any]) -> dict[str, Any]:
     """Objective signals only. No subjective trust score."""
+    project = {
+        **project,
+        "path": canonicalize_report_path(str(project.get("path") or "")),
+        "duplicate_of": (
+            canonicalize_report_path(str(project["duplicate_of"]))
+            if project.get("duplicate_of")
+            else None
+        ),
+    }
     blockers: list[str] = []
     if project.get("secret_findings"):
         blockers.append("SECRET_PRESENT")
@@ -382,9 +616,21 @@ def qualify(project: dict[str, Any]) -> dict[str, Any]:
 
 
 def recommend(qualifications: list[dict[str, Any]]) -> dict[str, Any]:
-    golden = [item["path"] for item in qualifications if item["golden_candidate"]]
-    challenge = [item["path"] for item in qualifications if item["challenge_candidate"]]
-    excluded = [item["path"] for item in qualifications if item["excluded"]]
+    golden = [
+        canonicalize_report_path(item["path"])
+        for item in qualifications
+        if item["golden_candidate"]
+    ]
+    challenge = [
+        canonicalize_report_path(item["path"])
+        for item in qualifications
+        if item["challenge_candidate"]
+    ]
+    excluded = [
+        canonicalize_report_path(item["path"])
+        for item in qualifications
+        if item["excluded"]
+    ]
     return {
         "recommended_golden_set": golden,
         "recommended_challenge_set": challenge,
@@ -396,20 +642,38 @@ def recommend(qualifications: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def estimate_disk(root: Path) -> dict[str, int]:
+def estimate_disk(
+    root: Path, exclusions: list[dict[str, Any]] | None = None
+) -> dict[str, int]:
     total = 0
     files = 0
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+
+    def onerror(err: OSError) -> None:
+        raw = getattr(err, "filename", None)
+        path = Path(raw) if raw else root
+        if exclusions is not None:
+            _record_inaccessible(exclusions, path, root)
+
+    for dirpath, dirnames, filenames in os.walk(
+        root, followlinks=False, onerror=onerror
+    ):
         dirnames[:] = [name for name in dirnames if name not in SKIP_DIR_NAMES]
         for name in filenames:
             path = Path(dirpath) / name
-            if _is_symlink_or_junction(path):
+            st = _safe_lstat(path)
+            if st is None:
+                if exclusions is not None:
+                    _record_inaccessible(exclusions, path, root)
                 continue
-            try:
-                total += path.stat().st_size
-                files += 1
-            except OSError:
+            if _is_reparse(st):
                 continue
+            meta = _safe_stat(path)
+            if meta is None:
+                if exclusions is not None:
+                    _record_inaccessible(exclusions, path, root)
+                continue
+            total += meta.st_size
+            files += 1
     return {"bytes": total, "files": files}
 
 
@@ -438,9 +702,25 @@ def curate(
     root = resolve_source_root(source_root)
     walked = _walk_projects(root)[0]
     projects = walked["projects"]
+    for item in projects:
+        item["path"] = canonicalize_report_path(str(item.get("path") or ""))
+        if item.get("duplicate_of"):
+            item["duplicate_of"] = canonicalize_report_path(str(item["duplicate_of"]))
     qualifications = [qualify(item) for item in projects]
     rec = recommend(qualifications)
-    disk = estimate_disk(root)
+    disk = estimate_disk(root, walked["exclusions"])
+    generated = [
+        canonicalize_report_path(item) for item in walked["generated_directories"]
+    ]
+    for item in walked["exclusions"]:
+        item["path"] = canonicalize_report_path(str(item.get("path") or ""))
+        if "\\" in str(item.get("path") or ""):
+            item["path"] = canonicalize_report_path(item["path"])
+    inaccessible = [
+        item
+        for item in walked["exclusions"]
+        if item.get("reason") == INACCESSIBLE_REASON
+    ]
     report = {
         "schema": "atlas.golden-estate-curator.report.v1",
         "package": PACKAGE_ID,
@@ -457,9 +737,18 @@ def curate(
         "qualification": qualifications,
         "candidate_table": qualifications,
         "exclusions": walked["exclusions"],
-        "generated_directories": walked["generated_directories"],
+        "generated_directories": generated,
         "disk_estimate": disk,
         "recommendation": rec,
+        "discovery": {
+            "complete": not inaccessible,
+            "partial": bool(inaccessible),
+            "inaccessible_count": len(inaccessible),
+            "inaccessible_is_safe": False,
+            "inaccessible_is_golden": False,
+            "skipped_is_scanned": False,
+            "partial_discovery_is_complete_discovery": False,
+        },
         "windows_d_drive": {
             "authentic_test": "LOCAL_WINDOWS_REQUIRED",
             "cloud_certified": False,
