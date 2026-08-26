@@ -5,6 +5,17 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-CHANGED-READ-001 (2026-08-26)
+
+Vault-scoped What Changed REPORT READ from live main.
+
+- `read_changed_view` + CLI `atlas changed-status`
+- MCP `atlas.changed.read` + API `GET /v1/changed-status`
+- Never calls `materialize_changed_lenses`
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; CHANGED != AUTHORITY; STALE != CURRENT
+- Distinct from `atlas changed` materialize
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25

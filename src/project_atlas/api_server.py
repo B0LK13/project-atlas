@@ -268,6 +268,12 @@ def make_handler(
                     },
                 )
                 return
+            if path == "/v1/changed-status":
+                try:
+                    self._send(200, service.changed_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/brief":
                 project = (qs.get("project") or [""])[0]
                 if not project:

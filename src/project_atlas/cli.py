@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    changed_status_parser = subparsers.add_parser(
+        "changed-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing What Changed answer artifacts "
+            "(AS-CODER-ALPHA-CHANGED-READ-001; never writes; "
+            "CHANGED != AUTHORITY; STALE != CURRENT)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-changed-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "CHANGED != AUTHORITY. CHANGED != LIVE ESTATE. STALE != CURRENT."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas changed-status --vault /path/to/vault\n"
+            "  atlas changed-status --vault /path/to/vault --json"
+        ),
+    )
+    changed_status_parser.add_argument("--vault", type=Path, required=True)
+    changed_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the What Changed REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3156,6 +3182,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
             for lens in report.get("lenses") or []:
                 print(render_next_text(lens))
+        return EXIT_OK
+
+    if args.command == "changed-status":
+        from project_atlas.web_api.changed_read import (
+            WebChangedReadError,
+            read_changed_view,
+            render_changed_status_text,
+        )
+
+        try:
+            report = read_changed_view(args.vault)
+        except (WebChangedReadError, OSError, ValueError) as exc:
+            _log.error("changed-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_changed_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "changed":
