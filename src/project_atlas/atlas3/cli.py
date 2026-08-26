@@ -13,6 +13,7 @@ from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.intent import extract_intent_report
+from project_atlas.atlas3.memory.lineage import build_session_lineage
 from project_atlas.atlas3.memory.providers import memory_providers
 from project_atlas.atlas3.memory.routing import assert_items_project_scope
 from project_atlas.atlas3.memory.search import search_memory
@@ -82,7 +83,7 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Report sync capability honesty (does not invent live provider APIs).",
     )
     sync.add_argument("--json", action="store_true")
-    for name in ("conflicts", "stale", "intent"):
+    for name in ("conflicts", "stale", "intent", "lineage"):
         parser = mem_sub.add_parser(
             name, help=f"Memory {name} (requires prior reconcile artifact)."
         )
@@ -195,12 +196,17 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     },
                     as_json=True,
                 )
-            if sub in {"search", "conflicts", "stale", "intent"}:
+            if sub in {"search", "conflicts", "stale", "intent", "lineage"}:
                 recon = read_json(
                     Path(args.vault) / OPS_RELATIVE / "memory" / args.project / "reconcile.json"
                 )
                 items = ((recon or {}).get("reconciliation") or {}).get("items") or []
                 assert_items_project_scope(items, project_id=args.project)
+                if sub == "lineage":
+                    return _dump(
+                        build_session_lineage(items, requested_project_id=args.project),
+                        as_json=True,
+                    )
                 if sub == "intent":
                     return _dump(
                         extract_intent_report(items, requested_project_id=args.project),

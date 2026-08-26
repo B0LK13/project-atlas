@@ -74,6 +74,13 @@
       "evidence": "Provider-neutral connector registry + capability honesty.",
       "guard_tests": ["tests/unit/test_atlas3_memory_001.py"]
     },
+    "at3-045-lineage": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/memory/lineage.py"],
+      "evidence": "conversation_id+provider+hash binding; provider spoof fails closed.",
+      "guard_tests": ["tests/unit/test_atlas3_lineage_045.py"]
+    },
     "at3-043-intent": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

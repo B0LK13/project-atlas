@@ -7275,3 +7275,14 @@ Isolated conversation decision + intent extraction on #511 lineage
 - Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
 - Does not mutate certified 2.x surfaces
 
+## AT3-045 (2026-08-26)
+
+Isolated provider identity + session lineage stacked on AT3-043.
+
+- Same conversation_id cannot change provider
+- Same message_id cannot change content_hash
+- CROSS_PROJECT fail-closed
+- CLI `atlas memory lineage` reads existing reconcile artifacts only
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+
