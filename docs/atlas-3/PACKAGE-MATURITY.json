@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-071-transport": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/transport.py"],
+      "evidence": "Transport success != authority. HTTP 200 / CLI 0 / MCP ok / A2A ack cannot grant truth or merge.",
+      "guard_tests": ["tests/unit/test_atlas3_transport_071.py"]
+    },
     "at3-070-surface": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

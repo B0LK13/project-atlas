@@ -33,6 +33,7 @@ from project_atlas.atlas3.pulse import compile_pulse
 from project_atlas.atlas3.rel_expand import expand_relationships
 from project_atlas.atlas3.start import compile_start
 from project_atlas.atlas3.surface import compile_surface_contract, evaluate_surface_claim
+from project_atlas.atlas3.transport import prove_transport_is_not_authority
 
 ATLAS3_COMMANDS = frozenset(
     {
@@ -51,6 +52,7 @@ ATLAS3_COMMANDS = frozenset(
         "iv-bind",
         "adv-bind",
         "surface-contract",
+        "transport-authority",
     }
 )
 
@@ -282,6 +284,19 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Optional transport status. Success is not authority.",
     )
 
+    transport_authority = subparsers.add_parser(
+        "transport-authority",
+        help="Atlas 3 transport prover (HTTP/CLI/MCP/A2A success is not authority).",
+        description="Atlas 3 transport prover (HTTP/CLI/MCP/A2A success is not authority).",
+    )
+    transport_authority.add_argument("--surface", required=True)
+    transport_authority.add_argument("--transport-status", required=True)
+    transport_authority.add_argument(
+        "--authority-claim",
+        default=None,
+        help="Forbidden. Transport cannot grant authority claims.",
+    )
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -332,6 +347,15 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     iv_result=str(args.iv_result),
                     verifier_id=str(args.verifier),
                     package_id=str(args.package),
+                ),
+                as_json=True,
+            )
+        if command == "transport-authority":
+            return _dump(
+                prove_transport_is_not_authority(
+                    surface=str(args.surface),
+                    transport_status=str(args.transport_status),
+                    authority_claim=getattr(args, "authority_claim", None),
                 ),
                 as_json=True,
             )

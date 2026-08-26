@@ -42,9 +42,13 @@ _SUCCESS_TRANSPORT: Final[frozenset[str]] = frozenset(
 )
 
 
-def _normalize_surface(surface: str) -> str:
+def normalize_surface(surface: str) -> str:
     token = surface.strip().lower().replace(" ", "_")
     return _SURFACE_ALIASES.get(token, token)
+
+
+def _normalize_surface(surface: str) -> str:
+    return normalize_surface(surface)
 
 
 def _surface_record(surface_id: str) -> dict[str, Any]:

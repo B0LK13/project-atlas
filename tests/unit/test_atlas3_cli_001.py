@@ -35,6 +35,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "iv-bind",
         "adv-bind",
         "surface-contract",
+        "transport-authority",
         "connect",
         "ask2",
         "kdiff",

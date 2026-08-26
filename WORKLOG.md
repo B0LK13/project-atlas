@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-071 (2026-08-26)
+
+Isolated transport != authority prover stacked on AT3-070.
+
+- `prove_transport_is_not_authority` + CLI `atlas transport-authority`
+- HTTP 200 / CLI 0 / MCP ok / A2A ack != authority
+- Owner-power claims from transport fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-070 (2026-08-26)
 
 Isolated surface contract stacked on AT3-052.
