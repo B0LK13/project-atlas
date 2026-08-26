@@ -34,7 +34,7 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ```
 /workspace/.venv/bin/python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests -q --tb=short --no-cov -o addopts=
-44 passed
+46 passed
 /workspace/.venv/bin/python -m ruff check atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_windows_remediation.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_inventory_honesty.py
 All checks passed
 /workspace/.venv/bin/python -m mypy atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py
@@ -49,6 +49,8 @@ An inaccessible clean git repo (`iterdir` WinError 1920) was still placed in `re
 Closed on this branch: `inspection_complete=false` → `INACCESSIBLE_PATH` blocker; filename secret match does not require a readable file; `discovery.inaccessible_is_golden` is derived. Do not transfer certification from `38347a2`.
 
 Second IV on `24e9759`: project-level kill closed; descendant/`estimate_disk` inaccessible under a parent still left the parent golden. Closed by covering-project post-pass after disk estimate, then re-qualify. Do not transfer certification from `24e9759`.
+
+Third IV on `703cc93`: required attacks 1–8 closed; new P1 when `source_root` itself is the git project (`path=.`) and a descendant is inaccessible. Closed by treating `.` as covering every `INACCESSIBLE_PATH`. Do not transfer certification from `703cc93`.
 
 ---
 
