@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.connect_read import (
+    WebConnectReadError,
+    read_connect_view,
+    render_connect_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -678,6 +683,52 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="as_json",
         help="Emit the connect receipt JSON to stdout (sorted keys).",
+    )
+
+    connect_status_parser = subparsers.add_parser(
+        "connect-status",
+        help=(
+            "Read existing connect bind/manifest/receipt artifacts "
+            "(AS-CODER-ALPHA-CONNECT-READ-001; never writes; CONNECT != PILOT)."
+        ),
+    )
+    connect_status_sub = connect_status_parser.add_subparsers(
+        dest="connect_status_command", required=True
+    )
+    connect_status_report = connect_status_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of existing connect artifacts "
+            "(never writes; CONNECT != PILOT; MANIFEST != TRUTH CORE)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas connect-status report --vault /path/to/vault\n"
+            "  atlas connect-status report --vault /path/to/vault --json"
+        ),
+    )
+    connect_status_report.add_argument("--vault", type=Path, required=True)
+    connect_status_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the connect REPORT READ JSON to stdout.",
+    )
+    connect_status_show = connect_status_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `connect-status report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas connect-status show --vault /path/to/vault\n"
+            "  atlas connect-status show --vault /path/to/vault --json"
+        ),
+    )
+    connect_status_show.add_argument("--vault", type=Path, required=True)
+    connect_status_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the connect REPORT READ JSON to stdout.",
     )
 
     overview_parser = subparsers.add_parser(
@@ -3005,6 +3056,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             print(doctor_render_text(doctor_report))
         return EXIT_OK if doctor_report.ok else EXIT_ERROR
+
+    if args.command == "connect-status":
+        if args.connect_status_command in {"report", "show"}:
+            try:
+                view = read_connect_view(args.vault)
+            except (WebConnectReadError, OSError) as exc:
+                _log.error("connect-status report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_connect_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown connect-status command: {args.connect_status_command}"
+        )
 
     if args.command == "connect":
         try:

@@ -71,6 +71,12 @@ DEFAULT_TOOLS: tuple[McpTool, ...] = (
         "allow-list candidate; Coder Alpha project briefs (vault-scoped, read-only)",
     ),
     McpTool(
+        "atlas.connect.read",
+        "vault-read",
+        True,
+        "allow-list candidate; connect bind/manifest/receipt wrap (vault-scoped)",
+    ),
+    McpTool(
         "atlas.vault.write",
         "vault-write",
         False,

@@ -380,6 +380,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
+- [x] AS-CODER-ALPHA-CONNECT-READ-001 vault-scoped connect REPORT READ (`atlas connect-status report` / `GET /v1/connect/report` / `atlas.connect.read`; CONNECT!=PILOT; WRITE_APPLIED=false)
 - [ ] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
 - [ ] AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 frozen-at-write estate vs later live estate (draft; does not retarget #378; does not duplicate #419; MERGE_AUTHORIZATION NOT_GRANTED)
