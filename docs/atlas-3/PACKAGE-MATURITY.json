@@ -311,6 +311,13 @@
       "evidence": "Detects cross-LLM conflicts. Does not collapse state/intent/history. No winner. No Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_conflicts_042.py"]
     },
+    "at3-044-freshness": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/freshness.py"],
+      "evidence": "STALE != CURRENT. UNKNOWN stays UNKNOWN without stronger evidence. Historical memory is not current truth.",
+      "guard_tests": ["tests/unit/test_atlas3_freshness_044.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

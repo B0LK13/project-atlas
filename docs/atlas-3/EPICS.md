@@ -59,7 +59,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-041 | Cross-LLM deduplication | ISOLATED_RUNTIME | content-hash + normalized text; provenance retained |
 | AT3-042 | Cross-LLM conflict detection | ISOLATED_RUNTIME | do not collapse state/intent/history; no winner |
 | AT3-043 | Conversation decision + intent extraction | ISOLATED_RUNTIME | owner_origin contract; INTENT != CURRENT STATE |
-| AT3-044 | Memory freshness + invalidation | ISOLATED_RUNTIME | temporal reuse |
+| AT3-044 | Memory freshness + invalidation | ISOLATED_RUNTIME | STALE != CURRENT; UNKNOWN stays UNKNOWN |
 | AT3-045 | Provider identity + session lineage | ISOLATED_RUNTIME | conversation ids + hashes; provider spoof fails closed |
 | AT3-046 | Incremental conversation sync | NOT_STARTED | ChatGPT live sync still NOT general |
 | AT3-047 | Privacy / consent / retention | ISOLATED_RUNTIME | secrets + minimize raw transcript |

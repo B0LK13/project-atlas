@@ -7648,4 +7648,13 @@ Isolated cross-LLM conflict detection stacked on AT3-041 `#581`.
 - Does not pick a winner or collapse state/intent/history
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-044 (2026-08-26)
+
+Isolated memory freshness stacked on AT3-042 `#582`.
+
+- No-evidence conversational memory stays UNKNOWN (not silently CURRENT)
+- STALE is not CURRENT
+- Mixed corrupt items fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
