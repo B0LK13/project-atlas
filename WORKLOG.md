@@ -7401,4 +7401,14 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-070 (2026-08-26)
+
+Isolated surface contract stacked on AT3-052.
+
+- `compile_surface_contract` / `evaluate_surface_claim` + CLI `atlas surface-contract`
+- Surfaces: CLI, API, Web, TUI, MCP, A2A
+- SURFACE != TRUTH CORE; transport success != authority
+- Unknown surface or authority/merge/owner claim fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

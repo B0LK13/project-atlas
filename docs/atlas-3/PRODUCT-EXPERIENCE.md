@@ -76,6 +76,7 @@ atlas proof  <task-id> --vault <dir> [--json]
 atlas memory sync|status|search|conflicts|stale|providers
 atlas capabilities
 atlas compatibility --vault <dir>
+atlas surface-contract [--surface cli] [--claim projection]
 ```
 
 `atlas memory sync` is a status/capability command in this slice, not a live

@@ -87,7 +87,7 @@ clock, no second Truth Core). They were not dropped.
 
 | ID | Title | Status |
 |---|---|---|
-| AT3-070 | Surface contract (CLI/API/Web/TUI/MCP/A2A) | PREP |
+| AT3-070 | Surface contract (CLI/API/Web/TUI/MCP/A2A) | ISOLATED_RUNTIME |
 | AT3-071 | Transport ≠ authority | PREP |
 | AT3-072 | Provider register / capabilities CLI design | PREP (no CLI proliferation yet) |
 

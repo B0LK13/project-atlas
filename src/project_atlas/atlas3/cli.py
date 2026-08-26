@@ -32,6 +32,7 @@ from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.pulse import compile_pulse
 from project_atlas.atlas3.rel_expand import expand_relationships
 from project_atlas.atlas3.start import compile_start
+from project_atlas.atlas3.surface import compile_surface_contract, evaluate_surface_claim
 
 ATLAS3_COMMANDS = frozenset(
     {
@@ -49,6 +50,7 @@ ATLAS3_COMMANDS = frozenset(
         "rel-expand",
         "iv-bind",
         "adv-bind",
+        "surface-contract",
     }
 )
 
@@ -263,6 +265,23 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     adv_bind.add_argument("--adv-result", required=True, choices=["PASS", "FAIL"])
     adv_bind.add_argument("--adv-id", required=True)
 
+    surface_contract = subparsers.add_parser(
+        "surface-contract",
+        help="Atlas 3 surface contract (CLI/API/Web/TUI/MCP/A2A; not authority).",
+        description="Atlas 3 surface contract (CLI/API/Web/TUI/MCP/A2A; not authority).",
+    )
+    surface_contract.add_argument("--surface", default=None, help="Optional surface id.")
+    surface_contract.add_argument(
+        "--claim",
+        default="projection",
+        help="Surface claim (projection/derived/read/transport).",
+    )
+    surface_contract.add_argument(
+        "--transport-status",
+        default=None,
+        help="Optional transport status. Success is not authority.",
+    )
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -316,6 +335,17 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "surface-contract":
+            if getattr(args, "surface", None):
+                return _dump(
+                    evaluate_surface_claim(
+                        surface=str(args.surface),
+                        claim=str(getattr(args, "claim", "projection")),
+                        transport_status=getattr(args, "transport_status", None),
+                    ),
+                    as_json=True,
+                )
+            return _dump(compile_surface_contract(), as_json=True)
         if command == "adv-bind":
             return _dump(
                 bind_adversarial_result(

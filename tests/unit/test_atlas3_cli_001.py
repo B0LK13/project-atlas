@@ -34,6 +34,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "rel-expand",
         "iv-bind",
         "adv-bind",
+        "surface-contract",
         "connect",
         "ask2",
         "kdiff",
