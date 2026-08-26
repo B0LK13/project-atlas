@@ -714,6 +714,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-096 Isolated Mission Command Center (declared DAG/leases; no self-merge)
 - [x] AT3-095 Isolated Impact Explorer UX (composes AT3-080; no new CLI)
 - [x] AT3-110 Isolated multi-project twin (declared siblings; federation != authority)
+- [x] AT3-111 Isolated org identity (declared only; does not mint)
 - [ ] AT3-046 Incremental live provider sync
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`

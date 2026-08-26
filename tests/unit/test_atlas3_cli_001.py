@@ -45,6 +45,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "truth-graph",
         "mission",
         "multi-project-twin",
+        "org-identity",
         "connect",
         "ask2",
         "kdiff",

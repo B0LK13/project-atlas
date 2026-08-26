@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-111 (2026-08-26)
+
+Isolated org identity stacked on AT3-110.
+
+- `compile_org_identity` + CLI `atlas org-identity`
+- Does not mint organization identity
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-110 (2026-08-26)
 
 Isolated multi-project twin stacked on AT3-095.

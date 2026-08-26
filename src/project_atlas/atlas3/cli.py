@@ -33,6 +33,7 @@ from project_atlas.atlas3.memory.routing import assert_items_project_scope
 from project_atlas.atlas3.memory.search import search_memory
 from project_atlas.atlas3.mission import compile_mission
 from project_atlas.atlas3.multi_project import compile_multi_project_twin
+from project_atlas.atlas3.org_identity import compile_org_identity
 from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.provider_register import (
     assert_cli_design,
@@ -74,6 +75,7 @@ ATLAS3_COMMANDS = frozenset(
         "truth-graph",
         "mission",
         "multi-project-twin",
+        "org-identity",
     }
 )
 
@@ -405,6 +407,13 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     multi_project.add_argument("--vault", type=Path, required=True)
     multi_project.add_argument("--project", default=None, help="Optional requested project id.")
 
+    org_identity = subparsers.add_parser(
+        "org-identity",
+        help="Atlas 3 org identity (declared only; does not mint).",
+        description="Atlas 3 org identity (declared only; does not mint).",
+    )
+    org_identity.add_argument("--vault", type=Path, required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -458,6 +467,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "org-identity":
+            return _dump(compile_org_identity(args.vault), as_json=True)
         if command == "multi-project-twin":
             return _dump(
                 compile_multi_project_twin(

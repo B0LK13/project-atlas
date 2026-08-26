@@ -44,6 +44,7 @@ ALLOWED_CLI: Final[frozenset[str]] = frozenset(
         "truth-graph",
         "mission",
         "multi-project-twin",
+        "org-identity",
     }
 )
 FORBIDDEN_CLI: Final[frozenset[str]] = frozenset(
