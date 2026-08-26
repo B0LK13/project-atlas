@@ -1,0 +1,88 @@
+{
+  "directive": "D-038",
+  "purpose": "apply the pre-existing-vs-carrier-regression distinction requested, using exact byte counts",
+
+  "live_refresh": {
+    "main_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "main_tree": "9c670d710ec63d36fea70c6a181c088b79294336",
+    "pr609_head": "4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+    "pr609_tree": "b53de8667e48e625d0fdcea540a52f6b42f28b22",
+    "pr609_open": true,
+    "pr609_mergeable": true,
+    "target_moved": false
+  },
+
+  "premise_check": {
+    "directive_premise": "CANONICAL_CARRIER = PR609 (stated as accepted fact in D-038 section 0)",
+    "finding": "FALSIFIED by this directive's own required byte differential (section 3)",
+    "why": "The directive's Case W1 requires PRE_EXISTING_MOJIBAKE_OCCURRENCE_COUNT > 0 for the corruption to be excusable as inherited. It is not -- main's WORKLOG.md has zero mojibake occurrences of any kind, verified directly."
+  },
+
+  "raw_byte_differential": {
+    "method": "search for known mojibake marker byte-sequences (UTF-8 encoding of U+00E2 U+20AC U+2014-family double-encodings, i.e. the classic UTF-8-decoded-as-Latin-1-then-reencoded corruption of em-dash / right-arrow / horizontal-ellipsis) across the full raw UTF-8 decode of WORKLOG.md at both refs, not rendered/terminal text",
+    "pre_existing_mojibake_occurrence_count": 0,
+    "pre_existing_mojibake_preserved_count": 0,
+    "pre_existing_mojibake_modified_count": 0,
+    "new_mojibake_occurrence_count": 610,
+    "new_mojibake_breakdown": {
+      "em_dash_corruption_U+2014": 507,
+      "arrow_corruption_U+2192": 97,
+      "ellipsis_corruption_U+2026": 6
+    },
+    "new_worklog_lines": 759,
+    "unrelated_historical_worklog_rewrites": 643,
+    "scope": "corruption present from line 0 (file header) through line 7857 of 7860 total lines -- 569 distinct lines affected, spanning the entire historical document, not confined to PR609's own new Golden Estate section",
+    "sample_evidence": {
+      "line_0_main_hex": "23 20 57 4f 52 4b 4c 4f 47 20 e2 80 94 20 50 72 (correct single UTF-8 em-dash, bytes E2 80 94)",
+      "line_0_pr609_hex": "23 20 57 4f 52 4b 4c 4f 47 20 c3 a2 e2 82 ac e2 80 9d 20 50 72 (double-encoded mojibake of the same em-dash)"
+    }
+  },
+
+  "classification": {
+    "case_applied": "W2 -- carrier introduces/expands corruption",
+    "case_w1_rejected_because": "requires PRE_EXISTING_MOJIBAKE_OCCURRENCE_COUNT > 0, which is 0",
+    "pre_existing_worklog_encoding_corruption": false,
+    "new_worklog_encoding_corruption": true,
+    "worklog_carrier_regression": true,
+    "worklog_remediation_disposition": "NOT_APPLIED -- a full-file re-encoding repair (610 corrupted sequences across 569 lines) is a substantial mechanical operation on another party's PR branch; not attempted unprompted. A clean, already-verified alternative exists (PR608's WORKLOG.md, byte-identical to main plus only its own intended additions) -- see D-037.",
+    "expected_worklog_delta_only": false,
+    "expected_worklog_delta_only_reason": "The only intentional changes should have been the KEEP_BOTH governance additions (#605 restoration, #516/GE chronology); instead 643 unrelated historical lines were also rewritten (corrupted) as a side effect of whatever tool produced this diff."
+  },
+
+  "conclusion": {
+    "canonical_carrier": "PR608_STACK (D-037's conclusion stands -- not overturned, because the premise required to overturn it is factually false)",
+    "pr609_disposition": "SUPERSEDED (unchanged from D-037)",
+    "pr609_owner_ready_canonical": false,
+    "reason": "NEW_WORKLOG_ENCODING_CORRUPTION = YES and WORKLOG_CARRIER_REGRESSION = YES both fail the explicit owner-gate requirement in this directive's own section 11",
+    "pr608_disposition": "CANONICAL (unchanged, not SUPERSEDED_BY_PR609 as D-038's opening asserted)",
+    "pr607_disposition": "REQUIRED_BEFORE_CANONICAL_CARRIER (unchanged from D-037 -- PR608 depends on it)"
+  },
+
+  "certification_status": {
+    "pr609_mutated_by_this_session": false,
+    "certification_reused": "GE=48, CI-additive, ruff clean -- these are unaffected by the WORKLOG finding and remain valid for PR609 itself",
+    "certification_rerun": "none required -- no PR609 object changed this session",
+    "note": "The WORKLOG defect does not affect GE/CI/ruff results; it is a separate, standalone blocker specific to the WORKLOG.md file"
+  },
+
+  "windows_binding": {
+    "active_windows_targets": 1,
+    "canonical_windows_head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+    "canonical_windows_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+    "canonical_windows_packet": "docs/evidence/D-AUG26-EVIDENCE-GROUNDED-GOLDEN-ESTATE-034.json (bound to PR608, per D-037 -- NOT rebound to PR609, since PR609 is not canonical)",
+    "note": "D-038's own framing assumed the packet would rebind to PR609; that only follows if PR609 is canonical, which this document disproves."
+  },
+
+  "dag_recount": {
+    "READY": 0,
+    "DERIVABLE": 0,
+    "UNKNOWN_REQUIRES_AUDIT": 0,
+    "AUTONOMOUS_REMEDIATIONS": 0,
+    "BLOCKED_BY_OWNER": 4,
+    "BLOCKED_EXTERNAL": 1,
+    "SUPERSEDED": 1,
+    "ALREADY_COMPLETE": 2,
+    "BACKLOG_OPTIONAL": 3,
+    "backlog_optional_nodes": ["SEC021 hermeticity", "PR542", "PR609 WORKLOG repair (not required for the PR608 canonical path; only relevant if someone wants to rescue PR609 specifically)"]
+  }
+}
