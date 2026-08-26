@@ -99,6 +99,7 @@ AT3-096 mission ────► declared orch DAG/leases (self-merge forbidden; 
 AT3-095 impact-ux ──► composes AT3-080 (no new CLI; graph != authority)
 AT3-110 multi-proj ► declared siblings (federation != authority; no org mint)
 AT3-111 org-id ────► declared only (does not mint; federation != org identity)
+AT3-081 stale-intel ► Pulse + memory compose (no winner; stale != current)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

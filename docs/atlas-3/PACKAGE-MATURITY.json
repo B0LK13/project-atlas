@@ -270,6 +270,13 @@
       "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. GEMINI.md != ingestion.",
       "guard_tests": ["tests/unit/test_atlas3_gemini_038.py"]
     },
+    "at3-081-stale-conflict": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/stale_conflict.py"],
+      "evidence": "Composes Pulse + memory stale/conflict. No new CLI. No graph winner. Stale != current.",
+      "guard_tests": ["tests/unit/test_atlas3_stale_conflict_081.py"]
+    },
     "chatgpt-live-2x": {
       "maturity": "prep-frozen",
       "prep_tree": "docs/atlas-2.2/chatgpt-live/",
