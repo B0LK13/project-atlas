@@ -7319,4 +7319,13 @@ Isolated repository/component inventory stacked on AT3-038.
 - Inventory != Truth Core; authentic estate is not inferred
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-013 (2026-08-26)
+
+Isolated PR/commit/test/build node projection stacked on AT3-010.
+
+- `compile_engineering_nodes` + CLI `atlas ledger nodes`
+- Empty ledger stays UNKNOWN; does not invent git history
+- Ledger corruption fails closed via AT3-014 read integrity
+- GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
+
 

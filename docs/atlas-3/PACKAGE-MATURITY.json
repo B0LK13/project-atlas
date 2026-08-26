@@ -18,6 +18,13 @@
       "evidence": "Derived twin constructors; provenance required; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_twin_002.py"]
     },
+    "at3-013-nodes": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/engineering_nodes.py"],
+      "evidence": "Ledger-projected PR/commit/test/build nodes. Does not invent git history.",
+      "guard_tests": ["tests/unit/test_atlas3_engineering_nodes_013.py"]
+    },
     "at3-010-inventory": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

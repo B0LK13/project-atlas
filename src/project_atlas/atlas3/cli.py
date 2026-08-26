@@ -10,6 +10,7 @@ from typing import Any
 from project_atlas.atlas3.capabilities import list_capabilities
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
+from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
 from project_atlas.atlas3.inventory import compile_inventory
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.claude import import_claude_export
@@ -131,6 +132,13 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     queried.add_argument("--kind", default=None)
     queried.add_argument("--observed-from", default=None)
     queried.add_argument("--observed-to", default=None)
+    nodes = led_sub.add_parser(
+        "nodes",
+        help="Project PR/commit/test/build nodes from the ledger (not git history).",
+        description="Project PR/commit/test/build nodes from the ledger (not git history).",
+    )
+    nodes.add_argument("--vault", type=Path, required=True)
+    nodes.add_argument("--project", required=True)
 
     caps = subparsers.add_parser(
         "capabilities",
@@ -336,6 +344,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     },
                     as_json=True,
                 )
+            if sub == "nodes":
+                return _dump(compile_engineering_nodes(args.vault, args.project), as_json=True)
     except Atlas3Error as exc:
         print(json.dumps({"ok": False, "error": exc.code, "detail": str(exc)}, sort_keys=True))
         return 1

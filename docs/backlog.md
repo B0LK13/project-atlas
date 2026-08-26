@@ -677,6 +677,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-001 Foundation layer ownership (`FOUNDATION.md`)
 - [x] AT3-002 Isolated project twin schema + constructors
 - [x] AT3-010 Isolated repository/component inventory (declared; UNKNOWN if absent)
+- [x] AT3-013 Isolated PR/commit/test/build nodes (ledger projection; no invented git)
 - [x] AT3-003 Isolated engineering event model (canonical envelope)
 - [x] AT3-004 Isolated semantic capability registry
 - [x] AT3-005 Isolated 2.x→3.x compatibility prover

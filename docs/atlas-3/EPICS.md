@@ -34,7 +34,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-010 | Repository / component inventory | ISOLATED_RUNTIME | declared inventory; graph != authority |
 | AT3-011 | File / symbol graph | NOT_STARTED | discovery inventory |
 | AT3-012 | Service / environment nodes | NOT_STARTED | fixture twin only today |
-| AT3-013 | PR / commit / test / build nodes | PREP (event kinds only) | event kinds in AT3-003 |
+| AT3-013 | PR / commit / test / build nodes | ISOLATED_RUNTIME | ledger projection; no invented git |
 | AT3-014 | Universal event ledger | ISOLATED_RUNTIME | new store; do not dual-write ops_events |
 
 ## Wave C — Truth Graph 2
