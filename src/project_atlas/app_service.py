@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebRoadmapAnswersReadError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -36,6 +37,7 @@ from project_atlas.web_api import (
     read_project_brief,
     read_project_roadmap,
     read_project_state,
+    read_roadmap_answers_view,
     read_source_health,
     read_status,
     read_vault_health,
@@ -105,6 +107,13 @@ class AppService:
         try:
             return read_project_roadmap(self.vault, project_id)
         except WebRoadmapError as exc:
+            raise AppServiceError(str(exc)) from exc
+
+    def roadmap_answers_view(self) -> dict[str, Any]:
+        """Consume-only ans-roadmap REPORT READ. Never derives or writes."""
+        try:
+            return read_roadmap_answers_view(self.vault)
+        except WebRoadmapAnswersReadError as exc:
             raise AppServiceError(str(exc)) from exc
 
     def source_health(self, project_id: str) -> dict[str, Any]:

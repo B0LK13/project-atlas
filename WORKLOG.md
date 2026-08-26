@@ -5,6 +5,20 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-ROADMAP-READ-001 (2026-08-26)
+
+Vault-scoped Roadmap answers REPORT READ from live main
+`f1b5256510cb66e037e6774aa49d753bdb7dd96f` /
+`8df56184bb25b1cf1b6a9102cf34e77248287940`.
+
+- `read_roadmap_answers_view` + CLI `atlas roadmap-status`
+- MCP `atlas.roadmap.read` + API `GET /v1/roadmap-status`
+- Distinct from derive `GET /v1/roadmap` / `read_project_roadmap`
+- Never calls `build_roadmap_lens` or `materialize_roadmap_lenses`
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; ROADMAP != AUTHORITY
+- ROADMAP != CANONICAL_TRUTH
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
