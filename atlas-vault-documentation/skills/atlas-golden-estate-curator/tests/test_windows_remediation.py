@@ -497,3 +497,37 @@ def test_ge_win_002_disk_estimate_inaccessible_blocks_parent_golden(
     assert healthy["inspection_complete"] is False
     assert healthy["path"] not in report["recommendation"]["recommended_golden_set"]
     assert report["discovery"]["inaccessible_is_golden"] is False
+
+
+def test_ge_win_002_root_as_project_inaccessible_descendant_not_golden(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "single-repo"
+    _init_repo(source, readme="# Root project\n")
+    locked = source / "docs" / "locked.bin"
+    locked.parent.mkdir()
+    locked.write_text("x\n", encoding="utf-8")
+    _commit(source, "docs", "docs/locked.bin")
+    dest = tmp_path / "win002-root-project.json"
+    before = fingerprint(source)
+    original = Path.lstat
+
+    def flaky_lstat(self: Path) -> object:
+        if self.name == "locked.bin":
+            raise _win1920(self)
+        return original(self)
+
+    monkeypatch.setattr(Path, "lstat", flaky_lstat)
+    report = curate(source, output=dest)
+    monkeypatch.setattr(Path, "lstat", original)
+    assert fingerprint(source) == before
+    assert dest.is_file()
+    root_project = next(item for item in report["inventory"] if item["path"] == ".")
+    assert root_project["inspection_complete"] is False
+    assert "." not in report["recommendation"]["recommended_golden_set"]
+    assert report["discovery"]["inaccessible_is_golden"] is False
+    assert any(
+        item["path"] == "docs/locked.bin"
+        for item in report["exclusions"]
+        if item["reason"] == INACCESSIBLE_REASON
+    )
