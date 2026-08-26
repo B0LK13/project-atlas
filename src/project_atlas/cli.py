@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    overview_status_parser = subparsers.add_parser(
+        "overview-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Project Overview answer artifacts "
+            "(AS-CODER-ALPHA-OVERVIEW-READ-001; never writes; "
+            "OVERVIEW != AUTHORITY; UI != CANONICAL)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-overview-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "OVERVIEW != AUTHORITY. UI != CANONICAL."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas overview-status --vault /path/to/vault\n"
+            "  atlas overview-status --vault /path/to/vault --json"
+        ),
+    )
+    overview_status_parser.add_argument("--vault", type=Path, required=True)
+    overview_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Overview REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3067,6 +3093,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 obsidian_notes = report.get("obsidian_notes") or []
                 if obsidian_notes:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
+        return EXIT_OK
+
+    if args.command == "overview-status":
+        from project_atlas.web_api.overview_read import (
+            WebOverviewReadError,
+            read_overview_view,
+            render_overview_status_text,
+        )
+
+        try:
+            report = read_overview_view(args.vault)
+        except (WebOverviewReadError, OSError, ValueError) as exc:
+            _log.error("overview-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_overview_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "overview":

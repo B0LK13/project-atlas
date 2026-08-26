@@ -5,6 +5,17 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-OVERVIEW-READ-001 (2026-08-26)
+
+Vault-scoped Project Overview REPORT READ from live main.
+
+- `read_overview_view` + CLI `atlas overview-status`
+- MCP `atlas.overview.read` + API `GET /v1/overview-status`
+- Never calls `materialize_overview_lenses` / `build_overview_lens`
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; OVERVIEW != AUTHORITY; UI != CANONICAL
+- Distinct from `atlas overview` materialize
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
