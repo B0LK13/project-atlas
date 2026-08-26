@@ -97,7 +97,7 @@ clock, no second Truth Core). They were not dropped.
 |---|---|---|
 | AT3-080 | Impact explorer data | ISOLATED_RUNTIME |
 | AT3-081 | Stale / conflict intelligence | ISOLATED_RUNTIME |
-| AT3-082 | Next-action honesty | LANDED_2X_REUSE (next lens; Pulse composes) |
+| AT3-082 | Next-action honesty | ISOLATED_RUNTIME |
 
 ## Wave I — Product experience
 

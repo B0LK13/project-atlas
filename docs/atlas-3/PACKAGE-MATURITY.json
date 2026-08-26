@@ -319,6 +319,13 @@
       "evidence": "Composes Pulse + memory stale/conflict. No new CLI. No graph winner. Stale != current.",
       "guard_tests": ["tests/unit/test_atlas3_stale_conflict_081.py"]
     },
+    "at3-082-next-honesty": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/next_honesty.py"],
+      "evidence": "Composes Pulse + next-lens. NEXT != command. Does not write Pulse. Missing stays UNKNOWN.",
+      "guard_tests": ["tests/unit/test_atlas3_next_honesty_082.py"]
+    },
     "chatgpt-live-2x": {
       "maturity": "prep-frozen",
       "prep_tree": "docs/atlas-2.2/chatgpt-live/",

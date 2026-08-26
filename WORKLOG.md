@@ -7559,4 +7559,15 @@ Isolated graph != authority prover stacked on AT3-022 `#570`.
 - Does not write AS-GRAPH-003
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-082 (2026-08-26)
+
+Isolated next-action honesty stacked on AT3-023 `#571`.
+
+- `compile_next_action_honesty` (no new CLI)
+- Composes existing Pulse artifacts + landed next-lens
+- Does not invoke the Pulse compiler (Pulse writes)
+- NEXT != command; stale/unverified stay honest
+- Corrupt Pulse / next-lens JSON fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

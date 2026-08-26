@@ -719,6 +719,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-110 Isolated multi-project twin (declared siblings; federation != authority)
 - [x] AT3-111 Isolated org identity (declared only; does not mint)
 - [x] AT3-081 Isolated stale/conflict intelligence (Pulse + memory compose; no winner; stale != current)
+- [x] AT3-082 Isolated next-action honesty (Pulse + next-lens compose; NEXT != command; no write)
 - [x] AT3-101 Isolated ledger observability (validated read; ledger != truth; no healthy filter)
 - [x] AT3-102 Isolated provider sync status (honest capabilities; AT3-046 EXTERNAL_BLOCKED)
 - [ ] AT3-046 Incremental live provider sync
