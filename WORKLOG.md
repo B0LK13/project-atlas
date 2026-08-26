@@ -7383,4 +7383,13 @@ Isolated derived relationship expansion stacked on AT3-062.
 - Does not pick conflict winners; graph != authority
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-051 (2026-08-26)
+
+Isolated independent-verification binding stacked on AT3-021.
+
+- `bind_independent_verification` + CLI `atlas iv-bind`
+- Exact HEAD/TREE only; target movement fails closed
+- IMPLEMENTER != VERIFIER; IV != MERGE
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

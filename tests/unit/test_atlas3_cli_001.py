@@ -32,6 +32,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "causal-graph",
         "decided-by",
         "rel-expand",
+        "iv-bind",
         "connect",
         "ask2",
         "kdiff",

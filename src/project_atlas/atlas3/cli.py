@@ -16,6 +16,7 @@ from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
 from project_atlas.atlas3.estate_nodes import compile_estate_nodes
 from project_atlas.atlas3.file_graph import compile_file_graph
 from project_atlas.atlas3.inventory import compile_inventory
+from project_atlas.atlas3.iv_bind import bind_independent_verification
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.claude import import_claude_export
 from project_atlas.atlas3.memory.connector import provider_capabilities
@@ -45,6 +46,7 @@ ATLAS3_COMMANDS = frozenset(
         "causal-graph",
         "decided-by",
         "rel-expand",
+        "iv-bind",
     }
 )
 
@@ -233,6 +235,19 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     rel_expand.add_argument("--project", required=True)
     rel_expand.add_argument("--json", action="store_true")
 
+    iv_bind = subparsers.add_parser(
+        "iv-bind",
+        help="Atlas 3 IV binding (exact HEAD/TREE; does not grant merge).",
+        description="Atlas 3 IV binding (exact HEAD/TREE; does not grant merge).",
+    )
+    iv_bind.add_argument("--package", required=True)
+    iv_bind.add_argument("--candidate-head", required=True)
+    iv_bind.add_argument("--candidate-tree", required=True)
+    iv_bind.add_argument("--observed-head", required=True)
+    iv_bind.add_argument("--observed-tree", required=True)
+    iv_bind.add_argument("--iv-result", required=True, choices=["PASS", "FAIL"])
+    iv_bind.add_argument("--verifier", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -273,6 +288,19 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(compile_decided_by(args.vault, args.project), as_json=True)
         if command == "rel-expand":
             return _dump(expand_relationships(args.vault, args.project), as_json=True)
+        if command == "iv-bind":
+            return _dump(
+                bind_independent_verification(
+                    candidate_head=str(args.candidate_head),
+                    candidate_tree=str(args.candidate_tree),
+                    observed_head=str(args.observed_head),
+                    observed_tree=str(args.observed_tree),
+                    iv_result=str(args.iv_result),
+                    verifier_id=str(args.verifier),
+                    package_id=str(args.package),
+                ),
+                as_json=True,
+            )
         if command == "proof":
             evidence = None
             if getattr(args, "evidence", None):
