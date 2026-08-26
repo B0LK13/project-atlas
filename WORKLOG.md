@@ -5,6 +5,37 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-BITEMPORAL-READ-001 — vault-scoped validity-catalog REPORT READ
+
+**Date:** 2026-08-26
+**Directive:** nightly autonomous DAG / Coder Alpha persist-lens
+**Branch:** `cursor/atlas-autonomous-night-cycle-bitemporal-read-a0ab`
+**Base:** live `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / TREE `8df56184bb25b1cf1b6a9102cf34e77248287940`
+**Mode:** consume-only REPORT READ. Does not rematerialize. Does not merge.
+
+### Purpose
+Agents need a vault-scoped read of existing
+`generated/ops/bitemporal/*-validity-catalog.json` without invoking
+`write_validity_catalog` or kdiff rematerialize. Catalog remains derived.
+EMPTY and mixed-corrupt stay non-healthy.
+
+### Surfaces
+- Library: `project_atlas.web_api.bitemporal_read.read_bitemporal_view`
+- CLI: `atlas bitemporal-status --vault <dir> [--json]`
+- MCP: `atlas.bitemporal.read` (zero-arg, vault-scoped)
+- LIVE_API: `GET /v1/bitemporal-status`
+
+### Honesty
+- `CATALOG != AUTHORITY`
+- `GRAPH != AUTHORITY`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != HEALTHY`
+- `WRITE_APPLIED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+
+---
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25

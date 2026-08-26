@@ -12,6 +12,10 @@ Normative (ADR-008):
 
 from __future__ import annotations
 
+from project_atlas.web_api.bitemporal_read import (
+    WebBitemporalReadError,
+    read_bitemporal_view,
+)
 from project_atlas.web_api.brief import (
     WebBriefError,
     filter_knowledge_by_project,
@@ -51,6 +55,7 @@ __all__ = [
     "ProjectSummary",
     "ReadStatus",
     "VaultHealthView",
+    "WebBitemporalReadError",
     "WebBriefError",
     "WebIntelligenceError",
     "WebRoadmapError",
@@ -61,6 +66,7 @@ __all__ = [
     "list_project_conflicts",
     "list_projects",
     "load_estate_discovery_view",
+    "read_bitemporal_view",
     "read_impact_graph",
     "read_intelligence_conflicts",
     "read_intelligence_evidence",

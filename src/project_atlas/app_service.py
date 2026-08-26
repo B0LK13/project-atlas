@@ -17,6 +17,7 @@ from project_atlas.knowledge_diff import (
     read_as_of,
 )
 from project_atlas.web_api import (
+    WebBitemporalReadError,
     WebBriefError,
     WebIntelligenceError,
     WebRoadmapError,
@@ -27,6 +28,7 @@ from project_atlas.web_api import (
     list_project_conflicts,
     list_projects,
     load_estate_discovery_view,
+    read_bitemporal_view,
     read_intelligence_conflicts,
     read_intelligence_evidence,
     read_intelligence_explain,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def bitemporal_view(self) -> dict[str, Any]:
+        """Coder Alpha bitemporal REPORT READ (never materializes/writes)."""
+        try:
+            return read_bitemporal_view(self.vault)
+        except WebBitemporalReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
