@@ -7179,3 +7179,13 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-ASK2-READ-001 (2026-08-26)
+
+Vault-scoped Ask Atlas 2 REPORT READ on live main `f1b5256510cb66e037e6774aa49d753bdb7dd96f`.
+
+- Surfaces: `atlas ask2-status report|show`, `GET /v1/ask2/report`, MCP `atlas.ask2.read`
+- Never calls `ask_atlas_2`; never accepts a question; WRITE_APPLIED=false
+- Mixed valid+corrupt artifacts → UNKNOWN (not healthy PRESENT)
+- Same answer id with altered payload fails closed
+- `src/project_atlas/atlas3/**` untouched; MERGE_AUTHORIZATION=NOT_GRANTED

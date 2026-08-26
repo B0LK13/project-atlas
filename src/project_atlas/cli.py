@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.ask2_read import (
+    WebAsk2ReadError,
+    read_ask2_view,
+    render_ask2_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2092,6 +2097,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable the subordinate legacy substring compatibility scan.",
     )
     ask2_parser.add_argument("--json", action="store_true")
+
+    ask2_status_parser = subparsers.add_parser(
+        "ask2-status",
+        help=(
+            "Read existing Ask Atlas 2 artifacts "
+            "(AS-CODER-ALPHA-ASK2-READ-001; never writes; ASK2 REPORT != ANSWER)."
+        ),
+    )
+    ask2_status_sub = ask2_status_parser.add_subparsers(
+        dest="ask2_status_command", required=True
+    )
+    ask2_status_report = ask2_status_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of existing Ask Atlas 2 artifacts "
+            "(never writes; ASK2 REPORT != ANSWER; ARTIFACT != AUTHORITY)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas ask2-status report --vault /path/to/vault\n"
+            "  atlas ask2-status report --vault /path/to/vault --json"
+        ),
+    )
+    ask2_status_report.add_argument("--vault", type=Path, required=True)
+    ask2_status_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the ask2 REPORT READ JSON to stdout.",
+    )
+    ask2_status_show = ask2_status_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `ask2-status report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas ask2-status show --vault /path/to/vault\n"
+            "  atlas ask2-status show --vault /path/to/vault --json"
+        ),
+    )
+    ask2_status_show.add_argument("--vault", type=Path, required=True)
+    ask2_status_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the ask2 REPORT READ JSON to stdout.",
+    )
 
     # AS-2.0-CTX-001 — fixture-safe context packs with provenance pointers.
     ctx_parser = subparsers.add_parser(
@@ -4676,6 +4727,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"legacy_subordinate_matches: {answer['legacy_compatibility']['match_count']}")
             print(f"truth_boundary: {answer['truth_boundary']}")
         return EXIT_OK
+
+    if args.command == "ask2-status":
+        if args.ask2_status_command in {"report", "show"}:
+            try:
+                view = read_ask2_view(args.vault)
+            except (WebAsk2ReadError, OSError) as exc:
+                _log.error("ask2-status report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_ask2_text(view), end="")
+            return EXIT_OK
+        parser.error(  # pragma: no cover
+            f"unknown ask2-status command: {args.ask2_status_command}"
+        )
 
     if args.command == "context-pack":
         if args.context_pack_command == "build":
