@@ -34,12 +34,19 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ```
 /workspace/.venv/bin/python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests -q --tb=short --no-cov -o addopts=
-41 passed
-/workspace/.venv/bin/python -m ruff check atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_windows_remediation.py
+44 passed
+/workspace/.venv/bin/python -m ruff check atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_windows_remediation.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_inventory_honesty.py
 All checks passed
 /workspace/.venv/bin/python -m mypy atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py
 Success: no issues found in 1 source file
 ```
+
+### Independent IV (IMPLEMENTER != VERIFIER)
+
+First IV on `38347a2` / `176b51a`: GE-WIN-001 PASS; GE-WIN-002 crash-safety PASS; honesty FAIL (P1).
+An inaccessible clean git repo (`iterdir` WinError 1920) was still placed in `recommended_golden_set`. Implementer iterdir tests had used a non-git folder.
+
+Closed on this branch: `inspection_complete=false` → `INACCESSIBLE_PATH` blocker; filename secret match does not require a readable file; `discovery.inaccessible_is_golden` is derived. Do not transfer certification from `38347a2`.
 
 ---
 
