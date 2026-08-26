@@ -85,6 +85,7 @@ atlas home --vault <dir> --project <id> --budget <n>
 atlas timeline --vault <dir> --project <id>
 atlas decision-explorer --vault <dir> --project <id>
 atlas truth-graph --vault <dir> --project <id>
+atlas mission --vault <dir> --project <id>
 ```
 
 `atlas memory sync` is a status/capability command in this slice, not a live

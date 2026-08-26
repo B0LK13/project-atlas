@@ -95,6 +95,7 @@ AT3-090 home ───────► Pulse + Start + twin health (UI != truth)
 AT3-091 timeline ───► ledger valid-time order (wall-clock != valid-time)
 AT3-094 decisions ──► declared owner_origin only (model paraphrase != owner)
 AT3-092 truth-graph ► declared claims/relationships (graph != authority; no winners)
+AT3-096 mission ────► declared orch DAG/leases (self-merge forbidden; estate != authorization)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

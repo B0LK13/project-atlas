@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-096 (2026-08-26)
+
+Isolated Mission Command Center stacked on AT3-092.
+
+- `compile_mission` + CLI `atlas mission`
+- Declared orch DAG / lease projection; missing stays UNKNOWN
+- Self-merge and estate-as-authorization fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-092 (2026-08-26)
 
 Isolated Truth Graph UX stacked on AT3-094.

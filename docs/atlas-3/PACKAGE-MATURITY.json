@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-096-mission": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/mission.py"],
+      "evidence": "Declared Mission Command Center. Self-merge forbidden. Estate availability != owner authorization. MERGE_AUTHORIZATION remains NOT_GRANTED.",
+      "guard_tests": ["tests/unit/test_atlas3_mission_096.py"]
+    },
     "at3-092-truth-graph": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

@@ -31,6 +31,7 @@ from project_atlas.atlas3.memory.lineage import build_session_lineage
 from project_atlas.atlas3.memory.providers import memory_providers
 from project_atlas.atlas3.memory.routing import assert_items_project_scope
 from project_atlas.atlas3.memory.search import search_memory
+from project_atlas.atlas3.mission import compile_mission
 from project_atlas.atlas3.proof import evaluate_proof
 from project_atlas.atlas3.provider_register import (
     assert_cli_design,
@@ -70,6 +71,7 @@ ATLAS3_COMMANDS = frozenset(
         "timeline",
         "decision-explorer",
         "truth-graph",
+        "mission",
     }
 )
 
@@ -385,6 +387,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     truth_graph.add_argument("--vault", type=Path, required=True)
     truth_graph.add_argument("--project", required=True)
 
+    mission = subparsers.add_parser(
+        "mission",
+        help="Atlas 3 Mission Command Center (declared DAG/leases; must not self-merge).",
+        description="Atlas 3 Mission Command Center (declared DAG/leases; must not self-merge).",
+    )
+    mission.add_argument("--vault", type=Path, required=True)
+    mission.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -438,6 +448,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "mission":
+            return _dump(compile_mission(args.vault, args.project), as_json=True)
         if command == "truth-graph":
             return _dump(compile_truth_graph(args.vault, args.project), as_json=True)
         if command == "decision-explorer":
