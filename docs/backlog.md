@@ -715,6 +715,9 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-095 Isolated Impact Explorer UX (composes AT3-080; no new CLI)
 - [x] AT3-110 Isolated multi-project twin (declared siblings; federation != authority)
 - [x] AT3-111 Isolated org identity (declared only; does not mint)
+- [x] AT3-081 Isolated stale/conflict intelligence (Pulse + memory compose; no winner; stale != current)
+- [x] AT3-101 Isolated ledger observability (validated read; ledger != truth; no healthy filter)
+- [x] AT3-102 Isolated provider sync status (honest capabilities; AT3-046 EXTERNAL_BLOCKED)
 - [ ] AT3-046 Incremental live provider sync
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`
