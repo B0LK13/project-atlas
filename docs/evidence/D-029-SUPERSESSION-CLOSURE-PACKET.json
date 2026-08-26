@@ -1,0 +1,405 @@
+{
+  "directive": "D-AUG26-SUCCESSOR-DAG-EXHAUSTION-029",
+  "main_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+  "closure_authority": "NOT_GRANTED",
+  "candidates": [
+    {
+      "PR_NUMBER": 591,
+      "HEAD": "8c4c8a95dc7f04d5ba88d127e58aac161ebb00e6",
+      "PACKAGE": "AT3-057",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 590,
+      "HEAD": "768f38490c29006482e2f2115b2333d64190da67",
+      "PACKAGE": "AT3-056",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 589,
+      "HEAD": "cb685447c1138678c25f5cf3d4a03c804e9dfe5a",
+      "PACKAGE": "AT3-055",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 588,
+      "HEAD": "c630eb5f6fc2c13e30f58055e2ae47d92f426891",
+      "PACKAGE": "AT3-054",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 585,
+      "HEAD": "e98e04d04f375d71a67dd5aeb72e8cff12a5dd7f",
+      "PACKAGE": "AT3-048",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 584,
+      "HEAD": "8dce8367a5db418b54e38581a9840d1262a2dff1",
+      "PACKAGE": "AT3-047",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 583,
+      "HEAD": "2c5e598f8adb51b2dfd10236fc8769f9070ed1a3",
+      "PACKAGE": "AT3-044",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 582,
+      "HEAD": "5467602d3f9af837589bdd9cb54101be92ae491e",
+      "PACKAGE": "AT3-042",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 581,
+      "HEAD": "c3d2b82bad9465ae89fc6973027252ae230dde77",
+      "PACKAGE": "AT3-041",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 580,
+      "HEAD": "7e99a317ae5df4d64258f4588e1f742220a92f14",
+      "PACKAGE": "AT3-040",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 579,
+      "HEAD": "9e890bdd7546dd90e3eaa777e976519bbd04a03d",
+      "PACKAGE": "AT3-039",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 578,
+      "HEAD": "307ba862894465da91846968e3baf59677395a63",
+      "PACKAGE": "AT3-036",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 568,
+      "HEAD": "46628aebc3c2b04aa19025756622eb7650cb1917",
+      "PACKAGE": "AT3-006",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 567,
+      "HEAD": "bf138470a29a71902824553ab3416e857796bf64",
+      "PACKAGE": "AT3-102",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 566,
+      "HEAD": "c3d6ababb4aa49fd350846d419036f30c0067b1e",
+      "PACKAGE": "AT3-081",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 565,
+      "HEAD": "be14bc7a90c7afae38dc663cf7222c0d84f48078",
+      "PACKAGE": "AT3-101",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 564,
+      "HEAD": "749a481803c24002b97b5ccc41f6bec0e2c26f28",
+      "PACKAGE": "AT3-111",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 563,
+      "HEAD": "3e19882ecb2b79d8b275fd15e5649df7c18f9aa5",
+      "PACKAGE": "AT3-110",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 562,
+      "HEAD": "49b7c3a283d15a9ba10f51b576888a93b9bc5a77",
+      "PACKAGE": "AT3-095",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 561,
+      "HEAD": "13350c3df9ae863d5551a77776fa33608c26f0e2",
+      "PACKAGE": "AT3-096",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 560,
+      "HEAD": "26850b35dd703b38957578eebf3feea608daa408",
+      "PACKAGE": "AT3-092",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 559,
+      "HEAD": "0c51083e09e57a4f6ea745a429737c7183e1f820",
+      "PACKAGE": "AT3-094",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 558,
+      "HEAD": "36e3b0fba296dc237fac0f4a1d6c47757f20ed49",
+      "PACKAGE": "AT3-091",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 556,
+      "HEAD": "875913b46d569dbb3aa8d16c8463f33b62244b76",
+      "PACKAGE": "AT3-090",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 555,
+      "HEAD": "9aabac91791614ea9e13c74da9b205246b3823f4",
+      "PACKAGE": "AT3-100",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 554,
+      "HEAD": "ea398c42ee59ba1da9d5e1cb8d93865276960ac5",
+      "PACKAGE": "AT3-080",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 553,
+      "HEAD": "853f015f5996f08e989c321b6bd7a85b20afea91",
+      "PACKAGE": "AT3-072",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 552,
+      "HEAD": "d2ccdc8ce0cb498e2e03a8d9fc5434a5e9869f13",
+      "PACKAGE": "AT3-071",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 551,
+      "HEAD": "b7a5e60046616964daea5a2569154b1631c1d4e7",
+      "PACKAGE": "AT3-070",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 550,
+      "HEAD": "e3f7758a4a6d112c201b2ce312a7167daf64a13f",
+      "PACKAGE": "AT3-052",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 549,
+      "HEAD": "029dd8673ad351f6c39ea377bdbb113c9196295f",
+      "PACKAGE": "AT3-051",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 548,
+      "HEAD": "d692cb886c67244316b354b7ae1eaf264d0304b0",
+      "PACKAGE": "AT3-021",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 547,
+      "HEAD": "cb9576ec2e2aa41fcef987d94d3ba2b47eabe4c6",
+      "PACKAGE": "AT3-062",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 546,
+      "HEAD": "5426f2c62a4104b5f388ad71b043324e0cfa2625",
+      "PACKAGE": "AT3-060",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 545,
+      "HEAD": "6da5f08ec04cb3392819feb891e3501b2a067dcd",
+      "PACKAGE": "AT3-061",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 544,
+      "HEAD": "2dfbd3a2c5657e28f8e6f4879f92ee7a8b08a1b7",
+      "PACKAGE": "AT3-012",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 543,
+      "HEAD": "268b3d9cc39de3ca3ff46215ac5e099edbb33e77",
+      "PACKAGE": "AT3-011",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 541,
+      "HEAD": "4067eddeef5a8eedfbf00917527c101a32414228",
+      "PACKAGE": "AT3-013",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 540,
+      "HEAD": "3f2f1a77d54c2c661a5d4e3699d3bddb22ed07c4",
+      "PACKAGE": "AT3-010",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 539,
+      "HEAD": "9db8d18f1d2e0965e83e332393e45dddbbd303fc",
+      "PACKAGE": "AT3-038",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 538,
+      "HEAD": "11a49ad19fb8a7ad2f28092023a30ac167893ff1",
+      "PACKAGE": "AT3-037",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 537,
+      "HEAD": "96470a2c27e09cb8da10a750bdbf794600c99739",
+      "PACKAGE": "AT3-045",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 536,
+      "HEAD": "5a3d15c19709d0db713ff934b8d5d462776544c1",
+      "PACKAGE": "AT3-043",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    },
+    {
+      "PR_NUMBER": 592,
+      "HEAD": "3f74bbb35bcb252727bab8e965b23c08b1194774",
+      "PACKAGE": "AT3-058-STACK-TIP",
+      "SUPERSEDED_BY": "MAIN_f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+      "UNIQUE_DELTA": 0,
+      "PROPOSED_ACTION": "CLOSE_AS_SUPERSEDED",
+      "COMMENT_TEMPLATE": "Superseded by integrated main `f6b2495a0319\u2026` (D-025 Atlas3 stack). Semantic content contained; UNIQUE_DELTA=0 per D-029 audit."
+    }
+  ],
+  "count": 44,
+  "preparation_complete": true
+}

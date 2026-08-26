@@ -1,0 +1,672 @@
+{
+  "audited": 39,
+  "by_disposition": {
+    "SUPERSEDED": 11,
+    "BACKLOG_OPTIONAL": 28
+  },
+  "inventory": [
+    {
+      "PR_NUMBER": 603,
+      "HEAD": "0e66476d01f51473645e933ef55f2397bce6de04",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/index_status.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 602,
+      "HEAD": "04c0ea8441c6a109209c255ef52b2226d3eed9a4",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/bitemporal_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 601,
+      "HEAD": "c1d59389a416341917ff806d6bf2c55147715096",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/portfolio_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 600,
+      "HEAD": "67d6f132c58512b98df21486046ae21f92fbd10a",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/roadmap_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 599,
+      "HEAD": "5f68364181046ed92aa082854ac7eed39310d5ea",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/architecture_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 598,
+      "HEAD": "f4ee09eecba981295586bd2b18fa4688274f97d4",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/state_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 597,
+      "HEAD": "d5bf486663474908df4d81a1b3a4b2e315888003",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/unknown_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 596,
+      "HEAD": "296f0db883b7760ea6d3fbeaf05416216b4f8fe4",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/decisions_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 595,
+      "HEAD": "227c0444524a665c5086e5ff7566b3339ea7b7dd",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/overview_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 594,
+      "HEAD": "3557f7de121f0497c564d18aeb600e31718761eb",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/changed_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 593,
+      "HEAD": "d45c1d2a6bdbade929f2dbd39b6ae9c10f0122e0",
+      "DISPOSITION": "SUPERSEDED",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/next_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 576,
+      "HEAD": "d864d8a80017e6f5b1e0f098a170d705b7c8b2ba",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/ops_report_read.py",
+        "tests/unit/test_as_2_1_mcp_adv_001.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 572,
+      "HEAD": "d0ff38dd3b5adcdf514daaf08247c2b338c16189",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-HANDOFF-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/handoff_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 535,
+      "HEAD": "23509df45e1c4576c9073ffefd6be70e8735c096",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-ASK2-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/ask2_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 533,
+      "HEAD": "4e601467b88232bd38d8c4996dddb138433aca02",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-CONNECT-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/connect_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 532,
+      "HEAD": "742df6253f60c7695c1324162539542738e1248e",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-CAPTURE-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/capture_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 531,
+      "HEAD": "cdbc883f2bef2a57ba521a5e89df03fcf797054d",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-RUNTIME-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/runtime_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 530,
+      "HEAD": "5f7d7cc3b7f62b5a4b485a576942d404bcaf96b8",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-TWIN-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/twin_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 529,
+      "HEAD": "bba673f860931b488a7894a8eec047372f7381fd",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-CONTEXT-PACK-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/context_pack_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 528,
+      "HEAD": "fd510ce97a5ee7f6b76034d925c2d3b75a748421",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-OPT-GATE-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/opt_gate_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 527,
+      "HEAD": "67a55105436e4b9def22800a101decb56bc6ceae",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-FED-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/fed_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 526,
+      "HEAD": "29656d08827ee3901cb5b0850d1c6d1a18ee39a1",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-COMPAT-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/compat_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 525,
+      "HEAD": "7e9dbeea43e9d8c12b263dbec1a2da63db484b56",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-WORKSPACE-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/workspace_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 524,
+      "HEAD": "698eee2391918a6d00c9217359eb6ba24f831d3a",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-MISSION-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/mission_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 523,
+      "HEAD": "e825ce1392a4d54d32aaf225dad0490e98d97008",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-AUTHZ-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/authz_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 522,
+      "HEAD": "6ef8e19945ad6e79ee72f42bdfc68d29ecd94a16",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-INTELLIGENCE-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/intelligence_read.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 521,
+      "HEAD": "039219b3c25fc4fe78d5a60ef2552b25ea2612fe",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-KF2-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/kf2.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 520,
+      "HEAD": "73abeda65f10e3b2d1af553ef0771108d0b52d37",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-PROVIDER-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/provider.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 519,
+      "HEAD": "c61a044b495bdf6ad71b7421ff4fb1edec4c86b2",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-LIFECYCLE-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/lifecycle.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 518,
+      "HEAD": "3fe9dfcedcfe788c818a91705f91a6bf72a88f8d",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-KCI-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/kci.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 517,
+      "HEAD": "a93c5ca58e771cb46749d9ad05331adf34e19c69",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-XPROJ-READ-001.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/web_api/__init__.py",
+        "src/project_atlas/web_api/xproj.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 515,
+      "HEAD": "3c52098de352b353915ca40482f59f2e579e380c",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-EVENT-RETENTION-READ-001.md",
+        "docs/AS-INT-009-retention-policy.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/event_retention.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 514,
+      "HEAD": "ea7047e229aca5c197ee2305872e69c3edfcb0dd",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "docs/AS-CODER-ALPHA-SCHEMA-COMPAT-READ-001.md",
+        "docs/AS-INT-012-schema-compat.md",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py",
+        "src/project_atlas/app_service.py",
+        "src/project_atlas/cli.py",
+        "src/project_atlas/mcp_registry.py",
+        "src/project_atlas/mcp_server.py",
+        "src/project_atlas/schema_compat.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 503,
+      "HEAD": "e23439eb5ec2ed669b321d2dce83784d5df67bb0",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "apps/web/README.md",
+        "apps/web/scripts/smoke.mjs",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/ProdNav.tsx",
+        "apps/web/src/hooks/useConversationCaptures.ts",
+        "apps/web/src/pages/HomePage.tsx",
+        "apps/web/src/pages/production/ConversationCapturesPage.tsx",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 502,
+      "HEAD": "ffb1389fb24d3bd5f8b2684b8c28c23693f9131a",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "apps/web/README.md",
+        "apps/web/scripts/smoke.mjs",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/ProdNav.tsx",
+        "apps/web/src/hooks/useEventTombstones.ts",
+        "apps/web/src/pages/HomePage.tsx",
+        "apps/web/src/pages/production/EventTombstonesPage.tsx",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 501,
+      "HEAD": "c53460dbe69391f191b23695f70e99746c481265",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "apps/web/README.md",
+        "apps/web/scripts/smoke.mjs",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/ProdNav.tsx",
+        "apps/web/src/hooks/useInventoryDrift.ts",
+        "apps/web/src/pages/HomePage.tsx",
+        "apps/web/src/pages/production/InventoryDriftPage.tsx",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 500,
+      "HEAD": "b6282dc94bdc33b14ff95207973db016a65c5645",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "apps/web/README.md",
+        "apps/web/scripts/smoke.mjs",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/ProdNav.tsx",
+        "apps/web/src/hooks/useIncrementalConnect.ts",
+        "apps/web/src/pages/HomePage.tsx",
+        "apps/web/src/pages/production/IncrementalConnectPage.tsx",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 499,
+      "HEAD": "a2df46c8deb41f6e9eac8ef502eec7f44a15ed5a",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "apps/web/README.md",
+        "apps/web/scripts/smoke.mjs",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/ProdNav.tsx",
+        "apps/web/src/hooks/useRevocations.ts",
+        "apps/web/src/pages/HomePage.tsx",
+        "apps/web/src/pages/production/RevocationsPage.tsx",
+        "docs/backlog.md",
+        "src/project_atlas/api_server.py"
+      ]
+    },
+    {
+      "PR_NUMBER": 498,
+      "HEAD": "a7ff16daf9e9046552de04752770377456ab85d7",
+      "DISPOSITION": "BACKLOG_OPTIONAL",
+      "UNIQUE_PATHS": [
+        "WORKLOG.md",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/ProdNav.tsx",
+        "apps/web/src/hooks/useOpsEvents.ts",
+        "apps/web/src/pages/HomePage.tsx",
+        "apps/web/src/pages/production/OpsEventsPage.tsx",
+        "apps/web/src/pages/production/OpsHealthPage.tsx",
+        "docs/AS-CODER-ALPHA-OPS-EVENTS-READ-001.md",
+        "docs/backlog.md",
+        "docs/evidence/AS-CODER-ALPHA-OPS-EVENTS-READ-001.md"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "directive": "D-AUG26-SUCCESSOR-DAG-EXHAUSTION-029",
+  "windows_target_head": "4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+  "windows_target_tree": "b53de8667e48e625d0fdcea540a52f6b42f28b22",
+  "production_cert_head": "dc75651a28f10b7f07ea6da0c446919e36d64b99",
+  "production_cert_transfer": "VALID_BY_NON_SEMANTIC_DELTA",
+  "justification": "Post-cert delta is evidence+tooling only; GE/Atlas3/RR/IV certified on tip 4fe172ff with identical production tree semantics to dc75651a.",
+  "commands": [
+    "git checkout 4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+    "pip install -e \".[dev]\"",
+    "python scripts/d028_post_merge_seal.py",
+    "python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests -q --no-cov"
+  ],
+  "pass_criteria": {
+    "GE_TESTS": ">=48",
+    "ATLAS3_TESTS": ">=540",
+    "REPORT_READ_TESTS": ">=161",
+    "VALID_P0": 0,
+    "VALID_P1": 0
+  },
+  "authentic_d_drive_ge": {
+    "required": false,
+    "reason": "D-020 CASE A receipt valid; PR609 GE skill blob-identical to certified PR516 HEAD; semantic non-overlap with Atlas3 main"
+  },
+  "local_results_2026_08_26": {
+    "GE": 48,
+    "ATLAS3": 540,
+    "REPORT_READ": 161,
+    "IV_ADV": 49,
+    "RUFF": "PASS"
+  }
+}
