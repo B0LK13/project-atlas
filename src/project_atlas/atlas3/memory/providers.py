@@ -7,6 +7,7 @@ from typing import Any
 from project_atlas.atlas3.memory.chatgpt import chatgpt_capability
 from project_atlas.atlas3.memory.claude import claude_capability
 from project_atlas.atlas3.memory.connector import provider_capabilities
+from project_atlas.atlas3.memory.cursor import cursor_capability
 from project_atlas.atlas3.memory.gemini import gemini_capability
 
 
@@ -37,5 +38,15 @@ def memory_providers() -> dict[str, Any]:
             "bootstrap_adapter": "GEMINI.md",
             "bootstrap_is_ingestion": False,
             "state": "EXPORT_ONLY",
+        },
+        "cursor_detail": cursor_capability(),
+        "cursor_current": {
+            "conversation_sync": "NOT_IMPLEMENTED",
+            "export_import": "IMPLEMENTED",
+            "bootstrap_adapter": "AGENTS.md",
+            "bootstrap_is_ingestion": False,
+            "cursor_cloud_history": False,
+            "import_mode": "LOCAL_SESSION",
+            "state": "PARTIAL",
         },
     }

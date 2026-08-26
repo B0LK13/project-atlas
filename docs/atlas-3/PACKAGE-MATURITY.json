@@ -346,6 +346,13 @@
       "evidence": "Fixture ChatGPT→Claude handoff via rank+serve. Live multi-account product remains EXTERNAL_BLOCKED. No Truth Core write. No Ask2 rewrite.",
       "guard_tests": ["tests/unit/test_atlas3_handoff_056.py"]
     },
+    "at3-057-cursor": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/cursor.py"],
+      "evidence": "Local-session JSON fixture ingest only. AGENTS.md != ingestion. Cursor Cloud history NOT IMPLEMENTED. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_cursor_057.py"]
+    },
     "at3-055-context-serve": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

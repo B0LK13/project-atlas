@@ -7721,4 +7721,13 @@ Isolated fixture provider handoff stacked on AT3-055 `#589`.
 - Live multi-account product remains EXTERNAL_BLOCKED
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-057 (2026-08-26)
+
+Isolated Cursor fixture / local-session ingest stacked on AT3-056 `#590`.
+
+- Structured JSON session ingest; import_mode=LOCAL_SESSION
+- AGENTS.md / .cursorrules are bootstrap, not ingestion
+- Cursor Cloud history claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

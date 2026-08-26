@@ -28,6 +28,7 @@ Complete when:
 | 10 | AT3-056 fixture ChatGPT→Claude handoff; live multi-account product EXTERNAL_BLOCKED |
 
 Claude/Gemini **native history sync** remains **NOT IMPLEMENTED**.
+Cursor **Cloud history sync** remains **NOT IMPLEMENTED** (AT3-057 is local-session fixture ingest only).
 
 ## PostgreSQL multi-provider fixture
 

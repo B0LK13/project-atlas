@@ -83,7 +83,10 @@ DEFAULT_ADAPTERS: Final[dict[str, ProviderAdapter]] = {
         state="PARTIAL",
         modes=["LOCAL_SESSION", "STRUCTURED_SUBMISSION"],
         live_full_history_sync=False,
-        notes="Local/session structured capture only.",
+        notes=(
+            "Structured fixture/session ingest implemented. "
+            "Cursor Cloud history not implemented. AGENTS.md is bootstrap only."
+        ),
     ),
     "codex": _adapter(
         "codex",

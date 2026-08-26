@@ -738,6 +738,8 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-054 Isolated consume-only memory context compiler (no 2.x rewrite; stale != current; UNKNOWN stays UNKNOWN)
 - [x] AT3-055 Isolated ranked-context local serve (chatgpt/claude/gemini/cursor pack; live serve EXTERNAL_BLOCKED)
 - [x] AT3-056 Isolated fixture provider handoff (ChatGPT→Claude fixture path; live multi-account EXTERNAL_BLOCKED)
+- [x] AT3-057 Isolated Cursor fixture / local-session ingest (AGENTS.md != ingestion; Cursor Cloud history NOT IMPLEMENTED)
+- [ ] AT3-057 Cursor Cloud history sync (NOT IMPLEMENTED; LOCAL_SESSION honesty)
 - [ ] AT3-046 Incremental live provider sync (EXTERNAL_BLOCKED; credentials / history API)
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`
