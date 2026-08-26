@@ -74,6 +74,13 @@
       "evidence": "Provider-neutral connector registry + capability honesty.",
       "guard_tests": ["tests/unit/test_atlas3_memory_001.py"]
     },
+    "at3-043-intent": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/memory/intent.py"],
+      "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
+    },
     "at3-036-chatgpt": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

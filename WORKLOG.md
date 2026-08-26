@@ -7262,3 +7262,16 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AT3-043 (2026-08-26)
+
+Isolated conversation decision + intent extraction on #511 lineage
+`156ae7e4d5cda8a0bfda0c22764547ab2a0cb4b2`.
+
+- INTENT != CURRENT STATE
+- confirmed_owner_decision requires explicit owner_origin
+- CROSS_PROJECT fail-closed
+- CLI `atlas memory intent` reads existing reconcile artifacts only
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
