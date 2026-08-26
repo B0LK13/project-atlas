@@ -64,7 +64,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-046 | Incremental conversation sync | NOT_STARTED | ChatGPT live sync still NOT general |
 | AT3-047 | Privacy / consent / retention | ISOLATED_RUNTIME | secrets fail-closed; raw transcript minimized |
 | AT3-048 | Unified LLM memory search | ISOLATED_RUNTIME | extracted items only; not a transcript dump |
-| AT3-049 | Cross-LLM memory reconciliation | ISOLATED_RUNTIME | compose 041/042/044; no auto-promote |
+| AT3-049 | Cross-LLM memory reconciliation | ISOLATED_RUNTIME | compose 041/042/044; never auto-promote |
 
 ## Wave E — Causality and intent
 

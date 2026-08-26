@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
-from project_atlas.atlas3.contracts import honesty_block
+from project_atlas.atlas3.contracts import Atlas3Error, honesty_block
 from project_atlas.atlas3.memory.conflicts import detect_conflicts
 from project_atlas.atlas3.memory.dedup import deduplicate_items
 from project_atlas.atlas3.memory.freshness import apply_freshness
+
+PACKAGE_ID: Final[str] = "AT3-049"
+
+
+def reconcile_capability() -> dict[str, Any]:
+    return {
+        "package": PACKAGE_ID,
+        "composes": ["AT3-041", "AT3-042", "AT3-044"],
+        "auto_promote_to_truth_core": False,
+        "promoted_to_truth_core": 0,
+        "picks_winner": False,
+    }
 
 
 def reconcile_memories(
@@ -16,6 +28,8 @@ def reconcile_memories(
     stronger_evidence: list[dict[str, Any]] | None = None,
     current_state_text: str | None = None,
 ) -> dict[str, Any]:
+    if not isinstance(items, list):
+        raise Atlas3Error("RECONCILE_INVALID", "items must be a list")
     deduped = deduplicate_items(items)
     fresh = apply_freshness(deduped["items"], stronger_evidence=stronger_evidence)
     conflicts = detect_conflicts(fresh, current_state_text=current_state_text)
@@ -30,7 +44,7 @@ def reconcile_memories(
     ]
     current = conflicts.get("current_state")
     return {
-        "package": "AT3-049",
+        "package": PACKAGE_ID,
         "schema": "atlas3.memory-reconcile.v1",
         "duplicates_collapsed": deduped["duplicates_collapsed"],
         "near_duplicates": deduped["near_duplicates"],

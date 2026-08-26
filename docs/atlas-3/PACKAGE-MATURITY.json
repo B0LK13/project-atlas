@@ -332,6 +332,13 @@
       "evidence": "Search extracted items only. Not a transcript dump. Cross-project search fails closed.",
       "guard_tests": ["tests/unit/test_atlas3_search_048.py"]
     },
+    "at3-049-reconcile": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/reconcile.py"],
+      "evidence": "Composes AT3-041/042/044. Never auto-promotes. Does not pick a winner.",
+      "guard_tests": ["tests/unit/test_atlas3_reconcile_049.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",
