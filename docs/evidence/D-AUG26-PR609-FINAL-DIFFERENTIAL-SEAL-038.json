@@ -444,5 +444,15 @@
   "merge_performed": false,
   "next_owner_action": "AUTHORIZE_MERGE_PR_609",
   "next_external_action": "RESTORE_GITHUB_ACTIONS_BUDGET",
-  "next_autonomous_node": "NONE"
+  "next_autonomous_node": "NONE",
+  "methodology_valid": false,
+  "invalidated_by": "D-AUG26-COMPETING-D038-METHODOLOGY-RECONCILIATION-042",
+  "invalidated_reasons": [
+    "CP1252_REDECODE_FALSE_BASELINE",
+    "INCOMPLETE_CARRIER_DIFF_SCOPE",
+    "EXPECTED_DELTA_ONLY_LOGIC_ERROR",
+    "STALE_PR_STATE_IN_SUPERSESSION_COUNT",
+    "CIRCULAR_PR608_SUPERSESSION"
+  ],
+  "superseded_for_carrier_decision": true
 }
