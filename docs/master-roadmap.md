@@ -7,10 +7,14 @@
 
 > **D-037 documentation precedence:** This master roadmap is **Level-4 historical
 > execution planning** — input to reconciliation, **not** authority to override
-> current owner product priority. Current product direction:
+> current owner product priority. Current 2.x product direction:
 > `docs/product/CODER-ALPHA-NORTH-STAR.md` (Coder Alpha: persistent brain for
 > AI-native projects). Package classifications (KEEP / REFRAME / SUPERSEDE /
 > DEFER / EXTERNAL_BLOCKED): `docs/CODER-ALPHA-035-REBASE.md`.
+>
+> **D-191 classification:** This document is a **historical input** to Atlas 3.0.
+> Canonical successor program: `docs/atlas-3/NORTH-STAR.md`. Do not treat this
+> file as Atlas 3 authority. Historical text is preserved; it is not erased.
 
 ---
 

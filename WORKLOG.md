@@ -5,6 +5,89 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-193 — Atlas 3.0 foundation convergence
+
+**Date:** 2026-08-25
+**Directive:** D-193
+**Branch:** `cursor/atlas3-foundation-convergence-b8f1`
+**Base:** D-191/D-192 tip `0fd350108d4f4735eb2618a95576f720a78096b8`
+**Current main pin:** `f1b5256510cb66e037e6774aa49d753bdb7dd96f`
+**Mode:** Maximum-safe autonomous foundation convergence.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`FULL_LIVE_DEMO_READY = NO` so certified 2.x surfaces were not rewritten.
+
+### What landed
+- Foundation ownership + exit criteria (`docs/atlas-3/FOUNDATION.md`)
+- Threat catalog (`docs/atlas-3/SECURITY.md`)
+- Chronicle horizon notes only (`docs/atlas-3/chronicle/HORIZON.md`)
+- Twin / event / capability JSON schemas under `docs/atlas-3/contracts/`
+- Isolated runtime: twin constructors, canonical event envelope,
+  capability registry, compatibility prover, Pulse attention question,
+  Start freshness requirement, ledger temporal query
+- Additive CLI: `atlas capabilities`, `atlas compatibility` (does not replace
+  2.x `atlas compat`), `atlas start --freshness`, `atlas ledger query`
+
+### Honesty
+- Chronicle runtime = NOT IMPLEMENTED (`ROADMAP_HORIZON`)
+- Native Claude/Gemini history sync = still NOT IMPLEMENTED
+- Ledger is evidence substrate, not Truth Core
+- Compatibility prover is isolated-store proof, not a vault rewrite
+- Threat model is reviewed, not externally certified
+- Demo interference intended = NONE
+
+### Validation
+See subsequent pytest / ruff / mypy results on this branch.
+
+### D-196 residual read-path (night cycle)
+
+**Date:** 2026-08-25
+**Parent HEAD:** `3afd1e184ed535a3dfa865ecf183ab71739033bf`
+**Mode:** SAME PACKAGE / SAME BRANCH. No merge.
+
+D-196 closed persist-path P1-A and ledger P1-B. Independent ADV still
+reproduced:
+
+- CLI / `search_memory` emitted foreign items from a planted mixed
+  `reconcile.json` (`OUTPUT_PROJECT_SCOPE` leak)
+- Forged `event_id` with intact `content_hash` was accepted
+
+Remediation: consume-path project scope on search/CLI; bind `event_id` to
+content hash. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+---
+
+## D-191 / D-192 — Atlas 3.0 program inception + cross-LLM memory
+
+**Date:** 2026-08-25
+**Directive:** D-191 + D-192
+**Branch:** `cursor/atlas3-program-inception-b8f1`
+**Base:** `main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`
+**Mode:** Autonomous architecture + isolated first-vertical runtime.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`FULL_LIVE_DEMO_READY = NO` so certified 2.x surfaces were not rewritten.
+
+### What landed
+- Canonical Atlas 3 program docs under `docs/atlas-3/`
+- D-192 LLM memory docs under `docs/atlas-3/llm-memory/`
+- Historical roadmaps classified as inputs (not erased)
+- Isolated runtime `src/project_atlas/atlas3/` for AT3-003/014/015/030/050
+  and ChatGPT-first memory vertical AT3-035/036/039/040/041/042/044/047/048/049
+- Additive CLI: `atlas pulse|start|proof|memory|ledger`
+- PostgreSQL multi-provider acceptance fixture
+
+### Honesty
+- Claude/Gemini native history sync = NOT IMPLEMENTED
+- Transcript extraction in Core = still NOT IMPLEMENTED
+- `chatgpt_bridge.py` not replaced
+- Pulse/Start/Proof/Memory are derived / non-authoritative
+- Model claim of completion != proof
+- Demo interference intended = NONE
+
+### Validation
+See subsequent pytest / ruff / mypy results on this branch.
+
+---
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
@@ -7180,34 +7263,480 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
 
----
+## AT3-043 (2026-08-26)
 
-## Lane C REPORT READ convergence (#593-#603)
+Isolated conversation decision + intent extraction on #511 lineage
+`156ae7e4d5cda8a0bfda0c22764547ab2a0cb4b2`.
 
-**Date:** 2026-08-26
-**Branch:** `cursor/aug26-report-read-convergence-f3ff`
-**Base:** `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / TREE `8df56184bb25b1cf1b6a9102cf34e77248287940`
-**Mode:** consume-only dependency convergence. Does not grant merge. Does not write vaults. Does not widen authority.
+- INTENT != CURRENT STATE
+- confirmed_owner_decision requires explicit owner_origin
+- CROSS_PROJECT fail-closed
+- CLI `atlas memory intent` reads existing reconcile artifacts only
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
 
-### Source objects (tips, not PR bodies)
-- `#593` `d45c1d2` `atlas.next.read` `/v1/next-status`
-- `#594` `3557f7d` `atlas.changed.read` `/v1/changed-status`
-- `#595` `227c044` `atlas.overview.read` `/v1/overview-status`
-- `#596` `296f0db` `atlas.decisions.read` `/v1/decisions-status`
-- `#597` `d5bf486` `atlas.unknown.read` `/v1/unknown-status`
-- `#598` `f4ee09e` `atlas.state.read` `/v1/state-status`
-- `#599` `5f68364` `atlas.architecture.read` `/v1/architecture-status`
-- `#600` `67d6f13` `atlas.roadmap.read` `/v1/roadmap-status`
-- `#601` `c1d5938` `atlas.portfolio.read` `/v1/portfolio-status`
-- `#602` `04c0ea8` `atlas.bitemporal.read` `/v1/bitemporal-status`
-- `#603` `0e66476` `atlas.indexes.read` `/v1/index-status`
+## AT3-045 (2026-08-26)
 
-### Method
-Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared files (`cli.py`, `app_service.py`, `api_server.py`, `mcp_registry.py`, `mcp_server.py`, `web_api/__init__.py`, `test_as_2_1_mcp_adv_001.py`) hand-unioned additively. Existing ADV cases retained.
+Isolated provider identity + session lineage stacked on AT3-043.
 
-### Honesty
-- `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN`
-- `REPORT READ != AUTHORITY`
-- `EMPTY/UNKNOWN != HEALTHY`
-- `WRITE_APPLIED = false`
-- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Same conversation_id cannot change provider
+- Same message_id cannot change content_hash
+- CROSS_PROJECT fail-closed
+- CLI `atlas memory lineage` reads existing reconcile artifacts only
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-037 (2026-08-26)
+
+Isolated Claude fixture/export ingest stacked on AT3-045.
+
+- `import_claude_export` + CLI `atlas memory claude`
+- `conversation_sync = NOT_IMPLEMENTED`; no private history API claimed
+- `CLAUDE.md` is bootstrap, not ingestion
+- Fixtures claiming `live_full_history_sync` fail closed
+- Mixed valid + corrupt turns fail closed
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
+## AT3-038 (2026-08-26)
+
+Isolated Gemini fixture/export ingest stacked on AT3-037.
+
+- `import_gemini_export` + CLI `atlas memory gemini`
+- `conversation_sync = NOT_IMPLEMENTED`; no private history API claimed
+- `GEMINI.md` is bootstrap, not ingestion
+- Fixtures claiming `live_full_history_sync` fail closed
+- Mixed valid + corrupt turns fail closed
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
+## AT3-010 (2026-08-26)
+
+Isolated repository/component inventory stacked on AT3-038.
+
+- `compile_inventory` + CLI `atlas inventory`
+- Missing declared inventory stays UNKNOWN
+- Provenance required; CROSS_PROJECT and authority claims fail closed
+- Inventory != Truth Core; authentic estate is not inferred
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-013 (2026-08-26)
+
+Isolated PR/commit/test/build node projection stacked on AT3-010.
+
+- `compile_engineering_nodes` + CLI `atlas ledger nodes`
+- Empty ledger stays UNKNOWN; does not invent git history
+- Ledger corruption fails closed via AT3-014 read integrity
+- GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-011 (2026-08-26)
+
+Isolated file/symbol graph stacked on AT3-013.
+
+- `compile_file_graph` + CLI `atlas file-graph`
+- Missing declarations stay UNKNOWN; does not walk host trees
+- Path traversal, CROSS_PROJECT, and authority claims fail closed
+- GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-012 (2026-08-26)
+
+Isolated service/environment nodes stacked on AT3-011.
+
+- `compile_estate_nodes` + CLI `atlas estate-nodes`
+- Missing declarations stay UNKNOWN
+- Estate availability is not owner authorization
+- Authentic estate / pilot claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-061 (2026-08-26)
+
+Isolated intent vs current-state honesty wrapper stacked on AT3-012.
+
+- `wrap_intent_state_honesty` + CLI `atlas memory honesty`
+- Composes AT3-043; layers must not collapse
+- INTENT != CURRENT STATE; STALE != CURRENT; promotion fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-060 (2026-08-26)
+
+Isolated causal graph stacked on AT3-061.
+
+- `compile_causal_graph` + CLI `atlas causal-graph`
+- Declared CAUSED_BY edges only; missing stays UNKNOWN
+- Graph != authority; provenance required
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-062 (2026-08-26)
+
+Isolated DECIDED_BY provenance stacked on AT3-060.
+
+- `compile_decided_by` + CLI `atlas decided-by`
+- Explicit owner_origin required; model claims fail closed
+- Graph != authority; missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-021 (2026-08-26)
+
+Isolated derived relationship expansion stacked on AT3-062.
+
+- `expand_relationships` + CLI `atlas rel-expand`
+- GRAPH_REUSE aliases only; does not write AS-GRAPH-003
+- Does not pick conflict winners; graph != authority
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-051 (2026-08-26)
+
+Isolated independent-verification binding stacked on AT3-021.
+
+- `bind_independent_verification` + CLI `atlas iv-bind`
+- Exact HEAD/TREE only; target movement fails closed
+- IMPLEMENTER != VERIFIER; IV != MERGE
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-052 (2026-08-26)
+
+Isolated ADV binding stacked on AT3-051.
+
+- `bind_adversarial_result` + CLI `atlas adv-bind`
+- Exact HEAD/TREE only; target movement fails closed
+- ADV != MERGE; ADV != SECURITY CERTIFICATION
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-111 (2026-08-26)
+
+Isolated org identity stacked on AT3-110.
+
+- `compile_org_identity` + CLI `atlas org-identity`
+- Does not mint organization identity
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-110 (2026-08-26)
+
+Isolated multi-project twin stacked on AT3-095.
+
+- `compile_multi_project_twin` + CLI `atlas multi-project-twin`
+- Declared sibling rows only; missing stays UNKNOWN
+- Federation != authority; no org identity mint
+- CROSS_PROJECT_LEAK_COUNT = 0
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-095 (2026-08-26)
+
+Isolated Impact Explorer UX stacked on AT3-096.
+
+- `compile_impact_ux` composes AT3-080
+- No new CLI command (surface remains `atlas impact-explorer`)
+- Graph != authority; trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-096 (2026-08-26)
+
+Isolated Mission Command Center stacked on AT3-092.
+
+- `compile_mission` + CLI `atlas mission`
+- Declared orch DAG / lease projection; missing stays UNKNOWN
+- Self-merge and estate-as-authorization fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-092 (2026-08-26)
+
+Isolated Truth Graph UX stacked on AT3-094.
+
+- `compile_truth_graph` + CLI `atlas truth-graph`
+- Declared nodes/edges only; missing stays UNKNOWN
+- Graph != authority; winners and trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-094 (2026-08-26)
+
+Isolated Decision Explorer stacked on AT3-091.
+
+- `compile_decision_explorer` + CLI `atlas decision-explorer`
+- Declared owner decisions only; missing stays UNKNOWN
+- Model paraphrase / missing owner_origin fail closed
+- Decision Explorer != Truth Core
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-091 (2026-08-26)
+
+Isolated Timeline stacked on AT3-090.
+
+- `compile_timeline` + CLI `atlas timeline`
+- Orders validated ledger rows by document-declared valid-time
+- Wall-clock is not valid-time; timeline != Truth Core
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-090 (2026-08-26)
+
+Isolated Atlas Home composer stacked on AT3-100.
+
+- `compile_home` + CLI `atlas home --budget`
+- Composes Pulse + Start + twin health
+- UI != canonical truth; does not invent a current task
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-100 (2026-08-26)
+
+Isolated twin health stacked on AT3-080.
+
+- `compile_twin_health` + CLI `atlas twin-health`
+- Derived signals only; missing stays UNKNOWN
+- Health != authority; estate availability != owner authorization
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-080 (2026-08-26)
+
+Isolated impact explorer data stacked on AT3-072.
+
+- `compile_impact_explorer` + CLI `atlas impact-explorer`
+- Declared rows only; missing stays UNKNOWN
+- Graph != authority; trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-072 (2026-08-26)
+
+Isolated provider-register / capabilities CLI design stacked on AT3-071.
+
+- `compile_provider_register` / `assert_cli_design` + CLI `atlas provider-register`
+- Design only; no CLI proliferation; query.read and live-sync wrappers forbidden
+- Provider register is not a live history API
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-071 (2026-08-26)
+
+Isolated transport != authority prover stacked on AT3-070.
+
+- `prove_transport_is_not_authority` + CLI `atlas transport-authority`
+- HTTP 200 / CLI 0 / MCP ok / A2A ack != authority
+- Owner-power claims from transport fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-070 (2026-08-26)
+
+Isolated surface contract stacked on AT3-052.
+
+- `compile_surface_contract` / `evaluate_surface_claim` + CLI `atlas surface-contract`
+- Surfaces: CLI, API, Web, TUI, MCP, A2A
+- SURFACE != TRUTH CORE; transport success != authority
+- Unknown surface or authority/merge/owner claim fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-020 (2026-08-26)
+
+Isolated claim/decision/requirement nodes stacked on AT3-006 tip `#568`.
+
+- `compile_claim_nodes` + CLI `atlas claim-nodes`
+- Declared claim / decision / requirement twin nodes only
+- Missing stays UNKNOWN; provenance required
+- Graph != authority; winners / trust scores / model-as-owner fail closed
+- Does not write Truth Core or AS-GRAPH-003
+- Distinct from AT3-092 UX and AT3-094 explorer
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-022 (2026-08-26)
+
+Isolated conflict/UNKNOWN projection stacked on AT3-020 `#569`.
+
+- `compile_conflict_unknown` + CLI `atlas conflict-unknown`
+- Declared conflicts and unknowns only; missing stays UNKNOWN
+- UNKNOWN remains UNKNOWN; no conflict winner
+- Healthy-filter / silent corruption drop fails closed
+- Distinct from AT3-081 Pulse/memory compose
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+### P1 remedi on `#570`
+
+- P1-022-001: `resolved=true` with omitted status now fail-closes (`CONFLICT_STATE_INCOHERENT`)
+- P1-022-002: whitespace-only sides now fail-close (`CONFLICT_SIDES_REQUIRED`)
+
+## AT3-023 (2026-08-26)
+
+Isolated graph != authority prover stacked on AT3-022 `#570`.
+
+- `prove_graph_is_not_authority` / `compile_graph_authority` + CLI `atlas graph-authority`
+- Graph is never authority; winners and trust scores fail closed
+- Missing stays UNKNOWN (still not authority)
+- Does not write AS-GRAPH-003
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-082 (2026-08-26)
+
+Isolated next-action honesty stacked on AT3-023 `#571`.
+
+- `compile_next_action_honesty` (no new CLI)
+- Composes existing Pulse artifacts + landed next-lens
+- Does not invoke the Pulse compiler (Pulse writes)
+- NEXT != command; stale/unverified stay honest
+- Corrupt Pulse / next-lens JSON fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-093 (2026-08-26)
+
+Isolated Time Machine UX reuse stacked on AT3-082 `#573`.
+
+- `compile_time_machine_ux` (no new CLI)
+- Reuses landed AS-2.2-KDIFF-001 only
+- Second clock / wall-clock-as-valid-time / as-of-as-authority fail closed
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-112 (2026-08-26)
+
+Isolated federation reuse honesty stacked on AT3-093 `#574`.
+
+- `compile_federation_reuse` (no new CLI)
+- Composes declared FED-001/002 membership
+- Does not call federation writers
+- Federation != authority; cross-vault promote fails closed
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-053 (2026-08-26)
+
+Isolated autonomy gate reuse stacked on AT3-112 `#575`.
+
+- `compile_autonomy_gate_reuse` (no new CLI)
+- Reuses landed orch DAG / lease / owner-gate contracts
+- Self-dispatch / execution_authorized / invented owner authority fail closed
+- Lease is not merge authority
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-036 (2026-08-26)
+
+Isolated ChatGPT export honesty stacked on AT3-053 `#577`.
+
+- `import_chatgpt_export` + `atlas memory chatgpt`
+- Wraps landed `parse_chat_export`; does not import or replace `chatgpt_bridge`
+- `live_full_history_sync: true` fixtures fail closed
+- Mixed valid + corrupt JSON turns fail closed
+- CLI help is ASCII (C-002 / cp1252)
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-039 (2026-08-26)
+
+Isolated conversation normalization stacked on AT3-036 `#578`.
+
+- `normalize_turns` fail-closed on non-list / non-object turns
+- Canonical envelope only; no new CLI
+- Graph != authority; raw transcript not persisted
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-040 (2026-08-26)
+
+Isolated conversation extractor stacked on AT3-039 `#579`.
+
+- `extract_items` fail-closed on non-list / non-object envelopes
+- Landed ITEM_TYPES only; heuristic, not LLM-assisted
+- Forged owner paraphrase stays proposed_decision
+- Authority NON_CANONICAL; no Truth Core write
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-041 (2026-08-26)
+
+Isolated cross-LLM dedup stacked on AT3-040 `#580`.
+
+- `deduplicate_items` fail-closed on non-list / non-object items
+- Original provenance is not erased
+- Does not collapse state / intent / history
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-042 (2026-08-26)
+
+Isolated cross-LLM conflict detection stacked on AT3-041 `#581`.
+
+- `detect_conflicts` fail-closed on non-list / non-object items
+- Does not pick a winner or collapse state/intent/history
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-044 (2026-08-26)
+
+Isolated memory freshness stacked on AT3-042 `#582`.
+
+- No-evidence conversational memory stays UNKNOWN (not silently CURRENT)
+- STALE is not CURRENT
+- Mixed corrupt items fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-047 (2026-08-26)
+
+Isolated privacy/secret gate stacked on AT3-044 `#583`.
+
+- Secret-shaped content fails closed
+- Unknown privacy class fails closed
+- Raw transcript retention MINIMIZED
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-048 (2026-08-26)
+
+Isolated unified memory search stacked on AT3-047 `#584`.
+
+- Search extracted items only; not a transcript dump
+- Cross-project search fails closed
+- Mixed corrupt items fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-049 (2026-08-26)
+
+Isolated memory reconciliation stacked on AT3-048 `#585`.
+
+- Composes AT3-041 / AT3-042 / AT3-044
+- Never auto-promotes to Truth Core
+- Does not pick a winner
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-046 (2026-08-26)
+
+Isolated incremental conversation sync stacked on AT3-049 `#586`.
+
+- Local export-cursor incremental apply is implemented
+- Live provider incremental sync remains EXTERNAL_BLOCKED
+- Credentials, history API claims, and import_mode=API fail closed
+- Mixed corrupt / cross-project / conversation mismatch fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-054 (2026-08-26)
+
+Isolated consume-only memory context compiler stacked on AT3-046 `#587`.
+
+- Ranks reconciled memory; does not rewrite the certified 2.x compiler
+- Cross-project / mixed corrupt / trust-score / Truth Core promote fail closed
+- STALE != CURRENT; UNKNOWN stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-055 (2026-08-26)
+
+Isolated ranked-context local serve stacked on AT3-054 `#588`.
+
+- Local provider-neutral pack for chatgpt/claude/gemini/cursor
+- Live provider serve remains EXTERNAL_BLOCKED
+- No new top-level CLI command
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-056 (2026-08-26)
+
+Isolated fixture provider handoff stacked on AT3-055 `#589`.
+
+- Composes ingest + AT3-054 rank + AT3-055 local serve
+- ChatGPT → Claude fixture path without re-explaining
+- Live multi-account product remains EXTERNAL_BLOCKED
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-057 (2026-08-26)
+
+Isolated Cursor fixture / local-session ingest stacked on AT3-056 `#590`.
+
+- Structured JSON session ingest; import_mode=LOCAL_SESSION
+- AGENTS.md / .cursorrules are bootstrap, not ingestion
+- Cursor Cloud history claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-058 (2026-08-26)
+
+Isolated Codex fixture / structured-submission ingest stacked on AT3-057 `#591`.
+
+- Structured JSON fixture ingest; import_mode=STRUCTURED_SUBMISSION
+- CODEX.md is bootstrap, not ingestion
+- Native history claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+

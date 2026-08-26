@@ -1,5 +1,9 @@
 # Atlas 2.2 — Intelligence prep index (SAFE pre-v2.1.0)
 
+> **D-191 classification:** Atlas 2.2 remains a **historical + still-active 2.x
+> maturity tree**. It is an input to Atlas 3.0, not the Atlas 3 program.
+> Successor program: `docs/atlas-3/`. Do not erase this tree.
+
 | Field | Value |
 |---|---|
 | Status | **PREP ONLY** — docs / contracts / fixtures / benchmarks / ADRs |

@@ -665,3 +665,85 @@ Honesty (mandatory):
 - [ ] ORCHLEASE-006 Exact-head CI + independent IV + adversarial control-plane review
 - [ ] ORCHLEASE-007 Owner merge gate (not this package)
 
+## Atlas 3.0 program (D-191 / D-192 / D-193)
+
+_Status: **FOUNDATION CONVERGENCE — ISOLATED IMPLEMENTATION-READY**. Canonical
+docs live under `docs/atlas-3/`. Runtime lives under `src/project_atlas/atlas3/`.
+Does **not** rewrite certified 2.x demo surfaces. `FULL_LIVE_DEMO_READY = NO`.
+`MERGE_AUTHORIZATION = NOT_GRANTED`. Chronicle remains ROADMAP_HORIZON.
+Historical roadmaps are classified as inputs and are not erased._
+
+- [x] AT3-DOC Program documents (north star, architecture, roadmap, epics, DAG, migration, UX, competitive, acceptance)
+- [x] AT3-DOC-LLM D-192 LLM memory program documents
+- [x] AT3-001 Foundation layer ownership (`FOUNDATION.md`)
+- [x] AT3-002 Isolated project twin schema + constructors
+- [x] AT3-010 Isolated repository/component inventory (declared; UNKNOWN if absent)
+- [x] AT3-013 Isolated PR/commit/test/build nodes (ledger projection; no invented git)
+- [x] AT3-011 Isolated file/symbol graph (declared; no host walk)
+- [x] AT3-012 Isolated service/environment nodes (declared fixture; not authentic estate)
+- [x] AT3-003 Isolated engineering event model (canonical envelope)
+- [x] AT3-004 Isolated semantic capability registry
+- [x] AT3-005 Isolated 2.x→3.x compatibility prover
+- [x] AT3-006 Foundation threat catalog (reviewed; not certified)
+- [x] AT3-014 Isolated universal event ledger
+- [x] AT3-015 Isolated Atlas Pulse (eight questions)
+- [x] AT3-030 Isolated Atlas Start (budget + freshness)
+- [x] AT3-050 Isolated AGENT_PROOF
+- [x] AT3-035/036/039/040/041/042/044/047/048/049 Isolated ChatGPT-first memory vertical
+- [x] AT3-036 Isolated ChatGPT export ingest (parse_chat_export compose; live history claim fails closed; does not replace chatgpt_bridge)
+- [x] AT3-039 Isolated conversation normalization (canonical envelope; mixed corrupt fail-closed; no new CLI)
+- [x] AT3-040 Isolated conversation extractor (landed ITEM_TYPES; forged owner stays proposed; no Truth Core)
+- [x] AT3-041 Isolated cross-LLM dedup (provenance retained; no state/intent/history collapse)
+- [x] AT3-042 Isolated cross-LLM conflict detection (no winner; no layer collapse)
+- [x] AT3-044 Isolated memory freshness (STALE != CURRENT; UNKNOWN stays UNKNOWN)
+- [x] AT3-047 Isolated privacy/secret gate (fail-closed scan; raw transcript minimized)
+- [x] AT3-048 Isolated unified memory search (extracted items only; not a transcript dump)
+- [x] AT3-049 Isolated memory reconciliation (compose 041/042/044; never auto-promote)
+- [x] AT3-CHRONICLE Horizon design notes only (no runtime)
+- [x] AT3-037 Isolated Claude fixture/export ingest (native history sync remains NOT IMPLEMENTED)
+- [ ] AT3-037 Claude native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
+- [x] AT3-038 Isolated Gemini fixture/export ingest (native history sync remains NOT IMPLEMENTED)
+- [ ] AT3-038 Gemini native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
+- [x] AT3-043 Isolated conversation decision + intent extraction
+- [x] AT3-045 Isolated provider session lineage
+- [x] AT3-061 Isolated intent vs current-state honesty wrapper
+- [x] AT3-060 Isolated causal graph (declared CAUSED_BY; graph != authority)
+- [x] AT3-062 Isolated DECIDED_BY provenance (owner_origin required)
+- [x] AT3-020 Isolated claim/decision/requirement nodes (declared; graph != authority; no Truth Core write)
+- [x] AT3-021 Isolated derived relationship expansion (GRAPH_REUSE aliases; no AS-GRAPH-003 write)
+- [x] AT3-022 Isolated conflict/UNKNOWN projection (UNKNOWN stays UNKNOWN; no winner; no healthy filter)
+- [x] AT3-023 Isolated graph != authority prover (winners/trust fail closed; no AS-GRAPH-003 write)
+- [x] AT3-051 Isolated independent-verification binding (exact HEAD/TREE; IV != MERGE)
+- [x] AT3-052 Isolated ADV binding (exact HEAD/TREE; ADV != MERGE / != security cert)
+- [x] AT3-070 Isolated surface contract (CLI/API/Web/TUI/MCP/A2A; surface != authority)
+- [x] AT3-071 Isolated transport != authority prover (HTTP/CLI/MCP/A2A success != authority)
+- [x] AT3-072 Isolated provider-register / capabilities CLI design (no CLI proliferation)
+- [x] AT3-080 Isolated impact explorer data (declared; graph != authority; no trust scores)
+- [x] AT3-100 Isolated twin health (derived signals; health != authority; estate != authorization)
+- [x] AT3-090 Isolated Atlas Home composer (Pulse+Start+twin health; UI != truth)
+- [x] AT3-091 Isolated Timeline (declared valid-time; wall-clock != valid-time)
+- [x] AT3-094 Isolated Decision Explorer (declared owner_origin; model paraphrase != owner)
+- [x] AT3-092 Isolated Truth Graph UX (declared claims/relationships; graph != authority)
+- [x] AT3-096 Isolated Mission Command Center (declared DAG/leases; no self-merge)
+- [x] AT3-095 Isolated Impact Explorer UX (composes AT3-080; no new CLI)
+- [x] AT3-110 Isolated multi-project twin (declared siblings; federation != authority)
+- [x] AT3-111 Isolated org identity (declared only; does not mint)
+- [x] AT3-081 Isolated stale/conflict intelligence (Pulse + memory compose; no winner; stale != current)
+- [x] AT3-082 Isolated next-action honesty (Pulse + next-lens compose; NEXT != command; no write)
+- [x] AT3-093 Isolated Time Machine UX reuse (kdiff only; no second clock; wall-clock != valid-time)
+- [x] AT3-112 Isolated federation reuse honesty (FED-001/002 compose; federation != authority; no promote)
+- [x] AT3-053 Isolated autonomy gate reuse (orch DAG/lease compose; no self-dispatch; lease != merge)
+- [x] AT3-101 Isolated ledger observability (validated read; ledger != truth; no healthy filter)
+- [x] AT3-102 Isolated provider sync status (honest capabilities; AT3-046 EXTERNAL_BLOCKED)
+- [x] AT3-046 Isolated incremental export-cursor (local apply only; live provider incremental EXTERNAL_BLOCKED)
+- [x] AT3-054 Isolated consume-only memory context compiler (no 2.x rewrite; stale != current; UNKNOWN stays UNKNOWN)
+- [x] AT3-055 Isolated ranked-context local serve (chatgpt/claude/gemini/cursor pack; live serve EXTERNAL_BLOCKED)
+- [x] AT3-056 Isolated fixture provider handoff (ChatGPT→Claude fixture path; live multi-account EXTERNAL_BLOCKED)
+- [x] AT3-057 Isolated Cursor fixture / local-session ingest (AGENTS.md != ingestion; Cursor Cloud history NOT IMPLEMENTED)
+- [ ] AT3-057 Cursor Cloud history sync (NOT IMPLEMENTED; LOCAL_SESSION honesty)
+- [x] AT3-058 Isolated Codex fixture / structured-submission ingest (CODEX.md != ingestion; native history NOT IMPLEMENTED)
+- [ ] AT3-058 Codex native history sync (NOT IMPLEMENTED; STRUCTURED_SUBMISSION honesty)
+- [ ] AT3-046 Incremental live provider sync (EXTERNAL_BLOCKED; credentials / history API)
+- [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
+- [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`
+
