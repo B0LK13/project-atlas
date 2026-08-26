@@ -368,6 +368,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CHANGED-002b Positive-delta add/mod/remove + self-churn exclusion
 - [x] AS-CODER-ALPHA-ATTENTION-001 Attention hygiene classifier (`atlas attention`)
 - [x] AS-CODER-ALPHA-ARCH-002 Structured architecture lens (multi-slot, honest UNKNOWN)
+- [x] AS-CODER-ALPHA-ARCHITECTURE-READ-001 vault-scoped Architecture REPORT READ (`atlas architecture-status`; `atlas.architecture.read`; never materializes; ARCHITECTURE != AUTHORITY)
 - [x] AS-CODER-ALPHA-CROSS-SURFACE-001 Disk/Web/Obsidian/Agent brief consistency tests
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-V2 Decide → rematerialize → no pending resurrection
 - [x] AS-CODER-ALPHA-SOURCE-HEALTH-001 Source failure explainability (`atlas source-health`)

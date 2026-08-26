@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    architecture_status_parser = subparsers.add_parser(
+        "architecture-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Architecture answer artifacts "
+            "(AS-CODER-ALPHA-ARCHITECTURE-READ-001; never writes; "
+            "ARCHITECTURE != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-architecture-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "ARCHITECTURE != AUTHORITY. README != ARCHITECTURE AUTHORITY."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas architecture-status --vault /path/to/vault\n"
+            "  atlas architecture-status --vault /path/to/vault --json"
+        ),
+    )
+    architecture_status_parser.add_argument("--vault", type=Path, required=True)
+    architecture_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Architecture REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3208,6 +3234,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('status')}] {lens.get('summary') or 'UNKNOWN'}"
                 )
+        return EXIT_OK
+
+    if args.command == "architecture-status":
+        from project_atlas.web_api.architecture_read import (
+            WebArchitectureReadError,
+            read_architecture_view,
+            render_architecture_status_text,
+        )
+
+        try:
+            report = read_architecture_view(args.vault)
+        except (WebArchitectureReadError, OSError, ValueError) as exc:
+            _log.error("architecture-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_architecture_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "unknown":

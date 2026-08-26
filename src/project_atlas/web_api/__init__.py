@@ -12,6 +12,10 @@ Normative (ADR-008):
 
 from __future__ import annotations
 
+from project_atlas.web_api.architecture_read import (
+    WebArchitectureReadError,
+    read_architecture_view,
+)
 from project_atlas.web_api.brief import (
     WebBriefError,
     filter_knowledge_by_project,
@@ -51,6 +55,7 @@ __all__ = [
     "ProjectSummary",
     "ReadStatus",
     "VaultHealthView",
+    "WebArchitectureReadError",
     "WebBriefError",
     "WebIntelligenceError",
     "WebRoadmapError",
@@ -61,6 +66,7 @@ __all__ = [
     "list_project_conflicts",
     "list_projects",
     "load_estate_discovery_view",
+    "read_architecture_view",
     "read_impact_graph",
     "read_intelligence_conflicts",
     "read_intelligence_evidence",

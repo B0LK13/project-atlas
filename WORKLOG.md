@@ -5,6 +5,19 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-ARCHITECTURE-READ-001 (2026-08-26)
+
+Vault-scoped Architecture REPORT READ from live main
+`f1b5256510cb66e037e6774aa49d753bdb7dd96f` /
+`8df56184bb25b1cf1b6a9102cf34e77248287940`.
+
+- `read_architecture_view` + CLI `atlas architecture-status`
+- MCP `atlas.architecture.read` + API `GET /v1/architecture-status`
+- Never calls `materialize_architecture_lenses`
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; ARCHITECTURE != AUTHORITY
+- README != ARCHITECTURE AUTHORITY; PURPOSE ECHO != ARCHITECTURE
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
