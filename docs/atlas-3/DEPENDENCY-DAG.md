@@ -63,6 +63,8 @@ AT3-048 Unified Memory Search                            │
 AT3-054 Context Compiler consume-only                    │
         ↓                                                │
 AT3-055 Ranked-context local serve                       │
+        ↓                                                │
+AT3-056 Fixture provider handoff                         │
                                                          │
 Parallel after AT3-035:                                  │
   AT3-036 ChatGPT (first)                                │
@@ -122,6 +124,7 @@ AT3-102 provider-sync ► honest states (live history != sync; AT3-046 live bloc
 AT3-046 incremental ► local export-cursor only (live provider incremental EXTERNAL_BLOCKED)
 AT3-054 context-compiler ► consume-only rank of reconciled memory (no 2.x rewrite; stale != current)
 AT3-055 context-serve ► local ranked pack to chatgpt/claude/gemini/cursor (live serve EXTERNAL_BLOCKED)
+AT3-056 provider-handoff ► fixture ChatGPT→Claude path (live multi-account EXTERNAL_BLOCKED)
 AT3-006 security-catalog ► reviewed catalog (catalog != scanner != cert)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
@@ -141,7 +144,7 @@ FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 Independent isolated lanes:
 
 - AT3-002 / 003 / 004 / 005 / 014 / 015 / 030 / 050
-- AT3-035 / 036 / 039 / 040 / 041 / 042 / 044 / 046 / 047 / 048 / 049 / 054 / 055
+- AT3-035 / 036 / 039 / 040 / 041 / 042 / 044 / 046 / 047 / 048 / 049 / 054 / 055 / 056
 - Chronicle remains ROADMAP_HORIZON (no runtime)
 
 Must wait for demo terminal state before mutating:

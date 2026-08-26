@@ -58,6 +58,8 @@ AT3-048 Memory search
 AT3-054 Context Compiler consume-only
      ↓
 AT3-055 Ranked-context local serve
+     ↓
+AT3-056 Fixture provider handoff
 ```
 
 Provider lanes after AT3-035: AT3-036 ChatGPT (first), then AT3-037 Claude,

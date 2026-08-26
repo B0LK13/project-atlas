@@ -339,6 +339,13 @@
       "evidence": "Composes AT3-041/042/044. Never auto-promotes. Does not pick a winner.",
       "guard_tests": ["tests/unit/test_atlas3_reconcile_049.py"]
     },
+    "at3-056-provider-handoff": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/handoff.py"],
+      "evidence": "Fixture ChatGPT→Claude handoff via rank+serve. Live multi-account product remains EXTERNAL_BLOCKED. No Truth Core write. No Ask2 rewrite.",
+      "guard_tests": ["tests/unit/test_atlas3_handoff_056.py"]
+    },
     "at3-055-context-serve": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

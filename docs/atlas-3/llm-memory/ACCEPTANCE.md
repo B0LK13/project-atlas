@@ -25,7 +25,7 @@ Complete when:
 | 1 | Fixture-level ChatGPT + Claude + Gemini envelopes |
 | 2–8 | Isolated runtime + tests |
 | 9 | AT3-054 rank + AT3-055 local pack serve; live serve EXTERNAL_BLOCKED; no Ask2 rewrite |
-| 10 | Architecture + fixture path; not a live multi-account product |
+| 10 | AT3-056 fixture ChatGPT→Claude handoff; live multi-account product EXTERNAL_BLOCKED |
 
 Claude/Gemini **native history sync** remains **NOT IMPLEMENTED**.
 

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Directive | D-191 / D-192 / D-193 |
-| Epic count | **63** |
+| Epic count | **64** |
 | First vertical | AT3-003, AT3-014, AT3-015, AT3-030, AT3-050 |
 | Foundation priority | AT3-001, 002, 003, 004, 005, 014, 015, 030, 035, 050 |
 
@@ -67,6 +67,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-049 | Cross-LLM memory reconciliation | ISOLATED_RUNTIME | compose 041/042/044; never auto-promote |
 | AT3-054 | Memory context compiler (consume-only) | ISOLATED_RUNTIME | ranks reconciled memory; no 2.x rewrite; stale != current |
 | AT3-055 | Ranked-context serve (local pack) | ISOLATED_RUNTIME | local provider-neutral pack; live serve EXTERNAL_BLOCKED |
+| AT3-056 | Fixture provider handoff | ISOLATED_RUNTIME | ChatGPT→Claude fixture path; live multi-account EXTERNAL_BLOCKED |
 
 ## Wave E — Causality and intent
 
@@ -141,4 +142,4 @@ clock, no second Truth Core). They were not dropped.
 
 ## Count
 
-63 unique epics (AT3-001…006, 010…015, 020…023, 030, 035…055, 060…062, 070…072, 080…082, 090…096, 100…102, 110…112, 120…122).
+64 unique epics (AT3-001…006, 010…015, 020…023, 030, 035…056, 060…062, 070…072, 080…082, 090…096, 100…102, 110…112, 120…122).
