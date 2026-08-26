@@ -326,6 +326,13 @@
       "evidence": "Composes Pulse + next-lens. NEXT != command. Does not write Pulse. Missing stays UNKNOWN.",
       "guard_tests": ["tests/unit/test_atlas3_next_honesty_082.py"]
     },
+    "at3-093-time-machine-ux": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/time_machine_ux.py"],
+      "evidence": "Reuses AS-2.2-KDIFF-001. No second clock. Wall-clock != valid-time. As-of != authority.",
+      "guard_tests": ["tests/unit/test_atlas3_time_machine_ux_093.py"]
+    },
     "chatgpt-live-2x": {
       "maturity": "prep-frozen",
       "prep_tree": "docs/atlas-2.2/chatgpt-live/",

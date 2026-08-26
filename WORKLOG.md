@@ -7570,4 +7570,14 @@ Isolated next-action honesty stacked on AT3-023 `#571`.
 - Corrupt Pulse / next-lens JSON fails closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-093 (2026-08-26)
+
+Isolated Time Machine UX reuse stacked on AT3-082 `#573`.
+
+- `compile_time_machine_ux` (no new CLI)
+- Reuses landed AS-2.2-KDIFF-001 only
+- Second clock / wall-clock-as-valid-time / as-of-as-authority fail closed
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
