@@ -16,6 +16,7 @@ from project_atlas.atlas3.decided import compile_decided_by
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
 from project_atlas.atlas3.estate_nodes import compile_estate_nodes
 from project_atlas.atlas3.file_graph import compile_file_graph
+from project_atlas.atlas3.home import compile_home
 from project_atlas.atlas3.impact import compile_impact_explorer
 from project_atlas.atlas3.inventory import compile_inventory
 from project_atlas.atlas3.iv_bind import bind_independent_verification
@@ -62,6 +63,7 @@ ATLAS3_COMMANDS = frozenset(
         "provider-register",
         "impact-explorer",
         "twin-health",
+        "home",
     }
 )
 
@@ -333,6 +335,22 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     twin_health.add_argument("--vault", type=Path, required=True)
     twin_health.add_argument("--project", required=True)
 
+    home = subparsers.add_parser(
+        "home",
+        help="Atlas 3 Home composer (Pulse+Start+twin health; not Truth Core).",
+        description="Atlas 3 Home composer (Pulse+Start+twin health; not Truth Core).",
+    )
+    home.add_argument("--vault", type=Path, required=True)
+    home.add_argument("--project", required=True)
+    home.add_argument("--budget", type=int, required=True, help="Token/context budget.")
+    home.add_argument("--task", default=None, help="Optional current task text.")
+    home.add_argument(
+        "--freshness",
+        default="UNKNOWN",
+        choices=["CURRENT", "ALLOW_STALE_HISTORICAL", "UNKNOWN"],
+        help="Freshness requirement. CURRENT refuses stale-as-current-truth.",
+    )
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -383,6 +401,17 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     iv_result=str(args.iv_result),
                     verifier_id=str(args.verifier),
                     package_id=str(args.package),
+                ),
+                as_json=True,
+            )
+        if command == "home":
+            return _dump(
+                compile_home(
+                    args.vault,
+                    args.project,
+                    token_budget=int(args.budget),
+                    current_task=getattr(args, "task", None),
+                    freshness_requirement=str(getattr(args, "freshness", "UNKNOWN")),
                 ),
                 as_json=True,
             )

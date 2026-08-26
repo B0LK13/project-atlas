@@ -39,6 +39,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "provider-register",
         "impact-explorer",
         "twin-health",
+        "home",
         "connect",
         "ask2",
         "kdiff",

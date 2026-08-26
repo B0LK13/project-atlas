@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-090 (2026-08-26)
+
+Isolated Atlas Home composer stacked on AT3-100.
+
+- `compile_home` + CLI `atlas home --budget`
+- Composes Pulse + Start + twin health
+- UI != canonical truth; does not invent a current task
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-100 (2026-08-26)
 
 Isolated twin health stacked on AT3-080.

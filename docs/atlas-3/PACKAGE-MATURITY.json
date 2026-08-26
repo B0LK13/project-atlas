@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-090-home": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/home.py"],
+      "evidence": "Composes Pulse+Start+twin health. UI != canonical truth. Budget required. No invented current task.",
+      "guard_tests": ["tests/unit/test_atlas3_home_090.py"]
+    },
     "at3-100-twin-health": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
