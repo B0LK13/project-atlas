@@ -21,7 +21,7 @@ does not mutate certified 2.x production surfaces.
 | AT3-003 | Engineering event model | ISOLATED_RUNTIME | canonical envelope; `kind` remains alias |
 | AT3-004 | Capability registry | ISOLATED_RUNTIME | D-193 remap; surfaces ≠ capabilities |
 | AT3-005 | 2.x→3.x compatibility contract | ISOLATED_RUNTIME | D-193 remap; `prove_compatibility()` |
-| AT3-006 | Program security / threat model | PREP + catalog | `SECURITY.md`; catalog ≠ certification |
+| AT3-006 | Program security / threat model | ISOLATED_RUNTIME | `SECURITY.md`; catalog ≠ certification |
 
 D-191 used AT3-004 for temporal reuse and AT3-005 for authority reuse.
 Those remain **LANDED_2X_REUSE constraints** in `FOUNDATION.md` (no second

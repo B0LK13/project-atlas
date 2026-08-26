@@ -102,6 +102,7 @@ AT3-111 org-id ────► declared only (does not mint; federation != org i
 AT3-081 stale-intel ► Pulse + memory compose (no winner; stale != current)
 AT3-101 ledger-obs ► validated list (ledger != truth; no healthy filter)
 AT3-102 provider-sync ► honest states (live history != sync; AT3-046 blocked)
+AT3-006 security-catalog ► reviewed catalog (catalog != scanner != cert)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

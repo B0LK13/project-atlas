@@ -270,6 +270,13 @@
       "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. GEMINI.md != ingestion.",
       "guard_tests": ["tests/unit/test_atlas3_gemini_038.py"]
     },
+    "at3-006-security-catalog": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/security_catalog.py"],
+      "evidence": "Reviewed threat catalog compiler. Catalog != scanner != external certification.",
+      "guard_tests": ["tests/unit/test_atlas3_security_catalog_006.py"]
+    },
     "at3-102-provider-sync": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
