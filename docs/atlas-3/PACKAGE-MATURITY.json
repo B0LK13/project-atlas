@@ -18,6 +18,13 @@
       "evidence": "Derived twin constructors; provenance required; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_twin_002.py"]
     },
+    "at3-011-file-graph": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/file_graph.py"],
+      "evidence": "Declared file/symbol graph. Does not walk host trees. Graph != authority.",
+      "guard_tests": ["tests/unit/test_atlas3_file_graph_011.py"]
+    },
     "at3-013-nodes": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

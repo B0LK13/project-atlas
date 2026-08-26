@@ -11,6 +11,7 @@ from project_atlas.atlas3.capabilities import list_capabilities
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
+from project_atlas.atlas3.file_graph import compile_file_graph
 from project_atlas.atlas3.inventory import compile_inventory
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.claude import import_claude_export
@@ -26,7 +27,16 @@ from project_atlas.atlas3.pulse import compile_pulse
 from project_atlas.atlas3.start import compile_start
 
 ATLAS3_COMMANDS = frozenset(
-    {"pulse", "start", "proof", "memory", "capabilities", "compatibility", "inventory"}
+    {
+        "pulse",
+        "start",
+        "proof",
+        "memory",
+        "capabilities",
+        "compatibility",
+        "inventory",
+        "file-graph",
+    }
 )
 
 
@@ -162,6 +172,15 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     inventory.add_argument("--project", required=True)
     inventory.add_argument("--json", action="store_true")
 
+    file_graph = subparsers.add_parser(
+        "file-graph",
+        help="Atlas 3 file/symbol graph (declared; does not walk host trees).",
+        description="Atlas 3 file/symbol graph (declared; does not walk host trees).",
+    )
+    file_graph.add_argument("--vault", type=Path, required=True)
+    file_graph.add_argument("--project", required=True)
+    file_graph.add_argument("--json", action="store_true")
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -192,6 +211,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(prove_compatibility(args.vault), as_json=True)
         if command == "inventory":
             return _dump(compile_inventory(args.vault, args.project), as_json=True)
+        if command == "file-graph":
+            return _dump(compile_file_graph(args.vault, args.project), as_json=True)
         if command == "proof":
             evidence = None
             if getattr(args, "evidence", None):

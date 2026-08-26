@@ -7328,4 +7328,13 @@ Isolated PR/commit/test/build node projection stacked on AT3-010.
 - Ledger corruption fails closed via AT3-014 read integrity
 - GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-011 (2026-08-26)
+
+Isolated file/symbol graph stacked on AT3-013.
+
+- `compile_file_graph` + CLI `atlas file-graph`
+- Missing declarations stay UNKNOWN; does not walk host trees
+- Path traversal, CROSS_PROJECT, and authority claims fail closed
+- GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
+
 
