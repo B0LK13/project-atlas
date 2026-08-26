@@ -7657,4 +7657,13 @@ Isolated memory freshness stacked on AT3-042 `#582`.
 - Mixed corrupt items fail closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-047 (2026-08-26)
+
+Isolated privacy/secret gate stacked on AT3-044 `#583`.
+
+- Secret-shaped content fails closed
+- Unknown privacy class fails closed
+- Raw transcript retention MINIMIZED
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
 from project_atlas.atlas3.contracts import Atlas3Error
 from project_atlas.secrets import scan_text
 
+PACKAGE_ID: Final[str] = "AT3-047"
+PRIVACY_CLASSES: Final[frozenset[str]] = frozenset(
+    {"include", "exclude", "redact", "quarantine"}
+)
+
 
 def apply_privacy(text: str, *, privacy_class: str = "include") -> str:
+    if privacy_class not in PRIVACY_CLASSES:
+        raise Atlas3Error("UNKNOWN_PRIVACY_CLASS", privacy_class)
     if privacy_class == "exclude":
         raise Atlas3Error("PRIVACY_EXCLUDE", "message excluded by privacy policy")
     findings = scan_text(text)
@@ -34,7 +41,7 @@ def scan_or_raise(*texts: str) -> None:
 
 def privacy_defaults() -> dict[str, Any]:
     return {
-        "package": "AT3-047",
+        "package": PACKAGE_ID,
         "raw_full_transcript_retention": "MINIMIZED",
         "default_network_access": False,
         "silent_billing": False,

@@ -318,6 +318,13 @@
       "evidence": "STALE != CURRENT. UNKNOWN stays UNKNOWN without stronger evidence. Historical memory is not current truth.",
       "guard_tests": ["tests/unit/test_atlas3_freshness_044.py"]
     },
+    "at3-047-privacy": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/privacy.py"],
+      "evidence": "Secret scan fail-closed. Unknown privacy class fail-closed. Raw transcript minimized. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_privacy_047.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",
