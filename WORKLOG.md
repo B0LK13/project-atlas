@@ -5,6 +5,26 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-CLOUD-AUG26-PARALLEL-CONVERGENCE-021
+
+**Date:** 2026-08-26
+**Branch:** `cursor/aug26-morning-dag-convergence-f3ff` (PR `#604`)
+**Mode:** Governor recertification + owner-ready packet. `#516` frozen. No merge.
+
+### Pins
+- `#516` FREEZE `0e989fd` / `6bf31fd` (supersedes D-019 `0c32f69` / `7b9be18`)
+- `#592` `3f74bbb` / `e73ec09` IV 540 PASS ADV 122 PASS P0=0 P1=0
+- `#605` `9a0e472` / `5e75e45` IV 170 PASS ADV 139 PASS P0=0 P1=0
+
+### Merge trees
+main+A / main+B / main+C / main+B+C clean. A+B / A+C / A+B+C docs-only `WORKLOG.md`.
+Combined AC isolation P1 (`api_server.py` deny list) is sequential-order sensitive; certified tips not moved.
+
+### Honesty
+`MERGE_AUTHORIZATION = NOT_GRANTED`. Authentic D:\ remains Local. No fanout.
+
+---
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
