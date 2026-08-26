@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/atlas3/capability.schema.json",
+  "title": "Atlas3Capability",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "capability_id",
+    "semantic_contract",
+    "truth_dependency",
+    "required_evidence",
+    "available_surfaces",
+    "maturity",
+    "demo_required",
+    "security_class"
+  ],
+  "properties": {
+    "capability_id": { "type": "string", "pattern": "^atlas3\\.[a-z][a-z0-9.-]{1,63}$" },
+    "semantic_contract": { "type": "string", "minLength": 1 },
+    "truth_dependency": { "type": "string", "minLength": 1 },
+    "required_evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "available_surfaces": {
+      "type": "array",
+      "items": { "enum": ["cli", "python", "live_api", "web", "tui", "mcp", "a2a"] }
+    },
+    "maturity": {
+      "enum": ["prep-frozen", "implementation-unlocked", "roadmap-horizon"]
+    },
+    "demo_required": { "type": "boolean" },
+    "security_class": {
+      "enum": ["read-derived", "evidence-append", "privacy-sensitive", "owner-gated"]
+    }
+  }
+}

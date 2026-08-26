@@ -1,0 +1,93 @@
+"""AT3-038 — Gemini fixture ingest.
+
+Export / structured-submission ingest only. Does not claim a private
+Gemini history API. GEMINI.md is bootstrap, not ingestion.
+Does not replace Core conversation capture or the 2.x ChatGPT live surface.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Final
+
+from project_atlas.atlas3.contracts import Atlas3Error
+from project_atlas.atlas3.memory.normalize import normalize_turns
+
+PACKAGE_ID: Final[str] = "AT3-038"
+LIVE_FULL_HISTORY_SYNC: Final[bool] = False
+
+
+def _turns_from_payload(payload: object) -> list[dict[str, Any]]:
+    if isinstance(payload, dict):
+        if payload.get("live_full_history_sync") is True:
+            raise Atlas3Error(
+                "GEMINI_HISTORY_API_CLAIMED",
+                "Gemini fixture must not claim live_full_history_sync",
+            )
+        raw = payload.get("messages")
+        if raw is None:
+            raw = payload.get("turns")
+        if not isinstance(raw, list):
+            raise Atlas3Error("GEMINI_EXPORT_INVALID", "messages/turns must be a list")
+    elif isinstance(payload, list):
+        raw = payload
+    else:
+        raise Atlas3Error("GEMINI_EXPORT_INVALID", "export must be an object or list")
+    turns: list[dict[str, Any]] = []
+    for row in raw:
+        if not isinstance(row, dict):
+            raise Atlas3Error("GEMINI_EXPORT_INVALID", "turn is not an object")
+        text = str(row.get("content") or row.get("text") or "").strip()
+        role = str(row.get("role") or "assistant").strip()
+        if not text:
+            continue
+        turns.append({"role": role, "content": text, "text": text})
+    return turns
+
+
+def import_gemini_export(
+    source: Path | str,
+    *,
+    conversation_id: str,
+    project_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Parse a Gemini-style JSON export into canonical envelopes."""
+    if isinstance(source, Path):
+        if source.name == "GEMINI.md":
+            raise Atlas3Error(
+                "GEMINI_MD_IS_NOT_INGESTION",
+                "GEMINI.md is a bootstrap adapter, not an ingestion source",
+            )
+        if not source.is_file():
+            raise Atlas3Error("EXPORT_NOT_FOUND", f"export file not found: {source}")
+        try:
+            payload = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise Atlas3Error("GEMINI_EXPORT_INVALID", "export is not readable JSON") from exc
+    else:
+        try:
+            payload = json.loads(source)
+        except json.JSONDecodeError as exc:
+            raise Atlas3Error("GEMINI_EXPORT_INVALID", "export is not readable JSON") from exc
+    turns = _turns_from_payload(payload)
+    return normalize_turns(
+        turns,
+        provider="gemini",
+        conversation_id=conversation_id,
+        import_mode="EXPORT",
+        project_id=project_id,
+    )
+
+
+def gemini_capability() -> dict[str, Any]:
+    return {
+        "package": PACKAGE_ID,
+        "export_import": "IMPLEMENTED",
+        "conversation_sync": "NOT_IMPLEMENTED",
+        "live_full_history_sync": LIVE_FULL_HISTORY_SYNC,
+        "bootstrap_adapter": "GEMINI.md",
+        "bootstrap_is_ingestion": False,
+        "replaces_conversation_capture": False,
+        "native_history_api": False,
+    }

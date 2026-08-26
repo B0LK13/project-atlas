@@ -1,0 +1,465 @@
+{
+  "schema_version": 1,
+  "id": "AT3-PACKAGE-MATURITY-001",
+  "title": "Atlas 3.0 package capability-maturity source of truth",
+  "description": "Per-package maturity for Atlas 3. Isolated runtime under src/project_atlas/atlas3/ may be implementation-unlocked without unlocking certified 2.x surfaces. prep-frozen packages remain docs/contracts only for any declared 2.x production_surface.",
+  "maturities": ["prep-frozen", "implementation-unlocked"],
+  "gates": {
+    "FULL_LIVE_DEMO_READY": "NO",
+    "ATLAS_3_CERTIFIED_SURFACE_MUTATION": "DENY",
+    "MERGE_AUTHORIZATION": "NOT_GRANTED",
+    "note": "Demo closure outranks Atlas 3 mutation of certified 2.x surfaces."
+  },
+  "packages": {
+    "at3-002-twin": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/contracts/",
+      "production_surface": ["src/project_atlas/atlas3/twin.py"],
+      "evidence": "Derived twin constructors; provenance required; no Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_twin_002.py"]
+    },
+    "at3-012-estate-nodes": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/estate_nodes.py"],
+      "evidence": "Declared service/environment nodes. Estate availability != owner authority.",
+      "guard_tests": ["tests/unit/test_atlas3_estate_nodes_012.py"]
+    },
+    "at3-011-file-graph": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/file_graph.py"],
+      "evidence": "Declared file/symbol graph. Does not walk host trees. Graph != authority.",
+      "guard_tests": ["tests/unit/test_atlas3_file_graph_011.py"]
+    },
+    "at3-013-nodes": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/engineering_nodes.py"],
+      "evidence": "Ledger-projected PR/commit/test/build nodes. Does not invent git history.",
+      "guard_tests": ["tests/unit/test_atlas3_engineering_nodes_013.py"]
+    },
+    "at3-010-inventory": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/inventory.py"],
+      "evidence": "Declared repository/component inventory. UNKNOWN if undeclared. Inventory != Truth Core.",
+      "guard_tests": ["tests/unit/test_atlas3_inventory_010.py"]
+    },
+    "at3-004-capabilities": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/contracts/",
+      "production_surface": ["src/project_atlas/atlas3/capabilities.py"],
+      "evidence": "Semantic capability registry; wrapper inflation fails closed.",
+      "guard_tests": ["tests/unit/test_atlas3_capabilities_004.py"]
+    },
+    "at3-005-compat": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/compat.py"],
+      "evidence": "Additive 2.x→3.x compatibility prover; no Layer B write.",
+      "guard_tests": ["tests/unit/test_atlas3_compat_005.py"]
+    },
+    "at3-003-events": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/events.py"],
+      "evidence": "Isolated engineering event model; does not mutate atlas_contracts.EventType.",
+      "guard_tests": ["tests/unit/test_atlas3_events_001.py"]
+    },
+    "at3-014-ledger": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/ledger.py"],
+      "evidence": "Isolated append-only ledger under generated/ops/atlas3/ledger/.",
+      "guard_tests": ["tests/unit/test_atlas3_ledger_001.py"]
+    },
+    "at3-015-pulse": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/pulse.py"],
+      "evidence": "Derived Pulse lens with eight questions including attention.",
+      "guard_tests": ["tests/unit/test_atlas3_pulse_001.py"]
+    },
+    "at3-030-start": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/start.py"],
+      "evidence": "Budgeted Start compiler with freshness requirement; no RAG dump.",
+      "guard_tests": ["tests/unit/test_atlas3_start_001.py"]
+    },
+    "at3-050-proof": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/proof.py"],
+      "evidence": "AGENT_PROOF chain; model claim != proof.",
+      "guard_tests": ["tests/unit/test_atlas3_proof_001.py"]
+    },
+    "at3-035-connector": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/connector.py"],
+      "evidence": "Provider-neutral connector registry + capability honesty.",
+      "guard_tests": ["tests/unit/test_atlas3_memory_001.py"]
+    },
+    "at3-045-lineage": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/memory/lineage.py"],
+      "evidence": "conversation_id+provider+hash binding; provider spoof fails closed.",
+      "guard_tests": ["tests/unit/test_atlas3_lineage_045.py"]
+    },
+    "at3-043-intent": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/memory/intent.py"],
+      "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
+    },
+    "at3-111-org-identity": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/org_identity.py"],
+      "evidence": "Declared org identity only. Does not mint. Federation is not org identity.",
+      "guard_tests": ["tests/unit/test_atlas3_org_identity_111.py"]
+    },
+    "at3-110-multi-project": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/multi_project.py"],
+      "evidence": "Declared multi-project twin. Federation != authority. Does not mint org identity. CROSS_PROJECT_LEAK_COUNT = 0.",
+      "guard_tests": ["tests/unit/test_atlas3_multi_project_110.py"]
+    },
+    "at3-095-impact-ux": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/impact_ux.py"],
+      "evidence": "Composes AT3-080 impact-explorer data for UX. No new CLI. Graph != authority. Trust scores fail closed.",
+      "guard_tests": ["tests/unit/test_atlas3_impact_ux_095.py"]
+    },
+    "at3-096-mission": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/mission.py"],
+      "evidence": "Declared Mission Command Center. Self-merge forbidden. Estate availability != owner authorization. MERGE_AUTHORIZATION remains NOT_GRANTED.",
+      "guard_tests": ["tests/unit/test_atlas3_mission_096.py"]
+    },
+    "at3-092-truth-graph": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/truth_graph.py"],
+      "evidence": "Declared Truth Graph UX. Graph != authority. Winners and trust scores fail closed. Does not write AS-GRAPH-003.",
+      "guard_tests": ["tests/unit/test_atlas3_truth_graph_092.py"]
+    },
+    "at3-094-decision-explorer": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/decision_explorer.py"],
+      "evidence": "Declared owner decisions only. Model paraphrase is not an owner decision. Confirmed decisions require owner_origin. Explorer != Truth Core.",
+      "guard_tests": ["tests/unit/test_atlas3_decision_explorer_094.py"]
+    },
+    "at3-091-timeline": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/timeline.py"],
+      "evidence": "Ledger timeline by declared valid-time. Wall-clock is not valid-time. Timeline != Truth Core.",
+      "guard_tests": ["tests/unit/test_atlas3_timeline_091.py"]
+    },
+    "at3-090-home": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/home.py"],
+      "evidence": "Composes Pulse+Start+twin health. UI != canonical truth. Budget required. No invented current task.",
+      "guard_tests": ["tests/unit/test_atlas3_home_090.py"]
+    },
+    "at3-100-twin-health": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/twin_health.py"],
+      "evidence": "Derived twin health. Health != authority. Estate availability != owner authorization. UNKNOWN if undeclared.",
+      "guard_tests": ["tests/unit/test_atlas3_twin_health_100.py"]
+    },
+    "at3-080-impact": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/impact.py"],
+      "evidence": "Declared impact explorer data. Graph != authority. Trust scores fail closed. UNKNOWN if undeclared.",
+      "guard_tests": ["tests/unit/test_atlas3_impact_080.py"]
+    },
+    "at3-072-provider-register": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/provider_register.py"],
+      "evidence": "Provider-register / capabilities CLI design. No CLI proliferation. Not a live history API.",
+      "guard_tests": ["tests/unit/test_atlas3_provider_register_072.py"]
+    },
+    "at3-071-transport": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/transport.py"],
+      "evidence": "Transport success != authority. HTTP 200 / CLI 0 / MCP ok / A2A ack cannot grant truth or merge.",
+      "guard_tests": ["tests/unit/test_atlas3_transport_071.py"]
+    },
+    "at3-070-surface": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/surface.py"],
+      "evidence": "CLI/API/Web/TUI/MCP/A2A surface contract. SURFACE != TRUTH CORE. Transport success != authority.",
+      "guard_tests": ["tests/unit/test_atlas3_surface_070.py"]
+    },
+    "at3-052-adv-bind": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/adv_bind.py"],
+      "evidence": "Binds ADV to exact HEAD/TREE. ADV != MERGE. ADV != SECURITY CERTIFICATION.",
+      "guard_tests": ["tests/unit/test_atlas3_adv_bind_052.py"]
+    },
+    "at3-051-iv-bind": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/iv_bind.py"],
+      "evidence": "Binds IV to exact HEAD/TREE. IMPLEMENTER != VERIFIER. IV != MERGE.",
+      "guard_tests": ["tests/unit/test_atlas3_iv_bind_051.py"]
+    },
+    "at3-020-claim-nodes": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/claim_nodes.py"],
+      "evidence": "Declared claim/decision/requirement nodes. Graph != authority. Model paraphrase != owner. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_claim_nodes_020.py"]
+    },
+    "at3-023-graph-authority": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/graph_authority.py"],
+      "evidence": "Graph is never authority. Winners and trust scores fail closed. Does not write AS-GRAPH-003.",
+      "guard_tests": ["tests/unit/test_atlas3_graph_authority_023.py"]
+    },
+    "at3-022-conflict-unknown": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/conflict_unknown.py"],
+      "evidence": "Declared conflict/UNKNOWN projection. UNKNOWN stays UNKNOWN. No winner. No healthy corruption filter.",
+      "guard_tests": ["tests/unit/test_atlas3_conflict_unknown_022.py"]
+    },
+    "at3-021-rel-expand": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/rel_expand.py"],
+      "evidence": "Declared twin relationship expansion via GRAPH_REUSE. Does not write AS-GRAPH-003. Graph != authority.",
+      "guard_tests": ["tests/unit/test_atlas3_rel_expand_021.py"]
+    },
+    "at3-062-decided": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/decided.py"],
+      "evidence": "Declared DECIDED_BY edges. owner_origin required. Graph != authority. Model != owner.",
+      "guard_tests": ["tests/unit/test_atlas3_decided_062.py"]
+    },
+    "at3-060-causal": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/causal.py"],
+      "evidence": "Declared CAUSED_BY edges only. Graph != authority. UNKNOWN if undeclared.",
+      "guard_tests": ["tests/unit/test_atlas3_causal_060.py"]
+    },
+    "at3-061-honesty": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/memory/honesty.py"],
+      "evidence": "Fail-closed INTENT vs CURRENT STATE wrapper. Layers must not collapse. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_honesty_061.py"]
+    },
+    "at3-036-chatgpt": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/chatgpt.py"],
+      "evidence": "Wraps parse_chat_export; does not replace chatgpt_bridge.py. Live history claim fails closed. CLI parity with AT3-037/038.",
+      "guard_tests": [
+        "tests/unit/test_atlas3_memory_001.py",
+        "tests/unit/test_atlas3_chatgpt_036.py"
+      ]
+    },
+    "at3-039-normalize": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": [
+        "src/project_atlas/atlas3/memory/normalize.py",
+        "src/project_atlas/atlas3/memory/envelope.py"
+      ],
+      "evidence": "Canonical envelope only. Mixed valid+corrupt turns fail closed. Graph != authority. No new CLI.",
+      "guard_tests": ["tests/unit/test_atlas3_normalize_039.py"]
+    },
+    "at3-040-extract": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/extract.py"],
+      "evidence": "Landed ITEM_TYPES only. Heuristic extraction. LLM != authority. Forged owner stays proposed. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_extract_040.py"]
+    },
+    "at3-041-dedup": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/dedup.py"],
+      "evidence": "Exact/near duplicate collapse. Provenance retained. Does not collapse state/intent/history. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_dedup_041.py"]
+    },
+    "at3-042-conflicts": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/conflicts.py"],
+      "evidence": "Detects cross-LLM conflicts. Does not collapse state/intent/history. No winner. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_conflicts_042.py"]
+    },
+    "at3-044-freshness": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/freshness.py"],
+      "evidence": "STALE != CURRENT. UNKNOWN stays UNKNOWN without stronger evidence. Historical memory is not current truth.",
+      "guard_tests": ["tests/unit/test_atlas3_freshness_044.py"]
+    },
+    "at3-047-privacy": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/privacy.py"],
+      "evidence": "Secret scan fail-closed. Unknown privacy class fail-closed. Raw transcript minimized. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_privacy_047.py"]
+    },
+    "at3-048-search": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/search.py"],
+      "evidence": "Search extracted items only. Not a transcript dump. Cross-project search fails closed.",
+      "guard_tests": ["tests/unit/test_atlas3_search_048.py"]
+    },
+    "at3-049-reconcile": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/reconcile.py"],
+      "evidence": "Composes AT3-041/042/044. Never auto-promotes. Does not pick a winner.",
+      "guard_tests": ["tests/unit/test_atlas3_reconcile_049.py"]
+    },
+    "at3-056-provider-handoff": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/handoff.py"],
+      "evidence": "Fixture ChatGPT→Claude handoff via rank+serve. Live multi-account product remains EXTERNAL_BLOCKED. No Truth Core write. No Ask2 rewrite.",
+      "guard_tests": ["tests/unit/test_atlas3_handoff_056.py"]
+    },
+    "at3-057-cursor": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/cursor.py"],
+      "evidence": "Local-session JSON fixture ingest only. AGENTS.md != ingestion. Cursor Cloud history NOT IMPLEMENTED. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_cursor_057.py"]
+    },
+    "at3-058-codex": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/codex.py"],
+      "evidence": "Structured-submission JSON fixture ingest only. CODEX.md != ingestion. Native history NOT IMPLEMENTED. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_codex_058.py"]
+    },
+    "at3-055-context-serve": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/context_serve.py"],
+      "evidence": "Local ranked-context pack for another provider. Live serve remains EXTERNAL_BLOCKED. No Truth Core write. No Ask2 rewrite.",
+      "guard_tests": ["tests/unit/test_atlas3_context_serve_055.py"]
+    },
+    "at3-054-context-compiler": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/context_compiler.py"],
+      "evidence": "Consume-only ranking of reconciled memory. Does not rewrite the certified 2.x compiler. STALE != CURRENT. UNKNOWN stays UNKNOWN. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_context_compiler_054.py"]
+    },
+    "at3-046-incremental": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/incremental.py"],
+      "evidence": "Local export-cursor incremental apply. Live provider incremental sync remains EXTERNAL_BLOCKED. Credentials and history APIs fail closed.",
+      "guard_tests": ["tests/unit/test_atlas3_incremental_046.py"]
+    },
+    "at3-037-claude": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/claude.py"],
+      "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. CLAUDE.md != ingestion.",
+      "guard_tests": ["tests/unit/test_atlas3_claude_037.py"]
+    },
+    "at3-038-gemini": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/gemini.py"],
+      "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. GEMINI.md != ingestion.",
+      "guard_tests": ["tests/unit/test_atlas3_gemini_038.py"]
+    },
+    "at3-006-security-catalog": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/security_catalog.py"],
+      "evidence": "Reviewed threat catalog compiler. Catalog != scanner != external certification.",
+      "guard_tests": ["tests/unit/test_atlas3_security_catalog_006.py"]
+    },
+    "at3-102-provider-sync": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/provider_sync.py"],
+      "evidence": "Honest provider sync status. Live history != sync. AT3-046 incremental sync remains EXTERNAL_BLOCKED.",
+      "guard_tests": ["tests/unit/test_atlas3_provider_sync_102.py"]
+    },
+    "at3-101-ledger-obs": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/ledger_obs.py"],
+      "evidence": "Validated ledger read observability. Ledger != Truth Core. Corruption is not filtered into a healthy count.",
+      "guard_tests": ["tests/unit/test_atlas3_ledger_obs_101.py"]
+    },
+    "at3-081-stale-conflict": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/stale_conflict.py"],
+      "evidence": "Composes Pulse + memory stale/conflict. No new CLI. No graph winner. Stale != current.",
+      "guard_tests": ["tests/unit/test_atlas3_stale_conflict_081.py"]
+    },
+    "at3-082-next-honesty": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/next_honesty.py"],
+      "evidence": "Composes Pulse + next-lens. NEXT != command. Does not write Pulse. Missing stays UNKNOWN.",
+      "guard_tests": ["tests/unit/test_atlas3_next_honesty_082.py"]
+    },
+    "at3-093-time-machine-ux": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/time_machine_ux.py"],
+      "evidence": "Reuses AS-2.2-KDIFF-001. No second clock. Wall-clock != valid-time. As-of != authority.",
+      "guard_tests": ["tests/unit/test_atlas3_time_machine_ux_093.py"]
+    },
+    "at3-053-autonomy-gate": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/autonomy_gate.py"],
+      "evidence": "Reuses orch DAG/leases/owner gates. No self-dispatch. Lease != merge. Owner gates remain owner-only.",
+      "guard_tests": ["tests/unit/test_atlas3_autonomy_gate_053.py"]
+    },
+    "at3-112-federation-reuse": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/federation_reuse.py"],
+      "evidence": "Composes landed federation inventory/lens. Federation != authority. No cross-vault promote.",
+      "guard_tests": ["tests/unit/test_atlas3_federation_reuse_112.py"]
+    },
+    "chatgpt-live-2x": {
+      "maturity": "prep-frozen",
+      "prep_tree": "docs/atlas-2.2/chatgpt-live/",
+      "production_surface": [
+        "src/project_atlas/chatgpt_bridge.py",
+        "src/project_atlas/chatgpt_capture.py"
+      ],
+      "evidence": "Atlas 3 must not mutate the frozen 2.2 ChatGPT live surface.",
+      "guard_tests": ["tests/unit/test_atlas3_demo_isolation_001.py"]
+    }
+  }
+}
