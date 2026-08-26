@@ -90,6 +90,7 @@ atlas multi-project-twin --vault <dir> [--project <id>]
 atlas org-identity --vault <dir>
 atlas claim-nodes --vault <dir> --project <id>
 atlas conflict-unknown --vault <dir> --project <id>
+atlas graph-authority --vault <dir> --project <id>
 ```
 
 `atlas memory sync` is a status/capability command in this slice, not a live

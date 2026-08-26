@@ -44,7 +44,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-020 | Claim / decision / requirement nodes | ISOLATED_RUNTIME | declared nodes; claims/decisions reuse; no Truth Core write |
 | AT3-021 | Derived relationship expansion | ISOLATED_RUNTIME | AS-GRAPH-003 aliases; no store write |
 | AT3-022 | Conflict / UNKNOWN projection | ISOLATED_RUNTIME | declared conflicts/unknowns; UNKNOWN stays UNKNOWN; no winner |
-| AT3-023 | Graph ≠ authority enforcement | LANDED_2X_REUSE | GRAPH-001–005 invariants |
+| AT3-023 | Graph ≠ authority enforcement | ISOLATED_RUNTIME | prove_graph_is_not_authority; winners/trust fail closed |
 
 ## Wave D — Universal agent memory (D-192)
 

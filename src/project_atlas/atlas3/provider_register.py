@@ -47,6 +47,7 @@ ALLOWED_CLI: Final[frozenset[str]] = frozenset(
         "org-identity",
         "claim-nodes",
         "conflict-unknown",
+        "graph-authority",
     }
 )
 FORBIDDEN_CLI: Final[frozenset[str]] = frozenset(

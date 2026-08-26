@@ -19,6 +19,7 @@ from project_atlas.atlas3.decision_explorer import compile_decision_explorer
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
 from project_atlas.atlas3.estate_nodes import compile_estate_nodes
 from project_atlas.atlas3.file_graph import compile_file_graph
+from project_atlas.atlas3.graph_authority import compile_graph_authority
 from project_atlas.atlas3.home import compile_home
 from project_atlas.atlas3.impact import compile_impact_explorer
 from project_atlas.atlas3.inventory import compile_inventory
@@ -80,6 +81,7 @@ ATLAS3_COMMANDS = frozenset(
         "org-identity",
         "claim-nodes",
         "conflict-unknown",
+        "graph-authority",
     }
 )
 
@@ -438,6 +440,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     conflict_unknown.add_argument("--vault", type=Path, required=True)
     conflict_unknown.add_argument("--project", required=True)
 
+    graph_authority = subparsers.add_parser(
+        "graph-authority",
+        help="Atlas 3 graph-authority prover (graph is not authority).",
+        description="Atlas 3 graph-authority prover (graph is not authority).",
+    )
+    graph_authority.add_argument("--vault", type=Path, required=True)
+    graph_authority.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -497,6 +507,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(compile_claim_nodes(args.vault, args.project), as_json=True)
         if command == "conflict-unknown":
             return _dump(compile_conflict_unknown(args.vault, args.project), as_json=True)
+        if command == "graph-authority":
+            return _dump(compile_graph_authority(args.vault, args.project), as_json=True)
         if command == "multi-project-twin":
             return _dump(
                 compile_multi_project_twin(

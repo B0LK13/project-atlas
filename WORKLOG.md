@@ -7549,4 +7549,14 @@ Isolated conflict/UNKNOWN projection stacked on AT3-020 `#569`.
 - P1-022-001: `resolved=true` with omitted status now fail-closes (`CONFLICT_STATE_INCOHERENT`)
 - P1-022-002: whitespace-only sides now fail-close (`CONFLICT_SIDES_REQUIRED`)
 
+## AT3-023 (2026-08-26)
+
+Isolated graph != authority prover stacked on AT3-022 `#570`.
+
+- `prove_graph_is_not_authority` / `compile_graph_authority` + CLI `atlas graph-authority`
+- Graph is never authority; winners and trust scores fail closed
+- Missing stays UNKNOWN (still not authority)
+- Does not write AS-GRAPH-003
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

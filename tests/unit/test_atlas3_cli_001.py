@@ -48,6 +48,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "org-identity",
         "claim-nodes",
         "conflict-unknown",
+        "graph-authority",
         "connect",
         "ask2",
         "kdiff",
