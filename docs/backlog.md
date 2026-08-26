@@ -354,6 +354,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-STATE-001 Current State lens
 - [x] AS-CODER-ALPHA-CHANGED-001 What Changed defaults
 - [x] AS-CODER-ALPHA-DECISIONS-001 Decision memory
+- [x] AS-CODER-ALPHA-DECISIONS-READ-001 vault-scoped Decisions REPORT READ (`atlas decisions-status`; `atlas.decisions.read`; never materializes; DECISIONS != AUTHORITY)
 - [x] AS-CODER-ALPHA-UNKNOWN-001 Unknown/conflict bundle
 - [x] AS-CODER-ALPHA-BRIEF-001 Unified project brief (`atlas brief`)
 - [x] AS-CODER-ALPHA-CAPTURE-001 Session capture defaults

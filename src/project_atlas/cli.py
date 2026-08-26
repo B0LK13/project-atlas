@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    decisions_status_parser = subparsers.add_parser(
+        "decisions-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Decision memory answer artifacts "
+            "(AS-CODER-ALPHA-DECISIONS-READ-001; never writes; "
+            "DECISIONS != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-decisions-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "DECISIONS != AUTHORITY. MODEL PARAPHRASE != OWNER DECISION."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas decisions-status --vault /path/to/vault\n"
+            "  atlas decisions-status --vault /path/to/vault --json"
+        ),
+    )
+    decisions_status_parser.add_argument("--vault", type=Path, required=True)
+    decisions_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Decisions REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3189,6 +3215,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('rollup')}/{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "decisions-status":
+        from project_atlas.web_api.decisions_read import (
+            WebDecisionsReadError,
+            read_decisions_view,
+            render_decisions_status_text,
+        )
+
+        try:
+            report = read_decisions_view(args.vault)
+        except (WebDecisionsReadError, OSError, ValueError) as exc:
+            _log.error("decisions-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_decisions_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "decisions":

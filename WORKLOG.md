@@ -5,6 +5,35 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-DECISIONS-READ-001 (2026-08-26)
+
+Vault-scoped Decision memory REPORT READ from live main
+`f1b5256510cb66e037e6774aa49d753bdb7dd96f` /
+`8df56184bb25b1cf1b6a9102cf34e77248287940`.
+
+- `read_decisions_view` + CLI `atlas decisions-status`
+- MCP `atlas.decisions.read` + API `GET /v1/decisions-status`
+- Never calls `materialize_decisions_lenses`
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; DECISIONS != AUTHORITY
+- MODEL PARAPHRASE != OWNER DECISION
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+Focused gates (this worktree):
+
+```
+.venv/bin/python -m pytest tests/unit/test_as_coder_alpha_decisions_read_001.py \
+  tests/unit/test_as_2_1_mcp_adv_001.py tests/unit/test_as_2_0_mcp_001.py \
+  tests/unit/test_as_2_1_mcp_brief_001.py --no-cov
+# 35 passed
+.venv/bin/python -m ruff check <touched paths>
+# All checks passed
+.venv/bin/python -m mypy src/project_atlas/web_api/decisions_read.py \
+  src/project_atlas/web_api/__init__.py src/project_atlas/app_service.py \
+  src/project_atlas/api_server.py src/project_atlas/mcp_registry.py \
+  src/project_atlas/mcp_server.py
+# Success: no issues found in 6 source files
+```
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25

@@ -18,6 +18,7 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.web_api import (
     WebBriefError,
+    WebDecisionsReadError,
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
@@ -27,6 +28,7 @@ from project_atlas.web_api import (
     list_project_conflicts,
     list_projects,
     load_estate_discovery_view,
+    read_decisions_view,
     read_intelligence_conflicts,
     read_intelligence_evidence,
     read_intelligence_explain,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def decisions_view(self) -> dict[str, Any]:
+        """Coder Alpha Decisions REPORT READ (never materializes/writes)."""
+        try:
+            return read_decisions_view(self.vault)
+        except WebDecisionsReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {
