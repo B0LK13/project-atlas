@@ -20,6 +20,7 @@ from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
     WebRoadmapError,
+    WebRuntimeReadError,
     WebSourceHealthError,
     filter_knowledge_by_project,
     impact_graph_summary,
@@ -36,6 +37,7 @@ from project_atlas.web_api import (
     read_project_brief,
     read_project_roadmap,
     read_project_state,
+    read_runtime_view,
     read_source_health,
     read_status,
     read_vault_health,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def runtime_view(self) -> dict[str, Any]:
+        """Vault-scoped GET /v1/runtime/report wrap. Never writes runtime state."""
+        try:
+            return read_runtime_view(self.vault)
+        except WebRuntimeReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

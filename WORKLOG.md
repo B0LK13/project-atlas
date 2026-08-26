@@ -7179,3 +7179,10 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-RUNTIME-READ-001 (2026-08-26 night cycle)
+
+Vault-scoped REPORT READ inventory of `generated/indexes` and optional
+`generated/ops/runtime`. Does not invoke `hybrid_retrieve` or
+`compile_context`. Does not write. RUNTIME != AUTHORITY; INDEXES != TRUTH CORE.
+MERGE_AUTHORIZATION = NOT_GRANTED.

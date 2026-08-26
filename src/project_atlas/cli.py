@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.runtime_read import (
+    WebRuntimeReadError,
+    read_runtime_view,
+    render_runtime_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2003,6 +2008,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Write derived package under generated/context-compiler/.",
     )
     runtime_compile.add_argument("--json", action="store_true")
+    runtime_report = runtime_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only inventory of existing runtime substrate "
+            "(never writes; RUNTIME != AUTHORITY; INDEXES != TRUTH CORE)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas runtime report --vault /path/to/vault\n"
+            "  atlas runtime report --vault /path/to/vault --json"
+        ),
+    )
+    runtime_report.add_argument("--vault", type=Path, required=True)
+    runtime_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the runtime REPORT READ JSON to stdout.",
+    )
+    runtime_show = runtime_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `runtime report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas runtime show --vault /path/to/vault\n"
+            "  atlas runtime show --vault /path/to/vault --json"
+        ),
+    )
+    runtime_show.add_argument("--vault", type=Path, required=True)
+    runtime_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the runtime REPORT READ JSON to stdout.",
+    )
 
     # AS-2.2-KDIFF-001 — Knowledge Diff / Time Machine P0 (read-only; project-scoped).
     kdiff_parser = subparsers.add_parser(
@@ -4594,6 +4634,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if report.get("output_path"):
                     print(f"path: {report['output_path']}")
                 print(f"truth_boundary: {report['truth_boundary']}")
+            return EXIT_OK
+        if args.runtime_command in {"report", "show"}:
+            try:
+                view = read_runtime_view(args.vault)
+            except (WebRuntimeReadError, OSError) as exc:
+                _log.error("runtime report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_runtime_text(view), end="")
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown runtime command: {args.runtime_command}"
