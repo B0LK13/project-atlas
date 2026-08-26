@@ -5,7 +5,7 @@ Honesty: local fixture coverage ≠ synchronized provider.
 | Provider | Structured capture | Export import | Live full history | Bootstrap adapter | Atlas 3 state |
 |---|---|---|---|---|---|
 | ChatGPT | Yes (`chatgpt`) | **Implemented** (`chatgpt_bridge`, `oai-import`, `parse_chat_export`) | **Not generalized** (chatgpt-live PREP; `live_api=false`) | MCP read demo | `EXPORT_ONLY` + structured |
-| Claude | Yes (`claude`) | Not a Core bridge | Not implemented; do not invent APIs | `CLAUDE.md` ≠ ingestion | `EXPORT_ONLY` / `MANUAL_CAPTURE` |
+| Claude | Yes (`claude`) | **Implemented** (isolated fixture/export ingest; not a 2.x Core bridge) | Not implemented; do not invent APIs | `CLAUDE.md` ≠ ingestion | `EXPORT_ONLY` / `MANUAL_CAPTURE` |
 | Gemini | Opaque token `gemini` | Not a Core bridge | Not implemented | `GEMINI.md` ≠ ingestion | `EXPORT_ONLY` / `MANUAL_CAPTURE` |
 | Cursor | Yes (`cursor`) | Local/session capture | N/A as account history | `AGENTS.md` / Cursor rules | `LOCAL_SESSION` / `STRUCTURED_SUBMISSION` |
 | Codex | Yes (`codex`) | Structured / local | N/A | agent adapters | `STRUCTURED_SUBMISSION` |

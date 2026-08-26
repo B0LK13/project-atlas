@@ -7285,4 +7285,16 @@ Isolated provider identity + session lineage stacked on AT3-043.
 - CLI `atlas memory lineage` reads existing reconcile artifacts only
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-037 (2026-08-26)
+
+Isolated Claude fixture/export ingest stacked on AT3-045.
+
+- `import_claude_export` + CLI `atlas memory claude`
+- `conversation_sync = NOT_IMPLEMENTED`; no private history API claimed
+- `CLAUDE.md` is bootstrap, not ingestion
+- Fixtures claiming `live_full_history_sync` fail closed
+- Mixed valid + corrupt turns fail closed
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
 

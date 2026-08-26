@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from project_atlas.atlas3.memory.chatgpt import chatgpt_capability
+from project_atlas.atlas3.memory.claude import claude_capability
 from project_atlas.atlas3.memory.connector import provider_capabilities
 
 
@@ -13,8 +14,10 @@ def memory_providers() -> dict[str, Any]:
     return {
         **caps,
         "chatgpt_detail": chatgpt_capability(),
+        "claude_detail": claude_capability(),
         "claude_current": {
             "conversation_sync": "NOT_IMPLEMENTED",
+            "export_import": "IMPLEMENTED",
             "bootstrap_adapter": "CLAUDE.md",
             "bootstrap_is_ingestion": False,
             "state": "EXPORT_ONLY",

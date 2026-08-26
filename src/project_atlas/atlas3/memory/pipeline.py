@@ -12,6 +12,7 @@ from project_atlas.atlas3.contracts import (
     write_json_atomic,
 )
 from project_atlas.atlas3.memory.chatgpt import import_chatgpt_export
+from project_atlas.atlas3.memory.claude import import_claude_export
 from project_atlas.atlas3.memory.compiler import next_agent_must_not_claim_pg16, rank_context_layers
 from project_atlas.atlas3.memory.extract import extract_items
 from project_atlas.atlas3.memory.normalize import normalize_turns
@@ -92,6 +93,18 @@ def chatgpt_export_to_items(
     project_id: str,
 ) -> list[dict[str, Any]]:
     envelopes = import_chatgpt_export(
+        source, conversation_id=conversation_id, project_id=project_id
+    )
+    return extract_items(envelopes)
+
+
+def claude_export_to_items(
+    source: Path | str,
+    *,
+    conversation_id: str,
+    project_id: str,
+) -> list[dict[str, Any]]:
+    envelopes = import_claude_export(
         source, conversation_id=conversation_id, project_id=project_id
     )
     return extract_items(envelopes)

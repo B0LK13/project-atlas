@@ -686,6 +686,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-050 Isolated AGENT_PROOF
 - [x] AT3-035/036/039/040/041/042/044/047/048/049 Isolated ChatGPT-first memory vertical
 - [x] AT3-CHRONICLE Horizon design notes only (no runtime)
+- [x] AT3-037 Isolated Claude fixture/export ingest (native history sync remains NOT IMPLEMENTED)
 - [ ] AT3-037 Claude native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
 - [ ] AT3-038 Gemini native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
 - [ ] AT3-046 Incremental live provider sync

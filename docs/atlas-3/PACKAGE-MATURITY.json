@@ -96,11 +96,11 @@
       "guard_tests": ["tests/unit/test_atlas3_memory_001.py"]
     },
     "at3-037-claude": {
-      "maturity": "prep-frozen",
+      "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",
-      "production_surface": [],
-      "evidence": "Capability honesty + fixture ingest only. Native history sync NOT IMPLEMENTED.",
-      "guard_tests": ["tests/unit/test_atlas3_program_docs_001.py"]
+      "production_surface": ["src/project_atlas/atlas3/memory/claude.py"],
+      "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. CLAUDE.md != ingestion.",
+      "guard_tests": ["tests/unit/test_atlas3_claude_037.py"]
     },
     "at3-038-gemini": {
       "maturity": "prep-frozen",
