@@ -735,6 +735,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-101 Isolated ledger observability (validated read; ledger != truth; no healthy filter)
 - [x] AT3-102 Isolated provider sync status (honest capabilities; AT3-046 EXTERNAL_BLOCKED)
 - [x] AT3-046 Isolated incremental export-cursor (local apply only; live provider incremental EXTERNAL_BLOCKED)
+- [x] AT3-054 Isolated consume-only memory context compiler (no 2.x rewrite; stale != current; UNKNOWN stays UNKNOWN)
 - [ ] AT3-046 Incremental live provider sync (EXTERNAL_BLOCKED; credentials / history API)
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`

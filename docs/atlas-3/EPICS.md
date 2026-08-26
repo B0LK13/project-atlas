@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Directive | D-191 / D-192 / D-193 |
-| Epic count | **61** |
+| Epic count | **62** |
 | First vertical | AT3-003, AT3-014, AT3-015, AT3-030, AT3-050 |
 | Foundation priority | AT3-001, 002, 003, 004, 005, 014, 015, 030, 035, 050 |
 
@@ -65,6 +65,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-047 | Privacy / consent / retention | ISOLATED_RUNTIME | secrets fail-closed; raw transcript minimized |
 | AT3-048 | Unified LLM memory search | ISOLATED_RUNTIME | extracted items only; not a transcript dump |
 | AT3-049 | Cross-LLM memory reconciliation | ISOLATED_RUNTIME | compose 041/042/044; never auto-promote |
+| AT3-054 | Memory context compiler (consume-only) | ISOLATED_RUNTIME | ranks reconciled memory; no 2.x rewrite; stale != current |
 
 ## Wave E — Causality and intent
 
@@ -139,4 +140,4 @@ clock, no second Truth Core). They were not dropped.
 
 ## Count
 
-61 unique epics (AT3-001…006, 010…015, 020…023, 030, 035…053, 060…062, 070…072, 080…082, 090…096, 100…102, 110…112, 120…122).
+62 unique epics (AT3-001…006, 010…015, 020…023, 030, 035…054, 060…062, 070…072, 080…082, 090…096, 100…102, 110…112, 120…122).

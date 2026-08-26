@@ -60,7 +60,7 @@ AT3-049 Reconciliation                                   │
         ↓                                                │
 AT3-048 Unified Memory Search                            │
         ↓                                                │
-Context Compiler (consume-only; 2.x runtime_22)          │
+AT3-054 Context Compiler consume-only                    │
                                                          │
 Parallel after AT3-035:                                  │
   AT3-036 ChatGPT (first)                                │
@@ -118,6 +118,7 @@ AT3-049 reconcile ──► compose 041/042/044 (never auto-promote; no winner)
 AT3-101 ledger-obs ► validated list (ledger != truth; no healthy filter)
 AT3-102 provider-sync ► honest states (live history != sync; AT3-046 live blocked)
 AT3-046 incremental ► local export-cursor only (live provider incremental EXTERNAL_BLOCKED)
+AT3-054 context-compiler ► consume-only rank of reconciled memory (no 2.x rewrite; stale != current)
 AT3-006 security-catalog ► reviewed catalog (catalog != scanner != cert)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
@@ -137,7 +138,7 @@ FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 Independent isolated lanes:
 
 - AT3-002 / 003 / 004 / 005 / 014 / 015 / 030 / 050
-- AT3-035 / 036 / 039 / 040 / 041 / 042 / 044 / 046 / 047 / 048 / 049
+- AT3-035 / 036 / 039 / 040 / 041 / 042 / 044 / 046 / 047 / 048 / 049 / 054
 - Chronicle remains ROADMAP_HORIZON (no runtime)
 
 Must wait for demo terminal state before mutating:

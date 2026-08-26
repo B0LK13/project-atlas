@@ -7694,4 +7694,13 @@ Isolated incremental conversation sync stacked on AT3-049 `#586`.
 - Mixed corrupt / cross-project / conversation mismatch fail closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-054 (2026-08-26)
+
+Isolated consume-only memory context compiler stacked on AT3-046 `#587`.
+
+- Ranks reconciled memory; does not rewrite the certified 2.x compiler
+- Cross-project / mixed corrupt / trust-score / Truth Core promote fail closed
+- STALE != CURRENT; UNKNOWN stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

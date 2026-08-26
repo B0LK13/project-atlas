@@ -28,6 +28,11 @@ from project_atlas.atlas3.ledger import append_event, ledger_status, list_events
 from project_atlas.atlas3.memory.chatgpt import import_chatgpt_export
 from project_atlas.atlas3.memory.claude import import_claude_export
 from project_atlas.atlas3.memory.connector import provider_capabilities
+from project_atlas.atlas3.memory.context_compiler import (
+    compile_memory_context,
+    context_compiler_capability,
+    load_item_list,
+)
 from project_atlas.atlas3.memory.gemini import import_gemini_export
 from project_atlas.atlas3.memory.honesty import wrap_intent_state_honesty
 from project_atlas.atlas3.memory.incremental import (
@@ -133,7 +138,7 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
 
     memory = subparsers.add_parser(
         "memory",
-        help="Atlas 3 LLM memory (search/status/providers; not live full-history sync).",
+        help="Atlas 3 LLM memory (search/status/providers/context; not live full-history sync).",
     )
     mem_sub = memory.add_subparsers(dest="memory_command", required=True)
     mem_sub.add_parser("providers", help="Honest provider capability matrix.")
@@ -172,6 +177,29 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     )
     incremental.add_argument("--conversation-id", default=None, help="Conversation id to bind.")
     incremental.add_argument("--project", default=None, help="Governed project id.")
+    context = mem_sub.add_parser(
+        "context",
+        help="Consume-only memory context compile (does not rewrite certified 2.x).",
+    )
+    context.add_argument(
+        "--items",
+        type=Path,
+        default=None,
+        help="JSON list of reconciled memory items.",
+    )
+    context.add_argument("--vault", type=Path, default=None, help="Vault directory.")
+    context.add_argument("--project", default=None, help="Governed project id.")
+    context.add_argument(
+        "--freshness",
+        default="UNKNOWN",
+        choices=["CURRENT", "ALLOW_STALE_HISTORICAL", "UNKNOWN"],
+        help="Freshness requirement. CURRENT refuses stale-as-current-truth.",
+    )
+    context.add_argument(
+        "--include-stale-historical",
+        action="store_true",
+        help="Include stale items in the historical layer only.",
+    )
     chatgpt = mem_sub.add_parser(
         "chatgpt",
         help="Import a ChatGPT export fixture (not a live history API).",
@@ -665,6 +693,38 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         cursor=getattr(args, "cursor", None),
                         conversation_id=str(conversation_id),
                         project_id=str(project_id),
+                    ),
+                    as_json=True,
+                )
+            if sub == "context":
+                items_path = getattr(args, "items", None)
+                if items_path is None and getattr(args, "vault", None) is None:
+                    return _dump(context_compiler_capability(), as_json=True)
+                project_id = getattr(args, "project", None)
+                if not project_id:
+                    raise Atlas3Error(
+                        "CONTEXT_INVALID",
+                        "memory context compile requires --project",
+                    )
+                if items_path is not None:
+                    items = load_item_list(Path(items_path))
+                else:
+                    recon = read_json(
+                        Path(args.vault)
+                        / OPS_RELATIVE
+                        / "memory"
+                        / str(project_id)
+                        / "reconcile.json"
+                    )
+                    items = ((recon or {}).get("reconciliation") or {}).get("items") or []
+                return _dump(
+                    compile_memory_context(
+                        items,
+                        project_id=str(project_id),
+                        include_stale_historical=bool(
+                            getattr(args, "include_stale_historical", False)
+                        ),
+                        freshness_requirement=str(getattr(args, "freshness", "UNKNOWN")),
                     ),
                     as_json=True,
                 )

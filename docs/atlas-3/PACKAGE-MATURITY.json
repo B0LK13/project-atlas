@@ -339,6 +339,13 @@
       "evidence": "Composes AT3-041/042/044. Never auto-promotes. Does not pick a winner.",
       "guard_tests": ["tests/unit/test_atlas3_reconcile_049.py"]
     },
+    "at3-054-context-compiler": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/context_compiler.py"],
+      "evidence": "Consume-only ranking of reconciled memory. Does not rewrite the certified 2.x compiler. STALE != CURRENT. UNKNOWN stays UNKNOWN. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_context_compiler_054.py"]
+    },
     "at3-046-incremental": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

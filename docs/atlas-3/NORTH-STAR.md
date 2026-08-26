@@ -95,7 +95,7 @@ ChatGPT export
   → deduplication
   → freshness
   → memory search
-  → Context Compiler consume-only
+  → AT3-054 Context Compiler consume-only
 ```
 
 Then prove provider neutrality with Claude, then Gemini, without changing
