@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebNextReadError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -31,6 +32,7 @@ from project_atlas.web_api import (
     read_intelligence_evidence,
     read_intelligence_explain,
     read_intelligence_query,
+    read_next_view,
     read_portfolio_state,
     read_project_attention,
     read_project_brief,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def next_view(self) -> dict[str, Any]:
+        """Coder Alpha What Next REPORT READ (never materializes/writes)."""
+        try:
+            return read_next_view(self.vault)
+        except WebNextReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

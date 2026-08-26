@@ -5,6 +5,17 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-NEXT-READ-001 (2026-08-26)
+
+Vault-scoped What Next REPORT READ from live main.
+
+- `read_next_view` + CLI `atlas next-status`
+- MCP `atlas.next.read` + API `GET /v1/next-status`
+- Never calls `materialize_next_lenses` / `derive_next_lenses` / `build_next_lens`
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; NEXT != AUTHORITY; NEXT != COMMAND
+- Distinct from `atlas next` materialize and from AS-2.0-NEXT-001
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25

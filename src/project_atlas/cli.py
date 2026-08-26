@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    next_status_parser = subparsers.add_parser(
+        "next-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing What Next answer artifacts "
+            "(AS-CODER-ALPHA-NEXT-READ-001; never writes; "
+            "NEXT != AUTHORITY; NEXT != COMMAND)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-next-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "NEXT != AUTHORITY. NEXT != COMMAND."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas next-status --vault /path/to/vault\n"
+            "  atlas next-status --vault /path/to/vault --json"
+        ),
+    )
+    next_status_parser.add_argument("--vault", type=Path, required=True)
+    next_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the What Next REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3156,6 +3182,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
             for lens in report.get("lenses") or []:
                 print(render_next_text(lens))
+        return EXIT_OK
+
+    if args.command == "next-status":
+        from project_atlas.web_api.next_read import (
+            WebNextReadError,
+            read_next_view,
+            render_next_status_text,
+        )
+
+        try:
+            report = read_next_view(args.vault)
+        except (WebNextReadError, OSError, ValueError) as exc:
+            _log.error("next-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_next_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "changed":
