@@ -118,6 +118,21 @@ def test_stale_as_current_fails_closed(tmp_path: Path) -> None:
     assert exc.value.code == "STALE_AS_CURRENT"
 
 
+def test_ledger_graph_winner_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    append_event(
+        vault,
+        "harbor-api",
+        event_type="CONTEXT_INVALIDATED",
+        source_plane="engineering",
+        summary="stale with invented winner",
+        payload={"freshness": "STALE", "graph_winner": "chatgpt"},
+    )
+    with pytest.raises(Atlas3Error) as exc:
+        compile_stale_conflict_intel(vault, "harbor-api")
+    assert exc.value.code == "GRAPH_WINNER_FORBIDDEN"
+
+
 def test_foreign_memory_fails_closed(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     _write_json(
