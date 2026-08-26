@@ -118,6 +118,25 @@ def test_merge_and_pilot_invention_fail_closed(tmp_path: Path) -> None:
         read_handoff_view(vault)
 
 
+def test_render_is_ascii_even_with_unicode_project(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_pack(vault, "h1", project_id="harbör-api")
+    text = render_handoff_text(read_handoff_view(vault))
+    assert all(ord(char) < 128 for char in text)
+    assert "harb?r-api" in text
+
+
+def test_symlink_pack_fails_closed(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    _write_pack(vault, "h1")
+    foreign = tmp_path / "foreign.json"
+    foreign.write_text(json.dumps({"handoff_id": "leak", "project_id": "other"}) + "\n")
+    link = vault / "generated" / "ops" / "handoffs" / "link.json"
+    link.symlink_to(foreign)
+    with pytest.raises(WebHandoffReadError, match="handoff-read-symlink-forbidden"):
+        read_handoff_view(vault)
+
+
 def test_unsafe_id_fails_closed(tmp_path: Path) -> None:
     with pytest.raises(WebHandoffReadError, match="handoff-read-unsafe-id"):
         show_handoff_view(_vault(tmp_path), handoff_id="../secret")

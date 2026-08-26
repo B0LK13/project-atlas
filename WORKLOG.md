@@ -16,6 +16,11 @@ Vault-scoped handoff REPORT READ isolated from Atlas 3 stack. Base live main.
 - HANDOFF REPORT != AUTHORITY
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+### P1 remedi on `#572`
+
+- CLI render stays ASCII when project ids contain non-ASCII
+- Symlinked handoff dir/files fail closed (`handoff-read-symlink-forbidden`)
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25

@@ -86,10 +86,17 @@ def _resolve_vault(vault: Path) -> Path:
 
 
 def _inside(root: Path, candidate: Path) -> Path:
+    if candidate.is_symlink():
+        raise WebHandoffReadError("handoff-read-symlink-forbidden")
     resolved = candidate.resolve()
     if not resolved.is_relative_to(root):
         raise WebHandoffReadError("handoff-read-path-escape")
     return resolved
+
+
+def _ascii_token(value: object) -> str:
+    text = str(value).strip()
+    return "".join(char if ord(char) < 128 else "?" for char in text)
 
 
 def _reject_invented_authority(payload: dict[str, Any], *, name: str) -> None:
@@ -114,6 +121,8 @@ def _handoff_dir(vault: Path) -> Path | None:
     path = vault / "generated" / "ops" / "handoffs"
     if not path.exists():
         return None
+    if path.is_symlink():
+        raise WebHandoffReadError("handoff-read-symlink-forbidden")
     if not path.is_dir():
         raise WebHandoffReadError("handoff-read-artifact-not-dir:generated/ops/handoffs")
     return _inside(vault, path)
@@ -139,6 +148,8 @@ def _existing_handoffs(vault: Path) -> dict[str, Any]:
         }
     latest_path = handoff_dir / "latest.json"
     if latest_path.exists():
+        if latest_path.is_symlink():
+            raise WebHandoffReadError("handoff-read-symlink-forbidden")
         if not latest_path.is_file():
             raise WebHandoffReadError("handoff-read-latest-not-file")
         try:
@@ -149,6 +160,8 @@ def _existing_handoffs(vault: Path) -> dict[str, Any]:
             malformed += 1
             latest = None
     for path in sorted(handoff_dir.iterdir(), key=lambda item: item.name):
+        if path.is_symlink():
+            raise WebHandoffReadError("handoff-read-symlink-forbidden")
         if not path.is_file() or path.suffix != ".json" or path.name == "latest.json":
             continue
         relative = path.relative_to(vault).as_posix()
@@ -280,7 +293,11 @@ def render_handoff_text(view: dict[str, Any]) -> str:
     if isinstance(raw_view, dict):
         inner = raw_view
     project_ids = inner.get("project_ids")
-    project_text = ",".join(project_ids) if isinstance(project_ids, list) else ""
+    project_text = (
+        ",".join(_ascii_token(item) for item in project_ids)
+        if isinstance(project_ids, list)
+        else ""
+    )
     lines = [
         f"atlas handoff-status report [{view.get('status', 'UNKNOWN')}]",
         f"  available:        {view.get('available')}",
