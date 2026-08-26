@@ -52,7 +52,15 @@ def _reject_authority_claims(payload: dict[str, Any], *, label: str) -> None:
 def _stale_ledger_rows(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for item in events:
+        if not isinstance(item, dict):
+            raise Atlas3Error("LEDGER_SCHEMA_INVALID", "ledger row must be an object")
+        _reject_authority_claims(item, label="ledger-event")
         payload = item.get("payload") or {}
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            raise Atlas3Error("LEDGER_SCHEMA_INVALID", "ledger payload must be an object")
+        _reject_authority_claims(payload, label="ledger-payload")
         freshness = str(payload.get("freshness") or item.get("freshness") or "")
         if freshness == "CURRENT" and (
             item.get("event_type") == "CONTEXT_INVALIDATED" or payload.get("stale") is True
