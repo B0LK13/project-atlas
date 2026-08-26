@@ -1,0 +1,38 @@
+{
+  "directive": "D-AUG26-CANONICAL-GE-PATH-RECONCILIATION-037",
+  "canonical_carrier": "PR609",
+  "canonical_windows_head": "4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+  "canonical_windows_tree": "b53de8667e48e625d0fdcea540a52f6b42f28b22",
+  "production_cert_head": "dc75651a28f10b7f07ea6da0c446919e36d64b99",
+  "production_cert_tree": "0aabded5cbbd45567a0d4b338d94d0096af73442",
+  "production_cert_transfer": "VALID_BY_NON_SEMANTIC_DELTA",
+  "superseded_packets": [
+    "docs/evidence/D-029-WINDOWS-EXECUTION-PACKET.json",
+    "docs/evidence/D-AUG26-EVIDENCE-GROUNDED-GOLDEN-ESTATE-034.json"
+  ],
+  "superseded_carriers": [
+    {
+      "pr": 608,
+      "head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+      "tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+      "reason": "GE blobs byte-identical to PR609; CI identical; weaker integration topology"
+    }
+  ],
+  "commands": [
+    "git checkout 4fe172ffc14713db9cfe4d698848b770d69a0fe6",
+    "pip install -e \".[dev]\"",
+    "python scripts/d028_post_merge_seal.py"
+  ],
+  "pass_criteria": {
+    "GE_TESTS": 48,
+    "ATLAS3_TESTS": 540,
+    "REPORT_READ_TESTS": 161,
+    "IV_ADV_TESTS": 49,
+    "VALID_P0": 0,
+    "VALID_P1": 0
+  },
+  "authentic_d_drive_ge": {
+    "required": false,
+    "reason": "D-020 CASE A valid; PR609 GE skill byte-identical to PR608/PR516 certified blobs"
+  }
+}
