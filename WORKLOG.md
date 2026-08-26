@@ -7580,4 +7580,15 @@ Isolated Time Machine UX reuse stacked on AT3-082 `#573`.
 - Missing stays UNKNOWN
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-112 (2026-08-26)
+
+Isolated federation reuse honesty stacked on AT3-093 `#574`.
+
+- `compile_federation_reuse` (no new CLI)
+- Composes declared FED-001/002 membership
+- Does not call federation writers
+- Federation != authority; cross-vault promote fails closed
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

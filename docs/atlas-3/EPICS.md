@@ -127,7 +127,7 @@ clock, no second Truth Core). They were not dropped.
 |---|---|---|
 | AT3-110 | Multi-project twin | ISOLATED_RUNTIME |
 | AT3-111 | Org identity | ISOLATED_RUNTIME |
-| AT3-112 | Federation reuse | LANDED_2X_REUSE (federation lens; not authority) |
+| AT3-112 | Federation reuse | ISOLATED_RUNTIME |
 
 ## Wave L — Ecosystem / enterprise
 

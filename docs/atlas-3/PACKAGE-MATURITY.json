@@ -333,6 +333,13 @@
       "evidence": "Reuses AS-2.2-KDIFF-001. No second clock. Wall-clock != valid-time. As-of != authority.",
       "guard_tests": ["tests/unit/test_atlas3_time_machine_ux_093.py"]
     },
+    "at3-112-federation-reuse": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/federation_reuse.py"],
+      "evidence": "Composes landed federation inventory/lens. Federation != authority. No cross-vault promote.",
+      "guard_tests": ["tests/unit/test_atlas3_federation_reuse_112.py"]
+    },
     "chatgpt-live-2x": {
       "maturity": "prep-frozen",
       "prep_tree": "docs/atlas-2.2/chatgpt-live/",
