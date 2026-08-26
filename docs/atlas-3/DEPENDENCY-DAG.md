@@ -110,6 +110,7 @@ AT3-053 autonomy-gate ► orch DAG/lease reuse (no self-dispatch; lease != merge
 AT3-039 normalize ──► canonical envelope (mixed corrupt fail-closed; graph != authority)
 AT3-040 extract ────► landed ITEM_TYPES (heuristic only; forged owner != confirmed)
 AT3-041 dedup ──────► exact/near collapse (provenance retained; no layer collapse)
+AT3-042 conflicts ──► detect only (no winner; state/intent/history stay separate)
 AT3-101 ledger-obs ► validated list (ledger != truth; no healthy filter)
 AT3-102 provider-sync ► honest states (live history != sync; AT3-046 blocked)
 AT3-006 security-catalog ► reviewed catalog (catalog != scanner != cert)

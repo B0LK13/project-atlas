@@ -3,10 +3,23 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Final
 
+from project_atlas.atlas3.contracts import Atlas3Error
+
+PACKAGE_ID: Final[str] = "AT3-042"
 _PG = re.compile(r"postgresql?\s*(\d+)", re.I)
 _INTENT = re.compile(r"\b(planned|later|after|migrate|migration)\b", re.I)
+
+
+def conflict_capability() -> dict[str, Any]:
+    return {
+        "package": PACKAGE_ID,
+        "collapsed_to_scalar": False,
+        "picks_winner": False,
+        "collapses_state_intent_history": False,
+        "auto_promote_to_truth_core": False,
+    }
 
 
 def detect_conflicts(
@@ -14,9 +27,13 @@ def detect_conflicts(
     *,
     current_state_text: str | None = None,
 ) -> dict[str, Any]:
+    if not isinstance(items, list):
+        raise Atlas3Error("CONFLICT_INVALID", "items must be a list")
     versions: dict[str, list[str]] = {}
     intents: list[str] = []
     for item in items:
+        if not isinstance(item, dict):
+            raise Atlas3Error("CONFLICT_INVALID", "item is not an object")
         text = str(item.get("text") or "")
         match = _PG.search(text)
         if not match:
@@ -38,10 +55,11 @@ def detect_conflicts(
         current is not None and any(version != current for version in versions)
     )
     return {
-        "package": "AT3-042",
+        "package": PACKAGE_ID,
         "current_state": current,
         "observed_versions": {key: sorted(set(value)) for key, value in sorted(versions.items())},
         "intent_versions": sorted(set(intents)),
         "conflicted_history": conflicted,
         "collapsed_to_scalar": False,
+        "winner": None,
     }

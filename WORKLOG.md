@@ -7640,4 +7640,12 @@ Isolated cross-LLM dedup stacked on AT3-040 `#580`.
 - Does not collapse state / intent / history
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-042 (2026-08-26)
+
+Isolated cross-LLM conflict detection stacked on AT3-041 `#581`.
+
+- `detect_conflicts` fail-closed on non-list / non-object items
+- Does not pick a winner or collapse state/intent/history
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
