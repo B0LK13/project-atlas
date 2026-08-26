@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-100-twin-health": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/twin_health.py"],
+      "evidence": "Derived twin health. Health != authority. Estate availability != owner authorization. UNKNOWN if undeclared.",
+      "guard_tests": ["tests/unit/test_atlas3_twin_health_100.py"]
+    },
     "at3-080-impact": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

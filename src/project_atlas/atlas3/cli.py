@@ -39,6 +39,7 @@ from project_atlas.atlas3.rel_expand import expand_relationships
 from project_atlas.atlas3.start import compile_start
 from project_atlas.atlas3.surface import compile_surface_contract, evaluate_surface_claim
 from project_atlas.atlas3.transport import prove_transport_is_not_authority
+from project_atlas.atlas3.twin_health import compile_twin_health
 
 ATLAS3_COMMANDS = frozenset(
     {
@@ -60,6 +61,7 @@ ATLAS3_COMMANDS = frozenset(
         "transport-authority",
         "provider-register",
         "impact-explorer",
+        "twin-health",
     }
 )
 
@@ -323,6 +325,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     impact_explorer.add_argument("--vault", type=Path, required=True)
     impact_explorer.add_argument("--project", required=True)
 
+    twin_health = subparsers.add_parser(
+        "twin-health",
+        help="Atlas 3 twin health (derived; health is not authority).",
+        description="Atlas 3 twin health (derived; health is not authority).",
+    )
+    twin_health.add_argument("--vault", type=Path, required=True)
+    twin_health.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -376,6 +386,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "twin-health":
+            return _dump(compile_twin_health(args.vault, args.project), as_json=True)
         if command == "impact-explorer":
             return _dump(compile_impact_explorer(args.vault, args.project), as_json=True)
         if command == "provider-register":

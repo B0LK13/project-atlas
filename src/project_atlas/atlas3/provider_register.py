@@ -37,6 +37,7 @@ ALLOWED_CLI: Final[frozenset[str]] = frozenset(
         "transport-authority",
         "provider-register",
         "impact-explorer",
+        "twin-health",
     }
 )
 FORBIDDEN_CLI: Final[frozenset[str]] = frozenset(

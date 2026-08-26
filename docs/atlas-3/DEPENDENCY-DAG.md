@@ -90,6 +90,7 @@ AT3-070 surfaces ───► CLI/API/Web/TUI/MCP/A2A contract (transport != aut
 AT3-071 transport ──► HTTP/CLI/MCP/A2A success != authority
 AT3-072 register ───► provider/capabilities CLI design (no proliferation)
 AT3-080 impact ─────► declared impact rows (graph != authority; no trust scores)
+AT3-100 twin-health ► derived signals (health != authority; estate != authorization)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

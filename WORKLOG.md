@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-100 (2026-08-26)
+
+Isolated twin health stacked on AT3-080.
+
+- `compile_twin_health` + CLI `atlas twin-health`
+- Derived signals only; missing stays UNKNOWN
+- Health != authority; estate availability != owner authorization
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-080 (2026-08-26)
 
 Isolated impact explorer data stacked on AT3-072.
