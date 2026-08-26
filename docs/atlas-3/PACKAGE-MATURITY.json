@@ -333,6 +333,13 @@
       "evidence": "Reuses AS-2.2-KDIFF-001. No second clock. Wall-clock != valid-time. As-of != authority.",
       "guard_tests": ["tests/unit/test_atlas3_time_machine_ux_093.py"]
     },
+    "at3-053-autonomy-gate": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/autonomy_gate.py"],
+      "evidence": "Reuses orch DAG/leases/owner gates. No self-dispatch. Lease != merge. Owner gates remain owner-only.",
+      "guard_tests": ["tests/unit/test_atlas3_autonomy_gate_053.py"]
+    },
     "at3-112-federation-reuse": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

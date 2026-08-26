@@ -81,7 +81,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-050 | Agent proof-of-work | ISOLATED_RUNTIME | orch receipts; not local_proof CLI |
 | AT3-051 | Independent verification binding | ISOLATED_RUNTIME | AS-ORCH result envelope |
 | AT3-052 | ADV binding | ISOLATED_RUNTIME | adv_release_cert |
-| AT3-053 | Autonomy gate reuse | LANDED_2X_REUSE | DAG, leases, owner gates |
+| AT3-053 | Autonomy gate reuse | ISOLATED_RUNTIME | DAG, leases, owner gates |
 
 ## Wave G — Interoperability
 

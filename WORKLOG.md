@@ -7591,4 +7591,14 @@ Isolated federation reuse honesty stacked on AT3-093 `#574`.
 - Missing stays UNKNOWN
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-053 (2026-08-26)
+
+Isolated autonomy gate reuse stacked on AT3-112 `#575`.
+
+- `compile_autonomy_gate_reuse` (no new CLI)
+- Reuses landed orch DAG / lease / owner-gate contracts
+- Self-dispatch / execution_authorized / invented owner authority fail closed
+- Lease is not merge authority
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

@@ -722,6 +722,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-082 Isolated next-action honesty (Pulse + next-lens compose; NEXT != command; no write)
 - [x] AT3-093 Isolated Time Machine UX reuse (kdiff only; no second clock; wall-clock != valid-time)
 - [x] AT3-112 Isolated federation reuse honesty (FED-001/002 compose; federation != authority; no promote)
+- [x] AT3-053 Isolated autonomy gate reuse (orch DAG/lease compose; no self-dispatch; lease != merge)
 - [x] AT3-101 Isolated ledger observability (validated read; ledger != truth; no healthy filter)
 - [x] AT3-102 Isolated provider sync status (honest capabilities; AT3-046 EXTERNAL_BLOCKED)
 - [ ] AT3-046 Incremental live provider sync
