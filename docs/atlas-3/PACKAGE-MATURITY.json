@@ -325,6 +325,13 @@
       "evidence": "Secret scan fail-closed. Unknown privacy class fail-closed. Raw transcript minimized. No Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_privacy_047.py"]
     },
+    "at3-048-search": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/search.py"],
+      "evidence": "Search extracted items only. Not a transcript dump. Cross-project search fails closed.",
+      "guard_tests": ["tests/unit/test_atlas3_search_048.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

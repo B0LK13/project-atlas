@@ -7666,4 +7666,13 @@ Isolated privacy/secret gate stacked on AT3-044 `#583`.
 - Raw transcript retention MINIMIZED
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-048 (2026-08-26)
+
+Isolated unified memory search stacked on AT3-047 `#584`.
+
+- Search extracted items only; not a transcript dump
+- Cross-project search fails closed
+- Mixed corrupt items fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

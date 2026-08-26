@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
 from project_atlas.atlas3.contracts import (
     OPS_RELATIVE,
@@ -13,6 +13,18 @@ from project_atlas.atlas3.contracts import (
 )
 from project_atlas.atlas3.memory.privacy import scan_or_raise
 from project_atlas.atlas3.memory.routing import assert_items_project_scope
+
+PACKAGE_ID: Final[str] = "AT3-048"
+
+
+def search_capability() -> dict[str, Any]:
+    return {
+        "package": PACKAGE_ID,
+        "transcript_dump": False,
+        "provenance_preserved": True,
+        "auto_promote_to_truth_core": False,
+        "cross_project_search": False,
+    }
 
 
 def search_memory(
@@ -32,10 +44,14 @@ def search_memory(
                 "PROJECT_MISMATCH",
                 f"mixed-project memory search: {sorted(scoped)}",
             )
+    if not isinstance(items, list):
+        raise Atlas3Error("SEARCH_INVALID", "items must be a list")
     needle = query.strip().lower()
     tokens = [part for part in needle.split() if part]
     hits: list[dict[str, Any]] = []
     for item in items:
+        if not isinstance(item, dict):
+            raise Atlas3Error("SEARCH_INVALID", "item is not an object")
         hay = " ".join(
             str(item.get(key) or "")
             for key in ("text", "item_type", "provider", "freshness")
@@ -54,7 +70,7 @@ def search_memory(
                 }
             )
     return {
-        "package": "AT3-048",
+        "package": PACKAGE_ID,
         "query": query,
         "hit_count": len(hits),
         "hits": hits,

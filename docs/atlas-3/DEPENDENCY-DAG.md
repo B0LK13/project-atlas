@@ -113,6 +113,7 @@ AT3-041 dedup ──────► exact/near collapse (provenance retained; no
 AT3-042 conflicts ──► detect only (no winner; state/intent/history stay separate)
 AT3-044 freshness ──► STALE != CURRENT; UNKNOWN stays UNKNOWN without stronger evidence
 AT3-047 privacy ────► secret scan fail-closed; raw transcript minimized
+AT3-048 search ─────► extracted items only (not transcript dump; cross-project fail-closed)
 AT3-101 ledger-obs ► validated list (ledger != truth; no healthy filter)
 AT3-102 provider-sync ► honest states (live history != sync; AT3-046 blocked)
 AT3-006 security-catalog ► reviewed catalog (catalog != scanner != cert)
