@@ -39,6 +39,7 @@ from project_atlas.atlas3.pulse import compile_pulse
 from project_atlas.atlas3.rel_expand import expand_relationships
 from project_atlas.atlas3.start import compile_start
 from project_atlas.atlas3.surface import compile_surface_contract, evaluate_surface_claim
+from project_atlas.atlas3.timeline import compile_timeline
 from project_atlas.atlas3.transport import prove_transport_is_not_authority
 from project_atlas.atlas3.twin_health import compile_twin_health
 
@@ -64,6 +65,7 @@ ATLAS3_COMMANDS = frozenset(
         "impact-explorer",
         "twin-health",
         "home",
+        "timeline",
     }
 )
 
@@ -351,6 +353,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Freshness requirement. CURRENT refuses stale-as-current-truth.",
     )
 
+    timeline = subparsers.add_parser(
+        "timeline",
+        help="Atlas 3 Timeline (declared valid-time; wall-clock is not valid-time).",
+        description="Atlas 3 Timeline (declared valid-time; wall-clock is not valid-time).",
+    )
+    timeline.add_argument("--vault", type=Path, required=True)
+    timeline.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -404,6 +414,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "timeline":
+            return _dump(compile_timeline(args.vault, args.project), as_json=True)
         if command == "home":
             return _dump(
                 compile_home(

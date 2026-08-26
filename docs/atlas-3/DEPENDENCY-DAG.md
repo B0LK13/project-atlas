@@ -92,6 +92,7 @@ AT3-072 register ───► provider/capabilities CLI design (no proliferation
 AT3-080 impact ─────► declared impact rows (graph != authority; no trust scores)
 AT3-100 twin-health ► derived signals (health != authority; estate != authorization)
 AT3-090 home ───────► Pulse + Start + twin health (UI != truth)
+AT3-091 timeline ───► ledger valid-time order (wall-clock != valid-time)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

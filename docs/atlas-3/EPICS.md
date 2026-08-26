@@ -106,7 +106,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-015 | Atlas Pulse | ISOLATED_RUNTIME |
 | AT3-030 | Atlas Start | ISOLATED_RUNTIME |
 | AT3-090 | Atlas Home | ISOLATED_RUNTIME |
-| AT3-091 | Timeline | NOT_STARTED |
+| AT3-091 | Timeline | ISOLATED_RUNTIME |
 | AT3-092 | Truth Graph UX | NOT_STARTED |
 | AT3-093 | Time Machine UX reuse | LANDED_2X_REUSE (kdiff / web) |
 | AT3-094 | Decision Explorer | NOT_STARTED |

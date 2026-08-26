@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-091 (2026-08-26)
+
+Isolated Timeline stacked on AT3-090.
+
+- `compile_timeline` + CLI `atlas timeline`
+- Orders validated ledger rows by document-declared valid-time
+- Wall-clock is not valid-time; timeline != Truth Core
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-090 (2026-08-26)
 
 Isolated Atlas Home composer stacked on AT3-100.

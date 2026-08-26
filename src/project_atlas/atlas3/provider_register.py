@@ -39,6 +39,7 @@ ALLOWED_CLI: Final[frozenset[str]] = frozenset(
         "impact-explorer",
         "twin-health",
         "home",
+        "timeline",
     }
 )
 FORBIDDEN_CLI: Final[frozenset[str]] = frozenset(

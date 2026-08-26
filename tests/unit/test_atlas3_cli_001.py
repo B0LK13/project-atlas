@@ -40,6 +40,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "impact-explorer",
         "twin-health",
         "home",
+        "timeline",
         "connect",
         "ask2",
         "kdiff",

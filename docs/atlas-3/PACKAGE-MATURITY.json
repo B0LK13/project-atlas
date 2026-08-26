@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-091-timeline": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/timeline.py"],
+      "evidence": "Ledger timeline by declared valid-time. Wall-clock is not valid-time. Timeline != Truth Core.",
+      "guard_tests": ["tests/unit/test_atlas3_timeline_091.py"]
+    },
     "at3-090-home": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

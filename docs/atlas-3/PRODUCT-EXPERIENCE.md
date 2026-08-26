@@ -82,6 +82,7 @@ atlas provider-register [--propose pulse,capabilities]
 atlas impact-explorer --vault <dir> --project <id>
 atlas twin-health --vault <dir> --project <id>
 atlas home --vault <dir> --project <id> --budget <n>
+atlas timeline --vault <dir> --project <id>
 ```
 
 `atlas memory sync` is a status/capability command in this slice, not a live
