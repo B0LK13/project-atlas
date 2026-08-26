@@ -15,6 +15,13 @@ def memory_providers() -> dict[str, Any]:
     return {
         **caps,
         "chatgpt_detail": chatgpt_capability(),
+        "chatgpt_current": {
+            "conversation_sync": "NOT_IMPLEMENTED",
+            "export_import": "IMPLEMENTED",
+            "live_full_history_sync": False,
+            "replaces_chatgpt_bridge": False,
+            "state": "EXPORT_ONLY",
+        },
         "claude_detail": claude_capability(),
         "claude_current": {
             "conversation_sync": "NOT_IMPLEMENTED",

@@ -25,6 +25,7 @@ from project_atlas.atlas3.impact import compile_impact_explorer
 from project_atlas.atlas3.inventory import compile_inventory
 from project_atlas.atlas3.iv_bind import bind_independent_verification
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
+from project_atlas.atlas3.memory.chatgpt import import_chatgpt_export
 from project_atlas.atlas3.memory.claude import import_claude_export
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.gemini import import_gemini_export
@@ -143,6 +144,13 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Report sync capability honesty (does not invent live provider APIs).",
     )
     sync.add_argument("--json", action="store_true")
+    chatgpt = mem_sub.add_parser(
+        "chatgpt",
+        help="Import a ChatGPT export fixture (not a live history API).",
+    )
+    chatgpt.add_argument("--export", type=Path, required=True, help="ChatGPT export path.")
+    chatgpt.add_argument("--conversation-id", required=True, help="Conversation id to bind.")
+    chatgpt.add_argument("--project", default=None, help="Optional project id tag.")
     claude = mem_sub.add_parser(
         "claude",
         help="Import a Claude JSON export fixture (not a live history API).",
@@ -607,6 +615,28 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     "live full-history sync is not implemented."
                 )
                 return _dump(caps, as_json=True)
+            if sub == "chatgpt":
+                envelopes = import_chatgpt_export(
+                    Path(args.export),
+                    conversation_id=str(args.conversation_id),
+                    project_id=getattr(args, "project", None),
+                )
+                return _dump(
+                    {
+                        "package": "AT3-036",
+                        "provider": "chatgpt",
+                        "import_mode": "EXPORT",
+                        "conversation_id": str(args.conversation_id),
+                        "project_id": getattr(args, "project", None),
+                        "envelope_count": len(envelopes),
+                        "envelopes": envelopes,
+                        "conversation_sync": "NOT_IMPLEMENTED",
+                        "live_full_history_sync": False,
+                        "replaces_chatgpt_bridge": False,
+                        "promoted_to_truth_core": 0,
+                    },
+                    as_json=True,
+                )
             if sub == "claude":
                 envelopes = import_claude_export(
                     Path(args.export),

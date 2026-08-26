@@ -51,7 +51,7 @@ clock, no second Truth Core). They were not dropped.
 | ID | Title | Status | Reuse |
 |---|---|---|---|
 | AT3-035 | Universal LLM connector framework | ISOLATED_RUNTIME | provider_adapters, conversation_capture |
-| AT3-036 | ChatGPT knowledge sync | ISOLATED_RUNTIME | chatgpt_bridge compose; parse_chat_export |
+| AT3-036 | ChatGPT knowledge sync | ISOLATED_RUNTIME | parse_chat_export compose; live history fail-closed; no chatgpt_bridge replace |
 | AT3-037 | Claude knowledge sync | ISOLATED_RUNTIME | export ingest; no history API claimed |
 | AT3-038 | Gemini knowledge sync | ISOLATED_RUNTIME | export ingest; no history API claimed |
 | AT3-039 | Cross-provider conversation normalization | ISOLATED_RUNTIME | canonical envelope |

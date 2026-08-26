@@ -7601,4 +7601,15 @@ Isolated autonomy gate reuse stacked on AT3-112 `#575`.
 - Lease is not merge authority
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-036 (2026-08-26)
+
+Isolated ChatGPT export honesty stacked on AT3-053 `#577`.
+
+- `import_chatgpt_export` + `atlas memory chatgpt`
+- Wraps landed `parse_chat_export`; does not import or replace `chatgpt_bridge`
+- `live_full_history_sync: true` fixtures fail closed
+- Mixed valid + corrupt JSON turns fail closed
+- CLI help is ASCII (C-002 / cp1252)
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

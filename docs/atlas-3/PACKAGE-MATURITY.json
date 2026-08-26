@@ -274,8 +274,11 @@
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",
       "production_surface": ["src/project_atlas/atlas3/memory/chatgpt.py"],
-      "evidence": "Wraps parse_chat_export; does not replace chatgpt_bridge.py.",
-      "guard_tests": ["tests/unit/test_atlas3_memory_001.py"]
+      "evidence": "Wraps parse_chat_export; does not replace chatgpt_bridge.py. Live history claim fails closed. CLI parity with AT3-037/038.",
+      "guard_tests": [
+        "tests/unit/test_atlas3_memory_001.py",
+        "tests/unit/test_atlas3_chatgpt_036.py"
+      ]
     },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",

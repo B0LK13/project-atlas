@@ -81,7 +81,7 @@ AT3-046 Incremental sync   (not live ChatGPT history)    │
 Truth Core ──────────► Pulse / Start / memory freshness (read)
 Bitemporal / kdiff ─► Time fields / stale queries (read)
 conversation_capture ► AT3-040 taxonomy (reuse, do not fork)
-chatgpt_bridge ─────► AT3-036 (compose, do not replace)
+chatgpt_bridge ─────► AT3-036 (compose, do not replace; live history claim fails closed)
 Ask2 / runtime_22 ──► consume reconciled memory later (not in this slice as write)
 Orch DAG / leases ──► AT3-050 / AT3-053 (project, do not redefine)
 AS-GRAPH-003 ───────► twin relationships (derived)
