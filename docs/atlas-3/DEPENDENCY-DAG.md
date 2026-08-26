@@ -88,6 +88,7 @@ AS-GRAPH-003 ───────► twin relationships (derived)
 AT3-021 rel-expand ─► GRAPH_REUSE aliases only (no AS-GRAPH-003 write)
 AT3-070 surfaces ───► CLI/API/Web/TUI/MCP/A2A contract (transport != authority)
 AT3-071 transport ──► HTTP/CLI/MCP/A2A success != authority
+AT3-072 register ───► provider/capabilities CLI design (no proliferation)
 FULL_LIVE_DEMO ─────► hard gate on mutating certified surfaces
 ```
 

@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-072 (2026-08-26)
+
+Isolated provider-register / capabilities CLI design stacked on AT3-071.
+
+- `compile_provider_register` / `assert_cli_design` + CLI `atlas provider-register`
+- Design only; no CLI proliferation; query.read and live-sync wrappers forbidden
+- Provider register is not a live history API
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-071 (2026-08-26)
 
 Isolated transport != authority prover stacked on AT3-070.

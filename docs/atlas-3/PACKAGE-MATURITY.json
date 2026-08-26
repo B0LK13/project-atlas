@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-072-provider-register": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/provider_register.py"],
+      "evidence": "Provider-register / capabilities CLI design. No CLI proliferation. Not a live history API.",
+      "guard_tests": ["tests/unit/test_atlas3_provider_register_072.py"]
+    },
     "at3-071-transport": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

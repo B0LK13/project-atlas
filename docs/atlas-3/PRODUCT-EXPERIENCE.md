@@ -78,6 +78,7 @@ atlas capabilities
 atlas compatibility --vault <dir>
 atlas surface-contract [--surface cli] [--claim projection]
 atlas transport-authority --surface <id> --transport-status <code>
+atlas provider-register [--propose pulse,capabilities]
 ```
 
 `atlas memory sync` is a status/capability command in this slice, not a live

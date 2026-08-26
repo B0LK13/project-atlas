@@ -29,6 +29,10 @@ from project_atlas.atlas3.memory.providers import memory_providers
 from project_atlas.atlas3.memory.routing import assert_items_project_scope
 from project_atlas.atlas3.memory.search import search_memory
 from project_atlas.atlas3.proof import evaluate_proof
+from project_atlas.atlas3.provider_register import (
+    assert_cli_design,
+    compile_provider_register,
+)
 from project_atlas.atlas3.pulse import compile_pulse
 from project_atlas.atlas3.rel_expand import expand_relationships
 from project_atlas.atlas3.start import compile_start
@@ -53,6 +57,7 @@ ATLAS3_COMMANDS = frozenset(
         "adv-bind",
         "surface-contract",
         "transport-authority",
+        "provider-register",
     }
 )
 
@@ -297,6 +302,17 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Forbidden. Transport cannot grant authority claims.",
     )
 
+    provider_register = subparsers.add_parser(
+        "provider-register",
+        help="Atlas 3 provider-register CLI design (no CLI proliferation).",
+        description="Atlas 3 provider-register CLI design (no CLI proliferation).",
+    )
+    provider_register.add_argument(
+        "--propose",
+        default=None,
+        help="Optional comma-separated proposed commands to check against the allowlist.",
+    )
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -350,6 +366,14 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "provider-register":
+            proposed = getattr(args, "propose", None)
+            if proposed:
+                return _dump(
+                    assert_cli_design(str(proposed).split(",")),
+                    as_json=True,
+                )
+            return _dump(compile_provider_register(), as_json=True)
         if command == "transport-authority":
             return _dump(
                 prove_transport_is_not_authority(

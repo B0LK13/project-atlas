@@ -36,6 +36,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "adv-bind",
         "surface-contract",
         "transport-authority",
+        "provider-register",
         "connect",
         "ask2",
         "kdiff",
