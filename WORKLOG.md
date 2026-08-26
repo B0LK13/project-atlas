@@ -7675,4 +7675,13 @@ Isolated unified memory search stacked on AT3-047 `#584`.
 - Mixed corrupt items fail closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-049 (2026-08-26)
+
+Isolated memory reconciliation stacked on AT3-048 `#585`.
+
+- Composes AT3-041 / AT3-042 / AT3-044
+- Never auto-promotes to Truth Core
+- Does not pick a winner
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
