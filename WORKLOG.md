@@ -7179,3 +7179,17 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## D-AUTONOMY-AUG26-MORNING-CONVERGENCE-019 — DAG inventory / IV / compact
+
+Date: 2026-08-26. Governor only. No merge. No main mutation.
+
+- Refreshed `origin/main`: `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / `8df56184bb25b1cf1b6a9102cf34e77248287940`
+- 94 post-#510 open PRs: live HEAD matched GitHub PR SHA
+- Lane A: single AT3 stack `#510`→`#592`; canonical tip `#592` `3f74bbb35bcb252727bab8e965b23c08b1194774` / `e73ec09e401c4279c4b71ff723925d7eae2c5cbe`; IV `540 passed`; P0=0 P1=0
+- Lane B: `#512`→`#516`; canonical tip `#516` `0c32f69d4a1b7da582f93a796c5b4bd9c81c20e7` / `7b9be18d4f6495f2ddf0b843e25f8f63dcfc4a34`; skill tests `32 passed`; `LOCAL_WINDOWS_REQUIRED`
+- Lane C: `#593`–`#603` independent of main; 55/55 pairwise conflicts on shared wiring; each alone locally green
+- Cross-lane product trees coexist; only `WORKLOG.md` conflicts
+- GitHub CI: `EXTERNAL_BLOCKED`; `LOCAL_PASS != GITHUB_CI_PASS`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Evidence: `docs/evidence/D-AUTONOMY-AUG26-MORNING-CONVERGENCE-019.md`
