@@ -531,3 +531,38 @@ def test_ge_win_002_root_as_project_inaccessible_descendant_not_golden(
         for item in report["exclusions"]
         if item["reason"] == INACCESSIBLE_REASON
     )
+
+
+def test_ge_win_002_inaccessible_open_does_not_treat_secret_as_scanned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "estate"
+    source.mkdir()
+    project = source / "content-secret"
+    _init_repo(project, readme="# Notes\n")
+    notes = project / "notes.txt"
+    notes.write_text(
+        "-----BEGIN RSA PRIVATE KEY-----\nIV_MUST_NOT_ECHO_THIS_VALUE\n",
+        encoding="utf-8",
+    )
+    _commit(project, "notes", "notes.txt")
+    dest = tmp_path / "win002-open.json"
+    before = fingerprint(source)
+    original = Path.open
+
+    def flaky_open(self: Path, *args: object, **kwargs: object) -> object:
+        if self.name == "notes.txt":
+            raise _win1920(self)
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", flaky_open)
+    report = curate(source, output=dest)
+    monkeypatch.setattr(Path, "open", original)
+    assert fingerprint(source) == before
+    assert dest.is_file()
+    item = next(row for row in report["inventory"] if row["name"] == "content-secret")
+    assert item["inspection_complete"] is False
+    assert item["path"] not in report["recommendation"]["recommended_golden_set"]
+    payload = json.dumps(report)
+    assert "IV_MUST_NOT_ECHO_THIS_VALUE" not in payload
+    assert WIN1920[1] not in payload
