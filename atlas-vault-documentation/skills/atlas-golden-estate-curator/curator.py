@@ -684,15 +684,16 @@ def recommend(qualifications: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _inaccessible_covers_project(project_path: str, inaccessible_paths: set[str]) -> bool:
     rel = canonicalize_report_path(project_path)
-    if not rel:
+    covered = {
+        canonicalize_report_path(item)
+        for item in inaccessible_paths
+        if canonicalize_report_path(item)
+    }
+    if not covered:
         return False
-    for item in inaccessible_paths:
-        exc = canonicalize_report_path(item)
-        if not exc:
-            continue
-        if exc == rel or exc.startswith(f"{rel}/"):
-            return True
-    return False
+    if rel in {"", "."}:
+        return True
+    return any(exc == rel or exc.startswith(f"{rel}/") for exc in covered)
 
 
 def estimate_disk(
