@@ -7309,4 +7309,14 @@ Isolated Gemini fixture/export ingest stacked on AT3-037.
 - Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
 - Does not mutate certified 2.x surfaces
 
+## AT3-010 (2026-08-26)
+
+Isolated repository/component inventory stacked on AT3-038.
+
+- `compile_inventory` + CLI `atlas inventory`
+- Missing declared inventory stays UNKNOWN
+- Provenance required; CROSS_PROJECT and authority claims fail closed
+- Inventory != Truth Core; authentic estate is not inferred
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

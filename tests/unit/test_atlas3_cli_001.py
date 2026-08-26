@@ -26,6 +26,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "ledger",
         "capabilities",
         "compatibility",
+        "inventory",
         "connect",
         "ask2",
         "kdiff",

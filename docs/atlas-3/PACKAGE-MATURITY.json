@@ -18,6 +18,13 @@
       "evidence": "Derived twin constructors; provenance required; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_twin_002.py"]
     },
+    "at3-010-inventory": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/inventory.py"],
+      "evidence": "Declared repository/component inventory. UNKNOWN if undeclared. Inventory != Truth Core.",
+      "guard_tests": ["tests/unit/test_atlas3_inventory_010.py"]
+    },
     "at3-004-capabilities": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/contracts/",
