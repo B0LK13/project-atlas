@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.capture_read import (
+    WebCaptureReadError,
+    read_capture_view,
+    render_capture_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -1019,6 +1024,43 @@ def build_parser() -> argparse.ArgumentParser:
         dest="review_state",
     )
     capture_review.add_argument("--json", action="store_true", dest="as_json")
+    capture_report = capture_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing session-capture receipts only "
+            "(never writes; CAPTURE != AUTHORITY; SESSION != TRUTH)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas capture report --vault /path/to/vault\n"
+            "  atlas capture report --vault /path/to/vault --json"
+        ),
+    )
+    capture_report.add_argument("--vault", type=Path, required=True)
+    capture_report.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Print the capture REPORT READ JSON to stdout.",
+    )
+    capture_show = capture_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `capture report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas capture show --vault /path/to/vault\n"
+            "  atlas capture show --vault /path/to/vault --json"
+        ),
+    )
+    capture_show.add_argument("--vault", type=Path, required=True)
+    capture_show.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Print the capture REPORT READ JSON to stdout.",
+    )
 
     inbox_parser = subparsers.add_parser(
         "inbox",
@@ -3747,6 +3789,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
     if args.command == "capture":
+        if args.capture_command in {"report", "show"}:
+            try:
+                view = read_capture_view(args.vault)
+            except (WebCaptureReadError, OSError) as exc:
+                _log.error("capture report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.as_json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_capture_text(view), end="")
+            return EXIT_OK
         try:
             if args.capture_command == "record":
                 report = capture_session(

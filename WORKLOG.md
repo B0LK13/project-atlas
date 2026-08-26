@@ -7179,3 +7179,9 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-CAPTURE-READ-001 (2026-08-26 night cycle)
+
+Vault-scoped REPORT READ of existing session-capture receipts. Does not call
+`capture_session` or `list_captures`. Does not write. CAPTURE != AUTHORITY;
+SESSION != TRUTH. MERGE_AUTHORIZATION = NOT_GRANTED.
