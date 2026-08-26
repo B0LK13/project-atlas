@@ -395,46 +395,75 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
             duplicate = identity in seen_ids
             seen_ids.setdefault(identity, rel)
             secret_findings: list[dict[str, str]] = []
+            inspection_complete = True
+            exclusion_mark = len(exclusions)
             secret_children = _safe_iterdir(current)
             if secret_children is None:
                 _record_inaccessible(exclusions, current, root)
+                inspection_complete = False
             else:
                 for child in secret_children:
                     if child.name in SKIP_DIR_NAMES:
                         continue
-                    child_file = _safe_is_file(child)
-                    if child_file is None:
+                    child_st = _safe_lstat(child)
+                    if child_st is None:
                         _record_inaccessible(exclusions, child, root)
+                        inspection_complete = False
                         continue
-                    if child_file:
-                        try:
-                            hit = _secret_hit(child)
-                        except OSError:
-                            _record_inaccessible(exclusions, child, root)
-                            continue
-                        if hit:
-                            secret_findings.append(hit)
+                    if _is_reparse(child_st):
+                        continue
+                    if SECRET_NAME_RE.search(child.name):
+                        secret_findings.append(
+                            {
+                                "kind": "filename",
+                                "pattern": "sensitive-name",
+                                "path": str(child.name),
+                            }
+                        )
+                        continue
+                    if not stat.S_ISREG(child_st.st_mode):
+                        continue
+                    try:
+                        hit = _secret_hit(child)
+                    except OSError:
+                        _record_inaccessible(exclusions, child, root)
+                        inspection_complete = False
+                        continue
+                    if hit:
+                        secret_findings.append(hit)
             packages_dir = _safe_is_dir(current / "packages")
             apps_dir = _safe_is_dir(current / "apps")
             if packages_dir is None:
                 _record_inaccessible(exclusions, current / "packages", root)
                 packages_dir = False
+                inspection_complete = False
             if apps_dir is None:
                 _record_inaccessible(exclusions, current / "apps", root)
                 apps_dir = False
+                inspection_complete = False
             test_signal = _safe_is_file(signals / "test_failed")
             build_signal = _safe_is_file(signals / "build_failed")
             if test_signal is None:
                 _record_inaccessible(exclusions, signals / "test_failed", root)
                 test_signal = False
+                inspection_complete = False
             if build_signal is None:
                 _record_inaccessible(exclusions, signals / "build_failed", root)
                 build_signal = False
+                inspection_complete = False
             try:
                 stale = _stale_docs(current, exclusions, root)
             except OSError:
                 _record_inaccessible(exclusions, current, root)
                 stale = False
+                inspection_complete = False
+            if len(exclusions) > exclusion_mark:
+                inspection_complete = False
+            malice = _malicious_build(current)
+            if malice is None:
+                _record_inaccessible(exclusions, current / "build.sh", root)
+                inspection_complete = False
+                malice = False
             records.append(
                 {
                     "path": rel,
@@ -459,9 +488,10 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
                     "duplicate_identity": duplicate,
                     "duplicate_of": seen_ids.get(identity) if duplicate else None,
                     "remote": _remote_url(current) if git_here else None,
-                    "malicious_build_script": _malicious_build(current),
+                    "malicious_build_script": malice,
                     "executed_build": False,
                     "source_mutated": False,
+                    "inspection_complete": inspection_complete,
                 }
             )
 
@@ -469,6 +499,8 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
         children = _safe_iterdir(current)
         if children is None:
             _record_inaccessible(exclusions, current, root)
+            if is_project:
+                records[-1]["inspection_complete"] = False
             return
         for child in children:
             if child.name in SKIP_DIR_NAMES:
@@ -489,12 +521,17 @@ def _walk_projects(root: Path) -> list[dict[str, Any]]:
     ]
 
 
-def _malicious_build(project: Path) -> bool:
+def _malicious_build(project: Path) -> bool | None:
     named = _safe_is_file(project / "malicious-build.sh")
+    if named is None:
+        return None
     if named is True:
         return True
     build = project / "build.sh"
-    if _safe_is_file(build) is True:
+    build_file = _safe_is_file(build)
+    if build_file is None:
+        return None
+    if build_file is True:
         return "rm -rf" in _read_text_limited(build)
     return False
 
@@ -579,6 +616,8 @@ def qualify(project: dict[str, Any]) -> dict[str, Any]:
         blockers.append("DUPLICATE_IDENTITY")
     if project.get("nested_repo"):
         blockers.append("NESTED_REPO")
+    if project.get("inspection_complete") is False:
+        blockers.append(INACCESSIBLE_REASON)
     challenge = any(
         [
             project.get("dirty_worktree"),
@@ -610,6 +649,7 @@ def qualify(project: dict[str, Any]) -> dict[str, Any]:
                 "build_failure_signal",
                 "monorepo",
                 "nested_repo",
+                "inspection_complete",
             )
         },
     }
@@ -721,6 +761,19 @@ def curate(
         for item in walked["exclusions"]
         if item.get("reason") == INACCESSIBLE_REASON
     ]
+    inaccessible_paths = {str(item.get("path") or "") for item in inaccessible}
+    golden_set = {str(item) for item in rec["recommended_golden_set"]}
+    inaccessible_is_golden = any(
+        path in golden_set
+        or any(
+            golden == path
+            or golden.startswith(f"{path}/")
+            or path.startswith(f"{golden}/")
+            for golden in golden_set
+        )
+        for path in inaccessible_paths
+        if path
+    )
     report = {
         "schema": "atlas.golden-estate-curator.report.v1",
         "package": PACKAGE_ID,
@@ -745,7 +798,7 @@ def curate(
             "partial": bool(inaccessible),
             "inaccessible_count": len(inaccessible),
             "inaccessible_is_safe": False,
-            "inaccessible_is_golden": False,
+            "inaccessible_is_golden": inaccessible_is_golden,
             "skipped_is_scanned": False,
             "partial_discovery_is_complete_discovery": False,
         },
