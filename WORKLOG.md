@@ -34,7 +34,7 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ```
 /workspace/.venv/bin/python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests -q --tb=short --no-cov -o addopts=
-46 passed
+48 passed
 /workspace/.venv/bin/python -m ruff check atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_windows_remediation.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_inventory_honesty.py
 All checks passed
 /workspace/.venv/bin/python -m mypy atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py
@@ -53,6 +53,8 @@ Second IV on `24e9759`: project-level kill closed; descendant/`estimate_disk` in
 Third IV on `703cc93`: required attacks 1–8 closed; new P1 when `source_root` itself is the git project (`path=.`) and a descendant is inaccessible. Closed by treating `.` as covering every `INACCESSIBLE_PATH`. Do not transfer certification from `703cc93`.
 
 Fourth IV on `7667a12`: required attacks 1–9 closed; new P1 `_read_text_limited` swallowed `Path.open` 1920 so a committed secret-shaped `notes.txt` stayed golden and `complete=true`. Closed by returning None on open failure and treating that as inaccessible / incomplete. Do not transfer certification from `7667a12`.
+
+Fifth IV (`IV-GE-WIN-020E`) on `911c394` / `605123f`: `GE_WIN_001=PASS`, `GE_WIN_002_SYNTHETIC=PASS`, `INDEPENDENT_IV=PASS`, `P0=0`, `P1=0`. Authentic D:\ remains unclaimed. Successor seal + Local rebind packet: `docs/evidence/D-CLOUD-AUG26-GE-WINDOWS-REMEDIATION-020.md`.
 
 ---
 
