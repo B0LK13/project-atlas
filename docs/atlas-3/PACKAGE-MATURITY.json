@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-062-decided": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/decided.py"],
+      "evidence": "Declared DECIDED_BY edges. owner_origin required. Graph != authority. Model != owner.",
+      "guard_tests": ["tests/unit/test_atlas3_decided_062.py"]
+    },
     "at3-060-causal": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

@@ -11,6 +11,7 @@ from project_atlas.atlas3.capabilities import list_capabilities
 from project_atlas.atlas3.causal import compile_causal_graph
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
+from project_atlas.atlas3.decided import compile_decided_by
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
 from project_atlas.atlas3.estate_nodes import compile_estate_nodes
 from project_atlas.atlas3.file_graph import compile_file_graph
@@ -41,6 +42,7 @@ ATLAS3_COMMANDS = frozenset(
         "file-graph",
         "estate-nodes",
         "causal-graph",
+        "decided-by",
     }
 )
 
@@ -211,6 +213,15 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     causal_graph.add_argument("--project", required=True)
     causal_graph.add_argument("--json", action="store_true")
 
+    decided_by = subparsers.add_parser(
+        "decided-by",
+        help="Atlas 3 DECIDED_BY provenance (owner_origin required).",
+        description="Atlas 3 DECIDED_BY provenance (owner_origin required).",
+    )
+    decided_by.add_argument("--vault", type=Path, required=True)
+    decided_by.add_argument("--project", required=True)
+    decided_by.add_argument("--json", action="store_true")
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -247,6 +258,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
             return _dump(compile_estate_nodes(args.vault, args.project), as_json=True)
         if command == "causal-graph":
             return _dump(compile_causal_graph(args.vault, args.project), as_json=True)
+        if command == "decided-by":
+            return _dump(compile_decided_by(args.vault, args.project), as_json=True)
         if command == "proof":
             evidence = None
             if getattr(args, "evidence", None):

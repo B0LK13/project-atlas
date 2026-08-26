@@ -7365,4 +7365,13 @@ Isolated causal graph stacked on AT3-061.
 - Graph != authority; provenance required
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-062 (2026-08-26)
+
+Isolated DECIDED_BY provenance stacked on AT3-060.
+
+- `compile_decided_by` + CLI `atlas decided-by`
+- Explicit owner_origin required; model claims fail closed
+- Graph != authority; missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

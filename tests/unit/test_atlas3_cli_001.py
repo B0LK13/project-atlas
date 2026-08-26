@@ -30,6 +30,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "file-graph",
         "estate-nodes",
         "causal-graph",
+        "decided-by",
         "connect",
         "ask2",
         "kdiff",
