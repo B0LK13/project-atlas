@@ -63,7 +63,8 @@ AT3-056 Fixture provider handoff
 ```
 
 Provider lanes after AT3-035: AT3-036 ChatGPT (first), then AT3-037 Claude,
-then AT3-038 Gemini, then AT3-057 Cursor (local-session fixture).
+then AT3-038 Gemini, then AT3-057 Cursor (local-session fixture),
+then AT3-058 Codex (structured-submission fixture).
 Privacy/security (AT3-047) runs from the start.
 
 ## Execution gate

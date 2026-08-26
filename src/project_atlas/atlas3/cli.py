@@ -27,6 +27,7 @@ from project_atlas.atlas3.iv_bind import bind_independent_verification
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.chatgpt import import_chatgpt_export
 from project_atlas.atlas3.memory.claude import import_claude_export
+from project_atlas.atlas3.memory.codex import import_codex_export
 from project_atlas.atlas3.memory.connector import provider_capabilities
 from project_atlas.atlas3.memory.context_compiler import (
     compile_memory_context,
@@ -235,6 +236,13 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     cursor.add_argument("--export", type=Path, required=True, help="Cursor JSON session path.")
     cursor.add_argument("--conversation-id", required=True, help="Conversation id to bind.")
     cursor.add_argument("--project", default=None, help="Optional project id tag.")
+    codex = mem_sub.add_parser(
+        "codex",
+        help="Import a Codex JSON fixture (not a live history API).",
+    )
+    codex.add_argument("--export", type=Path, required=True, help="Codex JSON fixture path.")
+    codex.add_argument("--conversation-id", required=True, help="Conversation id to bind.")
+    codex.add_argument("--project", default=None, help="Optional project id tag.")
     for name in ("conflicts", "stale", "intent", "lineage"):
         parser = mem_sub.add_parser(
             name, help=f"Memory {name} (requires prior reconcile artifact)."
@@ -836,6 +844,27 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         "conversation_sync": "NOT_IMPLEMENTED",
                         "live_full_history_sync": False,
                         "cursor_cloud_history": False,
+                        "promoted_to_truth_core": 0,
+                    },
+                    as_json=True,
+                )
+            if sub == "codex":
+                envelopes = import_codex_export(
+                    Path(args.export),
+                    conversation_id=str(args.conversation_id),
+                    project_id=getattr(args, "project", None),
+                )
+                return _dump(
+                    {
+                        "package": "AT3-058",
+                        "provider": "codex",
+                        "import_mode": "STRUCTURED_SUBMISSION",
+                        "conversation_id": str(args.conversation_id),
+                        "project_id": getattr(args, "project", None),
+                        "envelope_count": len(envelopes),
+                        "envelopes": envelopes,
+                        "conversation_sync": "NOT_IMPLEMENTED",
+                        "live_full_history_sync": False,
                         "promoted_to_truth_core": 0,
                     },
                     as_json=True,

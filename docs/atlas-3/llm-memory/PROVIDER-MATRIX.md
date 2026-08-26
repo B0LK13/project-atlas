@@ -8,7 +8,7 @@ Honesty: local fixture coverage ≠ synchronized provider.
 | Claude | Yes (`claude`) | **Implemented** (isolated fixture/export ingest; not a 2.x Core bridge) | Not implemented; do not invent APIs | `CLAUDE.md` ≠ ingestion | `EXPORT_ONLY` / `MANUAL_CAPTURE` |
 | Gemini | Opaque token `gemini` | **Implemented** (isolated fixture/export ingest; not a 2.x Core bridge) | Not implemented; do not invent APIs | `GEMINI.md` ≠ ingestion | `EXPORT_ONLY` / `MANUAL_CAPTURE` |
 | Cursor | Yes (`cursor`) | **Implemented** (isolated local-session JSON fixture; not a 2.x Core bridge) | Not implemented; do not invent Cursor Cloud APIs | `AGENTS.md` / Cursor rules ≠ ingestion | `LOCAL_SESSION` / `STRUCTURED_SUBMISSION` |
-| Codex | Yes (`codex`) | Structured / local | N/A | agent adapters | `STRUCTURED_SUBMISSION` |
+| Codex | Yes (`codex`) | **Implemented** (isolated structured-submission JSON fixture; not a 2.x Core bridge) | Not implemented; do not invent native history APIs | `CODEX.md` ≠ ingestion | `STRUCTURED_SUBMISSION` / `LOCAL_SESSION` |
 | Copilot | Future token | Unsupported | Unsupported | None | `UNSUPPORTED` |
 | Generic SDK | AT3-035 registry | Adapter-defined | Adapter-defined | N/A | Fail closed if undeclared |
 

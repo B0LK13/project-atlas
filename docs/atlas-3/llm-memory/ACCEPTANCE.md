@@ -29,6 +29,7 @@ Complete when:
 
 Claude/Gemini **native history sync** remains **NOT IMPLEMENTED**.
 Cursor **Cloud history sync** remains **NOT IMPLEMENTED** (AT3-057 is local-session fixture ingest only).
+Codex **native history sync** remains **NOT IMPLEMENTED** (AT3-058 is structured-submission fixture ingest only).
 
 ## PostgreSQL multi-provider fixture
 

@@ -7730,4 +7730,13 @@ Isolated Cursor fixture / local-session ingest stacked on AT3-056 `#590`.
 - Cursor Cloud history claims fail closed
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-058 (2026-08-26)
+
+Isolated Codex fixture / structured-submission ingest stacked on AT3-057 `#591`.
+
+- Structured JSON fixture ingest; import_mode=STRUCTURED_SUBMISSION
+- CODEX.md is bootstrap, not ingestion
+- Native history claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

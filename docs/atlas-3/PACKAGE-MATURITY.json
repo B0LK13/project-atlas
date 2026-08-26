@@ -353,6 +353,13 @@
       "evidence": "Local-session JSON fixture ingest only. AGENTS.md != ingestion. Cursor Cloud history NOT IMPLEMENTED. No Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_cursor_057.py"]
     },
+    "at3-058-codex": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/codex.py"],
+      "evidence": "Structured-submission JSON fixture ingest only. CODEX.md != ingestion. Native history NOT IMPLEMENTED. No Truth Core write.",
+      "guard_tests": ["tests/unit/test_atlas3_codex_058.py"]
+    },
     "at3-055-context-serve": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

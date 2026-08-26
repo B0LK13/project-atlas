@@ -93,7 +93,10 @@ DEFAULT_ADAPTERS: Final[dict[str, ProviderAdapter]] = {
         state="PARTIAL",
         modes=["STRUCTURED_SUBMISSION", "LOCAL_SESSION"],
         live_full_history_sync=False,
-        notes="Structured capture only.",
+        notes=(
+            "Structured fixture/submission ingest implemented. "
+            "Native Codex history sync not implemented. CODEX.md is bootstrap only."
+        ),
     ),
     "copilot": _adapter(
         "copilot",
