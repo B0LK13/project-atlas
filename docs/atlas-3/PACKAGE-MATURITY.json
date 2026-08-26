@@ -270,6 +270,13 @@
       "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. GEMINI.md != ingestion.",
       "guard_tests": ["tests/unit/test_atlas3_gemini_038.py"]
     },
+    "at3-101-ledger-obs": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/ledger_obs.py"],
+      "evidence": "Validated ledger read observability. Ledger != Truth Core. Corruption is not filtered into a healthy count.",
+      "guard_tests": ["tests/unit/test_atlas3_ledger_obs_101.py"]
+    },
     "at3-081-stale-conflict": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",

@@ -118,7 +118,7 @@ clock, no second Truth Core). They were not dropped.
 | ID | Title | Status |
 |---|---|---|
 | AT3-100 | Twin health | ISOLATED_RUNTIME |
-| AT3-101 | Ledger observability | ISOLATED_RUNTIME (list/status) |
+| AT3-101 | Ledger observability | ISOLATED_RUNTIME |
 | AT3-102 | Provider sync status | ISOLATED_RUNTIME (honest capability states) |
 
 ## Wave K — Organization twin
