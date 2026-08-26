@@ -7856,3 +7856,9 @@ Fifth IV (`IV-GE-WIN-020E`) on `911c394` / `605123f`: `GE_WIN_001=PASS`, `GE_WIN
 `pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests --no-cov` â€” 19 passed.
 
 ---
+## D-029 — PR542 Windows lost-race ingest fix (carrier)
+
+**Date:** 2026-08-26
+**Carrier:** rebased onto integrated main
+**Delta:** ingestion promote lost-race tolerance
+MERGE_AUTHORIZATION=NOT_GRANTED

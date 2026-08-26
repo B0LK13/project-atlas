@@ -10,7 +10,13 @@ from unittest.mock import patch
 
 import pytest
 
-from project_atlas.ingestion import PromoteAccounting, _file_hash, _payload_sha256, _promote
+from project_atlas.ingestion import (
+    PromoteAccounting,
+    _file_hash,
+    _payload_sha256,
+    _promote,
+    _replace_path,
+)
 
 
 def test_ops001_fr001_hash_match_skips_replace(tmp_path: Path) -> None:
@@ -165,3 +171,18 @@ def test_ops001_adv_accounting_type_is_module_level() -> None:
     sample = PromoteAccounting(planned=2, noop_skipped=1, written=1)
     as_dict: dict[str, Any] = sample._asdict()
     assert set(as_dict) == {"planned", "noop_skipped", "written"}
+
+
+def test_replace_path_lost_race_is_noop_when_destination_exists(tmp_path: Path) -> None:
+    destination = tmp_path / "authority.json"
+    destination.write_text("winner\n", encoding="utf-8")
+    missing = tmp_path / ".authority.json.lost.atlas-stage"
+    _replace_path(missing, destination)
+    assert destination.read_text(encoding="utf-8") == "winner\n"
+
+
+def test_replace_path_missing_source_without_destination_fails(tmp_path: Path) -> None:
+    missing = tmp_path / ".authority.json.lost.atlas-stage"
+    destination = tmp_path / "authority.json"
+    with pytest.raises(FileNotFoundError):
+        _replace_path(missing, destination)
