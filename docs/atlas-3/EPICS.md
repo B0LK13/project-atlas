@@ -109,7 +109,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-091 | Timeline | ISOLATED_RUNTIME |
 | AT3-092 | Truth Graph UX | NOT_STARTED |
 | AT3-093 | Time Machine UX reuse | LANDED_2X_REUSE (kdiff / web) |
-| AT3-094 | Decision Explorer | NOT_STARTED |
+| AT3-094 | Decision Explorer | ISOLATED_RUNTIME |
 | AT3-095 | Impact Explorer | NOT_STARTED |
 | AT3-096 | Mission Command Center | NOT_STARTED |
 

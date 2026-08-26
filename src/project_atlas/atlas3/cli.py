@@ -13,6 +13,7 @@ from project_atlas.atlas3.causal import compile_causal_graph
 from project_atlas.atlas3.compat import prove_compatibility
 from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.decided import compile_decided_by
+from project_atlas.atlas3.decision_explorer import compile_decision_explorer
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
 from project_atlas.atlas3.estate_nodes import compile_estate_nodes
 from project_atlas.atlas3.file_graph import compile_file_graph
@@ -66,6 +67,7 @@ ATLAS3_COMMANDS = frozenset(
         "twin-health",
         "home",
         "timeline",
+        "decision-explorer",
     }
 )
 
@@ -361,6 +363,18 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     timeline.add_argument("--vault", type=Path, required=True)
     timeline.add_argument("--project", required=True)
 
+    decision_explorer = subparsers.add_parser(
+        "decision-explorer",
+        help=(
+            "Atlas 3 Decision Explorer (declared; model paraphrase is not an owner decision)."
+        ),
+        description=(
+            "Atlas 3 Decision Explorer (declared; model paraphrase is not an owner decision)."
+        ),
+    )
+    decision_explorer.add_argument("--vault", type=Path, required=True)
+    decision_explorer.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -414,6 +428,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "decision-explorer":
+            return _dump(compile_decision_explorer(args.vault, args.project), as_json=True)
         if command == "timeline":
             return _dump(compile_timeline(args.vault, args.project), as_json=True)
         if command == "home":

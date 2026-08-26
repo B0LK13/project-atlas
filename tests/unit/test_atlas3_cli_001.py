@@ -41,6 +41,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "twin-health",
         "home",
         "timeline",
+        "decision-explorer",
         "connect",
         "ask2",
         "kdiff",

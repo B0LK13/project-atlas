@@ -7401,6 +7401,16 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-094 (2026-08-26)
+
+Isolated Decision Explorer stacked on AT3-091.
+
+- `compile_decision_explorer` + CLI `atlas decision-explorer`
+- Declared owner decisions only; missing stays UNKNOWN
+- Model paraphrase / missing owner_origin fail closed
+- Decision Explorer != Truth Core
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-091 (2026-08-26)
 
 Isolated Timeline stacked on AT3-090.
