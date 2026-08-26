@@ -20,6 +20,12 @@ from project_atlas.web_api.brief import (
 from project_atlas.web_api.conflicts import list_project_conflicts
 from project_atlas.web_api.discovery import load_estate_discovery_view
 from project_atlas.web_api.graph import impact_graph_summary, read_impact_graph
+from project_atlas.web_api.handoff_read import (
+    WebHandoffReadError,
+    read_handoff_view,
+    render_handoff_text,
+    show_handoff_view,
+)
 from project_atlas.web_api.health import (
     OBS_HEALTH_SNAPSHOT_RELATIVE,
     ReadStatus,
@@ -52,6 +58,7 @@ __all__ = [
     "ReadStatus",
     "VaultHealthView",
     "WebBriefError",
+    "WebHandoffReadError",
     "WebIntelligenceError",
     "WebRoadmapError",
     "WebSourceHealthError",
@@ -61,6 +68,7 @@ __all__ = [
     "list_project_conflicts",
     "list_projects",
     "load_estate_discovery_view",
+    "read_handoff_view",
     "read_impact_graph",
     "read_intelligence_conflicts",
     "read_intelligence_evidence",
@@ -74,4 +82,6 @@ __all__ = [
     "read_source_health",
     "read_status",
     "read_vault_health",
+    "render_handoff_text",
+    "show_handoff_view",
 ]

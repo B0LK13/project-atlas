@@ -939,6 +939,53 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    handoff_status_parser = subparsers.add_parser(
+        "handoff-status",
+        help=(
+            "Read existing handoff packs "
+            "(AS-CODER-ALPHA-HANDOFF-READ-001; never writes; HANDOFF REPORT != AUTHORITY)."
+        ),
+    )
+    handoff_status_sub = handoff_status_parser.add_subparsers(
+        dest="handoff_status_command", required=True
+    )
+    handoff_status_report = handoff_status_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read-only wrap of existing handoff packs "
+            "(never writes; HANDOFF REPORT != AUTHORITY; PACK != TRUTH CORE)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas handoff-status report --vault /path/to/vault\n"
+            "  atlas handoff-status report --vault /path/to/vault --json"
+        ),
+    )
+    handoff_status_report.add_argument("--vault", type=Path, required=True)
+    handoff_status_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the handoff REPORT READ JSON to stdout.",
+    )
+    handoff_status_show = handoff_status_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Show one persisted handoff pack (read-only; does not resume).",
+        epilog=(
+            "Examples:\n"
+            "  atlas handoff-status show --vault /path/to/vault\n"
+            "  atlas handoff-status show --vault /path/to/vault --handoff-id H1 --json"
+        ),
+    )
+    handoff_status_show.add_argument("--vault", type=Path, required=True)
+    handoff_status_show.add_argument("--handoff-id", default=None)
+    handoff_status_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the handoff REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3374,6 +3421,30 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"  warning:  {warning}")
             for item in report.get("resume_instructions") or []:
                 print(f"  - {item}")
+        return EXIT_OK
+
+    if args.command == "handoff-status":
+        from project_atlas.web_api.handoff_read import (
+            WebHandoffReadError,
+            read_handoff_view,
+            render_handoff_text,
+            show_handoff_view,
+        )
+
+        try:
+            if args.handoff_status_command == "show":
+                report = show_handoff_view(
+                    args.vault, handoff_id=getattr(args, "handoff_id", None)
+                )
+            else:
+                report = read_handoff_view(args.vault)
+        except (WebHandoffReadError, OSError, ValueError) as exc:
+            _log.error("handoff-status report read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_handoff_text(report), end="")
         return EXIT_OK
 
     if args.command == "inbox":

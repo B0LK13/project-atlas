@@ -5,6 +5,17 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-HANDOFF-READ-001 (2026-08-26)
+
+Vault-scoped handoff REPORT READ isolated from Atlas 3 stack. Base live main.
+
+- `read_handoff_view` / `show_handoff_view` + CLI `atlas handoff-status`
+- MCP `atlas.handoff.read` and `GET /v1/handoff/report`
+- Never calls `create_handoff` / `resume_handoff`
+- EMPTY != HEALTHY; mixed valid+corrupt is UNKNOWN
+- HANDOFF REPORT != AUTHORITY
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
