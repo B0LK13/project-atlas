@@ -5,6 +5,44 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-CLOUD-AUG26-GE-WINDOWS-REMEDIATION-020
+
+**Date:** 2026-08-26
+**Directive:** D-CLOUD-AUG26-GE-WINDOWS-REMEDIATION-020
+**PR:** #516 (same canonical branch; no replacement PR)
+**Branch:** `cursor/atlas-golden-estate-inventory-honesty-7f43`
+**Failed exact object:** `0c32f69d4a1b7da582f93a796c5b4bd9c81c20e7` / tree `7b9be18d4f6495f2ddf0b843e25f8f63dcfc4a34`
+**Live main:** `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / tree `8df56184bb25b1cf1b6a9102cf34e77248287940`
+**Mode:** Narrow Windows P1 remediation only. Does not redesign Golden Estate.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`AUTHENTIC_D_DRIVE_PASS` is not claimed. Cloud may only require Local retest.
+
+### Findings closed (synthetic)
+
+- GE-WIN-001: report-relative identities now use `/` (`canonicalize_report_path` / `report_relpath`). Absolute filesystem paths stay platform-native.
+- GE-WIN-002: DISCOVER_ONLY traversal records `INACCESSIBLE_PATH` and continues siblings; root inaccessibility stays terminal. No raw exception text in the report.
+
+### Honesty
+
+- `INACCESSIBLE != SAFE != GOLDEN`
+- `SKIPPED != SCANNED`
+- `PARTIAL_DISCOVERY != COMPLETE_DISCOVERY`
+- `CLOUD_FIXTURE != AUTHENTIC_D_DRIVE`
+- COPY / GOLDENIZE remain forbidden
+
+### Validation (implementer; not IV)
+
+```
+/workspace/.venv/bin/python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests -q --tb=short --no-cov -o addopts=
+41 passed
+/workspace/.venv/bin/python -m ruff check atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py atlas-vault-documentation/skills/atlas-golden-estate-curator/tests/test_windows_remediation.py
+All checks passed
+/workspace/.venv/bin/python -m mypy atlas-vault-documentation/skills/atlas-golden-estate-curator/curator.py
+Success: no issues found in 1 source file
+```
+
+---
+
 ## ATLAS-GOLDEN-ESTATE-INVENTORY-HONESTY-001
 
 **Date:** 2026-08-25

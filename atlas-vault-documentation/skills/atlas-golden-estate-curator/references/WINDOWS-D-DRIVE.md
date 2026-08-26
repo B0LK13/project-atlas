@@ -29,6 +29,23 @@ python atlas-vault-documentation\skills\atlas-golden-estate-curator\curator.py `
 The report path must stay off `D:\` if `D:\` is the source root
 (`$env:TEMP` is acceptable).
 
+Report-relative identities in the JSON must use `/` on Windows
+(`group-a/widget`, never `group-a\widget`). Absolute `source_root` /
+`report_path` stay native.
+
+An inaccessible junction, reparse point, or permission-denied descendant
+must not abort the `D:\` inventory. Expect a closed `INACCESSIBLE_PATH`
+exclusion, siblings still discovered, and a report still written.
+
+```text
+INACCESSIBLE != SAFE
+INACCESSIBLE != GOLDEN
+SKIPPED != SCANNED
+PARTIAL_DISCOVERY != COMPLETE_DISCOVERY
+```
+
+Root-level inability to inspect `D:\` itself remains fail-closed terminal.
+
 ## Expected artifacts
 
 - inventory
