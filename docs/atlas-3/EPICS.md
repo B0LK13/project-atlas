@@ -54,7 +54,7 @@ clock, no second Truth Core). They were not dropped.
 | AT3-036 | ChatGPT knowledge sync | ISOLATED_RUNTIME | parse_chat_export compose; live history fail-closed; no chatgpt_bridge replace |
 | AT3-037 | Claude knowledge sync | ISOLATED_RUNTIME | export ingest; no history API claimed |
 | AT3-038 | Gemini knowledge sync | ISOLATED_RUNTIME | export ingest; no history API claimed |
-| AT3-039 | Cross-provider conversation normalization | ISOLATED_RUNTIME | canonical envelope |
+| AT3-039 | Cross-provider conversation normalization | ISOLATED_RUNTIME | canonical envelope; mixed corrupt fail-closed |
 | AT3-040 | Conversation knowledge extractor | ISOLATED_RUNTIME | existing ITEM_TYPES |
 | AT3-041 | Cross-LLM deduplication | ISOLATED_RUNTIME | content-hash + normalized text |
 | AT3-042 | Cross-LLM conflict detection | ISOLATED_RUNTIME | do not collapse state/intent/history |

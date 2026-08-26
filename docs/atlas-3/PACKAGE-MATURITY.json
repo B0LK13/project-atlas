@@ -280,6 +280,16 @@
         "tests/unit/test_atlas3_chatgpt_036.py"
       ]
     },
+    "at3-039-normalize": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": [
+        "src/project_atlas/atlas3/memory/normalize.py",
+        "src/project_atlas/atlas3/memory/envelope.py"
+      ],
+      "evidence": "Canonical envelope only. Mixed valid+corrupt turns fail closed. Graph != authority. No new CLI.",
+      "guard_tests": ["tests/unit/test_atlas3_normalize_039.py"]
+    },
     "at3-037-claude": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

@@ -7612,4 +7612,13 @@ Isolated ChatGPT export honesty stacked on AT3-053 `#577`.
 - CLI help is ASCII (C-002 / cp1252)
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-039 (2026-08-26)
+
+Isolated conversation normalization stacked on AT3-036 `#578`.
+
+- `normalize_turns` fail-closed on non-list / non-object turns
+- Canonical envelope only; no new CLI
+- Graph != authority; raw transcript not persisted
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 
-from project_atlas.atlas3.memory.envelope import build_envelope
+from project_atlas.atlas3.contracts import Atlas3Error
+from project_atlas.atlas3.memory.envelope import SCHEMA_NAME, build_envelope
 from project_atlas.atlas3.memory.privacy import apply_privacy
+
+PACKAGE_ID: Final[str] = "AT3-039"
 
 ROLE_ALIASES = {
     "human": "user",
@@ -19,6 +22,17 @@ ROLE_ALIASES = {
 }
 
 
+def normalize_capability() -> dict[str, Any]:
+    return {
+        "package": PACKAGE_ID,
+        "schema": SCHEMA_NAME,
+        "import_mode_required": True,
+        "graph_is_authority": False,
+        "raw_transcript_persisted": False,
+        "partial_persist_on_corrupt": False,
+    }
+
+
 def normalize_turns(
     turns: list[dict[str, Any]],
     *,
@@ -28,9 +42,13 @@ def normalize_turns(
     project_id: str | None = None,
     privacy_class: str = "include",
 ) -> list[dict[str, Any]]:
+    if not isinstance(turns, list):
+        raise Atlas3Error("NORMALIZE_INVALID", "turns must be a list")
     envelopes: list[dict[str, Any]] = []
     parent: str | None = None
     for index, turn in enumerate(turns):
+        if not isinstance(turn, dict):
+            raise Atlas3Error("NORMALIZE_INVALID", "turn is not an object")
         raw_role = str(turn.get("role") or "assistant").strip().lower()
         role = ROLE_ALIASES.get(raw_role, raw_role)
         raw_text = str(turn.get("text") or turn.get("content") or "")
