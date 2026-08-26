@@ -7297,4 +7297,16 @@ Isolated Claude fixture/export ingest stacked on AT3-045.
 - Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
 - Does not mutate certified 2.x surfaces
 
+## AT3-038 (2026-08-26)
+
+Isolated Gemini fixture/export ingest stacked on AT3-037.
+
+- `import_gemini_export` + CLI `atlas memory gemini`
+- `conversation_sync = NOT_IMPLEMENTED`; no private history API claimed
+- `GEMINI.md` is bootstrap, not ingestion
+- Fixtures claiming `live_full_history_sync` fail closed
+- Mixed valid + corrupt turns fail closed
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
 

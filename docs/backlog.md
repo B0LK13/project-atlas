@@ -688,6 +688,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-CHRONICLE Horizon design notes only (no runtime)
 - [x] AT3-037 Isolated Claude fixture/export ingest (native history sync remains NOT IMPLEMENTED)
 - [ ] AT3-037 Claude native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
+- [x] AT3-038 Isolated Gemini fixture/export ingest (native history sync remains NOT IMPLEMENTED)
 - [ ] AT3-038 Gemini native history sync (NOT IMPLEMENTED; EXPORT_ONLY honesty)
 - [ ] AT3-046 Incremental live provider sync
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)

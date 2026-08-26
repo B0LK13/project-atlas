@@ -13,6 +13,7 @@ from project_atlas.atlas3.contracts import OPS_RELATIVE, Atlas3Error, read_json
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
 from project_atlas.atlas3.memory.claude import import_claude_export
 from project_atlas.atlas3.memory.connector import provider_capabilities
+from project_atlas.atlas3.memory.gemini import import_gemini_export
 from project_atlas.atlas3.memory.intent import extract_intent_report
 from project_atlas.atlas3.memory.lineage import build_session_lineage
 from project_atlas.atlas3.memory.providers import memory_providers
@@ -91,6 +92,13 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     claude.add_argument("--export", type=Path, required=True, help="Claude JSON export path.")
     claude.add_argument("--conversation-id", required=True, help="Conversation id to bind.")
     claude.add_argument("--project", default=None, help="Optional project id tag.")
+    gemini = mem_sub.add_parser(
+        "gemini",
+        help="Import a Gemini JSON export fixture (not a live history API).",
+    )
+    gemini.add_argument("--export", type=Path, required=True, help="Gemini JSON export path.")
+    gemini.add_argument("--conversation-id", required=True, help="Conversation id to bind.")
+    gemini.add_argument("--project", default=None, help="Optional project id tag.")
     for name in ("conflicts", "stale", "intent", "lineage"):
         parser = mem_sub.add_parser(
             name, help=f"Memory {name} (requires prior reconcile artifact)."
@@ -200,6 +208,27 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                     {
                         "package": "AT3-037",
                         "provider": "claude",
+                        "import_mode": "EXPORT",
+                        "conversation_id": str(args.conversation_id),
+                        "project_id": getattr(args, "project", None),
+                        "envelope_count": len(envelopes),
+                        "envelopes": envelopes,
+                        "conversation_sync": "NOT_IMPLEMENTED",
+                        "live_full_history_sync": False,
+                        "promoted_to_truth_core": 0,
+                    },
+                    as_json=True,
+                )
+            if sub == "gemini":
+                envelopes = import_gemini_export(
+                    Path(args.export),
+                    conversation_id=str(args.conversation_id),
+                    project_id=getattr(args, "project", None),
+                )
+                return _dump(
+                    {
+                        "package": "AT3-038",
+                        "provider": "gemini",
                         "import_mode": "EXPORT",
                         "conversation_id": str(args.conversation_id),
                         "project_id": getattr(args, "project", None),

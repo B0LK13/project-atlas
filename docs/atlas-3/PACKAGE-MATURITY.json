@@ -103,11 +103,11 @@
       "guard_tests": ["tests/unit/test_atlas3_claude_037.py"]
     },
     "at3-038-gemini": {
-      "maturity": "prep-frozen",
+      "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",
-      "production_surface": [],
-      "evidence": "Capability honesty + fixture ingest only. Native history sync NOT IMPLEMENTED.",
-      "guard_tests": ["tests/unit/test_atlas3_program_docs_001.py"]
+      "production_surface": ["src/project_atlas/atlas3/memory/gemini.py"],
+      "evidence": "Fixture/export ingest only. Native history sync NOT IMPLEMENTED. GEMINI.md != ingestion.",
+      "guard_tests": ["tests/unit/test_atlas3_gemini_038.py"]
     },
     "chatgpt-live-2x": {
       "maturity": "prep-frozen",
