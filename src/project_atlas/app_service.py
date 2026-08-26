@@ -21,6 +21,7 @@ from project_atlas.web_api import (
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
+    WebUnknownReadError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -38,6 +39,7 @@ from project_atlas.web_api import (
     read_project_state,
     read_source_health,
     read_status,
+    read_unknown_view,
     read_vault_health,
 )
 
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def unknown_view(self) -> dict[str, Any]:
+        """Coder Alpha Unknown/conflict REPORT READ (never materializes/writes)."""
+        try:
+            return read_unknown_view(self.vault)
+        except WebUnknownReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

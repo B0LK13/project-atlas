@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    unknown_status_parser = subparsers.add_parser(
+        "unknown-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Unknown/conflict answer artifacts "
+            "(AS-CODER-ALPHA-UNKNOWN-READ-001; never writes; "
+            "UNKNOWN != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-unknown-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "UNKNOWN != AUTHORITY. UNKNOWN != RESOLVED."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas unknown-status --vault /path/to/vault\n"
+            "  atlas unknown-status --vault /path/to/vault --json"
+        ),
+    )
+    unknown_status_parser.add_argument("--vault", type=Path, required=True)
+    unknown_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Unknown REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3208,6 +3234,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('status')}] {lens.get('summary') or 'UNKNOWN'}"
                 )
+        return EXIT_OK
+
+    if args.command == "unknown-status":
+        from project_atlas.web_api.unknown_read import (
+            WebUnknownReadError,
+            read_unknown_view,
+            render_unknown_status_text,
+        )
+
+        try:
+            report = read_unknown_view(args.vault)
+        except (WebUnknownReadError, OSError, ValueError) as exc:
+            _log.error("unknown-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_unknown_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "unknown":
