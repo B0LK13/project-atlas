@@ -33,6 +33,7 @@ from project_atlas.atlas3.memory.context_compiler import (
     context_compiler_capability,
     load_item_list,
 )
+from project_atlas.atlas3.memory.context_serve import serve_ranked_context
 from project_atlas.atlas3.memory.gemini import import_gemini_export
 from project_atlas.atlas3.memory.honesty import wrap_intent_state_honesty
 from project_atlas.atlas3.memory.incremental import (
@@ -199,6 +200,11 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         "--include-stale-historical",
         action="store_true",
         help="Include stale items in the historical layer only.",
+    )
+    context.add_argument(
+        "--target-provider",
+        default=None,
+        help="Optional local pack target (chatgpt/claude/gemini/cursor). Not a live serve.",
     )
     chatgpt = mem_sub.add_parser(
         "chatgpt",
@@ -717,14 +723,26 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                         / "reconcile.json"
                     )
                     items = ((recon or {}).get("reconciliation") or {}).get("items") or []
+                stale_historical = bool(getattr(args, "include_stale_historical", False))
+                freshness = str(getattr(args, "freshness", "UNKNOWN"))
+                target = getattr(args, "target_provider", None)
+                if target:
+                    return _dump(
+                        serve_ranked_context(
+                            items,
+                            project_id=str(project_id),
+                            target_provider=str(target),
+                            include_stale_historical=stale_historical,
+                            freshness_requirement=freshness,
+                        ),
+                        as_json=True,
+                    )
                 return _dump(
                     compile_memory_context(
                         items,
                         project_id=str(project_id),
-                        include_stale_historical=bool(
-                            getattr(args, "include_stale_historical", False)
-                        ),
-                        freshness_requirement=str(getattr(args, "freshness", "UNKNOWN")),
+                        include_stale_historical=stale_historical,
+                        freshness_requirement=freshness,
                     ),
                     as_json=True,
                 )

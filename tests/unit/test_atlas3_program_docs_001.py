@@ -74,7 +74,7 @@ def test_epics_count_and_first_vertical() -> None:
     assert "AT3-015" in text
     assert "AT3-030" in text
     assert "AT3-050" in text
-    assert "62" in text
+    assert "63" in text
     for package in range(35, 50):
         assert f"AT3-0{package}" in text
 

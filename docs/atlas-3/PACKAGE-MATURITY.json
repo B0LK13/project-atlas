@@ -339,6 +339,13 @@
       "evidence": "Composes AT3-041/042/044. Never auto-promotes. Does not pick a winner.",
       "guard_tests": ["tests/unit/test_atlas3_reconcile_049.py"]
     },
+    "at3-055-context-serve": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/llm-memory/",
+      "production_surface": ["src/project_atlas/atlas3/memory/context_serve.py"],
+      "evidence": "Local ranked-context pack for another provider. Live serve remains EXTERNAL_BLOCKED. No Truth Core write. No Ask2 rewrite.",
+      "guard_tests": ["tests/unit/test_atlas3_context_serve_055.py"]
+    },
     "at3-054-context-compiler": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/llm-memory/",

@@ -7703,4 +7703,13 @@ Isolated consume-only memory context compiler stacked on AT3-046 `#587`.
 - STALE != CURRENT; UNKNOWN stays UNKNOWN
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-055 (2026-08-26)
+
+Isolated ranked-context local serve stacked on AT3-054 `#588`.
+
+- Local provider-neutral pack for chatgpt/claude/gemini/cursor
+- Live provider serve remains EXTERNAL_BLOCKED
+- No new top-level CLI command
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 
