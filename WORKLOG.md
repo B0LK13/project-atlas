@@ -7401,6 +7401,15 @@ Isolated ADV binding stacked on AT3-051.
 - ADV != MERGE; ADV != SECURITY CERTIFICATION
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
+## AT3-080 (2026-08-26)
+
+Isolated impact explorer data stacked on AT3-072.
+
+- `compile_impact_explorer` + CLI `atlas impact-explorer`
+- Declared rows only; missing stays UNKNOWN
+- Graph != authority; trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## AT3-072 (2026-08-26)
 
 Isolated provider-register / capabilities CLI design stacked on AT3-071.

@@ -36,6 +36,7 @@ ALLOWED_CLI: Final[frozenset[str]] = frozenset(
         "surface-contract",
         "transport-authority",
         "provider-register",
+        "impact-explorer",
     }
 )
 FORBIDDEN_CLI: Final[frozenset[str]] = frozenset(

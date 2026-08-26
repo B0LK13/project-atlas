@@ -705,6 +705,7 @@ Historical roadmaps are classified as inputs and are not erased._
 - [x] AT3-070 Isolated surface contract (CLI/API/Web/TUI/MCP/A2A; surface != authority)
 - [x] AT3-071 Isolated transport != authority prover (HTTP/CLI/MCP/A2A success != authority)
 - [x] AT3-072 Isolated provider-register / capabilities CLI design (no CLI proliferation)
+- [x] AT3-080 Isolated impact explorer data (declared; graph != authority; no trust scores)
 - [ ] AT3-046 Incremental live provider sync
 - [ ] Chronicle / Ambient Knowledge runtime (ROADMAP_HORIZON)
 - [ ] AT3-003/014 certified-surface implementation after `FULL_LIVE_DEMO_READY = YES`

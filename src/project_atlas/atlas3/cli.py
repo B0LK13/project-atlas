@@ -16,6 +16,7 @@ from project_atlas.atlas3.decided import compile_decided_by
 from project_atlas.atlas3.engineering_nodes import compile_engineering_nodes
 from project_atlas.atlas3.estate_nodes import compile_estate_nodes
 from project_atlas.atlas3.file_graph import compile_file_graph
+from project_atlas.atlas3.impact import compile_impact_explorer
 from project_atlas.atlas3.inventory import compile_inventory
 from project_atlas.atlas3.iv_bind import bind_independent_verification
 from project_atlas.atlas3.ledger import append_event, ledger_status, list_events, query_events
@@ -58,6 +59,7 @@ ATLAS3_COMMANDS = frozenset(
         "surface-contract",
         "transport-authority",
         "provider-register",
+        "impact-explorer",
     }
 )
 
@@ -313,6 +315,14 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
         help="Optional comma-separated proposed commands to check against the allowlist.",
     )
 
+    impact_explorer = subparsers.add_parser(
+        "impact-explorer",
+        help="Atlas 3 impact explorer data (declared; graph is not authority).",
+        description="Atlas 3 impact explorer data (declared; graph is not authority).",
+    )
+    impact_explorer.add_argument("--vault", type=Path, required=True)
+    impact_explorer.add_argument("--project", required=True)
+
 
 def _dump(payload: dict[str, Any], *, as_json: bool) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -366,6 +376,8 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "impact-explorer":
+            return _dump(compile_impact_explorer(args.vault, args.project), as_json=True)
         if command == "provider-register":
             proposed = getattr(args, "propose", None)
             if proposed:

@@ -116,6 +116,13 @@
       "evidence": "Fail-closed owner_origin; INTENT != CURRENT STATE; no Truth Core write.",
       "guard_tests": ["tests/unit/test_atlas3_intent_043.py"]
     },
+    "at3-080-impact": {
+      "maturity": "implementation-unlocked",
+      "prep_tree": "docs/atlas-3/",
+      "production_surface": ["src/project_atlas/atlas3/impact.py"],
+      "evidence": "Declared impact explorer data. Graph != authority. Trust scores fail closed. UNKNOWN if undeclared.",
+      "guard_tests": ["tests/unit/test_atlas3_impact_080.py"]
+    },
     "at3-072-provider-register": {
       "maturity": "implementation-unlocked",
       "prep_tree": "docs/atlas-3/",
