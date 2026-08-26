@@ -21,6 +21,7 @@ from project_atlas.web_api import (
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
+    WebStateReadError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -37,6 +38,7 @@ from project_atlas.web_api import (
     read_project_roadmap,
     read_project_state,
     read_source_health,
+    read_state_view,
     read_status,
     read_vault_health,
 )
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def state_view(self) -> dict[str, Any]:
+        """Coder Alpha Current State REPORT READ (never materializes/writes)."""
+        try:
+            return read_state_view(self.vault)
+        except WebStateReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

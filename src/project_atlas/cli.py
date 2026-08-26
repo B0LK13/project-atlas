@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    state_status_parser = subparsers.add_parser(
+        "state-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Current State answer artifacts "
+            "(AS-CODER-ALPHA-STATE-READ-001; never writes; "
+            "STATE != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-state-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "STATE != AUTHORITY. STALE != CURRENT."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas state-status --vault /path/to/vault\n"
+            "  atlas state-status --vault /path/to/vault --json"
+        ),
+    )
+    state_status_parser.add_argument("--vault", type=Path, required=True)
+    state_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the State REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3091,6 +3117,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     f"  {lens.get('project_id')}: [{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "state-status":
+        from project_atlas.web_api.state_read import (
+            WebStateReadError,
+            read_state_view,
+            render_state_status_text,
+        )
+
+        try:
+            report = read_state_view(args.vault)
+        except (WebStateReadError, OSError, ValueError) as exc:
+            _log.error("state-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_state_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "state":

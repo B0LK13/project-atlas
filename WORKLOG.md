@@ -5,6 +5,19 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-STATE-READ-001 (2026-08-26)
+
+Vault-scoped Current State REPORT READ from live main
+`f1b5256510cb66e037e6774aa49d753bdb7dd96f` /
+`8df56184bb25b1cf1b6a9102cf34e77248287940`.
+
+- `read_state_view` + CLI `atlas state-status`
+- MCP `atlas.state.read` + API `GET /v1/state-status`
+- Never calls `materialize_state_lenses`
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; STATE != AUTHORITY
+- STALE != CURRENT
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
