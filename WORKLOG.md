@@ -5,6 +5,17 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-OPS-REPORT-READ-001 (2026-08-26)
+
+Vault-scoped ops-report REPORT READ from live main.
+
+- `read_ops_report_view` + CLI `atlas ops-report-status`
+- MCP `atlas.ops.report.read` + API `GET /v1/ops-report`
+- Never calls `emit_ops_report`; never writes
+- EMPTY != HEALTHY; UNKNOWN != HEALTHY; OPS REPORT != AUTHORITY
+- Distinct from `atlas.ops.health.read` and `atlas ops report`
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
