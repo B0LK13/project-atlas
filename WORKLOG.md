@@ -7193,3 +7193,4 @@ Date: 2026-08-26. Governor only. No merge. No main mutation.
 - GitHub CI: `EXTERNAL_BLOCKED`; `LOCAL_PASS != GITHUB_CI_PASS`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - Evidence: `docs/evidence/D-AUTONOMY-AUG26-MORNING-CONVERGENCE-019.md`
+- Successor materialized: `cursor/aug26-report-read-convergence-f3ff` `9a0e47215eacca8d3d79113ed25c3eac938d702a` / `5e75e45deb4b84de8b284fde3dfc990ed38f63a6`; independent IV `170 passed`; `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN`

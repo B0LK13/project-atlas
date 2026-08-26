@@ -292,19 +292,33 @@ green as Windows proof.
 5. How to resolve `#603` vs `#497` and `#593` vs `#481` MCP collisions.
 6. `MERGE_AUTHORIZATION` remains **not granted**.
 
-## Next autonomous Cloud successor
+## Next autonomous Cloud successor (now materialized)
 
 ```text
 SUCCESSOR = LANE_C_REPORT_READ_CONVERGENCE_593_603
-PRIORITY = dependency_convergence
+PR_PENDING = open after this packet
+BRANCH = cursor/aug26-report-read-convergence-f3ff
+HEAD = 9a0e47215eacca8d3d79113ed25c3eac938d702a
+TREE = 5e75e45deb4b84de8b284fde3dfc990ed38f63a6
+EXPECTED_BASE = f1b5256510cb66e037e6774aa49d753bdb7dd96f
+MERGE_TREE_VS_MAIN = CLEAN
+IV_RESULT = PASS
+TESTS = 170 passed
+RUFF = PASS
+MCP_COLLISIONS_IN_UNION = 0
+API_COLLISIONS_IN_UNION = 0
+CLI_COLLISIONS_IN_UNION = 0
+P0 = 0
+P1 = 0
+GITHUB_CI = EXTERNAL_BLOCKED
+MERGE_AUTHORIZATION = NOT_GRANTED
+CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN
 NOT_A_NEW_FEATURE_FANOUT = YES
-MUST_UNION = unique web_api modules + unique MCP/API ids
-MUST_NOT = merge onto main; claim GITHUB_CI_PASS; widen authority; write vaults
 ```
 
-Do not start another unrelated feature PR. Do not create AT3-059+ unless
-this successor is blocked and a product-critical Atlas 3 vertical is
-explicitly next.
+This successor unions `#593`–`#603` consume-only REPORT READ surfaces.
+It does not replace `#516` Local Windows authentication. It does not
+wake Atlas 3 after AT3-058. Do not start AT3-059+ from this governor.
 
 ## Honesty
 
