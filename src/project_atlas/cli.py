@@ -939,6 +939,32 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    portfolio_status_parser = subparsers.add_parser(
+        "portfolio-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Layer C portfolio artifacts "
+            "(AS-CODER-ALPHA-PORTFOLIO-READ-001; never writes; "
+            "PORTFOLIO != AUTHORITY; LAYER C != TRUTH CORE)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/portfolio/*.json "
+            "artifacts. Never writes. Never materializes. "
+            "PORTFOLIO != AUTHORITY. LAYER C != TRUTH CORE."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas portfolio-status --vault /path/to/vault\n"
+            "  atlas portfolio-status --vault /path/to/vault --json"
+        ),
+    )
+    portfolio_status_parser.add_argument("--vault", type=Path, required=True)
+    portfolio_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the portfolio REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -3156,6 +3182,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  projects: {', '.join(report.get('projects') or []) or '(none)'}")
             for lens in report.get("lenses") or []:
                 print(render_next_text(lens))
+        return EXIT_OK
+
+    if args.command == "portfolio-status":
+        from project_atlas.web_api.portfolio_read import (
+            WebPortfolioReadError,
+            read_portfolio_view,
+            render_portfolio_status_text,
+        )
+
+        try:
+            report = read_portfolio_view(args.vault)
+        except (WebPortfolioReadError, OSError, ValueError) as exc:
+            _log.error("portfolio-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_portfolio_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "changed":

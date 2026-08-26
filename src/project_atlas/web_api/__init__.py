@@ -38,6 +38,7 @@ from project_atlas.web_api.intelligence import (
     read_project_state,
 )
 from project_atlas.web_api.knowledge import KnowledgeAnswerSummary, list_knowledge_answers
+from project_atlas.web_api.portfolio_read import WebPortfolioReadError, read_portfolio_view
 from project_atlas.web_api.projects import ProjectSummary, list_projects
 from project_atlas.web_api.roadmap import WebRoadmapError, read_project_roadmap
 from project_atlas.web_api.source_health import (
@@ -53,6 +54,7 @@ __all__ = [
     "VaultHealthView",
     "WebBriefError",
     "WebIntelligenceError",
+    "WebPortfolioReadError",
     "WebRoadmapError",
     "WebSourceHealthError",
     "filter_knowledge_by_project",
@@ -67,6 +69,7 @@ __all__ = [
     "read_intelligence_explain",
     "read_intelligence_query",
     "read_portfolio_state",
+    "read_portfolio_view",
     "read_project_attention",
     "read_project_brief",
     "read_project_roadmap",

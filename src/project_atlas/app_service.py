@@ -19,6 +19,7 @@ from project_atlas.knowledge_diff import (
 from project_atlas.web_api import (
     WebBriefError,
     WebIntelligenceError,
+    WebPortfolioReadError,
     WebRoadmapError,
     WebSourceHealthError,
     filter_knowledge_by_project,
@@ -32,6 +33,7 @@ from project_atlas.web_api import (
     read_intelligence_explain,
     read_intelligence_query,
     read_portfolio_state,
+    read_portfolio_view,
     read_project_attention,
     read_project_brief,
     read_project_roadmap,
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def portfolio_view(self) -> dict[str, Any]:
+        """Coder Alpha portfolio REPORT READ (never materializes/writes)."""
+        try:
+            return read_portfolio_view(self.vault)
+        except WebPortfolioReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

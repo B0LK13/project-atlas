@@ -5,6 +5,42 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## AS-CODER-ALPHA-PORTFOLIO-READ-001 — vault-scoped Layer C portfolio REPORT READ
+
+**Date:** 2026-08-26
+**Directive:** nightly autonomous DAG / Coder Alpha persist-lens
+**Branch:** `cursor/atlas-autonomous-night-cycle-portfolio-read-a0ab`
+**Base:** live `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / TREE `8df56184bb25b1cf1b6a9102cf34e77248287940`
+**Mode:** consume-only REPORT READ. Does not rematerialize. Does not merge.
+
+### Purpose
+Agents need a vault-scoped read of existing `generated/portfolio/*.json`
+without invoking `build_portfolio` or intelligence `read_portfolio_state`.
+Layer C remains derived. EMPTY and mixed-corrupt stay non-healthy.
+
+### Surfaces
+- Library: `project_atlas.web_api.portfolio_read.read_portfolio_view`
+- CLI: `atlas portfolio-status --vault <dir> [--json]`
+- MCP: `atlas.portfolio.read` (zero-arg, vault-scoped)
+- LIVE_API: `GET /v1/portfolio-status` (does not collide with `/v1/portfolio-state`)
+
+### Honesty
+- `PORTFOLIO != AUTHORITY`
+- `LAYER C != TRUTH CORE`
+- `EMPTY != HEALTHY`
+- `UNKNOWN != HEALTHY`
+- `WRITE_APPLIED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `src/project_atlas/atlas3/** UNTOUCHED`
+
+### Not this package
+- Does not replace stale `#495` web portfolio index
+- Does not add `atlas.query.read`
+- Does not start Chronicle / marketplace / Copilot
+- Does not grant merge
+
+---
+
 ## D-185 — #471 unbound-pack + post-#474 rebind
 
 **Date:** 2026-08-25
