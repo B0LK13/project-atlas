@@ -266,6 +266,11 @@ from project_atlas.twin_fixtures import (
     build_twin_projection_fixture,
 )
 from project_atlas.validation import validate, validation_exit_code
+from project_atlas.web_api.twin_read import (
+    WebTwinReadError,
+    read_twin_view,
+    render_twin_text,
+)
 from project_atlas.workspace_registry import (
     WorkspaceRegistryError,
     build_dry_run_registry,
@@ -2161,6 +2166,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Authentic PILOT root count (0 keeps healthy→unknown demotion).",
     )
     twin_build.add_argument("--json", action="store_true")
+    twin_report = twin_fixture_sub.add_parser(
+        "report",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing twin-fixture artifacts only "
+            "(never writes; TWIN FIXTURE != PILOT)."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas twin-fixture report --vault /path/to/vault\n"
+            "  atlas twin-fixture report --vault /path/to/vault --json"
+        ),
+    )
+    twin_report.add_argument("--vault", type=Path, required=True)
+    twin_report.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the twin-fixture REPORT READ JSON to stdout.",
+    )
+    twin_show = twin_fixture_sub.add_parser(
+        "show",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Alias for `twin-fixture report` (read-only; does not write).",
+        epilog=(
+            "Examples:\n"
+            "  atlas twin-fixture show --vault /path/to/vault\n"
+            "  atlas twin-fixture show --vault /path/to/vault --json"
+        ),
+    )
+    twin_show.add_argument("--vault", type=Path, required=True)
+    twin_show.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the twin-fixture REPORT READ JSON to stdout.",
+    )
 
     # AS-2.0-OAI-IMPORT-001 — OpenAI importer fixture harness (no live API).
     oai_parser = subparsers.add_parser(
@@ -4786,6 +4826,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"estate_pilot_passed: {report['estate_pilot_passed']}")
                 print(f"twin_production_ready: {report['twin_production_ready']}")
                 print(f"twin_001_status: {report['twin_001_status']}")
+            return EXIT_OK
+        if args.twin_fixture_command in {"report", "show"}:
+            try:
+                view = read_twin_view(args.vault)
+            except (WebTwinReadError, OSError) as exc:
+                _log.error("twin-fixture report read failed: %s", exc)
+                return EXIT_ERROR
+            if args.json:
+                print(json.dumps(view, indent=2, sort_keys=True) + "\n", end="")
+            else:
+                print(render_twin_text(view), end="")
             return EXIT_OK
         parser.error(  # pragma: no cover
             f"unknown twin-fixture command: {args.twin_fixture_command}"

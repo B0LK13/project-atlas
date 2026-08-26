@@ -7179,3 +7179,9 @@ Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-est
 - Autonomy regression D-146/147/149/154: 84 passed
 - ruff + mypy on touched modules: pass
 - Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AS-CODER-ALPHA-TWIN-READ-001 (2026-08-26 night cycle)
+
+Vault-scoped REPORT READ of existing twin-fixture artifacts. Does not call
+`build_twin_projection_fixture`. Does not write. TWIN FIXTURE != PILOT;
+TWIN FIXTURE != TWIN PRODUCTION READY. MERGE_AUTHORIZATION = NOT_GRANTED.

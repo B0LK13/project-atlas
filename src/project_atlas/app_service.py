@@ -21,6 +21,7 @@ from project_atlas.web_api import (
     WebIntelligenceError,
     WebRoadmapError,
     WebSourceHealthError,
+    WebTwinReadError,
     filter_knowledge_by_project,
     impact_graph_summary,
     list_knowledge_answers,
@@ -38,6 +39,7 @@ from project_atlas.web_api import (
     read_project_state,
     read_source_health,
     read_status,
+    read_twin_view,
     read_vault_health,
 )
 
@@ -266,6 +268,13 @@ class AppService:
             )
         except WebIntelligenceError as exc:
             raise _intel_error(exc) from exc
+
+    def twin_view(self) -> dict[str, Any]:
+        """Vault-scoped GET /v1/twin-fixture/report wrap. Never writes twin state."""
+        try:
+            return read_twin_view(self.vault)
+        except WebTwinReadError as exc:
+            raise AppServiceError(str(exc)) from exc
 
     def snapshot(self) -> dict[str, Any]:
         return {

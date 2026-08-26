@@ -44,6 +44,11 @@ from project_atlas.web_api.source_health import (
     WebSourceHealthError,
     read_source_health,
 )
+from project_atlas.web_api.twin_read import (
+    WebTwinReadError,
+    read_twin_view,
+    render_twin_text,
+)
 
 __all__ = [
     "OBS_HEALTH_SNAPSHOT_RELATIVE",
@@ -55,6 +60,7 @@ __all__ = [
     "WebIntelligenceError",
     "WebRoadmapError",
     "WebSourceHealthError",
+    "WebTwinReadError",
     "filter_knowledge_by_project",
     "impact_graph_summary",
     "list_knowledge_answers",
@@ -73,5 +79,7 @@ __all__ = [
     "read_project_state",
     "read_source_health",
     "read_status",
+    "read_twin_view",
     "read_vault_health",
+    "render_twin_text",
 ]
