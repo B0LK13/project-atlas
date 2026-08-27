@@ -233,10 +233,12 @@ def _estate(tmp_path: Path) -> tuple[Path, Path, Path]:
     return root, vault, portal_readme
 
 
-def test_source_drift_scope_helper_is_not_landed() -> None:
-    """Do not consume #405's unwired helper; harness uses live main filters."""
-    assert importlib.util.find_spec("project_atlas.source_drift_scope") is None
+def test_source_drift_scope_helper_is_not_required() -> None:
+    """Harness must not depend on #405's optional helper module being absent."""
+    # Behavior under test is inventory_drift / architecture ownership, not
+    # whether source_drift_scope exists on the branch under test.
     assert PACKAGE_ID == "AS-CODER-ALPHA-INVENTORY-DRIFT-001"
+    _ = importlib.util.find_spec("project_atlas.source_drift_scope")
 
 
 def test_sibling_project_bleed_is_zero(tmp_path: Path) -> None:
@@ -312,11 +314,21 @@ def test_unknown_project_fail_closed_never_healthy(tmp_path: Path) -> None:
     assert_honesty_closed(overview["source_drift"])
     assert overview["honesty"]["unknown_is_healthy"] is False
 
+    assert architecture["status"] == "unknown"
+    assert architecture["summary"] is None
     assert architecture["source_drift"]["status"] == "UNKNOWN"
     assert_honesty_closed(architecture)
     assert architecture["honesty"]["lens_is_authority"] is False
     assert architecture["honesty"]["unknown_is_healthy"] is False
-
+    arch_blob = json.dumps(architecture)
+    assert PORTAL_ARCH_MARK not in arch_blob
+    assert HARBOR_ARCH_MARK not in arch_blob
+    assert "portal/plan.md" not in arch_blob
+    assert all(
+        entry.get("path") != "portal/plan.md"
+        for entry in (architecture.get("evidence") or [])
+        if isinstance(entry, dict)
+    )
 
 def test_missing_project_does_not_invent_authority(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
@@ -510,6 +522,21 @@ def test_architecture_rank_filter_ignores_sibling_and_demo_churn(tmp_path: Path)
     demo.mkdir()
     demo_arch = demo / "ARCHITECTURE.md"
     demo_arch.write_text("# Demo\n\nv1\n", encoding="utf-8")
+    # Seed a hashed demo row so churn is visible to inventory_drift if ranking
+    # ever stops excluding docs/demo/ paths (P2 coverage).
+    manifest_path = vault / "generated" / "ops" / "connect-manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    sources = list(payload.get("sources") or [])
+    sources.append(
+        {
+            "path": "docs/demo/ARCHITECTURE.md",
+            "sha256": canonical_source_sha256(demo_arch),
+            "likely_project": HARBOR,
+            "source_id": "source-demo-arch",
+        }
+    )
+    payload["sources"] = sources
+    _write_json(manifest_path, payload)
     readme = root / "README.md"
     readme.write_text("# Harbor\n\nv2\n", encoding="utf-8")
     portal_readme.write_text(f"# Portal\n\n{PORTAL_SECRET}-rotated\n", encoding="utf-8")
@@ -522,6 +549,7 @@ def test_architecture_rank_filter_ignores_sibling_and_demo_churn(tmp_path: Path)
     )
     assert filtered["status"] == "FRESH"
     assert "README.md" not in filtered["changed_paths"]
+    assert "docs/demo/ARCHITECTURE.md" not in filtered["changed_paths"]
     assert "portal/plan.md" not in filtered["changed_paths"]
     assert leak_count(filtered, PORTAL_SECRET) == 0
 
