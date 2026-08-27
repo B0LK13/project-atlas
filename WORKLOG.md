@@ -7795,3 +7795,12 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
 - `EMPTY/UNKNOWN != HEALTHY`
 - `WRITE_APPLIED = false`
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## D-048 — Ask2 D-178 rebind onto post-#608 main
+
+- Date: 2026-08-27
+- Successor of #507 tip a8840f70 (cherry-pick conflicted with D-181 on main)
+- Port: attribute-filler / project-token strip + version-attribute trailing use* drop
+- Preserves D-181 claim-to-use scaffolding and D-150 leftover nouns
+- Tests: test_d178 + test_d181 + test_d150 ask2 matrices = 52 PASS
+
