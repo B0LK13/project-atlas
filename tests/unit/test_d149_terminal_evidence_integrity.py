@@ -285,8 +285,10 @@ def test_reference_date_boundary_ages(tmp_path: Path) -> None:
     report = stale_knowledge(vault, reference_date=ref)
     by_id = {item["source_id"]: item for item in report["projects"]["p"]["sources"]}
     assert by_id["old"]["freshness"] == "stale"
-    # Newer-than-reference yields negative age_days => still "fresh" under >= threshold.
-    assert by_id["new"]["freshness"] == "fresh"
+    # A stamp a full day or more after the reference instant is untrusted
+    # metadata rather than age (AS-MVP FUTURE-TIMESTAMP TRUST): freshness is
+    # unknown, so the source is not cited -- never "fresh", never "stale".
+    assert "new" not in by_id
 
 
 def test_derive_reference_date_not_historical_constant(tmp_path: Path) -> None:

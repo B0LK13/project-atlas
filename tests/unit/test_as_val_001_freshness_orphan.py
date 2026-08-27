@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from project_atlas.validation import validate
@@ -359,3 +359,50 @@ def test_h007_no_trust_score_fields_in_findings(tmp_path: Path) -> None:
             "path",
             "concept_id",
         }
+
+
+def test_h006_future_mtime_is_untrusted_warning_not_stale(tmp_path: Path) -> None:
+    """A source dated after the evaluation instant is untrusted metadata: it
+    reports through the existing H-006-untrusted rule (WARNING), never as
+    H-006-stale, and never as a silent omission error."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-future",
+                "path": "docs/future.md",
+                "likely_project": "demo",
+                "modified_at": (REFERENCE_NOW + timedelta(days=400)).isoformat(),
+            }
+        ],
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    untrusted = [f for f in result["findings"] if f["rule_id"] == "H-006-untrusted"]
+    assert len(untrusted) == 1
+    assert "after the evaluation instant" in untrusted[0]["message"]
+    assert not any(f["rule_id"] == "H-006-stale" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-silent" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-unknown" for f in result["findings"])
+    assert result["ok"] is True
+
+
+def test_h006_sub_day_future_skew_is_evaluated_normally(tmp_path: Path) -> None:
+    """Clock skew smaller than the trust tolerance is not a finding."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-skewed",
+                "path": "docs/skewed.md",
+                "likely_project": "demo",
+                "modified_at": (REFERENCE_NOW + timedelta(hours=6)).isoformat(),
+            }
+        ],
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert not any(f["rule_id"].startswith("H-006") for f in result["findings"])
+    assert result["ok"] is True

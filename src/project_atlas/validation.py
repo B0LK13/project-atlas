@@ -712,14 +712,17 @@ def _stable_finding_id(*parts: str) -> str:
     return ".".join(cleaned)
 
 
-def _parse_freshness_timestamp(value: Any) -> tuple[datetime | None, str | None]:
+def _parse_freshness_timestamp(
+    value: Any, *, reference: datetime | None = None
+) -> tuple[datetime | None, str | None]:
     """Parse objective freshness timestamps.
 
     Returns ``(datetime, None)`` on success, ``(None, "missing")`` when absent,
-    ``(None, "untrusted")`` for Unix-epoch / pre-1980 metadata, or
-    ``(None, "corrupt")`` when present but unparseable. Untrusted and corrupt
-    values are never coerced to fresh/stale (fail-closed; no silent
-    normalization).
+    ``(None, "untrusted")`` for Unix-epoch / pre-1980 metadata,
+    ``(None, "untrusted_future")`` for metadata dated a full day or more after
+    ``reference``, or ``(None, "corrupt")`` when present but unparseable.
+    Untrusted and corrupt values are never coerced to fresh/stale
+    (fail-closed; no silent normalization, and no clamping to ``reference``).
     """
     if value is None or value == "":
         return None, "missing"
@@ -733,6 +736,8 @@ def _parse_freshness_timestamp(value: Any) -> tuple[datetime | None, str | None]
         parsed = parsed.replace(tzinfo=UTC)
     if is_untrusted_mtime(parsed):
         return None, "untrusted"
+    if reference is not None and is_untrusted_mtime(parsed, reference=reference):
+        return None, "untrusted_future"
     return parsed, None
 
 
@@ -844,17 +849,22 @@ def _validate_freshness(
         rel_path = str(entry.get("path", ""))
         # Never echo raw secret-bearing content; path/id metadata only (NFR-004).
         modified_raw = entry.get("modified_at")
-        modified_at, status = _parse_freshness_timestamp(modified_raw)
-        if status == "untrusted":
+        modified_at, status = _parse_freshness_timestamp(
+            modified_raw, reference=reference_now
+        )
+        if status in ("untrusted", "untrusted_future"):
+            reason = (
+                "modified_at dated a full day or more after the evaluation "
+                "instant is unverifiable metadata, not age"
+                if status == "untrusted_future"
+                else "epoch/pre-1980 modified_at is missing metadata, not age"
+            )
             finding = _finding(
                 finding_id=_stable_finding_id("H-006-untrusted", source_id),
                 rule_id="H-006-untrusted",
                 severity=Severity.WARNING,
                 gate=ValidationGate.FRESHNESS,
-                message=(
-                    f"freshness untrusted for source {source_id}: "
-                    "epoch/pre-1980 modified_at is missing metadata, not age"
-                ),
+                message=f"freshness untrusted for source {source_id}: {reason}",
                 path=rel_path or None,
             )
             findings.append(finding)
