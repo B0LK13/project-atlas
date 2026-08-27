@@ -58,3 +58,12 @@ Ports unique #507 tip through D-181 conflict; 52 ask2 matrix tests PASS locally.
 Remaining open draft AS-* / ORCH / fix PRs require unique-delta audit (next wave).
 
 Machine: `D-AUG27-RESTORED-CI-MAX-AUTONOMY-INTEGRATION-048.json`
+
+## Continuation (post-#608 / #613 wave)
+
+- Merged #613 ask2 D-178 rebind after review remediation + hosted CI 33055062368 SUCCESS
+- Merged #472 architecture LIVE_API (unknown-project ownership + secret redact)
+- Merged #475 isolation ADV harness (sentinel architecture assertions)
+- Merged #402 AS-ORCH-001A-R1 validator honesty rebind
+- Closed superseded drafts #422/#404/#423/#394
+- In flight: #473 metrics remedi 362e1be; #505 D-177 rebind d85e7c8a
