@@ -145,6 +145,22 @@ _QUESTION_FUNCTION_WORDS = frozenset(
         "would",
     }
 )
+# Closed NL attribute fillers. Not discriminative claim nouns (D-178).
+# claim*/use* are NOT listed here — D-181 keeps them required except inside
+# closed claim-to-use scaffolding (global strip would break D-150/D-181).
+_QUESTION_ATTRIBUTE_FILLERS = frozenset(
+    {
+        "current",
+        "currently",
+        "major",
+        "minor",
+        "run",
+        "running",
+        "runs",
+        "version",
+        "versions",
+    }
+)
 # Closed meta-linguistic claim*/use* lemmas. Stripped from required terms ONLY
 # when they appear inside a closed claim-to-use scaffolding phrase (D-181).
 _CLAIM_SCAFFOLD_LEMMAS = frozenset({"claim", "claims", "claiming", "claimed"})
@@ -278,7 +294,9 @@ def _claim_to_use_scaffold_tokens(question: str) -> frozenset[str]:
     return frozenset(drop)
 
 
-def _question_claim_terms(question: str) -> frozenset[str]:
+def _question_claim_terms(
+    question: str, *, project_id: str | None = None
+) -> frozenset[str]:
     """Extract explicit, discriminative claim terms from a natural-language query.
 
     Retrieval ranking is deliberately broad; it can return a record merely
@@ -287,16 +305,26 @@ def _question_claim_terms(question: str) -> frozenset[str]:
     candidate's substantive record text.  An empty term set means the question
     has no discriminative claim content and cannot ground an answer.
 
-    D-181: ``claim*`` / ``use*`` are removed only inside closed claim-to-use
-    scaffolding phrases — never as global stop-words — so a primary relational
-    predicate cannot be silently discarded.
+    D-178: project-id tokens and closed attribute fillers are not claim nouns.
+    Version-attribute questions may also drop trailing use* (not D-181 primary
+    relational use). D-181 claim-to-use scaffolding still applies.
+    D-150 leftover specific nouns stay required.
     """
     scaffold = _claim_to_use_scaffold_tokens(question)
+    scope_tokens = frozenset(tokenize(project_id)) if project_id else frozenset()
+    q_tokens = frozenset(tokenize(question))
+    fillers = set(_QUESTION_ATTRIBUTE_FILLERS)
+    # "Which … version does X use?" — use* is attribute scaffolding, not the
+    # primary D-181 relation in "Does Helix use PostgreSQL?".
+    if q_tokens & {"version", "versions", "major", "minor"}:
+        fillers.update({"use", "uses", "using", "used"})
     return frozenset(
         token
-        for token in tokenize(question)
+        for token in q_tokens
         if token not in _QUESTION_FUNCTION_WORDS
+        and token not in fillers
         and token not in scaffold
+        and token not in scope_tokens
         and len(token) > 1
     )
 
@@ -524,7 +552,7 @@ def ask_atlas_2(
         raise Ask2Error(f"ask2-retrieval-cap-invalid:{retrieval_cap!r}")
 
     retriever = VaultRetriever(vault)
-    required_terms = _question_claim_terms(q)
+    required_terms = _question_claim_terms(q, project_id=scope)
     candidates: list[dict[str, Any]] = []
     total_results = 0
     for kind in probed:
