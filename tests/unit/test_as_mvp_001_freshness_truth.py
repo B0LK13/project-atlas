@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
-from project_atlas.portfolio import is_untrusted_mtime, stale_knowledge
+from project_atlas.portfolio import (
+    DEFAULT_STALE_DAYS,
+    is_untrusted_mtime,
+    stale_knowledge,
+)
 
 REFERENCE = datetime(2026, 8, 1, tzinfo=UTC)
 
@@ -51,3 +55,65 @@ def test_epoch_mtime_is_not_reported_stale(tmp_path: Path) -> None:
     ids = {item["source_id"] for item in nebula["sources"]}
     assert "src-epoch" not in ids
     assert "src-fresh" in ids
+
+
+def test_threshold_boundary_is_exact(tmp_path: Path) -> None:
+    """``stale_after_days`` is an inclusive boundary: a source exactly that
+    many days old is stale, one day younger is fresh. Pinned against an
+    injected reference date, so the boundary cannot be silently widened by
+    a later tolerance change or drift into a different answer over time.
+    """
+    vault = tmp_path / "vault"
+    threshold = DEFAULT_STALE_DAYS
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-at-threshold",
+                "path": "docs/at.md",
+                "likely_project": "nebula",
+                "modified_at": (REFERENCE - timedelta(days=threshold)).isoformat(),
+            },
+            {
+                "source_id": "src-just-under",
+                "path": "docs/under.md",
+                "likely_project": "nebula",
+                "modified_at": (REFERENCE - timedelta(days=threshold - 1)).isoformat(),
+            },
+        ],
+    )
+    report = stale_knowledge(vault, reference_date=REFERENCE, stale_after_days=threshold)
+    freshness = {
+        item["source_id"]: item["freshness"] for item in report["projects"]["nebula"]["sources"]
+    }
+    assert freshness == {"src-at-threshold": "stale", "src-just-under": "fresh"}
+    assert report["projects"]["nebula"]["stale_count"] == 1
+
+
+def test_offset_timestamps_compare_as_instants(tmp_path: Path) -> None:
+    """A non-UTC offset timestamp is compared as the instant it denotes, so
+    the same moment expressed in two timezones yields the same freshness."""
+    vault = tmp_path / "vault"
+    instant = REFERENCE - timedelta(days=DEFAULT_STALE_DAYS + 5)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-utc",
+                "path": "docs/utc.md",
+                "likely_project": "nebula",
+                "modified_at": instant.isoformat(),
+            },
+            {
+                "source_id": "src-offset",
+                "path": "docs/offset.md",
+                "likely_project": "nebula",
+                "modified_at": instant.astimezone(timezone(timedelta(hours=9))).isoformat(),
+            },
+        ],
+    )
+    report = stale_knowledge(vault, reference_date=REFERENCE, stale_after_days=DEFAULT_STALE_DAYS)
+    freshness = {
+        item["source_id"]: item["freshness"] for item in report["projects"]["nebula"]["sources"]
+    }
+    assert freshness == {"src-utc": "stale", "src-offset": "stale"}
