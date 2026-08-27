@@ -1,0 +1,97 @@
+# D-045 — Max-DAG PR607 Owner-Gate Exhaustion
+
+```text
+D045_STATE = COMPLETE
+CASE = F2_CI_EXTERNAL_INFRA_BLOCK
+CANONICAL_CARRIER = PR608_STACK
+CLAUDE_CORRECTED_VERIFIER_REVIEW = PASS
+MERGE_AUTHORIZATION = NOT_GRANTED
+GENUINE_OWNER_ONLY_FRONTIER = YES
+NEXT_OWNER_ACTION = AUTHORIZE_OR_DECLINE_PR607
+```
+
+## Object Bindings (unchanged)
+
+| Object | HEAD | TREE |
+|---|---|---|
+| MAIN | `f6b2495a…` | `9c670d71…` |
+| PR607 | `80dd9d01…` | `0eab2f88…` |
+| PR608 | `94786c9c…` | `a26b9caa…` |
+
+`TARGET_MOVED = NO`. D043 seal preserved.
+
+## Lane A — PR607 CI
+
+| Field | Value |
+|---|---|
+| ORIGINAL_RUN | 32990010040 attempt 3 FAILURE |
+| RERUN | attempt 4 FAILURE |
+| FAILED_JOB_COUNT | 4 |
+| ZERO_STEP_FAILED_JOB_COUNT | 4 |
+| EXECUTED_STEP_COUNT | 0 |
+| ACTUAL_TEST_FAILURE_COUNT | 0 |
+| ACTUAL_COMMAND_FAILURE_COUNT | 0 |
+| CI_FAILURE_CLASSIFICATION | GITHUB_ACTIONS_INFRASTRUCTURE_FAILURE |
+| PR607_EXACT_HEAD_CI | BLOCKED_EXTERNAL_INFRASTRUCTURE |
+| REPOSITORY_DEFECT_PROVEN | NO |
+| AUTONOMOUS_CI_WORKAROUNDS_EXHAUSTED | YES |
+| PR607_LOCAL_FOCUSED_VALIDATION | PASS |
+
+All failed jobs had empty `runner_name` and zero steps (~3s). Not a repository defect.
+
+## Lane B — PR607 Merge Simulation (simulated)
+
+| Field | Value |
+|---|---|
+| MERGE_BASE | `f6b2495a…` (= MAIN) |
+| CONFLICT_COUNT | 0 |
+| SIMULATED_MERGE_TREE | `0eab2f88…` (= PR607_TREE) |
+| SCOPE | 5 governance/docs paths only |
+| RUNTIME/TEST/WORKFLOW/CONFIG | 0 |
+| OWNER_READY_SEMANTICS | YES |
+
+## Lane C — PR608 Future World (simulated/predicted)
+
+| Field | Value |
+|---|---|
+| POST607_MAIN_TREE | `0eab2f88…` |
+| HEAD/TREE PRESERVATION ON RETARGET | YES / YES |
+| PR608 MERGE CONFLICTS | 0 |
+| PR608 SIMULATED MERGE TREE | `a26b9caa…` (= PR608_TREE) |
+| GE 19 + skill.sha256 | PASS |
+| WORKLOG delta from post607 | 0; mojibake 0 |
+| GE tests at PR608 HEAD | PASS_48 |
+| FUTURE_WORLD_SIMULATION | PASS |
+
+CI 607→608 delta: intentional control-plane pytest path expansion for Golden Estate tests.
+
+## Lane D — Transfer + Windows Prep
+
+| Field | Value |
+|---|---|
+| TRANSFER_MATRIX_COMPLETE | YES |
+| TRANSFERABLE | 6 |
+| BASE_SENSITIVE_RERUN | 2 |
+| EXTERNAL | 1 (Windows) |
+| WINDOWS_PREPARATION_COMPLETE | YES |
+| WINDOWS_CERTIFICATION | NOT_RUN |
+
+## Frontier (F2)
+
+```text
+READY = 0
+RUNNING = 0
+DERIVABLE = 0
+AUTONOMOUS_REMEDIATIONS = 0
+AUTONOMOUS_NODES_REMAINING = 0
+BLOCKED_BY_OWNER = 1
+BLOCKED_EXTERNAL = 2
+GENUINE_OWNER_ONLY_FRONTIER = YES
+NEXT_OWNER_ACTION = AUTHORIZE_OR_DECLINE_PR607
+NEXT_EXTERNAL_ACTION = RESTORE_GITHUB_ACTIONS_RUNNERS_OR_BUDGET
+NEXT_AUTONOMOUS_NODE = NONE
+```
+
+Honesty preserved: `PR607_EXACT_HEAD_CI != PASS`.
+
+Machine evidence: `D-AUG27-MAX-DAG-PR607-OWNER-GATE-045.json`

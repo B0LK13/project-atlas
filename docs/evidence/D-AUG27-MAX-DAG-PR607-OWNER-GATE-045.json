@@ -1,0 +1,282 @@
+{
+  "directive": "D-AUG27-MAX-DAG-PR607-OWNER-GATE-045",
+  "d045_state": "COMPLETE",
+  "case": "F2_CI_EXTERNAL_INFRA_BLOCK",
+  "target_moved": false,
+  "preserves_sealed": {
+    "D043": "3e845abb42540b463112ea018920f5dab766141d",
+    "D043_TREE": "a17395038d38c5756f0c1fd5de6f38ffa3b39aaa",
+    "CLAUDE_CORRECTED_VERIFIER_REVIEW": "PASS",
+    "CANONICAL_CARRIER": "PR608_STACK",
+    "CANONICAL_GE_CARRIER_AMBIGUITY": 0
+  },
+  "main_head": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+  "main_tree": "9c670d710ec63d36fea70c6a181c088b79294336",
+  "pr607_head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+  "pr607_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+  "pr607_open": true,
+  "pr607_draft": false,
+  "pr607_mergeable": "MERGEABLE",
+  "pr608_head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+  "pr608_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+  "pr608_base_branch": "docs/d029-governance-provenance-seal",
+  "pr608_base_sha": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+  "pr608_draft": true,
+  "pr608_mergeable": "MERGEABLE",
+  "lane_a": {
+    "pr607_ci_original_run": 32990010040,
+    "pr607_ci_original_result": "FAILURE",
+    "pr607_ci_original_attempt": 3,
+    "ci_rerun_attempted": true,
+    "ci_rerun_run_id": 32990010040,
+    "ci_rerun_attempt": 4,
+    "ci_rerun_result": "FAILURE",
+    "failed_job_count": 4,
+    "zero_step_failed_job_count": 4,
+    "executed_step_count": 0,
+    "actual_test_failure_count": 0,
+    "actual_command_failure_count": 0,
+    "runner_name_empty_all_jobs": true,
+    "ci_failure_classification": "GITHUB_ACTIONS_INFRASTRUCTURE_FAILURE",
+    "pr607_exact_head_ci": "BLOCKED_EXTERNAL_INFRASTRUCTURE",
+    "repository_defect_proven": false,
+    "ci_infrastructure_blocker": true,
+    "autonomous_ci_workarounds_exhausted": true,
+    "pr607_local_focused_validation": "PASS",
+    "local_validation_details": {
+      "changed_paths_exact_5": true,
+      "json_evidence_parse": "PASS",
+      "worklog_utf8_valid": true,
+      "worklog_literal_mojibake": 0,
+      "golden_estate_not_in_pr607_scope": true
+    }
+  },
+  "lane_b": {
+    "pr607_merge_base": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "pr607_merge_conflict_count": 0,
+    "pr607_simulated_merge_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+    "pr607_merge_is_fast_forward_equivalent": true,
+    "changed_paths": [
+      "WORKLOG.md",
+      "docs/evidence/D-028-INTEGRATED-ATLAS3-STACK.json",
+      "docs/evidence/D-028-INTEGRATED-ATLAS3-STACK.md",
+      "docs/evidence/D-029-SUPERSESSION-CLEANUP.json",
+      "docs/evidence/D-029-SUPERSESSION-CLEANUP.md"
+    ],
+    "runtime_path_change_count": 0,
+    "test_path_change_count": 0,
+    "workflow_path_change_count": 0,
+    "config_path_change_count": 0,
+    "pr607_scope_valid": true,
+    "pr607_owner_ready_semantics": true,
+    "result_class": "simulated"
+  },
+  "lane_c": {
+    "simulated_post607_main_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+    "simulated_post607_commit_local_only": "e536668e0f6cce8e79be1b4436e158de88100e8d",
+    "pr608_retarget_expected_head_preservation": true,
+    "pr608_retarget_expected_tree_preservation": true,
+    "pr608_post_retarget_diff_predictable": true,
+    "pr607_is_ancestor_of_pr608": true,
+    "pr608_merge_conflict_count": 0,
+    "pr608_simulated_merge_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+    "pr608_ge_19_file_count": 19,
+    "pr608_ge_equivalence": "PASS",
+    "worklog_direct_delta_from_post607_main": 0,
+    "worklog_literal_mojibake_introduced": 0,
+    "pr608_worklog_clean": true,
+    "ci_workflow_delta_classification": "INTENTIONAL_GE_TEST_PATH_EXPANSION",
+    "ci_semantic_equivalence_608_vs_609_sealed_d043": "PASS",
+    "ci_607_to_608_delta": "adds atlas-golden-estate-curator/tests to control-plane pytest invocation",
+    "pr608_ci_semantic_equivalence": "PASS",
+    "pr608_golden_estate_tests": "PASS_48",
+    "pr608_skill_sha256": "PASS",
+    "pr608_future_world_simulation": "PASS",
+    "result_class": "simulated_predicted"
+  },
+  "lane_d": {
+    "pr608_transfer_matrix_complete": true,
+    "transferable_certification_count": 6,
+    "base_sensitive_rerun_count": 2,
+    "external_certification_count": 1,
+    "matrix": [
+      {
+        "item": "GE_19_FILE_HASHES",
+        "class": "EXACT_OBJECT_TRANSFERABLE",
+        "source_object": "PR608_TREE:a26b9caa95ae37d39d20f489683174ce166e903a",
+        "target_predicate": "post607_main+PR608 head preserved",
+        "transfer_proof": "19 GE file SHA-256 bound to PR608 tree; head preservation YES",
+        "rerun_trigger": "PR608_HEAD or TREE moves"
+      },
+      {
+        "item": "SKILL_SHA256",
+        "class": "EXACT_OBJECT_TRANSFERABLE",
+        "source_object": "PR608 skill.sha256 vs SKILL.md",
+        "target_predicate": "declared hash matches SKILL.md blob",
+        "transfer_proof": "606e09d7c7901229c3c0d8123c887087a238054d1134176ebf6a2ded5df5e6b4 MATCH",
+        "rerun_trigger": "SKILL.md or skill.sha256 changes"
+      },
+      {
+        "item": "GOLDEN_ESTATE_TESTS",
+        "class": "PAYLOAD_TRANSFERABLE",
+        "source_object": "PR608_HEAD local pytest 48 passed",
+        "target_predicate": "same HEAD/TREE after retarget",
+        "transfer_proof": "48 passed at 94786c9c",
+        "rerun_trigger": "PR608_HEAD moves OR post-merge tree != simulated"
+      },
+      {
+        "item": "CI_SEMANTIC_COMPARISON_608_609",
+        "class": "SEMANTIC_TRANSFERABLE",
+        "source_object": "D043 sealed",
+        "target_predicate": "CI semantic equivalence unchanged",
+        "transfer_proof": "D043 CI_608_609_SEMANTIC_EQUIVALENCE=PASS",
+        "rerun_trigger": "ci.yml changes on either carrier"
+      },
+      {
+        "item": "WORKLOG_CLEANLINESS",
+        "class": "EXACT_OBJECT_TRANSFERABLE",
+        "source_object": "PR608 WORKLOG byte-identical to PR607; mojibake=0",
+        "target_predicate": "no introduced literal mojibake",
+        "transfer_proof": "WORKLOG_DIRECT_DELTA_FROM_POST607=0",
+        "rerun_trigger": "WORKLOG blob changes"
+      },
+      {
+        "item": "CARRIER_IV_D043",
+        "class": "EXACT_OBJECT_TRANSFERABLE",
+        "source_object": "D043 evidence 3e845abb",
+        "target_predicate": "integration objects unchanged",
+        "transfer_proof": "MAIN/PR607/PR608 heads match sealed bindings",
+        "rerun_trigger": "any integration object moves"
+      },
+      {
+        "item": "MERGEABILITY_MERGE_TREE",
+        "class": "BASE_SENSITIVE_RERUN_REQUIRED",
+        "source_object": "simulated post607+PR608 merge-tree",
+        "target_predicate": "actual post-merge main tree == simulated",
+        "transfer_proof": "simulated conflict_count=0; tree=a26b9caa...",
+        "rerun_trigger": "actual main after PR607 merge differs from simulated tree"
+      },
+      {
+        "item": "BASE_SENSITIVE_INTEGRATION_CHECKS",
+        "class": "BASE_SENSITIVE_RERUN_REQUIRED",
+        "source_object": "post-retarget PR608 vs live main",
+        "target_predicate": "retarget preserves head; mergeable vs main",
+        "transfer_proof": "predicted head/tree preservation YES",
+        "rerun_trigger": "PR607 merge commit lands OR PR608 retarget completes"
+      },
+      {
+        "item": "WINDOWS_CERTIFICATION",
+        "class": "EXTERNAL_AUTHENTIC_EXECUTION_REQUIRED",
+        "source_object": "Windows packet template D045",
+        "target_predicate": "authentic host-bound receipt",
+        "transfer_proof": "NOT_RUN — preparation only",
+        "rerun_trigger": "authentic Windows host available after PR608 owner gate"
+      }
+    ],
+    "windows_preparation_complete": true,
+    "windows_certification": "NOT_RUN",
+    "windows_packet": {
+      "canonical_carrier": "PR608",
+      "expected_post607_main_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "expected_pr608_head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+      "expected_pr608_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+      "execution_root": "D:\\",
+      "host_requirements": [
+        "Windows 10/11 with Git",
+        "Python 3.12+",
+        "repo clone of B0LK13/project-atlas",
+        "exact object checkout of PR608_HEAD"
+      ],
+      "commands": [
+        "git fetch origin",
+        "git checkout 94786c9c6e59aa0934296a71e8190959e34e914e",
+        "git rev-parse HEAD^{tree}  # expect a26b9caa95ae37d39d20f489683174ce166e903a",
+        "python -m pytest atlas-vault-documentation/skills/atlas-golden-estate-curator/tests -q"
+      ],
+      "exact_object_guards": {
+        "abort_if_head_mismatch": true,
+        "abort_if_tree_mismatch": true
+      },
+      "failure_taxonomy": [
+        "OBJECT_DRIFT",
+        "TEST_FAILURE",
+        "ENVIRONMENT_MISSING",
+        "PERMISSION_ERROR"
+      ],
+      "receipt_json_schema": {
+        "required": [
+          "host_id",
+          "executed_at",
+          "head",
+          "tree",
+          "command",
+          "exit_code",
+          "stdout_sha256",
+          "result"
+        ]
+      },
+      "pass_criteria": [
+        "HEAD and TREE match expected",
+        "GE tests exit 0",
+        "host-bound receipt present"
+      ],
+      "non_transferability_rules": [
+        "Prepared command packets are not execution receipts",
+        "CI zero-step failure is not Windows PASS",
+        "Local non-Windows pytest is not Windows certification"
+      ]
+    }
+  },
+  "post_merge_transition_packet": {
+    "class": "predicted",
+    "steps": [
+      "refresh live main",
+      "verify actual merge tree against 0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "retarget PR608 to main",
+      "refresh PR608 exact object (expect HEAD 94786c9c preserved)",
+      "compare actual vs predicted post-retarget state",
+      "apply transfer matrix",
+      "rerun only BASE_SENSITIVE items if tree mismatch",
+      "rebind Windows packet expected_post607_main_tree to actual",
+      "recompute DAG"
+    ]
+  },
+  "dag_nodes": [
+    {"node_id": "D045-A-PR607-CI-CLASSIFY-RERUN", "state": "ALREADY_COMPLETE", "owner": "CURSOR", "result": "BLOCKED_EXTERNAL_INFRASTRUCTURE"},
+    {"node_id": "D045-B-PR607-MERGE-SIMULATION", "state": "ALREADY_COMPLETE", "owner": "CURSOR", "result": "PASS"},
+    {"node_id": "D045-C-PR608-POST607-WORLD-SIMULATION", "state": "ALREADY_COMPLETE", "owner": "CURSOR", "result": "PASS"},
+    {"node_id": "D045-D-CERTIFICATION-TRANSFER-WINDOWS-PREP", "state": "ALREADY_COMPLETE", "owner": "CURSOR", "result": "PASS"},
+    {"node_id": "D045-E-FINAL-GATE-RECONCILIATION", "state": "ALREADY_COMPLETE", "owner": "CURSOR", "result": "F2"},
+    {"node_id": "D043-SEAL", "state": "ALREADY_COMPLETE", "owner": "SEALED", "result": "PASS"},
+    {"node_id": "AUTHORIZE_OR_DECLINE_PR607", "state": "BLOCKED_BY_OWNER", "owner": "OWNER", "result": null},
+    {"node_id": "GITHUB_ACTIONS_RUNNER", "state": "BLOCKED_EXTERNAL", "owner": "EXTERNAL", "result": "INFRA"},
+    {"node_id": "WINDOWS_AUTHENTIC_CERT", "state": "BLOCKED_EXTERNAL", "owner": "EXTERNAL", "result": "NOT_RUN"},
+    {"node_id": "PR609_REPAIR", "state": "BACKLOG_OPTIONAL", "owner": "NONE", "result": null},
+    {"node_id": "PR609_CARRIER", "state": "SUPERSEDED", "owner": "NONE", "result": "SUPERSEDED"}
+  ],
+  "dag_counts": {
+    "READY": 0,
+    "RUNNING": 0,
+    "DERIVABLE": 0,
+    "UNKNOWN_REQUIRES_AUDIT": 0,
+    "AUTONOMOUS_REMEDIATIONS": 0,
+    "BLOCKED_BY_OWNER": 1,
+    "BLOCKED_EXTERNAL": 2,
+    "BACKLOG_OPTIONAL": 1,
+    "SUPERSEDED": 1,
+    "ALREADY_COMPLETE": 6
+  },
+  "autonomous_nodes_remaining": 0,
+  "frontier_accounting_consistent": true,
+  "genuine_owner_only_frontier": true,
+  "external_hard_blocker": true,
+  "project_terminal": false,
+  "merge_authorization": "NOT_GRANTED",
+  "merge_performed": false,
+  "pr_close_authorization": "NOT_GRANTED",
+  "valid_p0": 0,
+  "valid_p1": 0,
+  "next_owner_action": "AUTHORIZE_OR_DECLINE_PR607",
+  "next_external_action": "RESTORE_GITHUB_ACTIONS_RUNNERS_OR_BUDGET",
+  "next_autonomous_node": "NONE"
+}
