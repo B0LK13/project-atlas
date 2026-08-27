@@ -1,0 +1,16 @@
+{
+  "example": "DISCOVER_ONLY recommend",
+  "command": [
+    "python",
+    "curator.py",
+    "--source-root",
+    "/tmp/fixture-estate",
+    "--mode",
+    "DISCOVER_ONLY",
+    "--phase",
+    "RECOMMEND",
+    "--output",
+    "/tmp/estate-report.json"
+  ],
+  "source_mutations": 0
+}
