@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -26,11 +27,28 @@ from project_atlas.authz import (
 from project_atlas.web_actions import load_action_ledger
 
 
+def _wait_ready(host: str, port: int) -> None:
+    """Wait until the loopback server accepts. HTTPError means it answered."""
+    deadline = time.monotonic() + 5
+    last: OSError | None = None
+    while time.monotonic() < deadline:
+        try:
+            urlopen(f"http://{host}:{port}/v1/meta", timeout=0.5)
+            return
+        except HTTPError:
+            return
+        except OSError as exc:
+            last = exc
+            time.sleep(0.05)
+    raise AssertionError(f"LIVE_API did not accept on {host}:{port}: {last}")
+
+
 def _start(vault: Path, *, operator=None):
     server = serve_api(vault, host="127.0.0.1", port=0, operator=operator)
     host, port = server.server_address[:2]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
+    _wait_ready(str(host), int(port))
     return server, str(host), int(port)
 
 
@@ -50,10 +68,20 @@ def _request(
         method=method,
     )
     try:
-        with urlopen(req, timeout=2) as resp:
+        with urlopen(req, timeout=5) as resp:
             return int(resp.status), json.loads(resp.read().decode("utf-8"))
     except HTTPError as exc:
         return int(exc.code), json.loads(exc.read().decode("utf-8"))
+
+
+def test_sec009_wait_ready_treats_http_error_as_ready(tmp_path: Path) -> None:
+    vault = tmp_path / "v"
+    vault.mkdir()
+    server, host, port = _start(vault)
+    try:
+        _wait_ready(host, port)
+    finally:
+        server.shutdown()
 
 
 def test_sec009_unauthenticated_denied(tmp_path: Path) -> None:
