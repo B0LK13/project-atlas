@@ -121,6 +121,7 @@ def _manifest_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
     D-044 / D-OWNER-DRIFT-039: ``unknown-project`` is never an authoritative
     owner — including when the requested scope is itself the sentinel. Unowned
     architecture documents must not leak into any project lens response.
+    Ownership follows ``likely_project`` or ``project_id`` (inventory-drift parity).
     """
     manifest = _read_json(vault / "generated" / "ops" / "connect-manifest.json")
     if not manifest:
@@ -134,8 +135,11 @@ def _manifest_source_rows(vault: Path, project_id: str) -> list[dict[str, Any]]:
     for row in rows:
         if not isinstance(row, dict) or row.get("exclusion_reason"):
             continue
-        likely = str(row.get("likely_project") or "unknown-project")
-        if likely == "unknown-project" or likely != project_id:
+        raw_owner = row.get("likely_project") or row.get("project_id")
+        if not isinstance(raw_owner, str):
+            continue
+        owner = raw_owner.strip() or "unknown-project"
+        if owner == "unknown-project" or owner != project_id:
             continue
         selected.append(row)
     return selected
