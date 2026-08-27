@@ -4,6 +4,8 @@
 semantic_subject: harbor-database
 semantic_kind: doc
 
+timestamp: 2024-01-15
+
 Deployment: PostgreSQL 15
 
 ## Components
