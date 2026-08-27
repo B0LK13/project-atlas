@@ -11,6 +11,7 @@ metric. Does not import live-LLM or network clients.
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 from typing import Any, Final, Literal
@@ -33,6 +34,7 @@ METRIC_IDS: Final[tuple[str, ...]] = (
     "HANDOFF_SUCCESS_RATE",
     "STALE_CONTEXT_RATE",
     "UNKNOWN_HONESTY",
+    "CONTEXT_ACCURACY",
     "MEANINGFUL_CHANGES_CAPTURED",
     "USER_CORRECTIONS_REQUIRED",
     "MISTAKES_PREVENTED",
@@ -97,10 +99,16 @@ def _strict_json_bool(value: object) -> bool | None:
 
 
 def _numeric_metric_value(value: object) -> float | None:
+    """Accept finite non-bool numbers in the closed rate range [0, 1] only."""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        number = float(value)
+        if not math.isfinite(number):
+            return None
+        if number < 0.0 or number > 1.0:
+            return None
+        return number
     return None
 
 
@@ -454,6 +462,16 @@ def compile_workflow_metrics(
             project_id=scoped,
             absent_note=(
                 "No fresh-agent challenge receipts. UNKNOWN_HONESTY is UNKNOWN, not 0."
+            ),
+        ),
+        _metric(
+            "CONTEXT_ACCURACY",
+            status="NOT_INSTRUMENTED",
+            value=None,
+            evidence=[],
+            note=(
+                "North Star CONTEXT_ACCURACY has no durable objective receipt yet. "
+                "Exposed as NOT_INSTRUMENTED rather than omitted."
             ),
         ),
         _meaningful_changes(vault_path, scoped),

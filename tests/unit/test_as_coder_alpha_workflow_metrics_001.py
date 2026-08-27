@@ -252,6 +252,31 @@ def test_bool_subclass_does_not_count_as_numeric_metric(tmp_path: Path) -> None:
     assert metric["value"] is None
 
 
+def test_out_of_range_and_nonfinite_rates_are_rejected(tmp_path: Path) -> None:
+    root = tmp_path / "generated" / "ops" / "fresh-agent"
+    for name, value in (
+        ("too-high", 2.0),
+        ("negative", -0.1),
+        ("nan", float("nan")),
+        ("inf", float("inf")),
+    ):
+        _write(
+            root / f"{name}.json",
+            {"project_id": "harbor-api", "metrics": {"UNKNOWN_HONESTY": value}},
+        )
+    report = compile_workflow_metrics(tmp_path, project_id="harbor-api")
+    metric = report["metrics"]["UNKNOWN_HONESTY"]
+    assert metric["status"] == "UNKNOWN"
+    assert metric["value"] is None
+
+
+def test_context_accuracy_is_explicitly_not_instrumented(tmp_path: Path) -> None:
+    report = compile_workflow_metrics(tmp_path)
+    metric = report["metrics"]["CONTEXT_ACCURACY"]
+    assert metric["status"] == "NOT_INSTRUMENTED"
+    assert metric["value"] is None
+
+
 def test_receipt_write_is_deterministic(tmp_path: Path) -> None:
     first = write_workflow_metrics_receipt(tmp_path)
     second = write_workflow_metrics_receipt(tmp_path)
