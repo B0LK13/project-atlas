@@ -5232,7 +5232,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"P0: {demo_receipt.P0} P1: {demo_receipt.P1}")
             return (
                 EXIT_OK
-                if demo_receipt.P0 == 0 and demo_receipt.DISCOVER == "PASS"
+                if (
+                    demo_receipt.P0 == 0
+                    and demo_receipt.P1 == 0
+                    and demo_receipt.DISCOVER == "PASS"
+                    and demo_receipt.INGEST == "PASS"
+                    and demo_receipt.BUILD_INDEXES == "PASS"
+                    and demo_receipt.VALIDATE == "PASS"
+                )
                 else EXIT_ERROR
             )
         parser.error(f"unknown demo command: {args.demo_command}")

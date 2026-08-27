@@ -187,3 +187,58 @@ def test_d182_unowned_work_root_rejected(tmp_path: Path) -> None:
     (vault / "x").write_text("x\n", encoding="utf-8")
     _rmtree_under_owned(owned, vault)
     assert not vault.exists()
+
+
+def test_d178_cli_demo_full_exits_nonzero_on_p1(monkeypatch, tmp_path: Path) -> None:
+    """CLI must fail closed when any core phase / P1 fails (Codex P1)."""
+    from project_atlas.cli import main
+    from project_atlas.full_product_demo import DemoReceipt
+
+    receipt = DemoReceipt(
+        ATLAS_VERSION="0",
+        MAIN_HEAD="0" * 40,
+        MAIN_TREE="0" * 40,
+        ESTATE_FINGERPRINT="0" * 64,
+        START_TIME="t0",
+        END_TIME="t1",
+        DISCOVER="PASS",
+        INGEST="FAIL",
+        BUILD_INDEXES="PASS",
+        VALIDATE="PASS",
+        P0=0,
+        P1=1,
+        FULL_LIVE_DEMO_READY=False,
+    )
+    monkeypatch.setattr(
+        "project_atlas.full_product_demo.run_full_product_demo",
+        lambda *a, **k: receipt,
+    )
+    code = main(["demo", "full", "--work-root", str(tmp_path / "work"), "--json"])
+    assert code != 0
+
+
+def test_d178_cli_demo_full_exits_zero_when_core_green(monkeypatch, tmp_path: Path) -> None:
+    from project_atlas.cli import main
+    from project_atlas.full_product_demo import DemoReceipt
+
+    receipt = DemoReceipt(
+        ATLAS_VERSION="0",
+        MAIN_HEAD="0" * 40,
+        MAIN_TREE="0" * 40,
+        ESTATE_FINGERPRINT="0" * 64,
+        START_TIME="t0",
+        END_TIME="t1",
+        DISCOVER="PASS",
+        INGEST="PASS",
+        BUILD_INDEXES="PASS",
+        VALIDATE="PASS",
+        P0=0,
+        P1=0,
+        FULL_LIVE_DEMO_READY=False,
+    )
+    monkeypatch.setattr(
+        "project_atlas.full_product_demo.run_full_product_demo",
+        lambda *a, **k: receipt,
+    )
+    code = main(["demo", "full", "--work-root", str(tmp_path / "work"), "--json"])
+    assert code == 0

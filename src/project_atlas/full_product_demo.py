@@ -386,7 +386,7 @@ def run_full_product_demo(
     main_tree = _git(repo, "rev-parse", "HEAD^{tree}")
 
     try:
-        materialize_demo_estate(repo, estate)
+        estate = materialize_demo_estate(repo, estate)
         caps.append(CapResult("ESTATE_MATERIALIZE", "PASS", str(estate)))
     except Exception as exc:
         caps.append(CapResult("ESTATE_MATERIALIZE", "FAIL", str(exc)))
@@ -409,7 +409,25 @@ def run_full_product_demo(
         return receipt
 
     fp = estate_fingerprint(estate)
-    caps.append(CapResult("ESTATE_FINGERPRINT", "PASS", fp[:16]))
+    frozen_man = repo / "docs" / "demo" / "DEMO-ESTATE-MANIFEST.json"
+    expected_fp = ""
+    if frozen_man.is_file():
+        try:
+            frozen = json.loads(frozen_man.read_text(encoding="utf-8"))
+            if isinstance(frozen, dict):
+                expected_fp = str(frozen.get("DEMO_ESTATE_FINGERPRINT") or "")
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            expected_fp = ""
+    if expected_fp and fp != expected_fp:
+        caps.append(
+            CapResult(
+                "ESTATE_FINGERPRINT",
+                "FAIL",
+                f"computed={fp[:16]} expected={expected_fp[:16]}",
+            )
+        )
+    else:
+        caps.append(CapResult("ESTATE_FINGERPRINT", "PASS", fp[:16]))
 
     _rmtree_under_owned(work, vault)
     vault.mkdir(parents=True)
@@ -463,14 +481,9 @@ def run_full_product_demo(
     build_st: Status = "PASS" if code == 0 else "FAIL"
     caps.append(CapResult("BUILD_INDEXES", build_st, out[-400:]))
 
-    # validate
+    # validate — exit 0 only is PASS (warnings/ok). Exit 1 is errors, not PASS.
     code, out = _run_atlas(repo, ["validate", "--vault", str(vault)])
-    validate_st: Status = "PASS" if code in {0, 1} else "FAIL"  # 1 may be findings
-    # treat ERROR-heavy as FAIL only if exit 2
-    if code == 2:
-        validate_st = "FAIL"
-    elif code == 1:
-        validate_st = "PASS"  # findings OK for demo fixture conflicts
+    validate_st: Status = "PASS" if code == 0 else "FAIL"
     caps.append(CapResult("VALIDATE", validate_st, out[-400:]))
 
     # query / ask2 probes (project-a if present)
@@ -764,22 +777,25 @@ def run_full_product_demo(
         DEMO_READINESS_PERCENT=readiness,
     )
     _write_receipt(receipt, receipt_path, repo)
-    # also write manifest fingerprint for operators
-    man = repo / "docs" / "demo" / "DEMO-ESTATE-MANIFEST.json"
-    man.parent.mkdir(parents=True, exist_ok=True)
-    man.write_text(
+    # Operator live manifest (do not mutate the frozen docs/demo fingerprint).
+    live_man = repo / "generated" / "ops" / "demo-estate-manifest-live.json"
+    live_man.parent.mkdir(parents=True, exist_ok=True)
+    live_man.write_text(
         json.dumps(
             {
+                "BANNER": _BANNER,
                 "DEMO_ESTATE_FINGERPRINT": fp,
-                "SOURCE": _DEFAULT_FIXTURE_REL,
+                "FINGERPRINT_MATCHES_FROZEN": (not expected_fp) or fp == expected_fp,
+                "FROZEN_DEMO_ESTATE_FINGERPRINT": expected_fp or None,
+                "MAIN_HEAD": main_head,
                 "RESET_COMMAND": (
-                    "python -m project_atlas demo full --reset "
+                    "atlas demo full --reset "
                     f"--work-root {work.as_posix()}"
                 ),
-                "MAIN_HEAD": main_head,
-                "BANNER": _BANNER,
+                "SOURCE": _DEFAULT_FIXTURE_REL,
             },
             indent=2,
+            sort_keys=True,
         )
         + "\n",
         encoding="utf-8",
@@ -790,7 +806,10 @@ def run_full_product_demo(
 def _write_receipt(receipt: DemoReceipt, receipt_path: Path | None, repo: Path) -> None:
     path = receipt_path or (repo / "generated" / "ops" / "full-product-demo-receipt.json")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(asdict(receipt), indent=2) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(receipt), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def receipt_to_public_dict(receipt: DemoReceipt) -> dict[str, Any]:
