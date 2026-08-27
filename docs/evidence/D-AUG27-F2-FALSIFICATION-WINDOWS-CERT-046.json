@@ -1,0 +1,138 @@
+{
+  "directive": "D-AUG27-F2-FALSIFICATION-WINDOWS-CERT-046",
+  "d046_state": "COMPLETE",
+  "case": "B_EXTERNAL_HARD_BLOCKER",
+  "initial_f2_owner_only_frontier": false,
+  "final_owner_only_frontier": false,
+  "falsification_reason": "WINDOWS_PACKET_EXECUTED was NO on D-045 entry; authentic Windows host was reachable and executed",
+  "target_moved": false,
+  "unauthorized_mutations": 0,
+  "merges_performed": 0,
+  "host_verifier": {
+    "windows_host_authentic": true,
+    "authorized_execution_context": true,
+    "host_id": "CYBERCOMMANDCEN",
+    "os": "Microsoft Windows NT 10.0.28000.0",
+    "execution_root": "D:\\",
+    "username_present": true,
+    "repository_identity": "project-atlas",
+    "remote_identity": "https://github.com/B0LK13/project-atlas.git",
+    "current_main": "f6b2495a03196901a5a72c2cf3451d4504b54d5f",
+    "pr607_head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+    "pr607_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+    "required_runtime_availability": {
+      "python": "3.13.14",
+      "git": "2.55.0.windows.3",
+      "drive_d": true
+    },
+    "packet_integrity": true,
+    "packet_bound_to_exact_objects": true,
+    "no_secret_values_exposed": true
+  },
+  "windows_packet_prepared": true,
+  "windows_packet_executed": true,
+  "windows_executions": [
+    {
+      "lane": "PR607_GOVERNANCE_CERT",
+      "bound_head": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+      "bound_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "worktree": "D:\\atlas-worktrees\\d046-pr607-win-cert",
+      "head_before": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+      "tree_before": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "head_after": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+      "tree_after": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+      "object_unchanged": true,
+      "commands": [
+        {
+          "name": "pr607_governance_python",
+          "exit_code": 0,
+          "elapsed_ms": 380,
+          "result": "PASS"
+        }
+      ],
+      "windows_result_class": "W-A",
+      "pass": true
+    },
+    {
+      "lane": "D045_PREPARED_PACKET_PR608_GE",
+      "source_packet": "docs/evidence/D-AUG27-MAX-DAG-PR607-OWNER-GATE-045.json#lane_d.windows_packet",
+      "bound_head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+      "bound_tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+      "worktree": "D:\\atlas-worktrees\\d046-pr608-win-packet",
+      "head_before": "94786c9c6e59aa0934296a71e8190959e34e914e",
+      "tree_before": "a26b9caa95ae37d39d20f489683174ce166e903a",
+      "head_after": "94786c9c6e59aa0934296a71e8190959e34e914e",
+      "tree_after": "a26b9caa95ae37d39d20f489683174ce166e903a",
+      "object_unchanged": true,
+      "commands": [
+        {
+          "name": "pytest_atlas_golden_estate_curator_tests",
+          "exit_code": 0,
+          "elapsed_ms": 39658,
+          "stdout_sha256": "834c64501776985a3a7d4689ede0501650c5d5874142ea7fc547af559160357f",
+          "result": "PASS_48"
+        },
+        {
+          "name": "skill_sha256_verify",
+          "exit_code": 0,
+          "result": "PASS",
+          "declared": "606e09d7c7901229c3c0d8123c887087a238054d1134176ebf6a2ded5df5e6b4"
+        }
+      ],
+      "windows_result_class": "W-A",
+      "pass": true,
+      "note": "Prepared D-045 packet is PR608-object-bound by design; executed without transplanting to PR607"
+    }
+  ],
+  "pr607_authentic_windows_pass": true,
+  "pr608_authentic_windows_ge_pass": true,
+  "hosted_ci": {
+    "attempts": [3, 4],
+    "run_id": 32990010040,
+    "pr607_exact_head_ci": "BLOCKED_EXTERNAL_RUNNER_INFRA",
+    "hosted_ci_classification": "BLOCKED_EXTERNAL_RUNNER_INFRA",
+    "github_actions_runners_total_count": 0,
+    "additional_spam_rerun": false,
+    "diagnosis": "Jobs created with empty runner_name and zero steps; org/repo has zero registered Actions runners; peer PR CI also failing"
+  },
+  "policy_basis": {
+    "windows_substitutes_for_hosted_ci": false,
+    "basis": "No repository policy found authorizing substitution of authentic Windows PASS for required exact-head hosted CI jobs (control-plane + quality matrix). SDK ci_observer requires those job names. Historical owner packets list required CI = PASS separately from WINDOWS.",
+    "therefore": "PR607_HOSTED_CI remains BLOCKED_EXTERNAL; Windows PASS recorded separately"
+  },
+  "reconciliation": {
+    "pr607_semantically_certified": true,
+    "pr607_authentic_windows_pass": true,
+    "pr607_hosted_ci_pass": false,
+    "pr607_hosted_ci_external_block": true,
+    "pr607_owner_ready": true,
+    "pr607_merge_eligible_under_repository_policy": false,
+    "pr607_merge_tree": "0eab2f88b92830b8a2bac917633abff2e29047a1",
+    "pr607_changed_path_count": 5,
+    "local_governance": "PASS",
+    "independent_verification": "PASS"
+  },
+  "pr608": {
+    "head": "94786c9c6e59aa0934296a71e8190959e34e914e",
+    "tree": "a26b9caa95ae37d39d20f489683174ce166e903a",
+    "base": "80dd9d01a38ee3720b759cfd51e9262ce3235ea2",
+    "remote_match": true,
+    "post607_simulation": "PASS",
+    "conflict_count": 0,
+    "golden_estate": "PASS_48_AUTHENTIC_WINDOWS",
+    "skill_sha256": "PASS"
+  },
+  "active_blockers": [
+    {
+      "id": "GITHUB_ACTIONS_RUNNER_INFRA",
+      "class": "EXTERNAL_HARD_BLOCKER",
+      "evidence": "actions/runners total_count=0; PR607 run 32990010040 attempts 3+4 zero-step failures",
+      "unblock_condition": "RESTORE_GITHUB_ACTIONS_RUNNERS_OR_BILLING_QUOTA then rerun exact-head CI on 80dd9d01"
+    }
+  ],
+  "owner_action_required": false,
+  "ready_non_owner_nodes_remaining": 0,
+  "next_external_action": "RESTORE_GITHUB_ACTIONS_RUNNERS_OR_BUDGET",
+  "next_owner_action": "NONE_WHILE_EXTERNAL_CI_BLOCKER_STANDS",
+  "note_on_owner_gate": "PR607 remains semantically owner-ready but not merge-eligible under repository CI policy until exact-head hosted CI PASS or an explicit owner policy waiver. D-046 forbids labeling this OWNER_ONLY while the blocker is external infrastructure."
+}
