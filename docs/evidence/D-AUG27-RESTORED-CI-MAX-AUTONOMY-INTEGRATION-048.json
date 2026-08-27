@@ -7,16 +7,28 @@
       423,
       394
     ],
+    "CLOSED_SUPERSEDED_EXTRA": [
+      377,
+      420,
+      369,
+      411
+    ],
     "PR402_HEAD": "1cf7c1b4a9a5049888b7e7676ec5f5f4222ef0d6",
     "PR402_MERGE": "22405ed3f9ecbc51770381233893d1f1297430cb",
     "PR402_MERGED": true,
     "PR472_HEAD": "b081415973f9d34a4cf805cd4ff45eb3e0c2bf52",
     "PR472_MERGE": "4f9a72e9e42702f7c0a7437068877276cab4872c",
     "PR472_MERGED": true,
+    "PR473_MERGE": "afa61679344e5f935404d7afa494e4db6cc184de",
+    "PR473_MERGED": true,
     "PR473_REMEDI_HEAD": "a362e1be6ede314d70ed03ddeacf141a2b0216e8",
     "PR475_HEAD": "dc17138e38de38b2bc10a87c2de00298dadc82b8",
     "PR475_MERGE": "06484f831d745a05784d5c0b6cc676a2bcde780a",
     "PR475_MERGED": true,
+    "PR505_CI": "33062065483",
+    "PR505_HEAD": "68b49348038d0d937913b6732fe9f361674f77ba",
+    "PR505_MERGE": "13d0525f4f8191b1d9afdf4df4e256acd803b80f",
+    "PR505_MERGED": true,
     "PR505_REBIND_HEAD": "d85e7c8a0048590943ec1e3a7889478a820193fe",
     "PR613_CI": "33055062368",
     "PR613_HEAD": "86202ba9c30b400f825e5194590202fc598d36b7",
@@ -27,7 +39,9 @@
   "dag_note": "GE stack integrated. Autonomously continuing unique-delta audit of remaining open PRs; do not return while READY/DERIVABLE supersession-audit nodes remain.",
   "directive": "D-048",
   "entry_note": "On D-048 start, PR607 already MERGED and PR608 already retargeted to main. Objects rebound from live Git.",
+  "final_main_head": "13d0525f4f8191b1d9afdf4df4e256acd803b80f",
   "final_main_head_at_stack_seal": "1eb40f7173473288758fb61e9c0858870b6301ae",
+  "final_main_tree": "b7d63e22b916cfe0471e70fe60d4f7ab39027956",
   "final_main_tree_at_stack_seal": "a26b9caa95ae37d39d20f489683174ce166e903a",
   "github_billing_owner_reported_resolved": true,
   "next_autonomous_node": "D048-OPEN-PR-UNIQUE-DELTA-AUDIT",
@@ -106,5 +120,5 @@
     "report_read_and_lenses": "593-604,517-535,572,576,480-503,514-515,512-513,516"
   },
   "target_moved_on_entry": true,
-  "updated_at": "2026-08-27T10:44:20.328663+00:00"
+  "updated_at": "2026-08-27T11:46:01.693343+00:00"
 }

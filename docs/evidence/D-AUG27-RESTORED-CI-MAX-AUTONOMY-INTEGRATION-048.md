@@ -67,3 +67,10 @@ Machine: `D-AUG27-RESTORED-CI-MAX-AUTONOMY-INTEGRATION-048.json`
 - Merged #402 AS-ORCH-001A-R1 validator honesty rebind
 - Closed superseded drafts #422/#404/#423/#394
 - In flight: #473 metrics remedi 362e1be; #505 D-177 rebind d85e7c8a
+
+## Seal (post-#505)
+
+- Merged #473 workflow metrics (CONTEXT_ACCURACY + rate honesty)
+- Merged #505 D-177 demo harness after review remedi + CI 33062065483 SUCCESS
+- Main sealed at 13d0525f / tree b7d63e22
+- Additional superseded closes: #377 #420 #369 #411
