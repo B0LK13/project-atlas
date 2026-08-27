@@ -7818,3 +7818,9 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
 - Rebind onto post-#402 main; WORKLOG conflict dropped; cli.py additive port
 - Local: test_d178_full_product_demo_honesty.py PASS (12)
 - Prior tip 3f265b6c preserved as provenance; new certification generation
+
+## D-048 — Windows lost-race promote replace (#542 rebind)
+
+- Date: 2026-08-27
+- Port _replace_path FileNotFoundError tolerance onto post-#505 main
+- Local provenance tip 059aa4e3; new certification generation

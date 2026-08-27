@@ -148,7 +148,15 @@ def _payload_sha256(payload: bytes) -> str:
 
 def _replace_path(source: Path, destination: Path) -> None:
     """Small seam for atomic-promotion fault injection tests."""
-    os.replace(source, destination)
+    try:
+        os.replace(source, destination)
+    except FileNotFoundError:
+        # Windows concurrent promoters can lose the staged source after the
+        # winning replace. If the destination is already published, this
+        # worker lost the race and must not raise.
+        if destination.is_file() and not source.exists():
+            return
+        raise
 
 
 def _remove_empty_directories(directories: set[Path]) -> None:
