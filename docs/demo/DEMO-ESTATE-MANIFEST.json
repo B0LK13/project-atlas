@@ -1,0 +1,8 @@
+{
+  "DEMO_ESTATE_FINGERPRINT": "c7ac3324b2e7ed25b3b7e5bdbedf38649fe3ba7de8716abb478a5064835e7539",
+  "FINGERPRINT_CONTRACT": "canonical-text-lf",
+  "SOURCE": "fixtures/demo/estate",
+  "RESET_COMMAND": "python -m project_atlas demo full --reset --work-root .tmp/d177-full-product-demo",
+  "MAIN_HEAD": "a17949c6df9b4d004ffe03eb47b0934e3735204d",
+  "BANNER": "TECHNICAL DEMO — NOT RELEASE CERTIFIED — NOT AUTHENTIC PILOT — DEMO_FIXTURE"
+}

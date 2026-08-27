@@ -1,0 +1,45 @@
+# D-177 — MERGE RECEIPT — PR #504
+
+```
+DIRECTIVE = D-177
+AUTHORIZED_PR = 504
+PACKAGE = D-176 / D149-R1
+FINDING = D149-001
+MERGE_STYLE = merge-commit
+AUTHORIZATION_MATCH = YES
+```
+
+## Pins
+
+| Field | Value |
+| --- | --- |
+| AUTHORIZED_HEAD | `303f565759467a7c2d5a119563ce298f081be7d3` |
+| AUTHORIZED_TREE | `e646392c12fa525dcfd017c33e1b6226c5bfb40a` |
+| PRE_MERGE_MAIN_HEAD | `f65e94f3f2dcf0cee96cd9932069792e320032de` |
+| PRE_MERGE_MAIN_TREE | `2b1109712fcf2ad825e125ff808e9f888e109934` |
+| MERGE_COMMIT | `a17949c6df9b4d004ffe03eb47b0934e3735204d` |
+| MERGE_TREE | `e646392c12fa525dcfd017c33e1b6226c5bfb40a` |
+| PARENT_1 | `f65e94f3f2dcf0cee96cd9932069792e320032de` |
+| PARENT_2 | `303f565759467a7c2d5a119563ce298f081be7d3` |
+| POST_MERGE_MAIN_HEAD | `a17949c6df9b4d004ffe03eb47b0934e3735204d` |
+| POST_MERGE_MAIN_TREE | `e646392c12fa525dcfd017c33e1b6226c5bfb40a` |
+| HEAD_MATCH | YES |
+| TREE_MATCH | YES |
+| PARENT_TOPOLOGY_MATCH | YES |
+
+Pre-merge: resolved outdated Copilot thread `PRRT_kwDOTtguR86cCZeP` (R2 already fixed NONE+residual).
+
+## Local seal (bound to POST_MERGE_MAIN)
+
+```
+D149_001 = CLOSED (68 focused D149/D148 PASS)
+CONTROL_PLANE = PASS (durable-host + return-gate 32 PASS)
+COMBINED_483_484 = inherited PASS (no regression in D149 matrix)
+VALID_P0 = 0
+VALID_P1 = 0
+POST_MERGE_CI = PASS (run 32842710975 — ubuntu full/compat, windows, control-plane)
+```
+
+```
+MERGE_AUTHORIZATION_REMAINING = NOT_GRANTED
+```

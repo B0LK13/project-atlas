@@ -2448,6 +2448,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     twin_build.add_argument("--json", action="store_true")
 
+    # D-177 — full product demo harness (TECHNICAL DEMO only).
+    demo_parser = subparsers.add_parser(
+        "demo",
+        help=(
+            "Technical demo harness (D-177; DEMO_FIXTURE; "
+            "NOT RELEASE CERTIFIED; NOT AUTHENTIC PILOT)."
+        ),
+    )
+    demo_sub = demo_parser.add_subparsers(dest="demo_command", required=True)
+    demo_full = demo_sub.add_parser(
+        "full",
+        help="Run disposable full-product demo acts and write receipt JSON.",
+    )
+    demo_full.add_argument(
+        "--work-root",
+        type=Path,
+        default=None,
+        help="Disposable work root (default: .tmp/d177-full-product-demo).",
+    )
+    demo_full.add_argument(
+        "--receipt",
+        type=Path,
+        default=None,
+        help="Receipt path (default: generated/ops/full-product-demo-receipt.json).",
+    )
+    demo_full.add_argument(
+        "--reset",
+        action="store_true",
+        help="Force rematerialize estate (always rematerializes today).",
+    )
+    demo_full.add_argument("--json", action="store_true", help="Print receipt JSON.")
+
     # AS-2.0-OAI-IMPORT-001 — OpenAI importer fixture harness (no live API).
     oai_parser = subparsers.add_parser(
         "openai-import",
@@ -5165,6 +5197,45 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"legacy_subordinate_matches: {answer['legacy_compatibility']['match_count']}")
             print(f"truth_boundary: {answer['truth_boundary']}")
         return EXIT_OK
+
+    if args.command == "demo":
+        if args.demo_command == "full":
+            from project_atlas.full_product_demo import (
+                receipt_to_public_dict,
+                run_full_product_demo,
+            )
+
+            print(
+                "TECHNICAL DEMO — NOT RELEASE CERTIFIED — "
+                "NOT AUTHENTIC PILOT — DEMO_FIXTURE",
+                file=sys.stderr,
+            )
+            # --reset currently always rematerializes inside the harness.
+            _ = bool(getattr(args, "reset", False))
+            demo_receipt = run_full_product_demo(
+                Path.cwd(),
+                work_root=getattr(args, "work_root", None),
+                receipt_path=getattr(args, "receipt", None),
+            )
+            payload = receipt_to_public_dict(demo_receipt)
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(f"MAIN_HEAD: {demo_receipt.MAIN_HEAD}")
+                print(f"ESTATE_FINGERPRINT: {demo_receipt.ESTATE_FINGERPRINT}")
+                print(f"DISCOVER: {demo_receipt.DISCOVER}")
+                print(f"INGEST: {demo_receipt.INGEST}")
+                print(f"BUILD_INDEXES: {demo_receipt.BUILD_INDEXES}")
+                print(f"VALIDATE: {demo_receipt.VALIDATE}")
+                print(f"DEMO_READINESS_PERCENT: {demo_receipt.DEMO_READINESS_PERCENT}")
+                print(f"FULL_LIVE_DEMO_READY: {demo_receipt.FULL_LIVE_DEMO_READY}")
+                print(f"P0: {demo_receipt.P0} P1: {demo_receipt.P1}")
+            return (
+                EXIT_OK
+                if demo_receipt.P0 == 0 and demo_receipt.DISCOVER == "PASS"
+                else EXIT_ERROR
+            )
+        parser.error(f"unknown demo command: {args.demo_command}")
 
     if args.command == "context-pack":
         if args.context_pack_command == "build":
