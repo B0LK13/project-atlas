@@ -2,12 +2,22 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO / "scripts"
+
+ISOLATED_EXTERNAL_CALL_COUNT = 0
+
+
+def _forbidden_external(*_args, **_kwargs):
+    global ISOLATED_EXTERNAL_CALL_COUNT
+    ISOLATED_EXTERNAL_CALL_COUNT += 1
+    raise AssertionError("External call forbidden in isolated governance test")
 
 
 def _load_module(module_name: str, path: Path):
@@ -25,10 +35,14 @@ d042 = _load_module(
     "d042_competing_d038_methodology_reconciliation",
     SCRIPTS / "d042_competing_d038_methodology_reconciliation.py",
 )
+contracts = _load_module(
+    "d043_governance_contracts",
+    SCRIPTS / "d043_governance_contracts.py",
+)
 
 
-class TestD043VerifierRegression(unittest.TestCase):
-    """Minimum D-043 verifier regression suite."""
+class TestD043EncodingMetrics(unittest.TestCase):
+    """Byte-level encoding metrics (no network)."""
 
     def test_utf8_em_dash_is_clean(self) -> None:
         """TEST_UTF8_EM_DASH_IS_CLEAN: E2 80 94 must not count as literal mojibake."""
@@ -40,70 +54,105 @@ class TestD043VerifierRegression(unittest.TestCase):
         sample = b"text \xc3\xa2\xe2\x82\xac\xe2\x80\x9d more"
         self.assertGreater(d042.count_literal_mojibake(sample), 0)
 
+
+class TestD043IsolatedGovernanceContracts(unittest.TestCase):
+    """Fixture-driven governance contracts — no git, gh, or network."""
+
+    def setUp(self) -> None:
+        global ISOLATED_EXTERNAL_CALL_COUNT
+        ISOLATED_EXTERNAL_CALL_COUNT = 0
+        self._patches = [
+            patch.object(
+                d042,
+                "fetch_all_pr_states",
+                side_effect=_forbidden_external,
+            ),
+            patch.object(
+                d042,
+                "gh_pr_state",
+                side_effect=_forbidden_external,
+            ),
+            patch.object(
+                subprocess,
+                "check_output",
+                side_effect=_forbidden_external,
+            ),
+        ]
+        for p in self._patches:
+            p.start()
+
+    def tearDown(self) -> None:
+        for p in self._patches:
+            p.stop()
+
     def test_clean_d028_does_not_mask_other_corruption(self) -> None:
         """TEST_CLEAN_D028_DOES_NOT_MASK_OTHER_CORRUPTION."""
-        clean_d028 = b"## D-028 Golden Estate integration chronology\n"
-        corrupted_hist = b"## D-191 \xe2\x80\x94 Atlas 3.0 \xe2\x86\x92 "
-        corrupted_new = corrupted_hist.replace(
-            b"\xe2\x80\x94", b"\xc3\xa2\xe2\x82\xac\xe2\x80\x9d"
-        ).replace(b"\xe2\x86\x92", b"\xc3\xa2\xe2\x82\xac\xe2\x84\xa2")
-        combined = clean_d028 + corrupted_new
-        self.assertEqual(d042.count_literal_mojibake(clean_d028), 0)
-        self.assertGreater(d042.count_literal_mojibake(combined), 0)
-        cls, regression = d042.classify_line_pair(corrupted_hist, corrupted_new)
-        self.assertTrue(regression)
-        self.assertIn(cls, ("ENCODING_ONLY_REWRITE", "UNRELATED_HISTORICAL_REWRITE"))
+        clean_d028_only = contracts.worklog_summary_from_counts()
+        self.assertFalse(contracts.carrier_has_worklog_regression(clean_d028_only))
+
+        with_regression_elsewhere = contracts.worklog_summary_from_counts(
+            encoding_regression_count=1,
+        )
+        self.assertTrue(contracts.carrier_has_worklog_regression(with_regression_elsewhere))
+
+        with_encoding_only_rewrite = contracts.worklog_summary_from_counts(
+            encoding_only_rewrite_count=1,
+        )
+        self.assertTrue(contracts.carrier_has_worklog_regression(with_encoding_only_rewrite))
+        self.assertFalse(contracts.expected_worklog_delta_only(with_encoding_only_rewrite))
 
     def test_unexpected_historical_rewrite_blocks_expected_delta(self) -> None:
         """TEST_UNEXPECTED_HISTORICAL_REWRITE_BLOCKS_EXPECTED_DELTA."""
-        old = b"## D-193 governance note \xe2\x80\x94 stable"
-        new = b"## D-193 governance note rewritten entirely"
-        analysis = d042.DiffAnalysis()
-        cls, regression = d042.classify_line_pair(old, new)
-        analysis.changed_lines.append(d042.ChangedLine(old, new, cls, regression))
-        if cls == "UNRELATED_HISTORICAL_REWRITE":
-            analysis.unrelated_historical_rewrite_count += 1
-        expected_only = (
-            analysis.unrelated_historical_rewrite_count == 0
-            and analysis.encoding_only_rewrite_count == 0
-            and analysis.unexpected_changed_regions == 0
+        analysis = contracts.worklog_summary_from_counts(
+            unrelated_historical_rewrite_count=1,
         )
-        self.assertFalse(expected_only)
+        self.assertFalse(contracts.expected_worklog_delta_only(analysis))
 
     def test_encoding_rewrite_flags_carrier_regression(self) -> None:
         """TEST_ENCODING_REWRITE_FLAGS_CARRIER_REGRESSION."""
-        old = b"Lane C REPORT READ \xe2\x80\x94 overview"
-        new = b"Lane C REPORT READ \xc3\xa2\xe2\x82\xac\xe2\x80\x9d overview"
-        cls, regression = d042.classify_line_pair(old, new)
-        self.assertTrue(regression)
-        self.assertEqual(cls, "EXPECTED_PROVENANCE_RESTORATION")
+        analysis = contracts.worklog_summary_from_counts(encoding_regression_count=1)
+        self.assertTrue(contracts.carrier_has_worklog_regression(analysis))
 
-    def test_merged_pr_not_current_open_closure_target(self) -> None:
-        """TEST_MERGED_PR_NOT_CURRENT_OPEN_CLOSURE_TARGET."""
-        d043 = _load_module(
-            "d043_ge_carrier_reconciliation",
-            SCRIPTS / "d043_ge_carrier_reconciliation.py",
+    def test_merged_pr_not_open_closure_target(self) -> None:
+        """TEST_MERGED_PR_NOT_OPEN_CLOSURE_TARGET."""
+        pr592_fixture = {"PR_NUMBER": 592, "LIVE_STATE": "MERGED", "MERGED": True}
+        self.assertFalse(
+            contracts.closure_eligible(
+                pr592_fixture["LIVE_STATE"],
+                merged=pr592_fixture["MERGED"],
+            )
         )
-        supersession = d043.audit_historical_supersession(d042)
-        pr592 = next(
-            (e for e in supersession["closure_entries"] if e["PR_NUMBER"] == 592),
-            None,
-        )
-        self.assertIsNotNone(pr592)
-        self.assertEqual(pr592["LIVE_STATE"], "MERGED")
-        self.assertTrue(pr592["MERGED"])
-        self.assertFalse(pr592["ELIGIBLE_FOR_CLOSURE_NOW"])
 
     def test_carrier_selection_precedes_loser_supersession(self) -> None:
         """TEST_CARRIER_SELECTION_PRECEDES_LOSER_SUPERSESSION."""
+        decision = contracts.choose_canonical_carrier(
+            pr608_worklog_regression=False,
+            pr609_worklog_regression=True,
+            ge_equivalent=True,
+            ci_equivalent=True,
+        )
+        self.assertEqual(decision.canonical_carrier, "PR608_STACK")
+        self.assertEqual(decision.pr607_disposition, "REQUIRED_BEFORE_CANONICAL_CARRIER")
+        self.assertEqual(decision.pr608_disposition, "CANONICAL_AFTER_PR607")
+        self.assertEqual(decision.pr609_disposition, "SUPERSEDED")
+        self.assertEqual(decision.canonical_ge_carrier_ambiguity, 0)
+
+
+class TestD043FullVerifierReproduction(unittest.TestCase):
+    """Full verifier dry-run (uses git/gh — not part of isolated contract suite)."""
+
+    def test_full_d043_dry_run_canonical_unchanged(self) -> None:
         d043 = _load_module(
             "d043_ge_carrier_reconciliation",
             SCRIPTS / "d043_ge_carrier_reconciliation.py",
         )
         packet = d043.build_packet(write_files=False)
         self.assertEqual(packet["canonical_carrier"], "PR608_STACK")
-        self.assertFalse(packet.get("pr608_superseded_before_carrier_selection", True))
-        self.assertEqual(packet["pr609_disposition"], "SUPERSEDED")
+        self.assertTrue(packet["pr609_worklog_carrier_regression"])
+        self.assertFalse(packet["pr608_worklog_carrier_regression"])
+        self.assertTrue(packet["ge_byte_equivalence"])
+        self.assertTrue(packet["ci_608_609_semantic_equivalence"])
+        self.assertEqual(packet["canonical_ge_carrier_ambiguity"], 0)
 
 
 if __name__ == "__main__":

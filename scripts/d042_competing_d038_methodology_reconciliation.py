@@ -5,13 +5,38 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 import unittest
+import importlib.util
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 EVIDENCE = REPO / "docs" / "evidence"
+SCRIPTS = REPO / "scripts"
+
+
+def _load_d043_contracts():
+    name = "d043_governance_contracts"
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, SCRIPTS / "d043_governance_contracts.py")
+    mod = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _diff_to_summary(analysis: "DiffAnalysis"):
+    contracts = _load_d043_contracts()
+    return contracts.WorklogAnalysisSummary(
+        unrelated_historical_rewrite_count=analysis.unrelated_historical_rewrite_count,
+        encoding_only_rewrite_count=analysis.encoding_only_rewrite_count,
+        unexpected_changed_regions=analysis.unexpected_changed_regions,
+        encoding_regression_count=analysis.encoding_regression_count,
+    )
 
 MAIN = "f6b2495a03196901a5a72c2cf3451d4504b54d5f"
 MAIN_TREE = "9c670d710ec63d36fea70c6a181c088b79294336"
@@ -231,7 +256,10 @@ def audit_historical_supersession() -> dict[str, Any]:
             continue
         seen.add(pr)
         live = gh_pr_state(pr, live_cache)
-        eligible = live["state"] == "OPEN" and not live.get("merged", False)
+        contracts = _load_d043_contracts()
+        eligible = contracts.closure_eligible(
+            live["state"], merged=live.get("merged", False)
+        )
         if eligible:
             open_closure_targets += 1
         entries.append({
@@ -288,28 +316,27 @@ def main() -> None:
 
     supersession = audit_historical_supersession()
 
-    pr609_regression = main_analysis.encoding_regression_count > 0
-    expected_delta_only = (
-        main_analysis.unrelated_historical_rewrite_count == 0
-        and main_analysis.encoding_only_rewrite_count == 0
-        and main_analysis.unexpected_changed_regions == 0
-    )
+    contracts = _load_d043_contracts()
+    main_summary = _diff_to_summary(main_analysis)
+    pr609_regression = contracts.carrier_has_worklog_regression(main_summary)
+    expected_delta_only = contracts.expected_worklog_delta_only(main_summary)
 
-    # Canonical decision per D-042 §15
-    if pr609_regression:
-        canonical_case = "C608"
-        canonical_carrier = "PR608_STACK"
-        pr607_disposition = "REQUIRED_BEFORE_CANONICAL_CARRIER"
-        pr608_disposition = "CANONICAL_AFTER_PR607"
-        pr609_disposition = "SUPERSEDED"
-        next_owner_action = "AUTHORIZE_OR_DECLINE_PR607"
-    else:
-        canonical_case = "C609"
-        canonical_carrier = "PR609"
-        pr607_disposition = "REQUIRED_SEPARATE_GOVERNANCE"
-        pr608_disposition = "SUPERSEDED_BY_PR609"
-        pr609_disposition = "CANONICAL"
-        next_owner_action = "AUTHORIZE_MERGE_PR_609"
+    decision = contracts.choose_canonical_carrier(
+        pr608_worklog_regression=False,
+        pr609_worklog_regression=pr609_regression,
+        ge_equivalent=True,
+        ci_equivalent=True,
+    )
+    canonical_case = decision.case
+    canonical_carrier = decision.canonical_carrier
+    pr607_disposition = decision.pr607_disposition
+    pr608_disposition = decision.pr608_disposition
+    pr609_disposition = decision.pr609_disposition
+    next_owner_action = (
+        "AUTHORIZE_OR_DECLINE_PR607"
+        if decision.case == "C608"
+        else "AUTHORIZE_MERGE_PR_609"
+    )
 
     competing_d038_tree = git("rev-parse", f"{COMPETING_D038_HEAD}^{{tree}}")
 
