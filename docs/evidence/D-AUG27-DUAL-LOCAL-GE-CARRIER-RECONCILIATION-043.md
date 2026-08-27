@@ -19,7 +19,7 @@ MERGE_AUTHORIZATION = NOT_GRANTED
 | PR609 | `4fe172ffc147…` | `c4085b7daec4eb30…` |
 
 Competing D-038 initial: `af17824a26830e07c718a1478e419234a096f4e4`  
-Corrected evidence: `c5a8a292e3606a6357b1c88cb062290ee72d1888`
+Corrected evidence: `b90834a232fce2782de25a7a1062d874edee4ae8`
 
 ## Literal Mojibake (raw blob, no CP1252 re-decode)
 
