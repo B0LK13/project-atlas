@@ -702,3 +702,58 @@ as_core2_009_promotion_atomicity_erratum:
     Process-crash / power-loss window leaving orphan stage/backup artifacts
     is recovered deterministically on ingest preflight; backup snapshot create
     continues to refuse unclean orphans until recovery runs.
+
+# ---------------------------------------------------------------------------
+# AS-MVP-001 REPOSITORY-STATUS RECONCILIATION (additive; does not rewrite
+# AS-MVP-001 history and does not re-bind any historical certification)
+# Date: 2026-08-27
+# Reason: the `status:` field and the merge-gate narrative above describe the
+# pre-merge candidate. Git history shows that candidate is already an ancestor
+# of `main`, so documentation derived from those lines repeatedly presented
+# AS-MVP-001 as pending owner-merge work that does not exist.
+# ---------------------------------------------------------------------------
+as_mvp_001_status_reconciliation:
+  status: additive_reconciliation_only
+  does_not_rewrite_as_mvp_001_history: true
+  historical_candidate_head: da04bd3156e87d2cd7acf15ed8d43f4529a02d20
+  historical_candidate_tree: c5d1ac23519849d993804dfac651e594cf98723d
+  historical_candidate_status: merged_and_superseded
+  historical_candidate_is_ancestor_of_main: true
+  pending_owner_merge_of_historical_candidate: false
+  # Applies to this receipt's `status:` field and to the merge-gate narrative
+  # above; those remain valid as history, not as present-tense status.
+  current_status_authoritative: false
+  reconciled_against_main_head: f1b5256510cb66e037e6774aa49d753bdb7dd96f
+  reconciled_against_main_tree: 8df56184bb25b1cf1b6a9102cf34e77248287940
+  reconciliation_date: 2026-08-27
+  current_main_status: >-
+    Portfolio intelligence is present on main and has been evolved by later
+    packages (AS-MVP-001-R1 relation/edge remediation; AS-INGEST-MANIFEST-001,
+    which resolved the multi-batch source-manifest limitation recorded under
+    epic_i I-005 above). Declared maturity is no longer universally "unknown":
+    the pilots report distinct labels through the real pipeline.
+  independent_reverification_2026_08_27:
+    scope: >-
+      The four AS-MVP-001 capabilities (portfolio overview, maturity matrix,
+      documentation coverage, stale knowledge) exercised through the real CLI
+      against main f1b52565: three-pilot corpus, empty portfolio, repeat-build
+      determinism, and validate.
+    result: capabilities_present_and_behaving_per_contract
+    binds_historical_evidence_to_current_main: false
+    p0_count: 0
+    p1_count: 0
+    open_p2_followups:
+      - >-
+        AS-MVP FUTURE-TIMESTAMP TRUST SEMANTICS: source timestamps dated after
+        the reference date are reported "fresh"; is_untrusted_mtime() guards
+        only the pre-1980 end. Changing this alters H-006 severity semantics
+        and is deliberately left as a separate owner decision.
+    open_p3_followups:
+      - >-
+        stale_knowledge() accepts stale_after_days <= 0 while
+        validation.py::_validate_freshness rejects < 1. Internal API only; the
+        CLI does not expose the threshold.
+  evidence_binding_note: >-
+    This block records repository status only. It does not transfer, renew or
+    extend any certification to a revision other than the one the original
+    receipt pinned.

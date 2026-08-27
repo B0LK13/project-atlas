@@ -84,22 +84,29 @@
 
 ## Epic I — Portfolio intelligence
 
-_Remaining items (I-002 through I-005, I-007, I-008) are implemented
-under **AS-MVP-001** on `feat/as-mvp-001-portfolio-pilots`
-(implementation complete, acceptance-tested, awaiting independent
-verification and owner merge; see
+_Remaining items (I-002 through I-005, I-007, I-008) were implemented
+under **AS-MVP-001** on `feat/as-mvp-001-portfolio-pilots` and are
+**merged**: that candidate (`da04bd31`) is an ancestor of `main`, and
+later mainline work has evolved the implementation (AS-MVP-001-R1 and
+subsequent packages). There is no outstanding merge of that candidate,
+and the branch name above is historical rather than a pending
+integration target. The four portfolio capabilities were re-verified
+against `main` `f1b52565` on 2026-08-27 through the real CLI pipeline
+(`init` -> `discover` -> `ingest` -> `build-indexes` ->
+`build-portfolio` -> `validate`). See
 `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and
-`docs/evidence/AS-MVP-001-receipt.yaml`). Left unchecked until
-independent verification passes and the branch is merged to `main`._
+`docs/evidence/AS-MVP-001-receipt.yaml` -- that receipt is historical
+evidence pinned to the pre-merge candidate and does not certify current
+`main` (see its status-reconciliation block)._
 
 - [x] I-001 Project index generator
-- [x] I-002 Portfolio overview — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
-- [x] I-003 Maturity matrix — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
-- [x] I-004 Documentation gap report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
-- [x] I-005 Stale knowledge report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] I-002 Portfolio overview — implemented, acceptance-tested (AS-MVP-001); merged to `main`
+- [x] I-003 Maturity matrix — implemented, acceptance-tested (AS-MVP-001); merged to `main`
+- [x] I-004 Documentation gap report — implemented, acceptance-tested (AS-MVP-001); merged to `main`
+- [x] I-005 Stale knowledge report — implemented, acceptance-tested (AS-MVP-001); merged to `main`
 - [x] I-006 Conflict review queue
-- [x] I-007 Dependency report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
-- [x] I-008 Capability report — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
+- [x] I-007 Dependency report — implemented, acceptance-tested (AS-MVP-001); merged to `main`
+- [x] I-008 Capability report — implemented, acceptance-tested (AS-MVP-001); merged to `main`
 
 ## Epic J — Incremental operation
 
@@ -120,16 +127,17 @@ _Items are implemented under **AS-MVP-001** on
 now implemented and acceptance-tested (AS-MVP-001-R1 release-closure
 remediation: golden manifest/output fixtures for K-004/K-005, an
 itemized contradiction checklist for K-006, and a dedicated
-credential-shaped canary fixture for K-007). Left unchecked until final
-independent verification passes and the branch is merged to `main`._
+credential-shaped canary fixture for K-007). This work is merged to
+`main`; the branches named above are historical rather than pending
+integration targets._
 
-- [x] K-001 Nebula fixture corpus — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
-- [x] K-002 Black Agency OS fixture corpus — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
-- [x] K-003 Dark Factory fixture corpus — implemented, acceptance-tested (AS-MVP-001); pending independent verification/merge
-- [x] K-004 Expected manifests — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
-- [x] K-005 Expected generated vault — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
-- [x] K-006 Contradiction fixtures — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
-- [x] K-007 Secret fixtures — implemented, acceptance-tested (AS-MVP-001-R1); pending independent verification/merge
+- [x] K-001 Nebula fixture corpus — implemented, acceptance-tested (AS-MVP-001); merged to `main`
+- [x] K-002 Black Agency OS fixture corpus — implemented, acceptance-tested (AS-MVP-001); merged to `main`
+- [x] K-003 Dark Factory fixture corpus — implemented, acceptance-tested (AS-MVP-001); merged to `main`
+- [x] K-004 Expected manifests — implemented, acceptance-tested (AS-MVP-001-R1); merged to `main`
+- [x] K-005 Expected generated vault — implemented, acceptance-tested (AS-MVP-001-R1); merged to `main`
+- [x] K-006 Contradiction fixtures — implemented, acceptance-tested (AS-MVP-001-R1); merged to `main`
+- [x] K-007 Secret fixtures — implemented, acceptance-tested (AS-MVP-001-R1); merged to `main`
 
 ## Cross-cutting follow-up — Atlas Core vertical slice
 
