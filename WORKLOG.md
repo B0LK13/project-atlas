@@ -7804,3 +7804,10 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
 - Preserves D-181 claim-to-use scaffolding and D-150 leftover nouns
 - Tests: test_d178 + test_d181 + test_d150 ask2 matrices = 52 PASS
 
+## D-048 — AS-ORCH-001A-R1 validator honesty rebind (#402)
+
+- Date: 2026-08-27
+- Rebind onto post-#613 main; WORKLOG/backlog conflicts dropped (product-only port)
+- Files: orchestration/validator.py + test_orchestration_result_contract.py
+- Local: test_orchestration_result_contract.py PASS
+- Prior tip 48ca5391 preserved as provenance; this head is a new certification generation
