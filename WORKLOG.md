@@ -7740,3 +7740,58 @@ Isolated Codex fixture / structured-submission ingest stacked on AT3-057 `#591`.
 - MERGE_AUTHORIZATION=NOT_GRANTED
 
 
+
+---
+
+## D-029 governance-restoration — recovered #605 provenance record
+
+**Date:** 2026-08-26
+**Directive:** D-029 (governance closure, docs-only)
+**Trigger:** D-026/D-028 independent forensic audit found that the D-025 Step 2
+merge (PR #606, tree `9c670d710ec63d36fea70c6a181c088b79294336`) resolved a
+`WORKLOG.md` conflict with `-X theirs`, which silently discarded the `#605`
+provenance entry below (the record of which `#593`-`#603` source SHAs were
+converged, and under what honesty invariants).
+
+**Scope and honesty of this restoration:**
+- `D-025 IS CANONICAL HISTORY` — no existing commit is rewritten or reverted.
+- `RUNTIME_CONTENT_UNCHANGED = true` — this entry restores documentation only;
+  the `#605` code itself was never lost, only this WORKLOG record of it.
+- `MODE = PROVENANCE_RESTORATION_ONLY` — this is not a new certification and
+  does not claim any test, IV, ADV, or Windows result beyond what the
+  restored entry below already stated at the time it was written.
+- `NO_RETROACTIVE_CERTIFICATION_CLAIMED = true`.
+
+The original entry, restored verbatim from the `#605` branch history below:
+
+---
+
+## Lane C REPORT READ convergence (#593-#603)
+
+**Date:** 2026-08-26
+**Branch:** `cursor/aug26-report-read-convergence-f3ff`
+**Base:** `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / TREE `8df56184bb25b1cf1b6a9102cf34e77248287940`
+**Mode:** consume-only dependency convergence. Does not grant merge. Does not write vaults. Does not widen authority.
+
+### Source objects (tips, not PR bodies)
+- `#593` `d45c1d2` `atlas.next.read` `/v1/next-status`
+- `#594` `3557f7d` `atlas.changed.read` `/v1/changed-status`
+- `#595` `227c044` `atlas.overview.read` `/v1/overview-status`
+- `#596` `296f0db` `atlas.decisions.read` `/v1/decisions-status`
+- `#597` `d5bf486` `atlas.unknown.read` `/v1/unknown-status`
+- `#598` `f4ee09e` `atlas.state.read` `/v1/state-status`
+- `#599` `5f68364` `atlas.architecture.read` `/v1/architecture-status`
+- `#600` `67d6f13` `atlas.roadmap.read` `/v1/roadmap-status`
+- `#601` `c1d5938` `atlas.portfolio.read` `/v1/portfolio-status`
+- `#602` `04c0ea8` `atlas.bitemporal.read` `/v1/bitemporal-status`
+- `#603` `0e66476` `atlas.indexes.read` `/v1/index-status`
+
+### Method
+Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared files (`cli.py`, `app_service.py`, `api_server.py`, `mcp_registry.py`, `mcp_server.py`, `web_api/__init__.py`, `test_as_2_1_mcp_adv_001.py`) hand-unioned additively. Existing ADV cases retained.
+
+### Honesty
+- `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN`
+- `REPORT READ != AUTHORITY`
+- `EMPTY/UNKNOWN != HEALTHY`
+- `WRITE_APPLIED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
