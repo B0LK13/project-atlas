@@ -260,3 +260,38 @@ def test_http_architecture_scope_writes_and_leak(tmp_path: Path) -> None:
         assert meta["write_enabled"] is False
     finally:
         server.shutdown()
+
+
+def test_unknown_project_architecture_not_imported_into_scoped_lens(tmp_path: Path) -> None:
+    """P1: unowned architecture must not appear under a concrete project scope."""
+    vault = tmp_path / "v"
+    (vault / "projects" / "harbor-api").mkdir(parents=True)
+    imported = vault / "sources" / "imported-documents"
+    imported.mkdir(parents=True)
+    mark = "UNOWNED_ARCH_MARK_ZZZ"
+    (imported / "orphan-plan.md").write_text(
+        _plan_text(purpose="Orphan unowned architecture.", token=mark),
+        encoding="utf-8",
+    )
+    _write_json(
+        vault / "generated" / "ops" / "connect-manifest.json",
+        {
+            "source_root": str(vault / "src-root"),
+            "sources": [
+                {
+                    "path": "docs/plan.md",
+                    "source_id": "orphan-plan",
+                    "likely_project": "unknown-project",
+                }
+            ],
+        },
+    )
+    harbor = read_architecture(vault, "harbor-api")
+    missing = read_architecture(vault, "no-such-project")
+    sentinel = read_architecture(vault, "unknown-project")
+    for report in (harbor, missing, sentinel):
+        blob = json.dumps(report)
+        assert mark not in blob
+        assert report["status"] in {"unknown", "derived"}
+        if report["project_id"] != "harbor-api" or report["status"] == "unknown":
+            assert all(value == "UNKNOWN" for value in report["slots"].values()) or mark not in blob
