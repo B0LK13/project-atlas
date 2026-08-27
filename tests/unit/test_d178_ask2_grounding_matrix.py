@@ -246,8 +246,7 @@ def test_d178_wrong_project_evidence_excluded(tmp_path: Path) -> None:
     assert answer["status"] == "unknown"
     assert answer["EVIDENCE"] == []
     assert answer["CONFLICTS"]["unresolved_count"] == 0
-    for entry in answer["EVIDENCE"]:
-        assert entry["record_id"] != "claim-other"
+    assert all(entry["record_id"] != "claim-other" for entry in answer["EVIDENCE"])
 
 
 def test_d178_secret_shaped_value_is_not_echoed(tmp_path: Path) -> None:
@@ -315,3 +314,28 @@ def test_d178_empty_vault_unknown(tmp_path: Path) -> None:
     assert answer["status"] == "unknown"
     assert answer["ANSWER"] is None
     assert answer["CONFLICTS"]["unresolved_count"] == 0
+
+
+def test_d178_version_control_use_keeps_relational_use_required(tmp_path: Path) -> None:
+    """'Does Helix use version control?' must keep use* required (not version-scaffold)."""
+    from project_atlas.ask2 import _question_claim_terms
+
+    terms = _question_claim_terms(
+        "Does Helix use version control?", project_id="helix"
+    )
+    assert "use" in terms or "uses" in terms
+    assert "version" not in terms  # attribute filler
+    assert "control" in terms
+
+
+def test_d178_project_id_strip_keeps_substantive_api_token() -> None:
+    """Exact project_id phrase strip must not drop standalone 'api' claim nouns."""
+    from project_atlas.ask2 import _question_claim_terms
+
+    terms = _question_claim_terms(
+        "Which database does harbor-api use for the public api layer?",
+        project_id="harbor-api",
+    )
+    assert "api" in terms
+    assert "harbor" not in terms
+    assert "database" in terms

@@ -294,6 +294,14 @@ def _claim_to_use_scaffold_tokens(question: str) -> frozenset[str]:
     return frozenset(drop)
 
 
+# Closed "Which/What … version … use?" scaffolding (D-178 Harbor-style).
+# Intentionally does NOT fire on "Does Helix use version control?".
+_VERSION_ATTRIBUTE_USE_SCAFFOLD = re.compile(
+    r"\b(?:which|what)\b[\s\S]{0,80}?\bversions?\b[\s\S]{0,80}?\b(?:does|do)\b[\s\S]{0,80}?\buses?\b",
+    re.IGNORECASE,
+)
+
+
 def _question_claim_terms(
     question: str, *, project_id: str | None = None
 ) -> frozenset[str]:
@@ -305,18 +313,20 @@ def _question_claim_terms(
     candidate's substantive record text.  An empty term set means the question
     has no discriminative claim content and cannot ground an answer.
 
-    D-178: project-id tokens and closed attribute fillers are not claim nouns.
-    Version-attribute questions may also drop trailing use* (not D-181 primary
-    relational use). D-181 claim-to-use scaffolding still applies.
-    D-150 leftover specific nouns stay required.
+    D-178: exact project-id mentions and closed attribute fillers are not claim
+    nouns. Only the closed Which/What…version…use? scaffold drops use* — not
+    every question that merely contains a version token (preserves D-181).
+    D-181 claim-to-use scaffolding still applies. D-150 leftover nouns stay.
     """
     scaffold = _claim_to_use_scaffold_tokens(question)
-    scope_tokens = frozenset(tokenize(project_id)) if project_id else frozenset()
-    q_tokens = frozenset(tokenize(question))
+    # Strip exact project_id phrase(s) only — do not globally drop every token
+    # that appears inside the slug (keeps substantive "api" outside "harbor-api").
+    q_lex = question
+    if project_id and project_id.strip():
+        q_lex = re.sub(re.escape(project_id.strip()), " ", question, flags=re.IGNORECASE)
+    q_tokens = frozenset(tokenize(q_lex))
     fillers = set(_QUESTION_ATTRIBUTE_FILLERS)
-    # "Which … version does X use?" — use* is attribute scaffolding, not the
-    # primary D-181 relation in "Does Helix use PostgreSQL?".
-    if q_tokens & {"version", "versions", "major", "minor"}:
+    if _VERSION_ATTRIBUTE_USE_SCAFFOLD.search(question):
         fillers.update({"use", "uses", "using", "used"})
     return frozenset(
         token
@@ -324,7 +334,6 @@ def _question_claim_terms(
         if token not in _QUESTION_FUNCTION_WORDS
         and token not in fillers
         and token not in scaffold
-        and token not in scope_tokens
         and len(token) > 1
     )
 
