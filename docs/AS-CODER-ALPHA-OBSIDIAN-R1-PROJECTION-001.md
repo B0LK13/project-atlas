@@ -19,4 +19,5 @@ Honesty:
 - AUTHENTIC_OBSIDIAN_REQUIRED = YES for final visual certification
   (`LOCAL_ACCEPTANCE_PENDING` until an authentic Obsidian runtime is used)
 
-Does not copy owner-held #409 stale-lens adapters.
+Does not copy #409 stale-lens adapters (a separate certified consolidation,
+not owner-held; #371 — the living-note successor — is the owner-held draft).
