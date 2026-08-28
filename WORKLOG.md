@@ -8156,11 +8156,57 @@ from before the fix).
   (`dispatcher.py`), so the blast radius of this change is contained to
   what was already covered above.
 
-**Independent adversarial verification:** dispatched to a separate
-subagent (implementer must not self-certify), bound to this remediation's
-exact HEAD once committed. Result recorded below once returned.
-`SELF_CERTIFICATION = FORBIDDEN` for this finding; `ORCH001D-011` is not
-final until that converges.
+**Independent adversarial verification (round 1): dispatched to a
+separate subagent (implementer must not self-certify), bound to exact
+head `3d2276bc3d78067b564a731347259c514a7ff450`. VERDICT: FAIL.**
+
+The verifier confirmed `MEMORY_BOUND_IS_REAL` (measured directly: a
+150MB child write produced ~0.46MB parent memory growth, via
+`GetProcessMemoryInfo`) and `AUTHORIZATION_PRECEDES_EXECUTION` unchanged,
+but found `OUTPUT_BOUNDING_DOES_NOT_CHANGE_PROCESS_SEMANTICS` **false** --
+a real, independently-discovered regression this specific commit
+introduced (not one of the two review findings above; found by the
+verifier's own line-by-line read and adversarial testing):
+
+**Finding 3 (P1) -- the fix silently defeated the timeout when stdin was
+present.** `SubprocessProcessRunner.run()` wrote `request.stdin`
+synchronously in the main thread *before* `proc.wait(timeout=...)` was
+ever reached. A child that does not promptly read stdin fills the OS
+pipe buffer and blocks that write, with no timeout applied to the block
+-- `timeout_seconds` was silently not enforced whenever stdin was
+populated, which is always true on the real dispatch path (the verifier
+reproduced this at the *exact* production stdin ceiling, `8192` bytes /
+`MAX_PROMPT_CHARS`: requested `timeout_seconds=2`, actual elapsed
+`10.08s`, `timed_out=False`). A control test against the pre-fix
+`Popen.communicate()`-based implementation, identical scenario, correctly
+raised `TimeoutExpired` at 2.02s -- proving this was a genuine regression
+introduced by the memory-bound rewrite, not pre-existing behavior. None
+of the 22 new tests exercised stdin together with a slow/non-reading
+child, so nothing caught it locally.
+
+Remediation: write `request.stdin` on its own dedicated thread too
+(matching the stdout/stderr treatment), started *before*
+`proc.wait(timeout=...)`, so the timeout genuinely bounds the whole call
+regardless of whether the child reads stdin promptly. If the process is
+killed on timeout, the child's stdin read end closes and the pending
+write unblocks with a (caught) broken-pipe error.
+
+Added `test_timeout_is_enforced_even_with_slow_to_read_stdin` (uses
+`MAX_PROMPT_CHARS`, the real production ceiling, not an arbitrary size)
+reproducing the verifier's exact scenario as a permanent regression test.
+
+**Local verification of the round-2 fix:**
+- Reproduced the verifier's exact scenario against the fixed code first
+  (red/green): before the fix, 10.08s elapsed against a 2s timeout; after,
+  2.03s, `timed_out=True`, `exit_code=124`.
+- Full orchestration regression (same file set as round 1, plus the new
+  test): 107 passed.
+- `ruff check` / `mypy` (2 changed files): clean.
+
+**Independent adversarial verification (round 2):** in progress against
+this round's exact head, once committed. `ORCH001D-011` remains not
+final -- `SELF_CERTIFICATION = FORBIDDEN` -- until that converges with a
+clean result.
 
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001E.

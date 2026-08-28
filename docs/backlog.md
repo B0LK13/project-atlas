@@ -494,7 +494,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher (current-main reconstruction)
 
-_Status: **IMPLEMENTED — ORCH001D-011 IV FOUND A REAL P2 (subprocess capture memory-bound), REMEDIATED, PENDING INDEPENDENT ADVERSARIAL VERIFICATION** (2026-08-28, see WORKLOG "ORCH001D-011"; not final until a separate verifier converges -- implementer self-certification is not sufficient here; ORCH001D-012 authentic-Cursor acceptance remains separately outstanding, EXTERNAL_BLOCKED here; not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
+_Status: **IMPLEMENTED — ORCH001D-011 IV found a real P2 (subprocess capture memory-bound) and, on independent adversarial re-verification, a real P1 (fix silently defeated the timeout when stdin was present) -- both remediated, round-2 independent verification in progress** (2026-08-28, see WORKLOG "ORCH001D-011"; not final until a separate verifier converges clean -- implementer self-certification is not sufficient here; ORCH001D-012 authentic-Cursor acceptance remains separately outstanding, EXTERNAL_BLOCKED here; not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
 
 Honesty (mandatory):
 
@@ -520,7 +520,7 @@ Honesty (mandatory):
 - [x] ORCH001D-008 `atlas orchestrator dispatch-once` / `dispatch-status`
 - [x] ORCH001D-009 Mutating remediation fail closed (`CAPABILITY_REQUIRED`)
 - [x] ORCH001D-010 Focused unit + schema tests
-- [ ] ORCH001D-011 Independent verification (2026-08-28: IV found a real P2 -- `SubprocessProcessRunner` capture was bounded only on the returned value, not during collection; remediated by rewriting to a bounded concurrent-drain design + 22 new regression tests, 106 total orchestration tests pass, ruff/mypy clean; PENDING a separate independent adversarial verification pass before this is checked off -- see WORKLOG "ORCH001D-011"; still not merge-eligible regardless)
+- [ ] ORCH001D-011 Independent verification (2026-08-28: round 1 IV found a real P2 -- capture bounded only on the returned value, not during collection; remediated. Round-1 *independent* re-verification then found a further real P1 -- the fix silently defeated `timeout_seconds` whenever stdin was populated (always true on the real dispatch path); also remediated. 107 orchestration tests pass, ruff/mypy clean. PENDING a round-2 independent adversarial verification pass before this is checked off -- see WORKLOG "ORCH001D-011"; still not merge-eligible regardless)
 - [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 

@@ -23,6 +23,19 @@ stdout/stderr on dedicated threads with the cap enforced during collection
 on a full pipe). The capture-bound regression tests below exercise that
 rewrite directly, including the concurrent-large-streams case that is the
 classic way a naive fix reintroduces a pipe deadlock.
+
+An independent adversarial verification pass on that same rewrite (not
+self-certified -- a separate reviewer) found a further real regression:
+the rewrite wrote ``request.stdin`` synchronously *before*
+``proc.wait(timeout=...)`` was ever reached, so a child slow to read
+stdin blocked the write with no timeout applied to it --
+``timeout_seconds`` was silently not enforced whenever stdin was
+populated, which is always true on the real dispatch path (confirmed at
+the exact production stdin ceiling, ``MAX_PROMPT_CHARS``). Fixed (same
+PR) by writing stdin on its own thread, started before ``proc.wait()``,
+so the timeout genuinely bounds the whole call regardless of whether the
+child reads its stdin promptly. See
+``test_timeout_is_enforced_even_with_slow_to_read_stdin`` below.
 """
 
 from __future__ import annotations
@@ -35,6 +48,7 @@ import pytest
 
 from project_atlas.orchestration.agent_transport import (
     MAX_CAPTURED_BYTES,
+    MAX_PROMPT_CHARS,
     LauncherKind,
     ProcessRunRequest,
     ResolvedCursorExecutable,
@@ -372,6 +386,31 @@ def test_timeout_preserves_output_already_produced_before_the_kill(tmp_path: Pat
     assert out.exit_code == 124
     assert out.stdout == b"produced-before-hang"
     assert elapsed < 5, f"expected kill at ~1s, took {elapsed:.1f}s"
+
+
+def test_timeout_is_enforced_even_with_slow_to_read_stdin(tmp_path: Path) -> None:
+    """Regression test for the P1 found by independent adversarial
+    verification on PR #620: an earlier version of this runner wrote
+    ``request.stdin`` synchronously *before* ``proc.wait(timeout=...)``
+    was reached, so a child that does not promptly read stdin blocked
+    that write with no timeout applied -- silently defeating
+    ``timeout_seconds`` whenever stdin was populated (always true on the
+    real dispatch path). Uses MAX_PROMPT_CHARS, the exact production
+    stdin ceiling, not an arbitrary size."""
+    runner = SubprocessProcessRunner()
+    req = ProcessRunRequest(
+        argv=(sys.executable, "-c", "import time; time.sleep(10)"),
+        cwd=tmp_path,
+        timeout_seconds=2,
+        env={},
+        stdin=b"P" * MAX_PROMPT_CHARS,
+    )
+    start = time.time()
+    out = runner.run(req)
+    elapsed = time.time() - start
+    assert out.timed_out is True
+    assert out.exit_code == 124
+    assert elapsed < 5, f"stdin write blocked the timeout: took {elapsed:.1f}s, expected ~2s"
 
 
 def test_normal_small_output_is_unchanged_by_the_bounded_drain(tmp_path: Path) -> None:

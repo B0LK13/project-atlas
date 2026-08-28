@@ -12,6 +12,7 @@ CURSOR_PROSE_CAN_CHOOSE_NEXT_ROUTE = NO
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -635,6 +636,29 @@ def _drain_bounded(stream: IO[bytes] | None, cap: int, sink: bytearray) -> None:
             sink.extend(chunk[: cap - len(sink)])
 
 
+def _write_stdin(pipe: IO[bytes] | None, data: bytes) -> None:
+    """Write ``data`` to ``pipe`` and close it, on its own thread.
+
+    Runs concurrently with ``proc.wait(timeout=...)`` in the caller, not
+    before it: a child that does not promptly read stdin must not be able
+    to block the parent past the requested timeout. (An earlier version of
+    this runner wrote stdin synchronously before ``wait()`` was ever
+    reached -- independent adversarial verification on PR #620 caught that
+    this silently defeated ``timeout_seconds`` whenever stdin was
+    populated, which is always true on the real dispatch path.) If the
+    child is killed on timeout, its stdin read end closes and this write
+    unblocks with a (caught) broken-pipe error."""
+    if pipe is None:
+        return
+    try:
+        pipe.write(data)
+    except (BrokenPipeError, OSError):
+        pass  # A process that exits/is killed before reading stdin is not a transport failure.
+    finally:
+        with contextlib.suppress(OSError):
+            pipe.close()
+
+
 class SubprocessProcessRunner:
     """Real argv runner. ``shell`` is never enabled.
 
@@ -642,7 +666,9 @@ class SubprocessProcessRunner:
     (``MAX_CAPTURED_BYTES`` per stream) enforced *during* collection, not
     only on the value handed back to the caller -- a child process writing
     far more than the cap cannot force unbounded parent memory growth
-    before exiting or being killed on timeout.
+    before exiting or being killed on timeout. stdin is written on its own
+    thread too, concurrently with ``proc.wait(timeout=...)``, so a child
+    that is slow to read stdin cannot silently defeat the timeout.
     """
 
     def run(self, request: ProcessRunRequest) -> ProcessRunOutcome:
@@ -678,27 +704,28 @@ class SubprocessProcessRunner:
         )
         stdout_thread.start()
         stderr_thread.start()
+        stdin_thread: threading.Thread | None = None
+        if request.stdin is not None and proc.stdin is not None:
+            stdin_thread = threading.Thread(
+                target=_write_stdin, args=(proc.stdin, request.stdin), daemon=True
+            )
+            stdin_thread.start()
         timed_out = False
         try:
-            if request.stdin is not None and proc.stdin is not None:
-                try:
-                    proc.stdin.write(request.stdin)
-                except (BrokenPipeError, OSError):
-                    pass  # A process that exits before reading stdin is not a transport failure.
-                finally:
-                    proc.stdin.close()
-            try:
-                proc.wait(timeout=request.timeout_seconds)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                proc.kill()
-                proc.wait()
+            proc.wait(timeout=request.timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            proc.kill()
+            proc.wait()
         finally:
-            # Reader threads exit once the child's pipes close (on normal
-            # exit or after kill()); the join timeout is only a backstop
-            # against an OS-level hang, never the primary bound.
+            # All three I/O threads exit once the child's pipes close (on
+            # normal exit or after kill()); the join timeouts are only a
+            # backstop against an OS-level hang, never the primary bound --
+            # proc.wait(timeout=...) above is what actually bounds the call.
             stdout_thread.join(timeout=30)
             stderr_thread.join(timeout=30)
+            if stdin_thread is not None:
+                stdin_thread.join(timeout=30)
             if proc.stdout is not None:
                 proc.stdout.close()
             if proc.stderr is not None:
