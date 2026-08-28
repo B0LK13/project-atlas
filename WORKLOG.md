@@ -8826,26 +8826,48 @@ not attempted.
   `api_server`/`AtlasApiServer`): 194 passed, 0 failed. `ruff`/`mypy`
   clean.
 - `SELF_CERTIFICATION = FORBIDDEN`; independent re-verification dispatched
-  separately, not yet consumed as of this entry.
-- **Correction, discovered after this PR was already pushed**:
-  `src/project_atlas/api_server.py` is listed in the `DENY` tuple of
+  separately -- returned `FIX_VERIFIED_PASS` (real live HTTP round trips
+  on both `::1` and `127.0.0.1`/`localhost`, dual-stack isolation
+  independently reproduced, 10 IPv6/hostname edge-case variants tried
+  against the exact-string bind gate, 194/194 tests, clean ruff/mypy,
+  clean current-main merge-tree). Independently spot-checked by the lead
+  (construction-site count, exact match) before being accepted.
+- Exact-head CI: **`4535 passed, 5 skipped, 0 failed`** across all 4
+  required checks -- genuinely `CLEAN`.
+- **Governance finding, discovered after this PR was already pushed, more
+  nuanced than first recorded**: `src/project_atlas/api_server.py` is
+  listed in the `DENY` tuple of
   `tests/unit/test_atlas3_demo_isolation_001.py::test_certified_surfaces_unmodified`
   -- a repo-encoded freeze added 3 days prior by a separate, unrelated
-  "Atlas 3" workstream (commit `cefc234e`), asserting this file is
-  unmodified relative to `origin/main` on any branch. Verified directly,
-  twice: (1) `git diff --name-only origin/main...HEAD` on this exact fix
+  "Atlas 3" workstream, asserting this file is unmodified relative to
+  `origin/main` on any branch. A full local clone reproduces this
+  correctly: `git diff --name-only origin/main...HEAD` on this exact fix
   branch returns exactly `src/project_atlas/api_server.py`, which is in
-  `DENY` -- the assertion will fail; (2) confirmed the file and its
-  `DENY` tuple content by direct read. This is an explicit ownership
-  contract, not a heuristic, and this session is not overriding it or
-  inventing precedence over it. `PR628` is not withdrawn (the fix itself
-  remains verified correct and locally tested), but its CI is expected
-  to fail on this specific unrelated gate, and it cannot be certified
-  or merged without an owner decision: either a scoped exception to the
-  freeze for this specific fix, or holding it until the freeze lifts /
-  the two workstreams reconcile ownership of this file.
-- `MERGE_AUTHORIZATION = NOT_GRANTED`; production code, owner-gated, now
-  additionally blocked by the Atlas-3 certified-surface freeze above.
+  `DENY`, so the assertion fails locally, as designed. **But the real
+  hosted CI does not fail on it** -- verified directly from the actual
+  run log: the checkout step uses `fetch-depth: 1` (a single-commit
+  shallow fetch), which very likely leaves `origin/main` unresolvable as
+  a ref in that checkout; `_changed_paths()`'s `subprocess.run(...,
+  check=False)` calls then silently return empty output on that failure
+  rather than raising, so `changed` ends up empty and `violated == []`
+  passes vacuously -- not because the file wasn't touched, but because
+  the freeze test's own git-diff mechanism cannot see the diff in the
+  real CI environment it's meant to guard. This is a real, independent
+  latent defect in the freeze's enforcement (it only actually protects a
+  full local clone, not the hosted CI it presumably exists to gate), but
+  it does **not** change the underlying governance fact: the file is
+  explicitly, deliberately frozen by a separate workstream's stated
+  intent, and this session is not treating a broken enforcement check as
+  license to proceed as if that intent doesn't apply. `PR628` is not
+  withdrawn (the fix itself is verified correct, twice, independently),
+  but it is not self-merged under any authorization this session holds,
+  and remains an owner-decision item: grant a scoped exception to the
+  freeze for this specific fix, hold it until the freeze lifts, or flag
+  the freeze's own CI-enforcement gap to whoever owns the Atlas-3
+  workstream separately from this fix's own merge decision.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; production code, owner-gated. CI
+  passing does not resolve the separate Atlas-3 freeze-intent question
+  above.
 
 ### PR #410 (AS-CODER-ALPHA-CONNECT-PERF-001) — certified candidate
 
