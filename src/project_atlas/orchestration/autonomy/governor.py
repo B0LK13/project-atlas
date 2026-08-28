@@ -402,6 +402,14 @@ class AutonomousGovernor:
             )
         if would_overlap(tuple(self._nodes), node):
             raise GovernorError("surface overlap forbids lease restoration", code="SURFACE_OVERLAP")
+        # Independent-IV note (PR #638): for a direct double-call with the
+        # exact same lease, the NODE_NOT_READY check above already fires
+        # first on the second call (the node is LEASED by then), so this
+        # replay guard is shadowed for that specific shape -- confirmed
+        # harmless (no double-append either way). It remains real
+        # defense-in-depth for other shapes, e.g. two different callers
+        # racing to restore colliding lease_ids onto two different
+        # still-READY nodes.
         if any(existing.lease_id == lease.lease_id for existing in self._leases):
             raise GovernorError("lease already present", code="LEASE_REPLAY")
         self._leases.append(lease)
