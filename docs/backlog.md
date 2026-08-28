@@ -418,7 +418,8 @@ Honesty (mandatory):
 - [x] ORCH001A-004 Owner gate (`MERGE_ELIGIBLE` → `OWNER_REQUIRED`, never `MERGE`)
 - [x] ORCH001A-005 Read-only CLI `atlas orchestrator validate-result`
 - [x] ORCH001A-006 Focused unit tests + schema/model parity
-- [x] ORCH001A-007 Independent integration verification (2026-08-28: 118 existing tests re-run PASS + 7 black-box CLI probes, 1 baseline + 6 adversarial, against `main` `718f2beb`, see WORKLOG "ORCH001A-007"; PASS; still not merge-eligible)
+- [x] ORCH001A-007 Independent integration verification (2026-08-28: 118 existing tests re-run PASS + 7 black-box CLI probes, 1 baseline + 6 adversarial, against `main` `718f2beb`, see WORKLOG "ORCH001A-007"; PASS)
+- [x] ORCH001A-008 Owner-authorized activation: `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md; consumes existing owner authorization, does not re-merge code, does not grant automatic merge to the loop)
 - [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
@@ -451,7 +452,8 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 - [x] ORCH001B-005 Read-only CLI `atlas orchestrator route-result`
 - [x] ORCH001B-006 Shipped JSON schemas + model/schema parity tests
 - [x] ORCH001B-007 Focused unit + composition + privilege-invariant tests
-- [x] ORCH001B-008 Independent integration verification (2026-08-28: dedicated pass — dispatchable=true permission audit + decision/envelope consistency probe against `main` `718f2beb`, see WORKLOG "ORCH001B-008"; PASS; still not merge-eligible)
+- [x] ORCH001B-008 Independent integration verification (2026-08-28: dedicated pass — dispatchable=true permission audit + decision/envelope consistency probe against `main` `718f2beb`, see WORKLOG "ORCH001B-008"; PASS)
+- [x] ORCH001B-009 Owner-authorized activation: `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
@@ -491,6 +493,7 @@ Honesty (mandatory):
 - [x] ORCH001C-R1-003 Transport-equivalence + tamper + idempotence proofs
 - [x] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move) (2026-08-28: 44 existing tests re-run PASS + 10 black-box CLI probes -- 2 baseline + 8 adversarial, covering `cursor-status`/`cursor-stage-result`/`cursor-ack`/`cursor-complete` (the R1-added explicit-completion transport, initially missed -- added after review), including on-disk state-file tamper injection against both `cursor-status` and `cursor-complete` (`STAGED_STATE_TAMPERED`), transport-equivalence and idempotence evidence for `cursor-complete` -- against `main` `5ff62221`, see WORKLOG "ORCH001C-009"; PASS; still not merge-eligible)
 - [x] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
+- [x] ORCH001C-011 Owner-authorized activation: `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
@@ -523,7 +526,8 @@ Honesty (mandatory):
 - [x] ORCH001D-009 Mutating remediation fail closed (`CAPABILITY_REQUIRED`)
 - [x] ORCH001D-010 Focused unit + schema tests
 - [x] ORCH001D-011 Independent verification (2026-08-28: round 1 IV found a real P2 -- capture bounded only on the returned value, not during collection -- remediated; round-1 *independent* re-verification found a further real P1 -- the fix silently defeated `timeout_seconds` whenever stdin was populated (always true on the real dispatch path) -- remediated; round-2 independent re-verification PASS with 7 further adversarial variants beyond round 1's, confirming the memory-bound fix stayed intact and no thread leak. 107 orchestration tests pass, ruff/mypy clean. See WORKLOG "ORCH001D-011"; still not merge-eligible)
-- [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
+- [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance (unaffected by activation below -- separately outstanding)
+- [x] ORCH001D-013 Owner-authorized activation: `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
@@ -551,6 +555,7 @@ Honesty (mandatory):
 - [x] ORCH001DRB-005 Exit code is not semantic PASS
 - [x] ORCH001DRB-006 Internal governed submit/finalize (child write not required)
 - [x] ORCH001DRB-007 Independent verification (bootstrap: candidate tests + exact-head CI + Windows process matrix; adapter PASS is not self-trust; independently verified 2026-08-28, `PASS`, 32/32 tests + 15 adversarial frame-injection probes including real Windows CreateProcess -- see WORKLOG "EOD convergence wave")
+- [x] ORCH001DRB-008 Owner-authorized activation: `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 
 ## AS-ORCH-001E — Governed Autonomous Loop
 
@@ -576,8 +581,9 @@ Honesty (mandatory):
 - [x] ORCH001E-005 Crash/restart recovery without duplicate dispatch
 - [x] ORCH001E-006 Duplicate lease/result/dispatch prevention
 - [x] ORCH001E-007 Adversarial matrix (authority, replay, corruption, cross-project)
-- [x] ORCH001E-008 Independent verification (2026-08-28: 255 existing tests re-run PASS + 8 adversarial probes against `main` `0aa37abf`, ruff/mypy clean; PASS with 3 non-blocking follow-ups recorded, see WORKLOG "ORCH001E-008"; still not merge-eligible)
-- [ ] ORCH001E-009 Owner merge gate (not this package)
+- [x] ORCH001E-008 Independent verification (2026-08-28: 255 existing tests re-run PASS + 8 adversarial probes against `main` `0aa37abf`, ruff/mypy clean; PASS with 3 non-blocking follow-ups recorded, see WORKLOG "ORCH001E-008"; 2 of 3 follow-ups resolved as a side effect of ORCHAUT-010 (see below); the third, P3 crash-recovery orphaned-dispatch, tracked separately on PR #635, not yet certified)
+- [x] ORCH001E-010 Owner-authorized activation: `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
+- [ ] ORCH001E-009 Owner merge gate (not this package) -- activation of the stack is not a grant of automatic merge authority to the loop itself, which remains permanently Owner-reserved
 
 ## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
 
@@ -594,14 +600,14 @@ Honesty (mandatory):
 - `IV_ROUTING = IMPLEMENTED`
 - `ADVERSARIAL_REVIEW_TRIGGER = IMPLEMENTED`
 - `EVIDENCE_CONTRACT = IMPLEMENTED`
-- `OWNER_GATES_A_F = PARTIALLY_IMPLEMENTED` (corrected 2026-08-28 from `IMPLEMENTED`, found during ORCH001E-008 IV, see WORKLOG: gates A/B have real `require_owner(...)` enforcement call sites and are fail-closed; C/D/E/F (`C_CERTIFIED_OBJECT_MUTATION`, `D_SECURITY_GOVERNANCE_POLICY`, `E_DESTRUCTIVE_OPS`, `F_MATERIAL_EXTERNAL_SPEND`) exist only as descriptive `OwnerGateKind` tags -- zero `require_owner(...)` call sites for any of them anywhere in the package. Not currently exploitable -- no 001E path attempts a C/D/E/F-gated action -- but the prior `IMPLEMENTED` value overstated what's enforced today; see ORCHAUT-010 below, reopened.)
+- `OWNER_GATES_A_F = IMPLEMENTED` (corrected back 2026-08-28 -- was PARTIALLY_IMPLEMENTED earlier the same day, found during ORCH001E-008 IV: gates C/D/E/F existed only as descriptive `OwnerGateKind` tags with zero `require_owner(...)` call sites. ORCHAUT-010 closed this: `governor.py::lease()` now enforces `require_owner(...)` for any owner_gate other than A, and `continuation.py::select_next` unconditionally excludes any owner-gated node from autonomous selection -- independently verified PASS in two rounds, merged as `7bcb8ea2`. See docs/evidence/D-200-ORCHAUT-010-GATE-CF-SELECT-LEASE-FIX.md and ORCHAUT-010 below.)
 - `AGENT_DISPATCH = IMPLEMENTED_BY_AS_ORCH_001D`
 - `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
 - `AUTONOMOUS_LOOP_001E = IMPLEMENTED`
 - `SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = ACTIVE`
 - `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
 - `OWNER AUTHORITY = STILL REQUIRED`
-- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 
 - [x] ORCHAUT-001 Authoritative governor state + WHAT_CAN_RUN / WAIT / PARALLEL / OWNER
 - [x] ORCHAUT-002 Work DAG with explicit recorded transitions
@@ -612,7 +618,7 @@ Honesty (mandatory):
 - [x] ORCHAUT-007 IV routing: implementer != verifier
 - [x] ORCHAUT-008 Adversarial review trigger for control-plane / authorization
 - [x] ORCHAUT-009 Deterministic hashed evidence bundles
-- [ ] ORCHAUT-010 Owner gates A–F fail closed -- reopened 2026-08-28 (found during ORCH001E-008 IV, see WORKLOG "ORCH001E-008"): true for gates A/B (real `require_owner(...)` enforcement, verified); false for C/D/E/F (descriptive `OwnerGateKind` tags only, no enforcement call sites anywhere in the package). Not currently exploitable -- no code path attempts a C/D/E/F-gated action -- but this checklist item is not accurately "done" as originally checked. Remains a P2 follow-up, not re-implemented here.
+- [x] ORCHAUT-010 Owner gates A–F fail closed -- reopened 2026-08-28 (found during ORCH001E-008 IV); fixed 2026-08-28 in two rounds (round 1: `continuation.py::select_next`/`loop.py::_select_and_lease` dead-code owner-gate check; round 2, found by independent IV: `governor.py::lease()`/`execute_leased()` reachable directly via `run_controlled_pilot()`/`continue_autonomous()`, bypassing the loop entirely) -- both rounds independently verified PASS by a separate agent. Merged as PR #633 / `7bcb8ea2`. See docs/evidence/D-200-ORCHAUT-010-GATE-CF-SELECT-LEASE-FIX.md.
 - [x] ORCHAUT-011 CLI `governor-status` / `governor-discover` / `governor-pilot`
 - [x] ORCHAUT-012 Controlled non-destructive in-process pilot
 - [ ] ORCHAUT-013 Owner merge gate (not this package)
