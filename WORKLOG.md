@@ -7927,12 +7927,25 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
   **Correction 2026-08-28** (see WORKLOG "Cursor CLI availability
   correction" below): this entry originally said both require a live
   Cursor CLI "unavailable here" / `EXTERNAL_BLOCKED`. That was checked
-  with `shutil.which` via a bash wrapper, which missed the `.CMD`
-  extension resolution Windows/Python actually use; a real Cursor CLI
-  (`agent.cmd`) is genuinely present on this host. The scope decision
+  with a bash `which` wrapper, which missed the `.CMD` extension
+  resolution Windows/Python `shutil.which` (what
+  `resolve_cursor_transport()` actually calls) does apply; a real Cursor
+  CLI (`agent.cmd`) is genuinely present on this host. The scope decision
   above (not attempting authentic acceptance in this IV pass) stands on
   its own merits regardless -- see that entry for why authentic dispatch
   was not attempted even though it is now known to be available.
+  Review correction (PR #624): ORCH001D-012 (authentic agent dispatch) is
+  the higher-stakes item this reasoning actually applies to. ORCH001C-010
+  (Local Windows explicit-completion acceptance, `atlas orchestrator
+  cursor-complete`) is a different, lower-risk surface -- per
+  `src/project_atlas/cli.py` and `cursor_bridge.complete_staged_handoff()`,
+  it requires no Cursor stop event and performs no dispatch or execution;
+  it only completes an already-staged handoff. It was not conflated with
+  D-012's dispatch risk deliberately; that framing was imprecise. It
+  remains unattempted here too, but for a different reason: this
+  environment has no staged handoff state to complete against right now,
+  not because of dispatch risk. Left as a distinct follow-up, not
+  attempted in this correction pass.
 - Baseline: existing suite re-run clean -- test_orchestration_cursor_bridge.py
   + test_orchestration_explicit_completion.py = 44 PASS.
 - Note on this entry's count precision: after a review finding on the
@@ -8549,14 +8562,19 @@ not attempted.
   cursor-agent\\agent.cmd' launcher_kind=WINDOWS_CMD_WRAPPER` on this
   host, right now. A live Cursor CLI genuinely is available.
 - `AVAILABLE_NOT_ATTEMPTED`, not `PASS`: this correction does **not**
-  claim ORCH001C-010 / ORCH001D-012 (authentic dispatch/stop-event
-  acceptance) is satisfied. Actually invoking a real Cursor agent
-  process is a materially different, higher-stakes action than
-  verifying the dispatch code around it (unpredictable duration, real
-  external-service interaction, no bounded blast radius the way a fake
-  runner or a benign `sys.executable` stand-in has) and was not
-  attempted here. Whether to attempt it is left as an explicit owner
-  decision, not run on this finding alone.
+  claim ORCH001D-012 (authentic agent dispatch/stop-event acceptance) is
+  satisfied. Actually invoking a real Cursor agent process is a
+  materially different, higher-stakes action than verifying the dispatch
+  code around it (unpredictable duration, real external-service
+  interaction, no bounded blast radius the way a fake runner or a benign
+  `sys.executable` stand-in has) and was not attempted here. Whether to
+  attempt it is left as an explicit owner decision, not run on this
+  finding alone. **Correction (PR #624 review):** this dispatch-risk
+  rationale applies to ORCH001D-012, not to ORCH001C-010 (Local Windows
+  explicit-completion, `atlas orchestrator cursor-complete`) -- see the
+  ORCH001C-009 entry above for why that one is unattempted for a
+  different, lower-stakes reason (no staged handoff state to complete
+  against, not dispatch risk).
 - `CONSUME_ONLY = true`; corrects prior status text only, no code
   changed, no dispatch attempted, no merge/execution authority granted.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
