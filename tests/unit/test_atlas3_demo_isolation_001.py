@@ -8,6 +8,8 @@ import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[2]
 
 DENY = (
@@ -32,6 +34,27 @@ class DemoIsolationGuardError(RuntimeError):
     be silently treated as "no changes" -- that would turn the guard into
     a no-op exactly when it matters most.
     """
+
+
+class DemoIsolationGuardNotApplicable(Exception):
+    """Distinct from ``DemoIsolationGuardError``: there is no comparison
+    base to even attempt (no CI pull_request/push event context, and no
+    git remote configured at all -- e.g. a source archive, vendored
+    copy, or a checkout with remotes deliberately stripped). This is not
+    a failure to enforce something real; there is nothing to enforce
+    here. Callers should skip, not fail and not silently pass.
+    """
+
+
+def _has_any_remote(*, root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "remote"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
 
 
 def _event_pull_request_shas(
@@ -160,15 +183,25 @@ def _ensure_commit_fetched(sha: str, *, root: Path) -> None:
 def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -> str:
     """Return the exact commit SHA the freeze guard must diff HEAD
     against, and guarantee it is fetched/resolvable in ``root``'s local
-    object database before returning.
+    object database before returning. Always a resolved commit SHA, never
+    a floating ref name -- callers can diff directly against the return
+    value without a further resolution step.
 
     Prefers the authoritative GitHub ``pull_request`` event base SHA, then
     the ``push`` event's pre-push SHA, when running in either context
     (both work correctly under any checkout depth, including the hosted
     CI default of a single-commit shallow fetch). Falls back to
-    ``origin/main`` for local/full-clone use, but fails closed (raises)
-    if that ref cannot be resolved either, rather than letting the caller
-    silently treat an unresolvable base as "nothing changed".
+    ``origin/main`` for local/full-clone use, but only when a git remote
+    is actually configured at all -- raises
+    ``DemoIsolationGuardNotApplicable`` (not ``DemoIsolationGuardError``)
+    when neither a recognized CI event context nor any remote exists,
+    since a source archive, vendored copy, or a checkout with remotes
+    deliberately stripped was never a context this guard could
+    meaningfully enforce against; callers should skip in that case, not
+    fail closed. When a remote *is* configured but ``origin/main``
+    specifically cannot be resolved, that is a genuine failure and still
+    raises ``DemoIsolationGuardError`` -- never silently treat an
+    unresolvable base as "nothing changed".
     """
     pr_shas = _event_pull_request_shas(env=env)
     if pr_shas is not None:
@@ -179,6 +212,13 @@ def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = Non
     if push_before is not None:
         _ensure_commit_fetched(push_before, root=root)
         return push_before
+    if not _has_any_remote(root=root):
+        raise DemoIsolationGuardNotApplicable(
+            "not running in a GitHub Actions pull_request or push context, "
+            "and no git remote is configured at all -- nothing to compare "
+            "against (e.g. a source archive or vendored checkout); the "
+            "freeze guard does not apply here"
+        )
     resolve = subprocess.run(
         ["git", "rev-parse", "--verify", "origin/main"],
         cwd=root,
@@ -188,11 +228,12 @@ def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = Non
     )
     if resolve.returncode != 0:
         raise DemoIsolationGuardError(
-            "not running in a GitHub Actions pull_request or push context "
-            "and origin/main is not resolvable locally -- cannot determine "
-            "the freeze-guard comparison base (this must fail, not pass)"
+            "a git remote is configured but origin/main is not resolvable "
+            "locally, and no pull_request/push CI event context is present "
+            "-- cannot determine the freeze-guard comparison base (this "
+            "must fail, not pass)"
         )
-    return "origin/main"
+    return resolve.stdout.strip()
 
 
 def _changed_paths(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -> set[str]:
@@ -236,13 +277,20 @@ def _changed_paths(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -
 
 
 def test_certified_surfaces_unmodified() -> None:
-    changed = _changed_paths()
+    try:
+        changed = _changed_paths()
+    except DemoIsolationGuardNotApplicable as exc:
+        pytest.skip(str(exc))
     violated = sorted(path for path in DENY if path in changed)
     assert violated == []
 
 
 def test_cli_mutation_is_additive_only() -> None:
-    if "src/project_atlas/cli.py" not in _changed_paths():
+    try:
+        already_changed = _changed_paths()
+    except DemoIsolationGuardNotApplicable as exc:
+        pytest.skip(str(exc))
+    if "src/project_atlas/cli.py" not in already_changed:
         return
     base = _resolve_diff_base()
     diff = subprocess.run(
@@ -434,18 +482,54 @@ def test_freeze_guard_fails_closed_on_malformed_event_payload(tmp_path: Path) ->
     raise AssertionError("expected DemoIsolationGuardError, guard did not fail closed")
 
 
-def test_freeze_guard_fails_closed_when_origin_main_unresolvable_outside_ci(
-    tmp_path: Path,
-) -> None:
-    """Property 6c: outside any pull_request event context, an
-    unresolvable ``origin/main`` (e.g. a bare fixture repo with no remote
-    configured at all) must raise, never be silently treated as zero
-    changes."""
+def test_freeze_guard_not_applicable_with_no_remote_at_all(tmp_path: Path) -> None:
+    """Property 6c, corrected per review (P2): outside any CI event
+    context, a checkout with NO git remote configured at all (a source
+    archive, vendored copy, or remotes deliberately stripped) has nothing
+    to compare against -- this must raise the distinct
+    ``DemoIsolationGuardNotApplicable``, not the fail-closed
+    ``DemoIsolationGuardError``. Callers (the actual tests) turn this into
+    a skip, not a suite-wide failure. Regression coverage for the original
+    over-broad fail-closed behavior, which made the entire unit suite
+    fail when run from an environment with remotes stripped."""
     repo = _init_fixture_repo(tmp_path)
+    assert _has_any_remote(root=repo) is False, "fixture setup error: unexpected remote present"
     env: dict[str, str] = {}
 
     try:
         _changed_paths(root=repo, env=env)
+    except DemoIsolationGuardNotApplicable:
+        return
+    except DemoIsolationGuardError:
+        raise AssertionError(
+            "expected DemoIsolationGuardNotApplicable (no remote at all -- "
+            "nothing to enforce), got the fail-closed DemoIsolationGuardError instead"
+        ) from None
+    raise AssertionError("expected DemoIsolationGuardNotApplicable, guard did not skip")
+
+
+def test_freeze_guard_fails_closed_when_remote_exists_but_origin_main_unresolvable(
+    tmp_path: Path,
+) -> None:
+    """The genuine fail-closed case, distinct from the above: a remote
+    IS configured (so this is not a "nothing to enforce" situation), but
+    ``origin/main`` specifically cannot be resolved -- this must still
+    raise the fail-closed ``DemoIsolationGuardError``."""
+    repo = _init_fixture_repo(tmp_path)
+    other_remote = tmp_path / "unrelated-remote"
+    other_remote.mkdir()
+    _run_git(["init", "-q", "--bare"], cwd=other_remote)
+    _run_git(["remote", "add", "origin", str(other_remote)], cwd=repo)
+    assert _has_any_remote(root=repo) is True
+    env: dict[str, str] = {}
+
+    try:
+        _changed_paths(root=repo, env=env)
+    except DemoIsolationGuardNotApplicable:
+        raise AssertionError(
+            "expected the fail-closed DemoIsolationGuardError (a remote is "
+            "configured), got DemoIsolationGuardNotApplicable instead"
+        ) from None
     except DemoIsolationGuardError:
         return
     raise AssertionError("expected DemoIsolationGuardError, guard did not fail closed")
@@ -454,8 +538,12 @@ def test_freeze_guard_fails_closed_when_origin_main_unresolvable_outside_ci(
 def test_freeze_guard_local_full_clone_behavior_preserved() -> None:
     """Property 7: outside a pull_request event context, against the real
     project-atlas checkout (which does have ``origin/main``), resolution
-    must still work exactly as it did before this fix -- this is the
-    existing local-development path and must not regress."""
+    must still work -- this is the existing local-development path and
+    must not regress. The fix now resolves to the concrete SHA rather
+    than the floating ref name (correcting the "exact commit SHA"
+    docstring/contract accuracy raised in review), so this checks that
+    the returned value is genuinely that commit, not the literal string
+    "origin/main"."""
     resolve = subprocess.run(
         ["git", "rev-parse", "--verify", "origin/main"],
         cwd=ROOT,
@@ -465,8 +553,10 @@ def test_freeze_guard_local_full_clone_behavior_preserved() -> None:
     )
     if resolve.returncode != 0:
         return  # no origin/main available in this environment either; nothing to assert
+    expected_sha = resolve.stdout.strip()
     base = _resolve_diff_base(root=ROOT, env={})
-    assert base == "origin/main"
+    assert base == expected_sha
+    assert base != "origin/main"
 
 
 # ---------------------------------------------------------------------------
