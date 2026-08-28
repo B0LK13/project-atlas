@@ -8502,4 +8502,3 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
   (adding a real owner_gate check to the `DISCOVERED -> READY` transition
   or to `select_next()`'s per-node loop), not something fixed here.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
->>>>>>> 80c075c0 (docs(orchaut010): record owner gates C-F contract discovery)
