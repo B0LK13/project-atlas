@@ -7834,11 +7834,11 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
   test_orchestration_result_binding.py, test_orchestration_result_binding_windows.py,
   test_orchestration_transitions.py, test_orchestration_policy.py,
   test_orchestration_router.py = 118 PASS.
-- Adversarial black-box probes via the real `atlas orchestrator` CLI (not just the
-  unit suite), each independently attempting to defeat the "no execution/merge
-  authority" invariant:
-  1. Valid CERTIFIED envelope -> baseline classification, `execution_authorized`/
-     `merge_authorized` false, exit 0.
+- 7 black-box probes via the real `atlas orchestrator` CLI (not just the unit
+  suite): 1 baseline plus 6 adversarial, each independently attempting to
+  defeat the "no execution/merge authority" invariant:
+  1. Valid CERTIFIED envelope (baseline, not adversarial) -> baseline
+     classification, `execution_authorized`/`merge_authorized` false, exit 0.
   2. Direct injection of `"execution_authorized": true` / `"merge_authorized": true`
      as extra envelope fields -> rejected outright (`extra="forbid"`,
      `schema_invalid:<root>`, `valid: false`, exit 1); output still hard-codes both
@@ -7861,8 +7861,9 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
   Literal[False]` invariant on `OrchestrationDecision` is enforced structurally
   (Pydantic type) and redundantly at runtime (`_no_execution_or_merge_authority`
   validator) -- defense in depth, not a single-point check. No path found, across
-  118 existing tests plus 8 adversarial probes at both the 001A and 001B layers,
-  that reaches `execution_authorized=true`, `merge_authorized=true`, or any
+  118 existing tests plus the 6 adversarial probes above (items 2-7; item 7
+  additionally exercises the 001B route-result layer), that reaches
+  `execution_authorized=true`, `merge_authorized=true`, or any
   `permissions.*=true` other than read.
 - Result: `ORCH001A-007 = PASS`. Does not extend to ORCH001B-008 (route-result
   layer) as a completed IV in its own right -- probe 7 above is corroborating

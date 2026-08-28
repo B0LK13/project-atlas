@@ -416,7 +416,7 @@ Honesty (mandatory):
 - [x] ORCH001A-004 Owner gate (`MERGE_ELIGIBLE` → `OWNER_REQUIRED`, never `MERGE`)
 - [x] ORCH001A-005 Read-only CLI `atlas orchestrator validate-result`
 - [x] ORCH001A-006 Focused unit tests + schema/model parity
-- [x] ORCH001A-007 Independent integration verification (2026-08-28: 118 existing tests re-run PASS + 8 adversarial CLI probes against `main` `718f2beb`, see WORKLOG "ORCH001A-007"; PASS; still not merge-eligible)
+- [x] ORCH001A-007 Independent integration verification (2026-08-28: 118 existing tests re-run PASS + 7 black-box CLI probes, 1 baseline + 6 adversarial, against `main` `718f2beb`, see WORKLOG "ORCH001A-007"; PASS; still not merge-eligible)
 - [x] ORCH001B Policy Router — see AS-ORCH-001B (routing policy implemented; runtime automatic routing NOT implemented)
 - [x] ORCH001C Cursor Integration — see AS-ORCH-001C (bridge + optional stop-hook adapter + explicit completion transport; authentic Cursor stop delivery ENVIRONMENT_DEPENDENT; dispatch NOT implemented)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
