@@ -116,6 +116,23 @@ class AtlasApiServer(ThreadingHTTPServer):
     atlas_vault_id: str | None = None
     atlas_bind_path: Path | None = None
 
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        RequestHandlerClass: type[BaseHTTPRequestHandler],
+        bind_and_activate: bool = True,
+    ) -> None:
+        # D-041 HIGH: the stdlib default ``address_family`` is AF_INET, which
+        # can never bind an IPv6 literal. ``serve_api`` already restricts
+        # ``host`` to exactly "127.0.0.1" / "localhost" / "::1" before this
+        # constructor runs, so an exact "::1" match is sufficient here -- no
+        # general-purpose IPv6 parsing is needed or wanted.
+        if server_address[0] == "::1":
+            import socket
+
+            self.address_family = socket.AF_INET6
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
