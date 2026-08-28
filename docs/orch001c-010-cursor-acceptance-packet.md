@@ -10,14 +10,23 @@ PASS.
 
 `resolve_cursor_transport()` (`src/project_atlas/orchestration/agent_transport.py`)
 was verified this session to genuinely resolve a live Cursor CLI on this
-host (`agent.cmd`, `WINDOWS_CMD_WRAPPER`) with no override — see WORKLOG
-"Cursor CLI availability correction (ORCH001C-010 / ORCH001D-012)". That
-correction fixed a false `EXTERNAL_BLOCKED` status; it did **not** attempt
-a real dispatch. Actually invoking a live Cursor agent process is a
-materially different, higher-stakes action (real external-service
-interaction, unpredictable duration, no bounded blast radius the way a
-fake runner or `sys.executable` stand-in has) and requires its own
-explicit owner authorization, scoped exactly like every other merge/dispatch
+host (`agent.cmd`, `WINDOWS_CMD_WRAPPER`) with no override, by direct
+invocation:
+`python -c "from project_atlas.orchestration.agent_transport import resolve_cursor_transport; print(resolve_cursor_transport())"`.
+That correction (WORKLOG "Cursor CLI availability correction (ORCH001C-010
+/ ORCH001D-012)", PR #624) fixes a prior false `EXTERNAL_BLOCKED` status
+that this WORKLOG carried; it does **not** attempt a real dispatch.
+**Dependency note:** this packet was authored before PR #624 merged, so
+that WORKLOG entry is not yet present on `main` as of this packet's own
+base commit — the verification command above is the actual, reproducible
+evidence regardless of merge order, and this packet's own classification
+line below does not depend on #624 having landed first. Actually invoking
+a live Cursor agent process is a materially different, higher-stakes
+action (real external-service interaction, unpredictable duration, no
+sandboxed blast-radius containment the way a fake runner or
+`sys.executable` stand-in has — see the `TARGET_TEST_PROJECT` caveat
+below, which is not a security boundary) and requires its own explicit
+owner authorization, scoped exactly like every other merge/dispatch
 authorization this session has required.
 
 Current classification:
@@ -49,11 +58,20 @@ authorization, not by this document):
   this packet's authoring: `53fbc9f4bc79ce84bebd3b1c4406637b6b9ab2fe`
   (current `main`). **Must be re-confirmed as current at authorization
   time** — main has moved multiple times per hour this session.
-- `TARGET_TEST_PROJECT` — a throwaway/isolated `cwd` (`build_launch_plan`
-  already requires `cwd` to be a real existing directory —
-  `WORKSPACE_UNSAFE` otherwise), never the live repo working tree, so a
-  misbehaving or slow dispatch cannot mutate anything this session
-  depends on.
+- `TARGET_TEST_PROJECT` — a throwaway `cwd`, never the live repo working
+  tree. **Correction:** `build_launch_plan()` only validates that `cwd` is
+  a real existing directory (`WORKSPACE_UNSAFE` otherwise) and
+  `SubprocessProcessRunner.run()` passes it straight to `Popen` — neither
+  establishes a filesystem sandbox, restricted identity, or any OS-level
+  containment. A misbehaving Cursor process retains the full filesystem
+  access of the account running it; nothing in the inspected transport
+  code prevents it from reading or writing outside `TARGET_TEST_PROJECT`.
+  Choosing a throwaway directory only bounds *intended* writes and makes
+  `ROLLBACK/CLEANUP` simple — it is not a security guarantee, and this
+  packet does not claim one. If real isolation (container, VM, restricted
+  service account, or similar) is required before an owner is comfortable
+  authorizing a dispatch, that isolation does not exist in the code today
+  and would need to be provided separately, outside this transport.
 - `MAX_DURATION` — recommend the code default (600s) unless the owner
   wants it explicitly shorter; do not raise it above default without a
   specific reason.
@@ -61,26 +79,44 @@ authorization, not by this document):
   acceptance run. No retry loop, no batch.
 - `EXPECTED_SIDE_EFFECTS` — none intended: `--mode ask` is a query mode,
   not an edit/agent mode, and no `--force*` flag can reach argv. Real
-  side effects would indicate a code defect, not expected behavior.
+  side effects would indicate a code defect, not expected behavior. This
+  is a claim about the *launch plan's* flags, not a containment guarantee
+  — see the `TARGET_TEST_PROJECT` correction above.
 - `EXPECTED_COST/USAGE_CLASS` — one real external Cursor CLI invocation,
   bounded by `MAX_DURATION`; exact cost/usage accounting is outside this
   repo's own instrumentation and would need to come from the Cursor
   account/billing surface directly, not from anything Atlas measures.
 - `PASS_CRITERIA` — process exits, stdout is well-formed JSON matching
   `--output-format json`'s documented shape, no stderr indicating a
-  crash, no side effects observed outside `TARGET_TEST_PROJECT`, captured
-  bytes at or under `MAX_CAPTURED_BYTES` (or correctly reported as
-  truncated with the right boundary behavior per PR #620's regression
-  suite).
+  crash, no side effects observed outside `TARGET_TEST_PROJECT`, and
+  captured output on both streams **strictly below** `MAX_CAPTURED_BYTES`
+  (64 KiB). **Correction:** do not accept a run at or over the cap as
+  pass-with-truncation — `_drain_bounded()` retains only the first
+  `MAX_CAPTURED_BYTES` and neither `ProcessRunOutcome` nor the persisted
+  dispatch record (which stores only digests of the retained prefix)
+  carries a total-byte or truncation flag, so an at-cap result cannot
+  actually be distinguished from a coincidentally-exact-boundary result.
+  If output does hit the cap, treat the run as inconclusive on output
+  completeness, not as a verified pass, until the transport is extended
+  with an observable truncation indicator.
 - `FAIL_CRITERIA` — timeout without exit (would indicate
   `TimeoutExpired`/kill path did not work as PR #620 fixed it to), any
   side effect outside `TARGET_TEST_PROJECT`, any forbidden-flag/argv-leak
   rejection *not* firing when it should (would indicate a transport
-  regression), non-JSON or malformed stdout.
-- `EVIDENCE_PATH` — full captured stdout/stderr, exit code, wall-clock
-  duration (already measured via `time.monotonic()` per PR #620),
-  recorded verbatim in a new WORKLOG entry authored *after* the run, not
-  assumed beforehand.
+  regression), non-JSON or malformed stdout, or output at/over
+  `MAX_CAPTURED_BYTES` on either stream (inconclusive per the correction
+  above, not a pass).
+- `EVIDENCE_PATH` — exit code and wall-clock duration (already measured
+  via `time.monotonic()` per PR #620) recorded in a new WORKLOG entry
+  authored *after* the run, not assumed beforehand. **Correction:** do
+  not record captured stdout/stderr verbatim in `WORKLOG.md` or any other
+  tracked file. The real subprocess inherits nearly the full parent
+  environment and its output is untrusted external content — if Cursor
+  emits a credential, token, or other sensitive value, verbatim logging
+  would persist it in Git history. Run a secret scan over the captured
+  output before recording anything from it; store only the scan result,
+  bounded/redacted excerpts, or digests of the raw streams, not the raw
+  streams themselves.
 - `ROLLBACK/CLEANUP` — delete `TARGET_TEST_PROJECT` after the run; no
   other repo state is touched by an ask-mode dispatch, so no other
   rollback should be necessary if `PASS_CRITERIA` holds.
