@@ -202,6 +202,69 @@ def test_external_dispatch_once_then_await(tmp_path: Path) -> None:
     assert again.phase is LoopPhase.AWAITING_RESULT
 
 
+def test_orphaned_dispatch_recovery_reconciles_completed(tmp_path: Path) -> None:
+    """ORCH001E-008 P3 remediation: a crash between dispatch_once()
+    persisting its own 001D-side record and the loop persisting
+    active_dispatch_id must not be silently treated as "nothing was
+    dispatched". If the dispatch port can independently find what it
+    actually started, the loop must reconcile from that, not stay stuck.
+    """
+    gov = _governor(_node("AS-ORCH-ORPHAN-001", host=ExecutionHostClass.EXTERNAL_AGENT))
+    calls: list[str] = []
+    port = CallableDispatchPort(
+        lambda _root: calls.append("dispatch") or {"dispatch_id": "orphan-1", "status": "RUNNING"},
+        recover=lambda _root, _id: {"status": "COMPLETED", "digest": "aa" * 32},
+        find_active_dispatch_id=lambda _root: "orphan-1",
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()  # LEASED -> DISPATCHING -> AWAITING_RESULT (normal path)
+    # Simulate the exact crash window: DISPATCHING persisted, but
+    # active_dispatch_id was never recorded (as if the process had just
+    # crashed between dispatch_once() returning and the loop's own save).
+    loop._save(phase=LoopPhase.DISPATCHING, active_dispatch_id=None)
+    result = loop.recover()
+    assert calls == ["dispatch"]  # never re-dispatched a duplicate process
+    assert result.stop_reason is None
+    node = next(item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-ORPHAN-001")
+    assert node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD, NodeState.CLOSED}
+
+
+def test_orphaned_dispatch_recovery_reconciles_still_running(tmp_path: Path) -> None:
+    gov = _governor(_node("AS-ORCH-ORPHAN-002", host=ExecutionHostClass.EXTERNAL_AGENT))
+    port = CallableDispatchPort(
+        lambda _root: {"dispatch_id": "orphan-2", "status": "RUNNING"},
+        recover=lambda _root, _id: {"status": "RUNNING"},
+        find_active_dispatch_id=lambda _root: "orphan-2",
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()
+    loop._save(phase=LoopPhase.DISPATCHING, active_dispatch_id=None)
+    result = loop.recover()
+    assert result.phase is LoopPhase.AWAITING_RESULT
+    assert loop.state.active_dispatch_id == "orphan-2"  # identity recovered, not lost
+
+
+def test_orphaned_dispatch_recovery_finds_nothing_retries_cleanly(tmp_path: Path) -> None:
+    """When the port genuinely has no record either (crash happened before
+    even the 001D-side persist), retry from LEASED is safe -- no process is
+    known to exist, so re-dispatching cannot duplicate one.
+    """
+    gov = _governor(_node("AS-ORCH-ORPHAN-003", host=ExecutionHostClass.EXTERNAL_AGENT))
+    calls: list[str] = []
+    port = CallableDispatchPort(
+        lambda _root: calls.append("dispatch") or {"dispatch_id": "orphan-3", "status": "RUNNING"},
+        find_active_dispatch_id=lambda _root: None,
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()
+    assert calls == ["dispatch"]  # the original, pre-crash dispatch
+    loop._save(phase=LoopPhase.DISPATCHING, active_dispatch_id=None)
+    result = loop.recover()
+    assert calls == ["dispatch", "dispatch"]  # one clean retry, not a hang
+    assert result.dispatch_id == "orphan-3"
+    assert result.phase is LoopPhase.AWAITING_RESULT
+
+
 def test_duplicate_result_replay_rejected(tmp_path: Path) -> None:
     gov = _governor(_node("AS-ORCH-DUP-001", host=ExecutionHostClass.EXTERNAL_AGENT))
     port = CallableDispatchPort(

@@ -83,6 +83,14 @@ class DispatchPort(Protocol):
     def recover(self, root: Path, dispatch_id: str) -> dict[str, object]:
         """Recover an in-flight hop. Must not respawn a new process."""
 
+    def find_active_dispatch_id(self, root: Path) -> str | None:
+        """Best-effort discovery of a dispatch identity the loop itself
+        never recorded (ORCH001E-008 P3): a crash between `dispatch_once()`
+        persisting its own record and the loop persisting
+        `active_dispatch_id` must not be indistinguishable from "nothing
+        was dispatched". Returns None when no 001D-side record exists (or
+        the port cannot determine one) -- never invents an identity."""
+
 
 class LoopState(BaseModel):
     """Persisted loop runtime. Evidence identity, not owner authority."""
@@ -347,6 +355,36 @@ class AutonomousLoop:
                 )
             self._save(phase=LoopPhase.AWAITING_RESULT)
             return self._result(recovered=True)
+        if self._state.phase == LoopPhase.DISPATCHING and not self._state.active_dispatch_id:
+            # ORCH001E-008 P3 remediation: a crash between `dispatch_once()`
+            # returning (or even just persisting its own 001D-side record)
+            # and this loop persisting `active_dispatch_id` used to be
+            # silently indistinguishable from "no dispatch was ever
+            # attempted" -- the loop would sit in DISPATCHING forever with
+            # no path to find what, if anything, actually started. Ask the
+            # dispatch port itself, which may hold an independent record
+            # the loop's own state file never learned about.
+            if self._dispatch is None:
+                return self._fail("in-flight dispatch cannot be recovered", code="ORPHAN_PROCESS")
+            found = self._dispatch.find_active_dispatch_id(self._root)
+            if found is None:
+                # Genuinely nothing was dispatched (or the port cannot
+                # determine one) -- safe to retry from LEASED, since no
+                # process is known to exist that could be duplicated.
+                self._save(phase=LoopPhase.LEASED)
+                return self._dispatch_leased()
+            if found in self._state.completed_dispatch_ids:
+                raise LoopError("recovered dispatch already completed", code="RESULT_REPLAY")
+            self._save(active_dispatch_id=found)
+            recovered = self._dispatch.recover(self._root, found)
+            status = str(recovered.get("status", ""))
+            if status in {"COMPLETED", "FAILED"}:
+                digest = str(recovered.get("digest") or recovered.get("dispatch_id") or "")
+                return self.apply_observed_result(
+                    found, digest, passed=status == "COMPLETED", recovered=True
+                )
+            self._save(phase=LoopPhase.AWAITING_RESULT)
+            return self._result(recovered=True)
         if self._state.phase == LoopPhase.AWAITING_RESULT:
             if self._dispatch is not None and self._state.active_dispatch_id:
                 observed = self._dispatch.recover(self._root, self._state.active_dispatch_id)
@@ -540,9 +578,11 @@ class CallableDispatchPort:
         self,
         dispatch_once: Callable[[Path], dict[str, object]],
         recover: Callable[[Path, str], dict[str, object]] | None = None,
+        find_active_dispatch_id: Callable[[Path], str | None] | None = None,
     ) -> None:
         self._dispatch_once = dispatch_once
         self._recover = recover
+        self._find_active_dispatch_id = find_active_dispatch_id
 
     def dispatch_once(self, root: Path) -> dict[str, object]:
         return self._dispatch_once(root)
@@ -551,3 +591,8 @@ class CallableDispatchPort:
         if self._recover is None:
             return {"dispatch_id": dispatch_id, "status": "RUNNING"}
         return self._recover(root, dispatch_id)
+
+    def find_active_dispatch_id(self, root: Path) -> str | None:
+        if self._find_active_dispatch_id is None:
+            return None
+        return self._find_active_dispatch_id(root)
