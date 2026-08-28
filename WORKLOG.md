@@ -8250,3 +8250,34 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001E.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## Phantom-work reconciliation — two stale backlog checkboxes
+
+- Date: 2026-08-28
+- Scope: docs only (`docs/backlog.md`). No production surface touched.
+  Found during an independent DAG-drain sweep (a separate scouting pass,
+  not the ORCH IV work above); each finding independently re-verified
+  against real code before acting, not taken on the scout's word alone.
+- `AS-CODER-ALPHA-REPORT-READ-CONVERGENCE-001` was unchecked with text
+  asserting `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN`. Verified: all 11
+  `/v1/*-status` routes (`next/changed/overview/decisions/unknown/state/
+  architecture/roadmap/portfolio/bitemporal/index-status`) have real
+  route handlers in `src/project_atlas/api_server.py` on current `main`
+  (not stub/dead code -- grepped for the actual `if path == "/v1/...":`
+  dispatch lines, not just string presence), and all 11 corresponding
+  `atlas.*.read` MCP tools are registered in `mcp_registry.py`. The
+  original convergence work (source PRs #593-#603) landed via #605/#606
+  per existing WORKLOG history. Checked off.
+- `AS-CODER-ALPHA-INCREMENTAL-CONNECT-001` was unchecked. Verified:
+  `src/project_atlas/connect.py` names this package directly in its own
+  docstring and contains `_finish_no_change_reconnect()`.
+  `evaluate_incremental_reconnect()` is defined in
+  `src/project_atlas/incremental_connect.py` and imported/called from
+  `connect.py`'s real control flow (not orphaned/unused). Correction
+  2026-08-28 (review, PR #622): the original text of this entry said
+  `connect.py` "contains" both functions; only the second one is
+  actually defined there. Origin PR #374 is merged. Checked off.
+- Both corrections are additive status fixes only -- no historical
+  evidence rewritten, no production code touched, no new merge
+  authorization implied for anything else.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
