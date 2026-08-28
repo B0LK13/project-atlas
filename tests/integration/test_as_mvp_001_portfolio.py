@@ -18,22 +18,42 @@ from pathlib import Path
 import pytest
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
-from project_atlas.portfolio import build_portfolio
+from project_atlas.portfolio import DEFAULT_STALE_DAYS, build_portfolio
 
 pytestmark = pytest.mark.integration
 PILOTS = Path("tests/fixtures/pilots")
 STALE_AGE_DAYS = 400
+FRESH_AGE_DAYS = 1
+
+
+def _pin_corpus_freshness(root: Path) -> None:
+    """Pin *both* ends of the freshness comparison for a copied corpus.
+
+    ``shutil.copytree`` preserves source mtimes, and for a git working tree
+    those are its checkout time -- so pinning only the deliberately-stale
+    file left every other source's age equal to the age of the checkout.
+    Once a checkout outlived ``DEFAULT_STALE_DAYS`` the entire corpus was
+    reported stale and the scenarios below failed for a reason unrelated to
+    the code under test (calendar rot). Both ends are pinned from a single
+    ``time.time()`` sample, so the assertions depend on the age *offsets*
+    and never on the absolute date the suite happens to run.
+    """
+    now = time.time()
+    fresh = now - FRESH_AGE_DAYS * 86400
+    for path in root.rglob("*"):
+        if path.is_file():
+            os.utime(path, (fresh, fresh))
+    stale = now - STALE_AGE_DAYS * 86400
+    os.utime(root / "black-agency-os" / "README.md", (stale, stale))
 
 
 def _copy_pilots(tmp_path: Path) -> Path:
-    """Copy the pilot corpus into a scratch directory and age the
-    black-agency-os source file so freshness testing is reproducible
-    regardless of the real filesystem clock or git checkout time."""
+    """Copy the pilot corpus into a scratch directory and pin every copied
+    source's age so freshness testing is reproducible regardless of the
+    real filesystem clock or git checkout time."""
     root = tmp_path / "pilots"
     shutil.copytree(PILOTS, root)
-    old = time.time() - STALE_AGE_DAYS * 86400
-    stale_file = root / "black-agency-os" / "README.md"
-    os.utime(stale_file, (old, old))
+    _pin_corpus_freshness(root)
     return root
 
 
@@ -197,7 +217,7 @@ def test_scenario_7_invalid_project_is_isolated(tmp_path: Path) -> None:
 def test_scenario_8_deterministic_settled_rebuild(tmp_path: Path) -> None:
     source = _copy_pilots(tmp_path)
     vault = _run_pipeline(source, tmp_path)
-    reference = datetime(2026, 8, 1, tzinfo=UTC)
+    reference = datetime.now(UTC)
     build_portfolio(vault, reference_date=reference)
     first = {
         path.name: path.read_bytes()
@@ -214,7 +234,7 @@ def test_scenario_8_deterministic_settled_rebuild(tmp_path: Path) -> None:
 def test_scenario_9_incremental_change_is_bounded(tmp_path: Path) -> None:
     source = _copy_pilots(tmp_path)
     vault = _run_pipeline(source, tmp_path)
-    reference = datetime(2026, 8, 1, tzinfo=UTC)
+    reference = datetime.now(UTC)
     build_portfolio(vault, reference_date=reference)
     before = {
         path.name: path.read_bytes()
@@ -292,7 +312,7 @@ def test_rollback_preserves_prior_valid_portfolio_on_failure(tmp_path: Path) -> 
     """
     source = _copy_pilots(tmp_path)
     vault = _run_pipeline(source, tmp_path)
-    reference = datetime(2026, 8, 1, tzinfo=UTC)
+    reference = datetime.now(UTC)
     build_portfolio(vault, reference_date=reference)
     portfolio_dir = vault / "generated" / "portfolio"
     before = {path.name: path.read_bytes() for path in sorted(portfolio_dir.glob("*.json"))}
@@ -331,3 +351,34 @@ def test_rollback_preserves_prior_valid_portfolio_on_failure(tmp_path: Path) -> 
         path.name: path.read_bytes() for path in sorted(portfolio_dir.glob("*.json"))
     }
     assert before == after_rebuild
+
+
+def test_freshness_is_independent_of_checkout_age(tmp_path: Path) -> None:
+    """AS-MVP-001 regression guard for calendar rot.
+
+    The acceptance corpus must report identical freshness whether the working
+    tree was checked out today or long before ``DEFAULT_STALE_DAYS``. This
+    test pre-ages the whole copied corpus past the staleness threshold to
+    simulate an old checkout, then relies on ``_pin_corpus_freshness`` to
+    restore the intended split. Without that pinning every nebula source is
+    reported stale and black-agency-os reports more than the one
+    deliberately-aged source.
+    """
+    root = tmp_path / "pilots"
+    shutil.copytree(PILOTS, root)
+    aged = time.time() - (DEFAULT_STALE_DAYS + STALE_AGE_DAYS) * 86400
+    for path in root.rglob("*"):
+        if path.is_file():
+            os.utime(path, (aged, aged))
+
+    _pin_corpus_freshness(root)
+    vault = _run_pipeline(root, tmp_path)
+
+    projects = _load(vault, "stale-knowledge.json")["projects"]
+    assert projects.get("nebula", {"stale_count": 0})["stale_count"] == 0
+    black_agency = projects["black-agency-os"]
+    assert black_agency["stale_count"] == 1
+    stale_ids = {
+        item["source_id"] for item in black_agency["sources"] if item["freshness"] == "stale"
+    }
+    assert len(stale_ids) == 1
