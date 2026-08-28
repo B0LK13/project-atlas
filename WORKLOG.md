@@ -8645,3 +8645,274 @@ not attempted.
   no merge/execution authority granted beyond this local acceptance
   finding itself.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## EOD convergence wave — independent verification of pending-IV backlog items
+
+- Date: 2026-08-28
+- Scope: docs only. Records the results of a wave of independent
+  verification against packages this backlog already carried as
+  unchecked-but-implemented (the established convention meaning
+  implementation landed, independent verification pending). Each was
+  dispatched to a dedicated, isolated subagent (own scratch clone, never
+  the shared `D:\project-atlas-vault` directory, which another
+  concurrent process was actively using during this wave) and
+  independently spot-checked by direct source inspection before being
+  accepted here. `MERGE_AUTHORIZATION = NOT_GRANTED` throughout.
+
+### ORCH001DRB-007 — Independent verification (AS-ORCH-001D-RESULT-BINDING-001)
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #403). 32/32 baseline tests pass (`test_orchestration_result_binding.py`,
+  `test_orchestration_result_binding_windows.py` -- genuinely executed on
+  Windows, not skipped -- `test_orchestration_agent_transport.py`). All
+  seven honesty claims (`PROCESS_DISPATCH_PATH_COUNT=1`,
+  `SECOND_PROCESS_LAUNCH_PATH=NO`, `STDOUT_IS_AUTHORITY=NO`,
+  `STDERR_IS_AUTHORITY=NO`, `PROCESS_EXIT_ZERO_IS_AUTHORITY=NO`,
+  `RESULT_ADAPTER_CAN_AUTHORIZE_MERGE=NO`, `ASK_MODE_GENERAL_MUTATION=NO`)
+  verified against actual enforcement, not docstrings -- 15 adversarial
+  frame-injection probes (noise, duplicate/nested/overlapping frames,
+  oversized frames, wrong exit code with a claimed-PASS frame, tampered
+  dispatch_id), 12 direct plus 3 through a real Windows `.cmd`/`cmd.exe`
+  launcher, all failed closed correctly. Specifically checked the
+  interaction with this session's own PR #620 `agent_transport.py`
+  rewrite at the `MAX_CAPTURED_BYTES` truncation boundary (frame
+  straddling the cutoff in multiple positions) -- fails closed, no
+  fail-open interaction found. `ruff`/`mypy` clean.
+- One P3 (informational): `MAX_RESULT_CANDIDATE_BYTES` (256KiB) exceeds
+  `MAX_CAPTURED_BYTES` (64KiB), making the `OVERSIZED_RESULT` branch
+  unreachable via the real capture pipeline -- harmless dead branch, not
+  a gap (truncation already fails closed independently).
+- Result: `ORCH001DRB-007 = PASS`. No remediation required.
+
+### ORCHLEASE-006 — Independent verification (AS-ORCH-DURABLE-LEASE-PROJECTION-001)
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #432). 127/127 broader autonomy/governor suite passes (9 files),
+  no regressions. `PRIMARY_GOVERNOR_REMAINS_AUTHORITY=YES` and
+  `DURABLE_PROJECTION_IS_AUTHORITY=NO` held under direct on-disk tamper
+  (forged ACTIVE row never affected the live governor's own state or a
+  freshly-constructed one). All five ORCHLEASE-003 reject rules
+  (stale/duplicate/foreign-worker/foreign-package/replay) independently
+  reconstructed and confirmed on both the grant path (shipped) and the
+  release path (not shipped, added here) -- plus a genuine concurrency
+  race test (two threads granting the same package simultaneously:
+  exactly one wins, final on-disk state has exactly 1 active row).
+  Symlink-escape defense (ORCH-LEASE-SYMLINK-ESCAPE-001) independently
+  verified on both the final-target path and the lock path specifically
+  (the app-level `_inside()` check catches it before the shared
+  `ProjectIdentityLock` primitive is ever reached; that primitive itself
+  has no `O_NOFOLLOW` of its own but is not exploitable in practice given
+  `O_CREAT|O_EXCL` semantics). `ruff`/`mypy` clean.
+- Two P2 findings, both documentation-precision gaps, not functional
+  defects: (1) `visible_active_lease()`/`load_projection()` have no
+  cryptographic binding to the primary governor -- any co-located writer
+  can forge an "ack" that passes all self-consistency checks; disclosed
+  at the design-intent level by `DURABLE_PROJECTION_IS_AUTHORITY=NO` but
+  not spelled out mechanically. (2) "process-restart visibility" is true
+  only for the file-read path -- a restarted governor *process* has zero
+  recovery of lease/DAG state from this projection (`governor.__init__`
+  never calls `load_projection`, confirmed by direct grep). Recommend
+  tightening the doc language; no remediation required for the shipped
+  mechanism.
+- Result: `ORCHLEASE-006 = PASS_WITH_NONBLOCKING_FINDINGS`. No remediation
+  required.
+
+### AS-CODER-ALPHA-WORKFLOW-METRICS-001 — Independent verification
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #473). 16/16 baseline tests pass. All 9 declared metrics
+  (`TIME_TO_USEFUL_CONTEXT`, `HANDOFF_SUCCESS_RATE`,
+  `STALE_CONTEXT_RATE`, `UNKNOWN_HONESTY`, `CONTEXT_ACCURACY`,
+  `MEANINGFUL_CHANGES_CAPTURED`, `USER_CORRECTIONS_REQUIRED`,
+  `MISTAKES_PREVENTED`, `REEXPLANATION_RATE`) adversarially probed with
+  empty vaults, present-but-empty ops directories, corrupted/truncated/
+  non-UTF8 JSON, wrong-type payloads, out-of-range/non-finite numerics,
+  bool-subclass coercion, and `project_id` path-traversal attempts -- the
+  core `UNKNOWN != 0` / `NOT_INSTRUMENTED != 0` honesty contract held in
+  every case; no metric ever fabricated a zero from missing evidence.
+  Confirmed no raw prompt/transcript capture and no network-capable
+  import anywhere in the module. Confirmed nothing downstream currently
+  treats this module's output as authoritative. `ruff`/`mypy` clean.
+- Two P3 findings: (1) `MEANINGFUL_CHANGES_CAPTURED` silently counts a
+  wrong-typed `changes` field toward "not meaningful" rather than
+  skipping it as malformed, inconsistent with the stricter type-checking
+  used elsewhere in the same module. (2) `docs/demo/full-product-demo-scope.json`
+  marks `query.workflow_metrics` `api: IMPLEMENTED`, but no such API
+  wiring exists anywhere in the tree -- stale/aspirational tracking
+  metadata, not a code defect.
+- Result: `AS-CODER-ALPHA-WORKFLOW-METRICS-001 = PASS_WITH_NONBLOCKING_FINDINGS`.
+  No remediation required.
+
+### AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 — Independent verification
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #471). 17/17 baseline tests pass. Verified via a real end-to-end
+  CLI run (`atlas connect` / `atlas handoff create` / mutate source /
+  `atlas handoff resume`) rather than only direct function calls. Could
+  not get stale frozen data to present as current through any of: basic
+  post-handoff mutation, hand-forging `freshness.status=FRESH` in the
+  persisted pack (correctly overridden and recomputed on resume),
+  stripping `estate_binding` entirely (fails closed to `UNKNOWN`), or a
+  reconnect that rewrites `connect-manifest.json` bytes while keeping
+  identical source hashes (the manifest-identity rebind check --
+  confirmed as the actual unique delta over historical #419 -- still
+  correctly flags the older pack stale). `ruff`/`mypy` clean.
+- One P2 (disclosed, not hidden, but a real product-usage gap): the
+  freshness re-check is wired only into `atlas handoff resume`. The
+  paste-ready `.md` context file that `atlas context` itself tells users
+  to paste into another agent carries zero freshness signal -- confirmed
+  by direct inspection that `_render_context_markdown` never mentions
+  freshness/FRESH/STALE. This matches the package's own documented
+  "out of scope" note, so it is honestly disclosed, not a false claim --
+  but a user following the CLI's own suggested next step bypasses the
+  protection entirely.
+- Result: `AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 = PASS_WITH_NONBLOCKING_FINDINGS`.
+  No remediation required (the gap is already honestly disclosed by the
+  package's own docs; closing it would be a scope expansion, not a fix
+  to an established requirement).
+
+### AS-CODER-ALPHA-044-HIGH / D-041 — Independent verification + remediation
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #345). Scope anchored to the package's own dedicated test file,
+  `tests/unit/test_as_coder_alpha_044_d041_high.py` (22 tests covering
+  truth-honesty -- an empty/unreadable/quarantined vault must never
+  report healthy -- and isolation -- symlink/junction escape, stolen
+  bind config, ambiguous multi-project binds, Unicode confusable
+  collisions neutralized by root-identity fingerprinting, dual-stack
+  LIVE_API bind refusal). Traced every claim to its real implementation
+  across `attention_hygiene.py`, `connect.py`, `human_loop.py`,
+  `project_architecture.py`, `project_state.py`, `project_unknown.py`,
+  `source_health.py`, `api_server.py`, `cli.py`. Adversarial constructions
+  (directory-junction escape, intermediate-symlink escape, duplicate-id
+  ambiguity, source_id/path conflict in secret-quarantine attribution,
+  case-variant bind spoofing) all failed to defeat the claimed guarantees.
+  `ruff`/`mypy` clean.
+- **Real P1 found and remediated**: `AtlasApiServer` never set
+  `address_family` for an IPv6 bind, so `serve_api(host="::1", ...)`
+  always raised `OSError` -- and the package's own dedicated dual-stack
+  regression test caught that exception and silently self-skipped,
+  masking the defect as an environment limitation rather than surfacing
+  it as a real bug. Independently confirmed via a raw-socket
+  reproduction that the underlying isolation *guarantee* (a genuine
+  foreign `::1` listener correctly blocks a `127.0.0.1` dual-bind) was
+  never actually broken -- this was a functionality/coverage defect, not
+  an active security breach. Remediated in PR #628 (see below);
+  independent re-verification of that fix is running separately per the
+  standing no-self-certification rule for production fixes.
+- Two lower-severity findings, not remediated here (non-blocking, low
+  exploitability): P2 -- `source_health._finding_matches_project` prefers
+  `source_id` over `path` on conflict, a theoretical misattribution
+  surface if the two indexes ever diverge (internally generated data,
+  not attacker-supplied). P3 -- intentional NFKC-normalization slug
+  collisions, neutralized in practice by root-identity fingerprinting at
+  the real call site.
+- Result: `AS-CODER-ALPHA-044-HIGH = PASS_WITH_NONBLOCKING_FINDINGS`, one
+  P1 remediated separately (PR #628, pending its own independent
+  re-verification + CI before certification).
+
+### PR #628 — `fix(api_server): support IPv6 loopback (::1) bind for LIVE_API`
+
+- Remediates the P1 found during AS-CODER-ALPHA-044-HIGH's IV (above).
+  17-line change to `src/project_atlas/api_server.py`: sets
+  `address_family = AF_INET6` only when the bind host is exactly `"::1"`
+  (the only IPv6 literal `serve_api()`'s own upstream validation ever
+  allows through) before the socket is constructed; the IPv4/localhost
+  path is untouched.
+- Verified locally before push: anchor test file went from 21 passed / 1
+  skipped (skip masked the defect) to 22 passed / 0 skipped -- the
+  dual-stack assertion now genuinely executes instead of self-skipping.
+  Broader api_server-dependent suite (16 files that import from
+  `api_server`/`AtlasApiServer`): 194 passed, 0 failed. `ruff`/`mypy`
+  clean.
+- `SELF_CERTIFICATION = FORBIDDEN`; independent re-verification dispatched
+  separately, not yet consumed as of this entry.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; production code, owner-gated.
+
+### PR #410 (AS-CODER-ALPHA-CONNECT-PERF-001) — certified candidate
+
+- Round-1 IV found a real P2 (positional `cold_connect` lane label --
+  calling the harness a second time against an already-connected root
+  silently relabeled a `no_change_skip` as `cold_connect`, undermining
+  the package's own "measure, do not game" contract). Remediated
+  directly (fail-closed disposition check + regression test reproducing
+  the exact adversarial case). Round-2 independent re-verification
+  reproduced the original defect independently first, then confirmed the
+  fix closes it via the verifier's own adversarial construction (not
+  just re-running the shipped test), found no new bypass, no regression
+  (5/5 tests), no new lint/type issues, clean current-main compatibility.
+  Exact-head CI (all 4 required checks) subsequently went green (the
+  Windows lane needed one re-trigger after a 20-minute infra timeout,
+  unrelated to the change).
+- Result: `PR410 = CERTIFIED_CANDIDATE` (`ROUND2_IV = PASS` AND
+  `EXACT_HEAD_CI = PASS`, 0 unresolved review threads).
+  `PR410_MERGE = OWNER_GATE` -- production code, not eligible under the
+  bounded docs-evidence merge authorization.
+
+### PR #425 (AS-CODER-ALPHA-DOGFOOD-COMPILER-COVERAGE-001) — certified candidate
+
+- Independent IV: evidence provenance confirmed clean (only reads
+  contracted inputs -- `pyproject.toml`, `AGENTS.md`/`CLAUDE.md`, ADR/
+  DECISIONS-style files -- via path-escape-confined resolution);
+  README-only or contradictory claims correctly stay `UNKNOWN` even under
+  direct adversarial contradiction with real `pyproject.toml` content; no
+  scope leakage beyond its four declared files; lens/authority boundary
+  respected (`lens_is_authority=False`, no downstream consumer); 9/9
+  focused tests plus 16/16 adjacent-suite tests pass; `ruff`/`mypy`
+  clean; current-main compatibility independently reconfirmed via direct
+  `merge-tree` even after main advanced past the original IV's dispatch
+  point (identical resulting tree).
+- Result: `PR425 = IV_PASS`. `PR425_MERGE = OWNER_GATE` -- production
+  code (new module + `overview.py` wiring), not eligible under the
+  bounded docs-evidence merge authorization.
+
+### PR #396 (AS-ORCH-001D-R6) — supersession triage
+
+- Bounded read-only triage, not a full IV (12-file, multiple add/add
+  merge-tree conflicts against current main made full IV low-expected-
+  value pending this question). Traced all eight D-041/R6 semantic
+  requirements (Windows-safe version probe, probe/normalization launch
+  parity, trusted-argv resolution, authorized shebang wrapping,
+  authorization-precedes-execution, `shell=False`, provider provenance,
+  receipt/schema behavior) against current main's actual behavior, not
+  just filenames. Decisive finding: the real fix for this exact problem
+  already landed on `main` six days *before* PR #396 was even opened
+  (commit `e5c75500`, 2026-08-10, in
+  `atlas-vault-documentation/internal/{process_runner,normalization,trusted_exec}.py`
+  -- a different module than PR #396's `src/project_atlas/agent_control/`,
+  which no longer exists on `main` at all), and does so more strongly
+  (explicit `CommandSource` typing + SHA-256 digest binding, which R6's
+  version lacked). Verified live on this Windows host: 55 passed / 1
+  skipped (explicit POSIX-only skip) on the real current-main
+  normalization suite.
+- Result: `PR396 = FULLY_SUPERSEDED`. `PR396_FULL_IV = NOT_NEEDED`. No
+  narrow successor node needed -- no remaining gap. Recommend archival/
+  closure of PR #396 (owner action, not performed here).
+
+### PR #417 (AS-CODER-ALPHA-SOURCE-HEALTH-WEB-001) — independent IV, owner-held
+
+- `OWNER_HELD = YES` (self-declared in the PR's own governance section)
+  governs merge authority only, not verification eligibility --
+  `IV_REQUIRED != OWNER_ONLY`. Independent IV performed: route/nav wiring
+  correct, `project` scoping genuinely required with no portfolio-wide
+  fallback path, `UNKNOWN`/`UNREADABLE` honesty confirmed including an
+  unexpected-beyond-the-PR's-own-claims `projectMismatch` defensive check
+  that forces `UNKNOWN` when the API returns a wrong-project payload, no
+  secret/token echo, no hidden write surface, no dependency on unmerged
+  #414/#409 (verified each import exists independently on `main`),
+  negative/adversarial project-scope cases traced directly in code.
+  Contract test and `tsc -b` both independently reproduced as PASS.
+  Current-main compatibility independently confirmed via direct
+  `merge-tree`.
+- One P2, correctly classified: `npm run smoke` fails on exact HEAD, but
+  independently confirmed (by swapping in unmodified main's own
+  `package.json`/`smoke.mjs` against the same install and reproducing an
+  identical failure) to be a pre-existing `CURRENT_MAIN_DEFECT`
+  (`@rollup/rollup-win32-x64-msvc` under `optionalDependencies` rather
+  than `dependencies` on `main` itself) -- not caused by this PR, and
+  correctly left unchecked rather than falsely claimed PASS by the PR's
+  own test plan.
+- Result: `PR417_INDEPENDENT_IV = PASS_WITH_NONBLOCKING_FINDINGS`.
+  `PR417_MERGE = OWNER_HELD`, unaffected by this result.
+
+- `MERGE_AUTHORIZATION = NOT_GRANTED` (all items in this entry).

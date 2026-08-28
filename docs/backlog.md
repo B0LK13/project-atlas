@@ -367,7 +367,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CAPTURE-001 Session capture defaults
 - [x] AS-CODER-ALPHA-HANDOFF-001 `atlas handoff` create/resume
 - [x] AS-CODER-ALPHA-CONTEXT-001 Agent context export
-- [ ] AS-CODER-ALPHA-WORKFLOW-METRICS-001 honest North Star telemetry from ops receipts (current-main; do not retarget #377; TELEMETRY!=TRUTH CORE; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-CODER-ALPHA-WORKFLOW-METRICS-001 honest North Star telemetry from ops receipts (current-main; do not retarget #377; TELEMETRY!=TRUTH CORE; independently verified 2026-08-28, `PASS_WITH_NONBLOCKING_FINDINGS` -- see WORKLOG "EOD convergence wave"; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-CODER-ALPHA-OBSIDIAN-001 Living Obsidian projection
 - [x] AS-CODER-ALPHA-HUMAN-LOOP-001 Human decisions → Truth Core
 - [x] AS-CODER-ALPHA-WEB-001 Web Knowledge UX on Core
@@ -385,14 +385,14 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-ATTENTION-002 care_about triage + source-failure collapse
 - [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
-- [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations
+- [x] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations (independently verified 2026-08-28, `PASS_WITH_NONBLOCKING_FINDINGS`; one real P1 found -- LIVE_API could never bind IPv6 loopback, masked by a self-skipping regression test -- remediated in PR #628, pending its own independent re-verification; see WORKLOG "EOD convergence wave")
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
 - [x] AS-CODER-ALPHA-REPORT-READ-CONVERGENCE-001 consume-only union of #593-#603, originally on branch `cursor/aug26-report-read-convergence-f3ff` (`next/changed/overview/decisions/unknown/state/architecture/roadmap/portfolio/bitemporal/index-status`). Phantom-work correction 2026-08-28: `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN` no longer holds -- all 11 `/v1/*-status` API routes are registered in `api_server.py` and all 11 `atlas.*.read` MCP tools are registered in `mcp_registry.py` on current `main`, verified directly (not assumed) against real route/tool handler code, not stub text. EMPTY/UNKNOWN still stay not-healthy on main. This checkbox tracked landing on main, not any further merge authorization.
 - [x] AS-CODER-ALPHA-INCREMENTAL-CONNECT-001 no-change reconnect must not double discover+ingest. Phantom-work correction 2026-08-28: implemented and wired on current `main` -- `connect.py` names this package directly in its own docstring and contains `_finish_no_change_reconnect()`; `evaluate_incremental_reconnect()` is defined in `incremental_connect.py` and imported/called from `connect.py`'s real `connect` flow, verified directly against the code (not stub text). Origin PR #374 is merged.
 - [x] AS-CODER-ALPHA-NEXT-001 What Next daily lens (`atlas next`; compose attention/roadmap/unknown/source-health; NEXT!=command; independent of AS-2.0-NEXT-001)
-- [ ] AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 frozen-at-write estate vs later live estate (draft; does not retarget #378; does not duplicate #419; MERGE_AUTHORIZATION NOT_GRANTED)
+- [x] AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 frozen-at-write estate vs later live estate (does not retarget #378; does not duplicate #419; independently verified 2026-08-28, `PASS_WITH_NONBLOCKING_FINDINGS` -- see WORKLOG "EOD convergence wave"; MERGE_AUTHORIZATION NOT_GRANTED)
 - [x] AS-PROJECT-ROADMAP-001 Living Project Roadmap V1 (derived; ROADMAP!=canonical; CLI/API/Web/connect/handoff; D-098 Web context remediation on #354; ROADMAP_STATE=LOCAL_RECERTIFICATION_PENDING; CLOUD_IV=PASS; ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK; MERGE_ELIGIBLE=NO; MERGE_AUTHORIZATION NOT_GRANTED)
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
@@ -548,7 +548,7 @@ Honesty (mandatory):
 - [x] ORCH001DRB-004 Replay fail-closed (duplicate/stale/wrong/after-finalization)
 - [x] ORCH001DRB-005 Exit code is not semantic PASS
 - [x] ORCH001DRB-006 Internal governed submit/finalize (child write not required)
-- [ ] ORCH001DRB-007 Independent verification (bootstrap: candidate tests + exact-head CI + Windows process matrix; adapter PASS is not self-trust)
+- [x] ORCH001DRB-007 Independent verification (bootstrap: candidate tests + exact-head CI + Windows process matrix; adapter PASS is not self-trust; independently verified 2026-08-28, `PASS`, 32/32 tests + 15 adversarial frame-injection probes including real Windows CreateProcess -- see WORKLOG "EOD convergence wave")
 
 ## AS-ORCH-001E — Governed Autonomous Loop
 
@@ -671,7 +671,7 @@ Honesty (mandatory):
 - [x] ORCHLEASE-003 Reject stale / duplicate / foreign worker / foreign package / replay
 - [x] ORCHLEASE-004 Ack + release visibility after process restart
 - [x] ORCHLEASE-005 Focused + concurrent + control-plane tests
-- [ ] ORCHLEASE-006 Exact-head CI + independent IV + adversarial control-plane review
+- [x] ORCHLEASE-006 Exact-head CI + independent IV + adversarial control-plane review (independently verified 2026-08-28, `PASS_WITH_NONBLOCKING_FINDINGS`, 127/127 broader autonomy suite, symlink-escape and tamper/replay defenses reconstructed adversarially, real concurrency race test -- see WORKLOG "EOD convergence wave")
 - [ ] ORCHLEASE-007 Owner merge gate (not this package)
 
 ## Atlas 3.0 program (D-191 / D-192 / D-193)
