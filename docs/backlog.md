@@ -385,7 +385,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-ATTENTION-002 care_about triage + source-failure collapse
 - [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
-- [x] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations (independently verified 2026-08-28, `PASS_WITH_NONBLOCKING_FINDINGS`; one real P1 found -- LIVE_API could never bind IPv6 loopback, masked by a self-skipping regression test -- remediated in PR #628, pending its own independent re-verification; see WORKLOG "EOD convergence wave")
+- [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations (independently verified 2026-08-28, isolation/truth-boundary claims `PASS`; but one real P1 remains open on `main` -- LIVE_API could never bind IPv6 loopback, masked by a self-skipping regression test -- fix drafted in PR #628 but NOT yet merged, pending both independent re-verification and an owner decision on a separate Atlas-3 certified-surface freeze that blocks this exact file; leave unchecked until PR #628 lands; see WORKLOG "EOD convergence wave")
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
