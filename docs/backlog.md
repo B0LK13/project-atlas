@@ -399,7 +399,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 
 ## AS-ORCH-001A — Agent Result Contract + Deterministic Transition Classification
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (independently verified 2026-08-28, see WORKLOG "ORCH001A-007"; not merge-eligible; not owner-approved; not production-ready). Classifies the next eligible transition from a structured `AgentResultEnvelope`. Does **not** dispatch, route automatically, create Cursor hooks, merge, or grant owner authority. `execution_authorized = false` always._
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (independently verified 2026-08-28, see WORKLOG "ORCH001A-007"; `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md); not yet merged; not production-ready). Classifies the next eligible transition from a structured `AgentResultEnvelope`. Does **not** dispatch, route automatically, create Cursor hooks, merge, or grant owner authority. `execution_authorized = false` always._
 
 Honesty (mandatory):
 
@@ -427,7 +427,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001B — Deterministic Policy Router + Typed TaskDirective
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (independently verified 2026-08-28, see WORKLOG "ORCH001B-008"; not merge-eligible; not owner-approved; not production-ready). Routes a 001A `OrchestrationDecision` to a typed `TaskDirective` or an explicit owner-gate / terminal result. Does **not** dispatch, create Cursor hooks, execute tasks, merge, or grant owner authority. `execution_authorized = false` always._
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (independently verified 2026-08-28, see WORKLOG "ORCH001B-008"; `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md); not yet merged; not production-ready). Routes a 001A `OrchestrationDecision` to a typed `TaskDirective` or an explicit owner-gate / terminal result. Does **not** dispatch, create Cursor hooks, execute tasks, merge, or grant owner authority. `execution_authorized = false` always._
 
 Honesty (mandatory):
 
@@ -460,7 +460,7 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 
 ## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
 
-_Status: **REMEDIATED — INDEPENDENTLY VERIFIED — READY FOR OWNER MERGE GATE** (AS-ORCH-001C-R1; re-certified 2026-08-28, see WORKLOG "ORCH001C-009"; ORCH001C-010 Local Windows explicit-completion acceptance = `PASS`, exercised 2026-08-28 end-to-end via the real CLI in a disposable directory (stage/complete/ack/idempotence/tamper-fail-closed all confirmed; zero dispatch, zero external calls, structurally guaranteed by `cursor_bridge.py`'s import graph) -- see WORKLOG "ORCH001C-010"; not merge-eligible; not owner-approved; not production-ready). Surfaces a governed Atlas route via an optional Cursor stop-hook adapter **or** a deterministic explicit completion transport. Does **not** spawn agents, execute `TaskDirective`, merge, or grant authority. The stop hook is **not** the required primary runtime trigger._
+_Status: **REMEDIATED — INDEPENDENTLY VERIFIED — READY FOR OWNER MERGE GATE** (AS-ORCH-001C-R1; re-certified 2026-08-28, see WORKLOG "ORCH001C-009"; ORCH001C-010 Local Windows explicit-completion acceptance = `PASS`, exercised 2026-08-28 end-to-end via the real CLI in a disposable directory (stage/complete/ack/idempotence/tamper-fail-closed all confirmed; zero dispatch, zero external calls, structurally guaranteed by `cursor_bridge.py`'s import graph) -- see WORKLOG "ORCH001C-010"; `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md); not yet merged; not production-ready). Surfaces a governed Atlas route via an optional Cursor stop-hook adapter **or** a deterministic explicit completion transport. Does **not** spawn agents, execute `TaskDirective`, merge, or grant authority. The stop hook is **not** the required primary runtime trigger._
 
 Honesty (mandatory):
 
@@ -499,7 +499,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher (current-main reconstruction)
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (ORCH001D-011 independently verified 2026-08-28 across two rounds -- round 1 found and remediated a real P2 (subprocess capture memory-bound) and, on independent re-verification, a real P1 (fix silently defeated the timeout when stdin was present); round 2 independently re-verified the fix clean with 7 further adversarial variants; see WORKLOG "ORCH001D-011"; ORCH001D-012 authentic-Cursor acceptance remains separately outstanding, `AVAILABLE_NOT_ATTEMPTED` -- corrected 2026-08-28 from a false `EXTERNAL_BLOCKED` claim, see WORKLOG "Cursor CLI availability correction": a live Cursor CLI is genuinely present on this host, but actually dispatching one is a materially higher-stakes action than verifying the dispatch code and was deliberately not attempted; not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (ORCH001D-011 independently verified 2026-08-28 across two rounds -- round 1 found and remediated a real P2 (subprocess capture memory-bound) and, on independent re-verification, a real P1 (fix silently defeated the timeout when stdin was present); round 2 independently re-verified the fix clean with 7 further adversarial variants; see WORKLOG "ORCH001D-011"; ORCH001D-012 authentic-Cursor acceptance remains separately outstanding, `AVAILABLE_NOT_ATTEMPTED` -- corrected 2026-08-28 from a false `EXTERNAL_BLOCKED` claim, see WORKLOG "Cursor CLI availability correction": a live Cursor CLI is genuinely present on this host, but actually dispatching one is a materially higher-stakes action than verifying the dispatch code and was deliberately not attempted; not merged; `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
 
 Honesty (mandatory):
 
@@ -513,7 +513,7 @@ Honesty (mandatory):
 - `PR396_RESURRECTED = NO`
 - `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
 - `OWNER AUTHORITY = STILL REQUIRED`
-- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 
 - [x] ORCH001D-001 Typed `DispatchRecord` / `DispatchReceipt` + shipped schemas
 - [x] ORCH001D-002 Deterministic dispatch identity bound to trusted routing fields
@@ -532,7 +532,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Extends the existing 001D parent so a terminal ask-mode process can return one framed `AgentResultEnvelope` that the parent validates and binds. Does **not** create a second dispatcher, grant ask-mode write, merge, or mutate PR #402/#396._
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; `MERGE_AUTHORIZATION = GRANTED`, 2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md). Extends the existing 001D parent so a terminal ask-mode process can return one framed `AgentResultEnvelope` that the parent validates and binds. Does **not** create a second dispatcher, grant ask-mode write, merge, or mutate PR #402/#396._
 
 Honesty (mandatory):
 
@@ -546,7 +546,7 @@ Honesty (mandatory):
 - `ASK_MODE_GENERAL_MUTATION = NO`
 - `AS_ORCH_001A_R1 = BLOCKED` until a later owner merge of this package
 - `PR402_CERTIFICATION = NOT_GRANTED`
-- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 
 - [x] ORCH001DRB-001 Uniquely delimited terminal result frame
 - [x] ORCH001DRB-002 Parent capture + 001A validation of untrusted payload
@@ -559,7 +559,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001E — Governed Autonomous Loop
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (ORCH001E-008 independently verified 2026-08-28, see WORKLOG "ORCH001E-008"; PASS with 3 non-blocking follow-ups recorded (2x P2 dead/misleading owner-gate guard + overstated AUTONOMY-001 honesty marker, 1x P3 crash-recovery liveness gap) -- no live authority leak found; not merged; merge authorization not granted). Persistent loop above the landed 001D dispatcher. Does **not** bypass owner gates, authorize merge, grant waivers, expand objectives, or mutate #396._
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (ORCH001E-008 independently verified 2026-08-28, see WORKLOG "ORCH001E-008"; PASS with 3 non-blocking follow-ups recorded (2x P2 dead/misleading owner-gate guard + overstated AUTONOMY-001 honesty marker, 1x P3 crash-recovery liveness gap) -- no live authority leak found; not merged; `MERGE_AUTHORIZATION = GRANTED`, 2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md). Persistent loop above the landed 001D dispatcher. Does **not** bypass owner gates, authorize merge, grant waivers, expand objectives, or mutate #396._
 
 Honesty (mandatory):
 
@@ -572,7 +572,7 @@ Honesty (mandatory):
 - `LOOP_CAN_EXPAND_OBJECTIVE = NO`
 - `AUTOMATIC_MERGE = NOT_IMPLEMENTED`
 - `OWNER AUTHORITY = STILL REQUIRED`
-- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `MERGE_AUTHORIZATION = GRANTED` (2026-08-28, see docs/evidence/D-202-OWNER-AUTHORIZED-ORCHESTRATION-ACTIVATION.md)
 
 - [x] ORCH001E-001 Persisted loop state with fail-closed digest
 - [x] ORCH001E-002 Tick: select READY → lease → 001D dispatch-once → stop
