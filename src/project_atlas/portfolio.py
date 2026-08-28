@@ -341,7 +341,16 @@ def stale_knowledge(
     The same applies to timestamps outside the trusted window
     (``is_untrusted_mtime``): epoch/pre-1980 stamps, and stamps dated a full
     day or more after ``reference_date``, are unknown -- and therefore
-    omitted -- rather than fresh."""
+    omitted -- rather than fresh.
+
+    ``stale_after_days`` must be a positive integer day count -- the same
+    invariant ``validation.py::_validate_freshness`` enforces at the CLI
+    boundary. This internal API previously accepted ``<= 0`` silently
+    (P3): a caller passing ``0`` would mark every source with any
+    ``modified_at`` older than the reference instant "stale" regardless of
+    actual age, which is not a meaningful staleness threshold."""
+    if stale_after_days < 1:
+        raise ValueError("stale_after_days must be a positive integer day count")
     manifest_sources = _manifest_sources(vault)
     quarantined = _quarantined_source_ids(vault)
     findings: dict[str, list[dict[str, Any]]] = {}
