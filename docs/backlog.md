@@ -552,7 +552,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001E — Governed Autonomous Loop
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Persistent loop above the landed 001D dispatcher. Does **not** bypass owner gates, authorize merge, grant waivers, expand objectives, or mutate #396._
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (ORCH001E-008 independently verified 2026-08-28, see WORKLOG "ORCH001E-008"; PASS with 3 non-blocking follow-ups recorded (2x P2 dead/misleading owner-gate guard + overstated AUTONOMY-001 honesty marker, 1x P3 crash-recovery liveness gap) -- no live authority leak found; not merged; merge authorization not granted). Persistent loop above the landed 001D dispatcher. Does **not** bypass owner gates, authorize merge, grant waivers, expand objectives, or mutate #396._
 
 Honesty (mandatory):
 
@@ -574,7 +574,7 @@ Honesty (mandatory):
 - [x] ORCH001E-005 Crash/restart recovery without duplicate dispatch
 - [x] ORCH001E-006 Duplicate lease/result/dispatch prevention
 - [x] ORCH001E-007 Adversarial matrix (authority, replay, corruption, cross-project)
-- [ ] ORCH001E-008 Independent verification
+- [x] ORCH001E-008 Independent verification (2026-08-28: 255 existing tests re-run PASS + 8 adversarial probes against `main` `0aa37abf`, ruff/mypy clean; PASS with 3 non-blocking follow-ups recorded, see WORKLOG "ORCH001E-008"; still not merge-eligible)
 - [ ] ORCH001E-009 Owner merge gate (not this package)
 
 ## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
@@ -592,7 +592,7 @@ Honesty (mandatory):
 - `IV_ROUTING = IMPLEMENTED`
 - `ADVERSARIAL_REVIEW_TRIGGER = IMPLEMENTED`
 - `EVIDENCE_CONTRACT = IMPLEMENTED`
-- `OWNER_GATES_A_F = IMPLEMENTED`
+- `OWNER_GATES_A_F = PARTIALLY_IMPLEMENTED` (corrected 2026-08-28 from `IMPLEMENTED`, found during ORCH001E-008 IV, see WORKLOG: gates A/B have real `require_owner(...)` enforcement call sites and are fail-closed; C/D/E/F (`C_CERTIFIED_OBJECT_MUTATION`, `D_SECURITY_GOVERNANCE_POLICY`, `E_DESTRUCTIVE_OPS`, `F_MATERIAL_EXTERNAL_SPEND`) exist only as descriptive `OwnerGateKind` tags -- zero `require_owner(...)` call sites for any of them anywhere in the package. Not currently exploitable -- no 001E path attempts a C/D/E/F-gated action -- but the prior `IMPLEMENTED` value overstated what's enforced today; see ORCHAUT-010 below, reopened.)
 - `AGENT_DISPATCH = IMPLEMENTED_BY_AS_ORCH_001D`
 - `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
 - `AUTONOMOUS_LOOP_001E = IMPLEMENTED`
@@ -610,7 +610,7 @@ Honesty (mandatory):
 - [x] ORCHAUT-007 IV routing: implementer != verifier
 - [x] ORCHAUT-008 Adversarial review trigger for control-plane / authorization
 - [x] ORCHAUT-009 Deterministic hashed evidence bundles
-- [x] ORCHAUT-010 Owner gates A–F fail closed
+- [ ] ORCHAUT-010 Owner gates A–F fail closed -- reopened 2026-08-28 (found during ORCH001E-008 IV, see WORKLOG "ORCH001E-008"): true for gates A/B (real `require_owner(...)` enforcement, verified); false for C/D/E/F (descriptive `OwnerGateKind` tags only, no enforcement call sites anywhere in the package). Not currently exploitable -- no code path attempts a C/D/E/F-gated action -- but this checklist item is not accurately "done" as originally checked. Remains a P2 follow-up, not re-implemented here.
 - [x] ORCHAUT-011 CLI `governor-status` / `governor-discover` / `governor-pilot`
 - [x] ORCHAUT-012 Controlled non-destructive in-process pilot
 - [ ] ORCHAUT-013 Owner merge gate (not this package)

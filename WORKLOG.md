@@ -8281,3 +8281,90 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
   evidence rewritten, no production code touched, no new merge
   authorization implied for anything else.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001E-008 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `0aa37abf` (ORCH001E-001..007
+  implementation, already merged: persisted loop state, tick state
+  machine, completion/governor transition, owner-gate/hard-blocker stop
+  propagation, crash recovery, replay prevention, adversarial matrix). No
+  production surface touched. Dispatched to a dedicated subagent given
+  this package's much larger surface than ORCH001A/B/C/D (21 `.py` files
+  under `src/project_atlas/orchestration/autonomy/`, matching the ruff/
+  mypy "21 source files" result below -- the dispatch prompt's initial
+  estimate of "18 files" was corrected here after review; the actual
+  count was verified directly, not re-guessed). `MERGE_AUTHORIZATION =
+  NOT_GRANTED`.
+- Baseline: every test file that actually imports
+  `project_atlas.orchestration.autonomy` (found by grepping imports, not
+  just filenames) = 255 passed, 0 failed.
+- Contract discovery confirmed the authority guarantees are structural
+  (`Literal[False]` on `merge_authorized`/`execution_authorized`/
+  `authority_granted`, redundant `model_validator` re-check) and that
+  `MERGED` is unreachable at two independent layers
+  (`governor.transition()` hardcodes `owner_grant=False` before even
+  reaching the DAG; `dag.apply_transition()` itself unconditionally
+  rejects any `to_state == MERGED`).
+- 8 adversarial probes (a-h), each independently reproduced (not assumed
+  from reading tests): (a) owner-gate bypass attempt for `OWNER_REQUIRED`
+  work -- stopped correctly, zero dispatch; (b) direct attempts to set
+  `merge_authorized`/`execution_authorized`/`authority_granted=True` or
+  call `request_merge(owner_grant=True)` -- all rejected
+  (`ValidationError` / `IllegalTransitionError` / `OwnerGateError`); (c)
+  crash/restart recovery -- no duplicate dispatch on the documented path;
+  (d) duplicate lease/result/dispatch -- rejected (`RESULT_REPLAY`
+  /replay errors); (e) scope/objective expansion -- `expand_lease()`
+  unconditionally raises; (f) on-disk state tamper (direct file edit
+  outside any CLI) -- `LoopError(STATE_CORRUPT)`, matching the pattern
+  ORCH001C's tamper probe already established for this repo; (g)
+  fail-closed digest -- a tampered field without resealing is caught and
+  rejected; (h) owner gates A-F -- gates A/B have real
+  `require_owner(...)` enforcement call sites and are fail-closed;
+  gates C/D/E/F exist only as descriptive enum tags with zero enforcement
+  call sites anywhere in the package.
+- Static analysis: `ruff check orchestration/autonomy/` clean; `mypy
+  orchestration/autonomy/` clean (21 source files).
+- Finding: every claimed hard-authority boundary (merge, waiver, scope
+  expansion) held under direct adversarial reproduction including digest
+  tampering, replay, and a crash-window race simulation. No path found by
+  which the loop merges, waives, expands scope, or sets any of the
+  `Literal[False]` flags.
+- Three non-blocking follow-ups recorded (none reach a live authority
+  leak -- redundant layers still hold in each case):
+  1. **P2** -- `loop.py::_select_and_lease`'s owner-gate guard
+     (`node.state != NodeState.READY`) is provably unreachable given
+     `select_next`'s own invariant (it only ever returns `READY` nodes).
+     This is dead code that reads as -- and is checklist-claimed by
+     ORCH001E-004 as -- an enforced pre-execution stop, but cannot fire
+     under the current single-threaded model. Not a proven bypass (merge
+     stays blocked at the two independent layers above regardless), but
+     misleading. Not reachable through the live CLI today (which builds a
+     fresh empty governor with no node-population step each tick) --
+     only through direct library/API use, same as the existing test
+     suite and this probe.
+  2. **P3** -- a crash between `DispatchPort.dispatch_once()` succeeding
+     and the loop persisting `active_dispatch_id` leaves the loop
+     permanently stuck in `DISPATCHING` on restart with no path to locate
+     the orphaned dispatch. Fail-stuck, not fail-dangerous (no duplicate
+     dispatch) -- an operability gap, not a safety one.
+  3. **P2** -- the `AS-ORCH-AUTONOMY-001` honesty marker
+     `OWNER_GATES_A_F = IMPLEMENTED` / ORCHAUT-010 "owner gates A-F fail
+     closed" was accurate for gates A and B only; C/D/E/F have no
+     enforcement plumbing, only descriptive usage. Not currently
+     exploitable since 001E's loop never attempts a C/D/E/F-gated action.
+     Corrected 2026-08-28 (review, PR #623): an earlier pass here only
+     annotated this finding without changing the marker value or
+     reopening the checklist item, which review correctly caught as
+     insufficient -- a reader scanning for `IMPLEMENTED` would still be
+     misled. `OWNER_GATES_A_F` is now `PARTIALLY_IMPLEMENTED` and
+     `ORCHAUT-010` is unchecked, both in that package's own status text.
+- Result: `ORCH001E-008 = PASS`. `ORCH001E-009` (owner merge gate) is not
+  an IV item.
+- `DEFERRED_FOLLOW_UPS = 3` (recorded above; none block this PASS per the
+  independent verifier's own judgment -- consistent with this session's
+  existing convention of recording non-blocking P2/P3 findings rather
+  than expanding scope to fix everything found during IV).
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
+  authority.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
