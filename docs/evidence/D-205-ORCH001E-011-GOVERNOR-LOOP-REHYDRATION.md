@@ -169,8 +169,18 @@ same-process contract tests, not re-claimed as the cross-process proof
 - `mypy src`: 0 new errors (2 pre-existing, unrelated errors in
   `connect_perf.py` — a Windows `os.getrusage` platform-stub gap, not
   touched by this change).
-- Full repository test suite: run and its result recorded separately
-  (see WORKLOG) — not yet independently verified.
+- Full repository test suite (extra due diligence, beyond what the
+  pipeline requires): 4620 passed, 4 skipped, 3 failed. All 3 failures
+  (`test_adv_git_history_access`,
+  `test_generated_secret_answer_is_never_committed_or_in_history`,
+  `test_security_regression_class_exercises_remedi_suite[trusted_exec]`)
+  are `FileNotFoundError: [WinError 206] The filename or extension is
+  too long` — a Windows path-length limit triggered by this worktree's
+  own long path (`D:\atlas-worktrees\fix-orch001e-011-rehydration\...`),
+  in tests unrelated to orchestration/autonomy and untouched by this
+  change (git-history/secret-scan/security-regression fixtures). Not
+  independently re-confirmed as environmental rather than a real
+  regression — flagged here plainly rather than silently omitted.
 
 ## What this does NOT change
 
