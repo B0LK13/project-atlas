@@ -7921,9 +7921,31 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
   ORCH001C-R1-001..003 implementation, already merged). No production
   surface touched. Does **not** cover ORCH001C-010 (Local Windows
   explicit-completion acceptance) or the "authentic Cursor stop event
-  delivery" claim itself -- both require a live Cursor CLI environment,
-  unavailable here; left unchecked, `EXTERNAL_BLOCKED`.
-  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  delivery" claim itself -- deliberately out of scope for this IV pass
+  (verification of what's already merged, not new acceptance testing),
+  left unchecked. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  **Correction 2026-08-28** (see WORKLOG "Cursor CLI availability
+  correction" below): this entry originally said both require a live
+  Cursor CLI "unavailable here" / `EXTERNAL_BLOCKED`. That was checked
+  with a bash `which` wrapper, which missed the `.CMD` extension
+  resolution Windows/Python `shutil.which` (what
+  `resolve_cursor_transport()` actually calls) does apply; a real Cursor
+  CLI (`agent.cmd`) is genuinely present on this host. The scope decision
+  above (not attempting authentic acceptance in this IV pass) stands on
+  its own merits regardless -- see that entry for why authentic dispatch
+  was not attempted even though it is now known to be available.
+  Review correction (PR #624): ORCH001D-012 (authentic agent dispatch) is
+  the higher-stakes item this reasoning actually applies to. ORCH001C-010
+  (Local Windows explicit-completion acceptance, `atlas orchestrator
+  cursor-complete`) is a different, lower-risk surface -- per
+  `src/project_atlas/cli.py` and `cursor_bridge.complete_staged_handoff()`,
+  it requires no Cursor stop event and performs no dispatch or execution;
+  it only completes an already-staged handoff. It was not conflated with
+  D-012's dispatch risk deliberately; that framing was imprecise. It
+  remains unattempted here too, but for a different reason: this
+  environment has no staged handoff state to complete against right now,
+  not because of dispatch risk. Left as a distinct follow-up, not
+  attempted in this correction pass.
 - Baseline: existing suite re-run clean -- test_orchestration_cursor_bridge.py
   + test_orchestration_explicit_completion.py = 44 PASS.
 - Note on this entry's count precision: after a review finding on the
@@ -8004,7 +8026,9 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - Result: `ORCH001C-009 = PASS` (10 probes total: 2 baseline + 8
   adversarial). `ORCH001C-010` (Local Windows explicit-completion
   acceptance) and the authentic Cursor stop-event delivery claim
-  remain separately unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+  remain separately unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected
+  2026-08-28 from `EXTERNAL_BLOCKED`; see the correction entry below),
+  not attempted in this IV pass.
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001D/E.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
@@ -8015,10 +8039,21 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - Scope: read-only IV against `main` `5ff62221` (ORCH001D-001..010
   implementation, already merged). No production surface touched. Does
   **not** cover ORCH001D-012 (Authentic Local Windows Cursor agent
-  dispatch acceptance) -- that item requires a live Cursor CLI
-  (`agent`/`cursor-agent` on PATH), which is unavailable in this
-  environment; left `EXTERNAL_BLOCKED`, unchecked, as-is.
+  dispatch acceptance) -- deliberately not attempted in this IV pass
+  (see the correction entry below: a live Cursor CLI is actually
+  available on this host, but actually dispatching one is a materially
+  different, higher-stakes action than verifying the dispatch code, and
+  was never in scope here regardless of availability); left unchecked.
   `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  **Correction 2026-08-28**: this entry originally said ORCH001D-012
+  "requires a live Cursor CLI (`agent`/`cursor-agent` on PATH), which is
+  unavailable in this environment" and classified it `EXTERNAL_BLOCKED`.
+  That was false -- checked via a bash `which` wrapper that missed the
+  `.CMD` extension resolution Windows/Python `shutil.which` (what the
+  real code uses) actually apply; `resolve_cursor_transport()` itself,
+  called with no override, resolves a real `agent.cmd` on this host. See
+  "Cursor CLI availability correction" below for the verification and
+  why authentic dispatch is still not attempted here.
 - Risk-mapping before execution (`run_dispatch_once` reaches
   `subprocess.run`, materially higher risk than the pure-function
   ORCH001A/B classify/route logic): read `dispatcher.py` +
@@ -8081,7 +8116,8 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - Result (initial pass): eligibility/fail-closed logic, command
   construction, and the real process-spawn transport all held under the
   probes above. `ORCH001D-012` (authentic Cursor dispatch) remains
-  separately unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+  separately unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected 2026-08-28
+  from `EXTERNAL_BLOCKED`), not attempted.
 
 ### PR #620 review findings and remediation (same day, same PR)
 
@@ -8245,7 +8281,9 @@ the implementer's own claim.
 **`ORCH001D-011 = PASS`**, implementer remediation (2 rounds) and
 independent adversarial verification (2 rounds, second one clean) both
 converged. `ORCH001D-012` (authentic Cursor dispatch) remains separately
-unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected 2026-08-28 from
+`EXTERNAL_BLOCKED` -- see "Cursor CLI availability correction" below),
+not attempted.
 
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001E.
@@ -8501,4 +8539,109 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
   corrected finding is a candidate for a separate remediation node
   (adding a real owner_gate check to the `DISCOVERED -> READY` transition
   or to `select_next()`'s per-node loop), not something fixed here.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## Cursor CLI availability correction (ORCH001C-010 / ORCH001D-012)
+
+- Date: 2026-08-28
+- Scope: docs only. Corrects a false claim made in this WORKLOG's
+  ORCH001C-009 and ORCH001D-011 entries (both above): each said
+  authentic Cursor dispatch/stop-event acceptance was `EXTERNAL_BLOCKED`
+  because a live Cursor CLI was "unavailable in this environment."
+- Root cause of the false claim: availability was checked with a bash
+  `which agent` / `which cursor-agent` wrapper, which did not find
+  anything on PATH. Bash's `which` does not apply Windows' `PATHEXT`
+  extension resolution the way Python's `shutil.which` (what
+  `resolve_cursor_transport()` actually calls) does, so a real
+  `agent.CMD` sitting on PATH was missed.
+- Correction, verified directly (not re-assumed):
+  `python -c "from project_atlas.orchestration.agent_transport import
+  resolve_cursor_transport; print(resolve_cursor_transport())"` (no
+  override -- the exact call the real dispatch path makes) resolves
+  `logical_name='agent' path='C:\\Users\\Admin\\AppData\\Local\\
+  cursor-agent\\agent.cmd' launcher_kind=WINDOWS_CMD_WRAPPER` on this
+  host, right now. A live Cursor CLI genuinely is available.
+- `AVAILABLE_NOT_ATTEMPTED`, not `PASS`: this correction does **not**
+  claim ORCH001D-012 (authentic agent dispatch/stop-event acceptance) is
+  satisfied. Actually invoking a real Cursor agent process is a
+  materially different, higher-stakes action than verifying the dispatch
+  code around it (unpredictable duration, real external-service
+  interaction, no bounded blast radius the way a fake runner or a benign
+  `sys.executable` stand-in has) and was not attempted here. Whether to
+  attempt it is left as an explicit owner decision, not run on this
+  finding alone. **Correction (PR #624 review):** this dispatch-risk
+  rationale applies to ORCH001D-012, not to ORCH001C-010 (Local Windows
+  explicit-completion, `atlas orchestrator cursor-complete`) -- see the
+  ORCH001C-009 entry above for why that one is unattempted for a
+  different, lower-stakes reason (no staged handoff state to complete
+  against, not dispatch risk).
+- `CONSUME_ONLY = true`; corrects prior status text only, no code
+  changed, no dispatch attempted, no merge/execution authority granted.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001C-010 — Local Windows explicit-completion acceptance
+
+- Date: 2026-08-28
+- Scope: exercised end-to-end via the real `atlas orchestrator` CLI
+  entry points, in a disposable temp directory outside this repository,
+  deleted afterward. No production surface touched, no repository state
+  mutated. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Re-derived and corrected during review (see "PR #626 consistency"
+  below): ORCH001C-010 had been wrongly bundled with ORCH001D-012 under
+  the same "materially higher-stakes, real external dispatch" rationale.
+  It is not. `cursor_bridge.py`'s own module dependencies are `models`,
+  `router`, `validator` only -- verified directly (no `agent_transport`,
+  no `subprocess` anywhere in its import graph or the CLI handlers for
+  `cursor-stage-result`/`cursor-ack`/`cursor-complete`). This path can
+  never start a real Cursor process; it only surfaces an already-staged,
+  already-validated local route as a `HandoffPacket`.
+- Exercised, via `python -m project_atlas.cli orchestrator ...` against
+  a disposable `--root`, using the same payload shape the existing test
+  suite already covers (`_payload()` in
+  `test_orchestration_explicit_completion.py`):
+  1. `cursor-status` before staging: `active_state=absent`,
+     `state_valid=false` (correct baseline).
+  2. `cursor-stage-result result.json --root <disposable>`: staged
+     successfully, `status=pending`, real computed `route_digest`.
+  3. `cursor-complete --root <disposable>`: returned a `HandoffPacket`
+     with `state=HANDOFF_READY`, `transport=explicit`,
+     `dispatch_performed=false`, `execution_authorized=false`.
+  4. Repeated step 3 unchanged: byte-identical output both times --
+     `IDEMPOTENCE = PASS`.
+  5. `cursor-ack <digest> --root <disposable>`: transitioned
+     `status: pending -> acknowledged`.
+  6. `cursor-complete` again after ack: correctly rejected,
+     `error=HANDOFF_ALREADY_ACKNOWLEDGED`, exit 1 -- the explicit-
+     completion path closes once acknowledged, matching
+     `complete_staged_handoff()`'s documented behavior.
+  7. Adversarial tamper: directly edited the persisted `state.json` on
+     disk, setting `route.execution_authorized`,
+     `route.task.execution_authorized`, and both `permissions.merge`
+     flags to `true`, and resetting `status` back to `pending` to reach
+     the would-be happy path if the tamper went undetected. Result:
+     `cursor-status` reported `active_state=absent`,
+     `state_valid=false` (treats a tampered file as no valid state at
+     all, not merely "tampered but present"); `cursor-complete` failed
+     closed with `error=STAGED_STATE_TAMPERED`, exit 1.
+     `execution_authorized` stayed `false` throughout despite the tamper
+     -- confirms `verify_state()` recomputes route/digests fresh from
+     the stored envelope and never trusts the persisted authority
+     fields, exactly as `require_verified_state()`'s docstring claims.
+- Evidence: `DISPATCH_COUNT = 0`, `EXTERNAL_SERVICE_CALLS = 0`,
+  `REAL_CURSOR_AGENT_PROCESS_START = 0` (structurally guaranteed by the
+  import graph, not just by omission), `STAGED_HANDOFF_CREATED = YES`,
+  `CURSOR_COMPLETE_EXECUTED = YES`, `ACK/STATE_TRANSITION = EXPECTED`,
+  `IDEMPOTENCE = PASS`, `TAMPER_FAIL_CLOSED = PASS`,
+  `DISPOSABLE_STATE_ONLY = YES` (temp dir outside the repo, deleted
+  after the run; `bridge_state_path()` itself also rejects any path
+  that would escape `--root`, verified by source read).
+- Result: `ORCH001C-010 = PASS`. This is a genuinely owner-independent
+  acceptance -- no external service, no credentials, no dispatch, no
+  merge, no production mutation. Distinct and separate from
+  `ORCH001D-012`, which remains `AVAILABLE_NOT_ATTEMPTED` and does
+  require its own owner execution authorization (real external Cursor
+  process, unpredictable duration, real service interaction).
+- `CONSUME_ONLY = true`; no code changed, no repository state mutated,
+  no merge/execution authority granted beyond this local acceptance
+  finding itself.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
