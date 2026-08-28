@@ -578,6 +578,7 @@ Honesty (mandatory):
 - [x] ORCH001E-007 Adversarial matrix (authority, replay, corruption, cross-project)
 - [x] ORCH001E-008 Independent verification (2026-08-28: 255 existing tests re-run PASS + 8 adversarial probes against `main` `0aa37abf`, ruff/mypy clean; PASS with 3 non-blocking follow-ups recorded, see WORKLOG "ORCH001E-008"; still not merge-eligible)
 - [ ] ORCH001E-009 Owner merge gate (not this package)
+- [ ] ORCH001E-011 `governor-loop-tick` CLI has no node/governor rehydration across real process restarts (gap found and documented in D-204, on PR #636's branch pending merge). Fixed in `rehydration.py` — reuses the existing `AS-ORCH-DURABLE-LEASE-PROJECTION-001` lease projection plus `discover()`/`ingest_discovery()` (no second, competing persisted-DAG model); LEASED-phase recovery reconstructs the exact granted lease from durable evidence, fails closed (`NODE_NOT_REHYDRATABLE`) for any package_id other than the one deterministic node factory the governor has, and fails closed (`EXECUTION_STATE_NOT_REHYDRATABLE`) for DISPATCHING/AWAITING_RESULT/VALIDATING rather than guess at in-flight execution state. See D-205 for the authentic real-subprocess recovery proof and the full adversarial matrix; not independently verified or merged yet, so `GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_RECOVERY` stays `NOT_FUNCTIONAL` until it is.
 
 ## AS-ORCH-AUTONOMY-001 — Autonomous governor / operating-model transition
 

@@ -12,6 +12,9 @@ from project_atlas.orchestration.autonomy.discovery import (
     discover,
 )
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, run_live_pilot
+from project_atlas.orchestration.autonomy.lease_projection import (
+    RELATIVE_DEFAULT as LEASE_PROJECTION_RELATIVE_DEFAULT,
+)
 from project_atlas.orchestration.autonomy.loop import (
     STATE_DIR_RELATIVE,
     AutonomousLoop,
@@ -25,6 +28,7 @@ from project_atlas.orchestration.autonomy.models import (
     NodeState,
     TrustedAnchorRecord,
 )
+from project_atlas.orchestration.autonomy.rehydration import RehydrationError, rehydrate_governor
 from project_atlas.orchestration.autonomy.trust import (
     TrustError,
     load_runtime_anchor,
@@ -230,12 +234,29 @@ def run_governor_loop_tick(
     try:
         trusted = _load_trusted(trust_store=trust_store, allow_shipped=trust_store is None)
         inventory = collect_live_inventory(root)
+        lease_store = root / LEASE_PROJECTION_RELATIVE_DEFAULT
         governor = AutonomousGovernor(
             current_main=inventory.current_main,
             current_tree=inventory.current_tree,
             trusted_anchor=trusted,
+            lease_projection_store=lease_store,
         )
         store = loop_store or (root / STATE_DIR_RELATIVE)
+        # ORCH001E-011: a fresh AutonomousGovernor starts with an empty node
+        # list on every CLI invocation, while `store` may already hold
+        # LoopState from a prior process (LEASED, mid-execution, ...). This
+        # rehydration pass must run before constructing AutonomousLoop, so
+        # the node lookups tick()/recover() perform find what a prior
+        # process would have found -- or this call raises RehydrationError
+        # first and neither loop nor governor is ever handed inconsistent
+        # state.
+        rehydrate_governor(
+            governor,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=store,
+            lease_projection_store=lease_store,
+        )
         loop = AutonomousLoop(
             governor=governor,
             trusted=trusted,
@@ -248,7 +269,7 @@ def run_governor_loop_tick(
         payload["merge_authorized"] = False
         payload["execution_authorized"] = False
         return payload, EXIT_OK if result.phase.value != "FAILED_CLOSED" else EXIT_ERROR
-    except (TrustError, DiscoveryError, LoopError) as exc:
+    except (TrustError, DiscoveryError, LoopError, RehydrationError) as exc:
         code = getattr(exc, "code", "LOOP_FAILED_CLOSED")
         return _fail_closed(str(exc), blocker=code), EXIT_ERROR
 

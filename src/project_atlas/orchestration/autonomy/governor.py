@@ -377,6 +377,36 @@ class AutonomousGovernor:
         self.transition(package_id, NodeState.LEASED, f"LEASED_TO_{agent_id}")
         return lease
 
+    def restore_lease(self, lease: AgentLease) -> None:
+        """ORCH001E-011: reconstruct a previously-granted lease after a
+        process restart, from durable projection evidence. Does **not**
+        mint a new lease, does not consult owner gates again (the gate was
+        already enforced -- correctly, per ORCHAUT-010 -- at the original
+        `lease()` call that produced this same lease; re-checking it here
+        would be redundant, not additional safety), and does not itself
+        decide whether the caller's evidence is trustworthy -- the caller
+        (``rehydration.py``) is responsible for validating `lease` against
+        the durable lease projection and rejecting foreign/stale/mismatched
+        rows before calling this. This method's own job is narrow: given a
+        lease the caller has already established is genuine, restore the
+        governor's in-memory bookkeeping (`self._leases`, node state) to
+        match it -- nothing more.
+        """
+        if self._target_moved:
+            raise GovernorError("refusing lease restoration on moved target", code="TARGET_MOVED")
+        node = self._require_node(lease.package_id)
+        if node.state != NodeState.READY:
+            raise GovernorError(
+                "node must be freshly-rediscovered READY to restore a lease onto it",
+                code="NODE_NOT_READY",
+            )
+        if would_overlap(tuple(self._nodes), node):
+            raise GovernorError("surface overlap forbids lease restoration", code="SURFACE_OVERLAP")
+        if any(existing.lease_id == lease.lease_id for existing in self._leases):
+            raise GovernorError("lease already present", code="LEASE_REPLAY")
+        self._leases.append(lease)
+        self.transition(lease.package_id, NodeState.LEASED, f"REHYDRATED_LEASE_{lease.agent_id}")
+
     def execute_leased(self, lease_id: str) -> EvidenceBundle:
         """In-process execution of a real lease. Not a bypass stub."""
         lease = next((item for item in self._leases if item.lease_id == lease_id), None)

@@ -9136,3 +9136,44 @@ metadata, local/full-clone validity including the diverged-branch case).
 `MERGE_AUTHORIZATION = NOT_GRANTED` — this PR changes governance
 enforcement itself, so it stays owner-gated regardless of certification
 strength, per standing instruction for this node. Not self-merged.
+
+## ORCH001E-011 — governor/loop rehydration across real process restarts
+
+Promoted to the active critical-path implementation node per directive
+`D-ORCH001E-011-CRITICAL-PATH-WORKSTEAL`, following on from D-204's
+finding (on PR #636's branch, not yet merged): `run_governor_loop_tick()`
+constructs a brand-new, empty `AutonomousGovernor` on every CLI
+invocation, so any recovery path that looks up a node by `package_id`
+raises an uncaught `StopIteration` for real cross-process recovery.
+
+Implemented `src/project_atlas/orchestration/autonomy/rehydration.py`
+(`rehydrate_governor()`), reusing the existing durable
+`AS-ORCH-DURABLE-LEASE-PROJECTION-001` lease projection (now actually
+wired into the real CLI path via a real `lease_projection_store`) plus
+the existing `discover()`/`ingest_discovery()` origination pass, rather
+than inventing a second persisted-DAG model. LEASED-phase recovery
+reconstructs the exact granted lease from durable projection evidence,
+cross-checked against the live `origin/main` for staleness; any other
+package_id or any in-flight execution phase
+(DISPATCHING/AWAITING_RESULT/VALIDATING) fails closed rather than guess.
+New `AutonomousGovernor.restore_lease()` restores bookkeeping for an
+already-granted lease without re-consulting or re-granting any owner
+gate. See `docs/evidence/D-205-ORCH001E-011-GOVERNOR-LOOP-REHYDRATION.md`
+for the full writeup.
+
+Per the directive's explicit "AUTHENTIC RECOVERY TEST" requirement, the
+core proof (`test_real_subprocess_recovers_leased_pilot_node_after_crash`)
+spawns two genuinely separate `python -c` OS subprocesses against a
+real, self-contained git repository — not two objects reused in one
+process. 11 new tests total (1 real-subprocess proof + 10 disk-mediated
+adversarial contract tests covering no-prior-state origination, all
+three in-flight-phase fail-closed cases, unknown package_id, missing
+lease projection row, foreign-package mismatch, stale base_pin, and
+owner-gate non-reinvocation). Full `orchestration or autonomy` suite:
+315 passed (301 pre-existing + 14 new counting the parametrized matrix),
+0 regressions. `ruff check` clean on all touched files. `mypy src`: 0 new
+errors.
+
+**Not self-certified.** Independent verification and fresh exact-head CI
+still required before merge-eligible; `GOVERNED_AUTONOMY_ACTIVE` stays
+`PARTIAL` until then.
