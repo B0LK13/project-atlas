@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from project_atlas.inventory_drift import attach_source_drift
+
 PACKAGE_ID = "AS-CODER-ALPHA-DECISIONS-001"
 GENERATOR_ID = "atlas-coder-alpha-decisions-001"
 ANSWERS_RELATIVE = Path("generated") / "answers"
@@ -77,6 +79,20 @@ _NON_DECISION_HINTS = (
     "receipt.md",
     "signed receipt",
 )
+
+
+def _decision_source_path(path: str) -> bool:
+    """True for DECISIONS.md / ADR-like paths. README is not governing evidence."""
+    posix = path.replace("\\", "/").removeprefix("./")
+    lower = posix.lower()
+    name = Path(posix).name.lower()
+    if name in {"readme.md", "readme.txt", "readme"}:
+        return False
+    if name == "decisions.md":
+        return True
+    if name.startswith(("adr-", "adr_", "rfc-", "rfc_")):
+        return True
+    return any(hint in lower for hint in _DECISION_PATH_HINTS)
 
 
 def _is_section_header_noise(title: str) -> bool:
@@ -561,29 +577,40 @@ def build_decisions_lens(vault: Path, project_id: str) -> dict[str, Any]:
             "UNKNOWN!=healthy",
         ]
 
-    return {
-        "schema_version": 1,
-        "schema": "atlas.coder-alpha.decisions-lens.v1",
-        "package": PACKAGE_ID,
-        "answer_id": f"ans-decisions-{project_id}",
-        "subject": project_id,
-        "field": "decisions",
-        "title": "What decisions matter?",
-        "summary": summary,
-        "value": value,
-        "status": status,
-        "authority": "derived-lens",
-        "layer": "C",
-        "project_id": project_id,
-        "decisions": unique[:20],
-        "decision_count": len(unique),
-        "active_governing_count": len(
-            [item for item in unique if item.get("status") == "ACTIVE_GOVERNING"]
-        ),
-        "inspected_artifacts": inspected,
-        "notes": notes,
-        "generated": {"by": GENERATOR_ID},
-    }
+    lens = attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": "atlas.coder-alpha.decisions-lens.v1",
+            "package": PACKAGE_ID,
+            "answer_id": f"ans-decisions-{project_id}",
+            "subject": project_id,
+            "field": "decisions",
+            "title": "What decisions matter?",
+            "summary": summary,
+            "value": value,
+            "status": status,
+            "authority": "derived-lens",
+            "layer": "C",
+            "project_id": project_id,
+            "decisions": unique[:20],
+            "decision_count": len(unique),
+            "active_governing_count": len(
+                [item for item in unique if item.get("status") == "ACTIVE_GOVERNING"]
+            ),
+            "inspected_artifacts": inspected,
+            "notes": notes,
+            "generated": {"by": GENERATOR_ID},
+        },
+        vault,
+        project_id,
+        path_filter=_decision_source_path,
+    )
+    honesty = dict(lens.get("honesty") or {}) if isinstance(lens.get("honesty"), dict) else {}
+    honesty["governing_evidence_stale"] = (
+        str((lens.get("source_drift") or {}).get("status") or "") == "STALE"
+    )
+    lens["honesty"] = honesty
+    return lens
 
 
 def materialize_decisions_lenses(

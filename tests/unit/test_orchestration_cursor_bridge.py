@@ -32,6 +32,28 @@ from project_atlas.orchestration.router import route_payload
 HOOK = Path(__file__).resolve().parents[2] / ".cursor" / "hooks" / "atlas_stop.py"
 
 
+@pytest.fixture(autouse=True)
+def _terminal_return_checkpoint(tmp_path: Path) -> None:
+    """Default D-147 checkpoint allowing terminal stop when tests expect `{}`."""
+    runtime = tmp_path / ".atlas" / "orchestration" / "sdk-runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "d147-checkpoint.json").write_text(
+        json.dumps(
+            {
+                "return_state": {
+                    "package_id": "AS-D146-AUTONOMY-RETURN-GATE-001",
+                    "genuine_owner_frontier": True,
+                    "closure_integrity_pass": True,
+                }
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def _payload(**overrides: Any) -> dict[str, Any]:
     data: dict[str, Any] = {
         "schema_version": 1,

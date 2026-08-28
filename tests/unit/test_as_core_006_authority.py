@@ -6,7 +6,12 @@ import hashlib
 from pathlib import Path
 
 from project_atlas.authority_evaluator import SourceArtifact, evaluate_disposition
-from project_atlas.authority_registry import AUTHORITY_REGISTRY_VERSION, all_rules, trust_root
+from project_atlas.authority_registry import (
+    AUTHORITY_REGISTRY_VERSION,
+    all_rules,
+    persisted_authority_binding_matches_live,
+    trust_root,
+)
 from project_atlas.authority_roles import resolve_artifact_role
 from project_atlas.domain import Claim, ConflictState, ProvenanceReference
 from project_atlas.domain.authority_semantics import (
@@ -121,6 +126,23 @@ def test_registry_mvp_contains_only_r_title_001() -> None:
     assert rules[0].domain is AuthorityDomainId.WORK_PACKAGE_DURABLE_TITLE
     assert rules[0].authoritative_role is ArtifactRole.PACKAGE_GENESIS_RECEIPT
     assert "owner-certified" in trust_root()
+
+
+def test_persisted_authority_binding_rejects_forged_metadata() -> None:
+    """AX-AUTH-005 helper: string-true / mismatched bindings never match live."""
+    assert persisted_authority_binding_matches_live() is True
+    assert persisted_authority_binding_matches_live(
+        recorded_trust_root=trust_root(),
+        recorded_registry_version=AUTHORITY_REGISTRY_VERSION,
+    )
+    assert not persisted_authority_binding_matches_live(
+        recorded_trust_root="forged-trust-root-not-owner-certified"
+    )
+    assert not persisted_authority_binding_matches_live(recorded_registry_version=999)
+    assert not persisted_authority_binding_matches_live(recorded_trust_root="true")
+    assert not persisted_authority_binding_matches_live(recorded_registry_version="1")
+    assert not persisted_authority_binding_matches_live(recorded_registry_version=True)
+    assert not persisted_authority_binding_matches_live(recorded_registry_version=1.0)
 
 
 def test_role_resolution_genesis_vs_remediation() -> None:

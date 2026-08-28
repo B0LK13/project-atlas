@@ -5,6 +5,229 @@ exact commands run, exact results, deviations, and remaining risks.
 
 ---
 
+## D-193 — Atlas 3.0 foundation convergence
+
+**Date:** 2026-08-25
+**Directive:** D-193
+**Branch:** `cursor/atlas3-foundation-convergence-b8f1`
+**Base:** D-191/D-192 tip `0fd350108d4f4735eb2618a95576f720a78096b8`
+**Current main pin:** `f1b5256510cb66e037e6774aa49d753bdb7dd96f`
+**Mode:** Maximum-safe autonomous foundation convergence.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`FULL_LIVE_DEMO_READY = NO` so certified 2.x surfaces were not rewritten.
+
+### What landed
+- Foundation ownership + exit criteria (`docs/atlas-3/FOUNDATION.md`)
+- Threat catalog (`docs/atlas-3/SECURITY.md`)
+- Chronicle horizon notes only (`docs/atlas-3/chronicle/HORIZON.md`)
+- Twin / event / capability JSON schemas under `docs/atlas-3/contracts/`
+- Isolated runtime: twin constructors, canonical event envelope,
+  capability registry, compatibility prover, Pulse attention question,
+  Start freshness requirement, ledger temporal query
+- Additive CLI: `atlas capabilities`, `atlas compatibility` (does not replace
+  2.x `atlas compat`), `atlas start --freshness`, `atlas ledger query`
+
+### Honesty
+- Chronicle runtime = NOT IMPLEMENTED (`ROADMAP_HORIZON`)
+- Native Claude/Gemini history sync = still NOT IMPLEMENTED
+- Ledger is evidence substrate, not Truth Core
+- Compatibility prover is isolated-store proof, not a vault rewrite
+- Threat model is reviewed, not externally certified
+- Demo interference intended = NONE
+
+### Validation
+See subsequent pytest / ruff / mypy results on this branch.
+
+### D-196 residual read-path (night cycle)
+
+**Date:** 2026-08-25
+**Parent HEAD:** `3afd1e184ed535a3dfa865ecf183ab71739033bf`
+**Mode:** SAME PACKAGE / SAME BRANCH. No merge.
+
+D-196 closed persist-path P1-A and ledger P1-B. Independent ADV still
+reproduced:
+
+- CLI / `search_memory` emitted foreign items from a planted mixed
+  `reconcile.json` (`OUTPUT_PROJECT_SCOPE` leak)
+- Forged `event_id` with intact `content_hash` was accepted
+
+Remediation: consume-path project scope on search/CLI; bind `event_id` to
+content hash. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+---
+
+## D-191 / D-192 — Atlas 3.0 program inception + cross-LLM memory
+
+**Date:** 2026-08-25
+**Directive:** D-191 + D-192
+**Branch:** `cursor/atlas3-program-inception-b8f1`
+**Base:** `main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f`
+**Mode:** Autonomous architecture + isolated first-vertical runtime.
+`MERGE_AUTHORIZATION = NOT_GRANTED`.
+`FULL_LIVE_DEMO_READY = NO` so certified 2.x surfaces were not rewritten.
+
+### What landed
+- Canonical Atlas 3 program docs under `docs/atlas-3/`
+- D-192 LLM memory docs under `docs/atlas-3/llm-memory/`
+- Historical roadmaps classified as inputs (not erased)
+- Isolated runtime `src/project_atlas/atlas3/` for AT3-003/014/015/030/050
+  and ChatGPT-first memory vertical AT3-035/036/039/040/041/042/044/047/048/049
+- Additive CLI: `atlas pulse|start|proof|memory|ledger`
+- PostgreSQL multi-provider acceptance fixture
+
+### Honesty
+- Claude/Gemini native history sync = NOT IMPLEMENTED
+- Transcript extraction in Core = still NOT IMPLEMENTED
+- `chatgpt_bridge.py` not replaced
+- Pulse/Start/Proof/Memory are derived / non-authoritative
+- Model claim of completion != proof
+- Demo interference intended = NONE
+
+### Validation
+See subsequent pytest / ruff / mypy results on this branch.
+
+---
+
+## D-185 — #471 unbound-pack + post-#474 rebind
+
+**Date:** 2026-08-25
+**Directive:** D-185
+**Rebind:** post-#474 main `b2d15866622c31efd0999b320e16340711d3dba6`
+**Mode:** Same canonical #471. MERGE_AUTHORIZATION remaining = NOT_GRANTED.
+
+### Finding
+Resume of a pack with no usable `estate_binding` inherited live FRESH when
+the current manifest matched. Codex thread: unbound legacy != current.
+
+### Fix
+`evaluate_estate_currentness` fail-closes to `UNKNOWN` /
+`UNBOUND_FROZEN_ESTATE` when frozen identity is missing or malformed.
+Resume emits `resume_warning`. Target movement vs #474: `cli.py` regions
+disjoint (attention encoding vs handoff freshness).
+
+## D-183 — #471 recert against post-#508 main
+
+**Date:** 2026-08-25
+**Directive:** D-183 FINAL DEMO-BLOCKER CONVERGENCE
+**Branch:** `feat/d156-lane426-freshness-adv` (canonical #471, no replacement PR)
+**Rebind:** live main `6709ad7751f2135b507b74013808ecfe2198a3a3` / tree `ecb2079a7ae5ff8f2748f16cdbb92f94338345b2`
+**Mode:** Full recert successor. MERGE_AUTHORIZATION = NOT_GRANTED.
+
+### Why
+Cloud independently proved the product gap on main: after source mutation,
+`handoff resume` returned `status=resumed` with estate_binding / freshness
+lens / stale warning ABSENT. Stale pre-#508 owner evidence is not reused.
+
+### Unique delta
+- Frozen `estate_binding` at export/create (manifest sha256 + copied digests)
+- Resume recomputes live freshness vs frozen binding
+- `resume_warning` when frozen estate != live estate
+- Forged on-disk freshness is not authority
+- Missing/malformed connect-manifest stays UNKNOWN (fail closed)
+- No Layer-B writes; no secret echo; no second hash engine
+
+### Honesty
+`STALE_IS_CURRENT=FALSE` `FRESH_IS_AUTHORITY=FALSE`
+`ESTATE_BINDING_IS_AUTHORITY=FALSE` `UNKNOWN_AT_WRITE` cannot later
+masquerade as certified FRESH.
+
+## AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 / D-056
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-WAVE3-COORDINATED-ACTIVATION-AND-CRITICAL-PATH-EXPANSION-056
+**Lease:** `LEASE-IMPL-CTX-FRESH-ADV-056-A` (shared primary-governor write-back)
+**Branch:** `cursor/context-freshness-adv-current-001-5d32` from live `origin/main` `dc9d81df0ff7106438de44a4bd84df0b955535bc`
+**Mode:** Wave-3 primary implementation. Does not retarget `#378`. Does not duplicate owner-held `#419`. Does not merge.
+
+### Unique delta
+Frozen-at-write connect-manifest identity vs current live estate, including reconnect that refreshes the manifest while live files still match the new manifest.
+
+### Honesty
+`STALE_IS_CURRENT=NO` `UNKNOWN_IS_CURRENT=NO` `FRESH_IS_AUTHORITY=NO` `MERGE_AUTHORIZATION=NOT_GRANTED`
+
+
+## D-178 P1-A — KDIFF_TZ_AWARE_CRASH (UTC-aware comparison)
+
+**Date:** 2026-08-25
+**Package:** D-178 / KDIFF_TZ_AWARE_CRASH
+**Branch:** `cursor/kdiff-tz-aware-crash-b38f`
+**Base:** `origin/main` `a17949c6df9b4d004ffe03eb47b0934e3735204d` / tree `e646392c12fa525dcfd017c33e1b6226c5bfb40a`
+**Mode:** P1 remediation carrier. Does not merge. Does not touch Ask2 or #505.
+
+### Why
+`atlas kdiff --as-of <timestamp>Z` and `+00:00` raised `TypeError` in
+`bitemporal.py::_covers` (aware vs naive). Date-only form worked. LIVE_API
+`/v1/kdiff?as_of=…Z` empty-reset the connection (curl 52) because the
+uncaught TypeError was not mapped to `AppServiceError`.
+
+### Root cause
+`_parse_instant` returned naive midnight for `YYYY-MM-DD` and aware UTC for
+`Z` / offsets. Catalog windows are typically date-only. `_covers` compared
+mixed types. CLI and API share `evaluate_as_of` → same root cause, different
+symptoms.
+
+### Canonical policy
+UTC-aware everywhere. Naive date-only / naive ISO clocks are UTC, not local.
+Offsets are converted, never stripped.
+
+### Validation
+```
+.venv/bin/python -m pytest tests/unit/test_d178_kdiff_tz_aware.py \
+  tests/unit/test_as_2_0_temporal_001.py tests/unit/test_as_2_2_kdiff_001.py -q
+# 76 passed
+.venv/bin/python -m ruff check src/project_atlas/bitemporal.py \
+  src/project_atlas/app_service.py src/project_atlas/knowledge_diff.py \
+  tests/unit/test_d178_kdiff_tz_aware.py
+.venv/bin/python -m mypy src/project_atlas/bitemporal.py \
+  src/project_atlas/app_service.py src/project_atlas/knowledge_diff.py
+```
+
+### Honesty
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- Independent ADV/IV still required on this exact tip
+- Does not claim `FULL_LIVE_DEMO_READY`
+
+---
+
+## AS-CORE-007-R1 — AX-AUTH-005 consume fail-closed
+
+**Date:** 2026-08-25
+**Package:** AS-CORE-007-R1 / AX-AUTH-005
+**Branch:** `cursor/atlas-autonomous-night-cycle-575f`
+**Base:** `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / tree `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED_CONSUME_INTEGRITY. Does not merge. Does not claim authentic O2. Does not duplicate D-149 #483.
+
+### Why
+Live-main probe: `query_knowledge` echoed `trust_root=forged-trust-root-not-owner-certified` and `registry_version=999` as `status=ok`. ACCEPT-001 had this as an explicit xfail owned by AS-CORE-007.
+
+### What changed
+- Persist-to-live binding helper rejects mismatched / bool / float registry encodings
+- Query snapshot consume and `atlas validate` fail-closed on forged file, record, and evidence bindings
+- Domain records reject bool/float `registry_version` before coercion to live v1
+- ACCEPT-001 AX-AUTH-005 xfail removed (consume now required)
+
+### Validation
+```
+PRE_PROBE consume_fail_closed=False (echoed forged trust_root + 999)
+POST_PROBE consume_fail_closed=True
+pytest tests/unit/test_as_core_007_knowledge_query.py tests/unit/test_as_accept_001_authority.py tests/unit/test_as_core_006_authority.py tests/unit/test_as_query_diag_001.py tests/unit/test_as_accept_002_authority_temporal.py
+# 62 passed (plus related 008 suite 76 total with conflict/review)
+ruff/mypy on touched modules: pass
+Independent verifier: IV_RESULT=PASS; P0/P1 remaining=NONE
+```
+
+### Honesty
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NO`
+- D-149 remains owner-merge of #483 (CI green; IV PASS; do not duplicate)
+
+### Night-cycle reconcile (2026-08-25T00:55Z)
+- LIVE_MAIN_HEAD = f0e0c979e8ead0fdad4cc51682c560299db0a074
+- D-149 #483 HEAD 36a5f54 CI: control-plane + quality 3.12/3.13/windows PASS
+- AUTHENTIC_ESTATE_ROOT = UNSET
+
+---
+
 ## AS-ORCH-001D-RESULT-BINDING-001 — process result capture / D-AS-ORCH-001D-RESULT-BINDING-014
 
 **Date:** 2026-08-19
@@ -6962,3 +7185,1954 @@ North-star daily journey still lacked a first-class **What next** step. Substrat
 - `NEW_HEAD != LOST_HEAD` (required)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
 - `MERGE_PERFORMED = NO`
+
+---
+
+## AS-ORCH-DURABLE-LEASE-PROJECTION-001 — durable read projection of governor leases
+
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-NO-PROMPT-PERSISTENT-GOVERNOR-060 / D-061
+**Branch:** `feat/as-orch-durable-lease-projection-001` (from `origin/main` `dc9d81df0ff7106438de44a4bd84df0b955535bc`)
+**Mode:** CONTROL_PLANE_RESILIENCE. Does not replace in-memory governor authority. Does not consume PR400. Does not merge.
+
+### Why
+`AutonomousGovernor._leases` is process-local. Subordinates cannot inspect another process's memory. That is a visibility gap, not a grant failure. This package projects grant/release to `leases.json` for restart/ack/audit.
+
+### Honesty
+- `PRIMARY_GOVERNOR_REMAINS_AUTHORITY = YES`
+- `DURABLE_PROJECTION_IS_AUTHORITY = NO`
+- `LEASE_GRANT_SOURCE = PRIMARY_GOVERNOR`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+### Local verification
+- Focused projection tests: 13 passed
+- Autonomy regression: 26 passed (unchanged default path)
+- ruff/mypy on touched modules: pass
+
+### D-069 remedi 1/2 — ORCH-LEASE-SYMLINK-ESCAPE-001
+**Date:** 2026-08-20
+**Directive:** D-AUTONOMOUS-DUPLICATE-RECEIPT-SUPPRESSION-AND-PR427-FRESH-REVIEW-069
+**Parent head:** `5929b03fc2a61e81c9f9603ad14f763ffa987f35`
+**Mode:** SAME PACKAGE / SAME OBJECTIVE / NARROWER SURFACE. No rebase. No merge.
+**Finding:** `_write_atomic` used a predictable `.{name}.tmp` path and
+`Path.write_text`, so a pre-planted symlink escaped the store.
+**Fix:** unique exclusive `O_NOFOLLOW` tmp in the store directory; reject
+symlink projection files on read.
+**Honesty:** `DURABLE_PROJECTION_IS_AUTHORITY = NO`. This commit is not a
+grant source and does not certify #427.
+
+---
+
+## D-149 — owner-gate non-escalation (authentic estate, clean package)
+
+**Date:** 2026-08-25
+**Directive:** autonomous night cycle / D-149
+**Branch:** `cursor/atlas-autonomous-night-cycle-69a2`
+**Base:** live `origin/main` `f0e0c979e8ead0fdad4cc51682c560299db0a074` / TREE `ba83d96a3542f270ae99c03b59da97b0ce567ac4`
+**Mode:** BOUNDED SECURITY REMEDIATION. Does not grant merge. Does not claim authentic O2. Does not mix NEXT-API or other Coder Alpha surfaces.
+
+### Live-state note
+Historical D-148 pin `4e71cce0` is superseded. Live main still widened a non-estate `CREDENTIAL` gate to `NONE` and rewrote `SUPERSEDED MERGE` to `CREDENTIAL` during mission reconcile. Draft `#477` already contains a mixed D-149+NEXT fix; this package is D-149-only.
+
+### Pre-remediation probe (main `f0e0c979`)
+- `CREDENTIAL` + `SOME_OTHER_CREDENTIAL` → `OWNER_GATE=NONE` (`PROBE1_CREDENTIAL_OTHER_WIDENED=True`)
+- `SUPERSEDED MERGE` + estate-absent O2 reseed → `OWNER_GATE=CREDENTIAL` (`PROBE2_MERGE_TO_CREDENTIAL=True`)
+- Refresh-path `MERGE` was already preserved on main
+
+### Scope
+- `refresh_authentic_o2_node_states` consumes only an explicit `AUTHENTIC_ESTATE_ROOT` dependency
+- `CREDENTIAL` held for another capability is not cleared
+- `MERGE`/`SECURITY`/`HUMAN`/`OWNER`/`RELEASE`/`GOVERNOR`/`SIGNOFF` remain immutable
+- Failed preflight does not mark the estate credential satisfied
+- Stale/cross-project/fixture/missing-fingerprint credentials refuse durable mutation
+- Closure-integrity pin failure refuses durable mutation
+- Mission reconciler no longer rewrites owner-held `MERGE` to `CREDENTIAL`
+- `ready_work_items` demotes every immutable owner gate before surface-overlap skip
+- `SUPERSEDED`/`DISPATCHED`/`RUNNING` nodes are not resurrected by estate refresh
+
+### Honesty
+- `AUTHENTIC_ESTATE_AVAILABILITY != OWNER_AUTHORITY`
+- `OWNER_CAPABILITY_GRANTED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+- `AUTHENTIC_PILOT = NOT_RUN` (`AUTHENTIC_ESTATE_ROOT` unset)
+- Independent verifier: `IV_RESULT=PASS` after P1 remediations
+
+### Local verification
+- Focused D-149/D-148/reconciler: 56 passed (`--no-cov`)
+- Autonomy regression D-146/147/149/154: 84 passed
+- ruff + mypy on touched modules: pass
+- Independent IV: 27 passed; P1 fingerprint + ready-queue demotion remediated and re-verified PASS
+
+## AT3-043 (2026-08-26)
+
+Isolated conversation decision + intent extraction on #511 lineage
+`156ae7e4d5cda8a0bfda0c22764547ab2a0cb4b2`.
+
+- INTENT != CURRENT STATE
+- confirmed_owner_decision requires explicit owner_origin
+- CROSS_PROJECT fail-closed
+- CLI `atlas memory intent` reads existing reconcile artifacts only
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
+## AT3-045 (2026-08-26)
+
+Isolated provider identity + session lineage stacked on AT3-043.
+
+- Same conversation_id cannot change provider
+- Same message_id cannot change content_hash
+- CROSS_PROJECT fail-closed
+- CLI `atlas memory lineage` reads existing reconcile artifacts only
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-037 (2026-08-26)
+
+Isolated Claude fixture/export ingest stacked on AT3-045.
+
+- `import_claude_export` + CLI `atlas memory claude`
+- `conversation_sync = NOT_IMPLEMENTED`; no private history API claimed
+- `CLAUDE.md` is bootstrap, not ingestion
+- Fixtures claiming `live_full_history_sync` fail closed
+- Mixed valid + corrupt turns fail closed
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
+## AT3-038 (2026-08-26)
+
+Isolated Gemini fixture/export ingest stacked on AT3-037.
+
+- `import_gemini_export` + CLI `atlas memory gemini`
+- `conversation_sync = NOT_IMPLEMENTED`; no private history API claimed
+- `GEMINI.md` is bootstrap, not ingestion
+- Fixtures claiming `live_full_history_sync` fail closed
+- Mixed valid + corrupt turns fail closed
+- Does not write Truth Core; MERGE_AUTHORIZATION=NOT_GRANTED
+- Does not mutate certified 2.x surfaces
+
+## AT3-010 (2026-08-26)
+
+Isolated repository/component inventory stacked on AT3-038.
+
+- `compile_inventory` + CLI `atlas inventory`
+- Missing declared inventory stays UNKNOWN
+- Provenance required; CROSS_PROJECT and authority claims fail closed
+- Inventory != Truth Core; authentic estate is not inferred
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-013 (2026-08-26)
+
+Isolated PR/commit/test/build node projection stacked on AT3-010.
+
+- `compile_engineering_nodes` + CLI `atlas ledger nodes`
+- Empty ledger stays UNKNOWN; does not invent git history
+- Ledger corruption fails closed via AT3-014 read integrity
+- GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-011 (2026-08-26)
+
+Isolated file/symbol graph stacked on AT3-013.
+
+- `compile_file_graph` + CLI `atlas file-graph`
+- Missing declarations stay UNKNOWN; does not walk host trees
+- Path traversal, CROSS_PROJECT, and authority claims fail closed
+- GRAPH != AUTHORITY; MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-012 (2026-08-26)
+
+Isolated service/environment nodes stacked on AT3-011.
+
+- `compile_estate_nodes` + CLI `atlas estate-nodes`
+- Missing declarations stay UNKNOWN
+- Estate availability is not owner authorization
+- Authentic estate / pilot claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-061 (2026-08-26)
+
+Isolated intent vs current-state honesty wrapper stacked on AT3-012.
+
+- `wrap_intent_state_honesty` + CLI `atlas memory honesty`
+- Composes AT3-043; layers must not collapse
+- INTENT != CURRENT STATE; STALE != CURRENT; promotion fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-060 (2026-08-26)
+
+Isolated causal graph stacked on AT3-061.
+
+- `compile_causal_graph` + CLI `atlas causal-graph`
+- Declared CAUSED_BY edges only; missing stays UNKNOWN
+- Graph != authority; provenance required
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-062 (2026-08-26)
+
+Isolated DECIDED_BY provenance stacked on AT3-060.
+
+- `compile_decided_by` + CLI `atlas decided-by`
+- Explicit owner_origin required; model claims fail closed
+- Graph != authority; missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-021 (2026-08-26)
+
+Isolated derived relationship expansion stacked on AT3-062.
+
+- `expand_relationships` + CLI `atlas rel-expand`
+- GRAPH_REUSE aliases only; does not write AS-GRAPH-003
+- Does not pick conflict winners; graph != authority
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-051 (2026-08-26)
+
+Isolated independent-verification binding stacked on AT3-021.
+
+- `bind_independent_verification` + CLI `atlas iv-bind`
+- Exact HEAD/TREE only; target movement fails closed
+- IMPLEMENTER != VERIFIER; IV != MERGE
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-052 (2026-08-26)
+
+Isolated ADV binding stacked on AT3-051.
+
+- `bind_adversarial_result` + CLI `atlas adv-bind`
+- Exact HEAD/TREE only; target movement fails closed
+- ADV != MERGE; ADV != SECURITY CERTIFICATION
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-111 (2026-08-26)
+
+Isolated org identity stacked on AT3-110.
+
+- `compile_org_identity` + CLI `atlas org-identity`
+- Does not mint organization identity
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-110 (2026-08-26)
+
+Isolated multi-project twin stacked on AT3-095.
+
+- `compile_multi_project_twin` + CLI `atlas multi-project-twin`
+- Declared sibling rows only; missing stays UNKNOWN
+- Federation != authority; no org identity mint
+- CROSS_PROJECT_LEAK_COUNT = 0
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-095 (2026-08-26)
+
+Isolated Impact Explorer UX stacked on AT3-096.
+
+- `compile_impact_ux` composes AT3-080
+- No new CLI command (surface remains `atlas impact-explorer`)
+- Graph != authority; trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-096 (2026-08-26)
+
+Isolated Mission Command Center stacked on AT3-092.
+
+- `compile_mission` + CLI `atlas mission`
+- Declared orch DAG / lease projection; missing stays UNKNOWN
+- Self-merge and estate-as-authorization fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-092 (2026-08-26)
+
+Isolated Truth Graph UX stacked on AT3-094.
+
+- `compile_truth_graph` + CLI `atlas truth-graph`
+- Declared nodes/edges only; missing stays UNKNOWN
+- Graph != authority; winners and trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-094 (2026-08-26)
+
+Isolated Decision Explorer stacked on AT3-091.
+
+- `compile_decision_explorer` + CLI `atlas decision-explorer`
+- Declared owner decisions only; missing stays UNKNOWN
+- Model paraphrase / missing owner_origin fail closed
+- Decision Explorer != Truth Core
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-091 (2026-08-26)
+
+Isolated Timeline stacked on AT3-090.
+
+- `compile_timeline` + CLI `atlas timeline`
+- Orders validated ledger rows by document-declared valid-time
+- Wall-clock is not valid-time; timeline != Truth Core
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-090 (2026-08-26)
+
+Isolated Atlas Home composer stacked on AT3-100.
+
+- `compile_home` + CLI `atlas home --budget`
+- Composes Pulse + Start + twin health
+- UI != canonical truth; does not invent a current task
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-100 (2026-08-26)
+
+Isolated twin health stacked on AT3-080.
+
+- `compile_twin_health` + CLI `atlas twin-health`
+- Derived signals only; missing stays UNKNOWN
+- Health != authority; estate availability != owner authorization
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-080 (2026-08-26)
+
+Isolated impact explorer data stacked on AT3-072.
+
+- `compile_impact_explorer` + CLI `atlas impact-explorer`
+- Declared rows only; missing stays UNKNOWN
+- Graph != authority; trust scores fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-072 (2026-08-26)
+
+Isolated provider-register / capabilities CLI design stacked on AT3-071.
+
+- `compile_provider_register` / `assert_cli_design` + CLI `atlas provider-register`
+- Design only; no CLI proliferation; query.read and live-sync wrappers forbidden
+- Provider register is not a live history API
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-071 (2026-08-26)
+
+Isolated transport != authority prover stacked on AT3-070.
+
+- `prove_transport_is_not_authority` + CLI `atlas transport-authority`
+- HTTP 200 / CLI 0 / MCP ok / A2A ack != authority
+- Owner-power claims from transport fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-070 (2026-08-26)
+
+Isolated surface contract stacked on AT3-052.
+
+- `compile_surface_contract` / `evaluate_surface_claim` + CLI `atlas surface-contract`
+- Surfaces: CLI, API, Web, TUI, MCP, A2A
+- SURFACE != TRUTH CORE; transport success != authority
+- Unknown surface or authority/merge/owner claim fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-020 (2026-08-26)
+
+Isolated claim/decision/requirement nodes stacked on AT3-006 tip `#568`.
+
+- `compile_claim_nodes` + CLI `atlas claim-nodes`
+- Declared claim / decision / requirement twin nodes only
+- Missing stays UNKNOWN; provenance required
+- Graph != authority; winners / trust scores / model-as-owner fail closed
+- Does not write Truth Core or AS-GRAPH-003
+- Distinct from AT3-092 UX and AT3-094 explorer
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-022 (2026-08-26)
+
+Isolated conflict/UNKNOWN projection stacked on AT3-020 `#569`.
+
+- `compile_conflict_unknown` + CLI `atlas conflict-unknown`
+- Declared conflicts and unknowns only; missing stays UNKNOWN
+- UNKNOWN remains UNKNOWN; no conflict winner
+- Healthy-filter / silent corruption drop fails closed
+- Distinct from AT3-081 Pulse/memory compose
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+### P1 remedi on `#570`
+
+- P1-022-001: `resolved=true` with omitted status now fail-closes (`CONFLICT_STATE_INCOHERENT`)
+- P1-022-002: whitespace-only sides now fail-close (`CONFLICT_SIDES_REQUIRED`)
+
+## AT3-023 (2026-08-26)
+
+Isolated graph != authority prover stacked on AT3-022 `#570`.
+
+- `prove_graph_is_not_authority` / `compile_graph_authority` + CLI `atlas graph-authority`
+- Graph is never authority; winners and trust scores fail closed
+- Missing stays UNKNOWN (still not authority)
+- Does not write AS-GRAPH-003
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-082 (2026-08-26)
+
+Isolated next-action honesty stacked on AT3-023 `#571`.
+
+- `compile_next_action_honesty` (no new CLI)
+- Composes existing Pulse artifacts + landed next-lens
+- Does not invoke the Pulse compiler (Pulse writes)
+- NEXT != command; stale/unverified stay honest
+- Corrupt Pulse / next-lens JSON fails closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-093 (2026-08-26)
+
+Isolated Time Machine UX reuse stacked on AT3-082 `#573`.
+
+- `compile_time_machine_ux` (no new CLI)
+- Reuses landed AS-2.2-KDIFF-001 only
+- Second clock / wall-clock-as-valid-time / as-of-as-authority fail closed
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-112 (2026-08-26)
+
+Isolated federation reuse honesty stacked on AT3-093 `#574`.
+
+- `compile_federation_reuse` (no new CLI)
+- Composes declared FED-001/002 membership
+- Does not call federation writers
+- Federation != authority; cross-vault promote fails closed
+- Missing stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-053 (2026-08-26)
+
+Isolated autonomy gate reuse stacked on AT3-112 `#575`.
+
+- `compile_autonomy_gate_reuse` (no new CLI)
+- Reuses landed orch DAG / lease / owner-gate contracts
+- Self-dispatch / execution_authorized / invented owner authority fail closed
+- Lease is not merge authority
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-036 (2026-08-26)
+
+Isolated ChatGPT export honesty stacked on AT3-053 `#577`.
+
+- `import_chatgpt_export` + `atlas memory chatgpt`
+- Wraps landed `parse_chat_export`; does not import or replace `chatgpt_bridge`
+- `live_full_history_sync: true` fixtures fail closed
+- Mixed valid + corrupt JSON turns fail closed
+- CLI help is ASCII (C-002 / cp1252)
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-039 (2026-08-26)
+
+Isolated conversation normalization stacked on AT3-036 `#578`.
+
+- `normalize_turns` fail-closed on non-list / non-object turns
+- Canonical envelope only; no new CLI
+- Graph != authority; raw transcript not persisted
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-040 (2026-08-26)
+
+Isolated conversation extractor stacked on AT3-039 `#579`.
+
+- `extract_items` fail-closed on non-list / non-object envelopes
+- Landed ITEM_TYPES only; heuristic, not LLM-assisted
+- Forged owner paraphrase stays proposed_decision
+- Authority NON_CANONICAL; no Truth Core write
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-041 (2026-08-26)
+
+Isolated cross-LLM dedup stacked on AT3-040 `#580`.
+
+- `deduplicate_items` fail-closed on non-list / non-object items
+- Original provenance is not erased
+- Does not collapse state / intent / history
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-042 (2026-08-26)
+
+Isolated cross-LLM conflict detection stacked on AT3-041 `#581`.
+
+- `detect_conflicts` fail-closed on non-list / non-object items
+- Does not pick a winner or collapse state/intent/history
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-044 (2026-08-26)
+
+Isolated memory freshness stacked on AT3-042 `#582`.
+
+- No-evidence conversational memory stays UNKNOWN (not silently CURRENT)
+- STALE is not CURRENT
+- Mixed corrupt items fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-047 (2026-08-26)
+
+Isolated privacy/secret gate stacked on AT3-044 `#583`.
+
+- Secret-shaped content fails closed
+- Unknown privacy class fails closed
+- Raw transcript retention MINIMIZED
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-048 (2026-08-26)
+
+Isolated unified memory search stacked on AT3-047 `#584`.
+
+- Search extracted items only; not a transcript dump
+- Cross-project search fails closed
+- Mixed corrupt items fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-049 (2026-08-26)
+
+Isolated memory reconciliation stacked on AT3-048 `#585`.
+
+- Composes AT3-041 / AT3-042 / AT3-044
+- Never auto-promotes to Truth Core
+- Does not pick a winner
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-046 (2026-08-26)
+
+Isolated incremental conversation sync stacked on AT3-049 `#586`.
+
+- Local export-cursor incremental apply is implemented
+- Live provider incremental sync remains EXTERNAL_BLOCKED
+- Credentials, history API claims, and import_mode=API fail closed
+- Mixed corrupt / cross-project / conversation mismatch fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-054 (2026-08-26)
+
+Isolated consume-only memory context compiler stacked on AT3-046 `#587`.
+
+- Ranks reconciled memory; does not rewrite the certified 2.x compiler
+- Cross-project / mixed corrupt / trust-score / Truth Core promote fail closed
+- STALE != CURRENT; UNKNOWN stays UNKNOWN
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-055 (2026-08-26)
+
+Isolated ranked-context local serve stacked on AT3-054 `#588`.
+
+- Local provider-neutral pack for chatgpt/claude/gemini/cursor
+- Live provider serve remains EXTERNAL_BLOCKED
+- No new top-level CLI command
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-056 (2026-08-26)
+
+Isolated fixture provider handoff stacked on AT3-055 `#589`.
+
+- Composes ingest + AT3-054 rank + AT3-055 local serve
+- ChatGPT → Claude fixture path without re-explaining
+- Live multi-account product remains EXTERNAL_BLOCKED
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-057 (2026-08-26)
+
+Isolated Cursor fixture / local-session ingest stacked on AT3-056 `#590`.
+
+- Structured JSON session ingest; import_mode=LOCAL_SESSION
+- AGENTS.md / .cursorrules are bootstrap, not ingestion
+- Cursor Cloud history claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+## AT3-058 (2026-08-26)
+
+Isolated Codex fixture / structured-submission ingest stacked on AT3-057 `#591`.
+
+- Structured JSON fixture ingest; import_mode=STRUCTURED_SUBMISSION
+- CODEX.md is bootstrap, not ingestion
+- Native history claims fail closed
+- MERGE_AUTHORIZATION=NOT_GRANTED
+
+
+
+---
+
+## D-029 governance-restoration — recovered #605 provenance record
+
+**Date:** 2026-08-26
+**Directive:** D-029 (governance closure, docs-only)
+**Trigger:** D-026/D-028 independent forensic audit found that the D-025 Step 2
+merge (PR #606, tree `9c670d710ec63d36fea70c6a181c088b79294336`) resolved a
+`WORKLOG.md` conflict with `-X theirs`, which silently discarded the `#605`
+provenance entry below (the record of which `#593`-`#603` source SHAs were
+converged, and under what honesty invariants).
+
+**Scope and honesty of this restoration:**
+- `D-025 IS CANONICAL HISTORY` — no existing commit is rewritten or reverted.
+- `RUNTIME_CONTENT_UNCHANGED = true` — this entry restores documentation only;
+  the `#605` code itself was never lost, only this WORKLOG record of it.
+- `MODE = PROVENANCE_RESTORATION_ONLY` — this is not a new certification and
+  does not claim any test, IV, ADV, or Windows result beyond what the
+  restored entry below already stated at the time it was written.
+- `NO_RETROACTIVE_CERTIFICATION_CLAIMED = true`.
+
+The original entry, restored verbatim from the `#605` branch history below:
+
+---
+
+## Lane C REPORT READ convergence (#593-#603)
+
+**Date:** 2026-08-26
+**Branch:** `cursor/aug26-report-read-convergence-f3ff`
+**Base:** `origin/main` `f1b5256510cb66e037e6774aa49d753bdb7dd96f` / TREE `8df56184bb25b1cf1b6a9102cf34e77248287940`
+**Mode:** consume-only dependency convergence. Does not grant merge. Does not write vaults. Does not widen authority.
+
+### Source objects (tips, not PR bodies)
+- `#593` `d45c1d2` `atlas.next.read` `/v1/next-status`
+- `#594` `3557f7d` `atlas.changed.read` `/v1/changed-status`
+- `#595` `227c044` `atlas.overview.read` `/v1/overview-status`
+- `#596` `296f0db` `atlas.decisions.read` `/v1/decisions-status`
+- `#597` `d5bf486` `atlas.unknown.read` `/v1/unknown-status`
+- `#598` `f4ee09e` `atlas.state.read` `/v1/state-status`
+- `#599` `5f68364` `atlas.architecture.read` `/v1/architecture-status`
+- `#600` `67d6f13` `atlas.roadmap.read` `/v1/roadmap-status`
+- `#601` `c1d5938` `atlas.portfolio.read` `/v1/portfolio-status`
+- `#602` `04c0ea8` `atlas.bitemporal.read` `/v1/bitemporal-status`
+- `#603` `0e66476` `atlas.indexes.read` `/v1/index-status`
+
+### Method
+Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared files (`cli.py`, `app_service.py`, `api_server.py`, `mcp_registry.py`, `mcp_server.py`, `web_api/__init__.py`, `test_as_2_1_mcp_adv_001.py`) hand-unioned additively. Existing ADV cases retained.
+
+### Honesty
+- `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN`
+- `REPORT READ != AUTHORITY`
+- `EMPTY/UNKNOWN != HEALTHY`
+- `WRITE_APPLIED = false`
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## D-048 — Ask2 D-178 rebind onto post-#608 main
+
+- Date: 2026-08-27
+- Successor of #507 tip a8840f70 (cherry-pick conflicted with D-181 on main)
+- Port: attribute-filler / project-token strip + version-attribute trailing use* drop
+- Preserves D-181 claim-to-use scaffolding and D-150 leftover nouns
+- Tests: test_d178 + test_d181 + test_d150 ask2 matrices = 52 PASS
+
+## D-048 — AS-ORCH-001A-R1 validator honesty rebind (#402)
+
+- Date: 2026-08-27
+- Rebind onto post-#613 main; WORKLOG/backlog conflicts dropped (product-only port)
+- Files: orchestration/validator.py + test_orchestration_result_contract.py
+- Local: test_orchestration_result_contract.py PASS
+- Prior tip 48ca5391 preserved as provenance; this head is a new certification generation
+
+## D-048 — D-177 full-product demo rebind (#505)
+
+- Date: 2026-08-27
+- Rebind onto post-#402 main; WORKLOG conflict dropped; cli.py additive port
+- Local: test_d178_full_product_demo_honesty.py PASS (12)
+- Prior tip 3f265b6c preserved as provenance; new certification generation
+
+## D-048 — Windows lost-race promote replace (#542 rebind)
+
+- Date: 2026-08-27
+- Port _replace_path FileNotFoundError tolerance onto post-#505 main
+- Local provenance tip 059aa4e3; new certification generation
+
+## ORCH001A-007 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `718f2beb` (ORCH001A-001..006 implementation,
+  already merged). No production surface touched. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Baseline: existing suite re-run clean — test_orchestration_result_contract.py,
+  test_orchestration_result_binding.py, test_orchestration_result_binding_windows.py,
+  test_orchestration_transitions.py, test_orchestration_policy.py,
+  test_orchestration_router.py = 118 PASS.
+- 7 black-box probes via the real `atlas orchestrator` CLI (not just the unit
+  suite): 1 baseline plus 6 adversarial, each independently attempting to
+  defeat the "no execution/merge authority" invariant:
+  1. Valid CERTIFIED envelope (baseline, not adversarial) -> baseline
+     classification, `execution_authorized`/`merge_authorized` false, exit 0.
+  2. Direct injection of `"execution_authorized": true` / `"merge_authorized": true`
+     as extra envelope fields -> rejected outright (`extra="forbid"`,
+     `schema_invalid:<root>`, `valid: false`, exit 1); output still hard-codes both
+     authority fields false even in the rejection payload.
+  3. Unknown/rogue `state` value -> `BLOCKED_UNKNOWN_STATE`, not a silent default;
+     still no authority granted.
+  4. Malformed JSON -> graceful `REJECTED` (no traceback leaked), exit 1.
+  5. Oversized payload (>1MB, over the 256 KiB `MAX_RESULT_BYTES` cap) -> rejected
+     with `result envelope exceeds size limit`, exit 1.
+  6. `state=MERGE_ELIGIBLE` + `requested_transition="MERGE"` (the most favorable
+     case an agent could construct) via `validate-result` -> still
+     `execution_authorized=false`, `merge_authorized=false`,
+     `owner_required=true`, routed to `OWNER_REQUIRED`;
+     `requested_transition` explicitly logged as advisory-only.
+  7. Same payload via `route-result` (AS-ORCH-001B routing layer, second
+     independent gate) -> `execution_authorized: false`, `owner_gate: true`,
+     `permissions.merge/branch_write/repository_write/pull_request_write/
+     production_mutation` all `false`.
+- Finding: the `execution_authorized: Literal[False]` / `merge_authorized:
+  Literal[False]` invariant on `OrchestrationDecision` is enforced structurally
+  (Pydantic type) and redundantly at runtime (`_no_execution_or_merge_authority`
+  validator) -- defense in depth, not a single-point check. No path found, across
+  118 existing tests plus the 6 adversarial probes above (items 2-7; item 7
+  additionally exercises the 001B route-result layer), that reaches
+  `execution_authorized=true`, `merge_authorized=true`, or any
+  `permissions.*=true` other than read.
+- Result: `ORCH001A-007 = PASS`. Does not extend to ORCH001B-008 (route-result
+  layer) as a completed IV in its own right -- probe 7 above is corroborating
+  evidence for 001B, not a substitute for its own dedicated IV pass.
+- `CONSUME_ONLY = true`; does not grant merge/execution authority; does not
+  certify ORCH001C/D/E (dispatch, Cursor bridge, autonomous loop remain
+  separately gated per their own backlog status).
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001B-008 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `718f2beb` (ORCH001B-001..007 routing
+  policy, already merged). No production surface touched. Dedicated pass,
+  not a rerun of ORCH001A-007's corroborating probe 7 above.
+  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Baseline: test_orchestration_policy.py + test_orchestration_router.py
+  (part of the same 118-test baseline re-run for ORCH001A-007) PASS.
+- Adversarial black-box probes via the real `atlas orchestrator route-result`
+  CLI, plus one library-level probe against `route()` directly:
+  1. Baseline CERTIFIED envelope (`route_kind=task`, `dispatchable=true` --
+     the single most-permissive-looking routing outcome the policy table
+     produces) -> `execution_authorized=false` and every
+     `permissions.*` field (`authority_grant`, `branch_write`, `merge`,
+     `production_mutation`, `pull_request_write`, `repository_write`)
+     `false`. "Dispatchable" means an agent could legitimately receive this
+     `TaskDirective`, not that anything is authorized to mutate/merge.
+  2. `state=MERGE_ELIGIBLE` + `requested_transition=MERGE` (see
+     ORCH001A-007 probe 7) -> `owner_gate=true`, every permission `false`,
+     `requested_transition` logged advisory-only.
+  3. Library-level: called `route(decision, envelope)` directly with a
+     `decision` fabricated from one envelope but paired against a tampered
+     envelope (different `task.id`) -- i.e. simulating a caller that
+     supplies a favorable pre-built decision alongside an unrelated
+     envelope. `route()` does not trust the passed-in decision; it
+     independently re-derives `classify_envelope(envelope)` from the
+     envelope alone and cross-checks. Result: `RouteConsistencyError:
+     decision/envelope task mismatch` raised correctly -- the mismatch
+     was not silently accepted.
+- Finding: `route()`'s re-derive-and-cross-check design means a
+  compromised or buggy intermediate caller cannot smuggle a favorable
+  routing decision past this layer by supplying a mismatched envelope;
+  and the permission set (`DirectivePermissions`) is `false` across the
+  board even on the policy table's most-permissive (`dispatchable=true`)
+  entry.
+- Result: `ORCH001B-008 = PASS`.
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch authority;
+  does not certify ORCH001C/D/E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001C-009 — Independent integration verification (re-certification after R1)
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `5ff62221` (ORCH001C-001..008 +
+  ORCH001C-R1-001..003 implementation, already merged). No production
+  surface touched. Does **not** cover ORCH001C-010 (Local Windows
+  explicit-completion acceptance) or the "authentic Cursor stop event
+  delivery" claim itself -- deliberately out of scope for this IV pass
+  (verification of what's already merged, not new acceptance testing),
+  left unchecked. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  **Correction 2026-08-28** (see WORKLOG "Cursor CLI availability
+  correction" below): this entry originally said both require a live
+  Cursor CLI "unavailable here" / `EXTERNAL_BLOCKED`. That was checked
+  with a bash `which` wrapper, which missed the `.CMD` extension
+  resolution Windows/Python `shutil.which` (what
+  `resolve_cursor_transport()` actually calls) does apply; a real Cursor
+  CLI (`agent.cmd`) is genuinely present on this host. The scope decision
+  above (not attempting authentic acceptance in this IV pass) stands on
+  its own merits regardless -- see that entry for why authentic dispatch
+  was not attempted even though it is now known to be available.
+  Review correction (PR #624): ORCH001D-012 (authentic agent dispatch) is
+  the higher-stakes item this reasoning actually applies to. ORCH001C-010
+  (Local Windows explicit-completion acceptance, `atlas orchestrator
+  cursor-complete`) is a different, lower-risk surface -- per
+  `src/project_atlas/cli.py` and `cursor_bridge.complete_staged_handoff()`,
+  it requires no Cursor stop event and performs no dispatch or execution;
+  it only completes an already-staged handoff. It was not conflated with
+  D-012's dispatch risk deliberately; that framing was imprecise. It
+  remains unattempted here too, but for a different reason: this
+  environment has no staged handoff state to complete against right now,
+  not because of dispatch risk. Left as a distinct follow-up, not
+  attempted in this correction pass.
+- Baseline: existing suite re-run clean -- test_orchestration_cursor_bridge.py
+  + test_orchestration_explicit_completion.py = 44 PASS.
+- Note on this entry's count precision: after a review finding on the
+  ORCH001A-007 entry (PR #619) caught a mismatched adversarial-probe
+  count, every probe below is numbered and labeled baseline/adversarial
+  explicitly, and the totals were counted directly against this list
+  before writing the summary (not stated from memory).
+- 6 black-box probes via the real `atlas orchestrator cursor-*` CLI in an
+  isolated init'd vault, in an isolated `--root`:
+  1. (baseline) `cursor-status` before any staged result -> `state:
+     "absent"`, `state_valid: false`, `execution_authorized: false`.
+  2. (baseline) `cursor-stage-result` with a valid CERTIFIED envelope ->
+     `ok: true`, `status: "pending"`, `execution_authorized: false`.
+  3. (adversarial) Re-stage the byte-identical result while one is already
+     pending -> succeeds idempotently (same digest, no actual overwrite;
+     this is a boundary clarification, not a defect -- see probe 4 for
+     the real "pending overwrite" case).
+  4. (adversarial) Stage a genuinely different result (different
+     `task.id`) while one is pending -> correctly rejected,
+     `error: "PENDING_HANDOFF_EXISTS"`, `ok: false`, exit 1.
+  5. (adversarial) `cursor-ack` with a wrong/fabricated route-digest ->
+     correctly rejected, `error: "BRIDGE_ACK_REJECTED"`, `ok: false`,
+     exit 1; `execution_authorized` still hard-coded `false` in the
+     rejection payload.
+  6. (adversarial) Directly edited the on-disk state file
+     (`.atlas/orchestration/cursor/state.json`) outside the CLI,
+     replacing its contents with `{"tampered": true,
+     "execution_authorized": true}`, then re-ran `cursor-status` ->
+     the injected `execution_authorized=true` was never read or
+     trusted; the corrupted file was treated as no state at all
+     (`state: "absent"`, `state_valid: false`,
+     `execution_authorized: false`). This is authentic tamper
+     resistance demonstrated against a real file on disk, not a mocked
+     assertion.
+- Finding: single-slot pending-overwrite enforcement, ack authenticity
+  (`ack != authority`), and state-file tamper resistance all hold under
+  adversarial probing, consistent with the existing 44-test suite and
+  the ORCH001C-007 "Tamper/injection tests" already in place.
+
+### Review findings and follow-up probes (same day, same PR)
+
+Two review findings were correct and required action:
+
+**Finding A (Copilot, docs accuracy):** probe 3's text referenced
+"probe 3b" as the real pending-overwrite case; no such item exists --
+the real case is probe 4. Fixed above (was a stray label left over
+from ad-hoc exploration before the probes were given their final
+numbering).
+
+**Finding B (Codex, P2, substantive):** the 6 probes above never
+exercised `cursor-complete` -- the explicit-completion transport that
+ORCH001C-R1 actually added, and the specific reason this item is
+re-certification rather than first-time IV. Re-running the existing
+unit suite does not substitute for independently probing R1's own
+claims (typed `HandoffPacket`, transport equivalence, idempotence).
+Added 4 more probes closing that gap, same isolated-vault method:
+  7. (adversarial) `cursor-complete` with no staged handoff -> correctly
+     rejected, `error: "NO_STAGED_HANDOFF"`, `ok: false`, exit 1.
+  8. (baseline) Stage a valid result, then `cursor-complete` ->
+     `HandoffPacket` returned (`dispatch_performed: false`,
+     `execution_authorized: false`, `state: "HANDOFF_READY"`,
+     `transport: "explicit"`) with the same `route_digest`/
+     `source_task`/`target_role`/`task_type` fields probe 2's
+     hook-transport `handoff_packet` carried (`transport: "hook"`
+     there) -- structural transport-equivalence evidence: same packet
+     shape and semantics, differing only in the `transport` tag.
+  9. (adversarial) Call `cursor-complete` again on the same staged
+     handoff -> byte-identical `HandoffPacket` returned both times
+     (same digest/state/route_digest) -- idempotence: a repeat call
+     does not re-mutate or error.
+  10. (adversarial) Stage a result, tamper the on-disk state file
+      (injecting `execution_authorized: true`, `dispatch_performed:
+      true`), then `cursor-complete` -> correctly rejected with an
+      explicit `error: "STAGED_STATE_TAMPERED"` (a clearer diagnostic
+      than probe 6's generic "treated as absent" for `cursor-status`),
+      `execution_authorized: false` maintained even in the error
+      payload.
+- Result: `ORCH001C-009 = PASS` (10 probes total: 2 baseline + 8
+  adversarial). `ORCH001C-010` (Local Windows explicit-completion
+  acceptance) and the authentic Cursor stop-event delivery claim
+  remain separately unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected
+  2026-08-28 from `EXTERNAL_BLOCKED`; see the correction entry below),
+  not attempted in this IV pass.
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
+  authority; does not certify ORCH001D/E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001D-011 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `5ff62221` (ORCH001D-001..010
+  implementation, already merged). No production surface touched. Does
+  **not** cover ORCH001D-012 (Authentic Local Windows Cursor agent
+  dispatch acceptance) -- deliberately not attempted in this IV pass
+  (see the correction entry below: a live Cursor CLI is actually
+  available on this host, but actually dispatching one is a materially
+  different, higher-stakes action than verifying the dispatch code, and
+  was never in scope here regardless of availability); left unchecked.
+  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  **Correction 2026-08-28**: this entry originally said ORCH001D-012
+  "requires a live Cursor CLI (`agent`/`cursor-agent` on PATH), which is
+  unavailable in this environment" and classified it `EXTERNAL_BLOCKED`.
+  That was false -- checked via a bash `which` wrapper that missed the
+  `.CMD` extension resolution Windows/Python `shutil.which` (what the
+  real code uses) actually apply; `resolve_cursor_transport()` itself,
+  called with no override, resolves a real `agent.cmd` on this host. See
+  "Cursor CLI availability correction" below for the verification and
+  why authentic dispatch is still not attempted here.
+- Risk-mapping before execution (`run_dispatch_once` reaches
+  `subprocess.run`, materially higher risk than the pure-function
+  ORCH001A/B classify/route logic): read `dispatcher.py` +
+  `agent_transport.py` end to end first. Found the dispatcher's own
+  tests already inject a `_FakeRunner` (a `ProcessRunner` Protocol
+  implementation) rather than spawning real processes -- the existing
+  test convention already isolates `PURE_LOGIC_BEHAVIOR` from
+  `PROCESS_SPAWN_BEHAVIOR`. Command construction (`build_launch_plan`,
+  `resolve_cursor_transport`) is pure and independently testable without
+  any subprocess. The real transport (`SubprocessProcessRunner`) is a
+  thin translation layer (`shell=False` always, timeout clamped to
+  [1, 86400]s, cwd must exist, returned output truncated to
+  `MAX_CAPTURED_BYTES`) -- testable with a benign, already-present
+  interpreter (`sys.executable`) standing in for the Cursor CLI, without
+  needing Cursor itself. Classified: command construction +
+  eligibility/fail-closed logic = `SAFE_LOCAL`; transport mechanics with
+  a benign real subprocess = `SAFE_ISOLATED`; authentic Cursor dispatch =
+  `AUTHENTIC_ENV_REQUIRED` (out of scope, = ORCH001D-012).
+- Baseline: existing suite re-run clean --
+  test_orchestration_dispatcher.py + test_orchestration_agent_transport.py
+  + test_orchestration_explicit_completion.py +
+  test_orchestration_result_binding_windows.py = 32 PASS.
+- SAFE_LOCAL adversarial probes against `build_launch_plan` /
+  `resolve_cursor_transport` directly (pure functions, zero subprocess):
+  oversized prompt (>8192 chars) -> `PROMPT_REJECTED`; NUL byte in prompt
+  -> `PROMPT_REJECTED`; empty prompt -> `PROMPT_REJECTED`; nonexistent
+  cwd -> `WORKSPACE_UNSAFE`; executable path-traversal attempt
+  (`../../../windows/system32/cmd.exe`) -> `EXECUTABLE_REJECTED`. One
+  probe (prompt text containing `"--force rm -rf /"`) produced no
+  rejection, but this is confirmed **not** a gap: the forbidden-flag
+  check scans `argv`, and the prompt is structurally stdin-only -- it
+  never reaches argv (a separate, already-present check explicitly
+  raises `PROMPT_REJECTED` if the prompt string ever appears inside any
+  argv token) -- so prompt content cannot influence which flags are
+  passed regardless of what it contains. The actual argv flags are a
+  fixed constant (`READ_ONLY_CURSOR_FLAGS = ("--print",
+  "--output-format", "json", "--mode", "ask")`), not derived from the
+  prompt or envelope at all.
+- SAFE_ISOLATED probes: real (not mocked) `SubprocessProcessRunner.run()`
+  calls using `sys.executable` as a benign stand-in executable, in an
+  isolated temp cwd:
+  1. Benign roundtrip: exit 0, correct stdout, `timed_out=False`.
+  2. Nonzero exit code (7) correctly propagated.
+  3. Timeout enforcement: a process sleeping 5s with `timeout_seconds=1`
+     was actually killed at ~1.0s wall-clock (not left to run 5s),
+     reported `timed_out=True`, `exit_code=124`.
+  4. Empty argv -> `ARGV_REJECTED`, no process spawned.
+  5. Out-of-bounds timeout (`0`) -> `TIMEOUT_REJECTED`, no process spawned.
+  6. `shell=False` proof: an argv element containing shell
+     metacharacters (`"ignored; echo INJECTED"`) was received by the
+     child process as one literal argument (verified via the child's own
+     `sys.argv[1]` echoed back verbatim) -- not interpreted, split, or
+     chained by a shell. Command injection via `;`/`&&` is structurally
+     impossible through this runner, demonstrated authentically rather
+     than merely asserted from reading `shell=False` in source.
+- Finding: eligibility/fail-closed logic, command construction, and the
+  real process-spawn transport all hold under adversarial probing. No
+  path found to shell injection, argv-based flag smuggling, unbounded
+  hangs, or spawning with an unvalidated cwd/executable.
+- Result (initial pass): eligibility/fail-closed logic, command
+  construction, and the real process-spawn transport all held under the
+  probes above. `ORCH001D-012` (authentic Cursor dispatch) remains
+  separately unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected 2026-08-28
+  from `EXTERNAL_BLOCKED`), not attempted.
+
+### PR #620 review findings and remediation (same day, same PR)
+
+Two independent review findings on the entry above (Codex, both P2) were
+correct and required action before `ORCH001D-011` could stand as `PASS`:
+
+**Finding 1 -- captured output was not actually memory-bounded.**
+`SubprocessProcessRunner` used `subprocess.run(capture_output=True)`,
+which buffers a child's *complete* stdout/stderr via
+`Popen.communicate()` before the old `bound_captured_bytes(data) =
+data[:MAX_CAPTURED_BYTES]` truncated the *returned* value. Parent-process
+memory during collection was unbounded regardless of the eventual
+truncation -- confirmed as the root cause by reading the CPython
+`subprocess` module's own behavior, not assumed. `RETURNED_OUTPUT_BOUNDED
+= YES` but `PROCESS_CAPTURE_MEMORY_BOUNDED = NO`. The prior WORKLOG entry
+above ("returned output truncated to `MAX_CAPTURED_BYTES`") is corrected
+by this note; the original wording that said "output bounded" without
+qualification overstated what the code did.
+
+Remediation: rewrote `SubprocessProcessRunner.run()` to use
+`subprocess.Popen` directly with two dedicated reader threads (one per
+stream), each draining its pipe to EOF via a bounded helper
+(`_drain_bounded`) that keeps only the first `MAX_CAPTURED_BYTES` and
+discards (without retaining) everything past the cap -- so a child can
+never force unbounded parent memory growth, and critically the pipe is
+still fully drained past the cap so the child can never deadlock writing
+to a full OS pipe buffer while the excess is discarded. `shell=False`,
+the timeout bound `[1, 86400]s`, and the cwd-must-exist check are
+unchanged. `bound_captured_bytes()` (the old, now-superseded truncation
+function) was removed rather than left as dead code that could mislead a
+future reader into reusing the flawed pattern.
+
+**Finding 2 -- IV probe evidence was prose-only, not reproducible.**
+The ad-hoc probes for this entry were run in a terminal and summarized
+here, with no checked-in artifact a later verifier could re-run.
+Corrected by adding `tests/unit/test_orch001d_011_iv_probes.py`,
+containing every SAFE_LOCAL/SAFE_ISOLATED probe from the original pass as
+real pytest tests, plus the capture-bound regression set below. Evidence
+class distinction going forward: `AD_HOC_PROBE = EXECUTED` (this
+WORKLOG's prose) is not the same claim as `DURABLE_REGRESSION_TEST =
+PRESENT` (a file in the repo) -- historical entries that only executed
+ad-hoc probes are not rewritten to claim tests existed at the time; new
+work adds real tests going forward.
+
+**Capture-bound regression tests added** (`test_orch001d_011_iv_probes.py`,
+all against the real, unmocked `SubprocessProcessRunner`):
+large stdout past the cap; large stderr past the cap; large stdout *and*
+stderr concurrently (the deadlock-reintroduction trap a naive fix could
+hit, since a naive drain-one-stream-first implementation blocks the child
+on the other stream's full pipe buffer); output exactly at the boundary
+(unaltered); one byte over the boundary (truncated by exactly one);
+empty output; binary/non-UTF-8 output (returned as raw bytes, never
+decoded); nonzero exit code with oversized output (both reported
+correctly together); timeout with output already produced before the
+kill (preserved, not discarded); normal small-output behavior (unchanged
+from before the fix).
+
+**Local verification of the remediation:**
+- New test file: 22 passed (`test_orch001d_011_iv_probes.py`).
+- Full orchestration regression:
+  `test_orchestration_dispatcher.py` + `test_orchestration_agent_transport.py`
+  (including the real, unmocked, `skipif(os.name != "nt")` authentic-Windows
+  `CreateProcess` tests -- this machine is Windows, so they ran for real,
+  not skipped) + `test_orchestration_explicit_completion.py` +
+  `test_orchestration_result_binding.py` +
+  `test_orchestration_result_binding_windows.py` (also real Windows
+  subprocess tests) + `test_orch001d_011_iv_probes.py` +
+  `test_orchestration_cursor_bridge.py` = 106 passed.
+- `ruff check` (2 changed files): clean.
+- `mypy src/project_atlas/orchestration/agent_transport.py`: clean.
+- Confirmed `agent_transport.py` has exactly one production importer
+  (`dispatcher.py`), so the blast radius of this change is contained to
+  what was already covered above.
+
+**Independent adversarial verification (round 1): dispatched to a
+separate subagent (implementer must not self-certify), bound to exact
+head `3d2276bc3d78067b564a731347259c514a7ff450`. VERDICT: FAIL.**
+
+The verifier confirmed `MEMORY_BOUND_IS_REAL` (measured directly: a
+150MB child write produced ~0.46MB parent memory growth, via
+`GetProcessMemoryInfo`) and `AUTHORIZATION_PRECEDES_EXECUTION` unchanged,
+but found `OUTPUT_BOUNDING_DOES_NOT_CHANGE_PROCESS_SEMANTICS` **false** --
+a real, independently-discovered regression this specific commit
+introduced (not one of the two review findings above; found by the
+verifier's own line-by-line read and adversarial testing):
+
+**Finding 3 (P1) -- the fix silently defeated the timeout when stdin was
+present.** `SubprocessProcessRunner.run()` wrote `request.stdin`
+synchronously in the main thread *before* `proc.wait(timeout=...)` was
+ever reached. A child that does not promptly read stdin fills the OS
+pipe buffer and blocks that write, with no timeout applied to the block
+-- `timeout_seconds` was silently not enforced whenever stdin was
+populated, which is always true on the real dispatch path (the verifier
+reproduced this at the *exact* production stdin ceiling, `8192` bytes /
+`MAX_PROMPT_CHARS`: requested `timeout_seconds=2`, actual elapsed
+`10.08s`, `timed_out=False`). A control test against the pre-fix
+`Popen.communicate()`-based implementation, identical scenario, correctly
+raised `TimeoutExpired` at 2.02s -- proving this was a genuine regression
+introduced by the memory-bound rewrite, not pre-existing behavior. None
+of the 22 new tests exercised stdin together with a slow/non-reading
+child, so nothing caught it locally.
+
+Remediation: write `request.stdin` on its own dedicated thread too
+(matching the stdout/stderr treatment), started *before*
+`proc.wait(timeout=...)`, so the timeout genuinely bounds the whole call
+regardless of whether the child reads stdin promptly. If the process is
+killed on timeout, the child's stdin read end closes and the pending
+write unblocks with a (caught) broken-pipe error.
+
+Added `test_timeout_is_enforced_even_with_slow_to_read_stdin` (uses
+`MAX_PROMPT_CHARS`, the real production ceiling, not an arbitrary size)
+reproducing the verifier's exact scenario as a permanent regression test.
+
+**Local verification of the round-2 fix:**
+- Reproduced the verifier's exact scenario against the fixed code first
+  (red/green): before the fix, 10.08s elapsed against a 2s timeout; after,
+  2.03s, `timed_out=True`, `exit_code=124`.
+- Full orchestration regression (same file set as round 1, plus the new
+  test): 107 passed.
+- `ruff check` / `mypy` (2 changed files): clean.
+
+**Independent adversarial verification (round 2): dispatched to a
+separate subagent, bound to exact head
+`4e36569a3cd1ea047ef6bf16df5877f472c56495`. VERDICT: PASS.**
+
+The verifier independently re-read the fix line by line (confirmed the
+stdin thread genuinely starts before `proc.wait(timeout=...)`, confirmed
+no shared mutable state between the three I/O threads, confirmed no
+double-close path on `proc.stdin`), independently reproduced the round-1
+defect's exact scenario against the fix (2.03s, matching the claim), and
+went beyond round 1 with 7 further adversarial variants -- all measured,
+none assumed:
+
+- 1MB stdin (not just the exact `MAX_PROMPT_CHARS` ceiling) with a
+  non-reading child: timeout still correctly enforced (2.02s) -- the fix
+  generalizes, wasn't narrowly tuned to one size.
+- Partial stdin read (1024 bytes) then hang: timeout still correctly
+  enforced (2.03s).
+- 2MB stdout + 2MB stderr + 1MB stdin all concurrently, short timeout:
+  correctly enforced (2.03s), both streams capped at exactly
+  `MAX_CAPTURED_BYTES` -- no three-way interaction bug beyond round 1's
+  two-way (stdout+stderr only) concurrency case.
+- Fast-exiting child that never reads a 512KB stdin payload: broken pipe
+  caught cleanly, no hang, no escaped exception, exit 0 in 0.07s.
+- `stdin=b""` vs `stdin=None`: both behave correctly, no divergence.
+- Round-1's memory-bound fix re-measured independently (150MB child
+  write) after this second change, to catch a regression-of-a-regression:
+  working-set growth ~0MB (noise-level) -- confirmed still intact,
+  untouched by the stdin fix.
+- 30 repeated `run()` calls with stdin populated: `threading.active_count()`
+  unchanged before/after -- no thread leak from the new stdin thread.
+
+Also confirmed via diff (`3d2276bc` vs `4e36569a`, `src/` only) that this
+fix touches only the stdin-handling logic in
+`SubprocessProcessRunner.run()` -- `_drain_bounded` and the
+`MAX_CAPTURED_BYTES` enforcement from round 1 are byte-for-byte
+untouched. Full regression suite (107), ruff, and mypy independently
+re-run and confirmed clean by the verifier as well, not just trusted from
+the implementer's own claim.
+
+**`ORCH001D-011 = PASS`**, implementer remediation (2 rounds) and
+independent adversarial verification (2 rounds, second one clean) both
+converged. `ORCH001D-012` (authentic Cursor dispatch) remains separately
+unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected 2026-08-28 from
+`EXTERNAL_BLOCKED` -- see "Cursor CLI availability correction" below),
+not attempted.
+
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
+  authority; does not certify ORCH001E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## Phantom-work reconciliation — two stale backlog checkboxes
+
+- Date: 2026-08-28
+- Scope: docs only (`docs/backlog.md`). No production surface touched.
+  Found during an independent DAG-drain sweep (a separate scouting pass,
+  not the ORCH IV work above); each finding independently re-verified
+  against real code before acting, not taken on the scout's word alone.
+- `AS-CODER-ALPHA-REPORT-READ-CONVERGENCE-001` was unchecked with text
+  asserting `CONVERGED_ON_BRANCH != SATISFIED_ON_MAIN`. Verified: all 11
+  `/v1/*-status` routes (`next/changed/overview/decisions/unknown/state/
+  architecture/roadmap/portfolio/bitemporal/index-status`) have real
+  route handlers in `src/project_atlas/api_server.py` on current `main`
+  (not stub/dead code -- grepped for the actual `if path == "/v1/...":`
+  dispatch lines, not just string presence), and all 11 corresponding
+  `atlas.*.read` MCP tools are registered in `mcp_registry.py`. The
+  original convergence work (source PRs #593-#603) landed via #605/#606
+  per existing WORKLOG history. Checked off.
+- `AS-CODER-ALPHA-INCREMENTAL-CONNECT-001` was unchecked. Verified:
+  `src/project_atlas/connect.py` names this package directly in its own
+  docstring and contains `_finish_no_change_reconnect()`.
+  `evaluate_incremental_reconnect()` is defined in
+  `src/project_atlas/incremental_connect.py` and imported/called from
+  `connect.py`'s real control flow (not orphaned/unused). Correction
+  2026-08-28 (review, PR #622): the original text of this entry said
+  `connect.py` "contains" both functions; only the second one is
+  actually defined there. Origin PR #374 is merged. Checked off.
+- Both corrections are additive status fixes only -- no historical
+  evidence rewritten, no production code touched, no new merge
+  authorization implied for anything else.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001E-008 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `0aa37abf` (ORCH001E-001..007
+  implementation, already merged: persisted loop state, tick state
+  machine, completion/governor transition, owner-gate/hard-blocker stop
+  propagation, crash recovery, replay prevention, adversarial matrix). No
+  production surface touched. Dispatched to a dedicated subagent given
+  this package's much larger surface than ORCH001A/B/C/D (21 `.py` files
+  under `src/project_atlas/orchestration/autonomy/`, matching the ruff/
+  mypy "21 source files" result below -- the dispatch prompt's initial
+  estimate of "18 files" was corrected here after review; the actual
+  count was verified directly, not re-guessed). `MERGE_AUTHORIZATION =
+  NOT_GRANTED`.
+- Baseline: every test file that actually imports
+  `project_atlas.orchestration.autonomy` (found by grepping imports, not
+  just filenames) = 255 passed, 0 failed.
+- Contract discovery confirmed the authority guarantees are structural
+  (`Literal[False]` on `merge_authorized`/`execution_authorized`/
+  `authority_granted`, redundant `model_validator` re-check) and that
+  `MERGED` is unreachable at two independent layers
+  (`governor.transition()` hardcodes `owner_grant=False` before even
+  reaching the DAG; `dag.apply_transition()` itself unconditionally
+  rejects any `to_state == MERGED`).
+- 8 adversarial probes (a-h), each independently reproduced (not assumed
+  from reading tests): (a) owner-gate bypass attempt for `OWNER_REQUIRED`
+  work -- stopped correctly, zero dispatch; (b) direct attempts to set
+  `merge_authorized`/`execution_authorized`/`authority_granted=True` or
+  call `request_merge(owner_grant=True)` -- all rejected
+  (`ValidationError` / `IllegalTransitionError` / `OwnerGateError`); (c)
+  crash/restart recovery -- no duplicate dispatch on the documented path;
+  (d) duplicate lease/result/dispatch -- rejected (`RESULT_REPLAY`
+  /replay errors); (e) scope/objective expansion -- `expand_lease()`
+  unconditionally raises; (f) on-disk state tamper (direct file edit
+  outside any CLI) -- `LoopError(STATE_CORRUPT)`, matching the pattern
+  ORCH001C's tamper probe already established for this repo; (g)
+  fail-closed digest -- a tampered field without resealing is caught and
+  rejected; (h) owner gates A-F -- gates A/B have real
+  `require_owner(...)` enforcement call sites and are fail-closed;
+  gates C/D/E/F exist only as descriptive enum tags with zero enforcement
+  call sites anywhere in the package.
+- Static analysis: `ruff check orchestration/autonomy/` clean; `mypy
+  orchestration/autonomy/` clean (21 source files).
+- Finding: every claimed hard-authority boundary (merge, waiver, scope
+  expansion) held under direct adversarial reproduction including digest
+  tampering, replay, and a crash-window race simulation. No path found by
+  which the loop merges, waives, expands scope, or sets any of the
+  `Literal[False]` flags.
+- Three non-blocking follow-ups recorded (none reach a live authority
+  leak -- redundant layers still hold in each case):
+  1. **P2** -- `loop.py::_select_and_lease`'s owner-gate guard
+     (`node.state != NodeState.READY`) is provably unreachable given
+     `select_next`'s own invariant (it only ever returns `READY` nodes).
+     This is dead code that reads as -- and is checklist-claimed by
+     ORCH001E-004 as -- an enforced pre-execution stop, but cannot fire
+     under the current single-threaded model. Not a proven bypass (merge
+     stays blocked at the two independent layers above regardless), but
+     misleading. Not reachable through the live CLI today (which builds a
+     fresh empty governor with no node-population step each tick) --
+     only through direct library/API use, same as the existing test
+     suite and this probe.
+  2. **P3** -- a crash between `DispatchPort.dispatch_once()` succeeding
+     and the loop persisting `active_dispatch_id` leaves the loop
+     permanently stuck in `DISPATCHING` on restart with no path to locate
+     the orphaned dispatch. Fail-stuck, not fail-dangerous (no duplicate
+     dispatch) -- an operability gap, not a safety one.
+  3. **P2** -- the `AS-ORCH-AUTONOMY-001` honesty marker
+     `OWNER_GATES_A_F = IMPLEMENTED` / ORCHAUT-010 "owner gates A-F fail
+     closed" was accurate for gates A and B only; C/D/E/F have no
+     enforcement plumbing, only descriptive usage. Not currently
+     exploitable since 001E's loop never attempts a C/D/E/F-gated action.
+     Corrected 2026-08-28 (review, PR #623): an earlier pass here only
+     annotated this finding without changing the marker value or
+     reopening the checklist item, which review correctly caught as
+     insufficient -- a reader scanning for `IMPLEMENTED` would still be
+     misled. `OWNER_GATES_A_F` is now `PARTIALLY_IMPLEMENTED` and
+     `ORCHAUT-010` is unchecked, both in that package's own status text.
+- Result: `ORCH001E-008 = PASS`. `ORCH001E-009` (owner merge gate) is not
+  an IV item.
+- `DEFERRED_FOLLOW_UPS = 3` (recorded above; none block this PASS per the
+  independent verifier's own judgment -- consistent with this session's
+  existing convention of recording non-blocking P2/P3 findings rather
+  than expanding scope to fix everything found during IV).
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
+  authority.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ATLAS-DEMO-ESTATE-001 handoff acceptance
+
+- Date: 2026-08-28
+- Scope: read-only acceptance of a handoff from a separate
+  demo-estate-preparation lane (workspace `D:\Atlas-Demo\`, outside this
+  repository). Full record: `docs/atlas-demo-estate-001-handoff-acceptance.md`.
+  Everything accepted was `VERIFIED_FROM_LOCAL_ARTIFACT` -- read directly
+  from that estate's own `DEMO-ACCEPTANCE.md`/`DEMO-SCENARIO.md`/
+  `ATLAS-CHECKOUT-NOTE.md`, not taken secondhand. No file under
+  `D:\Atlas-Demo\` was modified. No `src/` change.
+- Accepted: `ATLAS_DEMO_ESTATE_001 = PREPARATION_TERMINAL`. Alpha/Beta
+  scenarios fully PASS; Gamma's project-context gate PASS, its next-work
+  item not surfaced (see finding below); `SECRET_SCAN = PASS`,
+  `CROSS_PROJECT_LEAK_COUNT = 0`; the estate's Atlas checkout is on a
+  provisional, uncertified HEAD, explicitly not yet the showcase
+  candidate.
+- Gamma finding, corrected during review from the estate's own initial
+  framing: Atlas's `roadmap_unlock` mechanism
+  (`project_roadmap.py`/`project_next.py`) is genuinely contracted to
+  surface a structured "next ready item," so this is not a
+  `MISSING_LENS`. What's actually missing, verified directly (grepped
+  `src/` for any writer of `roadmap.md`/`roadmap_items` outside
+  `project_roadmap.py` itself -- none exists): nothing in ingestion
+  derives that structured record from the prose
+  requirements/ADR/roadmap documents a project (including this estate's
+  Gamma) actually has. Classified `SOURCE_ADAPTER_GAP`,
+  `OWNER_PRODUCT_DECISION_REQUIRED = YES` -- should Atlas gain an
+  adapter that derives `roadmap_items` from a documented "next ready
+  work" convention, or is hand-authoring the structured record the
+  intended workflow? No `src/` change made in pursuit of this question.
+- Native-Windows final rehearsal packet prepared (prep only, not
+  executed) -- this session is itself a native Windows/PowerShell host
+  and a candidate to run it, but not against the estate's current
+  provisional Atlas HEAD.
+- `CONSUME_ONLY = true`; does not pin `ATLAS_HEAD`, does not execute any
+  demo script, does not mutate the estate.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCHAUT-010 — owner gates C-F contract discovery
+
+- Date: 2026-08-28
+- Scope: read-only. Re-derives the actual trigger/behavior/enforcement
+  path for owner gates C-F (`C_CERTIFIED_OBJECT_MUTATION`,
+  `D_SECURITY_GOVERNANCE_POLICY`, `E_DESTRUCTIVE_OPS`,
+  `F_MATERIAL_EXTERNAL_SPEND`) from the repository's own source, per
+  instruction not to infer semantics from enum names/prose alone. No
+  production surface touched. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Method: exhaustive grep for every call site of `require_owner(`,
+  `evaluate_owner_action(`, `classify_requested_action(`, and every read
+  site of `.owner_gate` across `src/`, not just the `owner_gates.py`
+  module itself.
+- **Correction (PR #625 review, two findings, both verified directly
+  against source and by direct behavioral reproduction -- not just
+  re-read):** the original text below overstated gate A's owner-grant
+  path and overstated the C-F scheduler stop. Both are fixed in this
+  entry rather than superseded by a separate correction section, since
+  this is a discovery record, not yet-merged evidence with external
+  citations depending on its exact prior wording.
+- Gate A (`A_PROTECTED_MAIN_MERGE`): `ALREADY_SATISFIED`, but not because
+  `owner_grant=True` unblocks anything through this API -- it doesn't.
+  `Governor.request_merge()` calls `require_owner(...)` and then
+  **unconditionally** raises `IllegalTransitionError("governor cannot
+  autonomously transition to MERGED")`, regardless of whether
+  `owner_grant` was `True` or `False` -- verified directly: calling
+  `request_merge(pkg, owner_grant=True)` still raises. `Governor.
+  transition()` additionally hardcodes `owner_grant=False` before any
+  `to_state == MERGED` transition. So `MERGED` is structurally
+  unreachable through this governor API at all, for any caller, with or
+  without a grant -- the "satisfied" gate is a permanent, unconditional
+  deny, not a working grant/unblock mechanism. This is intentional and
+  consistent with how this session's own actual merges happened: through
+  real `gh pr merge` operations outside this governor entirely, not
+  through any code path in this package.
+- Gate B (`B_ACCEPTANCE_WAIVER`): `ALREADY_SATISFIED`, and here the
+  distinction from gate A matters -- `Governor.
+  request_acceptance_waiver()` calls `require_owner(...)` and, unlike
+  `request_merge()`, has no unconditional raise after it: verified
+  directly, `request_acceptance_waiver(owner_grant=True)` returns
+  normally. Gate B genuinely does have a working owner-grant path through
+  this API; gate A does not. The two are not symmetric, and the original
+  text of this entry incorrectly described them as if they were.
+- Gates C/D/E/F: `SEMANTIC_OWNER_DECISION_REQUIRED`, but the original
+  text of this entry mischaracterized what actually stops an owner-gated
+  node from autonomous selection -- corrected here with a direct
+  behavioral reproduction, not just a re-read of the code:
+  - `classify_requested_action()` is confirmed dead code -- zero call
+    sites anywhere in `src/` outside its own definition.
+  - The claim that "the generic stop would apply to it exactly as it
+    does to A/B-tagged nodes today" is **false** for a node in `READY`
+    state, which is the state a node must be in to be autonomously
+    selected at all. Reproduced directly: constructing a `WorkNode` with
+    `owner_gate=OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION` and
+    `state=NodeState.READY`, then calling `select_next((node,))`,
+    **selects that node** (`next_package_id` = the node's id,
+    `stop_reason=None`). The reason: `select_next()` first filters nodes
+    to `ready = [n for n in nodes if n.state == READY]`, then in its loop
+    checks `if node.owner_gate is not None and node.state !=
+    NodeState.READY: continue` -- but every member of `ready` already has
+    `state == READY` by construction, so `node.state != NodeState.READY`
+    is always `False` for every node the loop actually sees. The
+    `owner_gate` check is dead code for this branch; it can never fire.
+    The only place `owner_gate is not None` genuinely blocks anything is
+    `select_next()`'s earlier check for nodes already in
+    `OWNER_HELD`/`MERGE_ELIGIBLE` state -- states nothing in the
+    discovery/pilot flow transitions a node into automatically.
+    `Governor.plan()`'s `owner` list is reporting output
+    (`what_requires_owner_authority`), not an enforcement gate. Nor does
+    `dag.assert_transition()` -- the actual `DISCOVERED -> READY`
+    transition guard -- inspect `owner_gate` at all; that transition is
+    unconditionally allowed by the state table regardless of the node's
+    gate tag.
+  - Corrected gap: the missing piece is not only a `request_*()` grant
+    method (still true, still absent for C/D/E/F) but, more materially,
+    there is **no verified block on autonomous selection** for a `READY`
+    node carrying a C/D/E/F tag at all -- not "the stop exists but has no
+    unblock," but "the stop does not fire for this case." `NO_GRANT_PATH
+    != NO_SAFETY` does not currently hold for this specific case the way
+    it was assumed to.
+  - Today this remains not live/exploitable, for the same reason as
+    before: `discovery.py`'s static candidate table tags two historical
+    candidates (`AS-ORCH-001D-R6` = C, `AS-ORCH-001E` = D) but both are
+    `eligible=False`, so `Governor.ingest_discovery()` never actually
+    creates a `WorkNode` carrying a C or D gate today. This correction
+    changes the characterization of the gap, not its current
+    exploitability.
+- Per instruction, this classification is not implemented against --
+  gates C-F semantics are not invented here, and no code change is made
+  to add trigger/behavior/enforcement for them, including for the
+  corrected finding above. This entry is the recorded DAG input only; the
+  corrected finding is a candidate for a separate remediation node
+  (adding a real owner_gate check to the `DISCOVERED -> READY` transition
+  or to `select_next()`'s per-node loop), not something fixed here.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## Cursor CLI availability correction (ORCH001C-010 / ORCH001D-012)
+
+- Date: 2026-08-28
+- Scope: docs only. Corrects a false claim made in this WORKLOG's
+  ORCH001C-009 and ORCH001D-011 entries (both above): each said
+  authentic Cursor dispatch/stop-event acceptance was `EXTERNAL_BLOCKED`
+  because a live Cursor CLI was "unavailable in this environment."
+- Root cause of the false claim: availability was checked with a bash
+  `which agent` / `which cursor-agent` wrapper, which did not find
+  anything on PATH. Bash's `which` does not apply Windows' `PATHEXT`
+  extension resolution the way Python's `shutil.which` (what
+  `resolve_cursor_transport()` actually calls) does, so a real
+  `agent.CMD` sitting on PATH was missed.
+- Correction, verified directly (not re-assumed):
+  `python -c "from project_atlas.orchestration.agent_transport import
+  resolve_cursor_transport; print(resolve_cursor_transport())"` (no
+  override -- the exact call the real dispatch path makes) resolves
+  `logical_name='agent' path='C:\\Users\\Admin\\AppData\\Local\\
+  cursor-agent\\agent.cmd' launcher_kind=WINDOWS_CMD_WRAPPER` on this
+  host, right now. A live Cursor CLI genuinely is available.
+- `AVAILABLE_NOT_ATTEMPTED`, not `PASS`: this correction does **not**
+  claim ORCH001D-012 (authentic agent dispatch/stop-event acceptance) is
+  satisfied. Actually invoking a real Cursor agent process is a
+  materially different, higher-stakes action than verifying the dispatch
+  code around it (unpredictable duration, real external-service
+  interaction, no bounded blast radius the way a fake runner or a benign
+  `sys.executable` stand-in has) and was not attempted here. Whether to
+  attempt it is left as an explicit owner decision, not run on this
+  finding alone. **Correction (PR #624 review):** this dispatch-risk
+  rationale applies to ORCH001D-012, not to ORCH001C-010 (Local Windows
+  explicit-completion, `atlas orchestrator cursor-complete`) -- see the
+  ORCH001C-009 entry above for why that one is unattempted for a
+  different, lower-stakes reason (no staged handoff state to complete
+  against, not dispatch risk).
+- `CONSUME_ONLY = true`; corrects prior status text only, no code
+  changed, no dispatch attempted, no merge/execution authority granted.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001C-010 — Local Windows explicit-completion acceptance
+
+- Date: 2026-08-28
+- Scope: exercised end-to-end via the real `atlas orchestrator` CLI
+  entry points, in a disposable temp directory outside this repository,
+  deleted afterward. No production surface touched, no repository state
+  mutated. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Re-derived and corrected during review (see "PR #626 consistency"
+  below): ORCH001C-010 had been wrongly bundled with ORCH001D-012 under
+  the same "materially higher-stakes, real external dispatch" rationale.
+  It is not. `cursor_bridge.py`'s own module dependencies are `models`,
+  `router`, `validator` only -- verified directly (no `agent_transport`,
+  no `subprocess` anywhere in its import graph or the CLI handlers for
+  `cursor-stage-result`/`cursor-ack`/`cursor-complete`). This path can
+  never start a real Cursor process; it only surfaces an already-staged,
+  already-validated local route as a `HandoffPacket`.
+- Exercised, via `python -m project_atlas.cli orchestrator ...` against
+  a disposable `--root`, using the same payload shape the existing test
+  suite already covers (`_payload()` in
+  `test_orchestration_explicit_completion.py`):
+  1. `cursor-status` before staging: `active_state=absent`,
+     `state_valid=false` (correct baseline).
+  2. `cursor-stage-result result.json --root <disposable>`: staged
+     successfully, `status=pending`, real computed `route_digest`.
+  3. `cursor-complete --root <disposable>`: returned a `HandoffPacket`
+     with `state=HANDOFF_READY`, `transport=explicit`,
+     `dispatch_performed=false`, `execution_authorized=false`.
+  4. Repeated step 3 unchanged: byte-identical output both times --
+     `IDEMPOTENCE = PASS`.
+  5. `cursor-ack <digest> --root <disposable>`: transitioned
+     `status: pending -> acknowledged`.
+  6. `cursor-complete` again after ack: correctly rejected,
+     `error=HANDOFF_ALREADY_ACKNOWLEDGED`, exit 1 -- the explicit-
+     completion path closes once acknowledged, matching
+     `complete_staged_handoff()`'s documented behavior.
+  7. Adversarial tamper: directly edited the persisted `state.json` on
+     disk, setting `route.execution_authorized`,
+     `route.task.execution_authorized`, and both `permissions.merge`
+     flags to `true`, and resetting `status` back to `pending` to reach
+     the would-be happy path if the tamper went undetected. Result:
+     `cursor-status` reported `active_state=absent`,
+     `state_valid=false` (treats a tampered file as no valid state at
+     all, not merely "tampered but present"); `cursor-complete` failed
+     closed with `error=STAGED_STATE_TAMPERED`, exit 1.
+     `execution_authorized` stayed `false` throughout despite the tamper
+     -- confirms `verify_state()` recomputes route/digests fresh from
+     the stored envelope and never trusts the persisted authority
+     fields, exactly as `require_verified_state()`'s docstring claims.
+- Evidence: `DISPATCH_COUNT = 0`, `EXTERNAL_SERVICE_CALLS = 0`,
+  `REAL_CURSOR_AGENT_PROCESS_START = 0` (structurally guaranteed by the
+  import graph, not just by omission), `STAGED_HANDOFF_CREATED = YES`,
+  `CURSOR_COMPLETE_EXECUTED = YES`, `ACK/STATE_TRANSITION = EXPECTED`,
+  `IDEMPOTENCE = PASS`, `TAMPER_FAIL_CLOSED = PASS`,
+  `DISPOSABLE_STATE_ONLY = YES` (temp dir outside the repo, deleted
+  after the run; `bridge_state_path()` itself also rejects any path
+  that would escape `--root`, verified by source read).
+- Result: `ORCH001C-010 = PASS`. This is a genuinely owner-independent
+  acceptance -- no external service, no credentials, no dispatch, no
+  merge, no production mutation. Distinct and separate from
+  `ORCH001D-012`, which remains `AVAILABLE_NOT_ATTEMPTED` and does
+  require its own owner execution authorization (real external Cursor
+  process, unpredictable duration, real service interaction).
+- `CONSUME_ONLY = true`; no code changed, no repository state mutated,
+  no merge/execution authority granted beyond this local acceptance
+  finding itself.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## EOD convergence wave — independent verification of pending-IV backlog items
+
+- Date: 2026-08-28
+- Scope: docs only. Records the results of a wave of independent
+  verification against packages this backlog already carried as
+  unchecked-but-implemented (the established convention meaning
+  implementation landed, independent verification pending). Each was
+  dispatched to a dedicated, isolated subagent (own scratch clone, never
+  the shared `D:\project-atlas-vault` directory, which another
+  concurrent process was actively using during this wave) and
+  independently spot-checked by direct source inspection before being
+  accepted here. `MERGE_AUTHORIZATION = NOT_GRANTED` throughout.
+
+### ORCH001DRB-007 — Independent verification (AS-ORCH-001D-RESULT-BINDING-001)
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #403). 32/32 baseline tests pass (`test_orchestration_result_binding.py`,
+  `test_orchestration_result_binding_windows.py` -- genuinely executed on
+  Windows, not skipped -- `test_orchestration_agent_transport.py`). All
+  seven honesty claims (`PROCESS_DISPATCH_PATH_COUNT=1`,
+  `SECOND_PROCESS_LAUNCH_PATH=NO`, `STDOUT_IS_AUTHORITY=NO`,
+  `STDERR_IS_AUTHORITY=NO`, `PROCESS_EXIT_ZERO_IS_AUTHORITY=NO`,
+  `RESULT_ADAPTER_CAN_AUTHORIZE_MERGE=NO`, `ASK_MODE_GENERAL_MUTATION=NO`)
+  verified against actual enforcement, not docstrings -- 15 adversarial
+  frame-injection probes (noise, duplicate/nested/overlapping frames,
+  oversized frames, wrong exit code with a claimed-PASS frame, tampered
+  dispatch_id), 12 direct plus 3 through a real Windows `.cmd`/`cmd.exe`
+  launcher, all failed closed correctly. Specifically checked the
+  interaction with this session's own PR #620 `agent_transport.py`
+  rewrite at the `MAX_CAPTURED_BYTES` truncation boundary (frame
+  straddling the cutoff in multiple positions) -- fails closed, no
+  fail-open interaction found. `ruff`/`mypy` clean.
+- One P3 (informational): `MAX_RESULT_CANDIDATE_BYTES` (256KiB) exceeds
+  `MAX_CAPTURED_BYTES` (64KiB), making the `OVERSIZED_RESULT` branch
+  unreachable via the real capture pipeline -- harmless dead branch, not
+  a gap (truncation already fails closed independently).
+- Result: `ORCH001DRB-007 = PASS`. No remediation required.
+
+### ORCHLEASE-006 — Independent verification (AS-ORCH-DURABLE-LEASE-PROJECTION-001)
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #432). 127/127 broader autonomy/governor suite passes (9 files),
+  no regressions. `PRIMARY_GOVERNOR_REMAINS_AUTHORITY=YES` and
+  `DURABLE_PROJECTION_IS_AUTHORITY=NO` held under direct on-disk tamper
+  (forged ACTIVE row never affected the live governor's own state or a
+  freshly-constructed one). All five ORCHLEASE-003 reject rules
+  (stale/duplicate/foreign-worker/foreign-package/replay) independently
+  reconstructed and confirmed on both the grant path (shipped) and the
+  release path (not shipped, added here) -- plus a genuine concurrency
+  race test (two threads granting the same package simultaneously:
+  exactly one wins, final on-disk state has exactly 1 active row).
+  Symlink-escape defense (ORCH-LEASE-SYMLINK-ESCAPE-001) independently
+  verified on both the final-target path and the lock path specifically
+  (the app-level `_inside()` check catches it before the shared
+  `ProjectIdentityLock` primitive is ever reached; that primitive itself
+  has no `O_NOFOLLOW` of its own but is not exploitable in practice given
+  `O_CREAT|O_EXCL` semantics). `ruff`/`mypy` clean.
+- Two P2 findings, both documentation-precision gaps, not functional
+  defects: (1) `visible_active_lease()`/`load_projection()` have no
+  cryptographic binding to the primary governor -- any co-located writer
+  can forge an "ack" that passes all self-consistency checks; disclosed
+  at the design-intent level by `DURABLE_PROJECTION_IS_AUTHORITY=NO` but
+  not spelled out mechanically. (2) "process-restart visibility" is true
+  only for the file-read path -- a restarted governor *process* has zero
+  recovery of lease/DAG state from this projection (`governor.__init__`
+  never calls `load_projection`, confirmed by direct grep). Recommend
+  tightening the doc language; no remediation required for the shipped
+  mechanism.
+- Result: `ORCHLEASE-006 = PASS_WITH_NONBLOCKING_FINDINGS`. No remediation
+  required.
+
+### AS-CODER-ALPHA-WORKFLOW-METRICS-001 — Independent verification
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #473). 16/16 baseline tests pass. All 9 declared metrics
+  (`TIME_TO_USEFUL_CONTEXT`, `HANDOFF_SUCCESS_RATE`,
+  `STALE_CONTEXT_RATE`, `UNKNOWN_HONESTY`, `CONTEXT_ACCURACY`,
+  `MEANINGFUL_CHANGES_CAPTURED`, `USER_CORRECTIONS_REQUIRED`,
+  `MISTAKES_PREVENTED`, `REEXPLANATION_RATE`) adversarially probed with
+  empty vaults, present-but-empty ops directories, corrupted/truncated/
+  non-UTF8 JSON, wrong-type payloads, out-of-range/non-finite numerics,
+  bool-subclass coercion, and `project_id` path-traversal attempts -- the
+  core `UNKNOWN != 0` / `NOT_INSTRUMENTED != 0` honesty contract held in
+  every case; no metric ever fabricated a zero from missing evidence.
+  Confirmed no raw prompt/transcript capture and no network-capable
+  import anywhere in the module. Confirmed nothing downstream currently
+  treats this module's output as authoritative. `ruff`/`mypy` clean.
+- Two P3 findings: (1) `MEANINGFUL_CHANGES_CAPTURED` silently counts a
+  wrong-typed `changes` field toward "not meaningful" rather than
+  skipping it as malformed, inconsistent with the stricter type-checking
+  used elsewhere in the same module. (2) `docs/demo/full-product-demo-scope.json`
+  marks `query.workflow_metrics` `api: IMPLEMENTED`, but no such API
+  wiring exists anywhere in the tree -- stale/aspirational tracking
+  metadata, not a code defect.
+- Result: `AS-CODER-ALPHA-WORKFLOW-METRICS-001 = PASS_WITH_NONBLOCKING_FINDINGS`.
+  No remediation required.
+
+### AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 — Independent verification
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #471). 17/17 baseline tests pass. Verified via a real end-to-end
+  CLI run (`atlas connect` / `atlas handoff create` / mutate source /
+  `atlas handoff resume`) rather than only direct function calls. Could
+  not get stale frozen data to present as current through any of: basic
+  post-handoff mutation, hand-forging `freshness.status=FRESH` in the
+  persisted pack (correctly overridden and recomputed on resume),
+  stripping `estate_binding` entirely (fails closed to `UNKNOWN`), or a
+  reconnect that rewrites `connect-manifest.json` bytes while keeping
+  identical source hashes (the manifest-identity rebind check --
+  confirmed as the actual unique delta over historical #419 -- still
+  correctly flags the older pack stale). `ruff`/`mypy` clean.
+- One P2 (disclosed, not hidden, but a real product-usage gap): the
+  freshness re-check is wired only into `atlas handoff resume`. The
+  paste-ready `.md` context file that `atlas context` itself tells users
+  to paste into another agent carries zero freshness signal -- confirmed
+  by direct inspection that `_render_context_markdown` never mentions
+  freshness/FRESH/STALE. This matches the package's own documented
+  "out of scope" note, so it is honestly disclosed, not a false claim --
+  but a user following the CLI's own suggested next step bypasses the
+  protection entirely.
+- Result: `AS-CODER-ALPHA-CONTEXT-FRESHNESS-ADV-001 = PASS_WITH_NONBLOCKING_FINDINGS`.
+  No remediation required (the gap is already honestly disclosed by the
+  package's own docs; closing it would be a scope expansion, not a fix
+  to an established requirement).
+
+### AS-CODER-ALPHA-044-HIGH / D-041 — Independent verification + remediation
+
+- Against `main` `a94bec4158bf16e638ffa988951907121740a442` (already-merged
+  via PR #345). Scope anchored to the package's own dedicated test file,
+  `tests/unit/test_as_coder_alpha_044_d041_high.py` (22 tests covering
+  truth-honesty -- an empty/unreadable/quarantined vault must never
+  report healthy -- and isolation -- symlink/junction escape, stolen
+  bind config, ambiguous multi-project binds, Unicode confusable
+  collisions neutralized by root-identity fingerprinting, dual-stack
+  LIVE_API bind refusal). Traced every claim to its real implementation
+  across `attention_hygiene.py`, `connect.py`, `human_loop.py`,
+  `project_architecture.py`, `project_state.py`, `project_unknown.py`,
+  `source_health.py`, `api_server.py`, `cli.py`. Adversarial constructions
+  (directory-junction escape, intermediate-symlink escape, duplicate-id
+  ambiguity, source_id/path conflict in secret-quarantine attribution,
+  case-variant bind spoofing) all failed to defeat the claimed guarantees.
+  `ruff`/`mypy` clean.
+- **Real P1 found and remediated**: `AtlasApiServer` never set
+  `address_family` for an IPv6 bind, so `serve_api(host="::1", ...)`
+  always raised `OSError` -- and the package's own dedicated dual-stack
+  regression test caught that exception and silently self-skipped,
+  masking the defect as an environment limitation rather than surfacing
+  it as a real bug. Independently confirmed via a raw-socket
+  reproduction that the underlying isolation *guarantee* (a genuine
+  foreign `::1` listener correctly blocks a `127.0.0.1` dual-bind) was
+  never actually broken -- this was a functionality/coverage defect, not
+  an active security breach. Remediated in PR #628 (see below);
+  independent re-verification of that fix is running separately per the
+  standing no-self-certification rule for production fixes.
+- Two lower-severity findings, not remediated here (non-blocking, low
+  exploitability): P2 -- `source_health._finding_matches_project` prefers
+  `source_id` over `path` on conflict, a theoretical misattribution
+  surface if the two indexes ever diverge (internally generated data,
+  not attacker-supplied). P3 -- intentional NFKC-normalization slug
+  collisions, neutralized in practice by root-identity fingerprinting at
+  the real call site.
+- Result: `AS-CODER-ALPHA-044-HIGH = PASS_WITH_NONBLOCKING_FINDINGS`, one
+  P1 remediated separately (PR #628, pending its own independent
+  re-verification + CI before certification).
+
+### PR #628 — `fix(api_server): support IPv6 loopback (::1) bind for LIVE_API`
+
+- Remediates the P1 found during AS-CODER-ALPHA-044-HIGH's IV (above).
+  17-line change to `src/project_atlas/api_server.py`: sets
+  `address_family = AF_INET6` only when the bind host is exactly `"::1"`
+  (the only IPv6 literal `serve_api()`'s own upstream validation ever
+  allows through) before the socket is constructed; the IPv4/localhost
+  path is untouched.
+- Verified locally before push: anchor test file went from 21 passed / 1
+  skipped (skip masked the defect) to 22 passed / 0 skipped -- the
+  dual-stack assertion now genuinely executes instead of self-skipping.
+  Broader api_server-dependent suite (16 files that import from
+  `api_server`/`AtlasApiServer`): 194 passed, 0 failed. `ruff`/`mypy`
+  clean.
+- `SELF_CERTIFICATION = FORBIDDEN`; independent re-verification dispatched
+  separately -- returned `FIX_VERIFIED_PASS` (real live HTTP round trips
+  on both `::1` and `127.0.0.1`/`localhost`, dual-stack isolation
+  independently reproduced, 10 IPv6/hostname edge-case variants tried
+  against the exact-string bind gate, 194/194 tests, clean ruff/mypy,
+  clean current-main merge-tree). Independently spot-checked by the lead
+  (construction-site count, exact match) before being accepted.
+- Exact-head CI: **`4535 passed, 5 skipped, 0 failed`** across all 4
+  required checks -- genuinely `CLEAN`.
+- **Governance finding, discovered after this PR was already pushed, more
+  nuanced than first recorded**: `src/project_atlas/api_server.py` is
+  listed in the `DENY` tuple of
+  `tests/unit/test_atlas3_demo_isolation_001.py::test_certified_surfaces_unmodified`
+  -- a repo-encoded freeze added 3 days prior by a separate, unrelated
+  "Atlas 3" workstream, asserting this file is unmodified relative to
+  `origin/main` on any branch. A full local clone reproduces this
+  correctly: `git diff --name-only origin/main...HEAD` on this exact fix
+  branch returns exactly `src/project_atlas/api_server.py`, which is in
+  `DENY`, so the assertion fails locally, as designed. **But the real
+  hosted CI does not fail on it** -- verified directly from the actual
+  run log: the checkout step uses `fetch-depth: 1` (a single-commit
+  shallow fetch), which very likely leaves `origin/main` unresolvable as
+  a ref in that checkout; `_changed_paths()`'s `subprocess.run(...,
+  check=False)` calls then silently return empty output on that failure
+  rather than raising, so `changed` ends up empty and `violated == []`
+  passes vacuously -- not because the file wasn't touched, but because
+  the freeze test's own git-diff mechanism cannot see the diff in the
+  real CI environment it's meant to guard. This is a real, independent
+  latent defect in the freeze's enforcement (it only actually protects a
+  full local clone, not the hosted CI it presumably exists to gate), but
+  it does **not** change the underlying governance fact: the file is
+  explicitly, deliberately frozen by a separate workstream's stated
+  intent, and this session is not treating a broken enforcement check as
+  license to proceed as if that intent doesn't apply. `PR628` is not
+  withdrawn (the fix itself is verified correct, twice, independently),
+  but it is not self-merged under any authorization this session holds,
+  and remains an owner-decision item: grant a scoped exception to the
+  freeze for this specific fix, hold it until the freeze lifts, or flag
+  the freeze's own CI-enforcement gap to whoever owns the Atlas-3
+  workstream separately from this fix's own merge decision.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; production code, owner-gated. CI
+  passing does not resolve the separate Atlas-3 freeze-intent question
+  above.
+
+### PR #410 (AS-CODER-ALPHA-CONNECT-PERF-001) — certified candidate
+
+- Round-1 IV found a real P2 (positional `cold_connect` lane label --
+  calling the harness a second time against an already-connected root
+  silently relabeled a `no_change_skip` as `cold_connect`, undermining
+  the package's own "measure, do not game" contract). Remediated
+  directly (fail-closed disposition check + regression test reproducing
+  the exact adversarial case). Round-2 independent re-verification
+  reproduced the original defect independently first, then confirmed the
+  fix closes it via the verifier's own adversarial construction (not
+  just re-running the shipped test), found no new bypass, no regression
+  (5/5 tests), no new lint/type issues, clean current-main compatibility.
+  Exact-head CI (all 4 required checks) subsequently went green (the
+  Windows lane needed one re-trigger after a 20-minute infra timeout,
+  unrelated to the change).
+- Result: `PR410 = CERTIFIED_CANDIDATE` (`ROUND2_IV = PASS` AND
+  `EXACT_HEAD_CI = PASS`, 0 unresolved review threads).
+  `PR410_MERGE = OWNER_GATE` -- production code, not eligible under the
+  bounded docs-evidence merge authorization.
+
+### PR #425 (AS-CODER-ALPHA-DOGFOOD-COMPILER-COVERAGE-001) — certified candidate
+
+- Independent IV: evidence provenance confirmed clean (only reads
+  contracted inputs -- `pyproject.toml`, `AGENTS.md`/`CLAUDE.md`, ADR/
+  DECISIONS-style files -- via path-escape-confined resolution);
+  README-only or contradictory claims correctly stay `UNKNOWN` even under
+  direct adversarial contradiction with real `pyproject.toml` content; no
+  scope leakage beyond its four declared files; lens/authority boundary
+  respected (`lens_is_authority=False`, no downstream consumer); 9/9
+  focused tests plus 16/16 adjacent-suite tests pass; `ruff`/`mypy`
+  clean; current-main compatibility independently reconfirmed via direct
+  `merge-tree` even after main advanced past the original IV's dispatch
+  point (identical resulting tree).
+- Result: `PR425 = IV_PASS`. `PR425_MERGE = OWNER_GATE` -- production
+  code (new module + `overview.py` wiring), not eligible under the
+  bounded docs-evidence merge authorization.
+
+### PR #396 (AS-ORCH-001D-R6) — supersession triage
+
+- Bounded read-only triage, not a full IV (12-file, multiple add/add
+  merge-tree conflicts against current main made full IV low-expected-
+  value pending this question). Traced all eight D-041/R6 semantic
+  requirements (Windows-safe version probe, probe/normalization launch
+  parity, trusted-argv resolution, authorized shebang wrapping,
+  authorization-precedes-execution, `shell=False`, provider provenance,
+  receipt/schema behavior) against current main's actual behavior, not
+  just filenames. Decisive finding: the real fix for this exact problem
+  already landed on `main` six days *before* PR #396 was even opened
+  (commit `e5c75500`, 2026-08-10, in
+  `atlas-vault-documentation/internal/{process_runner,normalization,trusted_exec}.py`
+  -- a different module than PR #396's `src/project_atlas/agent_control/`,
+  which no longer exists on `main` at all), and does so more strongly
+  (explicit `CommandSource` typing + SHA-256 digest binding, which R6's
+  version lacked). Verified live on this Windows host: 55 passed / 1
+  skipped (explicit POSIX-only skip) on the real current-main
+  normalization suite.
+- Result: `PR396 = FULLY_SUPERSEDED`. `PR396_FULL_IV = NOT_NEEDED`. No
+  narrow successor node needed -- no remaining gap. Recommend archival/
+  closure of PR #396 (owner action, not performed here).
+
+### PR #417 (AS-CODER-ALPHA-SOURCE-HEALTH-WEB-001) — independent IV, owner-held
+
+- `OWNER_HELD = YES` (self-declared in the PR's own governance section)
+  governs merge authority only, not verification eligibility --
+  `IV_REQUIRED != OWNER_ONLY`. Independent IV performed: route/nav wiring
+  correct, `project` scoping genuinely required with no portfolio-wide
+  fallback path, `UNKNOWN`/`UNREADABLE` honesty confirmed including an
+  unexpected-beyond-the-PR's-own-claims `projectMismatch` defensive check
+  that forces `UNKNOWN` when the API returns a wrong-project payload, no
+  secret/token echo, no hidden write surface, no dependency on unmerged
+  #414/#409 (verified each import exists independently on `main`),
+  negative/adversarial project-scope cases traced directly in code.
+  Contract test and `tsc -b` both independently reproduced as PASS.
+  Current-main compatibility independently confirmed via direct
+  `merge-tree`.
+- One P2, correctly classified: `npm run smoke` fails on exact HEAD, but
+  independently confirmed (by swapping in unmodified main's own
+  `package.json`/`smoke.mjs` against the same install and reproducing an
+  identical failure) to be a pre-existing `CURRENT_MAIN_DEFECT`
+  (`@rollup/rollup-win32-x64-msvc` under `optionalDependencies` rather
+  than `dependencies` on `main` itself) -- not caused by this PR, and
+  correctly left unchecked rather than falsely claimed PASS by the PR's
+  own test plan.
+- Result: `PR417_INDEPENDENT_IV = PASS_WITH_NONBLOCKING_FINDINGS`.
+  `PR417_MERGE = OWNER_HELD`, unaffected by this result.
+
+### AS-PROJECT-ROADMAP-001 — basic recheck (not a fresh full IV)
+
+- The backlog's `ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK` note refers
+  to a real, historical `PASS` (WORKLOG "D-100 -- Roadmap Local authentic
+  re-IV", 2026-08-15) that was explicitly pinned to one specific
+  historical commit ("Exact object Local tested (permanent pin; later
+  refresh != this object)") -- not a stale checkbox, a genuinely
+  out-of-date snapshot given how far `main` has moved since.
+- Ran the current test suite (`test_as_project_roadmap_001.py`,
+  `test_as_project_roadmap_nav.py`, `test_as_project_roadmap_web.py`)
+  directly against current `main` `a94bec4158bf16e638ffa988951907121740a442`:
+  34/34 pass.
+- This is recorded as a **basic recheck** only -- confirms the existing
+  certified logic still passes its own test suite on current main. It is
+  explicitly **not** a fresh full adversarial IV matching the rigor of
+  this entry's other packages (no new adversarial construction attempted
+  here); that remains open if a full re-certification is wanted.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`.
+
+- `MERGE_AUTHORIZATION = NOT_GRANTED` (all items in this entry).
+
+---
+
+## PR #630 — Atlas-3 freeze guard hosted-CI blind spot: investigation, remediation, certification (5 rounds)
+
+**Directive:** owner-specified bounded investigation/remediation node for the
+Atlas-3 demo-isolation freeze guard's own enforcement mechanism (found
+defective while independently verifying PR #628), governed by:
+`DECLARED_FREEZE = BINDING`, `FREEZE_CI_ENFORCEMENT = DEFECTIVE`,
+`BROKEN_ENFORCEMENT != AUTHORIZATION_TO_BYPASS_FREEZE`. Self-remediable
+because the enforcement test file itself (`tests/unit/test_atlas3_demo_isolation_001.py`)
+is not a `DENY`-listed production surface. Required proving 7 specific
+properties of the guard rather than merely documenting the defect.
+
+### Root defect
+
+`_changed_paths()` diffed against the literal ref name `origin/main`,
+unresolvable under `actions/checkout`'s default `fetch-depth: 1`. The
+guard's own `subprocess.run(..., check=False)` calls then silently
+returned empty output on that resolution failure instead of raising, so
+`test_certified_surfaces_unmodified`'s `DENY`-list assertion passed
+vacuously regardless of what a PR actually changed. Concretely: PR #628
+touches `src/project_atlas/api_server.py` (on `DENY`) and passed hosted
+CI cleanly, while a full local clone correctly failed the same check.
+
+### Round 1 — CI-event-based base resolution
+
+Reads the PR's authoritative `base`/`head` SHAs directly from
+`GITHUB_EVENT_PATH` (independent of checkout depth), explicitly fetches
+the base commit by exact SHA if a shallow checkout doesn't already have
+it, diffs directly between two known commits (not three-dot/merge-base,
+which can fail under a disconnected shallow history), fails closed on
+any missing/malformed/unresolvable input. 7 new regression tests against
+real, disposable, throwaway git repositories. 9/9 pass, `ruff`/`mypy`
+clean. Independent IV: `FIX_VERIFIED_PASS`, surfaced P2: only covered the
+`pull_request` trigger, not this repo's `push: branches: [main]` trigger
+on the same `quality` job, which remained silently vulnerable.
+
+### Round 2 — push-event coverage
+
+Added `_event_push_before_sha()` (reads `before` from the push event
+payload; treats GitHub's all-zero first-push sentinel as unresolvable,
+fail-closed), wired as a second preferred source in base resolution.
+5 more regression tests. 14/14 pass. Independent IV: `FIX_VERIFIED_PASS`,
+confirmed via every `.github/workflows/*.yml` that no other trigger type
+invokes this test file.
+
+### Round 3 — `DemoIsolationGuardNotApplicable` split + SHA-return fix
+
+GitHub code review on the round-2 head found two real issues: (a) the
+fail-closed fallback was too broad, failing the *entire* unit suite in a
+git-remote-less checkout (source archive, vendored copy) — reproduced
+directly; (b) the `_resolve_diff_base()` docstring claimed "exact commit
+SHA" but returned the literal string `"origin/main"` in the local
+fallback path. Fixed by introducing `DemoIsolationGuardNotApplicable`
+(distinct from `DemoIsolationGuardError`): raised only when neither a
+recognized CI event context nor any git remote exists at all — there was
+never a meaningful comparison base, as opposed to a remote that *is*
+configured but `origin/main` specifically failing to resolve, which
+remains genuine fail-closed. Both guard tests catch the former and
+`pytest.skip()`. Local fallback now returns the resolved SHA, never the
+floating ref string. 15/15 pass. Independent IV: `FIX_VERIFIED_PASS`,
+also flagged a live, pre-existing P2 in the local-fallback path (direct
+two-endpoint diff false-positives when a local branch is behind
+`origin/main` and main has independently advanced a `DENY`-listed path)
+— matched a stale Copilot review comment on round 1's head; out of round
+3's stated scope, tracked forward.
+
+### Round 4 — bounded subprocess timeouts + local-fallback merge-base fix
+
+**Structural defect, independent of any single observed run's duration:**
+none of the guard's `subprocess.run()` calls (including the network
+`git fetch` round 1 added) carried an explicit `timeout=`. A
+network-backed `git fetch` inside a governance-enforcement test must not
+be able to block hosted CI indefinitely — this is true regardless of
+whether any specific run actually stalled. Added
+`_LOCAL_GIT_TIMEOUT_SECONDS = 30` / `_NETWORK_GIT_TIMEOUT_SECONDS = 60`,
+applied `timeout=` to all 12 call sites, converted a real
+`subprocess.TimeoutExpired` on the fetch call into `DemoIsolationGuardError`
+rather than propagating a hang or raw traceback. Proven via
+`test_fetch_timeout_is_actually_enforced_not_just_declared`, which makes
+the fetch call raise a genuine `TimeoutExpired` and asserts near-instant
+conversion (deliberately not a fake-hanging-`git`-on-`PATH` fixture:
+`subprocess.run(shell=False)` on Windows resolves a bare `git` via a
+restricted `.exe`-only search per `CreateProcess` semantics and would
+silently invoke the real `git` instead of a `.cmd`/`.bat` shim, proving
+nothing). Same round also closed the round-3 local-fallback P2: diffs
+against the merge-base of `origin/main` and `HEAD` instead of
+`origin/main`'s live tip when in the local-fallback (non-CI-event) path,
+via a new `_resolve_diff_base_and_mode()` that reports whether its SHA is
+an exact CI-event endpoint (direct diff, safe) or a floating local
+fallback (merge-base required). New regression test builds a
+diverged-branch fixture reproducing the false positive pre-fix and
+confirming it's gone post-fix. 17/17 pass, `ruff`/`mypy` clean.
+
+**Timing correction (important — do not repeat the inflated framing):**
+this round's motivating incident was originally described as a hosted CI
+run stuck "in_progress" for over an hour. That measurement compared
+GitHub API timestamps against this session's own local sandbox clock,
+which was subsequently confirmed to run **~59 minutes fast** relative to
+true UTC (verified directly against GitHub's own `Date:` HTTP response
+header). Re-examined using GitHub-native timestamps exclusively
+(`started_at`/`completed_at`/`updated_at` from the API, never local
+`date`), the actual hosted run for the round-4 IV dispatch completed in
+its ordinary ~10-12 minutes before being interrupted by an unrelated
+cause. The genuine, GH-native-confirmed incident from this round was
+different and real: the round-4 CI rerun's Windows quality lane was
+legitimately cancelled by `ci.yml`'s own `timeout-minutes: 20`, timed at
+exactly 20m08s (`started_at` 14:06:15Z → `completed_at`/cancelled
+14:26:23Z) — because the pre-existing Windows-lane budget was already
+~94% consumed (baseline 16m35s pytest step in an 18m48s total job,
+*before* this PR touched anything) and round 4's new tests added ~109s
+on top. The timeout-hardening fix itself remains correct and necessary
+on its own structural merits either way; the corrected record is that
+the specific "stuck over an hour" narrative was a measurement artifact,
+while the specific "Windows lane genuinely exceeded its 20-minute budget
+after round 4's additions" finding was real and is what round 5 fixed.
+
+### Round 5 — Windows CI budget fix
+
+The most expensive new test
+(`test_freeze_guard_local_fallback_no_false_positive_on_diverged_main`)
+routed through a separate bare `origin` repo plus two `git push` calls to
+populate it — pack generation/transfer being the likeliest concentration
+of the added wall time on Windows, where git subprocess spawn overhead
+already exceeds Linux. Rewritten to clone and fetch directly against the
+"seed" working-tree repo (git supports both against a non-bare local
+path) — behaviorally identical (a real, separate `origin` remote a real
+`git fetch` populates) but meaningfully cheaper; local duration dropped
+from 2.49s to 1.98s, back in line with the file's other git-fixture
+tests. 17/17 pass, `ruff`/`mypy` clean.
+
+**`EXACT_HEAD_CI = PASS`** (head `694383736182b819136259bcdf84d3d1384b524c`,
+GitHub-native timestamps, independently spot-checked directly against
+the API): `control-plane` 59s, `quality (ubuntu, compat)` 7m20s,
+`quality (ubuntu, full)` 10m48s, `quality (windows)` **18m46s** —
+comfortably inside the 20-minute budget (1m14s margin) and effectively
+at parity with the pre-PR baseline (18m48s, 2s faster). All 4 jobs
+`conclusion: success`.
+
+**Round 5 independent IV: `FIX_VERIFIED_PASS`** — scope confirmed as
+exactly one test's fixture setup across the whole PR (no `DENY`-listed
+source file touched anywhere in any round), speedup confirmed
+behaviorally faithful (real separate remote, real fetch, unchanged
+assertions), all 7 named regression properties re-confirmed intact, both
+round-4 and round-5 commit messages confirmed clean (no embedded shell
+output/garbling — an earlier round-3 commit-message drafting attempt
+that accidentally triggered shell backtick-substitution was caught
+before push and corrected via `commit --amend -F <clean-file>`, never
+reaching a reviewer).
+
+### Result
+
+`PR630 = CERTIFIED_OWNER_HELD`. All 7 required guard properties proven
+(hosted-PR-CI execution, actual base→candidate evaluation, frozen-path
+detection, allowed-path no-false-positive, shallow-checkout survival,
+visible/inconclusive-never-PASS failure on unresolvable comparison
+metadata, local/full-clone validity including the diverged-branch case).
+`MERGE_AUTHORIZATION = NOT_GRANTED` — this PR changes governance
+enforcement itself, so it stays owner-gated regardless of certification
+strength, per standing instruction for this node. Not self-merged.

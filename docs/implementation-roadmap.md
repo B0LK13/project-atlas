@@ -1,5 +1,9 @@
 # Implementation Roadmap
 
+> **D-191 classification:** This document is a **historical input** (Phases 0–9)
+> to Atlas 3.0. Canonical successor roadmap: `docs/atlas-3/MASTER-ROADMAP.md`.
+> Do not erase this file. It remains evidence of how Atlas 1.x/2.x was delivered.
+
 ## Phase 0 — Foundation
 
 ### Objective

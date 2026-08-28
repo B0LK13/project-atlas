@@ -7,10 +7,14 @@
 
 > **D-037 documentation precedence:** This master roadmap is **Level-4 historical
 > execution planning** — input to reconciliation, **not** authority to override
-> current owner product priority. Current product direction:
+> current owner product priority. Current 2.x product direction:
 > `docs/product/CODER-ALPHA-NORTH-STAR.md` (Coder Alpha: persistent brain for
 > AI-native projects). Package classifications (KEEP / REFRAME / SUPERSEDE /
 > DEFER / EXTERNAL_BLOCKED): `docs/CODER-ALPHA-035-REBASE.md`.
+>
+> **D-191 classification:** This document is a **historical input** to Atlas 3.0.
+> Canonical successor program: `docs/atlas-3/NORTH-STAR.md`. Do not treat this
+> file as Atlas 3 authority. Historical text is preserved; it is not erased.
 
 ---
 
@@ -135,7 +139,7 @@ an MVP.
 
 | Work package | Capability                                    | Status                                 |
 | ------------ | --------------------------------------------- | -------------------------------------- |
-| AS-MVP-001 | Portfolio intelligence and pilot onboarding closure (Epic I remainder + Epic K) | **Implementation complete, acceptance-tested — independent verification and owner merge required** (branch `feat/as-mvp-001-portfolio-pilots`; see `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and `docs/evidence/AS-MVP-001-receipt.yaml`) |
+| AS-MVP-001 | Portfolio intelligence and pilot onboarding closure (Epic I remainder + Epic K) | **Merged to `main`** — candidate `da04bd31` is an ancestor of `main` and was superseded by AS-MVP-001-R1 and later mainline work; capabilities re-verified against `main` `f1b52565` on 2026-08-27 (historical branch `feat/as-mvp-001-portfolio-pilots`; see `docs/adr/ADR-005-mvp-portfolio-intelligence-pilot-onboarding.md` and `docs/evidence/AS-MVP-001-receipt.yaml`) |
 | AS-GH-001 | GitHub repository governance baseline | **Architecture certified; bounded slice independently verified; artifact-closure candidate on `docs/as-gh-001-artifact-closure` — IV required; live settings activation deferred (AS-GH-002 hint)** (see `docs/adr/ADR-006-github-repository-governance-baseline.md`, `docs/work-packages/AS-GH-001.md`, `docs/evidence/AS-GH-001-receipt.yaml`) |
 | AS-MAINT-002 | Control Plane push/PR CI coverage | **Not yet authorized** (recommended follow-up recorded in the AS-MAINT-001 receipt; `atlas-vault-documentation/tests` currently has no automatic CI coverage) |
 | AS-WP-005    | Graphify adapter and relationship projections | **Deferred until Core integration boundary is established** |

@@ -116,6 +116,23 @@ class AtlasApiServer(ThreadingHTTPServer):
     atlas_vault_id: str | None = None
     atlas_bind_path: Path | None = None
 
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        RequestHandlerClass: type[BaseHTTPRequestHandler],
+        bind_and_activate: bool = True,
+    ) -> None:
+        # D-041 HIGH: the stdlib default ``address_family`` is AF_INET, which
+        # can never bind an IPv6 literal. ``serve_api`` already restricts
+        # ``host`` to exactly "127.0.0.1" / "localhost" / "::1" before this
+        # constructor runs, so an exact "::1" match is sufficient here -- no
+        # general-purpose IPv6 parsing is needed or wanted.
+        if server_address[0] == "::1":
+            import socket
+
+            self.address_family = socket.AF_INET6
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+
 
 def _json_bytes(payload: dict[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
@@ -268,6 +285,72 @@ def make_handler(
                     },
                 )
                 return
+            if path == "/v1/next-status":
+                try:
+                    self._send(200, service.next_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/changed-status":
+                try:
+                    self._send(200, service.changed_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/overview-status":
+                try:
+                    self._send(200, service.overview_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/decisions-status":
+                try:
+                    self._send(200, service.decisions_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/unknown-status":
+                try:
+                    self._send(200, service.unknown_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/state-status":
+                try:
+                    self._send(200, service.state_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/architecture-status":
+                try:
+                    self._send(200, service.architecture_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/roadmap-status":
+                try:
+                    self._send(200, service.roadmap_answers_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/portfolio-status":
+                try:
+                    self._send(200, service.portfolio_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/bitemporal-status":
+                try:
+                    self._send(200, service.bitemporal_view())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
+            if path == "/v1/index-status":
+                try:
+                    self._send(200, service.index_status())
+                except AppServiceError as exc:
+                    self._send(400, {"error": str(exc), "package_id": PACKAGE_ID})
+                return
             if path == "/v1/brief":
                 project = (qs.get("project") or [""])[0]
                 if not project:
@@ -321,6 +404,31 @@ def make_handler(
                         {
                             "error": str(exc),
                             "package_id": "AS-CODER-ALPHA-SOURCE-HEALTH-API-001",
+                            "honesty": honesty,
+                        },
+                    )
+                return
+            if path == "/v1/architecture":
+                project = (qs.get("project") or qs.get("project_id") or [""])[0]
+                if not project:
+                    self._send(
+                        400,
+                        {
+                            "error": "architecture-requires-project",
+                            "package_id": "AS-CODER-ALPHA-ARCHITECTURE-SURFACE-001",
+                            "honesty": "UNSUPPORTED_SCOPE",
+                        },
+                    )
+                    return
+                try:
+                    self._send(200, service.architecture(project))
+                except AppServiceError as exc:
+                    honesty = getattr(exc, "honesty", None) or "MALFORMED_INPUT"
+                    self._send(
+                        400,
+                        {
+                            "error": str(exc),
+                            "package_id": "AS-CODER-ALPHA-ARCHITECTURE-SURFACE-001",
                             "honesty": honesty,
                         },
                     )
@@ -527,6 +635,7 @@ def make_handler(
                     "kdiff_live": True,
                     "brief_live": True,
                     "source_health_live": True,
+                    "architecture_live": True,
                     "discovery_live": True,
                     "truth_ux_live": True,
                     "authz_profile": True,

@@ -303,7 +303,9 @@ class AutonomousLoop:
         """One fail-closed continuation step. At most one 001D dispatch."""
         verify_loop_state(self._state)
         if self._state.ticks_in_invocation >= MAX_TICKS_PER_INVOCATION:
-            return self._stop(StopReason.RESOURCE_BOUNDARY)
+            result = self._stop(StopReason.RESOURCE_BOUNDARY)
+            self._enqueue_resource_yield()
+            return result
         self._save(ticks_in_invocation=self._state.ticks_in_invocation + 1)
         if self._state.phase in {LoopPhase.STOPPED, LoopPhase.FAILED_CLOSED}:
             return self._result()
@@ -323,7 +325,9 @@ class AutonomousLoop:
                 return last
             if last.phase == LoopPhase.AWAITING_RESULT:
                 return last
-        return self._stop(StopReason.RESOURCE_BOUNDARY)
+        result = self._stop(StopReason.RESOURCE_BOUNDARY)
+        self._enqueue_resource_yield()
+        return result
 
     def recover(self) -> LoopTickResult:
         """Crash/restart recovery. Never respawns a duplicate process."""
@@ -502,6 +506,25 @@ class AutonomousLoop:
             self._save(phase=LoopPhase.IDLE)
             return self._result()
         return self._result()
+
+    def _enqueue_resource_yield(self) -> None:
+        """RESOURCE_BOUNDARY is YIELD, not OWNER_REQUIRED. Atomic finalize."""
+        from project_atlas.orchestration.autonomy.continuation_broker import (
+            finalize_governor_checkpoint,
+        )
+
+        cycle_id = f"YIELD-{self._state.sequence}"
+        finalize_governor_checkpoint(
+            self._root,
+            result_class="RESOURCE_YIELD",
+            cycle_id=cycle_id,
+            trusted_main=self._trusted.trusted_main,
+            trusted_tree=self._trusted.trusted_tree,
+            next_action_class="RESOURCE_YIELD",
+            repository_identity=self._trusted.repository_identity,
+            dag_generation=self._state.sequence,
+            safe_dag_work_remains=True,
+        )
 
     def _first_agent(self) -> str:
         for agent in self._governor.snapshot().agents:

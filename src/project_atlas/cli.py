@@ -136,6 +136,10 @@ from project_atlas.knowledge_diff import (
 )
 from project_atlas.knowledge_diff import diff_to_json as kdiff_diff_to_json
 from project_atlas.knowledge_diff import snapshot_to_json as kdiff_snapshot_to_json
+from project_atlas.knowledge_inbox import (
+    KnowledgeInboxError,
+    list_inbox_items,
+)
 from project_atlas.knowledge_query import (
     KnowledgeQueryError,
     answer_to_json,
@@ -255,6 +259,7 @@ from project_atlas.session_capture import (
     list_captures,
 )
 from project_atlas.source_health import SourceHealthError, explain_source_health
+from project_atlas.terminal_io import human_print
 from project_atlas.twin_fixtures import (
     TwinFixtureError,
     TwinProjectRow,
@@ -313,6 +318,7 @@ def _apply_stranger_defaults(args: argparse.Namespace) -> None:
         "context",
         "handoff",
         "capture",
+        "inbox",
         "obsidian",
         "review",
     }:
@@ -933,6 +939,292 @@ def build_parser() -> argparse.ArgumentParser:
     handoff_resume.add_argument("--handoff-id", default=None)
     handoff_resume.add_argument("--json", action="store_true", dest="as_json")
 
+    next_status_parser = subparsers.add_parser(
+        "next-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing What Next answer artifacts "
+            "(AS-CODER-ALPHA-NEXT-READ-001; never writes; "
+            "NEXT != AUTHORITY; NEXT != COMMAND)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-next-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "NEXT != AUTHORITY. NEXT != COMMAND."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas next-status --vault /path/to/vault\n"
+            "  atlas next-status --vault /path/to/vault --json"
+        ),
+    )
+    next_status_parser.add_argument("--vault", type=Path, required=True)
+    next_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the What Next REPORT READ JSON to stdout.",
+    )
+
+    changed_status_parser = subparsers.add_parser(
+        "changed-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing What Changed answer artifacts "
+            "(AS-CODER-ALPHA-CHANGED-READ-001; never writes; "
+            "CHANGED != AUTHORITY; STALE != CURRENT)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-changed-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "CHANGED != AUTHORITY. CHANGED != LIVE ESTATE. STALE != CURRENT."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas changed-status --vault /path/to/vault\n"
+            "  atlas changed-status --vault /path/to/vault --json"
+        ),
+    )
+    changed_status_parser.add_argument("--vault", type=Path, required=True)
+    changed_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the What Changed REPORT READ JSON to stdout.",
+    )
+
+    overview_status_parser = subparsers.add_parser(
+        "overview-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Project Overview answer artifacts "
+            "(AS-CODER-ALPHA-OVERVIEW-READ-001; never writes; "
+            "OVERVIEW != AUTHORITY; UI != CANONICAL)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-overview-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "OVERVIEW != AUTHORITY. UI != CANONICAL."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas overview-status --vault /path/to/vault\n"
+            "  atlas overview-status --vault /path/to/vault --json"
+        ),
+    )
+    overview_status_parser.add_argument("--vault", type=Path, required=True)
+    overview_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Overview REPORT READ JSON to stdout.",
+    )
+
+    decisions_status_parser = subparsers.add_parser(
+        "decisions-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Decision memory answer artifacts "
+            "(AS-CODER-ALPHA-DECISIONS-READ-001; never writes; "
+            "DECISIONS != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-decisions-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "DECISIONS != AUTHORITY. MODEL PARAPHRASE != OWNER DECISION."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas decisions-status --vault /path/to/vault\n"
+            "  atlas decisions-status --vault /path/to/vault --json"
+        ),
+    )
+    decisions_status_parser.add_argument("--vault", type=Path, required=True)
+    decisions_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Decisions REPORT READ JSON to stdout.",
+    )
+
+    unknown_status_parser = subparsers.add_parser(
+        "unknown-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Unknown/conflict answer artifacts "
+            "(AS-CODER-ALPHA-UNKNOWN-READ-001; never writes; "
+            "UNKNOWN != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-unknown-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "UNKNOWN != AUTHORITY. UNKNOWN != RESOLVED."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas unknown-status --vault /path/to/vault\n"
+            "  atlas unknown-status --vault /path/to/vault --json"
+        ),
+    )
+    unknown_status_parser.add_argument("--vault", type=Path, required=True)
+    unknown_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Unknown REPORT READ JSON to stdout.",
+    )
+
+    state_status_parser = subparsers.add_parser(
+        "state-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Current State answer artifacts "
+            "(AS-CODER-ALPHA-STATE-READ-001; never writes; "
+            "STATE != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-state-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "STATE != AUTHORITY. STALE != CURRENT."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas state-status --vault /path/to/vault\n"
+            "  atlas state-status --vault /path/to/vault --json"
+        ),
+    )
+    state_status_parser.add_argument("--vault", type=Path, required=True)
+    state_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the State REPORT READ JSON to stdout.",
+    )
+
+    architecture_status_parser = subparsers.add_parser(
+        "architecture-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Architecture answer artifacts "
+            "(AS-CODER-ALPHA-ARCHITECTURE-READ-001; never writes; "
+            "ARCHITECTURE != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-architecture-*.json "
+            "artifacts. Never writes. Never materializes. "
+            "ARCHITECTURE != AUTHORITY. README != ARCHITECTURE AUTHORITY."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas architecture-status --vault /path/to/vault\n"
+            "  atlas architecture-status --vault /path/to/vault --json"
+        ),
+    )
+    architecture_status_parser.add_argument("--vault", type=Path, required=True)
+    architecture_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Architecture REPORT READ JSON to stdout.",
+    )
+
+    roadmap_status_parser = subparsers.add_parser(
+        "roadmap-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Roadmap answer artifacts "
+            "(AS-CODER-ALPHA-ROADMAP-READ-001; never writes; "
+            "ROADMAP != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/answers/ans-roadmap-*.json "
+            "artifacts. Never writes. Never materializes. Never derives. "
+            "ROADMAP != AUTHORITY. ROADMAP != CANONICAL_TRUTH."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas roadmap-status --vault /path/to/vault\n"
+            "  atlas roadmap-status --vault /path/to/vault --json"
+        ),
+    )
+    roadmap_status_parser.add_argument("--vault", type=Path, required=True)
+    roadmap_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the Roadmap answers REPORT READ JSON to stdout.",
+    )
+
+    portfolio_status_parser = subparsers.add_parser(
+        "portfolio-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing Layer C portfolio artifacts "
+            "(AS-CODER-ALPHA-PORTFOLIO-READ-001; never writes; "
+            "PORTFOLIO != AUTHORITY; LAYER C != TRUTH CORE)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/portfolio/*.json "
+            "artifacts. Never writes. Never materializes. "
+            "PORTFOLIO != AUTHORITY. LAYER C != TRUTH CORE."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas portfolio-status --vault /path/to/vault\n"
+            "  atlas portfolio-status --vault /path/to/vault --json"
+        ),
+    )
+    portfolio_status_parser.add_argument("--vault", type=Path, required=True)
+    portfolio_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the portfolio REPORT READ JSON to stdout.",
+    )
+
+    bitemporal_status_parser = subparsers.add_parser(
+        "bitemporal-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing validity-catalog artifacts "
+            "(AS-CODER-ALPHA-BITEMPORAL-READ-001; never writes; "
+            "CATALOG != AUTHORITY; GRAPH != AUTHORITY)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/ops/bitemporal/"
+            "*-validity-catalog.json artifacts. Never writes. "
+            "Never materializes. CATALOG != AUTHORITY. GRAPH != AUTHORITY."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas bitemporal-status --vault /path/to/vault\n"
+            "  atlas bitemporal-status --vault /path/to/vault --json"
+        ),
+    )
+    bitemporal_status_parser.add_argument("--vault", type=Path, required=True)
+    bitemporal_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the bitemporal REPORT READ JSON to stdout.",
+    )
+
+    index_status_parser = subparsers.add_parser(
+        "index-status",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=(
+            "Read existing lexical index artifacts "
+            "(AS-CODER-ALPHA-INDEX-STATUS-001; never writes; "
+            "INDEX_STATUS != AUTHORITY; PRESENCE != VALIDATE)."
+        ),
+        description=(
+            "Read-only wrap of existing generated/indexes/*.json "
+            "artifacts. Never writes. Never materializes. "
+            "INDEX_STATUS != AUTHORITY. PRESENCE != VALIDATE."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  atlas index-status --vault /path/to/vault\n"
+            "  atlas index-status --vault /path/to/vault --json"
+        ),
+    )
+    index_status_parser.add_argument("--vault", type=Path, required=True)
+    index_status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the index-status REPORT READ JSON to stdout.",
+    )
+
     capture_parser = subparsers.add_parser(
         "capture",
         help=(
@@ -1013,6 +1305,31 @@ def build_parser() -> argparse.ArgumentParser:
         dest="review_state",
     )
     capture_review.add_argument("--json", action="store_true", dest="as_json")
+
+    inbox_parser = subparsers.add_parser(
+        "inbox",
+        help=(
+            "Read Knowledge Inbox observations "
+            "(INBOX != AUTHORITY; list is read-only and project-scoped)."
+        ),
+    )
+    inbox_sub = inbox_parser.add_subparsers(dest="inbox_command", required=True)
+    inbox_list = inbox_sub.add_parser(
+        "list",
+        help=(
+            "List project-scoped inbox items in deterministic receipt_id order. "
+            "Requires --project or a single-project bind. No implicit portfolio-all."
+        ),
+    )
+    inbox_list.add_argument("--vault", type=Path, default=None)
+    inbox_list.add_argument("--project", default=None)
+    inbox_list.add_argument(
+        "--status",
+        default=None,
+        choices=sorted(["quarantined", "accepted-review", "rejected"]),
+    )
+    inbox_list.add_argument("--limit", type=int, default=20)
+    inbox_list.add_argument("--json", action="store_true", dest="as_json")
 
     obsidian_parser = subparsers.add_parser(
         "obsidian",
@@ -2131,6 +2448,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     twin_build.add_argument("--json", action="store_true")
 
+    # D-177 — full product demo harness (TECHNICAL DEMO only).
+    demo_parser = subparsers.add_parser(
+        "demo",
+        help=(
+            "Technical demo harness (D-177; DEMO_FIXTURE; "
+            "NOT RELEASE CERTIFIED; NOT AUTHENTIC PILOT)."
+        ),
+    )
+    demo_sub = demo_parser.add_subparsers(dest="demo_command", required=True)
+    demo_full = demo_sub.add_parser(
+        "full",
+        help="Run disposable full-product demo acts and write receipt JSON.",
+    )
+    demo_full.add_argument(
+        "--work-root",
+        type=Path,
+        default=None,
+        help="Disposable work root (default: .tmp/d177-full-product-demo).",
+    )
+    demo_full.add_argument(
+        "--receipt",
+        type=Path,
+        default=None,
+        help="Receipt path (default: generated/ops/full-product-demo-receipt.json).",
+    )
+    demo_full.add_argument(
+        "--reset",
+        action="store_true",
+        help="Force rematerialize estate (always rematerializes today).",
+    )
+    demo_full.add_argument("--json", action="store_true", help="Print receipt JSON.")
+
     # AS-2.0-OAI-IMPORT-001 — OpenAI importer fixture harness (no live API).
     oai_parser = subparsers.add_parser(
         "openai-import",
@@ -2558,6 +2907,100 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
     )
+    orch_gov_service = orch_sub.add_parser(
+        "governor-service-run",
+        help=(
+            "D-083 durable Atlas supervisor: persistent Cursor SDK "
+            "runtime plus CI observer. Owns the DAG; SDK agents are workers. "
+            "Does not merge."
+        ),
+    )
+    orch_gov_service.add_argument("--root", type=Path, default=None)
+    orch_gov_service.add_argument(
+        "--max-cycles",
+        type=int,
+        default=None,
+        help="Optional cycle cap (default: run until stopped).",
+    )
+    orch_gov_service.add_argument(
+        "--poll-interval",
+        type=float,
+        default=2.0,
+        help="Seconds between schedule cycles.",
+    )
+    orch_gov_service.add_argument(
+        "--fake-backend",
+        action="store_true",
+        help="Use in-process fake SDK backend (tests / no API key).",
+    )
+    orch_gov_service.add_argument(
+        "--candidate-head",
+        default=None,
+        help="Optional initial 40-char candidate SHA. Live PR head is refreshed each cycle.",
+    )
+    orch_gov_service.add_argument(
+        "--pr",
+        type=int,
+        default=429,
+        help="Canonical continuation PR to refresh (default: 429).",
+    )
+    orch_gov_stop = orch_sub.add_parser(
+        "governor-service-stop",
+        help=(
+            "Request graceful stop of a durable SDK supervisor via stop file. "
+            "Does not merge."
+        ),
+    )
+    orch_gov_stop.add_argument("--root", type=Path, default=None)
+    orch_gov_resident = orch_sub.add_parser(
+        "governor-resident-run",
+        help=(
+            "D-130 resident self-wake driver: owns NEXT_WAKE_AT and "
+            "scheduler ticks without chat/owner heartbeats. Does not merge."
+        ),
+    )
+    orch_gov_resident.add_argument("--root", type=Path, default=None)
+    orch_gov_resident.add_argument(
+        "--max-ticks",
+        type=int,
+        default=None,
+        help="Optional tick cap (default: run until stop file).",
+    )
+    orch_gov_resident.add_argument(
+        "--detached-worker",
+        action="store_true",
+        help="Internal: launched as detached resident worker (no extra stdout).",
+    )
+    orch_sdk_auth = orch_sub.add_parser(
+        "sdk-auth-status",
+        help=(
+            "Detect CURSOR_API_KEY availability without printing the secret. "
+            "Records CURSOR_SDK_AUTH_REQUIRED at most once when needed."
+        ),
+    )
+    orch_sdk_auth.add_argument("--root", type=Path, default=None)
+    orch_broker = orch_sub.add_parser(
+        "continuation-broker",
+        help=(
+            "AS-ORCH-CONTINUATION-BROKER-001: enqueue/consume/status for "
+            "one consume-once successor. Stop-hook fallback only; primary "
+            "continuation is governor-service-run. Does not merge."
+        ),
+    )
+    orch_broker.add_argument(
+        "broker_action",
+        choices=("enqueue", "consume", "status"),
+        help="Broker action.",
+    )
+    orch_broker.add_argument("--root", type=Path, default=None)
+    orch_broker.add_argument("--cycle-id", default=None)
+    orch_broker.add_argument(
+        "--kind",
+        default="CHECKPOINT_CONTINUE",
+        help="Successor kind (enqueue only).",
+    )
+    orch_broker.add_argument("--trusted-main", default=None)
+    orch_broker.add_argument("--trusted-tree", default=None)
     orch_dispatch_once = orch_sub.add_parser(
         "dispatch-once",
         help=(
@@ -2668,6 +3111,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional trusted-anchor store. When omitted, the shipped record is used.",
     )
+
+    # Atlas 3 additive commands (D-191 / D-192). Existing parsers are unchanged.
+    from project_atlas.atlas3.cli import register_atlas3_parsers
+
+    register_atlas3_parsers(subparsers)
 
     return parser
 
@@ -2944,6 +3392,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(f"  obsidian: {', '.join(obsidian_notes)}")
         return EXIT_OK
 
+    if args.command == "overview-status":
+        from project_atlas.web_api.overview_read import (
+            WebOverviewReadError,
+            read_overview_view,
+            render_overview_status_text,
+        )
+
+        try:
+            report = read_overview_view(args.vault)
+        except (WebOverviewReadError, OSError, ValueError) as exc:
+            _log.error("overview-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_overview_status_text(report), end="")
+        return EXIT_OK
+
     if args.command == "overview":
         try:
             report = materialize_overview_lenses(
@@ -2966,6 +3432,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     f"  {lens.get('project_id')}: [{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "state-status":
+        from project_atlas.web_api.state_read import (
+            WebStateReadError,
+            read_state_view,
+            render_state_status_text,
+        )
+
+        try:
+            report = read_state_view(args.vault)
+        except (WebStateReadError, OSError, ValueError) as exc:
+            _log.error("state-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_state_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "state":
@@ -2991,6 +3475,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('rollup')}/{lens.get('status')}] {summary}"
                 )
+        return EXIT_OK
+
+    if args.command == "roadmap-status":
+        from project_atlas.web_api.roadmap_read import (
+            WebRoadmapAnswersReadError,
+            read_roadmap_answers_view,
+            render_roadmap_status_text,
+        )
+
+        try:
+            report = read_roadmap_answers_view(args.vault)
+        except (WebRoadmapAnswersReadError, OSError, ValueError) as exc:
+            _log.error("roadmap-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_roadmap_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "roadmap":
@@ -3033,6 +3535,96 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(render_next_text(lens))
         return EXIT_OK
 
+    if args.command == "next-status":
+        from project_atlas.web_api.next_read import (
+            WebNextReadError,
+            read_next_view,
+            render_next_status_text,
+        )
+
+        try:
+            report = read_next_view(args.vault)
+        except (WebNextReadError, OSError, ValueError) as exc:
+            _log.error("next-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_next_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "changed-status":
+        from project_atlas.web_api.changed_read import (
+            WebChangedReadError,
+            read_changed_view,
+            render_changed_status_text,
+        )
+
+        try:
+            report = read_changed_view(args.vault)
+        except (WebChangedReadError, OSError, ValueError) as exc:
+            _log.error("changed-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_changed_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "portfolio-status":
+        from project_atlas.web_api.portfolio_read import (
+            WebPortfolioReadError,
+            read_portfolio_view,
+            render_portfolio_status_text,
+        )
+
+        try:
+            report = read_portfolio_view(args.vault)
+        except (WebPortfolioReadError, OSError, ValueError) as exc:
+            _log.error("portfolio-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_portfolio_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "bitemporal-status":
+        from project_atlas.web_api.bitemporal_read import (
+            WebBitemporalReadError,
+            read_bitemporal_view,
+            render_bitemporal_status_text,
+        )
+
+        try:
+            report = read_bitemporal_view(args.vault)
+        except (WebBitemporalReadError, OSError, ValueError) as exc:
+            _log.error("bitemporal-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_bitemporal_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "index-status":
+        from project_atlas.web_api.index_status import (
+            WebIndexStatusError,
+            read_index_status,
+            render_index_status_text,
+        )
+
+        try:
+            report = read_index_status(args.vault)
+        except (WebIndexStatusError, OSError, ValueError) as exc:
+            _log.error("index-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_index_status_text(report), end="")
+        return EXIT_OK
+
     if args.command == "changed":
         try:
             report = materialize_changed_lenses(
@@ -3066,6 +3658,24 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
         return EXIT_OK
 
+    if args.command == "decisions-status":
+        from project_atlas.web_api.decisions_read import (
+            WebDecisionsReadError,
+            read_decisions_view,
+            render_decisions_status_text,
+        )
+
+        try:
+            report = read_decisions_view(args.vault)
+        except (WebDecisionsReadError, OSError, ValueError) as exc:
+            _log.error("decisions-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_decisions_status_text(report), end="")
+        return EXIT_OK
+
     if args.command == "decisions":
         try:
             report = materialize_decisions_lenses(
@@ -3083,6 +3693,42 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"  {lens.get('project_id')}: "
                     f"[{lens.get('status')}] {lens.get('summary') or 'UNKNOWN'}"
                 )
+        return EXIT_OK
+
+    if args.command == "architecture-status":
+        from project_atlas.web_api.architecture_read import (
+            WebArchitectureReadError,
+            read_architecture_view,
+            render_architecture_status_text,
+        )
+
+        try:
+            report = read_architecture_view(args.vault)
+        except (WebArchitectureReadError, OSError, ValueError) as exc:
+            _log.error("architecture-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_architecture_status_text(report), end="")
+        return EXIT_OK
+
+    if args.command == "unknown-status":
+        from project_atlas.web_api.unknown_read import (
+            WebUnknownReadError,
+            read_unknown_view,
+            render_unknown_status_text,
+        )
+
+        try:
+            report = read_unknown_view(args.vault)
+        except (WebUnknownReadError, OSError, ValueError) as exc:
+            _log.error("unknown-status read failed: %s", exc)
+            return EXIT_ERROR
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print(render_unknown_status_text(report), end="")
         return EXIT_OK
 
     if args.command == "unknown":
@@ -3117,7 +3763,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             care = report.get("care_about") or []
             print(f"care_about ({len(care)}):")
             for item in care:
-                print(
+                human_print(
                     f"  [{item.get('level')}] {item.get('reason_code')}: "
                     f"{item.get('why_seeing_this')} → {item.get('what_to_do')}"
                 )
@@ -3239,86 +3885,69 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  project:  {report.get('project_id')}")
             context = report.get("context") or {}
             print(f"  context:  {context.get('markdown_path')}")
+            raw_freshness = report.get("freshness")
+            freshness: dict[str, Any] = (
+                raw_freshness if isinstance(raw_freshness, dict) else {}
+            )
+            print(f"  freshness: {freshness.get('status', 'UNKNOWN')}")
+            warning = report.get("resume_warning")
+            if warning:
+                print(f"  warning:  {warning}")
             for item in report.get("resume_instructions") or []:
                 print(f"  - {item}")
         return EXIT_OK
 
-    if args.command == "capture":
+    if args.command == "inbox":
         try:
-            if args.capture_command == "record":
-                report = capture_session(
-                    args.vault,
-                    args.project,
-                    summary=args.summary,
-                    kind=args.kind,
-                    decisions=args.decision,
-                    changes=args.change,
-                    next_work=args.next_work,
-                    unknowns=args.unknowns,
-                    source="explicit",
+            if args.inbox_command != "list":
+                raise KnowledgeInboxError(
+                    "UNSUPPORTED_SCOPE",
+                    f"inbox command not implemented: {args.inbox_command}",
                 )
-            elif args.capture_command == "conversation":
-                envelope = _load_conversation_envelope(args)
-                report = capture_conversation(
-                    args.vault,
-                    envelope,
-                    requested_project_id=args.project,
-                )
-            elif args.capture_command == "review":
-                report = set_conversation_review_state(
-                    args.vault,
-                    args.capture_id,
-                    args.review_state,
-                )
-            else:
-                report = {
-                    "schema_version": 1,
-                    "package": "AS-CODER-ALPHA-CAPTURE-001",
-                    "status": "ok",
-                    "captures": list_captures(
-                        args.vault,
-                        project_id=args.project,
-                        limit=args.limit,
-                    ),
-                }
-        except ConversationCaptureError as exc:
-            _log.error("capture failed: %s", exc)
-            error_body = {
+            project_id = args.project
+            if project_id in {None, ""}:
+                try:
+                    project_id = resolve_bound_project_id(vault=args.vault)
+                except ConnectError as exc:
+                    raise KnowledgeInboxError(
+                        "UNSUPPORTED_SCOPE",
+                        "inbox list requires --project (no implicit portfolio-all)",
+                    ) from exc
+            report = list_inbox_items(
+                args.vault,
+                project_id=project_id,
+                status=args.status,
+                limit=args.limit,
+            )
+        except KnowledgeInboxError as exc:
+            _log.error("inbox failed: %s", exc)
+            inbox_error: dict[str, Any] = {
                 "status": "error",
                 "error": exc.code,
                 "message": str(exc),
-                "package": "AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001",
+                "package": "AS-CODER-ALPHA-INBOX-LIST-001",
+                "promoted_to_authority": False,
             }
             if getattr(args, "as_json", False):
-                print(json.dumps(error_body, indent=2, sort_keys=True))
+                print(json.dumps(inbox_error, indent=2, sort_keys=True))
             else:
-                print(f"atlas capture conversation error [{exc.code}]: {exc}")
+                print(f"atlas inbox list error [{exc.code}]: {exc}")
             return EXIT_ERROR
-        except (SessionCaptureError, OSError, ValueError) as exc:
-            _log.error("capture failed: %s", exc)
+        except (OSError, ValueError) as exc:
+            _log.error("inbox failed: %s", exc)
             return EXIT_ERROR
         if args.as_json:
             print(json.dumps(report, indent=2, sort_keys=True))
-        elif args.capture_command == "record":
-            print(f"atlas capture record [{report.get('status', 'ok')}]")
-            print(f"  capture:  {report.get('capture_id')}")
-            print(f"  project:  {report.get('project_id')}")
-            print(f"  path:     {report.get('path')}")
-            print("  next: atlas context / atlas handoff create to surface session memory")
-        elif args.capture_command in {"conversation", "review"}:
-            print(f"atlas capture {args.capture_command} [{report.get('status', 'ok')}]")
-            print(f"  capture:  {report.get('capture_id')}")
-            print(f"  project:  {report.get('project_id')}")
-            print(f"  review:   {report.get('review_state')}")
-            print("  authority: NON_CANONICAL quarantined evidence (not Truth Core)")
         else:
-            captures = report.get("captures") or []
-            print(f"atlas capture list [{len(captures)}]")
-            if not captures:
-                print("  UNKNOWN (no session captures yet)")
-            for item in captures:
+            items = report.get("items") or []
+            print(f"atlas inbox list [{report.get('count', 0)}]")
+            print(f"  project:  {report.get('project_id')}")
+            print("  boundary: INBOX != AUTHORITY (observations, not Truth Core)")
+            if not items:
+                print("  UNKNOWN (no inbox items for project)")
+            for item in items:
                 print(
-                    f"  - {item.get('capture_id')} [{item.get('kind')}] "
+                    f"  - {item.get('receipt_id')} [{item.get('status')}] "
                     f"{item.get('summary')}"
                 )
         return EXIT_OK
@@ -3636,6 +4265,87 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (OSError, ValueError, TypeError) as exc:
             _log.error("query failed: %s", exc)
             return EXIT_ERROR
+
+
+    if args.command == "capture":
+        try:
+            if args.capture_command == "record":
+                report = capture_session(
+                    args.vault,
+                    args.project,
+                    summary=args.summary,
+                    kind=args.kind,
+                    decisions=args.decision,
+                    changes=args.change,
+                    next_work=args.next_work,
+                    unknowns=args.unknowns,
+                    source="explicit",
+                )
+            elif args.capture_command == "conversation":
+                envelope = _load_conversation_envelope(args)
+                report = capture_conversation(
+                    args.vault,
+                    envelope,
+                    requested_project_id=args.project,
+                )
+            elif args.capture_command == "review":
+                report = set_conversation_review_state(
+                    args.vault,
+                    args.capture_id,
+                    args.review_state,
+                )
+            else:
+                report = {
+                    "schema_version": 1,
+                    "package": "AS-CODER-ALPHA-CAPTURE-001",
+                    "status": "ok",
+                    "captures": list_captures(
+                        args.vault,
+                        project_id=args.project,
+                        limit=args.limit,
+                    ),
+                }
+        except ConversationCaptureError as exc:
+            _log.error("capture failed: %s", exc)
+            error_body = {
+                "status": "error",
+                "error": exc.code,
+                "message": str(exc),
+                "package": "AS-CODER-ALPHA-CONVERSATIONAL-CAPTURE-001",
+            }
+            if getattr(args, "as_json", False):
+                print(json.dumps(error_body, indent=2, sort_keys=True))
+            else:
+                print(f"atlas capture conversation error [{exc.code}]: {exc}")
+            return EXIT_ERROR
+        except (SessionCaptureError, OSError, ValueError) as exc:
+            _log.error("capture failed: %s", exc)
+            return EXIT_ERROR
+        if args.as_json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        elif args.capture_command == "record":
+            print(f"atlas capture record [{report.get('status', 'ok')}]")
+            print(f"  capture:  {report.get('capture_id')}")
+            print(f"  project:  {report.get('project_id')}")
+            print(f"  path:     {report.get('path')}")
+            print("  next: atlas context / atlas handoff create to surface session memory")
+        elif args.capture_command in {"conversation", "review"}:
+            print(f"atlas capture {args.capture_command} [{report.get('status', 'ok')}]")
+            print(f"  capture:  {report.get('capture_id')}")
+            print(f"  project:  {report.get('project_id')}")
+            print(f"  review:   {report.get('review_state')}")
+            print("  authority: NON_CANONICAL quarantined evidence (not Truth Core)")
+        else:
+            captures = report.get("captures") or []
+            print(f"atlas capture list [{len(captures)}]")
+            if not captures:
+                print("  UNKNOWN (no session captures yet)")
+            for item in captures:
+                print(
+                    f"  - {item.get('capture_id')} [{item.get('kind')}] "
+                    f"{item.get('summary')}"
+                )
+        return EXIT_OK
 
     if args.command == "ops":
         if args.ops_command == "health":
@@ -4488,6 +5198,52 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"truth_boundary: {answer['truth_boundary']}")
         return EXIT_OK
 
+    if args.command == "demo":
+        if args.demo_command == "full":
+            from project_atlas.full_product_demo import (
+                receipt_to_public_dict,
+                run_full_product_demo,
+            )
+
+            print(
+                "TECHNICAL DEMO — NOT RELEASE CERTIFIED — "
+                "NOT AUTHENTIC PILOT — DEMO_FIXTURE",
+                file=sys.stderr,
+            )
+            # --reset currently always rematerializes inside the harness.
+            _ = bool(getattr(args, "reset", False))
+            demo_receipt = run_full_product_demo(
+                Path.cwd(),
+                work_root=getattr(args, "work_root", None),
+                receipt_path=getattr(args, "receipt", None),
+            )
+            payload = receipt_to_public_dict(demo_receipt)
+            if args.json:
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            else:
+                print(f"MAIN_HEAD: {demo_receipt.MAIN_HEAD}")
+                print(f"ESTATE_FINGERPRINT: {demo_receipt.ESTATE_FINGERPRINT}")
+                print(f"DISCOVER: {demo_receipt.DISCOVER}")
+                print(f"INGEST: {demo_receipt.INGEST}")
+                print(f"BUILD_INDEXES: {demo_receipt.BUILD_INDEXES}")
+                print(f"VALIDATE: {demo_receipt.VALIDATE}")
+                print(f"DEMO_READINESS_PERCENT: {demo_receipt.DEMO_READINESS_PERCENT}")
+                print(f"FULL_LIVE_DEMO_READY: {demo_receipt.FULL_LIVE_DEMO_READY}")
+                print(f"P0: {demo_receipt.P0} P1: {demo_receipt.P1}")
+            return (
+                EXIT_OK
+                if (
+                    demo_receipt.P0 == 0
+                    and demo_receipt.P1 == 0
+                    and demo_receipt.DISCOVER == "PASS"
+                    and demo_receipt.INGEST == "PASS"
+                    and demo_receipt.BUILD_INDEXES == "PASS"
+                    and demo_receipt.VALIDATE == "PASS"
+                )
+                else EXIT_ERROR
+            )
+        parser.error(f"unknown demo command: {args.demo_command}")
+
     if args.command == "context-pack":
         if args.context_pack_command == "build":
             try:
@@ -4938,6 +5694,103 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code
+        if args.orchestrator_command == "sdk-auth-status":
+            from project_atlas.orchestration.sdk.cli import run_auth_status
+
+            report, exit_code = run_auth_status(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-run":
+            from project_atlas.orchestration.sdk.cli import run_governor_service
+
+            report, exit_code = run_governor_service(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+                max_cycles=getattr(args, "max_cycles", None),
+                poll_interval_sec=float(getattr(args, "poll_interval", 2.0) or 2.0),
+                use_fake=bool(getattr(args, "fake_backend", False)),
+                candidate_head=getattr(args, "candidate_head", None),
+                pr_number=int(getattr(args, "pr", 429) or 429),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-service-stop":
+            from project_atlas.orchestration.sdk.cli import run_supervisor_stop
+
+            report, exit_code = run_supervisor_stop(
+                root=Path(getattr(args, "root", None) or Path.cwd()),
+            )
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return exit_code
+        if args.orchestrator_command == "governor-resident-run":
+            from project_atlas.orchestration.sdk.resident_driver import run_resident_loop
+            from project_atlas.orchestration.sdk.resident_mission import persist_mission
+            from project_atlas.orchestration.sdk.resident_status import load_status
+
+            resident_root = Path(getattr(args, "root", None) or Path.cwd())
+            persist_mission(resident_root)
+            status = run_resident_loop(
+                resident_root,
+                max_ticks=getattr(args, "max_ticks", None),
+            )
+            if not bool(getattr(args, "detached_worker", False)):
+                print(json.dumps(status.model_dump(mode="json"), indent=2, sort_keys=True))
+            else:
+                final = load_status(resident_root)
+                print(
+                    json.dumps(
+                        {"ok": True, "ticks": final.DETACHED_SCHEDULER_TICK_COUNT},
+                        sort_keys=True,
+                    )
+                )
+            return EXIT_OK
+        if args.orchestrator_command == "continuation-broker":
+            from project_atlas.orchestration.autonomy.continuation_broker import (
+                SuccessorKind,
+                consume_successor,
+                enqueue_successor,
+                status_report,
+            )
+
+            broker_root = Path(getattr(args, "root", None) or Path.cwd())
+            action = str(getattr(args, "broker_action", ""))
+            try:
+                if action == "status":
+                    broker_status = status_report(broker_root)
+                    print(json.dumps(broker_status, indent=2, sort_keys=True))
+                    return EXIT_OK if broker_status.get("ok") else EXIT_ERROR
+                cycle_id = str(getattr(args, "cycle_id", "") or "")
+                if action == "consume":
+                    broker_state = consume_successor(broker_root, cycle_id)
+                    print(
+                        json.dumps(
+                            broker_state.model_dump(mode="json"),
+                            indent=2,
+                            sort_keys=True,
+                        )
+                    )
+                    return EXIT_OK
+                kind = SuccessorKind(str(getattr(args, "kind", "CHECKPOINT_CONTINUE")))
+                broker_enqueue = enqueue_successor(
+                    broker_root,
+                    cycle_id=cycle_id,
+                    kind=kind,
+                    trusted_main=str(getattr(args, "trusted_main", "") or ""),
+                    trusted_tree=str(getattr(args, "trusted_tree", "") or ""),
+                )
+                print(
+                    json.dumps(
+                        broker_enqueue.model_dump(mode="json"),
+                        indent=2,
+                        sort_keys=True,
+                    )
+                )
+                return EXIT_OK
+            except Exception as exc:
+                code = getattr(exc, "code", str(exc))
+                print(json.dumps({"ok": False, "error": code, "execution_authorized": False}))
+                return EXIT_ERROR
         if args.orchestrator_command == "dispatch-once":
             from project_atlas.orchestration.dispatcher import (
                 DispatcherConfig,
@@ -4988,6 +5841,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(  # pragma: no cover
             f"unknown orchestrator command: {args.orchestrator_command}"
         )
+
+    from project_atlas.atlas3.cli import dispatch_atlas3
+
+    atlas3_exit = dispatch_atlas3(args)
+    if atlas3_exit is not None:
+        return atlas3_exit
 
     parser.error(f"unknown command: {args.command}")  # pragma: no cover - argparse enforces
 

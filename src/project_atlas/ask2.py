@@ -24,6 +24,12 @@ Design invariants (fail-closed):
   ``legacy_compatibility`` with ``authoritative=false`` / ``subordinate=true``
   and can never flip ``status`` to grounded — eliminating the dangerous
   ambiguity where a legacy match masquerades as a grounded answer.
+* **Question-term filtering must not drop a primary relational predicate**
+  (D-181). ``use`` / ``claim`` are scaffolding only inside closed
+  ``claim* … to use*`` constructions — never global stop-words.
+* **Retrieved entity co-occurrence ≠ relational support.** Negated /
+  rejected / migrated relation text cannot ground a positive ``use`` query.
+* **Recall improvements must not reduce grounding precision.**
 
 Bound to the Atlas 1.0 compatibility anchor (AS-2.0-COMPAT-001). Never Layer B.
 """
@@ -32,8 +38,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from project_atlas.compat_anchor import (
     SNAPSHOT_ID,
@@ -42,6 +49,7 @@ from project_atlas.compat_anchor import (
 )
 from project_atlas.hybrid_retrieval import HybridRetrievalError, build_hybrid_rrf_fusion
 from project_atlas.retrieval import RetrievalResult, VaultRetriever
+from project_atlas.retrieval_fusion import tokenize
 from project_atlas.runtime_22 import (
     PROFILE_P2,
     Runtime22Error,
@@ -75,6 +83,121 @@ SUPPORTED_KINDS = frozenset(
 )
 _PROV_REF_FIELDS = ("ref", "source_id", "path", "source_lineage_id")
 _FRESHNESS_COUNT_KEYS = ("fresh", "stale", "unknown")
+_QUESTION_FUNCTION_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "can",
+        "describe",
+        "description",
+        "did",
+        "directories",
+        "directory",
+        "do",
+        "does",
+        "exist",
+        "exists",
+        "explain",
+        "for",
+        "from",
+        "has",
+        "have",
+        "how",
+        "i",
+        "in",
+        "is",
+        "it",
+        "its",
+        "me",
+        "of",
+        "on",
+        "or",
+        "overview",
+        "please",
+        "primary",
+        "project",
+        "purpose",
+        "summary",
+        "tell",
+        "that",
+        "the",
+        "their",
+        "there",
+        "these",
+        "this",
+        "to",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "will",
+        "with",
+        "would",
+    }
+)
+# Closed NL attribute fillers. Not discriminative claim nouns (D-178).
+# claim*/use* are NOT listed here — D-181 keeps them required except inside
+# closed claim-to-use scaffolding (global strip would break D-150/D-181).
+_QUESTION_ATTRIBUTE_FILLERS = frozenset(
+    {
+        "current",
+        "currently",
+        "major",
+        "minor",
+        "run",
+        "running",
+        "runs",
+        "version",
+        "versions",
+    }
+)
+# Closed meta-linguistic claim*/use* lemmas. Stripped from required terms ONLY
+# when they appear inside a closed claim-to-use scaffolding phrase (D-181).
+_CLAIM_SCAFFOLD_LEMMAS = frozenset({"claim", "claims", "claiming", "claimed"})
+_USE_SCAFFOLD_LEMMAS = frozenset({"use", "uses", "using", "used"})
+# Present-tense use* forms that may satisfy a required relational "use" token.
+# Past "used" is intentionally excluded so historical use ≠ current use.
+_USE_PRESENT_SUPPORT = frozenset({"use", "uses", "using"})
+# Closed engine aliases that may satisfy question term "database" / "databases".
+# Do not alias D-150 leftover nouns (target/forecast/vault/ledger/…).
+_DATABASE_SUPPORT_TOKENS = frozenset(
+    {
+        "database",
+        "databases",
+        "datastore",
+        "db",
+        "mongodb",
+        "mysql",
+        "postgres",
+        "postgresql",
+        "sqlite",
+    }
+)
+# claim* … to … use* (≤3 intervening tokens). Deterministic; no fuzzy NLP.
+_CLAIM_TO_USE_SCAFFOLD = re.compile(
+    r"\b(?:claims?|claiming|claimed)(?:\s+\w+){0,3}\s+to\s+"
+    r"(?:uses?|using|used)\b",
+    re.IGNORECASE,
+)
+# Closed negative / non-affirming relation markers on record text (D-181).
+_NEGATIVE_RELATION_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(r"\bdo(?:es)?\s+not\s+use\b", re.IGNORECASE),
+    re.compile(r"\bdon'?t\s+use\b", re.IGNORECASE),
+    re.compile(r"\bnever\s+uses?\b", re.IGNORECASE),
+    re.compile(r"\brejected\b", re.IGNORECASE),
+    re.compile(r"\bevaluated\b.{0,80}\brejected\b", re.IGNORECASE),
+    re.compile(r"\bmigrated\s+(?:away\s+from|to)\b", re.IGNORECASE),
+)
 
 Status = Literal["known", "unknown", "conflict"]
 
@@ -107,16 +230,173 @@ def _record_provenance(hit: RetrievalResult) -> list[dict[str, str]]:
     return pointers
 
 
+_RECORD_TEXT_KEYS: Final[tuple[str, ...]] = (
+    "title",
+    "name",
+    "label",
+    "summary",
+    "description",
+    "body",
+    "text",
+    "content",
+    "claim",
+    "statement",
+    "question",
+    "answer",
+    "rationale",
+    "note",
+    "notes",
+    "excerpt",
+    "path",
+    "field",  # claim attribute under discussion (substantive, not a schema-key leak)
+    "subject",
+    "value",
+)
+
+
+def _collect_record_text(value: Any, *, depth: int = 0) -> list[str]:
+    """Extract substantive text fields from a record (never schema key names)."""
+    if depth > 6:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, dict):
+        out: list[str] = []
+        for key, item in value.items():
+            key_l = str(key).lower()
+            if key_l in _RECORD_TEXT_KEYS or key_l.endswith(("_text", "_body", "_name", "_title")):
+                out.extend(_collect_record_text(item, depth=depth + 1))
+            elif isinstance(item, (dict, list, tuple)):
+                # Descend into nested containers but only harvest known text keys.
+                out.extend(_collect_record_text(item, depth=depth + 1))
+        return out
+    if isinstance(value, (list, tuple)):
+        out = []
+        for item in value:
+            out.extend(_collect_record_text(item, depth=depth + 1))
+        return out
+    return []
+
+
+def _claim_to_use_scaffold_tokens(question: str) -> frozenset[str]:
+    """Return claim*/use* tokens that are meta scaffolding in this question.
+
+    Only tokens matched by the closed ``claim* … to use*`` phrase rule are
+    returned. A bare relational ``use`` (e.g. ``Does Helix use PostgreSQL?``)
+    is never scaffolding.
+    """
+    drop: set[str] = set()
+    for match in _CLAIM_TO_USE_SCAFFOLD.finditer(question):
+        for token in tokenize(match.group(0)):
+            if token in _CLAIM_SCAFFOLD_LEMMAS or token in _USE_SCAFFOLD_LEMMAS:
+                drop.add(token)
+    return frozenset(drop)
+
+
+# Closed "Which/What … version … use?" scaffolding (D-178 Harbor-style).
+# Intentionally does NOT fire on "Does Helix use version control?".
+_VERSION_ATTRIBUTE_USE_SCAFFOLD = re.compile(
+    r"\b(?:which|what)\b[\s\S]{0,80}?\bversions?\b[\s\S]{0,80}?\b(?:does|do)\b[\s\S]{0,80}?\buses?\b",
+    re.IGNORECASE,
+)
+
+
+def _question_claim_terms(
+    question: str, *, project_id: str | None = None
+) -> frozenset[str]:
+    """Extract explicit, discriminative claim terms from a natural-language query.
+
+    Retrieval ranking is deliberately broad; it can return a record merely
+    because it shares a generic word with the question.  Grounding is stricter:
+    every non-function term asserted by the question must be present in the
+    candidate's substantive record text.  An empty term set means the question
+    has no discriminative claim content and cannot ground an answer.
+
+    D-178: exact project-id mentions and closed attribute fillers are not claim
+    nouns. Only the closed Which/What…version…use? scaffold drops use* — not
+    every question that merely contains a version token (preserves D-181).
+    D-181 claim-to-use scaffolding still applies. D-150 leftover nouns stay.
+    """
+    scaffold = _claim_to_use_scaffold_tokens(question)
+    # Strip exact project_id phrase(s) only — do not globally drop every token
+    # that appears inside the slug (keeps substantive "api" outside "harbor-api").
+    q_lex = question
+    if project_id and project_id.strip():
+        q_lex = re.sub(re.escape(project_id.strip()), " ", question, flags=re.IGNORECASE)
+    q_tokens = frozenset(tokenize(q_lex))
+    fillers = set(_QUESTION_ATTRIBUTE_FILLERS)
+    if _VERSION_ATTRIBUTE_USE_SCAFFOLD.search(question):
+        fillers.update({"use", "uses", "using", "used"})
+    return frozenset(
+        token
+        for token in q_tokens
+        if token not in _QUESTION_FUNCTION_WORDS
+        and token not in fillers
+        and token not in scaffold
+        and len(token) > 1
+    )
+
+
+def _record_tokens(hit: RetrievalResult) -> frozenset[str]:
+    """Return lexical support tokens from substantive record text only."""
+    parts = _collect_record_text(hit.record)
+    return frozenset(tokenize("\n".join(parts)))
+
+
+def _record_text_blob(hit: RetrievalResult) -> str:
+    """Joined substantive record text for closed negative-relation scans."""
+    return "\n".join(_collect_record_text(hit.record))
+
+
+def _record_has_negative_relation(hit: RetrievalResult) -> bool:
+    """True when record text negates / rejects / migrates away from a relation."""
+    blob = _record_text_blob(hit)
+    return any(pattern.search(blob) for pattern in _NEGATIVE_RELATION_PATTERNS)
+
+
+def _term_supported_by_record(term: str, record_tokens: frozenset[str]) -> bool:
+    """Closed, auditable support check for one required question term."""
+    if term in record_tokens:
+        return True
+    # Present-tense use* may satisfy relational "use"; past "used" does not.
+    if term == "use" and bool(record_tokens & _USE_PRESENT_SUPPORT):
+        return True
+    if term in {"database", "databases"}:
+        return bool(record_tokens & _DATABASE_SUPPORT_TOKENS)
+    return False
+
+
+def _record_supports_required_terms(
+    hit: RetrievalResult, required_terms: frozenset[str]
+) -> bool:
+    """True when record text relationally supports every required term.
+
+    Entity co-occurrence alone is insufficient when the record carries a
+    closed negative/rejected/migrated relation marker (D-181 precision).
+    """
+    if _record_has_negative_relation(hit):
+        return False
+    tokens = _record_tokens(hit)
+    return all(_term_supported_by_record(term, tokens) for term in required_terms)
+
+
 def _build_candidate(
-    retriever: VaultRetriever, kind: str, record_id: str, scope: str
+    retriever: VaultRetriever,
+    kind: str,
+    record_id: str,
+    scope: str,
+    required_terms: frozenset[str],
 ) -> dict[str, Any] | None:
-    """Resolve one project-scoped record into a compile-context candidate."""
+    """Resolve a claim-supporting record into a compile-context candidate."""
+    if not required_terms:
+        return None
     try:
         hits = retriever.lookup(kind, record_id, prefix=False, project_id=scope)
     except ValueError:
         return None
     hit = next((item for item in hits if item.record_id == record_id), None)
-    if hit is None:
+    if hit is None or not _record_supports_required_terms(hit, required_terms):
         return None
     return {
         "record_type": kind,
@@ -281,6 +561,7 @@ def ask_atlas_2(
         raise Ask2Error(f"ask2-retrieval-cap-invalid:{retrieval_cap!r}")
 
     retriever = VaultRetriever(vault)
+    required_terms = _question_claim_terms(q, project_id=scope)
     candidates: list[dict[str, Any]] = []
     total_results = 0
     for kind in probed:
@@ -298,7 +579,13 @@ def ask_atlas_2(
             raise Ask2Error(f"ask2-retrieval-substrate:{exc}") from exc
         total_results += int(fusion["result_count"])
         for row in fusion["results"]:
-            candidate = _build_candidate(retriever, kind, str(row["record_id"]), scope)
+            candidate = _build_candidate(
+                retriever,
+                kind,
+                str(row["record_id"]),
+                scope,
+                required_terms,
+            )
             if candidate is not None:
                 candidates.append(candidate)
 
@@ -331,7 +618,11 @@ def ask_atlas_2(
     unknown_reasons: list[str] = []
     if not entries:
         unknown_reasons.append("no-grounded-evidence")
-        if not candidates:
+        if not required_terms:
+            unknown_reasons.append("no-discriminative-claim-terms")
+        elif not candidates and total_results:
+            unknown_reasons.append("retrieval-hits-lack-claim-support")
+        elif not candidates:
             unknown_reasons.append("no-project-scoped-retrieval-hits")
         else:
             unknown_reasons.append("all-candidates-excluded")

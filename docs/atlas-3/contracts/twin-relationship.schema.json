@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/atlas3/twin-relationship.schema.json",
+  "title": "Atlas3TwinRelationship",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schema_version",
+    "package",
+    "relationship",
+    "from_id",
+    "to_id",
+    "project_id",
+    "evidence_refs",
+    "authority",
+    "provenance_required"
+  ],
+  "properties": {
+    "schema": { "const": "atlas3.twin-relationship.v1" },
+    "schema_version": { "const": 1 },
+    "package": { "const": "AT3-002" },
+    "relationship": {
+      "enum": [
+        "CONTAINS",
+        "IMPLEMENTS",
+        "DEPENDS_ON",
+        "CLAIMS",
+        "CONTRADICTS",
+        "SUPERSEDES",
+        "VALIDATES",
+        "INVALIDATES",
+        "CAUSED_BY",
+        "DECIDED_BY",
+        "DEPLOYED_AS",
+        "OBSERVED_IN",
+        "OWNED_BY",
+        "DERIVED_FROM",
+        "BLOCKS"
+      ]
+    },
+    "from_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "to_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "project_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+    },
+    "authority": { "const": "derived" },
+    "provenance_required": { "const": true },
+    "graph_is_authority": { "const": false },
+    "honesty": { "type": "object" }
+  }
+}

@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from atlas_contracts.identity import safe_relative_component
+from project_atlas.inventory_drift import (
+    attach_source_drift,
+    evaluate_connect_inventory_drift,
+)
 
 PACKAGE_ID = "AS-CODER-ALPHA-ATTENTION-001"
 GENERATOR_ID = "atlas-coder-alpha-attention-001"
@@ -494,6 +498,20 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
             )
         )
 
+    drift = evaluate_connect_inventory_drift(vault, project_id)
+    if drift.get("status") == "STALE":
+        items.append(
+            _item(
+                level="STALE",
+                kind="source_inventory_stale",
+                reason_code="SOURCE_INVENTORY_STALE",
+                why="live active sources drifted from connect-manifest",
+                impact="CLEAR cannot survive proven source-inventory drift",
+                action="Re-run atlas connect before treating attention as current",
+                evidence=["generated/ops/connect-manifest.json"],
+            )
+        )
+
     rollup_rank = {name: index for index, name in enumerate(_ROLLUP_ORDER)}
     if items:
         rollup = min(
@@ -530,34 +548,38 @@ def classify_attention(vault: Path, project_id: str) -> dict[str, Any]:
         level = str(item.get("level") or "UNKNOWN")
         level_counts[level] = level_counts.get(level, 0) + 1
 
-    return {
-        "schema_version": 1,
-        "schema": "atlas.coder-alpha.attention.v1",
-        "package": PACKAGE_ID,
-        "project_id": project_id,
-        "rollup": rollup,
-        "item_count": len(items),
-        "level_counts": level_counts,
-        "source_failure_total": len(source_failures),
-        "care_about": care_about,
-        "care_about_count": len(care_about),
-        "items": items,
-        "inspected_artifacts": inspected,
-        "generated": {"by": GENERATOR_ID},
-        "inspection": {
-            "conflicts": conflicts_status,
-            "pending": pending_status,
-            "outcomes": outcomes_status,
-            "positively_inspected": len(inspected_ok) == 3 and not unreadable,
+    return attach_source_drift(
+        {
+            "schema_version": 1,
+            "schema": "atlas.coder-alpha.attention.v1",
+            "package": PACKAGE_ID,
+            "project_id": project_id,
+            "rollup": rollup,
+            "item_count": len(items),
+            "level_counts": level_counts,
+            "source_failure_total": len(source_failures),
+            "care_about": care_about,
+            "care_about_count": len(care_about),
+            "items": items,
+            "inspected_artifacts": inspected,
+            "generated": {"by": GENERATOR_ID},
+            "inspection": {
+                "conflicts": conflicts_status,
+                "pending": pending_status,
+                "outcomes": outcomes_status,
+                "positively_inspected": len(inspected_ok) == 3 and not unreadable,
+            },
+            "honesty": {
+                "authentic_pilot": False,
+                "atlas_opt_wake_gate": "CLOSED",
+                "confidence_theatre": False,
+                "lens_is_authority": False,
+                "unknown_is_valid": True,
+                "failures_hidden": False,
+                "clear_requires_positive_inspection": True,
+            },
+            "truth_boundary": "ATTENTION LENS != AUTHORITY / UI != CANONICAL",
         },
-        "honesty": {
-            "authentic_pilot": False,
-            "atlas_opt_wake_gate": "CLOSED",
-            "confidence_theatre": False,
-            "lens_is_authority": False,
-            "unknown_is_valid": True,
-            "failures_hidden": False,
-            "clear_requires_positive_inspection": True,
-        },
-        "truth_boundary": "ATTENTION LENS != AUTHORITY / UI != CANONICAL",
-    }
+        vault,
+        project_id,
+    )
