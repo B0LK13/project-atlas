@@ -76,13 +76,40 @@ if (!pkg.dependencies?.["react-router-dom"]) {
   console.error("AS-WEB-ACCEPT-001 smoke FAIL — react-router-dom required for client routes");
   process.exit(1);
 }
-// PREP-GUARD: Windows Vite/Rollup builds need the native optional package declared
-// (npm optional-deps bug omits it otherwise → Cannot find module @rollup/rollup-win32-x64-msvc).
-if (!pkg.dependencies?.["@rollup/rollup-win32-x64-msvc"]) {
+// PREP-GUARD: Windows Vite/Rollup builds need the platform-specific native
+// package to actually be resolvable, not merely declared. npm's optional-
+// dependency resolution has a known bug (npm/cli#4828 and similar) that
+// can silently skip installing an optionalDependencies entry even on a
+// matching platform. Checked here directly against the installed tree (on
+// win32 only -- irrelevant elsewhere), not against which package.json
+// section declares it: the package stays under optionalDependencies
+// (never `dependencies`) because its own "os": ["win32"] field is only
+// honored by npm's *optional*-dependency platform filter -- moving it to
+// `dependencies` makes an unsupported-platform install a hard `npm ci`/
+// `npm install` failure (EBADPLATFORM) on Linux/macOS instead of a no-op.
+if (process.platform === "win32" && !pkg.optionalDependencies?.["@rollup/rollup-win32-x64-msvc"]) {
   console.error(
-    "AS-WEB-ACCEPT-001 smoke FAIL — declare @rollup/rollup-win32-x64-msvc for Windows builds",
+    "AS-WEB-ACCEPT-001 smoke FAIL — declare @rollup/rollup-win32-x64-msvc " +
+      "under optionalDependencies for Windows builds",
   );
   process.exit(1);
+}
+if (process.platform === "win32") {
+  const rollupWin32Entry = join(
+    root,
+    "node_modules",
+    "@rollup",
+    "rollup-win32-x64-msvc",
+    "package.json",
+  );
+  if (!existsSync(rollupWin32Entry)) {
+    console.error(
+      "AS-WEB-ACCEPT-001 smoke FAIL — @rollup/rollup-win32-x64-msvc did not install " +
+        "(known npm optional-deps bug on Windows, npm/cli#4828: delete node_modules + " +
+        "package-lock.json and re-run npm install)",
+    );
+    process.exit(1);
+  }
 }
 
 const tokens = readFileSync(join(root, "src/tokens.css"), "utf8");
