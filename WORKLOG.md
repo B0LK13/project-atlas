@@ -8008,3 +8008,245 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001D/E.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001D-011 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `5ff62221` (ORCH001D-001..010
+  implementation, already merged). No production surface touched. Does
+  **not** cover ORCH001D-012 (Authentic Local Windows Cursor agent
+  dispatch acceptance) -- that item requires a live Cursor CLI
+  (`agent`/`cursor-agent` on PATH), which is unavailable in this
+  environment; left `EXTERNAL_BLOCKED`, unchecked, as-is.
+  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Risk-mapping before execution (`run_dispatch_once` reaches
+  `subprocess.run`, materially higher risk than the pure-function
+  ORCH001A/B classify/route logic): read `dispatcher.py` +
+  `agent_transport.py` end to end first. Found the dispatcher's own
+  tests already inject a `_FakeRunner` (a `ProcessRunner` Protocol
+  implementation) rather than spawning real processes -- the existing
+  test convention already isolates `PURE_LOGIC_BEHAVIOR` from
+  `PROCESS_SPAWN_BEHAVIOR`. Command construction (`build_launch_plan`,
+  `resolve_cursor_transport`) is pure and independently testable without
+  any subprocess. The real transport (`SubprocessProcessRunner`) is a
+  thin translation layer (`shell=False` always, timeout clamped to
+  [1, 86400]s, cwd must exist, returned output truncated to
+  `MAX_CAPTURED_BYTES`) -- testable with a benign, already-present
+  interpreter (`sys.executable`) standing in for the Cursor CLI, without
+  needing Cursor itself. Classified: command construction +
+  eligibility/fail-closed logic = `SAFE_LOCAL`; transport mechanics with
+  a benign real subprocess = `SAFE_ISOLATED`; authentic Cursor dispatch =
+  `AUTHENTIC_ENV_REQUIRED` (out of scope, = ORCH001D-012).
+- Baseline: existing suite re-run clean --
+  test_orchestration_dispatcher.py + test_orchestration_agent_transport.py
+  + test_orchestration_explicit_completion.py +
+  test_orchestration_result_binding_windows.py = 32 PASS.
+- SAFE_LOCAL adversarial probes against `build_launch_plan` /
+  `resolve_cursor_transport` directly (pure functions, zero subprocess):
+  oversized prompt (>8192 chars) -> `PROMPT_REJECTED`; NUL byte in prompt
+  -> `PROMPT_REJECTED`; empty prompt -> `PROMPT_REJECTED`; nonexistent
+  cwd -> `WORKSPACE_UNSAFE`; executable path-traversal attempt
+  (`../../../windows/system32/cmd.exe`) -> `EXECUTABLE_REJECTED`. One
+  probe (prompt text containing `"--force rm -rf /"`) produced no
+  rejection, but this is confirmed **not** a gap: the forbidden-flag
+  check scans `argv`, and the prompt is structurally stdin-only -- it
+  never reaches argv (a separate, already-present check explicitly
+  raises `PROMPT_REJECTED` if the prompt string ever appears inside any
+  argv token) -- so prompt content cannot influence which flags are
+  passed regardless of what it contains. The actual argv flags are a
+  fixed constant (`READ_ONLY_CURSOR_FLAGS = ("--print",
+  "--output-format", "json", "--mode", "ask")`), not derived from the
+  prompt or envelope at all.
+- SAFE_ISOLATED probes: real (not mocked) `SubprocessProcessRunner.run()`
+  calls using `sys.executable` as a benign stand-in executable, in an
+  isolated temp cwd:
+  1. Benign roundtrip: exit 0, correct stdout, `timed_out=False`.
+  2. Nonzero exit code (7) correctly propagated.
+  3. Timeout enforcement: a process sleeping 5s with `timeout_seconds=1`
+     was actually killed at ~1.0s wall-clock (not left to run 5s),
+     reported `timed_out=True`, `exit_code=124`.
+  4. Empty argv -> `ARGV_REJECTED`, no process spawned.
+  5. Out-of-bounds timeout (`0`) -> `TIMEOUT_REJECTED`, no process spawned.
+  6. `shell=False` proof: an argv element containing shell
+     metacharacters (`"ignored; echo INJECTED"`) was received by the
+     child process as one literal argument (verified via the child's own
+     `sys.argv[1]` echoed back verbatim) -- not interpreted, split, or
+     chained by a shell. Command injection via `;`/`&&` is structurally
+     impossible through this runner, demonstrated authentically rather
+     than merely asserted from reading `shell=False` in source.
+- Finding: eligibility/fail-closed logic, command construction, and the
+  real process-spawn transport all hold under adversarial probing. No
+  path found to shell injection, argv-based flag smuggling, unbounded
+  hangs, or spawning with an unvalidated cwd/executable.
+- Result (initial pass): eligibility/fail-closed logic, command
+  construction, and the real process-spawn transport all held under the
+  probes above. `ORCH001D-012` (authentic Cursor dispatch) remains
+  separately unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+
+### PR #620 review findings and remediation (same day, same PR)
+
+Two independent review findings on the entry above (Codex, both P2) were
+correct and required action before `ORCH001D-011` could stand as `PASS`:
+
+**Finding 1 -- captured output was not actually memory-bounded.**
+`SubprocessProcessRunner` used `subprocess.run(capture_output=True)`,
+which buffers a child's *complete* stdout/stderr via
+`Popen.communicate()` before the old `bound_captured_bytes(data) =
+data[:MAX_CAPTURED_BYTES]` truncated the *returned* value. Parent-process
+memory during collection was unbounded regardless of the eventual
+truncation -- confirmed as the root cause by reading the CPython
+`subprocess` module's own behavior, not assumed. `RETURNED_OUTPUT_BOUNDED
+= YES` but `PROCESS_CAPTURE_MEMORY_BOUNDED = NO`. The prior WORKLOG entry
+above ("returned output truncated to `MAX_CAPTURED_BYTES`") is corrected
+by this note; the original wording that said "output bounded" without
+qualification overstated what the code did.
+
+Remediation: rewrote `SubprocessProcessRunner.run()` to use
+`subprocess.Popen` directly with two dedicated reader threads (one per
+stream), each draining its pipe to EOF via a bounded helper
+(`_drain_bounded`) that keeps only the first `MAX_CAPTURED_BYTES` and
+discards (without retaining) everything past the cap -- so a child can
+never force unbounded parent memory growth, and critically the pipe is
+still fully drained past the cap so the child can never deadlock writing
+to a full OS pipe buffer while the excess is discarded. `shell=False`,
+the timeout bound `[1, 86400]s`, and the cwd-must-exist check are
+unchanged. `bound_captured_bytes()` (the old, now-superseded truncation
+function) was removed rather than left as dead code that could mislead a
+future reader into reusing the flawed pattern.
+
+**Finding 2 -- IV probe evidence was prose-only, not reproducible.**
+The ad-hoc probes for this entry were run in a terminal and summarized
+here, with no checked-in artifact a later verifier could re-run.
+Corrected by adding `tests/unit/test_orch001d_011_iv_probes.py`,
+containing every SAFE_LOCAL/SAFE_ISOLATED probe from the original pass as
+real pytest tests, plus the capture-bound regression set below. Evidence
+class distinction going forward: `AD_HOC_PROBE = EXECUTED` (this
+WORKLOG's prose) is not the same claim as `DURABLE_REGRESSION_TEST =
+PRESENT` (a file in the repo) -- historical entries that only executed
+ad-hoc probes are not rewritten to claim tests existed at the time; new
+work adds real tests going forward.
+
+**Capture-bound regression tests added** (`test_orch001d_011_iv_probes.py`,
+all against the real, unmocked `SubprocessProcessRunner`):
+large stdout past the cap; large stderr past the cap; large stdout *and*
+stderr concurrently (the deadlock-reintroduction trap a naive fix could
+hit, since a naive drain-one-stream-first implementation blocks the child
+on the other stream's full pipe buffer); output exactly at the boundary
+(unaltered); one byte over the boundary (truncated by exactly one);
+empty output; binary/non-UTF-8 output (returned as raw bytes, never
+decoded); nonzero exit code with oversized output (both reported
+correctly together); timeout with output already produced before the
+kill (preserved, not discarded); normal small-output behavior (unchanged
+from before the fix).
+
+**Local verification of the remediation:**
+- New test file: 22 passed (`test_orch001d_011_iv_probes.py`).
+- Full orchestration regression:
+  `test_orchestration_dispatcher.py` + `test_orchestration_agent_transport.py`
+  (including the real, unmocked, `skipif(os.name != "nt")` authentic-Windows
+  `CreateProcess` tests -- this machine is Windows, so they ran for real,
+  not skipped) + `test_orchestration_explicit_completion.py` +
+  `test_orchestration_result_binding.py` +
+  `test_orchestration_result_binding_windows.py` (also real Windows
+  subprocess tests) + `test_orch001d_011_iv_probes.py` +
+  `test_orchestration_cursor_bridge.py` = 106 passed.
+- `ruff check` (2 changed files): clean.
+- `mypy src/project_atlas/orchestration/agent_transport.py`: clean.
+- Confirmed `agent_transport.py` has exactly one production importer
+  (`dispatcher.py`), so the blast radius of this change is contained to
+  what was already covered above.
+
+**Independent adversarial verification (round 1): dispatched to a
+separate subagent (implementer must not self-certify), bound to exact
+head `3d2276bc3d78067b564a731347259c514a7ff450`. VERDICT: FAIL.**
+
+The verifier confirmed `MEMORY_BOUND_IS_REAL` (measured directly: a
+150MB child write produced ~0.46MB parent memory growth, via
+`GetProcessMemoryInfo`) and `AUTHORIZATION_PRECEDES_EXECUTION` unchanged,
+but found `OUTPUT_BOUNDING_DOES_NOT_CHANGE_PROCESS_SEMANTICS` **false** --
+a real, independently-discovered regression this specific commit
+introduced (not one of the two review findings above; found by the
+verifier's own line-by-line read and adversarial testing):
+
+**Finding 3 (P1) -- the fix silently defeated the timeout when stdin was
+present.** `SubprocessProcessRunner.run()` wrote `request.stdin`
+synchronously in the main thread *before* `proc.wait(timeout=...)` was
+ever reached. A child that does not promptly read stdin fills the OS
+pipe buffer and blocks that write, with no timeout applied to the block
+-- `timeout_seconds` was silently not enforced whenever stdin was
+populated, which is always true on the real dispatch path (the verifier
+reproduced this at the *exact* production stdin ceiling, `8192` bytes /
+`MAX_PROMPT_CHARS`: requested `timeout_seconds=2`, actual elapsed
+`10.08s`, `timed_out=False`). A control test against the pre-fix
+`Popen.communicate()`-based implementation, identical scenario, correctly
+raised `TimeoutExpired` at 2.02s -- proving this was a genuine regression
+introduced by the memory-bound rewrite, not pre-existing behavior. None
+of the 22 new tests exercised stdin together with a slow/non-reading
+child, so nothing caught it locally.
+
+Remediation: write `request.stdin` on its own dedicated thread too
+(matching the stdout/stderr treatment), started *before*
+`proc.wait(timeout=...)`, so the timeout genuinely bounds the whole call
+regardless of whether the child reads stdin promptly. If the process is
+killed on timeout, the child's stdin read end closes and the pending
+write unblocks with a (caught) broken-pipe error.
+
+Added `test_timeout_is_enforced_even_with_slow_to_read_stdin` (uses
+`MAX_PROMPT_CHARS`, the real production ceiling, not an arbitrary size)
+reproducing the verifier's exact scenario as a permanent regression test.
+
+**Local verification of the round-2 fix:**
+- Reproduced the verifier's exact scenario against the fixed code first
+  (red/green): before the fix, 10.08s elapsed against a 2s timeout; after,
+  2.03s, `timed_out=True`, `exit_code=124`.
+- Full orchestration regression (same file set as round 1, plus the new
+  test): 107 passed.
+- `ruff check` / `mypy` (2 changed files): clean.
+
+**Independent adversarial verification (round 2): dispatched to a
+separate subagent, bound to exact head
+`4e36569a3cd1ea047ef6bf16df5877f472c56495`. VERDICT: PASS.**
+
+The verifier independently re-read the fix line by line (confirmed the
+stdin thread genuinely starts before `proc.wait(timeout=...)`, confirmed
+no shared mutable state between the three I/O threads, confirmed no
+double-close path on `proc.stdin`), independently reproduced the round-1
+defect's exact scenario against the fix (2.03s, matching the claim), and
+went beyond round 1 with 7 further adversarial variants -- all measured,
+none assumed:
+
+- 1MB stdin (not just the exact `MAX_PROMPT_CHARS` ceiling) with a
+  non-reading child: timeout still correctly enforced (2.02s) -- the fix
+  generalizes, wasn't narrowly tuned to one size.
+- Partial stdin read (1024 bytes) then hang: timeout still correctly
+  enforced (2.03s).
+- 2MB stdout + 2MB stderr + 1MB stdin all concurrently, short timeout:
+  correctly enforced (2.03s), both streams capped at exactly
+  `MAX_CAPTURED_BYTES` -- no three-way interaction bug beyond round 1's
+  two-way (stdout+stderr only) concurrency case.
+- Fast-exiting child that never reads a 512KB stdin payload: broken pipe
+  caught cleanly, no hang, no escaped exception, exit 0 in 0.07s.
+- `stdin=b""` vs `stdin=None`: both behave correctly, no divergence.
+- Round-1's memory-bound fix re-measured independently (150MB child
+  write) after this second change, to catch a regression-of-a-regression:
+  working-set growth ~0MB (noise-level) -- confirmed still intact,
+  untouched by the stdin fix.
+- 30 repeated `run()` calls with stdin populated: `threading.active_count()`
+  unchanged before/after -- no thread leak from the new stdin thread.
+
+Also confirmed via diff (`3d2276bc` vs `4e36569a`, `src/` only) that this
+fix touches only the stdin-handling logic in
+`SubprocessProcessRunner.run()` -- `_drain_bounded` and the
+`MAX_CAPTURED_BYTES` enforcement from round 1 are byte-for-byte
+untouched. Full regression suite (107), ruff, and mypy independently
+re-run and confirmed clean by the verifier as well, not just trusted from
+the implementer's own claim.
+
+**`ORCH001D-011 = PASS`**, implementer remediation (2 rounds) and
+independent adversarial verification (2 rounds, second one clean) both
+converged. `ORCH001D-012` (authentic Cursor dispatch) remains separately
+unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
+  authority; does not certify ORCH001E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

@@ -494,7 +494,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher (current-main reconstruction)
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
+_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (ORCH001D-011 independently verified 2026-08-28 across two rounds -- round 1 found and remediated a real P2 (subprocess capture memory-bound) and, on independent re-verification, a real P1 (fix silently defeated the timeout when stdin was present); round 2 independently re-verified the fix clean with 7 further adversarial variants; see WORKLOG "ORCH001D-011"; ORCH001D-012 authentic-Cursor acceptance remains separately outstanding, EXTERNAL_BLOCKED here; not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
 
 Honesty (mandatory):
 
@@ -520,7 +520,7 @@ Honesty (mandatory):
 - [x] ORCH001D-008 `atlas orchestrator dispatch-once` / `dispatch-status`
 - [x] ORCH001D-009 Mutating remediation fail closed (`CAPABILITY_REQUIRED`)
 - [x] ORCH001D-010 Focused unit + schema tests
-- [ ] ORCH001D-011 Independent verification
+- [x] ORCH001D-011 Independent verification (2026-08-28: round 1 IV found a real P2 -- capture bounded only on the returned value, not during collection -- remediated; round-1 *independent* re-verification found a further real P1 -- the fix silently defeated `timeout_seconds` whenever stdin was populated (always true on the real dispatch path) -- remediated; round-2 independent re-verification PASS with 7 further adversarial variants beyond round 1's, confirming the memory-bound fix stayed intact and no thread leak. 107 orchestration tests pass, ruff/mypy clean. See WORKLOG "ORCH001D-011"; still not merge-eligible)
 - [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 
