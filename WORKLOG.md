@@ -8827,7 +8827,25 @@ not attempted.
   clean.
 - `SELF_CERTIFICATION = FORBIDDEN`; independent re-verification dispatched
   separately, not yet consumed as of this entry.
-- `MERGE_AUTHORIZATION = NOT_GRANTED`; production code, owner-gated.
+- **Correction, discovered after this PR was already pushed**:
+  `src/project_atlas/api_server.py` is listed in the `DENY` tuple of
+  `tests/unit/test_atlas3_demo_isolation_001.py::test_certified_surfaces_unmodified`
+  -- a repo-encoded freeze added 3 days prior by a separate, unrelated
+  "Atlas 3" workstream (commit `cefc234e`), asserting this file is
+  unmodified relative to `origin/main` on any branch. Verified directly,
+  twice: (1) `git diff --name-only origin/main...HEAD` on this exact fix
+  branch returns exactly `src/project_atlas/api_server.py`, which is in
+  `DENY` -- the assertion will fail; (2) confirmed the file and its
+  `DENY` tuple content by direct read. This is an explicit ownership
+  contract, not a heuristic, and this session is not overriding it or
+  inventing precedence over it. `PR628` is not withdrawn (the fix itself
+  remains verified correct and locally tested), but its CI is expected
+  to fail on this specific unrelated gate, and it cannot be certified
+  or merged without an owner decision: either a scoped exception to the
+  freeze for this specific fix, or holding it until the freeze lifts /
+  the two workstreams reconcile ownership of this file.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`; production code, owner-gated, now
+  additionally blocked by the Atlas-3 certified-surface freeze above.
 
 ### PR #410 (AS-CODER-ALPHA-CONNECT-PERF-001) — certified candidate
 
@@ -8914,5 +8932,24 @@ not attempted.
   own test plan.
 - Result: `PR417_INDEPENDENT_IV = PASS_WITH_NONBLOCKING_FINDINGS`.
   `PR417_MERGE = OWNER_HELD`, unaffected by this result.
+
+### AS-PROJECT-ROADMAP-001 — basic recheck (not a fresh full IV)
+
+- The backlog's `ROADMAP_LOCAL_AUTHENTIC_IV=PENDING_RECHECK` note refers
+  to a real, historical `PASS` (WORKLOG "D-100 -- Roadmap Local authentic
+  re-IV", 2026-08-15) that was explicitly pinned to one specific
+  historical commit ("Exact object Local tested (permanent pin; later
+  refresh != this object)") -- not a stale checkbox, a genuinely
+  out-of-date snapshot given how far `main` has moved since.
+- Ran the current test suite (`test_as_project_roadmap_001.py`,
+  `test_as_project_roadmap_nav.py`, `test_as_project_roadmap_web.py`)
+  directly against current `main` `a94bec4158bf16e638ffa988951907121740a442`:
+  34/34 pass.
+- This is recorded as a **basic recheck** only -- confirms the existing
+  certified logic still passes its own test suite on current main. It is
+  explicitly **not** a fresh full adversarial IV matching the rigor of
+  this entry's other packages (no new adversarial construction attempted
+  here); that remains open if a full re-certification is wanted.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`.
 
 - `MERGE_AUTHORIZATION = NOT_GRANTED` (all items in this entry).
