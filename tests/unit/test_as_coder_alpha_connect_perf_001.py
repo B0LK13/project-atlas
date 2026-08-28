@@ -122,3 +122,15 @@ def test_live_cold_warm_and_lenses_are_measured(tmp_path: Path) -> None:
     assert "AKIA" not in vault_blob
     assert report["project_id"]
     assert report["project_id"] != "portal-app"
+
+
+def test_cold_lane_rejects_an_already_connected_root(tmp_path: Path) -> None:
+    """Measure, do not game: a second invocation against the same
+    project_root must not silently relabel a skip as "cold". Independent
+    review found that a re-run against an already-connected root reported
+    disposition=no_change_skip under the cold_connect lane name, which
+    would misrepresent a skip as a genuine cold measurement."""
+    project = seed_perf_fixture(tmp_path / "perf-root")
+    run_connect_perf_baseline(project)
+    with pytest.raises(ConnectPerfError, match="cold_connect lane requires"):
+        run_connect_perf_baseline(project)

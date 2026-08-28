@@ -217,6 +217,13 @@ def run_connect_perf_baseline(project_root: Path) -> dict[str, Any]:
     cold_report, cold_ms = _time_ms(lambda: connect_project(project_root))
     if not isinstance(cold_report, dict) or cold_report.get("status") != "connected":
         raise ConnectPerfError("cold connect did not report connected")
+    cold_disposition = _incr(cold_report).get("disposition")
+    if cold_disposition != "full_compile":
+        raise ConnectPerfError(
+            "cold_connect lane requires a genuinely unconnected project_root "
+            f"(expected disposition=full_compile, got {cold_disposition!r}); "
+            "measure, do not game -- do not label a skip as cold"
+        )
     vault = Path(str(cold_report["vault"]))
     project_id = str(cold_report.get("bound_project_id") or "")
     samples = [_sample_from_connect("cold_connect", cold_report, cold_ms)]
