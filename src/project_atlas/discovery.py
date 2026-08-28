@@ -261,3 +261,4 @@ def write_manifest(manifest: dict[str, Any], output: Path) -> None:
     temporary = output.with_name(f".{output.name}.tmp")
     temporary.write_text(content, encoding="utf-8")
     os.replace(temporary, output)
+# freeze-guard hosted-CI detection proof -- DO NOT MERGE, throwaway
