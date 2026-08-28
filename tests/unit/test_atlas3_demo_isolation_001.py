@@ -12,6 +12,15 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
+# Every git subprocess call in this module is bounded. A hung git process
+# (most plausibly the network-dependent fetch, e.g. a credential prompt
+# that never resolves, or an unusual server-side negotiation) must fail
+# loudly within a bounded time, never silently consume an entire hosted
+# CI job's runtime -- discovered the hard way when an untimed `git fetch`
+# call left a real hosted CI run "in_progress" for over an hour.
+_LOCAL_GIT_TIMEOUT_SECONDS = 30
+_NETWORK_GIT_TIMEOUT_SECONDS = 60
+
 DENY = (
     "src/project_atlas/chatgpt_bridge.py",
     "src/project_atlas/chatgpt_capture.py",
@@ -53,6 +62,7 @@ def _has_any_remote(*, root: Path) -> bool:
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     return result.returncode == 0 and bool(result.stdout.strip())
 
@@ -154,8 +164,10 @@ def _event_push_before_sha(*, env: Mapping[str, str] | None = None) -> str | Non
 def _ensure_commit_fetched(sha: str, *, root: Path) -> None:
     """Make ``sha`` resolvable in the local object database, fetching it
     directly by SHA if a shallow checkout did not already include it.
-    Raises if the fetch itself fails -- a comparison base that cannot be
-    obtained must not be silently skipped.
+    Raises if the fetch itself fails, is refused, or does not complete
+    within a bounded time -- a comparison base that cannot be obtained
+    must not be silently skipped, and must never be allowed to hang the
+    calling process indefinitely.
     """
     probe = subprocess.run(
         ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
@@ -163,16 +175,25 @@ def _ensure_commit_fetched(sha: str, *, root: Path) -> None:
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     if probe.returncode == 0:
         return
-    fetch = subprocess.run(
-        ["git", "fetch", "--depth=1", "origin", sha],
-        cwd=root,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        fetch = subprocess.run(
+            ["git", "fetch", "--depth=1", "origin", sha],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_NETWORK_GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise DemoIsolationGuardError(
+            f"fetching commit {sha} for the freeze-guard comparison did "
+            f"not complete within {_NETWORK_GIT_TIMEOUT_SECONDS}s -- "
+            "treating as a fetch failure rather than hanging"
+        ) from exc
     if fetch.returncode != 0:
         raise DemoIsolationGuardError(
             f"could not fetch commit {sha} needed for the freeze-guard "
@@ -180,19 +201,23 @@ def _ensure_commit_fetched(sha: str, *, root: Path) -> None:
         )
 
 
-def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -> str:
-    """Return the exact commit SHA the freeze guard must diff HEAD
-    against, and guarantee it is fetched/resolvable in ``root``'s local
-    object database before returning. Always a resolved commit SHA, never
-    a floating ref name -- callers can diff directly against the return
-    value without a further resolution step.
+def _resolve_diff_base_and_mode(
+    *, root: Path = ROOT, env: Mapping[str, str] | None = None
+) -> tuple[str, bool]:
+    """Return ``(sha, exact)`` -- the commit SHA the freeze guard must diff
+    HEAD against, and whether that SHA is an *exact* changeset endpoint
+    (``True``: a GitHub event's own base/before SHA, safe to diff directly
+    against) or a *floating local fallback* (``False``: ``origin/main``
+    resolved outside any CI event context, which can independently advance
+    out from under a local branch and must be diffed via its merge-base
+    with HEAD instead, or an unrelated upstream change to a DENY-listed
+    path would false-positive as though the local branch itself made it).
 
     Prefers the authoritative GitHub ``pull_request`` event base SHA, then
-    the ``push`` event's pre-push SHA, when running in either context
-    (both work correctly under any checkout depth, including the hosted
-    CI default of a single-commit shallow fetch). Falls back to
-    ``origin/main`` for local/full-clone use, but only when a git remote
-    is actually configured at all -- raises
+    the ``push`` event's pre-push SHA (both exact, both correct under any
+    checkout depth including the hosted CI default of a single-commit
+    shallow fetch). Falls back to ``origin/main`` for local/full-clone use,
+    but only when a git remote is actually configured at all -- raises
     ``DemoIsolationGuardNotApplicable`` (not ``DemoIsolationGuardError``)
     when neither a recognized CI event context nor any remote exists,
     since a source archive, vendored copy, or a checkout with remotes
@@ -207,11 +232,11 @@ def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = Non
     if pr_shas is not None:
         base_sha, _head_sha = pr_shas
         _ensure_commit_fetched(base_sha, root=root)
-        return base_sha
+        return base_sha, True
     push_before = _event_push_before_sha(env=env)
     if push_before is not None:
         _ensure_commit_fetched(push_before, root=root)
-        return push_before
+        return push_before, True
     if not _has_any_remote(root=root):
         raise DemoIsolationGuardNotApplicable(
             "not running in a GitHub Actions pull_request or push context, "
@@ -225,6 +250,7 @@ def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = Non
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     if resolve.returncode != 0:
         raise DemoIsolationGuardError(
@@ -233,30 +259,72 @@ def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = Non
             "-- cannot determine the freeze-guard comparison base (this "
             "must fail, not pass)"
         )
-    return resolve.stdout.strip()
+    return resolve.stdout.strip(), False
+
+
+def _resolve_diff_base(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -> str:
+    """Return just the resolved comparison SHA (see
+    ``_resolve_diff_base_and_mode`` for the full contract, including the
+    exact-vs-floating-fallback distinction that ``_changed_paths`` needs
+    and this wrapper deliberately discards for callers that only want the
+    commit itself, e.g. ``test_cli_mutation_is_additive_only``'s own
+    direct diff against ``cli.py``)."""
+    sha, _exact = _resolve_diff_base_and_mode(root=root, env=env)
+    return sha
 
 
 def _changed_paths(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -> set[str]:
     """Return every path changed relative to the resolved diff base, plus
     any uncommitted worktree/staged changes. Fails closed (raises via
-    ``_resolve_diff_base``) if the comparison base cannot be determined --
-    never silently returns an empty/inconclusive result as if nothing
-    changed.
+    ``_resolve_diff_base_and_mode``) if the comparison base cannot be
+    determined -- never silently returns an empty/inconclusive result as
+    if nothing changed.
     """
-    base = _resolve_diff_base(root=root, env=env)
-    # Direct two-endpoint diff, not three-dot merge-base diff: when `base`
-    # is an exact PR-event SHA, computing a merge-base can fail outright
-    # under a shallow/disconnected fetch (no shared history graph) even
-    # though both endpoints are individually resolvable. A direct diff
-    # needs only the two commits' trees, not their ancestry, and is exactly
-    # correct here since `base` is already the PR's real base commit, not
-    # a possibly-since-moved branch tip.
+    base, exact = _resolve_diff_base_and_mode(root=root, env=env)
+    if exact:
+        # Direct two-endpoint diff, not three-dot merge-base diff: `base`
+        # is an exact PR/push-event SHA, and computing a merge-base can
+        # fail outright under a shallow/disconnected fetch (no shared
+        # history graph) even though both endpoints are individually
+        # resolvable. A direct diff needs only the two commits' trees, not
+        # their ancestry, and is exactly correct here since `base` is
+        # already the changeset's real prior commit, not a possibly-
+        # since-moved branch tip.
+        diff_base = base
+    else:
+        # `base` is the floating local-fallback `origin/main`, resolved
+        # outside any CI event context (full clone required -- property 7
+        # -- so a merge-base computation is safe and expected to succeed
+        # here, unlike in the shallow exact-SHA case above). A direct diff
+        # against the live `origin/main` tip would false-positive on any
+        # DENY-listed path main has independently advanced since this
+        # branch last rebased/merged, flagging it as though the local
+        # branch itself touched it. Diffing against the merge-base instead
+        # (equivalent to a three-dot diff) isolates exactly the local
+        # branch's own changes, which is what this guard is actually
+        # supposed to enforce.
+        merge_base = subprocess.run(
+            ["git", "merge-base", base, "HEAD"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
+        )
+        if merge_base.returncode != 0:
+            raise DemoIsolationGuardError(
+                f"could not compute a merge-base between {base} and HEAD "
+                f"for the local-fallback freeze-guard comparison: "
+                f"{merge_base.stderr.strip()}"
+            )
+        diff_base = merge_base.stdout.strip()
     committed = subprocess.run(
-        ["git", "diff", "--name-only", base, "HEAD"],
+        ["git", "diff", "--name-only", diff_base, "HEAD"],
         cwd=root,
         check=True,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     worktree = subprocess.run(
         ["git", "diff", "--name-only"],
@@ -264,6 +332,7 @@ def _changed_paths(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     staged = subprocess.run(
         ["git", "diff", "--name-only", "--cached"],
@@ -271,6 +340,7 @@ def _changed_paths(*, root: Path = ROOT, env: Mapping[str, str] | None = None) -
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     names = "\n".join([committed.stdout, worktree.stdout, staged.stdout])
     return {line.strip() for line in names.splitlines() if line.strip()}
@@ -299,6 +369,7 @@ def test_cli_mutation_is_additive_only() -> None:
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     text = diff.stdout
     assert "register_atlas3_parsers" in text
@@ -329,6 +400,7 @@ def _run_git(args: list[str], *, cwd: Path) -> str:
         check=True,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
         env={
             **os.environ,
             "GIT_AUTHOR_NAME": "freeze-guard-test",
@@ -443,6 +515,7 @@ def test_freeze_guard_survives_shallow_single_commit_checkout(tmp_path: Path) ->
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     assert probe.returncode != 0, "fixture setup error: base commit unexpectedly present"
 
@@ -550,6 +623,7 @@ def test_freeze_guard_local_full_clone_behavior_preserved() -> None:
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     if resolve.returncode != 0:
         return  # no origin/main available in this environment either; nothing to assert
@@ -609,6 +683,7 @@ def test_freeze_guard_detects_frozen_path_via_push_event_before_sha(tmp_path: Pa
         check=False,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
     )
     assert probe.returncode != 0, "fixture setup error: base commit unexpectedly present"
 
@@ -676,3 +751,159 @@ def test_freeze_guard_push_event_fails_closed_on_first_push_sentinel(tmp_path: P
     except DemoIsolationGuardError:
         return
     raise AssertionError("expected DemoIsolationGuardError, guard did not fail closed")
+
+
+# ---------------------------------------------------------------------------
+# Round-4 fixes. An independent re-verifier of round 3 (bound to exact head
+# 99ce6fbf3329273425025643bc5963cd805b2005) reproduced a real, pre-existing
+# P2 in the local/full-clone fallback path (property 7): because
+# `_changed_paths` diffed directly against the live `origin/main` tip
+# rather than its merge-base with HEAD, a local branch that is behind
+# `origin/main` would false-positive on any DENY-listed path main had
+# independently advanced since -- flagging it as though the local branch
+# itself had touched it. This matches a stale Copilot review comment on
+# this PR's round-1 head that the earlier three-dot-to-direct-diff switch
+# had not accounted for. Fixed by computing an explicit merge-base for
+# this one fallback path (safe here: full clone, not the shallow
+# exact-SHA CI-event case the original direct-diff switch was protecting).
+# ---------------------------------------------------------------------------
+
+
+def test_freeze_guard_local_fallback_no_false_positive_on_diverged_main(
+    tmp_path: Path,
+) -> None:
+    """The local/full-clone fallback (no CI event context) must diff HEAD
+    against its merge-base with origin/main, not origin/main's live tip --
+    otherwise an unrelated DENY-listed change that main picked up AFTER
+    this branch diverged reads as a violation the local branch never
+    committed."""
+    origin = tmp_path / "origin-bare"
+    _run_git(["init", "-q", "--bare", "-b", "main", str(origin)], cwd=tmp_path)
+
+    seed = _init_fixture_repo(tmp_path)
+    _run_git(["remote", "add", "origin", str(origin)], cwd=seed)
+    _run_git(["push", "-q", "origin", "main"], cwd=seed)
+
+    clone = tmp_path / "diverged-clone"
+    _run_git(["clone", "-q", "--no-local", str(origin), str(clone)], cwd=tmp_path)
+
+    # The local branch makes its own, allowed-only change and diverges.
+    local_change = clone / "src" / "project_atlas" / "totally_unrelated_module.py"
+    local_change.parent.mkdir(parents=True)
+    local_change.write_text("# local branch's own change\n", encoding="utf-8")
+    _run_git(["add", "-A"], cwd=clone)
+    _run_git(["commit", "-q", "-m", "local branch change"], cwd=clone)
+
+    # Meanwhile origin/main independently advances with a DENY-listed
+    # change the local branch never saw and never touched.
+    frozen = seed / "src" / "project_atlas" / "authz.py"
+    frozen.parent.mkdir(parents=True)
+    frozen.write_text("# unrelated upstream change\n", encoding="utf-8")
+    _run_git(["add", "-A"], cwd=seed)
+    _run_git(["commit", "-q", "-m", "upstream touches frozen surface"], cwd=seed)
+    _run_git(["push", "-q", "origin", "main"], cwd=seed)
+    _run_git(["fetch", "-q", "origin"], cwd=clone)
+
+    # Precondition: the naive direct diff WOULD flag the frozen path here.
+    naive = subprocess.run(
+        ["git", "diff", "--name-only", "origin/main", "HEAD"],
+        cwd=clone,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
+    )
+    assert "src/project_atlas/authz.py" in naive.stdout, (
+        "fixture setup error: expected the direct-diff false positive "
+        "precondition to hold before asserting the fix avoids it"
+    )
+
+    changed = _changed_paths(root=clone, env={})
+    violated = sorted(path for path in DENY if path in changed)
+
+    assert violated == [], (
+        "local-fallback diff must isolate the local branch's own changes "
+        f"via merge-base, not flag upstream-only advancement: {violated}"
+    )
+    assert "src/project_atlas/totally_unrelated_module.py" in changed
+
+
+# ---------------------------------------------------------------------------
+# The incident this timeout responds to: a real hosted CI run for this PR
+# left three quality jobs "in_progress" for over an hour (well past
+# ci.yml's own 20-minute job timeout) because the network `git fetch` this
+# guard added had no bound of its own. GitHub's job-level timeout only
+# fires once a job has actually started consuming its allotted wall
+# clock; it does not help if a single subprocess call inside that job can
+# block forever. Proven directly here with a fake, deliberately-hanging
+# `git` on PATH -- not just trusted because `subprocess.run(timeout=...)`
+# is a standard library feature.
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_timeout_is_actually_enforced_not_just_declared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Directly proves the incident this fix responds to cannot recur: a
+    `git fetch` that never returns must be converted to
+    DemoIsolationGuardError, not left to hang the calling process (and, in
+    real hosted CI, the whole job) indefinitely.
+
+    A real subprocess hang is deliberately NOT simulated here: on Windows,
+    `subprocess.run(["git", ...])` with `shell=False` resolves the
+    executable via a restricted, .exe-only search (Windows' own
+    documented CreateProcess behavior for a NULL application name) and
+    will not pick up a `.cmd`/`.bat` shim placed on PATH, so an
+    orchestrated "fake hanging git" fixture would silently invoke the
+    real git instead and prove nothing (or worse, flake). `subprocess.
+    run(timeout=...)` reliably raising `TimeoutExpired` on an actual
+    timeout is standard-library behavior, not this guard's own logic to
+    prove; what this guard's own code needs proving is that a real
+    `TimeoutExpired` -- however it arises -- is caught on the fetch call
+    specifically and converted into the documented, fail-closed
+    `DemoIsolationGuardError`, rather than propagating as a raw traceback
+    or (worse) being swallowed. That is exercised directly here by making
+    the fetch call itself raise a real `subprocess.TimeoutExpired`, while
+    every other subprocess call (including `_ensure_commit_fetched`'s own
+    preceding `cat-file -e` probe) still runs for real, so the "probe
+    reports absent, falls through to fetch" path is genuinely exercised.
+    """
+    import time
+
+    repo = _init_fixture_repo(tmp_path)
+    real_run = subprocess.run
+
+    def _fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+        timeout: float,
+    ) -> subprocess.CompletedProcess[str]:
+        if len(cmd) >= 2 and cmd[0] == "git" and cmd[1] == "fetch":
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout)
+        return real_run(
+            cmd, cwd=cwd, check=check, capture_output=capture_output, text=text, timeout=timeout
+        )
+
+    monkeypatch.setattr(
+        "tests.unit.test_atlas3_demo_isolation_001.subprocess.run",
+        _fake_run,
+    )
+    monkeypatch.setattr(
+        "tests.unit.test_atlas3_demo_isolation_001._NETWORK_GIT_TIMEOUT_SECONDS",
+        2,
+        raising=True,
+    )
+
+    started = time.monotonic()
+    with pytest.raises(DemoIsolationGuardError, match="did not complete within"):
+        _ensure_commit_fetched("0" * 40, root=repo)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 10, (
+        f"fetch-timeout conversion took {elapsed:.1f}s -- should be "
+        "near-instant since the timeout itself is simulated, not waited out"
+    )
