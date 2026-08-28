@@ -51,44 +51,63 @@ Recorded classification:
 - `ESTATE_REPRODUCIBLE = PASS`, `SECRET_SCAN = PASS`,
   `CROSS_PROJECT_LEAK_COUNT = 0`
 - `ALPHA_READY = YES`, `BETA_READY = YES`
-- `GAMMA_PROJECT_CONTEXT_READY = YES`; `GAMMA_NEXT_WORK_LENS = NOT_READY`
-  (see finding below) — stated separately rather than as one blended
-  `GAMMA_READY` flag, since the estate's own document does not blend them
+- `GAMMA_PROJECT_CONTEXT_READY = YES`; `GAMMA_NEXT_WORK_ITEM_SURFACED = NO`
+  (see corrected finding below — the lens exists, the structured record
+  it needs was never produced) — stated separately rather than as one
+  blended `GAMMA_READY` flag, since the estate's own document does not
+  blend them
 - `FINAL_ATLAS_PIN = PENDING`
 - `NATIVE_WINDOWS_FINAL_REHEARSAL = PENDING` (see below)
 
-## Gamma next-work finding — accepted classification
+## Gamma next-work finding — corrected classification
 
-From `DEMO-SCENARIO.md` Scenario C's source-contract investigation
-(`project_next.py`, `project_roadmap.py`,
-`intelligence/next_action.py` docstrings, checked directly, not assumed):
-none of Atlas's existing read-only "next work" lenses is contracted to
-surface a document-declared, ready-to-implement feature item (the
-estate's `TASK-017` stand-in). Each is scoped, by its own docstring, to
-pipeline/knowledge hygiene (pending reviews, coverage gaps, unknown/
-conflict rollups, roadmap blockers) — not to "what should the development
-agent build next."
+**Correction (review):** the estate's original framing ("no existing Atlas
+lens is contracted to surface this") is not quite right, and this record
+initially repeated it uncritically. Checked further, directly:
+`project_roadmap._load_roadmap_source()` reads `projects/<id>/roadmap.md`
+in the *vault* and, via `_parse_fenced_record()`, parses a fenced JSON
+block containing `roadmap_items`; `_next_unlock()` then selects the first
+unfinished item and `project_next._collect_roadmap()` turns it into a
+`roadmap_unlock` candidate. This mechanism genuinely is contracted to
+surface exactly "here is the next ready item" — it is not
+knowledge/pipeline-hygiene scoped the way `next_action.py` is.
 
-Accepted:
+So the lens is not missing. What's missing, verified directly: nothing in
+the ingestion/discover pipeline (grepped `src/project_atlas/` for any
+writer of `roadmap.md` or `roadmap_items` outside `project_roadmap.py`
+itself — none exists) transforms a prose source document into that
+structured `roadmap_items` record. The estate's actual gamma project has
+`docs/ROADMAP.md` naming TASK-017 as "the next ready unit of work," plus a
+requirements doc, an ADR, and a skipped spec test — all prose/convention,
+not the hand-authored fenced-JSON format `_parse_fenced_record()` requires.
+Populating `projects/atlas-showcase-gamma/roadmap.md` with a matching
+record was not attempted here (would be inventing estate content from
+this lane, not a code change, but still not this record's call to make
+unilaterally) and nothing in the pipeline would do it automatically today
+regardless.
 
-- `BUG = NO`, `RANKING_GAP = NO` — the lenses are working exactly to
-  their documented contract; there is no defect to fix.
-- `MISSING_LENS = YES`, `PRODUCT_SEMANTIC_UNDERSPECIFIED = YES` — no
-  existing contract defines what makes a requirement "ready," how it
-  would be declared, or how it would be weighed against pipeline-hygiene
-  signals.
-- `OWNER_PRODUCT_DECISION_REQUIRED = YES`. The concrete question: should
-  Atlas gain a distinct product-work lens capable of answering "what
-  should the development agent build next?", separately from "what
-  project/knowledge hygiene needs attention next?" — and if so, is it a
-  new lens or a mode of an existing one (`next`/`context`/`brief`)?
-- `GAMMA_PRODUCT_WORK_LENS = OWNER_ONLY`. This node does not block
-  unrelated work; it is recorded and set aside, not chased into an
-  unauthorized implementation.
+Corrected:
+
+- `BUG = NO`, `RANKING_GAP = NO` — unchanged; the lenses do exactly what
+  they're contracted to do.
+- `MISSING_LENS = NO` (corrected from `YES`) — `roadmap_unlock` already
+  exists and is contracted for this. `SOURCE_ADAPTER_GAP = YES` — nothing
+  derives a structured `roadmap_items` record from the prose
+  requirements/ADR/roadmap documents a project like this actually has.
+- `OWNER_PRODUCT_DECISION_REQUIRED = YES`, but the question is sharper
+  than originally stated: should Atlas gain an ingestion/adapter step
+  that derives `roadmap_items` from a documented "next ready work" 
+  convention (e.g. a requirements doc + ADR + a correspondingly-skipped
+  test file), feeding the *existing* `roadmap_unlock` lens — or is
+  hand-authoring the structured record the intended workflow, in which
+  case this estate's prose-only documents are themselves the gap, not
+  Atlas? Both readings are live; this record does not resolve which.
+- `GAMMA_PRODUCT_WORK_LENS = OWNER_ONLY`. Unchanged conclusion, corrected
+  reasoning. This node does not block unrelated work.
 
 No `src/` change is made in pursuit of this question from this record. No
-TASK-017-specific workaround, ranking-heuristic change, or Gamma mutation
-is made or proposed.
+TASK-017-specific workaround, ranking-heuristic change, hand-authored
+`roadmap.md` record, or other Gamma mutation is made or proposed.
 
 ## Native Windows final rehearsal — packet (prep only, not executed)
 
