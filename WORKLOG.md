@@ -8975,3 +8975,164 @@ not attempted.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`.
 
 - `MERGE_AUTHORIZATION = NOT_GRANTED` (all items in this entry).
+
+---
+
+## PR #630 — Atlas-3 freeze guard hosted-CI blind spot: investigation, remediation, certification (5 rounds)
+
+**Directive:** owner-specified bounded investigation/remediation node for the
+Atlas-3 demo-isolation freeze guard's own enforcement mechanism (found
+defective while independently verifying PR #628), governed by:
+`DECLARED_FREEZE = BINDING`, `FREEZE_CI_ENFORCEMENT = DEFECTIVE`,
+`BROKEN_ENFORCEMENT != AUTHORIZATION_TO_BYPASS_FREEZE`. Self-remediable
+because the enforcement test file itself (`tests/unit/test_atlas3_demo_isolation_001.py`)
+is not a `DENY`-listed production surface. Required proving 7 specific
+properties of the guard rather than merely documenting the defect.
+
+### Root defect
+
+`_changed_paths()` diffed against the literal ref name `origin/main`,
+unresolvable under `actions/checkout`'s default `fetch-depth: 1`. The
+guard's own `subprocess.run(..., check=False)` calls then silently
+returned empty output on that resolution failure instead of raising, so
+`test_certified_surfaces_unmodified`'s `DENY`-list assertion passed
+vacuously regardless of what a PR actually changed. Concretely: PR #628
+touches `src/project_atlas/api_server.py` (on `DENY`) and passed hosted
+CI cleanly, while a full local clone correctly failed the same check.
+
+### Round 1 — CI-event-based base resolution
+
+Reads the PR's authoritative `base`/`head` SHAs directly from
+`GITHUB_EVENT_PATH` (independent of checkout depth), explicitly fetches
+the base commit by exact SHA if a shallow checkout doesn't already have
+it, diffs directly between two known commits (not three-dot/merge-base,
+which can fail under a disconnected shallow history), fails closed on
+any missing/malformed/unresolvable input. 7 new regression tests against
+real, disposable, throwaway git repositories. 9/9 pass, `ruff`/`mypy`
+clean. Independent IV: `FIX_VERIFIED_PASS`, surfaced P2: only covered the
+`pull_request` trigger, not this repo's `push: branches: [main]` trigger
+on the same `quality` job, which remained silently vulnerable.
+
+### Round 2 — push-event coverage
+
+Added `_event_push_before_sha()` (reads `before` from the push event
+payload; treats GitHub's all-zero first-push sentinel as unresolvable,
+fail-closed), wired as a second preferred source in base resolution.
+5 more regression tests. 14/14 pass. Independent IV: `FIX_VERIFIED_PASS`,
+confirmed via every `.github/workflows/*.yml` that no other trigger type
+invokes this test file.
+
+### Round 3 — `DemoIsolationGuardNotApplicable` split + SHA-return fix
+
+GitHub code review on the round-2 head found two real issues: (a) the
+fail-closed fallback was too broad, failing the *entire* unit suite in a
+git-remote-less checkout (source archive, vendored copy) — reproduced
+directly; (b) the `_resolve_diff_base()` docstring claimed "exact commit
+SHA" but returned the literal string `"origin/main"` in the local
+fallback path. Fixed by introducing `DemoIsolationGuardNotApplicable`
+(distinct from `DemoIsolationGuardError`): raised only when neither a
+recognized CI event context nor any git remote exists at all — there was
+never a meaningful comparison base, as opposed to a remote that *is*
+configured but `origin/main` specifically failing to resolve, which
+remains genuine fail-closed. Both guard tests catch the former and
+`pytest.skip()`. Local fallback now returns the resolved SHA, never the
+floating ref string. 15/15 pass. Independent IV: `FIX_VERIFIED_PASS`,
+also flagged a live, pre-existing P2 in the local-fallback path (direct
+two-endpoint diff false-positives when a local branch is behind
+`origin/main` and main has independently advanced a `DENY`-listed path)
+— matched a stale Copilot review comment on round 1's head; out of round
+3's stated scope, tracked forward.
+
+### Round 4 — bounded subprocess timeouts + local-fallback merge-base fix
+
+**Structural defect, independent of any single observed run's duration:**
+none of the guard's `subprocess.run()` calls (including the network
+`git fetch` round 1 added) carried an explicit `timeout=`. A
+network-backed `git fetch` inside a governance-enforcement test must not
+be able to block hosted CI indefinitely — this is true regardless of
+whether any specific run actually stalled. Added
+`_LOCAL_GIT_TIMEOUT_SECONDS = 30` / `_NETWORK_GIT_TIMEOUT_SECONDS = 60`,
+applied `timeout=` to all 12 call sites, converted a real
+`subprocess.TimeoutExpired` on the fetch call into `DemoIsolationGuardError`
+rather than propagating a hang or raw traceback. Proven via
+`test_fetch_timeout_is_actually_enforced_not_just_declared`, which makes
+the fetch call raise a genuine `TimeoutExpired` and asserts near-instant
+conversion (deliberately not a fake-hanging-`git`-on-`PATH` fixture:
+`subprocess.run(shell=False)` on Windows resolves a bare `git` via a
+restricted `.exe`-only search per `CreateProcess` semantics and would
+silently invoke the real `git` instead of a `.cmd`/`.bat` shim, proving
+nothing). Same round also closed the round-3 local-fallback P2: diffs
+against the merge-base of `origin/main` and `HEAD` instead of
+`origin/main`'s live tip when in the local-fallback (non-CI-event) path,
+via a new `_resolve_diff_base_and_mode()` that reports whether its SHA is
+an exact CI-event endpoint (direct diff, safe) or a floating local
+fallback (merge-base required). New regression test builds a
+diverged-branch fixture reproducing the false positive pre-fix and
+confirming it's gone post-fix. 17/17 pass, `ruff`/`mypy` clean.
+
+**Timing correction (important — do not repeat the inflated framing):**
+this round's motivating incident was originally described as a hosted CI
+run stuck "in_progress" for over an hour. That measurement compared
+GitHub API timestamps against this session's own local sandbox clock,
+which was subsequently confirmed to run **~59 minutes fast** relative to
+true UTC (verified directly against GitHub's own `Date:` HTTP response
+header). Re-examined using GitHub-native timestamps exclusively
+(`started_at`/`completed_at`/`updated_at` from the API, never local
+`date`), the actual hosted run for the round-4 IV dispatch completed in
+its ordinary ~10-12 minutes before being interrupted by an unrelated
+cause. The genuine, GH-native-confirmed incident from this round was
+different and real: the round-4 CI rerun's Windows quality lane was
+legitimately cancelled by `ci.yml`'s own `timeout-minutes: 20`, timed at
+exactly 20m08s (`started_at` 14:06:15Z → `completed_at`/cancelled
+14:26:23Z) — because the pre-existing Windows-lane budget was already
+~94% consumed (baseline 16m35s pytest step in an 18m48s total job,
+*before* this PR touched anything) and round 4's new tests added ~109s
+on top. The timeout-hardening fix itself remains correct and necessary
+on its own structural merits either way; the corrected record is that
+the specific "stuck over an hour" narrative was a measurement artifact,
+while the specific "Windows lane genuinely exceeded its 20-minute budget
+after round 4's additions" finding was real and is what round 5 fixed.
+
+### Round 5 — Windows CI budget fix
+
+The most expensive new test
+(`test_freeze_guard_local_fallback_no_false_positive_on_diverged_main`)
+routed through a separate bare `origin` repo plus two `git push` calls to
+populate it — pack generation/transfer being the likeliest concentration
+of the added wall time on Windows, where git subprocess spawn overhead
+already exceeds Linux. Rewritten to clone and fetch directly against the
+"seed" working-tree repo (git supports both against a non-bare local
+path) — behaviorally identical (a real, separate `origin` remote a real
+`git fetch` populates) but meaningfully cheaper; local duration dropped
+from 2.49s to 1.98s, back in line with the file's other git-fixture
+tests. 17/17 pass, `ruff`/`mypy` clean.
+
+**`EXACT_HEAD_CI = PASS`** (head `694383736182b819136259bcdf84d3d1384b524c`,
+GitHub-native timestamps, independently spot-checked directly against
+the API): `control-plane` 59s, `quality (ubuntu, compat)` 7m20s,
+`quality (ubuntu, full)` 10m48s, `quality (windows)` **18m46s** —
+comfortably inside the 20-minute budget (1m14s margin) and effectively
+at parity with the pre-PR baseline (18m48s, 2s faster). All 4 jobs
+`conclusion: success`.
+
+**Round 5 independent IV: `FIX_VERIFIED_PASS`** — scope confirmed as
+exactly one test's fixture setup across the whole PR (no `DENY`-listed
+source file touched anywhere in any round), speedup confirmed
+behaviorally faithful (real separate remote, real fetch, unchanged
+assertions), all 7 named regression properties re-confirmed intact, both
+round-4 and round-5 commit messages confirmed clean (no embedded shell
+output/garbling — an earlier round-3 commit-message drafting attempt
+that accidentally triggered shell backtick-substitution was caught
+before push and corrected via `commit --amend -F <clean-file>`, never
+reaching a reviewer).
+
+### Result
+
+`PR630 = CERTIFIED_OWNER_HELD`. All 7 required guard properties proven
+(hosted-PR-CI execution, actual base→candidate evaluation, frozen-path
+detection, allowed-path no-false-positive, shallow-checkout survival,
+visible/inconclusive-never-PASS failure on unresolvable comparison
+metadata, local/full-clone validity including the diverged-branch case).
+`MERGE_AUTHORIZATION = NOT_GRANTED` — this PR changes governance
+enforcement itself, so it stays owner-gated regardless of certification
+strength, per standing instruction for this node. Not self-merged.
