@@ -42,8 +42,18 @@ def select_next(
     ready = [node for node in nodes if node.state in _RUNNABLE]
     if not ready:
         return ContinuationDecision(None, StopReason.NO_ELIGIBLE_WORK)
+    owner_gated_ready = False
     for node in ready:
-        if node.owner_gate is not None and node.state != NodeState.READY:
+        if node.owner_gate is not None:
+            # ORCHAUT-010 remediation (2026-08-28): READY means
+            # dependency-ready, not owner-authorized. A node can reach
+            # READY while still carrying an owner_gate (C-F) tag; the
+            # loop must never autonomously select owner-gated work,
+            # matching the OWNER_HELD/MERGE_ELIGIBLE handling above for
+            # gate A. The prior `node.state != NodeState.READY` guard was
+            # dead code here -- every node in `ready` already has
+            # state == READY, so it never skipped anything.
+            owner_gated_ready = True
             continue
         if would_overlap(nodes, node):
             continue
@@ -56,6 +66,8 @@ def select_next(
         if node.dependencies and not deps_ok:
             continue
         return ContinuationDecision(node.package_id, None)
-    if any(node.owner_gate is not None for node in nodes if node.state in _OWNER):
+    if owner_gated_ready or any(
+        node.owner_gate is not None for node in nodes if node.state in _OWNER
+    ):
         return ContinuationDecision(None, StopReason.OWNER_GATE)
     return ContinuationDecision(None, StopReason.NO_ELIGIBLE_WORK)

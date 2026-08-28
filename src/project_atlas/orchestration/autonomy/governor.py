@@ -46,7 +46,7 @@ from project_atlas.orchestration.autonomy.models import (
     WorkNode,
 )
 from project_atlas.orchestration.autonomy.overlap import overlap_gate, would_overlap
-from project_atlas.orchestration.autonomy.owner_gates import require_owner
+from project_atlas.orchestration.autonomy.owner_gates import OwnerGateError, require_owner
 from project_atlas.orchestration.autonomy.remediation import (
     RemediationExhausted,
     can_remediate,
@@ -279,6 +279,36 @@ class AutonomousGovernor:
     def request_acceptance_waiver(self, *, owner_grant: bool = False) -> None:
         require_owner(OwnerGateKind.B_ACCEPTANCE_WAIVER, owner_grant=owner_grant)
 
+    def request_certified_object_mutation(self, *, owner_grant: bool = False) -> None:
+        """Owner gate C: mutating a certified object (e.g. a frozen demo
+        estate/showcase surface, a sealed evidence bundle) requires explicit
+        owner authority, same as A/B. ORCHAUT-010 (2026-08-28): added as a
+        real, importable enforcement primitive -- previously this gate
+        existed only as a descriptive ``WorkNode.owner_gate`` tag with no
+        dedicated call site to fail closed on, unlike A/B."""
+        require_owner(OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION, owner_grant=owner_grant)
+
+    def request_security_governance_policy_change(self, *, owner_grant: bool = False) -> None:
+        """Owner gate D: changing a security or governance policy (e.g. the
+        DENY-list freeze surface, an owner-gate definition itself) requires
+        explicit owner authority. ORCHAUT-010 (2026-08-28): see
+        ``request_certified_object_mutation`` docstring for why this is new."""
+        require_owner(OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY, owner_grant=owner_grant)
+
+    def request_destructive_op(self, *, owner_grant: bool = False) -> None:
+        """Owner gate E: an irreversible or hard-to-reverse operation (data
+        deletion, force-push, history rewrite) requires explicit owner
+        authority. ORCHAUT-010 (2026-08-28): see
+        ``request_certified_object_mutation`` docstring for why this is new."""
+        require_owner(OwnerGateKind.E_DESTRUCTIVE_OPS, owner_grant=owner_grant)
+
+    def request_material_external_spend(self, *, owner_grant: bool = False) -> None:
+        """Owner gate F: an action with a material external cost (billed API
+        usage, paid infrastructure) requires explicit owner authority.
+        ORCHAUT-010 (2026-08-28): see ``request_certified_object_mutation``
+        docstring for why this is new."""
+        require_owner(OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND, owner_grant=owner_grant)
+
     def transition(self, package_id: str, to_state: NodeState, reason: str) -> TransitionRecord:
         node = self._require_node(package_id)
         if to_state == NodeState.MERGED:
@@ -300,12 +330,32 @@ class AutonomousGovernor:
         *,
         branch: str,
         worktree: str,
+        owner_grant: bool = False,
     ) -> AgentLease:
         if self._target_moved:
             raise GovernorError("refusing lease on moved target", code="TARGET_MOVED")
         node = self._require_node(package_id)
         if node.state != NodeState.READY:
             raise GovernorError("node is not READY", code="NODE_NOT_READY")
+        if node.owner_gate is not None and node.owner_gate != OwnerGateKind.A_PROTECTED_MAIN_MERGE:
+            # ORCHAUT-010 remediation round 2 (2026-08-28, independent-IV
+            # finding): gate A already has its own dedicated, always-enforced
+            # downstream check at the MERGED transition (`request_merge`
+            # always raises without an owner grant) -- the controlled pilot's
+            # tested contract (`run_controlled_pilot`,
+            # test_controlled_pilot_stops_at_owner_gate) deliberately
+            # executes+certifies a gate-A node before stopping at
+            # OWNER_HELD, and that stays unchanged here. Gates B-F have no
+            # such downstream checkpoint: `execute_leased()` performs the
+            # node's actual in-process action, so for B-F the gate must fail
+            # closed HERE, before any lease/execution happens at all --
+            # AS-ORCH-001E's loop is not the only caller of lease() /
+            # execute_leased(); run_controlled_pilot() and
+            # continue_autonomous() reach this method directly too.
+            try:
+                require_owner(node.owner_gate, owner_grant=owner_grant)
+            except OwnerGateError as exc:
+                raise GovernorError(str(exc), code="OWNER_GATE_REQUIRED") from exc
         if would_overlap(tuple(self._nodes), node):
             raise GovernorError("surface overlap forbids lease", code="SURFACE_OVERLAP")
         agent = self._require_agent(agent_id)

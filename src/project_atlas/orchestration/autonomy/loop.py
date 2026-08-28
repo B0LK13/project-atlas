@@ -296,8 +296,18 @@ class AutonomousLoop:
         raise LoopError(message, code=code)
 
     def refuse_owner_actions(self) -> None:
-        """Hard safety: the loop cannot grant any owner gate."""
-        require_owner(OwnerGateKind.A_PROTECTED_MAIN_MERGE, owner_grant=False)
+        """Hard safety: the loop cannot grant any owner gate.
+
+        ORCHAUT-010 (2026-08-28): previously checked only gate A, while this
+        method's own docstring and the module-level ``LOOP_CAN_BYPASS_OWNER_
+        GATE = NO`` contract claimed the general property. Checks all six
+        ``OwnerGateKind`` values now, so gates C/D/E/F (certified-object
+        mutation, security/governance policy, destructive ops, material
+        external spend) fail closed the same way A/B already did, before
+        persistent autonomy becomes load-bearing.
+        """
+        for gate in OwnerGateKind:
+            require_owner(gate, owner_grant=False)
 
     def tick(self) -> LoopTickResult:
         """One fail-closed continuation step. At most one 001D dispatch."""
@@ -440,7 +450,13 @@ class AutonomousLoop:
         if decision.next_package_id is None:
             return self._stop(decision.stop_reason or StopReason.NO_ELIGIBLE_WORK)
         node = next(item for item in snapshot.nodes if item.package_id == decision.next_package_id)
-        if node.owner_gate is not None and node.state != NodeState.READY:
+        if node.owner_gate is not None:
+            # ORCHAUT-010 remediation (2026-08-28): defense-in-depth twin of
+            # the select_next fix -- `select_next` should already exclude
+            # any owner-gated node, but this is the last check before a
+            # real lease is granted, so it must not be a dead-code
+            # `state != READY` comparison that a READY owner-gated node
+            # always fails (i.e. never actually stops it).
             return self._stop(StopReason.OWNER_GATE)
         if node.state == NodeState.MERGE_ELIGIBLE:
             return self._stop(StopReason.OWNER_GATE)
