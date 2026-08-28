@@ -8290,8 +8290,12 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
   machine, completion/governor transition, owner-gate/hard-blocker stop
   propagation, crash recovery, replay prevention, adversarial matrix). No
   production surface touched. Dispatched to a dedicated subagent given
-  this package's much larger surface than ORCH001A/B/C/D (18 files under
-  `orchestration/autonomy/`). `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  this package's much larger surface than ORCH001A/B/C/D (21 `.py` files
+  under `src/project_atlas/orchestration/autonomy/`, matching the ruff/
+  mypy "21 source files" result below -- the dispatch prompt's initial
+  estimate of "18 files" was corrected here after review; the actual
+  count was verified directly, not re-guessed). `MERGE_AUTHORIZATION =
+  NOT_GRANTED`.
 - Baseline: every test file that actually imports
   `project_atlas.orchestration.autonomy` (found by grepping imports, not
   just filenames) = 255 passed, 0 failed.
@@ -8346,10 +8350,15 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
      dispatch) -- an operability gap, not a safety one.
   3. **P2** -- the `AS-ORCH-AUTONOMY-001` honesty marker
      `OWNER_GATES_A_F = IMPLEMENTED` / ORCHAUT-010 "owner gates A-F fail
-     closed" is accurate for gates A and B only; C/D/E/F have no
-     enforcement plumbing, only descriptive usage. Belongs to that
-     package's own status text, not ORCH001E's; not currently
+     closed" was accurate for gates A and B only; C/D/E/F have no
+     enforcement plumbing, only descriptive usage. Not currently
      exploitable since 001E's loop never attempts a C/D/E/F-gated action.
+     Corrected 2026-08-28 (review, PR #623): an earlier pass here only
+     annotated this finding without changing the marker value or
+     reopening the checklist item, which review correctly caught as
+     insufficient -- a reader scanning for `IMPLEMENTED` would still be
+     misled. `OWNER_GATES_A_F` is now `PARTIALLY_IMPLEMENTED` and
+     `ORCHAUT-010` is unchecked, both in that package's own status text.
 - Result: `ORCH001E-008 = PASS`. `ORCH001E-009` (owner merge gate) is not
   an IV item.
 - `DEFERRED_FOLLOW_UPS = 3` (recorded above; none block this PASS per the

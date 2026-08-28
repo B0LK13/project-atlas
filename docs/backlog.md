@@ -592,7 +592,7 @@ Honesty (mandatory):
 - `IV_ROUTING = IMPLEMENTED`
 - `ADVERSARIAL_REVIEW_TRIGGER = IMPLEMENTED`
 - `EVIDENCE_CONTRACT = IMPLEMENTED`
-- `OWNER_GATES_A_F = IMPLEMENTED` (correction 2026-08-28, found during ORCH001E-008 IV, see WORKLOG: accurate for gates A/B only, which have real `require_owner(...)` enforcement call sites and are fail-closed; C/D/E/F exist only as descriptive `OwnerGateKind` tags with no enforcement plumbing anywhere in the package. Not currently exploitable -- no 001E path attempts a C/D/E/F-gated action -- but this line overstates what's enforced today.)
+- `OWNER_GATES_A_F = PARTIALLY_IMPLEMENTED` (corrected 2026-08-28 from `IMPLEMENTED`, found during ORCH001E-008 IV, see WORKLOG: gates A/B have real `require_owner(...)` enforcement call sites and are fail-closed; C/D/E/F (`C_CERTIFIED_OBJECT_MUTATION`, `D_SECURITY_GOVERNANCE_POLICY`, `E_DESTRUCTIVE_OPS`, `F_MATERIAL_EXTERNAL_SPEND`) exist only as descriptive `OwnerGateKind` tags -- zero `require_owner(...)` call sites for any of them anywhere in the package. Not currently exploitable -- no 001E path attempts a C/D/E/F-gated action -- but the prior `IMPLEMENTED` value overstated what's enforced today; see ORCHAUT-010 below, reopened.)
 - `AGENT_DISPATCH = IMPLEMENTED_BY_AS_ORCH_001D`
 - `MULTI_HOP_AUTODISPATCH = NOT_IMPLEMENTED`
 - `AUTONOMOUS_LOOP_001E = IMPLEMENTED`
@@ -610,7 +610,7 @@ Honesty (mandatory):
 - [x] ORCHAUT-007 IV routing: implementer != verifier
 - [x] ORCHAUT-008 Adversarial review trigger for control-plane / authorization
 - [x] ORCHAUT-009 Deterministic hashed evidence bundles
-- [x] ORCHAUT-010 Owner gates A–F fail closed
+- [ ] ORCHAUT-010 Owner gates A–F fail closed -- reopened 2026-08-28 (found during ORCH001E-008 IV, see WORKLOG "ORCH001E-008"): true for gates A/B (real `require_owner(...)` enforcement, verified); false for C/D/E/F (descriptive `OwnerGateKind` tags only, no enforcement call sites anywhere in the package). Not currently exploitable -- no code path attempts a C/D/E/F-gated action -- but this checklist item is not accurately "done" as originally checked. Remains a P2 follow-up, not re-implemented here.
 - [x] ORCHAUT-011 CLI `governor-status` / `governor-discover` / `governor-pilot`
 - [x] ORCHAUT-012 Controlled non-destructive in-process pilot
 - [ ] ORCHAUT-013 Owner merge gate (not this package)
