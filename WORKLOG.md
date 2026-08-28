@@ -7871,3 +7871,44 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
   certify ORCH001C/D/E (dispatch, Cursor bridge, autonomous loop remain
   separately gated per their own backlog status).
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001B-008 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `718f2beb` (ORCH001B-001..007 routing
+  policy, already merged). No production surface touched. Dedicated pass,
+  not a rerun of ORCH001A-007's corroborating probe 7 above.
+  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Baseline: test_orchestration_policy.py + test_orchestration_router.py
+  (part of the same 118-test baseline re-run for ORCH001A-007) PASS.
+- Adversarial black-box probes via the real `atlas orchestrator route-result`
+  CLI, plus one library-level probe against `route()` directly:
+  1. Baseline CERTIFIED envelope (`route_kind=task`, `dispatchable=true` --
+     the single most-permissive-looking routing outcome the policy table
+     produces) -> `execution_authorized=false` and every
+     `permissions.*` field (`authority_grant`, `branch_write`, `merge`,
+     `production_mutation`, `pull_request_write`, `repository_write`)
+     `false`. "Dispatchable" means an agent could legitimately receive this
+     `TaskDirective`, not that anything is authorized to mutate/merge.
+  2. `state=MERGE_ELIGIBLE` + `requested_transition=MERGE` (see
+     ORCH001A-007 probe 7) -> `owner_gate=true`, every permission `false`,
+     `requested_transition` logged advisory-only.
+  3. Library-level: called `route(decision, envelope)` directly with a
+     `decision` fabricated from one envelope but paired against a tampered
+     envelope (different `task.id`) -- i.e. simulating a caller that
+     supplies a favorable pre-built decision alongside an unrelated
+     envelope. `route()` does not trust the passed-in decision; it
+     independently re-derives `classify_envelope(envelope)` from the
+     envelope alone and cross-checks. Result: `RouteConsistencyError:
+     decision/envelope task mismatch` raised correctly -- the mismatch
+     was not silently accepted.
+- Finding: `route()`'s re-derive-and-cross-check design means a
+  compromised or buggy intermediate caller cannot smuggle a favorable
+  routing decision past this layer by supplying a mismatched envelope;
+  and the permission set (`DirectivePermissions`) is `false` across the
+  board even on the policy table's most-permissive (`dispatchable=true`)
+  entry.
+- Result: `ORCH001B-008 = PASS`.
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch authority;
+  does not certify ORCH001C/D/E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
