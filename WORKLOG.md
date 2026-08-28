@@ -7921,9 +7921,18 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
   ORCH001C-R1-001..003 implementation, already merged). No production
   surface touched. Does **not** cover ORCH001C-010 (Local Windows
   explicit-completion acceptance) or the "authentic Cursor stop event
-  delivery" claim itself -- both require a live Cursor CLI environment,
-  unavailable here; left unchecked, `EXTERNAL_BLOCKED`.
-  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  delivery" claim itself -- deliberately out of scope for this IV pass
+  (verification of what's already merged, not new acceptance testing),
+  left unchecked. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  **Correction 2026-08-28** (see WORKLOG "Cursor CLI availability
+  correction" below): this entry originally said both require a live
+  Cursor CLI "unavailable here" / `EXTERNAL_BLOCKED`. That was checked
+  with `shutil.which` via a bash wrapper, which missed the `.CMD`
+  extension resolution Windows/Python actually use; a real Cursor CLI
+  (`agent.cmd`) is genuinely present on this host. The scope decision
+  above (not attempting authentic acceptance in this IV pass) stands on
+  its own merits regardless -- see that entry for why authentic dispatch
+  was not attempted even though it is now known to be available.
 - Baseline: existing suite re-run clean -- test_orchestration_cursor_bridge.py
   + test_orchestration_explicit_completion.py = 44 PASS.
 - Note on this entry's count precision: after a review finding on the
@@ -8004,7 +8013,9 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - Result: `ORCH001C-009 = PASS` (10 probes total: 2 baseline + 8
   adversarial). `ORCH001C-010` (Local Windows explicit-completion
   acceptance) and the authentic Cursor stop-event delivery claim
-  remain separately unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+  remain separately unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected
+  2026-08-28 from `EXTERNAL_BLOCKED`; see the correction entry below),
+  not attempted in this IV pass.
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001D/E.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
@@ -8015,10 +8026,21 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - Scope: read-only IV against `main` `5ff62221` (ORCH001D-001..010
   implementation, already merged). No production surface touched. Does
   **not** cover ORCH001D-012 (Authentic Local Windows Cursor agent
-  dispatch acceptance) -- that item requires a live Cursor CLI
-  (`agent`/`cursor-agent` on PATH), which is unavailable in this
-  environment; left `EXTERNAL_BLOCKED`, unchecked, as-is.
+  dispatch acceptance) -- deliberately not attempted in this IV pass
+  (see the correction entry below: a live Cursor CLI is actually
+  available on this host, but actually dispatching one is a materially
+  different, higher-stakes action than verifying the dispatch code, and
+  was never in scope here regardless of availability); left unchecked.
   `MERGE_AUTHORIZATION = NOT_GRANTED`.
+  **Correction 2026-08-28**: this entry originally said ORCH001D-012
+  "requires a live Cursor CLI (`agent`/`cursor-agent` on PATH), which is
+  unavailable in this environment" and classified it `EXTERNAL_BLOCKED`.
+  That was false -- checked via a bash `which` wrapper that missed the
+  `.CMD` extension resolution Windows/Python `shutil.which` (what the
+  real code uses) actually apply; `resolve_cursor_transport()` itself,
+  called with no override, resolves a real `agent.cmd` on this host. See
+  "Cursor CLI availability correction" below for the verification and
+  why authentic dispatch is still not attempted here.
 - Risk-mapping before execution (`run_dispatch_once` reaches
   `subprocess.run`, materially higher risk than the pure-function
   ORCH001A/B classify/route logic): read `dispatcher.py` +
@@ -8081,7 +8103,8 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - Result (initial pass): eligibility/fail-closed logic, command
   construction, and the real process-spawn transport all held under the
   probes above. `ORCH001D-012` (authentic Cursor dispatch) remains
-  separately unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+  separately unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected 2026-08-28
+  from `EXTERNAL_BLOCKED`), not attempted.
 
 ### PR #620 review findings and remediation (same day, same PR)
 
@@ -8245,7 +8268,9 @@ the implementer's own claim.
 **`ORCH001D-011 = PASS`**, implementer remediation (2 rounds) and
 independent adversarial verification (2 rounds, second one clean) both
 converged. `ORCH001D-012` (authentic Cursor dispatch) remains separately
-unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+unchecked -- `AVAILABLE_NOT_ATTEMPTED` (corrected 2026-08-28 from
+`EXTERNAL_BLOCKED` -- see "Cursor CLI availability correction" below),
+not attempted.
 
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001E.
@@ -8501,4 +8526,37 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
   corrected finding is a candidate for a separate remediation node
   (adding a real owner_gate check to the `DISCOVERED -> READY` transition
   or to `select_next()`'s per-node loop), not something fixed here.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## Cursor CLI availability correction (ORCH001C-010 / ORCH001D-012)
+
+- Date: 2026-08-28
+- Scope: docs only. Corrects a false claim made in this WORKLOG's
+  ORCH001C-009 and ORCH001D-011 entries (both above): each said
+  authentic Cursor dispatch/stop-event acceptance was `EXTERNAL_BLOCKED`
+  because a live Cursor CLI was "unavailable in this environment."
+- Root cause of the false claim: availability was checked with a bash
+  `which agent` / `which cursor-agent` wrapper, which did not find
+  anything on PATH. Bash's `which` does not apply Windows' `PATHEXT`
+  extension resolution the way Python's `shutil.which` (what
+  `resolve_cursor_transport()` actually calls) does, so a real
+  `agent.CMD` sitting on PATH was missed.
+- Correction, verified directly (not re-assumed):
+  `python -c "from project_atlas.orchestration.agent_transport import
+  resolve_cursor_transport; print(resolve_cursor_transport())"` (no
+  override -- the exact call the real dispatch path makes) resolves
+  `logical_name='agent' path='C:\\Users\\Admin\\AppData\\Local\\
+  cursor-agent\\agent.cmd' launcher_kind=WINDOWS_CMD_WRAPPER` on this
+  host, right now. A live Cursor CLI genuinely is available.
+- `AVAILABLE_NOT_ATTEMPTED`, not `PASS`: this correction does **not**
+  claim ORCH001C-010 / ORCH001D-012 (authentic dispatch/stop-event
+  acceptance) is satisfied. Actually invoking a real Cursor agent
+  process is a materially different, higher-stakes action than
+  verifying the dispatch code around it (unpredictable duration, real
+  external-service interaction, no bounded blast radius the way a fake
+  runner or a benign `sys.executable` stand-in has) and was not
+  attempted here. Whether to attempt it is left as an explicit owner
+  decision, not run on this finding alone.
+- `CONSUME_ONLY = true`; corrects prior status text only, no code
+  changed, no dispatch attempted, no merge/execution authority granted.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
