@@ -7824,3 +7824,92 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
 - Date: 2026-08-27
 - Port _replace_path FileNotFoundError tolerance onto post-#505 main
 - Local provenance tip 059aa4e3; new certification generation
+
+## ORCH001A-007 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `718f2beb` (ORCH001A-001..006 implementation,
+  already merged). No production surface touched. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Baseline: existing suite re-run clean — test_orchestration_result_contract.py,
+  test_orchestration_result_binding.py, test_orchestration_result_binding_windows.py,
+  test_orchestration_transitions.py, test_orchestration_policy.py,
+  test_orchestration_router.py = 118 PASS.
+- 7 black-box probes via the real `atlas orchestrator` CLI (not just the unit
+  suite): 1 baseline plus 6 adversarial, each independently attempting to
+  defeat the "no execution/merge authority" invariant:
+  1. Valid CERTIFIED envelope (baseline, not adversarial) -> baseline
+     classification, `execution_authorized`/`merge_authorized` false, exit 0.
+  2. Direct injection of `"execution_authorized": true` / `"merge_authorized": true`
+     as extra envelope fields -> rejected outright (`extra="forbid"`,
+     `schema_invalid:<root>`, `valid: false`, exit 1); output still hard-codes both
+     authority fields false even in the rejection payload.
+  3. Unknown/rogue `state` value -> `BLOCKED_UNKNOWN_STATE`, not a silent default;
+     still no authority granted.
+  4. Malformed JSON -> graceful `REJECTED` (no traceback leaked), exit 1.
+  5. Oversized payload (>1MB, over the 256 KiB `MAX_RESULT_BYTES` cap) -> rejected
+     with `result envelope exceeds size limit`, exit 1.
+  6. `state=MERGE_ELIGIBLE` + `requested_transition="MERGE"` (the most favorable
+     case an agent could construct) via `validate-result` -> still
+     `execution_authorized=false`, `merge_authorized=false`,
+     `owner_required=true`, routed to `OWNER_REQUIRED`;
+     `requested_transition` explicitly logged as advisory-only.
+  7. Same payload via `route-result` (AS-ORCH-001B routing layer, second
+     independent gate) -> `execution_authorized: false`, `owner_gate: true`,
+     `permissions.merge/branch_write/repository_write/pull_request_write/
+     production_mutation` all `false`.
+- Finding: the `execution_authorized: Literal[False]` / `merge_authorized:
+  Literal[False]` invariant on `OrchestrationDecision` is enforced structurally
+  (Pydantic type) and redundantly at runtime (`_no_execution_or_merge_authority`
+  validator) -- defense in depth, not a single-point check. No path found, across
+  118 existing tests plus the 6 adversarial probes above (items 2-7; item 7
+  additionally exercises the 001B route-result layer), that reaches
+  `execution_authorized=true`, `merge_authorized=true`, or any
+  `permissions.*=true` other than read.
+- Result: `ORCH001A-007 = PASS`. Does not extend to ORCH001B-008 (route-result
+  layer) as a completed IV in its own right -- probe 7 above is corroborating
+  evidence for 001B, not a substitute for its own dedicated IV pass.
+- `CONSUME_ONLY = true`; does not grant merge/execution authority; does not
+  certify ORCH001C/D/E (dispatch, Cursor bridge, autonomous loop remain
+  separately gated per their own backlog status).
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001B-008 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `718f2beb` (ORCH001B-001..007 routing
+  policy, already merged). No production surface touched. Dedicated pass,
+  not a rerun of ORCH001A-007's corroborating probe 7 above.
+  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Baseline: test_orchestration_policy.py + test_orchestration_router.py
+  (part of the same 118-test baseline re-run for ORCH001A-007) PASS.
+- Adversarial black-box probes via the real `atlas orchestrator route-result`
+  CLI, plus one library-level probe against `route()` directly:
+  1. Baseline CERTIFIED envelope (`route_kind=task`, `dispatchable=true` --
+     the single most-permissive-looking routing outcome the policy table
+     produces) -> `execution_authorized=false` and every
+     `permissions.*` field (`authority_grant`, `branch_write`, `merge`,
+     `production_mutation`, `pull_request_write`, `repository_write`)
+     `false`. "Dispatchable" means an agent could legitimately receive this
+     `TaskDirective`, not that anything is authorized to mutate/merge.
+  2. `state=MERGE_ELIGIBLE` + `requested_transition=MERGE` (see
+     ORCH001A-007 probe 7) -> `owner_gate=true`, every permission `false`,
+     `requested_transition` logged advisory-only.
+  3. Library-level: called `route(decision, envelope)` directly with a
+     `decision` fabricated from one envelope but paired against a tampered
+     envelope (different `task.id`) -- i.e. simulating a caller that
+     supplies a favorable pre-built decision alongside an unrelated
+     envelope. `route()` does not trust the passed-in decision; it
+     independently re-derives `classify_envelope(envelope)` from the
+     envelope alone and cross-checks. Result: `RouteConsistencyError:
+     decision/envelope task mismatch` raised correctly -- the mismatch
+     was not silently accepted.
+- Finding: `route()`'s re-derive-and-cross-check design means a
+  compromised or buggy intermediate caller cannot smuggle a favorable
+  routing decision past this layer by supplying a mismatched envelope;
+  and the permission set (`DirectivePermissions`) is `false` across the
+  board even on the policy table's most-permissive (`dispatchable=true`)
+  entry.
+- Result: `ORCH001B-008 = PASS`.
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch authority;
+  does not certify ORCH001C/D/E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
