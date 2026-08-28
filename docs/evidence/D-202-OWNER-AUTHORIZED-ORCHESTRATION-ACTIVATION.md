@@ -111,6 +111,30 @@ except #633 itself.)
    block this activation per the directive's own stated bar (P0/P1
    autonomy defects, not P3 operability gaps).
 
+## CORRECTION (2026-08-28, same day, before this record's own PR merged)
+
+An independent verifier reviewing a separate, unrelated PR (#637)
+adversarially discovered, and this session independently reproduced, that
+`run_governor_loop_tick()` — the function behind the real CLI command
+`atlas orchestrator governor-loop-tick` — constructs a brand-new, empty
+`AutonomousGovernor` on every invocation, with no node
+discovery/rehydration step at all. This means the real CLI entry point
+cannot originate new work or recover interrupted work across separate
+process invocations — it only functions within a single long-lived
+Python process that manages its own governor lifecycle (exactly how
+every existing test and the pilot flow already use it). Full detail:
+`docs/evidence/D-204-GOVERNOR-LOOP-TICK-NO-NODE-REHYDRATION.md`.
+
+This does **not** change preconditions 1-3 above (A-F gate enforcement,
+no bypass paths, result-binding/replay protections) — those are about
+selection/lease/execution logic that behaves correctly whenever nodes
+ARE present, regardless of how they got there. It **does** mean the
+"Result" block below is corrected: `GOVERNED_AUTONOMY_ACTIVE` is
+downgraded from an unqualified `YES` to `PARTIAL`, scoped precisely to
+what was actually verified, with the CLI-level gap stated explicitly
+rather than implied to be solved. This correction was made in the same
+PR, before merge, rather than as a silent fix-up after the fact.
+
 ## What is NOT claimed
 
 - This does not claim `ORCH001D-012` (authentic Cursor dispatch
@@ -142,7 +166,18 @@ a grant of automatic merge authority.
 
 ```
 GOVERNED_ORCHESTRATION_STACK = ACTIVE
-GOVERNED_AUTONOMY_ACTIVE = YES
+GOVERNED_AUTONOMY_ACTIVE = PARTIAL
+OWNER_GATE_ENFORCEMENT_AT_SELECTION_LEASE_EXECUTION = YES (verified)
+GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_ORIGINATION = NOT_FUNCTIONAL (D-204)
+GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_RECOVERY = NOT_FUNCTIONAL (D-204)
 LOOP_CAN_BYPASS_OWNER_GATE = NO
 LOOP_CAN_AUTHORIZE_MERGE = NO
 ```
+
+`GOVERNED_AUTONOMY_ACTIVE = PARTIAL` is the accurate summary: the
+governance/authority boundary (what this record's own preconditions
+verified) is live and correct; the loop's operational reach as a real,
+repeatable CLI command is not yet functional beyond a single process's
+lifetime, per D-204. "Activation" here authorized what was actually
+verified — it did not, and should not be read to, certify
+`governor-loop-tick` as production-usable end to end.
