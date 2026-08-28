@@ -8578,3 +8578,70 @@ not attempted.
 - `CONSUME_ONLY = true`; corrects prior status text only, no code
   changed, no dispatch attempted, no merge/execution authority granted.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001C-010 — Local Windows explicit-completion acceptance
+
+- Date: 2026-08-28
+- Scope: exercised end-to-end via the real `atlas orchestrator` CLI
+  entry points, in a disposable temp directory outside this repository,
+  deleted afterward. No production surface touched, no repository state
+  mutated. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Re-derived and corrected during review (see "PR #626 consistency"
+  below): ORCH001C-010 had been wrongly bundled with ORCH001D-012 under
+  the same "materially higher-stakes, real external dispatch" rationale.
+  It is not. `cursor_bridge.py`'s own module dependencies are `models`,
+  `router`, `validator` only -- verified directly (no `agent_transport`,
+  no `subprocess` anywhere in its import graph or the CLI handlers for
+  `cursor-stage-result`/`cursor-ack`/`cursor-complete`). This path can
+  never start a real Cursor process; it only surfaces an already-staged,
+  already-validated local route as a `HandoffPacket`.
+- Exercised, via `python -m project_atlas.cli orchestrator ...` against
+  a disposable `--root`, using the same payload shape the existing test
+  suite already covers (`_payload()` in
+  `test_orchestration_explicit_completion.py`):
+  1. `cursor-status` before staging: `active_state=absent`,
+     `state_valid=false` (correct baseline).
+  2. `cursor-stage-result result.json --root <disposable>`: staged
+     successfully, `status=pending`, real computed `route_digest`.
+  3. `cursor-complete --root <disposable>`: returned a `HandoffPacket`
+     with `state=HANDOFF_READY`, `transport=explicit`,
+     `dispatch_performed=false`, `execution_authorized=false`.
+  4. Repeated step 3 unchanged: byte-identical output both times --
+     `IDEMPOTENCE = PASS`.
+  5. `cursor-ack <digest> --root <disposable>`: transitioned
+     `status: pending -> acknowledged`.
+  6. `cursor-complete` again after ack: correctly rejected,
+     `error=HANDOFF_ALREADY_ACKNOWLEDGED`, exit 1 -- the explicit-
+     completion path closes once acknowledged, matching
+     `complete_staged_handoff()`'s documented behavior.
+  7. Adversarial tamper: directly edited the persisted `state.json` on
+     disk, setting `route.execution_authorized`,
+     `route.task.execution_authorized`, and both `permissions.merge`
+     flags to `true`, and resetting `status` back to `pending` to reach
+     the would-be happy path if the tamper went undetected. Result:
+     `cursor-status` reported `active_state=absent`,
+     `state_valid=false` (treats a tampered file as no valid state at
+     all, not merely "tampered but present"); `cursor-complete` failed
+     closed with `error=STAGED_STATE_TAMPERED`, exit 1.
+     `execution_authorized` stayed `false` throughout despite the tamper
+     -- confirms `verify_state()` recomputes route/digests fresh from
+     the stored envelope and never trusts the persisted authority
+     fields, exactly as `require_verified_state()`'s docstring claims.
+- Evidence: `DISPATCH_COUNT = 0`, `EXTERNAL_SERVICE_CALLS = 0`,
+  `REAL_CURSOR_AGENT_PROCESS_START = 0` (structurally guaranteed by the
+  import graph, not just by omission), `STAGED_HANDOFF_CREATED = YES`,
+  `CURSOR_COMPLETE_EXECUTED = YES`, `ACK/STATE_TRANSITION = EXPECTED`,
+  `IDEMPOTENCE = PASS`, `TAMPER_FAIL_CLOSED = PASS`,
+  `DISPOSABLE_STATE_ONLY = YES` (temp dir outside the repo, deleted
+  after the run; `bridge_state_path()` itself also rejects any path
+  that would escape `--root`, verified by source read).
+- Result: `ORCH001C-010 = PASS`. This is a genuinely owner-independent
+  acceptance -- no external service, no credentials, no dispatch, no
+  merge, no production mutation. Distinct and separate from
+  `ORCH001D-012`, which remains `AVAILABLE_NOT_ATTEMPTED` and does
+  require its own owner execution authorization (real external Cursor
+  process, unpredictable duration, real service interaction).
+- `CONSUME_ONLY = true`; no code changed, no repository state mutated,
+  no merge/execution authority granted beyond this local acceptance
+  finding itself.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
