@@ -33,9 +33,10 @@ def _wait_ready(host: str, port: int) -> None:
     last: OSError | None = None
     while time.monotonic() < deadline:
         try:
-            urlopen(f"http://{host}:{port}/v1/meta", timeout=0.5)
-            return
-        except HTTPError:
+            with urlopen(f"http://{host}:{port}/v1/meta", timeout=0.5):
+                return
+        except HTTPError as exc:
+            exc.close()
             return
         except OSError as exc:
             last = exc
