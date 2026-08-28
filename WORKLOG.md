@@ -8203,10 +8203,49 @@ reproducing the verifier's exact scenario as a permanent regression test.
   test): 107 passed.
 - `ruff check` / `mypy` (2 changed files): clean.
 
-**Independent adversarial verification (round 2):** in progress against
-this round's exact head, once committed. `ORCH001D-011` remains not
-final -- `SELF_CERTIFICATION = FORBIDDEN` -- until that converges with a
-clean result.
+**Independent adversarial verification (round 2): dispatched to a
+separate subagent, bound to exact head
+`4e36569a3cd1ea047ef6bf16df5877f472c56495`. VERDICT: PASS.**
+
+The verifier independently re-read the fix line by line (confirmed the
+stdin thread genuinely starts before `proc.wait(timeout=...)`, confirmed
+no shared mutable state between the three I/O threads, confirmed no
+double-close path on `proc.stdin`), independently reproduced the round-1
+defect's exact scenario against the fix (2.03s, matching the claim), and
+went beyond round 1 with 7 further adversarial variants -- all measured,
+none assumed:
+
+- 1MB stdin (not just the exact `MAX_PROMPT_CHARS` ceiling) with a
+  non-reading child: timeout still correctly enforced (2.02s) -- the fix
+  generalizes, wasn't narrowly tuned to one size.
+- Partial stdin read (1024 bytes) then hang: timeout still correctly
+  enforced (2.03s).
+- 2MB stdout + 2MB stderr + 1MB stdin all concurrently, short timeout:
+  correctly enforced (2.03s), both streams capped at exactly
+  `MAX_CAPTURED_BYTES` -- no three-way interaction bug beyond round 1's
+  two-way (stdout+stderr only) concurrency case.
+- Fast-exiting child that never reads a 512KB stdin payload: broken pipe
+  caught cleanly, no hang, no escaped exception, exit 0 in 0.07s.
+- `stdin=b""` vs `stdin=None`: both behave correctly, no divergence.
+- Round-1's memory-bound fix re-measured independently (150MB child
+  write) after this second change, to catch a regression-of-a-regression:
+  working-set growth ~0MB (noise-level) -- confirmed still intact,
+  untouched by the stdin fix.
+- 30 repeated `run()` calls with stdin populated: `threading.active_count()`
+  unchanged before/after -- no thread leak from the new stdin thread.
+
+Also confirmed via diff (`3d2276bc` vs `4e36569a`, `src/` only) that this
+fix touches only the stdin-handling logic in
+`SubprocessProcessRunner.run()` -- `_drain_bounded` and the
+`MAX_CAPTURED_BYTES` enforcement from round 1 are byte-for-byte
+untouched. Full regression suite (107), ruff, and mypy independently
+re-run and confirmed clean by the verifier as well, not just trusted from
+the implementer's own claim.
+
+**`ORCH001D-011 = PASS`**, implementer remediation (2 rounds) and
+independent adversarial verification (2 rounds, second one clean) both
+converged. `ORCH001D-012` (authentic Cursor dispatch) remains separately
+unchecked -- `EXTERNAL_BLOCKED`, not attempted.
 
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001E.
