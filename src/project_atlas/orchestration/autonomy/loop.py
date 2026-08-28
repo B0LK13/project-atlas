@@ -25,6 +25,7 @@ from typing import Final, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from project_atlas.orchestration.autonomy.continuation import select_next
+from project_atlas.orchestration.autonomy.dag import IllegalTransitionError
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
 from project_atlas.orchestration.autonomy.leases import expand_lease
@@ -496,8 +497,34 @@ class AutonomousLoop:
             item for item in self._governor.snapshot().nodes if item.package_id == package_id
         )
         if node.execution_host_class.value == "IN_PROCESS":
-            self._governor.execute_leased(lease_id)
             in_process_id = f"in-process:{lease_id}"
+            if node.state == NodeState.LEASED:
+                # Normal path: not yet executed. execute_leased() runs
+                # synchronously in-process, so if this call itself crashes
+                # partway through, the governor's own transition() call is
+                # what would have raised -- nothing to recover from here,
+                # it simply didn't complete. What this guard protects
+                # against is the *other* crash window: execute_leased()
+                # already succeeded (node moved to ACTIVE) but the process
+                # died before apply_observed_result() below ever ran, so
+                # this same LEASED-recovery branch gets hit again on
+                # restart with a node that is no longer LEASED.
+                try:
+                    self._governor.execute_leased(lease_id)
+                except IllegalTransitionError as exc:  # pragma: no cover - defensive
+                    return self._fail(
+                        f"in-process execution transition rejected: {exc}",
+                        code="EXECUTION_STATE_CONFLICT",
+                    )
+            # else: already executed before a crash between execute_leased()
+            # succeeding and apply_observed_result() completing. IN_PROCESS
+            # execution has no partial/async state -- its outcome is fully
+            # re-derived from the same deterministic id, and
+            # apply_observed_result() is itself replay-guarded
+            # (RESULT_REPLAY) against being applied twice, so re-entering it
+            # here is safe rather than re-running execute_leased() (which
+            # would attempt an illegal ACTIVE -> ACTIVE-style transition and
+            # raise instead of recovering).
             return self.apply_observed_result(in_process_id, in_process_id, passed=True)
         if self._dispatch is None:
             return self._fail("external dispatch port is required", code="DISPATCH_UNAVAILABLE")

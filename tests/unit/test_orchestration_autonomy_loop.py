@@ -148,6 +148,54 @@ def test_in_process_ready_completes_and_stops_without_owner(tmp_path: Path) -> N
     assert node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD, NodeState.CLOSED}
 
 
+def test_in_process_recovery_after_crash_before_apply_observed_result(
+    tmp_path: Path,
+) -> None:
+    """Pre-existing recovery defect (found during PR #635 independent IV,
+    confirmed pre-existing via a control test, not introduced by that PR):
+    a crash between `governor.execute_leased()` succeeding (node -> ACTIVE)
+    and `apply_observed_result()` running (which is what would move the
+    loop's own phase away from LEASED) leaves the loop's persisted state at
+    `phase=LEASED` with a node that is no longer `LEASED`. On restart,
+    `recover()`'s LEASED branch used to call `execute_leased()` again
+    unconditionally, attempting an illegal `ACTIVE -> ACTIVE` transition
+    that raised `IllegalTransitionError` uncaught -- escaping `cli.py`'s
+    handler (which only catches `TrustError`/`DiscoveryError`/`LoopError`)
+    and permanently re-crashing on every subsequent tick.
+    """
+    gov = _governor(_node("AS-ORCH-CRASH-001"))
+    loop = _loop(tmp_path, gov)
+    # Drive to LEASED via the loop's own machinery, but stop before it
+    # proceeds into _dispatch_leased() -- lease directly through the
+    # governor (the same call _select_and_lease() makes) and persist the
+    # matching loop state by hand, mirroring exactly what _select_and_lease
+    # itself saves just before calling _dispatch_leased().
+    lease = gov.lease(
+        "AS-ORCH-CRASH-001", loop._first_agent(), branch=loop._branch, worktree=loop._worktree
+    )
+    loop._save(
+        phase=LoopPhase.LEASED,
+        active_package_id="AS-ORCH-CRASH-001",
+        active_lease_id=lease.lease_id,
+    )
+    # Simulate "the crash happened right after execute_leased() succeeded,
+    # before apply_observed_result() ran" -- call it directly, exactly what
+    # _dispatch_leased()'s IN_PROCESS branch does as its first step, without
+    # the loop's own state file ever finding out.
+    gov.execute_leased(lease.lease_id)
+    node_state = next(
+        item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-CRASH-001"
+    ).state
+    assert node_state is NodeState.ACTIVE  # confirms the precise crash window
+    assert loop.state.phase is LoopPhase.LEASED  # loop is unaware
+
+    # A fresh process would call exactly this on restart.
+    result = loop.recover()  # must not raise IllegalTransitionError
+    assert result.phase is not LoopPhase.FAILED_CLOSED
+    node = next(item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-CRASH-001")
+    assert node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD, NodeState.CLOSED}
+
+
 def test_owner_gate_stop_no_dispatch(tmp_path: Path) -> None:
     gov = _governor(
         _node(
