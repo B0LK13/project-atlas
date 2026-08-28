@@ -214,7 +214,7 @@ def test_orphaned_dispatch_recovery_reconciles_completed(tmp_path: Path) -> None
     port = CallableDispatchPort(
         lambda _root: calls.append("dispatch") or {"dispatch_id": "orphan-1", "status": "RUNNING"},
         recover=lambda _root, _id: {"status": "COMPLETED", "digest": "aa" * 32},
-        find_active_dispatch_id=lambda _root: "orphan-1",
+        find_active_dispatch_id=lambda _root, _lease_id: "orphan-1",
     )
     loop = _loop(tmp_path, gov, port)
     loop.tick()  # LEASED -> DISPATCHING -> AWAITING_RESULT (normal path)
@@ -234,7 +234,7 @@ def test_orphaned_dispatch_recovery_reconciles_still_running(tmp_path: Path) -> 
     port = CallableDispatchPort(
         lambda _root: {"dispatch_id": "orphan-2", "status": "RUNNING"},
         recover=lambda _root, _id: {"status": "RUNNING"},
-        find_active_dispatch_id=lambda _root: "orphan-2",
+        find_active_dispatch_id=lambda _root, _lease_id: "orphan-2",
     )
     loop = _loop(tmp_path, gov, port)
     loop.tick()
@@ -253,7 +253,7 @@ def test_orphaned_dispatch_recovery_finds_nothing_retries_cleanly(tmp_path: Path
     calls: list[str] = []
     port = CallableDispatchPort(
         lambda _root: calls.append("dispatch") or {"dispatch_id": "orphan-3", "status": "RUNNING"},
-        find_active_dispatch_id=lambda _root: None,
+        find_active_dispatch_id=lambda _root, _lease_id: None,
     )
     loop = _loop(tmp_path, gov, port)
     loop.tick()
@@ -263,6 +263,84 @@ def test_orphaned_dispatch_recovery_finds_nothing_retries_cleanly(tmp_path: Path
     assert calls == ["dispatch", "dispatch"]  # one clean retry, not a hang
     assert result.dispatch_id == "orphan-3"
     assert result.phase is LoopPhase.AWAITING_RESULT
+
+
+def test_orphaned_dispatch_recovery_treats_empty_string_as_not_found(tmp_path: Path) -> None:
+    """Independent-IV finding: `found is None` alone let a legal-but-empty
+    `""` return slip through as if it were a real identity, silently
+    persisting active_dispatch_id="" and then permanently re-stalling
+    (structurally the same bug this whole fix exists to close). An empty
+    string must never be treated as a found identity.
+    """
+    gov = _governor(_node("AS-ORCH-ORPHAN-004", host=ExecutionHostClass.EXTERNAL_AGENT))
+    calls: list[str] = []
+    port = CallableDispatchPort(
+        lambda _root: calls.append("dispatch") or {"dispatch_id": "orphan-4", "status": "RUNNING"},
+        find_active_dispatch_id=lambda _root, _lease_id: "",
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()
+    loop._save(phase=LoopPhase.DISPATCHING, active_dispatch_id=None)
+    result = loop.recover()
+    assert loop.state.active_dispatch_id != ""
+    assert calls == ["dispatch", "dispatch"]  # treated as not-found -> clean retry
+    assert result.phase is LoopPhase.AWAITING_RESULT
+
+
+def test_orphaned_dispatch_recovery_fails_closed_on_ambiguous_discovery(tmp_path: Path) -> None:
+    """Independent-IV finding: the port's own docstring said `None` means
+    "no record exists OR the port cannot determine one" -- collapsing
+    those into one auto-retry response risks duplicating a real in-flight
+    process on a merely transient discovery failure. A port that cannot
+    positively confirm either way must raise, and the loop must fail
+    closed (observable), not silently retry.
+    """
+    gov = _governor(_node("AS-ORCH-ORPHAN-005", host=ExecutionHostClass.EXTERNAL_AGENT))
+    calls: list[str] = []
+
+    def _find_raises(_root: Path, _lease_id: str) -> str | None:
+        raise RuntimeError("001D-side active-dispatch record is unreadable")
+
+    port = CallableDispatchPort(
+        lambda _root: calls.append("dispatch") or {"dispatch_id": "orphan-5", "status": "RUNNING"},
+        find_active_dispatch_id=_find_raises,
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()
+    assert calls == ["dispatch"]
+    loop._save(phase=LoopPhase.DISPATCHING, active_dispatch_id=None)
+    with pytest.raises(LoopError) as exc:
+        loop.recover()
+    assert exc.value.code == "DISPATCH_RECOVERY_AMBIGUOUS"
+    assert calls == ["dispatch"]  # never auto-retried on ambiguity
+    assert loop.state.phase is LoopPhase.FAILED_CLOSED
+
+
+def test_orphaned_dispatch_recovery_passes_the_correct_lease_id(tmp_path: Path) -> None:
+    """The abstract port cannot scope a match to the right lease on its
+    own -- it needs the loop to tell it which lease is active. Prove the
+    loop actually passes it, so a real adapter's per-lease scoping
+    (independent-IV finding: the underlying 001D slot is global, not
+    per-lease) has something correct to filter on.
+    """
+    gov = _governor(_node("AS-ORCH-ORPHAN-006", host=ExecutionHostClass.EXTERNAL_AGENT))
+    seen_lease_ids: list[str] = []
+
+    def _find(_root: Path, lease_id: str) -> str | None:
+        seen_lease_ids.append(lease_id)
+        return None
+
+    port = CallableDispatchPort(
+        lambda _root: {"dispatch_id": "orphan-6", "status": "RUNNING"},
+        find_active_dispatch_id=_find,
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()
+    expected_lease_id = loop.state.active_lease_id
+    assert expected_lease_id
+    loop._save(phase=LoopPhase.DISPATCHING, active_dispatch_id=None)
+    loop.recover()
+    assert seen_lease_ids == [expected_lease_id]
 
 
 def test_duplicate_result_replay_rejected(tmp_path: Path) -> None:

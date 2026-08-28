@@ -83,13 +83,28 @@ class DispatchPort(Protocol):
     def recover(self, root: Path, dispatch_id: str) -> dict[str, object]:
         """Recover an in-flight hop. Must not respawn a new process."""
 
-    def find_active_dispatch_id(self, root: Path) -> str | None:
-        """Best-effort discovery of a dispatch identity the loop itself
-        never recorded (ORCH001E-008 P3): a crash between `dispatch_once()`
-        persisting its own record and the loop persisting
-        `active_dispatch_id` must not be indistinguishable from "nothing
-        was dispatched". Returns None when no 001D-side record exists (or
-        the port cannot determine one) -- never invents an identity."""
+    def find_active_dispatch_id(self, root: Path, *, lease_id: str) -> str | None:
+        """Discovery of a dispatch identity the loop itself never recorded
+        (ORCH001E-008 P3): a crash between `dispatch_once()` persisting its
+        own record and the loop persisting `active_dispatch_id` must not be
+        indistinguishable from "nothing was dispatched".
+
+        Contract (independent-IV-hardened, do not weaken):
+        - Return the id only if it genuinely belongs to `lease_id`.
+          The underlying 001D active-dispatch slot is a single GLOBAL
+          slot, not per-lease -- a naive "is anything active" check can
+          return an *unrelated* dispatch from a different lease and
+          corrupt the wrong governor node. Adapters MUST scope the match
+          themselves; this abstract port cannot verify it for them.
+        - Return `None` ONLY when you can positively confirm nothing was
+          dispatched for this lease. An empty string is never a valid
+          "found" value -- treat it the same as `None`.
+        - Raise (do not guess, do not return `None`) when you cannot
+          positively determine either way -- e.g. the 001D-side record is
+          itself unreadable/tampered/ambiguous. The loop treats a raised
+          exception as "cannot determine" and fails closed rather than
+          risking a duplicate dispatch; it treats a clean `None` as
+          "confirmed nothing", safe to retry."""
 
 
 class LoopState(BaseModel):
@@ -366,11 +381,31 @@ class AutonomousLoop:
             # the loop's own state file never learned about.
             if self._dispatch is None:
                 return self._fail("in-flight dispatch cannot be recovered", code="ORPHAN_PROCESS")
-            found = self._dispatch.find_active_dispatch_id(self._root)
-            if found is None:
-                # Genuinely nothing was dispatched (or the port cannot
-                # determine one) -- safe to retry from LEASED, since no
-                # process is known to exist that could be duplicated.
+            lease_id = self._state.active_lease_id
+            if lease_id is None:
+                return self._fail(
+                    "dispatching phase missing lease identity", code="PARTIAL_COMPLETION"
+                )
+            try:
+                found = self._dispatch.find_active_dispatch_id(self._root, lease_id=lease_id)
+            except Exception as exc:
+                # Independent-IV finding: the port could not positively
+                # confirm either way (e.g. its own record is unreadable).
+                # Do NOT treat this the same as "confirmed nothing" -- an
+                # automatic retry here could duplicate a real in-flight
+                # process. Fail closed instead: stuck-but-observable is
+                # the accepted tradeoff, exactly as it already is for a
+                # dispatch port this loop has no way to recover at all.
+                return self._fail(
+                    f"dispatch discovery could not determine outcome: {exc}",
+                    code="DISPATCH_RECOVERY_AMBIGUOUS",
+                )
+            if not found:
+                # `None` (or, defensively, an empty string -- never a
+                # valid identity) means the port positively confirms
+                # nothing was dispatched for this lease. Safe to retry
+                # from LEASED: no process is known to exist that a retry
+                # could duplicate.
                 self._save(phase=LoopPhase.LEASED)
                 return self._dispatch_leased()
             if found in self._state.completed_dispatch_ids:
@@ -578,7 +613,7 @@ class CallableDispatchPort:
         self,
         dispatch_once: Callable[[Path], dict[str, object]],
         recover: Callable[[Path, str], dict[str, object]] | None = None,
-        find_active_dispatch_id: Callable[[Path], str | None] | None = None,
+        find_active_dispatch_id: Callable[[Path, str], str | None] | None = None,
     ) -> None:
         self._dispatch_once = dispatch_once
         self._recover = recover
@@ -592,7 +627,7 @@ class CallableDispatchPort:
             return {"dispatch_id": dispatch_id, "status": "RUNNING"}
         return self._recover(root, dispatch_id)
 
-    def find_active_dispatch_id(self, root: Path) -> str | None:
+    def find_active_dispatch_id(self, root: Path, *, lease_id: str) -> str | None:
         if self._find_active_dispatch_id is None:
             return None
-        return self._find_active_dispatch_id(root)
+        return self._find_active_dispatch_id(root, lease_id)
