@@ -1,10 +1,19 @@
-# ORCH001C-010 / ORCH001D-012 — Authentic Cursor Dispatch Acceptance Packet
+# ORCH001D-012 — Authentic Cursor Dispatch Acceptance Packet
 
 Status: **proposal only, not executed**. This document exists so an owner
 can authorize one tightly bounded authentic Cursor CLI dispatch later,
 without ambiguity about what would actually run. Nothing in this file
-grants execution authority. It is not itself an ORCH001C-010/ORCH001D-012
-PASS.
+grants execution authority. It is not itself an ORCH001D-012 PASS.
+
+**Correction:** this packet originally covered both ORCH001C-010 and
+ORCH001D-012 under the same dispatch-risk rationale. That was wrong.
+ORCH001C-010 (Local Windows explicit-completion acceptance) never starts
+a real Cursor process — `cursor_bridge.py`'s own import graph has no
+dependency on `agent_transport`/`subprocess` at all — and has since been
+exercised end-to-end in a disposable directory and recorded `PASS`
+(WORKLOG "ORCH001C-010", separately). This packet now covers
+**ORCH001D-012 only**, the one item that genuinely requires a real
+external Cursor process.
 
 ## Why this exists
 
@@ -31,7 +40,9 @@ authorization this session has required.
 
 Current classification:
 
-- `ORCH001C_010 = AVAILABLE_OWNER_EXECUTION_AUTH_REQUIRED`
+- `ORCH001C_010 = PASS` (see WORKLOG "ORCH001C-010" — not this packet's
+  concern; recorded separately, no owner execution authorization needed
+  for it)
 - `ORCH001D_012 = AVAILABLE_OWNER_EXECUTION_AUTH_REQUIRED`
 
 ## What would actually run
@@ -124,7 +135,8 @@ authorization, not by this document):
 ## What this packet does not do
 
 - Does not execute anything.
-- Does not claim ORCH001C-010 or ORCH001D-012 pass.
+- Does not claim ORCH001D-012 pass. (ORCH001C-010's `PASS` is recorded
+  separately, in WORKLOG "ORCH001C-010" — not a claim of this packet.)
 - Does not choose `TARGET_TEST_PROJECT` or fill in the operational bounds
   above — those are the owner's call at authorization time, not this
   document's.
