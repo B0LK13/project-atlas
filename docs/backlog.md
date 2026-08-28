@@ -494,7 +494,7 @@ Honesty (mandatory):
 
 ## AS-ORCH-001D — Governed Single-Hop Agent Dispatcher (current-main reconstruction)
 
-_Status: **IMPLEMENTED — READY FOR OWNER MERGE GATE** (ORCH001D-011 independently verified 2026-08-28, see WORKLOG "ORCH001D-011"; ORCH001D-012 authentic-Cursor acceptance remains separately outstanding, EXTERNAL_BLOCKED here; not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
+_Status: **IMPLEMENTED — ORCH001D-011 IV FOUND A REAL P2 (subprocess capture memory-bound), REMEDIATED, PENDING INDEPENDENT ADVERSARIAL VERIFICATION** (2026-08-28, see WORKLOG "ORCH001D-011"; not final until a separate verifier converges -- implementer self-certification is not sufficient here; ORCH001D-012 authentic-Cursor acceptance remains separately outstanding, EXTERNAL_BLOCKED here; not merged; merge authorization not granted). Starts exactly one target agent for a governed `HANDOFF_READY` dispatchable task, then stops. Does **not** auto-dispatch the next hop. Does **not** resurrect PR #396. Does **not** start AS-ORCH-001E._
 
 Honesty (mandatory):
 
@@ -520,7 +520,7 @@ Honesty (mandatory):
 - [x] ORCH001D-008 `atlas orchestrator dispatch-once` / `dispatch-status`
 - [x] ORCH001D-009 Mutating remediation fail closed (`CAPABILITY_REQUIRED`)
 - [x] ORCH001D-010 Focused unit + schema tests
-- [x] ORCH001D-011 Independent verification (2026-08-28: 32 existing tests re-run PASS + SAFE_LOCAL command-construction adversarial probes + SAFE_ISOLATED authentic-but-benign subprocess probes (real timeout enforcement, shell=False proof) against `main` `5ff62221`, see WORKLOG "ORCH001D-011"; PASS; still not merge-eligible)
+- [ ] ORCH001D-011 Independent verification (2026-08-28: IV found a real P2 -- `SubprocessProcessRunner` capture was bounded only on the returned value, not during collection; remediated by rewriting to a bounded concurrent-drain design + 22 new regression tests, 106 total orchestration tests pass, ruff/mypy clean; PENDING a separate independent adversarial verification pass before this is checked off -- see WORKLOG "ORCH001D-011"; still not merge-eligible regardless)
 - [ ] ORCH001D-012 Authentic Local Windows Cursor agent dispatch acceptance
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
 

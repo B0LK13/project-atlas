@@ -8029,13 +8029,14 @@ Added 4 more probes closing that gap, same isolated-vault method:
   `PROCESS_SPAWN_BEHAVIOR`. Command construction (`build_launch_plan`,
   `resolve_cursor_transport`) is pure and independently testable without
   any subprocess. The real transport (`SubprocessProcessRunner`) is a
-  thin, well-bounded translation layer (`shell=False` always, timeout
-  clamped to [1, 86400]s, cwd must exist, output bounded) -- testable
-  with a benign, already-present interpreter (`sys.executable`) standing
-  in for the Cursor CLI, without needing Cursor itself. Classified: command
-  construction + eligibility/fail-closed logic = `SAFE_LOCAL`; transport
-  mechanics with a benign real subprocess = `SAFE_ISOLATED`; authentic
-  Cursor dispatch = `AUTHENTIC_ENV_REQUIRED` (out of scope, = ORCH001D-012).
+  thin translation layer (`shell=False` always, timeout clamped to
+  [1, 86400]s, cwd must exist, returned output truncated to
+  `MAX_CAPTURED_BYTES`) -- testable with a benign, already-present
+  interpreter (`sys.executable`) standing in for the Cursor CLI, without
+  needing Cursor itself. Classified: command construction +
+  eligibility/fail-closed logic = `SAFE_LOCAL`; transport mechanics with
+  a benign real subprocess = `SAFE_ISOLATED`; authentic Cursor dispatch =
+  `AUTHENTIC_ENV_REQUIRED` (out of scope, = ORCH001D-012).
 - Baseline: existing suite re-run clean --
   test_orchestration_dispatcher.py + test_orchestration_agent_transport.py
   + test_orchestration_explicit_completion.py +
@@ -8077,9 +8078,90 @@ Added 4 more probes closing that gap, same isolated-vault method:
   real process-spawn transport all hold under adversarial probing. No
   path found to shell injection, argv-based flag smuggling, unbounded
   hangs, or spawning with an unvalidated cwd/executable.
-- Result: `ORCH001D-011 = PASS`. `ORCH001D-012` (authentic Cursor
-  dispatch) remains separately unchecked -- `EXTERNAL_BLOCKED`, not
-  attempted.
+- Result (initial pass): eligibility/fail-closed logic, command
+  construction, and the real process-spawn transport all held under the
+  probes above. `ORCH001D-012` (authentic Cursor dispatch) remains
+  separately unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+
+### PR #620 review findings and remediation (same day, same PR)
+
+Two independent review findings on the entry above (Codex, both P2) were
+correct and required action before `ORCH001D-011` could stand as `PASS`:
+
+**Finding 1 -- captured output was not actually memory-bounded.**
+`SubprocessProcessRunner` used `subprocess.run(capture_output=True)`,
+which buffers a child's *complete* stdout/stderr via
+`Popen.communicate()` before the old `bound_captured_bytes(data) =
+data[:MAX_CAPTURED_BYTES]` truncated the *returned* value. Parent-process
+memory during collection was unbounded regardless of the eventual
+truncation -- confirmed as the root cause by reading the CPython
+`subprocess` module's own behavior, not assumed. `RETURNED_OUTPUT_BOUNDED
+= YES` but `PROCESS_CAPTURE_MEMORY_BOUNDED = NO`. The prior WORKLOG entry
+above ("returned output truncated to `MAX_CAPTURED_BYTES`") is corrected
+by this note; the original wording that said "output bounded" without
+qualification overstated what the code did.
+
+Remediation: rewrote `SubprocessProcessRunner.run()` to use
+`subprocess.Popen` directly with two dedicated reader threads (one per
+stream), each draining its pipe to EOF via a bounded helper
+(`_drain_bounded`) that keeps only the first `MAX_CAPTURED_BYTES` and
+discards (without retaining) everything past the cap -- so a child can
+never force unbounded parent memory growth, and critically the pipe is
+still fully drained past the cap so the child can never deadlock writing
+to a full OS pipe buffer while the excess is discarded. `shell=False`,
+the timeout bound `[1, 86400]s`, and the cwd-must-exist check are
+unchanged. `bound_captured_bytes()` (the old, now-superseded truncation
+function) was removed rather than left as dead code that could mislead a
+future reader into reusing the flawed pattern.
+
+**Finding 2 -- IV probe evidence was prose-only, not reproducible.**
+The ad-hoc probes for this entry were run in a terminal and summarized
+here, with no checked-in artifact a later verifier could re-run.
+Corrected by adding `tests/unit/test_orch001d_011_iv_probes.py`,
+containing every SAFE_LOCAL/SAFE_ISOLATED probe from the original pass as
+real pytest tests, plus the capture-bound regression set below. Evidence
+class distinction going forward: `AD_HOC_PROBE = EXECUTED` (this
+WORKLOG's prose) is not the same claim as `DURABLE_REGRESSION_TEST =
+PRESENT` (a file in the repo) -- historical entries that only executed
+ad-hoc probes are not rewritten to claim tests existed at the time; new
+work adds real tests going forward.
+
+**Capture-bound regression tests added** (`test_orch001d_011_iv_probes.py`,
+all against the real, unmocked `SubprocessProcessRunner`):
+large stdout past the cap; large stderr past the cap; large stdout *and*
+stderr concurrently (the deadlock-reintroduction trap a naive fix could
+hit, since a naive drain-one-stream-first implementation blocks the child
+on the other stream's full pipe buffer); output exactly at the boundary
+(unaltered); one byte over the boundary (truncated by exactly one);
+empty output; binary/non-UTF-8 output (returned as raw bytes, never
+decoded); nonzero exit code with oversized output (both reported
+correctly together); timeout with output already produced before the
+kill (preserved, not discarded); normal small-output behavior (unchanged
+from before the fix).
+
+**Local verification of the remediation:**
+- New test file: 22 passed (`test_orch001d_011_iv_probes.py`).
+- Full orchestration regression:
+  `test_orchestration_dispatcher.py` + `test_orchestration_agent_transport.py`
+  (including the real, unmocked, `skipif(os.name != "nt")` authentic-Windows
+  `CreateProcess` tests -- this machine is Windows, so they ran for real,
+  not skipped) + `test_orchestration_explicit_completion.py` +
+  `test_orchestration_result_binding.py` +
+  `test_orchestration_result_binding_windows.py` (also real Windows
+  subprocess tests) + `test_orch001d_011_iv_probes.py` +
+  `test_orchestration_cursor_bridge.py` = 106 passed.
+- `ruff check` (2 changed files): clean.
+- `mypy src/project_atlas/orchestration/agent_transport.py`: clean.
+- Confirmed `agent_transport.py` has exactly one production importer
+  (`dispatcher.py`), so the blast radius of this change is contained to
+  what was already covered above.
+
+**Independent adversarial verification:** dispatched to a separate
+subagent (implementer must not self-certify), bound to this remediation's
+exact HEAD once committed. Result recorded below once returned.
+`SELF_CERTIFICATION = FORBIDDEN` for this finding; `ORCH001D-011` is not
+final until that converges.
+
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001E.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
