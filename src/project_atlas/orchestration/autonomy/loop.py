@@ -296,8 +296,18 @@ class AutonomousLoop:
         raise LoopError(message, code=code)
 
     def refuse_owner_actions(self) -> None:
-        """Hard safety: the loop cannot grant any owner gate."""
-        require_owner(OwnerGateKind.A_PROTECTED_MAIN_MERGE, owner_grant=False)
+        """Hard safety: the loop cannot grant any owner gate.
+
+        ORCHAUT-010 (2026-08-28): previously checked only gate A, while this
+        method's own docstring and the module-level ``LOOP_CAN_BYPASS_OWNER_
+        GATE = NO`` contract claimed the general property. Checks all six
+        ``OwnerGateKind`` values now, so gates C/D/E/F (certified-object
+        mutation, security/governance policy, destructive ops, material
+        external spend) fail closed the same way A/B already did, before
+        persistent autonomy becomes load-bearing.
+        """
+        for gate in OwnerGateKind:
+            require_owner(gate, owner_grant=False)
 
     def tick(self) -> LoopTickResult:
         """One fail-closed continuation step. At most one 001D dispatch."""

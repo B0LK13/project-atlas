@@ -279,6 +279,36 @@ class AutonomousGovernor:
     def request_acceptance_waiver(self, *, owner_grant: bool = False) -> None:
         require_owner(OwnerGateKind.B_ACCEPTANCE_WAIVER, owner_grant=owner_grant)
 
+    def request_certified_object_mutation(self, *, owner_grant: bool = False) -> None:
+        """Owner gate C: mutating a certified object (e.g. a frozen demo
+        estate/showcase surface, a sealed evidence bundle) requires explicit
+        owner authority, same as A/B. ORCHAUT-010 (2026-08-28): added as a
+        real, importable enforcement primitive -- previously this gate
+        existed only as a descriptive ``WorkNode.owner_gate`` tag with no
+        dedicated call site to fail closed on, unlike A/B."""
+        require_owner(OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION, owner_grant=owner_grant)
+
+    def request_security_governance_policy_change(self, *, owner_grant: bool = False) -> None:
+        """Owner gate D: changing a security or governance policy (e.g. the
+        DENY-list freeze surface, an owner-gate definition itself) requires
+        explicit owner authority. ORCHAUT-010 (2026-08-28): see
+        ``request_certified_object_mutation`` docstring for why this is new."""
+        require_owner(OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY, owner_grant=owner_grant)
+
+    def request_destructive_op(self, *, owner_grant: bool = False) -> None:
+        """Owner gate E: an irreversible or hard-to-reverse operation (data
+        deletion, force-push, history rewrite) requires explicit owner
+        authority. ORCHAUT-010 (2026-08-28): see
+        ``request_certified_object_mutation`` docstring for why this is new."""
+        require_owner(OwnerGateKind.E_DESTRUCTIVE_OPS, owner_grant=owner_grant)
+
+    def request_material_external_spend(self, *, owner_grant: bool = False) -> None:
+        """Owner gate F: an action with a material external cost (billed API
+        usage, paid infrastructure) requires explicit owner authority.
+        ORCHAUT-010 (2026-08-28): see ``request_certified_object_mutation``
+        docstring for why this is new."""
+        require_owner(OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND, owner_grant=owner_grant)
+
     def transition(self, package_id: str, to_state: NodeState, reason: str) -> TransitionRecord:
         node = self._require_node(package_id)
         if to_state == NodeState.MERGED:

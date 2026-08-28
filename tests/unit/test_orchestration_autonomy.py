@@ -199,6 +199,18 @@ def test_governor_cannot_merge() -> None:
 
 
 def test_owner_gates_a_through_f_fail_closed() -> None:
+    """ORCHAUT-010 (2026-08-28): this test's name previously overclaimed --
+    it confirmed ``classify_requested_action`` *tags* all six gates but only
+    ever exercised *enforcement* for gate B (``request_acceptance_waiver``).
+    C/D/E/F had zero enforcement call sites anywhere in the package (only
+    descriptive ``WorkNode.owner_gate`` tags), matching backlog item
+    ORCHAUT-010's exact finding. Now genuinely exercises all six: A via
+    ``request_merge`` (kept as an ``IllegalTransitionError``-raising
+    override -- see ``test_governor_cannot_merge`` for A's own dedicated
+    coverage, reproduced here as OwnerGateError since the gate check runs
+    first), B through F via one dedicated ``request_*`` method per gate,
+    each added specifically to close this gap and confirmed here to fail
+    closed with no owner grant, exactly like A/B already did."""
     gov = AutonomousGovernor(
         current_main=EXPECTED_BASE_MAIN,
         current_tree=EXPECTED_BASE_TREE,
@@ -213,8 +225,31 @@ def test_owner_gates_a_through_f_fail_closed() -> None:
         material_external_spend=True,
     )
     assert set(gates) == set(OwnerGateKind)
+
+    gov.add_node(_node("PKG-GATE-A", state=NodeState.MERGE_ELIGIBLE))
+    with pytest.raises(OwnerGateError):
+        gov.request_merge("PKG-GATE-A")
     with pytest.raises(OwnerGateError):
         gov.request_acceptance_waiver()
+    with pytest.raises(OwnerGateError):
+        gov.request_certified_object_mutation()
+    with pytest.raises(OwnerGateError):
+        gov.request_security_governance_policy_change()
+    with pytest.raises(OwnerGateError):
+        gov.request_destructive_op()
+    with pytest.raises(OwnerGateError):
+        gov.request_material_external_spend()
+
+    # The generic no-grant-no-pass contract is symmetric for every gate --
+    # supplying owner_grant=True must let each one through cleanly (the
+    # package's role is validating the gate check itself, not performing
+    # the action; a real grant artifact is expected to originate outside
+    # this package, per owner_gates.py's own module docstring).
+    gov.request_acceptance_waiver(owner_grant=True)
+    gov.request_certified_object_mutation(owner_grant=True)
+    gov.request_security_governance_policy_change(owner_grant=True)
+    gov.request_destructive_op(owner_grant=True)
+    gov.request_material_external_spend(owner_grant=True)
 
 
 def test_lease_and_forbidden_scope_expansion() -> None:
