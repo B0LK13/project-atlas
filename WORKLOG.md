@@ -8406,3 +8406,63 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
 - `CONSUME_ONLY = true`; does not pin `ATLAS_HEAD`, does not execute any
   demo script, does not mutate the estate.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCHAUT-010 — owner gates C-F contract discovery
+
+- Date: 2026-08-28
+- Scope: read-only. Re-derives the actual trigger/behavior/enforcement
+  path for owner gates C-F (`C_CERTIFIED_OBJECT_MUTATION`,
+  `D_SECURITY_GOVERNANCE_POLICY`, `E_DESTRUCTIVE_OPS`,
+  `F_MATERIAL_EXTERNAL_SPEND`) from the repository's own source, per
+  instruction not to infer semantics from enum names/prose alone. No
+  production surface touched. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Method: exhaustive grep for every call site of `require_owner(`,
+  `evaluate_owner_action(`, `classify_requested_action(`, and every read
+  site of `.owner_gate` across `src/`, not just the `owner_gates.py`
+  module itself.
+- Gate A (`A_PROTECTED_MAIN_MERGE`) and Gate B (`B_ACCEPTANCE_WAIVER`):
+  `ALREADY_SATISFIED`. Each has a dedicated, named action method --
+  `Governor.request_merge()` / `Governor.request_acceptance_waiver()` --
+  that calls `require_owner(...)` with an explicit `owner_grant`
+  parameter threaded in from the caller. `Governor.transition()` also
+  hardcodes `owner_grant=False` before any `to_state == MERGED`
+  transition, so gate A is enforced at two independent layers regardless
+  of caller intent. Both are exercised by ORCH001A-E's existing IV work.
+- Gates C/D/E/F: `SEMANTIC_OWNER_DECISION_REQUIRED`, but more precisely
+  than "zero enforcement" (correcting my own earlier verbal summary of
+  this finding, given before this written record):
+  - `classify_requested_action()` exists as a generic, caller-driven
+    classifier (bool flags in, matching `OwnerGateKind` tuple out) but
+    has zero call sites anywhere in `src/` outside its own definition --
+    dead code, never wired to anything.
+  - `WorkNode.owner_gate` IS read generically (kind-agnostic, any of A-F
+    treated identically) by the live scheduler:
+    `continuation.select_next()` and `Governor.plan()` both hold any
+    node with `owner_gate is not None` out of autonomous selection
+    (`StopReason.OWNER_GATE`). This part is real, not just descriptive
+    metadata -- if a node ever carried a C/D/E/F tag, the generic stop
+    would apply to it exactly as it does to A/B-tagged nodes today.
+  - The gap is specifically: unlike A/B, there is no dedicated
+    `request_*()` action method for C/D/E/F (no
+    `request_certified_object_mutation()`,
+    `request_security_governance_change()`,
+    `request_destructive_op()`, `request_material_spend()` or
+    equivalent), and therefore no wired `owner_grant` parameter path by
+    which an owner could actually unblock a C/D/E/F-tagged node the way
+    `owner_grant=True` unblocks gate A/B. The *stop* is inherited for
+    free from the generic mechanism; the *grant path* does not exist.
+  - Today this gap is not live/exploitable: `discovery.py`'s static
+    candidate table tags two historical candidates
+    (`AS-ORCH-001D-R6` = C, `AS-ORCH-001E` = D) but both (like every
+    entry in that table) are `eligible=False`, so
+    `Governor.ingest_discovery()` never actually creates a `WorkNode`
+    carrying a C or D gate today (`selected_package_id` stays `None`
+    for the whole table). The missing grant-path plumbing is a real gap
+    in what would need to exist before any future C/D/E/F-gated
+    candidate could become owner-actionable, not a currently-open hole.
+- Per instruction, this classification is not implemented against --
+  gates C-F semantics are not invented here, and no code change is made
+  to add trigger/behavior/enforcement for them. This entry is the
+  recorded DAG input only.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
+>>>>>>> 80c075c0 (docs(orchaut010): record owner gates C-F contract discovery)
