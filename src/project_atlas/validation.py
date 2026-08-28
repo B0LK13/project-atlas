@@ -868,6 +868,26 @@ def _validate_freshness(
                 path=rel_path or None,
             )
             findings.append(finding)
+            if portfolio_labels is not None and portfolio_labels.get(source_id) == "fresh":
+                # A "fresh" label surviving in the on-disk portfolio for a
+                # source now known untrusted is the same laundering defect as
+                # the stale case below: the report keeps asserting freshness
+                # evidence has withdrawn (e.g. built under a since-corrected
+                # future clock). Reuse H-006-launder rather than let a WARNING
+                # be the only signal that a "fresh" claim is no longer valid.
+                launder = _finding(
+                    finding_id=_stable_finding_id("H-006-launder", source_id),
+                    rule_id="H-006-launder",
+                    severity=Severity.ERROR,
+                    gate=ValidationGate.FRESHNESS,
+                    message=(
+                        f"freshness laundering: source {source_id} marked fresh "
+                        f"in portfolio but objectively {status}"
+                    ),
+                    path=rel_path or None,
+                )
+                findings.append(launder)
+                errors.append(launder["message"])
             continue
         if status == "corrupt":
             finding = _finding(

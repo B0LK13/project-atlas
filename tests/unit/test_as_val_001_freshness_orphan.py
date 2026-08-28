@@ -388,6 +388,46 @@ def test_h006_future_mtime_is_untrusted_warning_not_stale(tmp_path: Path) -> Non
     assert result["ok"] is True
 
 
+def test_h006_laundering_marked_fresh_but_untrusted_future_fails(tmp_path: Path) -> None:
+    """A "fresh" label surviving in the on-disk portfolio for a source now
+    classified untrusted-future (e.g. the portfolio was built under a since-
+    corrected future clock) is the same laundering defect as the objectively-
+    stale case: the report keeps asserting freshness evidence that no longer
+    holds. This must fail validation as H-006-launder (ERROR), not silently
+    pass with only the H-006-untrusted WARNING."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-future-launder",
+                "path": "docs/future.md",
+                "likely_project": "demo",
+                "modified_at": (REFERENCE_NOW + timedelta(days=400)).isoformat(),
+            }
+        ],
+    )
+    _write_portfolio_stale(
+        vault,
+        sources_by_project={
+            "demo": [
+                {
+                    "source_id": "src-future-launder",
+                    "path": "docs/future.md",
+                    "freshness": "fresh",
+                    "modified_at": (REFERENCE_NOW + timedelta(days=400)).isoformat(),
+                }
+            ]
+        },
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert result["ok"] is False
+    assert any(f["rule_id"] == "H-006-untrusted" for f in result["findings"])
+    assert any(f["rule_id"] == "H-006-launder" for f in result["findings"])
+    assert any("laundering" in err for err in result["errors"])
+
+
 def test_h006_sub_day_future_skew_is_evaluated_normally(tmp_path: Path) -> None:
     """Clock skew smaller than the trust tolerance is not a finding."""
     vault = tmp_path / "vault"

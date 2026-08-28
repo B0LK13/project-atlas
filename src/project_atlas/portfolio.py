@@ -336,10 +336,12 @@ def stale_knowledge(
     """I-005: staleness computed from the discovery-time manifest's
     ``modified_at`` field against an injected reference date (never the
     wall clock inside this function). A source with no known
-    ``modified_at`` is reported as ``"unknown"``, never assumed fresh.
+    ``modified_at`` is treated as ``"unknown"``, never assumed fresh, and is
+    omitted from the per-source report rather than cited with that label.
     The same applies to timestamps outside the trusted window
     (``is_untrusted_mtime``): epoch/pre-1980 stamps, and stamps dated a full
-    day or more after ``reference_date``, are unknown rather than fresh."""
+    day or more after ``reference_date``, are unknown -- and therefore
+    omitted -- rather than fresh."""
     manifest_sources = _manifest_sources(vault)
     quarantined = _quarantined_source_ids(vault)
     findings: dict[str, list[dict[str, Any]]] = {}

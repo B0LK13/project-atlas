@@ -219,3 +219,13 @@ def test_is_untrusted_mtime_bounds() -> None:
     assert is_untrusted_mtime(future, reference=REFERENCE)
     assert is_untrusted_mtime(datetime(1970, 1, 1, tzinfo=UTC), reference=REFERENCE)
     assert not is_untrusted_mtime(REFERENCE - timedelta(days=1), reference=REFERENCE)
+
+
+def test_future_mtime_tolerance_is_pinned_at_one_day() -> None:
+    """The freshness contract is expressed in whole days (``stale_after_days``,
+    ``age_days``), so the future-trust tolerance must stay a single whole day.
+    A silent change to this constant would change H-006 semantics without any
+    test that names the boundary explicitly failing (the other boundary tests
+    derive their fixtures from the constant itself, so they would not catch
+    a change to its value)."""
+    assert timedelta(days=1) == _FUTURE_MTIME_TOLERANCE
