@@ -776,16 +776,21 @@ def test_freeze_guard_local_fallback_no_false_positive_on_diverged_main(
     against its merge-base with origin/main, not origin/main's live tip --
     otherwise an unrelated DENY-listed change that main picked up AFTER
     this branch diverged reads as a violation the local branch never
-    committed."""
-    origin = tmp_path / "origin-bare"
-    _run_git(["init", "-q", "--bare", "-b", "main", str(origin)], cwd=tmp_path)
+    committed.
 
+    Fetches/clones directly against a plain working-tree "seed" repo
+    (git supports both against a non-bare local path) rather than
+    round-tripping through a separate bare "origin" repo with two
+    `git push`es -- push's pack-generation/transfer overhead was the
+    single largest contributor to this test's wall time on the
+    already-tight hosted Windows CI lane; this fixture is behaviorally
+    identical (a real, separate `origin` remote a real `git fetch`
+    populates) but meaningfully cheaper.
+    """
     seed = _init_fixture_repo(tmp_path)
-    _run_git(["remote", "add", "origin", str(origin)], cwd=seed)
-    _run_git(["push", "-q", "origin", "main"], cwd=seed)
 
     clone = tmp_path / "diverged-clone"
-    _run_git(["clone", "-q", "--no-local", str(origin), str(clone)], cwd=tmp_path)
+    _run_git(["clone", "-q", "--no-local", str(seed), str(clone)], cwd=tmp_path)
 
     # The local branch makes its own, allowed-only change and diverges.
     local_change = clone / "src" / "project_atlas" / "totally_unrelated_module.py"
@@ -801,7 +806,6 @@ def test_freeze_guard_local_fallback_no_false_positive_on_diverged_main(
     frozen.write_text("# unrelated upstream change\n", encoding="utf-8")
     _run_git(["add", "-A"], cwd=seed)
     _run_git(["commit", "-q", "-m", "upstream touches frozen surface"], cwd=seed)
-    _run_git(["push", "-q", "origin", "main"], cwd=seed)
     _run_git(["fetch", "-q", "origin"], cwd=clone)
 
     # Precondition: the naive direct diff WOULD flag the frozen path here.
