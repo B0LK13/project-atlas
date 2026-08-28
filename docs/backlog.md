@@ -487,7 +487,7 @@ Honesty (mandatory):
 - [x] ORCH001C-R1-001 Typed `HandoffPacket` shared by hook adapter and explicit completion
 - [x] ORCH001C-R1-002 `complete_staged_handoff` / `atlas orchestrator cursor-complete` (no Cursor event required)
 - [x] ORCH001C-R1-003 Transport-equivalence + tamper + idempotence proofs
-- [x] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move) (2026-08-28: 44 existing tests re-run PASS + 6 black-box CLI probes -- 2 baseline + 4 adversarial, including direct on-disk state-file tamper injection of execution_authorized=true, correctly ignored -- against `main` `5ff62221`, see WORKLOG "ORCH001C-009"; PASS; still not merge-eligible)
+- [x] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move) (2026-08-28: 44 existing tests re-run PASS + 10 black-box CLI probes -- 2 baseline + 8 adversarial, covering `cursor-status`/`cursor-stage-result`/`cursor-ack`/`cursor-complete` (the R1-added explicit-completion transport, initially missed -- added after review), including on-disk state-file tamper injection against both `cursor-status` and `cursor-complete` (`STAGED_STATE_TAMPERED`), transport-equivalence and idempotence evidence for `cursor-complete` -- against `main` `5ff62221`, see WORKLOG "ORCH001C-009"; PASS; still not merge-eligible)
 - [ ] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
