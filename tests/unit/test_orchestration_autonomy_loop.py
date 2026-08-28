@@ -165,11 +165,11 @@ def test_in_process_recovery_after_crash_before_apply_observed_result(
     """
     gov = _governor(_node("AS-ORCH-CRASH-001"))
     loop = _loop(tmp_path, gov)
-    # Drive to LEASED via the loop's own machinery, but stop before it
-    # proceeds into _dispatch_leased() -- lease directly through the
-    # governor (the same call _select_and_lease() makes) and persist the
-    # matching loop state by hand, mirroring exactly what _select_and_lease
-    # itself saves just before calling _dispatch_leased().
+    # Lease directly through the governor (the same call _select_and_lease()
+    # makes) and persist the matching loop state by hand, mirroring exactly
+    # what _select_and_lease() itself saves just before calling
+    # _dispatch_leased() -- this does not go through the loop's own
+    # _select_and_lease()/_dispatch_leased() machinery at all.
     lease = gov.lease(
         "AS-ORCH-CRASH-001", loop._first_agent(), branch=loop._branch, worktree=loop._worktree
     )
@@ -194,6 +194,38 @@ def test_in_process_recovery_after_crash_before_apply_observed_result(
     assert result.phase is not LoopPhase.FAILED_CLOSED
     node = next(item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-CRASH-001")
     assert node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD, NodeState.CLOSED}
+
+
+def test_in_process_recovery_fails_closed_on_unexpected_node_state(tmp_path: Path) -> None:
+    """Independent-IV finding: `node.state != LEASED` alone does not mean
+    "safe to finalize" -- `apply_observed_result()` itself unconditionally
+    attempts `transition(..., VERIFYING, ...)`, which is only legal from
+    `ACTIVE`. A node in some other unexpected state (e.g. `BLOCKED`) would
+    reintroduce an uncaught `IllegalTransitionError` one level down --
+    exactly the crash loop this whole fix exists to close. Must fail
+    closed with a clear diagnostic instead.
+    """
+    gov = _governor(_node("AS-ORCH-CRASH-002"))
+    loop = _loop(tmp_path, gov)
+    lease = gov.lease(
+        "AS-ORCH-CRASH-002", loop._first_agent(), branch=loop._branch, worktree=loop._worktree
+    )
+    loop._save(
+        phase=LoopPhase.LEASED,
+        active_package_id="AS-ORCH-CRASH-002",
+        active_lease_id=lease.lease_id,
+    )
+    # Force the node into some other, unexpected state (LEASED -> BLOCKED
+    # is itself a legal transition, e.g. a concurrent hard-blocker) while
+    # the loop's own state still says LEASED.
+    gov.transition("AS-ORCH-CRASH-002", NodeState.BLOCKED, "test-unexpected-state")
+
+    with pytest.raises(LoopError) as exc:
+        loop.recover()
+    assert exc.value.code == "EXECUTION_STATE_CONFLICT"
+    assert loop.state.phase is LoopPhase.FAILED_CLOSED
+    node = next(item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-CRASH-002")
+    assert node.state is NodeState.BLOCKED  # untouched, not corrupted by a partial transition
 
 
 def test_owner_gate_stop_no_dispatch(tmp_path: Path) -> None:

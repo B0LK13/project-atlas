@@ -516,15 +516,32 @@ class AutonomousLoop:
                         f"in-process execution transition rejected: {exc}",
                         code="EXECUTION_STATE_CONFLICT",
                     )
-            # else: already executed before a crash between execute_leased()
-            # succeeding and apply_observed_result() completing. IN_PROCESS
-            # execution has no partial/async state -- its outcome is fully
-            # re-derived from the same deterministic id, and
-            # apply_observed_result() is itself replay-guarded
-            # (RESULT_REPLAY) against being applied twice, so re-entering it
-            # here is safe rather than re-running execute_leased() (which
-            # would attempt an illegal ACTIVE -> ACTIVE-style transition and
-            # raise instead of recovering).
+            elif node.state != NodeState.ACTIVE:
+                # Independent-IV finding: node.state != LEASED alone is not
+                # enough to assume "already executed, safe to finalize".
+                # apply_observed_result() itself unconditionally attempts
+                # `transition(..., VERIFYING, ...)`, which is only legal
+                # from ACTIVE (see dag.py's ALLOWED_TRANSITIONS) -- any
+                # other unexpected state (READY, BLOCKED, OWNER_HELD, ...)
+                # would just reintroduce an uncaught IllegalTransitionError
+                # one level down, the exact crash-loop this fix exists to
+                # close. Fail closed with a clear diagnostic instead of
+                # guessing.
+                return self._fail(
+                    f"in-process recovery found unexpected node state "
+                    f"{node.state.value} (expected LEASED or ACTIVE)",
+                    code="EXECUTION_STATE_CONFLICT",
+                )
+            # else node.state == NodeState.ACTIVE: already executed before a
+            # crash between execute_leased() succeeding and
+            # apply_observed_result() completing. IN_PROCESS execution has
+            # no partial/async state -- its outcome is fully re-derived from
+            # the same deterministic id, and apply_observed_result() is
+            # itself replay-guarded (RESULT_REPLAY) against being applied
+            # twice, so re-entering it here is safe rather than re-running
+            # execute_leased() (which would attempt an illegal
+            # ACTIVE -> ACTIVE-style transition and raise instead of
+            # recovering).
             return self.apply_observed_result(in_process_id, in_process_id, passed=True)
         if self._dispatch is None:
             return self._fail("external dispatch port is required", code="DISPATCH_UNAVAILABLE")
