@@ -182,6 +182,73 @@ def test_merge_eligible_never_dispatched(tmp_path: Path) -> None:
         loop.refuse_owner_actions()
 
 
+def test_refuse_owner_actions_checks_every_gate_not_just_a(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ORCHAUT-010 (2026-08-28): ``refuse_owner_actions`` previously called
+    ``require_owner`` for gate A only, while its own docstring and the
+    module's ``LOOP_CAN_BYPASS_OWNER_GATE = NO`` contract claimed the
+    general property for all six gates. Because the real (unpatched)
+    ``require_owner`` always raises with no grant, a plain
+    ``pytest.raises(OwnerGateError)`` on the whole call can't distinguish
+    "checked gate A only, then stopped" from "checked all six" -- both
+    look identical from outside. Patches ``require_owner`` in the loop
+    module's own namespace with a non-raising recorder to observe every
+    gate the method actually attempts, proving it doesn't short-circuit
+    after A."""
+    seen: list[OwnerGateKind] = []
+
+    def _record(gate: OwnerGateKind, *, owner_grant: bool = False) -> None:
+        assert owner_grant is False
+        seen.append(gate)
+
+    import project_atlas.orchestration.autonomy.loop as loop_module
+
+    monkeypatch.setattr(loop_module, "require_owner", _record)
+
+    gov = _governor(_node("AS-ORCH-REFUSE-001"))
+    loop = _loop(tmp_path, gov)
+    loop.refuse_owner_actions()
+
+    assert seen == list(OwnerGateKind)
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [
+        OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION,
+        OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
+        OwnerGateKind.E_DESTRUCTIVE_OPS,
+        OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND,
+    ],
+)
+def test_ready_owner_gated_node_never_leased_or_dispatched(
+    tmp_path: Path, gate: OwnerGateKind
+) -> None:
+    """ORCHAUT-010 regression: gates C-F must fail closed at the real
+    select/lease boundary, not just via the standalone, never-called
+    `request_*` primitives. A node reaching READY while tagged with an
+    owner_gate must stop the loop before any lease or dispatch, exactly
+    like OWNER_HELD/MERGE_ELIGIBLE already does for gate A.
+    """
+    gov = _governor(
+        _node("AS-ORCH-GATE-001", state=NodeState.READY, owner_gate=gate)
+    )
+    calls: list[str] = []
+    port = CallableDispatchPort(
+        lambda _root: calls.append("dispatch") or {"dispatch_id": "x", "status": "COMPLETED"}
+    )
+    loop = _loop(tmp_path, gov, port)
+    result = loop.run_until_stop()
+    assert result.stop_reason is StopReason.OWNER_GATE
+    assert calls == []
+    assert result.dispatched is False
+    node = next(
+        item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-GATE-001"
+    )
+    assert node.state is NodeState.READY
+
+
 def test_hard_blocker_stop(tmp_path: Path) -> None:
     gov = _governor(_node("AS-ORCH-BLK-001", state=NodeState.BLOCKED))
     result = _loop(tmp_path, gov).run_until_stop()

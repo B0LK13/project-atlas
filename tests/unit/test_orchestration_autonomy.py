@@ -23,7 +23,7 @@ from project_atlas.orchestration.autonomy.evidence import (
     make_bundle,
     write_bundle,
 )
-from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
 from project_atlas.orchestration.autonomy.leases import (
     ScopeExpansionError,
     expand_lease,
@@ -199,6 +199,18 @@ def test_governor_cannot_merge() -> None:
 
 
 def test_owner_gates_a_through_f_fail_closed() -> None:
+    """ORCHAUT-010 (2026-08-28): this test's name previously overclaimed --
+    it confirmed ``classify_requested_action`` *tags* all six gates but only
+    ever exercised *enforcement* for gate B (``request_acceptance_waiver``).
+    C/D/E/F had zero enforcement call sites anywhere in the package (only
+    descriptive ``WorkNode.owner_gate`` tags), matching backlog item
+    ORCHAUT-010's exact finding. Now genuinely exercises all six: A via
+    ``request_merge`` (kept as an ``IllegalTransitionError``-raising
+    override -- see ``test_governor_cannot_merge`` for A's own dedicated
+    coverage, reproduced here as OwnerGateError since the gate check runs
+    first), B through F via one dedicated ``request_*`` method per gate,
+    each added specifically to close this gap and confirmed here to fail
+    closed with no owner grant, exactly like A/B already did."""
     gov = AutonomousGovernor(
         current_main=EXPECTED_BASE_MAIN,
         current_tree=EXPECTED_BASE_TREE,
@@ -213,8 +225,31 @@ def test_owner_gates_a_through_f_fail_closed() -> None:
         material_external_spend=True,
     )
     assert set(gates) == set(OwnerGateKind)
+
+    gov.add_node(_node("PKG-GATE-A", state=NodeState.MERGE_ELIGIBLE))
+    with pytest.raises(OwnerGateError):
+        gov.request_merge("PKG-GATE-A")
     with pytest.raises(OwnerGateError):
         gov.request_acceptance_waiver()
+    with pytest.raises(OwnerGateError):
+        gov.request_certified_object_mutation()
+    with pytest.raises(OwnerGateError):
+        gov.request_security_governance_policy_change()
+    with pytest.raises(OwnerGateError):
+        gov.request_destructive_op()
+    with pytest.raises(OwnerGateError):
+        gov.request_material_external_spend()
+
+    # The generic no-grant-no-pass contract is symmetric for every gate --
+    # supplying owner_grant=True must let each one through cleanly (the
+    # package's role is validating the gate check itself, not performing
+    # the action; a real grant artifact is expected to originate outside
+    # this package, per owner_gates.py's own module docstring).
+    gov.request_acceptance_waiver(owner_grant=True)
+    gov.request_certified_object_mutation(owner_grant=True)
+    gov.request_security_governance_policy_change(owner_grant=True)
+    gov.request_destructive_op(owner_grant=True)
+    gov.request_material_external_spend(owner_grant=True)
 
 
 def test_lease_and_forbidden_scope_expansion() -> None:
@@ -256,6 +291,54 @@ def test_lease_and_forbidden_scope_expansion() -> None:
             sequence=9,
             authorized_paths=("src/b", "src/outside"),
         )
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [
+        OwnerGateKind.B_ACCEPTANCE_WAIVER,
+        OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION,
+        OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
+        OwnerGateKind.E_DESTRUCTIVE_OPS,
+        OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND,
+    ],
+)
+def test_lease_fails_closed_for_owner_gated_node(gate: OwnerGateKind) -> None:
+    """ORCHAUT-010 remediation round 2 (independent-IV finding): lease() /
+    execute_leased() are reachable directly (run_controlled_pilot,
+    continue_autonomous), not only through AutonomousLoop.select_next.
+    A node tagged owner_gate B-F must never be leased -- and therefore
+    never executed or certified -- without an explicit owner grant, no
+    matter which caller reaches lease().
+    """
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-GATED", owner_gate=gate))
+    with pytest.raises(GovernorError) as exc_info:
+        gov.lease("PKG-GATED", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert exc_info.value.code == "OWNER_GATE_REQUIRED"
+    node = gov.snapshot().nodes[0]
+    assert node.state is NodeState.READY  # unchanged: never leased
+
+
+def test_lease_still_allows_gate_a_pilot_execution() -> None:
+    """Gate A keeps its existing, separately-enforced behavior: lease()
+    still allows it through (request_merge alone blocks the actual MERGED
+    transition), preserving the controlled pilot's tested contract
+    (test_controlled_pilot_stops_at_owner_gate: execute + certify, then
+    stop at OWNER_HELD -- never at lease time).
+    """
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-A", owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE))
+    lease = gov.lease("PKG-A", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert lease.package_id == "PKG-A"
 
 
 def test_overlap_gate_blocks_shared_surface() -> None:
@@ -301,6 +384,47 @@ def test_continuation_selects_ready_when_no_owner_gate() -> None:
     ready = _node("PKG-B", state=NodeState.READY)
     decision = select_next((ready,))
     assert decision.next_package_id == "PKG-B"
+    assert decision.stop_reason is None
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [
+        OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION,
+        OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
+        OwnerGateKind.E_DESTRUCTIVE_OPS,
+        OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND,
+    ],
+)
+def test_continuation_never_selects_ready_owner_gated_node(gate: OwnerGateKind) -> None:
+    """ORCHAUT-010 regression: a node can reach READY (dependency-ready)
+    while still carrying an owner_gate C-F tag. READY != owner-authorized.
+    Prior to remediation, `select_next` only skipped owner-gated nodes when
+    `state != READY`, which is never true inside the `ready` list -- so a
+    READY node tagged C/D/E/F was selected and returned for lease exactly
+    like an ungated node, silently bypassing the gate.
+    """
+    gated = _node("PKG-GATED", state=NodeState.READY, owner_gate=gate)
+    decision = select_next((gated,))
+    assert decision.next_package_id is None
+    assert decision.stop_reason is StopReason.OWNER_GATE
+
+
+def test_continuation_skips_owner_gated_ready_node_for_ungated_sibling() -> None:
+    """A READY owner-gated node must not be selected even when a normal
+    READY node is also available -- the gated one is skipped, not picked.
+    """
+    gated = _node(
+        "PKG-GATED",
+        state=NodeState.READY,
+        owner_gate=OwnerGateKind.E_DESTRUCTIVE_OPS,
+        surface="surface-gated",
+        semantic="SEMANTIC_GATED",
+        paths=("src/gated",),
+    )
+    ungated = _node("PKG-FREE", state=NodeState.READY)
+    decision = select_next((gated, ungated))
+    assert decision.next_package_id == "PKG-FREE"
     assert decision.stop_reason is None
 
 
