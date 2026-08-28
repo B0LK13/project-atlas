@@ -62,6 +62,28 @@ def trust_root() -> str:
     return AUTHORITY_TRUST_ROOT
 
 
+def persisted_authority_binding_matches_live(
+    *,
+    recorded_trust_root: str | None = None,
+    recorded_registry_version: object | None = None,
+) -> bool:
+    """Return True only when recorded metadata is absent or matches live registry.
+
+    A present mismatch is never accepted. Bool/string versions are not live
+    integers (``True`` must not equal registry version ``1``). This does not
+    grant owner authority; it only rejects forged or stale bindings (AX-AUTH-005).
+    """
+    trust_ok = recorded_trust_root is None or (
+        isinstance(recorded_trust_root, str) and recorded_trust_root == trust_root()
+    )
+    version_ok = recorded_registry_version is None or (
+        isinstance(recorded_registry_version, int)
+        and not isinstance(recorded_registry_version, bool)
+        and recorded_registry_version == registry_version()
+    )
+    return trust_ok and version_ok
+
+
 def all_rules() -> tuple[AuthorityRule, ...]:
     """Return all registered authority rules in deterministic order."""
     return tuple(sorted(_RULES, key=lambda rule: rule.rule_id))

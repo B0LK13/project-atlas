@@ -23,7 +23,7 @@ inferred from prose (I-007, I-008).
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,32 @@ from project_atlas.semantic_compiler import COVERAGE_RULES, coverage_for
 
 GENERATED_PORTFOLIO_ROOT = "generated/portfolio"
 DEFAULT_STALE_DAYS = 180
+# Checkout/container copies often preserve st_mtime == 0 (Unix epoch).
+# That is missing metadata, not a 50-year-old document (AS-MVP-001-FRESHNESS-TRUTH-001).
+_UNTRUSTED_MTIME_YEAR = 1980
+# Upper trust bound. The freshness contract is expressed in whole days
+# (``stale_after_days``, ``age_days``), so one day is its smallest material
+# unit: sub-day drift between the machine that stamped a source and the machine
+# evaluating it (container/VM clock skew, NTP jitter) stays inside normal
+# evaluation, while a stamp a full day or more after the evaluation instant is
+# unverifiable metadata rather than age. Such a stamp is never clamped to the
+# reference and never reported fresh.
+_FUTURE_MTIME_TOLERANCE = timedelta(days=1)
+
+
+def is_untrusted_mtime(value: datetime, *, reference: datetime | None = None) -> bool:
+    """True for timestamps that are not real document age.
+
+    Lower bound: Unix-epoch / pre-1980 stamps (checkout and container copies
+    often preserve ``st_mtime == 0``). Upper bound, applied only when
+    ``reference`` is supplied: stamps at least ``_FUTURE_MTIME_TOLERANCE``
+    after the evaluation instant. Both are missing or unverifiable metadata
+    rather than age, so callers report them as ``"unknown"`` -- never fresh,
+    never stale.
+    """
+    if value.year < _UNTRUSTED_MTIME_YEAR:
+        return True
+    return reference is not None and value - reference >= _FUTURE_MTIME_TOLERANCE
 
 # Coverage categories a project must satisfy for a "high maturity" signal;
 # mirrors the "partial on a single match" categories in semantic_compiler.py.
@@ -310,7 +336,21 @@ def stale_knowledge(
     """I-005: staleness computed from the discovery-time manifest's
     ``modified_at`` field against an injected reference date (never the
     wall clock inside this function). A source with no known
-    ``modified_at`` is reported as ``"unknown"``, never assumed fresh."""
+    ``modified_at`` is treated as ``"unknown"``, never assumed fresh, and is
+    omitted from the per-source report rather than cited with that label.
+    The same applies to timestamps outside the trusted window
+    (``is_untrusted_mtime``): epoch/pre-1980 stamps, and stamps dated a full
+    day or more after ``reference_date``, are unknown -- and therefore
+    omitted -- rather than fresh.
+
+    ``stale_after_days`` must be a positive integer day count -- the same
+    invariant ``validation.py::_validate_freshness`` enforces at the CLI
+    boundary. This internal API previously accepted ``<= 0`` silently
+    (P3): a caller passing ``0`` would mark every source with any
+    ``modified_at`` older than the reference instant "stale" regardless of
+    actual age, which is not a meaningful staleness threshold."""
+    if stale_after_days < 1:
+        raise ValueError("stale_after_days must be a positive integer day count")
     manifest_sources = _manifest_sources(vault)
     quarantined = _quarantined_source_ids(vault)
     findings: dict[str, list[dict[str, Any]]] = {}
@@ -325,7 +365,9 @@ def stale_knowledge(
             # never as an individually cited source_id/path here.
             continue
         modified_at = _parse_datetime(entry.get("modified_at"))
-        if modified_at is None:
+        if modified_at is None or is_untrusted_mtime(modified_at, reference=reference_date):
+            # Epoch / future / otherwise untrusted mtimes are unknown: never
+            # assumed fresh and never assumed stale.
             freshness = "unknown"
         else:
             age_days = (reference_date - modified_at).days

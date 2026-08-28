@@ -20,6 +20,9 @@ OWNER_GATES_A_F = IMPLEMENTED
 AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = NOT_RELIABLE_IN_CURRENT_WINDOWS_CLI_RUNTIME
 AUTHENTIC_CURSOR_STOP_EVENT_DELIVERY = ENVIRONMENT_DEPENDENT
 HOOK_RUNTIME_REQUIRED_FOR_CORE_FLOW = NO
+PRIMARY_CONTINUATION_BACKEND = CURSOR_SDK_DURABLE_AGENT_RUNTIME
+STOP_HOOK_BACKEND = FALLBACK
+CURSOR_SDK_DURABLE_AGENT_RUNTIME = IMPLEMENTED
 CROSS_AGENT_DISPATCH = IMPLEMENTED
 AGENT_DISPATCH = IMPLEMENTED
 SINGLE_HOP_AGENT_DISPATCHER = IMPLEMENTED
@@ -30,9 +33,10 @@ SUCCESSOR_EXECUTION_UNDER_NEW_MODEL = ACTIVE
 AUTOMATIC_MERGE = NOT_IMPLEMENTED
 OWNER AUTHORITY = STILL REQUIRED
 
-The Cursor stop hook is an optional transport adapter. Atlas remains the
-source of workflow truth. Explicit completion does not require a Cursor
-stop event. ``execution_authorized`` is always false.
+The Cursor SDK durable agent runtime is the primary continuation backend.
+The Cursor stop hook is fallback / safety / legacy UI compatibility only.
+Atlas remains the source of workflow truth. RUN_TERMINAL != DAG_END.
+``execution_authorized`` is always false.
 """
 
 from project_atlas.orchestration.cursor_bridge import (

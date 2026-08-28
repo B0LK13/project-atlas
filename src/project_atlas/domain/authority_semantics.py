@@ -14,6 +14,13 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from project_atlas.domain.claims import ID_PATTERN, validate_claim_subject
 
 
+def _strict_registry_version(value: object) -> object:
+    """Reject bool/float encodings that pydantic would coerce to live version 1."""
+    if isinstance(value, (bool, float)):
+        raise ValueError("registry_version must be an exact integer")
+    return value
+
+
 class AuthorityDisposition(StrEnum):
     """Derived authority outcome for a subject+field projection."""
 
@@ -54,6 +61,11 @@ class AuthorityEvidence(BaseModel):
     temporal_status: str = Field(min_length=1)
     notes: str = Field(default="", min_length=0)
 
+    @field_validator("registry_version", mode="before")
+    @classmethod
+    def _registry_version_exact_int(cls, value: object) -> object:
+        return _strict_registry_version(value)
+
 
 class AuthoritativeStateRecord(BaseModel):
     """Derived authoritative-state projection (distinct from temporal current)."""
@@ -83,3 +95,8 @@ class AuthoritativeStateRecord(BaseModel):
     @classmethod
     def _validate_subject(cls, value: str) -> str:
         return validate_claim_subject(value)
+
+    @field_validator("registry_version", mode="before")
+    @classmethod
+    def _registry_version_exact_int(cls, value: object) -> object:
+        return _strict_registry_version(value)

@@ -17,10 +17,15 @@ from typing import Any
 
 import yaml
 
+from project_atlas.authority_registry import persisted_authority_binding_matches_live
 from project_atlas.domain import Severity, ValidationFinding, ValidationGate
 from project_atlas.domain.authority_semantics import AuthoritativeStateRecord
 from project_atlas.domain.temporal import CurrentStateRecord
-from project_atlas.portfolio import DEFAULT_STALE_DAYS, build_portfolio_payloads
+from project_atlas.portfolio import (
+    DEFAULT_STALE_DAYS,
+    build_portfolio_payloads,
+    is_untrusted_mtime,
+)
 from project_atlas.schema import SchemaValidationError, validate_record
 from project_atlas.source_identity import canonical_source_sha256
 
@@ -382,8 +387,36 @@ def _validate_current_and_authoritative_state(vault: Path, errors: list[str]) ->
             if not isinstance(raw, dict):
                 errors.append(f"invalid authoritative-state root {path.relative_to(vault)}")
                 continue
+            file_reg = raw.get("authority_registry_version")
+            if file_reg is not None and not persisted_authority_binding_matches_live(
+                recorded_registry_version=file_reg
+            ):
+                errors.append(
+                    f"authoritative-state registry version does not match live "
+                    f"owner-certified registry {path.relative_to(vault)}"
+                )
             for item in raw.get("authoritative_states", []):
-                AuthoritativeStateRecord.model_validate(item)
+                auth_record = AuthoritativeStateRecord.model_validate(item)
+                if not persisted_authority_binding_matches_live(
+                    recorded_trust_root=auth_record.trust_root,
+                    recorded_registry_version=auth_record.registry_version,
+                ):
+                    errors.append(
+                        f"authoritative-state trust binding does not match live "
+                        f"owner-certified registry {path.relative_to(vault)}"
+                    )
+                    continue
+                if any(
+                    not persisted_authority_binding_matches_live(
+                        recorded_trust_root=evidence.trust_root,
+                        recorded_registry_version=evidence.registry_version,
+                    )
+                    for evidence in auth_record.evidence
+                ):
+                    errors.append(
+                        f"authoritative-state evidence trust binding does not "
+                        f"match live owner-certified registry {path.relative_to(vault)}"
+                    )
         except (
             OSError,
             UnicodeError,
@@ -679,12 +712,17 @@ def _stable_finding_id(*parts: str) -> str:
     return ".".join(cleaned)
 
 
-def _parse_freshness_timestamp(value: Any) -> tuple[datetime | None, str | None]:
+def _parse_freshness_timestamp(
+    value: Any, *, reference: datetime | None = None
+) -> tuple[datetime | None, str | None]:
     """Parse objective freshness timestamps.
 
     Returns ``(datetime, None)`` on success, ``(None, "missing")`` when absent,
-    or ``(None, "corrupt")`` when present but unparseable. Corrupt values are
-    never coerced to fresh/stale (fail-closed; no silent normalization).
+    ``(None, "untrusted")`` for Unix-epoch / pre-1980 metadata,
+    ``(None, "untrusted_future")`` for metadata dated a full day or more after
+    ``reference``, or ``(None, "corrupt")`` when present but unparseable.
+    Untrusted and corrupt values are never coerced to fresh/stale
+    (fail-closed; no silent normalization, and no clamping to ``reference``).
     """
     if value is None or value == "":
         return None, "missing"
@@ -696,6 +734,10 @@ def _parse_freshness_timestamp(value: Any) -> tuple[datetime | None, str | None]
         return None, "corrupt"
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
+    if is_untrusted_mtime(parsed):
+        return None, "untrusted"
+    if reference is not None and is_untrusted_mtime(parsed, reference=reference):
+        return None, "untrusted_future"
     return parsed, None
 
 
@@ -740,6 +782,39 @@ def _portfolio_freshness_by_source(vault: Path) -> dict[str, str] | None:
     return labels
 
 
+def _freshness_quarantined_source_ids(vault: Path) -> set[str]:
+    """AS-SEC-001 source ids that must not be individually cited in stale-knowledge.
+
+    Secret-findings.json is a top-level array; injection-findings.json wraps
+    ``{"findings": [...]}``. Both shapes are accepted.
+    """
+    ids: set[str] = set()
+    secret_path = vault / "generated" / "reports" / "secret-findings.json"
+    injection_path = vault / "generated" / "reports" / "injection-findings.json"
+    for path in (secret_path, injection_path):
+        if not path.is_file():
+            continue
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            continue
+        rows: list[Any]
+        if isinstance(raw, dict):
+            findings = raw.get("findings", [])
+            rows = findings if isinstance(findings, list) else []
+        elif isinstance(raw, list):
+            rows = raw
+        else:
+            continue
+        for finding in rows:
+            if not isinstance(finding, dict):
+                continue
+            source_id = finding.get("source_id")
+            if isinstance(source_id, str) and source_id:
+                ids.add(source_id)
+    return ids
+
+
 def _validate_freshness(
     vault: Path,
     errors: list[str],
@@ -762,14 +837,58 @@ def _validate_freshness(
     if not sources:
         return
     portfolio_labels = _portfolio_freshness_by_source(vault)
+    quarantined_ids = _freshness_quarantined_source_ids(vault)
     for entry in sorted(sources, key=lambda item: str(item.get("source_id", ""))):
         source_id = entry.get("source_id")
         if not isinstance(source_id, str) or not source_id:
             continue
+        if source_id in quarantined_ids:
+            # AS-SEC-001: quarantined sources are excluded from stale-knowledge
+            # individual citation. Do not demand they appear there (H-006-silent).
+            continue
         rel_path = str(entry.get("path", ""))
         # Never echo raw secret-bearing content; path/id metadata only (NFR-004).
         modified_raw = entry.get("modified_at")
-        modified_at, status = _parse_freshness_timestamp(modified_raw)
+        modified_at, status = _parse_freshness_timestamp(
+            modified_raw, reference=reference_now
+        )
+        if status in ("untrusted", "untrusted_future"):
+            reason = (
+                "modified_at dated a full day or more after the evaluation "
+                "instant is unverifiable metadata, not age"
+                if status == "untrusted_future"
+                else "epoch/pre-1980 modified_at is missing metadata, not age"
+            )
+            finding = _finding(
+                finding_id=_stable_finding_id("H-006-untrusted", source_id),
+                rule_id="H-006-untrusted",
+                severity=Severity.WARNING,
+                gate=ValidationGate.FRESHNESS,
+                message=f"freshness untrusted for source {source_id}: {reason}",
+                path=rel_path or None,
+            )
+            findings.append(finding)
+            if portfolio_labels is not None and portfolio_labels.get(source_id) == "fresh":
+                # A "fresh" label surviving in the on-disk portfolio for a
+                # source now known untrusted is the same laundering defect as
+                # the stale case below: the report keeps asserting freshness
+                # evidence has withdrawn (e.g. built under a since-corrected
+                # future clock). Reuse H-006-launder rather than let a WARNING
+                # be the only signal that a "fresh" claim is no longer valid.
+                launder = _finding(
+                    finding_id=_stable_finding_id("H-006-launder", source_id),
+                    rule_id="H-006-launder",
+                    severity=Severity.ERROR,
+                    gate=ValidationGate.FRESHNESS,
+                    message=(
+                        f"freshness laundering: source {source_id} marked fresh "
+                        f"in portfolio but objectively {status}"
+                    ),
+                    path=rel_path or None,
+                )
+                findings.append(launder)
+                errors.append(launder["message"])
+            continue
         if status == "corrupt":
             finding = _finding(
                 finding_id=_stable_finding_id("H-006-corrupt", source_id),

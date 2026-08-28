@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from project_atlas.validation import validate
@@ -131,6 +131,55 @@ def test_h006_portfolio_acknowledged_stale_not_laundering(tmp_path: Path) -> Non
     # Portfolio drift vs recomputed payloads is expected with a stub file; the
     # freshness gate itself must not invent a laundering error.
     assert not any("laundering" in err for err in result["errors"])
+
+
+def test_h006_quarantined_stale_source_is_not_silent_error(tmp_path: Path) -> None:
+    """AS-SEC-001: quarantined sources must not be demanded in stale-knowledge."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-secret",
+                "path": "docs/canary.env",
+                "likely_project": "demo",
+                "modified_at": "2020-01-01T00:00:00+00:00",
+            }
+        ],
+    )
+    reports = vault / "generated" / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    (reports / "secret-findings.json").write_text(
+        json.dumps([{"source_id": "src-secret", "rule": "aws-access-key"}], indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert not any(f["rule_id"] == "H-006-silent" for f in result["findings"])
+    assert not any("missing from portfolio" in err for err in result["errors"])
+    assert result["ok"] is True
+
+
+def test_h006_epoch_mtime_is_untrusted_warning_not_stale(tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-epoch",
+                "path": "docs/copied.md",
+                "likely_project": "demo",
+                "modified_at": "1970-01-01T00:00:00+00:00",
+            }
+        ],
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert any(f["rule_id"] == "H-006-untrusted" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-stale" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-silent" for f in result["findings"])
+    assert result["ok"] is True
 
 
 def test_h006_unknown_missing_timestamp_fails_closed(tmp_path: Path) -> None:
@@ -310,3 +359,90 @@ def test_h007_no_trust_score_fields_in_findings(tmp_path: Path) -> None:
             "path",
             "concept_id",
         }
+
+
+def test_h006_future_mtime_is_untrusted_warning_not_stale(tmp_path: Path) -> None:
+    """A source dated after the evaluation instant is untrusted metadata: it
+    reports through the existing H-006-untrusted rule (WARNING), never as
+    H-006-stale, and never as a silent omission error."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-future",
+                "path": "docs/future.md",
+                "likely_project": "demo",
+                "modified_at": (REFERENCE_NOW + timedelta(days=400)).isoformat(),
+            }
+        ],
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    untrusted = [f for f in result["findings"] if f["rule_id"] == "H-006-untrusted"]
+    assert len(untrusted) == 1
+    assert "after the evaluation instant" in untrusted[0]["message"]
+    assert not any(f["rule_id"] == "H-006-stale" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-silent" for f in result["findings"])
+    assert not any(f["rule_id"] == "H-006-unknown" for f in result["findings"])
+    assert result["ok"] is True
+
+
+def test_h006_laundering_marked_fresh_but_untrusted_future_fails(tmp_path: Path) -> None:
+    """A "fresh" label surviving in the on-disk portfolio for a source now
+    classified untrusted-future (e.g. the portfolio was built under a since-
+    corrected future clock) is the same laundering defect as the objectively-
+    stale case: the report keeps asserting freshness evidence that no longer
+    holds. This must fail validation as H-006-launder (ERROR), not silently
+    pass with only the H-006-untrusted WARNING."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-future-launder",
+                "path": "docs/future.md",
+                "likely_project": "demo",
+                "modified_at": (REFERENCE_NOW + timedelta(days=400)).isoformat(),
+            }
+        ],
+    )
+    _write_portfolio_stale(
+        vault,
+        sources_by_project={
+            "demo": [
+                {
+                    "source_id": "src-future-launder",
+                    "path": "docs/future.md",
+                    "freshness": "fresh",
+                    "modified_at": (REFERENCE_NOW + timedelta(days=400)).isoformat(),
+                }
+            ]
+        },
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert result["ok"] is False
+    assert any(f["rule_id"] == "H-006-untrusted" for f in result["findings"])
+    assert any(f["rule_id"] == "H-006-launder" for f in result["findings"])
+    assert any("laundering" in err for err in result["errors"])
+
+
+def test_h006_sub_day_future_skew_is_evaluated_normally(tmp_path: Path) -> None:
+    """Clock skew smaller than the trust tolerance is not a finding."""
+    vault = tmp_path / "vault"
+    _seed_vault(vault)
+    _write_manifest(
+        vault,
+        [
+            {
+                "source_id": "src-skewed",
+                "path": "docs/skewed.md",
+                "likely_project": "demo",
+                "modified_at": (REFERENCE_NOW + timedelta(hours=6)).isoformat(),
+            }
+        ],
+    )
+    result = validate(vault, reference_now=REFERENCE_NOW, stale_after_days=180)
+    assert not any(f["rule_id"].startswith("H-006") for f in result["findings"])
+    assert result["ok"] is True

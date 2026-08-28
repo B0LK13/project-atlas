@@ -145,6 +145,17 @@ def build_tool_dispatch(service: AppService) -> Mapping[str, Callable[[], dict[s
         },
         "atlas.projects.list.read": lambda: {"projects": service.projects()},
         "atlas.brief.read": lambda: read_vault_briefs(service),
+        "atlas.next.read": lambda: service.next_view(),
+        "atlas.changed.read": lambda: service.changed_view(),
+        "atlas.overview.read": lambda: service.overview_view(),
+        "atlas.decisions.read": lambda: service.decisions_view(),
+        "atlas.unknown.read": lambda: service.unknown_view(),
+        "atlas.state.read": lambda: service.state_view(),
+        "atlas.architecture.read": lambda: service.architecture_view(),
+        "atlas.roadmap.read": lambda: service.roadmap_answers_view(),
+        "atlas.portfolio.read": lambda: service.portfolio_view(),
+        "atlas.bitemporal.read": lambda: service.bitemporal_view(),
+        "atlas.indexes.read": lambda: service.index_status(),
     }
 
 

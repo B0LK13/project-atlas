@@ -296,14 +296,26 @@ class AutonomousLoop:
         raise LoopError(message, code=code)
 
     def refuse_owner_actions(self) -> None:
-        """Hard safety: the loop cannot grant any owner gate."""
-        require_owner(OwnerGateKind.A_PROTECTED_MAIN_MERGE, owner_grant=False)
+        """Hard safety: the loop cannot grant any owner gate.
+
+        ORCHAUT-010 (2026-08-28): previously checked only gate A, while this
+        method's own docstring and the module-level ``LOOP_CAN_BYPASS_OWNER_
+        GATE = NO`` contract claimed the general property. Checks all six
+        ``OwnerGateKind`` values now, so gates C/D/E/F (certified-object
+        mutation, security/governance policy, destructive ops, material
+        external spend) fail closed the same way A/B already did, before
+        persistent autonomy becomes load-bearing.
+        """
+        for gate in OwnerGateKind:
+            require_owner(gate, owner_grant=False)
 
     def tick(self) -> LoopTickResult:
         """One fail-closed continuation step. At most one 001D dispatch."""
         verify_loop_state(self._state)
         if self._state.ticks_in_invocation >= MAX_TICKS_PER_INVOCATION:
-            return self._stop(StopReason.RESOURCE_BOUNDARY)
+            result = self._stop(StopReason.RESOURCE_BOUNDARY)
+            self._enqueue_resource_yield()
+            return result
         self._save(ticks_in_invocation=self._state.ticks_in_invocation + 1)
         if self._state.phase in {LoopPhase.STOPPED, LoopPhase.FAILED_CLOSED}:
             return self._result()
@@ -323,7 +335,9 @@ class AutonomousLoop:
                 return last
             if last.phase == LoopPhase.AWAITING_RESULT:
                 return last
-        return self._stop(StopReason.RESOURCE_BOUNDARY)
+        result = self._stop(StopReason.RESOURCE_BOUNDARY)
+        self._enqueue_resource_yield()
+        return result
 
     def recover(self) -> LoopTickResult:
         """Crash/restart recovery. Never respawns a duplicate process."""
@@ -436,7 +450,13 @@ class AutonomousLoop:
         if decision.next_package_id is None:
             return self._stop(decision.stop_reason or StopReason.NO_ELIGIBLE_WORK)
         node = next(item for item in snapshot.nodes if item.package_id == decision.next_package_id)
-        if node.owner_gate is not None and node.state != NodeState.READY:
+        if node.owner_gate is not None:
+            # ORCHAUT-010 remediation (2026-08-28): defense-in-depth twin of
+            # the select_next fix -- `select_next` should already exclude
+            # any owner-gated node, but this is the last check before a
+            # real lease is granted, so it must not be a dead-code
+            # `state != READY` comparison that a READY owner-gated node
+            # always fails (i.e. never actually stops it).
             return self._stop(StopReason.OWNER_GATE)
         if node.state == NodeState.MERGE_ELIGIBLE:
             return self._stop(StopReason.OWNER_GATE)
@@ -502,6 +522,25 @@ class AutonomousLoop:
             self._save(phase=LoopPhase.IDLE)
             return self._result()
         return self._result()
+
+    def _enqueue_resource_yield(self) -> None:
+        """RESOURCE_BOUNDARY is YIELD, not OWNER_REQUIRED. Atomic finalize."""
+        from project_atlas.orchestration.autonomy.continuation_broker import (
+            finalize_governor_checkpoint,
+        )
+
+        cycle_id = f"YIELD-{self._state.sequence}"
+        finalize_governor_checkpoint(
+            self._root,
+            result_class="RESOURCE_YIELD",
+            cycle_id=cycle_id,
+            trusted_main=self._trusted.trusted_main,
+            trusted_tree=self._trusted.trusted_tree,
+            next_action_class="RESOURCE_YIELD",
+            repository_identity=self._trusted.repository_identity,
+            dag_generation=self._state.sequence,
+            safe_dag_work_remains=True,
+        )
 
     def _first_agent(self) -> str:
         for agent in self._governor.snapshot().agents:

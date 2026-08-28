@@ -342,18 +342,43 @@ def handle_stop_event(payload: object, *, root: Path) -> dict[str, str]:
         return {}
     if event.status != COMPLETED_STATUS:
         return {}
+    from project_atlas.orchestration.autonomy.continuation_broker import (
+        emit_stop_followup,
+    )
+
+    # Broker continuation is independent of Cursor loop_count. Atlas owns
+    # no-progress bounds; Cursor's hook loop_limit must not become the DAG cap.
+    broker = emit_stop_followup(
+        root,
+        loop_count=event.loop_count,
+        session_id=event.conversation_id,
+    )
+    if broker:
+        return broker
+    from project_atlas.orchestration.autonomy.return_gate import (
+        render_stop_hook_dag_continuation,
+        stop_hook_terminal_return_allowed,
+    )
+
+    def _terminal_stop_response() -> dict[str, str]:
+        if event.loop_count < 1:
+            return {}
+        if stop_hook_terminal_return_allowed(root):
+            return {}
+        return {"followup_message": render_stop_hook_dag_continuation()}
+
     if event.loop_count >= 1:
-        return {}
+        return _terminal_stop_response()
     existing = load_state(root)
     if existing is None:
-        return {}
+        return _terminal_stop_response()
     verified = verify_state(existing)
     if verified is None:
-        return {}
+        return _terminal_stop_response()
     if verified.status != BridgeStatus.PENDING:
-        return {}
+        return _terminal_stop_response()
     if verified.followup_emitted:
-        return {}
+        return _terminal_stop_response()
     if verified.route.route_kind == RouteKind.TERMINAL:
         return {}
     packet = build_handoff_packet(verified, transport=CompletionTransport.HOOK)

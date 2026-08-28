@@ -4,6 +4,8 @@
 semantic_subject: harbor-database
 semantic_kind: doc
 
+timestamp: 2024-08-20
+
 Deployment: PostgreSQL 16
 
 ## Implementation evidence

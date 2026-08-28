@@ -7,6 +7,9 @@ lens. Defaults to last-connect → now (no tribal kdiff flags required).
 Honesty:
 - lens != Layer B authority; UI != canonical
 - first connect has no prior baseline → UNKNOWN/baseline, not invented history
+- live STALE + historical UNCHANGED => unchanged is not current
+  (AS-CODER-ALPHA-HONESTY-TAIL-001 / #384)
+- live drift never invents temporal added/modified history; rollup may stay unchanged
 - no wall-clock timestamps (NFR-001 / ADR-001)
 """
 
@@ -16,6 +19,8 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+
+from project_atlas.inventory_drift import evaluate_connect_inventory_drift
 
 PACKAGE_ID = "AS-CODER-ALPHA-CHANGED-001"
 GENERATOR_ID = "atlas-coder-alpha-changed-001"
@@ -321,6 +326,27 @@ def build_changed_lens(
             "not a kdiff temporal authority claim",
         ]
 
+    # Live drift is a freshness signal only. It must not mint added/modified
+    # history or rewrite historical rollup (AS-CODER-ALPHA-HONESTY-TAIL-001 / #384).
+    live = evaluate_connect_inventory_drift(vault, project_id)
+    live_status = str(live.get("status") or "UNKNOWN")
+    live_paths = [item for item in (live.get("changed_paths") or []) if isinstance(item, str)]
+    inspected.append("generated/ops/connect-manifest.json")
+    honesty = {
+        "lens_is_authority": False,
+        "stale_is_current": False,
+        "unchanged_is_current": rollup == "unchanged" and live_status == "FRESH",
+        "unknown_is_healthy": False,
+        "unknown_is_fresh": False,
+    }
+    if live_status == "STALE" and rollup == "unchanged":
+        notes.append(
+            "STALE LIVE != UNCHANGED / reconnect before treating What Changed as current"
+        )
+        if isinstance(summary, str):
+            summary = f"{summary}; live sources drifted (reconnect required)"
+            value = summary
+
     return {
         "schema_version": 1,
         "schema": "atlas.coder-alpha.changed-lens.v1",
@@ -349,6 +375,20 @@ def build_changed_lens(
         "inspected_artifacts": inspected,
         "notes": notes,
         "generated": {"by": GENERATOR_ID},
+        "source_drift": {
+            "status": live_status,
+            "reason": live.get("reason"),
+            "reason_code": live.get("reason_code"),
+            "changed_paths": live_paths[:20],
+            "package": live.get("package"),
+            "honesty": live.get("honesty") or {
+                "unknown_is_fresh": False,
+                "unknown_is_healthy": False,
+                "stale_is_current": False,
+                "lens_is_authority": False,
+            },
+        },
+        "honesty": honesty,
     }
 
 

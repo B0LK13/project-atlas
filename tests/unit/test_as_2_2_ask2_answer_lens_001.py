@@ -172,6 +172,61 @@ def _claims_vault(
     return vault
 
 
+def _grounding_distractor_vault(tmp_path: Path) -> Path:
+    """Corpus with nearby records that must not answer absent-subject questions."""
+    vault = tmp_path / "vault"
+    vault.mkdir()
+    _empty_indexes(vault)
+    records = [
+        (
+            "atlas-revenue-forecast",
+            "Atlas annual revenue forecast is maintained by finance.",
+        ),
+        (
+            "atlas-billing-api",
+            "Atlas Billing API service supports invoice retrieval.",
+        ),
+        (
+            "atlas-ledger-product",
+            "Atlas Ledger product manages invoice reconciliation.",
+        ),
+        (
+            "morgan-forecast",
+            "Morgan Lee owns the Atlas revenue forecast.",
+        ),
+        (
+            "meridian-api",
+            "Meridian Billing API service supports invoice retrieval.",
+        ),
+    ]
+    _wr(
+        vault / "generated" / "indexes" / "concepts.json",
+        {
+            "by_concept_id": {record_id: [record_id] for record_id, _ in records},
+            "by_type": {"capability": [record_id for record_id, _ in records]},
+            "by_project_id": {"demo": [record_id for record_id, _ in records]},
+            "by_tag": {},
+            "by_relationship_target": {},
+        },
+    )
+    _wr(
+        vault / "state" / "concepts" / "demo.json",
+        {
+            "concepts": [
+                {
+                    "concept_id": record_id,
+                    "type": "capability",
+                    "project_id": "demo",
+                    "summary": summary,
+                    "provenance": [{"source_lineage_id": f"lineage-{record_id}"}],
+                }
+                for record_id, summary in records
+            ]
+        },
+    )
+    return vault
+
+
 def _fingerprint(vault: Path) -> dict[str, tuple[bytes, int]]:
     return {
         path.relative_to(vault).as_posix(): (
@@ -277,6 +332,59 @@ def test_ask2_unknown_when_no_grounded_evidence(tmp_path: Path) -> None:
     assert answer["EVIDENCE"] == []
     assert answer["evidence_count"] == 0
     assert answer["retrieval"]["candidate_count"] == 0
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Nebula annual revenue forecast",
+        "Quasar Billing API service",
+        "Orbit Ledger product",
+        "Morgan Lee revenue target",
+        "Atlas annual revenue target",
+    ],
+    ids=[
+        "absent-financial-claim",
+        "absent-api-service",
+        "absent-product",
+        "semantic-near-distractor",
+        "lexical-overlap-distractor",
+    ],
+)
+def test_ask2_nearby_retrieval_without_claim_support_stays_unknown(
+    tmp_path: Path, question: str
+) -> None:
+    """Ranked text is not evidence unless it supports every asserted term."""
+    vault = _grounding_distractor_vault(tmp_path)
+    answer = ask_atlas_2(
+        vault,
+        question=question,
+        project_id="demo",
+        kinds=("concept",),
+        legacy_scan=False,
+    )
+    validate_record(answer, "ask-atlas-2-answer")
+    assert answer["retrieval"]["result_count"] > 0
+    assert answer["retrieval"]["candidate_count"] == 0
+    assert answer["status"] == "unknown"
+    assert answer["EVIDENCE"] == []
+    assert answer["UNKNOWN"]["is_unknown"] is True
+    assert "retrieval-hits-lack-claim-support" in answer["UNKNOWN"]["reasons"]
+
+
+def test_ask2_explicitly_supported_claim_remains_known(tmp_path: Path) -> None:
+    vault = _grounding_distractor_vault(tmp_path)
+    answer = ask_atlas_2(
+        vault,
+        question="Atlas annual revenue forecast",
+        project_id="demo",
+        kinds=("concept",),
+        legacy_scan=False,
+    )
+    assert answer["status"] == "known"
+    assert {entry["record_id"] for entry in answer["EVIDENCE"]} == {
+        "atlas-revenue-forecast"
+    }
 
 
 # --------------------------------------------------------------------------- #

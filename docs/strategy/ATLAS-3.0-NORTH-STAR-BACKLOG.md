@@ -1,5 +1,9 @@
 # Atlas 3.0 — North-star backlog (§40)
 
+> **D-191 classification:** This file is a **historical backlog sketch**. It is
+> not the Atlas 3.0 program. Canonical successor documents live under
+> `docs/atlas-3/`. Items below remain evidence; they do not auto-unlock runtime.
+
 **Position:** long-range product completeness beyond release trains 2.1–2.3.  
 **Principle:** evidence before interpretation · UI≠truth · Graph≠authority · LLM≠authority.
 

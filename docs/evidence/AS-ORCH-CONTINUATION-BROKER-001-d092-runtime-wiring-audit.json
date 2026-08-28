@@ -1,0 +1,104 @@
+{
+  "auditor": "CLOUD_READ_ONLY_CANONICAL_SECURITY_DELTA_AUDITOR",
+  "canonical_pr": 429,
+  "execution_authorized": false,
+  "findings": [
+    {
+      "attack": "ORCH-SDK-RESULT-BINDING-001",
+      "authoritative_call_site": "result_plane.py:ingest_pending_against_registry",
+      "evidence": "src/project_atlas/orchestration/sdk/result_plane.py::ingest_pending_against_registry",
+      "file": "result_plane.py",
+      "finding_id": "ORCH-SDK-RESULT-BINDING-001",
+      "helper_exists": "YES",
+      "real_runtime_path": "YES",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "ingest_pending_against_registry",
+      "test": "test_as_orch_d092_runtime_wiring.py"
+    },
+    {
+      "attack": "ORCH-SDK-LEASE-GATE-001",
+      "authoritative_call_site": "cli_execution_port.py:_require_lease",
+      "evidence": "src/project_atlas/orchestration/sdk/cli_execution_port.py::_require_lease",
+      "file": "cli_execution_port.py",
+      "finding_id": "ORCH-SDK-LEASE-GATE-001",
+      "helper_exists": "YES",
+      "real_runtime_path": "YES",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "_require_lease",
+      "test": "test_as_orch_d092_runtime_wiring.py"
+    },
+    {
+      "attack": "ORCH-SDK-ALLOWED-PATHS-001",
+      "authoritative_call_site": "cli_execution_port.py:_enforce_post_run_paths",
+      "evidence": "src/project_atlas/orchestration/sdk/cli_execution_port.py::_enforce_post_run_paths",
+      "file": "cli_execution_port.py",
+      "finding_id": "ORCH-SDK-ALLOWED-PATHS-001",
+      "helper_exists": "YES",
+      "real_runtime_path": "YES",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "_enforce_post_run_paths",
+      "test": "test_as_orch_d092_runtime_wiring.py"
+    },
+    {
+      "attack": "ORCH-SDK-HOST-ROLLBACK-001",
+      "authoritative_call_site": "recovery.py:recover_runtime",
+      "evidence": "src/project_atlas/orchestration/sdk/recovery.py::recover_runtime",
+      "file": "recovery.py",
+      "finding_id": "ORCH-SDK-HOST-ROLLBACK-001",
+      "helper_exists": "YES",
+      "real_runtime_path": "YES",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "recover_runtime",
+      "test": "test_as_orch_d092_runtime_wiring.py"
+    },
+    {
+      "attack": "ORCH-SDK-AGENT-LINEAGE-001",
+      "authoritative_call_site": "cli_execution_port.py:resume_agent",
+      "evidence": "src/project_atlas/orchestration/sdk/cli_execution_port.py::resume_agent",
+      "file": "cli_execution_port.py",
+      "finding_id": "ORCH-SDK-AGENT-LINEAGE-001",
+      "helper_exists": "YES",
+      "real_runtime_path": "YES",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "resume_agent",
+      "test": "test_as_orch_d092_runtime_wiring.py"
+    },
+    {
+      "attack": "ORCH-SDK-TRANSIENT-FAILURE-001",
+      "authoritative_call_site": "scheduler.py:assign_and_start",
+      "evidence": "src/project_atlas/orchestration/sdk/scheduler.py::assign_and_start",
+      "file": "scheduler.py",
+      "finding_id": "ORCH-SDK-TRANSIENT-FAILURE-001",
+      "helper_exists": "YES",
+      "real_runtime_path": "YES",
+      "required_delta": "NONE",
+      "status": "CLOSED",
+      "symbol": "assign_and_start",
+      "test": "test_as_orch_d092_runtime_wiring.py"
+    }
+  ],
+  "merge_authorized": false,
+  "package_id": "AS-ORCH-CONTINUATION-BROKER-001",
+  "six_p1_open_count": 0,
+  "six_p1_runtime_open_count": 0,
+  "wiring_verified": {
+    "JOB_LEVEL_CI_OBSERVER": "PASS",
+    "PACKAGE_CANONICAL_REGISTRY": "PASS",
+    "RESULT_PLANE_SUPERVISOR_INGESTION": "PASS",
+    "STALE_DIRECTIVE_EXECUTION_SUPPRESSION": "PASS",
+    "authoritative_call_sites": [
+      "ci_observer.py:classify_with_jobs",
+      "supervisor.py:schedule_cycle\u2192ingest_pending_against_registry",
+      "cli_execution_port.py:_enforce_post_run_paths",
+      "scheduler.py:assign_and_start park",
+      "recovery.py:recover_runtime high-water",
+      "package_registry.py:require_mutating_route",
+      "live_dag.py:_mint_lease\u2192suppress_stale_directive"
+    ]
+  }
+}

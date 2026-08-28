@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-atlas.local/atlas3/engineering-event.schema.json",
+  "title": "Atlas3EngineeringEvent",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "event_id",
+    "project_id",
+    "event_type",
+    "source",
+    "source_id",
+    "observed_at",
+    "valid_time",
+    "actor",
+    "object_refs",
+    "evidence_refs",
+    "content_hash",
+    "authority_class"
+  ],
+  "properties": {
+    "schema": { "const": "atlas3.engineering-event.v1" },
+    "schema_version": { "const": 1 },
+    "event_id": { "type": "string", "pattern": "^a3ev-[0-9a-f]{16}$" },
+    "project_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "event_type": {
+      "enum": [
+        "SOURCE_CHANGED",
+        "COMMIT_CREATED",
+        "PR_OPENED",
+        "PR_REVIEWED",
+        "PR_MERGED",
+        "TEST_STARTED",
+        "TEST_FAILED",
+        "TEST_PASSED",
+        "BUILD_STARTED",
+        "BUILD_FINISHED",
+        "DEPLOYMENT_STARTED",
+        "DEPLOYMENT_FINISHED",
+        "INCIDENT_OPENED",
+        "INCIDENT_RESOLVED",
+        "DECISION_RECORDED",
+        "AGENT_STARTED",
+        "AGENT_FINISHED",
+        "AGENT_FAILED",
+        "OWNER_APPROVED",
+        "OWNER_REJECTED",
+        "CONTEXT_INVALIDATED"
+      ]
+    },
+    "source": { "type": "string", "minLength": 1 },
+    "source_id": { "type": "string" },
+    "observed_at": { "type": ["string", "null"] },
+    "valid_time": { "type": ["string", "null"] },
+    "actor": { "type": ["string", "null"] },
+    "object_refs": { "type": "array", "items": { "type": "string" } },
+    "evidence_refs": { "type": "array", "items": { "type": "string" } },
+    "content_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "authority_class": { "enum": ["derived", "observed", "non-canonical"] }
+  }
+}

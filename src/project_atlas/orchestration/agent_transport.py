@@ -12,17 +12,20 @@ CURSOR_PROSE_CAN_CHOOSE_NEXT_ROUTE = NO
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
+import threading
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Literal, Protocol
+from typing import IO, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -135,10 +138,6 @@ class ProcessRunner(Protocol):
 
 def digest_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
-
-def bound_captured_bytes(data: bytes) -> bytes:
-    return data[:MAX_CAPTURED_BYTES]
 
 
 def sanitize_inherited_env(source: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -618,8 +617,59 @@ def frame_result_payload(payload: object) -> str:
     return f"{RESULT_FRAME_BEGIN}\n{encoded}\n{RESULT_FRAME_END}\n"
 
 
+def _drain_bounded(stream: IO[bytes] | None, cap: int, sink: bytearray) -> None:
+    """Read ``stream`` to EOF, keeping only the first ``cap`` bytes in
+    ``sink``. Always drains to EOF -- even past the cap -- so the child
+    process can never block on a full OS pipe buffer while we discard the
+    excess. This is the memory-bound enforcement point: unlike
+    ``subprocess.run(capture_output=True)``, which buffers the *complete*
+    stream via ``Popen.communicate()`` before any truncation is applied,
+    parent-process memory here never exceeds ``cap`` bytes per stream
+    regardless of how much the child writes or for how long."""
+    if stream is None:
+        return
+    while True:
+        chunk = stream.read(65_536)
+        if not chunk:
+            break
+        if len(sink) < cap:
+            sink.extend(chunk[: cap - len(sink)])
+
+
+def _write_stdin(pipe: IO[bytes] | None, data: bytes) -> None:
+    """Write ``data`` to ``pipe`` and close it, on its own thread.
+
+    Runs concurrently with ``proc.wait(timeout=...)`` in the caller, not
+    before it: a child that does not promptly read stdin must not be able
+    to block the parent past the requested timeout. (An earlier version of
+    this runner wrote stdin synchronously before ``wait()`` was ever
+    reached -- independent adversarial verification on PR #620 caught that
+    this silently defeated ``timeout_seconds`` whenever stdin was
+    populated, which is always true on the real dispatch path.) If the
+    child is killed on timeout, its stdin read end closes and this write
+    unblocks with a (caught) broken-pipe error."""
+    if pipe is None:
+        return
+    try:
+        pipe.write(data)
+    except (BrokenPipeError, OSError):
+        pass  # A process that exits/is killed before reading stdin is not a transport failure.
+    finally:
+        with contextlib.suppress(OSError):
+            pipe.close()
+
+
 class SubprocessProcessRunner:
-    """Real argv runner. ``shell`` is never enabled."""
+    """Real argv runner. ``shell`` is never enabled.
+
+    stdout/stderr are drained on dedicated threads with a hard cap
+    (``MAX_CAPTURED_BYTES`` per stream) enforced *during* collection, not
+    only on the value handed back to the caller -- a child process writing
+    far more than the cap cannot force unbounded parent memory growth
+    before exiting or being killed on timeout. stdin is written on its own
+    thread too, concurrently with ``proc.wait(timeout=...)``, so a child
+    that is slow to read stdin cannot silently defeat the timeout.
+    """
 
     def run(self, request: ProcessRunRequest) -> ProcessRunOutcome:
         if not request.argv:
@@ -629,34 +679,63 @@ class SubprocessProcessRunner:
         cwd = request.cwd.expanduser().resolve()
         if not cwd.is_dir():
             raise TransportError("process cwd is not a directory", code="WORKSPACE_UNSAFE")
+
+        start = time.monotonic()
+        proc = subprocess.Popen(
+            list(request.argv),
+            cwd=cwd,
+            env=dict(request.env),
+            stdin=subprocess.PIPE if request.stdin is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+        stdout_buf = bytearray()
+        stderr_buf = bytearray()
+        stdout_thread = threading.Thread(
+            target=_drain_bounded,
+            args=(proc.stdout, MAX_CAPTURED_BYTES, stdout_buf),
+            daemon=True,
+        )
+        stderr_thread = threading.Thread(
+            target=_drain_bounded,
+            args=(proc.stderr, MAX_CAPTURED_BYTES, stderr_buf),
+            daemon=True,
+        )
+        stdout_thread.start()
+        stderr_thread.start()
+        stdin_thread: threading.Thread | None = None
+        if request.stdin is not None and proc.stdin is not None:
+            stdin_thread = threading.Thread(
+                target=_write_stdin, args=(proc.stdin, request.stdin), daemon=True
+            )
+            stdin_thread.start()
+        timed_out = False
         try:
-            completed = subprocess.run(
-                list(request.argv),
-                cwd=cwd,
-                env=dict(request.env),
-                input=request.stdin,
-                capture_output=True,
-                text=False,
-                timeout=request.timeout_seconds,
-                check=False,
-                shell=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            stdout = bound_captured_bytes(exc.stdout or b"")
-            stderr = bound_captured_bytes(exc.stderr or b"")
-            return ProcessRunOutcome(
-                exit_code=124,
-                stdout=stdout,
-                stderr=stderr,
-                timed_out=True,
-                duration_ms=request.timeout_seconds * 1000,
-            )
-        stdout = bound_captured_bytes(completed.stdout or b"")
-        stderr = bound_captured_bytes(completed.stderr or b"")
+            proc.wait(timeout=request.timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            proc.kill()
+            proc.wait()
+        finally:
+            # All three I/O threads exit once the child's pipes close (on
+            # normal exit or after kill()); the join timeouts are only a
+            # backstop against an OS-level hang, never the primary bound --
+            # proc.wait(timeout=...) above is what actually bounds the call.
+            stdout_thread.join(timeout=30)
+            stderr_thread.join(timeout=30)
+            if stdin_thread is not None:
+                stdin_thread.join(timeout=30)
+            if proc.stdout is not None:
+                proc.stdout.close()
+            if proc.stderr is not None:
+                proc.stderr.close()
+
+        duration_ms = max(0, int((time.monotonic() - start) * 1000))
         return ProcessRunOutcome(
-            exit_code=int(completed.returncode),
-            stdout=stdout,
-            stderr=stderr,
-            timed_out=False,
-            duration_ms=0,
+            exit_code=124 if timed_out else int(proc.returncode),
+            stdout=bytes(stdout_buf),
+            stderr=bytes(stderr_buf),
+            timed_out=timed_out,
+            duration_ms=duration_ms,
         )

@@ -498,7 +498,7 @@ def _reference_malformed(reference: str, anchor: CompatibilityAnchor) -> bool:
             field="kdiff-probe",
             anchor=anchor,
         )
-    except BitemporalError:
+    except (BitemporalError, TypeError):
         return True
     return False
 
@@ -594,10 +594,13 @@ def read_as_of(
             truncated=truncated,
         )
 
-    cells = [
-        _evaluate_cell(state, key, as_of_valid_time, resolved_anchor)
-        for key in state.keys
-    ]
+    try:
+        cells = [
+            _evaluate_cell(state, key, as_of_valid_time, resolved_anchor)
+            for key in state.keys
+        ]
+    except TypeError as exc:
+        raise KnowledgeDiffError(f"kdiff-as-of-comparison:{exc}") from exc
     unresolved = [
         {"subject": c.subject, "field": c.field, "reason": c.reason}
         for c in cells

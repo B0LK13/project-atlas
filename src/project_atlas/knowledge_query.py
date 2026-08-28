@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from project_atlas.authority_registry import persisted_authority_binding_matches_live
 from project_atlas.domain.authority_semantics import AuthoritativeStateRecord
 from project_atlas.domain.claims import Claim, validate_claim_subject
 from project_atlas.domain.knowledge_query import (
@@ -524,6 +525,35 @@ def _load_snapshot(vault: Path, project_id: str) -> _ProjectSnapshot:
                 KnowledgeQueryErrorCode.STATE_CORRUPT,
                 f"invalid authoritative-state in {auth_path}: {exc}",
             ) from exc
+        file_reg = auth_raw.get("authority_registry_version")
+        if file_reg is not None and not persisted_authority_binding_matches_live(
+            recorded_registry_version=file_reg
+        ):
+            raise KnowledgeQueryError(
+                KnowledgeQueryErrorCode.STATE_CORRUPT,
+                "authoritative-state registry version does not match live "
+                "owner-certified registry",
+            )
+        for auth_record in snap.authoritative_records:
+            if not persisted_authority_binding_matches_live(
+                recorded_trust_root=auth_record.trust_root,
+                recorded_registry_version=auth_record.registry_version,
+            ):
+                raise KnowledgeQueryError(
+                    KnowledgeQueryErrorCode.STATE_CORRUPT,
+                    "authoritative-state trust binding does not match live "
+                    "owner-certified registry",
+                )
+            for evidence in auth_record.evidence:
+                if not persisted_authority_binding_matches_live(
+                    recorded_trust_root=evidence.trust_root,
+                    recorded_registry_version=evidence.registry_version,
+                ):
+                    raise KnowledgeQueryError(
+                        KnowledgeQueryErrorCode.STATE_CORRUPT,
+                        "authoritative-state evidence trust binding does not "
+                        "match live owner-certified registry",
+                    )
         snap.authoritative_records.sort(
             key=lambda item: (item.subject, item.field, item.rule_id or "")
         )

@@ -7,8 +7,14 @@
 | Audience | AI-assisted / vibe coders + Atlas maintainers |
 | Precedence | Owner directives > runtime/`main` truth > stable invariants > historical roadmaps |
 
-This document is the durable product anchor for Coder Alpha. Historical planning
-docs remain evidence; they do **not** override this direction.
+This document is the durable **Atlas 2.x / Coder Alpha** product anchor.
+Historical planning docs remain evidence; they do **not** override this
+direction.
+
+**D-191 successor program:** Atlas 3.0 (`docs/atlas-3/NORTH-STAR.md`) extends
+the Coder Alpha promise (“never explain your project to an AI twice”) into a
+verifiable shared-reality / digital-twin program. Coder Alpha is not erased.
+Atlas 3 must reuse, not rebuild, the foundations this document describes.
 
 ---
 

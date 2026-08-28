@@ -7,6 +7,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from project_atlas.orchestration.autonomy.continuation_broker import (
+    SuccessorKind,
+    recover_broker,
+)
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
 from project_atlas.orchestration.autonomy.loop import (
@@ -18,6 +22,7 @@ from project_atlas.orchestration.autonomy.loop import (
     LoopPhase,
     LoopState,
     initial_loop_state,
+    load_loop_state,
     persist_loop_state,
     seal_loop_state,
     verify_loop_state,
@@ -177,6 +182,73 @@ def test_merge_eligible_never_dispatched(tmp_path: Path) -> None:
         loop.refuse_owner_actions()
 
 
+def test_refuse_owner_actions_checks_every_gate_not_just_a(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ORCHAUT-010 (2026-08-28): ``refuse_owner_actions`` previously called
+    ``require_owner`` for gate A only, while its own docstring and the
+    module's ``LOOP_CAN_BYPASS_OWNER_GATE = NO`` contract claimed the
+    general property for all six gates. Because the real (unpatched)
+    ``require_owner`` always raises with no grant, a plain
+    ``pytest.raises(OwnerGateError)`` on the whole call can't distinguish
+    "checked gate A only, then stopped" from "checked all six" -- both
+    look identical from outside. Patches ``require_owner`` in the loop
+    module's own namespace with a non-raising recorder to observe every
+    gate the method actually attempts, proving it doesn't short-circuit
+    after A."""
+    seen: list[OwnerGateKind] = []
+
+    def _record(gate: OwnerGateKind, *, owner_grant: bool = False) -> None:
+        assert owner_grant is False
+        seen.append(gate)
+
+    import project_atlas.orchestration.autonomy.loop as loop_module
+
+    monkeypatch.setattr(loop_module, "require_owner", _record)
+
+    gov = _governor(_node("AS-ORCH-REFUSE-001"))
+    loop = _loop(tmp_path, gov)
+    loop.refuse_owner_actions()
+
+    assert seen == list(OwnerGateKind)
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [
+        OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION,
+        OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
+        OwnerGateKind.E_DESTRUCTIVE_OPS,
+        OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND,
+    ],
+)
+def test_ready_owner_gated_node_never_leased_or_dispatched(
+    tmp_path: Path, gate: OwnerGateKind
+) -> None:
+    """ORCHAUT-010 regression: gates C-F must fail closed at the real
+    select/lease boundary, not just via the standalone, never-called
+    `request_*` primitives. A node reaching READY while tagged with an
+    owner_gate must stop the loop before any lease or dispatch, exactly
+    like OWNER_HELD/MERGE_ELIGIBLE already does for gate A.
+    """
+    gov = _governor(
+        _node("AS-ORCH-GATE-001", state=NodeState.READY, owner_gate=gate)
+    )
+    calls: list[str] = []
+    port = CallableDispatchPort(
+        lambda _root: calls.append("dispatch") or {"dispatch_id": "x", "status": "COMPLETED"}
+    )
+    loop = _loop(tmp_path, gov, port)
+    result = loop.run_until_stop()
+    assert result.stop_reason is StopReason.OWNER_GATE
+    assert calls == []
+    assert result.dispatched is False
+    node = next(
+        item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-GATE-001"
+    )
+    assert node.state is NodeState.READY
+
+
 def test_hard_blocker_stop(tmp_path: Path) -> None:
     gov = _governor(_node("AS-ORCH-BLK-001", state=NodeState.BLOCKED))
     result = _loop(tmp_path, gov).run_until_stop()
@@ -313,3 +385,26 @@ def test_digest_roundtrip(tmp_path: Path) -> None:
 
 def test_package_id_constant() -> None:
     assert LOOP_PACKAGE_ID == "AS-ORCH-001E"
+
+
+def test_resource_boundary_enqueues_yield_not_owner(tmp_path: Path) -> None:
+    gov = _governor(_node("AS-ORCH-NEXT-001"))
+    loop = _loop(tmp_path, gov)
+    persist_loop_state(
+        tmp_path / "loop-store",
+        seal_loop_state(
+            loop.state.model_copy(
+                update={
+                    "ticks_in_invocation": MAX_TICKS_PER_INVOCATION,
+                    "record_digest": "00" * 32,
+                }
+            )
+        ),
+    )
+    loop._state = load_loop_state(tmp_path / "loop-store")
+    result = loop.tick()
+    assert result.stop_reason is StopReason.RESOURCE_BOUNDARY
+    recovered = recover_broker(tmp_path)
+    assert recovered is not None
+    assert recovered.kind is SuccessorKind.RESOURCE_YIELD
+    assert recovered.execution_authorized is False
