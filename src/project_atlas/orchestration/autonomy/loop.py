@@ -450,7 +450,13 @@ class AutonomousLoop:
         if decision.next_package_id is None:
             return self._stop(decision.stop_reason or StopReason.NO_ELIGIBLE_WORK)
         node = next(item for item in snapshot.nodes if item.package_id == decision.next_package_id)
-        if node.owner_gate is not None and node.state != NodeState.READY:
+        if node.owner_gate is not None:
+            # ORCHAUT-010 remediation (2026-08-28): defense-in-depth twin of
+            # the select_next fix -- `select_next` should already exclude
+            # any owner-gated node, but this is the last check before a
+            # real lease is granted, so it must not be a dead-code
+            # `state != READY` comparison that a READY owner-gated node
+            # always fails (i.e. never actually stops it).
             return self._stop(StopReason.OWNER_GATE)
         if node.state == NodeState.MERGE_ELIGIBLE:
             return self._stop(StopReason.OWNER_GATE)

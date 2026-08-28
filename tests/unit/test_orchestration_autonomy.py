@@ -339,6 +339,47 @@ def test_continuation_selects_ready_when_no_owner_gate() -> None:
     assert decision.stop_reason is None
 
 
+@pytest.mark.parametrize(
+    "gate",
+    [
+        OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION,
+        OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
+        OwnerGateKind.E_DESTRUCTIVE_OPS,
+        OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND,
+    ],
+)
+def test_continuation_never_selects_ready_owner_gated_node(gate: OwnerGateKind) -> None:
+    """ORCHAUT-010 regression: a node can reach READY (dependency-ready)
+    while still carrying an owner_gate C-F tag. READY != owner-authorized.
+    Prior to remediation, `select_next` only skipped owner-gated nodes when
+    `state != READY`, which is never true inside the `ready` list -- so a
+    READY node tagged C/D/E/F was selected and returned for lease exactly
+    like an ungated node, silently bypassing the gate.
+    """
+    gated = _node("PKG-GATED", state=NodeState.READY, owner_gate=gate)
+    decision = select_next((gated,))
+    assert decision.next_package_id is None
+    assert decision.stop_reason is StopReason.OWNER_GATE
+
+
+def test_continuation_skips_owner_gated_ready_node_for_ungated_sibling() -> None:
+    """A READY owner-gated node must not be selected even when a normal
+    READY node is also available -- the gated one is skipped, not picked.
+    """
+    gated = _node(
+        "PKG-GATED",
+        state=NodeState.READY,
+        owner_gate=OwnerGateKind.E_DESTRUCTIVE_OPS,
+        surface="surface-gated",
+        semantic="SEMANTIC_GATED",
+        paths=("src/gated",),
+    )
+    ungated = _node("PKG-FREE", state=NodeState.READY)
+    decision = select_next((gated, ungated))
+    assert decision.next_package_id == "PKG-FREE"
+    assert decision.stop_reason is None
+
+
 def test_evidence_hash_is_reconstructable(tmp_path: Path) -> None:
     first = make_bundle("PILOT_EXECUTION", {"a": 1, "b": "x"})
     second = make_bundle("PILOT_EXECUTION", {"b": "x", "a": 1})
