@@ -7913,3 +7913,98 @@ Unique `web_api` modules + unit tests checked out from the listed SHAs. Shared f
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch authority;
   does not certify ORCH001C/D/E.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001C-009 — Independent integration verification (re-certification after R1)
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `5ff62221` (ORCH001C-001..008 +
+  ORCH001C-R1-001..003 implementation, already merged). No production
+  surface touched. Does **not** cover ORCH001C-010 (Local Windows
+  explicit-completion acceptance) or the "authentic Cursor stop event
+  delivery" claim itself -- both require a live Cursor CLI environment,
+  unavailable here; left unchecked, `EXTERNAL_BLOCKED`.
+  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Baseline: existing suite re-run clean -- test_orchestration_cursor_bridge.py
+  + test_orchestration_explicit_completion.py = 44 PASS.
+- Note on this entry's count precision: after a review finding on the
+  ORCH001A-007 entry (PR #619) caught a mismatched adversarial-probe
+  count, every probe below is numbered and labeled baseline/adversarial
+  explicitly, and the totals were counted directly against this list
+  before writing the summary (not stated from memory).
+- 6 black-box probes via the real `atlas orchestrator cursor-*` CLI in an
+  isolated init'd vault, in an isolated `--root`:
+  1. (baseline) `cursor-status` before any staged result -> `state:
+     "absent"`, `state_valid: false`, `execution_authorized: false`.
+  2. (baseline) `cursor-stage-result` with a valid CERTIFIED envelope ->
+     `ok: true`, `status: "pending"`, `execution_authorized: false`.
+  3. (adversarial) Re-stage the byte-identical result while one is already
+     pending -> succeeds idempotently (same digest, no actual overwrite;
+     this is a boundary clarification, not a defect -- see probe 4 for
+     the real "pending overwrite" case).
+  4. (adversarial) Stage a genuinely different result (different
+     `task.id`) while one is pending -> correctly rejected,
+     `error: "PENDING_HANDOFF_EXISTS"`, `ok: false`, exit 1.
+  5. (adversarial) `cursor-ack` with a wrong/fabricated route-digest ->
+     correctly rejected, `error: "BRIDGE_ACK_REJECTED"`, `ok: false`,
+     exit 1; `execution_authorized` still hard-coded `false` in the
+     rejection payload.
+  6. (adversarial) Directly edited the on-disk state file
+     (`.atlas/orchestration/cursor/state.json`) outside the CLI,
+     replacing its contents with `{"tampered": true,
+     "execution_authorized": true}`, then re-ran `cursor-status` ->
+     the injected `execution_authorized=true` was never read or
+     trusted; the corrupted file was treated as no state at all
+     (`state: "absent"`, `state_valid: false`,
+     `execution_authorized: false`). This is authentic tamper
+     resistance demonstrated against a real file on disk, not a mocked
+     assertion.
+- Finding: single-slot pending-overwrite enforcement, ack authenticity
+  (`ack != authority`), and state-file tamper resistance all hold under
+  adversarial probing, consistent with the existing 44-test suite and
+  the ORCH001C-007 "Tamper/injection tests" already in place.
+
+### Review findings and follow-up probes (same day, same PR)
+
+Two review findings were correct and required action:
+
+**Finding A (Copilot, docs accuracy):** probe 3's text referenced
+"probe 3b" as the real pending-overwrite case; no such item exists --
+the real case is probe 4. Fixed above (was a stray label left over
+from ad-hoc exploration before the probes were given their final
+numbering).
+
+**Finding B (Codex, P2, substantive):** the 6 probes above never
+exercised `cursor-complete` -- the explicit-completion transport that
+ORCH001C-R1 actually added, and the specific reason this item is
+re-certification rather than first-time IV. Re-running the existing
+unit suite does not substitute for independently probing R1's own
+claims (typed `HandoffPacket`, transport equivalence, idempotence).
+Added 4 more probes closing that gap, same isolated-vault method:
+  7. (adversarial) `cursor-complete` with no staged handoff -> correctly
+     rejected, `error: "NO_STAGED_HANDOFF"`, `ok: false`, exit 1.
+  8. (baseline) Stage a valid result, then `cursor-complete` ->
+     `HandoffPacket` returned (`dispatch_performed: false`,
+     `execution_authorized: false`, `state: "HANDOFF_READY"`,
+     `transport: "explicit"`) with the same `route_digest`/
+     `source_task`/`target_role`/`task_type` fields probe 2's
+     hook-transport `handoff_packet` carried (`transport: "hook"`
+     there) -- structural transport-equivalence evidence: same packet
+     shape and semantics, differing only in the `transport` tag.
+  9. (adversarial) Call `cursor-complete` again on the same staged
+     handoff -> byte-identical `HandoffPacket` returned both times
+     (same digest/state/route_digest) -- idempotence: a repeat call
+     does not re-mutate or error.
+  10. (adversarial) Stage a result, tamper the on-disk state file
+      (injecting `execution_authorized: true`, `dispatch_performed:
+      true`), then `cursor-complete` -> correctly rejected with an
+      explicit `error: "STAGED_STATE_TAMPERED"` (a clearer diagnostic
+      than probe 6's generic "treated as absent" for `cursor-status`),
+      `execution_authorized: false` maintained even in the error
+      payload.
+- Result: `ORCH001C-009 = PASS` (10 probes total: 2 baseline + 8
+  adversarial). `ORCH001C-010` (Local Windows explicit-completion
+  acceptance) and the authentic Cursor stop-event delivery claim
+  remain separately unchecked -- `EXTERNAL_BLOCKED`, not attempted.
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
+  authority; does not certify ORCH001D/E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`

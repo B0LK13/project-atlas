@@ -456,7 +456,7 @@ Remediation role: existing taxonomy is `local` | `integration` | `autonomous`. T
 
 ## AS-ORCH-001C — Cursor Integration Bridge + Governed Stop Hook
 
-_Status: **REMEDIATED — READY FOR RE-CERTIFICATION** (AS-ORCH-001C-R1; not merge-eligible; not owner-approved; not production-ready). Surfaces a governed Atlas route via an optional Cursor stop-hook adapter **or** a deterministic explicit completion transport. Does **not** spawn agents, execute `TaskDirective`, merge, or grant authority. The stop hook is **not** the required primary runtime trigger._
+_Status: **REMEDIATED — INDEPENDENTLY VERIFIED — READY FOR OWNER MERGE GATE** (AS-ORCH-001C-R1; re-certified 2026-08-28, see WORKLOG "ORCH001C-009"; ORCH001C-010 authentic-Windows acceptance remains separately outstanding, EXTERNAL_BLOCKED here; not merge-eligible; not owner-approved; not production-ready). Surfaces a governed Atlas route via an optional Cursor stop-hook adapter **or** a deterministic explicit completion transport. Does **not** spawn agents, execute `TaskDirective`, merge, or grant authority. The stop hook is **not** the required primary runtime trigger._
 
 Honesty (mandatory):
 
@@ -487,7 +487,7 @@ Honesty (mandatory):
 - [x] ORCH001C-R1-001 Typed `HandoffPacket` shared by hook adapter and explicit completion
 - [x] ORCH001C-R1-002 `complete_staged_handoff` / `atlas orchestrator cursor-complete` (no Cursor event required)
 - [x] ORCH001C-R1-003 Transport-equivalence + tamper + idempotence proofs
-- [ ] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move)
+- [x] ORCH001C-009 Independent integration verification (re-certification required after R1 HEAD/TREE move) (2026-08-28: 44 existing tests re-run PASS + 10 black-box CLI probes -- 2 baseline + 8 adversarial, covering `cursor-status`/`cursor-stage-result`/`cursor-ack`/`cursor-complete` (the R1-added explicit-completion transport, initially missed -- added after review), including on-disk state-file tamper injection against both `cursor-status` and `cursor-complete` (`STAGED_STATE_TAMPERED`), transport-equivalence and idempotence evidence for `cursor-complete` -- against `main` `5ff62221`, see WORKLOG "ORCH001C-009"; PASS; still not merge-eligible)
 - [ ] ORCH001C-010 Local Windows explicit-completion acceptance (stop-event observation is non-blocking)
 - [x] ORCH001D Agent Dispatcher — see AS-ORCH-001D (fresh current-main single-hop; not #396)
 - [x] ORCH001E Governed Autonomous Loop — see AS-ORCH-001E
