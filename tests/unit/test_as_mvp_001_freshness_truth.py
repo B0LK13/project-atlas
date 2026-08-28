@@ -6,6 +6,8 @@ import json
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 from project_atlas.portfolio import (
     _FUTURE_MTIME_TOLERANCE,
     DEFAULT_STALE_DAYS,
@@ -89,6 +91,53 @@ def test_threshold_boundary_is_exact(tmp_path: Path) -> None:
     }
     assert freshness == {"src-at-threshold": "stale", "src-just-under": "fresh"}
     assert report["projects"]["nebula"]["stale_count"] == 1
+
+
+@pytest.mark.parametrize("bad_threshold", [0, -1, -5, -180])
+def test_stale_after_days_rejects_non_positive(tmp_path: Path, bad_threshold: int) -> None:
+    """P3: stale_knowledge() previously accepted ``stale_after_days <= 0``
+    silently, while validation.py::_validate_freshness already rejected
+    ``< 1`` at the CLI boundary -- the same conceptual parameter enforced
+    two different postures. ``0`` is not a meaningful threshold (it would
+    mark any source with any age at or past the reference instant "stale"
+    regardless of how recently it was modified), so the internal API now
+    fails closed here too, matching the CLI-facing invariant.
+
+    Pinned directly against the values the contract names, not derived
+    from the guard's own ``< 1`` expression: the intended invariant is
+    ``stale_after_days`` must be a positive (>= 1) integer day count, and
+    every non-positive value -- zero and negative alike -- is rejected the
+    same way."""
+    vault = tmp_path / "vault"
+    _write_manifest(
+        vault,
+        [_source("src-recent", REFERENCE - timedelta(hours=1))],
+    )
+    with pytest.raises(ValueError, match="positive integer day count"):
+        stale_knowledge(vault, reference_date=REFERENCE, stale_after_days=bad_threshold)
+
+
+def test_stale_after_days_one_is_the_minimum_accepted_value(tmp_path: Path) -> None:
+    """P3 boundary, the other side: ``1`` is the smallest value the contract
+    accepts and must behave as an ordinary threshold, not raise -- pinning
+    the exact boundary between "rejected" (0) and "accepted" (1) rather than
+    inferring it from the guard's ``< 1`` condition. A source exactly one
+    day old is stale under this threshold; one still within the day is
+    fresh, matching the same inclusive-boundary contract
+    ``test_threshold_boundary_is_exact`` pins for the default threshold."""
+    vault = tmp_path / "vault"
+    _write_manifest(
+        vault,
+        [
+            _source("src-one-day-old", REFERENCE - timedelta(days=1)),
+            _source("src-hours-old", REFERENCE - timedelta(hours=12)),
+        ],
+    )
+    report = stale_knowledge(vault, reference_date=REFERENCE, stale_after_days=1)
+    freshness = {
+        item["source_id"]: item["freshness"] for item in report["projects"]["nebula"]["sources"]
+    }
+    assert freshness == {"src-one-day-old": "stale", "src-hours-old": "fresh"}
 
 
 def test_offset_timestamps_compare_as_instants(tmp_path: Path) -> None:
