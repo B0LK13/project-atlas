@@ -8008,3 +8008,78 @@ Added 4 more probes closing that gap, same isolated-vault method:
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority; does not certify ORCH001D/E.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCH001D-011 — Independent integration verification
+
+- Date: 2026-08-28
+- Scope: read-only IV against `main` `5ff62221` (ORCH001D-001..010
+  implementation, already merged). No production surface touched. Does
+  **not** cover ORCH001D-012 (Authentic Local Windows Cursor agent
+  dispatch acceptance) -- that item requires a live Cursor CLI
+  (`agent`/`cursor-agent` on PATH), which is unavailable in this
+  environment; left `EXTERNAL_BLOCKED`, unchecked, as-is.
+  `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Risk-mapping before execution (`run_dispatch_once` reaches
+  `subprocess.run`, materially higher risk than the pure-function
+  ORCH001A/B classify/route logic): read `dispatcher.py` +
+  `agent_transport.py` end to end first. Found the dispatcher's own
+  tests already inject a `_FakeRunner` (a `ProcessRunner` Protocol
+  implementation) rather than spawning real processes -- the existing
+  test convention already isolates `PURE_LOGIC_BEHAVIOR` from
+  `PROCESS_SPAWN_BEHAVIOR`. Command construction (`build_launch_plan`,
+  `resolve_cursor_transport`) is pure and independently testable without
+  any subprocess. The real transport (`SubprocessProcessRunner`) is a
+  thin, well-bounded translation layer (`shell=False` always, timeout
+  clamped to [1, 86400]s, cwd must exist, output bounded) -- testable
+  with a benign, already-present interpreter (`sys.executable`) standing
+  in for the Cursor CLI, without needing Cursor itself. Classified: command
+  construction + eligibility/fail-closed logic = `SAFE_LOCAL`; transport
+  mechanics with a benign real subprocess = `SAFE_ISOLATED`; authentic
+  Cursor dispatch = `AUTHENTIC_ENV_REQUIRED` (out of scope, = ORCH001D-012).
+- Baseline: existing suite re-run clean --
+  test_orchestration_dispatcher.py + test_orchestration_agent_transport.py
+  + test_orchestration_explicit_completion.py +
+  test_orchestration_result_binding_windows.py = 32 PASS.
+- SAFE_LOCAL adversarial probes against `build_launch_plan` /
+  `resolve_cursor_transport` directly (pure functions, zero subprocess):
+  oversized prompt (>8192 chars) -> `PROMPT_REJECTED`; NUL byte in prompt
+  -> `PROMPT_REJECTED`; empty prompt -> `PROMPT_REJECTED`; nonexistent
+  cwd -> `WORKSPACE_UNSAFE`; executable path-traversal attempt
+  (`../../../windows/system32/cmd.exe`) -> `EXECUTABLE_REJECTED`. One
+  probe (prompt text containing `"--force rm -rf /"`) produced no
+  rejection, but this is confirmed **not** a gap: the forbidden-flag
+  check scans `argv`, and the prompt is structurally stdin-only -- it
+  never reaches argv (a separate, already-present check explicitly
+  raises `PROMPT_REJECTED` if the prompt string ever appears inside any
+  argv token) -- so prompt content cannot influence which flags are
+  passed regardless of what it contains. The actual argv flags are a
+  fixed constant (`READ_ONLY_CURSOR_FLAGS = ("--print",
+  "--output-format", "json", "--mode", "ask")`), not derived from the
+  prompt or envelope at all.
+- SAFE_ISOLATED probes: real (not mocked) `SubprocessProcessRunner.run()`
+  calls using `sys.executable` as a benign stand-in executable, in an
+  isolated temp cwd:
+  1. Benign roundtrip: exit 0, correct stdout, `timed_out=False`.
+  2. Nonzero exit code (7) correctly propagated.
+  3. Timeout enforcement: a process sleeping 5s with `timeout_seconds=1`
+     was actually killed at ~1.0s wall-clock (not left to run 5s),
+     reported `timed_out=True`, `exit_code=124`.
+  4. Empty argv -> `ARGV_REJECTED`, no process spawned.
+  5. Out-of-bounds timeout (`0`) -> `TIMEOUT_REJECTED`, no process spawned.
+  6. `shell=False` proof: an argv element containing shell
+     metacharacters (`"ignored; echo INJECTED"`) was received by the
+     child process as one literal argument (verified via the child's own
+     `sys.argv[1]` echoed back verbatim) -- not interpreted, split, or
+     chained by a shell. Command injection via `;`/`&&` is structurally
+     impossible through this runner, demonstrated authentically rather
+     than merely asserted from reading `shell=False` in source.
+- Finding: eligibility/fail-closed logic, command construction, and the
+  real process-spawn transport all hold under adversarial probing. No
+  path found to shell injection, argv-based flag smuggling, unbounded
+  hangs, or spawning with an unvalidated cwd/executable.
+- Result: `ORCH001D-011 = PASS`. `ORCH001D-012` (authentic Cursor
+  dispatch) remains separately unchecked -- `EXTERNAL_BLOCKED`, not
+  attempted.
+- `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
+  authority; does not certify ORCH001E.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
