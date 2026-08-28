@@ -23,7 +23,7 @@ from project_atlas.orchestration.autonomy.evidence import (
     make_bundle,
     write_bundle,
 )
-from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
 from project_atlas.orchestration.autonomy.leases import (
     ScopeExpansionError,
     expand_lease,
@@ -291,6 +291,54 @@ def test_lease_and_forbidden_scope_expansion() -> None:
             sequence=9,
             authorized_paths=("src/b", "src/outside"),
         )
+
+
+@pytest.mark.parametrize(
+    "gate",
+    [
+        OwnerGateKind.B_ACCEPTANCE_WAIVER,
+        OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION,
+        OwnerGateKind.D_SECURITY_GOVERNANCE_POLICY,
+        OwnerGateKind.E_DESTRUCTIVE_OPS,
+        OwnerGateKind.F_MATERIAL_EXTERNAL_SPEND,
+    ],
+)
+def test_lease_fails_closed_for_owner_gated_node(gate: OwnerGateKind) -> None:
+    """ORCHAUT-010 remediation round 2 (independent-IV finding): lease() /
+    execute_leased() are reachable directly (run_controlled_pilot,
+    continue_autonomous), not only through AutonomousLoop.select_next.
+    A node tagged owner_gate B-F must never be leased -- and therefore
+    never executed or certified -- without an explicit owner grant, no
+    matter which caller reaches lease().
+    """
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-GATED", owner_gate=gate))
+    with pytest.raises(GovernorError) as exc_info:
+        gov.lease("PKG-GATED", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert exc_info.value.code == "OWNER_GATE_REQUIRED"
+    node = gov.snapshot().nodes[0]
+    assert node.state is NodeState.READY  # unchanged: never leased
+
+
+def test_lease_still_allows_gate_a_pilot_execution() -> None:
+    """Gate A keeps its existing, separately-enforced behavior: lease()
+    still allows it through (request_merge alone blocks the actual MERGED
+    transition), preserving the controlled pilot's tested contract
+    (test_controlled_pilot_stops_at_owner_gate: execute + certify, then
+    stop at OWNER_HELD -- never at lease time).
+    """
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-A", owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE))
+    lease = gov.lease("PKG-A", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert lease.package_id == "PKG-A"
 
 
 def test_overlap_gate_blocks_shared_surface() -> None:

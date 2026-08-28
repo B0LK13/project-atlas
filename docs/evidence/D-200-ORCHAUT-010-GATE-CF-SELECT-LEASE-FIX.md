@@ -88,11 +88,73 @@ doesn't lose an hour to the same trap):
   module — fails under Windows mypy regardless of this change; not
   touched by this PR or this fix).
 
+## Round 2 — independent IV found a second, deeper gap (2026-08-28)
+
+A separate, independent verifier session adversarially reviewed the round-1
+commit above and returned **BLOCK**. Round 1's fix was confirmed correct
+for the specific bypass it targeted (`select_next` / `_select_and_lease`),
+but the verifier found and empirically reproduced a second, currently-live
+bypass at the exact head verified: `AutonomousGovernor.lease()` and
+`execute_leased()` — reachable directly via `run_controlled_pilot()`
+(itself reachable from the CLI `pilot` command and `run_live_pilot()`) and
+via `continue_autonomous()` — never checked `owner_gate` at all. Neither
+method takes the loop as a prerequisite, so a `READY` node tagged
+owner_gate B/C/D/E/F could be leased, `execute_leased()`-run, and
+certified through these entry points with zero gate enforcement,
+independent of the round-1 fix.
+
+### Remediation (this commit)
+
+`AutonomousGovernor.lease()` now takes an `owner_grant: bool = False`
+parameter and calls `require_owner(node.owner_gate, owner_grant=owner_grant)`
+for any node whose `owner_gate` is **not** `A_PROTECTED_MAIN_MERGE`, raising
+`GovernorError(code="OWNER_GATE_REQUIRED")` (wrapping `OwnerGateError`) when
+no grant is supplied — which is always the case today, since no caller in
+this codebase passes `owner_grant=True`.
+
+**Scope decision, stated explicitly for IV/Owner to check:** gate A is
+intentionally excluded from this new `lease()`-level check. Gate A already
+has its own separate, always-enforced downstream checkpoint —
+`request_merge()` unconditionally raises `OwnerGateError` when
+`owner_grant=False`, called from `transition()` on any `MERGED` transition
+attempt — so a gate-A node completing lease → execute → certify → 
+`OWNER_HELD` was never actually able to reach `MERGED` without an owner
+grant. This is also the existing, tested contract of the controlled pilot
+(`test_controlled_pilot_stops_at_owner_gate`,
+`test_controlled_pilot_bounded_remediation`): it deliberately executes and
+certifies a gate-A node before stopping at `OWNER_HELD`, not before
+execution. Gates B-F have no equivalent downstream checkpoint —
+`execute_leased()` *is* the node's actual in-process action for those —
+so B-F must fail closed at `lease()` time, before any execution happens at
+all. This was a scope judgment made by the implementer, not an owner
+directive; flagging it explicitly so IV/Owner can override if the intent
+was actually to also close gate A off at lease time (which would require
+changing the pilot's tested contract, a larger and more disruptive change
+this fix deliberately avoided per "without inventing new gate categories or
+widening scope").
+
+New regression tests: `test_lease_fails_closed_for_owner_gated_node`
+(parametrized B/C/D/E/F — `lease()` raises `GovernorError` with
+`code="OWNER_GATE_REQUIRED"`, node state stays `READY`, nothing is leased
+or executed) and `test_lease_still_allows_gate_a_pilot_execution` (gate A
+still leases successfully, preserving the existing pilot contract).
+
+### Local validation (round 2, exact worktree head)
+
+- `pytest tests/unit/test_orchestration_autonomy.py
+  tests/unit/test_orchestration_autonomy_loop.py`: 59/59 passed (53 + 6
+  new), 0 failed.
+- `pytest -k "orchestration or autonomy"`: 298/298 passed (292 + 6 new), 0
+  failed, 4287 deselected.
+- `ruff check` (autonomy dir + both test files): clean.
+- `mypy governor.py`: clean.
+
 ## Certification state
 
 `MERGE_AUTHORIZATION` unchanged: still requires owner action per
 `GOVERNANCE.md`. **This fix is not self-certified.** The implementer of
 this remediation (this session) must not also serve as its Independent
 Verifier for the same candidate — a separate agent/session must reproduce
-this validation and adjudicate PASS/BLOCK before certification, and
+this validation, adversarially re-probe (especially the gate-A scope
+decision above), and adjudicate PASS/BLOCK before certification, and
 exact-head hosted CI must be green at the new head before any merge.

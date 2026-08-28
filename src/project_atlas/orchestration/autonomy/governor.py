@@ -46,7 +46,7 @@ from project_atlas.orchestration.autonomy.models import (
     WorkNode,
 )
 from project_atlas.orchestration.autonomy.overlap import overlap_gate, would_overlap
-from project_atlas.orchestration.autonomy.owner_gates import require_owner
+from project_atlas.orchestration.autonomy.owner_gates import OwnerGateError, require_owner
 from project_atlas.orchestration.autonomy.remediation import (
     RemediationExhausted,
     can_remediate,
@@ -330,12 +330,32 @@ class AutonomousGovernor:
         *,
         branch: str,
         worktree: str,
+        owner_grant: bool = False,
     ) -> AgentLease:
         if self._target_moved:
             raise GovernorError("refusing lease on moved target", code="TARGET_MOVED")
         node = self._require_node(package_id)
         if node.state != NodeState.READY:
             raise GovernorError("node is not READY", code="NODE_NOT_READY")
+        if node.owner_gate is not None and node.owner_gate != OwnerGateKind.A_PROTECTED_MAIN_MERGE:
+            # ORCHAUT-010 remediation round 2 (2026-08-28, independent-IV
+            # finding): gate A already has its own dedicated, always-enforced
+            # downstream check at the MERGED transition (`request_merge`
+            # always raises without an owner grant) -- the controlled pilot's
+            # tested contract (`run_controlled_pilot`,
+            # test_controlled_pilot_stops_at_owner_gate) deliberately
+            # executes+certifies a gate-A node before stopping at
+            # OWNER_HELD, and that stays unchanged here. Gates B-F have no
+            # such downstream checkpoint: `execute_leased()` performs the
+            # node's actual in-process action, so for B-F the gate must fail
+            # closed HERE, before any lease/execution happens at all --
+            # AS-ORCH-001E's loop is not the only caller of lease() /
+            # execute_leased(); run_controlled_pilot() and
+            # continue_autonomous() reach this method directly too.
+            try:
+                require_owner(node.owner_gate, owner_grant=owner_grant)
+            except OwnerGateError as exc:
+                raise GovernorError(str(exc), code="OWNER_GATE_REQUIRED") from exc
         if would_overlap(tuple(self._nodes), node):
             raise GovernorError("surface overlap forbids lease", code="SURFACE_OVERLAP")
         agent = self._require_agent(agent_id)
