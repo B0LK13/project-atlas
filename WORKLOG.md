@@ -8270,10 +8270,13 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
   per existing WORKLOG history. Checked off.
 - `AS-CODER-ALPHA-INCREMENTAL-CONNECT-001` was unchecked. Verified:
   `src/project_atlas/connect.py` names this package directly in its own
-  docstring and contains `evaluate_incremental_reconnect()` /
-  `_finish_no_change_reconnect()`, both called from the real `connect`
-  control flow (not orphaned/unused functions). Origin PR #374 is merged.
-  Checked off.
+  docstring and contains `_finish_no_change_reconnect()`.
+  `evaluate_incremental_reconnect()` is defined in
+  `src/project_atlas/incremental_connect.py` and imported/called from
+  `connect.py`'s real control flow (not orphaned/unused). Correction
+  2026-08-28 (review, PR #622): the original text of this entry said
+  `connect.py` "contains" both functions; only the second one is
+  actually defined there. Origin PR #374 is merged. Checked off.
 - Both corrections are additive status fixes only -- no historical
   evidence rewritten, no production code touched, no new merge
   authorization implied for anything else.
