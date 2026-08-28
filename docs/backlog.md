@@ -282,25 +282,25 @@ _Status: implementation complete through Level 0 self-host evidence. Directive D
 
 ## AS-CORE-008 — Subject Multi-Field Knowledge Query
 
-_Status: implementation complete on `feat/as-core-008-subject-multifield-query`; awaiting governor review / merge. Governing contract: query-scope-lock `AS-CORE-008-PACKAGE-CONTRACT.md`. Base `d209b359ddd30e75e4709932fd55cb9b71016927`. Additive read-only composition over AS-CORE-007; persistence NONE; authority/temporal CONSUME-ONLY._
+_Status: **MERGED** via PR #14 (`59670bf33feede82dd85daa3da994f410a8d838e`, 2026-08-08). Phantom-work correction 2026-08-28: this section still read "awaiting governor review / merge" and CORE8-006 was unchecked despite the PR having merged three weeks prior -- corrected directly against `main`, confirmed both via `git merge-base --is-ancestor` (the merge commit is a genuine ancestor of current `main`) and directly against real code (`query_knowledge_fields` imported and called from `cli.py`, not stub text). Governing contract: query-scope-lock `AS-CORE-008-PACKAGE-CONTRACT.md`. Base `d209b359ddd30e75e4709932fd55cb9b71016927`. Additive read-only composition over AS-CORE-007; persistence NONE; authority/temporal CONSUME-ONLY._
 
 - [x] CORE8-001 Domain envelope `KnowledgeMultiFieldAnswer` + JSON schema
 - [x] CORE8-002 Library `query_knowledge_fields` (single snapshot; point-builder reuse)
 - [x] CORE8-003 CLI adapter (repeatable `--field` / `--fields`; point path preserved)
 - [x] CORE8-004 Focused FR/INV suite (ordering, duplicates, snapshot fail-closed, parity, no-mutation)
 - [x] CORE8-005 Package guide `docs/AS-CORE-008-subject-multifield-query.md`
-- [ ] CORE8-006 Governor review and merge to `main`
+- [x] CORE8-006 Governor review and merge to `main` (PR #14, merged 2026-08-08; phantom-work correction 2026-08-28)
 
 ## AS-QUERY-DIAG-001 — Structured Query Outcome Diagnostics
 
-_Status: implementation complete on `feat/as-query-diag-001`; awaiting governor review. MERGE NO. Directive `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`. Frozen contract: orphans `gen4-next-wave-parallel-001/AS-QUERY-DIAG-001-CONTRACT.md`. Base `9f656ab` / tree `20882c55`. Additive diagnostics only; success-path 007/008 JSON default-stable; `knowledge_compiler` / Graph / MODEL FORBIDDEN._
+_Status: **MERGED** via PR #21 (`e3b5b6b33a0b7c320dc9f902a9025da3476234e1`, 2026-08-09). Phantom-work correction 2026-08-28: this section still read "awaiting governor review, MERGE NO" and QDIAG-006 was unchecked despite the PR having merged three weeks prior -- corrected directly against `main`, confirmed both via `git merge-base --is-ancestor` and directly against real code (`classify_query_outcome` defined and used in `knowledge_query.py`, not stub text). Directive `D-PROJECT-ATLAS-FORWARD-PIPELINE-ACTIVATION-001`. Frozen contract: orphans `gen4-next-wave-parallel-001/AS-QUERY-DIAG-001-CONTRACT.md`. Base `9f656ab` / tree `20882c55`. Additive diagnostics only; success-path 007/008 JSON default-stable; `knowledge_compiler` / Graph / MODEL FORBIDDEN._
 
 - [x] QDIAG-001 Domain `QueryDiagnostic` + outcome classes + JSON schema
 - [x] QDIAG-002 Library classifiers / serializers (`classify_query_outcome`, `query_diagnostic_from_*`)
 - [x] QDIAG-003 CLI structured stdout on `KnowledgeQueryError` (exit 1); argparse exit 2 unchanged
 - [x] QDIAG-004 Focused T01–T12 suite `tests/unit/test_as_query_diag_001.py`
 - [x] QDIAG-005 Package guide + 007/008 cross-links
-- [ ] QDIAG-006 Governor review and merge to `main`
+- [x] QDIAG-006 Governor review and merge to `main` (PR #21, merged 2026-08-09; phantom-work correction 2026-08-28)
 
 ## AS-WEB-001 — Atlas Web Application foundation
 
@@ -386,7 +386,7 @@ Epic K remain evidence; they do not override Coder Alpha owner priority._
 - [x] AS-CODER-ALPHA-CHANGED-003 semantic know_about narrative
 - [x] AS-CODER-ALPHA-ARCH-FIDELITY-001 exact module/path identifiers
 - [ ] AS-CODER-ALPHA-044-HIGH D-041 Windows/adversarial HIGH truth/isolation remediations (independently verified 2026-08-28, isolation/truth-boundary claims `PASS`; but one real P1 remains open on `main` -- LIVE_API could never bind IPv6 loopback, masked by a self-skipping regression test -- fix drafted in PR #628 but NOT yet merged, pending both independent re-verification and an owner decision on a separate Atlas-3 certified-surface freeze that blocks this exact file; leave unchecked until PR #628 lands; see WORKLOG "EOD convergence wave")
-- [x] AS-ATLAS3-FREEZE-GUARD-001 certified-surface freeze guard hosted-CI blind-spot remediation (PR #630, 5 rounds, `CERTIFIED_OWNER_HELD`; see WORKLOG "PR #630 -- Atlas-3 freeze guard hosted-CI blind spot"). The guard's own enforcement was defective under `actions/checkout`'s default shallow clone, letting PR #628 pass hosted CI vacuously despite touching a `DENY`-listed file; now fails closed / evaluates the real changeset / survives shallow checkouts / bounds every subprocess with a timeout / does not false-positive on a diverged local `main`. Tracks the guard's own correctness only -- does NOT grant the Atlas-3 freeze exception PR #628 still needs; once PR #630 merges (owner decision, not self-merged: this changes governance enforcement), the freeze will correctly BLOCK PR #628 in hosted CI unless an explicit freeze exception is separately granted for `api_server.py`. `MERGE_AUTHORIZATION NOT_GRANTED`.
+- [ ] AS-ATLAS3-FREEZE-GUARD-001 certified-surface freeze guard hosted-CI blind-spot remediation (PR #630, 5 rounds, `CERTIFIED_OWNER_HELD` but **NOT yet merged to `main`**; see WORKLOG "PR #630 -- Atlas-3 freeze guard hosted-CI blind spot"). Leave unchecked until PR #630 lands: the guard's own enforcement on current `main` today is still the original defective version (diffs against the unresolvable literal ref `origin/main` under `actions/checkout`'s default shallow clone, `check=False` swallows the resolution failure, `DENY`-list assertion passes vacuously) -- exactly what let PR #628 pass hosted CI despite touching a `DENY`-listed file. PR #630's branch fixes this (fails closed / evaluates the real changeset / survives shallow checkouts / bounds every subprocess with a timeout / does not false-positive on a diverged local `main`) and is independently re-verified PASS across all 5 rounds, but that fix is not live until the PR merges. Tracks the guard's own correctness only -- does NOT grant the Atlas-3 freeze exception PR #628 still needs; once PR #630 merges (owner decision, not self-merged: this changes governance enforcement), the freeze will correctly BLOCK PR #628 in hosted CI unless an explicit freeze exception is separately granted for `api_server.py`. MERGE_AUTHORIZATION NOT_GRANTED.
 - [x] AS-CODER-ALPHA-D049-AUTHORIZED-VOLUME-ROOT-001 CLOSED (merge c282f2c; D-088 authentic PASS; post-merge seal PASS)
 - [x] AS-CODER-ALPHA-CAPTURE-002 Conversational capture CLOSED (D-042; merge 9441b0c; D-096 post-hoc owner ratification GRANTED; PRE_MERGE_AUTHORIZATION_PROVENANCE UNVERIFIED; do not rewrite as pre-merge authorization; do not reopen #344)
 - [x] AS-2.1-MCP-BRIEF-001 zero-arg `atlas.brief.read` MCP tool (vault-scoped Coder Alpha briefs; MCP!=authority; no request args)
