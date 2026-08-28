@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
+    "test:source-health": "node scripts/test-source-health-web.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

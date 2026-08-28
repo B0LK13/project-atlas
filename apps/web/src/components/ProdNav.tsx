@@ -15,6 +15,7 @@ const PROD_LINKS = [
   { to: "/command-center", label: "Command Center" },
   { to: "/mission-control", label: "Mission Control" },
   { to: "/workspace", label: "Workspace" },
+  { to: "/source-health", label: "Source Health" },
 ] as const;
 
 /** Project-scoped lenses. Preserve ?project= only — never from=/to=. */
@@ -26,6 +27,7 @@ const PROJECT_AWARE_PATHS = new Set([
   "/time-machine",
   "/roadmap",
   "/workspace",
+  "/source-health",
 ]);
 
 /** Build a nav href. Copies project=P only; does not invent a default project. */
