@@ -8368,3 +8368,41 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
 - `CONSUME_ONLY = true`; does not grant merge/execution/dispatch
   authority.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ATLAS-DEMO-ESTATE-001 handoff acceptance
+
+- Date: 2026-08-28
+- Scope: read-only acceptance of a handoff from a separate
+  demo-estate-preparation lane (workspace `D:\Atlas-Demo\`, outside this
+  repository). Full record: `docs/atlas-demo-estate-001-handoff-acceptance.md`.
+  Everything accepted was `VERIFIED_FROM_LOCAL_ARTIFACT` -- read directly
+  from that estate's own `DEMO-ACCEPTANCE.md`/`DEMO-SCENARIO.md`/
+  `ATLAS-CHECKOUT-NOTE.md`, not taken secondhand. No file under
+  `D:\Atlas-Demo\` was modified. No `src/` change.
+- Accepted: `ATLAS_DEMO_ESTATE_001 = PREPARATION_TERMINAL`. Alpha/Beta
+  scenarios fully PASS; Gamma's project-context gate PASS, its next-work
+  item not surfaced (see finding below); `SECRET_SCAN = PASS`,
+  `CROSS_PROJECT_LEAK_COUNT = 0`; the estate's Atlas checkout is on a
+  provisional, uncertified HEAD, explicitly not yet the showcase
+  candidate.
+- Gamma finding, corrected during review from the estate's own initial
+  framing: Atlas's `roadmap_unlock` mechanism
+  (`project_roadmap.py`/`project_next.py`) is genuinely contracted to
+  surface a structured "next ready item," so this is not a
+  `MISSING_LENS`. What's actually missing, verified directly (grepped
+  `src/` for any writer of `roadmap.md`/`roadmap_items` outside
+  `project_roadmap.py` itself -- none exists): nothing in ingestion
+  derives that structured record from the prose
+  requirements/ADR/roadmap documents a project (including this estate's
+  Gamma) actually has. Classified `SOURCE_ADAPTER_GAP`,
+  `OWNER_PRODUCT_DECISION_REQUIRED = YES` -- should Atlas gain an
+  adapter that derives `roadmap_items` from a documented "next ready
+  work" convention, or is hand-authoring the structured record the
+  intended workflow? No `src/` change made in pursuit of this question.
+- Native-Windows final rehearsal packet prepared (prep only, not
+  executed) -- this session is itself a native Windows/PowerShell host
+  and a candidate to run it, but not against the estate's current
+  provisional Atlas HEAD.
+- `CONSUME_ONLY = true`; does not pin `ATLAS_HEAD`, does not execute any
+  demo script, does not mutate the estate.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
