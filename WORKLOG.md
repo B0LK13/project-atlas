@@ -8406,3 +8406,99 @@ unchecked -- `EXTERNAL_BLOCKED`, not attempted.
 - `CONSUME_ONLY = true`; does not pin `ATLAS_HEAD`, does not execute any
   demo script, does not mutate the estate.
 - `MERGE_AUTHORIZATION = NOT_GRANTED`
+
+## ORCHAUT-010 — owner gates C-F contract discovery
+
+- Date: 2026-08-28
+- Scope: read-only. Re-derives the actual trigger/behavior/enforcement
+  path for owner gates C-F (`C_CERTIFIED_OBJECT_MUTATION`,
+  `D_SECURITY_GOVERNANCE_POLICY`, `E_DESTRUCTIVE_OPS`,
+  `F_MATERIAL_EXTERNAL_SPEND`) from the repository's own source, per
+  instruction not to infer semantics from enum names/prose alone. No
+  production surface touched. `MERGE_AUTHORIZATION = NOT_GRANTED`.
+- Method: exhaustive grep for every call site of `require_owner(`,
+  `evaluate_owner_action(`, `classify_requested_action(`, and every read
+  site of `.owner_gate` across `src/`, not just the `owner_gates.py`
+  module itself.
+- **Correction (PR #625 review, two findings, both verified directly
+  against source and by direct behavioral reproduction -- not just
+  re-read):** the original text below overstated gate A's owner-grant
+  path and overstated the C-F scheduler stop. Both are fixed in this
+  entry rather than superseded by a separate correction section, since
+  this is a discovery record, not yet-merged evidence with external
+  citations depending on its exact prior wording.
+- Gate A (`A_PROTECTED_MAIN_MERGE`): `ALREADY_SATISFIED`, but not because
+  `owner_grant=True` unblocks anything through this API -- it doesn't.
+  `Governor.request_merge()` calls `require_owner(...)` and then
+  **unconditionally** raises `IllegalTransitionError("governor cannot
+  autonomously transition to MERGED")`, regardless of whether
+  `owner_grant` was `True` or `False` -- verified directly: calling
+  `request_merge(pkg, owner_grant=True)` still raises. `Governor.
+  transition()` additionally hardcodes `owner_grant=False` before any
+  `to_state == MERGED` transition. So `MERGED` is structurally
+  unreachable through this governor API at all, for any caller, with or
+  without a grant -- the "satisfied" gate is a permanent, unconditional
+  deny, not a working grant/unblock mechanism. This is intentional and
+  consistent with how this session's own actual merges happened: through
+  real `gh pr merge` operations outside this governor entirely, not
+  through any code path in this package.
+- Gate B (`B_ACCEPTANCE_WAIVER`): `ALREADY_SATISFIED`, and here the
+  distinction from gate A matters -- `Governor.
+  request_acceptance_waiver()` calls `require_owner(...)` and, unlike
+  `request_merge()`, has no unconditional raise after it: verified
+  directly, `request_acceptance_waiver(owner_grant=True)` returns
+  normally. Gate B genuinely does have a working owner-grant path through
+  this API; gate A does not. The two are not symmetric, and the original
+  text of this entry incorrectly described them as if they were.
+- Gates C/D/E/F: `SEMANTIC_OWNER_DECISION_REQUIRED`, but the original
+  text of this entry mischaracterized what actually stops an owner-gated
+  node from autonomous selection -- corrected here with a direct
+  behavioral reproduction, not just a re-read of the code:
+  - `classify_requested_action()` is confirmed dead code -- zero call
+    sites anywhere in `src/` outside its own definition.
+  - The claim that "the generic stop would apply to it exactly as it
+    does to A/B-tagged nodes today" is **false** for a node in `READY`
+    state, which is the state a node must be in to be autonomously
+    selected at all. Reproduced directly: constructing a `WorkNode` with
+    `owner_gate=OwnerGateKind.C_CERTIFIED_OBJECT_MUTATION` and
+    `state=NodeState.READY`, then calling `select_next((node,))`,
+    **selects that node** (`next_package_id` = the node's id,
+    `stop_reason=None`). The reason: `select_next()` first filters nodes
+    to `ready = [n for n in nodes if n.state == READY]`, then in its loop
+    checks `if node.owner_gate is not None and node.state !=
+    NodeState.READY: continue` -- but every member of `ready` already has
+    `state == READY` by construction, so `node.state != NodeState.READY`
+    is always `False` for every node the loop actually sees. The
+    `owner_gate` check is dead code for this branch; it can never fire.
+    The only place `owner_gate is not None` genuinely blocks anything is
+    `select_next()`'s earlier check for nodes already in
+    `OWNER_HELD`/`MERGE_ELIGIBLE` state -- states nothing in the
+    discovery/pilot flow transitions a node into automatically.
+    `Governor.plan()`'s `owner` list is reporting output
+    (`what_requires_owner_authority`), not an enforcement gate. Nor does
+    `dag.assert_transition()` -- the actual `DISCOVERED -> READY`
+    transition guard -- inspect `owner_gate` at all; that transition is
+    unconditionally allowed by the state table regardless of the node's
+    gate tag.
+  - Corrected gap: the missing piece is not only a `request_*()` grant
+    method (still true, still absent for C/D/E/F) but, more materially,
+    there is **no verified block on autonomous selection** for a `READY`
+    node carrying a C/D/E/F tag at all -- not "the stop exists but has no
+    unblock," but "the stop does not fire for this case." `NO_GRANT_PATH
+    != NO_SAFETY` does not currently hold for this specific case the way
+    it was assumed to.
+  - Today this remains not live/exploitable, for the same reason as
+    before: `discovery.py`'s static candidate table tags two historical
+    candidates (`AS-ORCH-001D-R6` = C, `AS-ORCH-001E` = D) but both are
+    `eligible=False`, so `Governor.ingest_discovery()` never actually
+    creates a `WorkNode` carrying a C or D gate today. This correction
+    changes the characterization of the gap, not its current
+    exploitability.
+- Per instruction, this classification is not implemented against --
+  gates C-F semantics are not invented here, and no code change is made
+  to add trigger/behavior/enforcement for them, including for the
+  corrected finding above. This entry is the recorded DAG input only; the
+  corrected finding is a candidate for a separate remediation node
+  (adding a real owner_gate check to the `DISCOVERED -> READY` transition
+  or to `select_next()`'s per-node loop), not something fixed here.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`
