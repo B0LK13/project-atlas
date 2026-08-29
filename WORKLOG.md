@@ -9423,3 +9423,133 @@ Re-read the diff skeptically for what might have been missed:
 **Not self-certified.** Per standing project rule, an independent
 verifier (not this implementer) and fresh exact-head CI are both still
 required before this is merge-eligible.
+
+`PARTIAL` until then. (Superseded by the D-202/D-204 2026-08-29 update:
+recovery independently re-verified PASS and merged via PR #638.)
+
+## AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001 — Independent integration verification (PR #412)
+
+- Date: 2026-08-29
+- Scope: genuine independent verification of PR #412 (`cursor/obsidian-r1-projection-current-001-5d32`,
+  head `85c4bbe0637d1cce549b8ace9633df6719b31b94`), dispatched separately from
+  the 8 automated review-bot threads that an earlier commit on the same
+  branch (`2abca7d2`, "remediate 8 findings from post-ready-for-review bot
+  IV") already fixed and closed. Before this pass the PR's own body still
+  read `Independent certification: pending` / `MERGE = NOT_AUTHORIZED`, and
+  no prior WORKLOG.md entry existed for this package. Worktree:
+  `D:/atlas-worktrees/iv-412-remediation-check`, tracking the PR's exact
+  branch/head (confirmed via `gh pr view 412 --json headRefOid` before any
+  work started).
+- Read in full: `src/project_atlas/obsidian_projection.py` (433 lines),
+  `docs/AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001.md`,
+  `tests/unit/test_as_coder_alpha_obsidian_r1_001.py`,
+  `tests/unit/test_as_coder_alpha_obsidian_001.py`, plus the three lens
+  modules it consumes (`attention_hygiene.py`, `source_health.py`,
+  `project_roadmap.py`) and `atlas_contracts/paths.py` (the repo's
+  canonical `ensure_under_root`/path-containment primitives) for the
+  fail-closed/atomic-write/path-safety conventions this package is held to.
+- Baseline (fresh re-run, not read from a prior receipt): targeted
+  `test_as_coder_alpha_obsidian_r1_001.py` + `test_as_coder_alpha_obsidian_001.py`
+  = 18 passed, 0 failed. Broader `pytest tests/ -k obsidian` = 26 passed,
+  0 failed. (Both counts are pre-fix; see below for post-fix counts.)
+- 9 adversarial probes run directly against the implementation (own script,
+  not a re-read of the existing suite):
+  1. Malformed JSON (`{not valid json!!`) written over all 8 on-disk
+     artifacts the attention/source-health lenses read
+     (`connect-manifest.json`, `source-manifest.json`,
+     `secret-findings.json`, `injection-findings.json`,
+     `review/conflicts/<id>.json`, `review/pending/<id>.json`,
+     `state/compilation-outcomes/<id>.json`,
+     `quarantine/promotion-failures/index.json`) — `materialize_obsidian_projection`
+     did not crash, did not render a false CLEAR, and no raw
+     `JSONDecodeError`/parser text leaked into the note. PASS.
+  2. Entire `review/`, `state/`, and `generated/reports/` trees deleted
+     before materialize — succeeded, degraded gracefully to UNKNOWN
+     sections. PASS.
+  3. 10 adversarial `project_id` values (`../../evil`, `..`, `a/../../b`,
+     `/etc/passwd`, `C:evil`, `C:\evil`, `\\server\share`, `con`, an
+     embedded NUL byte, `a:b`) — every one rejected with
+     `ObsidianProjectionError` via `safe_relative_component`; confirmed no
+     file was written outside the vault as a side effect of any attempt.
+     PASS.
+  4. Idempotence — two consecutive `materialize_obsidian_projection` calls
+     on unchanged input produced byte-identical `project-living.md` and
+     byte-identical `living-projection-receipt.json`. PASS.
+  5. Determinism (NFR-001) — no `generated.at` key in the receipt and no
+     ISO-timestamp literal anywhere in the rendered Markdown. PASS.
+  6. Human-protected-region preservation across 3 consecutive materialize
+     runs with an owner edit inside `<!-- BEGIN HUMAN: notes -->` —
+     preserved byte-for-byte every run (AT-011). PASS.
+  7. Malformed protected markers (orphan `BEGIN HUMAN` with no matching
+     `END`, and a duplicated `<!-- atlas:generated:start -->`) — both fail
+     closed with `ObsidianProjectionError`, never a silent wrong render.
+     PASS.
+  8. Vault argument pointing at a plain file instead of a directory — fails
+     closed with `ObsidianProjectionError`. PASS.
+  9. Multi-project vault, `materialize_obsidian_projection(vault,
+     project_id=None)` — writes every project's note without either
+     project's id leaking into the other's note. PASS.
+- **Finding (genuine, new — not one of the 8 already-closed bot threads):**
+  probe 10, a directory-symlink/junction escape test modeled on this
+  repo's own established regression pattern
+  (`tests/unit/test_sec_004_018_path_containment.py::test_ensure_under_root_blocks_symlink_escape`,
+  `test_as_backup_001_verified_snapshot.py`'s `_assert_inside` symlink
+  test) — swapped the real `generated/obsidian/projects/<id>` directory for
+  a symlink to a directory outside the vault, then called
+  `materialize_obsidian_projection` again. The pre-fix implementation wrote
+  `project-living.md` straight through the symlink to a location physically
+  outside the vault root, with zero containment check — unlike every other
+  Atlas write surface, which calls `atlas_contracts.paths.ensure_under_root`
+  (its own docstring: "Containment is checked on the fully resolved target
+  (symlink / junction / reparse escape fails closed). Call immediately
+  before sensitive open/write.") immediately before a sensitive write.
+  `obsidian_projection.py`'s `_write_atomic` had no such check; only the
+  `project_id` component was validated, which cannot stop a
+  pre-planted/tampered directory symlink at a fixed path segment.
+- **Fix (root-caused, not a patch over the symptom):** imported
+  `ensure_under_root` from `atlas_contracts.identity` and added a fail-closed
+  containment re-check, raising `ObsidianProjectionError` on escape, at two
+  points: (1) immediately before reading any pre-existing note content (this
+  also closes a smaller read-side gap — the old code would read arbitrary
+  external file content into `existing` before any check ran), and (2)
+  inside `_write_atomic` (now takes a required `vault=` keyword) immediately
+  before every write — covering both the per-project living note and the
+  JSON receipt through the same helper.
+- **Regression test added:**
+  `test_finding8_symlinked_project_dir_does_not_escape_vault_root` in
+  `tests/unit/test_as_coder_alpha_obsidian_r1_001.py`, following this
+  repo's own `try: os.symlink(...) except OSError: pytest.skip(...)`
+  convention for CI/dev environments without symlink privilege (same
+  pattern as `test_sec_004_018_path_containment.py`). Re-ran the exact
+  attack by hand against the fixed code first (not assumed from the test
+  passing): raised `ObsidianProjectionError` with `"...escapes root: ..."`
+  and confirmed nothing was written under the outside target directory.
+- Post-fix re-run: targeted suite 19 passed (18 + 1 new), 0 failed.
+  Broader `pytest tests/ -k obsidian` = 27 passed (26 + 1 new), 0 failed.
+  `ruff check` clean on both changed files. `mypy` clean on
+  `obsidian_projection.py`; full `mypy src` shows only 2 pre-existing,
+  unrelated `connect_perf.py` errors (`resource.getrusage`/`RUSAGE_SELF`
+  missing on the Windows stub platform) — confirmed unrelated to this
+  change (no import/call relationship to `obsidian_projection.py`).
+  Confirmed no other in-repo consumer of the module
+  (`connect.py`, `cli.py`, `demo_readiness.py`,
+  `tests/integration/test_cross_surface_consistency_d040.py`) calls the
+  private `_write_atomic` directly — all use only the unchanged public
+  surface (`materialize_obsidian_projection`, `project_note_path`,
+  `ObsidianProjectionError`) — and re-ran each of their test files
+  (`test_cross_surface_consistency_d040.py` 1 passed; demo_readiness- and
+  connect-scoped unit tests 2 + 45 passed) to confirm no regression.
+- Confirmed the 8 bot-thread findings fixed in `2abca7d2` remain intact and
+  were not reopened or re-litigated; this IV's finding is additive.
+- `docs/backlog.md` checked: only a parent-package entry exists
+  (`AS-CODER-ALPHA-OBSIDIAN-001`, already `[x]`, a different package); no
+  entry exists for `AS-CODER-ALPHA-OBSIDIAN-R1-PROJECTION-001` itself, so
+  per instruction no backlog entry was invented — this WORKLOG.md entry is
+  the record of record for this package's verification.
+- **Result: `FOUND-AND-FIXED-DEFECTS`.** One genuine path-containment gap
+  found and fixed with a root-cause change, a regression test, and clean
+  ruff/mypy/pytest. No other adversarial probe surfaced a defect.
+  `MERGE_AUTHORIZATION` is not granted by this entry — merging PR #412
+  remains an owner decision; this pass only performs the independent
+  verification the PR's own body still lists as pending as of the
+  commit this entry is attached to.
