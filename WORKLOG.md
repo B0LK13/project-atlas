@@ -9136,3 +9136,45 @@ metadata, local/full-clone validity including the diverged-branch case).
 `MERGE_AUTHORIZATION = NOT_GRANTED` — this PR changes governance
 enforcement itself, so it stays owner-gated regardless of certification
 strength, per standing instruction for this node. Not self-merged.
+
+## ORCH001D-012 — genuine acceptance attempt (2026-08-29)
+
+Owner-authorized, exact-shape attempt at the outstanding `ORCH001D-012`
+checkbox: one bounded, real `cursor-agent` dispatch via the actual
+`agent_transport.py` transport code (`build_launch_plan` +
+`SubprocessProcessRunner`, the same functions `AS-ORCH-001D` itself uses),
+not a mock. No pre-existing "ORCH001D-012 acceptance packet" document
+existed before this entry (checked `docs/` and this file first) — the
+bounds used (one dispatch, ask-mode, throwaway cwd, bounded prompt/timeout,
+no forbidden flags) came from the owner's directive, cross-checked against
+`agent_transport.py`'s own structural constants rather than invented.
+
+**Result: `ATTEMPTED_BLOCKED_ON_WORKSPACE_TRUST`, not
+`EXTERNAL_BLOCKED`.** `resolve_cursor_transport()` found a real, logged-in
+`cursor-agent` (`agent.cmd`, Windows `.cmd` wrapper launcher) on this host.
+`build_launch_plan()` produced a correctly-bounded plan
+(`cursor_mode="ask"`, `uses_force=False`, prompt confirmed stdin-only, not
+in argv). Two real subprocess dispatches were made against a fresh,
+never-before-seen throwaway directory (`tempfile.mkdtemp()`); both exited
+`1` with empty stdout and a `Workspace Trust Required` stderr message from
+`cursor-agent` itself, which requires `--trust`, `--yolo`, or `-f`/`--force`
+to run non-interactively against a directory it has not seen before — no
+separate non-interactive trust-grant subcommand exists (checked the full
+`cursor-agent --help` command list). All three of those flags are exactly
+what `agent_transport.FORBIDDEN_CURSOR_FLAGS` correctly refuses to ever
+include in a launch plan; this attempt did not use any of them, and did
+not weaken that check to force a "pass". Full transcript, argv, exit
+codes, and reasoning: `docs/evidence/D-206-ORCH001D-012-CURSOR-DISPATCH-ACCEPTANCE-ATTEMPT.md`.
+
+### Result
+
+`ORCH001D-012 = NOT_YET_SATISFIED`, precisely re-scoped from
+`AVAILABLE_NOT_ATTEMPTED` to `ATTEMPTED_BLOCKED_ON_WORKSPACE_TRUST`. The
+transport layer itself behaved exactly as designed (real executable
+resolved, correctly-bounded plan built, real process launched, bounded
+output captured, no forbidden flag used). What remains is a one-time
+interactive trust grant for a chosen throwaway directory — outside what a
+non-interactive pass can perform — after which the identical
+`--print --mode ask` dispatch used here would be expected to succeed
+against that directory. No source code changed. `MERGE_AUTHORIZATION` is
+not applicable (documentation-only, no PR).
