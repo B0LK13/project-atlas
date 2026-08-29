@@ -377,6 +377,94 @@ class AutonomousGovernor:
         self.transition(package_id, NodeState.LEASED, f"LEASED_TO_{agent_id}")
         return lease
 
+    def restore_lease(self, lease: AgentLease) -> None:
+        """ORCH001E-011: reconstruct a previously-granted lease after a
+        process restart, from durable projection evidence. Does **not**
+        mint a new lease, does not consult owner gates again (the gate was
+        already enforced -- correctly, per ORCHAUT-010 -- at the original
+        `lease()` call that produced this same lease; re-checking it here
+        would be redundant, not additional safety), and does not itself
+        decide whether the caller's evidence is trustworthy -- the caller
+        (``rehydration.py``) is responsible for validating `lease` against
+        the durable lease projection and rejecting foreign/stale/mismatched
+        rows before calling this. This method's own job is narrow: given a
+        lease the caller has already established is genuine, restore the
+        governor's in-memory bookkeeping (`self._leases`, node state) to
+        match it -- nothing more.
+        """
+        if self._target_moved:
+            raise GovernorError("refusing lease restoration on moved target", code="TARGET_MOVED")
+        node = self._require_node(lease.package_id)
+        if node.state != NodeState.READY:
+            raise GovernorError(
+                "node must be freshly-rediscovered READY to restore a lease onto it",
+                code="NODE_NOT_READY",
+            )
+        if would_overlap(tuple(self._nodes), node):
+            raise GovernorError("surface overlap forbids lease restoration", code="SURFACE_OVERLAP")
+        # Independent-IV note (PR #638): for a direct double-call with the
+        # exact same lease, the NODE_NOT_READY check above already fires
+        # first on the second call (the node is LEASED by then), so this
+        # replay guard is shadowed for that specific shape -- confirmed
+        # harmless (no double-append either way). It remains real
+        # defense-in-depth for other shapes, e.g. two different callers
+        # racing to restore colliding lease_ids onto two different
+        # still-READY nodes.
+        if any(existing.lease_id == lease.lease_id for existing in self._leases):
+            raise GovernorError("lease already present", code="LEASE_REPLAY")
+        # ORCH001E-011 finding #4 (independent-IV): a fresh governor's
+        # `_sequence` always starts at 0 (`__init__`), independent of
+        # whatever sequence the lease being restored actually carries. If
+        # left unadvanced, the next real `lease()` call on THIS governor
+        # mints `LEASE-{self._next_sequence()}` starting back from 1 --
+        # colliding with a `LEASE-*` id the durable lease projection
+        # already has a row for -- and `project_grant()` raises
+        # `LEASE_REPLAY`, breaking forward progress after every recovery
+        # that restores a lease with sequence >= 1. Advance the logical
+        # sequence counter to at least the restored lease's own sequence
+        # before any further `_next_sequence()` call (here, via
+        # `transition()` below, and in any subsequent `lease()`) so newly
+        # minted ids can never reuse one already durably recorded.
+        if lease.sequence > self._sequence:
+            self._sequence = lease.sequence
+        self._leases.append(lease)
+        self.transition(lease.package_id, NodeState.LEASED, f"REHYDRATED_LEASE_{lease.agent_id}")
+
+    def release_lease(self, lease_id: str) -> AgentLease:
+        """Release a lease: in-memory bookkeeping and, when configured, the
+        durable lease projection (`project_release()`).
+
+        ORCH001E-011 finding #2 (independent-IV): previously only
+        `run_controlled_pilot()` did this, inline, after a node reached its
+        terminal state. `AutonomousLoop`'s real 001E tick path
+        (`apply_observed_result()` -> IDLE) never released anything, so a
+        successfully completed lease stayed `active=True` in the governor
+        forever and (once the durable projection is enabled, as the CLI
+        now does) `ACTIVE` in `leases.json` forever too -- rejecting the
+        very next lease for the same package/worker as
+        `DUPLICATE_ACTIVE_LEASE`/`FOREIGN_WORKER`. Extracted here so every
+        terminal-completion caller releases a lease the exact same way.
+        Idempotent: releasing an already-released lease is a no-op, not an
+        error, so callers that don't track completion state precisely can
+        call this unconditionally.
+        """
+        existing = next((item for item in self._leases if item.lease_id == lease_id), None)
+        if existing is None:
+            raise GovernorError(f"unknown lease {lease_id}", code="UNKNOWN_LEASE")
+        if not existing.active:
+            return existing
+        released = release_lease(existing)
+        if self._lease_projection_store is not None:
+            project_release(
+                self._lease_projection_store,
+                released,
+                live_main=self._current_main,
+            )
+        self._leases = [
+            released if item.lease_id == lease_id else item for item in self._leases
+        ]
+        return released
+
     def execute_leased(self, lease_id: str) -> EvidenceBundle:
         """In-process execution of a real lease. Not a bypass stub."""
         lease = next((item for item in self._leases if item.lease_id == lease_id), None)
@@ -489,20 +577,7 @@ class AutonomousGovernor:
             self.complete_verification(node.package_id, passed=True)
             remediation = 0
         continuation = select_next(tuple(self._nodes), hard_blockers=tuple(self._hard_blockers))
-        for item in self._leases:
-            if item.lease_id == lease.lease_id:
-                released = release_lease(item)
-                if self._lease_projection_store is not None:
-                    project_release(
-                        self._lease_projection_store,
-                        released,
-                        live_main=self._current_main,
-                    )
-                self._leases = [
-                    released if row.lease_id == lease.lease_id else row
-                    for row in self._leases
-                ]
-                break
+        self.release_lease(lease.lease_id)
         evidence_path = None
         if evidence_dir is not None:
             written = write_bundle(evidence_dir, "pilot-evidence.json", bundle)

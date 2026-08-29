@@ -25,6 +25,7 @@ from typing import Final, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from project_atlas.orchestration.autonomy.continuation import select_next
+from project_atlas.orchestration.autonomy.dag import IllegalTransitionError
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
 from project_atlas.orchestration.autonomy.leases import expand_lease
@@ -82,6 +83,29 @@ class DispatchPort(Protocol):
 
     def recover(self, root: Path, dispatch_id: str) -> dict[str, object]:
         """Recover an in-flight hop. Must not respawn a new process."""
+
+    def find_active_dispatch_id(self, root: Path, *, lease_id: str) -> str | None:
+        """Discovery of a dispatch identity the loop itself never recorded
+        (ORCH001E-008 P3): a crash between `dispatch_once()` persisting its
+        own record and the loop persisting `active_dispatch_id` must not be
+        indistinguishable from "nothing was dispatched".
+
+        Contract (independent-IV-hardened, do not weaken):
+        - Return the id only if it genuinely belongs to `lease_id`.
+          The underlying 001D active-dispatch slot is a single GLOBAL
+          slot, not per-lease -- a naive "is anything active" check can
+          return an *unrelated* dispatch from a different lease and
+          corrupt the wrong governor node. Adapters MUST scope the match
+          themselves; this abstract port cannot verify it for them.
+        - Return `None` ONLY when you can positively confirm nothing was
+          dispatched for this lease. An empty string is never a valid
+          "found" value -- treat it the same as `None`.
+        - Raise (do not guess, do not return `None`) when you cannot
+          positively determine either way -- e.g. the 001D-side record is
+          itself unreadable/tampered/ambiguous. The loop treats a raised
+          exception as "cannot determine" and fails closed rather than
+          risking a duplicate dispatch; it treats a clean `None` as
+          "confirmed nothing", safe to retry."""
 
 
 class LoopState(BaseModel):
@@ -357,6 +381,56 @@ class AutonomousLoop:
                 )
             self._save(phase=LoopPhase.AWAITING_RESULT)
             return self._result(recovered=True)
+        if self._state.phase == LoopPhase.DISPATCHING and not self._state.active_dispatch_id:
+            # ORCH001E-008 P3 remediation: a crash between `dispatch_once()`
+            # returning (or even just persisting its own 001D-side record)
+            # and this loop persisting `active_dispatch_id` used to be
+            # silently indistinguishable from "no dispatch was ever
+            # attempted" -- the loop would sit in DISPATCHING forever with
+            # no path to find what, if anything, actually started. Ask the
+            # dispatch port itself, which may hold an independent record
+            # the loop's own state file never learned about.
+            if self._dispatch is None:
+                return self._fail("in-flight dispatch cannot be recovered", code="ORPHAN_PROCESS")
+            lease_id = self._state.active_lease_id
+            if lease_id is None:
+                return self._fail(
+                    "dispatching phase missing lease identity", code="PARTIAL_COMPLETION"
+                )
+            try:
+                found = self._dispatch.find_active_dispatch_id(self._root, lease_id=lease_id)
+            except Exception as exc:
+                # Independent-IV finding: the port could not positively
+                # confirm either way (e.g. its own record is unreadable).
+                # Do NOT treat this the same as "confirmed nothing" -- an
+                # automatic retry here could duplicate a real in-flight
+                # process. Fail closed instead: stuck-but-observable is
+                # the accepted tradeoff, exactly as it already is for a
+                # dispatch port this loop has no way to recover at all.
+                return self._fail(
+                    f"dispatch discovery could not determine outcome: {exc}",
+                    code="DISPATCH_RECOVERY_AMBIGUOUS",
+                )
+            if not found:
+                # `None` (or, defensively, an empty string -- never a
+                # valid identity) means the port positively confirms
+                # nothing was dispatched for this lease. Safe to retry
+                # from LEASED: no process is known to exist that a retry
+                # could duplicate.
+                self._save(phase=LoopPhase.LEASED)
+                return self._dispatch_leased()
+            if found in self._state.completed_dispatch_ids:
+                raise LoopError("recovered dispatch already completed", code="RESULT_REPLAY")
+            self._save(active_dispatch_id=found)
+            recovered = self._dispatch.recover(self._root, found)
+            status = str(recovered.get("status", ""))
+            if status in {"COMPLETED", "FAILED"}:
+                digest = str(recovered.get("digest") or recovered.get("dispatch_id") or "")
+                return self.apply_observed_result(
+                    found, digest, passed=status == "COMPLETED", recovered=True
+                )
+            self._save(phase=LoopPhase.AWAITING_RESULT)
+            return self._result(recovered=True)
         if self._state.phase == LoopPhase.AWAITING_RESULT:
             if self._dispatch is not None and self._state.active_dispatch_id:
                 observed = self._dispatch.recover(self._root, self._state.active_dispatch_id)
@@ -396,8 +470,25 @@ class AutonomousLoop:
             raise LoopError("result has no active package", code="PARTIAL_COMPLETION")
         self._save(phase=LoopPhase.VALIDATING)
         node = next(
-            item for item in self._governor.snapshot().nodes if item.package_id == package_id
+            (item for item in self._governor.snapshot().nodes if item.package_id == package_id),
+            None,
         )
+        if node is None:
+            # D-203 round 3: a freshly-constructed AutonomousGovernor (what a
+            # real process restart gets -- see run_governor_loop_tick() in
+            # cli.py, which builds a brand-new governor from live inventory
+            # alone on every invocation) has no in-memory node/lease state at
+            # all. Governor node/lease rehydration across a real process
+            # restart is not implemented here -- that is ORCH001E-011's own,
+            # separately tracked scope. Until that lands, fail closed with a
+            # structured, CLI-catchable LoopError instead of letting a bare
+            # StopIteration escape uncaught.
+            return self._fail(
+                f"governor has no node for persisted active package {package_id!r}; "
+                "governor state was not rehydrated across a process restart "
+                "(see D-203/ORCH001E-011)",
+                code="GOVERNOR_STATE_NOT_REHYDRATED",
+            )
         if node.state is NodeState.LEASED:
             self._governor.transition(package_id, NodeState.ACTIVE, "LOOP_PROCESS_STARTED")
         if passed:
@@ -410,8 +501,20 @@ class AutonomousLoop:
             self._governor.transition(package_id, NodeState.VERIFYING, "LOOP_RESULT_FAILED")
             self._governor.complete_verification(package_id, passed=False)
             node = next(
-                item for item in self._governor.snapshot().nodes if item.package_id == package_id
+                (item for item in self._governor.snapshot().nodes if item.package_id == package_id),
+                None,
             )
+            if node is None:
+                # Defensive: same class of gap as the lookup above -- this
+                # governor just transitioned this exact package_id, so it is
+                # not reachable in the same in-memory tick, only across an
+                # unrehydrated process restart replaying a stale dispatch.
+                return self._fail(
+                    f"governor has no node for persisted active package {package_id!r}; "
+                    "governor state was not rehydrated across a process restart "
+                    "(see D-203/ORCH001E-011)",
+                    code="GOVERNOR_STATE_NOT_REHYDRATED",
+                )
             if node.state == NodeState.BLOCKED:
                 return self._stop(StopReason.HARD_BLOCKER)
             if node.state == NodeState.REMEDIATING:
@@ -493,11 +596,77 @@ class AutonomousLoop:
         if package_id is None or lease_id is None:
             return self._fail("leased phase missing identity", code="PARTIAL_COMPLETION")
         node = next(
-            item for item in self._governor.snapshot().nodes if item.package_id == package_id
+            (item for item in self._governor.snapshot().nodes if item.package_id == package_id),
+            None,
         )
+        if node is None:
+            # D-203 round 3 (review thread PRRT_kwDOTtguR86dRAuB on PR #637):
+            # when recovery runs after a real process restart,
+            # run_governor_loop_tick() (cli.py) constructs a brand-new
+            # AutonomousGovernor from live inventory alone -- its node/lease
+            # list is empty, only this loop's own LoopState survives on
+            # disk. A LEASED/ACTIVE phase whose package_id the fresh
+            # governor never saw used to fall through to the bare `next()`
+            # below and raise an uncaught StopIteration, which cli.py's
+            # `except (TrustError, DiscoveryError, LoopError)` does not
+            # catch. Full governor node/lease rehydration across a process
+            # restart is intentionally out of scope here -- it is
+            # ORCH001E-011's own, separately tracked fix (see
+            # docs/evidence/D-203-...md and the sibling in-flight PR) -- so
+            # until that lands, fail closed with a structured,
+            # CLI-catchable LoopError instead of crashing uncaught.
+            return self._fail(
+                f"governor has no node for persisted leased package {package_id!r}; "
+                "governor state was not rehydrated across a process restart "
+                "(see D-203/ORCH001E-011)",
+                code="GOVERNOR_STATE_NOT_REHYDRATED",
+            )
         if node.execution_host_class.value == "IN_PROCESS":
-            self._governor.execute_leased(lease_id)
             in_process_id = f"in-process:{lease_id}"
+            if node.state == NodeState.LEASED:
+                # Normal path: not yet executed. execute_leased() runs
+                # synchronously in-process, so if this call itself crashes
+                # partway through, the governor's own transition() call is
+                # what would have raised -- nothing to recover from here,
+                # it simply didn't complete. What this guard protects
+                # against is the *other* crash window: execute_leased()
+                # already succeeded (node moved to ACTIVE) but the process
+                # died before apply_observed_result() below ever ran, so
+                # this same LEASED-recovery branch gets hit again on
+                # restart with a node that is no longer LEASED.
+                try:
+                    self._governor.execute_leased(lease_id)
+                except IllegalTransitionError as exc:  # pragma: no cover - defensive
+                    return self._fail(
+                        f"in-process execution transition rejected: {exc}",
+                        code="EXECUTION_STATE_CONFLICT",
+                    )
+            elif node.state != NodeState.ACTIVE:
+                # Independent-IV finding: node.state != LEASED alone is not
+                # enough to assume "already executed, safe to finalize".
+                # apply_observed_result() itself unconditionally attempts
+                # `transition(..., VERIFYING, ...)`, which is only legal
+                # from ACTIVE (see dag.py's ALLOWED_TRANSITIONS) -- any
+                # other unexpected state (READY, BLOCKED, OWNER_HELD, ...)
+                # would just reintroduce an uncaught IllegalTransitionError
+                # one level down, the exact crash-loop this fix exists to
+                # close. Fail closed with a clear diagnostic instead of
+                # guessing.
+                return self._fail(
+                    f"in-process recovery found unexpected node state "
+                    f"{node.state.value} (expected LEASED or ACTIVE)",
+                    code="EXECUTION_STATE_CONFLICT",
+                )
+            # else node.state == NodeState.ACTIVE: already executed before a
+            # crash between execute_leased() succeeding and
+            # apply_observed_result() completing. IN_PROCESS execution has
+            # no partial/async state -- its outcome is fully re-derived from
+            # the same deterministic id, and apply_observed_result() is
+            # itself replay-guarded (RESULT_REPLAY) against being applied
+            # twice, so re-entering it here is safe rather than re-running
+            # execute_leased() (which would attempt an illegal
+            # ACTIVE -> ACTIVE-style transition and raise instead of
+            # recovering).
             return self.apply_observed_result(in_process_id, in_process_id, passed=True)
         if self._dispatch is None:
             return self._fail("external dispatch port is required", code="DISPATCH_UNAVAILABLE")
@@ -556,9 +725,11 @@ class CallableDispatchPort:
         self,
         dispatch_once: Callable[[Path], dict[str, object]],
         recover: Callable[[Path, str], dict[str, object]] | None = None,
+        find_active_dispatch_id: Callable[[Path, str], str | None] | None = None,
     ) -> None:
         self._dispatch_once = dispatch_once
         self._recover = recover
+        self._find_active_dispatch_id = find_active_dispatch_id
 
     def dispatch_once(self, root: Path) -> dict[str, object]:
         return self._dispatch_once(root)
@@ -567,3 +738,8 @@ class CallableDispatchPort:
         if self._recover is None:
             return {"dispatch_id": dispatch_id, "status": "RUNNING"}
         return self._recover(root, dispatch_id)
+
+    def find_active_dispatch_id(self, root: Path, *, lease_id: str) -> str | None:
+        if self._find_active_dispatch_id is None:
+            return None
+        return self._find_active_dispatch_id(root, lease_id)
