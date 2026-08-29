@@ -9136,7 +9136,6 @@ metadata, local/full-clone validity including the diverged-branch case).
 `MERGE_AUTHORIZATION = NOT_GRANTED` — this PR changes governance
 enforcement itself, so it stays owner-gated regardless of certification
 strength, per standing instruction for this node. Not self-merged.
-
 ## ORCH001E-011 — governor/loop rehydration across real process restarts
 
 Promoted to the active critical-path implementation node per directive
@@ -9176,7 +9175,86 @@ errors.
 
 **Not self-certified.** Independent verification and fresh exact-head CI
 still required before merge-eligible; `GOVERNED_AUTONOMY_ACTIVE` stays
-`PARTIAL` until then.
+`PARTIAL` until then. (Superseded by the D-202/D-204 2026-08-29 update
+above the fold: recovery independently re-verified PASS and merged via
+PR #638; see AS-ORCH-001E's own backlog section for the current state.)
+
+## ORCH001D-012 — genuine acceptance attempt (2026-08-29)
+
+**Correction (same day, added on PR #640 before merge, after independent
+review):** this entry originally said "one bounded, real dispatch" and "no
+pre-existing acceptance packet document existed." Both wrong. A real
+packet, `docs/orch001c-010-cursor-acceptance-packet.md` (titled for
+`ORCH001D-012` despite its filename), already existed on `main` — missed
+because the search that produced "no pre-existing packet" ran against a
+stale local checkout on a different branch, not `origin/main`. Two real
+dispatches were made against the throwaway directory (not one), the
+second because this record's own capture script crashed printing the
+first result and needed a redo, not a deliberate second grant — the
+packet's own `MAX_DISPATCH_COUNT = 1` recommendation was not honored for
+that pair. Also, `--trust`/`--yolo` are not members of
+`agent_transport.FORBIDDEN_CURSOR_FLAGS` (only `-f`/`--force`/
+`--force-allow-http` are) — they simply never appear in the fixed
+allowlist `build_launch_plan()` emits from, a narrower property than
+"forbidden." Full corrected account, packet reconciliation, and a secret
+scan of the captured output: `docs/evidence/D-206-...md`.
+
+Owner-authorized attempt at the outstanding `ORCH001D-012` checkbox via
+the actual `agent_transport.py` transport code (`build_launch_plan` +
+`SubprocessProcessRunner`, the same functions `AS-ORCH-001D` itself
+uses), not a mock.
+
+**Result: `ATTEMPTED_BLOCKED_ON_WORKSPACE_TRUST`, not
+`EXTERNAL_BLOCKED`.** `resolve_cursor_transport()` found a real, logged-in
+`cursor-agent` (`agent.cmd`, Windows `.cmd` wrapper launcher) on this host.
+`build_launch_plan()` produced a correctly-bounded plan
+(`cursor_mode="ask"`, `uses_force=False`, prompt confirmed stdin-only, not
+in argv). Two real subprocess dispatches were made against a fresh,
+never-before-seen throwaway directory (`tempfile.mkdtemp()`); both exited
+`1` with empty stdout and a `Workspace Trust Required` stderr message from
+`cursor-agent` itself, which requires `--trust`, `--yolo`, or `-f`/`--force`
+to run non-interactively against a directory it has not seen before — no
+separate non-interactive trust-grant subcommand exists (checked the full
+`cursor-agent --help` command list). This attempt did not use any of
+those three flags, and did not weaken any check to force a "pass". Full
+transcript, argv, exit codes, and reasoning:
+`docs/evidence/D-206-ORCH001D-012-CURSOR-DISPATCH-ACCEPTANCE-ATTEMPT.md`.
+
+### Result
+
+`ORCH001D-012 = NOT_YET_SATISFIED`, precisely re-scoped from
+`AVAILABLE_NOT_ATTEMPTED` to `ATTEMPTED_BLOCKED_ON_WORKSPACE_TRUST`. The
+transport layer itself behaved exactly as designed (real executable
+resolved, correctly-bounded plan built, real process launched, bounded
+output captured, no forbidden flag used). What remains is a one-time
+interactive trust grant for a chosen throwaway directory — outside what a
+non-interactive pass can perform — after which the identical
+`--print --mode ask` dispatch used here would be expected to succeed
+against that directory. No source code changed. `MERGE_AUTHORIZATION` is
+not applicable (documentation-only; part of PR #640).
+
+## ORCH001D-012 — update: owner-trusted workspace, third dispatch reaches real API (2026-08-29)
+
+Owner interactively trusted a dedicated `D:\atlas-cursor-acceptance`
+workspace (independently confirmed via a real `.workspace-trusted` marker,
+exact `trustedAt`/`workspacePath` match, plus a `worker.log` consistent
+with a genuine interactive session). A third real dispatch, identical in
+code path/bounds to the first two, ran against it: the `Workspace Trust
+Required` blocker is gone — the process authenticated and reached Cursor's
+real cloud API, which returned a genuine account-level
+`ActionRequiredError: ... You're out of usage. Switch to Auto, or ask
+your admin to increase your limit`. This is a real billing/usage-limit
+constraint on the owner's account, not routed around or retried against.
+No forbidden flag used across any of the three dispatches. Full detail:
+`docs/evidence/D-206-...md`.
+
+### Result
+
+`ORCH001D-012` re-scoped again: `ATTEMPTED_BLOCKED_ON_WORKSPACE_TRUST` ->
+`ATTEMPTED_BLOCKED_ON_ACCOUNT_USAGE_LIMIT`. Transport and workspace-trust
+layers both now proven correct end-to-end against a real, owner-authorized
+target. What remains is an owner decision on Cursor account usage/plan --
+not an Atlas code gap. No source code changed.
 
 ## ORCH001E-012 — `_complete_validated()` dangling-`active_dispatch_id` stuck-loop fix
 
