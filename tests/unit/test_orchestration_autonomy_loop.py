@@ -597,10 +597,10 @@ def _dangling_validating(
     lease_id: str,
     dispatch_id: str,
 ) -> None:
-    """Reproduce the exact ORCH001E-012 crash window: apply_observed_
-    result()'s own first `_save(phase=VALIDATING)` persisted, but whatever
+    """Reproduce the exact ORCH001E-012 crash window: `apply_observed_result()`'s
+    own first `_save(phase=VALIDATING)` persisted, but whatever
     interrupted the call happened before its final `_save(...)` ever
-    cleared `active_dispatch_id`. Bypasses apply_observed_result() itself
+    cleared `active_dispatch_id`. Bypasses `apply_observed_result()` itself
     -- exactly like the existing DISPATCHING-crash-window tests above
     bypass _dispatch_leased() by calling `loop._save(...)` directly.
     """
@@ -613,8 +613,8 @@ def _dangling_validating(
 
 
 def test_validating_dangling_in_process_redrives_and_completes(tmp_path: Path) -> None:
-    """ORCH001E-012 core reproduction: before this fix, `_complete_
-    validated()` saw `active_dispatch_id is not None` and returned
+    """ORCH001E-012 core reproduction: before this fix, `_complete_validated()`
+    saw `active_dispatch_id is not None` and returned
     `self._result()` verbatim -- no `_save`, no error, no progress. Phase
     stayed `VALIDATING` forever; a caller retrying `tick()` (e.g.
     `run_until_stop()`) would land right back here every time. Here the
