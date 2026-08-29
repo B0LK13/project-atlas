@@ -116,6 +116,75 @@ exact reproduced defect, per "do not widen semantics unnecessarily."
   deselected.
 - `ruff check` / `mypy` on touched files: clean.
 
+## Round 3 (PR #637 review thread `PRRT_kwDOTtguR86dRAuB`, chatgpt-codex-connector, P1)
+
+**Finding**: rounds 1-2 above fixed the *in-memory, same-governor-object*
+recovery contract, but `test_in_process_recovery_after_crash_before_apply_observed_result`
+reused the same in-memory `AutonomousGovernor` for both the "before crash"
+and "recovery" calls, so it never exercised what a real process restart
+does. `run_governor_loop_tick()` (`orchestration/autonomy/cli.py`)
+constructs a brand-new `AutonomousGovernor` from live inventory alone on
+*every* invocation -- its node/lease list starts empty -- while only this
+loop's own `LoopState` survives on disk between processes. Any node lookup
+in that recovery path (`_dispatch_leased()`'s `IN_PROCESS` branch,
+`apply_observed_result()`'s two node lookups) was a bare
+``next(item for item in governor.snapshot().nodes if ...)`` with no
+default: against a real restart's empty node list this raises an uncaught
+`StopIteration`, not a `LoopError` -- `cli.py`'s
+``except (TrustError, DiscoveryError, LoopError)`` does not catch it, so it
+escapes as an unstructured crash, repeating on every subsequent tick.
+
+**Scope decision**: full governor node/lease rehydration across a real
+process restart is its own, larger, separately tracked fix
+(`ORCH001E-011`, ORCH001E-011's own PR, developed in parallel) -- it
+depends on wiring a durable lease-projection store into
+`run_governor_loop_tick()` (not currently passed there at all: the
+governor it constructs is built without `lease_projection_store=...`, so
+today nothing is even durably recorded for this fix to rehydrate from) and
+a node-reconstruction factory. Reimplementing that here would duplicate
+and likely conflict with the in-flight sibling PR. Per this repo's
+fail-closed convention (`LOOP_CAN_BYPASS_OWNER_GATE = NO`-style hard
+guarantees; every other internal error in this module is translated to a
+`LoopError` with an explicit `code` before it can reach a caller), the
+correct fix *for this PR* is: fail closed with a structured, CLI-catchable
+error instead of guessing at a resume path. Chose fail-closed deliberately
+rather than attempting partial rehydration, since this PR's own node
+factory has no durable definition to rebuild an arbitrary `package_id`
+from (only `PILOT_PACKAGE_ID` is deterministically reconstructable, and
+only once the lease-projection wiring above exists).
+
+**Fix**: `_dispatch_leased()` and both node lookups inside
+`apply_observed_result()` now use
+``next((item for item in governor.snapshot().nodes if ...), None)`` and,
+when `None`, fail closed via `_fail()` with a new
+`GOVERNOR_STATE_NOT_REHYDRATED` `LoopError` code -- distinct from
+`EXECUTION_STATE_CONFLICT` (node present but in an unexpected state) since
+this is "node absent entirely" (a rehydration gap), a different, more
+specific diagnostic for whoever lands `ORCH001E-011` next.
+
+**Test**: added
+`test_in_process_recovery_after_real_process_restart_fails_closed`, which
+constructs two fully independent `AutonomousGovernor` instances (no shared
+Python object) -- the second with zero nodes, exactly mirroring what
+`run_governor_loop_tick()` builds on a real invocation -- and points a
+second `AutonomousLoop` at the *same on-disk store path* the first one
+persisted to, so it only ever learns of the in-flight lease via the
+reloaded `LoopState`. Asserts `recover()` raises `LoopError` with code
+`GOVERNOR_STATE_NOT_REHYDRATED` (not an uncaught `StopIteration`) and that
+the loop phase lands on `FAILED_CLOSED`. The original same-process test is
+kept (renamed
+`test_in_process_recovery_within_same_process_after_partial_execution`,
+docstring updated to state its narrower, still-valid scope) since it
+documents a real, different contract: a caller that catches an exception
+mid-tick and retries `recover()` without the OS process actually
+restarting.
+
+**Validation**: `pytest tests/unit/test_orchestration_autonomy_loop.py`:
+25/25 passed. `pytest tests/ -k "loop or governor or recovery or
+illegal_transition"`: 131 passed, 2 skipped (Windows-only skips,
+pre-existing), 4480 deselected. Full suite, `ruff check .`, `mypy src`:
+see PR #637 for the run recorded at the round-3 commit.
+
 ## Certification state
 
 Not self-certified. Independent adversarial IV + exact-head CI required

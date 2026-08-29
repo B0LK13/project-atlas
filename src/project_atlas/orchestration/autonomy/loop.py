@@ -397,8 +397,25 @@ class AutonomousLoop:
             raise LoopError("result has no active package", code="PARTIAL_COMPLETION")
         self._save(phase=LoopPhase.VALIDATING)
         node = next(
-            item for item in self._governor.snapshot().nodes if item.package_id == package_id
+            (item for item in self._governor.snapshot().nodes if item.package_id == package_id),
+            None,
         )
+        if node is None:
+            # D-203 round 3: a freshly-constructed AutonomousGovernor (what a
+            # real process restart gets -- see run_governor_loop_tick() in
+            # cli.py, which builds a brand-new governor from live inventory
+            # alone on every invocation) has no in-memory node/lease state at
+            # all. Governor node/lease rehydration across a real process
+            # restart is not implemented here -- that is ORCH001E-011's own,
+            # separately tracked scope. Until that lands, fail closed with a
+            # structured, CLI-catchable LoopError instead of letting a bare
+            # StopIteration escape uncaught.
+            return self._fail(
+                f"governor has no node for persisted active package {package_id!r}; "
+                "governor state was not rehydrated across a process restart "
+                "(see D-203/ORCH001E-011)",
+                code="GOVERNOR_STATE_NOT_REHYDRATED",
+            )
         if node.state is NodeState.LEASED:
             self._governor.transition(package_id, NodeState.ACTIVE, "LOOP_PROCESS_STARTED")
         if passed:
@@ -411,8 +428,20 @@ class AutonomousLoop:
             self._governor.transition(package_id, NodeState.VERIFYING, "LOOP_RESULT_FAILED")
             self._governor.complete_verification(package_id, passed=False)
             node = next(
-                item for item in self._governor.snapshot().nodes if item.package_id == package_id
+                (item for item in self._governor.snapshot().nodes if item.package_id == package_id),
+                None,
             )
+            if node is None:
+                # Defensive: same class of gap as the lookup above -- this
+                # governor just transitioned this exact package_id, so it is
+                # not reachable in the same in-memory tick, only across an
+                # unrehydrated process restart replaying a stale dispatch.
+                return self._fail(
+                    f"governor has no node for persisted active package {package_id!r}; "
+                    "governor state was not rehydrated across a process restart "
+                    "(see D-203/ORCH001E-011)",
+                    code="GOVERNOR_STATE_NOT_REHYDRATED",
+                )
             if node.state == NodeState.BLOCKED:
                 return self._stop(StopReason.HARD_BLOCKER)
             if node.state == NodeState.REMEDIATING:
@@ -494,8 +523,31 @@ class AutonomousLoop:
         if package_id is None or lease_id is None:
             return self._fail("leased phase missing identity", code="PARTIAL_COMPLETION")
         node = next(
-            item for item in self._governor.snapshot().nodes if item.package_id == package_id
+            (item for item in self._governor.snapshot().nodes if item.package_id == package_id),
+            None,
         )
+        if node is None:
+            # D-203 round 3 (review thread PRRT_kwDOTtguR86dRAuB on PR #637):
+            # when recovery runs after a real process restart,
+            # run_governor_loop_tick() (cli.py) constructs a brand-new
+            # AutonomousGovernor from live inventory alone -- its node/lease
+            # list is empty, only this loop's own LoopState survives on
+            # disk. A LEASED/ACTIVE phase whose package_id the fresh
+            # governor never saw used to fall through to the bare `next()`
+            # below and raise an uncaught StopIteration, which cli.py's
+            # `except (TrustError, DiscoveryError, LoopError)` does not
+            # catch. Full governor node/lease rehydration across a process
+            # restart is intentionally out of scope here -- it is
+            # ORCH001E-011's own, separately tracked fix (see
+            # docs/evidence/D-203-...md and the sibling in-flight PR) -- so
+            # until that lands, fail closed with a structured,
+            # CLI-catchable LoopError instead of crashing uncaught.
+            return self._fail(
+                f"governor has no node for persisted leased package {package_id!r}; "
+                "governor state was not rehydrated across a process restart "
+                "(see D-203/ORCH001E-011)",
+                code="GOVERNOR_STATE_NOT_REHYDRATED",
+            )
         if node.execution_host_class.value == "IN_PROCESS":
             in_process_id = f"in-process:{lease_id}"
             if node.state == NodeState.LEASED:

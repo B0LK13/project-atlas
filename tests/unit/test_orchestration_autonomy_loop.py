@@ -148,7 +148,7 @@ def test_in_process_ready_completes_and_stops_without_owner(tmp_path: Path) -> N
     assert node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD, NodeState.CLOSED}
 
 
-def test_in_process_recovery_after_crash_before_apply_observed_result(
+def test_in_process_recovery_within_same_process_after_partial_execution(
     tmp_path: Path,
 ) -> None:
     """Pre-existing recovery defect (found during PR #635 independent IV,
@@ -162,6 +162,18 @@ def test_in_process_recovery_after_crash_before_apply_observed_result(
     that raised `IllegalTransitionError` uncaught -- escaping `cli.py`'s
     handler (which only catches `TrustError`/`DiscoveryError`/`LoopError`)
     and permanently re-crashing on every subsequent tick.
+
+    Scope note (PR #637 review thread PRRT_kwDOTtguR86dRAuB): this test
+    reuses the *same* in-memory `AutonomousGovernor` object for both the
+    "before crash" and "recovery" calls, so it documents and exercises the
+    in-process/same-Python-object recovery contract (e.g. a caller that
+    catches an exception mid-tick and retries `recover()` without the OS
+    process actually restarting) -- not a real cross-process restart. A
+    real restart is covered separately by
+    `test_in_process_recovery_after_real_process_restart_fails_closed`
+    below, which constructs a second, fully independent governor instance
+    with empty node state, exactly like `run_governor_loop_tick()` (cli.py)
+    does on every invocation.
     """
     gov = _governor(_node("AS-ORCH-CRASH-001"))
     loop = _loop(tmp_path, gov)
@@ -226,6 +238,74 @@ def test_in_process_recovery_fails_closed_on_unexpected_node_state(tmp_path: Pat
     assert loop.state.phase is LoopPhase.FAILED_CLOSED
     node = next(item for item in gov.snapshot().nodes if item.package_id == "AS-ORCH-CRASH-002")
     assert node.state is NodeState.BLOCKED  # untouched, not corrupted by a partial transition
+
+
+def test_in_process_recovery_after_real_process_restart_fails_closed(tmp_path: Path) -> None:
+    """D-203 round 3 (PR #637 review thread PRRT_kwDOTtguR86dRAuB,
+    chatgpt-codex-connector): the two tests above reuse the *same*
+    in-memory `AutonomousGovernor` Python object across the "before crash"
+    and "recovery" calls, so neither actually exercises what a real
+    process restart does. The real CLI entry point
+    (`run_governor_loop_tick()` in `orchestration/autonomy/cli.py`)
+    constructs a brand-new `AutonomousGovernor` from live inventory alone
+    on *every* invocation -- its node/lease list starts empty -- and only
+    the loop's own `LoopState` (phase, active_package_id, active_lease_id)
+    survives on disk between processes.
+
+    This test simulates that honestly: two fully independent
+    `AutonomousGovernor` instances (no shared Python object at all), with
+    the second `AutonomousLoop` built only from what the first one
+    persisted to `store` on disk -- exactly the "process N" / "process
+    N+1" boundary `run_governor_loop_tick()` crosses on a real restart.
+
+    Before the D-203-round-3 fix, `_dispatch_leased()`'s node lookup was a
+    bare ``next(item for item in governor.snapshot().nodes if ...)`` with
+    no default, which raised an uncaught `StopIteration` against process
+    N+1's empty node list -- not a `LoopError`, so `cli.py`'s
+    ``except (TrustError, DiscoveryError, LoopError)`` never catches it and
+    it escapes as an unstructured crash on every subsequent tick. Full
+    governor node/lease rehydration across a real process restart is
+    intentionally out of scope for this PR (it is ORCH001E-011's own,
+    separately tracked fix); until that lands, the loop must fail closed
+    with a structured, CLI-catchable error instead of crashing uncaught.
+    """
+    package_id = "AS-ORCH-RESTART-001"
+
+    # "Process N": lease the node, then simulate a crash in the exact
+    # window D-203 documents -- execute_leased() succeeded (node -> ACTIVE)
+    # but apply_observed_result() never ran, so the on-disk loop state is
+    # still LEASED. Process N never calls recover() itself: a real crash
+    # means it never gets the chance to.
+    gov_before_restart = _governor(_node(package_id))
+    loop_before_restart = _loop(tmp_path, gov_before_restart)
+    lease = gov_before_restart.lease(
+        package_id,
+        loop_before_restart._first_agent(),
+        branch=loop_before_restart._branch,
+        worktree=loop_before_restart._worktree,
+    )
+    loop_before_restart._save(
+        phase=LoopPhase.LEASED,
+        active_package_id=package_id,
+        active_lease_id=lease.lease_id,
+    )
+    gov_before_restart.execute_leased(lease.lease_id)
+    assert loop_before_restart.state.phase is LoopPhase.LEASED  # loop file unaware of the crash
+
+    # "Process N+1": a brand-new AutonomousGovernor with no nodes at all
+    # (exactly what run_governor_loop_tick() constructs), and a new
+    # AutonomousLoop pointed at the *same on-disk store path* -- it only
+    # ever reads the persisted LoopState, never the governor object above.
+    gov_after_restart = _governor()  # no add_node() calls: an empty, fresh governor
+    assert gov_after_restart.snapshot().nodes == ()  # confirms this really is a fresh governor
+    loop_after_restart = _loop(tmp_path, gov_after_restart)
+    assert loop_after_restart.state.phase is LoopPhase.LEASED  # reloaded from disk
+    assert loop_after_restart.state.active_package_id == package_id
+
+    with pytest.raises(LoopError) as exc:
+        loop_after_restart.recover()
+    assert exc.value.code == "GOVERNOR_STATE_NOT_REHYDRATED"
+    assert loop_after_restart.state.phase is LoopPhase.FAILED_CLOSED
 
 
 def test_owner_gate_stop_no_dispatch(tmp_path: Path) -> None:
