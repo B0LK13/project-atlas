@@ -642,6 +642,13 @@ def read_origination_proposal(
 ) -> OriginationProposal | None:
     """Re-read a previously written proposal from disk (fresh call, no
     in-memory state) -- proves PROVENANCE_SURVIVES_RESTART.
+
+    Fails closed: a missing file, malformed JSON, or a tampered/corrupted
+    ``origination[work_id]`` entry that no longer round-trips through the
+    ``OriginationProposal`` schema is treated the same as "no such proposal"
+    -- ``None`` is returned, never an uncaught exception (mirrors
+    ``load_project_claims``'s fail-closed handling of malformed claim
+    records).
     """
     safe_project_id = _safe_project_id(project_id)
     path = _roadmap_path(vault, safe_project_id)
@@ -656,7 +663,10 @@ def read_origination_proposal(
     raw = origination.get(work_id)
     if not isinstance(raw, dict):
         return None
-    return OriginationProposal.model_validate(raw)
+    try:
+        return OriginationProposal.model_validate(raw)
+    except Exception:
+        return None
 
 
 def load_project_claims(vault: Path, project_id: str) -> tuple[Claim, ...]:

@@ -9622,3 +9622,157 @@ fix for here.
 ADR-033's phasing — does not touch `orchestration/autonomy/` (governor,
 lease, dispatch). `MERGE_AUTHORIZATION` not requested by this entry;
 owner decision, same as every other PR this session.
+
+## AS-ORIGIN-001 — Independent integration verification (PR #642)
+
+- Date: 2026-08-29
+- Scope: genuine independent verification of PR #642
+  (`feat/phase2a-specification-backed-origination`, head
+  `93251ac15e45eaf0d78e00e5012ddfa0d1caa70e` at the start of this pass),
+  dispatched separately from the implementing pass above. Worktree:
+  `D:/atlas-worktrees/iv-phase2a-origination`, tracking the PR's exact
+  branch/head.
+- Read in full: `docs/adr/ADR-033-specification-backed-work-origination.md`,
+  `src/project_atlas/orchestration/origination.py` (727 lines),
+  `tests/unit/test_as_origin_001.py`,
+  `tests/integration/test_as_origin_001_showcase_acceptance.py`,
+  `docs/backlog.md`'s `AS-ORIGIN-001` section, the matching WORKLOG entry
+  (above), `src/project_atlas/domain/claims.py`,
+  `src/project_atlas/project_roadmap.py` (`_load_roadmap_source`,
+  `_parse_fenced_record`, `_normalize_status`), and
+  `knowledge_compiler.py`'s `_conflicts`.
+- Environment note: this machine's globally-installed editable
+  `project-atlas` points at `D:/Atlas-Demo/atlas/project-atlas` (a
+  different checkout), not this worktree — `pytest`/`ruff`/`mypy` were run
+  with `PYTHONPATH` pointed at this worktree's `src/` instead of
+  reinstalling the editable package, to avoid any global/system-wide side
+  effect. Confirmed `import project_atlas` resolved to this worktree
+  before running anything.
+- Baseline (fresh re-run): `tests/unit/test_as_origin_001.py` +
+  `tests/integration/test_as_origin_001_showcase_acceptance.py` = 26/26
+  passed, confirming the claimed count. `ruff check` on all three
+  changed/new files and `mypy src/project_atlas/orchestration/origination.py`:
+  both clean, matching the claim.
+- Headline claim independently re-verified by direct inspection, not by
+  trusting the test result: copied `D:/Atlas-Demo/estates/atlas-showcase-gamma`
+  to a scratch directory (`.git` stripped), ran the real, unmodified
+  `atlas init`/`discover`/`ingest` CLI against the copy, then read the
+  resulting `state/claims/atlas-showcase-gamma.json` directly. 7 claims
+  total, all `architecture-statement` except one stray `roadmap-status`
+  claim (value `"todo | in_progress | blocked | done"`, a table-header/legend
+  extraction artifact with no TASK-017 reference) — zero
+  `ROADMAP_STATUS`/`WORK_PACKAGE_STATUS`/`TEST_RESULT` claims name
+  TASK-017, confirming the PR's claim. `run_origination` against this real
+  vault returned `None` and wrote no `roadmap.md`, also independently
+  confirmed.
+- 6 adversarial probes run directly against the implementation (own
+  scripts, not a re-read of the existing suite):
+  1. Two claims for *different* `subject`s within the same project
+     (an intent-shaped claim for `wp:alpha`, an acceptance-shaped claim for
+     `wp:beta`) cannot manufacture a false quorum — `extract_candidate_facts`
+     buckets by `(project_id, subject)`, so neither fact alone reaches
+     quorum. PASS.
+  2. The O1/OWNER_HELD path-classifier's CI/workflow branch is exercised
+     against a real claim through the full `run_origination` →
+     `build_roadmap_lens` pipeline already (`test_owner_gate_preserved`);
+     confirmed the `auth`/`security`, `migrations/`, and `deploy`/`docker`/
+     `k8s` branches were NOT exercised the same way anywhere in the
+     existing suite (only unit-level `_classify_authority` calls exist for
+     the dependency-manifest branch). Manually confirmed the regex logic
+     itself is correct — including correctly *not* matching false
+     positives like `authentication/x.py` or `thesaurus.py` — but this was
+     a genuine, confirmed test-coverage gap; closed with a new
+     parametrized regression test (see below). Not a functional defect on
+     its own.
+  3. `work_id` stability re-derived independently across 10 random
+     shuffles of a claim list that mixes the real intent/acceptance pair
+     with two unrelated distractor subjects — identical `work_id` every
+     time. PASS (`STABLE_WORK_IDENTITY` holds under reordering, not just
+     the two fixed orderings the existing test checks).
+  4. **A genuine, previously-untested gap, exactly as flagged for this
+     probe**: does `write_origination_record` correctly append a *second*,
+     different item to `roadmap_items[]` for the *same* project on a
+     second `run_origination` call, rather than overwrite/drop/corrupt the
+     first? Manually verified correct (first item preserved, second
+     appended, single well-formed fenced block, both round-trip via
+     `read_origination_proposal`) — no existing test covered this
+     scenario (`test_no_duplicate_origination_and_stable_work_identity`
+     only proves idempotency for the *same* subject/work_id re-run). Not a
+     defect, but closed the coverage gap with a new regression test (see
+     below).
+  5. **Genuine defect found**: `read_origination_proposal` on a corrupted/
+     tampered `roadmap.md` fenced block. Malformed JSON and a
+     non-dict `origination` value both correctly fail closed (return
+     `None`), matching convention — but a *present* `origination[work_id]`
+     entry whose shape no longer satisfies the `OriginationProposal`
+     schema (e.g. a hand-edited or partially-written record) raised an
+     **uncaught `pydantic.ValidationError`** straight out of the function,
+     violating this repo's established fail-closed-on-safety-issues
+     convention (`load_project_claims` in the same module already applies
+     this discipline to malformed claim records; `read_origination_proposal`
+     did not apply it to malformed proposal records).
+  6. Constructed three sharper variants of the "malicious/instruction-like
+     prose" scenario than the existing test: (a) a claim with the *wrong*
+     `claim_type` (`ARCHITECTURE`) whose text impersonates
+     `WORK_PACKAGE_STATUS`/`TEST_RESULT` and claims to satisfy acceptance
+     criteria — rejected, no quorum (claim_type field governs, not text
+     content); (b) a `WORK_PACKAGE_STATUS` claim valued `"done"` whose text
+     also contains the substring `"ready"` — rejected, no quorum
+     (`_normalize_status` uses the whole normalized value, not a substring
+     hit); (c) a claim whose *value text* names `.github/workflows/ci.yml`
+     and mentions auth/security/migrations/deploy, while its real
+     provenance `resource` is `docs/normal.md` — resolved
+     `EXECUTION_READY`, confirming `_classify_authority` reads
+     `EvidenceSignal.resource` (the structured provenance path), never
+     claim value text. All three PASS — the policy gate's boolean logic
+     never branches on raw claim text beyond the documented, narrow
+     keyword-marker scan used only to identify *candidate* acceptance
+     signals (which still must independently satisfy the located-test/
+     located-acceptance-clause check in `_derive_success_criteria` before
+     any success criterion is derived from them).
+- **Fix (root-caused, not a patch over the symptom):** wrapped the
+  `OriginationProposal.model_validate(raw)` call in
+  `read_origination_proposal` in `try`/`except Exception: return None`,
+  mirroring `load_project_claims`'s existing fail-closed pattern in the
+  same module, and documented the fail-closed contract in the function's
+  docstring.
+- **Regression tests added** (`tests/unit/test_as_origin_001.py`):
+  `test_owner_gate_preserved_for_auth_migration_deploy_surfaces`
+  (parametrized over `src/auth/login.py`, `src/security/scanner.py`,
+  `migrations/0001_init.sql`, `deploy/prod.yaml`, `Dockerfile`,
+  `k8s/deployment.yaml` — 6 cases, each run through the real
+  `run_origination` → `build_roadmap_lens` pipeline, not just the
+  classifier in isolation);
+  `test_second_distinct_item_for_same_project_is_appended_not_clobbered`
+  (probe 4, closes the writer-append coverage gap);
+  `test_read_origination_proposal_fails_closed_on_tampered_record` (probe
+  5, reproduces the exact uncaught-exception scenario against the
+  pre-fix code first, then confirms it now returns `None`).
+- Post-fix re-run: `tests/unit/test_as_origin_001.py` +
+  `tests/integration/test_as_origin_001_showcase_acceptance.py` = 34
+  passed (26 original + 8 new), 0 failed. `ruff check` clean on both
+  changed files. `mypy` clean on `origination.py`, 0 errors.
+- Scope boundaries independently confirmed, not just taken on the PR's own
+  claim: `git diff origin/main...HEAD --stat` touches only
+  `WORKLOG.md`, `docs/adr/ADR-033-...md`, `docs/backlog.md`,
+  `src/project_atlas/orchestration/origination.py`, and the two
+  `test_as_origin_001*.py` files — nothing under `orchestration/autonomy/`
+  and `project_roadmap.py` is untouched, matching the PR's claim.
+- `D:/Atlas-Demo` confirmed unmodified: `git status --short` inside each
+  of the `atlas-showcase-{alpha,beta,gamma}` estate checkouts was clean
+  both before and after this pass's real-ingest run and the full test
+  suite re-run (which itself runs real `ingest` against read-only copies,
+  per the integration test's own `shutil.copytree`-to-`tmp_path`
+  discipline — verified by reading `_copy_estate`/`_run_real_pipeline`
+  before running anything).
+- **Result: `FOUND-AND-FIXED-DEFECTS`.** One genuine fail-closed violation
+  found and fixed with a root-cause change and a regression test that
+  reproduces the exact failure against the pre-fix code first. Two
+  genuine test-coverage gaps (untested owner-held path-classifier
+  branches; untested second-item writer-append behavior) closed with new
+  regression tests after manually confirming the underlying behavior was
+  already correct. No other adversarial probe surfaced a defect; the
+  headline Gamma finding, scope boundaries, and `D:/Atlas-Demo`
+  non-mutation were all independently re-derived from primary evidence,
+  not taken on trust. `MERGE_AUTHORIZATION` is not granted by this entry —
+  owner decision, per instruction.

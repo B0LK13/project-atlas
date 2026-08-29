@@ -358,6 +358,120 @@ def test_no_duplicate_origination_and_stable_work_identity(tmp_path: Path) -> No
     assert reproposal.work_id == first.work_id
 
 
+def test_second_distinct_item_for_same_project_is_appended_not_clobbered(
+    tmp_path: Path,
+) -> None:
+    """A second ``run_origination`` call for a *different* subject within the
+    same project must append its item to ``roadmap_items[]`` alongside the
+    first, not overwrite, drop, or corrupt it. This is distinct from
+    ``test_no_duplicate_origination_and_stable_work_identity``, which only
+    proves idempotency for the *same* subject/work_id across re-runs."""
+    vault = tmp_path / "vault"
+    _init_project_dir(vault, PROJECT_A)
+
+    _write_claims(
+        vault,
+        PROJECT_A,
+        [
+            _intent("claim-intent-alpha", subject="wp:alpha"),
+            _accept("claim-accept-alpha", subject="wp:alpha"),
+        ],
+    )
+    first = orig.run_origination(vault, PROJECT_A)
+    assert first is not None
+    assert first.status == "VALID"
+
+    roadmap_path = vault / "projects" / PROJECT_A / "roadmap.md"
+    text_after_first = roadmap_path.read_text(encoding="utf-8")
+    record_after_first = json.loads(text_after_first.split("```json", 1)[1].rsplit("```", 1)[0])
+    assert [item["id"] for item in record_after_first["roadmap_items"]] == [first.work_id]
+
+    # A second, different subject's evidence arrives for the same project.
+    _write_claims(
+        vault,
+        PROJECT_A,
+        [
+            _intent("claim-intent-alpha", subject="wp:alpha"),
+            _accept("claim-accept-alpha", subject="wp:alpha"),
+            _intent("claim-intent-beta", subject="wp:beta"),
+            _accept("claim-accept-beta", subject="wp:beta"),
+        ],
+    )
+    second = orig.run_origination(vault, PROJECT_A)
+    assert second is not None
+    # run_origination deterministically returns a single proposal (VALID
+    # entries tie-broken by work_id) even when it wrote more than one --
+    # so the returned object alone doesn't prove both were written; the
+    # roadmap.md content on disk is the real check below.
+
+    text_after_second = roadmap_path.read_text(encoding="utf-8")
+    # Exactly one fenced JSON block -- no duplicated/corrupted markdown.
+    assert text_after_second.count("```json") == 1
+    record_after_second = json.loads(
+        text_after_second.split("```json", 1)[1].rsplit("```", 1)[0]
+    )
+    ids_after_second = {item["id"] for item in record_after_second["roadmap_items"]}
+    beta_facts = orig.extract_candidate_facts(
+        [
+            _intent("claim-intent-beta", subject="wp:beta"),
+            _accept("claim-accept-beta", subject="wp:beta"),
+        ],
+        PROJECT_A,
+    )
+    beta_signals = orig.correlate_evidence(beta_facts[0])
+    assert beta_signals is not None
+    beta_proposal = orig.validate_policy(
+        PROJECT_A, beta_facts[0], beta_signals, [beta_facts[0].claims[0], beta_facts[0].claims[1]]
+    )
+    assert ids_after_second == {first.work_id, beta_proposal.work_id}
+    assert len(record_after_second["roadmap_items"]) == 2
+
+    # Full provenance for the FIRST item must still survive, unmodified.
+    reloaded_first = orig.read_origination_proposal(vault, PROJECT_A, first.work_id)
+    assert reloaded_first == first
+    reloaded_second = orig.read_origination_proposal(vault, PROJECT_A, beta_proposal.work_id)
+    assert reloaded_second is not None
+    assert reloaded_second.status == "VALID"
+
+
+def test_read_origination_proposal_fails_closed_on_tampered_record(
+    tmp_path: Path,
+) -> None:
+    """A corrupted/tampered ``origination[work_id]`` entry that no longer
+    matches the ``OriginationProposal`` schema must fail closed -- return
+    ``None`` -- never raise an uncaught ``pydantic.ValidationError`` up to
+    the caller, matching this repo's fail-closed-on-safety-issues
+    convention (the same discipline ``load_project_claims`` already
+    applies to malformed claim records)."""
+    vault = tmp_path / "vault"
+    proj_dir = vault / "projects" / PROJECT_A
+    proj_dir.mkdir(parents=True)
+    roadmap = proj_dir / "roadmap.md"
+
+    # Malformed JSON inside the fence.
+    roadmap.write_text(
+        "# Roadmap\n\n## Roadmap record\n```json\n{ not valid json !!\n```\n",
+        encoding="utf-8",
+    )
+    assert orig.read_origination_proposal(vault, PROJECT_A, "wk-anything") is None
+
+    # Valid JSON, but the origination entry does not satisfy the
+    # OriginationProposal schema (missing required fields / wrong shape) --
+    # e.g. a hand-edited or partially-written record.
+    roadmap.write_text(
+        json.dumps(
+            {
+                "roadmap_items": [],
+                "origination": {"wk-anything": {"tampered": True}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    roadmap_text = f"# Roadmap\n\n## Roadmap record\n```json\n{roadmap.read_text()}\n```\n"
+    roadmap.write_text(roadmap_text, encoding="utf-8")
+    assert orig.read_origination_proposal(vault, PROJECT_A, "wk-anything") is None
+
+
 def test_provenance_survives_restart(tmp_path: Path) -> None:
     vault = tmp_path / "vault"
     _init_project_dir(vault, PROJECT_A)
@@ -418,6 +532,46 @@ def test_owner_gate_preserved(tmp_path: Path) -> None:
     # Never silently treated as the ready next-unlock.
     assert lens["next_unlock"]["status"] != "EXECUTION_READY"
     assert lens["you_are_here"]["status"] != "VERIFIED_COMPLETION"
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "src/auth/login.py",
+        "src/security/scanner.py",
+        "migrations/0001_init.sql",
+        "deploy/prod.yaml",
+        "Dockerfile",
+        "k8s/deployment.yaml",
+    ],
+)
+def test_owner_gate_preserved_for_auth_migration_deploy_surfaces(
+    tmp_path: Path, resource: str
+) -> None:
+    """The O1/OWNER_HELD path-classifier's auth/security, migration, and
+    deploy branches must be exercised against a *real* claim through the
+    full ``run_origination`` -> ``build_roadmap_lens`` pipeline, the same
+    way the CI/workflow branch already is (``test_owner_gate_preserved``)
+    -- not only unit-tested against ``_classify_authority`` in isolation."""
+    vault = tmp_path / "vault"
+    _init_project_dir(vault, PROJECT_A)
+    claims = [
+        _intent(resource=resource),
+        _accept(),
+    ]
+    _write_claims(vault, PROJECT_A, claims)
+
+    proposal = orig.run_origination(vault, PROJECT_A)
+    assert proposal is not None
+    assert proposal.status == "VALID"
+    assert proposal.authority_class == "OWNER_HELD"
+
+    lens = build_roadmap_lens(vault, PROJECT_A)
+    items = {item["id"]: item for item in lens["items"]}
+    item = items[proposal.work_id]
+    assert item["status"] == "BLOCKED"
+    assert any("owner" in (b.get("reason") or "").lower() for b in item["blockers"])
+    assert lens["next_unlock"]["status"] != "EXECUTION_READY"
 
 
 def test_dependency_manifest_scope_needs_explicit_dependency_evidence() -> None:
