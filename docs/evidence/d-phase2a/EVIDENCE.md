@@ -227,8 +227,31 @@ outcome unchanged.
 
 ## CI_RECEIPT
 
-_Appended after the exact-HEAD CI run (ruff + mypy + full pytest suite)
-completes — see the final return packet._
+**Local exact-command reproduction** (same commands `.github/workflows/ci.yml`
+runs): `python -m ruff check .` clean repo-wide; `python -m mypy src`
+clean, 393 files; full `python -m pytest` was started locally and
+confirmed progressing correctly (no failures observed) but was not run
+to completion locally — a real, pre-existing, unrelated-to-this-PR test
+doing a `git grep` across this repository's full multi-branch commit
+history took several minutes without finishing during the session this
+POC was built in, and GitHub's own hosted runners are the authoritative
+source of truth for this gate regardless.
+
+**GitHub Actions (PR #643, `feat/phase2a-origination-poc`)**: multiple
+runs were queued as commits landed (each push cancels the prior
+in-flight run and queues a fresh one against the new HEAD, per this
+repo's existing `concurrency` configuration) — see `gh run list
+--branch feat/phase2a-origination-poc`. The `control-plane` job
+completed and **passed** on at least one run. The `quality` matrix jobs
+(ubuntu 3.12/3.13, windows) remained queued/pending for well over an
+hour on more than one run, consistent with hosted-runner capacity
+contention on this large, very active, many-branch repository rather
+than any failure — no job reported a failure at any point observed.
+**Final status as of this report: the latest run against this PR's
+final commit had not yet completed.** This is the one concrete,
+external, non-code gate still open — see the final return packet's
+`EXACT_HEAD_CI` field for the precise status at delivery time, and the
+PR's own Checks tab for the current, authoritative live state.
 
 ## POST_MERGE_SEAL
 
