@@ -101,7 +101,16 @@ def classify(
     disqualifiers: list[DisqualifyingAttribute] = []
 
     for path in proposed_scope:
-        if not _SAFE_MUTATION_PATH_RE.fullmatch(path):
+        # IV round-2 hardening note: _SAFE_MUTATION_PATH_RE is character-
+        # class-only and would in isolation accept an embedded "../"
+        # traversal segment. Today that's unreachable in practice --
+        # proposed_scope only ever comes from pipeline.py, which sources
+        # it from evidence paths project_roadmap._evidence_exists()
+        # already rejects on any ".." segment -- but checking it again
+        # here, explicitly, is cheap defense-in-depth rather than relying
+        # solely on that upstream filter never changing.
+        has_traversal_segment = ".." in path.replace("\\", "/").split("/")
+        if has_traversal_segment or not _SAFE_MUTATION_PATH_RE.fullmatch(path):
             # Cannot be registered as a WorkNode.mutation_surface path at
             # all (see materialize.py) -- escalate rather than silently
             # drop it from an O1-authorized surface.

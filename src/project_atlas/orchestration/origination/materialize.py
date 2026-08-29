@@ -76,6 +76,15 @@ def risk_tags_for(classification: RiskClassification) -> tuple[RiskTag, ...]:
     return tags[:8]  # WorkNode.risk_tags max_length=8
 
 
+class MaterializationError(ValueError):
+    code = "MATERIALIZATION_ERROR"
+
+    def __init__(self, message: str, *, code: str | None = None) -> None:
+        super().__init__(message)
+        if code is not None:
+            self.code = code
+
+
 def materialize_work_node(
     proposal: OriginationProposal,
     classification: RiskClassification,
@@ -87,7 +96,31 @@ def materialize_work_node(
     cleared the policy gate, or is being materialized precisely because
     it did *not* clear it -- OWNER_HELD nodes are still materialized, just
     routed straight to ``owner_gate``) into a real ``WorkNode``.
+
+    ``classification`` is expected to have been derived from THIS
+    proposal's own ``proposed_scope``/``success_criteria`` (i.e.
+    ``risk.classify(proposed_scope=proposal.proposed_scope,
+    success_criteria=proposal.success_criteria, ...)``). IV round-2
+    hardening note (D-PHASE2A): this function previously trusted that
+    pairing without checking it -- a caller that passed a mismatched
+    O1 ``classification`` alongside a proposal whose ``proposed_scope``
+    actually contains an unsafe/unrepresentable path could still produce
+    an O1 node with that path silently absent from its mutation surface.
+    The one real call site in this repository always pairs them
+    correctly, but this function now fails closed on the mismatch itself
+    rather than relying solely on caller discipline.
     """
+    if classification.risk_class == RiskClass.O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION:
+        for path in proposal.proposed_scope:
+            has_traversal_segment = ".." in path.replace("\\", "/").split("/")
+            if has_traversal_segment or not _SAFE_MUTATION_PATH_RE.fullmatch(path):
+                raise MaterializationError(
+                    f"classification claims O1 but proposed_scope contains "
+                    f"{path!r}, which risk.classify() would flag as "
+                    "UNSAFE_MUTATION_PATH -- classification does not match "
+                    "this proposal's own proposed_scope",
+                    code="CLASSIFICATION_PROPOSAL_MISMATCH",
+                )
     owner_gate = owner_gate_for(classification)
     acceptance_criteria = proposal.success_criteria[:_MAX_ACCEPTANCE_CRITERIA]
     # WorkNode.mutation_surface.paths must satisfy the same safe-relative-

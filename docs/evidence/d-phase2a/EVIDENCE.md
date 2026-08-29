@@ -196,9 +196,34 @@ Two findings, both remediated (see git history, commit
    a dedicated parametrized regression test.
 
 **Round 2** (fresh subagent, scoped to re-verifying only the two
-remediations above, adversarial): see the final return packet for this
-round's verdict — dispatched after the fixes above; not yet complete at
-the time this paragraph was written.
+round-1 remediations, adversarial): **CONFIRMED WITH MINOR NOTES**.
+Independently confirmed both fixes are real code changes (diffed the
+commit against its parent), re-ran all 63 tests + ruff + mypy (all
+clean), and re-ran the 3-process demo from scratch, diffing the fresh
+receipts against the committed reference receipts field-by-field
+(byte-identical except expected non-deterministic wall-clock/hash
+fields) — the real Gamma/TASK-017 case is unaffected by either fix, as
+claimed. Constructed a live counter-example proving `materialize_work_node()`
+did not itself verify that a caller-supplied `classification` was
+actually derived from the same proposal's `proposed_scope` (not
+exploitable via the one real call site in this repo, which always pairs
+them correctly, but a real API-contract gap). Also flagged that
+`_SAFE_MUTATION_PATH_RE` is character-class-only and would in isolation
+accept a `../` traversal segment (saved today only by
+`_evidence_exists()`'s upstream `..`-segment rejection).
+
+**Post-round-2 hardening** (applied directly, not re-verified by a
+third dedicated IV agent — see the final return packet for why):
+`materialize_work_node()` now explicitly re-checks that an O1
+`classification` is consistent with the proposal's own `proposed_scope`
+and fails closed with `MaterializationError`/`CLASSIFICATION_PROPOSAL_MISMATCH`
+if not (new test: `test_materialize_rejects_mismatched_o1_classification`,
+directly encoding IV round 2's own counter-example). `risk.classify()`
+now also explicitly rejects any `proposed_scope` entry containing a
+`..` path segment, independent of the upstream `_evidence_exists()`
+filter. Re-ran the full local test suite (64 passed), ruff, mypy, and
+the 3-process demo after this change — all clean, real Gamma/TASK-017
+outcome unchanged.
 
 ## CI_RECEIPT
 

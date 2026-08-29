@@ -1,11 +1,11 @@
 {
-  "evidence_sha256": "334c7f545c9c6c85a4da93a262717f86bc15d27f4e59d5efbf92b27158c007ba",
+  "evidence_sha256": "d91adb4895a2660fa96bc2c7a1585ab0b5d84c0a4a60336b5cab6df7f25a7cbe",
   "final_node_state": "CERTIFIED",
   "implementer_equals_verifier": false,
   "lease_released": true,
   "process": "B",
   "pytest_returncode": 0,
-  "pytest_summary_line": "93 passed in 0.54s",
+  "pytest_summary_line": "93 passed in 0.57s",
   "rehydrated_from_disk": true,
   "result": "RECOVERED_EXECUTED_VERIFIED_COMPLETED",
   "verification_method": "real pytest subprocess against lease.worktree",

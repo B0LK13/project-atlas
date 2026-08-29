@@ -569,6 +569,30 @@ def test_materialize_o1_produces_in_process_work_node(tmp_path: Path) -> None:
     assert node.execution_authorized is False
 
 
+def test_materialize_rejects_mismatched_o1_classification(tmp_path: Path) -> None:
+    """IV round-2 finding (D-PHASE2A): a caller-supplied ``classification``
+    claiming O1 alongside a proposal whose own ``proposed_scope`` contains
+    an unsafe path must fail closed, not silently narrow the registered
+    mutation surface."""
+    outcomes = _originate_synthetic(tmp_path)
+    proposal = outcomes[0].proposal
+    unsafe_proposal = proposal.model_copy(
+        update={"proposed_scope": (*proposal.proposed_scope, "src/foo bar.py")}
+    )
+    mismatched_classification = risk.RiskClassification(
+        risk_class=RiskClass.O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION,
+        disqualifying_attributes=(),
+    )
+    with pytest.raises(materialize.MaterializationError) as exc_info:
+        materialize.materialize_work_node(
+            unsafe_proposal,
+            mismatched_classification,
+            base_pin="a" * 40,
+            surface_id="demo-project-feature-x",
+        )
+    assert exc_info.value.code == "CLASSIFICATION_PROPOSAL_MISMATCH"
+
+
 def test_materialize_owner_held_sets_owner_gate() -> None:
     from project_atlas.orchestration.origination.risk import (
         DisqualifyingAttribute,
