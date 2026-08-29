@@ -154,11 +154,51 @@ unit tests confirm the O1/OWNER_HELD boundary for `.github/workflows`,
 `requirements.txt`, `pyproject.toml`, `package.json`, `Dockerfile`,
 `infra/`, `.env`, `src/auth/`, `migrations/`.
 
+**`UNSAFE_MUTATION_PATH` (added post-IV-round-1)**: every `proposed_scope`
+entry is also checked against `MutationSurface`'s own safe-path pattern
+before any fragment check runs; a path that cannot be registered as an
+authorized `WorkNode.mutation_surface` entry at all now forces
+`OWNER_HELD` rather than being silently dropped from an O1 node's
+registered surface. 4 parametrized unit tests
+(`test_risk_classifier_escalates_unsafe_mutation_paths_instead_of_dropping_them`)
+confirm this for a leading dot, a leading underscore, an embedded space,
+and a non-ASCII character.
+
 ## IV_REPORT
 
-_Appended after the independent verification pass returns — see the
-final return packet for the summary verdict and this file's own git
-history for the full report once added._
+**Round 1** (fresh subagent, no self-certification, adversarial review of
+the full origination package + rehydration.py extension + demo +
+receipts): **CONFIRMED WITH MINOR NOTES**. Independently re-ran every
+test (58/58 passed), `ruff`/`mypy` (clean), and the 3-process demo from
+scratch (`rm -rf` + fresh run), matching the checked-in receipts field
+by field. Confirmed `TASK_017_SPECIAL_CASES = 0` by direct grep (only
+docstring prose, no code path). Confirmed `AI_INVENTED_WORK` is
+structurally unreachable (Pydantic-level, not prompt-level). Confirmed
+the rehydration extension is byte-identical-by-default (20/20 existing
+pilot tests unaffected) and independently spot-checked the real
+implementation worktree (93 passed, 0 skipped; the dependency-cycle
+detector is a genuine DFS, not a stub).
+
+Two findings, both remediated (see git history, commit
+`fix(origination): address independent-IV findings on D-PHASE2A`):
+
+1. ADR-033 overclaimed a rehydration digest-hash-mismatch fail-closed
+   check that did not exist in code. **Fixed**: ADR corrected to
+   accurately describe schema-validation-only rehydration and explain
+   why full digest re-verification is deferred (would require durably
+   recording the project root, not done in this wave).
+2. `materialize.py` silently dropped an unsafe/unusual `proposed_scope`
+   path from an O1 node's *registered* mutation surface instead of
+   escalating (a scope-understatement risk). **Fixed**: the same
+   safe-path check moved into `risk.classify()` as a new
+   `UNSAFE_MUTATION_PATH` disqualifying attribute — an unrepresentable
+   path now forces `OWNER_HELD` before `materialize.py` ever runs, with
+   a dedicated parametrized regression test.
+
+**Round 2** (fresh subagent, scoped to re-verifying only the two
+remediations above, adversarial): see the final return packet for this
+round's verdict — dispatched after the fixes above; not yet complete at
+the time this paragraph was written.
 
 ## CI_RECEIPT
 
