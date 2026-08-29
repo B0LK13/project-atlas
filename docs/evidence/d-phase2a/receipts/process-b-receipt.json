@@ -1,0 +1,15 @@
+{
+  "evidence_sha256": "d4e3404f462fec5b6f3ffc8f9036741713449a2d12305476a3af434c3de1c088",
+  "final_node_state": "CERTIFIED",
+  "implementer_equals_verifier": false,
+  "lease_released": true,
+  "process": "B",
+  "pytest_returncode": 0,
+  "pytest_summary_line": "93 passed in 0.56s",
+  "rehydrated_from_disk": true,
+  "result": "RECOVERED_EXECUTED_VERIFIED_COMPLETED",
+  "verification_method": "real pytest subprocess against lease.worktree",
+  "verification_passed": true,
+  "verifier_id": "governor-pilot-iv",
+  "work_id": "ORIG-8e5fc3e94f6f0005"
+}

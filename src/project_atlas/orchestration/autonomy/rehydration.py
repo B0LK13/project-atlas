@@ -109,6 +109,7 @@ def rehydrate_governor(
     trusted: TrustedAnchorRecord,
     loop_store: Path,
     lease_projection_store: Path,
+    origination_projection_store: Path | None = None,
 ) -> None:
     """Bring a freshly-constructed ``governor`` up to date with durable
     state a prior process persisted, or fail closed.
@@ -118,6 +119,15 @@ def rehydrate_governor(
     against ``governor.snapshot().nodes`` finds what a prior process would
     have found -- or the caller never reaches those lookups at all, because
     this function already raised.
+
+    ``origination_projection_store`` (D-PHASE2A, ADR-033): optional, and
+    ``None`` by default -- every existing caller that does not pass it
+    gets byte-identical behavior to before this parameter existed (the
+    pilot-only rehydration path). When provided, a leased package_id that
+    is not the pilot is additionally checked against the durable
+    origination projection (``orchestration.origination.projection``)
+    before falling back to the pre-existing ``NODE_NOT_REHYDRATABLE``
+    fail-closed outcome.
     """
     try:
         loop_state = load_loop_state(loop_store)
@@ -166,6 +176,7 @@ def rehydrate_governor(
         origin_node_package_id=origin_node.package_id if origin_node is not None else None,
         candidate_owner_gates={c.package_id: c.owner_gate for c in report.candidates},
         lease_projection_store=lease_projection_store,
+        origination_projection_store=origination_projection_store,
     )
 
 
@@ -207,18 +218,36 @@ def _restore_leased_node(
     origin_node_package_id: str | None,
     candidate_owner_gates: dict[str, OwnerGateKind | None],
     lease_projection_store: Path,
+    origination_projection_store: Path | None = None,
 ) -> None:
+    origination_node: WorkNode | None = None
     if package_id != PILOT_PACKAGE_ID:
-        # The governor has exactly one deterministic node factory today
-        # (the pilot node, built from inventory alone). Any other
-        # package_id's full WorkNode definition -- mutation surface,
-        # acceptance criteria, IV requirements, capabilities -- was never
-        # durably persisted anywhere, so it cannot be honestly rebuilt.
-        raise RehydrationError(
-            f"package {package_id!r} has no durable node definition to "
-            f"rehydrate from",
-            code="NODE_NOT_REHYDRATABLE",
-        )
+        # D-PHASE2A (ADR-033): the governor's one deterministic
+        # inventory-only node factory (the pilot node) is not the only
+        # source of durable truth any more. An origination-derived
+        # package's full WorkNode -- mutation surface, acceptance
+        # criteria, IV requirements, risk classification -- IS durably
+        # persisted, by ``orchestration.origination.projection``, exactly
+        # so it can be honestly rebuilt here instead of failing closed.
+        if origination_projection_store is not None:
+            from project_atlas.orchestration.origination.projection import (
+                find_materialized_work_node,
+            )
+
+            origination_node = find_materialized_work_node(
+                origination_projection_store, package_id
+            )
+        if origination_node is None:
+            # No pilot factory, and no durable origination record either
+            # (or none was even configured for this caller) -- there is
+            # genuinely nothing trustworthy to rebuild this package_id's
+            # WorkNode from. Same fail-closed outcome as before this
+            # parameter existed.
+            raise RehydrationError(
+                f"package {package_id!r} has no durable node definition to "
+                f"rehydrate from",
+                code="NODE_NOT_REHYDRATABLE",
+            )
 
     try:
         projection = load_projection(lease_projection_store)
@@ -299,17 +328,26 @@ def _restore_leased_node(
             # transition machinery (DISCOVERED -> READY) rather than
             # fabricating a node that starts life already in a state no
             # real code path produces.
-            if package_id not in candidate_owner_gates:
-                # discover()'s candidate table is the single source of
-                # truth for a pilot node's owner_gate (see discovery.py).
-                # If the package isn't even a known candidate there is
-                # nothing trustworthy to build the node's owner_gate from.
-                raise RehydrationError(
-                    f"package {package_id!r} is not a known discovery candidate",
-                    code="NODE_NOT_REHYDRATABLE",
-                )
-            owner_gate = candidate_owner_gates[package_id]
-            node = governor._pilot_node(inventory, owner_gate)
+            if origination_node is not None:
+                # D-PHASE2A: the exact WorkNode a prior process
+                # materialized and durably recorded -- not rebuilt from
+                # inventory, because it cannot be (its mutation surface,
+                # acceptance criteria, and risk classification came from
+                # real project evidence, not from anything the live
+                # inventory alone could ever reconstruct).
+                node = origination_node
+            else:
+                if package_id not in candidate_owner_gates:
+                    # discover()'s candidate table is the single source of
+                    # truth for a pilot node's owner_gate (see discovery.py).
+                    # If the package isn't even a known candidate there is
+                    # nothing trustworthy to build the node's owner_gate from.
+                    raise RehydrationError(
+                        f"package {package_id!r} is not a known discovery candidate",
+                        code="NODE_NOT_REHYDRATABLE",
+                    )
+                owner_gate = candidate_owner_gates[package_id]
+                node = governor._pilot_node(inventory, owner_gate)
             governor.add_node(node)
             governor.mark_ready(package_id)
 

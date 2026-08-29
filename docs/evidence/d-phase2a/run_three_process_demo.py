@@ -1,0 +1,343 @@
+#!/usr/bin/env python3
+"""D-PHASE2A POC runbook script: the real 3-process origination demonstration.
+
+Spawns three genuinely separate OS processes (``subprocess.run([sys.executable,
+"-c", ...])``), sharing nothing but the filesystem under ``--demo-root``:
+
+  Process A -- ORIGINATION: scans ``--origination-source`` (a real project's
+    working tree) for specification-backed work, policy-validates it,
+    materializes a WorkNode, leases it, persists everything durably, exits.
+
+  Process B -- RECOVERY + EXECUTION: a brand-new process rehydrates the
+    governor from disk (proving CROSS_PROCESS_ORIGINATION), runs the REAL
+    test suite against ``--execution-worktree`` (a real, already-implemented
+    isolated worktree -- this script does not implement anything itself;
+    the implementation is real, prior, committed work) as its verification
+    step, completes/releases the lease, marks the origination record
+    TERMINAL, exits.
+
+  Process C -- SUCCESSOR: a third brand-new process rehydrates, rescans
+    ``--origination-source`` (deliberately NOT re-pointed at the
+    implementation -- the source project's own roadmap record may still
+    say "not started"), and must correctly report NO_ELIGIBLE_WORK rather
+    than re-propose the same, already-resolved work.
+
+Every process's stdout is one JSON line: {"process": "A"|"B"|"C", ...}.
+This script writes one receipt file per process under
+``--demo-root/receipts/`` and prints a final summary.
+
+See docs/evidence/d-phase2a/POC-RUNBOOK.md for prerequisites and exact
+invocation.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+_SRC = str(Path(__file__).resolve().parents[3] / "src")
+
+
+def _run(script: str) -> dict[str, object]:
+    result = subprocess.run(
+        [sys.executable, "-c", script], check=False, capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise SystemExit(
+            f"subprocess failed (exit {result.returncode})\nSTDOUT:\n{result.stdout}\n"
+            f"STDERR:\n{result.stderr}"
+        )
+    last_line = result.stdout.strip().splitlines()[-1]
+    return json.loads(last_line)
+
+
+def _make_trust_and_inventory_repo(demo_root: Path) -> str:
+    """A throwaway git repo purely to supply the valid 40-char git-SHA
+    inventory/trust plumbing AutonomousGovernor's constructor requires.
+    This is NOT the origination source -- see --origination-source for
+    that. Idempotent: reused across all three processes."""
+    repo = demo_root / "identity-repo"
+    if not repo.exists():
+        repo.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.email", "demo@example.com"], cwd=repo, check=True)
+        subprocess.run(["git", "config", "user.name", "Demo"], cwd=repo, check=True)
+        (repo / "README.md").write_text("D-PHASE2A demo identity repo\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "update-ref", "refs/remotes/origin/main", sha], cwd=repo, check=True
+        )
+    return str(repo)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--demo-root", required=True, type=Path)
+    parser.add_argument("--origination-source", required=True, type=Path)
+    parser.add_argument("--execution-worktree", required=True, type=Path)
+    parser.add_argument("--project-id", default="atlas-showcase-gamma")
+    args = parser.parse_args()
+
+    demo_root = args.demo_root.resolve()
+    demo_root.mkdir(parents=True, exist_ok=True)
+    receipts_dir = demo_root / "receipts"
+    receipts_dir.mkdir(exist_ok=True)
+
+    repo = _make_trust_and_inventory_repo(demo_root)
+    trust_store = demo_root / "trust"
+    loop_store = demo_root / "loop"
+    lease_store = demo_root / "leases"
+    origination_store = demo_root / "origination"
+
+    origination_source = str(args.origination_source.resolve())
+    execution_worktree = str(args.execution_worktree.resolve())
+    project_id = args.project_id
+
+    # ------------------------------------------------------------------
+    # Process A -- ORIGINATION
+    # ------------------------------------------------------------------
+    process_a = f"""
+import json, sys
+sys.path.insert(0, {_SRC!r})
+from pathlib import Path
+from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.loop import initial_loop_state, persist_loop_state, seal_loop_state, LoopPhase
+from project_atlas.orchestration.autonomy.trust import initialize_store, load_runtime_anchor, seal_anchor, CANONICAL_REPOSITORY_IDENTITY
+from project_atlas.orchestration.autonomy.models import TrustedAnchorRecord, AdvancementReason
+from project_atlas.orchestration.origination import materialize, projection, risk
+from project_atlas.orchestration.origination.pipeline import originate_all
+
+repo = Path({repo!r})
+trust_store = Path({str(trust_store)!r})
+inventory = collect_live_inventory(repo)
+
+if not trust_store.exists():
+    anchor = seal_anchor(TrustedAnchorRecord(
+        repository_identity=CANONICAL_REPOSITORY_IDENTITY,
+        trusted_main=inventory.current_main, trusted_tree=inventory.current_tree,
+        predecessor_main="a"*40, predecessor_tree="b"*40,
+        advancement_reason=AdvancementReason.VERIFIED_OWNER_AUTHORIZED_MERGE,
+        source_package="AS-ORCH-AUTONOMY-001-PIN-RETARGET", source_directive="D-PHASE2A-DEMO",
+        source_pr=1, merge_commit=inventory.current_main, merge_parent_1="a"*40,
+        merge_parent_2=inventory.current_main, merge_tree=inventory.current_tree,
+        certified_head=inventory.current_main, certified_tree=inventory.current_tree,
+        certification_status="CERTIFIED", independent_verification_status="PASS",
+        post_merge_seal="PASS", post_merge_ci="PASS",
+        evidence_reference="docs/evidence/d-phase2a.json", evidence_digest="ab"*32,
+        sequence=1, record_digest="00"*32,
+    ))
+    initialize_store(trust_store, anchor)
+trusted = load_runtime_anchor(store=trust_store)
+
+outcomes = originate_all(Path({origination_source!r}), {project_id!r})
+assert len(outcomes) == 1, f"expected exactly 1 eligible item, got {{len(outcomes)}}"
+proposal, policy_result = outcomes[0].proposal, outcomes[0].policy
+assert policy_result.execution_ready, policy_result
+
+classification = risk.classify(
+    proposed_scope=proposal.proposed_scope, success_criteria=proposal.success_criteria
+)
+node = materialize.materialize_work_node(
+    proposal, classification, base_pin=inventory.current_main,
+    surface_id=proposal.project_id + "-" + proposal.work_id,
+)
+
+projection.persist_proposed(Path({str(origination_store)!r}), proposal, policy_result)
+projection.persist_materialized(Path({str(origination_store)!r}), proposal.origination_identity, node)
+
+governor = AutonomousGovernor(
+    current_main=inventory.current_main, current_tree=inventory.current_tree,
+    trusted_anchor=trusted, lease_projection_store=Path({str(lease_store)!r}),
+)
+governor.add_node(node)
+governor.mark_ready(node.package_id)
+lease = governor.lease(
+    node.package_id, "governor-pilot-local",
+    branch="phase2a-demo/" + node.package_id, worktree={execution_worktree!r},
+)
+
+state = initial_loop_state(trusted).model_copy(update={{
+    "phase": LoopPhase.LEASED, "active_package_id": node.package_id,
+    "active_lease_id": lease.lease_id, "sequence": 1,
+}})
+persist_loop_state(Path({str(loop_store)!r}), seal_loop_state(state))
+
+print(json.dumps({{
+    "process": "A", "result": "ORIGINATED_AND_LEASED",
+    "work_id": node.package_id, "title": proposal.title,
+    "origination_identity": proposal.origination_identity,
+    "risk_class": proposal.risk_class.value,
+    "execution_ready": policy_result.execution_ready,
+    "policy_reason": policy_result.reason.value,
+    "authoritative_source": proposal.authoritative_source.location,
+    "acceptance_evidence": [f.location for f in proposal.acceptance_evidence],
+    "lease_id": lease.lease_id,
+    "mutation_surface_paths": list(node.mutation_surface.paths),
+    "owner_gate": node.owner_gate.value if node.owner_gate else None,
+}}))
+"""
+    receipt_a = _run(process_a)
+    (receipts_dir / "process-a-receipt.json").write_text(
+        json.dumps(receipt_a, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    print(f"Process A: {receipt_a['result']} -- {receipt_a['work_id']} ({receipt_a['title']!r})")
+    assert receipt_a["execution_ready"] is True
+    assert receipt_a["risk_class"] == "O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION"
+    assert receipt_a["owner_gate"] is None
+
+    # ------------------------------------------------------------------
+    # Process B -- RECOVERY + EXECUTION (real pytest verification)
+    # ------------------------------------------------------------------
+    process_b = f"""
+import json, os, sys, subprocess
+sys.path.insert(0, {_SRC!r})
+from pathlib import Path
+from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.loop import initial_loop_state, persist_loop_state, seal_loop_state, LoopPhase
+from project_atlas.orchestration.autonomy.rehydration import rehydrate_governor
+from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+from project_atlas.orchestration.autonomy.models import NodeState
+from project_atlas.orchestration.origination import projection
+
+repo = Path({repo!r})
+trusted = load_runtime_anchor(store=Path({str(trust_store)!r}))
+inventory = collect_live_inventory(repo)
+
+governor = AutonomousGovernor(
+    current_main=inventory.current_main, current_tree=inventory.current_tree,
+    trusted_anchor=trusted, lease_projection_store=Path({str(lease_store)!r}),
+)
+assert governor.snapshot().nodes == (), "Process B must start with an empty in-memory governor"
+
+rehydrate_governor(
+    governor, inventory=inventory, trusted=trusted,
+    loop_store=Path({str(loop_store)!r}), lease_projection_store=Path({str(lease_store)!r}),
+    origination_projection_store=Path({str(origination_store)!r}),
+)
+snapshot = governor.snapshot()
+node = next(n for n in snapshot.nodes if n.state == NodeState.LEASED)
+lease = next(l for l in snapshot.leases if l.package_id == node.package_id and l.active)
+package_id = node.package_id
+
+# Real IN_PROCESS execution: the bounded implementation work already
+# happened (this script does not write any implementation code -- see
+# docs/evidence/d-phase2a/POC-RUNBOOK.md for the prior, separately
+# committed implementation step). execute_leased() records the real
+# transition to ACTIVE and an evidence bundle over the real lease.
+bundle = governor.execute_leased(lease.lease_id)
+
+# REAL verification: run the actual project test suite in the worktree
+# the lease itself points at -- not a hardcoded pass.
+verify_env = dict(os.environ)
+verify_env["PYTHONPATH"] = str(Path(lease.worktree) / "src")
+pytest_result = subprocess.run(
+    [sys.executable, "-m", "pytest", "tests/", "-q", "--no-header", "--color=no"],
+    cwd=lease.worktree, env=verify_env,
+    capture_output=True, text=True,
+)
+verification_passed = pytest_result.returncode == 0
+
+verifier = governor.route_and_verify(package_id, implementer_id=lease.agent_id)
+governor.complete_verification(package_id, passed=verification_passed)
+released = governor.release_lease(lease.lease_id)
+
+final_node = next(n for n in governor.snapshot().nodes if n.package_id == package_id)
+projection.mark_terminal(
+    Path({str(origination_store)!r}), {receipt_a["origination_identity"]!r},
+    node_state=final_node.state.value,
+)
+
+state = initial_loop_state(trusted).model_copy(update={{"phase": LoopPhase.IDLE, "sequence": 2}})
+persist_loop_state(Path({str(loop_store)!r}), seal_loop_state(state))
+
+print(json.dumps({{
+    "process": "B", "result": "RECOVERED_EXECUTED_VERIFIED_COMPLETED",
+    "work_id": package_id,
+    "rehydrated_from_disk": True,
+    "verification_method": "real pytest subprocess against lease.worktree",
+    "pytest_returncode": pytest_result.returncode,
+    "pytest_summary_line": pytest_result.stdout.strip().splitlines()[-1] if pytest_result.stdout.strip() else "",
+    "verification_passed": verification_passed,
+    "verifier_id": verifier,
+    "implementer_equals_verifier": verifier == lease.agent_id,
+    "final_node_state": final_node.state.value,
+    "evidence_sha256": bundle.payload_sha256,
+    "lease_released": not released.active,
+}}))
+"""
+    receipt_b = _run(process_b)
+    (receipts_dir / "process-b-receipt.json").write_text(
+        json.dumps(receipt_b, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    print(
+        f"Process B: {receipt_b['result']} -- pytest {receipt_b['pytest_summary_line']!r} "
+        f"-> final_node_state={receipt_b['final_node_state']}"
+    )
+    assert receipt_b["verification_passed"] is True
+    assert receipt_b["implementer_equals_verifier"] is False
+    assert receipt_b["final_node_state"] == "CERTIFIED"
+
+    # ------------------------------------------------------------------
+    # Process C -- SUCCESSOR (rescan real evidence, correct NO_ELIGIBLE_WORK)
+    # ------------------------------------------------------------------
+    process_c = f"""
+import json, sys
+sys.path.insert(0, {_SRC!r})
+from pathlib import Path
+from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.rehydration import rehydrate_governor
+from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+from project_atlas.orchestration.origination.pipeline import originate_all, originate_new_only
+
+repo = Path({repo!r})
+trusted = load_runtime_anchor(store=Path({str(trust_store)!r}))
+inventory = collect_live_inventory(repo)
+
+governor = AutonomousGovernor(
+    current_main=inventory.current_main, current_tree=inventory.current_tree,
+    trusted_anchor=trusted, lease_projection_store=Path({str(lease_store)!r}),
+)
+rehydrate_governor(
+    governor, inventory=inventory, trusted=trusted,
+    loop_store=Path({str(loop_store)!r}), lease_projection_store=Path({str(lease_store)!r}),
+    origination_projection_store=Path({str(origination_store)!r}),
+)
+
+raw = originate_all(Path({origination_source!r}), {project_id!r})
+deduped = originate_new_only(Path({origination_source!r}), {project_id!r}, Path({str(origination_store)!r}))
+
+print(json.dumps({{
+    "process": "C", "rehydrated_from_disk": True,
+    "raw_scan_count": len(raw),
+    "raw_scan_still_shows_source_as_eligible": len(raw) > 0,
+    "deduped_new_eligible_count": len(deduped),
+    "result": "NO_ELIGIBLE_WORK" if len(deduped) == 0 else "NEW_WORK_FOUND",
+}}))
+"""
+    receipt_c = _run(process_c)
+    (receipts_dir / "process-c-receipt.json").write_text(
+        json.dumps(receipt_c, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    print(
+        f"Process C: {receipt_c['result']} "
+        f"(raw rescan still shows {receipt_c['raw_scan_count']} item(s) eligible per stale "
+        f"source record; correctly deduped to {receipt_c['deduped_new_eligible_count']})"
+    )
+    assert receipt_c["result"] == "NO_ELIGIBLE_WORK"
+
+    print("\nAll three processes completed. Receipts written under:", receipts_dir)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

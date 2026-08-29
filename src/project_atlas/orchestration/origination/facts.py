@@ -1,0 +1,74 @@
+"""Source facts — the only inputs an origination proposal may cite.
+
+A ``SourceFact`` is a small, bounded, deterministic pointer into a real
+file that already existed in a project's repository before Atlas ran.
+Nothing here ever executes project code, calls an LLM, or invents a fact
+from prose interpretation -- extraction (``adapter.py``) is regex/JSON
+parsing only.
+"""
+
+from __future__ import annotations
+
+import re
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_REL_PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$")
+_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+_PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+class SourceFactKind(StrEnum):
+    """Closed vocabulary. A third kind is a deliberate future extension,
+    never silently inferred from unstructured prose."""
+
+    AUTHORITATIVE_ROADMAP_ITEM = "AUTHORITATIVE_ROADMAP_ITEM"
+    CORROBORATING_SPEC_TEST = "CORROBORATING_SPEC_TEST"
+
+
+class SourceFact(BaseModel):
+    """One deterministic, bounded pointer into real project evidence."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: SourceFactKind
+    project_id: str = Field(min_length=1, max_length=128)
+    location: str = Field(
+        min_length=1,
+        max_length=256,
+        description="Path relative to the project root. Never absolute, never '..'.",
+    )
+    content_digest: str = Field(
+        min_length=64,
+        max_length=64,
+        description="sha256 of the exact bytes read when this fact was extracted.",
+    )
+    excerpt: str = Field(
+        max_length=1024,
+        description="Bounded excerpt for provenance auditing. Never the full file.",
+    )
+
+    @field_validator("project_id")
+    @classmethod
+    def _project_id(cls, value: str) -> str:
+        if not _PROJECT_ID_RE.fullmatch(value):
+            raise ValueError("project_id must be a safe identifier")
+        return value
+
+    @field_validator("location")
+    @classmethod
+    def _location(cls, value: str) -> str:
+        posix = value.replace("\\", "/").lstrip("./")
+        if not posix or ".." in posix.split("/") or posix.startswith("/"):
+            raise ValueError("location must be a safe relative path")
+        if not _REL_PATH_RE.fullmatch(posix):
+            raise ValueError("location must be a safe relative path")
+        return posix
+
+    @field_validator("content_digest")
+    @classmethod
+    def _digest(cls, value: str) -> str:
+        if not _HASH_RE.fullmatch(value):
+            raise ValueError("content_digest must be a sha256 hex digest")
+        return value

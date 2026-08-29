@@ -1,0 +1,8 @@
+{
+  "deduped_new_eligible_count": 0,
+  "process": "C",
+  "raw_scan_count": 1,
+  "raw_scan_still_shows_source_as_eligible": true,
+  "rehydrated_from_disk": true,
+  "result": "NO_ELIGIBLE_WORK"
+}

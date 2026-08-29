@@ -1,0 +1,146 @@
+"""O1 risk classification — observable attributes only, never LLM judgment.
+
+``classify()`` looks at what the proposal's declared ``proposed_scope``
+actually touches and returns O1 only when every disqualifying attribute
+is absent. Any single disqualifier routes to OWNER_HELD. This mirrors
+the directive's explicit instruction: "Do not ask an LLM to freely decide
+whether a task is safe."
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from project_atlas.orchestration.origination.proposal import RiskClass
+
+#: Path fragments that, if any proposed_scope entry touches them, force
+#: OWNER_HELD. Deliberately broad and conservative -- a false positive
+#: (an O1-eligible change routed to OWNER_HELD) is safe; a false negative
+#: is not.
+_DISQUALIFYING_PATH_FRAGMENTS: tuple[str, ...] = (
+    ".github/workflows",  # WORKFLOW_CHANGE
+    ".github/",  # WORKFLOW_CHANGE (broader CI/governance surface)
+    "requirements.txt",
+    "pyproject.toml",
+    "package.json",
+    "package-lock.json",
+    "poetry.lock",
+    "Pipfile",
+    "go.mod",
+    "Cargo.toml",  # DEPENDENCY_CHANGE
+    "Dockerfile",
+    "docker-compose",
+    "infra/",
+    "terraform/",
+    "deploy/",
+    "deployment/",  # DEPLOYMENT_EFFECT
+    ".env",
+    "secrets",
+    "credentials",  # CREDENTIAL_REQUIREMENT
+    "auth",
+    "security",
+    "permission",  # SECURITY_SURFACE
+    "migration",
+    "migrations/",  # IRREVERSIBLE_MIGRATION
+)
+
+
+class DisqualifyingAttribute(StrEnum):
+    DEPENDENCY_CHANGE = "DEPENDENCY_CHANGE"
+    WORKFLOW_CHANGE = "WORKFLOW_CHANGE"
+    SECURITY_SURFACE = "SECURITY_SURFACE"
+    CREDENTIAL_REQUIREMENT = "CREDENTIAL_REQUIREMENT"
+    DEPLOYMENT_EFFECT = "DEPLOYMENT_EFFECT"
+    DATA_MUTATION = "DATA_MUTATION"
+    EXTERNAL_SIDE_EFFECT = "EXTERNAL_SIDE_EFFECT"
+    OUT_OF_SPECIFICATION_COVERAGE = "OUT_OF_SPECIFICATION_COVERAGE"
+
+
+class RiskClassification(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    risk_class: RiskClass
+    disqualifying_attributes: tuple[DisqualifyingAttribute, ...] = Field(
+        default_factory=tuple, max_length=8
+    )
+
+
+def classify(
+    *,
+    proposed_scope: tuple[str, ...],
+    success_criteria: tuple[str, ...],
+    requires_external_spend: bool = False,
+    requires_history_rewrite: bool = False,
+    scope_exceeds_specification: bool = False,
+) -> RiskClassification:
+    """Classify O1 eligibility from observable attributes only.
+
+    ``requires_external_spend`` / ``requires_history_rewrite`` /
+    ``scope_exceeds_specification`` are explicit boolean inputs the caller
+    must supply from its own deterministic check (e.g. "did the executor
+    plan touch a file outside proposed_scope"), never inferred here from
+    free text.
+    """
+    disqualifiers: list[DisqualifyingAttribute] = []
+
+    for path in proposed_scope:
+        lowered = path.lower()
+        if any(fragment.lower() in lowered for fragment in _DISQUALIFYING_PATH_FRAGMENTS):
+            for fragment in _DISQUALIFYING_PATH_FRAGMENTS:
+                if fragment.lower() in lowered:
+                    disqualifiers.append(_attribute_for_fragment(fragment))
+                    break
+
+    if requires_external_spend:
+        disqualifiers.append(DisqualifyingAttribute.EXTERNAL_SIDE_EFFECT)
+    if requires_history_rewrite:
+        disqualifiers.append(DisqualifyingAttribute.DATA_MUTATION)
+    if scope_exceeds_specification:
+        disqualifiers.append(DisqualifyingAttribute.OUT_OF_SPECIFICATION_COVERAGE)
+    if not success_criteria:
+        # No success criteria at all means nothing bounds the
+        # implementation -- unbounded scope is itself a disqualifier.
+        disqualifiers.append(DisqualifyingAttribute.OUT_OF_SPECIFICATION_COVERAGE)
+
+    deduped = tuple(dict.fromkeys(disqualifiers))
+    if deduped:
+        return RiskClassification(risk_class=RiskClass.OWNER_HELD, disqualifying_attributes=deduped)
+    return RiskClassification(
+        risk_class=RiskClass.O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION,
+        disqualifying_attributes=(),
+    )
+
+
+def _attribute_for_fragment(fragment: str) -> DisqualifyingAttribute:
+    if fragment in {".github/workflows", ".github/"}:
+        return DisqualifyingAttribute.WORKFLOW_CHANGE
+    if fragment in {
+        "requirements.txt",
+        "pyproject.toml",
+        "package.json",
+        "package-lock.json",
+        "poetry.lock",
+        "Pipfile",
+        "go.mod",
+        "Cargo.toml",
+    }:
+        return DisqualifyingAttribute.DEPENDENCY_CHANGE
+    deployment_fragments = {
+        "Dockerfile",
+        "docker-compose",
+        "infra/",
+        "terraform/",
+        "deploy/",
+        "deployment/",
+    }
+    if fragment in deployment_fragments:
+        return DisqualifyingAttribute.DEPLOYMENT_EFFECT
+    if fragment in {".env", "secrets", "credentials"}:
+        return DisqualifyingAttribute.CREDENTIAL_REQUIREMENT
+    if fragment in {"auth", "security", "permission"}:
+        return DisqualifyingAttribute.SECURITY_SURFACE
+    if fragment in {"migration", "migrations/"}:
+        return DisqualifyingAttribute.DATA_MUTATION
+    return DisqualifyingAttribute.OUT_OF_SPECIFICATION_COVERAGE  # pragma: no cover - defensive
