@@ -168,8 +168,8 @@ a grant of automatic merge authority.
 GOVERNED_ORCHESTRATION_STACK = ACTIVE
 GOVERNED_AUTONOMY_ACTIVE = PARTIAL
 OWNER_GATE_ENFORCEMENT_AT_SELECTION_LEASE_EXECUTION = YES (verified)
-GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_ORIGINATION = NOT_FUNCTIONAL (D-204)
-GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_RECOVERY = NOT_FUNCTIONAL (D-204)
+GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_ORIGINATION = NOT_FUNCTIONAL (unproven; see 2026-08-29 update)
+GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_RECOVERY = FUNCTIONAL (2026-08-29, see update below)
 LOOP_CAN_BYPASS_OWNER_GATE = NO
 LOOP_CAN_AUTHORIZE_MERGE = NO
 ```
@@ -177,7 +177,42 @@ LOOP_CAN_AUTHORIZE_MERGE = NO
 `GOVERNED_AUTONOMY_ACTIVE = PARTIAL` is the accurate summary: the
 governance/authority boundary (what this record's own preconditions
 verified) is live and correct; the loop's operational reach as a real,
-repeatable CLI command is not yet functional beyond a single process's
-lifetime, per D-204. "Activation" here authorized what was actually
+repeatable CLI command was not yet functional beyond a single process's
+lifetime, per D-204 — the update below covers exactly one of the two
+gaps D-204 found. "Activation" here authorized what was actually
 verified — it did not, and should not be read to, certify
 `governor-loop-tick` as production-usable end to end.
+
+## UPDATE (2026-08-29): ORCH001E-011 closes the recovery half of D-204
+
+`ORCH001E-011` (PR #638) implements real governor/lease rehydration in
+`rehydration.py`, reusing the existing `AS-ORCH-DURABLE-LEASE-PROJECTION-001`
+projection (no second, competing persisted-DAG model). This closes the
+`GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_RECOVERY` gap D-204 identified, and
+does so with the same class of proof D-204 itself demanded: not a unit test
+against in-memory objects, but `test_real_subprocess_recovers_leased_pilot_node_after_crash`
+-- two genuinely separate OS processes (`subprocess.run([sys.executable, "-c", ...])`),
+the first leasing a node and exiting mid-flight (the crash window), the
+second a fresh `python -m` invocation of the real `run_governor_loop_tick()`
+CLI entrypoint recovering and completing it. Independently re-run
+2026-08-29 (not merely re-trusted from the PR): **PASS**.
+
+`GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_ORIGINATION` is **not** upgraded by
+this update, and this is a deliberate, evidence-based distinction, not an
+oversight: ORCH001E-011 also fixed the origination code path itself
+(`_originate()` now runs the READY transition after `ingest_discovery()`,
+matching `run_controlled_pilot()`'s existing behavior), but this cannot be
+demonstrated end-to-end today because the real `discover()` implementation
+has never returned an eligible non-pilot candidate -- every hardcoded
+candidate in `discovery.py` is `eligible=False` (see
+`test_originate_marks_newly_discovered_node_ready`'s own docstring, which
+states this plainly and monkeypatches `discover()` to prove the origination
+*logic* in isolation instead). So: the origination bug is fixed, but
+cross-process origination of genuinely new work remains unproven, not
+merely unfixed -- a real `discover()` capable of finding eligible non-pilot
+work is a separate, larger piece of scope, not part of ORCH001E-011.
+
+`GOVERNED_AUTONOMY_ACTIVE` stays `PARTIAL` for exactly this reason -- this
+update does not claim `FULL`, only that one of D-204's two named gaps is
+now genuinely closed and independently re-verified, and the other remains
+open and precisely characterized rather than left stale.
