@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from atlas_contracts.identity import safe_relative_component
+from atlas_contracts.identity import ensure_under_root, safe_relative_component
 from project_atlas.project_brief import ProjectBriefError, build_project_brief
 
 PACKAGE_ID = "AS-CODER-ALPHA-OBSIDIAN-001"
@@ -35,7 +35,17 @@ class ObsidianProjectionError(ValueError):
     """Fail-closed Obsidian living-projection error."""
 
 
-def _write_atomic(path: Path, content: bytes) -> None:
+def _write_atomic(path: Path, content: bytes, *, vault: Path) -> None:
+    # Defence in depth against a symlinked/junction path component already
+    # planted under the vault (e.g. a stale or tampered
+    # ``generated/obsidian/projects/<id>`` directory): re-resolve the target
+    # against ``vault`` and fail closed if it would escape the vault root,
+    # matching the ``ensure_under_root`` containment check every other Atlas
+    # write surface performs immediately before a sensitive write.
+    try:
+        ensure_under_root(vault, path, label="obsidian projection note")
+    except ValueError as exc:
+        raise ObsidianProjectionError(str(exc)) from exc
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     try:
@@ -395,13 +405,21 @@ def materialize_obsidian_projection(
             roadmap=roadmap,
         )
         path = project_note_path(vault, pid)
+        # Re-check containment before reading too: a symlinked/junction
+        # ``generated/obsidian/projects/<id>`` directory could otherwise
+        # let a stale/tampered path pull arbitrary outside content into
+        # ``existing`` before the write-side check below ever runs.
+        try:
+            ensure_under_root(vault, path, label="obsidian projection note")
+        except ValueError as exc:
+            raise ObsidianProjectionError(str(exc)) from exc
         existing = path.read_text(encoding="utf-8") if path.is_file() else None
         merged = _merge_protected_regions(
             existing=existing,
             rendered=rendered,
             path=path.relative_to(vault).as_posix(),
         )
-        _write_atomic(path, merged.encode("utf-8"))
+        _write_atomic(path, merged.encode("utf-8"), vault=vault)
         written.append(path.relative_to(vault).as_posix())
 
     receipt = {
@@ -428,6 +446,7 @@ def materialize_obsidian_projection(
     _write_atomic(
         receipt_path,
         (json.dumps(receipt, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+        vault=vault,
     )
     receipt["receipt_path"] = receipt_path.relative_to(vault).as_posix()
     return receipt

@@ -12,6 +12,7 @@ from project_atlas.connect import connect_project
 from project_atlas.obsidian_projection import (
     GENERATOR_ID,
     PACKAGE_ID,
+    ObsidianProjectionError,
     _escape_marker_tokens,
     _render_attention_section,
     _render_source_health_section,
@@ -318,3 +319,46 @@ def test_finding7_missing_source_health_fields_render_unknown_not_none() -> None
     text = "\n".join(_render_source_health_section(health))
     assert "None" not in text
     assert "UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN" in text
+
+
+# --- Post-remediation independent verification (this pass) ------------------
+
+
+def test_finding8_symlinked_project_dir_does_not_escape_vault_root(
+    tmp_path: Path,
+) -> None:
+    """Finding 8 (this IV pass, not one of the 8 bot findings): if
+    ``generated/obsidian/projects/<id>`` is (or becomes, via tampering or a
+    stale reparse point) a symlink/junction pointing outside the vault, the
+    projection must fail closed rather than silently writing the living note
+    through the link to a location outside the vault root — the same
+    ``ensure_under_root`` containment discipline every other Atlas write
+    surface applies immediately before a sensitive write (see
+    ``atlas_contracts.paths.ensure_under_root`` and its existing regression
+    coverage in ``test_sec_004_018_path_containment.py``)."""
+    import os
+    import shutil
+
+    from project_atlas.connect import connect_project
+
+    root = tmp_path / "obs-symlink-escape"
+    root.mkdir()
+    (root / "README.md").write_text("# Symlink escape fixture\n", encoding="utf-8")
+    report = connect_project(root)
+    vault = Path(report["vault"])
+    project_id = str(report["bound_project_id"])
+
+    outside = tmp_path / "outside-target"
+    outside.mkdir()
+
+    link_dir = project_note_path(vault, project_id).parent
+    shutil.rmtree(link_dir)
+    try:
+        os.symlink(str(outside), str(link_dir), target_is_directory=True)
+    except OSError as exc:  # pragma: no cover - environment without symlink privilege
+        pytest.skip(f"symlink unavailable: {exc}")
+
+    with pytest.raises(ObsidianProjectionError, match="escapes root"):
+        materialize_obsidian_projection(vault, project_id=project_id, refresh_brief=False)
+
+    assert not (outside / "project-living.md").exists()
