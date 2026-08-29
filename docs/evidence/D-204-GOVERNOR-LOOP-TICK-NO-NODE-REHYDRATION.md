@@ -139,3 +139,16 @@ This is a documentation-only correction (D-202 caveat) plus a new
 backlog item recording the gap; no source code changed by this record.
 Not self-certified in the sense of "this problem is solved" — it
 explicitly is not; it is honestly recorded as open.
+
+## UPDATE (2026-08-29)
+
+`ORCH001E-011` (PR #638) took approach (a) above (`discover()` +
+`ingest_discovery()` reused via the existing `AS-ORCH-DURABLE-LEASE-
+PROJECTION-001` lease projection, not a second persisted-DAG model) and
+closes the recovery half of this gap, independently re-verified via a
+genuine two-OS-process crash/recovery test. See `docs/backlog.md`
+`ORCH001E-011` and D-202's 2026-08-29 update for the full evidence and the
+precise scope of what remains open (cross-process *origination* of
+genuinely new, non-pilot work — separate from the recovery gap this
+document originally found, and still not demonstrated end-to-end because
+`discover()` itself has no real eligible candidates yet).
