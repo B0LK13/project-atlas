@@ -115,33 +115,79 @@ flags here to force this exercise to "succeed" would have been exactly
 the kind of scope-widening the bounding directive for this task explicitly
 forbade ("Do not weaken acceptance criteria"; "no scope expansion").
 
+## UPDATE (2026-08-29, same day): owner interactively trusted a dedicated workspace — third dispatch reaches the real API
+
+The owner interactively ran `cursor-agent` once against a newly created,
+dedicated `D:\atlas-cursor-acceptance` directory and chose to trust it.
+Independently verified before proceeding (not taken on the owner's word
+alone): `%USERPROFILE%\.cursor\projects\D-atlas-cursor-acceptance\.workspace-trusted`
+exists, contains `{"trustedAt": "2026-08-29T10:53:27.104Z", "workspacePath":
+"D:\\atlas-cursor-acceptance"}` — exact path match — and a `worker.log`
+sits alongside it, consistent with a real interactive session having run
+there.
+
+A third real dispatch was made, identical in every respect to the first
+two (same `build_launch_plan`/`SubprocessProcessRunner` code, same
+`ask`-mode/no-force plan, same trivial bounded prompt, 90s timeout) except
+`cwd` was this now-trusted workspace instead of a fresh throwaway
+directory:
+
+```
+WORKSPACE_CONTENTS_BEFORE = []
+PLAN_CURSOR_MODE = ask
+PLAN_USES_FORCE = False
+EXIT_CODE = 1
+TIMED_OUT = False
+DURATION_MS = 12151   # up from ~3700-7100ms on the trust-rejected runs --
+                       # consistent with actually reaching the network this time
+STDOUT = <empty>
+STDERR = "ActionRequiredError: Increase limits for faster responses
+           You're out of usage. Switch to Auto, or ask your admin to
+           increase your limit to continue."
+WORKSPACE_CONTENTS_AFTER = []   # unchanged; ask-mode did not write anything
+```
+
+This is real, forward progress, not a repeat of the same blocker: the
+`Workspace Trust Required` prompt is gone entirely — the process ran past
+it, authenticated, and reached Cursor's real cloud service, which returned
+a genuine, structured account-level error. This is a billing/usage-limit
+constraint on the owner's actual Cursor account (`Switch to Auto, or ask
+your admin to increase your limit`) — squarely an account/spend decision,
+which this pass did not attempt to route around, retry against, or absorb
+cost for on the owner's behalf without being asked. No forbidden flag was
+used in any of the three dispatches across this whole record.
+
 ## Honest classification
 
 ```
-ORCH001D_012_DISPATCH_ATTEMPTED = YES (genuine, two real subprocess runs)
-ORCH001D_012_RESPONSE_RECEIVED = NO
-ORCH001D_012_BLOCKER = WORKSPACE_TRUST_REQUIRED (vendor CLI precondition, not an Atlas defect)
+ORCH001D_012_DISPATCH_ATTEMPTED = YES (genuine, three real subprocess runs across two sessions)
+ORCH001D_012_WORKSPACE_TRUST_GATE = PASSED (2026-08-29, owner-authorized interactive trust, independently confirmed)
+ORCH001D_012_RESPONSE_RECEIVED = NO (account usage limit, not a transport/trust failure)
+ORCH001D_012_BLOCKER = ACCOUNT_USAGE_LIMIT (owner's Cursor account/plan, not an Atlas defect, not a code gap)
 ORCH001D_012_ACCEPTANCE = NOT_YET_SATISFIED
 TRANSPORT_LAYER_BEHAVED_CORRECTLY = YES (resolved real executable, built a
   correctly-bounded ask-mode/no-force plan, launched a real process,
-  captured real bounded output, never used a forbidden flag)
+  reached the real Cursor API this time, captured a real structured error,
+  never used a forbidden flag)
 FORBIDDEN_FLAG_USED = NO
 ```
 
 ## What would actually close this
 
-Not a code change to Atlas. An interactive `cursor-agent` session (a human,
-or an agent running interactively rather than under `--print`) choosing
-"trust this directory" once for a specific throwaway directory, after
-which the exact same non-interactive `--print --mode ask` dispatch used
-here would run against that now-trusted directory without needing any
-forbidden flag. That interactive step is outside what this pass can
-perform on its own — it requires the same kind of one-time human consent
-gate as any other IDE/tool's first-run trust prompt.
+An owner decision on Cursor account usage/plan (switch to Auto, or raise
+the account's limit) — not a code change to Atlas, and not something this
+pass will attempt to work around. Once usage is available again, the
+identical dispatch used here (same code path, same trusted workspace)
+should be expected to reach a real `terminal_success`/structured JSON
+response, closing `ORCH001D-012` for real. That final re-run is the only
+remaining step, and it is owner-gated on account state, not on anything
+this record can resolve autonomously.
 
 ## Certification state
 
 Documentation-only; no source code changed. Not self-certified as
-"acceptance passed" — it explicitly did not. This is the same honest,
-open-and-precisely-scoped recording convention as D-204: the gap is real,
-now exactly characterized, and left open rather than talked around.
+"acceptance passed" — it explicitly did not, twice for two different
+reasons now, both honestly recorded. This is the same open-and-precisely
+-scoped convention as D-204: real progress (workspace trust closed) is
+distinguished from what remains open (account usage), rather than either
+overclaiming success or leaving the finding vague.

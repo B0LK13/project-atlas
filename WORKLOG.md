@@ -9178,3 +9178,26 @@ non-interactive pass can perform — after which the identical
 `--print --mode ask` dispatch used here would be expected to succeed
 against that directory. No source code changed. `MERGE_AUTHORIZATION` is
 not applicable (documentation-only, no PR).
+
+## ORCH001D-012 — update: owner-trusted workspace, third dispatch reaches real API (2026-08-29)
+
+Owner interactively trusted a dedicated `D:\atlas-cursor-acceptance`
+workspace (independently confirmed via a real `.workspace-trusted` marker,
+exact `trustedAt`/`workspacePath` match, plus a `worker.log` consistent
+with a genuine interactive session). A third real dispatch, identical in
+code path/bounds to the first two, ran against it: the `Workspace Trust
+Required` blocker is gone — the process authenticated and reached Cursor's
+real cloud API, which returned a genuine account-level
+`ActionRequiredError: ... You're out of usage. Switch to Auto, or ask
+your admin to increase your limit`. This is a real billing/usage-limit
+constraint on the owner's account, not routed around or retried against.
+No forbidden flag used across any of the three dispatches. Full detail:
+`docs/evidence/D-206-...md`.
+
+### Result
+
+`ORCH001D-012` re-scoped again: `ATTEMPTED_BLOCKED_ON_WORKSPACE_TRUST` ->
+`ATTEMPTED_BLOCKED_ON_ACCOUNT_USAGE_LIMIT`. Transport and workspace-trust
+layers both now proven correct end-to-end against a real, owner-authorized
+target. What remains is an owner decision on Cursor account usage/plan --
+not an Atlas code gap. No source code changed.
