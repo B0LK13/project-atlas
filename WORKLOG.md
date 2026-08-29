@@ -9553,3 +9553,72 @@ recovery independently re-verified PASS and merged via PR #638.)
   remains an owner decision; this pass only performs the independent
   verification the PR's own body still lists as pending as of the
   commit this entry is attached to.
+
+## AS-ORIGIN-001 — Specification-backed work origination (Phase 2A-1)
+
+Per owner directive `D-PHASE2A-SPECIFICATION-BACKED-WORK-ORIGINATION`,
+scoped narrowly to `SPECIFICATION_BACKED_WORK_ORIGINATION` (explicitly
+not general "what should Atlas build next" reasoning — see
+`docs/adr/ADR-033-specification-backed-work-origination.md` for the
+authorized boundary and the deferred-semantics list).
+
+**Architecture** (ADR-033): two already-shipped pipelines existed and
+were never connected — deterministic claim extraction
+(`knowledge_compiler.py`, producing typed `Claim` objects with full
+provenance) and the Living Project Roadmap lens (`project_roadmap.py`,
+which only ever reads a hand-authored fenced record). New module
+`src/project_atlas/orchestration/origination.py` bridges them:
+extraction → evidence-quorum correlation (>=1 authoritative-intent
+signal + >=1 corroborating-acceptance signal, same subject) → a
+deterministic policy gate (no model call ever decides pass/fail) →
+conditional atomic write of a real `roadmap_items[]` record.
+`project_roadmap.py` itself is unmodified.
+
+**Adversarial suite** (`tests/unit/test_as_origin_001.py`, 22 tests):
+every negative case the directive named (TODO-only, speculative README
+ideas, contradictory evidence, already-completed/superseded work,
+owner-blocked work, missing acceptance criteria, unrelated failing
+tests, stale/cross-project evidence, malicious/instruction-like prose,
+unsupported inference) plus `NO_DUPLICATE_ORIGINATION`,
+`STABLE_WORK_IDENTITY`, `PROVENANCE_SURVIVES_RESTART`,
+`NO_CROSS_PROJECT_LEAK`, `OWNER_GATE_PRESERVED`. All executed, all pass.
+
+**Generic acceptance** (`tests/integration/test_as_origin_001_showcase_acceptance.py`,
+4 tests, real `atlas discover/ingest/build-indexes/validate` against
+read-only copies of the real `D:/Atlas-Demo` estates — that estate
+itself never touched): Alpha/Beta correctly produce zero origination
+(no evidence quorum exists for them, confirmed by real ingest, not
+assumed). Gamma: **real, unmodified `atlas ingest` also currently
+produces zero origination quorum** — traced to the deterministic
+extractor's `_LINE_RULES` requiring literal `key: value` syntax; Gamma's
+real `docs/ROADMAP.md`/`docs/REQUIREMENTS.md` are prose and extract no
+`ROADMAP_STATUS`/`WORK_PACKAGE_STATUS`/`TEST_RESULT` claims today. This
+is reported as a real, executed finding, not smoothed over. A
+separate, clearly-labeled supplementary test proves `run_origination`'s
+own policy logic — zero Gamma/TASK-017-specific code anywhere in
+`origination.py`'s production path — correctly recognizes Gamma's real
+TASK-017 evidence (the real ROADMAP.md line, the real verbatim test
+skip reason) once that evidence exists as structured claims of the form
+a richer extractor would need to produce.
+
+**Independently re-verified before this entry was written** (not taken
+on the implementing pass's own word): re-ran both test files fresh —
+26/26 passed. `ruff check` on all three new/changed files: clean.
+`mypy` on `origination.py`: clean, 0 errors.
+
+### Open design question (flagged for owner, not guessed at)
+
+Whether/how to enrich claim extraction (or add a second evidence source)
+so prose-shaped roadmap/requirements documents like Gamma's real ones
+produce structured intent/acceptance claims is out of Phase 2A-1's
+scope. The origination *policy* is proven correct and fully generic;
+the *extraction richness* gap is a distinct, precisely-characterized
+successor question, not a defect in this package, and not invented a
+fix for here.
+
+### Result
+
+`AS-ORIGIN-001 = IMPLEMENTED, NOT YET MERGED`. Phase 2A-1 only, per
+ADR-033's phasing — does not touch `orchestration/autonomy/` (governor,
+lease, dispatch). `MERGE_AUTHORIZATION` not requested by this entry;
+owner decision, same as every other PR this session.
