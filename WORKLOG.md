@@ -9181,15 +9181,28 @@ PR #638; see AS-ORCH-001E's own backlog section for the current state.)
 
 ## ORCH001D-012 — genuine acceptance attempt (2026-08-29)
 
-Owner-authorized, exact-shape attempt at the outstanding `ORCH001D-012`
-checkbox: one bounded, real `cursor-agent` dispatch via the actual
-`agent_transport.py` transport code (`build_launch_plan` +
-`SubprocessProcessRunner`, the same functions `AS-ORCH-001D` itself uses),
-not a mock. No pre-existing "ORCH001D-012 acceptance packet" document
-existed before this entry (checked `docs/` and this file first) — the
-bounds used (one dispatch, ask-mode, throwaway cwd, bounded prompt/timeout,
-no forbidden flags) came from the owner's directive, cross-checked against
-`agent_transport.py`'s own structural constants rather than invented.
+**Correction (same day, added on PR #640 before merge, after independent
+review):** this entry originally said "one bounded, real dispatch" and "no
+pre-existing acceptance packet document existed." Both wrong. A real
+packet, `docs/orch001c-010-cursor-acceptance-packet.md` (titled for
+`ORCH001D-012` despite its filename), already existed on `main` — missed
+because the search that produced "no pre-existing packet" ran against a
+stale local checkout on a different branch, not `origin/main`. Two real
+dispatches were made against the throwaway directory (not one), the
+second because this record's own capture script crashed printing the
+first result and needed a redo, not a deliberate second grant — the
+packet's own `MAX_DISPATCH_COUNT = 1` recommendation was not honored for
+that pair. Also, `--trust`/`--yolo` are not members of
+`agent_transport.FORBIDDEN_CURSOR_FLAGS` (only `-f`/`--force`/
+`--force-allow-http` are) — they simply never appear in the fixed
+allowlist `build_launch_plan()` emits from, a narrower property than
+"forbidden." Full corrected account, packet reconciliation, and a secret
+scan of the captured output: `docs/evidence/D-206-...md`.
+
+Owner-authorized attempt at the outstanding `ORCH001D-012` checkbox via
+the actual `agent_transport.py` transport code (`build_launch_plan` +
+`SubprocessProcessRunner`, the same functions `AS-ORCH-001D` itself
+uses), not a mock.
 
 **Result: `ATTEMPTED_BLOCKED_ON_WORKSPACE_TRUST`, not
 `EXTERNAL_BLOCKED`.** `resolve_cursor_transport()` found a real, logged-in
@@ -9202,11 +9215,10 @@ never-before-seen throwaway directory (`tempfile.mkdtemp()`); both exited
 `cursor-agent` itself, which requires `--trust`, `--yolo`, or `-f`/`--force`
 to run non-interactively against a directory it has not seen before — no
 separate non-interactive trust-grant subcommand exists (checked the full
-`cursor-agent --help` command list). All three of those flags are exactly
-what `agent_transport.FORBIDDEN_CURSOR_FLAGS` correctly refuses to ever
-include in a launch plan; this attempt did not use any of them, and did
-not weaken that check to force a "pass". Full transcript, argv, exit
-codes, and reasoning: `docs/evidence/D-206-ORCH001D-012-CURSOR-DISPATCH-ACCEPTANCE-ATTEMPT.md`.
+`cursor-agent --help` command list). This attempt did not use any of
+those three flags, and did not weaken any check to force a "pass". Full
+transcript, argv, exit codes, and reasoning:
+`docs/evidence/D-206-ORCH001D-012-CURSOR-DISPATCH-ACCEPTANCE-ATTEMPT.md`.
 
 ### Result
 
@@ -9219,7 +9231,7 @@ interactive trust grant for a chosen throwaway directory — outside what a
 non-interactive pass can perform — after which the identical
 `--print --mode ask` dispatch used here would be expected to succeed
 against that directory. No source code changed. `MERGE_AUTHORIZATION` is
-not applicable (documentation-only, no PR).
+not applicable (documentation-only; part of PR #640).
 
 ## ORCH001D-012 — update: owner-trusted workspace, third dispatch reaches real API (2026-08-29)
 
