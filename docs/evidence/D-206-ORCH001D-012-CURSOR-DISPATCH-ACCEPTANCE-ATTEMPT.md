@@ -208,6 +208,13 @@ ORCH001D_012_DISPATCH_COUNT_VS_PACKET = EXCEEDED for the throwaway-directory
   authorization (packet recommends exactly 1; 2 were made -- see
   correction #2). The third, separately-authorized dispatch is not
   affected by this.
+AUTHORIZATION_VARIANCE = YES (the second throwaway-directory dispatch
+  exceeded the original MAX_DISPATCH_COUNT=1 acceptance bound)
+RETROSPECTIVE_AUTHORIZATION = NO (this record does not, and will not,
+  reinterpret the original grant to make the second dispatch appear
+  authorized after the fact)
+VARIANCE_RECORDED = YES (this classification, not silence or a smoothed-
+  over description, is the record of it)
 ORCH001D_012_WORKSPACE_TRUST_GATE = PASSED (2026-08-29, owner-authorized
   interactive trust, independently confirmed against the real marker file)
 ORCH001D_012_RESPONSE_RECEIVED = NO (account usage limit, not a
@@ -230,8 +237,38 @@ TRANSPORT_LAYER_BEHAVED_CORRECTLY = YES (resolved real executable, built a
   reached the real Cursor API on the third attempt, captured a real
   structured error, never used a forbidden flag)
 FORBIDDEN_FLAG_USED = NO
+"-f / --force / --force-allow-http" = FORBIDDEN_CURSOR_FLAGS (actively
+  rejected by build_launch_plan() if present -- a real blocklist)
+"--trust / --yolo" = NOT_IN_FIXED_READ_ONLY_ALLOWLIST (never emitted
+  because the allowlist doesn't include them -- a real but different
+  mechanism than a blocklist; do not conflate the two)
 SECRET_SCAN = CLEAN (0 findings across all 4 captured raw streams, see above)
 ```
+
+## Process-control lesson (existing semantics, not a new mechanism)
+
+Why the second throwaway-directory dispatch was even possible: this
+record called `agent_transport.build_launch_plan`/`SubprocessProcessRunner`
+directly (see "Method" above — necessary because no real eligible
+`WorkNode` exists to route through the governed dispatcher, per
+`ORCH001D-012`'s own precondition problem). That bypassed the one
+mechanism `AS-ORCH-001D` already has for exactly this class of accident:
+`dispatcher.py`'s single-active-dispatch slot and its `ActiveDispatchExists`
+error — a durable record under `.atlas/orchestration/dispatcher/` that
+makes a second concurrent/duplicate `dispatch_once()` call fail closed
+automatically, no manual discipline required. Manual, one-off
+`agent_transport`-level exercises like this one have no equivalent
+guard, which is exactly the gap that let a script bug turn into an
+unauthorized second invocation.
+
+This is not a new mechanism to invent: it is a recommendation to route
+any *future* manual acceptance-style dispatch through the existing
+`dispatcher.py` record-keeping (even a throwaway/synthetic
+`DispatchRecord`, if the real governed path still can't be used because
+no eligible node exists) rather than calling the raw transport functions
+directly, so `ActiveDispatchExists` — a control that already exists —
+would catch a second invocation instead of relying on the operator not
+making the same mistake twice.
 
 ## What would actually close this
 

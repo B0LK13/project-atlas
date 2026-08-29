@@ -115,6 +115,17 @@ SUCCESSOR_WORK_AFTER_PILOT_COMPLETION = NONE_EXISTS (honest outcome, not a
   the same, single, precisely-scoped product gap already recorded in
   `docs/backlog.md`'s `ORCH001E-011` entry (`GOVERNOR_LOOP_TICK_CLI_CROSS_PROCESS_ORIGINATION`),
   not a new one.
+
+Canonical summary (do not over-promote beyond this):
+THREE_PROCESS_STATE_CONTINUITY = PROVEN
+CROSS_PROCESS_RECOVERY = PROVEN
+REAL_CROSS_PROCESS_SUCCESSOR_ORIGINATION = UNPROVEN -- a real, structured
+  "what's next" answer was obtained (the selection *mechanism* works end
+  to end), but no genuinely new, previously-unknown work was ever
+  discovered and originated across a process boundary, because none
+  exists yet for `discover()` to find. Do not read
+  CROSS_PROCESS_SUCCESSOR_SELECTION_MECHANISM = PROVEN above as
+  equivalent to this being proven -- they are different claims.
 ```
 
 ## Relationship to the still-open `_complete_validated()` gap (ORCH001E-012)
