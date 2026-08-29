@@ -247,11 +247,20 @@ completed and **passed** on at least one run. The `quality` matrix jobs
 hour on more than one run, consistent with hosted-runner capacity
 contention on this large, very active, many-branch repository rather
 than any failure — no job reported a failure at any point observed.
-**Final status as of this report: the latest run against this PR's
-final commit had not yet completed.** This is the one concrete,
-external, non-code gate still open — see the final return packet's
-`EXACT_HEAD_CI` field for the precise status at delivery time, and the
-PR's own Checks tab for the current, authoritative live state.
+**Final status: PASS.** All 4 jobs completed and passed against this
+PR's exact final commit (`a7719bf0`), run `33267780609`:
+
+| Job | Result | Duration |
+|---|---|---|
+| `control-plane` | pass | 51s |
+| `quality (ubuntu-latest, 3.12, full)` | pass | 10m29s |
+| `quality (ubuntu-latest, 3.13, compat)` | pass | 9m30s |
+| `quality (windows-latest, 3.12, windows)` | pass | 21m3s |
+
+`EXACT_HEAD_CI = PASS`, confirmed on GitHub's own hosted runners across
+the full ruff/mypy/pytest matrix on all 3 platforms this repo gates on
+(Ubuntu 3.12 full suite, Ubuntu 3.13 compatibility, Windows), plus the
+separate control-plane suite. Verified live via `gh pr checks 643`.
 
 ## POST_MERGE_SEAL
 
