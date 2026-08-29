@@ -36,6 +36,7 @@ from project_atlas.orchestration.autonomy.models import (
     MutationSurface,
     NodeState,
     OwnerGateKind,
+    RetryPolicy,
     RiskTag,
     StopReason,
     TrustedAnchorRecord,
@@ -587,6 +588,272 @@ def test_lease_replay_rejected(tmp_path: Path) -> None:
     loop.tick()
     loop._save(phase=LoopPhase.IDLE, active_package_id=None, active_lease_id=None)
     assert loop.state.completed_lease_ids
+
+
+def _dangling_validating(
+    loop: AutonomousLoop,
+    *,
+    package_id: str,
+    lease_id: str,
+    dispatch_id: str,
+) -> None:
+    """Reproduce the exact ORCH001E-012 crash window: apply_observed_
+    result()'s own first `_save(phase=VALIDATING)` persisted, but whatever
+    interrupted the call happened before its final `_save(...)` ever
+    cleared `active_dispatch_id`. Bypasses apply_observed_result() itself
+    -- exactly like the existing DISPATCHING-crash-window tests above
+    bypass _dispatch_leased() by calling `loop._save(...)` directly.
+    """
+    loop._save(
+        phase=LoopPhase.VALIDATING,
+        active_package_id=package_id,
+        active_lease_id=lease_id,
+        active_dispatch_id=dispatch_id,
+    )
+
+
+def test_validating_dangling_in_process_redrives_and_completes(tmp_path: Path) -> None:
+    """ORCH001E-012 core reproduction: before this fix, `_complete_
+    validated()` saw `active_dispatch_id is not None` and returned
+    `self._result()` verbatim -- no `_save`, no error, no progress. Phase
+    stayed `VALIDATING` forever; a caller retrying `tick()` (e.g.
+    `run_until_stop()`) would land right back here every time. Here the
+    interruption happened before any governor mutation ran (node still
+    `ACTIVE`) -- must be safe to redrive apply_observed_result() from
+    scratch and actually reach a terminal state.
+    """
+    package_id = "AS-ORCH-VALSTUCK-001"
+    gov = _governor(_node(package_id))
+    loop = _loop(tmp_path, gov)
+    lease = gov.lease(
+        package_id, loop._first_agent(), branch=loop._branch, worktree=loop._worktree
+    )
+    gov.execute_leased(lease.lease_id)  # node -> ACTIVE, mirrors _dispatch_leased()'s first step
+    dispatch_id = f"in-process:{lease.lease_id}"
+    _dangling_validating(
+        loop, package_id=package_id, lease_id=lease.lease_id, dispatch_id=dispatch_id
+    )
+    assert loop.state.phase is LoopPhase.VALIDATING
+    assert loop.state.active_dispatch_id == dispatch_id
+
+    result = loop.tick()  # must not silently no-op
+
+    assert result.phase is LoopPhase.IDLE
+    assert loop.state.active_dispatch_id is None
+    assert dispatch_id in loop.state.completed_dispatch_ids
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD}
+    # A repeated tick() on the now-IDLE loop must not re-stall either.
+    again = loop.tick()
+    assert again.phase is LoopPhase.STOPPED
+    assert again.stop_reason is StopReason.NO_ELIGIBLE_WORK
+
+
+def test_validating_dangling_after_certified_finishes_without_illegal_transition(
+    tmp_path: Path,
+) -> None:
+    """The harder half of the crash window: the interrupted
+    apply_observed_result() call got far enough to fully drive the
+    governor to a terminal verified state (CERTIFIED) before whatever
+    interrupted it -- only its own final bookkeeping `_save()` never ran.
+    Re-driving apply_observed_result() blindly here would attempt an
+    illegal `CERTIFIED -> VERIFYING` transition -- structurally the exact
+    "already-transitioned node" hazard PR #637 already closed for
+    LEASED/ACTIVE via the same check-node-state-before-redo idiom this
+    mirrors. Must finish the LoopState bookkeeping instead of repeating
+    governor mutations that already succeeded.
+    """
+    package_id = "AS-ORCH-VALSTUCK-002"
+    gov = _governor(_node(package_id))
+    loop = _loop(tmp_path, gov)
+    lease = gov.lease(
+        package_id, loop._first_agent(), branch=loop._branch, worktree=loop._worktree
+    )
+    gov.execute_leased(lease.lease_id)
+    gov.transition(package_id, NodeState.VERIFYING, "test-pre-interruption-verify")
+    gov.complete_verification(package_id, passed=True)
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.CERTIFIED  # confirms the crash window this test targets
+
+    dispatch_id = f"in-process:{lease.lease_id}"
+    _dangling_validating(
+        loop, package_id=package_id, lease_id=lease.lease_id, dispatch_id=dispatch_id
+    )
+
+    result = loop.tick()  # must not raise IllegalTransitionError
+
+    assert result.phase is LoopPhase.IDLE
+    assert dispatch_id in loop.state.completed_dispatch_ids
+    assert lease.lease_id in loop.state.completed_lease_ids
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.CERTIFIED  # untouched a second time, not corrupted
+
+
+def test_validating_dangling_external_dispatch_reobserves_before_redriving(tmp_path: Path) -> None:
+    """External dispatch never mutates the node itself (only
+    apply_observed_result() does) -- node stays LEASED all the way through
+    the crash window. Recovery must re-derive `passed` from the dispatch
+    port's own durable record (the same move `recover()` already makes
+    for DISPATCHING/AWAITING_RESULT), not trust a stale, unpersisted
+    in-memory value -- proven here by actually observing the port get
+    re-queried.
+    """
+    package_id = "AS-ORCH-VALSTUCK-003"
+    gov = _governor(_node(package_id, host=ExecutionHostClass.EXTERNAL_AGENT))
+    recover_calls: list[str] = []
+    port = CallableDispatchPort(
+        lambda _root: {"dispatch_id": "val-3", "status": "RUNNING"},
+        recover=lambda _root, dispatch_id: recover_calls.append(dispatch_id)
+        or {"status": "COMPLETED", "digest": "cc" * 32},
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()  # LEASED -> DISPATCHING -> AWAITING_RESULT
+    assert loop.state.phase is LoopPhase.AWAITING_RESULT
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.LEASED  # external dispatch never touches node state itself
+
+    # Simulate apply_observed_result() being invoked (as recover() would)
+    # and its own first _save(phase=VALIDATING) running, then interrupted
+    # before any governor mutation.
+    loop._save(phase=LoopPhase.VALIDATING)
+    assert loop.state.active_dispatch_id == "val-3"  # unchanged, still dangling
+
+    result = loop.tick()
+
+    assert recover_calls == ["val-3"]  # re-observed the durable record
+    assert result.phase is LoopPhase.IDLE
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD}
+    assert "cc" * 32 in loop.state.completed_result_digests
+
+
+def test_validating_dangling_remediating_node_resumes_to_leased(tmp_path: Path) -> None:
+    """The `passed=False` half of the crash window, ordinary remediation
+    branch: complete_verification(passed=False) already moved the node to
+    REMEDIATING before the interruption. Must resume it exactly as
+    apply_observed_result()'s own REMEDIATING branch would.
+    """
+    package_id = "AS-ORCH-VALSTUCK-004"
+    gov = _governor(_node(package_id))
+    loop = _loop(tmp_path, gov)
+    lease = gov.lease(
+        package_id, loop._first_agent(), branch=loop._branch, worktree=loop._worktree
+    )
+    gov.execute_leased(lease.lease_id)
+    gov.transition(package_id, NodeState.VERIFYING, "test-pre-interruption-verify")
+    gov.complete_verification(package_id, passed=False)
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.REMEDIATING
+
+    dispatch_id = f"in-process:{lease.lease_id}"
+    _dangling_validating(
+        loop, package_id=package_id, lease_id=lease.lease_id, dispatch_id=dispatch_id
+    )
+
+    result = loop.tick()
+
+    assert result.phase is LoopPhase.LEASED
+    assert loop.state.active_dispatch_id is None
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.ACTIVE  # remediate_and_resume() moved it back to ACTIVE
+
+
+def test_validating_dangling_blocked_node_stops_hard_blocker(tmp_path: Path) -> None:
+    """The `passed=False` half of the crash window, remediation-exhausted
+    branch: complete_verification(passed=False) already moved the node to
+    BLOCKED before the interruption. Must stop with HARD_BLOCKER exactly
+    as apply_observed_result()'s own BLOCKED branch would, not silently
+    no-op.
+    """
+    package_id = "AS-ORCH-VALSTUCK-005"
+    exhausted = _node(package_id).model_copy(
+        update={"retry_policy": RetryPolicy(cycles_used=3)}
+    )
+    gov = _governor(exhausted)
+    loop = _loop(tmp_path, gov)
+    lease = gov.lease(
+        package_id, loop._first_agent(), branch=loop._branch, worktree=loop._worktree
+    )
+    gov.execute_leased(lease.lease_id)
+    gov.transition(package_id, NodeState.VERIFYING, "test-pre-interruption-verify")
+    gov.complete_verification(package_id, passed=False)
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.BLOCKED  # remediation exhausted, confirms the crash window
+
+    dispatch_id = f"in-process:{lease.lease_id}"
+    _dangling_validating(
+        loop, package_id=package_id, lease_id=lease.lease_id, dispatch_id=dispatch_id
+    )
+
+    result = loop.tick()
+
+    assert result.phase is LoopPhase.STOPPED
+    assert result.stop_reason is StopReason.HARD_BLOCKER
+
+
+def test_validating_dangling_ambiguous_node_state_fails_closed(tmp_path: Path) -> None:
+    """No normal, synchronous code path leaves a node at VERIFYING when
+    `_complete_validated()` re-enters (complete_verification() always
+    transitions a node OUT of VERIFYING before returning, or never gets
+    called at all) -- an adversarial/pathological case this fix has no
+    established, safe mapping for. Must fail closed rather than guess
+    whether the original observation was `passed=True` or `passed=False`.
+    """
+    package_id = "AS-ORCH-VALSTUCK-006"
+    gov = _governor(_node(package_id))
+    loop = _loop(tmp_path, gov)
+    lease = gov.lease(
+        package_id, loop._first_agent(), branch=loop._branch, worktree=loop._worktree
+    )
+    gov.execute_leased(lease.lease_id)
+    gov.transition(package_id, NodeState.VERIFYING, "test-interrupted-mid-verify")
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.VERIFYING
+
+    dispatch_id = f"in-process:{lease.lease_id}"
+    _dangling_validating(
+        loop, package_id=package_id, lease_id=lease.lease_id, dispatch_id=dispatch_id
+    )
+
+    with pytest.raises(LoopError) as exc:
+        loop.tick()
+    assert exc.value.code == "VALIDATION_STATE_AMBIGUOUS"
+    assert loop.state.phase is LoopPhase.FAILED_CLOSED
+
+
+def test_validating_dangling_certified_node_but_dispatch_now_reports_failed_fails_closed(
+    tmp_path: Path,
+) -> None:
+    """Adversarial consistency check: the governor node reached a
+    passed-verification terminal state (CERTIFIED), but the dispatch
+    port's own durable record now disagrees (FAILED) -- a genuinely
+    irreconcilable mismatch between the two sources of truth this fix
+    reads from. Must fail closed rather than silently trust either one.
+    """
+    package_id = "AS-ORCH-VALSTUCK-007"
+    gov = _governor(_node(package_id, host=ExecutionHostClass.EXTERNAL_AGENT))
+    port = CallableDispatchPort(
+        lambda _root: {"dispatch_id": "val-7", "status": "RUNNING"},
+        recover=lambda _root, _id: {"status": "FAILED"},
+    )
+    loop = _loop(tmp_path, gov, port)
+    loop.tick()
+    assert loop.state.active_dispatch_id == "val-7"
+    # Drive the governor all the way to CERTIFIED directly, as if an
+    # earlier apply_observed_result() call had observed passed=True and
+    # fully completed its governor mutations before being interrupted.
+    gov.transition(package_id, NodeState.ACTIVE, "test-pre-interruption")
+    gov.transition(package_id, NodeState.VERIFYING, "test-pre-interruption")
+    gov.complete_verification(package_id, passed=True)
+    node = next(item for item in gov.snapshot().nodes if item.package_id == package_id)
+    assert node.state is NodeState.CERTIFIED
+
+    loop._save(phase=LoopPhase.VALIDATING)  # active_dispatch_id == "val-7" already
+
+    with pytest.raises(LoopError) as exc:
+        loop.tick()
+    assert exc.value.code == "VALIDATION_STATE_AMBIGUOUS"
+    assert loop.state.phase is LoopPhase.FAILED_CLOSED
 
 
 def test_corrupt_state_fails_closed(tmp_path: Path) -> None:
