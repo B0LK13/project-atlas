@@ -9255,3 +9255,171 @@ No forbidden flag used across any of the three dispatches. Full detail:
 layers both now proven correct end-to-end against a real, owner-authorized
 target. What remains is an owner decision on Cursor account usage/plan --
 not an Atlas code gap. No source code changed.
+
+## ORCH001E-012 — `_complete_validated()` dangling-`active_dispatch_id` stuck-loop fix
+
+**Date:** 2026-08-29
+**Branch:** `fix/orch001e-012-validating-stuck-loop`
+**Base:** `main` tip `5dc15ea0` (post-#638)
+
+### Root cause (independently re-confirmed)
+
+`apply_observed_result()` (`loop.py`) persists `phase=VALIDATING` via its
+own early `_save(...)` call well before its final `_save(...)` clears
+`active_dispatch_id`. If whatever interrupted the call landed in that
+window, `tick()`/`recover()` routes `phase == VALIDATING` to
+`_complete_validated()`, which used to be:
+
+```python
+def _complete_validated(self) -> LoopTickResult:
+    if self._state.active_dispatch_id is None:
+        self._save(phase=LoopPhase.IDLE)
+        return self._result()
+    return self._result()
+```
+
+With `active_dispatch_id` still set, this silently returned
+`self._result()` -- no `_save`, no error, no state change. A resumed
+`tick()` call lands right back here every time: stuck, but never
+crashing or failing closed.
+
+### Scope-narrowing fact (re-confirmed by tracing, not assumed)
+
+`rehydrate_governor()` (`rehydration.py`) fails closed
+(`EXECUTION_STATE_NOT_REHYDRATABLE`) for
+`{DISPATCHING, AWAITING_RESULT, VALIDATING}` *before*
+`run_governor_loop_tick()` (`cli.py`) ever constructs an
+`AutonomousLoop` -- confirmed by reading both the rehydration module and
+its wiring into the real CLI entrypoint. A genuine cross-process crash
+during VALIDATING is therefore already safely rejected with a clean
+`RehydrationError`, not a silent stuck loop. This gap is reachable only
+**same-process**: a caller retrying `tick()`/`recover()` on the same
+still-live `AutonomousLoop`/`AutonomousGovernor` Python objects after
+whatever interrupted the original call (an uncaught exception a caller
+swallowed and retried; a future `run_until_stop()` caller -- confirmed
+`run_until_stop()` is not currently invoked by any production code path,
+only by tests; or a hand-written direct `tick()` retry). Determined this
+by tracing `run_governor_loop_tick()` (calls `loop.tick()` exactly once
+per process) and grepping the whole tree for `run_until_stop`/
+`AutonomousLoop(` call sites.
+
+### Determinability
+
+Determinable from the existing contract, matching the same idiom PR #637
+(`fix/loop-in-process-recovery-illegal-transition`) already established
+for the LEASED/ACTIVE ambiguity: check the governor's *current* node
+state (still live in the same process) before deciding whether to
+skip/redo a step, rather than inventing a new persisted field or phase.
+
+### Fix
+
+`_complete_validated()` now reads the live governor's node state for
+`active_package_id` and branches:
+- `LEASED`/`ACTIVE` (verification never started, nothing mutated yet):
+  safe to redrive `apply_observed_result()` exactly as a first call.
+  `passed` is re-derived from the dispatch's own durable record via a
+  new `_reobserve_dispatch_outcome()` -- the same move `recover()`
+  already makes for DISPATCHING/AWAITING_RESULT -- rather than trusting
+  a stale in-memory value that was never persisted anywhere. For
+  IN_PROCESS execution (`node.execution_host_class.value ==
+  "IN_PROCESS"`) there is no external durable record to query, but none
+  is needed: the outcome is a structural constant of the code (every
+  `_dispatch_leased()` IN_PROCESS call site hardcodes `passed=True`).
+- `BLOCKED` / `REMEDIATING`: mirrors `apply_observed_result()`'s own
+  existing branches for these states exactly (`_stop(HARD_BLOCKER)` /
+  `remediate_and_resume()` + return to `LEASED`).
+- `CERTIFIED` / `OWNER_HELD` / `MERGE_ELIGIBLE` (verification already
+  fully ran and passed before the interruption): redriving
+  `apply_observed_result()` here would attempt an illegal transition out
+  of an already-terminal node -- the exact "already-transitioned node"
+  hazard PR #637 closed for LEASED/ACTIVE. Finishes only the LoopState
+  bookkeeping via a new `_finalize_validated()` helper (extracted from
+  `apply_observed_result()`'s own tail, now shared by both), after a
+  sanity re-observation confirming the dispatch's durable record still
+  agrees the outcome was a pass -- a genuine mismatch (adversarially
+  tested) fails closed rather than trusting either source blindly.
+- Any other state (chiefly `VERIFYING`, which no normal synchronous code
+  path leaves a node at when this function re-enters) fails closed with
+  a new `VALIDATION_STATE_AMBIGUOUS` code instead of guessing.
+
+`_fail()`'s return type was corrected to `NoReturn` (it always raises;
+was previously mistyped as returning `LoopTickResult`) so the new
+tuple-returning `_reobserve_dispatch_outcome()` helper can call it
+directly.
+
+### Test evidence
+
+7 new adversarial tests in `tests/unit/test_orchestration_autonomy_loop.py`
+(`test_validating_dangling_*`), each constructing the exact crash-window
+fixture (`phase=VALIDATING` + dangling `active_dispatch_id`, matching how
+the file's existing DISPATCHING-crash-window tests construct fixture
+state via direct `loop._save(...)` calls):
+
+- `test_validating_dangling_in_process_redrives_and_completes` --
+  IN_PROCESS, node still ACTIVE (nothing mutated yet); redrives and
+  reaches IDLE/CERTIFIED; a second `tick()` no longer re-stalls either.
+- `test_validating_dangling_after_certified_finishes_without_illegal_transition`
+  -- node already CERTIFIED before the interruption; proves `tick()` no
+  longer raises `IllegalTransitionError` and finishes bookkeeping.
+- `test_validating_dangling_external_dispatch_reobserves_before_redriving`
+  -- EXTERNAL dispatch, node still LEASED; proves the dispatch port's
+  `recover()` is actually re-invoked (not assumed) before redriving.
+- `test_validating_dangling_remediating_node_resumes_to_leased` --
+  `passed=False` -> REMEDIATING already reached; resumes to LEASED/ACTIVE.
+- `test_validating_dangling_blocked_node_stops_hard_blocker` --
+  `passed=False`, remediation exhausted -> BLOCKED already reached;
+  stops with HARD_BLOCKER instead of no-opping.
+- `test_validating_dangling_ambiguous_node_state_fails_closed` -- node
+  stuck at VERIFYING (the one state this crash window has no established
+  mapping for); fails closed with `VALIDATION_STATE_AMBIGUOUS`.
+- `test_validating_dangling_certified_node_but_dispatch_now_reports_failed_fails_closed`
+  -- adversarial mismatch between the node's terminal state and the
+  dispatch port's re-observed outcome; fails closed rather than guessing.
+
+All 7 independently confirmed to **fail** against the pre-fix code
+(`git stash` on just `loop.py`, re-run, restored) and **pass** post-fix,
+so they are real regression proofs, not vacuous.
+
+No real multi-process/subprocess test was added for this specific gap:
+per the scope-narrowing fact above it is not reachable cross-process at
+all, so a subprocess test would not exercise anything this fix changes.
+`test_orchestration_autonomy_rehydration.py`'s existing in-flight-phase
+matrix (including VALIDATING) and its real-subprocess proof were re-run
+to confirm they remain unaffected: 20/20 PASS.
+
+Full `orchestration or autonomy` suite: 334 passed (327 pre-existing + 7
+new), 0 regressions. `ruff check .`: clean. `mypy src`: 0 new errors (2
+pre-existing, unrelated `connect_perf.py` `os.getrusage`/`RUSAGE_SELF`
+Windows-stub errors, matching D-205's own note, not touched here).
+
+### Independent adversarial self-review (same session, after implementation)
+
+Re-read the diff skeptically for what might have been missed:
+- Confirmed the `BLOCKED` branch intentionally leaves `active_dispatch_id`
+  set while `phase=STOPPED` -- matches `apply_observed_result()`'s own
+  pre-existing `_stop()` behavior exactly (not a new gap; `tick()`
+  short-circuits on `STOPPED` before reaching node-lookup code again).
+- Confirmed `_complete_validated()`'s new branches are unreachable on any
+  *normal* (non-interrupted) run: `apply_observed_result()` always moves
+  `phase` away from `VALIDATING` before returning control to its caller
+  on every successful/non-crashed path, so this code only activates in
+  the intended same-process recovery scenario -- no behavior change to
+  the happy path.
+- Confirmed `execution_host_class` is not mutated by `governor.transition()`
+  (only `state` changes), so the `is_in_process` check computed once at
+  the top of `_complete_validated()` stays valid through the branches
+  below it.
+- Did not independently verify that a real (non-test-double) 001D
+  `DispatchPort.recover()` implementation is actually safe to call after
+  a dispatch has already reached a terminal status -- relied on the
+  existing `DispatchPort` contract's own docstring ("must not respawn a
+  new process") and the fact that `recover()` is already called
+  repeatedly across multiple AWAITING_RESULT ticks elsewhere in this same
+  file; flagging this assumption explicitly rather than presenting it as
+  independently confirmed against a real adapter.
+
+### Certification state
+
+**Not self-certified.** Per standing project rule, an independent
+verifier (not this implementer) and fresh exact-head CI are both still
+required before this is merge-eligible.

@@ -20,7 +20,7 @@ import os
 from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
-from typing import Final, Literal, Protocol
+from typing import Final, Literal, NoReturn, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -315,7 +315,7 @@ class AutonomousLoop:
         self._save(phase=LoopPhase.STOPPED, stop_reason=reason)
         return self._result()
 
-    def _fail(self, message: str, *, code: str) -> LoopTickResult:
+    def _fail(self, message: str, *, code: str) -> NoReturn:
         self._save(phase=LoopPhase.FAILED_CLOSED, stop_reason=StopReason.SAFETY_BOUNDARY)
         raise LoopError(message, code=code)
 
@@ -465,7 +465,6 @@ class AutonomousLoop:
         if self._state.active_dispatch_id not in {None, dispatch_id}:
             raise LoopError("result does not match active dispatch", code="RESULT_MISMATCH")
         package_id = self._state.active_package_id
-        lease_id = self._state.active_lease_id
         if package_id is None:
             raise LoopError("result has no active package", code="PARTIAL_COMPLETION")
         self._save(phase=LoopPhase.VALIDATING)
@@ -525,6 +524,27 @@ class AutonomousLoop:
                     sequence=self._state.sequence + 1,
                 )
                 return self._result(recovered=recovered)
+        return self._finalize_validated(dispatch_id, result_digest, recovered=recovered)
+
+    def _finalize_validated(
+        self, dispatch_id: str, result_digest: str, *, recovered: bool
+    ) -> LoopTickResult:
+        """Shared tail of a successful `VALIDATING` completion: everything
+        left to do is LoopState-side bookkeeping (mark the dispatch/lease/
+        result as completed, return to IDLE) once the governor's own node
+        transitions are already known-good. Factored out so
+        `_complete_validated()`'s dangling-`active_dispatch_id` recovery
+        (ORCH001E-012) can reach the same finish line without repeating
+        governor mutations that a prior, interrupted call already made --
+        re-running them would attempt an illegal transition out of an
+        already-terminal node state (see PR #637's identical
+        check-node-state-before-redo idiom in `_dispatch_leased()`).
+        """
+        if dispatch_id in self._state.completed_dispatch_ids:
+            raise LoopError("duplicate dispatch completion", code="RESULT_REPLAY")
+        if result_digest and result_digest in self._state.completed_result_digests:
+            raise LoopError("duplicate result digest", code="RESULT_REPLAY")
+        lease_id = self._state.active_lease_id
         completed_leases = self._state.completed_lease_ids
         completed_dispatches = self._state.completed_dispatch_ids
         completed_results = self._state.completed_result_digests
@@ -687,10 +707,138 @@ class AutonomousLoop:
         return self._result(dispatched=True)
 
     def _complete_validated(self) -> LoopTickResult:
+        """ORCH001E-012: `apply_observed_result()` persists `phase=
+        VALIDATING` (via `_save`) well before its own final `_save(...)`
+        clears `active_dispatch_id` -- if whatever interrupted the earlier
+        call (an uncaught exception a caller swallowed and retried on the
+        same, still-live `AutonomousLoop`/`AutonomousGovernor` objects; a
+        real cross-process crash is already rejected earlier by
+        `rehydrate_governor()`'s fail-closed `EXECUTION_STATE_NOT_
+        REHYDRATABLE` for VALIDATING, see D-205) happened in that window,
+        a plain `tick()`/`recover()` used to land here and silently no-op
+        forever -- no error, no progress, not even a terminal phase.
+
+        Fixed the same way `_dispatch_leased()` already resolves the
+        equivalent LEASED/ACTIVE ambiguity (PR #637): read the governor's
+        *current* node state -- still live in this same process -- to
+        learn exactly how far the interrupted call actually got, then
+        either safely redrive from scratch (nothing was mutated yet) or
+        finish only the bookkeeping that never ran (governor mutations
+        already succeeded) -- never blindly repeat a governor transition
+        that may no longer be legal from the node's current state.
+        """
         if self._state.active_dispatch_id is None:
             self._save(phase=LoopPhase.IDLE)
             return self._result()
-        return self._result()
+        dispatch_id = self._state.active_dispatch_id
+        package_id = self._state.active_package_id
+        if package_id is None:
+            self._fail(
+                "validating phase missing active package for dangling dispatch",
+                code="PARTIAL_COMPLETION",
+            )
+        node = next(
+            (item for item in self._governor.snapshot().nodes if item.package_id == package_id),
+            None,
+        )
+        if node is None:
+            # Same class of gap as apply_observed_result()'s own node
+            # lookups: a freshly-constructed governor (a real process
+            # restart) never saw this package. Cannot happen for the
+            # genuinely-scoped same-process re-entrancy this fix targets
+            # (the live governor object is unchanged), but defend anyway
+            # rather than let a bare StopIteration through.
+            self._fail(
+                f"governor has no node for persisted active package {package_id!r}; "
+                "governor state was not rehydrated across a process restart "
+                "(see D-203/ORCH001E-011)",
+                code="GOVERNOR_STATE_NOT_REHYDRATED",
+            )
+        is_in_process = node.execution_host_class.value == "IN_PROCESS"
+        if node.state in {NodeState.LEASED, NodeState.ACTIVE}:
+            # Verification never started (or never got far enough to
+            # mutate the node) before the interruption -- safe to redrive
+            # apply_observed_result() exactly as a first call, re-deriving
+            # the true outcome from the dispatch's own durable record (the
+            # same move recover() already makes for DISPATCHING/
+            # AWAITING_RESULT) rather than trusting a stale in-memory
+            # `passed` value this loop never persisted anywhere.
+            passed, digest = self._reobserve_dispatch_outcome(dispatch_id, in_process=is_in_process)
+            return self.apply_observed_result(dispatch_id, digest, passed=passed, recovered=True)
+        if node.state == NodeState.BLOCKED:
+            return self._stop(StopReason.HARD_BLOCKER)
+        if node.state == NodeState.REMEDIATING:
+            self._governor.remediate_and_resume(package_id)
+            self._save(
+                phase=LoopPhase.LEASED,
+                active_dispatch_id=None,
+                sequence=self._state.sequence + 1,
+            )
+            return self._result(recovered=True)
+        if node.state in {NodeState.CERTIFIED, NodeState.OWNER_HELD, NodeState.MERGE_ELIGIBLE}:
+            # complete_verification(passed=True) already fully ran before
+            # the interruption -- only apply_observed_result()'s own tail
+            # (LoopState bookkeeping) never finished. Re-driving
+            # apply_observed_result() here would attempt an illegal
+            # transition out of an already-terminal node state; finish the
+            # bookkeeping directly via the same tail it would have reached
+            # (_finalize_validated) instead.
+            observed_passed, digest = self._reobserve_dispatch_outcome(
+                dispatch_id, in_process=is_in_process
+            )
+            if not observed_passed:
+                self._fail(
+                    f"node {package_id!r} reached a passed-verification state "
+                    f"({node.state.value}) but the dispatch outcome now "
+                    f"reobserves as failed for {dispatch_id!r} -- durable "
+                    "evidence is inconsistent, refusing to guess which is "
+                    "authoritative",
+                    code="VALIDATION_STATE_AMBIGUOUS",
+                )
+            return self._finalize_validated(dispatch_id, digest, recovered=True)
+        # VERIFYING (complete_verification() itself was interrupted -- no
+        # normal, synchronous code path leaves a node here, see the
+        # docstring above) or any other state this crash window has no
+        # established mapping for: do not guess which outcome it implies.
+        self._fail(
+            f"validating recovery found unexpected node state {node.state.value} "
+            "(expected LEASED, ACTIVE, CERTIFIED, OWNER_HELD, MERGE_ELIGIBLE, "
+            "BLOCKED, or REMEDIATING)",
+            code="VALIDATION_STATE_AMBIGUOUS",
+        )
+
+    def _reobserve_dispatch_outcome(
+        self, dispatch_id: str, *, in_process: bool
+    ) -> tuple[bool, str]:
+        """Re-derive the true dispatch outcome from its own durable record
+        -- the same move `recover()` already makes for DISPATCHING/
+        AWAITING_RESULT -- instead of trusting a stale in-memory `passed`
+        value `apply_observed_result()` never persisted anywhere.
+        """
+        if in_process:
+            # IN_PROCESS execution has exactly one call site
+            # (`_dispatch_leased()`), which always hardcodes `passed=True`
+            # and uses the dispatch id itself as the digest -- there is no
+            # external durable record to query, but none is needed: the
+            # outcome is a structural constant of the code, not runtime
+            # data.
+            return True, dispatch_id
+        if self._dispatch is None:
+            self._fail(
+                f"dangling dispatch {dispatch_id!r} cannot be reobserved without "
+                "a dispatch port",
+                code="DISPATCH_UNAVAILABLE",
+            )
+        observed = self._dispatch.recover(self._root, dispatch_id)
+        status = str(observed.get("status", ""))
+        if status not in {"COMPLETED", "FAILED"}:
+            self._fail(
+                f"dangling dispatch {dispatch_id!r} has no terminal status to "
+                f"reobserve (dispatch port reports {status!r})",
+                code="VALIDATION_STATE_AMBIGUOUS",
+            )
+        digest = str(observed.get("digest") or observed.get("dispatch_id") or dispatch_id)
+        return status == "COMPLETED", digest
 
     def _enqueue_resource_yield(self) -> None:
         """RESOURCE_BOUNDARY is YIELD, not OWNER_REQUIRED. Atomic finalize."""
