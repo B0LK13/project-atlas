@@ -53,10 +53,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from project_atlas.orchestration.autonomy.dag import IllegalTransitionError
 from project_atlas.orchestration.autonomy.discovery import discover
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
 from project_atlas.orchestration.autonomy.lease_projection import (
+    ProjectedLease,
     ProjectionError,
     active_rows,
     load_projection,
@@ -66,8 +69,10 @@ from project_atlas.orchestration.autonomy.models import (
     PILOT_PACKAGE_ID,
     AgentCapability,
     AgentLease,
+    AgentRecord,
     DiscoveryReport,
     LiveInventory,
+    NodeState,
     OwnerGateKind,
     TrustedAnchorRecord,
     WorkNode,
@@ -175,9 +180,22 @@ def _originate(
     harmless no-op read whenever nothing is currently eligible. Returns the
     node it added (if any) and the full report, so callers needing evidence
     about a specific package_id (e.g. its owner_gate) don't have to call
-    ``discover()`` a second time."""
+    ``discover()`` a second time.
+
+    ORCH001E-011 finding #1 (independent-IV): ``ingest_discovery()`` only
+    ever creates a node in ``DISCOVERED`` -- never ``READY`` -- and
+    ``AutonomousLoop._select_and_lease()`` (via ``select_next()``) only
+    ever considers ``READY`` nodes. ``run_controlled_pilot()`` already
+    knows this and calls ``mark_ready()`` right after ``ingest_discovery()``
+    (see below in this same module); rehydration's own origination pass
+    must run the identical transition, or a freshly-originated node sits
+    in ``DISCOVERED`` forever and the very next tick reports
+    ``NO_ELIGIBLE_WORK`` despite discovery having just found real work."""
     report = discover(inventory, trusted=trusted)
-    return governor.ingest_discovery(report), report
+    node = governor.ingest_discovery(report)
+    if node is not None:
+        governor.mark_ready(node.package_id)
+    return node, report
 
 
 def _restore_leased_node(
@@ -236,27 +254,42 @@ def _restore_leased_node(
             code="STATE_CORRUPT",
         ) from exc
 
-    lease = AgentLease(
-        lease_id=row.lease_id,
-        agent_id=row.agent_id,
-        package_id=row.package_id,
-        branch=row.branch,
-        worktree=row.worktree,
-        base_pin=row.base_pin,
-        authorized_paths=row.authorized_paths,
-        forbidden_paths=row.forbidden_paths,
-        capabilities=capabilities,
-        start_state=row.start_state,
-        # The only two AgentLease fields the durable projection does not
-        # carry are always these two fixed constants -- see
-        # leases.py:grant_lease, the sole place an AgentLease is ever
-        # minted. A full lease is therefore losslessly reconstructable
-        # from a ProjectedLease row plus these constants.
-        expected_output="EVIDENCE_BUNDLE",
-        expiry_or_terminal_condition="UNTIL_NODE_TERMINAL",
-        active=True,
-        sequence=row.created_sequence,
-    )
+    try:
+        lease = AgentLease(
+            lease_id=row.lease_id,
+            agent_id=row.agent_id,
+            package_id=row.package_id,
+            branch=row.branch,
+            worktree=row.worktree,
+            base_pin=row.base_pin,
+            authorized_paths=row.authorized_paths,
+            forbidden_paths=row.forbidden_paths,
+            capabilities=capabilities,
+            start_state=row.start_state,
+            # The only two AgentLease fields the durable projection does not
+            # carry are always these two fixed constants -- see
+            # leases.py:grant_lease, the sole place an AgentLease is ever
+            # minted. A full lease is therefore losslessly reconstructable
+            # from a ProjectedLease row plus these constants.
+            expected_output="EVIDENCE_BUNDLE",
+            expiry_or_terminal_condition="UNTIL_NODE_TERMINAL",
+            active=True,
+            sequence=row.created_sequence,
+        )
+    except ValidationError as exc:
+        # ORCH001E-011 finding #5 (independent-IV): the projection file
+        # already passed its own pydantic schema (`load_projection()`), but
+        # a `ProjectedLease` row's fields are individually less constrained
+        # than `AgentLease`'s (e.g. `authorized_paths`/`forbidden_paths`
+        # content, id patterns). A tampered/edited-but-still-schema-valid
+        # row can therefore fail *this* reconstruction. Fail closed with a
+        # structured RehydrationError instead of letting a raw
+        # ValidationError crash `run_governor_loop_tick()` uncaught.
+        raise RehydrationError(
+            f"projected lease {lease_id!r} does not reconstruct into a valid "
+            f"AgentLease: {exc}",
+            code="STATE_CORRUPT",
+        ) from exc
 
     try:
         if origin_node_package_id != package_id:
@@ -280,6 +313,23 @@ def _restore_leased_node(
             governor.add_node(node)
             governor.mark_ready(package_id)
 
+        rebuilt_node = next(
+            (item for item in governor.snapshot().nodes if item.package_id == package_id),
+            None,
+        )
+        if rebuilt_node is None:  # pragma: no cover - defensive, see add_node/mark_ready above
+            raise RehydrationError(
+                f"package {package_id!r} has no rebuilt node to validate the "
+                f"projected lease against",
+                code="NODE_NOT_REHYDRATABLE",
+            )
+        _validate_lease_row_against_node(
+            row,
+            lease,
+            node=rebuilt_node,
+            agents=governor.snapshot().agents,
+        )
+
         governor.restore_lease(lease)
     except (GovernorError, IllegalTransitionError) as exc:
         # A prior process's real governor would have gone through these
@@ -292,3 +342,79 @@ def _restore_leased_node(
         # leave the governor in a partially-rehydrated state.
         code = getattr(exc, "code", "REHYDRATION_FAILED_CLOSED")
         raise RehydrationError(str(exc), code=code) from exc
+
+
+def _validate_lease_row_against_node(
+    row: ProjectedLease,
+    lease: AgentLease,
+    *,
+    node: WorkNode,
+    agents: tuple[AgentRecord, ...],
+) -> None:
+    """ORCH001E-011 finding #3 (independent-IV): ``AutonomousGovernor.
+    restore_lease()`` deliberately does not repeat ``grant_lease()``'s
+    agent/capability/state/scope checks -- by its own documented contract,
+    because a genuine prior ``lease()`` call already enforced them once.
+    That makes this function, called just before ``restore_lease()``, the
+    ONLY remaining checkpoint before a projected ``leases.json`` row --
+    schema-valid, but possibly corrupted, hand-edited, or adversarial -- is
+    trusted as a real historical grant. Re-run every check ``grant_lease()``
+    performs (``leases.py``), against the CURRENT agent registry and the
+    just-rebuilt ``node`` -- never the row's own unverified claims -- and
+    fail closed on the first mismatch.
+    """
+    agent = next((item for item in agents if item.agent_id == row.agent_id), None)
+    if agent is None:
+        raise RehydrationError(
+            f"projected lease {row.lease_id!r} references unregistered agent "
+            f"{row.agent_id!r}",
+            code="UNKNOWN_AGENT",
+        )
+    if not agent.available:
+        raise RehydrationError(
+            f"projected lease {row.lease_id!r} references unavailable agent "
+            f"{row.agent_id!r}",
+            code="AGENT_UNAVAILABLE",
+        )
+    have = frozenset(agent.capabilities)
+    if not all(item in have for item in node.agent_capabilities_required):
+        raise RehydrationError(
+            f"projected lease {row.lease_id!r} agent {row.agent_id!r} does not "
+            f"hold the capabilities node {node.package_id!r} requires",
+            code="CAPABILITY_MISMATCH",
+        )
+    if lease.capabilities != node.agent_capabilities_required:
+        raise RehydrationError(
+            f"projected lease {row.lease_id!r} recorded capabilities do not "
+            f"match node {node.package_id!r}'s required capabilities",
+            code="CAPABILITY_MISMATCH",
+        )
+    if row.start_state != NodeState.READY:
+        raise RehydrationError(
+            f"projected lease {row.lease_id!r} records start_state "
+            f"{row.start_state.value!r}: only READY is a valid lease start state",
+            code="INVALID_START_STATE",
+        )
+    surface = frozenset(node.mutation_surface.paths)
+    extra_authorized = frozenset(row.authorized_paths) - surface
+    if extra_authorized:
+        raise RehydrationError(
+            f"projected lease {row.lease_id!r} authorized_paths "
+            f"{sorted(extra_authorized)!r} exceed node {node.package_id!r}'s "
+            f"mutation surface {sorted(surface)!r}",
+            code="SCOPE_EXPANSION",
+        )
+    # grant_lease()'s own default_forbidden = ("main", "projects")
+    # (leases.py) is the baseline protection every genuine lease carries
+    # unless a caller explicitly narrows it -- no call site in this
+    # codebase ever does. A row whose forbidden_paths dropped that
+    # baseline would let a rehydrated lease legitimately touch surfaces a
+    # real grant never could have.
+    baseline_forbidden = frozenset(("main", "projects"))
+    if not baseline_forbidden <= frozenset(row.forbidden_paths):
+        raise RehydrationError(
+            f"projected lease {row.lease_id!r} forbidden_paths "
+            f"{sorted(row.forbidden_paths)!r} do not include the baseline "
+            f"protected paths {sorted(baseline_forbidden)!r}",
+            code="SCOPE_EXPANSION",
+        )

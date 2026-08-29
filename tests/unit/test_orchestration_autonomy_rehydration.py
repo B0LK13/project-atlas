@@ -212,6 +212,24 @@ print(json.dumps({{"payload": payload, "exit_code": exit_code}}))
 # ---------------------------------------------------------------------------
 
 
+def _tamper_lease_row(lease_store: Path, lease_id: str, **updates: object) -> None:
+    """Directly rewrite one row of an already-persisted lease projection,
+    simulating a corrupted/hand-edited-but-still-schema-valid `leases.json`
+    -- without going through `project_grant`/`project_release`, which would
+    themselves re-derive a genuine row and defeat the point."""
+    from project_atlas.orchestration.autonomy.lease_projection import (
+        load_projection,
+        persist_projection,
+    )
+
+    projection = load_projection(lease_store)
+    rows = tuple(
+        row.model_copy(update=updates) if row.lease_id == lease_id else row
+        for row in projection.leases
+    )
+    persist_projection(lease_store, projection.model_copy(update={"leases": rows}))
+
+
 def _lease_and_persist(repo: Path, trust_store: Path, lease_store: Path):
     from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
 
@@ -629,3 +647,382 @@ def test_restore_lease_does_not_reinvoke_or_bypass_owner_gate(tmp_path: Path) ->
     assert node.state == NodeState.LEASED
     assert node.merge_authorized is False
     assert node.execution_authorized is False
+
+
+# ---------------------------------------------------------------------------
+# PR #638 independent-IV remediation round: 5 findings, 5 regressions.
+# ---------------------------------------------------------------------------
+
+
+def test_originate_marks_newly_discovered_node_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Finding #1 (chatgpt-codex-connector, rehydration.py:180): before the
+    fix, `_originate()` called `ingest_discovery()` -- which only ever adds
+    a node in `DISCOVERED` -- and returned without running the readiness
+    transition `run_controlled_pilot()` already knows to run right after
+    the same call. `AutonomousLoop._select_and_lease()` (via
+    `select_next()`) only ever considers `READY` nodes, so a freshly
+    originated node would sit in `DISCOVERED` forever and the very next
+    tick would report `NO_ELIGIBLE_WORK` despite discovery having just
+    found real, eligible work.
+
+    Real `discover()` never actually selects a candidate today (every
+    hardcoded candidate in discovery.py is `eligible=False`), so this bug
+    was unreachable via genuine discovery output in current tests --
+    monkeypatch `discover()` (in `rehydration`'s own imported namespace,
+    the one `_originate()` actually calls) to return an eligible
+    candidate, proving the origination pass itself performs the correct
+    transition once discovery does start returning one.
+    """
+    from project_atlas.orchestration.autonomy.models import DiscoveryCandidate, DiscoveryReport
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    trusted = load_runtime_anchor(store=trust_store)
+    inventory = collect_live_inventory(repo)
+
+    def _fake_discover(inv, *, trusted):
+        return DiscoveryReport(
+            inventory=inv,
+            trusted_runtime_main=trusted.trusted_main,
+            trusted_runtime_tree=trusted.trusted_tree,
+            target_moved=False,
+            successor_already_started=False,
+            candidates=(
+                DiscoveryCandidate(
+                    package_id=PILOT_PACKAGE_ID,
+                    eligible=True,
+                    destructive=False,
+                    owner_gate=None,
+                    reason="TEST_FIXTURE_ELIGIBLE",
+                ),
+            ),
+            selected_package_id=PILOT_PACKAGE_ID,
+            case="A-A-PREFLIGHT",
+        )
+
+    import project_atlas.orchestration.autonomy.rehydration as rehydration_module
+
+    monkeypatch.setattr(rehydration_module, "discover", _fake_discover)
+
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+    )
+    rehydrate_governor(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=tmp_path / "never-ticked-loop",
+        lease_projection_store=tmp_path / "never-ticked-leases",
+    )
+    node = next(item for item in governor.snapshot().nodes if item.package_id == PILOT_PACKAGE_ID)
+    # Before the fix: NodeState.DISCOVERED here, and select_next() would
+    # never pick this node up.
+    assert node.state == NodeState.READY
+
+
+def test_run_governor_loop_tick_releases_projected_lease_on_terminal_completion(
+    tmp_path: Path,
+) -> None:
+    """Finding #2 (chatgpt-codex-connector, cli.py:242): a lease recovered
+    and completed within a single `run_governor_loop_tick()` call (the
+    LEASED -> in-process-dispatch -> IDLE path, exactly the crash-recovery
+    scenario `test_real_subprocess_recovers_leased_pilot_node_after_crash`
+    above proves reaches completion) used to leave both the governor's
+    in-memory `AgentLease` and the durable `leases.json` row `active`/
+    `ACTIVE` forever -- unlike `run_controlled_pilot()`, which releases
+    both. Confirms the lease projection row is `RELEASED` after the tick
+    that completed it.
+    """
+    from project_atlas.orchestration.autonomy.cli import run_governor_loop_tick
+    from project_atlas.orchestration.autonomy.lease_projection import (
+        RELATIVE_DEFAULT,
+        load_projection,
+    )
+    from project_atlas.orchestration.autonomy.loop import (
+        STATE_DIR_RELATIVE,
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = repo / RELATIVE_DEFAULT
+    loop_store = repo / STATE_DIR_RELATIVE
+
+    trusted, _inventory, lease = _lease_and_persist(repo, trust_store, lease_store)
+
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.LEASED,
+            "active_package_id": PILOT_PACKAGE_ID,
+            "active_lease_id": lease.lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    # Sanity: the lease is durably ACTIVE before this tick runs.
+    before = load_projection(lease_store)
+    before_row = next(item for item in before.leases if item.lease_id == lease.lease_id)
+    assert before_row.status == "ACTIVE"
+
+    payload, exit_code = run_governor_loop_tick(root=repo, trust_store=trust_store)
+    assert exit_code == 0, payload
+    assert payload.get("phase") != "FAILED_CLOSED", payload
+
+    after = load_projection(lease_store)
+    after_row = next(item for item in after.leases if item.lease_id == lease.lease_id)
+    # Before the fix: still "ACTIVE" here, forever -- the next lease for
+    # the same package/worker would be rejected as
+    # DUPLICATE_ACTIVE_LEASE/FOREIGN_WORKER.
+    assert after_row.status == "RELEASED"
+
+
+@pytest.mark.parametrize(
+    ("updates", "expected_code"),
+    [
+        pytest.param({"agent_id": "unregistered-agent-xyz"}, "UNKNOWN_AGENT", id="unknown-agent"),
+        pytest.param(
+            {"capabilities": ("VERIFY",)}, "CAPABILITY_MISMATCH", id="capability-mismatch"
+        ),
+        pytest.param(
+            {"start_state": NodeState.LEASED}, "INVALID_START_STATE", id="bad-start-state"
+        ),
+        pytest.param(
+            {"authorized_paths": ("etc/passwd",)}, "SCOPE_EXPANSION", id="authorized-path-escape"
+        ),
+        pytest.param({"forbidden_paths": ()}, "SCOPE_EXPANSION", id="forbidden-paths-dropped"),
+    ],
+)
+def test_rehydrate_governor_fails_closed_on_adversarial_lease_row(
+    tmp_path: Path, updates: dict[str, object], expected_code: str
+) -> None:
+    """Finding #3 (chatgpt-codex-connector, rehydration.py:243):
+    `AutonomousGovernor.restore_lease()` deliberately does not repeat
+    `grant_lease()`'s agent/capability/state/scope checks (by its own
+    documented contract -- a genuine prior `lease()` call already enforced
+    them once). Before the fix, nothing else repeated them either, so a
+    `leases.json` row that is schema-valid but corrupted or hand-edited
+    (an unregistered `agent_id`, capabilities the node doesn't require,
+    a non-READY recorded `start_state`, or `authorized_paths` outside the
+    node's mutation surface / `forbidden_paths` with the baseline
+    protections dropped) would be accepted and restored as a genuine
+    grant. Each parametrized tamper is individually schema-valid at the
+    `ProjectedLease` projection layer -- these must be caught by semantic
+    validation, not by pydantic/schema rejection.
+    """
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+
+    trusted, inventory, lease = _lease_and_persist(repo, trust_store, lease_store)
+    _tamper_lease_row(lease_store, lease.lease_id, **updates)
+
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.LEASED,
+            "active_package_id": PILOT_PACKAGE_ID,
+            "active_lease_id": lease.lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    with pytest.raises(RehydrationError) as excinfo:
+        rehydrate_governor(
+            governor,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=loop_store,
+            lease_projection_store=lease_store,
+        )
+    assert excinfo.value.code == expected_code
+    # Fails closed before the tampered lease is ever restored.
+    assert all(not item.active for item in governor.snapshot().leases)
+
+
+def test_restore_lease_advances_sequence_to_prevent_lease_id_collision(tmp_path: Path) -> None:
+    """Finding #4 (copilot-pull-request-reviewer, governor.py:397): a fresh
+    governor's `_sequence` always starts at 0 (`__init__`), independent of
+    whatever `sequence` a lease being restored actually carries. Left
+    unadvanced, the next real `lease()` call on that same governor mints
+    `LEASE-{self._next_sequence()}` starting back near 1 -- colliding with
+    a `LEASE-*` id the durable lease projection already has a genuine row
+    for at a higher sequence, so `project_grant()` raises `LEASE_REPLAY`
+    and breaks forward progress after recovery.
+    """
+    from project_atlas.orchestration.autonomy.models import (
+        AgentCapability,
+        AgentLease,
+        ExecutionHostClass,
+        IvRequirements,
+        MutationSurface,
+        RiskTag,
+        WorkNode,
+    )
+
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trusted = _anchor(main, tree)
+    inventory = collect_live_inventory(repo)
+
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+    )
+
+    def _node(package_id: str, surface_path: str) -> WorkNode:
+        return WorkNode(
+            package_id=package_id,
+            objective="test node for sequence collision regression",
+            base_pin=inventory.current_main,
+            mutation_surface=MutationSurface(
+                surface_id=f"{package_id.lower()}-surface",
+                paths=(surface_path,),
+                semantic=f"TEST_{package_id.replace('-', '_')}",
+            ),
+            execution_host_class=ExecutionHostClass.IN_PROCESS,
+            agent_capabilities_required=(AgentCapability.IMPLEMENT,),
+            acceptance_criteria=("TEST",),
+            iv_requirements=IvRequirements(
+                certification_required=True,
+                implementer_cannot_verify=True,
+                adversarial_required=True,
+            ),
+            risk_tags=(RiskTag.CONTROL_PLANE,),
+        )
+
+    first = _node("AS-TEST-SEQ-001", "docs/test-seq-1.md")
+    governor.add_node(first)
+    governor.mark_ready(first.package_id)
+    restored = AgentLease(
+        lease_id="LEASE-5000",
+        agent_id="governor-pilot-local",
+        package_id=first.package_id,
+        branch="feat/seq",
+        worktree="wt",
+        base_pin=inventory.current_main,
+        authorized_paths=("docs/test-seq-1.md",),
+        forbidden_paths=("main", "projects"),
+        capabilities=(AgentCapability.IMPLEMENT,),
+        start_state=NodeState.READY,
+        expected_output="EVIDENCE_BUNDLE",
+        expiry_or_terminal_condition="UNTIL_NODE_TERMINAL",
+        active=True,
+        sequence=5000,
+    )
+    assert governor.snapshot().sequence < 5000
+    governor.restore_lease(restored)
+    # Before the fix: the sequence counter would only ever have advanced by
+    # the small number of real transitions this test performed (nowhere
+    # near 5000) -- never actually catching up to the restored lease.
+    assert governor.snapshot().sequence >= 5000
+
+    second = _node("AS-TEST-SEQ-002", "docs/test-seq-2.md")
+    governor.add_node(second)
+    governor.mark_ready(second.package_id)
+    minted = governor.lease(
+        second.package_id, "governor-pilot-local", branch="feat/seq2", worktree="wt2"
+    )
+    # Before the fix: this would mint "LEASE-1" (or similarly low),
+    # colliding with the durably-recorded "LEASE-5000".
+    assert minted.lease_id != "LEASE-5000"
+    assert int(minted.lease_id.removeprefix("LEASE-")) > 5000
+
+
+def test_rehydrate_governor_fails_closed_on_unreconstructable_lease_row(tmp_path: Path) -> None:
+    """Finding #5 (copilot-pull-request-reviewer, rehydration.py:259):
+    `ProjectedLease`'s own schema does not enforce every constraint
+    `AgentLease` does -- notably, `authorized_paths`/`forbidden_paths`
+    have no safe-relative-path pattern check at the projection layer,
+    while `AgentLease` requires one. A `leases.json` row can therefore be
+    schema-valid at the projection layer (survives `load_projection()`)
+    but still fail to reconstruct into a valid `AgentLease`. Before the
+    fix, that raised a raw, uncaught pydantic `ValidationError` straight
+    out of `run_governor_loop_tick()` instead of a structured, fail-closed
+    `RehydrationError`.
+    """
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+
+    trusted, inventory, lease = _lease_and_persist(repo, trust_store, lease_store)
+    # "../etc/passwd" passes ProjectedLease's schema (no path-pattern
+    # validator there) but fails AgentLease's `_REL_PATH_RE` field
+    # validator (a leading "." is not a safe relative identifier).
+    _tamper_lease_row(lease_store, lease.lease_id, authorized_paths=("../etc/passwd",))
+
+    from project_atlas.orchestration.autonomy.lease_projection import load_projection
+
+    # Confirm the tampered row really does survive the projection's own
+    # schema validation -- otherwise this test would just be re-proving
+    # ProjectionError handling, not finding #5.
+    reloaded = load_projection(lease_store)
+    tampered_row = next(item for item in reloaded.leases if item.lease_id == lease.lease_id)
+    assert tampered_row.authorized_paths == ("../etc/passwd",)
+
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.LEASED,
+            "active_package_id": PILOT_PACKAGE_ID,
+            "active_lease_id": lease.lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    with pytest.raises(RehydrationError) as excinfo:
+        rehydrate_governor(
+            governor,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=loop_store,
+            lease_projection_store=lease_store,
+        )
+    # The historical bug: a raw pydantic ValidationError propagating
+    # uncaught. Reaching here (a RehydrationError, not a ValidationError)
+    # already disproves it; assert the specific structured code too.
+    assert excinfo.value.code == "STATE_CORRUPT"

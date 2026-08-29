@@ -264,6 +264,24 @@ def run_governor_loop_tick(
             root=root,
         )
         result = loop.tick()
+        if result.phase.value == "IDLE":
+            # ORCH001E-011 finding #2 (independent-IV): now that this CLI
+            # entrypoint enables the durable lease projection
+            # (`lease_projection_store=lease_store` above),
+            # `AutonomousLoop.apply_observed_result()` returning the loop to
+            # IDLE after a terminal completion does NOT itself release the
+            # lease it just finished -- unlike `run_controlled_pilot()`.
+            # The only way the loop phase is IDLE with a still-`active`
+            # governor lease is exactly that just-completed case (IDLE is
+            # otherwise the loop's untouched starting phase, when there is
+            # no lease at all yet); release every such lease, both the
+            # in-memory bookkeeping and the durable projection, so a later
+            # lease for the same package/worker is not rejected as
+            # DUPLICATE_ACTIVE_LEASE/FOREIGN_WORKER or mistaken for a
+            # replay.
+            for existing_lease in governor.snapshot().leases:
+                if existing_lease.active:
+                    governor.release_lease(existing_lease.lease_id)
         payload = result.model_dump(mode="json")
         payload["package_id"] = "AS-ORCH-001E"
         payload["merge_authorized"] = False
