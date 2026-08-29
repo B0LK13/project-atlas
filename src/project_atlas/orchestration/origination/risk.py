@@ -9,11 +9,25 @@ whether a task is safe."
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from project_atlas.orchestration.origination.proposal import RiskClass
+
+#: Mirrors orchestration.autonomy.models.MutationSurface's own path
+#: validator exactly (that pattern is module-private there too). A
+#: proposed_scope entry that doesn't match this is not just "unusual" --
+#: it cannot be registered as an authorized WorkNode.mutation_surface
+#: path at all (see materialize.py). Independent-IV finding (D-PHASE2A):
+#: silently dropping such a path from an O1 node's registered surface
+#: while still routing it O1 would understate what the node's own
+#: mutation_surface actually covers. Checking it HERE, as its own
+#: disqualifying attribute, means an unrepresentable path forces
+#: OWNER_HELD instead -- fails safe by escalation, not by silent
+#: narrowing.
+_SAFE_MUTATION_PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$")
 
 #: Path fragments that, if any proposed_scope entry touches them, force
 #: OWNER_HELD. Deliberately broad and conservative -- a false positive
@@ -56,6 +70,7 @@ class DisqualifyingAttribute(StrEnum):
     DATA_MUTATION = "DATA_MUTATION"
     EXTERNAL_SIDE_EFFECT = "EXTERNAL_SIDE_EFFECT"
     OUT_OF_SPECIFICATION_COVERAGE = "OUT_OF_SPECIFICATION_COVERAGE"
+    UNSAFE_MUTATION_PATH = "UNSAFE_MUTATION_PATH"
 
 
 class RiskClassification(BaseModel):
@@ -86,6 +101,12 @@ def classify(
     disqualifiers: list[DisqualifyingAttribute] = []
 
     for path in proposed_scope:
+        if not _SAFE_MUTATION_PATH_RE.fullmatch(path):
+            # Cannot be registered as a WorkNode.mutation_surface path at
+            # all (see materialize.py) -- escalate rather than silently
+            # drop it from an O1-authorized surface.
+            disqualifiers.append(DisqualifyingAttribute.UNSAFE_MUTATION_PATH)
+            continue
         lowered = path.lower()
         if any(fragment.lower() in lowered for fragment in _DISQUALIFYING_PATH_FRAGMENTS):
             for fragment in _DISQUALIFYING_PATH_FRAGMENTS:

@@ -509,6 +509,26 @@ def test_risk_classifier_o1_for_clean_scope() -> None:
     assert result.disqualifying_attributes == ()
 
 
+@pytest.mark.parametrize(
+    "unsafe_path",
+    [".hidden.py", "_private/mod.py", "src/foo bar.py", "tests/tëst.py"],
+)
+def test_risk_classifier_escalates_unsafe_mutation_paths_instead_of_dropping_them(
+    unsafe_path: str,
+) -> None:
+    """Independent-IV finding (D-PHASE2A): a proposed_scope entry that
+    cannot be registered as a WorkNode.mutation_surface path at all must
+    force OWNER_HELD, not be silently dropped from an O1-authorized
+    surface (which would understate what the node's own surface
+    actually covers)."""
+    result = risk.classify(
+        proposed_scope=(unsafe_path, "src/normal.py"),
+        success_criteria=("do the thing",),
+    )
+    assert result.risk_class == RiskClass.OWNER_HELD
+    assert risk.DisqualifyingAttribute.UNSAFE_MUTATION_PATH in result.disqualifying_attributes
+
+
 def test_risk_classifier_owner_held_when_no_success_criteria() -> None:
     result = risk.classify(proposed_scope=("src/x.py",), success_criteria=())
     assert result.risk_class == RiskClass.OWNER_HELD

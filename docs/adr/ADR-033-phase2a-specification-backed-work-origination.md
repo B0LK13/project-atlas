@@ -214,12 +214,23 @@ upstream of, not inside, `project_roadmap.py`.
   external spend, history rewrite, governance widening, or scope
   outside the specification) → node routes to `OWNER_HELD` via the
   existing `owner_gates.py`, never self-executes.
-- Rehydration finds a persisted proposal/`WorkNode` record that is
-  missing, unparseable, or hash-mismatched against its own
-  `provenance.content_digest`s → fails closed
-  (`ORIGINATION_NOT_REHYDRATABLE`), same posture as
-  `rehydration.py`'s existing `NODE_NOT_REHYDRATABLE` — never
-  fabricates a substitute.
+- Rehydration finds a persisted `WorkNode` record that is missing or
+  fails its own Pydantic schema validation → `find_materialized_work_node()`
+  returns `None`, and `rehydration.py` falls through to the pre-existing
+  `NODE_NOT_REHYDRATABLE` fail-closed outcome — never fabricates a
+  substitute. **Correction (independent-IV finding, D-PHASE2A):** this
+  is schema validation only, not a re-verification of
+  `provenance.consulted_digests` against the live project source on
+  disk — the durable `origination.json` store is trusted the same way
+  `lease_projection.json` already is, not independently re-checked
+  against reality on every rehydration. Doing the latter would require
+  also durably recording the project root path (not currently part of
+  the persisted record) so a later process could re-read and re-hash
+  the original evidence files; that is a real, deliberately deferred
+  strengthening for a future wave, not implemented in this one. An
+  earlier draft of this ADR overclaimed a
+  `hash-mismatch → ORIGINATION_NOT_REHYDRATABLE` check that does not
+  exist in code; this paragraph corrects that.
 - Text found inside scanned project documents is parsed only as data
   (regex/JSON extraction) — never executed, never sent to an LLM as an
   instruction, never interpreted as a command to Atlas. An

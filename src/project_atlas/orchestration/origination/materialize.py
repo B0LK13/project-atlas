@@ -93,15 +93,15 @@ def materialize_work_node(
     # WorkNode.mutation_surface.paths must satisfy the same safe-relative-
     # identifier pattern as every other orchestration.autonomy path field
     # (alphanumeric-first -- a bare dotfile like ".env" does not qualify).
-    # A path that fails this is exactly the kind of scope that routed this
-    # proposal to OWNER_HELD in the first place; dropping it from the
-    # *registered* mutation surface here does not change the risk
-    # classification or owner_gate already decided above -- an OWNER_HELD
-    # node never executes autonomously regardless of what its surface
-    # says, and an O1 node's risk classifier would already have rejected
-    # any scope entry matching a disqualifying fragment before reaching
-    # this function. This filter exists purely so materialization itself
-    # never crashes on an edge-case path shape.
+    # risk.classify() (UNSAFE_MUTATION_PATH, D-PHASE2A independent-IV
+    # finding) already checks this same pattern and forces OWNER_HELD if
+    # any proposed_scope entry fails it -- so by the time an O1
+    # `classification` reaches this function, every path here is
+    # guaranteed to match. This filter is now purely defensive: it only
+    # ever has anything to drop for an OWNER_HELD classification (which
+    # never executes autonomously regardless of what its registered
+    # surface says), never for O1, so it can no longer silently narrow
+    # what an autonomously-executing node is authorized to touch.
     mutation_paths = tuple(
         path for path in proposal.proposed_scope if _SAFE_MUTATION_PATH_RE.fullmatch(path)
     )[:_MAX_MUTATION_PATHS]
