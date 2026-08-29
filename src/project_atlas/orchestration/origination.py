@@ -75,6 +75,11 @@ _FORBIDDEN_VERBS = frozenset(
 # signal -- fail-closed rather than guessing a second alias table.
 _INTENT_STATUS = "NOT_STARTED"
 
+# ADR-033 rule 4 (already-completed veto): the same _normalize_status
+# vocabulary's two "done" states -- IMPLEMENTED and VERIFIED_COMPLETION --
+# reused verbatim, never a second completion vocabulary.
+_COMPLETION_STATUSES = frozenset({"IMPLEMENTED", "VERIFIED_COMPLETION"})
+
 # Claim types eligible as an authoritative-intent signal (ADR-033 rule 1).
 _INTENT_CLAIM_TYPES = frozenset({ClaimType.ROADMAP_STATUS, ClaimType.WORK_PACKAGE_STATUS})
 
@@ -84,17 +89,17 @@ _INTENT_CLAIM_TYPES = frozenset({ClaimType.ROADMAP_STATUS, ClaimType.WORK_PACKAG
 # acceptance criteria.
 _ACCEPTANCE_STATUS_CLAIM_TYPES = frozenset({ClaimType.WORK_PACKAGE_STATUS, ClaimType.DECISION})
 
-_SKIPPED_TEST_MARKERS = (
-    "skip",
-    "xfail",
-    "x-fail",
-    "not yet passing",
-    "not implemented",
-    "not yet implemented",
-    "expected failure",
-    "not passing",
-    "pending",
+_SKIP_STATE_RE = re.compile(
+    r"\b(?:skip(?:ped|s|ping)?|xfail|x-fail|expected failure|not yet passing|"
+    r"not yet implemented|not implemented|not passing|pending)\b",
+    re.IGNORECASE,
 )
+# A negation immediately before the matched marker (e.g. "no longer
+# skipped", "not skipped") means the claim is reporting the *absence* of
+# the skip state, not the state itself -- must never count as a signal.
+# "unskipped" never reaches this check at all: "\bskip" cannot match
+# mid-token, so it is excluded by the word-boundary alone.
+_SKIP_NEGATION_PREFIX_RE = re.compile(r"\b(?:no longer|not|never)\s*$", re.IGNORECASE)
 
 _ACCEPTANCE_CRITERIA_MARKERS = (
     "acceptance criteria",
@@ -103,6 +108,25 @@ _ACCEPTANCE_CRITERIA_MARKERS = (
     "error code",
     "test matrix",
     "success criteria",
+)
+
+# Vague/TBD-shaped prose that mentions an acceptance-criteria *topic*
+# (matches _ACCEPTANCE_CRITERIA_MARKERS above, enough to corroborate a
+# quorum per ADR-033 rule 2) but names no concrete, verifiable criterion --
+# never enough to promote a claim into success_criteria.
+_VAGUE_CRITERION_MARKERS = (
+    "will be defined",
+    "to be defined",
+    "to be determined",
+    "not yet defined",
+    "not yet determined",
+    "will be determined",
+    "tbd",
+)
+
+_NAMED_TEST_RESOURCE_RE = re.compile(
+    r"(?:^|/)test_[^/]+\.py$|(?:^|/)[^/]+_test\.py$",
+    re.IGNORECASE,
 )
 
 # ADR-033 rule 4: claims below this authority floor never qualify as an
@@ -250,13 +274,24 @@ def _is_intent_claim(claim: Claim) -> bool:
     return status == _INTENT_STATUS
 
 
+def _is_skip_marker_present(text: str) -> bool:
+    """Match a real skip/xfail/not-yet-passing test state -- a bounded
+    phrase pattern, never a raw substring -- so "unskipped and passing" or
+    "no longer skipped" can never false-positive as a skip signal.
+    """
+    for match in _SKIP_STATE_RE.finditer(text):
+        if _SKIP_NEGATION_PREFIX_RE.search(text[: match.start()]):
+            continue
+        return True
+    return False
+
+
 def _is_skipped_test_claim(claim: Claim) -> bool:
     if claim.claim_type is not ClaimType.TEST_RESULT:
         return False
     if not _eligible(claim):
         return False
-    text = _claim_text(claim)
-    return any(marker in text for marker in _SKIPPED_TEST_MARKERS)
+    return _is_skip_marker_present(_claim_text(claim))
 
 
 def _is_acceptance_criteria_claim(claim: Claim, *, exclude_claim_id: str) -> bool:
@@ -270,9 +305,29 @@ def _is_acceptance_criteria_claim(claim: Claim, *, exclude_claim_id: str) -> boo
     return any(marker in text for marker in _ACCEPTANCE_CRITERIA_MARKERS)
 
 
+def _looks_like_concrete_criterion(value: str) -> bool:
+    """A structured, deterministic check for whether a claim's own value
+    names an actual verifiable criterion -- not merely that the claim
+    *mentions* the acceptance-criteria topic (that looser check is
+    sufficient to corroborate a quorum per ADR-033 rule 2, but not to
+    promote a claim into ``success_criteria``: a locator alone is not
+    proof of concreteness, and vague/TBD prose like "acceptance criteria
+    will be defined eventually" must never count).
+    """
+    text = value.lower()
+    if any(marker in text for marker in _VAGUE_CRITERION_MARKERS):
+        return False
+    return any(marker in text for marker in _ACCEPTANCE_CRITERIA_MARKERS)
+
+
 def _looks_like_named_test_resource(resource: str) -> bool:
-    lowered = resource.lower()
-    return "test" in lowered
+    """A real test *file*, not merely a resource whose path happens to
+    contain the substring "test" (e.g. ``docs/test_matrix.md``): a
+    ``test_*.py``/``*_test.py`` filename, matched anywhere in the path so
+    ``tests/test_sample.py`` and a bare ``test_sample.py`` both count.
+    """
+    posix = resource.replace("\\", "/").lower()
+    return bool(_NAMED_TEST_RESOURCE_RE.search(posix))
 
 
 def extract_candidate_facts(
@@ -373,9 +428,14 @@ def _classify_authority(
     # "unless the evidence itself specifies the dependency" (ADR-033 rule 7)
     # means any evidence for this subject, not only the quorum's two
     # selected intent/acceptance signals -- so this scans the fact's full
-    # claim set, not just evidence_signals.
+    # claim set, not just evidence_signals. The claim must still clear the
+    # same _eligible() authority/lifecycle floor every other signal in this
+    # module is held to -- an INFERRED/REJECTED/stale/superseded
+    # RUNTIME_DEPENDENCY claim must never be able to flip a
+    # pyproject.toml-touching proposal from OWNER_HELD to EXECUTION_READY.
     has_dependency_evidence = any(
-        claim.claim_type is ClaimType.RUNTIME_DEPENDENCY for claim in fact_claims
+        claim.claim_type is ClaimType.RUNTIME_DEPENDENCY and _eligible(claim)
+        for claim in fact_claims
     )
     for path in proposed_scope:
         posix = path.replace("\\", "/")
@@ -405,7 +465,11 @@ def _derive_success_criteria(evidence_signals: tuple[EvidenceSignal, ...]) -> tu
             signal.resource
         ):
             criteria.append(f"test result ({signal.resource}): {signal.value}")
-        elif signal.claim_type in _ACCEPTANCE_STATUS_CLAIM_TYPES and signal.locator:
+        elif (
+            signal.claim_type in _ACCEPTANCE_STATUS_CLAIM_TYPES
+            and signal.locator
+            and _looks_like_concrete_criterion(signal.value)
+        ):
             location = f"{signal.resource}#{signal.locator}"
             criteria.append(f"acceptance criterion ({location}): {signal.value}")
     return tuple(criteria)
@@ -448,9 +512,55 @@ def validate_policy(
         f"{len(evidence_signals) - 1} acceptance signal(s)."
     )
 
+    # ADR-033 rule 4: veto if any *eligible* claim on this subject -- in any
+    # field, not only the field the intent/acceptance signals happen to use
+    # -- already reports completion (IMPLEMENTED/VERIFIED_COMPLETION in
+    # project_roadmap._normalize_status's own vocabulary; reused rather than
+    # inventing a second one, same discipline as the intent-status check
+    # above). _conflicts() groups by subject|field, so a completion claim
+    # recorded under a *different* field from the intent/acceptance signals
+    # (e.g. "lifecycle" vs "status") would never surface as a same-field
+    # contradiction there -- this is a separate, explicit check.
+    completion_claims = [
+        claim
+        for claim in fact.claims
+        if claim.claim_type in _INTENT_CLAIM_TYPES
+        and _eligible(claim)
+        and _normalize_status(claim.normalized_text or claim.value)[0] in _COMPLETION_STATUSES
+    ]
+    if completion_claims:
+        contradictions = tuple(
+            sorted(
+                f"{claim.field}: {claim.value} (claim {claim.claim_id})"
+                for claim in completion_claims
+            )
+        )
+        return OriginationProposal(
+            work_id=_work_id(safe_project_id, fact.subject, intent.claim_id),
+            project_id=safe_project_id,
+            title=title,
+            why_this_work=why_this_work,
+            source_evidence=evidence_signals,
+            source_locations=source_locations,
+            proposed_scope=proposed_scope,
+            success_criteria=(),
+            dependencies=(),
+            contradictions=contradictions,
+            authority_class=authority_class,
+            confidence="EVIDENCE_PARTIAL",
+            status="BLOCKED",
+            block_reason="ALREADY_COMPLETED_EVIDENCE",
+        )
+
     # ADR-033 rule 3: reject if a contradicting claim exists for this subject.
     # Reuse the existing deterministic conflict detector; never a second one.
-    conflicts = _conflicts(safe_project_id, list(all_project_claims))
+    # Scoped to this fact's own claims only -- already project+subject
+    # scoped by extract_candidate_facts's construction -- never the raw
+    # all_project_claims, which _conflicts() does not itself filter by
+    # project_id: a foreign-project (or foreign-subject) claim sharing
+    # subject/field could otherwise both falsely block this proposal and
+    # leak its value into the returned contradictions.
+    conflicts = _conflicts(safe_project_id, list(fact.claims))
     subject_conflicts = [conflict for conflict in conflicts if conflict.subject == fact.subject]
     if subject_conflicts:
         contradictions = tuple(
@@ -584,7 +694,14 @@ def _load_existing_record(path: Path) -> tuple[str, dict[str, Any]]:
     if record is None:
         return text, {"schema_version": 1, "roadmap_items": [], "origination": {}}
     record = dict(record)
+    # Normalize the legacy "items" key into "roadmap_items" and then drop
+    # "items" entirely -- project_roadmap.build_roadmap_lens reads
+    # `source.get("items") or source.get("roadmap_items")`, so leaving the
+    # stale "items" list in place would make it keep winning that `or` and
+    # silently hide every roadmap_items entry this module appends from then
+    # on. After this, the written record carries exactly one items key.
     record.setdefault("roadmap_items", record.get("items") or [])
+    record.pop("items", None)
     record.setdefault("origination", {})
     return text, record
 
@@ -635,6 +752,82 @@ def write_origination_record(vault: Path, project_id: str, proposal: Origination
     markdown = _render_roadmap_markdown(existing_text, safe_project_id, record)
     _write_atomic(path, markdown.encode("utf-8"))
     return path
+
+
+def _reconcile_stale_origination_items(
+    vault: Path, project_id: str, current_proposals: tuple[OriginationProposal, ...]
+) -> None:
+    """Remove any previously-written AS-ORIGIN-001 roadmap item whose
+    evidence has since stopped qualifying.
+
+    Without this, a proposal written on an earlier run stays in both
+    ``roadmap_items`` and ``origination`` forever once its backing claims
+    change to completed, conflicting, insufficient, or removed -- the next
+    run's write loop only ever adds/replaces *currently* VALID proposals,
+    it never subtracts, so the roadmap lens would keep presenting obsolete
+    work as the next unlock indefinitely.
+
+    Only ever touches entries this module itself wrote: every candidate
+    for removal is read out of the record's own ``origination`` map (which
+    only this module populates), matched back to its authoritative-intent
+    claim id, and dropped only when that same claim id no longer produces
+    a VALID proposal with the *same* work_id this run. A hand-authored
+    roadmap item (no matching ``origination`` entry) is never inspected.
+    """
+    safe_project_id = _safe_project_id(project_id)
+    path = _roadmap_path(vault, safe_project_id)
+    existing_text, record = _load_existing_record(path)
+    origination = record.get("origination")
+    if not isinstance(origination, dict) or not origination:
+        return
+
+    current_valid_by_intent_claim: dict[str, OriginationProposal] = {}
+    for proposal in current_proposals:
+        if proposal.status != "VALID":
+            continue
+        intent_signal = next(
+            (s for s in proposal.source_evidence if s.signal_role == "authoritative_intent"),
+            None,
+        )
+        if intent_signal is not None:
+            current_valid_by_intent_claim[intent_signal.claim_id] = proposal
+
+    stale_work_ids: set[str] = set()
+    for work_id, raw in origination.items():
+        if not isinstance(raw, dict):
+            stale_work_ids.add(work_id)
+            continue
+        try:
+            stored = OriginationProposal.model_validate(raw)
+        except Exception:
+            stale_work_ids.add(work_id)
+            continue
+        intent_signal = next(
+            (s for s in stored.source_evidence if s.signal_role == "authoritative_intent"),
+            None,
+        )
+        if intent_signal is None:
+            stale_work_ids.add(work_id)
+            continue
+        fresh = current_valid_by_intent_claim.get(intent_signal.claim_id)
+        if fresh is None or fresh.work_id != work_id:
+            stale_work_ids.add(work_id)
+
+    if not stale_work_ids:
+        return
+
+    record["origination"] = {
+        work_id: raw for work_id, raw in origination.items() if work_id not in stale_work_ids
+    }
+    items = [item for item in record.get("roadmap_items") or [] if isinstance(item, dict)]
+    record["roadmap_items"] = [
+        item for item in items if str(item.get("id")) not in stale_work_ids
+    ]
+    record["schema_version"] = 1
+    record["generated"] = {"by": GENERATOR_ID}
+
+    markdown = _render_roadmap_markdown(existing_text, safe_project_id, record)
+    _write_atomic(path, markdown.encode("utf-8"))
 
 
 def read_origination_proposal(
@@ -723,6 +916,13 @@ def run_origination(vault: Path, project_id: str) -> OriginationProposal | None:
         if signals is None:
             continue
         proposals.append(validate_policy(safe_project_id, fact, signals, claims))
+
+    # Reconcile before (and regardless of) any new write this run: a
+    # subject whose evidence stopped qualifying since the last run -- gone
+    # entirely, no longer forming a quorum, now conflicting, or now
+    # insufficient -- must have its previously-written item removed, not
+    # left presenting stale work as the next unlock forever.
+    _reconcile_stale_origination_items(vault, safe_project_id, tuple(proposals))
 
     if not proposals:
         return None

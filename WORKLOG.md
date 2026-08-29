@@ -9776,3 +9776,129 @@ owner decision, same as every other PR this session.
   non-mutation were all independently re-derived from primary evidence,
   not taken on trust. `MERGE_AUTHORIZATION` is not granted by this entry —
   owner decision, per instruction.
+
+## AS-ORIGIN-001 — Review-bot remediation pass (PR #642)
+
+- Date: 2026-08-29
+- Scope: fix all unresolved automated-review findings on PR #642
+  (`feat/phase2a-specification-backed-origination`), fetched fresh via the
+  GitHub GraphQL review-threads API rather than trusted from the dispatch
+  text (line numbers had drifted since the prior IV pass's push). 12
+  unresolved threads found and addressed. Worktree:
+  `D:/atlas-worktrees/iv-phase2a-origination`, starting at `650f9e79`
+  (the prior IV pass's fail-closed fix to `read_origination_proposal`,
+  confirmed still intact and untouched by this pass).
+- Findings confirmed real and fixed, all in
+  `src/project_atlas/orchestration/origination.py` unless noted:
+  1. **P1** — `validate_policy()` passed the unfiltered claim list into
+     `knowledge_compiler._conflicts()` (two threads, same root cause: one
+     from `copilot-pull-request-reviewer`, one from
+     `chatgpt-codex-connector`), which does not filter by `project_id`
+     itself. A foreign-project claim sharing `subject`/`field` could
+     falsely `CONFLICTING_PROJECT_EVIDENCE`-block a legitimate proposal
+     and leak its value into `contradictions`. Fixed by scoping the input
+     to `fact.claims` (already project+subject scoped by
+     `extract_candidate_facts`'s construction) instead of
+     `all_project_claims`.
+  2. **P1** — `has_dependency_evidence` in `_classify_authority` went true
+     from *any* same-subject `RUNTIME_DEPENDENCY` claim, including
+     `INFERRED`/`REJECTED`/stale/superseded ones `_eligible()` rejects
+     everywhere else in the module — a real gate bypass letting untrusted
+     evidence flip a `pyproject.toml`-touching proposal from `OWNER_HELD`
+     to `EXECUTION_READY`. Fixed by requiring `_eligible(claim)`.
+  3. **P1** — the legacy `items` roadmap key was copied into
+     `roadmap_items` but never removed; `build_roadmap_lens`'s
+     `source.get("items") or source.get("roadmap_items")` kept reading the
+     frozen `items` list forever after, hiding every newly-appended
+     origination proposal. Fixed in `_load_existing_record` by popping
+     `items` after normalizing into `roadmap_items`.
+  4. **P1** (found by `chatgpt-codex-connector`, not present in the
+     dispatch text — confirmed real against current code and fixed
+     anyway, since the task is "all unresolved findings" and the fresh
+     GraphQL fetch is the source of truth) — once a proposal was written,
+     nothing ever removed it if its claims later changed to completed,
+     conflicting, insufficient, or removed; the roadmap lens would keep
+     presenting obsolete work as the next unlock indefinitely. Fixed by
+     adding `_reconcile_stale_origination_items`, called from
+     `run_origination` on every run: any `origination`-map entry (i.e.
+     only entries this module itself wrote — a hand-authored roadmap item
+     is never touched) whose authoritative-intent claim id no longer
+     produces a current VALID proposal with the same `work_id` is dropped
+     from both `roadmap_items` and `origination`.
+  5. **P2** — a `WORK_PACKAGE_STATUS` claim normalizing to
+     `IMPLEMENTED`/`VERIFIED_COMPLETION` under a *different* field than
+     the intent/acceptance signals (e.g. `lifecycle` vs `status`) was
+     never caught, since `_conflicts()` groups by `subject|field`. Fixed
+     by an explicit completion veto in `validate_policy` scanning all of
+     `fact.claims` for an eligible completion claim regardless of field
+     (`status=BLOCKED`, `block_reason=ALREADY_COMPLETED_EVIDENCE`).
+  6. **P2** — the skip/xfail acceptance check did raw substring matching
+     on `"skip"`, so `"unskipped and passing"` or `"no longer skipped"`
+     false-positived as a skip signal. Fixed with a bounded-phrase regex
+     plus a negation-prefix exclusion (`_is_skip_marker_present`);
+     `"unskipped"` never matches at all (word boundary can't start
+     mid-token) and a marker immediately preceded by "no longer"/"not"/
+     "never" is excluded.
+  7. **P2** — any acceptance-topic claim with a non-empty `locator` was
+     promoted straight into `success_criteria`, even when its `value` was
+     vague/TBD prose ("acceptance criteria will be defined eventually").
+     Fixed by `_looks_like_concrete_criterion`, a deterministic deny-list
+     check (vague markers like "will be defined"/"tbd" disqualify) applied
+     in `_derive_success_criteria` alongside the existing locator check.
+  8. **P2** — `_looks_like_named_test_resource` matched any resource
+     containing the substring `"test"` (e.g. `docs/test_matrix.md`).
+     Fixed with a regex requiring an actual `test_*.py`/`*_test.py`
+     filename.
+  9. Cosmetic — `ADR-033`'s "Status: proposed, pre-implementation" line
+     updated to "Status: implemented, PR #642, not yet merged" (only one
+     live occurrence found in the current file; the review comment's
+     second line reference had drifted).
+  10. Cosmetic — the showcase-acceptance integration test's estate-root
+      skip condition checked `ESTATES_ROOT.is_dir()` only; on a
+      non-Windows machine `Path("D:/Atlas-Demo/estates")` is not
+      drive-rooted, so a same-named relative `D:` directory could make
+      `is_dir()` spuriously true. Fixed by requiring
+      `ESTATES_ROOT.is_absolute()` too, extracted into `_estates_available`.
+  11. Cosmetic — `docs/backlog.md`'s stale "23 tests"/"4 tests" counts
+      corrected to the real post-fix totals (39 unit, 7 integration).
+  12. **Already fixed, confirmed intact, not re-touched**: the prior IV
+      pass's fail-closed fix to `read_origination_proposal` (returns
+      `None` on a corrupted/tampered record instead of raising) — verified
+      still present and unmodified by this pass.
+- **Regression tests** (one per finding, each independently verified to
+  fail against the pre-fix code and pass post-fix via a scratch
+  pre-fix/post-fix source swap, not merely asserted):
+  `test_dependency_manifest_gate_rejects_ineligible_dependency_claim`,
+  `test_conflict_detection_is_scoped_to_project_never_leaks_foreign_value`,
+  `test_already_completed_work_vetoed_regardless_of_field`,
+  `test_skip_substring_false_positives_do_not_corroborate` (parametrized:
+  `"unskipped and passing"`, `"no longer skipped"`),
+  `test_locator_alone_is_not_promoted_to_concrete_success_criterion`,
+  `test_named_test_resource_requires_real_test_file_path`,
+  `test_legacy_items_key_is_dropped_after_normalization`,
+  `test_reconcile_removes_stale_item_once_evidence_stops_qualifying` (all
+  in `tests/unit/test_as_origin_001.py`); plus
+  `test_estates_available_requires_absolute_path`,
+  `test_estates_available_true_when_absolute_and_dir`,
+  `test_estates_available_false_when_absolute_but_missing` in
+  `tests/integration/test_as_origin_001_showcase_acceptance.py`.
+- Verification: `PYTHONPATH` pointed at this worktree's `src/` (same
+  environment workaround as the prior IV pass — the global editable
+  install points at `D:/Atlas-Demo/atlas/project-atlas`, a different
+  checkout, and was never touched). Full re-run:
+  `tests/unit/test_as_origin_001.py` (39) +
+  `tests/integration/test_as_origin_001_showcase_acceptance.py` (7) = 46
+  passed, 0 failed, 0 regressions in the pre-existing suite. `ruff check .`
+  clean. `mypy src/project_atlas/orchestration/origination.py` clean, 0
+  errors.
+- Scope boundaries respected: `orchestration/autonomy/` and
+  `project_roadmap.py` untouched; `D:/Atlas-Demo` untouched (confirmed via
+  `git status --short` inside the estate checkouts, unchanged before/after).
+  Did not merge PR #642, did not force-push, did not touch `main`.
+- **Result: `FOUND-AND-FIXED-DEFECTS`.** 12/12 unresolved review threads
+  addressed with root-cause fixes and a regression test per finding (one
+  finding — reconciliation of stale generated items — was outside the
+  dispatch's own summary text but present in the fresh GraphQL fetch, so
+  it was treated as in-scope and fixed rather than skipped). No finding
+  disputed. `MERGE_AUTHORIZATION` is not granted by this entry — owner
+  decision, per instruction.

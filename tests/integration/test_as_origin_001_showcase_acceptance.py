@@ -36,10 +36,22 @@ from project_atlas.orchestration import origination as orig
 
 ESTATES_ROOT = Path("D:/Atlas-Demo/estates")
 
+def _estates_available(root: Path) -> bool:
+    """``ESTATES_ROOT`` is a Windows-style absolute path (``D:/...``). On a
+    non-Windows machine that same string is not drive-rooted and
+    ``Path.is_absolute()`` is False for it -- but ``is_dir()`` alone would
+    still happily return True if some unrelated relative ``D:`` directory
+    happened to exist under the current working tree, letting these
+    showcase tests run unexpectedly (and then fail) on a platform where
+    the real estates were never present. Both checks are required.
+    """
+    return root.is_absolute() and root.is_dir()
+
+
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
-        not ESTATES_ROOT.is_dir(),
+        not _estates_available(ESTATES_ROOT),
         reason="D:/Atlas-Demo showcase estates are not present on this machine",
     ),
 ]
@@ -241,3 +253,26 @@ def test_origination_logic_recognizes_gammas_task_017_evidence_when_structured(
     # PROVENANCE_SURVIVES_RESTART, exercised once more against real content.
     reloaded = orig.read_origination_proposal(vault, "atlas-showcase-gamma", result.work_id)
     assert reloaded == result
+
+
+def test_estates_available_requires_absolute_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A directory that exists but is not recognized as absolute must never
+    be treated as available -- this is exactly the pre-fix failure mode: on
+    a non-Windows machine, ``Path("D:/Atlas-Demo/estates")`` is a relative
+    path, so a same-named ``D:`` directory happening to exist in the
+    working tree could make ``is_dir()`` alone spuriously true."""
+    monkeypatch.setattr(Path, "is_absolute", lambda self: False)
+    monkeypatch.setattr(Path, "is_dir", lambda self: True)
+    assert _estates_available(ESTATES_ROOT) is False
+
+
+def test_estates_available_true_when_absolute_and_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(Path, "is_absolute", lambda self: True)
+    monkeypatch.setattr(Path, "is_dir", lambda self: True)
+    assert _estates_available(ESTATES_ROOT) is True
+
+
+def test_estates_available_false_when_absolute_but_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(Path, "is_absolute", lambda self: True)
+    monkeypatch.setattr(Path, "is_dir", lambda self: False)
+    assert _estates_available(ESTATES_ROOT) is False

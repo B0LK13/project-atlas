@@ -605,6 +605,263 @@ def test_dependency_manifest_scope_needs_explicit_dependency_evidence() -> None:
 
 
 # --------------------------------------------------------------------------
+# IV remediation regressions (PR #642 review findings)
+# --------------------------------------------------------------------------
+
+
+def test_dependency_manifest_gate_rejects_ineligible_dependency_claim() -> None:
+    """An INFERRED (below the authority floor) RUNTIME_DEPENDENCY claim must
+    never be able to flip a pyproject.toml-touching proposal from
+    OWNER_HELD to EXECUTION_READY -- it must clear the same _eligible()
+    floor as every other signal in this module."""
+    claims = [
+        _intent(resource="pyproject.toml"),
+        _accept(),
+        _claim(
+            "claim-dep-inferred",
+            subject="wp:sample",
+            claim_type=ClaimType.RUNTIME_DEPENDENCY,
+            field="runtime",
+            value="requires: widget>=2.0",
+            resource="pyproject.toml",
+            authority=AuthorityLevel.INFERRED,
+        ),
+    ]
+    facts = orig.extract_candidate_facts(claims, PROJECT_A)
+    signals = orig.correlate_evidence(facts[0])
+    assert signals is not None
+    proposal = orig.validate_policy(PROJECT_A, facts[0], signals, claims)
+    assert proposal.authority_class == "OWNER_HELD"
+
+    claims_rejected_lifecycle = [
+        _intent(resource="pyproject.toml"),
+        _accept(),
+        _claim(
+            "claim-dep-rejected",
+            subject="wp:sample",
+            claim_type=ClaimType.RUNTIME_DEPENDENCY,
+            field="runtime",
+            value="requires: widget>=2.0",
+            resource="pyproject.toml",
+            lifecycle=ClaimLifecycle.REJECTED,
+        ),
+    ]
+    facts2 = orig.extract_candidate_facts(claims_rejected_lifecycle, PROJECT_A)
+    signals2 = orig.correlate_evidence(facts2[0])
+    assert signals2 is not None
+    proposal2 = orig.validate_policy(PROJECT_A, facts2[0], signals2, claims_rejected_lifecycle)
+    assert proposal2.authority_class == "OWNER_HELD"
+
+
+def test_conflict_detection_is_scoped_to_project_never_leaks_foreign_value() -> None:
+    """A foreign-project claim sharing subject/field with a different value
+    must never falsely block a legitimate same-project proposal, and its
+    value must never leak into the returned contradictions -- even when a
+    caller passes an unfiltered, mixed-project claim list into
+    validate_policy (knowledge_compiler._conflicts() does not itself filter
+    by project_id, so the scoping must happen before that call)."""
+    claims_a = [
+        _intent(project_id=PROJECT_A, subject="wp:shared"),
+        _accept(project_id=PROJECT_A, subject="wp:shared"),
+    ]
+    foreign_conflicting_value = "TOP-SECRET-PROJECT-B-VALUE-do-not-leak"
+    claims_b = [
+        _intent(
+            claim_id="claim-intent-foreign",
+            project_id=PROJECT_B,
+            subject="wp:shared",
+            value=foreign_conflicting_value,
+            authority=AuthorityLevel.PRIMARY,
+        ),
+    ]
+    all_claims = claims_a + claims_b
+
+    facts_a = orig.extract_candidate_facts(all_claims, PROJECT_A)
+    assert len(facts_a) == 1
+    signals_a = orig.correlate_evidence(facts_a[0])
+    assert signals_a is not None
+    # Deliberately pass the *unfiltered*, mixed-project claim list -- the
+    # exact shape the finding warns is easy to do given the parameter name.
+    proposal = orig.validate_policy(PROJECT_A, facts_a[0], signals_a, all_claims)
+    assert proposal.status == "VALID"
+    assert proposal.block_reason is None
+    assert proposal.contradictions == ()
+    for contradiction in proposal.contradictions:
+        assert foreign_conflicting_value not in contradiction
+
+
+def test_already_completed_work_vetoed_regardless_of_field() -> None:
+    """An eligible WORK_PACKAGE_STATUS claim normalizing to IMPLEMENTED or
+    VERIFIED_COMPLETION under a *different* field than the intent/
+    acceptance signals (e.g. "lifecycle" vs "status") must still veto
+    origination -- _conflicts() groups by subject|field so it would never
+    catch this on its own."""
+    claims = [
+        _intent(),  # field="status", value="ready" -> NOT_STARTED
+        _accept(),
+        _claim(
+            "claim-completed-lifecycle",
+            subject="wp:sample",
+            claim_type=ClaimType.WORK_PACKAGE_STATUS,
+            field="lifecycle",
+            value="verified",
+            resource="docs/roadmap.md",
+        ),
+    ]
+    facts = orig.extract_candidate_facts(claims, PROJECT_A)
+    signals = orig.correlate_evidence(facts[0])
+    assert signals is not None
+    proposal = orig.validate_policy(PROJECT_A, facts[0], signals, claims)
+    assert proposal.status == "BLOCKED"
+    assert proposal.block_reason == "ALREADY_COMPLETED_EVIDENCE"
+    assert proposal.contradictions
+
+
+@pytest.mark.parametrize(
+    "false_positive_value",
+    ["unskipped and passing", "no longer skipped"],
+)
+def test_skip_substring_false_positives_do_not_corroborate(false_positive_value: str) -> None:
+    """A raw substring match on "skip" incorrectly treats "unskipped and
+    passing" or "no longer skipped" as a skip/not-yet-implemented signal.
+    Neither phrase describes an unrelated claim type/field that would
+    otherwise qualify, so with no other acceptance signal present, quorum
+    must not be met."""
+    claims = [
+        _intent(),
+        _accept(value=false_positive_value),
+    ]
+    facts = orig.extract_candidate_facts(claims, PROJECT_A)
+    assert orig.correlate_evidence(facts[0]) is None
+
+
+def test_locator_alone_is_not_promoted_to_concrete_success_criterion() -> None:
+    """A located claim whose own value is vague/TBD prose ("acceptance
+    criteria will be defined eventually") must never be promoted into
+    success_criteria merely because it has a non-empty locator."""
+    claims = [
+        _intent(),
+        _claim(
+            "claim-vague-acceptance-located",
+            subject="wp:sample",
+            claim_type=ClaimType.DECISION,
+            field="decision",
+            value="the acceptance criteria will be defined eventually",
+            resource="docs/notes.md",
+            locator="heading:notes",  # non-empty locator -- the pre-fix trigger
+        ),
+    ]
+    facts = orig.extract_candidate_facts(claims, PROJECT_A)
+    signals = orig.correlate_evidence(facts[0])
+    assert signals is not None
+    proposal = orig.validate_policy(PROJECT_A, facts[0], signals, claims)
+    assert proposal.status == "INSUFFICIENT_ACCEPTANCE_CONTRACT"
+    assert proposal.success_criteria == ()
+
+
+def test_named_test_resource_requires_real_test_file_path() -> None:
+    """A resource merely *containing* the substring "test" (e.g.
+    docs/test_matrix.md) must never count as a named test resource and get
+    promoted into success_criteria -- only a real tests/test_*.py-shaped
+    file path counts."""
+    assert orig._looks_like_named_test_resource("tests/test_sample.py") is True
+    assert orig._looks_like_named_test_resource("test_sample.py") is True
+    assert orig._looks_like_named_test_resource("docs/test_matrix.md") is False
+
+    claims = [
+        _intent(),
+        _accept(resource="docs/test_matrix.md"),  # skip-marker value, doc-shaped resource
+    ]
+    facts = orig.extract_candidate_facts(claims, PROJECT_A)
+    signals = orig.correlate_evidence(facts[0])
+    assert signals is not None
+    proposal = orig.validate_policy(PROJECT_A, facts[0], signals, claims)
+    assert proposal.status == "INSUFFICIENT_ACCEPTANCE_CONTRACT"
+    assert proposal.success_criteria == ()
+
+
+def test_legacy_items_key_is_dropped_after_normalization(tmp_path: Path) -> None:
+    """A roadmap record written in the legacy "items" shape must not keep
+    that stale key after this module writes to it -- otherwise
+    build_roadmap_lens's `source.get("items") or source.get("roadmap_items")`
+    keeps reading the frozen "items" list and never sees newly-appended
+    roadmap_items entries."""
+    vault = tmp_path / "vault"
+    _init_project_dir(vault, PROJECT_A)
+    roadmap_path = vault / "projects" / PROJECT_A / "roadmap.md"
+    legacy_record = {
+        "schema_version": 1,
+        "items": [
+            {
+                "id": "wk-legacy-handauthored",
+                "title": "Hand-authored legacy item",
+                "status": "planned",
+                "lifecycle": "READY",
+                "depends_on": [],
+                "evidence": [],
+                "blockers": [],
+                "notes": [],
+            }
+        ],
+    }
+    roadmap_path.write_text(
+        "# Roadmap\n\n## Roadmap record\n```json\n"
+        + json.dumps(legacy_record)
+        + "\n```\n",
+        encoding="utf-8",
+    )
+
+    _write_claims(vault, PROJECT_A, [_intent(), _accept()])
+    proposal = orig.run_origination(vault, PROJECT_A)
+    assert proposal is not None
+    assert proposal.status == "VALID"
+
+    text = roadmap_path.read_text(encoding="utf-8")
+    record = json.loads(text.split("```json", 1)[1].rsplit("```", 1)[0])
+    assert "items" not in record
+    ids = {item["id"] for item in record["roadmap_items"]}
+    assert "wk-legacy-handauthored" in ids  # the hand-authored item survives
+    assert proposal.work_id in ids  # the newly-written proposal is present
+
+    lens = build_roadmap_lens(vault, PROJECT_A)
+    lens_ids = {item["id"] for item in lens["items"]}
+    assert proposal.work_id in lens_ids  # actually surfaced, not hidden behind "items"
+
+
+def test_reconcile_removes_stale_item_once_evidence_stops_qualifying(tmp_path: Path) -> None:
+    """After a VALID proposal is written, if its subject's evidence changes
+    such that it no longer qualifies (here: the intent claim is edited to
+    report completion), the next run_origination call must remove the
+    stale entry from both roadmap_items and origination -- not leave it
+    presenting obsolete work as the next unlock forever."""
+    vault = tmp_path / "vault"
+    _init_project_dir(vault, PROJECT_A)
+    _write_claims(vault, PROJECT_A, [_intent(), _accept()])
+
+    first = orig.run_origination(vault, PROJECT_A)
+    assert first is not None
+    assert first.status == "VALID"
+    roadmap_path = vault / "projects" / PROJECT_A / "roadmap.md"
+    text_after_first = roadmap_path.read_text(encoding="utf-8")
+    record_after_first = json.loads(text_after_first.split("```json", 1)[1].rsplit("```", 1)[0])
+    assert first.work_id in {item["id"] for item in record_after_first["roadmap_items"]}
+    assert first.work_id in record_after_first["origination"]
+
+    # Evidence changes: the intent claim now reports the work is done.
+    _write_claims(vault, PROJECT_A, [_intent(value="done"), _accept()])
+    second = orig.run_origination(vault, PROJECT_A)
+    assert second is None  # no quorum left anywhere in the project
+
+    text_after_second = roadmap_path.read_text(encoding="utf-8")
+    record_after_second = json.loads(
+        text_after_second.split("```json", 1)[1].rsplit("```", 1)[0]
+    )
+    assert first.work_id not in {item["id"] for item in record_after_second["roadmap_items"]}
+    assert first.work_id not in record_after_second["origination"]
+    assert orig.read_origination_proposal(vault, PROJECT_A, first.work_id) is None
+
+
+# --------------------------------------------------------------------------
 # Schema discipline (mirrors intelligence/next_action.py's authority checks)
 # --------------------------------------------------------------------------
 

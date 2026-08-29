@@ -1,6 +1,6 @@
 # ADR-033 — Specification-Backed Work Origination (Phase 2A)
 
-Status: proposed, pre-implementation. Authorized scope:
+Status: implemented, PR #642, not yet merged. Authorized scope:
 `SPECIFICATION_BACKED_WORK_ORIGINATION` only, per owner directive
 `D-PHASE2A-SPECIFICATION-BACKED-WORK-ORIGINATION`. Does not authorize
 general "what should I build next" reasoning, bug discovery without a
