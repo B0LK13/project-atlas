@@ -299,9 +299,44 @@ to empty (was `"true"`). 15/15 differential, 12/12 integration, `ruff`/
 the detection logic (`_json_has_answer_key`/`_json_contains_string`) is
 byte-for-byte unchanged from the round-3-verified version.
 
+## PR review finding (P1, two independent reviewers): malformed-JSON blind spot
+
+Before merge, PR #651's own GitHub review threads (`chatgpt-codex-connector`
+and Cursor's Security Reviewer, independently, both P1/MEDIUM) flagged that
+`_structural_answer_key_leaks` treated ANY `json.loads` failure as "no
+leak," unconditionally — a malformed, truncated, or BOM-prefixed JSON blob
+that still plaintext-contains a holdout case id and `"expected"` was
+silently reported clean, even though the bytes remain exactly as readable
+via `git rev-list --objects --all` as a well-formed blob would be. This is
+a genuine regression versus the ORIGINAL `git log -p -S` / added-line
+substring check, which worked on raw diff text and never required valid
+JSON — the reviewers were correct that the JSON-parse gate, introduced to
+fix the same-blob false-positive class, went one step too far by silently
+dropping detection on the parse-failure path entirely.
+
+Independently reproduced before accepting: an unfixed run against
+`{"case_id": "EV-HOLD-999", "expected": "the-secret-answer"` (missing
+closing brace, otherwise a real leak) returned zero hits.
+
+**Fix**: `_looks_like_json_document()` — a narrow heuristic gate: does the
+blob's content, after stripping a UTF-8 BOM and leading whitespace, start
+with `{` or `[`? Ordinary source (Python, Markdown, ...) essentially never
+does. When `json.loads` fails AND this gate is true, `_raw_fallback_answer_key_leaks()`
+falls back to the original raw substring check (case id + `"expected"`
+marker present in the same blob) — restoring detection for blobs clearly
+attempting to be JSON, without reintroducing the broad false-positive
+class the JSON gate was introduced to fix (Python source doesn't start
+with `{`/`[`, so it stays excluded even on this fallback path).
+
+3 new regression tests: truncated/missing-closing-brace, BOM-prefixed,
+trailing-garbage-after-document (all now caught), plus one confirming the
+fallback stays correctly gated (ordinary Python source is still not
+flagged even though it also fails to parse).
+
 ## Validation
 
-- `tests/security/test_git_history_scan_differential.py`: 15/15 pass.
+- `tests/security/test_git_history_scan_differential.py`: 19/19 pass (was
+  15, +4: 3 malformed-JSON regressions + 1 fallback-gating guard).
 - `tests/integration/test_as_2_2_eval_broker_adversarial.py`: 12/12 pass
   (full file, including the redesigned test at 13.48s, was >120s/SIGKILL).
 - `ruff check .`: clean. `mypy` on the new module: clean.

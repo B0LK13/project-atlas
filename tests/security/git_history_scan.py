@@ -195,6 +195,44 @@ def _json_contains_string(obj: Any, target: str) -> bool:
     return isinstance(obj, str) and obj == target
 
 
+def _looks_like_json_document(text: str) -> bool:
+    """Heuristic gate for the malformed-JSON fallback below: True only if
+    the blob's content, after stripping a UTF-8 BOM and leading
+    whitespace, starts with ``{`` or ``[``. Ordinary source code (Python,
+    Markdown, ...) essentially never starts this way, so this reliably
+    separates "this blob was clearly intended to be a JSON document but
+    failed to parse" from "this is unrelated source that happens to
+    mention both a case id and 'expected'" -- the exact class of false
+    positive JSON-parse-gating (below) exists to fix. Does not catch every
+    conceivable malformed-JSON shape (e.g. a leading `//` JSONC comment
+    before the opening brace, or truncation that also lost the leading
+    brace) -- a residual, narrow limitation, not a silent no-op: the two
+    named threats this fix was written for (a missing/extra trailing
+    brace, a stray leading UTF-8 BOM) are both still `{`/`[`-prefixed
+    after stripping and are both caught."""
+    stripped = text.lstrip("﻿").lstrip()
+    return stripped[:1] in ("{", "[")
+
+
+def _raw_fallback_answer_key_leaks(text: str, holdout_case_ids: Sequence[str]) -> set[str]:
+    """Fallback for a blob that looks like it was intended to be a JSON
+    document (per `_looks_like_json_document`) but fails to parse --
+    truncated, trailing garbage, a missing brace. Independent review (P1,
+    two independent reviewers) found that treating any `json.loads`
+    failure as "no leak" is a real regression versus the original `git log
+    -p -S` / added-line substring check: a malformed-but-real case record
+    is exactly as plaintext-readable by an adversary with git-history
+    access as a well-formed one, so a parse failure must not silently mean
+    "clean." This restores that detection power for the narrow, gated case
+    where the blob was clearly attempting to be JSON, without reintroducing
+    the broad same-blob false-positive class `_looks_like_json_document`
+    excludes by construction (ordinary source files don't start with `{`/
+    `[`)."""
+    if _EXPECTED_KEY_MARKER not in text:
+        return set()
+    return {case_id for case_id in holdout_case_ids if case_id and case_id in text}
+
+
 def _structural_answer_key_leaks(text: str, holdout_case_ids: Sequence[str]) -> set[str]:
     """Case ids whose committed record, in this blob, pairs a holdout case
     id with an ``"expected"`` answer ANYWHERE in the same parsed JSON
@@ -206,10 +244,15 @@ def _structural_answer_key_leaks(text: str, holdout_case_ids: Sequence[str]) -> 
     substring check false-positived on: this file's own test source, in its
     own git history, both defines and checks for the strings
     "EV-HOLD-101"/"EV-HOLD-102" and "expected" -- discussing the property is
-    not violating it)."""
+    not violating it). A blob that fails to parse but still looks like an
+    attempted JSON document falls back to `_raw_fallback_answer_key_leaks`
+    rather than being silently treated as clean -- see that function's
+    docstring."""
     try:
         parsed = json.loads(text)
     except (json.JSONDecodeError, ValueError):
+        if _looks_like_json_document(text):
+            return _raw_fallback_answer_key_leaks(text, holdout_case_ids)
         return set()
     if not _json_has_answer_key(parsed):
         return set()

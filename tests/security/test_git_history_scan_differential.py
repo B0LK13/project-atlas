@@ -302,3 +302,58 @@ def test_new_scanner_catches_case_id_used_as_json_object_key(
         repo, secret_tokens=(), holdout_case_ids=_CASE_IDS
     )
     assert bool(answer_hits) is True
+
+
+@pytest.mark.parametrize(
+    "name, malformed_text",
+    [
+        ("truncated_missing_closing_brace", '{"case_id": "EV-HOLD-999", "expected": "leak"'),
+        ("bom_prefixed", "﻿" + _LEAK_JSON),
+        ("trailing_garbage_after_document", _LEAK_JSON + "\ngarbage past the end"),
+    ],
+)
+def test_new_scanner_catches_malformed_json_that_looks_intentional(
+    tmp_path: Path, name: str, malformed_text: str
+) -> None:
+    """Found via independent PR review (P1, raised by two separate
+    reviewers): `_structural_answer_key_leaks` originally treated any
+    `json.loads` failure as clean, unconditionally. A malformed-but-real
+    case record -- truncated, BOM-prefixed, trailing garbage after the
+    document -- is exactly as plaintext-readable by an adversary with
+    git-history access as a well-formed one, so treating a parse failure
+    as "no leak" is a real regression versus the original `git log -p -S`
+    / added-line substring check, which worked on raw diff text and never
+    required valid JSON. Independently reproduced against the unfixed code
+    before accepting the fix (the truncated-JSON case returned no hit).
+
+    Fixed via `_looks_like_json_document` (a narrow `{`/`[`-prefix gate)
+    plus `_raw_fallback_answer_key_leaks`, restoring detection for blobs
+    that were clearly attempting to be JSON without reintroducing the
+    original same-blob-substring false positive on ordinary source code
+    (which essentially never starts with `{`/`[`).
+    """
+    repo = _build_repo(tmp_path / name, [{"fixtures/eval/f.json": malformed_text}])
+    _secret_hits, answer_hits = find_leaked_holdout_evidence(
+        repo, secret_tokens=(), holdout_case_ids=_CASE_IDS
+    )
+    assert bool(answer_hits) is True
+
+
+def test_new_scanner_malformed_json_fallback_does_not_flag_ordinary_source(
+    tmp_path: Path,
+) -> None:
+    """The malformed-JSON fallback must stay gated: ordinary Python source
+    that mentions both a case id and "expected" (the original false-
+    positive class this whole detection design exists to avoid) does not
+    start with `{`/`[`, so it must still be excluded even though it also
+    fails to `json.loads`.
+    """
+    py_source = (
+        'def test_x():\n'
+        '    assert hold["expected"] == scoring_capability["EV-HOLD-999"]\n'
+    )
+    repo = _build_repo(tmp_path / "py_source_not_flagged", [{"tests/test_thing.py": py_source}])
+    _secret_hits, answer_hits = find_leaked_holdout_evidence(
+        repo, secret_tokens=(), holdout_case_ids=_CASE_IDS
+    )
+    assert answer_hits == ()
