@@ -9673,3 +9673,48 @@ recovery independently re-verified PASS and merged via PR #638.)
   origination into the live governed DAG) remains gated on both
   `D-PHASE2A-1a` (governor dependency-enforcement) and the PR #642
   reconciliation decision above.
+
+## D-PHASE2A follow-up wave — #642 resolved, #645/#647 integrated (post-#643 truth-sync)
+
+- Date: 2026-08-30
+- This entry does not revise the D-PHASE2A/#643 entry above, which
+  remains accurate for the state it describes at the time it was
+  written; it records what has changed since.
+- **PR #642 resolved**: closed as superseded, not merged, not
+  transplanted. Read-only reconciliation against current `main` (`#643`
+  lineage) and `#645`/`#647` found the two implementations are not
+  complementary versions of one design but two structurally different,
+  mutually incompatible answers to the same directive -- different
+  evidence source (vault-Claims ingestion vs. direct `docs/ROADMAP.md`
+  read), different output/consumer (`projects/<id>/roadmap.md` vs. the
+  governed `.atlas/orchestration/origination/origination.json` store),
+  and a verified module/package namespace collision (`orchestration/
+  origination.py` vs. the merged `orchestration/origination/` package --
+  confirmed via an isolated Python import test that merging as-is would
+  permanently orphan `origination.py` and break its own tests with
+  `AttributeError`), plus a duplicate `ADR-033` document. Closure note
+  posted to the PR with this evidence before closing; the vault-Claims
+  mechanism's two genuinely non-duplicated pieces (contradiction-
+  detection reuse of `knowledge_compiler._conflicts`, the `roadmap.md`
+  reconcile pair) are not salvaged inside #642 and remain a candidate
+  for a fresh, differently-named successor design if independently
+  justified later -- not done here, per the explicit "do not create code
+  merely to preserve historical effort" boundary.
+- **D-PHASE2A-1a merged**: PR #645, merge commit
+  `66e52d49d76da952e8fb83536057c0d6c16938c6`, 2026-08-30. `governor.lease()`
+  now enforces `WorkNode.dependencies` directly, fail-closed. 2 rounds of
+  independent IV (round 2 `CONFIRMED WITH MINOR NOTES`); post-merge seal
+  re-run against the integrated `main` tree (dependency-enforcement
+  suite, 9/9 pass live, not just on the pre-merge PR branch).
+- **D-PHASE2A-3 merged**: PR #647, merge commit
+  `ab1b64ea8cd021eeaa6fedc3674803447906e3c8`, 2026-08-30. Consolidated
+  `run_origination_scan()` entry point. 2 rounds of independent IV
+  (round 1 found and fixed 2 real defects -- an unsafe `project_id` and a
+  valid-but-overflowing one, both escaping the documented "never raises"
+  contract; round 2 `CONFIRMED WITH MINOR NOTES`); post-merge seal
+  re-run against the integrated `main` tree (CLI suite, 7/7 pass live).
+- **`docs/backlog.md` updated** to check off `D-PHASE2A-1a` and
+  `D-PHASE2A-3`, and to record `D-PHASE2A-2`'s two prior blockers as
+  resolved (both merged/closed above) while leaving `D-PHASE2A-2` itself
+  unchecked -- its own wiring work has not begun; only its blockers
+  cleared.
