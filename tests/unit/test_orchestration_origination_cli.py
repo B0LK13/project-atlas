@@ -216,6 +216,60 @@ def test_second_scan_does_not_re_materialize_already_terminal_work(tmp_path: Pat
     del identity  # only needed to document what was closed
 
 
+def test_scan_fails_closed_on_unsafe_project_id(tmp_path: Path) -> None:
+    """Independent-IV finding (PR #647 round 1): an unsafe project_id
+    (arbitrary characters, never validated in cli.py itself) used to
+    escape run_origination_scan() as an uncaught pydantic.ValidationError
+    from deep inside originate_new_only() -> SourceFact construction --
+    breaking the function's own "never raises" contract. Must now be
+    rejected at the top, before any downstream call, as a clean
+    fail-closed payload."""
+    repo = _make_repo(tmp_path)
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id="bad project id!",
+        origination_store=tmp_path / "origination-store",
+        explicit_trusted=_anchor(
+            _run_git(repo, "rev-parse", "origin/main"),
+            _run_git(repo, "rev-parse", "origin/main^{tree}"),
+        ),
+    )
+    assert exit_code == EXIT_ERROR
+    assert payload["blocker"] == "INVALID_PROJECT_ID"
+    assert payload["merge_authorized"] is False
+    assert payload["execution_authorized"] is False
+    # The scan never ran at all -- no store, no partial state.
+    assert not (tmp_path / "origination-store").exists()
+
+
+def test_scan_fails_closed_on_project_id_that_would_overflow_surface_id(
+    tmp_path: Path,
+) -> None:
+    """Independent-IV finding (PR #647 round 1): a project_id that is
+    individually valid (safe characters, <=128 chars, same bound
+    SourceFact.project_id itself allows) can still combine with the
+    fixed-length "-{work_id}" suffix this module appends to overflow
+    MutationSurface.surface_id's own 128-char cap -- raising a raw
+    ValidationError from inside materialize_work_node(), not a
+    MaterializationError, so it used to escape the existing
+    `except MaterializationError` entirely. 107 chars is one past this
+    module's own 106-char bound (128 - 1 separator - 21-char work_id)."""
+    repo = _eligible_repo(tmp_path)
+    long_project_id = "p" * 107
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id=long_project_id,
+        origination_store=tmp_path / "origination-store",
+        explicit_trusted=_anchor(
+            _run_git(repo, "rev-parse", "origin/main"),
+            _run_git(repo, "rev-parse", "origin/main^{tree}"),
+        ),
+    )
+    assert exit_code == EXIT_ERROR
+    assert payload["blocker"] == "INVALID_PROJECT_ID"
+    assert not (tmp_path / "origination-store").exists()
+
+
 def test_scan_fails_closed_on_trust_error(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
     payload, exit_code = run_origination_scan(
@@ -275,14 +329,18 @@ def test_owner_held_proposal_is_still_materialized_but_owner_gated(tmp_path: Pat
         explicit_trusted=_anchor(main, tree),
     )
     assert exit_code == EXIT_OK
-    # Whichever bucket it lands in, it must be reported somewhere, not
-    # silently vanish -- and the two buckets combined must equal the
-    # eligible count.
+    # The two buckets combined must equal the eligible count -- whichever
+    # bucket it lands in, it must be reported somewhere, not silently
+    # vanish.
     total = cast(int, payload["materialized_count"]) + cast(int, payload["not_materialized_count"])
     assert total == payload["eligible_count"] == 1
-    if payload["materialized_count"] == 1:
-        entry = cast("list[dict[str, object]]", payload["materialized"])[0]
-        assert entry["execution_ready"] is False
-        assert entry["owner_gate"] in {kind.value for kind in OwnerGateKind}
-    else:
-        assert payload["not_materialized_count"] == 1
+    # Independent-IV note (PR #647 round 1): asserting the specific
+    # outcome directly, not defensively branching on which bucket it
+    # landed in -- materialize_work_node()'s own documented contract is
+    # that OWNER_HELD nodes ARE materialized, just gated, so this is the
+    # one real, non-dead-code outcome for this fixture.
+    assert payload["materialized_count"] == 1
+    assert payload["not_materialized_count"] == 0
+    entry = cast("list[dict[str, object]]", payload["materialized"])[0]
+    assert entry["execution_ready"] is False
+    assert entry["owner_gate"] in {kind.value for kind in OwnerGateKind}

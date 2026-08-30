@@ -26,7 +26,10 @@ to real project evidence. Never leases, never dispatches, never merges.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
 from project_atlas.orchestration.autonomy.models import TrustedAnchorRecord
@@ -48,6 +51,23 @@ from project_atlas.orchestration.origination.risk import classify as classify_ri
 
 EXIT_OK = 0
 EXIT_ERROR = 1
+
+#: Independent-IV finding (D-PHASE2A-3, PR #647 round 1): SourceFact
+#: .project_id (facts.py, module-private there) allows up to 128 chars,
+#: but this module builds `surface_id=f"{project_id}-{work_id}"`, and
+#: work_id_for() always returns exactly 21 chars ("ORIG-" + 16 hex).
+#: MutationSurface.surface_id caps at 128 (autonomy/models.py). A
+#: project_id longer than 106 chars (128 - 1 separator - 21) therefore
+#: overflows surface_id and raises a raw pydantic.ValidationError deep
+#: inside materialize_work_node() -- not a MaterializationError, so the
+#: existing `except MaterializationError` around that call never caught
+#: it. Bounding here, before any downstream call, closes both that gap
+#: and the sibling one (a project_id whose characters are unsafe at all,
+#: which used to escape uncaught from inside originate_new_only() ->
+#: SourceFact construction). Character class mirrors facts.py's own
+#: _PROJECT_ID_RE exactly; the length bound is this module's own,
+#: stricter than SourceFact's 128 because of the -{work_id} suffix.
+_PROJECT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,105}$")
 
 
 def _fail_closed(detail: str, *, blocker: str) -> dict[str, object]:
@@ -89,7 +109,21 @@ def run_origination_scan(
     outcome, not an error). Returns ``EXIT_ERROR`` only for a fail-closed
     trust/projection-store failure that prevented the scan from running at
     all.
+
+    Never raises -- a malformed or oversized ``project_id`` (or any other
+    unanticipated validation failure surfaced by the pipeline this
+    consolidates) is reported as a fail-closed payload, not an escaping
+    exception. See ``_PROJECT_ID_RE``.
     """
+    if not _PROJECT_ID_RE.fullmatch(project_id):
+        return (
+            _fail_closed(
+                f"project_id {project_id!r} is not a safe identifier of at most "
+                "106 characters",
+                blocker="INVALID_PROJECT_ID",
+            ),
+            EXIT_ERROR,
+        )
     try:
         trusted = load_runtime_anchor(
             store=trust_store,
@@ -109,6 +143,12 @@ def run_origination_scan(
     except OriginationProjectionError as exc:
         code = getattr(exc, "code", "ORIGINATION_PROJECTION_FAILED")
         return _fail_closed(str(exc), blocker=code), EXIT_ERROR
+    except ValidationError as exc:
+        # Defense-in-depth: the precheck above already rejects the one
+        # known way a bad project_id reaches this point, but this is the
+        # "never raises" contract's own backstop for anything else the
+        # pipeline this consolidates might someday validate strictly.
+        return _fail_closed(str(exc), blocker="ORIGINATION_VALIDATION_FAILED"), EXIT_ERROR
 
     materialized: list[dict[str, object]] = []
     not_materialized: list[dict[str, object]] = []
@@ -151,6 +191,13 @@ def run_origination_scan(
     except OriginationProjectionError as exc:
         code = getattr(exc, "code", "ORIGINATION_PROJECTION_FAILED")
         return _fail_closed(str(exc), blocker=code), EXIT_ERROR
+    except ValidationError as exc:
+        # Defense-in-depth for the materialize_work_node() surface_id
+        # overflow this same round's IV found (a project_id passing the
+        # precheck above but combined with an as-yet-unforeseen work_id
+        # shape) and any other validation failure inside this loop that
+        # is not itself a MaterializationError.
+        return _fail_closed(str(exc), blocker="ORIGINATION_VALIDATION_FAILED"), EXIT_ERROR
 
     payload: dict[str, object] = {
         "schema_version": 1,
