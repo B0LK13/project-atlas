@@ -20,6 +20,7 @@ authority once a node is added.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Final, Literal
 
@@ -147,6 +148,42 @@ def find_materialized_work_node(store: Path, package_id: str) -> WorkNode | None
         return None
 
 
+def list_materialized_work_nodes(store: Path) -> tuple[WorkNode, ...]:
+    """D-PHASE2A-2: every ``WorkNode`` a prior process durably materialized
+    that has NOT yet been observed to reach a terminal governed state
+    (``row.state != "TERMINAL"`` -- ``"MATERIALIZED"`` and
+    ``"OWNER_HELD_ROUTED"`` rows both count; ``"PROPOSED"`` rows have no
+    ``work_node`` yet and are correctly excluded).
+
+    This is the "governor discovery" read side of the origination ->
+    governor bridge: unlike ``find_materialized_work_node()`` (a single
+    lookup for a package_id ALREADY known to be leased, used to recover
+    from a crash), this enumerates every candidate a fresh or continuing
+    governor has not yet seen at all, so it can decide which ones to
+    bring into its own node list for the first time.
+
+    A malformed individual row (fails ``WorkNode.model_validate``) is
+    skipped, not fatal to the others -- one corrupt durable record must
+    not hide every other legitimate one from discovery. Never raises;
+    an unreadable/missing store returns an empty tuple, matching
+    ``find_materialized_work_node()``'s own fail-closed-to-empty
+    posture.
+    """
+    try:
+        projection = load_projection(store)
+    except OriginationProjectionError:
+        return ()
+    nodes: list[WorkNode] = []
+    for row in projection.records:
+        if row.state == "TERMINAL" or row.work_node is None:
+            continue
+        try:
+            nodes.append(WorkNode.model_validate(row.work_node))
+        except Exception:
+            continue
+    return tuple(nodes)
+
+
 def persist_proposed(
     store: Path, proposal: OriginationProposal, policy: PolicyResult
 ) -> OriginationRecord:
@@ -259,3 +296,68 @@ def mark_terminal(store: Path, origination_identity: str, *, node_state: str) ->
             "projection lock is held", code="CONCURRENT_PROJECTION"
         ) from exc
     return next(row for row in rows if row.origination_identity == origination_identity)
+
+
+def sync_terminal_governed_states(
+    store: Path, governor_nodes: Iterable[WorkNode]
+) -> tuple[str, ...]:
+    """D-PHASE2A-2: the write-back half of the origination <-> governor
+    bridge (``list_materialized_work_nodes()`` above is the read half).
+
+    For every non-``TERMINAL`` durable record whose ``work_node.package_id``
+    matches a node in ``governor_nodes`` that has reached
+    ``orchestration.autonomy.dag.TERMINAL_STATES`` (today: ``CLOSED``
+    only), call ``mark_terminal()`` so a later successor-discovery scan
+    correctly excludes it (``originate_new_only()``).
+
+    Deliberately scoped to ``dag.TERMINAL_STATES`` alone, not the wider
+    "CERTIFIED/OWNER_HELD/BLOCKED/CLOSED/..." example list in
+    ``mark_terminal()``'s own docstring: that is the single unambiguous
+    source of truth for "this node's own governed lifecycle is over"
+    (``dag.py`` itself defines it), rather than this function inventing
+    a second, looser terminality concept. A node sitting at OWNER_HELD
+    (or any other non-CLOSED state) is NOT synced here -- whether an
+    owner-gated identity should stop being re-derived by future scans
+    before an owner has actually acted on it is a real policy question
+    left for a future, deliberate decision, not guessed at here.
+
+    This is a pure optimization, not a correctness requirement:
+    ``persist_proposed()`` is already idempotent by ``origination_identity``
+    (a re-derived proposal for the same evidence never actually
+    duplicates), and ``run_origination_scan()`` (D-PHASE2A-2) now skips
+    re-materializing an already-materialized, non-TERMINAL record rather
+    than clobbering it. Marking terminal here only avoids the wasted
+    work of re-deriving an outcome whose fate is already fully decided;
+    it does not change what is safe.
+
+    Never raises: any per-identity ``mark_terminal()`` failure (e.g. a
+    concurrent writer holding the lock) is skipped for that identity
+    rather than aborting the whole sync pass -- a transient miss here
+    just means one more harmless re-derivation on the next scan, not a
+    correctness problem. Returns the ``origination_identity`` values
+    actually synced this call.
+    """
+    try:
+        projection = load_projection(store)
+    except OriginationProjectionError:
+        return ()
+    from project_atlas.orchestration.autonomy.dag import TERMINAL_STATES
+
+    closed_package_ids = {
+        node.package_id for node in governor_nodes if node.state in TERMINAL_STATES
+    }
+    if not closed_package_ids:
+        return ()
+    synced: list[str] = []
+    for row in projection.records:
+        if row.state == "TERMINAL" or row.work_node is None:
+            continue
+        package_id = row.work_node.get("package_id")
+        if package_id not in closed_package_ids:
+            continue
+        try:
+            mark_terminal(store, row.origination_identity, node_state="CLOSED")
+        except OriginationProjectionError:
+            continue
+        synced.append(row.origination_identity)
+    return tuple(synced)

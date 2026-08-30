@@ -34,6 +34,10 @@ from project_atlas.orchestration.autonomy.trust import (
     load_runtime_anchor,
     normalize_repository_identity,
 )
+from project_atlas.orchestration.origination.projection import (
+    RELATIVE_DEFAULT as ORIGINATION_PROJECTION_RELATIVE_DEFAULT,
+)
+from project_atlas.orchestration.origination.projection import sync_terminal_governed_states
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -229,12 +233,31 @@ def run_governor_loop_tick(
     root: Path,
     trust_store: Path | None = None,
     loop_store: Path | None = None,
+    origination_store: Path | None = None,
 ) -> tuple[dict[str, object], int]:
-    """One 001E tick. Never merges or grants owner authority."""
+    """One 001E tick. Never merges or grants owner authority.
+
+    D-PHASE2A-2: ``origination_store`` (``None``, the default, resolves
+    to ``orchestration.origination.projection.RELATIVE_DEFAULT`` under
+    ``root`` -- the same ``loop_store``/``lease_store``-style "``None``
+    means use the default path" convention this module already uses,
+    not an opt-out) closes the gap D-PHASE2A-1 explicitly deferred --
+    what ``run_origination_scan()`` durably materializes now actually
+    reaches this live tick's governor (via ``rehydrate_governor()``'s
+    origination-discovery pass) and, once a governed node it originated
+    reaches ``dag.TERMINAL_STATES``, the durable origination record is
+    synced back to ``TERMINAL`` so a later successor scan correctly
+    excludes it. This is safe by construction for every existing caller
+    that has never run an origination scan: an origination store with no
+    file on disk yet loads as an empty projection (zero candidates,
+    zero behavior change) -- there is no separate opt-out parameter
+    because none is needed.
+    """
     try:
         trusted = _load_trusted(trust_store=trust_store, allow_shipped=trust_store is None)
         inventory = collect_live_inventory(root)
         lease_store = root / LEASE_PROJECTION_RELATIVE_DEFAULT
+        origin_store = origination_store or (root / ORIGINATION_PROJECTION_RELATIVE_DEFAULT)
         governor = AutonomousGovernor(
             current_main=inventory.current_main,
             current_tree=inventory.current_tree,
@@ -256,6 +279,7 @@ def run_governor_loop_tick(
             trusted=trusted,
             loop_store=store,
             lease_projection_store=lease_store,
+            origination_projection_store=origin_store,
         )
         loop = AutonomousLoop(
             governor=governor,
@@ -282,6 +306,14 @@ def run_governor_loop_tick(
             for existing_lease in governor.snapshot().leases:
                 if existing_lease.active:
                     governor.release_lease(existing_lease.lease_id)
+        # D-PHASE2A-2: write-back half of the origination <-> governor
+        # bridge. Runs on every tick's final observed state (including
+        # phases where the loop stopped without leasing/dispatching
+        # anything this call), which is correct and cheap: it is a pure
+        # read+compare over already-in-memory governor nodes, and
+        # sync_terminal_governed_states() itself no-ops immediately if
+        # no node is CLOSED yet.
+        sync_terminal_governed_states(origin_store, governor.snapshot().nodes)
         payload = result.model_dump(mode="json")
         payload["package_id"] = "AS-ORCH-001E"
         payload["merge_authorized"] = False

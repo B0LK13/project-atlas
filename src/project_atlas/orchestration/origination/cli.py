@@ -32,7 +32,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
-from project_atlas.orchestration.autonomy.models import TrustedAnchorRecord
+from project_atlas.orchestration.autonomy.models import TrustedAnchorRecord, WorkNode
 from project_atlas.orchestration.autonomy.trust import TrustError, load_runtime_anchor
 from project_atlas.orchestration.origination.materialize import (
     MaterializationError,
@@ -44,9 +44,11 @@ from project_atlas.orchestration.origination.projection import (
 )
 from project_atlas.orchestration.origination.projection import (
     OriginationProjectionError,
+    find_by_identity,
     persist_materialized,
     persist_proposed,
 )
+from project_atlas.orchestration.origination.proposal import RiskClass
 from project_atlas.orchestration.origination.risk import classify as classify_risk
 
 EXIT_OK = 0
@@ -155,7 +157,64 @@ def run_origination_scan(
     try:
         for outcome in outcomes:
             proposal, policy = outcome.proposal, outcome.policy
+            existing = find_by_identity(store, proposal.origination_identity)
             persist_proposed(store, proposal, policy)
+            # D-PHASE2A-2 finding: `originate_new_only()` only excludes
+            # TERMINAL identities, so a non-terminal MATERIALIZED (or
+            # OWNER_HELD_ROUTED) record for THIS SAME evidence is a
+            # legitimate, expected outcome of running a scan more than
+            # once while a governed loop is actively working the node --
+            # not a stale/erroneous one. Unconditionally re-materializing
+            # here previously rebuilt a FRESH WorkNode (state=DISCOVERED,
+            # a possibly-different base_pin if main moved since) and
+            # overwrote the durable projection's `work_node` field with
+            # it, which would silently clobber real in-progress governed
+            # state a rehydrating process depends on (`find_materialized_
+            # work_node()` in projection.py -- the exact function
+            # `rehydration.py` uses to reconstruct a LEASED node after a
+            # crash). An already-materialized, non-terminal identity is
+            # therefore now reported AS-IS from the existing durable
+            # record -- never rebuilt -- so a repeated scan is safe to
+            # run at any time, including while that same node is actively
+            # leased.
+            if (
+                existing is not None
+                and existing.work_node is not None
+                and existing.state in {"MATERIALIZED", "OWNER_HELD_ROUTED"}
+            ):
+                try:
+                    node = WorkNode.model_validate(existing.work_node)
+                except ValidationError as exc:
+                    not_materialized.append(
+                        {
+                            "work_id": proposal.work_id,
+                            "execution_ready": policy.execution_ready,
+                            "reason": policy.reason.value,
+                            "materialization_error": str(exc),
+                            "materialization_error_code": "DURABLE_RECORD_CORRUPT",
+                        }
+                    )
+                    continue
+                materialized.append(
+                    {
+                        "work_id": node.package_id,
+                        "execution_ready": policy.execution_ready,
+                        "reason": policy.reason.value,
+                        # WorkNode itself has no risk_class field (that is a
+                        # proposal/classification-level concept); derived
+                        # from owner_gate presence, which owner_gate_for()
+                        # (materialize.py) sets if and only if risk_class
+                        # was OWNER_HELD -- a reliable inverse, not a guess.
+                        "risk_class": (
+                            RiskClass.OWNER_HELD.value
+                            if node.owner_gate is not None
+                            else RiskClass.O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION.value
+                        ),
+                        "owner_gate": node.owner_gate.value if node.owner_gate else None,
+                        "already_materialized": True,
+                    }
+                )
+                continue
             classification = classify_risk(
                 proposed_scope=proposal.proposed_scope,
                 success_criteria=proposal.success_criteria,
@@ -186,6 +245,7 @@ def run_origination_scan(
                     "reason": policy.reason.value,
                     "risk_class": classification.risk_class.value,
                     "owner_gate": node.owner_gate.value if node.owner_gate else None,
+                    "already_materialized": False,
                 }
             )
     except OriginationProjectionError as exc:

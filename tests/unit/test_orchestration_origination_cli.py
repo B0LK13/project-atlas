@@ -344,3 +344,89 @@ def test_owner_held_proposal_is_still_materialized_but_owner_gated(tmp_path: Pat
     entry = cast("list[dict[str, object]]", payload["materialized"])[0]
     assert entry["execution_ready"] is False
     assert entry["owner_gate"] in {kind.value for kind in OwnerGateKind}
+
+
+def test_second_scan_of_still_in_progress_work_does_not_clobber_durable_node(
+    tmp_path: Path,
+) -> None:
+    """D-PHASE2A-2 finding: `originate_new_only()` only excludes TERMINAL
+    identities (by design -- see its own docstring), so a second scan
+    against the SAME still-non-terminal evidence is a normal, expected
+    occurrence once a live governed loop is actually discovering/leasing
+    from this projection repeatedly, not an error case. The scan must
+    NOT rebuild and overwrite the durable `work_node` in that situation:
+    `rehydration.py`'s `find_materialized_work_node()` is the exact
+    function a crashed-and-restarted process uses to reconstruct an
+    ALREADY-LEASED node from this same durable record -- if a second
+    scan clobbered it with a freshly-rebuilt WorkNode (state=DISCOVERED,
+    a different base_pin if main moved since), that reconstruction would
+    silently diverge from the real governed state the first process's
+    lease was actually granted against.
+
+    Proven concretely: advance the repo's `origin/main` between the two
+    scans (so a rebuilt WorkNode would carry a different `base_pin` if
+    the bug were still present), and assert the durable `work_node` is
+    byte-identical after the second scan.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    first, _ = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+    assert first["materialized_count"] == 1
+    first_entry = cast("list[dict[str, object]]", first["materialized"])[0]
+    projection_after_first = load_projection(store)
+    work_node_after_first = projection_after_first.records[0].work_node
+    assert work_node_after_first is not None
+    assert work_node_after_first["base_pin"] == main
+    assert work_node_after_first["state"] == NodeState.DISCOVERED.value
+
+    # Advance origin/main -- a rebuilt WorkNode would now carry a
+    # DIFFERENT base_pin than the durably-recorded one, if the bug were
+    # still present.
+    _write_plain_file(repo, "docs/UNRELATED.md", "unrelated change\n")
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "advance main")
+    new_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", new_sha)
+    assert new_sha != main
+
+    new_main = _run_git(repo, "rev-parse", "origin/main")
+    new_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    second, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(new_main, new_tree),
+    )
+
+    assert exit_code == EXIT_OK
+    assert second["eligible_count"] == 1  # not TERMINAL yet -- still "eligible"
+    assert second["materialized_count"] == 1
+    second_entry = cast("list[dict[str, object]]", second["materialized"])[0]
+    assert second_entry["work_id"] == first_entry["work_id"]
+
+    # The durable record itself is untouched: still exactly one record,
+    # same base_pin as the FIRST scan (never rebuilt against the new
+    # main), still DISCOVERED (never silently reset from whatever a real
+    # governor would have advanced it to). This is the actual bug this
+    # test exists to catch -- checked before the `already_materialized`
+    # flag below so the failure surfaces as a real clobbered-base_pin
+    # mismatch, not an incidental missing-key error on old code that
+    # never had that flag at all.
+    projection_after_second = load_projection(store)
+    assert len(projection_after_second.records) == 1
+    work_node_after_second = projection_after_second.records[0].work_node
+    assert work_node_after_second == work_node_after_first
+    assert work_node_after_second is not None
+    assert work_node_after_second["base_pin"] == main
+    assert work_node_after_second["base_pin"] != new_main
+
+    assert second_entry["already_materialized"] is True
+    assert first_entry["already_materialized"] is False
