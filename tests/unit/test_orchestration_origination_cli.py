@@ -519,3 +519,97 @@ def test_content_revision_while_prior_work_in_flight_does_not_create_a_second_li
     # discarded -- honestly recorded, just not turned into a second live
     # node).
     assert len(projection.records) == 2
+
+
+def test_revised_item_eventually_materializes_once_prior_revision_reaches_terminal(
+    tmp_path: Path,
+) -> None:
+    """REVISED_REAL_WORK_MUST_NOT_DISAPPEAR: the guard added for the
+    package_id/origination_identity split (see the sibling test above)
+    SERIALIZES a content revision behind the prior revision's own
+    non-TERMINAL record -- it must not permanently discard it. Once the
+    prior revision (A) is marked TERMINAL (the real, governed-closure
+    outcome `sync_terminal_governed_states()` would drive), a later scan
+    for the SAME still-current revision (B) must find no conflict left
+    and materialize it normally. Proves the serialization strategy is
+    safe end-to-end, not merely "doesn't crash right now".
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    first, _ = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+    assert first["materialized_count"] == 1
+    first_identity = load_projection(store).records[0].origination_identity
+
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X (revised)",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ],
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "revise feature-x")
+    new_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", new_sha)
+    new_main = _run_git(repo, "rev-parse", "origin/main")
+    new_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+
+    # Scan #2, while A is still MATERIALIZED: B is refused, as proven by
+    # the sibling test -- reconfirmed briefly here for context.
+    second, _ = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(new_main, new_tree),
+    )
+    assert second["materialized_count"] == 0
+    assert second["not_materialized_count"] == 1
+
+    # A's governed work completes for real: mark A TERMINAL -- exactly
+    # what sync_terminal_governed_states() does once A's own governed
+    # node reaches CLOSED.
+    from project_atlas.orchestration.origination.projection import mark_terminal
+
+    mark_terminal(store, first_identity, node_state="CLOSED")
+
+    # Scan #3, now that A is TERMINAL: B must no longer be blocked --
+    # the exact same still-current revision now materializes.
+    third, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(new_main, new_tree),
+    )
+    assert exit_code == EXIT_OK
+    assert third["materialized_count"] == 1
+    assert third["not_materialized_count"] == 0
+    third_entry = cast("list[dict[str, object]]", third["materialized"])[0]
+    # Same package_id as A (same logical item), but this is B's own
+    # materialization -- proven by the new base_pin.
+    assert third_entry["work_id"] == cast(
+        "list[dict[str, object]]", first["materialized"]
+    )[0]["work_id"]
+
+    projection = load_projection(store)
+    assert len(projection.records) == 2
+    a_record = next(r for r in projection.records if r.origination_identity == first_identity)
+    b_record = next(r for r in projection.records if r.origination_identity != first_identity)
+    assert a_record.state == "TERMINAL"
+    assert a_record.terminal_node_state == "CLOSED"
+    assert b_record.state == "MATERIALIZED"
+    assert b_record.work_node is not None
+    assert b_record.work_node["base_pin"] == new_main
+    assert b_record.work_node["base_pin"] != main

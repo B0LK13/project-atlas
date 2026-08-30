@@ -389,6 +389,21 @@ def test_sync_skips_ambiguous_package_id_with_multiple_active_records(tmp_path: 
     assert {r.state for r in records_after} == {"MATERIALIZED"}
     assert len(records_after) == 2
 
+    # Order-independence: the SAME ambiguity, but the governed node
+    # observed as CLOSED is built from `second` instead of `first`. The
+    # verdict must be identical -- neither record is ever synced, no
+    # matter which of the two ambiguous rows the closed node's own
+    # fields happen to resemble (the function never actually inspects
+    # which one -- it keys purely on package_id -- this just confirms
+    # that symmetry holds and nothing about `second` accidentally
+    # resolves the ambiguity `first` didn't).
+    closed_node_via_second = second.model_copy(update={"state": NodeState.CLOSED})
+    synced_reverse = sync_terminal_governed_states(origination_store, [closed_node_via_second])
+    assert synced_reverse == ()
+    records_after_reverse = load_projection(origination_store).records
+    assert {r.state for r in records_after_reverse} == {"MATERIALIZED"}
+    assert len(records_after_reverse) == 2
+
 
 def test_sync_ignores_nodes_that_do_not_match_any_origination_record(tmp_path: Path) -> None:
     """A CLOSED governor node whose package_id has no origination record
