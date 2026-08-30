@@ -9553,3 +9553,123 @@ recovery independently re-verified PASS and merged via PR #638.)
   remains an owner decision; this pass only performs the independent
   verification the PR's own body still lists as pending as of the
   commit this entry is attached to.
+
+## D-PHASE2A / AS-ORIGIN-001 — Specification-backed autonomous work origination (PR #643)
+
+- Date: 2026-08-29 through 2026-08-30
+- Scope: closes the sealed baseline's `CROSS_PROCESS_ORIGINATION = UNPROVEN`
+  gap with a narrow, structurally-enforced first origination class,
+  `SPECIFICATION_BACKED_WORK_ORIGINATION` — Atlas may only derive
+  executable work that already exists in a project's own repository
+  evidence, never invent it. New package
+  `src/project_atlas/orchestration/origination/` (facts, identity,
+  adapter, proposal, policy, risk, materialize, projection, pipeline);
+  additive-only extension to `orchestration/autonomy/rehydration.py`
+  (new optional `origination_projection_store` parameter, `None` by
+  default — every existing caller that doesn't pass it gets
+  byte-identical behavior to before). See
+  `docs/adr/ADR-033-phase2a-specification-backed-work-origination.md`
+  for the architecture decision (grounded in an actual repo survey: what
+  the fixed-enum `discover()`/`ingest_discovery()` pilot-only path
+  does and doesn't do, why the vault-ingestion path is deliberately
+  routed around, the identity/dedup model).
+- Real 3-process demonstration against the real Gamma/TASK-017 estate
+  (`docs/evidence/d-phase2a/run_three_process_demo.py`, receipts in
+  `docs/evidence/d-phase2a/receipts/`): Process A originates + policy-
+  validates + leases a real, pre-existing spec (fenced roadmap record +
+  REQUIREMENTS.md + ADR + a skip-marked test) as O1; Process B — a
+  genuinely separate OS process — rehydrates the exact `WorkNode` from
+  disk, runs the real `pytest` suite of an already-implemented isolated
+  worktree as verification (93 passed, a separate verifier agent from
+  the implementer), completes to `CERTIFIED`, releases the lease;
+  Process C — a third separate process — rehydrates, rescans the same
+  (still-stale) source, and correctly reports `NO_ELIGIBLE_WORK`
+  (deduped against the durable `TERMINAL` record via
+  `originate_new_only()`, not `originate_all()`) rather than
+  re-proposing the same, already-resolved work.
+- **Explicit claim boundary, stated everywhere (PR body, EVIDENCE.md,
+  POC-RUNBOOK.md, the demo's own receipt data
+  `"autonomous_implementation_dispatch": false`)**:
+  `AUTONOMOUS_IMPLEMENTATION_EXECUTION = EXTERNAL/OWNER BLOCKED`, not
+  proven. Investigated directly in code before accepting this
+  conclusion: `governor.execute_leased()`'s only real `IN_PROCESS` call
+  site records a transition + an evidence bundle, never writes a file;
+  `dispatcher.py` (the only mechanism that invokes a real coding agent)
+  is entirely `EXTERNAL_AGENT`/Cursor-specific, separately blocked on
+  the owner's account usage limit (`ORCH001D-012`, unrelated to this
+  package); zero LLM/code-generation invocation exists anywhere in
+  `orchestration/` (confirmed by grep). Closing this for real needs
+  either that owner action or new in-process code-generation agent
+  semantics — both explicitly out of this wave's scope.
+- **Verification**: 3 full rounds of independent adversarial IV, each a
+  fresh subagent, no self-certification — round 1 and round 2 both
+  `CONFIRMED WITH MINOR NOTES` (every finding fixed before the next
+  round), round 3 unqualified `CONFIRMED`, P0=0/P1=0/
+  `UNRESOLVED_MATERIAL_THREADS=0` on the final exact head. All 14
+  directive-required negative/adversarial matrix cases pass as dedicated
+  tests (`tests/unit/test_orchestration_origination.py`). Exact-head CI
+  `PASS` across all 4 required gate jobs (control-plane, ubuntu 3.12
+  full, ubuntu 3.13 compat, windows) on the final merged commit,
+  confirmed via `gh run view` against the actual `push`-triggered
+  post-merge run on `main`, not inferred from PR-branch CI.
+- **Automated-review remediation** (GitHub Copilot + `chatgpt-codex-connector`
+  left 6 substantive findings once the PR was marked ready for review;
+  the repository owner's own account pushed a fix for all 6 as commit
+  `7b0ffcf7`; a follow-up independent review found and closed one
+  residual gap — dependency-edge preservation closed the symptom but not
+  the reason it mattered, since `governor.lease()`/`mark_ready()` do not
+  themselves consult `WorkNode.dependencies` — plus, in a further exact-
+  head IV round, one more real gap in `SourceFact.location`'s own
+  validator (`.lstrip("./")` ran before the unsafe-path check, silently
+  normalizing away a leading `".."`/absolute marker instead of rejecting
+  it; not reachable through any production call site, but fixed anyway
+  to match the field's own documented contract), all independently
+  re-verified. See `docs/evidence/d-phase2a/EVIDENCE.md`'s
+  `AUTOMATED_REVIEW_REMEDIATIONS` section for the full account. **Security
+  invariant made explicit and tested**: a character-class-only path
+  regex (`[A-Za-z0-9._/-]`) is NOT sufficient protection against a
+  traversal segment embedded mid-path such as `"a/../b"` — every
+  character in that string is individually permitted by such a regex;
+  only an explicit, segment-based `".."` rejection catches it, and this
+  is now a dedicated, named test in both `risk.py` and `adapter.py`'s
+  path-safety code paths, not incidental behavior.
+- **Merge**: PR #643, merge commit `2cee1489947c01b9b228d8576c72cf8190bf6966a`,
+  2026-08-30T01:04:20Z. `mergeStateStatus` was `BLOCKED` (not by CI or
+  review-approval-count — `required_approving_review_count: 0` — but by
+  `required_conversation_resolution: true` against the 6 unresolved
+  Copilot/Codex review threads); resolved by replying to each thread
+  with the exact fix-commit evidence, then resolving each thread via the
+  GitHub GraphQL API, after which `mergeStateStatus` correctly moved to
+  `UNSTABLE` (CI still finishing) and then `CLEAN`.
+- **Post-merge seal**: merged-main tree (`b59c9f77...`) confirmed
+  byte-identical to the PR's final-commit tree (no squash/rebase drift);
+  post-merge CI run (triggered by the merge push to `main`, not the PR's
+  own CI) independently confirmed `PASS` across all 4 jobs; focused test
+  suite and the 3-process demo re-run against the merged-main tree,
+  fresh receipts produced (not copied from the pre-merge PR receipts).
+- **Post-merge global-DAG reconstruction** surfaced one new, real,
+  owner-only finding not previously tracked: PR #642
+  (`feat/phase2a-specification-backed-origination`, still open) is an
+  independent, overlapping implementation of the same origination
+  concept (`orchestration/origination.py`, a single file) that has not
+  been reconciled against the just-merged `orchestration/origination/`
+  package. `git merge-tree` confirms no textual conflict (different tree
+  paths), so this is a scope/architecture duplication question for the
+  owner, not a mechanical merge conflict — recorded as `D-PHASE2A-2`'s
+  blocking dependency in `docs/backlog.md` rather than resolved
+  unilaterally. Two small, safe, owner-independent doc-sync items were
+  also found and fixed directly: this package's own missing
+  backlog.md/WORKLOG.md entries (this entry), and two stale
+  `docs/backlog.md` checkboxes (`AS-CODER-ALPHA-044-HIGH`,
+  `AS-ATLAS3-FREEZE-GUARD-001`) that said "leave unchecked until PR
+  #628/#630 lands" when both had already merged 2026-08-28 (confirmed
+  via `git merge-base --is-ancestor` against current `main`).
+- **Result**: `SPECIFICATION_BACKED_ORIGINATION_RESULT = PROVEN`,
+  `CROSS_PROCESS_ORIGINATION_RESULT = PROVEN`,
+  `AUTONOMOUS_IMPLEMENTATION_EXECUTION_RESULT = EXTERNAL/OWNER BLOCKED`.
+  `MERGE_AUTHORIZATION` for this package specifically was directive-
+  granted conditional on the gates above, all independently confirmed
+  met before the merge action was taken; `D-PHASE2A-2` (wiring
+  origination into the live governed DAG) remains gated on both
+  `D-PHASE2A-1a` (governor dependency-enforcement) and the PR #642
+  reconciliation decision above.
