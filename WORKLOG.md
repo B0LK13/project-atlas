@@ -9718,3 +9718,15 @@ recovery independently re-verified PASS and merged via PR #638.)
   resolved (both merged/closed above) while leaving `D-PHASE2A-2` itself
   unchecked -- its own wiring work has not begun; only its blockers
   cleared.
+
+## Night cycle 2026-08-30 — FRESH-AGENT-V2 backlog honesty
+
+- Date: 2026-08-30
+- Docs-only truth-sync against live `main` `e1bcca47` / `2e89b36c`.
+- `AS-CODER-ALPHA-FRESH-AGENT-CHALLENGE-V2` was still unchecked even though
+  `src/project_atlas/fresh_agent_challenge.py` is a real ancestor of
+  `origin/main` (`91c53b7f`, plus `_iter_markdown` fix `4df40a1e` / #648).
+- Re-ran `tests/unit/test_as_coder_alpha_fresh_agent_challenge_v2.py` on
+  that tree: pass. `HARNESS != AUTHENTIC_PILOT`.
+  `MERGE_AUTHORIZATION = NOT_GRANTED` remains a standing honesty stamp.
+- Isolated from PR #654 (D-PHASE2A-2). Do not mix carriers.
