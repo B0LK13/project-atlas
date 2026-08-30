@@ -1,0 +1,18 @@
+{
+  "autonomous_implementation_dispatch": false,
+  "claim_boundary": "This process proves durable cross-process recovery, real result verification (an actual pytest run, not a hardcoded pass), and completion of an ALREADY-LEASED node. It does NOT prove autonomous implementation execution -- see EVIDENCE.md.",
+  "evidence_sha256": "35e3788e5e4f3ad4e67a144a20b570b542a490dd77a21eaf079df2c9ffa81e91",
+  "final_node_state": "CERTIFIED",
+  "implementation_provenance": "pre-existing -- implemented and committed in a separate, prior, manual step before this demo run; NOT autonomously dispatched or written by this process or by Atlas",
+  "implementer_equals_verifier": false,
+  "lease_released": true,
+  "process": "B",
+  "pytest_returncode": 0,
+  "pytest_summary_line": "93 passed in 0.58s",
+  "rehydrated_from_disk": true,
+  "result": "RECOVERED_VERIFIED_COMPLETED",
+  "verification_method": "real pytest subprocess against lease.worktree",
+  "verification_passed": true,
+  "verifier_id": "governor-pilot-iv",
+  "work_id": "ORIG-368ae353772c711a"
+}
