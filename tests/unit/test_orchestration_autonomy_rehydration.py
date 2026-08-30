@@ -207,6 +207,216 @@ print(json.dumps({{"payload": payload, "exit_code": exit_code}}))
     assert payload.get("lease_id") in (None, lease_id), payload
 
 
+def test_real_subprocess_recovery_after_crash_at_active_is_not_a_state_regression(
+    tmp_path: Path,
+) -> None:
+    """D-CODEX-ATLAS-DEFECT-2-STATE-REGRESSION-FALSIFICATION-AND-CONTINUATION.
+
+    The disputed claim: process N reaches node state ACTIVE (in memory,
+    never persisted -- see rehydration.py's module docstring and D-205's
+    "A note on ACTIVE, honestly stated"), durable LoopState stays LEASED
+    (nothing saves a new phase between execute_leased() and
+    apply_observed_result()), process N crashes, and process N+1
+    rehydrates. Does process N+1 ever apply or record an
+    ``ACTIVE -> LEASED`` transition on an existing WorkNode -- a real
+    state-machine regression -- or does it construct an entirely new
+    WorkNode object through only legal forward transitions
+    (DISCOVERED -> READY -> LEASED), leaving the old (dead-process, never
+    persisted) ACTIVE object untouched?
+
+    ``dag.ALLOWED_TRANSITIONS[NodeState.ACTIVE]`` does not even contain
+    ``NodeState.LEASED`` as a legal destination -- so if the system ever
+    attempted that transition on a real WorkNode, `apply_transition()`
+    would raise `IllegalTransitionError` immediately. This test proves
+    the system never attempts it in the first place: process N+1
+    constructs a brand-new governor/WorkNode from durable evidence alone,
+    genuinely cross-process (real separate ``python -c`` OS subprocesses,
+    nothing shared but the filesystem -- not two objects in one
+    interpreter), and its own transition history is captured directly.
+    """
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    process_1 = f"""
+import json
+import sys
+sys.path.insert(0, {_SRC!r})
+from pathlib import Path
+from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.lease_projection import RELATIVE_DEFAULT
+from project_atlas.orchestration.autonomy.loop import AutonomousLoop, LoopPhase, STATE_DIR_RELATIVE
+from project_atlas.orchestration.autonomy.models import NodeState
+from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+
+root = Path({str(repo)!r})
+trusted = load_runtime_anchor(store=Path({str(trust_store)!r}))
+inventory = collect_live_inventory(root)
+governor = AutonomousGovernor(
+    current_main=inventory.current_main,
+    current_tree=inventory.current_tree,
+    trusted_anchor=trusted,
+    lease_projection_store=root / RELATIVE_DEFAULT,
+)
+node = governor._pilot_node(inventory, None)
+governor.add_node(node)
+governor.mark_ready(node.package_id)
+lease = governor.lease(node.package_id, "governor-pilot-local", branch="feat/pilot", worktree="wt")
+loop = AutonomousLoop(
+    governor=governor, trusted=trusted, store=root / STATE_DIR_RELATIVE, root=root,
+)
+loop._save(
+    phase=LoopPhase.LEASED,
+    active_package_id=node.package_id,
+    active_lease_id=lease.lease_id,
+    sequence=loop.state.sequence + 1,
+)
+# Drive execution genuinely to ACTIVE -- the exact disputed crash window --
+# then exit without ever calling apply_observed_result(). Nothing beyond
+# this point is persisted anywhere: NodeState.ACTIVE lives only in this
+# process's memory, which is about to end.
+governor.execute_leased(lease.lease_id)
+active_node = next(n for n in governor.snapshot().nodes if n.package_id == node.package_id)
+assert active_node.state == NodeState.ACTIVE, active_node.state
+print(json.dumps({{
+    "lease_id": lease.lease_id,
+    "package_id": node.package_id,
+    "node_state_at_crash": active_node.state.value,
+    "durable_loop_phase_at_crash": loop.state.phase.value,
+}}))
+"""
+    result_1 = subprocess.run(
+        [sys.executable, "-c", process_1], check=False, capture_output=True, text=True
+    )
+    assert result_1.returncode == 0, result_1.stderr
+    before = json.loads(result_1.stdout.strip().splitlines()[-1])
+    # Confirm the disputed premise is real before testing recovery from it:
+    # in-memory state genuinely reached ACTIVE while durable state stayed LEASED.
+    assert before["node_state_at_crash"] == "ACTIVE"
+    assert before["durable_loop_phase_at_crash"] == "LEASED"
+    lease_id = before["lease_id"]
+    package_id = before["package_id"]
+
+    process_2 = f"""
+import json
+import sys
+sys.path.insert(0, {_SRC!r})
+from pathlib import Path
+from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.lease_projection import RELATIVE_DEFAULT
+from project_atlas.orchestration.autonomy.loop import AutonomousLoop, STATE_DIR_RELATIVE
+from project_atlas.orchestration.autonomy.rehydration import rehydrate_governor
+from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+
+root = Path({str(repo)!r})
+trusted = load_runtime_anchor(store=Path({str(trust_store)!r}))
+inventory = collect_live_inventory(root)
+lease_store = root / RELATIVE_DEFAULT
+# A brand-new governor object: this process shares nothing with process 1
+# but the filesystem. Its node list starts empty -- confirmed here, not
+# assumed.
+governor = AutonomousGovernor(
+    current_main=inventory.current_main,
+    current_tree=inventory.current_tree,
+    trusted_anchor=trusted,
+    lease_projection_store=lease_store,
+)
+assert governor.snapshot().nodes == ()
+store = root / STATE_DIR_RELATIVE
+# The exact production sequence cli.py's run_governor_loop_tick() runs,
+# reproduced inline (not the black-box wrapper) so this test can inspect
+# the governor's own transition history directly.
+rehydrate_governor(
+    governor, inventory=inventory, trusted=trusted,
+    loop_store=store, lease_projection_store=lease_store,
+)
+def _as_dicts(records):
+    return [
+        {{
+            "package_id": t.package_id,
+            "from": t.from_state.value,
+            "to": t.to_state.value,
+            "reason": t.reason,
+        }}
+        for t in records
+    ]
+
+rehydration_transitions = _as_dicts(governor._transitions)
+node_after_rehydration = next(
+    n for n in governor.snapshot().nodes if n.package_id == {package_id!r}
+)
+loop = AutonomousLoop(governor=governor, trusted=trusted, store=store, root=root)
+result = loop.tick()
+final_transitions = _as_dicts(governor._transitions)
+print(json.dumps({{
+    "rehydration_transitions": rehydration_transitions,
+    "node_state_immediately_after_rehydration": node_after_rehydration.state.value,
+    "final_transitions": final_transitions,
+    "final_phase": result.phase.value,
+    "final_lease_id": result.lease_id,
+}}))
+"""
+    result_2 = subprocess.run(
+        [sys.executable, "-c", process_2], check=False, capture_output=True, text=True
+    )
+    assert result_2.returncode == 0, result_2.stderr
+    after = json.loads(result_2.stdout.strip().splitlines()[-1])
+
+    rehydration_transitions = after["rehydration_transitions"]
+    final_transitions = after["final_transitions"]
+
+    # A. Process N+1's fresh governor never observed the old ACTIVE node at
+    # all (it was never persisted) -- rehydration reconstructs the SAME
+    # lease's node starting from DISCOVERED, through only legal forward
+    # transitions, landing at LEASED, never ACTIVE.
+    assert after["node_state_immediately_after_rehydration"] == "LEASED"
+    rehydration_dest_states = [t["to"] for t in rehydration_transitions]
+    assert "ACTIVE" not in rehydration_dest_states, rehydration_transitions
+
+    # B/E. No transition record -- from rehydration OR from the full tick
+    # that follows -- ever claims ACTIVE -> LEASED. This is the literal
+    # disputed claim, checked directly against the real transition log of
+    # the real object that ran, not inferred.
+    illegal = [t for t in rehydration_transitions + final_transitions if t["to"] == "LEASED"]
+    for t in illegal:
+        assert t["from"] != "ACTIVE", (
+            f"an ACTIVE -> LEASED transition was actually recorded: {t}"
+        )
+
+    # C. Process N+1's own transition history is exactly the legal forward
+    # sequence a fresh governor produces -- DISCOVERED -> READY (mark_ready)
+    # -> LEASED (restore_lease) -- confirming reconstruction, not mutation
+    # of anything reaching backward from a prior state.
+    package_transitions = [t for t in rehydration_transitions if t["package_id"] == package_id]
+    assert [t["to"] for t in package_transitions] == ["READY", "LEASED"], package_transitions
+    assert package_transitions[0]["from"] == "DISCOVERED"
+    assert package_transitions[1]["from"] == "READY"
+
+    # D. The old ACTIVE WorkNode from process N is never loaded or mutated
+    # here at all -- it lived only in process N's now-terminated memory.
+    # `_transitions` above is process N+1's OWN complete history from a
+    # governor that started with zero nodes; there is no code path by
+    # which it could reference process N's object.
+
+    # Safety: recovery completes cleanly (no crash, no fail-closed stall)
+    # and correctly re-runs execute_leased() + apply_observed_result()
+    # through to a terminal outcome for the SAME lease -- not a
+    # duplicate/foreign one -- proving the redo is a first-and-only
+    # application of a side-effect-free computation, not a duplicate
+    # externally observable action.
+    assert after["final_phase"] != "FAILED_CLOSED", after
+    assert after["final_lease_id"] in (None, lease_id), after
+    final_active_transition = next(
+        (t for t in final_transitions if t["package_id"] == package_id and t["to"] == "ACTIVE"),
+        None,
+    )
+    assert final_active_transition is not None, final_transitions
+    assert final_active_transition["from"] == "LEASED", final_active_transition
+
+
 # ---------------------------------------------------------------------------
 # rehydrate_governor(): disk-mediated, fresh-governor-object contract tests.
 # ---------------------------------------------------------------------------
