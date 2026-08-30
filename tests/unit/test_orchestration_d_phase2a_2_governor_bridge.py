@@ -329,6 +329,67 @@ def test_non_closed_states_are_not_synced_as_terminal(tmp_path: Path) -> None:
     assert still_materialized.state == "MATERIALIZED"
 
 
+def test_sync_skips_ambiguous_package_id_with_multiple_active_records(tmp_path: Path) -> None:
+    """D-PHASE2A-2 independent-IV finding, round 2: `sync_terminal_governed_
+    states()` matches purely by `package_id`. If more than one non-TERMINAL
+    durable record ever shares one `package_id` (should not occur once
+    `origination/cli.py`'s `find_active_record_by_package_id()` guard is in
+    place prospectively -- proven separately in
+    `test_orchestration_origination_cli.py` -- but this function must not
+    assume that invariant holds for every store it is ever handed, e.g. one
+    written before this fix, or a future bug elsewhere), it must refuse to
+    guess which one actually produced the closed governed node: NEITHER is
+    marked TERMINAL, not one chosen arbitrarily. Picking wrong would
+    permanently and silently close a genuinely distinct, never-executed
+    proposal."""
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    main = "a" * 40
+    first = _minimal_work_node(
+        "ORIG-ambiguous", base_pin=main, surface_id="first-surface", paths=("src/first/",)
+    )
+    second = _minimal_work_node(
+        "ORIG-ambiguous", base_pin=main, surface_id="second-surface", paths=("src/second/",)
+    )
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [
+                    OriginationRecord(
+                        origination_identity="a" * 64,
+                        project_id="demo",
+                        proposal={},
+                        policy_result={},
+                        work_node=first.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                    OriginationRecord(
+                        origination_identity="b" * 64,
+                        project_id="demo",
+                        proposal={},
+                        policy_result={},
+                        work_node=second.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    closed_node = first.model_copy(update={"state": NodeState.CLOSED})
+    synced = sync_terminal_governed_states(origination_store, [closed_node])
+    assert synced == ()
+
+    # Neither record moved -- both still MATERIALIZED, ambiguity preserved
+    # honestly rather than resolved by guessing.
+    records_after = load_projection(origination_store).records
+    assert {r.state for r in records_after} == {"MATERIALIZED"}
+    assert len(records_after) == 2
+
+
 def test_sync_ignores_nodes_that_do_not_match_any_origination_record(tmp_path: Path) -> None:
     """A CLOSED governor node whose package_id has no origination record
     at all (e.g. the hardcoded pilot node) must not raise or otherwise

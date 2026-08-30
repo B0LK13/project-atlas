@@ -430,3 +430,92 @@ def test_second_scan_of_still_in_progress_work_does_not_clobber_durable_node(
 
     assert second_entry["already_materialized"] is True
     assert first_entry["already_materialized"] is False
+
+
+def test_content_revision_while_prior_work_in_flight_does_not_create_a_second_live_node(
+    tmp_path: Path,
+) -> None:
+    """D-PHASE2A-2 independent-IV finding (round 2): `origination_identity`
+    hashes the item's content digest (`identity.py`) and therefore changes
+    when a roadmap item's own content is revised, but `package_id`
+    (`work_id_for()`) hashes only `project_id + item_id` and stays
+    IDENTICAL across such a revision. Revising the SAME item's title
+    between two scans -- while the first scan's non-TERMINAL record for it
+    is still in flight -- must not durably create a second, distinct live
+    record sharing that package_id: `sync_terminal_governed_states()`
+    matches purely by package_id and could otherwise later mark BOTH
+    records TERMINAL once only one was ever actually governed to closure,
+    permanently and silently losing the other, never-executed proposal.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    first, _ = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+    assert first["materialized_count"] == 1
+    first_entry = cast("list[dict[str, object]]", first["materialized"])[0]
+
+    # Revise the SAME item ("id" unchanged -> same package_id) with
+    # different content ("title" changed -> different item_digest ->
+    # different origination_identity), while the first scan's record for
+    # it is still MATERIALIZED (not TERMINAL).
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X (revised)",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ],
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "revise feature-x")
+    new_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", new_sha)
+    new_main = _run_git(repo, "rev-parse", "origin/main")
+    new_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+
+    second, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(new_main, new_tree),
+    )
+    assert exit_code == EXIT_OK
+    # The revision is a genuinely new origination_identity, so it is
+    # "eligible" -- but it must be refused materialization, not silently
+    # dropped and not materialized as a second live node.
+    assert second["eligible_count"] == 1
+    assert second["materialized_count"] == 0
+    assert second["not_materialized_count"] == 1
+    second_entry = cast("list[dict[str, object]]", second["not_materialized"])[0]
+    assert second_entry["work_id"] == first_entry["work_id"]
+    assert second_entry["materialization_error_code"] == "PACKAGE_ID_ALREADY_ACTIVE"
+
+    # Exactly one non-TERMINAL record for this package_id exists durably --
+    # the original one, completely untouched.
+    projection = load_projection(store)
+    active_for_package = [
+        row
+        for row in projection.records
+        if row.state != "TERMINAL"
+        and row.work_node is not None
+        and row.work_node.get("package_id") == first_entry["work_id"]
+    ]
+    assert len(active_for_package) == 1
+    assert active_for_package[0].work_node is not None
+    assert active_for_package[0].work_node["base_pin"] == main
+    # Two durable rows total: the original MATERIALIZED one, plus the
+    # revision's own PROPOSED-but-never-materialized one (never silently
+    # discarded -- honestly recorded, just not turned into a second live
+    # node).
+    assert len(projection.records) == 2

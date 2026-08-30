@@ -148,6 +148,54 @@ def find_materialized_work_node(store: Path, package_id: str) -> WorkNode | None
         return None
 
 
+def find_active_record_by_package_id(store: Path, package_id: str) -> OriginationRecord | None:
+    """The first non-``TERMINAL`` durable record whose materialized
+    ``work_node.package_id`` equals ``package_id``, regardless of its
+    ``origination_identity``.
+
+    ``origination_identity`` is a hash of ``project_id + location +
+    item_id + item_digest`` (``identity.py``) -- it changes whenever a
+    roadmap item's own content is revised. ``package_id``
+    (``work_id_for()``) is a hash of only ``project_id + item_id`` -- it
+    stays IDENTICAL across such a revision. A content revision to a
+    roadmap item while the PRIOR governed work for that same item is
+    still in flight (anything short of ``TERMINAL``) therefore produces
+    a second, distinct, non-``TERMINAL`` origination record that shares
+    the first one's ``package_id`` -- ordinary use of the unmodified
+    pipeline, not a corrupted store.
+
+    Callers use this BEFORE materializing a new proposal to detect that
+    situation and refuse to create the second live record in the first
+    place (D-PHASE2A-2 independent-IV finding: without this guard,
+    ``sync_terminal_governed_states()`` -- which matches purely by
+    ``package_id`` -- could later mark BOTH records ``TERMINAL`` once
+    only one of them was ever actually governed to closure, permanently
+    and silently losing the other, never-executed proposal). This
+    mirrors ``governor.add_node()``'s own ``DUPLICATE_NODE``-by-
+    ``package_id`` invariant, enforced one layer earlier, at the durable
+    projection itself.
+
+    Returns ``None`` (never raises) when no conflicting active record
+    exists or the store is unreadable -- callers treat that as "no
+    conflict", the safe default for an otherwise-legitimate first
+    materialization.
+    """
+    try:
+        projection = load_projection(store)
+    except OriginationProjectionError:
+        return None
+    return next(
+        (
+            row
+            for row in projection.records
+            if row.state != "TERMINAL"
+            and row.work_node is not None
+            and row.work_node.get("package_id") == package_id
+        ),
+        None,
+    )
+
+
 def list_materialized_work_nodes(store: Path) -> tuple[WorkNode, ...]:
     """D-PHASE2A-2: every ``WorkNode`` a prior process durably materialized
     that has NOT yet been observed to reach a terminal governed state
@@ -326,9 +374,24 @@ def sync_terminal_governed_states(
     (a re-derived proposal for the same evidence never actually
     duplicates), and ``run_origination_scan()`` (D-PHASE2A-2) now skips
     re-materializing an already-materialized, non-TERMINAL record rather
-    than clobbering it. Marking terminal here only avoids the wasted
-    work of re-deriving an outcome whose fate is already fully decided;
-    it does not change what is safe.
+    than clobbering it, AND (D-PHASE2A-2 independent-IV finding, same
+    round) refuses to durably create a second live record for a
+    ``package_id`` an existing non-TERMINAL record already holds under a
+    different ``origination_identity`` (``find_active_record_by_package_id()``
+    above). Marking terminal here only avoids the wasted work of
+    re-deriving an outcome whose fate is already fully decided; it does
+    not change what is safe.
+
+    Defense-in-depth for that same finding: this function does NOT
+    itself trust that the guard above always held for every record ever
+    written to ``store`` (a store predating this fix, or a future bug
+    elsewhere, could still hand it two non-TERMINAL rows sharing one
+    ``package_id``). If more than one non-TERMINAL row matches a single
+    closed ``package_id``, NONE of them are synced -- picking one
+    arbitrarily to mark ``TERMINAL`` could permanently and silently
+    close a genuinely distinct, never-executed proposal. Ambiguity is
+    not authority, exactly as ``find_materialized_work_node()`` already
+    treats it.
 
     Never raises: any per-identity ``mark_terminal()`` failure (e.g. a
     concurrent writer holding the lock) is skipped for that identity
@@ -348,13 +411,18 @@ def sync_terminal_governed_states(
     }
     if not closed_package_ids:
         return ()
-    synced: list[str] = []
+    active_rows_by_package_id: dict[str, list[OriginationRecord]] = {}
     for row in projection.records:
         if row.state == "TERMINAL" or row.work_node is None:
             continue
         package_id = row.work_node.get("package_id")
-        if package_id not in closed_package_ids:
+        if package_id in closed_package_ids:
+            active_rows_by_package_id.setdefault(package_id, []).append(row)
+    synced: list[str] = []
+    for rows in active_rows_by_package_id.values():
+        if len(rows) != 1:
             continue
+        row = rows[0]
         try:
             mark_terminal(store, row.origination_identity, node_state="CLOSED")
         except OriginationProjectionError:
