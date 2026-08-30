@@ -63,6 +63,29 @@ def evaluate(proposal: OriginationProposal) -> PolicyResult:
             reason=ExecutionReadyReason.INSUFFICIENT_ACCEPTANCE_CONTRACT,
         )
 
+    if proposal.dependencies:
+        # `proposal.dependencies` only ever contains package ids for
+        # dependencies the adapter already confirmed are NOT
+        # IMPLEMENTED/VERIFIED_COMPLETION (see adapter.eligible_roadmap_items's
+        # _DONE_STATUSES filtering) -- so a non-empty tuple here always
+        # means a genuinely outstanding prerequisite. This check exists
+        # because the existing governed DAG (orchestration.autonomy) does
+        # NOT itself enforce dependency-completion gating at lease time:
+        # governor.lease()/mark_ready() never consult
+        # WorkNode.dependencies -- only plan()'s advisory "what_must_wait"
+        # list reflects it descriptively. Preserving the dependency edge
+        # on the materialized WorkNode (materialize.py) is necessary for
+        # visibility but not sufficient for safety; this policy gate is
+        # what actually prevents READY while a real prerequisite remains
+        # outstanding, since downstream enforcement does not exist yet.
+        return PolicyResult(
+            origination_proposal_valid=origination_proposal_valid,
+            authoritative_intent_signal=authoritative_intent_signal,
+            corroborating_signal=corroborating_signal,
+            execution_ready=False,
+            reason=ExecutionReadyReason.UNSATISFIED_DEPENDENCIES,
+        )
+
     if not origination_proposal_valid:
         return PolicyResult(
             origination_proposal_valid=False,

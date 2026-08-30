@@ -11,12 +11,12 @@
     "src/",
     "tests/test_task_017_dependency_validation.py"
   ],
-  "origination_identity": "8e5fc3e94f6f000578a3ac115a26a482d48a4aa67bb7c6fa9200dcacd64a2ac3",
+  "origination_identity": "fd97426b3caa1cd27b90c694b75a56f7648d355776ab4a94347da338841c6485",
   "owner_gate": null,
   "policy_reason": "READY",
   "process": "A",
   "result": "ORIGINATED_AND_LEASED",
   "risk_class": "O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION",
   "title": "TASK-017 -- blocked-task dependency validation",
-  "work_id": "ORIG-8e5fc3e94f6f0005"
+  "work_id": "ORIG-368ae353772c711a"
 }

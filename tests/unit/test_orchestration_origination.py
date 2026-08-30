@@ -724,6 +724,14 @@ def test_materialize_preserves_active_dependency_edges(tmp_path: Path) -> None:
     dependent = outcomes["Feature B"].proposal
     expected = identity.work_id_for("demo-project", "feature-a")
     assert dependent.dependencies == (expected,)
+    # Safety property (not just edge-preservation): a real, still-
+    # outstanding dependency must block execution_ready. The governed DAG
+    # (orchestration.autonomy) does not itself enforce dependency
+    # completion at lease time -- governor.lease()/mark_ready() never
+    # consult WorkNode.dependencies -- so origination's own policy gate
+    # is what actually has to refuse READY here.
+    assert outcomes["Feature B"].policy.execution_ready is False
+    assert outcomes["Feature B"].policy.reason == ExecutionReadyReason.UNSATISFIED_DEPENDENCIES
     classification = risk.classify(
         proposed_scope=dependent.proposed_scope,
         success_criteria=dependent.success_criteria,

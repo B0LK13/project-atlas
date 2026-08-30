@@ -132,8 +132,11 @@ def _build_outcome(
 
     if item.depends_on:
         why_now = (
-            f"{item.item_id!r} depends on {list(item.depends_on)}; the governed DAG "
-            "must observe each corresponding package as CERTIFIED or CLOSED first."
+            f"{item.item_id!r} depends on {list(item.depends_on)}, which are not yet "
+            "IMPLEMENTED/VERIFIED_COMPLETION; origination's own policy gate refuses "
+            "execution_ready while any of these package ids remain outstanding "
+            "(the governed DAG's lease/mark_ready machinery does not itself enforce "
+            "dependency completion -- see policy.py)."
         )
     elif item.blockers:
         why_now = f"{item.item_id!r} declares unresolved blockers and cannot execute yet."

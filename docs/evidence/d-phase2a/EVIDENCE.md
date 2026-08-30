@@ -254,6 +254,49 @@ registered surface. 4 parametrized unit tests
 confirm this for a leading dot, a leading underscore, an embedded space,
 and a non-ASCII character.
 
+## AUTOMATED_REVIEW_REMEDIATIONS (GitHub Copilot + Codex, PR #643)
+
+Once PR #643 was marked ready for review, two automated reviewers
+(GitHub Copilot's PR reviewer and `chatgpt-codex-connector`) left 6
+substantive comments (max_length overflow risk on
+`RiskClassification.disqualifying_attributes`, an unguarded second file
+read, path traversal via evidence refs, origination-identity collisions
+across multiple eligible items, discarded dependency edges, and silently
+erased blockers). All 6 were real and were fixed directly on this
+branch (commit `7b0ffcf7`): per-item `subject_id`/`subject_digest`
+binding on `SourceFact` (closing the identity collision structurally,
+enforced by `SourceFact`'s own model validator), a `_safe_project_file()`
+resolve-once/use-everywhere path helper (closing the traversal), declared
+blockers threaded through and gated at both the policy AND
+materialization layers, dependency edges resolved to stable
+`work_id_for(project_id, item_id)` package ids and preserved on the
+materialized `WorkNode`, and `RiskClassification.disqualifying_attributes`
+uncapped to accommodate the full disqualifier vocabulary.
+
+**One additional gap found during independent review of that fix**: the
+dependency-edge preservation closed the *symptom* Copilot flagged (an
+empty dependency tuple) but not the underlying reason it mattered —
+`orchestration.autonomy.governor.lease()`/`mark_ready()` do not
+themselves consult `WorkNode.dependencies` at all (only `plan()`'s
+advisory `what_must_wait` list reflects it descriptively; confirmed by
+direct reading, not assumption). A proposal with a genuinely
+still-outstanding dependency therefore still reached
+`execution_ready=True`, verified live before the fix:
+`Dependent | dependencies=(...) | execution_ready=True | reason=READY`
+for a dependency whose prerequisite was still `NOT_STARTED`. Closed with
+one additional, minimal check: `policy.evaluate()` now refuses
+`execution_ready=True` whenever `proposal.dependencies` is non-empty
+(new `ExecutionReadyReason.UNSATISFIED_DEPENDENCIES`) — safe because
+`adapter.eligible_roadmap_items()` already filters `depends_on` to
+exclude anything `IMPLEMENTED`/`VERIFIED_COMPLETION` before it ever
+reaches `proposal.dependencies`, so a non-empty tuple here always means
+a real, outstanding prerequisite. Verified the fix doesn't regress the
+real Gamma/TASK-017 case (whose own dependency, `taskflow-baseline`, is
+already `IMPLEMENTED` and therefore correctly needs no tracking) via a
+fresh demo run, and strengthened the existing
+`test_materialize_preserves_active_dependency_edges` test to assert the
+safety property (not just edge-preservation) directly.
+
 ## IV_REPORT
 
 **Current exact-head status:** `PENDING_EXTERNAL`. The rounds below were
