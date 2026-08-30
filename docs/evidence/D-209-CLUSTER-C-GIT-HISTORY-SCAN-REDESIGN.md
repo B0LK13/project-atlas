@@ -14,6 +14,48 @@ fix.
 `D-209` here avoids a second collision with an in-flight, not-yet-integrated
 ID.
 
+## Round-1 independent verification: REJECTED, then fixed
+
+A fresh, maximally-adversarial IV subagent (separate worktree) found a real,
+reproduced false negative in the first implementation:
+`_structural_answer_key_leaks` required a holdout `case_id` and an
+`"expected"` field to appear in the SAME JSON dict. IV constructed
+`{"case_id": "EV-HOLD-999", "scoring": {"expected": "leak"}}` — case id and
+answer split across sibling dicts, an entirely ordinary way to structure a
+scored-case record — and proved the same-dict check missed it, while the
+OLD (pre-redesign) algorithm's ADDED-line substring check actually caught
+it (the whole object lands on one diff line). Per the directive's explicit
+standard, a false negative is REJECT-level regardless of speed/elegance
+gains, and was not softened or argued around.
+
+**Fix**: widened detection to same-*document* co-occurrence (case id
+anywhere in the parsed JSON value; `"expected"` key anywhere in that same
+value), rather than same-dict — see `_json_has_answer_key` /
+`_json_contains_string` in `tests/security/git_history_scan.py`. This
+closes the gap while preserving the JSON-parse gate that fixes the
+*original* false-positive class (Python source never parses as JSON, so
+it's excluded before the document-wide check is even reached). New
+regression test:
+`test_new_scanner_catches_case_id_and_expected_split_across_sibling_dicts`
+in `tests/security/test_git_history_scan_differential.py`, pinning this
+exact defect permanently. Re-verified after the fix: 13/13 differential
+tests pass (was 11, +1 parametrized scenario +1 dedicated regression test),
+12/12 integration-file tests pass, zero false positives against this
+repo's real history (re-run), runtime unaffected (~9.8-13.5s across runs,
+still >10x faster than the old algorithm's >120s non-completion). `ruff`/
+`mypy` clean.
+
+The IV's other five verification lanes (blob-scan plumbing edge cases —
+empty blob, embedded newlines, header-lookalike content, large blob, binary
+blob; tag-only/deleted-branch reachability; the `-S` blind-spot claim
+reproduced by hand plus a `-G`-vs-`-S` characterization; a search for any
+NEW false negative from the plumbing itself — none found, submodule gitlinks
+noted as a pre-existing boundary shared by both old and new equally, not a
+gap introduced here; independent benchmark; full test/lint/type gates; scope
+confirmed test-only) all came back clean and are not repeated here — see
+the IV transcript for the full detail. Round 2 IV re-verification of the fix
+is tracked separately (see PR #651 comments).
+
 ## Step 1 — formalize the security property BEFORE optimizing (directive §4)
 
 ```

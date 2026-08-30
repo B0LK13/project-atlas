@@ -59,7 +59,6 @@ from typing import Any
 _BATCH_CHECK_FORMAT = "%(objectname) %(objecttype)"
 _EXPECTED_KEY_MARKER = '"expected"'
 _ANSWER_KEY_FIELD = "expected"
-_CASE_ID_FIELDS = ("case_id", "id")
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,40 +145,67 @@ def _iter_unique_historical_blobs(
         proc.wait(timeout=120)
 
 
-def _json_dicts_with_answer_key(obj: Any) -> Iterator[dict[str, Any]]:
-    """Recursively yield every dict in a parsed JSON value that carries an
-    ``"expected"`` key -- i.e. every dict that looks like a scored answer
-    record, wherever it's nested (top-level object, list of cases, ...)."""
+def _json_has_answer_key(obj: Any) -> bool:
+    """True if any dict anywhere in a parsed JSON value carries an
+    ``"expected"`` key, at ANY nesting depth -- not just the top-level
+    record. IV finding (PR #651 round 1, REJECTED): restricting the match
+    to "the SAME dict has both `case_id` and `expected`" produces a real
+    false negative for a document like
+    ``{"case_id": "EV-HOLD-999", "scoring": {"expected": "leak"}}`` -- the
+    case id and the answer are in the same JSON DOCUMENT, just different,
+    sibling/nested dicts, which is an entirely ordinary way to structure a
+    scored-case record (grouping grading metadata under a nested key).
+    Reproduced directly: the OLD algorithm's ADDED-line substring check DID
+    catch this shape (the whole object lands on one diff line); the
+    same-dict-only structural check did not. Checking document-wide instead
+    of same-record closes that gap while keeping the JSON-parse gate that
+    fixes the ORIGINAL false-positive class (Python source that merely
+    discusses "expected" and a case id together never parses as JSON at
+    all, so it's excluded before this function is even reached)."""
     if isinstance(obj, dict):
         if _ANSWER_KEY_FIELD in obj:
-            yield obj
-        for value in obj.values():
-            yield from _json_dicts_with_answer_key(value)
-    elif isinstance(obj, list):
-        for item in obj:
-            yield from _json_dicts_with_answer_key(item)
+            return True
+        return any(_json_has_answer_key(value) for value in obj.values())
+    if isinstance(obj, list):
+        return any(_json_has_answer_key(item) for item in obj)
+    return False
+
+
+def _json_contains_string(obj: Any, target: str) -> bool:
+    """True if ``target`` appears as a string VALUE anywhere in a parsed
+    JSON value, at any nesting depth (dict values, list items) -- not
+    restricted to a specific field name, for the same document-wide,
+    err-toward-detection reasoning as `_json_has_answer_key`."""
+    if isinstance(obj, dict):
+        return any(_json_contains_string(value, target) for value in obj.values())
+    if isinstance(obj, list):
+        return any(_json_contains_string(item, target) for item in obj)
+    return isinstance(obj, str) and obj == target
 
 
 def _structural_answer_key_leaks(text: str, holdout_case_ids: Sequence[str]) -> set[str]:
-    """Case ids whose committed record, in this blob, structurally pairs a
-    holdout case id with an ``"expected"`` answer -- parses the blob as JSON
-    first (this repo's holdout cases are exclusively JSON; parsing rejects
-    Python/Markdown/etc. source that merely *mentions* both substrings, which
-    is what the naive same-blob substring check false-positived on: this
-    file's own test source, in its own git history, both defines and checks
-    for the strings "EV-HOLD-101"/"EV-HOLD-102" and "expected" -- discussing
-    the property is not violating it)."""
+    """Case ids whose committed record, in this blob, pairs a holdout case
+    id with an ``"expected"`` answer ANYWHERE in the same parsed JSON
+    document -- not requiring both in the same dict (see
+    `_json_has_answer_key`'s docstring for why that stricter form was
+    proven wrong). Parses the blob as JSON first (this repo's holdout cases
+    are exclusively JSON; parsing rejects Python/Markdown/etc. source that
+    merely *mentions* both substrings, which is what a naive same-blob
+    substring check false-positived on: this file's own test source, in its
+    own git history, both defines and checks for the strings
+    "EV-HOLD-101"/"EV-HOLD-102" and "expected" -- discussing the property is
+    not violating it)."""
     try:
         parsed = json.loads(text)
     except (json.JSONDecodeError, ValueError):
         return set()
-    hits: set[str] = set()
-    for record in _json_dicts_with_answer_key(parsed):
-        for field in _CASE_ID_FIELDS:
-            value = record.get(field)
-            if isinstance(value, str) and value in holdout_case_ids:
-                hits.add(value)
-    return hits
+    if not _json_has_answer_key(parsed):
+        return set()
+    return {
+        case_id
+        for case_id in holdout_case_ids
+        if case_id and _json_contains_string(parsed, case_id)
+    }
 
 
 def find_leaked_holdout_evidence(
@@ -192,22 +218,31 @@ def find_leaked_holdout_evidence(
     security properties in one pass (no matter how many secrets/case ids):
 
     1. none of ``secret_tokens`` appears in any historical blob;
-    2. no historical blob structurally pairs a ``holdout_case_ids`` entry with
-       an ``"expected"`` answer field -- the signature of a committed answer
-       key. Deliberately JSON-structural rather than a substring/same-line
-       check: adversarial differential testing against this repository's own
-       real history (see the PR evidence doc) found that BOTH a same-blob and
-       a same-line substring heuristic false-positive on ordinary Python test
-       source that legitimately discusses/asserts on the case id and the
-       ``"expected"`` field name together (e.g. `hold["expected"] ==
-       scoring_capability["EV-HOLD-101"]`) without ever containing a real
-       leaked value. This repository's holdout case records are exclusively
-       JSON (confirmed: `_holdout_case_meta()` only reads `*.json`, and the
-       operator's private answer map is always `json.dumps`-written), so
-       requiring the match to parse as JSON and structurally pair the two
-       fields in one record is precise for the real threat model and
-       eliminates that false-positive class entirely, at zero proven
-       detection cost (see the differential test matrix in the PR).
+    2. no historical blob's parsed JSON document contains BOTH a
+       ``holdout_case_ids`` entry AND an ``"expected"`` answer field,
+       ANYWHERE in that document -- the signature of a committed answer key.
+       Deliberately JSON-parse-gated rather than a raw substring/same-line
+       check across the whole blob: adversarial differential testing against
+       this repository's own real history (see the PR evidence doc) found
+       that BOTH a same-blob and a same-line substring heuristic
+       false-positive on ordinary Python test source that legitimately
+       discusses/asserts on the case id and the ``"expected"`` field name
+       together (e.g. `hold["expected"] == scoring_capability["EV-HOLD-101"]`)
+       without ever containing a real leaked value -- gating on successful
+       JSON parse excludes that source entirely (Python source never parses
+       as JSON). Document-wide rather than same-dict-only: an EARLIER,
+       stricter version of this check required the case id and the
+       ``"expected"`` field in the SAME dict record, and independent
+       adversarial verification (round 1 IV, REJECTED) proved that version
+       has a real false negative -- `{"case_id": "X", "scoring": {"expected":
+       "leak"}}` splits the two fields across sibling dicts, an entirely
+       ordinary way to structure a scored-case record, and was silently
+       missed. Checking document-wide (see `_json_has_answer_key` /
+       `_json_contains_string`) closes that gap while keeping the
+       false-positive fix, at the cost of being slightly more permissive
+       than strictly necessary -- an intentional, security-first trade-off
+       (a false positive costs a human a few minutes of triage; a false
+       negative costs a leaked evaluation answer).
 
     Returns ``(secret_hits, answer_key_hits)`` -- both empty on a clean repo.
     """

@@ -30,6 +30,9 @@ _ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
 
 _LEAK_JSON = json.dumps({"case_id": "EV-HOLD-999", "expected": "the-secret-answer"})
 _CLEAN_JSON = json.dumps({"case_id": "EV-HOLD-999", "query": "q"})
+_NESTED_LEAK_JSON = json.dumps(
+    {"case_id": "EV-HOLD-999", "scoring": {"expected": "the-secret-answer"}}
+)
 _CASE_IDS = ("EV-HOLD-999",)
 
 
@@ -123,6 +126,11 @@ def _old_algorithm_answer_leak(repo: Path, case_ids: tuple[str, ...]) -> bool:
             ],
             True,
         ),
+        (
+            "violation_split_across_sibling_dicts",
+            [{"fixtures/eval/f.json": _NESTED_LEAK_JSON}],
+            True,
+        ),
     ],
 )
 def test_new_scanner_matches_ground_truth(
@@ -196,3 +204,30 @@ def test_old_algorithm_is_proven_to_miss_same_occurrence_count_edits(
         repo, secret_tokens=(), holdout_case_ids=_CASE_IDS
     )
     assert bool(answer_hits) is True  # new: correctly catches it
+
+
+def test_new_scanner_catches_case_id_and_expected_split_across_sibling_dicts(
+    tmp_path: Path,
+) -> None:
+    """PR #651 round-1 independent verification: REJECTED. Pins the found
+    defect as a permanent regression test.
+
+    An earlier version of `_structural_answer_key_leaks` required the
+    holdout case id and the `"expected"` field to be in the SAME dict
+    record. Adversarial IV constructed
+    `{"case_id": "EV-HOLD-999", "scoring": {"expected": "leak"}}` -- a real,
+    ordinary way to structure a scored-case record (grading metadata nested
+    under a sibling key) -- and proved the same-dict-only check silently
+    missed it, while the OLD (pre-redesign) algorithm's ADDED-line substring
+    check caught it (the whole object lands on one diff line). The fix
+    widened detection to same-DOCUMENT co-occurrence (case id anywhere in
+    the parsed JSON value, `"expected"` key anywhere in the same value),
+    which this test pins.
+    """
+    repo = _build_repo(
+        tmp_path / "sibling_dict_leak", [{"fixtures/eval/f.json": _NESTED_LEAK_JSON}]
+    )
+    _secret_hits, answer_hits = find_leaked_holdout_evidence(
+        repo, secret_tokens=(), holdout_case_ids=_CASE_IDS
+    )
+    assert bool(answer_hits) is True
