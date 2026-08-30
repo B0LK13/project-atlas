@@ -71,8 +71,24 @@ class SourceFact(BaseModel):
     @field_validator("location")
     @classmethod
     def _location(cls, value: str) -> str:
-        posix = value.replace("\\", "/").lstrip("./")
-        if not posix or ".." in posix.split("/") or posix.startswith("/"):
+        # IV finding (D-PHASE2A, exact-head c4e1cba1 review): the previous
+        # `.lstrip("./")` ran BEFORE the "unsafe" check, so it silently
+        # normalized away a leading traversal/absolute marker instead of
+        # rejecting it -- "../secret.py" stripped down to "secret.py" and
+        # was accepted. Not currently reachable through any production
+        # call site (both adapter.py fact constructors always pass an
+        # already-root-relative canonical path, never a raw ref), but the
+        # field's own documented contract ("Never absolute, never '..'")
+        # must hold independent of caller discipline. Fixed: strip at
+        # most one exact leading "./" prefix (not a greedy character-set
+        # lstrip, which would also mangle a genuine leading-dot path like
+        # ".github/workflows"), THEN reject on the untouched remainder --
+        # so a real ".." segment or absolute path is always rejected, not
+        # normalized away first.
+        posix = value.replace("\\", "/")
+        if posix.startswith("./"):
+            posix = posix[2:]
+        if not posix or posix.startswith("/") or ".." in posix.split("/"):
             raise ValueError("location must be a safe relative path")
         if not _REL_PATH_RE.fullmatch(posix):
             raise ValueError("location must be a safe relative path")

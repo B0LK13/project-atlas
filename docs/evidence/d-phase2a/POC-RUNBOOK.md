@@ -278,6 +278,28 @@ demo-root directories are removed.
 
 ## Known limitations
 
+- **Dependency-completion enforcement is caller-discipline-only, not a
+  library-level chokepoint** (IV finding, exact-head `c4e1cba1` review):
+  `policy.evaluate()` correctly refuses `execution_ready=True` while a
+  proposal has a real, unresolved dependency
+  (`ExecutionReadyReason.UNSATISFIED_DEPENDENCIES`), and the one real
+  caller (`run_three_process_demo.py`) correctly checks
+  `policy_result.execution_ready` before leasing. But
+  `orchestration.autonomy.governor.lease()`/`mark_ready()` do not
+  themselves consult `WorkNode.dependencies` at all — confirmed by
+  direct reading, not assumption — so nothing at the governed-DAG layer
+  would stop a *future*, less careful caller from leasing a node whose
+  dependency edge is present but unsatisfied. This is a pre-existing
+  property of `orchestration.autonomy` (not introduced by the origination
+  package), out of scope to change here: `governor.lease()` is shared,
+  heavily-tested code used by every other caller of the governed DAG,
+  and hardening it is a distinct, separately-scoped successor work
+  package, not a same-PR fix. Tracked explicitly rather than silently
+  carried forward: origination must not be wired into a live autonomous
+  dispatch loop until either this governor-level gap is closed, or every
+  future caller is independently audited to check `execution_ready`
+  (and, more generally, `WorkNode.dependencies` completion) before
+  leasing.
 - **The roadmap-completion gap** (see ADR-033 and `pipeline.py`'s
   `originate_new_only` docstring): `docs/ROADMAP.md` is deliberately not
   part of an O1 leased node's authorized `mutation_surface`, so

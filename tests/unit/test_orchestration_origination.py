@@ -996,3 +996,42 @@ def test_rehydration_lookup_fails_closed_on_two_active_spec_revisions(tmp_path: 
     restored = projection.find_materialized_work_node(store, second.proposal.work_id)
     assert restored is not None
     assert restored.package_id == second.proposal.work_id
+
+
+# --------------------------------------------------------------------------
+# IV finding (exact-head c4e1cba1 review): SourceFact.location's own
+# validator silently normalized away a leading ".." /absolute marker
+# instead of rejecting it, contradicting its documented contract. Not
+# reachable through any production call site, but the field's own
+# invariant must hold independent of caller discipline.
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "unsafe_location",
+    ["../secret.py", "../../etc/passwd", "/etc/passwd", "a/../b"],
+)
+def test_source_fact_location_rejects_traversal_not_normalizes_it(unsafe_location: str) -> None:
+    with pytest.raises(Exception):  # noqa: B017 - pydantic ValidationError, any raise is a pass
+        SourceFact(
+            kind=SourceFactKind.CORROBORATING_SPEC_TEST,
+            project_id="demo-project",
+            location=unsafe_location,
+            content_digest=_digest("x"),
+            excerpt="x",
+        )
+
+
+def test_source_fact_location_strips_exact_leading_dot_slash_only() -> None:
+    """A single, exact leading "./" is stripped as cosmetic normalization
+    (via a precise prefix strip, not a greedy lstrip("./") character-class
+    strip -- the fix's whole point is that the safety check must run on
+    the untouched remainder, not a normalized-away one)."""
+    stripped = SourceFact(
+        kind=SourceFactKind.CORROBORATING_SPEC_TEST,
+        project_id="demo-project",
+        location="./tests/test_x.py",
+        content_digest=_digest("x"),
+        excerpt="x",
+    )
+    assert stripped.location == "tests/test_x.py"

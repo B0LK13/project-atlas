@@ -123,8 +123,13 @@ frozen=True)` where appropriate, matching the rest of
 `authoritative_intent_signal`, `corroborating_signal`, `execution_ready`,
 `reason` (closed enum `ExecutionReadyReason`: `READY`,
 `INSUFFICIENT_ACCEPTANCE_CONTRACT`, `CONFLICTING_PROJECT_EVIDENCE`,
-`OWNER_HELD_RISK`). `evaluate()` is pure and deterministic — no I/O, no
-LLM call, same input always produces the same output.
+`OWNER_HELD_RISK`, `UNSATISFIED_DEPENDENCIES`). `evaluate()` is pure and
+deterministic — no I/O, no LLM call, same input always produces the same
+output. Check order: `contradictions` → `blockers` →
+`dependencies` (non-empty here always means a real, still-outstanding
+prerequisite — `adapter.eligible_roadmap_items()` already excludes
+anything `IMPLEMENTED`/`VERIFIED_COMPLETION`) → authoritative-intent
+validity → corroborating signal → risk class.
 
 ## SOURCE_ADAPTER_CONTRACT
 
