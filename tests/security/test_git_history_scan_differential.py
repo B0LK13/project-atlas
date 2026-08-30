@@ -18,6 +18,7 @@ implementation remains affordable" the redesign directive calls for.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -25,13 +26,30 @@ import pytest
 
 from tests.security.git_history_scan import find_leaked_holdout_evidence
 
-_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+# Extends (not replaces) the real process environment -- Cursor automated
+# review of PR #651 found that a bare identity-only dict silently drops
+# PATH (and, on Windows, SYSTEMROOT) for the child `git` process. This
+# happened to still work on this session's Linux/WSL host only because of
+# execvpe's POSIX default-PATH fallback when PATH is entirely absent from
+# `env` -- a coincidence of this one host, not a portable guarantee, and
+# specifically NOT something Windows subprocess/git.exe can be relied on to
+# tolerate (this repo's own CI matrix includes `windows-latest`).
+_ENV = {
+    **os.environ,
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@t",
+}
 
 _LEAK_JSON = json.dumps({"case_id": "EV-HOLD-999", "expected": "the-secret-answer"})
 _CLEAN_JSON = json.dumps({"case_id": "EV-HOLD-999", "query": "q"})
 _NESTED_LEAK_JSON = json.dumps(
     {"case_id": "EV-HOLD-999", "scoring": {"expected": "the-secret-answer"}}
+)
+_CASE_ID_KEYED_RECORD_JSON = json.dumps({"EV-HOLD-999": {"expected": "the-secret-answer"}})
+_EXPECTED_MAP_KEYED_BY_CASE_ID_JSON = json.dumps(
+    {"expected": {"EV-HOLD-999": "the-secret-answer"}}
 )
 _CASE_IDS = ("EV-HOLD-999",)
 
@@ -227,6 +245,37 @@ def test_new_scanner_catches_case_id_and_expected_split_across_sibling_dicts(
     repo = _build_repo(
         tmp_path / "sibling_dict_leak", [{"fixtures/eval/f.json": _NESTED_LEAK_JSON}]
     )
+    _secret_hits, answer_hits = find_leaked_holdout_evidence(
+        repo, secret_tokens=(), holdout_case_ids=_CASE_IDS
+    )
+    assert bool(answer_hits) is True
+
+
+@pytest.mark.parametrize(
+    "name, leak_json",
+    [
+        ("case_id_keyed_record", _CASE_ID_KEYED_RECORD_JSON),
+        ("expected_map_keyed_by_case_id", _EXPECTED_MAP_KEYED_BY_CASE_ID_JSON),
+    ],
+)
+def test_new_scanner_catches_case_id_used_as_json_object_key(
+    tmp_path: Path, name: str, leak_json: str
+) -> None:
+    """Found post-round-2-IV via Cursor's automated review of PR #651, and
+    independently reproduced against the unfixed code before accepting the
+    fix (an unfixed run against `_CASE_ID_KEYED_RECORD_JSON` returned no
+    hit -- confirmed real, not overstated).
+
+    `_json_contains_string` originally walked only dict VALUES, so a
+    holdout case id appearing solely as a JSON object KEY was invisible
+    even when the same document carried an `"expected"` field. This is not
+    a contrived shape: it is the exact structure of this repository's own
+    operator expected-answer map (`test_as_2_2_eval_broker_adversarial.py`'s
+    `broker` fixture builds `{cid: token for cid in meta}` -- case ids as
+    keys). Pins both the direct form (`{case_id: {"expected": ...}}`) and
+    the sibling form (`{"expected": {case_id: ...}}`).
+    """
+    repo = _build_repo(tmp_path / name, [{"fixtures/eval/f.json": leak_json}])
     _secret_hits, answer_hits = find_leaked_holdout_evidence(
         repo, secret_tokens=(), holdout_case_ids=_CASE_IDS
     )

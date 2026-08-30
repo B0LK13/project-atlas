@@ -232,9 +232,48 @@ test is a natural, low-risk follow-up candidate for the same
 avoid unauthorized scope expansion -- flagged as a new
 `READY_OWNER_INDEPENDENT` candidate node for a future pass.
 
+## Post-round-2 finding: two more real defects, found by Cursor's automated review
+
+After round-2 IV (`CONFIRMED WITH MINOR NOTES`), Cursor's automated review
+of PR #651 independently surfaced two further real, reproduced defects —
+external review catching what two rounds of adversarial IV had not:
+
+1. **Key-based leak detection gap** (`_json_contains_string` only walked
+   dict VALUES, never KEYS). A document shaped like
+   `{"EV-HOLD-999": {"expected": "..."}}` — case id as key, not value — was
+   invisible, even though the same document carries an `"expected"` field.
+   Independently reproduced against the unfixed code before accepting the
+   fix (confirmed: zero hits on `{"EV-HOLD-999": {"expected":
+   "the-secret-answer"}}`, a real leak). **Not a contrived shape**: it is
+   the exact structure of this repository's own operator expected-answer
+   map (`test_as_2_2_eval_broker_adversarial.py`'s `broker` fixture:
+   `{cid: token for cid in meta}` — case ids as keys). Fixed: `dict.items()`
+   is now walked (both key and value recursed), not just `dict.values()`.
+   Two new regression tests pin both the direct form
+   (`{case_id: {"expected": ...}}`) and the sibling form (`{"expected":
+   {case_id: ...}}`).
+
+2. **Test-helper environment fragility** (not a security-property gap, a
+   portability bug): the differential test file's `_git()` helper passed a
+   bare identity-only `env={"GIT_AUTHOR_NAME": ..., ...}` to `subprocess`,
+   which *replaces* the child process's entire environment rather than
+   extending it — dropping `PATH` (and, on Windows, `SYSTEMROOT`) entirely.
+   This happened to still work on this session's Linux/WSL host only
+   because of `execvpe`'s POSIX default-PATH fallback when `PATH` is
+   completely absent from `env` — a coincidence of this one host, not a
+   portable guarantee, and specifically not something Windows
+   subprocess/`git.exe` can be relied on to tolerate (this repo's own CI
+   matrix includes `windows-latest`). Fixed: `_ENV` now spreads
+   `**os.environ` first, then overrides only the identity vars.
+
+Re-verified after both fixes: 15/15 differential tests pass (was 13, +2).
+12/12 integration-file tests pass. Zero false positives re-confirmed
+against this repo's real history (~10.2s, unaffected). `ruff`/`mypy` clean.
+A round-3 IV is tracked separately (see PR #651 comments).
+
 ## Validation
 
-- `tests/security/test_git_history_scan_differential.py`: 11/11 pass.
+- `tests/security/test_git_history_scan_differential.py`: 15/15 pass.
 - `tests/integration/test_as_2_2_eval_broker_adversarial.py`: 12/12 pass
   (full file, including the redesigned test at 13.48s, was >120s/SIGKILL).
 - `ruff check .`: clean. `mypy` on the new module: clean.

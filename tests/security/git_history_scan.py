@@ -172,12 +172,24 @@ def _json_has_answer_key(obj: Any) -> bool:
 
 
 def _json_contains_string(obj: Any, target: str) -> bool:
-    """True if ``target`` appears as a string VALUE anywhere in a parsed
-    JSON value, at any nesting depth (dict values, list items) -- not
-    restricted to a specific field name, for the same document-wide,
-    err-toward-detection reasoning as `_json_has_answer_key`."""
+    """True if ``target`` appears as a string VALUE or object KEY anywhere
+    in a parsed JSON value, at any nesting depth -- not restricted to a
+    specific field name, for the same document-wide, err-toward-detection
+    reasoning as `_json_has_answer_key`.
+
+    Keys must be inspected, not just values: this repository's own operator
+    expected-answer map (`test_as_2_2_eval_broker_adversarial.py`'s
+    `broker` fixture: ``{cid: token for cid in meta}``) uses holdout case
+    ids as dict KEYS, not values -- a values-only walk misses the exact
+    on-disk shape this helper exists to catch. Found post-round-2-IV, via
+    Cursor's automated review of PR #651 -- independently reproduced before
+    accepting (an unfixed run against `{"EV-HOLD-999": {"expected": "..."}}`
+    returned no hit) and re-verified after."""
     if isinstance(obj, dict):
-        return any(_json_contains_string(value, target) for value in obj.values())
+        return any(
+            _json_contains_string(key, target) or _json_contains_string(value, target)
+            for key, value in obj.items()
+        )
     if isinstance(obj, list):
         return any(_json_contains_string(item, target) for item in obj)
     return isinstance(obj, str) and obj == target
