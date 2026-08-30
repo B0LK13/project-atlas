@@ -707,3 +707,68 @@ def test_persist_materialized_if_no_active_conflict_closes_the_toctou_race(
         and row.work_node.get("package_id") == node_a.package_id
     ]
     assert len(active_for_package) == 1
+
+
+def test_persist_materialized_if_no_active_conflict_does_not_clobber_same_identity(
+    tmp_path: Path,
+) -> None:
+    """Same-identity persist must not overwrite an already-MATERIALIZED
+    work_node. The different-identity TOCTOU test above does not pin
+    this: persist_materialized_if_no_active_conflict() only treated a
+    *different* origination_identity as a package-id conflict, then
+    unconditionally wrote work_node + state. A second call for the
+    same identity -- including a concurrent scan that missed the CLI
+    skip from a stale snapshot -- would replace the durable node
+    find_materialized_work_node() uses to reconstruct a leased node.
+    """
+    from project_atlas.orchestration.origination.materialize import materialize_work_node
+    from project_atlas.orchestration.origination.pipeline import originate_all
+    from project_atlas.orchestration.origination.projection import (
+        persist_materialized_if_no_active_conflict,
+        persist_proposed,
+    )
+    from project_atlas.orchestration.origination.risk import classify as classify_risk
+
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    assert len(outcomes) == 1
+    proposal, policy = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal, policy)
+
+    classification = classify_risk(
+        proposed_scope=proposal.proposed_scope, success_criteria=proposal.success_criteria
+    )
+    first_node = materialize_work_node(
+        proposal, classification, base_pin=main, surface_id=f"{proposal.project_id}-first"
+    )
+    other_pin = "b" * 40
+    assert other_pin != main
+    second_node = materialize_work_node(
+        proposal, classification, base_pin=other_pin, surface_id=f"{proposal.project_id}-second"
+    )
+
+    first_record, first_conflict = persist_materialized_if_no_active_conflict(
+        store, proposal.origination_identity, first_node
+    )
+    assert first_conflict is None
+    assert first_record is not None
+    assert first_record.work_node is not None
+    assert first_record.work_node["base_pin"] == main
+
+    second_record, second_conflict = persist_materialized_if_no_active_conflict(
+        store, proposal.origination_identity, second_node
+    )
+    assert second_conflict is None
+    assert second_record is not None
+    assert second_record.work_node == first_record.work_node
+    assert second_record.work_node is not None
+    assert second_record.work_node["base_pin"] == main
+    assert second_record.work_node["base_pin"] != other_pin
+
+    projection = load_projection(store)
+    assert len(projection.records) == 1
+    assert projection.records[0].work_node == first_record.work_node
+    assert projection.records[0].state == "MATERIALIZED"

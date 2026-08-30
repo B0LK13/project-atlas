@@ -243,25 +243,25 @@ def _originate(
     origination record is untouched either way; a later pass can pick
     it up once whatever blocked it resolves.
 
-    ``lease_projection_store``, if provided, closes a real bug found
-    during this feature's own adversarial testing: ``governor.snapshot()
-    .nodes`` is empty on every fresh ``AutonomousGovernor`` construction
-    (ORCH001E-011's whole premise), so checking ONLY it for "already
-    known" is not enough to prevent re-discovering a package this exact
-    origination-discovery pass already brought in and leased on a PRIOR
-    tick, once that tick's loop returns to IDLE (at which point
-    ``rehydrate_governor()``'s own LEASED-phase recovery path no longer
-    applies -- there is no active lease left to restore). Without this
-    check, a second tick would re-``add_node``/``mark_ready`` the same
-    still-``MATERIALIZED`` (not yet ``TERMINAL``) durable record fresh,
-    and ``_select_and_lease()`` would attempt to lease it again,
-    surfacing as an uncaught ``lease_projection.ProjectionError``
-    (``LEASE_REPLAY``) rather than a clean stop. A package_id with ANY
-    lease-projection row at all -- active or already released -- has
-    already been through at least one real lease and must never be
-    treated as fresh, regardless of what governed state it has since
-    moved to (this governor construction simply cannot see that state;
-    only the lease and origination projections persist across it).
+    ``lease_projection_store``, if provided, is load-bearing -- not
+    best-effort. A corrupt store is not "no history": swallowing
+    ``ProjectionError`` here used to re-add already-leased nodes and
+    then crash inside ``governor.lease()`` -> ``project_grant()``. Fail
+    closed the same way the LEASED-recovery path already does.
+
+    Replay protection must not erase a completed node from the DAG.
+    ``select_next()`` and ``lease()`` both treat a missing dependency as
+    unsatisfied, so omitting a RELEASED package as a CERTIFIED witness
+    stranded every later dependent. An ACTIVE row stays excluded so the
+    LEASED restore path can rebuild it READY. A later content revision
+    that materializes under the same ``package_id`` with a new
+    ``base_pin`` (prior origination record already ``TERMINAL``) is not
+    the leased revision and must still be ``add_node``/``mark_ready``'d.
+
+    A materialized node whose ``base_pin`` is stale against live main is
+    not marked READY -- leasing it would raise uncaught ``STALE_LEASE``.
+    It is left durable for a later deliberate refresh; the rest of the
+    discovery pass continues.
     """
     report = discover(inventory, trusted=trusted)
     node = governor.ingest_discovery(report)
@@ -269,28 +269,46 @@ def _originate(
     if node is not None:
         governor.mark_ready(node.package_id)
         added.add(node.package_id)
+
+    active_ids: set[str] = set()
+    released_revisions: set[tuple[str, str]] = set()
+    if lease_projection_store is not None:
+        try:
+            ever_leased_projection = load_projection(lease_projection_store)
+        except ProjectionError as exc:
+            raise RehydrationError(str(exc), code=exc.code) from exc
+        durable_sequence = 0
+        for row in ever_leased_projection.leases:
+            durable_sequence = max(durable_sequence, row.created_sequence)
+            if row.released_sequence is not None:
+                durable_sequence = max(durable_sequence, row.released_sequence)
+        governor.adopt_durable_sequence(durable_sequence)
+        active_ids = {row.package_id for row in active_rows(ever_leased_projection)}
+        released_revisions = {
+            (row.package_id, row.base_pin)
+            for row in ever_leased_projection.leases
+            if row.status == "RELEASED" and row.package_id not in active_ids
+        }
+
     if origination_projection_store is not None:
         from project_atlas.orchestration.origination.projection import (
             list_materialized_work_nodes,
         )
 
         known = {item.package_id for item in governor.snapshot().nodes}
-        if lease_projection_store is not None:
-            try:
-                ever_leased_projection = load_projection(lease_projection_store)
-            except ProjectionError:
-                # A corrupt lease projection is a rehydration-time concern
-                # elsewhere in this module (the LEASED-recovery path fails
-                # closed on it explicitly); for this best-effort discovery
-                # pass, treat it the same as "no lease history available"
-                # rather than abandoning origination discovery entirely.
-                pass
-            else:
-                known.update(row.package_id for row in ever_leased_projection.leases)
+        known.update(active_ids)
         for candidate in list_materialized_work_nodes(origination_projection_store):
             if candidate.package_id in known:
                 continue
             try:
+                if (candidate.package_id, candidate.base_pin) in released_revisions:
+                    governor.add_node(
+                        candidate.model_copy(update={"state": NodeState.CERTIFIED})
+                    )
+                    known.add(candidate.package_id)
+                    continue
+                if candidate.base_pin != inventory.current_main:
+                    continue
                 governor.add_node(candidate)
                 governor.mark_ready(candidate.package_id)
             except (GovernorError, IllegalTransitionError):

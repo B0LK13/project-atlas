@@ -15,6 +15,9 @@ from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, ru
 from project_atlas.orchestration.autonomy.lease_projection import (
     RELATIVE_DEFAULT as LEASE_PROJECTION_RELATIVE_DEFAULT,
 )
+from project_atlas.orchestration.autonomy.lease_projection import (
+    ProjectionError,
+)
 from project_atlas.orchestration.autonomy.loop import (
     STATE_DIR_RELATIVE,
     AutonomousLoop,
@@ -319,7 +322,7 @@ def run_governor_loop_tick(
         payload["merge_authorized"] = False
         payload["execution_authorized"] = False
         return payload, EXIT_OK if result.phase.value != "FAILED_CLOSED" else EXIT_ERROR
-    except (TrustError, DiscoveryError, LoopError, RehydrationError) as exc:
+    except (TrustError, DiscoveryError, LoopError, RehydrationError, ProjectionError) as exc:
         code = getattr(exc, "code", "LOOP_FAILED_CLOSED")
         return _fail_closed(str(exc), blocker=code), EXIT_ERROR
 

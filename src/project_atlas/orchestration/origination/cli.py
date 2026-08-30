@@ -44,7 +44,6 @@ from project_atlas.orchestration.origination.projection import (
 )
 from project_atlas.orchestration.origination.projection import (
     OriginationProjectionError,
-    find_by_identity,
     persist_materialized_if_no_active_conflict,
     persist_proposed,
 )
@@ -157,8 +156,14 @@ def run_origination_scan(
     try:
         for outcome in outcomes:
             proposal, policy = outcome.proposal, outcome.policy
-            existing = find_by_identity(store, proposal.origination_identity)
-            persist_proposed(store, proposal, policy)
+            # persist_proposed() is already locked and returns the
+            # existing row unchanged when this identity is known --
+            # including a MATERIALIZED / OWNER_HELD_ROUTED row written
+            # by a concurrent scan. An unlocked find_by_identity()
+            # taken BEFORE that call can still see None / PROPOSED
+            # after the first write completed, which would miss the
+            # skip below.
+            existing = persist_proposed(store, proposal, policy)
             # D-PHASE2A-2 finding: `originate_new_only()` only excludes
             # TERMINAL identities, so a non-terminal MATERIALIZED (or
             # OWNER_HELD_ROUTED) record for THIS SAME evidence is a

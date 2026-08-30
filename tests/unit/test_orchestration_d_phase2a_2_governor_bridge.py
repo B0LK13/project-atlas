@@ -30,8 +30,22 @@ import subprocess
 from pathlib import Path
 
 from project_atlas.orchestration.autonomy.cli import run_governor_loop_tick
+from project_atlas.orchestration.autonomy.continuation import select_next
 from project_atlas.orchestration.autonomy.dag import TERMINAL_STATES
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
+from project_atlas.orchestration.autonomy.lease_projection import (
+    PROJECTION_NAME as LEASE_PROJECTION_NAME,
+)
+from project_atlas.orchestration.autonomy.lease_projection import (
+    RELATIVE_DEFAULT as LEASE_PROJECTION_RELATIVE_DEFAULT,
+)
+from project_atlas.orchestration.autonomy.lease_projection import (
+    LeaseProjection,
+    ProjectedLease,
+)
+from project_atlas.orchestration.autonomy.lease_projection import (
+    load_projection as load_lease_projection,
+)
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
     AdvancementReason,
@@ -55,6 +69,7 @@ from project_atlas.orchestration.origination.projection import (
     OriginationRecord,
     list_materialized_work_nodes,
     load_projection,
+    mark_terminal,
     sync_terminal_governed_states,
 )
 
@@ -119,6 +134,7 @@ def _minimal_work_node(
     surface_id: str,
     paths: tuple[str, ...] = ("src/",),
     state: NodeState = NodeState.DISCOVERED,
+    dependencies: tuple[str, ...] = (),
 ) -> WorkNode:
     """A structurally-valid, minimal WorkNode for tests that only care
     about package_id/mutation_surface/state -- every other field is a
@@ -127,6 +143,7 @@ def _minimal_work_node(
         package_id=package_id,
         objective="test fixture node",
         base_pin=base_pin,
+        dependencies=dependencies,
         mutation_surface=MutationSurface(surface_id=surface_id, paths=paths, semantic="TEST"),
         execution_host_class=ExecutionHostClass.IN_PROCESS,
         agent_capabilities_required=(AgentCapability.IMPLEMENT,),
@@ -232,6 +249,8 @@ def test_run_governor_loop_tick_discovers_and_leases_materialized_origination_no
     # The tick must have found and leased this node -- not the hardcoded
     # pilot, which discover()'s real candidates are never eligible=True for.
     assert payload["package_id"] == "AS-ORCH-001E"
+    lease_projection = load_lease_projection(repo / LEASE_PROJECTION_RELATIVE_DEFAULT)
+    assert any(row.package_id == work_id for row in lease_projection.leases)
 
 
 # --------------------------------------------------------------------------- #
@@ -664,6 +683,361 @@ def test_malformed_origination_projection_file_does_not_crash_tick(tmp_path: Pat
     )
     assert exit_code == 0
     assert payload["stop_reason"] != "FAILED_CLOSED"
+
+
+def test_completed_dependency_stays_visible_for_dependent_on_next_tick(
+    tmp_path: Path,
+) -> None:
+    """A RELEASED lease must keep the completed dependency in the DAG as a
+    CERTIFIED witness. Excluding it entirely made ``select_next()`` /
+    ``lease()`` treat the missing id as unsatisfied, so a later
+    materialized dependent could never be leased.
+    """
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    trusted = load_runtime_anchor(store=trust_store)
+
+    from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+    )
+
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    dependency = _minimal_work_node(
+        "ORIG-dep", base_pin=main, surface_id="dep-surface", paths=("src/dep/",)
+    )
+    dependent = _minimal_work_node(
+        "ORIG-next",
+        base_pin=main,
+        surface_id="next-surface",
+        paths=("src/next/",),
+        dependencies=("ORIG-dep",),
+    )
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [
+                    OriginationRecord(
+                        origination_identity="a" * 64,
+                        project_id="demo",
+                        proposal={},
+                        policy_result={},
+                        work_node=dependency.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                    OriginationRecord(
+                        origination_identity="b" * 64,
+                        project_id="demo",
+                        proposal={},
+                        policy_result={},
+                        work_node=dependent.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    lease_store = tmp_path / "lease-projection"
+    lease_store.mkdir()
+    (lease_store / LEASE_PROJECTION_NAME).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-DURABLE-LEASE-PROJECTION-001",
+                "honesty": {
+                    "projection_is_authority": False,
+                    "grant_source": "PRIMARY_GOVERNOR",
+                    "ack_source": "PRIMARY_GOVERNOR",
+                    "wall_clock_is_authority": False,
+                },
+                "leases": [
+                    {
+                        "lease_id": "LEASE-1",
+                        "agent_id": "governor-pilot-local",
+                        "package_id": "ORIG-dep",
+                        "branch": "feat/completed-dep",
+                        "worktree": "wt",
+                        "base_pin": main,
+                        "authorized_paths": ["src/dep/"],
+                        "forbidden_paths": ["main", "projects"],
+                        "capabilities": ["IMPLEMENT"],
+                        "start_state": "READY",
+                        "status": "RELEASED",
+                        "created_sequence": 1,
+                        "released_sequence": 1,
+                        "projection_is_authority": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    rehydrate_governor(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=tmp_path / "loop-state",
+        lease_projection_store=lease_store,
+        origination_projection_store=origination_store,
+    )
+
+    by_id = {node.package_id: node for node in governor.snapshot().nodes}
+    assert by_id["ORIG-dep"].state == NodeState.CERTIFIED
+    assert by_id["ORIG-next"].state == NodeState.READY
+    decision = select_next(governor.snapshot().nodes)
+    assert decision.next_package_id == "ORIG-next"
+    assert decision.stop_reason is None
+
+
+def test_corrupt_lease_store_fails_closed_instead_of_crashing(tmp_path: Path) -> None:
+    """A corrupt lease projection must not be treated as empty history.
+    Swallowing ``ProjectionError`` used to re-add already-leased nodes and
+    then crash inside ``lease()`` -> ``project_grant()``; the tick must
+    return a structured fail-closed payload instead.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    origination_store = tmp_path / "origination-store"
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=origination_store,
+        trust_store=trust_store,
+    )
+
+    lease_dir = repo / LEASE_PROJECTION_RELATIVE_DEFAULT
+    lease_dir.mkdir(parents=True, exist_ok=True)
+    (lease_dir / LEASE_PROJECTION_NAME).write_text("{not valid json", encoding="utf-8")
+
+    payload, exit_code = run_governor_loop_tick(
+        root=repo, trust_store=trust_store, origination_store=origination_store
+    )
+    assert exit_code == 1
+    assert payload["blocker"] == "STATE_CORRUPT"
+    assert payload["merge_authorized"] is False
+    assert payload["execution_authorized"] is False
+
+
+def test_revised_work_reaches_governor_after_prior_revision_lease_released(
+    tmp_path: Path,
+) -> None:
+    """A content revision that materializes under the same package_id
+    once the prior record is TERMINAL must still be add_node'd /
+    mark_ready'd. A RELEASED lease row for that package_id is history of
+    the earlier revision, not a reason to skip the new WorkNode --
+    project_grant() already accepts a new lease_id after release;
+    discovery was the only blocker.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    origination_store = tmp_path / "origination-store"
+
+    first, _ = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=origination_store,
+        explicit_trusted=_anchor(main, tree),
+    )
+    assert first["materialized_count"] == 1
+    work_id = first["materialized"][0]["work_id"]  # type: ignore[index]
+    first_record = load_projection(origination_store).records[0]
+    first_node = next(
+        node
+        for node in list_materialized_work_nodes(origination_store)
+        if node.package_id == work_id
+    )
+
+    lease_store = tmp_path / "lease-projection"
+    lease_store.mkdir()
+    released = ProjectedLease(
+        lease_id="lease-prior-revision",
+        agent_id="governor-pilot-local",
+        package_id=str(work_id),
+        branch="feat/prior-revision",
+        worktree="wt-prior-revision",
+        base_pin=first_node.base_pin,
+        authorized_paths=first_node.mutation_surface.paths,
+        forbidden_paths=("main", "projects"),
+        capabilities=tuple(cap.value for cap in first_node.agent_capabilities_required),
+        start_state=NodeState.READY,
+        status="RELEASED",
+        created_sequence=1,
+        released_sequence=2,
+    )
+    (lease_store / LEASE_PROJECTION_NAME).write_text(
+        json.dumps(LeaseProjection(leases=(released,)).model_dump(mode="json"), indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    mark_terminal(origination_store, first_record.origination_identity, node_state="CLOSED")
+
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X (revised)",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ],
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "revise feature-x")
+    new_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", new_sha)
+    new_main = _run_git(repo, "rev-parse", "origin/main")
+    new_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+
+    third, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=origination_store,
+        explicit_trusted=_anchor(new_main, new_tree),
+    )
+    assert exit_code == 0
+    assert third["materialized_count"] == 1
+    assert third["materialized"][0]["work_id"] == work_id  # type: ignore[index]
+
+    from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+
+    trusted = _anchor(new_main, new_tree)
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+    )
+    rehydrate_governor(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=tmp_path / "loop-state",
+        lease_projection_store=lease_store,
+        origination_projection_store=origination_store,
+    )
+
+    discovered = [node for node in governor.snapshot().nodes if node.package_id == work_id]
+    assert len(discovered) == 1
+    assert discovered[0].base_pin == new_main
+    assert discovered[0].base_pin != main
+    assert discovered[0].state == NodeState.READY
+
+
+def test_stopped_no_eligible_work_resumes_when_origination_adds_ready_node(
+    tmp_path: Path,
+) -> None:
+    """Codex P1: STOPPED/NO_ELIGIBLE_WORK must not permanently ignore a
+    later materialized origination node. OWNER/SAFETY/RESOURCE stops stay
+    terminal.
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    origination_store = tmp_path / "origination-store"
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    first, first_exit = run_governor_loop_tick(
+        root=repo, trust_store=trust_store, origination_store=origination_store
+    )
+    assert first_exit == 0
+    assert first["phase"] == "STOPPED"
+    assert first["stop_reason"] == "NO_ELIGIBLE_WORK"
+
+    scan, scan_exit = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=origination_store,
+        trust_store=trust_store,
+    )
+    assert scan_exit == 0
+    assert scan["materialized_count"] == 1
+    work_id = scan["materialized"][0]["work_id"]  # type: ignore[index]
+
+    second, second_exit = run_governor_loop_tick(
+        root=repo, trust_store=trust_store, origination_store=origination_store
+    )
+    assert second_exit == 0
+    assert second["stop_reason"] != "FAILED_CLOSED"
+    lease_projection = load_lease_projection(repo / LEASE_PROJECTION_RELATIVE_DEFAULT)
+    assert any(row.package_id == work_id for row in lease_projection.leases)
+
+
+def test_stale_materialized_base_pin_is_not_marked_ready(tmp_path: Path) -> None:
+    """A persisted node pinned to a previous main must not be marked READY
+    after live main advances -- leasing it would raise uncaught STALE_LEASE.
+    """
+    repo = _make_repo(tmp_path)
+    old_main = _run_git(repo, "rev-parse", "origin/main")
+    (repo / "README.md").write_text("moved\n", encoding="utf-8")
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "advance main")
+    new_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", new_sha)
+    new_main = _run_git(repo, "rev-parse", "origin/main")
+    new_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    assert new_main != old_main
+
+    trust_store = _make_trust_store(tmp_path, new_main, new_tree)
+    trusted = load_runtime_anchor(store=trust_store)
+    from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+    )
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    stale = _minimal_work_node(
+        "ORIG-stale", base_pin=old_main, surface_id="stale-surface", paths=("src/stale/",)
+    )
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [
+                    OriginationRecord(
+                        origination_identity="a" * 64,
+                        project_id="demo",
+                        proposal={},
+                        policy_result={},
+                        work_node=stale.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    rehydrate_governor(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=tmp_path / "loop-state",
+        lease_projection_store=tmp_path / "lease-projection",
+        origination_projection_store=origination_store,
+    )
+    assert all(node.package_id != "ORIG-stale" for node in governor.snapshot().nodes)
 
 
 # --------------------------------------------------------------------------- #

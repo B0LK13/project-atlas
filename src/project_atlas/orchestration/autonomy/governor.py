@@ -141,6 +141,20 @@ class AutonomousGovernor:
         self._sequence += 1
         return self._sequence
 
+    def adopt_durable_sequence(self, sequence: int) -> None:
+        """Advance the in-memory lease-id counter to match durable history.
+
+        A fresh governor always starts ``_sequence = 0``. ``restore_lease()``
+        already adopts one restored row's sequence, but an IDLE/STOPPED tick
+        never restores a lease -- it mints ``LEASE-{n}`` from 1 again. If a
+        prior process already recorded ``LEASE-1``, ``project_grant()``
+        raises ``LEASE_REPLAY`` for an otherwise-new package. Adopt the
+        highest durable created/released sequence so newly minted ids stay
+        monotonic across process boundaries.
+        """
+        if sequence > self._sequence:
+            self._sequence = sequence
+
     def snapshot(self) -> GovernorState:
         nodes = tuple(self._nodes)
         return GovernorState(

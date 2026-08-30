@@ -28,6 +28,7 @@ from project_atlas.orchestration.autonomy.continuation import select_next
 from project_atlas.orchestration.autonomy.dag import IllegalTransitionError
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
+from project_atlas.orchestration.autonomy.lease_projection import ProjectionError
 from project_atlas.orchestration.autonomy.leases import expand_lease
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
@@ -333,6 +334,16 @@ class AutonomousLoop:
         for gate in OwnerGateKind:
             require_owner(gate, owner_grant=False)
 
+    def _may_resume_from_no_eligible_work(self) -> bool:
+        """True only when the prior stop was "nothing to do" and the
+        freshly-rehydrated governor now has a selectable READY node.
+        Does not resume OWNER_GATE / SAFETY / RESOURCE / HARD_BLOCKER.
+        """
+        if self._state.stop_reason is not StopReason.NO_ELIGIBLE_WORK:
+            return False
+        decision = select_next(self._governor.snapshot().nodes)
+        return decision.next_package_id is not None
+
     def tick(self) -> LoopTickResult:
         """One fail-closed continuation step. At most one 001D dispatch."""
         verify_loop_state(self._state)
@@ -341,8 +352,17 @@ class AutonomousLoop:
             self._enqueue_resource_yield()
             return result
         self._save(ticks_in_invocation=self._state.ticks_in_invocation + 1)
-        if self._state.phase in {LoopPhase.STOPPED, LoopPhase.FAILED_CLOSED}:
+        if self._state.phase == LoopPhase.FAILED_CLOSED:
             return self._result()
+        if self._state.phase == LoopPhase.STOPPED:
+            if not self._may_resume_from_no_eligible_work():
+                return self._result()
+            # Codex P1 on PR #654: a later origination scan can add a
+            # valid READY node after this process previously persisted
+            # STOPPED/NO_ELIGIBLE_WORK. There is no separate resume
+            # command -- only this tick. SAFETY/OWNER/RESOURCE stops
+            # stay terminal.
+            self._save(phase=LoopPhase.IDLE, stop_reason=None)
         if self._state.phase in {LoopPhase.DISPATCHING, LoopPhase.AWAITING_RESULT}:
             return self.recover()
         if self._state.phase == LoopPhase.LEASED:
@@ -590,6 +610,11 @@ class AutonomousLoop:
                 branch=self._branch,
                 worktree=self._worktree,
             )
+        except ProjectionError:
+            # Durable lease-projection failures (LEASE_REPLAY / STALE_LEASE
+            # / STATE_CORRUPT) used to crash the tick uncaught. Fail closed
+            # the same way the overlapping GovernorError codes already do.
+            return self._stop(StopReason.HARD_BLOCKER)
         except GovernorError as exc:
             # DEPENDENCIES_NOT_SATISFIED (D-PHASE2A-1a): select_next() has
             # its own, independent dependency-readiness check (deps_ok,

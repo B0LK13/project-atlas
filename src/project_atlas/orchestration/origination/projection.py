@@ -206,8 +206,16 @@ def persist_materialized_if_no_active_conflict(
 ) -> tuple[OriginationRecord | None, OriginationRecord | None]:
     """Atomic check-and-materialize: attach ``work_node`` to the
     already-``persist_proposed()``-ed record for ``origination_identity``
-    UNLESS a DIFFERENT non-``TERMINAL`` record already holds the same
+    UNLESS a non-``TERMINAL`` record already holds the same
     ``work_node.package_id`` -- in which case nothing is written.
+
+    A DIFFERENT identity already holding that ``package_id`` is a
+    conflict (``(None, conflicting_record)``). The SAME identity
+    already holding a non-``TERMINAL`` ``work_node`` is returned
+    unchanged -- not rebuilt. ``run_origination_scan()`` can miss its
+    own skip from a stale unlocked snapshot; a second persist for the
+    same evidence must not clobber ``base_pin`` / ``state`` on a record
+    a governor may already have leased.
 
     D-PHASE2A-2 delta-IV finding: this replaces the two-step sequence of
     a caller reading ``find_active_record_by_package_id()`` and then
@@ -222,10 +230,11 @@ def persist_materialized_if_no_active_conflict(
     mirrors ``governor.add_node()``'s atomic ``DUPLICATE_NODE`` check,
     which the pre-delta-IV version of this guard only claimed to.
 
-    Returns ``(materialized_record, None)`` on success, or
-    ``(None, conflicting_record)`` if a conflict was found under the
-    lock -- the caller reports this exactly as it would have reported a
-    pre-check conflict (``materialization_error_code=
+    Returns ``(materialized_record, None)`` on success (including
+    same-identity already-materialized idempotent return), or
+    ``(None, conflicting_record)`` if a different-identity conflict
+    was found under the lock -- the caller reports this exactly as it
+    would have reported a pre-check conflict (``materialization_error_code=
     "PACKAGE_ID_ALREADY_ACTIVE"``). Fails closed with
     ``RECORD_UNKNOWN`` if no proposed row exists for
     ``origination_identity`` yet, same as ``persist_materialized()``.
@@ -253,11 +262,16 @@ def persist_materialized_if_no_active_conflict(
                 return None, conflict
             rows: list[OriginationRecord] = []
             found = False
+            already_active: OriginationRecord | None = None
             for row in current.records:
                 if row.origination_identity != origination_identity:
                     rows.append(row)
                     continue
                 found = True
+                if row.work_node is not None and row.state != "TERMINAL":
+                    already_active = row
+                    rows.append(row)
+                    continue
                 rows.append(
                     row.model_copy(
                         update={"work_node": work_node.model_dump(mode="json"), "state": state}
@@ -267,6 +281,8 @@ def persist_materialized_if_no_active_conflict(
                 raise OriginationProjectionError(
                     "no proposed record to materialize", code="RECORD_UNKNOWN"
                 )
+            if already_active is not None:
+                return already_active, None
             updated = OriginationProjection(records=tuple(rows))
             _write_atomic(root / PROJECTION_NAME, updated.model_dump(mode="json"))
     except IdentityLockError as exc:
