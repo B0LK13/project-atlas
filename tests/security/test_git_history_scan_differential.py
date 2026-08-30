@@ -34,13 +34,35 @@ from tests.security.git_history_scan import find_leaked_holdout_evidence
 # `env` -- a coincidence of this one host, not a portable guarantee, and
 # specifically NOT something Windows subprocess/git.exe can be relied on to
 # tolerate (this repo's own CI matrix includes `windows-latest`).
+#
+# Spreading the full os.environ also forwards HOME (and therefore the
+# host's global/system gitconfig) and, if set, GIT_DIR/GIT_WORK_TREE/
+# GIT_INDEX_FILE. Independently confirmed on this host: with a bare
+# `**os.environ` spread and no isolation, `git config --get
+# commit.gpgsign` inside a freshly `git init`-ed scratch repo returns
+# "true" -- inherited straight from this account's real global gitconfig.
+# Every synthetic commit here has therefore been silently GPG-signing with
+# this account's real key; it only ever appeared to work because this host
+# happens to have a usable default signing key configured. On a host
+# without one (any ordinary CI runner, most fresh dev machines) every
+# commit in this file would fail with a GPG signing error. GIT_DIR/
+# GIT_WORK_TREE/GIT_INDEX_FILE are not currently set on this host, but if
+# ever set by an invoking process (e.g. a git hook), they would redirect
+# init/add/commit at the WRONG repository (the real developer checkout)
+# instead of the intended `tmp_path` scratch repo -- a correctness/safety
+# risk, not just a portability one. Found by Cursor's automated review;
+# independently reproduced (the gpgsign leak above) before accepting.
 _ENV = {
     **os.environ,
     "GIT_AUTHOR_NAME": "t",
     "GIT_AUTHOR_EMAIL": "t@t",
     "GIT_COMMITTER_NAME": "t",
     "GIT_COMMITTER_EMAIL": "t@t",
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": os.devnull,
 }
+for _git_override in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"):
+    _ENV.pop(_git_override, None)
 
 _LEAK_JSON = json.dumps({"case_id": "EV-HOLD-999", "expected": "the-secret-answer"})
 _CLEAN_JSON = json.dumps({"case_id": "EV-HOLD-999", "query": "q"})
