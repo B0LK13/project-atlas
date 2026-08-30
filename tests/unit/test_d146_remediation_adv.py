@@ -25,7 +25,14 @@ def test_watchdog_waits_for_lock_holder_no_second_spawn(tmp_path: Path) -> None:
     root = tmp_path / "runtime"
     (root / ".atlas" / "orchestration" / "sdk-runtime").mkdir(parents=True)
     detach_resident_driver(root=root, package_src=package_src)
-    for _ in range(20):
+    # Poll budget: 80 * 0.25s = 20s. The resident driver's startup cost is
+    # subprocess spawn + a full project_atlas package import, which on a
+    # slow-I/O checkout (e.g. WSL2 9p/DrvFs mounts) has been measured at
+    # ~6.5s -- past the previous 5s (20 * 0.25s) budget, causing this test
+    # to fail closed even though the driver was healthy and just slow to
+    # start. 20s gives real headroom on slow hosts while the loop still
+    # breaks early (no added wall-clock cost) on fast ones.
+    for _ in range(80):
         if read_primary_lock_pid(root) > 0:
             break
         time.sleep(0.25)
