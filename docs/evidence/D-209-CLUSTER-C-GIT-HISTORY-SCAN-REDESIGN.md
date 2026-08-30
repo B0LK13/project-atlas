@@ -269,7 +269,35 @@ external review catching what two rounds of adversarial IV had not:
 Re-verified after both fixes: 15/15 differential tests pass (was 13, +2).
 12/12 integration-file tests pass. Zero false positives re-confirmed
 against this repo's real history (~10.2s, unaffected). `ruff`/`mypy` clean.
-A round-3 IV is tracked separately (see PR #651 comments).
+Round-3 IV: CONFIRMED (see PR #651 comments).
+
+## Post-round-3 finding: test-helper isolation gap (Cursor review, again)
+
+A third Cursor-review finding, after round 3's `CONFIRMED`: spreading
+`**os.environ` (the round-3 fix for the PATH-dropping bug) also forwards
+`HOME` and therefore the host's global/system gitconfig, plus
+`GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` if ever set by an invoking
+process. Independently confirmed on this session's host **before**
+accepting the fix: with the round-3 `env` and no isolation, `git config
+--get commit.gpgsign` inside a freshly `git init`-ed scratch repo returned
+`"true"` — inherited straight from this account's real global gitconfig.
+Every synthetic commit in the differential suite had therefore been
+silently GPG-signing with this account's real key the whole time; it only
+ever appeared to work because this host happens to have a usable default
+signing key. On a host without one (any ordinary CI runner, most fresh dev
+machines) every commit in that file would fail with a GPG signing error.
+`GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` were not set on this host, but
+if ever set by an invoking process (e.g. a git hook), they would redirect
+`init`/`add`/`commit` at the WRONG repository — a correctness/safety risk,
+not just portability.
+
+Fix: `GIT_CONFIG_NOSYSTEM=1` + `GIT_CONFIG_GLOBAL=os.devnull` to isolate
+host gitconfig, plus popping the three `GIT_*` path-override vars if
+present. Re-verified: `commit.gpgsign` inside a scratch repo now resolves
+to empty (was `"true"`). 15/15 differential, 12/12 integration, `ruff`/
+`mypy` clean, all unaffected. This is test-infrastructure-only hardening —
+the detection logic (`_json_has_answer_key`/`_json_contains_string`) is
+byte-for-byte unchanged from the round-3-verified version.
 
 ## Validation
 
