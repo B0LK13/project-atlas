@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.orchestration.autonomy.adversarial import requires_adversarial_review
@@ -339,6 +340,23 @@ def test_lease_still_allows_gate_a_pilot_execution() -> None:
     gov.add_node(_node("PKG-A", owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE))
     lease = gov.lease("PKG-A", "governor-pilot-local", branch="feat/x", worktree="repo")
     assert lease.package_id == "PKG-A"
+
+
+def test_work_node_rejects_self_dependency() -> None:
+    """D-PHASE2A-1a independent-IV finding: a self-dependency is not a
+    meaningful "wait for this other work" edge. Before this fix,
+    continuation.py's select_next() treated `dep == node.package_id` as
+    always-satisfied while governor.py's new dependency check treated it
+    as always-unsatisfied (a node must be READY to reach lease(), and
+    READY is never in _DEPENDENCY_SATISFIED_STATES) -- select_next()
+    would pick such a node believing it ready, then governor.lease()
+    would reject it with DEPENDENCIES_NOT_SATISFIED, uncaught by
+    AutonomousLoop's exception handling, crashing the loop. Reject the
+    self-dependency at the model boundary instead, so neither layer can
+    ever observe one.
+    """
+    with pytest.raises(ValidationError):
+        _node("PKG-SELF", deps=("PKG-SELF",))
 
 
 def test_lease_fails_closed_for_unsatisfied_dependency() -> None:

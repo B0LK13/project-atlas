@@ -420,14 +420,38 @@ class AutonomousGovernor:
         mint a new lease, does not consult owner gates again (the gate was
         already enforced -- correctly, per ORCHAUT-010 -- at the original
         `lease()` call that produced this same lease; re-checking it here
-        would be redundant, not additional safety), and does not itself
-        decide whether the caller's evidence is trustworthy -- the caller
-        (``rehydration.py``) is responsible for validating `lease` against
-        the durable lease projection and rejecting foreign/stale/mismatched
-        rows before calling this. This method's own job is narrow: given a
-        lease the caller has already established is genuine, restore the
-        governor's in-memory bookkeeping (`self._leases`, node state) to
-        match it -- nothing more.
+        would be redundant, not additional safety, because owner-gate
+        classification is a static, intrinsic property of the WorkNode
+        itself), and does not itself decide whether the caller's evidence
+        is trustworthy -- the caller (``rehydration.py``) is responsible
+        for validating `lease` against the durable lease projection and
+        rejecting foreign/stale/mismatched rows before calling this. This
+        method's own job is narrow: given a lease the caller has already
+        established is genuine, restore the governor's in-memory
+        bookkeeping (`self._leases`, node state) to match it -- nothing
+        more.
+
+        KNOWN LIMITATION (D-PHASE2A-1a independent-IV finding, not fixed
+        here): unlike the owner-gate exemption above, `node.dependencies`
+        satisfaction is a *temporal*, mutable property -- a dependency
+        that was CERTIFIED/OWNER_HELD/MERGE_ELIGIBLE at the original
+        `lease()` call can legally regress to BLOCKED/SUPERSEDED later
+        (see `dag.ALLOWED_TRANSITIONS`), and this method does not
+        re-verify it. It deliberately does NOT call
+        `_unsatisfied_dependencies()` either, because
+        `_restore_leased_node()` only reconstructs the single node being
+        restored into a fresh governor's `self._nodes` -- not its
+        dependency nodes -- so that check would spuriously fail every
+        restoration of a node with any non-empty `dependencies` (unknown
+        dependency id => treated as unsatisfied). Closing this gap
+        properly requires rehydration to resolve each dependency's
+        current state from a durable source (e.g. the origination
+        projection store), which is out of scope for this method in
+        isolation. Net risk: a dependent's lease can be restored across a
+        process restart even if its dependency was rejected in the
+        interim -- bounded, not silently escalating (no crash, no data
+        corruption; the dependent is simply building on since-invalidated
+        work until its own IV/certification catches the inconsistency).
         """
         if self._target_moved:
             raise GovernorError("refusing lease restoration on moved target", code="TARGET_MOVED")

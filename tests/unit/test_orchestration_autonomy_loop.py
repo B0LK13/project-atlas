@@ -416,6 +416,44 @@ def test_hard_blocker_stop(tmp_path: Path) -> None:
     assert result.stop_reason is StopReason.HARD_BLOCKER
 
 
+def test_loop_fails_closed_on_governor_dependency_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D-PHASE2A-1a defense-in-depth (independent-IV finding): select_next
+    ()'s own dependency check (continuation.py's `deps_ok`) should always
+    already exclude anything governor.lease() would reject for
+    DEPENDENCIES_NOT_SATISFIED -- self-dependency, the one concrete way
+    these two independent checks were found to disagree, is now rejected
+    at the WorkNode model boundary instead (see
+    test_work_node_rejects_self_dependency in test_orchestration_autonomy
+    .py), so neither layer can observe it anymore. This test proves the
+    belt-and-suspenders catch in loop.py itself, independent of that fix:
+    if select_next() and governor.lease() were ever to disagree again for
+    some other reason, the loop must fail closed with a StopReason, not
+    crash with an uncaught GovernorError. Forces the disagreement directly
+    via monkeypatch (select_next always says "ready") rather than via a
+    real WorkNode shape, since after the model-layer fix no such shape is
+    known to exist anymore.
+    """
+    prereq = _node("AS-ORCH-DEP-PREREQ", state=NodeState.DISCOVERED, surface="dep-prereq-surface")
+    dependent = _node("AS-ORCH-DEP-DEPENDENT", deps=("AS-ORCH-DEP-PREREQ",))
+    gov = _governor(prereq, dependent)
+
+    from project_atlas.orchestration.autonomy.continuation import ContinuationDecision
+
+    monkeypatch.setattr(
+        "project_atlas.orchestration.autonomy.loop.select_next",
+        lambda *args, **kwargs: ContinuationDecision("AS-ORCH-DEP-DEPENDENT", None),
+    )
+    result = _loop(tmp_path, gov).tick()
+    assert result.stop_reason is StopReason.HARD_BLOCKER
+    # never actually leased: the node's own state is untouched
+    dependent_after = next(
+        n for n in gov.snapshot().nodes if n.package_id == "AS-ORCH-DEP-DEPENDENT"
+    )
+    assert dependent_after.state is NodeState.READY
+
+
 def test_external_dispatch_once_then_await(tmp_path: Path) -> None:
     gov = _governor(_node("AS-ORCH-EXT-001", host=ExecutionHostClass.EXTERNAL_AGENT))
     port = CallableDispatchPort(lambda _root: {"dispatch_id": "disp-1", "status": "RUNNING"})
