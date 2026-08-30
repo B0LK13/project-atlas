@@ -16,7 +16,7 @@ import secrets
 import subprocess
 from pathlib import Path
 
-import pytest
+from tests.security.git_history_scan import find_leaked_holdout_evidence
 
 from project_atlas.eval_substrate import holdout_root, regression_root
 
@@ -78,9 +78,14 @@ def test_generated_secret_answer_is_never_committed_or_in_history(
 ) -> None:
     """A fresh operator answer, written only out-of-tree, is absent from git.
 
-    Uses glob (working tree) + git-grep (full history) to prove the persistence
-    boundary: the private map lives outside the repo and the secret never lands
-    in a tracked blob.
+    Uses glob (working tree) + the single-pass blob-deduplicated historical
+    scanner (`tests/security/git_history_scan.py`, D-CODEX-ATLAS Cluster C
+    redesign) to prove the persistence boundary: the private map lives
+    outside the repo and the secret never lands in a tracked blob, past or
+    present. This mirrors `test_adv_git_history_access`'s own fix -- the
+    previous `git grep <token> <every revision>` pattern here was the
+    identical pathological O(revisions) scan (flagged as a known, deferred
+    sibling in D-209's evidence doc when Cluster C was first fixed).
     """
     token = f"holdout-secret-{secrets.token_hex(16)}"
     secret_map = {"EV-HOLD-101": token, "EV-HOLD-102": token}
@@ -91,21 +96,10 @@ def test_generated_secret_answer_is_never_committed_or_in_history(
     map_path.write_text(json.dumps(secret_map), encoding="utf-8")
     assert not str(map_path.resolve()).startswith(str(REPO_ROOT.resolve()))
 
-    # git-grep across ALL history for the secret answer -> not found (rc != 0).
-    all_commits = subprocess.run(
-        ["git", "rev-list", "--all"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
-    grep = subprocess.run(
-        ["git", "grep", "--fixed-strings", token, *all_commits],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
+    secret_hits, _answer_hits = find_leaked_holdout_evidence(
+        REPO_ROOT, secret_tokens=(token,), holdout_case_ids=()
     )
-    assert grep.returncode != 0 and grep.stdout == "", grep.stdout
+    assert secret_hits == (), secret_hits
 
     # Working-tree glob: no tracked file carries the secret token.
     for rel in _tracked_files():
@@ -133,19 +127,22 @@ def test_retired_holdout_case_files_are_public_regression() -> None:
 
 
 def test_no_committed_case_file_pairs_new_holdout_id_with_expected_in_history() -> None:
-    """No historical commit ever added an expected answer for EV-HOLD-1xx."""
-    for case_id in _NEW_HOLDOUT_IDS:
-        # -S detects any commit that added/removed the id together with an
-        # "expected" answer field; the fresh ids were introduced without one.
-        log = subprocess.run(
-            ["git", "log", "--all", "-p", "-S", case_id, "--", "fixtures/eval"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        # In every diff touching the id, the added case body must not carry an
-        # "expected" key next to the holdout id.
-        for line in log.stdout.splitlines():
-            if line.startswith("+") and '"expected"' in line:
-                pytest.fail(f"history added expected answer near {case_id}: {line}")
+    """No historical commit ever added an expected answer for EV-HOLD-1xx.
+
+    Uses the same blob-deduplicated scanner as
+    `test_generated_secret_answer_is_never_committed_or_in_history` above,
+    not the original `git log -S -- fixtures/eval` pickaxe: `-S` only flags
+    a commit when the pickaxe string's NET OCCURRENCE COUNT changes between
+    parent and child, so editing an existing, already-committed case file
+    to add an "expected" answer -- without the case-id substring's own
+    occurrence count changing -- is invisible to it (proven directly, with
+    a reproduced counter-example, in Cluster C's own IV history --
+    `tests/security/test_git_history_scan_differential.py::test_old_algorithm_is_proven_to_miss_same_occurrence_count_edits`).
+    The scanner inspects every historical blob's actual bytes directly, so
+    it has no such blind spot, and is not scoped only to `fixtures/eval` --
+    it covers the whole repository's history.
+    """
+    _secret_hits, answer_hits = find_leaked_holdout_evidence(
+        REPO_ROOT, secret_tokens=(), holdout_case_ids=_NEW_HOLDOUT_IDS
+    )
+    assert answer_hits == (), answer_hits
