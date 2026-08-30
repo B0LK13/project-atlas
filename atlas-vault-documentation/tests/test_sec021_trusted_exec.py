@@ -171,6 +171,17 @@ class TestNormalizeEventTrustedBoundary:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("ATLAS_MDA_COMMAND", raising=False)
         monkeypatch.delenv("ATLAS_AGENT_CONFIG", raising=False)
+        # Scrub PATH to a synthetic, empty-of-`mda` directory so this test's
+        # assumption -- "no real `mda` is resolvable" -- is guaranteed rather
+        # than incidentally true. Without this, a host with an unrelated
+        # same-named `mda` binary on its ambient PATH (observed: a stray
+        # pipx-installed `mda-cli` package) makes the default basename
+        # resolve to a real, crashing executable, which correctly reports
+        # `process-failed` -- a different (also-safe) category than the
+        # `unknown-contract`/`executable-missing` this test expects,
+        # failing the assertion below for a reason unrelated to the
+        # security property under test.
+        monkeypatch.setenv("PATH", str(tmp_path))
         # Without a trusted executable, dry-run must not execute the
         # repo-selected payload. Default basename remains `mda`.
         rc = normalize_event.main(["--event", str(raw_event), "--dry-run", "--json"])
