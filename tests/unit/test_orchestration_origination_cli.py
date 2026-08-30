@@ -613,3 +613,97 @@ def test_revised_item_eventually_materializes_once_prior_revision_reaches_termin
     assert b_record.work_node is not None
     assert b_record.work_node["base_pin"] == new_main
     assert b_record.work_node["base_pin"] != main
+
+
+def test_persist_materialized_if_no_active_conflict_closes_the_toctou_race(
+    tmp_path: Path,
+) -> None:
+    """D-PHASE2A-2 delta-IV finding: the original guard was a two-step
+    sequence -- an UNLOCKED `find_active_record_by_package_id()` check,
+    followed by a SEPARATE `persist_materialized()` call under its own
+    lock. That left a TOCTOU window open: two concurrent callers could
+    both observe "no conflict" before either wrote, producing two live
+    records sharing one `package_id`. `persist_materialized_if_no_
+    active_conflict()` closes this by performing the check and the
+    write inside ONE `ProjectIdentityLock` critical section.
+
+    Proven here with two REAL threads racing to materialize two
+    different `origination_identity` proposals that share one
+    `package_id`, synchronized with a `Barrier` to maximize actual
+    contention on the lock -- not merely two sequential calls, which a
+    lock would trivially serialize regardless of whether the
+    check-then-write sequence inside it was itself atomic.
+    """
+    import threading
+
+    from project_atlas.orchestration.origination.materialize import materialize_work_node
+    from project_atlas.orchestration.origination.pipeline import originate_all
+    from project_atlas.orchestration.origination.projection import (
+        persist_materialized_if_no_active_conflict,
+        persist_proposed,
+    )
+    from project_atlas.orchestration.origination.risk import classify as classify_risk
+
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    assert len(outcomes) == 1
+    proposal_a, policy_a = outcomes[0].proposal, outcomes[0].policy
+    # A second, DIFFERENT origination_identity claiming the SAME
+    # package_id (work_id) -- simulating a content revision, the exact
+    # scenario the sibling tests above exercise through a real scan
+    # sequence, constructed directly here so both proposals can be
+    # persisted/materialized independently of scan ordering.
+    proposal_b = proposal_a.model_copy(update={"origination_identity": "b" * 64})
+
+    persist_proposed(store, proposal_a, policy_a)
+    persist_proposed(store, proposal_b, policy_a)
+
+    classification = classify_risk(
+        proposed_scope=proposal_a.proposed_scope, success_criteria=proposal_a.success_criteria
+    )
+    node_a = materialize_work_node(
+        proposal_a, classification, base_pin=main, surface_id=f"{proposal_a.project_id}-a"
+    )
+    node_b = materialize_work_node(
+        proposal_b, classification, base_pin=main, surface_id=f"{proposal_b.project_id}-b"
+    )
+    assert node_a.package_id == node_b.package_id  # the shared package_id this test is about
+
+    results: dict[str, tuple[object, object]] = {}
+    barrier = threading.Barrier(2)
+
+    def _race(identity: str, node: object) -> None:
+        barrier.wait()
+        results[identity] = persist_materialized_if_no_active_conflict(store, identity, node)  # type: ignore[arg-type]
+
+    t1 = threading.Thread(target=_race, args=(proposal_a.origination_identity, node_a))
+    t2 = threading.Thread(target=_race, args=(proposal_b.origination_identity, node_b))
+    t1.start()
+    t2.start()
+    t1.join(timeout=10)
+    t2.join(timeout=10)
+    assert not t1.is_alive()
+    assert not t2.is_alive()
+
+    result_a = results[proposal_a.origination_identity]
+    result_b = results[proposal_b.origination_identity]
+    # Exactly one of the two succeeded (a non-None materialized record);
+    # the other was correctly refused as a conflict -- never both, and
+    # never neither.
+    successes = [r for r in (result_a, result_b) if r[0] is not None]
+    conflicts = [r for r in (result_a, result_b) if r[1] is not None]
+    assert len(successes) == 1
+    assert len(conflicts) == 1
+
+    projection = load_projection(store)
+    active_for_package = [
+        row
+        for row in projection.records
+        if row.state != "TERMINAL"
+        and row.work_node is not None
+        and row.work_node.get("package_id") == node_a.package_id
+    ]
+    assert len(active_for_package) == 1

@@ -44,9 +44,8 @@ from project_atlas.orchestration.origination.projection import (
 )
 from project_atlas.orchestration.origination.projection import (
     OriginationProjectionError,
-    find_active_record_by_package_id,
     find_by_identity,
-    persist_materialized,
+    persist_materialized_if_no_active_conflict,
     persist_proposed,
 )
 from project_atlas.orchestration.origination.proposal import RiskClass
@@ -216,47 +215,6 @@ def run_origination_scan(
                     }
                 )
                 continue
-            # D-PHASE2A-2 independent-IV finding, round 2: `origination_identity`
-            # includes the item's content digest (identity.py), but
-            # `proposal.work_id` (-> WorkNode.package_id) does not -- it is
-            # stable across a content revision to the same roadmap item
-            # (`work_id_for()` hashes only project_id+item_id). A revision
-            # to an item while the PRIOR non-TERMINAL record for that same
-            # item is still in flight therefore reaches this point as a
-            # genuinely NEW origination_identity (the `existing is not
-            # None` branch above does not catch it) that would otherwise
-            # materialize a SECOND live record sharing the first one's
-            # package_id -- exactly the ambiguity
-            # `sync_terminal_governed_states()` cannot safely resolve
-            # (closing one could permanently and silently discard the
-            # other, never-executed proposal). Refused here, at the
-            # source, rather than merely guarded against downstream.
-            # This proposal's own just-`persist_proposed()`-ed row cannot be
-            # the match: its `work_node` is still `None` at this point (not
-            # yet materialized), and `find_active_record_by_package_id()`
-            # only matches rows that already carry a `work_node` -- so any
-            # match found here is guaranteed to be a genuinely different
-            # `origination_identity`.
-            conflict = find_active_record_by_package_id(store, proposal.work_id)
-            if conflict is not None:
-                not_materialized.append(
-                    {
-                        "work_id": proposal.work_id,
-                        "execution_ready": policy.execution_ready,
-                        "reason": policy.reason.value,
-                        "materialization_error": (
-                            "a different non-terminal origination record "
-                            f"(origination_identity={conflict.origination_identity!r}) "
-                            "already holds this package_id -- this looks like a "
-                            "content revision to the same roadmap item while prior "
-                            "governed work for it is still in flight; not "
-                            "materialized as a second live node for the same "
-                            "package_id"
-                        ),
-                        "materialization_error_code": "PACKAGE_ID_ALREADY_ACTIVE",
-                    }
-                )
-                continue
             classification = classify_risk(
                 proposed_scope=proposal.proposed_scope,
                 success_criteria=proposal.success_criteria,
@@ -279,7 +237,47 @@ def run_origination_scan(
                     }
                 )
                 continue
-            persist_materialized(store, proposal.origination_identity, node)
+            # D-PHASE2A-2 independent-IV finding, round 2 (+ delta-IV
+            # follow-up): `origination_identity` includes the item's
+            # content digest (identity.py), but `proposal.work_id` (->
+            # WorkNode.package_id) does not -- it is stable across a
+            # content revision to the same roadmap item (`work_id_for()`
+            # hashes only project_id+item_id). A revision to an item
+            # while the PRIOR non-TERMINAL record for that same item is
+            # still in flight therefore reaches this point as a
+            # genuinely NEW origination_identity (the `existing is not
+            # None` branch above does not catch it) that would otherwise
+            # materialize a SECOND live record sharing the first one's
+            # package_id -- exactly the ambiguity
+            # `sync_terminal_governed_states()` cannot safely resolve.
+            # `persist_materialized_if_no_active_conflict()` performs
+            # this check and the write inside ONE lock, closing the
+            # TOCTOU window a separate check-then-write pair would leave
+            # open (delta-IV finding: two concurrent scans could both
+            # pass a standalone pre-check before either wrote).
+            materialized_record, conflict = persist_materialized_if_no_active_conflict(
+                store, proposal.origination_identity, node
+            )
+            if conflict is not None:
+                not_materialized.append(
+                    {
+                        "work_id": proposal.work_id,
+                        "execution_ready": policy.execution_ready,
+                        "reason": policy.reason.value,
+                        "materialization_error": (
+                            "a different non-terminal origination record "
+                            f"(origination_identity={conflict.origination_identity!r}) "
+                            "already holds this package_id -- this looks like a "
+                            "content revision to the same roadmap item while prior "
+                            "governed work for it is still in flight; not "
+                            "materialized as a second live node for the same "
+                            "package_id"
+                        ),
+                        "materialization_error_code": "PACKAGE_ID_ALREADY_ACTIVE",
+                    }
+                )
+                continue
+            assert materialized_record is not None  # guaranteed by the (None, conflict) contract
             materialized.append(
                 {
                     "work_id": node.package_id,

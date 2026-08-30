@@ -164,21 +164,22 @@ def find_active_record_by_package_id(store: Path, package_id: str) -> Originatio
     the first one's ``package_id`` -- ordinary use of the unmodified
     pipeline, not a corrupted store.
 
-    Callers use this BEFORE materializing a new proposal to detect that
-    situation and refuse to create the second live record in the first
-    place (D-PHASE2A-2 independent-IV finding: without this guard,
-    ``sync_terminal_governed_states()`` -- which matches purely by
-    ``package_id`` -- could later mark BOTH records ``TERMINAL`` once
-    only one of them was ever actually governed to closure, permanently
-    and silently losing the other, never-executed proposal). This
-    mirrors ``governor.add_node()``'s own ``DUPLICATE_NODE``-by-
-    ``package_id`` invariant, enforced one layer earlier, at the durable
-    projection itself.
+    This is a plain, UNLOCKED point-in-time read -- like ``find_by_
+    identity()`` and ``find_materialized_work_node()`` above, it does
+    not itself serialize against a concurrent writer. D-PHASE2A-2
+    delta-IV finding: a caller that reads this, then separately decides
+    whether to call ``persist_materialized()``, leaves a TOCTOU window
+    open -- two concurrent callers could both observe "no conflict"
+    before either writes, and both materialize, producing two live
+    records sharing one ``package_id``. Callers that need the
+    check-then-write to be atomic MUST use
+    ``persist_materialized_if_no_active_conflict()`` below instead,
+    which performs both inside the same lock. This function remains
+    useful on its own only for read-only/diagnostic callers that do not
+    themselves write based on the result.
 
     Returns ``None`` (never raises) when no conflicting active record
-    exists or the store is unreadable -- callers treat that as "no
-    conflict", the safe default for an otherwise-legitimate first
-    materialization.
+    exists or the store is unreadable.
     """
     try:
         projection = load_projection(store)
@@ -194,6 +195,86 @@ def find_active_record_by_package_id(store: Path, package_id: str) -> Originatio
         ),
         None,
     )
+
+
+def persist_materialized_if_no_active_conflict(
+    store: Path,
+    origination_identity: str,
+    work_node: WorkNode,
+    *,
+    state: RecordState = "MATERIALIZED",
+) -> tuple[OriginationRecord | None, OriginationRecord | None]:
+    """Atomic check-and-materialize: attach ``work_node`` to the
+    already-``persist_proposed()``-ed record for ``origination_identity``
+    UNLESS a DIFFERENT non-``TERMINAL`` record already holds the same
+    ``work_node.package_id`` -- in which case nothing is written.
+
+    D-PHASE2A-2 delta-IV finding: this replaces the two-step sequence of
+    a caller reading ``find_active_record_by_package_id()`` and then
+    separately calling ``persist_materialized()``, which left a TOCTOU
+    window between the check and the write (two concurrent callers could
+    both pass the check before either wrote, producing two live records
+    sharing one ``package_id`` -- the exact ambiguity
+    ``sync_terminal_governed_states()`` cannot safely resolve). The
+    check and the write now happen inside ONE ``ProjectIdentityLock``
+    critical section, exactly like ``persist_proposed()``'s own
+    identity-based idempotency check already does -- this now genuinely
+    mirrors ``governor.add_node()``'s atomic ``DUPLICATE_NODE`` check,
+    which the pre-delta-IV version of this guard only claimed to.
+
+    Returns ``(materialized_record, None)`` on success, or
+    ``(None, conflicting_record)`` if a conflict was found under the
+    lock -- the caller reports this exactly as it would have reported a
+    pre-check conflict (``materialization_error_code=
+    "PACKAGE_ID_ALREADY_ACTIVE"``). Fails closed with
+    ``RECORD_UNKNOWN`` if no proposed row exists for
+    ``origination_identity`` yet, same as ``persist_materialized()``.
+    """
+    root = store.expanduser().resolve()
+    lock_path = (root / LOCK_NAME).resolve()
+    if not _inside(root, lock_path):
+        raise OriginationProjectionError("lock path escapes store", code="PATH_UNSAFE")
+    package_id = work_node.package_id
+    try:
+        with ProjectIdentityLock(lock_path, wait_seconds=2.0, stale_seconds=30.0):
+            current = load_projection(store)
+            conflict = next(
+                (
+                    row
+                    for row in current.records
+                    if row.origination_identity != origination_identity
+                    and row.state != "TERMINAL"
+                    and row.work_node is not None
+                    and row.work_node.get("package_id") == package_id
+                ),
+                None,
+            )
+            if conflict is not None:
+                return None, conflict
+            rows: list[OriginationRecord] = []
+            found = False
+            for row in current.records:
+                if row.origination_identity != origination_identity:
+                    rows.append(row)
+                    continue
+                found = True
+                rows.append(
+                    row.model_copy(
+                        update={"work_node": work_node.model_dump(mode="json"), "state": state}
+                    )
+                )
+            if not found:
+                raise OriginationProjectionError(
+                    "no proposed record to materialize", code="RECORD_UNKNOWN"
+                )
+            updated = OriginationProjection(records=tuple(rows))
+            _write_atomic(root / PROJECTION_NAME, updated.model_dump(mode="json"))
+    except IdentityLockError as exc:
+        raise OriginationProjectionError(
+            "projection lock is held", code="CONCURRENT_PROJECTION"
+        ) from exc
+    materialized = next(row for row in rows if row.origination_identity == origination_identity)
+    return materialized, None
 
 
 def list_materialized_work_nodes(store: Path) -> tuple[WorkNode, ...]:
