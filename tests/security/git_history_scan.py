@@ -208,6 +208,21 @@ def _structural_answer_key_leaks(text: str, holdout_case_ids: Sequence[str]) -> 
     }
 
 
+# Known, accepted trade-off (round-2 IV of PR #651, CONFIRMED WITH MINOR
+# NOTES): document-wide matching can false-positive on a RETIRED holdout
+# case. This repo's established "retired holdout -> public regression case"
+# workflow (D-ULTRA-RESUME-010 §8) produces files like
+# fixtures/eval/regression/cases/EV-REG-00N-*.json carrying a
+# `"retired_from": "EV-HOLD-00N"` cross-reference AND their own unrelated,
+# now-public `"expected"` field in the same flat dict -- if a RETIRED id
+# were ever passed into `holdout_case_ids` here, this would flag those
+# files. It does not fire today: the live call site only scans currently-
+# active holdout ids, never retired ones. Not a false negative (this
+# function never gets less strict about missing a real leak), so it does
+# not compromise the security property -- only ever pass CURRENTLY-ACTIVE
+# holdout case ids to `find_leaked_holdout_evidence`, not retired ones.
+
+
 def find_leaked_holdout_evidence(
     repo_root: Path,
     *,
