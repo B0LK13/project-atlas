@@ -129,7 +129,6 @@ def test_retired_holdout_case_files_are_public_regression() -> None:
         payload = retired[old_id]
         assert payload["visibility"] == "public"
         assert payload["case_class"] == "regression"
-        assert payload["visibility"] != "holdout"
 
 
 def test_no_committed_case_file_pairs_new_holdout_id_with_expected_in_history() -> None:
