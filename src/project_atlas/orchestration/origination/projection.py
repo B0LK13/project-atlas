@@ -458,8 +458,10 @@ def sync_terminal_governed_states(
     than clobbering it, AND (D-PHASE2A-2 independent-IV finding, same
     round) refuses to durably create a second live record for a
     ``package_id`` an existing non-TERMINAL record already holds under a
-    different ``origination_identity`` (``find_active_record_by_package_id()``
-    above). Marking terminal here only avoids the wasted work of
+    different ``origination_identity`` (``persist_materialized_if_no_
+    active_conflict()`` above, atomically -- delta-IV hardening; the
+    plain ``find_active_record_by_package_id()`` read is no longer the
+    write-time guard). Marking terminal here only avoids the wasted work of
     re-deriving an outcome whose fate is already fully decided; it does
     not change what is safe.
 

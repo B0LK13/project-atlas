@@ -333,8 +333,8 @@ def test_sync_skips_ambiguous_package_id_with_multiple_active_records(tmp_path: 
     """D-PHASE2A-2 independent-IV finding, round 2: `sync_terminal_governed_
     states()` matches purely by `package_id`. If more than one non-TERMINAL
     durable record ever shares one `package_id` (should not occur once
-    `origination/cli.py`'s `find_active_record_by_package_id()` guard is in
-    place prospectively -- proven separately in
+    `origination/cli.py`'s `persist_materialized_if_no_active_conflict()`
+    guard is in place prospectively -- proven separately in
     `test_orchestration_origination_cli.py` -- but this function must not
     assume that invariant holds for every store it is ever handed, e.g. one
     written before this fix, or a future bug elsewhere), it must refuse to
