@@ -195,7 +195,11 @@ def _iter_markdown(root: Path) -> list[Path]:
             continue
         if path.suffix.lower() not in _MARKDOWN_SUFFIXES:
             continue
-        if any(part.startswith(".") and part not in {".atlas-project.yaml"} for part in path.parts):
+        relative_parts = path.relative_to(root).parts
+        if any(
+            part.startswith(".") and part not in {".atlas-project.yaml"}
+            for part in relative_parts
+        ):
             continue
         files.append(path)
     return files

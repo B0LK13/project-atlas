@@ -388,8 +388,22 @@ GitHub Actions reaches a terminal result.
 
 ## POST_MERGE_SEAL
 
-Not applicable in this delivery: merge is owner-reserved per this
-repository's established convention this session (see the final return
-packet's `MERGE_RECEIPT(S)` field for the exact status). This section
-will be completed only if/when the owner merges the PR and a post-merge
-CI run is available to record here.
+PR #643 was merged (owner-authorized, conditional gate checklist met:
+`FRESH_EXACT_HEAD_IV=PASS`, `EXACT_HEAD_CI=PASS`, `REMOTE_HEAD_MATCH`,
+`BASE_IS_CURRENT_MAIN`, `MERGEABLE`). Merge commit: `2cee1489947c01b9b22
+8d8576c72cf8190bf6966a` on `main`. This is the EXACT GitHub Actions run
+resolved for that merged main head (not inferred from the PR's own CI —
+per D-CODEX-ATLAS-PR643-POST-MERGE-SEAL §3, the run is looked up
+directly against `headBranch=main, headSha=2cee1489...`):
+
+- Run ID: `33284815468`
+- URL: https://github.com/B0LK13/project-atlas/actions/runs/33284815468
+- `headSha`: `2cee148947c01b9b228d8576c72cf8190bf6966a`
+- `conclusion`: `success`
+- Jobs: `control-plane` success, `quality (ubuntu-latest, 3.12, full)`
+  success, `quality (ubuntu-latest, 3.13, compat)` success,
+  `quality (windows-latest, 3.12, windows)` success
+
+`POST_MERGE_CI = PASS`. This seals PR #643's integration node only —
+per the directive's own §5, this does NOT imply
+`PROJECT_ATLAS_COMPLETE` / `ORCHESTRATION_COMPLETE` / `GLOBAL_DAG_EMPTY`.

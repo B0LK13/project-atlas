@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from project_atlas.cli import EXIT_ERROR, EXIT_OK, main
 from project_atlas.orchestration.autonomy.adversarial import requires_adversarial_review
@@ -337,6 +338,100 @@ def test_lease_still_allows_gate_a_pilot_execution() -> None:
         trusted_anchor=_anchor(),
     )
     gov.add_node(_node("PKG-A", owner_gate=OwnerGateKind.A_PROTECTED_MAIN_MERGE))
+    lease = gov.lease("PKG-A", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert lease.package_id == "PKG-A"
+
+
+def test_work_node_rejects_self_dependency() -> None:
+    """D-PHASE2A-1a independent-IV finding: a self-dependency is not a
+    meaningful "wait for this other work" edge. Before this fix,
+    continuation.py's select_next() treated `dep == node.package_id` as
+    always-satisfied while governor.py's new dependency check treated it
+    as always-unsatisfied (a node must be READY to reach lease(), and
+    READY is never in _DEPENDENCY_SATISFIED_STATES) -- select_next()
+    would pick such a node believing it ready, then governor.lease()
+    would reject it with DEPENDENCIES_NOT_SATISFIED, uncaught by
+    AutonomousLoop's exception handling, crashing the loop. Reject the
+    self-dependency at the model boundary instead, so neither layer can
+    ever observe one.
+    """
+    with pytest.raises(ValidationError):
+        _node("PKG-SELF", deps=("PKG-SELF",))
+
+
+def test_lease_fails_closed_for_unsatisfied_dependency() -> None:
+    """D-PHASE2A-1a: WorkNode.dependencies was accepted end-to-end by the
+    origination pipeline (adapter -> policy -> materialize) but never
+    actually enforced by the one call that grants real execution access.
+    A dependency whose own WorkNode has not yet reached a
+    _DEPENDENCY_SATISFIED_STATES state must block lease() outright.
+    """
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-PREREQ", state=NodeState.DISCOVERED, surface="pre", paths=("src/pre",)))
+    gov.add_node(_node("PKG-DEPENDENT", deps=("PKG-PREREQ",)))
+    with pytest.raises(GovernorError) as exc_info:
+        gov.lease("PKG-DEPENDENT", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert exc_info.value.code == "DEPENDENCIES_NOT_SATISFIED"
+    assert "PKG-PREREQ" in str(exc_info.value)
+    dependent = next(n for n in gov.snapshot().nodes if n.package_id == "PKG-DEPENDENT")
+    assert dependent.state is NodeState.READY  # unchanged: never leased
+
+
+def test_lease_fails_closed_for_unknown_dependency() -> None:
+    """A dependency id this governor instance has no WorkNode for at all
+    (e.g. tracked only by a different, un-rehydrated governor instance)
+    must be treated as unsatisfied -- not silently skipped.
+    """
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-DEPENDENT", deps=("PKG-NEVER-SEEN",)))
+    with pytest.raises(GovernorError) as exc_info:
+        gov.lease("PKG-DEPENDENT", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert exc_info.value.code == "DEPENDENCIES_NOT_SATISFIED"
+    assert "PKG-NEVER-SEEN" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "satisfied_state",
+    [
+        NodeState.CERTIFIED,
+        NodeState.OWNER_HELD,
+        NodeState.MERGE_ELIGIBLE,
+        NodeState.MERGED,
+        NodeState.CLOSED,
+    ],
+)
+def test_lease_succeeds_once_dependency_reaches_satisfied_state(satisfied_state: NodeState) -> None:
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-PREREQ", state=satisfied_state, surface="pre", paths=("src/pre",)))
+    gov.add_node(_node("PKG-DEPENDENT", deps=("PKG-PREREQ",)))
+    lease = gov.lease("PKG-DEPENDENT", "governor-pilot-local", branch="feat/x", worktree="repo")
+    assert lease.package_id == "PKG-DEPENDENT"
+
+
+def test_lease_dependency_check_is_additive_for_dependency_free_pilot_node() -> None:
+    """Backward compatibility: the pilot node (and every pre-existing
+    caller) always has dependencies=() -- the new check must be a no-op
+    for it, matching every other lease test in this module that never
+    passes `deps=`.
+    """
+    gov = AutonomousGovernor(
+        current_main=EXPECTED_BASE_MAIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+    )
+    gov.add_node(_node("PKG-A"))
     lease = gov.lease("PKG-A", "governor-pilot-local", branch="feat/x", worktree="repo")
     assert lease.package_id == "PKG-A"
 

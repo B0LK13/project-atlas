@@ -57,10 +57,19 @@ def select_next(
             continue
         if would_overlap(nodes, node):
             continue
+        # D-PHASE2A-1a independent-IV note: the `or dep == node.package_id`
+        # self-dependency carve-out that used to live here is gone --
+        # WorkNode.dependencies now rejects a self-reference at the model
+        # boundary (models.py's `_deps` validator), so `dep` can never
+        # equal `node.package_id`. Leaving the old carve-out in would have
+        # been permanently dead code, not a bug, but removing it keeps
+        # this function's real behavior legible instead of implying a case
+        # that can no longer occur.
         deps_ok = all(
-            any(other.package_id == dep and other.state in {NodeState.CERTIFIED, NodeState.CLOSED}
-                for other in nodes)
-            or dep == node.package_id
+            any(
+                other.package_id == dep and other.state in {NodeState.CERTIFIED, NodeState.CLOSED}
+                for other in nodes
+            )
             for dep in node.dependencies
         )
         if node.dependencies and not deps_ok:

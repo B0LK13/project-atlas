@@ -591,7 +591,21 @@ class AutonomousLoop:
                 worktree=self._worktree,
             )
         except GovernorError as exc:
-            if exc.code in {"TARGET_MOVED", "SURFACE_OVERLAP", "NODE_NOT_READY"}:
+            # DEPENDENCIES_NOT_SATISFIED (D-PHASE2A-1a): select_next() has
+            # its own, independent dependency-readiness check (deps_ok,
+            # continuation.py) that should already exclude anything
+            # governor.lease() would reject here -- this is the same
+            # defense-in-depth relationship SURFACE_OVERLAP/NODE_NOT_READY
+            # already have with their own upstream advisory checks. If the
+            # two checks ever disagree (e.g. a future WorkNode shape
+            # neither one anticipated), fail closed with a StopReason
+            # instead of letting the loop crash on an uncaught exception.
+            if exc.code in {
+                "TARGET_MOVED",
+                "SURFACE_OVERLAP",
+                "NODE_NOT_READY",
+                "DEPENDENCIES_NOT_SATISFIED",
+            }:
                 return self._stop(StopReason.HARD_BLOCKER)
             raise
         if lease.lease_id in self._state.completed_lease_ids:

@@ -14,7 +14,7 @@ import re
 from enum import StrEnum
 from typing import Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from atlas_contracts.versions import HASH_PATTERN, ID_PATTERN
 
@@ -241,10 +241,24 @@ class WorkNode(BaseModel):
 
     @field_validator("dependencies")
     @classmethod
-    def _deps(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+    def _deps(cls, value: tuple[str, ...], info: ValidationInfo) -> tuple[str, ...]:
         for item in value:
             if not re.fullmatch(ID_PATTERN, item):
                 raise ValueError("dependency ids must be safe identifiers")
+        # D-PHASE2A-1a independent-IV finding: a self-dependency is not a
+        # meaningful "wait for this other work" edge -- it is always either
+        # a spec/data bug (the real origination adapter already treats it
+        # as a blocker, see origination/adapter.py's self-dependency check)
+        # or, if it ever slipped through, a semantic time bomb: continuation
+        # .py's select_next() and governor.py's lease() disagreed about
+        # whether a self-dependency counts as satisfied, and select_next()
+        # picking a node that lease() then rejects crashes AutonomousLoop
+        # .tick() (DEPENDENCIES_NOT_SATISFIED was not a caught GovernorError
+        # code there). Reject it here, at the model boundary, so it can
+        # never reach either of those layers in the first place.
+        package_id = info.data.get("package_id")
+        if package_id is not None and package_id in value:
+            raise ValueError("a WorkNode cannot depend on itself")
         return value
 
     @model_validator(mode="after")
