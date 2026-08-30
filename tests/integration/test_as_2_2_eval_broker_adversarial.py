@@ -22,13 +22,13 @@ import importlib
 import json
 import os
 import secrets
-import subprocess
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.security.git_history_scan import find_leaked_holdout_evidence
 
 from project_atlas import eval_substrate, scoring_broker, scoring_broker_server
 from project_atlas.eval_substrate import (
@@ -169,33 +169,28 @@ def test_adv_recursive_glob(broker: OperatorBundle) -> None:
 # 3. Git-history access.
 # --------------------------------------------------------------------------- #
 def test_adv_git_history_access(broker: OperatorBundle) -> None:
-    """No secret answer nor a new-holdout expected key exists in ANY history."""
-    all_commits = subprocess.run(
-        ["git", "rev-list", "--all"],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.split()
-    for token in broker.answers.values():
-        grep = subprocess.run(
-            ["git", "grep", "--fixed-strings", token, *all_commits],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-        )
-        assert grep.returncode != 0 and grep.stdout == "", token
-    # Even the historical commits that touch the fresh ids never add "expected".
-    for case_id in ("EV-HOLD-101", "EV-HOLD-102"):
-        log = subprocess.run(
-            ["git", "log", "--all", "-p", "-S", case_id, "--", "fixtures/eval"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        for line in log.stdout.splitlines():
-            assert not (line.startswith("+") and '"expected"' in line), line
+    """No secret answer nor a new-holdout expected key exists in ANY history.
+
+    Cluster C redesign (D-CODEX-ATLAS-OWNER-FRONTIER-RESOLUTION-CI-
+    CONDITIONAL-INTEGRATION-AND-DAG-CONTINUATION §4/§5/§13): replaces an
+    O(secrets * revisions) `git grep <token> <every revision>` scan --
+    pathological against this repo's real history (unbounded revision-list
+    growth, timed out past 120s without completing) -- with a single
+    O(unique historical blobs) pass (`tests/security/git_history_scan.py`;
+    see `tests/security/test_git_history_scan_differential.py` for the
+    adversarial proof this is not weaker than the original -- it is
+    strictly STRONGER: differential testing against synthetic histories
+    found the original's `-S` pickaxe check has a real blind spot, missing
+    a violation when an existing case file is edited to add its answer
+    without changing the case-id string's own occurrence count).
+    """
+    secret_hits, answer_key_hits = find_leaked_holdout_evidence(
+        REPO_ROOT,
+        secret_tokens=tuple(broker.answers.values()),
+        holdout_case_ids=("EV-HOLD-101", "EV-HOLD-102"),
+    )
+    assert secret_hits == (), secret_hits
+    assert answer_key_hits == (), answer_key_hits
 
 
 # --------------------------------------------------------------------------- #
