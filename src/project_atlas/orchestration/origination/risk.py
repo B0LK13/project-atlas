@@ -78,7 +78,7 @@ class RiskClassification(BaseModel):
 
     risk_class: RiskClass
     disqualifying_attributes: tuple[DisqualifyingAttribute, ...] = Field(
-        default_factory=tuple, max_length=8
+        default_factory=tuple, max_length=len(DisqualifyingAttribute)
     )
 
 

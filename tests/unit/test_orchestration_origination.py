@@ -9,6 +9,7 @@ does not exist in CI.
 from __future__ import annotations
 
 import json
+import os
 import re
 import textwrap
 from pathlib import Path
@@ -161,6 +162,8 @@ def test_conflicting_requirements_fail_closed_at_policy_gate() -> None:
         location="docs/ROADMAP.md",
         content_digest=_digest("x"),
         excerpt="id=x",
+        subject_id="x",
+        subject_digest=_digest("item-x"),
     )
     accept = SourceFact(
         kind=SourceFactKind.CORROBORATING_SPEC_TEST,
@@ -343,6 +346,110 @@ def test_stale_evidence_changes_identity(tmp_path: Path) -> None:
     )
     second = originate_all(tmp_path, "demo-project")[0].proposal.origination_identity
     assert first != second
+
+
+def test_multiple_items_have_distinct_identities_stable_across_sibling_edits(
+    tmp_path: Path,
+) -> None:
+    """D-PHASE2A: identity is bound to one structured item, not the whole
+    roadmap file shared by every item."""
+    _write_skipped_test(tmp_path, "tests/test_a.py")
+    _write_skipped_test(tmp_path, "tests/test_b.py")
+    items = [
+        {
+            "id": "feature-a",
+            "title": "Feature A",
+            "status": "NOT_STARTED",
+            "lifecycle": "READY",
+            "evidence": ["tests/test_a.py"],
+        },
+        {
+            "id": "feature-b",
+            "title": "Feature B",
+            "status": "NOT_STARTED",
+            "lifecycle": "READY",
+            "evidence": ["tests/test_b.py"],
+        },
+    ]
+    _write_roadmap(tmp_path, items)
+    first = {outcome.proposal.title: outcome.proposal for outcome in originate_all(
+        tmp_path, "demo-project"
+    )}
+    assert first["Feature A"].origination_identity != first["Feature B"].origination_identity
+    assert first["Feature A"].work_id != first["Feature B"].work_id
+
+    items[1] = {**items[1], "title": "Feature B revised"}
+    _write_roadmap(tmp_path, items)
+    second = {outcome.proposal.title: outcome.proposal for outcome in originate_all(
+        tmp_path, "demo-project"
+    )}
+    assert (
+        second["Feature A"].origination_identity
+        == first["Feature A"].origination_identity
+    )
+
+
+def test_evidence_traversal_and_symlink_escape_are_not_read(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    _write_skipped_test(project, "outside.py")
+    _write_skipped_test(tmp_path, "outside.py")
+    _write_roadmap(
+        project,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["../outside.py"],
+            }
+        ],
+    )
+    traversal = originate_all(project, "demo-project")[0]
+    assert traversal.proposal.acceptance_evidence == ()
+    assert "../outside.py" not in traversal.proposal.source_locations
+
+    link = project / "tests" / "test_escape.py"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        link.symlink_to(tmp_path / "outside.py")
+    except OSError:
+        if os.name == "nt":
+            pytest.skip("symlink creation is unavailable on this Windows runner")
+        raise
+    _write_roadmap(
+        project,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["tests/test_escape.py"],
+            }
+        ],
+    )
+    escaped = originate_all(project, "demo-project")[0]
+    assert escaped.proposal.acceptance_evidence == ()
+    assert "tests/test_escape.py" not in escaped.proposal.source_locations
+
+
+def test_corroborating_file_read_error_is_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_skipped_test(tmp_path, "tests/test_feature_x.py")
+    candidate = (tmp_path / "tests" / "test_feature_x.py").resolve()
+    original = Path.read_bytes
+
+    def fail_candidate(path: Path) -> bytes:
+        if path.resolve() == candidate:
+            raise PermissionError("simulated evidence read race")
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_bytes", fail_candidate)
+    assert adapter.extract_corroborating_facts(
+        tmp_path, "demo-project", ("tests/test_feature_x.py",)
+    ) == ()
 
 
 def test_cross_project_contamination_is_structurally_impossible(tmp_path: Path) -> None:
@@ -543,6 +650,25 @@ def test_risk_classifier_explicit_boolean_disqualifiers() -> None:
     assert result.risk_class == RiskClass.OWNER_HELD
 
 
+def test_risk_classifier_can_represent_every_disqualifier() -> None:
+    result = risk.classify(
+        proposed_scope=(
+            "repo/.github/workflows/ci.yml",
+            "requirements.txt",
+            "src/auth/login.py",
+            "src/credentials/config.py",
+            "infra/main.tf",
+            "migrations/0001.py",
+            "src/foo bar.py",
+        ),
+        success_criteria=("do the thing",),
+        requires_external_spend=True,
+        scope_exceeds_specification=True,
+    )
+    assert result.risk_class == RiskClass.OWNER_HELD
+    assert set(result.disqualifying_attributes) == set(risk.DisqualifyingAttribute)
+
+
 # --------------------------------------------------------------------------
 # Materialize -> WorkNode.
 # --------------------------------------------------------------------------
@@ -569,6 +695,123 @@ def test_materialize_o1_produces_in_process_work_node(tmp_path: Path) -> None:
     assert node.execution_authorized is False
 
 
+def test_materialize_preserves_active_dependency_edges(tmp_path: Path) -> None:
+    _write_skipped_test(tmp_path, "tests/test_a.py")
+    _write_skipped_test(tmp_path, "tests/test_b.py")
+    _write_roadmap(
+        tmp_path,
+        [
+            {
+                "id": "feature-a",
+                "title": "Feature A",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["tests/test_a.py"],
+            },
+            {
+                "id": "feature-b",
+                "title": "Feature B",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "depends_on": ["feature-a"],
+                "evidence": ["tests/test_b.py"],
+            },
+        ],
+    )
+    outcomes = {outcome.proposal.title: outcome for outcome in originate_all(
+        tmp_path, "demo-project"
+    )}
+    dependent = outcomes["Feature B"].proposal
+    expected = identity.work_id_for("demo-project", "feature-a")
+    assert dependent.dependencies == (expected,)
+    classification = risk.classify(
+        proposed_scope=dependent.proposed_scope,
+        success_criteria=dependent.success_criteria,
+    )
+    node = materialize.materialize_work_node(
+        dependent,
+        classification,
+        base_pin="a" * 40,
+        surface_id="demo-project-feature-b",
+    )
+    assert node.dependencies == (expected,)
+
+
+def test_completed_dependency_is_resolved_before_materialization(tmp_path: Path) -> None:
+    _write_skipped_test(tmp_path, "tests/test_b.py")
+    _write_roadmap(
+        tmp_path,
+        [
+            {
+                "id": "feature-a",
+                "title": "Feature A",
+                "status": "IMPLEMENTED",
+                "lifecycle": "IMPLEMENTATION_COMPLETE",
+                "evidence": [],
+            },
+            {
+                "id": "feature-b",
+                "title": "Feature B",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "depends_on": ["feature-a"],
+                "evidence": ["tests/test_b.py"],
+            },
+        ],
+    )
+    outcome = originate_all(tmp_path, "demo-project")[0]
+    assert outcome.proposal.title == "Feature B"
+    assert outcome.proposal.dependencies == ()
+    assert outcome.policy.execution_ready is True
+
+
+@pytest.mark.parametrize(
+    ("blockers", "dependency", "duplicate"),
+    [
+        (["owner approval pending"], None, False),
+        ([], "undeclared-feature", False),
+        ([], None, True),
+    ],
+    ids=["declared", "missing-dependency", "duplicate-item-id"],
+)
+def test_blockers_prevent_execution_and_materialization(
+    tmp_path: Path,
+    blockers: list[str],
+    dependency: str | None,
+    duplicate: bool,
+) -> None:
+    _write_skipped_test(tmp_path, "tests/test_feature_x.py")
+    item: dict[str, object] = {
+        "id": "feature-x",
+        "title": "Feature X",
+        "status": "NOT_STARTED",
+        "lifecycle": "READY",
+        "evidence": ["tests/test_feature_x.py"],
+        "blockers": blockers,
+    }
+    if dependency is not None:
+        item["depends_on"] = [dependency]
+    items = [item]
+    if duplicate:
+        items.append({**item, "title": "Duplicate X"})
+    _write_roadmap(tmp_path, items)
+    outcome = originate_all(tmp_path, "demo-project")[0]
+    assert outcome.proposal.blockers
+    assert outcome.policy.execution_ready is False
+    classification = risk.classify(
+        proposed_scope=outcome.proposal.proposed_scope,
+        success_criteria=outcome.proposal.success_criteria,
+    )
+    with pytest.raises(materialize.MaterializationError) as exc_info:
+        materialize.materialize_work_node(
+            outcome.proposal,
+            classification,
+            base_pin="a" * 40,
+            surface_id="demo-project-feature-x",
+        )
+    assert exc_info.value.code == "PROPOSAL_BLOCKED"
+
+
 def test_materialize_rejects_mismatched_o1_classification(tmp_path: Path) -> None:
     """IV round-2 finding (D-PHASE2A): a caller-supplied ``classification``
     claiming O1 alongside a proposal whose own ``proposed_scope`` contains
@@ -593,6 +836,22 @@ def test_materialize_rejects_mismatched_o1_classification(tmp_path: Path) -> Non
     assert exc_info.value.code == "CLASSIFICATION_PROPOSAL_MISMATCH"
 
 
+def test_materialize_rejects_risk_class_mismatch(tmp_path: Path) -> None:
+    proposal = _originate_synthetic(tmp_path)[0].proposal
+    mismatched = risk.RiskClassification(
+        risk_class=RiskClass.OWNER_HELD,
+        disqualifying_attributes=(risk.DisqualifyingAttribute.SECURITY_SURFACE,),
+    )
+    with pytest.raises(materialize.MaterializationError) as exc_info:
+        materialize.materialize_work_node(
+            proposal,
+            mismatched,
+            base_pin="a" * 40,
+            surface_id="demo-project-feature-x",
+        )
+    assert exc_info.value.code == "CLASSIFICATION_PROPOSAL_MISMATCH"
+
+
 def test_materialize_owner_held_sets_owner_gate() -> None:
     from project_atlas.orchestration.origination.risk import (
         DisqualifyingAttribute,
@@ -609,6 +868,8 @@ def test_materialize_owner_held_sets_owner_gate() -> None:
         location="docs/ROADMAP.md",
         content_digest=_digest("x"),
         excerpt="id=x",
+        subject_id="x",
+        subject_digest=_digest("item-x"),
     )
     proposal = OriginationProposal(
         work_id="ORIG-ownerheldtest000",
@@ -646,6 +907,8 @@ def test_identity_is_stable_for_identical_inputs() -> None:
         location="docs/ROADMAP.md",
         content_digest=_digest("same content"),
         excerpt="id=x",
+        subject_id="x",
+        subject_digest=_digest("item-x"),
     )
     a = identity.origination_identity("demo-project", fact)
     b = identity.origination_identity("demo-project", fact)
@@ -682,3 +945,46 @@ def test_originate_new_only_hides_terminal_work_even_with_stale_roadmap(tmp_path
     # says NOT_STARTED/READY), but the successor scan correctly hides it.
     resolved = originate_new_only(tmp_path / "proj", "demo-project", store)
     assert resolved == ()
+
+
+def test_rehydration_lookup_fails_closed_on_two_active_spec_revisions(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    _write_skipped_test(project, "tests/test_feature_x.py")
+    item = {
+        "id": "feature-x",
+        "title": "Feature X",
+        "status": "NOT_STARTED",
+        "lifecycle": "READY",
+        "evidence": ["tests/test_feature_x.py"],
+    }
+    _write_roadmap(project, [item])
+    first = originate_all(project, "demo-project")[0]
+
+    _write_roadmap(project, [{**item, "title": "Feature X revised"}])
+    second = originate_all(project, "demo-project")[0]
+    assert first.proposal.work_id == second.proposal.work_id
+    assert first.proposal.origination_identity != second.proposal.origination_identity
+
+    store = tmp_path / "store"
+    store.mkdir()
+    for outcome in (first, second):
+        classification = risk.classify(
+            proposed_scope=outcome.proposal.proposed_scope,
+            success_criteria=outcome.proposal.success_criteria,
+        )
+        node = materialize.materialize_work_node(
+            outcome.proposal,
+            classification,
+            base_pin="a" * 40,
+            surface_id=f"demo-{outcome.proposal.origination_identity[:8]}",
+        )
+        projection.persist_proposed(store, outcome.proposal, outcome.policy)
+        projection.persist_materialized(store, outcome.proposal.origination_identity, node)
+
+    assert projection.find_materialized_work_node(store, first.proposal.work_id) is None
+    projection.mark_terminal(
+        store, first.proposal.origination_identity, node_state="SUPERSEDED"
+    )
+    restored = projection.find_materialized_work_node(store, second.proposal.work_id)
+    assert restored is not None
+    assert restored.package_id == second.proposal.work_id

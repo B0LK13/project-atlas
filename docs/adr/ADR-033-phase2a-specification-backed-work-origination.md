@@ -94,7 +94,10 @@ defines:
   containing `..`), `content_digest` (sha256 of the exact bytes read —
   deterministic identity, no wall-clock timestamp per NFR-001), and a
   bounded `excerpt` (never the full file — keeps provenance auditable
-  without becoming a second copy of the source).
+  without becoming a second copy of the source). Authoritative item facts
+  additionally carry `subject_id` plus `subject_digest` (sha256 of that
+  one canonical structured item), so sibling roadmap edits cannot collide
+  or rename unrelated work.
 
 Extraction (`adapter.py`) is two independent, generic scanners, each
 usable on any project root with no knowledge of TASK-017 specifically:
@@ -105,8 +108,9 @@ usable on any project root with no knowledge of TASK-017 specifically:
   reimplemented) and `_normalize_item`-equivalent evidence resolution
   rewritten against the *project root* instead of a vault (the existing
   `_normalize_item` is vault-coupled — see `_evidence_exists(vault, ...)`
-  — so this adapter has its own `_evidence_exists_in_project()` doing
-  the identical path-safety check against `project_root`). Every parsed
+  — so this adapter resolves each project-relative file exactly once,
+  rejects traversal and symlink escapes, and uses that same canonical
+  in-root target for existence checks, hashing, and reads). Every parsed
   item with `lifecycle in {"READY"}` and `status in {"NOT_STARTED",
   "IN_PROGRESS"}` becomes one `AUTHORITATIVE_ROADMAP_ITEM` fact.
 - `extract_corroborating_facts(project_root, evidence_paths)` — for
@@ -178,6 +182,11 @@ PolicyResult`:
 4. **Risk classification** (`risk.py`, O1 — see below) runs after the
    quorum passes and can independently force `EXECUTION_READY = NO` /
    route to `OWNER_HELD` regardless of evidence completeness.
+5. **Declared blockers are negative authority**: a non-empty structured
+   `blockers` list, a duplicate item id, a self-dependency, or a missing dependency id keeps the
+   proposal inspectable but forces `EXECUTION_READY = NO`. Incomplete
+   dependency edges are translated to the corresponding stable WorkNode
+   package ids and remain enforced by the existing DAG selector.
 
 ## ROADMAP_UNLOCK / DAG INTEGRATION
 
@@ -202,6 +211,9 @@ upstream of, not inside, `project_roadmap.py`.
   `EXECUTION_READY = NO`, `INSUFFICIENT_ACCEPTANCE_CONTRACT`.
 - Conflicting authoritative facts for one item → `EXECUTION_READY = NO`,
   `CONFLICTING_PROJECT_EVIDENCE`.
+- Declared/unresolved blocker, duplicate item id, self-dependency, or missing dependency id →
+  `EXECUTION_READY = NO`; direct materialization also fails closed with
+  `PROPOSAL_BLOCKED`.
 - Roadmap item status already `IMPLEMENTED` / `VERIFIED_COMPLETION`, or
   lifecycle `CLOSED`/`MERGED` → excluded at extraction time (not a
   `READY`/`NOT_STARTED` item), never reaches the policy gate.
@@ -242,22 +254,25 @@ upstream of, not inside, `project_roadmap.py`.
 ## IDENTITY / DEDUPLICATION MODEL
 
 `identity.py` — `origination_identity(project_id, authoritative_source)
--> str`: `sha256(f"{project_id}::{authoritative_source.location}::
-{authoritative_source.content_digest}")`, hex-encoded, no wall-clock
-component. Stable across:
+-> str`: `sha256(project_id :: location :: subject_id :: subject_digest)`,
+hex-encoded, no wall-clock component. `work_id_for(project_id, item_id)`
+separately yields a stable logical package id so dependency edges can be
+bound before either node is materialized. Stable across:
 
 - process restarts (pure function of durable inputs),
-- re-scans that find the same unchanged evidence (idempotent — the
+- re-scans that find the same unchanged item (idempotent — the
   persistence layer treats a re-derived identity as "already known",
   not a new record),
+- unrelated edits to sibling items in the same roadmap file,
 - and instance renames/re-runs (the identity depends only on project
-  id, evidence location, and the exact byte content already consulted,
+  id, evidence location, and the exact structured subject consulted,
   not on wall-clock time or an incrementing counter).
 
-If the underlying evidence file's content changes, `content_digest`
-changes, so the identity changes too — an intentionally stale-evidence
-signal (a changed file produces a genuinely new identity rather than
-silently reusing a proposal whose provenance no longer matches disk).
+If the structured item's own content changes, `subject_digest` changes,
+so the identity changes too — an intentionally stale-evidence signal.
+Whole-file `content_digest` remains in provenance but does not destabilize
+unchanged sibling identities. If two active revisions share one logical
+`work_id`, rehydration fails closed until exactly one remains active.
 Persistence (`projection.py`, mirroring the existing
 `lease_projection.py` atomic-write pattern) is keyed by this identity;
 the extraction pipeline checks the projection before creating a new

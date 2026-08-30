@@ -110,6 +110,16 @@ def materialize_work_node(
     correctly, but this function now fails closed on the mismatch itself
     rather than relying solely on caller discipline.
     """
+    if proposal.blockers:
+        raise MaterializationError(
+            "proposal declares unresolved blockers and cannot be materialized for execution",
+            code="PROPOSAL_BLOCKED",
+        )
+    if classification.risk_class != proposal.risk_class:
+        raise MaterializationError(
+            "classification risk_class does not match the proposal's bound risk_class",
+            code="CLASSIFICATION_PROPOSAL_MISMATCH",
+        )
     if classification.risk_class == RiskClass.O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION:
         for path in proposal.proposed_scope:
             has_traversal_segment = ".." in path.replace("\\", "/").split("/")
@@ -143,7 +153,7 @@ def materialize_work_node(
         package_id=proposal.work_id,
         objective=proposal.intent,
         base_pin=base_pin,
-        dependencies=(),
+        dependencies=proposal.dependencies,
         mutation_surface=MutationSurface(
             surface_id=surface_id,
             paths=mutation_paths,

@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _REL_PATH_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$")
 _HASH_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -48,6 +48,18 @@ class SourceFact(BaseModel):
         max_length=1024,
         description="Bounded excerpt for provenance auditing. Never the full file.",
     )
+    subject_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="Stable structured item identifier for authoritative item facts.",
+    )
+    subject_digest: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+        description="sha256 of the canonical structured roadmap item.",
+    )
 
     @field_validator("project_id")
     @classmethod
@@ -72,3 +84,28 @@ class SourceFact(BaseModel):
         if not _HASH_RE.fullmatch(value):
             raise ValueError("content_digest must be a sha256 hex digest")
         return value
+
+    @field_validator("subject_id")
+    @classmethod
+    def _subject_id(cls, value: str | None) -> str | None:
+        if value is not None and not _PROJECT_ID_RE.fullmatch(value):
+            raise ValueError("subject_id must be a safe identifier")
+        return value
+
+    @field_validator("subject_digest")
+    @classmethod
+    def _subject_digest(cls, value: str | None) -> str | None:
+        if value is not None and not _HASH_RE.fullmatch(value):
+            raise ValueError("subject_digest must be a sha256 hex digest")
+        return value
+
+    @model_validator(mode="after")
+    def _authoritative_subject_is_explicit(self) -> SourceFact:
+        if self.kind == SourceFactKind.AUTHORITATIVE_ROADMAP_ITEM:
+            if self.subject_id is None or self.subject_digest is None:
+                raise ValueError(
+                    "authoritative roadmap facts require subject_id and subject_digest"
+                )
+        elif self.subject_id is not None or self.subject_digest is not None:
+            raise ValueError("corroborating facts cannot declare an authoritative subject")
+        return self

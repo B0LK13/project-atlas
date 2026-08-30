@@ -51,6 +51,18 @@ def evaluate(proposal: OriginationProposal) -> PolicyResult:
             reason=ExecutionReadyReason.CONFLICTING_PROJECT_EVIDENCE,
         )
 
+    if proposal.blockers:
+        # A declared blocker is explicit negative authority. Keep the
+        # proposal inspectable, but do not convert READY lifecycle metadata
+        # into execution authority while its unlock condition is unresolved.
+        return PolicyResult(
+            origination_proposal_valid=origination_proposal_valid,
+            authoritative_intent_signal=authoritative_intent_signal,
+            corroborating_signal=corroborating_signal,
+            execution_ready=False,
+            reason=ExecutionReadyReason.INSUFFICIENT_ACCEPTANCE_CONTRACT,
+        )
+
     if not origination_proposal_valid:
         return PolicyResult(
             origination_proposal_valid=False,

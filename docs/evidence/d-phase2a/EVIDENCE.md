@@ -20,6 +20,10 @@ Six distinct result classes — never collapse them into one generic
 | `SUCCESSOR_DEDUP_RESULT` | **PROVEN** |
 | `AUTONOMOUS_IMPLEMENTATION_EXECUTION_RESULT` | **EXTERNAL/OWNER BLOCKED** (see below — not "UNPROVEN" in the sense of "not yet tried"; investigated and found to require either an externally-blocked provider or new agent semantics out of this wave's scope) |
 
+These capability results describe the executed POC lineage. They are not a
+claim that the current PR HEAD is merge-certified: after material code
+changes, `EXACT_HEAD_CI` and `EXACT_HEAD_IV` must both be refreshed.
+
 The 3-process demo's Process B recovers a leased node from disk after a
 real process restart, and **really verifies** an implementation (an
 actual `pytest` subprocess run, not a hardcoded pass) — but that
@@ -73,9 +77,10 @@ Closing this gap for real (not by faking it) requires one of:
 
 Per the directive's own instruction for exactly this outcome: this
 status is recorded honestly rather than faked, and the narrower —
-still fully real and independently verified — origination +
-cross-process-recovery + real-verification + successor-dedup proof is
-preserved as the actual, certified Phase 2A result.
+historically demonstrated — origination + cross-process-recovery +
+real-verification + successor-dedup proof is preserved. Exact-head merge
+certification still requires fresh external independent IV after every
+material hardening commit; historical IV is never transferred.
 
 ## ORIGINATION_SCHEMA
 
@@ -138,7 +143,13 @@ LLM call, same input always produces the same output.
   a real file and its first 200 lines match
   `^\s*pytestmark\s*=\s*pytest\.mark\.(skip|xfail)\s*\(`, one
   `CORROBORATING_SPEC_TEST` fact. Regex only — never imports/executes
-  the scanned file.
+  the scanned file. Every evidence path is resolved once, constrained to
+  the resolved project root (including symlink containment), and that same
+  canonical file is used for the bounded scan and exact-byte digest.
+- Structured item blockers, duplicate item ids, missing dependency ids, and self-dependencies
+  are preserved as fail-closed blockers. Active dependency ids are mapped
+  to stable WorkNode package ids; dependencies already declared
+  `IMPLEMENTED`/`VERIFIED_COMPLETION` are treated as satisfied.
 
 **Genericity proof (TASK_017_SPECIAL_CASES = 0)**: none of
 `adapter.py`, `pipeline.py`, `policy.py`, `risk.py`, `materialize.py`,
@@ -165,7 +176,7 @@ parametrized) test in `tests/unit/test_orchestration_origination.py`:
 | `OWNER_BLOCKED_WORK` | `test_owner_blocked_work_is_excluded` | Excluded at extraction (status filter) |
 | `MISSING_ACCEPTANCE_CRITERIA` | `test_missing_acceptance_criteria_is_valid_but_not_execution_ready` | `VALID` but `INSUFFICIENT_ACCEPTANCE_CONTRACT` |
 | `UNRELATED_FAILING_TEST` | `test_unrelated_failing_test_is_never_consulted` | Only declared evidence paths are ever scanned |
-| `STALE_EVIDENCE` | `test_stale_evidence_changes_identity` | Content change -> new `content_digest` -> new identity |
+| `STALE_EVIDENCE` | `test_stale_evidence_changes_identity` | Structured item change -> new `subject_digest` -> new revision identity |
 | `CROSS_PROJECT_CONTAMINATION` | `test_cross_project_contamination_is_structurally_impossible` | `project_id` is caller-scoped, never content-derived |
 | `MALICIOUS_INSTRUCTION_LIKE_PROJECT_TEXT` | `test_malicious_instruction_like_project_text_is_inert_data` | Stored verbatim as opaque data; risk class unaffected |
 | `UNSUPPORTED_MODEL_SUGGESTION` | `test_unsupported_model_suggestion_no_llm_call_exists` | Grep-verified: zero LLM/agent-invocation imports in the package |
@@ -182,6 +193,12 @@ parametrized test), `NO_UNSUPPORTED_SCOPE_EXPANSION` (risk classifier's
 `success_criteria` emptiness check plus the explicit
 `scope_exceeds_specification` boolean parameter — see `risk.py`).
 
+Post-review hardening adds dedicated regression coverage for multiple-item
+identity collision/sibling-edit stability, dependency-edge preservation,
+declared and missing-dependency blockers, traversal plus symlink escape,
+evidence read races, all nine simultaneous risk disqualifiers,
+proposal/classification mismatch, and ambiguous active spec revisions.
+
 ## ESTATE_DESCRIPTION
 
 Worked example: `atlas-showcase-gamma`, the `TASK-017` (blocked-task
@@ -193,15 +210,18 @@ anywhere in this estate or these receipts.
 ## PROVENANCE_RECORD
 
 `identity.py::origination_identity(project_id, authoritative_source) =
-sha256(f"{project_id}::{location}::{content_digest}")`. No wall-clock or
-random component. `Provenance.consulted_digests` records every
+sha256(project_id :: location :: subject_id :: subject_digest)`.
+`work_id_for(project_id, item_id)` separately binds one stable logical
+package id. No wall-clock or random component. `Provenance.consulted_digests` records every
 `SourceFact.content_digest` that contributed to a proposal, so a later
 process can confirm replay-stability without re-reading the original
 source. Durable storage: `projection.py::OriginationProjection` (atomic
 JSON, `AS-ORCH-ORIGINATION-PROJECTION-001`), one `OriginationRecord` per
 identity, `state` transitions `PROPOSED -> MATERIALIZED -> TERMINAL`.
 
-This run's actual provenance (see `receipts/process-a-receipt.json`):
+The checked-in receipt below is historical pre-hardening POC evidence; its
+identity/work-id values are not asserted as current-head values and must be
+regenerated before exact-head certification:
 
 ```
 origination_identity: 8e5fc3e94f6f000578a3ac115a26a482d48a4aa67bb7c6fa9200dcacd64a2ac3
@@ -235,6 +255,13 @@ confirm this for a leading dot, a leading underscore, an embedded space,
 and a non-ASCII character.
 
 ## IV_REPORT
+
+**Current exact-head status:** `PENDING_EXTERNAL`. The rounds below were
+performed by reviewers separate from the original implementer and remain
+useful historical evidence, but they do not cover the later material
+hardening for item identity, dependencies, blockers, path containment, risk
+cardinality, or read-race handling. Codex engineering review is not
+independent IV.
 
 **Round 1** (fresh subagent, no self-certification, adversarial review of
 the full origination package + rehydration.py extension + demo +
@@ -297,40 +324,19 @@ outcome unchanged.
 
 ## CI_RECEIPT
 
-**Local exact-command reproduction** (same commands `.github/workflows/ci.yml`
-runs): `python -m ruff check .` clean repo-wide; `python -m mypy src`
-clean, 393 files; full `python -m pytest` was started locally and
-confirmed progressing correctly (no failures observed) but was not run
-to completion locally — a real, pre-existing, unrelated-to-this-PR test
-doing a `git grep` across this repository's full multi-branch commit
-history took several minutes without finishing during the session this
-POC was built in, and GitHub's own hosted runners are the authoritative
-source of truth for this gate regardless.
+Pre-hardening commit `459a9d2cf32b99f85bf6a5b4b104a7007757533e`
+passed GitHub Actions run `33269219699`. That result is historical and is
+not transferred to a later HEAD.
 
-**GitHub Actions (PR #643, `feat/phase2a-origination-poc`)**: multiple
-runs were queued as commits landed (each push cancels the prior
-in-flight run and queues a fresh one against the new HEAD, per this
-repo's existing `concurrency` configuration) — see `gh run list
---branch feat/phase2a-origination-poc`. The `control-plane` job
-completed and **passed** on at least one run. The `quality` matrix jobs
-(ubuntu 3.12/3.13, windows) remained queued/pending for well over an
-hour on more than one run, consistent with hosted-runner capacity
-contention on this large, very active, many-branch repository rather
-than any failure — no job reported a failure at any point observed.
-**Final status: PASS.** All 4 jobs completed and passed against this
-PR's exact final commit (`a7719bf0`), run `33267780609`:
+Codex sparse-checkout engineering verification after the review findings:
+Python compile passed and a 14-check adversarial execution matrix passed.
+The host did not have `pytest`, `ruff`, or `mypy`; installing them into an
+isolated temporary venv was denied by the environment network policy.
+Therefore local repo-wide pytest/ruff/mypy are `ENVIRONMENTAL`, not PASS.
 
-| Job | Result | Duration |
-|---|---|---|
-| `control-plane` | pass | 51s |
-| `quality (ubuntu-latest, 3.12, full)` | pass | 10m29s |
-| `quality (ubuntu-latest, 3.13, compat)` | pass | 9m30s |
-| `quality (windows-latest, 3.12, windows)` | pass | 21m3s |
-
-`EXACT_HEAD_CI = PASS`, confirmed on GitHub's own hosted runners across
-the full ruff/mypy/pytest matrix on all 3 platforms this repo gates on
-(Ubuntu 3.12 full suite, Ubuntu 3.13 compatibility, Windows), plus the
-separate control-plane suite. Verified live via `gh pr checks 643`.
+`EXACT_HEAD_CI = PENDING` for the hardening commit at documentation time.
+The PR Checks tab and an exact-head PR comment are the live authority once
+GitHub Actions reaches a terminal result.
 
 ## POST_MERGE_SEAL
 

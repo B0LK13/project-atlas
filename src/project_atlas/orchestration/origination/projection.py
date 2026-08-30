@@ -127,19 +127,24 @@ def find_materialized_work_node(store: Path, package_id: str) -> WorkNode | None
         projection = load_projection(store)
     except OriginationProjectionError:
         return None
-    for row in projection.records:
-        if row.work_node is None:
-            continue
-        if row.work_node.get("package_id") != package_id:
-            continue
-        try:
-            return WorkNode.model_validate(row.work_node)
-        except Exception:
-            # Any validation failure means "not safely rehydratable" --
-            # fail closed to None rather than propagate a raw pydantic
-            # error out of a function documented to never raise.
-            return None
-    return None
+    matches = tuple(
+        row
+        for row in projection.records
+        if row.state != "TERMINAL"
+        and row.work_node is not None
+        and row.work_node.get("package_id") == package_id
+    )
+    if len(matches) != 1:
+        # A logical item may have multiple specification revisions over
+        # time, but at most one may be active. Ambiguity is not authority.
+        return None
+    try:
+        return WorkNode.model_validate(matches[0].work_node)
+    except Exception:
+        # Any validation failure means "not safely rehydratable" --
+        # fail closed to None rather than propagate a raw pydantic
+        # error out of a function documented to never raise.
+        return None
 
 
 def persist_proposed(

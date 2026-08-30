@@ -104,6 +104,8 @@ def _build_outcome(
         location="docs/ROADMAP.md",
         content_digest=item.roadmap_digest,
         excerpt=excerpt[:_MAX_EXCERPT],
+        subject_id=item.item_id,
+        subject_digest=item.item_digest,
     )
     acceptance_facts = extract_corroborating_facts(project_root, project_id, item.evidence)
 
@@ -126,13 +128,15 @@ def _build_outcome(
     )
 
     origination_id = origination_identity(project_id, authoritative_fact)
-    work_id = work_id_for(origination_id)
+    work_id = work_id_for(project_id, item.item_id)
 
     if item.depends_on:
         why_now = (
-            f"{item.item_id!r} depends on {list(item.depends_on)}; eligibility here "
-            "assumes those are already satisfied per the roadmap record's own status."
+            f"{item.item_id!r} depends on {list(item.depends_on)}; the governed DAG "
+            "must observe each corresponding package as CERTIFIED or CLOSED first."
         )
+    elif item.blockers:
+        why_now = f"{item.item_id!r} declares unresolved blockers and cannot execute yet."
     else:
         why_now = f"{item.item_id!r} has no declared dependency and is the currently-eligible item."
 
@@ -154,8 +158,8 @@ def _build_outcome(
         authoritative_source=authoritative_fact,
         acceptance_evidence=acceptance_facts,
         success_criteria=success_criteria,
-        dependencies=item.depends_on,
-        blockers=(),
+        dependencies=tuple(work_id_for(project_id, dep) for dep in item.depends_on),
+        blockers=item.blockers,
         contradictions=(),
         proposed_scope=proposed_scope,
         risk_class=risk.risk_class,

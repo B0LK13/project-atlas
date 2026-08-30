@@ -245,7 +245,13 @@ and confirm every test named for a directive negative-matrix case
 `test_malicious_instruction_like_project_text_is_inert_data`,
 `test_unsupported_model_suggestion_no_llm_call_exists`,
 `test_duplicate_discovery_is_idempotent`,
-`test_restart_replay_reads_identical_record_from_disk`) passes.
+`test_restart_replay_reads_identical_record_from_disk`) passes. The
+post-review hardening cases must pass in the same run as well: per-item
+identity and sibling-edit stability, active dependency-edge preservation,
+declared/missing dependency blockers, traversal and symlink containment,
+evidence read-race fail-closed behavior, all-nine risk-disqualifier
+cardinality, proposal/classification binding, and ambiguous active
+spec-revision rehydration.
 
 ## Expected artifact locations
 
