@@ -86,6 +86,23 @@ class GovernorError(ValueError):
             self.code = code
 
 
+# D-PHASE2A-1a: a dependency counts as satisfied once its own WorkNode has
+# independently passed verification (CERTIFIED) or moved further along the
+# owner/merge pipeline. It does NOT need to reach MERGED first -- a
+# dependent should not have to wait on an owner-gated merge timeline for
+# work whose correctness is already independently verified. CERTIFIED !=
+# MERGED still holds; this is a leasing precondition, not a merge claim.
+_DEPENDENCY_SATISFIED_STATES = frozenset(
+    {
+        NodeState.CERTIFIED,
+        NodeState.OWNER_HELD,
+        NodeState.MERGE_ELIGIBLE,
+        NodeState.MERGED,
+        NodeState.CLOSED,
+    }
+)
+
+
 class AutonomousGovernor:
     """Authoritative in-process execution state for AS-ORCH-AUTONOMY-001."""
 
@@ -337,6 +354,26 @@ class AutonomousGovernor:
         node = self._require_node(package_id)
         if node.state != NodeState.READY:
             raise GovernorError("node is not READY", code="NODE_NOT_READY")
+        # D-PHASE2A-1a: WorkNode.dependencies was accepted and stored by
+        # every layer (adapter, policy, materialize) but never actually
+        # enforced at the one place that grants real execution access --
+        # lease(). A node reaching READY does not itself mean its
+        # dependencies are satisfied (mark_ready() is a bare state
+        # transition; `plan()`'s WHAT_MUST_WAIT bucket already treats a
+        # READY node with outstanding dependencies as non-executable, but
+        # nothing stopped a direct lease() call from bypassing that
+        # advisory bucket entirely). This must fail closed HERE, at the
+        # grant boundary, for the same reason the owner-gate check above
+        # fails closed here rather than relying on a caller to have
+        # consulted `plan()` first. Unknown/untracked dependency ids are
+        # NOT assumed satisfied -- a dependency this governor instance has
+        # never seen is treated as unsatisfied, not as "not applicable".
+        unsatisfied = self._unsatisfied_dependencies(node)
+        if unsatisfied:
+            raise GovernorError(
+                f"unsatisfied dependencies: {', '.join(unsatisfied)}",
+                code="DEPENDENCIES_NOT_SATISFIED",
+            )
         if node.owner_gate is not None and node.owner_gate != OwnerGateKind.A_PROTECTED_MAIN_MERGE:
             # ORCHAUT-010 remediation round 2 (2026-08-28, independent-IV
             # finding): gate A already has its own dedicated, always-enforced
@@ -624,6 +661,26 @@ class AutonomousGovernor:
             if node.package_id == package_id:
                 return node
         raise GovernorError(f"unknown package {package_id}", code="UNKNOWN_NODE")
+
+    def _unsatisfied_dependencies(self, node: WorkNode) -> tuple[str, ...]:
+        """Return the subset of `node.dependencies` not yet satisfied.
+
+        A dependency id this governor instance has no WorkNode for at all
+        is treated as unsatisfied (fail closed) rather than skipped --
+        it may be tracked by a different, un-rehydrated governor instance,
+        and this method has no way to distinguish "genuinely done
+        elsewhere" from "never happened". See `_DEPENDENCY_SATISFIED_STATES`.
+        """
+        unsatisfied: list[str] = []
+        for dep_id in node.dependencies:
+            try:
+                dep_node = self._require_node(dep_id)
+            except GovernorError:
+                unsatisfied.append(dep_id)
+                continue
+            if dep_node.state not in _DEPENDENCY_SATISFIED_STATES:
+                unsatisfied.append(dep_id)
+        return tuple(unsatisfied)
 
     def _require_agent(self, agent_id: str) -> AgentRecord:
         for agent in self._agents:
