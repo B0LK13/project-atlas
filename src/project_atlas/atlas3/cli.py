@@ -64,6 +64,8 @@ from project_atlas.atlas3.timeline import compile_timeline
 from project_atlas.atlas3.transport import prove_transport_is_not_authority
 from project_atlas.atlas3.truth_graph import compile_truth_graph
 from project_atlas.atlas3.twin_health import compile_twin_health
+from project_atlas.validation import validate as _run_validate
+from project_atlas.validation import validation_exit_code as _validation_exit_code
 
 ATLAS3_COMMANDS = frozenset(
     {
@@ -71,6 +73,7 @@ ATLAS3_COMMANDS = frozenset(
         "start",
         "proof",
         "memory",
+        "validate-report",
         "capabilities",
         "compatibility",
         "inventory",
@@ -288,6 +291,22 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     )
     nodes.add_argument("--vault", type=Path, required=True)
     nodes.add_argument("--project", required=True)
+
+    validate_report = subparsers.add_parser(
+        "validate-report",
+        help=(
+            "Full aggregate `atlas validate` result as JSON -- every error, "
+            "warning, and info finding in one pass (DOGFOOD-004; additive; "
+            "does not change `atlas validate`'s own behavior or exit code "
+            "semantics). `atlas validate` already computes every finding "
+            "before deciding pass/fail; on failure it prints only the "
+            "blocking errors and suppresses accompanying warning/info "
+            "findings. This command prints the same underlying result "
+            "unfiltered, still exiting 1 on any error (AGGREGATE_REPORTING "
+            "!= IGNORE_ERRORS)."
+        ),
+    )
+    validate_report.add_argument("--vault", type=Path, required=True)
 
     caps = subparsers.add_parser(
         "capabilities",
@@ -558,6 +577,14 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "validate-report":
+            result = _run_validate(args.vault)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            # Canonical AS-H-010 severity->exit mapping -- the same function
+            # `atlas validate` itself uses -- not a re-derived `result["ok"]`
+            # check, so the two commands can never diverge on exit code even
+            # if validate()'s finding/error invariants ever change.
+            return _validation_exit_code(result)
         if command == "capabilities":
             return _dump(list_capabilities(), as_json=True)
         if command == "compatibility":
