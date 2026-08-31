@@ -30,6 +30,14 @@ from project_atlas.schema import SchemaValidationError, validate_record
 from project_atlas.source_identity import canonical_source_sha256
 
 LINK = re.compile(r"\]\(([^)]+)\)")
+# A fenced code block (``_quote_source_text``'s multi-line "source-excerpt"
+# shape: a fence line, verbatim content, a matching closing fence) or an
+# inline code span (one or more backticks, content, the same-length closing
+# run -- CommonMark's actual code-span rule, via the \1 backreference).
+# Content inside either renders as inert literal text, never a live link,
+# even when it contains a `](...)`-shaped substring.
+_FENCED_CODE_BLOCK = re.compile(r"^[ \t]*`{3,}[^\n]*\n.*?(?:^[ \t]*`{3,}[ \t]*$|\Z)", re.M | re.S)
+_INLINE_CODE_SPAN = re.compile(r"(`+)(?:(?!\1)[\s\S])*?\1")
 
 # AS-H-010 process exit codes for ``atlas validate`` (argparse usage remains 2).
 VALIDATION_EXIT_OK = 0
@@ -46,6 +54,27 @@ _ORPHAN_LAYER_ROOTS = frozenset({"projects", "01-portfolio"})
 _ORPHAN_EXCLUDED_ROOTS = frozenset(
     {"sources", "00-system", "templates", "state", "review", "receipts", "generated"}
 )
+
+
+def _mask_inert_markdown_regions(text: str) -> str:
+    """Replace fenced code blocks and inline code spans with equal-length
+    blank runs (never removing bytes -- character offsets used elsewhere in
+    ``text`` stay valid) so the link checker never mistakes a `](...)`-
+    shaped substring inside quoted, verbatim source content for a real
+    navigable Markdown link.
+
+    ``knowledge_compiler._quote_source_text`` deliberately renders untrusted
+    claim text inside a code span or fenced block specifically so embedded
+    Markdown (headings, links, directives) is inert, not live -- a single-
+    line claim value containing a same-directory relative link that was
+    valid at its *source* location (e.g. "Complements
+    [OPENAI-MCP-DESIGN.md](OPENAI-MCP-DESIGN.md).") is correctly rendered
+    as literal, non-navigable text once quoted; the previous unconditional
+    regex scan did not know that and reported it as broken. Content outside
+    any code span/fence is unaffected and still checked exactly as before.
+    """
+    masked = _FENCED_CODE_BLOCK.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+    return _INLINE_CODE_SPAN.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), masked)
 
 
 def validate(
@@ -77,7 +106,7 @@ def validate(
             # link resolution applies to generated layers only (AS-EXT-001A).
             continue
         text = markdown.read_text(encoding="utf-8")
-        for target in LINK.findall(text):
+        for target in LINK.findall(_mask_inert_markdown_regions(text)):
             if target.startswith(("http://", "https://", "#")):
                 continue
             candidate = (markdown.parent / target.split("#", 1)[0]).resolve()

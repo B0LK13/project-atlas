@@ -9754,3 +9754,58 @@ recovery independently re-verified PASS and merged via PR #638.)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`. Do not merge #654.
 - Exact-object IV/ADV on the new HEAD/TREE remains required before any
   owner merge consideration.
+
+## 2026-08-31 — generated broken-link finding reclassified; fixed outside the freeze
+
+- Context: the first authentic Atlas dogfood run's `atlas validate` failure
+  (`broken link: projects/project-atlas/claims.md -> OPENAI-MCP-DESIGN.md`)
+  was originally classified `GENERATED_PROJECTION_RELATIVE_LINK_REWRITE_DEFECT`,
+  with the suspected repair inside `knowledge_compiler.py` (DENY-listed,
+  no owner exception granted for it).
+- **Reclassification on closer reading**: the flagged claims.md line is
+  `` - `claim-...` **roadmap-status**: `**PROTOTYPE**. Complements
+  [OPENAI-MCP-DESIGN.md](OPENAI-MCP-DESIGN.md).` _(source: ...)_ `` -- the
+  entire claim value is inside ONE Markdown code span. That's
+  `knowledge_compiler._quote_source_text` working exactly as designed
+  ("Render untrusted source text as visibly inert Markdown ... prevents
+  source instructions from being rendered as ... executable-looking
+  directives"). A CommonMark-correct renderer shows the `[...]()` inside
+  that span as literal text, not a link -- there is no real navigable
+  link there, broken or otherwise. `knowledge_compiler.py` is not
+  defective and does not need to change.
+  The actual defect: `validation.py`'s link scan (`LINK.findall(text)`)
+  ran over raw file text with zero awareness of code-span/fenced-block
+  boundaries, so a `](...)`-shaped substring *inside* quoted, inert
+  content was indistinguishable from a real link.
+  `BROKEN_LINK_ROOT_CAUSE = VALIDATION_FALSE_POSITIVE_LINK_CHECK_IGNORES_CODE_SPANS`
+  (supersedes the original `GENERATED_PROJECTION_RELATIVE_LINK_REWRITE_DEFECT`
+  classification).
+- Per directive: "If a safe fix exists entirely outside frozen surfaces,
+  pursue it normally." `validation.py` is not on the `DENY` list in
+  `tests/unit/test_atlas3_demo_isolation_001.py` -- fixed there directly,
+  no owner exception needed or requested.
+- Fix: `_mask_inert_markdown_regions()` replaces fenced code blocks and
+  inline code spans with equal-length blank runs (byte-length-preserving,
+  so nothing downstream that might depend on offsets is disturbed) before
+  the link regex runs. Content outside any span/fence is scanned exactly
+  as before -- a genuine broken link is still caught (verified: injected
+  a real broken link into `index.md`, confirmed `atlas validate` still
+  fails on it after this fix).
+- Real CLI reproduction (not mocked): authentic-shaped fixture (a
+  same-directory relative link in a source doc, ingested into a claim)
+  reproduces the exact original failure pre-fix and passes post-fix,
+  confirmed via the actual `discover -> ingest -> build-indexes ->
+  validate` pipeline.
+- Tests: `tests/unit/test_validate_link_check_ignores_code_spans.py` (new,
+  9 tests) -- masking-function unit cases (inert single/double-backtick
+  spans, fenced blocks, a real link immediately adjacent to an inert one,
+  anchor/https links unaffected), the authentic reproduction via
+  `validate()` directly, a genuine-broken-link-still-caught regression,
+  and the full real-CLI pipeline reproduction. `ruff check .` clean
+  repo-wide; `mypy src` clean except the pre-existing, unrelated
+  `connect_perf.py` gap. `tests/unit/test_atlas3_demo_isolation_001.py`
+  passes trivially (no DENY-listed path touched).
+- `MERGE_AUTHORIZATION = NOT_GRANTED`. Branch
+  `fix/validate-link-check-ignores-code-spans` off `818dd140`, PR opened
+  for independent review -- not self-merged. Companion to `DOGFOOD-001`
+  (PR #656) and `DOGFOOD-004` (PR #657); does not depend on either.
