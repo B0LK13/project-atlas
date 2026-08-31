@@ -10047,3 +10047,24 @@ fixed a related input-validation gap the same pass found: a Windows
 drive-letter/UNC absolute `cwd` was not rejected at envelope construction
 (only later, at run time, with no actual launch bypass). 36/36 tests pass
 (was 30); freeze guard 23/23; ruff/mypy clean.
+
+**Second and third independent-verification rounds found the round-one
+fix still incomplete (real, fixed each time, not deferred):** (round 2)
+an already-dirty path further modified during the run was still
+invisible (membership-based diffing missed content changes) -- fixed by
+requiring a verified-clean worktree before any task starts; a gitignored
+forbidden file (e.g. `.env`) was invisible to the git-based scan -- fixed
+with a filesystem-direct content-hash snapshot of declared
+`forbidden_paths`; plus a scope-path normalization bug and a Windows
+env-var case-sensitivity bug (42/42 tests). (round 3) a task could commit
+on a throwaway branch or stash-and-leave-stashed to hide a forbidden
+change from the working-tree-only diff -- fixed by walking every commit
+reachable from any ref (`git rev-list --all --not <baseline>`, which
+includes `refs/stash`); the `authorized_paths` side of enforcement had
+the same gitignore blind spot as `forbidden_paths` did in round 2 --
+fixed with an existence-only ignored-path scan; and the round-2 content
+snapshot dereferenced symlinks with no size bound, a resource-exhaustion
+risk against this module's own post-run audit step -- fixed by
+fingerprinting symlinks by their link-target text instead of opening
+them, plus an 8MiB read cap on regular files (48/48 tests). Freeze guard
+23/23 and ruff/mypy clean throughout every round.
