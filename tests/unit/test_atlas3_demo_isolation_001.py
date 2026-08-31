@@ -57,7 +57,7 @@ _OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
         "reason": "authentic first-run P1 source-safety remediation (PR #656)",
         "path": "src/project_atlas/ingestion.py",
         "allowed_sha256": (
-            "4f7ea9255c549009371434095f7e84e6bc61f3fb8930972c7f9791d3cc057163"
+            "e8d779a8ab2fe0b4327ae9cf8cae115f2a793eb96eb35e8b0024b6ee085168ef"
         ),
     },
 )

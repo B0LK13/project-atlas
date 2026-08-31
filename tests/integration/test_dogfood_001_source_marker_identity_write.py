@@ -212,6 +212,28 @@ def test_crlf_marker_appends_with_crlf(tmp_path: Path) -> None:
     assert tail == f"project_uuid: {project_uuid}\r\n".encode()
 
 
+def test_explicit_null_placeholder_is_replaced_not_duplicated(tmp_path: Path) -> None:
+    # data.get("project_uuid") is None for BOTH a genuinely absent key and
+    # an explicit `project_uuid: null` placeholder line. Appending a second
+    # `project_uuid:` line in the latter case would produce ambiguous
+    # duplicate-key YAML (PyYAML's own last-wins reading happens to still
+    # resolve it correctly, but stricter YAML consumers reject duplicate
+    # keys outright) -- the existing line must be replaced in place instead.
+    marker_text = "schema_version: 1\nproject:\n  id: fixture-nullplaceholder\nproject_uuid: null\n"
+    source = _fixture(tmp_path, marker_text=marker_text)
+    marker = source / ".atlas-project.yaml"
+
+    result = _ingest(source, tmp_path / "vault", tmp_path)
+
+    after = marker.read_text(encoding="utf-8")
+    assert result["identity_allocated"] == ["fixture-nullplaceholder"]
+    assert after.count("project_uuid:") == 1, after
+    parsed = yaml.safe_load(after)
+    assert uuid.UUID(str(parsed["project_uuid"])).version == 4
+    # Every other line is untouched -- only the one project_uuid line changed.
+    assert after.startswith("schema_version: 1\nproject:\n  id: fixture-nullplaceholder\n")
+
+
 @pytest.mark.parametrize(
     "case_id,marker_text,project_id",
     [
