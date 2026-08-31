@@ -321,13 +321,15 @@ def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     unmoving commit's tree against the *current working tree*, regardless
     of where ``HEAD`` points by the time this runs -- a committed change
     still shows up as a difference from the pre-run baseline, closing
-    that bypass. (A process that commits and then discards its own commit
-    via ``git reset --hard <baseline>`` before exiting can still erase
-    its tracks from this working-tree-vs-baseline comparison, same as it
-    could erase them from a live-``HEAD`` comparison or from disk
-    directly -- that residual gap is a git-history-forensics problem, not
-    something a single working-tree-vs-baseline diff can close, and is
-    out of scope for this module's stated design.)
+    that bypass.
+
+    This function alone only sees the *current working tree*, so it does
+    NOT by itself catch a process that commits on a throwaway branch (or
+    stash) and then returns the original branch and working tree to
+    their pre-run state -- see ``_reachable_commit_changed_paths()``,
+    called alongside this one in ``run_local_task()``, which closes that
+    class of evasion by walking every commit reachable from *any* ref
+    (not just the current branch), not only the live working tree.
 
     ``git ls-files --others --exclude-standard`` deliberately excludes
     gitignored paths (the normal, desired behavior for "what would a
@@ -335,11 +337,125 @@ def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     for ``forbidden_paths`` enforcement -- see
     ``_forbidden_path_content_snapshot()``, which checks declared
     forbidden paths directly against the filesystem, independent of git
-    tracking/ignore status entirely.
+    tracking/ignore status entirely -- nor, by itself, for
+    ``authorized_paths`` enforcement -- see ``_ignored_untracked_paths()``,
+    called alongside this one in ``run_local_task()``, which additionally
+    catches a *new* gitignored path created anywhere, closing the same
+    blind spot for the "did this task stay within its authorized scope"
+    check, not only the forbidden-path check.
     """
     tracked = _run_git(["diff", "--name-only", baseline_sha], cwd=repo_root)
     untracked = _run_git(["ls-files", "--others", "--exclude-standard"], cwd=repo_root)
     return frozenset((*tracked, *untracked))
+
+
+def _ignored_untracked_paths(repo_root: Path) -> frozenset[str]:
+    """Every currently-existing untracked path, INCLUDING gitignored ones
+    -- unlike ``_git_changed_paths()``'s own untracked listing, which
+    passes ``--exclude-standard`` specifically to mirror ordinary ``git
+    status`` output. Used only for a before/after SET-difference (see
+    ``run_local_task``) to detect a newly-created ignored path.
+
+    IV finding (PR #661 review, round 3): the ``OUTSIDE_AUTHORIZED_SCOPE``
+    half of enforcement relied solely on ``_git_changed_paths()``, which
+    excludes gitignored paths entirely -- a task that created a brand-new
+    gitignored file *outside every declared* ``authorized_paths``/
+    ``forbidden_paths`` entry (e.g. an ad hoc ``.log`` or cache file
+    sitting at the repo root, gitignored by a wildcard rule that was
+    never meant to hide anything security-relevant) was completely
+    invisible to enforcement -- ``authority_clean=True`` with the file
+    left on disk.
+
+    A before/after SET-difference is safe here specifically because this
+    only tracks pure path *existence*, never content: a path present in
+    both snapshots is unambiguously "already existed, not new" -- there
+    is no membership-vs-content subtlety to exploit the way there was for
+    git's own dirty-status tracking (which is exactly why
+    ``_require_clean_worktree()`` requires a clean start for the
+    git-tracked side, but a set-difference remains sound here). This
+    mirrors ``_forbidden_path_content_snapshot()``'s bounded, filesystem-
+    direct approach rather than trying to force ``_git_changed_paths()``
+    itself to somehow cover both cases.
+
+    Residual, disclosed limitation (same class as the ``git reset --hard``
+    case): a gitignored path that already existed unchanged before the
+    task ran, then has its *content* modified during the run, is not
+    caught by this existence-only set-difference unless it also falls
+    under a declared ``forbidden_paths`` entry (which IS content-hashed,
+    not just existence-checked) -- closing that fully in general would
+    require content-hashing every gitignored path in the repository on
+    every run (e.g. an entire ``.venv``/``node_modules`` tree), which is
+    not a proportionate cost for this module's stated design.
+    """
+    result = subprocess.run(
+        ["git", "ls-files", "--others"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return frozenset(
+        line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()
+    )
+
+
+def _reachable_commit_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
+    """Every path changed by any commit that now exists *anywhere* in the
+    repository's ref graph -- any branch, any tag, and ``refs/stash`` --
+    that did not exist before the task ran, relative to the fixed
+    ``baseline_sha``.
+
+    IV finding (PR #661 review): ``_git_changed_paths()`` alone only sees
+    the current working tree, so a launched process that commits its own
+    forbidden-path change on a throwaway branch (``git checkout -b tmp &&
+    ... && git commit ... && git checkout -``) or as a stash entry
+    (``git stash push``), then returns the original branch and working
+    tree to their exact pre-run state, left nothing for a working-tree
+    diff to see -- even though the change survives as a real, ref-
+    reachable commit object (visible to a human via ``git branch -a`` or
+    ``git stash list``). ``git rev-list --all --not <baseline_sha>``
+    walks every ref (``--all`` includes ``refs/stash``, not only regular
+    branches/tags), listing every commit reachable from some ref but not
+    from the baseline -- closing both the branch-switch-and-return and
+    stash-and-leave-stashed evasions with one general mechanism, not two
+    special cases bolted on separately.
+
+    Does NOT catch a commit made unreachable from every ref before the
+    process exits (``git reset --hard <baseline>`` after committing, or
+    an explicit ``git branch -D``/``git stash drop``) -- a ref-less,
+    orphaned commit object requires reflog/dangling-object forensics to
+    find, which is a materially harder, more deliberate evasion than an
+    ordinary ``checkout -b``/``stash push`` and remains this module's one
+    disclosed residual limitation.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", "--all", "--not", baseline_sha],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.CalledProcessError:
+        return frozenset()
+    new_commits = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    changed: set[str] = set()
+    for commit_sha in new_commits:
+        changed.update(_run_git(["diff", "--name-only", baseline_sha, commit_sha], cwd=repo_root))
+    return frozenset(changed)
+
+
+#: A forbidden-path file larger than this is hashed only up to the cap
+#: (plus its total size, folded into the digest) -- IV finding (PR #661
+#: review, round 3): reading an entire file with no size bound gave a
+#: task a way to make this module's own post-run audit step -- which
+#: runs synchronously, in-process, after the child's own timeout has
+#: already elapsed -- read/hash an arbitrarily large or slow target
+#: (see the symlink note below), a resource-exhaustion risk against the
+#: orchestrator itself, not against the sandboxed task.
+_MAX_FORBIDDEN_PATH_HASH_BYTES = 8 * 1024 * 1024
 
 
 def _forbidden_path_content_snapshot(
@@ -357,6 +473,23 @@ def _forbidden_path_content_snapshot(
     verdict. Checking the declared forbidden paths directly against the
     filesystem closes this regardless of whether git would ever track or
     ignore them.
+
+    IV finding (PR #661 review, round 3): a symlink planted under a
+    declared forbidden directory could previously point *outside the
+    repository entirely* and would be transparently dereferenced by
+    ``read_bytes()`` -- correct for detection (the symlink's target
+    content changing was still caught), but it meant a task could make
+    this audit step read an arbitrary external path with no bound. A
+    symlinked *directory* is a further version of the same risk:
+    ``Path.rglob()`` follows symlinked directories by default, which
+    could walk this audit step into an arbitrarily large or slow
+    external tree. Neither a symlinked file nor a symlinked directory is
+    ever dereferenced here (``os.walk(..., followlinks=False)``,
+    ``os.path.islink()`` checked before ever opening anything) -- each is
+    fingerprinted by its own link-target text instead, so creating,
+    removing, or repointing a symlink under a forbidden path is still
+    always a detected change, without this audit step ever opening
+    whatever it points to.
     """
     snapshot: dict[str, str] = {}
     for entry in forbidden_paths:
@@ -365,14 +498,46 @@ def _forbidden_path_content_snapshot(
         if not base.is_relative_to(repo_root):
             continue  # scope-path validator already rejects traversal; defensive only
         if is_dir_prefix:
-            if base.is_dir():
-                for file_path in sorted(base.rglob("*")):
-                    if file_path.is_file():
-                        rel = file_path.relative_to(repo_root).as_posix()
-                        snapshot[rel] = digest_bytes(file_path.read_bytes())
+            if base.is_dir() and not base.is_symlink():
+                for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
+                    dirnames.sort()
+                    for name in sorted(dirnames):
+                        link_path = Path(dirpath) / name
+                        if link_path.is_symlink():
+                            _snapshot_symlink(link_path, repo_root, snapshot)
+                    for name in sorted(filenames):
+                        _snapshot_leaf(Path(dirpath) / name, repo_root, snapshot)
+        elif base.is_symlink():
+            _snapshot_symlink(base, repo_root, snapshot)
         elif base.is_file():
-            snapshot[entry] = digest_bytes(base.read_bytes())
+            _snapshot_leaf(base, repo_root, snapshot)
     return snapshot
+
+
+def _snapshot_symlink(link_path: Path, repo_root: Path, snapshot: dict[str, str]) -> None:
+    rel = link_path.relative_to(repo_root).as_posix()
+    try:
+        target = os.readlink(link_path)
+    except OSError:
+        target = "<unreadable>"
+    snapshot[rel] = f"SYMLINK:{digest_bytes(target.encode('utf-8', 'surrogateescape'))}"
+
+
+def _snapshot_leaf(file_path: Path, repo_root: Path, snapshot: dict[str, str]) -> None:
+    if file_path.is_symlink():
+        _snapshot_symlink(file_path, repo_root, snapshot)
+        return
+    if not file_path.is_file():
+        return
+    rel = file_path.relative_to(repo_root).as_posix()
+    try:
+        size = file_path.stat().st_size
+        with file_path.open("rb") as handle:
+            head = handle.read(_MAX_FORBIDDEN_PATH_HASH_BYTES)
+    except OSError:
+        snapshot[rel] = "UNREADABLE"
+        return
+    snapshot[rel] = digest_bytes(head) + f":{size}"
 
 
 def _matches_scope(path: str, patterns: tuple[str, ...]) -> bool:
@@ -520,6 +685,10 @@ def run_local_task(
     # _forbidden_path_content_snapshot's docstring for the gitignored-file
     # bypass this closes.
     forbidden_before = _forbidden_path_content_snapshot(resolved_root, envelope.forbidden_paths)
+    # Existence snapshot of every ignored path (see
+    # _ignored_untracked_paths's docstring for the authorized_paths-side
+    # gitignored-file bypass this closes).
+    ignored_before = _ignored_untracked_paths(resolved_root)
 
     request = ProcessRunRequest(
         argv=envelope.argv,
@@ -531,7 +700,12 @@ def run_local_task(
     active_runner: ProcessRunner = runner if runner is not None else SubprocessProcessRunner()
     outcome: ProcessRunOutcome = active_runner.run(request)
 
-    new_paths = _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
+    new_ignored_paths = _ignored_untracked_paths(resolved_root) - ignored_before
+    new_paths = (
+        _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
+        | _reachable_commit_changed_paths(resolved_root, baseline_sha=baseline_sha)
+        | new_ignored_paths
+    )
     forbidden_after = _forbidden_path_content_snapshot(resolved_root, envelope.forbidden_paths)
     violations = _enforce_authority(
         new_paths,

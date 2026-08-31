@@ -404,6 +404,60 @@ def test_i_self_commit_by_the_launched_process_does_not_evade_detection(
     assert reasons.get(".github_workflow_tamper.txt") == "FORBIDDEN_PATH"
 
 
+def test_i_branch_switch_and_return_does_not_evade_detection(tmp_path: Path) -> None:
+    """IV finding (PR #661 review, round 3): a launched process that
+    commits its own forbidden-path change on a THROWAWAY BRANCH, then
+    returns to the original branch (leaving the working tree and current
+    branch exactly as they started), left nothing for a working-tree-only
+    diff to see -- even though the change survives as a real, ref-
+    reachable commit any `git branch -a` would show. Must still be
+    caught."""
+    repo = _make_repo(tmp_path)
+    envelope = LocalTaskEnvelope(
+        work_id="I-006",
+        argv=(
+            sys.executable,
+            "-c",
+            "import subprocess; "
+            "subprocess.run(['git', 'checkout', '-q', '-b', 'tmp-evasion'], check=True); "
+            "open('.github_workflow_tamper.txt', 'w').write('bad\\n'); "
+            "subprocess.run(['git', 'add', '-A'], check=True); "
+            "subprocess.run(['git', '-c', 'commit.gpgsign=false', 'commit', "
+            "'-q', '-m', 'hidden on throwaway branch'], check=True); "
+            "subprocess.run(['git', 'checkout', '-q', '-'], check=True)",
+        ),
+        forbidden_paths=(".github_workflow_tamper.txt",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.exit_code == 0
+    assert result.authority_clean is False
+    reasons = {v.path: v.reason for v in result.violations}
+    assert reasons.get(".github_workflow_tamper.txt") == "FORBIDDEN_PATH"
+
+
+def test_i_stash_and_leave_stashed_does_not_evade_detection(tmp_path: Path) -> None:
+    """IV finding (PR #661 review, round 3): `git stash push -u` restores
+    a clean working tree while leaving the change recoverable from the
+    stash -- must still be caught, not just the branch-commit variant."""
+    repo = _make_repo(tmp_path)
+    envelope = LocalTaskEnvelope(
+        work_id="I-007",
+        argv=(
+            sys.executable,
+            "-c",
+            "import subprocess; "
+            "open('.github_workflow_tamper.txt', 'w').write('bad\\n'); "
+            "subprocess.run(['git', 'stash', 'push', '-u', '-m', 'hide it'], check=True)",
+        ),
+        forbidden_paths=(".github_workflow_tamper.txt",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.exit_code == 0
+    assert result.authority_clean is False
+    reasons = {v.path: v.reason for v in result.violations}
+    assert reasons.get(".github_workflow_tamper.txt") == "FORBIDDEN_PATH"
+
+
 def test_h_preexisting_dirty_state_fails_closed_before_starting(
     tmp_path: Path,
 ) -> None:
@@ -468,8 +522,36 @@ def test_i_gitignored_forbidden_file_still_detected(tmp_path: Path) -> None:
     assert result.authority_clean is False
     reasons = {v.path: v.reason for v in result.violations}
     assert reasons.get(".env") == "FORBIDDEN_PATH"
-    # And confirm it really was invisible to the plain git scan, proving
-    # the filesystem-direct check is doing real, necessary work here.
+
+
+def test_i_preexisting_gitignored_forbidden_file_modification_is_still_detected(
+    tmp_path: Path,
+) -> None:
+    """A gitignored forbidden file that already EXISTED (unchanged)
+    before the task ran, then gets its content modified during the run,
+    is a case the round-3 existence-only ignored-path scan alone cannot
+    catch (the path isn't new) -- this is specifically what
+    _forbidden_path_content_snapshot()'s content hashing exists for."""
+    repo = _make_repo(tmp_path)
+    (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
+    (repo / ".env").write_text("SECRET=original\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "add gitignore + .env"],
+        cwd=repo,
+        check=True,
+    )
+    envelope = LocalTaskEnvelope(
+        work_id="I-011",
+        argv=(sys.executable, "-c", "open('.env', 'w').write('SECRET=tampered\\n')"),
+        forbidden_paths=(".env",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is False
+    reasons = {v.path: v.reason for v in result.violations}
+    assert reasons.get(".env") == "FORBIDDEN_PATH"
+    # Not new (it already existed), so the existence-only ignored-path
+    # scan alone would not have seen it -- only the content-hash check.
     assert ".env" not in result.changed_paths
 
 
@@ -495,6 +577,90 @@ def test_i_gitignored_forbidden_directory_contents_still_detected(tmp_path: Path
     result = run_local_task(envelope, ENABLED, project_root=repo)
     assert result.authority_clean is False
     assert any(v.path == "secrets/token.txt" for v in result.violations)
+
+
+def test_i_new_gitignored_file_outside_authorized_scope_is_still_detected(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #661 review, round 3): the OUTSIDE_AUTHORIZED_SCOPE
+    half of enforcement relied solely on the git-based scan, which
+    excludes gitignored paths entirely -- a task creating a brand-new
+    gitignored file entirely outside every declared authorized_paths/
+    forbidden_paths entry (not just inside a declared forbidden path)
+    was completely invisible, returning a clean verdict with the file
+    left on disk. Must now be caught via the existence-only ignored-path
+    scan."""
+    repo = _make_repo(tmp_path)
+    (repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "add gitignore"],
+        cwd=repo,
+        check=True,
+    )
+    envelope = LocalTaskEnvelope(
+        work_id="I-008",
+        argv=(sys.executable, "-c", "open('sneaky_exfil.log', 'w').write('leaked\\n')"),
+        authorized_paths=("src/",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is False
+    assert any(v.path == "sneaky_exfil.log" for v in result.violations)
+
+
+def test_i_preexisting_gitignored_cruft_is_not_a_false_positive(tmp_path: Path) -> None:
+    """Pre-existing gitignored files (ordinary build artifacts, present
+    before the task ever ran) must never themselves be flagged -- only
+    genuinely NEW ignored paths are attributed to the task."""
+    repo = _make_repo(tmp_path)
+    (repo / ".gitignore").write_text("*.log\n", encoding="utf-8")
+    (repo / "already_here.log").write_text("pre-existing cruft\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "add gitignore + cruft"],
+        cwd=repo,
+        check=True,
+    )
+    envelope = LocalTaskEnvelope(
+        work_id="I-009",
+        argv=(sys.executable, "-c", "open('src/compliant.py', 'w').write('ok\\n')"),
+        authorized_paths=("src/",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is True
+    assert "already_here.log" not in result.changed_paths
+
+
+def test_i_forbidden_symlink_is_detected_without_dereferencing_target(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #661 review, round 3): a symlink under a declared
+    forbidden path previously would have its TARGET dereferenced and
+    read with no bound -- a task could point it at an arbitrarily large
+    or slow external path, risking resource exhaustion of this module's
+    own synchronous, in-process post-run audit step. A symlink is now
+    fingerprinted by its own link-target text, never opened. Detection
+    must still work -- creating a symlink under a forbidden path is
+    itself flagged."""
+    repo = _make_repo(tmp_path)
+    outside_target = tmp_path / "outside_the_repo.txt"
+    outside_target.write_text("not part of this repo\n", encoding="utf-8")
+    envelope = LocalTaskEnvelope(
+        work_id="I-010",
+        argv=(
+            sys.executable,
+            "-c",
+            "import os; os.makedirs('secrets', exist_ok=True); "
+            f"os.symlink({str(outside_target)!r}, 'secrets/link_out.txt')",
+        ),
+        forbidden_paths=("secrets/",),
+    )
+    try:
+        result = run_local_task(envelope, ENABLED, project_root=repo)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted in this environment")
+    assert result.authority_clean is False
+    assert any(v.path == "secrets/link_out.txt" for v in result.violations)
 
 
 def test_i_out_of_scope_but_not_forbidden_path_is_still_flagged(tmp_path: Path) -> None:
