@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -35,6 +36,51 @@ DENY = (
     "src/project_atlas/bitemporal.py",
     "src/project_atlas/conversation_capture.py",
 )
+
+# Owner-approved narrow exceptions to the freeze above (SS9.1 of
+# docs/atlas-3/ARCHITECTURE.md). This is NOT a path allowlist: each entry
+# is pinned to the *exact*, reviewed content of one file by sha256. Any
+# further edit -- even one byte, even by the same PR -- changes the hash
+# and the guard fires again for that path. An exception never widens to
+# cover a different path, a different diff, or a later PR; there is no
+# generic "this file is now unfrozen" mechanism here, only ever a specific
+# reviewed byte sequence for a specific, named, owner-approved reason.
+#
+# Do not add an entry here without an explicit owner grant recorded in
+# WORKLOG.md; do not extend an existing entry's scope beyond its recorded
+# reason; do not use this mechanism to work around a failing guard on an
+# unreviewed change.
+_OWNER_APPROVED_EXCEPTIONS: tuple[dict[str, str], ...] = (
+    {
+        "exception_id": "DOGFOOD-001",
+        "owner_approved": "YES",
+        "reason": "authentic first-run P1 source-safety remediation (PR #656)",
+        "path": "src/project_atlas/ingestion.py",
+        "allowed_sha256": (
+            "e8d779a8ab2fe0b4327ae9cf8cae115f2a793eb96eb35e8b0024b6ee085168ef"
+        ),
+    },
+)
+
+
+def _owner_approved_exception_permits(
+    path: str, *, root: Path, exceptions: tuple[dict[str, str], ...] = _OWNER_APPROVED_EXCEPTIONS
+) -> bool:
+    """True only if an owner-approved exception names `path` AND the file's
+    *current* content at `root` matches that exception's pinned, exact
+    reviewed sha256. Anything else -- a different path, a missing file, a
+    hash mismatch from ANY further edit -- returns False, and the caller
+    treats `path` as a real, unexcepted violation."""
+    target = root / path
+    if not target.is_file():
+        return False
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    return any(
+        exc.get("path") == path
+        and exc.get("owner_approved") == "YES"
+        and digest == exc.get("allowed_sha256")
+        for exc in exceptions
+    )
 
 
 class DemoIsolationGuardError(RuntimeError):
@@ -351,7 +397,11 @@ def test_certified_surfaces_unmodified() -> None:
         changed = _changed_paths()
     except DemoIsolationGuardNotApplicable as exc:
         pytest.skip(str(exc))
-    violated = sorted(path for path in DENY if path in changed)
+    violated = sorted(
+        path
+        for path in DENY
+        if path in changed and not _owner_approved_exception_permits(path, root=ROOT)
+    )
     assert violated == []
 
 
@@ -382,6 +432,184 @@ def test_cli_mutation_is_additive_only() -> None:
     source = (ROOT / "src" / "project_atlas" / "cli.py").read_text(encoding="utf-8")
     for command in ("connect", "ask2", "kdiff", "brief", "capture"):
         assert f'"{command}"' in source or f"'{command}'" in source
+
+
+# ---------------------------------------------------------------------------
+# Owner-approved exceptions must be narrow: pinned to one exact reviewed
+# byte sequence, never a path allowlist, never transferable to another
+# path or another diff. These use a throwaway `_owner_approved_exception_permits`
+# call with a synthetic exceptions tuple (never the real
+# `_OWNER_APPROVED_EXCEPTIONS`), so they stay valid regardless of what
+# `ingestion.py` legitimately contains after DOGFOOD-001 lands or after
+# `FULL_LIVE_DEMO_READY` eventually lifts the freeze entirely.
+# ---------------------------------------------------------------------------
+
+
+def test_exception_permits_only_the_exact_pinned_content(tmp_path: Path) -> None:
+    target = tmp_path / "src" / "project_atlas" / "ingestion.py"
+    target.parent.mkdir(parents=True)
+    approved_content = b"# approved DOGFOOD-001 content\n"
+    target.write_bytes(approved_content)
+    exceptions = (
+        {
+            "exception_id": "DOGFOOD-001",
+            "owner_approved": "YES",
+            "reason": "test fixture",
+            "path": "src/project_atlas/ingestion.py",
+            "allowed_sha256": hashlib.sha256(approved_content).hexdigest(),
+        },
+    )
+
+    assert _owner_approved_exception_permits(
+        "src/project_atlas/ingestion.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_exception_does_not_survive_any_further_edit(tmp_path: Path) -> None:
+    """A future PR touching ingestion.py must not automatically inherit
+    DOGFOOD-001 permission -- not even by one byte."""
+    target = tmp_path / "src" / "project_atlas" / "ingestion.py"
+    target.parent.mkdir(parents=True)
+    approved_content = b"# approved DOGFOOD-001 content\n"
+    exceptions = (
+        {
+            "exception_id": "DOGFOOD-001",
+            "owner_approved": "YES",
+            "reason": "test fixture",
+            "path": "src/project_atlas/ingestion.py",
+            "allowed_sha256": hashlib.sha256(approved_content).hexdigest(),
+        },
+    )
+    target.write_bytes(approved_content + b"# one more unreviewed line\n")
+
+    assert not _owner_approved_exception_permits(
+        "src/project_atlas/ingestion.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_exception_does_not_cover_a_different_deny_listed_path(tmp_path: Path) -> None:
+    """An exception for ingestion.py must not blanket-permit any other
+    DENY-listed surface, even an untouched, byte-identical one."""
+    approved_content = b"# approved DOGFOOD-001 content\n"
+    ingestion = tmp_path / "src" / "project_atlas" / "ingestion.py"
+    ingestion.parent.mkdir(parents=True)
+    ingestion.write_bytes(approved_content)
+    other = tmp_path / "src" / "project_atlas" / "discovery.py"
+    other.write_bytes(approved_content)  # byte-identical content, different path
+    exceptions = (
+        {
+            "exception_id": "DOGFOOD-001",
+            "owner_approved": "YES",
+            "reason": "test fixture",
+            "path": "src/project_atlas/ingestion.py",
+            "allowed_sha256": hashlib.sha256(approved_content).hexdigest(),
+        },
+    )
+
+    assert _owner_approved_exception_permits(
+        "src/project_atlas/ingestion.py", root=tmp_path, exceptions=exceptions
+    )
+    assert not _owner_approved_exception_permits(
+        "src/project_atlas/discovery.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_exception_without_owner_approval_flag_permits_nothing(tmp_path: Path) -> None:
+    """A registry entry missing the explicit owner_approved=YES marker must
+    never be treated as a live exception -- guards against a future entry
+    being added with the grant recorded elsewhere (or not at all)."""
+    approved_content = b"# content\n"
+    target = tmp_path / "src" / "project_atlas" / "ingestion.py"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(approved_content)
+    exceptions = (
+        {
+            "exception_id": "UNAPPROVED",
+            "reason": "no owner sign-off recorded",
+            "path": "src/project_atlas/ingestion.py",
+            "allowed_sha256": hashlib.sha256(approved_content).hexdigest(),
+        },
+    )
+
+    assert not _owner_approved_exception_permits(
+        "src/project_atlas/ingestion.py", root=tmp_path, exceptions=exceptions
+    )
+
+
+def test_real_dogfood_001_exception_is_currently_live_or_absent_honestly() -> None:
+    """Sanity check against the real registry and the real checkout: either
+    the pinned hash matches the file currently on disk (the exception is
+    live), or it doesn't (the exception is inert and the guard is fully
+    load-bearing for ingestion.py again) -- never an exception mechanically
+    incapable of ever matching anything (e.g. an empty/placeholder hash)."""
+    assert len(_OWNER_APPROVED_EXCEPTIONS) >= 1
+    for exc in _OWNER_APPROVED_EXCEPTIONS:
+        assert exc["owner_approved"] == "YES"
+        assert exc["exception_id"]
+        assert exc["reason"]
+        assert exc["path"] in DENY, "an exception must name a real DENY-listed path"
+        assert len(exc["allowed_sha256"]) == 64
+        int(exc["allowed_sha256"], 16)  # must be real hex, not a placeholder
+
+
+def test_end_to_end_exception_gate_via_pr_event_shas(tmp_path: Path) -> None:
+    """Exercises the real `_changed_paths` + exception-gate combination
+    (mirroring `test_certified_surfaces_unmodified`'s own logic) against a
+    synthetic PR event, on a throwaway repo -- never the real checkout."""
+    repo = _init_fixture_repo(tmp_path)
+    base_sha = _run_git(["rev-parse", "HEAD"], cwd=repo).strip()
+    ingestion = repo / "src" / "project_atlas" / "ingestion.py"
+    ingestion.parent.mkdir(parents=True)
+    approved_content = b"# reviewed DOGFOOD-001-shaped change\n"
+    ingestion.write_bytes(approved_content)
+    _run_git(["add", "-A"], cwd=repo)
+    _run_git(["commit", "-q", "-m", "dogfood-001-shaped change"], cwd=repo)
+    head_sha = _run_git(["rev-parse", "HEAD"], cwd=repo).strip()
+    event_path = _write_event_payload(tmp_path, base_sha=base_sha, head_sha=head_sha)
+    env = {"GITHUB_EVENT_NAME": "pull_request", "GITHUB_EVENT_PATH": str(event_path)}
+    exceptions = (
+        {
+            "exception_id": "DOGFOOD-001",
+            "owner_approved": "YES",
+            "reason": "test fixture",
+            "path": "src/project_atlas/ingestion.py",
+            "allowed_sha256": hashlib.sha256(approved_content).hexdigest(),
+        },
+    )
+
+    changed = _changed_paths(root=repo, env=env)
+    assert "src/project_atlas/ingestion.py" in changed
+
+    # With the matching exception: not a violation.
+    violated_with_exception = sorted(
+        path
+        for path in DENY
+        if path in changed
+        and not _owner_approved_exception_permits(path, root=repo, exceptions=exceptions)
+    )
+    assert violated_with_exception == []
+
+    # With no exception at all: a real, unexcepted violation.
+    violated_without_exception = sorted(
+        path
+        for path in DENY
+        if path in changed and not _owner_approved_exception_permits(path, root=repo, exceptions=())
+    )
+    assert violated_without_exception == ["src/project_atlas/ingestion.py"]
+
+    # Same content, but the exception is pinned to different bytes (as if
+    # someone edited the file after review, or copied the exception onto a
+    # different unreviewed change): a real, unexcepted violation again.
+    stale_exceptions = (
+        {**exceptions[0], "allowed_sha256": hashlib.sha256(b"different content\n").hexdigest()},
+    )
+    violated_with_stale_exception = sorted(
+        path
+        for path in DENY
+        if path in changed
+        and not _owner_approved_exception_permits(path, root=repo, exceptions=stale_exceptions)
+    )
+    assert violated_with_stale_exception == ["src/project_atlas/ingestion.py"]
 
 
 # ---------------------------------------------------------------------------

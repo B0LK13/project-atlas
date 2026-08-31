@@ -63,6 +63,7 @@ from project_atlas.orchestration.autonomy.lease_projection import (
     ProjectionError,
     active_rows,
     load_projection,
+    reap_orphaned_lease_releases,
 )
 from project_atlas.orchestration.autonomy.loop import LoopError, LoopPhase, load_loop_state
 from project_atlas.orchestration.autonomy.models import (
@@ -155,6 +156,24 @@ def rehydrate_governor(
             f"execution progressed before the prior process exited",
             code="EXECUTION_STATE_NOT_REHYDRATABLE",
         )
+
+    # AUTONOMY_PROJECTION_ERROR_RECOVERY_BOUNDARY (post-#654 follow-up):
+    # heal any lease this exact loop already durably proved complete
+    # (``completed_lease_ids``) whose projection row never made it to
+    # RELEASED -- independent of the current phase, since the stranded
+    # lease can be an arbitrarily old entry in that history, unrelated to
+    # whatever phase this rehydration is otherwise handling. Runs BEFORE
+    # ``_originate()`` (independent-verification finding): that call
+    # takes its own ``load_projection()`` snapshot to build
+    # ``active_ids``/``released_revisions`` for CERTIFIED-witness
+    # dependency exposure -- reaping first means a dependent blocked on
+    # the just-healed lease becomes visible THIS tick, not one full
+    # rehydration later (still safe either order: ``select_next()``'s
+    # missing-dependency check fails closed in the interim regardless).
+    try:
+        reap_orphaned_lease_releases(lease_projection_store, loop_state.completed_lease_ids)
+    except ProjectionError as exc:
+        raise RehydrationError(str(exc), code=exc.code) from exc
 
     newly_discovered, report = _originate(
         governor,
