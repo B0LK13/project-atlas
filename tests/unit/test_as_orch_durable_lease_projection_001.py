@@ -451,7 +451,14 @@ def test_reap_survives_real_lock_contention_then_retries_to_completion(
     def _hold_lock() -> None:
         with ProjectIdentityLock(lock_path, wait_seconds=2.0, stale_seconds=30.0):
             holder_ready.set()
-            release_holder.wait(timeout=10.0)
+            # Codex/Copilot review finding on PR #658: a short timeout
+            # here could let the lock clear before the contended call
+            # below ever attempts its own acquisition on a slow/loaded
+            # runner, silently turning off the contention this test
+            # exists to prove. Wait indefinitely -- the `finally` block
+            # below always calls release_holder.set(), and this is a
+            # daemon thread, so it can never hang test teardown.
+            release_holder.wait()
 
     holder = threading.Thread(target=_hold_lock, daemon=True)
     holder.start()

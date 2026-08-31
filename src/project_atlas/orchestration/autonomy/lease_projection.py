@@ -383,7 +383,19 @@ def reap_orphaned_lease_releases(
     if not completed_lease_ids:
         return ()
     projection = load_projection(store)  # STATE_CORRUPT propagates, by design
-    by_id = {row.lease_id: row for row in projection.leases}
+    by_id: dict[str, ProjectedLease] = {}
+    for existing_row in projection.leases:
+        if existing_row.lease_id in by_id:
+            # Codex/Copilot review finding on PR #658: a plain dict
+            # comprehension would silently keep only the LAST duplicate
+            # and drop the rest -- for a fail-closed-on-corruption
+            # function, picking an arbitrary row instead of detecting
+            # the corruption is exactly the wrong default.
+            raise ProjectionError(
+                f"duplicate lease_id {existing_row.lease_id!r} in projection",
+                code="STATE_CORRUPT",
+            )
+        by_id[existing_row.lease_id] = existing_row
     reaped: list[str] = []
     for lease_id in completed_lease_ids:
         row = by_id.get(lease_id)
@@ -394,7 +406,7 @@ def reap_orphaned_lease_releases(
         except ValueError as exc:
             raise ProjectionError(
                 f"completed lease {lease_id!r} has an unrecognized capability "
-                "value",
+                f"value: {exc}",
                 code="STATE_CORRUPT",
             ) from exc
         try:
@@ -415,7 +427,14 @@ def reap_orphaned_lease_releases(
                 # identical reconstruction for the LEASED-restore path.
                 expected_output="EVIDENCE_BUNDLE",
                 expiry_or_terminal_condition="UNTIL_NODE_TERMINAL",
-                active=True,
+                # Codex/Copilot review finding on PR #658: this object is
+                # only ever used as a release() payload, never tracked as
+                # a live lease anywhere -- active=False (matching
+                # leases.release_lease()'s own output shape) says so
+                # honestly, reducing the chance a future caller
+                # misreads it as still-active. project_release() itself
+                # never reads this field either way.
+                active=False,
                 sequence=row.created_sequence,
             )
         except ValidationError as exc:
