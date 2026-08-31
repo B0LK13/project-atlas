@@ -801,6 +801,157 @@ def test_completed_dependency_stays_visible_for_dependent_on_next_tick(
     assert decision.stop_reason is None
 
 
+def test_reaped_dependency_release_exposes_dependent_in_the_same_tick(
+    tmp_path: Path,
+) -> None:
+    """AUTONOMY_PROJECTION_ERROR_RECOVERY_BOUNDARY, independent-
+    verification finding: the test above proves a RELEASED row is a
+    valid CERTIFIED witness, but writes the row as RELEASED from the
+    start with no prior loop state -- ``rehydrate_governor()`` takes its
+    early ``STATE_MISSING`` return and never reaches
+    ``reap_orphaned_lease_releases()`` at all, so it cannot prove
+    anything about the reaper's OWN interaction with dependency
+    exposure. This test drives the actual reaper path: ORIG-dep's lease
+    row is still ACTUALLY ACTIVE, but the durable loop state already
+    proves its work complete (``completed_lease_ids``). A single
+    ``rehydrate_governor()`` call must both heal the release AND expose
+    ORIG-dep as a CERTIFIED witness so ORIG-next is READY-and-selectable
+    in this SAME call -- not one rehydration later -- which is only true
+    because the reaper runs before ``_originate()`` takes its
+    dependency-exposure snapshot (the ordering this finding corrected).
+    """
+    from project_atlas.orchestration.autonomy.loop import (
+        LoopPhase,
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    trusted = load_runtime_anchor(store=trust_store)
+
+    from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
+
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+    )
+
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    dependency = _minimal_work_node(
+        "ORIG-dep", base_pin=main, surface_id="dep-surface-2", paths=("src/dep2/",)
+    )
+    dependent = _minimal_work_node(
+        "ORIG-next",
+        base_pin=main,
+        surface_id="next-surface-2",
+        paths=("src/next2/",),
+        dependencies=("ORIG-dep",),
+    )
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [
+                    OriginationRecord(
+                        origination_identity="c" * 64,
+                        project_id="demo",
+                        proposal={},
+                        policy_result={},
+                        work_node=dependency.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                    OriginationRecord(
+                        origination_identity="d" * 64,
+                        project_id="demo",
+                        proposal={},
+                        policy_result={},
+                        work_node=dependent.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    lease_store = tmp_path / "lease-projection"
+    lease_store.mkdir()
+    (lease_store / LEASE_PROJECTION_NAME).write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-DURABLE-LEASE-PROJECTION-001",
+                "honesty": {
+                    "projection_is_authority": False,
+                    "grant_source": "PRIMARY_GOVERNOR",
+                    "ack_source": "PRIMARY_GOVERNOR",
+                    "wall_clock_is_authority": False,
+                },
+                "leases": [
+                    {
+                        "lease_id": "LEASE-1",
+                        "agent_id": "governor-pilot-local",
+                        "package_id": "ORIG-dep",
+                        "branch": "feat/completed-dep",
+                        "worktree": "wt",
+                        "base_pin": main,
+                        "authorized_paths": ["src/dep2/"],
+                        "forbidden_paths": ["main", "projects"],
+                        "capabilities": ["IMPLEMENT"],
+                        "start_state": "READY",
+                        # Still ACTIVE: the release write is the one
+                        # that was lost. Only completed_lease_ids below
+                        # proves the work itself actually finished.
+                        "status": "ACTIVE",
+                        "created_sequence": 1,
+                        "released_sequence": None,
+                        "projection_is_authority": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loop_store = tmp_path / "loop-state"
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.IDLE,
+            "completed_lease_ids": ("LEASE-1",),
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    rehydrate_governor(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=loop_store,
+        lease_projection_store=lease_store,
+        origination_projection_store=origination_store,
+    )
+
+    # The release was actually healed...
+    healed_row = load_lease_projection(lease_store).leases[0]
+    assert healed_row.status == "RELEASED"
+    # ...AND the dependent is already selectable THIS SAME call -- not
+    # one extra rehydration later.
+    by_id = {node.package_id: node for node in governor.snapshot().nodes}
+    assert by_id["ORIG-dep"].state == NodeState.CERTIFIED
+    assert by_id["ORIG-next"].state == NodeState.READY
+    decision = select_next(governor.snapshot().nodes)
+    assert decision.next_package_id == "ORIG-next"
+    assert decision.stop_reason is None
+
+
 def test_corrupt_lease_store_fails_closed_instead_of_crashing(tmp_path: Path) -> None:
     """A corrupt lease projection must not be treated as empty history.
     Swallowing ``ProjectionError`` used to re-add already-leased nodes and
