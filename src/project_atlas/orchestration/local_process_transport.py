@@ -98,11 +98,28 @@ class LocalExecutionDisabledError(LocalExecutionError):
     code = "LOCAL_EXECUTION_DISABLED"
 
 
+#: IV finding (PR #661 review): the original check only looked for a
+#: leading POSIX ``/`` -- a Windows drive-letter (``C:/...``,
+#: ``C:\...``) or UNC (``\\host\share``) absolute path was not rejected
+#: at construction time. It was still blocked one layer later
+#: (``_resolve_cwd()``'s ``is_relative_to(resolved_root)`` check, before
+#: any process starts -- no actual launch bypass existed), but input
+#: validation should reject an absolute path at the envelope boundary
+#: itself, not rely solely on that downstream defense-in-depth.
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[\\/]")
+
+
 def _safe_relative_path(value: str, *, field_name: str) -> str:
     posix = value.replace("\\", "/")
     if posix.startswith("./"):
         posix = posix[2:]
-    if not posix or posix.startswith("/") or ".." in posix.split("/"):
+    if (
+        not posix
+        or posix.startswith("/")
+        or posix.startswith("//")
+        or _WINDOWS_DRIVE_RE.match(value)
+        or ".." in posix.split("/")
+    ):
         raise ValueError(f"{field_name} must be a safe relative path, got {value!r}")
     return posix
 
@@ -233,13 +250,43 @@ def _run_git(args: list[str], *, cwd: Path) -> list[str]:
     return [line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()]
 
 
-def _git_changed_paths(repo_root: Path) -> frozenset[str]:
-    """Every path with a real difference from ``HEAD`` right now --
-    tracked modifications/deletions/renames plus new untracked files --
-    repo-relative, POSIX-normalized. This is the *only* source of truth
-    this module consults for "what changed"; it never reads what the
-    launched process itself reported."""
-    tracked = _run_git(["diff", "--name-only", "HEAD"], cwd=repo_root)
+def _current_head_sha(repo_root: Path) -> str:
+    result = _run_git(["rev-parse", "HEAD"], cwd=repo_root)
+    if not result:
+        raise LocalExecutionError(
+            "could not resolve HEAD before running the task -- refusing to run "
+            "without a fixed baseline to measure authority against",
+            code="GIT_BASELINE_UNRESOLVABLE",
+        )
+    return result[0]
+
+
+def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
+    """Every path with a real difference from the FIXED ``baseline_sha``
+    -- tracked modifications/deletions/renames plus new untracked files
+    -- repo-relative, POSIX-normalized. This is the *only* source of
+    truth this module consults for "what changed"; it never reads what
+    the launched process itself reported.
+
+    IV finding (PR #661 review, self-commit bypass): diffing against the
+    live ``HEAD`` ref instead of a fixed baseline SHA meant a launched
+    process that ran ``git commit`` on its own changes -- an entirely
+    ordinary thing for a coding-agent-style task to do -- made ``HEAD``
+    itself advance along with the change, so the "after" measurement's
+    baseline moved too and the committed change never appeared as a
+    delta. ``git diff <fixed-sha>`` (no second ref) compares that
+    unmoving commit's tree against the *current working tree*, regardless
+    of where ``HEAD`` points by the time this runs -- a committed change
+    still shows up as a difference from the pre-run baseline, closing
+    that bypass. (A process that commits and then discards its own commit
+    via ``git reset --hard <baseline>`` before exiting can still erase
+    its tracks from this working-tree-vs-baseline comparison, same as it
+    could erase them from a live-``HEAD`` comparison or from disk
+    directly -- that residual gap is a git-history-forensics problem, not
+    something a single before/after working-tree diff can close, and is
+    out of scope for this module's stated design.)
+    """
+    tracked = _run_git(["diff", "--name-only", baseline_sha], cwd=repo_root)
     untracked = _run_git(["ls-files", "--others", "--exclude-standard"], cwd=repo_root)
     return frozenset((*tracked, *untracked))
 
@@ -341,7 +388,14 @@ def run_local_task(
     resolved_cwd = _resolve_cwd(resolved_root, envelope.cwd)
     env = _build_env(allowlist=config.env_allowlist, overrides=envelope.env_overrides)
 
-    before = _git_changed_paths(resolved_root)
+    # A FIXED commit SHA, captured once before the run and never
+    # re-resolved afterward. Both the "before" and "after" measurements
+    # below diff against this same unmoving baseline -- if the launched
+    # process itself advances HEAD (e.g. by running `git commit`), the
+    # comparison point does not move with it (see _git_changed_paths's
+    # own docstring for the bypass this specifically closes).
+    baseline_sha = _current_head_sha(resolved_root)
+    before = _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
     request = ProcessRunRequest(
         argv=envelope.argv,
         cwd=resolved_cwd,
@@ -351,7 +405,7 @@ def run_local_task(
     )
     active_runner: ProcessRunner = runner if runner is not None else SubprocessProcessRunner()
     outcome: ProcessRunOutcome = active_runner.run(request)
-    after = _git_changed_paths(resolved_root)
+    after = _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
 
     new_paths = after - before
     violations = _enforce_authority(

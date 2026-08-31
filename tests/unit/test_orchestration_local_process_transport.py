@@ -264,6 +264,20 @@ def test_f_cwd_outside_project_root_is_rejected() -> None:
         LocalTaskEnvelope(work_id="F-001", argv=("python3",), cwd="../outside")
 
 
+@pytest.mark.parametrize(
+    "absolute_cwd",
+    ["C:/Windows/System32", "C:\\Windows\\System32", "//host/share", "/etc"],
+)
+def test_f_absolute_path_cwd_is_rejected_at_construction(absolute_cwd: str) -> None:
+    """IV finding (PR #661 review): a Windows drive-letter or UNC
+    absolute path was not caught by the original validator's POSIX-only
+    leading-slash check -- construction succeeded and the escape was only
+    blocked one layer later, at run time. Input validation must reject it
+    at the envelope boundary itself."""
+    with pytest.raises(ValidationError):
+        LocalTaskEnvelope(work_id="F-003", argv=("python3",), cwd=absolute_cwd)
+
+
 def test_f_cwd_inside_project_root_resolves_correctly(tmp_path: Path) -> None:
     repo = _make_repo(tmp_path)
     envelope = LocalTaskEnvelope(work_id="F-002", argv=("python3",), cwd="src")
@@ -333,6 +347,57 @@ def test_i_forbidden_path_violation_is_detected_via_git_diff(tmp_path: Path) -> 
     reasons = {v.path: v.reason for v in result.violations}
     assert reasons[".github_workflow_tamper.txt"] == "FORBIDDEN_PATH"
     assert "src/allowed.py" not in reasons  # the compliant change is not flagged
+
+
+def test_i_self_commit_by_the_launched_process_does_not_evade_detection(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #661 review): a launched process that runs
+    `git add -A && git commit` on its own forbidden-path change must
+    NOT evade detection merely because it advanced HEAD along with the
+    change. Enforcement must diff against a FIXED pre-run baseline SHA,
+    never the live HEAD ref, or a routine, ordinary `git commit` step
+    inside any real coding-agent-style task silently defeats every
+    forbidden_paths/authorized_paths guarantee this module exists for."""
+    repo = _make_repo(tmp_path)
+    envelope = LocalTaskEnvelope(
+        work_id="I-003",
+        argv=(
+            sys.executable,
+            "-c",
+            "import subprocess; "
+            "open('.github_workflow_tamper.txt', 'w').write('bad\\n'); "
+            "subprocess.run(['git', 'add', '-A'], check=True); "
+            "subprocess.run(['git', '-c', 'commit.gpgsign=false', 'commit', "
+            "'-q', '-m', 'self-commit'], check=True)",
+        ),
+        forbidden_paths=(".github_workflow_tamper.txt",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.exit_code == 0
+    assert result.authority_clean is False
+    reasons = {v.path: v.reason for v in result.violations}
+    assert reasons.get(".github_workflow_tamper.txt") == "FORBIDDEN_PATH"
+
+
+def test_h_preexisting_dirty_state_before_the_task_is_not_misattributed(
+    tmp_path: Path,
+) -> None:
+    """A file left uncommitted BEFORE run_local_task() is ever called
+    (unrelated pre-existing dirt, nothing to do with this task) must
+    never be reported as a violation caused by this task -- both the
+    "before" and "after" measurements diff against the same fixed
+    baseline SHA, so pre-existing dirt cancels out via set difference."""
+    repo = _make_repo(tmp_path)
+    (repo / "pre_existing_dirt.txt").write_text("already here\n", encoding="utf-8")
+    envelope = LocalTaskEnvelope(
+        work_id="H-003",
+        argv=(sys.executable, "-c", "open('src/compliant.py', 'w').write('ok\\n')"),
+        authorized_paths=("src/",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is True
+    assert "pre_existing_dirt.txt" not in result.changed_paths
 
 
 def test_i_out_of_scope_but_not_forbidden_path_is_still_flagged(tmp_path: Path) -> None:
