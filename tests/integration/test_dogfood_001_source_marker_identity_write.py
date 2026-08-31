@@ -316,9 +316,9 @@ def test_bare_flow_root_falls_back_to_full_dump(tmp_path: Path) -> None:
 
 def result_project_uuid(marker: Path) -> str:
     data = yaml.safe_load(marker.read_text(encoding="utf-8"))
-    uuid = data["project_uuid"]
-    assert isinstance(uuid, str)
-    return uuid
+    project_uuid = data["project_uuid"]
+    assert isinstance(project_uuid, str)
+    return project_uuid
 
 
 def test_allocation_receipt_still_records_uuid_once(tmp_path: Path) -> None:
