@@ -14,7 +14,6 @@ from pydantic import BaseModel, ConfigDict
 from project_atlas.orchestration.origination.adapter import (
     ADAPTER_VERSION,
     EligibleRoadmapItem,
-    eligible_roadmap_items,
     extract_corroborating_facts,
 )
 from project_atlas.orchestration.origination.facts import SourceFact, SourceFactKind
@@ -27,6 +26,7 @@ from project_atlas.orchestration.origination.proposal import (
     Provenance,
 )
 from project_atlas.orchestration.origination.risk import classify
+from project_atlas.orchestration.origination.sources import eligible_work_items
 
 _MAX_EXCERPT = 400
 
@@ -42,15 +42,18 @@ class OriginationOutcome(BaseModel):
 
 
 def originate_all(project_root: Path, project_id: str) -> tuple[OriginationOutcome, ...]:
-    """Scan ``project_root`` for specification-backed work and return one
-    ``OriginationOutcome`` per eligible roadmap item found, policy-evaluated.
+    """Scan ``project_root`` for specification-backed work across every
+    explicitly declared origination source (``sources.py`` --
+    ``docs/ROADMAP.md`` alone when none are declared, unchanged from this
+    function's original behavior) and return one ``OriginationOutcome``
+    per eligible item found, policy-evaluated.
 
     Returns an empty tuple when nothing is eligible -- the correct,
     honest ``NO_ELIGIBLE_WORK`` outcome, not an error.
     """
     return tuple(
         _build_outcome(project_root, project_id, item)
-        for item in eligible_roadmap_items(project_root)
+        for item in eligible_work_items(project_root)
     )
 
 
@@ -101,7 +104,7 @@ def _build_outcome(
     authoritative_fact = SourceFact(
         kind=SourceFactKind.AUTHORITATIVE_ROADMAP_ITEM,
         project_id=project_id,
-        location="docs/ROADMAP.md",
+        location=item.source_path,
         content_digest=item.roadmap_digest,
         excerpt=excerpt[:_MAX_EXCERPT],
         subject_id=item.item_id,
@@ -152,8 +155,10 @@ def _build_outcome(
             "per its declared evidence."
         ),
         why_this_work=(
-            f"docs/ROADMAP.md declares {item.item_id!r} as status={item.status} "
-            f"lifecycle={item.lifecycle} -- the project's own authoritative next-work record."
+            f"{item.source_path} declares {item.item_id!r} as status={item.status} "
+            f"lifecycle={item.lifecycle}"
+            + (f" (section: {item.section_context})" if item.section_context else "")
+            + " -- the project's own authoritative next-work record."
         ),
         why_now=why_now,
         source_evidence=source_evidence,

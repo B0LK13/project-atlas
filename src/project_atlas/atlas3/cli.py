@@ -64,6 +64,7 @@ from project_atlas.atlas3.timeline import compile_timeline
 from project_atlas.atlas3.transport import prove_transport_is_not_authority
 from project_atlas.atlas3.truth_graph import compile_truth_graph
 from project_atlas.atlas3.twin_health import compile_twin_health
+from project_atlas.orchestration.origination.cli import run_origination_scan
 
 ATLAS3_COMMANDS = frozenset(
     {
@@ -71,6 +72,7 @@ ATLAS3_COMMANDS = frozenset(
         "start",
         "proof",
         "memory",
+        "originate",
         "capabilities",
         "compatibility",
         "inventory",
@@ -288,6 +290,36 @@ def register_atlas3_parsers(subparsers: argparse._SubParsersAction[Any]) -> None
     )
     nodes.add_argument("--vault", type=Path, required=True)
     nodes.add_argument("--project", required=True)
+
+    originate = subparsers.add_parser(
+        "originate",
+        help=(
+            "Run a specification-backed origination scan (D-PHASE2A-2/3, "
+            "AS-ORIGIN-001) against a project's own explicitly declared "
+            "origination source(s) -- docs/ROADMAP.md (structured-roadmap) "
+            "by default, plus any additional source a project's "
+            ".atlas-project.yaml explicitly declares under "
+            "origination_sources: (e.g. docs/backlog.md, "
+            "markdown-task-list). Never leases, dispatches, or merges; "
+            "materializes eligible items as durable WorkNodes only."
+        ),
+    )
+    originate.add_argument(
+        "--root", type=Path, default=Path.cwd(), help="Project root (default: cwd)."
+    )
+    originate.add_argument("--project-id", required=True, help="Governed project id.")
+    originate.add_argument(
+        "--store",
+        type=Path,
+        default=None,
+        help="Origination projection store (default: <root>/.atlas/orchestration/origination).",
+    )
+    originate.add_argument(
+        "--trust-store",
+        type=Path,
+        default=None,
+        help="Optional trusted-anchor store; falls back to the shipped record when omitted.",
+    )
 
     caps = subparsers.add_parser(
         "capabilities",
@@ -558,6 +590,15 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
                 ),
                 as_json=True,
             )
+        if command == "originate":
+            payload, exit_code = run_origination_scan(
+                root=args.root,
+                project_id=args.project_id,
+                trust_store=getattr(args, "trust_store", None),
+                origination_store=getattr(args, "store", None),
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return exit_code
         if command == "capabilities":
             return _dump(list_capabilities(), as_json=True)
         if command == "compatibility":
