@@ -93,6 +93,11 @@ _BLOCKER_KEYWORDS: tuple[str, ...] = (
     "governor required",
     "merge_authorization not_granted",
     "merge authorization not granted",
+    # IV finding (PR #663 review): this repository's own actual
+    # convention (docs/backlog.md, e.g. D-PHASE2A-2) writes
+    # `MERGE_AUTHORIZATION = NOT_GRANTED` with an `=` and surrounding
+    # spaces -- neither prior variant above matches that substring.
+    "merge_authorization = not_granted",
     "external_blocked",
     "not this package",
     "blocked on",

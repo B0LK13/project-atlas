@@ -34,6 +34,9 @@ from pydantic import ValidationError
 from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
 from project_atlas.orchestration.autonomy.models import TrustedAnchorRecord, WorkNode
 from project_atlas.orchestration.autonomy.trust import TrustError, load_runtime_anchor
+from project_atlas.orchestration.origination.acceptance_contracts import (
+    AcceptanceContractConfigError,
+)
 from project_atlas.orchestration.origination.materialize import (
     MaterializationError,
     materialize_work_node,
@@ -163,6 +166,16 @@ def run_origination_scan(
         # exception.
         return (
             _fail_closed(str(exc), blocker="ORIGINATION_DUPLICATE_ITEM_ID"),
+            EXIT_ERROR,
+        )
+    except AcceptanceContractConfigError as exc:
+        # IV finding (PR #663 review): eligible_work_items() (called
+        # inside originate_new_only()) can raise this for a malformed,
+        # ambiguous, or unmatched acceptance-contract declaration -- the
+        # same "never raises" contract this function documents for every
+        # other configuration failure applies here too.
+        return (
+            _fail_closed(str(exc), blocker="ACCEPTANCE_CONTRACT_CONFIG_INVALID"),
             EXIT_ERROR,
         )
     except ValidationError as exc:

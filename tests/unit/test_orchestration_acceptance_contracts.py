@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from project_atlas.orchestration.origination.acceptance_contracts import (
+    _MAX_EVIDENCE_ENTRIES,
     AcceptanceContract,
     AcceptanceContractConfigError,
     apply_acceptance_contracts,
@@ -90,8 +91,6 @@ def test_valid_single_contract_is_loaded(tmp_path: Path) -> None:
     assert contract.evidence == (evidence,)
     assert contract.proposed_scope == ("src/thing.py",)
     assert contract.success_criteria == ("The thing works",)
-    assert contract.dependencies == ()
-    assert contract.forbidden_paths == ()
     assert contract.key == ("docs/backlog.md", "AAA-001")
 
 
@@ -268,7 +267,14 @@ def test_same_item_id_different_source_path_is_not_a_duplicate(tmp_path: Path) -
     }
 
 
-def test_self_dependency_fails_closed(tmp_path: Path) -> None:
+def test_dependencies_field_is_rejected_not_silently_accepted(tmp_path: Path) -> None:
+    """IV finding (PR #663 review): a validated-but-never-enforced
+    `dependencies`/`forbidden_paths` field is a real trap for a future
+    contract author who reasonably assumes the docstring means what it
+    says -- neither can be safely wired today (see the module
+    docstring), so neither exists in the schema at all. A contract that
+    declares either must fail closed as an unrecognized field, never be
+    silently accepted and silently do nothing."""
     evidence = _skip_marked_test(tmp_path)
     _write(
         tmp_path,
@@ -279,14 +285,14 @@ def test_self_dependency_fails_closed(tmp_path: Path) -> None:
         f"    evidence: [{evidence}]\n"
         "    proposed_scope: [src/a.py]\n"
         "    success_criteria: [\"criteria\"]\n"
-        "    dependencies: [AAA-001]\n",
+        "    dependencies: [BBB-001]\n",
     )
     _write_project_marker(tmp_path, "docs/acceptance-contracts.yaml")
     with pytest.raises(AcceptanceContractConfigError):
         load_acceptance_contracts(tmp_path)
 
 
-def test_dependency_cycle_fails_closed(tmp_path: Path) -> None:
+def test_forbidden_paths_field_is_rejected_not_silently_accepted(tmp_path: Path) -> None:
     evidence = _skip_marked_test(tmp_path)
     _write(
         tmp_path,
@@ -297,13 +303,7 @@ def test_dependency_cycle_fails_closed(tmp_path: Path) -> None:
         f"    evidence: [{evidence}]\n"
         "    proposed_scope: [src/a.py]\n"
         "    success_criteria: [\"criteria\"]\n"
-        "    dependencies: [BBB-001]\n"
-        "  - item_id: BBB-001\n"
-        "    source_path: docs/backlog.md\n"
-        f"    evidence: [{evidence}]\n"
-        "    proposed_scope: [src/b.py]\n"
-        "    success_criteria: [\"criteria\"]\n"
-        "    dependencies: [AAA-001]\n",
+        "    forbidden_paths: [secrets/]\n",
     )
     _write_project_marker(tmp_path, "docs/acceptance-contracts.yaml")
     with pytest.raises(AcceptanceContractConfigError):
@@ -621,3 +621,45 @@ def test_no_contract_declared_leaves_pipeline_completely_unaffected(tmp_path: Pa
     assert len(outcomes) == 1
     assert outcomes[0].contract_proposed_scope is None
     assert outcomes[0].contract_success_criteria is None
+
+
+# ---------------------------------------------------------------------------
+# IV round-1 fixes (PR #663 review): marker-parsing parity, the uncaught-
+# exception gap in run_origination_scan(), and the evidence/provenance cap
+# ---------------------------------------------------------------------------
+
+
+def test_project_marker_parses_to_non_mapping_fails_closed(tmp_path: Path) -> None:
+    """IV finding: this used to silently return () for the SAME
+    malformed-.atlas-project.yaml shape (a scalar/list from a templating
+    error or truncated file) that load_origination_sources() correctly
+    raises for -- despite this module's own docstring already claiming
+    that parity. Distinct from test_contracts_file_not_a_mapping_
+    fails_closed, which covers the SIDECAR contracts file, not the
+    project marker itself."""
+    _write(tmp_path, ".atlas-project.yaml", "- just\n- a\n- list\n")
+    with pytest.raises(AcceptanceContractConfigError):
+        load_acceptance_contracts(tmp_path)
+
+
+def test_evidence_merge_exceeding_provenance_cap_fails_closed_not_a_raw_crash(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #663 review, P2): a schema-valid contract whose
+    evidence, once merged with an item's own pre-existing evidence,
+    would exceed Provenance.consulted_digests's 16-entry cap used to
+    escape as a raw, confusing pydantic.ValidationError from deep inside
+    pipeline.py::_build_outcome() instead of this module's own
+    AcceptanceContractConfigError."""
+    marks = []
+    for index in range(_MAX_EVIDENCE_ENTRIES):
+        rel = f"tests/test_stub_{index}.py"
+        _write(
+            tmp_path, rel,
+            'import pytest\n\npytestmark = pytest.mark.skip(reason="n/a")\n',
+        )
+        marks.append(rel)
+    item = _item("AAA-001", evidence=("docs/existing.md",))
+    contract = _contract("AAA-001", evidence=tuple(marks))
+    with pytest.raises(AcceptanceContractConfigError):
+        apply_acceptance_contracts((item,), (contract,))

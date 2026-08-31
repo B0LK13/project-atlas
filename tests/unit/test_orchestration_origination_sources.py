@@ -229,6 +229,24 @@ def test_blocker_language_in_title_is_preserved_not_dropped(tmp_path: Path) -> N
     assert any("blocker language" in b for b in items[0].blockers)
 
 
+def test_merge_authorization_equals_not_granted_convention_is_recognized(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #663 review): this repository's own actual
+    docs/backlog.md convention (e.g. D-PHASE2A-2) writes
+    `MERGE_AUTHORIZATION = NOT_GRANTED` with an `=` and surrounding
+    spaces -- neither of the two pre-existing keyword variants
+    (underscore-joined, space-joined) matched that substring."""
+    _write(
+        tmp_path,
+        "docs/backlog.md",
+        "- [ ] GATE-002 Some real work. `MERGE_AUTHORIZATION = NOT_GRANTED`.\n",
+    )
+    items = eligible_task_list_items(tmp_path, "docs/backlog.md")
+    assert len(items) == 1
+    assert items[0].blockers
+
+
 def test_ordinary_title_has_no_blocker_language(tmp_path: Path) -> None:
     _write(tmp_path, "docs/backlog.md", "- [ ] PLAIN-001 Fix the thing normally\n")
     items = eligible_task_list_items(tmp_path, "docs/backlog.md")

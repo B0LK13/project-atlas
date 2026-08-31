@@ -184,6 +184,52 @@ def test_scan_with_no_eligible_work_is_a_clean_empty_result(tmp_path: Path) -> N
     assert payload["not_materialized"] == []
 
 
+def test_scan_never_raises_for_a_malformed_acceptance_contract(tmp_path: Path) -> None:
+    """IV finding (PR #663 review, P1): run_origination_scan()'s own
+    documented "never raises" contract did not catch
+    AcceptanceContractConfigError -- a malformed contract escaped as an
+    uncaught exception instead of the function's own fail-closed
+    payload, exactly like every other configuration failure it already
+    handles."""
+    repo = _make_repo(tmp_path)
+    _write_plain_file(repo, "docs/backlog.md", "- [ ] AAA-001 Real outstanding work\n")
+    _write_plain_file(
+        repo,
+        "docs/acceptance-contracts.yaml",
+        "contracts:\n"
+        "  - item_id: AAA-001\n"
+        "    source_path: docs/backlog.md\n"
+        "    evidence: [docs/backlog.md]\n"
+        "    proposed_scope: [src/thing.py]\n"
+        "    success_criteria: []\n",  # empty -- schema-invalid
+    )
+    _write_plain_file(
+        repo,
+        ".atlas-project.yaml",
+        "schema_version: 1\n"
+        "project:\n"
+        "  id: demo-project\n"
+        "origination_sources:\n"
+        "  - path: docs/backlog.md\n"
+        "    format: markdown-task-list\n"
+        "origination_acceptance_contracts: docs/acceptance-contracts.yaml\n",
+    )
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=tmp_path / "origination-store",
+        explicit_trusted=_anchor(main, tree),
+    )
+
+    assert exit_code == EXIT_ERROR
+    assert payload["blocker"] == "ACCEPTANCE_CONTRACT_CONFIG_INVALID"
+    assert payload["merge_authorized"] is False
+    assert payload["execution_authorized"] is False
+
+
 def test_second_scan_does_not_re_materialize_already_terminal_work(tmp_path: Path) -> None:
     """The correct successor-scan semantic (`originate_new_only`, not
     `originate_all`): once a package's origination_identity is durably
