@@ -581,15 +581,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     ingest_parser = subparsers.add_parser(
-        "ingest",
-        help=(
-            "Ingest a source manifest into an OKF Vault (FR-005-FR-008). On a "
-            "project's first ingest, allocates durable project identity "
-            "(AS-ID-001) into its --source project marker (.atlas-project.yaml "
-            "or .atlas/project.yaml) if that marker has no project_uuid yet -- "
-            "the one place this command writes into --source rather than "
-            "--vault. Reported on stdout as 'identity allocated for: ...'."
-        ),
+        "ingest", help="Ingest a source manifest into an OKF Vault (FR-005-FR-008)."
     )
     ingest_parser.add_argument("--manifest", type=Path, required=True)
     ingest_parser.add_argument("--vault", type=Path, required=True)
@@ -599,9 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help=(
             "Authorized source root (CODEX-SEC-001). Must resolve to the same "
-            "directory recorded in the manifest; the manifest cannot self-authorize. "
-            "A project marker under this root with no project_uuid receives one "
-            "(AS-ID-001 genesis) -- the only source-tree write this command makes."
+            "directory recorded in the manifest; the manifest cannot self-authorize."
         ),
     )
 
@@ -3329,13 +3319,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"projects: {result['projects']}")
         print(f"agent events: {result.get('events_ingested', 0)}")
         print(f"quarantined events: {result.get('events_quarantined', 0)}")
-        allocated = result.get("identity_allocated") or []
-        if allocated:
-            print(
-                "identity allocated for: "
-                + ", ".join(allocated)
-                + " (source project marker updated with project_uuid; see --source)"
-            )
         return EXIT_OK
 
     if args.command == "doctor":

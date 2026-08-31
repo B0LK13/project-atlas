@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 import uuid
 from contextlib import ExitStack, suppress
@@ -942,6 +943,25 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
     return context
 
 
+# A trailing explicit YAML document-end marker (its own line, optionally
+# followed by nothing but one final newline) -- the one common, deliberate
+# authoring shape where appending at the absolute end of the file is unsafe
+# (it would place new content *after* the document closes) but a targeted
+# insertion immediately before the marker line is still safe and exact.
+_TRAILING_DOC_END_MARKER = re.compile(rb"(\r\n|\n)\.\.\.[ \t]*(\r\n|\n)?\Z")
+
+
+def _try_merged_marker(
+    candidate: bytes, expected: dict[str, Any]
+) -> bytes | None:
+    """Return ``candidate`` if it re-parses to exactly ``expected``, else None."""
+    try:
+        reparsed = yaml.safe_load(candidate.decode("utf-8"))
+    except (UnicodeError, yaml.YAMLError):
+        return None
+    return candidate if isinstance(reparsed, dict) and reparsed == expected else None
+
+
 def _append_marker_project_uuid(
     original: bytes, data: dict[str, Any], project_uuid: str
 ) -> bytes:
@@ -952,25 +972,46 @@ def _append_marker_project_uuid(
     reserializes the *entire* document -- rewriting list style, dropping
     blank lines, and normalizing quote style -- even though genesis only
     ever adds one new top-level scalar key. Preserve every existing byte and
-    append the new field as its own line instead. The result is re-parsed
-    and compared against the expected merged mapping before being accepted;
-    if anything about the source marker's shape makes a bare append unsafe
-    (for example a multi-document stream or an explicit ``...`` end
-    marker), fall back to the previous whole-document re-dump so genesis
-    never fails, it only loses formatting fidelity in that rare case.
+    insert the new field as its own line instead, in the file's own line
+    ending (CRLF if the marker already uses CRLF anywhere, else LF -- an
+    appended LF-only line onto an otherwise-CRLF file would itself be a
+    small unrelated formatting inconsistency this function exists to avoid).
+
+    Two byte-preserving strategies are tried, each verified by re-parsing
+    the candidate result and requiring it to equal the expected merged
+    mapping before being accepted:
+
+    1. Append at the absolute end of the file (the common case).
+    2. If that is unsafe -- e.g. the file ends with an explicit YAML
+       document-end marker (``...``), after which nothing may follow --
+       insert immediately before that marker's line instead, which is
+       still exact and still byte-preserving.
+
+    If neither is safe (for example a bare single-line flow-style root
+    mapping, where there is no line to append or insert a new sibling key
+    at), fall back to a full whole-document re-dump so genesis never
+    fails; it only loses formatting fidelity in that rare, disclosed case.
     """
-    text = original.decode("utf-8")
-    prefix = text if text.endswith("\n") or not text else text + "\n"
-    appended = f"{prefix}project_uuid: {project_uuid}\n"
-    try:
-        reparsed = yaml.safe_load(appended)
-    except yaml.YAMLError:
-        reparsed = None
+    newline = b"\r\n" if b"\r\n" in original else b"\n"
+    field_line = f"project_uuid: {project_uuid}".encode() + newline
     expected = {**data, "project_uuid": project_uuid}
-    if isinstance(reparsed, dict) and reparsed == expected:
-        return appended.encode("utf-8")
-    # Fallback: unsafe to append (e.g. a document-end marker or a flow-style
-    # document already closed on one line). Preserve correctness over format.
+
+    prefix = original if original.endswith((b"\n", b"\r")) or not original else original + newline
+    result = _try_merged_marker(prefix + field_line, expected)
+    if result is not None:
+        return result
+
+    doc_end = _TRAILING_DOC_END_MARKER.search(original)
+    if doc_end is not None:
+        insert_at = doc_end.start(1) + len(doc_end.group(1))
+        candidate = original[:insert_at] + field_line + original[insert_at:]
+        result = _try_merged_marker(candidate, expected)
+        if result is not None:
+            return result
+
+    # Fallback: unsafe to append or insert (e.g. a bare single-line
+    # flow-style root mapping with no line to attach a new sibling key
+    # to). Preserve correctness over format in this narrow, rare case.
     return yaml.safe_dump(expected, sort_keys=False, allow_unicode=True).encode("utf-8")
 
 

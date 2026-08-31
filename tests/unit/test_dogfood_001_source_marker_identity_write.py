@@ -16,13 +16,20 @@ not intended, and is not declared anywhere, is rewriting content that has
 nothing to do with identity. These tests pin the fixed contract:
 
 - genesis still allocates a fresh UUIDv4 and persists it in the marker;
-- the diff against the marker's original bytes is the appended
-  ``project_uuid`` line and nothing else;
-- the allocation is reported back to the caller (result dict + CLI stdout),
-  not just discoverable by diffing the checkout afterwards;
-- a marker whose shape makes a bare append unsafe (flow-style / a YAML
-  document-end marker) still ingests correctly, falling back to a full
-  re-dump rather than failing genesis.
+- the diff against the marker's original bytes is the appended (or, for a
+  marker with a trailing explicit document-end marker, inserted)
+  ``project_uuid`` line and nothing else -- in the marker's own line
+  ending, not always LF;
+- the allocation is reported back to the caller via ``ingest()``'s
+  ``identity_allocated`` result, not just discoverable by diffing the
+  checkout afterwards (cli.py itself is outside the owner-approved
+  exception scope and is deliberately untouched -- see the disclosure
+  note below);
+- only a marker with no line to attach a new sibling key to at all (a
+  bare single-line flow-style root mapping) falls back to a full re-dump;
+  every other shape challenged here -- comments, anchors/aliases, CRLF,
+  no trailing newline, non-ASCII, a UTF-8 BOM, an explicit ``---``
+  start and/or ``...`` end marker -- is byte-preserving.
 """
 
 from __future__ import annotations
@@ -65,10 +72,15 @@ authority:
 
 
 def _fixture(root: Path, marker_text: str = _MARKER_TEXT) -> Path:
+    # newline="" disables Windows' universal-newline translation on write --
+    # without it, every "\n" in a literal here would silently become "\r\n"
+    # on disk, which would make these fixtures untestable for exact line
+    # endings (see test_crlf_marker_appends_with_crlf, which deliberately
+    # writes "\r\n" itself and needs that to survive unchanged).
     source = root / "source"
     source.mkdir(parents=True)
-    (source / ".atlas-project.yaml").write_text(marker_text, encoding="utf-8")
-    (source / "README.md").write_text("# Fixture Genesis\n", encoding="utf-8")
+    (source / ".atlas-project.yaml").write_text(marker_text, encoding="utf-8", newline="")
+    (source / "README.md").write_text("# Fixture Genesis\n", encoding="utf-8", newline="")
     return source
 
 
@@ -103,29 +115,37 @@ def test_genesis_appends_marker_and_preserves_unrelated_bytes(tmp_path: Path) ->
     assert result["identity_allocated"] == ["fixture-genesis"]
 
 
-def test_genesis_reported_on_cli_stdout(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+# DOGFOOD-001's disclosure is a structured `_log.info(...)` call inside
+# ingestion.py (project_atlas.logging.configure_logging(propagate=False)) --
+# not a cli.py stdout line: cli.py is outside the owner-approved exception
+# scope (see WORKLOG.md), so it is intentionally left untouched. Per this
+# repo's own established convention (test_sec_adv004_scan_b_highs.py:72-73:
+# "logging StreamHandler bypasses pytest capsys/capfd/caplog under
+# configure_logging(propagate=False)"), the log line's text is not
+# pytest-asserted here; `identity_allocated` in ingest()'s return value
+# (asserted below and in test_genesis_appends_marker_and_preserves_unrelated_bytes)
+# is the structured, testable disclosure channel. The log line itself was
+# verified manually against the real CLI (see the WORKLOG entry's captured
+# `INFO project_atlas.ingestion: allocated durable project identity; ...`
+# output).
+def test_genesis_disclosed_in_ingest_result(tmp_path: Path) -> None:
     source = _fixture(tmp_path)
     vault = tmp_path / "vault"
-    manifest = tmp_path / "manifest.json"
-    assert main(["discover", "--source", str(source), "--output", str(manifest)]) == EXIT_OK
-    assert main(["init", "--output", str(vault)]) == EXIT_OK
-    capsys.readouterr()
-    assert (
-        main(
-            [
-                "ingest",
-                "--manifest",
-                str(manifest),
-                "--vault",
-                str(vault),
-                "--source",
-                str(source),
-            ]
-        )
-        == EXIT_OK
+    result = _ingest(source, vault, tmp_path)
+    assert result["identity_allocated"] == ["fixture-genesis"]
+
+    # A second, independent project in the same batch that already has a
+    # uuid must not be reported as newly allocated.
+    other = tmp_path / "other-source"
+    other.mkdir()
+    (other / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: other-proj\nproject_uuid: "
+        "11111111-1111-4111-8111-111111111111\n",
+        encoding="utf-8",
     )
-    out = capsys.readouterr().out
-    assert "identity allocated for: fixture-genesis" in out
+    (other / "README.md").write_text("# Other\n", encoding="utf-8")
+    other_result = _ingest(other, tmp_path / "vault-other", tmp_path)
+    assert other_result["identity_allocated"] == []
 
 
 def test_second_ingest_of_same_project_does_not_touch_marker_again(tmp_path: Path) -> None:
@@ -145,14 +165,122 @@ def test_second_ingest_of_same_project_does_not_touch_marker_again(tmp_path: Pat
     assert second["identity_allocated"] == []
 
 
-def test_append_unsafe_marker_falls_back_to_full_dump(tmp_path: Path) -> None:
-    # A YAML document-end marker makes a bare textual append invalid YAML;
-    # genesis must still succeed via the whole-document fallback.
-    flow_marker = (
+def test_document_end_marker_insertion_preserves_bytes(tmp_path: Path) -> None:
+    # A trailing explicit YAML document-end marker (`...`) makes a bare
+    # append at end-of-file unsafe (nothing may follow a closed document),
+    # but the field can still be inserted immediately before that marker's
+    # line, byte-preserving everything else -- this must NOT fall back to
+    # a full re-dump.
+    marker_text = (
         "schema_version: 1\n"
-        'project: {id: fixture-flow, name: "Fixture Flow"}\n'
+        'project: {id: fixture-docend, name: "Fixture DocEnd"}\n'
         "...\n"
     )
+    source = _fixture(tmp_path, marker_text=marker_text)
+    marker = source / ".atlas-project.yaml"
+    before = marker.read_bytes()
+
+    result = _ingest(source, tmp_path / "vault", tmp_path)
+
+    after = marker.read_bytes()
+    assert result["identity_allocated"] == ["fixture-docend"]
+    project_uuid = yaml.safe_load(after.decode("utf-8"))["project_uuid"]
+    assert after == (
+        before[: -len(b"...\n")]
+        + f"project_uuid: {project_uuid}\n".encode()
+        + b"...\n"
+    )
+
+
+def test_crlf_marker_appends_with_crlf(tmp_path: Path) -> None:
+    # An appended LF-only line onto an otherwise-CRLF-authored marker would
+    # itself be a small unrelated formatting inconsistency; the appended
+    # line must match the file's own line ending.
+    marker_text = "schema_version: 1\r\nproject:\r\n  id: fixture-crlf\r\n"
+    source = _fixture(tmp_path, marker_text=marker_text)
+    marker = source / ".atlas-project.yaml"
+    before = marker.read_bytes()
+    assert b"\r\n" in before and b"\n\n" not in before.replace(b"\r\n", b"")
+
+    result = _ingest(source, tmp_path / "vault", tmp_path)
+
+    after = marker.read_bytes()
+    assert result["identity_allocated"] == ["fixture-crlf"]
+    assert after.startswith(before)
+    tail = after[len(before) :]
+    project_uuid = yaml.safe_load(after.decode("utf-8"))["project_uuid"]
+    assert tail == f"project_uuid: {project_uuid}\r\n".encode()
+
+
+@pytest.mark.parametrize(
+    "case_id,marker_text,project_id",
+    [
+        (
+            "comments",
+            "# top comment\n"
+            "schema_version: 1  # inline comment\n"
+            "project:\n"
+            "  id: fixture-comments  # trailing, no final newline",
+            "fixture-comments",
+        ),
+        (
+            "anchors_aliases",
+            "defaults: &d\n"
+            "  retries: 3\n"
+            "project:\n"
+            "  id: fixture-anchors\n"
+            "  policy: *d\n",
+            "fixture-anchors",
+        ),
+        (
+            "non_ascii",
+            'schema_version: 1\nproject:\n  id: fixture-nonascii\n  name: "Projet étoile"\n',
+            "fixture-nonascii",
+        ),
+        (
+            "utf8_bom",
+            "﻿schema_version: 1\nproject:\n  id: fixture-bom\n",
+            "fixture-bom",
+        ),
+        (
+            "no_trailing_newline",
+            "schema_version: 1\nproject:\n  id: fixture-notrail",
+            "fixture-notrail",
+        ),
+        (
+            "explicit_doc_start",
+            "---\nschema_version: 1\nproject:\n  id: fixture-docstart\n",
+            "fixture-docstart",
+        ),
+    ],
+)
+def test_append_challenge_shapes_are_byte_preserving(
+    tmp_path: Path, case_id: str, marker_text: str, project_id: str
+) -> None:
+    source = _fixture(tmp_path, marker_text=marker_text)
+    marker = source / ".atlas-project.yaml"
+    before = marker.read_bytes()
+
+    result = _ingest(source, tmp_path / "vault", tmp_path)
+
+    after = marker.read_bytes()
+    assert result["identity_allocated"] == [project_id], case_id
+    original = yaml.safe_load(before.decode("utf-8"))
+    parsed = yaml.safe_load(after.decode("utf-8"))
+    project_uuid = parsed["project_uuid"]
+    assert parsed == {**original, "project_uuid": project_uuid}, case_id
+    # Byte-preserving: `after` is exactly `before` (terminated with a
+    # newline if it wasn't already) plus the one new field line.
+    newline = b"\n"
+    prefix = before if before.endswith(b"\n") or not before else before + newline
+    assert after == prefix + f"project_uuid: {project_uuid}\n".encode(), case_id
+
+
+def test_bare_flow_root_falls_back_to_full_dump(tmp_path: Path) -> None:
+    # The one shape with no line to append or insert a new sibling key at:
+    # the entire document is a single-line flow-style root mapping.
+    # Genesis must still succeed via the whole-document fallback.
+    flow_marker = '{schema_version: 1, project: {id: fixture-flow, name: "Fixture Flow"}}\n'
     source = _fixture(tmp_path, marker_text=flow_marker)
     marker = source / ".atlas-project.yaml"
 
@@ -175,6 +303,7 @@ def test_allocation_receipt_still_records_uuid_once(tmp_path: Path) -> None:
     source = _fixture(tmp_path)
     vault = tmp_path / "vault"
     result = _ingest(source, vault, tmp_path)
+    assert result["identity_allocated"] == ["fixture-genesis"]
     project_uuid = result_project_uuid(source / ".atlas-project.yaml")
     receipt = vault / "receipts" / "source-lineage" / "project-fixture-genesis-allocation.json"
     assert receipt.is_file()
