@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import subprocess
 from pathlib import Path
 from typing import Final, Literal
@@ -326,10 +327,11 @@ def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     This function alone only sees the *current working tree*, so it does
     NOT by itself catch a process that commits on a throwaway branch (or
     stash) and then returns the original branch and working tree to
-    their pre-run state -- see ``_reachable_commit_changed_paths()``,
-    called alongside this one in ``run_local_task()``, which closes that
-    class of evasion by walking every commit reachable from *any* ref
-    (not just the current branch), not only the live working tree.
+    their pre-run state -- see ``_new_commit_changed_paths()``, called
+    alongside this one in ``run_local_task()`` (paired with an existence
+    snapshot from ``_all_reachable_commits()``), which closes that class
+    of evasion by walking every commit reachable from *any* ref (not just
+    the current branch), not only the live working tree.
 
     ``git ls-files --others --exclude-standard`` deliberately excludes
     gitignored paths (the normal, desired behavior for "what would a
@@ -386,6 +388,24 @@ def _ignored_untracked_paths(repo_root: Path) -> frozenset[str]:
     require content-hashing every gitignored path in the repository on
     every run (e.g. an entire ``.venv``/``node_modules`` tree), which is
     not a proportionate cost for this module's stated design.
+
+    IV finding (PR #661 review, round 4): ``git ls-files --others``
+    transparently follows an NTFS junction on Windows -- unlike a
+    symlink, git has no special handling for a junction at all, so it
+    silently enumerates whatever the junction's external target
+    contains as though those files were untracked content of this repo
+    (e.g. a task creating ``secrets/junction_out`` pointed at an
+    unrelated external directory makes every file in that external
+    directory show up here as ``secrets/junction_out/<name>``). Left
+    unhandled, this both re-exposes a milder version of the round-3
+    resource-exhaustion risk (enumerating, though not reading, an
+    arbitrarily large external tree) and misleadingly attributes
+    pre-existing external files to the task as though it had created
+    them. Every path is collapsed to its nearest reparse-point ancestor
+    (``_collapse_reparse_point_descendants()``) before returning -- the
+    junction/symlink entity itself is still a real, reported new path
+    (created during the run), but nothing "inside" it is ever walked or
+    listed.
     """
     result = subprocess.run(
         ["git", "ls-files", "--others"],
@@ -395,31 +415,96 @@ def _ignored_untracked_paths(repo_root: Path) -> frozenset[str]:
         text=True,
         timeout=30,
     )
-    return frozenset(
+    raw_paths = frozenset(
         line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()
     )
+    return _collapse_reparse_point_descendants(raw_paths, repo_root)
 
 
-def _reachable_commit_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
-    """Every path changed by any commit that now exists *anywhere* in the
-    repository's ref graph -- any branch, any tag, and ``refs/stash`` --
-    that did not exist before the task ran, relative to the fixed
-    ``baseline_sha``.
+def _collapse_reparse_point_descendants(paths: frozenset[str], repo_root: Path) -> frozenset[str]:
+    """Replace any path that lies *underneath* a reparse-point directory
+    (a symlink or, on Windows, an NTFS junction) with that directory's
+    own path instead -- so a caller never sees, and this module never
+    stats/reads, anything git happened to enumerate by transparently
+    walking through the reparse point itself. A directory's reparse
+    status is checked at most once per distinct ancestor path (cached),
+    not once per file beneath it."""
+    reparse_cache: dict[str, bool] = {}
+    collapsed: set[str] = set()
+    for rel in paths:
+        parts = rel.split("/")
+        prefix_parts: list[str] = []
+        current = repo_root
+        replacement: str | None = None
+        for part in parts[:-1]:
+            prefix_parts.append(part)
+            current = current / part
+            prefix = "/".join(prefix_parts)
+            is_reparse = reparse_cache.get(prefix)
+            if is_reparse is None:
+                is_reparse = _is_reparse_point(current)
+                reparse_cache[prefix] = is_reparse
+            if is_reparse:
+                replacement = prefix
+                break
+        collapsed.add(replacement if replacement is not None else rel)
+    return frozenset(collapsed)
 
-    IV finding (PR #661 review): ``_git_changed_paths()`` alone only sees
-    the current working tree, so a launched process that commits its own
-    forbidden-path change on a throwaway branch (``git checkout -b tmp &&
-    ... && git commit ... && git checkout -``) or as a stash entry
-    (``git stash push``), then returns the original branch and working
-    tree to their exact pre-run state, left nothing for a working-tree
-    diff to see -- even though the change survives as a real, ref-
-    reachable commit object (visible to a human via ``git branch -a`` or
-    ``git stash list``). ``git rev-list --all --not <baseline_sha>``
-    walks every ref (``--all`` includes ``refs/stash``, not only regular
-    branches/tags), listing every commit reachable from some ref but not
-    from the baseline -- closing both the branch-switch-and-return and
-    stash-and-leave-stashed evasions with one general mechanism, not two
-    special cases bolted on separately.
+
+def _all_reachable_commits(repo_root: Path) -> frozenset[str]:
+    """Every commit SHA reachable from any ref right now -- any branch,
+    any tag, and ``refs/stash`` (``--all`` includes it, not only regular
+    branches/tags). A pure existence snapshot, taken before and after the
+    run and compared by set difference in ``run_local_task`` -- see
+    ``run_local_task``'s own comment for why a one-shot ``--not
+    <baseline_sha>`` query (this function's PR #661 round-3 predecessor)
+    was itself a false-positive bug, not just insufficiently strict."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", "--all"],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.CalledProcessError:
+        return frozenset()
+    return frozenset(line.strip() for line in result.stdout.splitlines() if line.strip())
+
+
+def _new_commit_changed_paths(
+    repo_root: Path, *, baseline_sha: str, new_commits: frozenset[str]
+) -> frozenset[str]:
+    """Every path changed by any of ``new_commits`` (each diffed against
+    the fixed ``baseline_sha``).
+
+    IV finding (PR #661 review, round 3): ``_git_changed_paths()`` alone
+    only sees the current working tree, so a launched process that
+    commits its own forbidden-path change on a throwaway branch (``git
+    checkout -b tmp && ... && git commit ... && git checkout -``) or as a
+    stash entry (``git stash push``), then returns the original branch
+    and working tree to their exact pre-run state, left nothing for a
+    working-tree diff to see -- even though the change survives as a
+    real, ref-reachable commit object (visible to a human via ``git
+    branch -a`` or ``git stash list``).
+
+    IV finding (PR #661 review, round 4 -- this function's own
+    correctness bug, not a security bypass but the opposite): the
+    round-3 predecessor of this function queried ``git rev-list --all
+    --not <baseline_sha>`` in a single post-run call. That lists every
+    commit reachable from any ref that is simply not an ANCESTOR of
+    baseline -- which includes every commit that already existed on any
+    other branch/tag/remote-tracking ref *before the task ever ran* (an
+    ordinary thing for almost any real, multi-branch clone to have), not
+    only commits newly created *during* the run. Demonstrated to produce
+    thousands of spurious violations against a completely inert task run
+    against this repository's own real clone. Fixed: the caller now takes
+    an existence-only before/after snapshot via ``_all_reachable_commits()``
+    (mirrors ``_ignored_untracked_paths()``'s own pattern) and passes only
+    the genuinely NEW commit SHAs in here -- this function itself no
+    longer decides "new" at all, only "what did these specific commits
+    change".
 
     Does NOT catch a commit made unreachable from every ref before the
     process exits (``git reset --hard <baseline>`` after committing, or
@@ -429,18 +514,6 @@ def _reachable_commit_changed_paths(repo_root: Path, *, baseline_sha: str) -> fr
     ordinary ``checkout -b``/``stash push`` and remains this module's one
     disclosed residual limitation.
     """
-    try:
-        result = subprocess.run(
-            ["git", "rev-list", "--all", "--not", baseline_sha],
-            cwd=repo_root,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except subprocess.CalledProcessError:
-        return frozenset()
-    new_commits = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     changed: set[str] = set()
     for commit_sha in new_commits:
         changed.update(_run_git(["diff", "--name-only", baseline_sha, commit_sha], cwd=repo_root))
@@ -484,12 +557,24 @@ def _forbidden_path_content_snapshot(
     ``Path.rglob()`` follows symlinked directories by default, which
     could walk this audit step into an arbitrarily large or slow
     external tree. Neither a symlinked file nor a symlinked directory is
-    ever dereferenced here (``os.walk(..., followlinks=False)``,
-    ``os.path.islink()`` checked before ever opening anything) -- each is
+    ever dereferenced here (``os.walk(..., followlinks=False)`` plus
+    explicitly pruning any reparse-point directory out of ``dirnames``
+    before the next iteration -- see ``_is_reparse_point()``) -- each is
     fingerprinted by its own link-target text instead, so creating,
     removing, or repointing a symlink under a forbidden path is still
     always a detected change, without this audit step ever opening
     whatever it points to.
+
+    IV finding (PR #661 review, round 4): on Windows, an NTFS junction
+    (``mklink /J``, fully unprivileged -- unlike a true Windows symlink,
+    no admin rights or Developer Mode required) is a reparse point that
+    ``Path.is_symlink()`` does NOT recognize, so ``os.walk(...,
+    followlinks=False)`` still descended into one -- reopening exactly
+    the external-content resource-exhaustion risk the round-3 fix was
+    meant to close, via an ordinary, unprivileged operation. Detection
+    now uses ``_is_reparse_point()`` (checks the Windows-only
+    ``FILE_ATTRIBUTE_REPARSE_POINT`` bit in addition to
+    ``is_symlink()``), which recognizes junctions too.
     """
     snapshot: dict[str, str] = {}
     for entry in forbidden_paths:
@@ -498,20 +583,53 @@ def _forbidden_path_content_snapshot(
         if not base.is_relative_to(repo_root):
             continue  # scope-path validator already rejects traversal; defensive only
         if is_dir_prefix:
-            if base.is_dir() and not base.is_symlink():
+            if base.is_dir() and not _is_reparse_point(base):
                 for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
                     dirnames.sort()
-                    for name in sorted(dirnames):
-                        link_path = Path(dirpath) / name
-                        if link_path.is_symlink():
-                            _snapshot_symlink(link_path, repo_root, snapshot)
+                    reparse_names = [
+                        name for name in dirnames if _is_reparse_point(Path(dirpath) / name)
+                    ]
+                    for name in reparse_names:
+                        _snapshot_symlink(Path(dirpath) / name, repo_root, snapshot)
+                    # Prune every reparse-point directory (symlink or
+                    # junction) out of dirnames so os.walk never descends
+                    # into it on a later iteration -- followlinks=False
+                    # alone only stops true symlinks, not junctions.
+                    dirnames[:] = [name for name in dirnames if name not in reparse_names]
                     for name in sorted(filenames):
                         _snapshot_leaf(Path(dirpath) / name, repo_root, snapshot)
-        elif base.is_symlink():
+        elif _is_reparse_point(base):
             _snapshot_symlink(base, repo_root, snapshot)
         elif base.is_file():
             _snapshot_leaf(base, repo_root, snapshot)
     return snapshot
+
+
+def _is_reparse_point(path: Path) -> bool:
+    """True for a POSIX symlink OR a Windows reparse point (NTFS
+    junction/mount point included) -- see
+    ``_forbidden_path_content_snapshot()``'s round-4 docstring note for
+    why ``is_symlink()`` alone is not sufficient on Windows."""
+    if path.is_symlink():
+        return True
+    if os.name != "nt":
+        return False
+    try:
+        # getattr(), not direct attribute access: `st_file_attributes` is
+        # a Windows-only os.stat_result field, present only conditionally
+        # in typeshed's stub across the platforms this repo's CI matrix
+        # runs mypy on (ubuntu-latest and windows-latest both run this
+        # module's own type check) -- getattr() sidesteps a mypy
+        # attr-defined/unused-ignore mismatch between them entirely,
+        # while remaining correct at runtime on every platform (the
+        # os.name check above already short-circuits before this on
+        # POSIX regardless).
+        attributes = getattr(path.lstat(), "st_file_attributes", None)
+    except OSError:
+        return False
+    if attributes is None:
+        return False
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
 def _snapshot_symlink(link_path: Path, repo_root: Path, snapshot: dict[str, str]) -> None:
@@ -524,7 +642,7 @@ def _snapshot_symlink(link_path: Path, repo_root: Path, snapshot: dict[str, str]
 
 
 def _snapshot_leaf(file_path: Path, repo_root: Path, snapshot: dict[str, str]) -> None:
-    if file_path.is_symlink():
+    if _is_reparse_point(file_path):
         _snapshot_symlink(file_path, repo_root, snapshot)
         return
     if not file_path.is_file():
@@ -689,6 +807,14 @@ def run_local_task(
     # _ignored_untracked_paths's docstring for the authorized_paths-side
     # gitignored-file bypass this closes).
     ignored_before = _ignored_untracked_paths(resolved_root)
+    # Existence snapshot of every ref-reachable commit (see
+    # _new_commit_changed_paths's docstring, round-4 correctness fix: a
+    # one-shot "--not baseline_sha" query previously flagged every
+    # pre-existing, unrelated commit on any other branch/tag/remote-
+    # tracking ref as if it were new -- an existence-only before/after
+    # snapshot, mirroring _ignored_untracked_paths's own pattern, is the
+    # only way to correctly identify commits created DURING this run).
+    commits_before = _all_reachable_commits(resolved_root)
 
     request = ProcessRunRequest(
         argv=envelope.argv,
@@ -701,9 +827,12 @@ def run_local_task(
     outcome: ProcessRunOutcome = active_runner.run(request)
 
     new_ignored_paths = _ignored_untracked_paths(resolved_root) - ignored_before
+    new_commits = _all_reachable_commits(resolved_root) - commits_before
     new_paths = (
         _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
-        | _reachable_commit_changed_paths(resolved_root, baseline_sha=baseline_sha)
+        | _new_commit_changed_paths(
+            resolved_root, baseline_sha=baseline_sha, new_commits=new_commits
+        )
         | new_ignored_paths
     )
     forbidden_after = _forbidden_path_content_snapshot(resolved_root, envelope.forbidden_paths)

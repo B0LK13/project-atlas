@@ -294,8 +294,20 @@ def test_no_dispatch_or_merge_implemented() -> None:
 
     AS-ORCH-001D owns subprocess transport and dispatch-once. Multi-hop
     auto-dispatch and merge remain forbidden everywhere.
+
+    ``local_process_transport.py`` (AS-ORCH-LOCAL-PROC-001, PR #661) is a
+    second, deliberate subprocess-transport owner alongside
+    ``agent_transport.py``/``dispatcher.py`` -- a disabled-by-default,
+    provider-neutral LOCAL PROCESS execution backend, explicitly scoped
+    by directive as its own independently-reviewable primitive (never
+    Cursor/OpenAI/Anthropic/network/billing). It still never dispatches
+    multi-hop or merges -- ``merge_authorized``/``execution_authorized``
+    are hard-coded ``Literal[False]`` on every result it can produce, and
+    it is checked by the same ``forbidden_names``/``def merge_pull_
+    request`` scan below as every other module, dispatch-allowlisted or
+    not.
     """
-    dispatch_modules = {"agent_transport.py", "dispatcher.py"}
+    dispatch_modules = {"agent_transport.py", "dispatcher.py", "local_process_transport.py"}
     forbidden_imports = (
         "import subprocess",
         "from subprocess",

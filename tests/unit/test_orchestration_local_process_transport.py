@@ -14,6 +14,7 @@ and ``ZERO_BILLING`` hold structurally, not merely by assertion.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from collections.abc import Mapping
@@ -458,6 +459,50 @@ def test_i_stash_and_leave_stashed_does_not_evade_detection(tmp_path: Path) -> N
     assert reasons.get(".github_workflow_tamper.txt") == "FORBIDDEN_PATH"
 
 
+def test_h_preexisting_unrelated_branch_is_not_a_false_positive(tmp_path: Path) -> None:
+    """IV finding (PR #661 review, round 4 -- a correctness bug, not a
+    security bypass but the opposite): the round-3 commit-reachability
+    check (`git rev-list --all --not <baseline_sha>`) lists every commit
+    reachable from any ref that is simply not an ANCESTOR of baseline --
+    which includes every commit that already existed on any OTHER
+    branch/tag before the task ever ran, not only commits created DURING
+    the run. Demonstrated to flag a completely inert task with thousands
+    of spurious violations against a real multi-branch clone. An
+    existence-only before/after snapshot of the whole ref graph (mirrors
+    _ignored_untracked_paths's own pattern) must correctly exclude a
+    pre-existing, unrelated branch's commits."""
+    repo = _make_repo(tmp_path)
+    original_branch = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    # An unrelated branch with its own unrelated commit, present BEFORE
+    # the task ever runs -- diverged from the baseline, not an ancestor
+    # of it, exactly the shape that triggered the false positive.
+    subprocess.run(["git", "checkout", "-q", "-b", "unrelated-preexisting"], cwd=repo, check=True)
+    (repo / "unrelated_file.txt").write_text("nothing to do with the task\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "unrelated pre-existing work"],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(["git", "checkout", "-q", original_branch], cwd=repo, check=True)
+
+    envelope = LocalTaskEnvelope(
+        work_id="H-005",
+        argv=(sys.executable, "-c", "pass"),  # genuinely inert -- changes nothing
+        authorized_paths=("src/",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is True
+    assert result.changed_paths == ()
+    assert result.violations == ()
+
+
 def test_h_preexisting_dirty_state_fails_closed_before_starting(
     tmp_path: Path,
 ) -> None:
@@ -661,6 +706,46 @@ def test_i_forbidden_symlink_is_detected_without_dereferencing_target(
         pytest.skip("symlink creation not permitted in this environment")
     assert result.authority_clean is False
     assert any(v.path == "secrets/link_out.txt" for v in result.violations)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="NTFS junctions are Windows-only")
+def test_i_forbidden_ntfs_junction_is_detected_without_walking_into_it(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #661 review, round 4): an NTFS junction (`mklink
+    /J`, fully unprivileged -- unlike a true Windows directory symlink,
+    no admin rights or Developer Mode required) is a reparse point
+    `Path.is_symlink()` does not recognize, so the round-3 fix's
+    `os.walk(..., followlinks=False)` still walked into one -- reopening
+    the external-content resource-exhaustion risk that fix was meant to
+    close. A junction must now be detected as its own single entity,
+    never walked into."""
+    repo = _make_repo(tmp_path)
+    outside_dir = tmp_path / "outside_the_repo_dir"
+    outside_dir.mkdir()
+    (outside_dir / "large.txt").write_text("x" * 1000, encoding="utf-8")
+    envelope = LocalTaskEnvelope(
+        work_id="I-012",
+        argv=(
+            sys.executable,
+            "-c",
+            "import os, subprocess; os.makedirs('secrets', exist_ok=True); "
+            "subprocess.run(['cmd', '/c', 'mklink', '/J', 'secrets\\\\junction_out', "
+            f"{str(outside_dir)!r}], check=True)",
+        ),
+        forbidden_paths=("secrets/",),
+    )
+    try:
+        result = run_local_task(envelope, ENABLED, project_root=repo)
+    except OSError:
+        pytest.skip("junction creation not permitted in this environment")
+    assert result.exit_code == 0
+    assert result.authority_clean is False
+    # The junction itself is flagged as ONE entity -- never walked into,
+    # so the external file's own path must never appear as a violation.
+    violation_paths = {v.path for v in result.violations}
+    assert "secrets/junction_out" in violation_paths
+    assert not any("large.txt" in path for path in violation_paths)
 
 
 def test_i_out_of_scope_but_not_forbidden_path_is_still_flagged(tmp_path: Path) -> None:
