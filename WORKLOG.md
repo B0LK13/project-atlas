@@ -9809,3 +9809,29 @@ recovery independently re-verified PASS and merged via PR #638.)
   `fix/validate-link-check-ignores-code-spans` off `818dd140`, PR opened
   for independent review -- not self-merged. Companion to `DOGFOOD-001`
   (PR #656) and `DOGFOOD-004` (PR #657); does not depend on either.
+
+## 2026-08-31 — review findings closed
+
+- `copilot-pull-request-reviewer` found a genuine correctness gap:
+  `_quote_source_text` widens its opening fence beyond the longest
+  backtick run already present in the quoted content (so a fence can be 4,
+  5, ... backticks), but `_FENCED_CODE_BLOCK`'s closing pattern accepted
+  *any* run of 3+ backticks as the close -- a shorter run inside the
+  content (e.g. the quoted excerpt itself containing another 3-backtick
+  fence) could be mistaken for the real close, leaving the remainder of
+  the actual fenced block unmasked and reintroducing false-positive link
+  matches. Fixed: the closing fence must now be at least as long as the
+  opening one (`\1` backreference to the captured opening run, followed by
+  zero or more further backticks) -- CommonMark's actual rule.
+- Also applied its minor performance suggestion: `_mask_inert_markdown_regions`
+  now short-circuits immediately when the text has no backtick at all
+  (the common case for prose-only generated files), skipping both regex
+  passes.
+- New tests: the reviewer's exact scenario (an outer 4-backtick fence
+  containing a nested 3-backtick "fence"), and the fast-path short-circuit.
+  `tests/unit/test_validate_link_check_ignores_code_spans.py` now 11
+  tests (was 9).
+- Suites: full file (11 passed); `test_core_vertical_slice.py`,
+  `test_as_mvp_001_release_closure.py`, `test_okf_public_conformance.py`
+  (13 passed). `ruff check .` clean; `mypy src` clean except the
+  pre-existing, unrelated `connect_perf.py` gap.

@@ -83,10 +83,35 @@ def _seed_vault(vault: Path) -> None:
         # ignored by validate()'s own caller-side filtering, not by masking;
         # confirm masking doesn't interfere with that.
         ("[section](#heading) and [ext](https://example.com/x)", ["#heading", "https://example.com/x"]),
+        # Review finding: _quote_source_text widens its fence beyond the
+        # longest backtick run already present in the quoted content (here
+        # a 4-backtick outer fence, because the content itself contains a
+        # 3-backtick run). A shorter run inside the content -- e.g. the
+        # content quoting another 3-backtick fence -- must never be
+        # mistaken for the real close; the closing fence must be at least
+        # as long as the opening one.
+        (
+            "````source-excerpt\n"
+            "Some text with an inner fence:\n"
+            "```\n"
+            "nested [fake link](fake.md)\n"
+            "```\n"
+            "and after it [also fake](also-fake.md)\n"
+            "````\n"
+            "Outside the real fence: [real](real.md)\n",
+            ["real.md"],
+        ),
     ],
 )
 def test_mask_inert_markdown_regions_link_extraction(text: str, expected: list[str]) -> None:
     assert LINK.findall(_mask_inert_markdown_regions(text)) == expected
+
+
+def test_mask_inert_markdown_regions_fast_path_for_backtick_free_text() -> None:
+    # Review suggestion: skip both regex passes entirely when there are no
+    # backticks at all -- the common case for prose-only generated files.
+    text = "Just prose with [a real link](real.md) and nothing else.\n"
+    assert _mask_inert_markdown_regions(text) is text
 
 
 def test_validate_does_not_flag_link_inside_quoted_claim_text(tmp_path: Path) -> None:

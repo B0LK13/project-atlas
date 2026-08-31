@@ -32,11 +32,20 @@ from project_atlas.source_identity import canonical_source_sha256
 LINK = re.compile(r"\]\(([^)]+)\)")
 # A fenced code block (``_quote_source_text``'s multi-line "source-excerpt"
 # shape: a fence line, verbatim content, a matching closing fence) or an
-# inline code span (one or more backticks, content, the same-length closing
-# run -- CommonMark's actual code-span rule, via the \1 backreference).
+# inline code span (one or more backticks, content, a closing run of
+# backticks -- CommonMark's actual rules, via the \1 backreference).
 # Content inside either renders as inert literal text, never a live link,
 # even when it contains a `](...)`-shaped substring.
-_FENCED_CODE_BLOCK = re.compile(r"^[ \t]*`{3,}[^\n]*\n.*?(?:^[ \t]*`{3,}[ \t]*$|\Z)", re.M | re.S)
+#
+# The closing fence must be *at least* as long as the opening one (``\1``
+# followed by zero or more further backticks), not merely "any run of 3+":
+# ``_quote_source_text`` widens the fence beyond the longest backtick run
+# already present in the quoted content specifically so a shorter
+# accidental run inside that content (e.g. someone's excerpt quoting
+# another 3-backtick fence) can never be mistaken for the real close.
+_FENCED_CODE_BLOCK = re.compile(
+    r"^[ \t]*(`{3,})[^\n]*\n.*?(?:^[ \t]*\1`*[ \t]*$|\Z)", re.M | re.S
+)
 _INLINE_CODE_SPAN = re.compile(r"(`+)(?:(?!\1)[\s\S])*?\1")
 
 # AS-H-010 process exit codes for ``atlas validate`` (argparse usage remains 2).
@@ -73,6 +82,8 @@ def _mask_inert_markdown_regions(text: str) -> str:
     regex scan did not know that and reported it as broken. Content outside
     any code span/fence is unaffected and still checked exactly as before.
     """
+    if "`" not in text:
+        return text
     masked = _FENCED_CODE_BLOCK.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
     return _INLINE_CODE_SPAN.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), masked)
 
