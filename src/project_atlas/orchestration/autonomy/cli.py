@@ -18,6 +18,10 @@ from project_atlas.orchestration.autonomy.lease_projection import (
 from project_atlas.orchestration.autonomy.lease_projection import (
     ProjectionError,
 )
+from project_atlas.orchestration.autonomy.local_dispatch_port import (
+    LocalDispatchError,
+    LocalProcessDispatchPort,
+)
 from project_atlas.orchestration.autonomy.loop import (
     STATE_DIR_RELATIVE,
     AutonomousLoop,
@@ -27,6 +31,7 @@ from project_atlas.orchestration.autonomy.models import (
     AUTONOMY_PACKAGE_ID,
     BOOTSTRAP_MAIN,
     BOOTSTRAP_TREE,
+    ExecutionHostClass,
     LiveInventory,
     NodeState,
     TrustedAnchorRecord,
@@ -37,6 +42,7 @@ from project_atlas.orchestration.autonomy.trust import (
     load_runtime_anchor,
     normalize_repository_identity,
 )
+from project_atlas.orchestration.local_process_transport import LocalProcessExecutorConfig
 from project_atlas.orchestration.origination.projection import (
     RELATIVE_DEFAULT as ORIGINATION_PROJECTION_RELATIVE_DEFAULT,
 )
@@ -237,6 +243,8 @@ def run_governor_loop_tick(
     trust_store: Path | None = None,
     loop_store: Path | None = None,
     origination_store: Path | None = None,
+    local_execution_config: LocalProcessExecutorConfig | None = None,
+    local_execution_argv_template: tuple[str, ...] | None = None,
 ) -> tuple[dict[str, object], int]:
     """One 001E tick. Never merges or grants owner authority.
 
@@ -255,8 +263,30 @@ def run_governor_loop_tick(
     file on disk yet loads as an empty projection (zero candidates,
     zero behavior change) -- there is no separate opt-out parameter
     because none is needed.
+
+    AS-ORCH-LOCAL-DISPATCH-001 (PR-C): ``local_execution_config`` /
+    ``local_execution_argv_template`` are both ``None`` by default -- the
+    real ``atlas`` CLI does not pass them today, so every existing
+    invocation of this function is completely unaffected (a newly-leased
+    node still executes exactly as before, via the pre-existing
+    ``IN_PROCESS`` metadata-bundle path). Passing BOTH explicitly is the
+    only way to opt in: an operator-configured, already-``enabled=True``
+    ``LocalProcessExecutorConfig`` (PR-B's own disabled-by-default gate)
+    plus a non-empty, fixed argv template. Only then does a newly-leased
+    node route through ``LocalProcessDispatchPort`` -- a real, scope-
+    audited local subprocess -- instead of the metadata-only stand-in.
+    Passing only one of the two is a configuration error, not a partial
+    enablement; there is no implicit fallback to network/cloud/billing
+    execution either way.
     """
     try:
+        if (local_execution_config is None) != (local_execution_argv_template is None):
+            raise LocalDispatchError(
+                "local_execution_config and local_execution_argv_template must "
+                "both be provided, or neither -- partial local-execution "
+                "configuration is refused rather than silently ignored",
+                code="LOCAL_EXECUTION_PARTIALLY_CONFIGURED",
+            )
         trusted = _load_trusted(trust_store=trust_store, allow_shipped=trust_store is None)
         inventory = collect_live_inventory(root)
         lease_store = root / LEASE_PROJECTION_RELATIVE_DEFAULT
@@ -284,11 +314,21 @@ def run_governor_loop_tick(
             lease_projection_store=lease_store,
             origination_projection_store=origin_store,
         )
+        dispatch_port: LocalProcessDispatchPort | None = None
+        host_class_override: ExecutionHostClass | None = None
+        if local_execution_config is not None and local_execution_argv_template is not None:
+            dispatch_port = LocalProcessDispatchPort(
+                config=local_execution_config,
+                argv_template=local_execution_argv_template,
+            )
+            host_class_override = ExecutionHostClass.LOCAL_PROCESS
         loop = AutonomousLoop(
             governor=governor,
             trusted=trusted,
             store=store,
             root=root,
+            dispatch=dispatch_port,
+            execution_host_class_override=host_class_override,
         )
         result = loop.tick()
         if result.phase.value == "IDLE":
@@ -322,7 +362,14 @@ def run_governor_loop_tick(
         payload["merge_authorized"] = False
         payload["execution_authorized"] = False
         return payload, EXIT_OK if result.phase.value != "FAILED_CLOSED" else EXIT_ERROR
-    except (TrustError, DiscoveryError, LoopError, RehydrationError, ProjectionError) as exc:
+    except (
+        TrustError,
+        DiscoveryError,
+        LoopError,
+        RehydrationError,
+        ProjectionError,
+        LocalDispatchError,
+    ) as exc:
         code = getattr(exc, "code", "LOOP_FAILED_CLOSED")
         return _fail_closed(str(exc), blocker=code), EXIT_ERROR
 

@@ -362,6 +362,7 @@ class AutonomousGovernor:
         branch: str,
         worktree: str,
         owner_grant: bool = False,
+        execution_host_class_override: ExecutionHostClass | None = None,
     ) -> AgentLease:
         if self._target_moved:
             raise GovernorError("refusing lease on moved target", code="TARGET_MOVED")
@@ -409,6 +410,19 @@ class AutonomousGovernor:
                 raise GovernorError(str(exc), code="OWNER_GATE_REQUIRED") from exc
         if would_overlap(tuple(self._nodes), node):
             raise GovernorError("surface overlap forbids lease", code="SURFACE_OVERLAP")
+        if execution_host_class_override is not None:
+            # AS-ORCH-LOCAL-DISPATCH-001 (PR-C): an explicit, caller-
+            # supplied execution-backend SELECTION -- applied only after
+            # every authority check above (READY state, dependencies,
+            # owner gate, surface overlap) has already independently
+            # passed, so this can never widen what a node is authorized
+            # to do, only choose HOW an already-authorized lease runs.
+            # materialize.py always sets IN_PROCESS; this is the one
+            # deliberate, explicit place that value can be overridden --
+            # never silently, never as a default (this parameter has no
+            # default other than None = unchanged, current behavior).
+            node = node.model_copy(update={"execution_host_class": execution_host_class_override})
+            self._replace(node)
         agent = self._require_agent(agent_id)
         lease = grant_lease(
             lease_id=f"LEASE-{self._next_sequence()}",

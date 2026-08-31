@@ -125,10 +125,28 @@ class RiskTag(StrEnum):
 
 
 class ExecutionHostClass(StrEnum):
-    """Where leased work may run. In-process is the only host this package executes."""
+    """Where leased work may run.
+
+    ``IN_PROCESS`` and ``EXTERNAL_AGENT`` both predate this value.
+    ``LOCAL_PROCESS`` (AS-ORCH-LOCAL-DISPATCH-001, PR-C) is a distinct,
+    explicit third value -- never conflated with ``EXTERNAL_AGENT``,
+    which this package's own tests already use to mean "some other,
+    unspecified dispatch mechanism" generically. ``LOCAL_PROCESS`` names
+    one specific mechanism precisely: an operator-configured, disabled-
+    by-default local subprocess (see
+    ``orchestration.local_process_transport`` and
+    ``orchestration.autonomy.local_dispatch_port``) -- never Cursor,
+    never a cloud agent, never implied network/billing access. A node
+    reaching this host class still goes through the exact same
+    ``DispatchPort`` seam ``EXTERNAL_AGENT`` already used (``loop.py``'s
+    ``_dispatch_leased()`` branches on ``!= IN_PROCESS``, not on a
+    specific non-``IN_PROCESS`` value), so no governor/loop state-machine
+    change was needed to add this value.
+    """
 
     IN_PROCESS = "IN_PROCESS"
     EXTERNAL_AGENT = "EXTERNAL_AGENT"
+    LOCAL_PROCESS = "LOCAL_PROCESS"
 
 
 class AdvancementReason(StrEnum):
