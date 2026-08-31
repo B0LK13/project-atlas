@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -997,6 +998,190 @@ def test_run_governor_loop_tick_releases_projected_lease_on_terminal_completion(
     # the same package/worker would be rejected as
     # DUPLICATE_ACTIVE_LEASE/FOREIGN_WORKER.
     assert after_row.status == "RELEASED"
+
+
+def test_cross_process_reaper_recovers_a_lease_release_lost_to_real_contention(
+    tmp_path: Path,
+) -> None:
+    """AUTONOMY_PROJECTION_ERROR_RECOVERY_BOUNDARY, Section 8 required
+    adversarial proof: genuine independent OS processes sharing only
+    durable filesystem state, not two objects in one Python process (see
+    this module's own docstring on why that distinction is load-bearing
+    here).
+
+    PROCESS A: a real subprocess leases and completes the pilot node in
+    one ``run_governor_loop_tick()`` call (LEASED -> in-process dispatch
+    -> validate -> finalize, exactly ``test_run_governor_loop_tick_
+    releases_projected_lease_on_terminal_completion``'s own proven path
+    above) while THIS test process holds the real lease-projection lock
+    file in a background thread -- a genuine OS-level mutual-exclusion
+    primitive (an atomic ``O_CREAT|O_EXCL`` lock file,
+    ``source_identity.ProjectIdentityLock``), so process A's own
+    ``release_lease()`` attempt inside its IDLE-cleanup genuinely times
+    out against a lock held by a different process, not a monkeypatch.
+    Process A then exits -- all of its in-memory governor/loop state is
+    gone.
+
+    PROCESS B: a second, completely fresh subprocess (this lock now
+    released) calls ``run_governor_loop_tick()`` again. Rehydration's
+    reaper finds LEASE-1 in the durable ``completed_lease_ids`` proof
+    with its projection row still ACTIVE, and retries the release --
+    using only what process A left on disk, nothing carried over in
+    memory.
+
+    Proves: LEAK_REPRODUCED (the row really is left ACTIVE after process
+    A, confirmed before process B ever runs) and CROSS_PROCESS_REAPER =
+    PASS (process B's own reap, with zero shared process state, converts
+    it to RELEASED) with no duplicate dispatch (process B never
+    re-executes the node -- it only touches the durable lease row).
+    """
+    from project_atlas.orchestration.autonomy.lease_projection import (
+        RELATIVE_DEFAULT as LEASE_RELATIVE_DEFAULT,
+    )
+    from project_atlas.orchestration.autonomy.loop import (
+        STATE_DIR_RELATIVE,
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    # run_governor_loop_tick() has no lease-store override -- it always
+    # resolves the durable lease projection to this exact default path
+    # under root, unlike the rehydrate_governor()-direct tests elsewhere
+    # in this file (which pass an explicit, arbitrary lease_store).
+    lease_store = repo / LEASE_RELATIVE_DEFAULT
+    loop_store = repo / STATE_DIR_RELATIVE
+
+    # Grant the lease durably BEFORE any lock is held, exactly like
+    # test_run_governor_loop_tick_releases_projected_lease_on_terminal_
+    # completion above -- only the RELEASE side of process A needs
+    # genuine contention, not the initial grant (which is itself a
+    # _mutate_projection() write and would otherwise contend too).
+    trusted, _inventory, lease = _lease_and_persist(repo, trust_store, lease_store)
+    lease_id = lease.lease_id
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.LEASED,
+            "active_package_id": PILOT_PACKAGE_ID,
+            "active_lease_id": lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    from project_atlas.orchestration.autonomy.lease_projection import LOCK_NAME
+    from project_atlas.source_identity import ProjectIdentityLock
+
+    lock_path = (lease_store.expanduser().resolve() / LOCK_NAME).resolve()
+    holder_ready = threading.Event()
+    release_holder = threading.Event()
+
+    def _hold_lock() -> None:
+        with ProjectIdentityLock(lock_path, wait_seconds=2.0, stale_seconds=30.0):
+            holder_ready.set()
+            # Codex/Copilot review finding on PR #658: a short timeout
+            # here could let the lock clear before process A ever
+            # attempts its own acquisition on a slow/loaded runner,
+            # silently turning off the contention this test exists to
+            # prove. Wait indefinitely -- the `finally` block below
+            # always calls release_holder.set() once process A's
+            # subprocess.run() returns (success or exception), and this
+            # is a daemon thread, so it can never hang test teardown.
+            release_holder.wait()
+
+    holder = threading.Thread(target=_hold_lock, daemon=True)
+    holder.start()
+    assert holder_ready.wait(timeout=5.0), "background lock holder never acquired the lock"
+
+    process_a = f"""
+import json, sys
+sys.path.insert(0, {_SRC!r})
+from pathlib import Path
+from project_atlas.orchestration.autonomy.cli import run_governor_loop_tick
+
+# The lease-projection lock is held by the parent test process right
+# now. This call rehydrates the LEASED pilot node from disk and runs it
+# to completion (durably recording completed_lease_ids) but its own
+# release_lease() attempt genuinely times out against that real,
+# external lock -- not a monkeypatch.
+payload, exit_code = run_governor_loop_tick(
+    root=Path({str(repo)!r}), trust_store=Path({str(trust_store)!r}),
+)
+print(json.dumps({{"payload": payload, "exit_code": exit_code}}))
+"""
+    try:
+        result_a = subprocess.run(
+            [sys.executable, "-c", process_a], check=False, capture_output=True, text=True
+        )
+    finally:
+        release_holder.set()
+        holder.join(timeout=5.0)
+
+    assert result_a.returncode == 0, result_a.stderr
+    outcome_a = json.loads(result_a.stdout.strip().splitlines()[-1])
+    # Independent-verification finding: process A's own top-level
+    # run_governor_loop_tick() call actually reports EXIT_ERROR here --
+    # the contended release_lease() call in its post-tick IDLE-cleanup
+    # (cli.py) is not wrapped the way _select_and_lease()'s own
+    # ProjectionError handling is, so the exception propagates to the
+    # function's generic except clause, replacing the payload with
+    # _fail_closed()'s shape (no "phase" key at all) and CONCURRENT_
+    # PROJECTION as the blocker. That is exactly the pre-fix, unrelated
+    # inconsistency this session already investigated and deliberately
+    # declined to "fix" by downgrading to EXIT_OK (see the reverted
+    # cli.py attempt earlier this session) -- masking it would have
+    # hidden the very leak this test exists to prove. Assert what
+    # actually happens, not an aspirational "it succeeded" story.
+    assert outcome_a["exit_code"] == 1, outcome_a
+    assert outcome_a["payload"].get("blocker") == "CONCURRENT_PROJECTION", outcome_a
+
+    # LEAK_REPRODUCED: proven before process B ever runs. The node's
+    # work durably finished (completed_lease_ids has the lease), but the
+    # projection row is stuck ACTIVE because the release write lost the
+    # real lock race.
+    from project_atlas.orchestration.autonomy.lease_projection import load_projection
+    from project_atlas.orchestration.autonomy.loop import load_loop_state
+
+    stranded_state = load_loop_state(loop_store)
+    assert lease_id in stranded_state.completed_lease_ids
+    stranded_row = next(
+        item for item in load_projection(lease_store).leases if item.lease_id == lease_id
+    )
+    assert stranded_row.status == "ACTIVE"
+
+    # PROCESS B: fresh subprocess, lock released, zero shared state.
+    process_b = f"""
+import json, sys
+sys.path.insert(0, {_SRC!r})
+from pathlib import Path
+from project_atlas.orchestration.autonomy.cli import run_governor_loop_tick
+payload, exit_code = run_governor_loop_tick(
+    root=Path({str(repo)!r}), trust_store=Path({str(trust_store)!r}),
+)
+print(json.dumps({{"payload": payload, "exit_code": exit_code}}))
+"""
+    result_b = subprocess.run(
+        [sys.executable, "-c", process_b], check=False, capture_output=True, text=True
+    )
+    assert result_b.returncode == 0, result_b.stderr
+    outcome_b = json.loads(result_b.stdout.strip().splitlines()[-1])
+    payload_b = outcome_b["payload"]
+
+    # CROSS_PROCESS_REAPER = PASS: recovered using only durable disk
+    # state process A left behind.
+    healed_row = next(
+        item for item in load_projection(lease_store).leases if item.lease_id == lease_id
+    )
+    assert healed_row.status == "RELEASED"
+    # NO_DUPLICATE_DISPATCH: process B's own tick never re-executed the
+    # already-finished node -- the reap only touched the durable lease
+    # row during rehydration, before process B's own tick() logic ran.
+    assert payload_b.get("dispatched") is not True, payload_b
+    assert payload_b.get("lease_id") != lease_id, payload_b
 
 
 @pytest.mark.parametrize(

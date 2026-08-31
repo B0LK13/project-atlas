@@ -9813,3 +9813,181 @@ recovery independently re-verified PASS and merged via PR #638.)
   independent review -- not self-merged. Unlike `DOGFOOD-001`, this PR is
   not blocked on a freeze-exception decision: it stays entirely inside the
   unfrozen `atlas3/` namespace by construction.
+
+## 2026-08-31 — DOGFOOD-001: source-safe genesis identity write
+
+- Context: the first authentic Atlas dogfood run (real CLI against real
+  `B0LK13/project-atlas` content, pinned to `e1bcca47` / tree `2e89b36c`,
+  before `#654` merged) reproduced -- 3x independently, plus a fresh
+  isolated red/green repro on this branch (base `818dd140` / tree
+  `0eaf751b`) -- an unintended P1 source-safety defect: a project's first
+  `atlas ingest` allocates durable project identity (AS-ID-001 genesis,
+  intended) by rewriting `.atlas-project.yaml`'s *entire* body through
+  `yaml.safe_dump` -- reflowing block lists to flow style, dropping blank
+  lines, normalizing quote style -- with no CLI-visible signal that a
+  *source*-tree file (not `--vault` state) had been touched.
+- Contract determination (read `source_identity.py`, `ingestion.py`,
+  `docs/AS-ID-001-*`, and the existing fixed-UUID comment in
+  `tests/integration/test_as_mvp_001_release_closure.py`): the marker is
+  intended, tracked, human-authored project configuration; `project_uuid`
+  living there and genesis mutating it on first ingest are both
+  deliberate AS-ID-001 architecture, not the defect. The defect is (a) the
+  full-document reserialization clobbering unrelated formatting, and (b)
+  no disclosure of the source-tree write to the operator.
+  `DOGFOOD_DEFECT_001 = INTENDED_MUTATION_WITH_MISSING_CONSENT_BOUNDARY`.
+- Fix (`ingestion.py`): new `_append_marker_project_uuid()` appends
+  `project_uuid: <uuid>` as a single new line onto the marker's original
+  bytes -- verified by re-parsing the result and comparing it to the
+  expected merged mapping -- instead of `yaml.safe_dump`ing the whole
+  document. Falls back to the previous whole-document dump only when a
+  bare append would be unsafe (flow-style single-line documents, an
+  explicit `...` end marker), so genesis still always succeeds. Threaded a
+  new `marker_written` signal through `_prepare_project_identity()`,
+  distinct from the pre-existing `allocated` (receipt-created-this-vault)
+  signal, since attaching an already-uuid'd marker to a *second* vault
+  allocates a receipt without touching the marker and must not be reported
+  as one. `ingest()`'s result gains `identity_allocated`; the CLI prints
+  `identity allocated for: <project> (source project marker updated with
+  project_uuid; see --source)` only when the marker was actually written.
+  `ingest --help` and the CLAUDE.md `ingestion.py` bullet now document the
+  behavior.
+- Regression: `tests/unit/test_dogfood_001_source_marker_identity_write.py`
+  (5 tests) -- byte-for-byte preservation of unrelated marker content, the
+  CLI disclosure line, no re-mutation / no false disclosure on a second
+  vault's ingest of an already-stamped marker, the document-end-marker
+  fallback path, and the allocation receipt still recording the uuid once.
+- Real CLI red/green proof (not mocked): fresh temp git repo, real
+  `.atlas-project.yaml` with block lists / blank lines / quoted strings, no
+  `project_uuid`. Pre-fix `atlas ingest` (dogfood venv):
+  `git diff` = full-document rewrite + appended field. Post-fix (this
+  branch): `git diff` = exactly one appended line, byte-identical
+  otherwise; a second vault's `ingest` against the now-stamped marker
+  produced no further `git diff` and no `identity allocated for:` line.
+- Suites: `tests/unit/test_dogfood_001_source_marker_identity_write.py`,
+  `test_source_identity.py`, `test_as_coder_alpha_057_copied_uuid.py` (30
+  passed); `tests/integration/test_ingestion_security.py`,
+  `test_agent_event_ingestion.py`, `test_codex_sec_001_002_provenance.py`,
+  `test_as_mvp_001_release_closure.py`, `test_core_vertical_slice.py`,
+  `test_as_demo_2_2_recovery_id_bootstrap.py`, `test_concurrency.py` (44
+  passed). `ruff check` / `mypy` clean on `ingestion.py` + `cli.py`.
+- `DOGFOOD_DEFECT_002` (random UUIDv4 differs per from-scratch genesis)
+  reclassified `EXPECTED_BY_DESIGN` on the same contract evidence above
+  (the release-closure test's own docstring: "AS-ID-001's 'genesis'
+  design"); no code change made or warranted.
+- **BLOCKING DISCOVERY — full `tests/unit` run surfaces the real gate**:
+  `tests/unit/test_atlas3_demo_isolation_001.py` (`test_certified_surfaces_unmodified`,
+  `test_cli_mutation_is_additive_only`) fails on this branch. Its own
+  contract (`docs/atlas-3/ARCHITECTURE.md` §9, "Isolation from certified
+  demo surfaces") freezes `ingestion.py` (on its `DENY` list) and locks
+  `cli.py`'s *existing* command behavior (only additive
+  `register_atlas3_parsers`/`dispatch_atlas3` registration is allowed)
+  "while `FULL_LIVE_DEMO_READY = NO`" -- which is the current state per
+  this file's own product-maturity truth block. This fix necessarily edits
+  `ingestion.py` (the file the defect lives in) and changes `ingest`'s
+  existing stdout/help text (the disclosure requirement DEFECT-001 itself
+  calls for) -- both are exactly what the freeze prohibits, regardless of
+  correctness. This is not a test bug: the guard is doing precisely what
+  `docs/atlas-3/ARCHITECTURE.md` §9 says it should. Confirmed the failure
+  is specific to this diff, not environmental, by rerunning against a
+  temporary local `origin` remote (removed afterward; this checkout's
+  canonical remote is `gh-origin`) -- `test_certified_surfaces_unmodified`
+  flags exactly `src/project_atlas/ingestion.py`; `test_cli_mutation_is_additive_only`
+  flags the non-additive `ingest` output/help change.
+  **`DOGFOOD_DEFECT_001` is therefore correctly designed, implemented, and
+  regression-tested, but NOT mergeable without an explicit owner decision
+  to grant a narrowly-scoped exception to the certified-surface freeze (or
+  to defer this fix until `FULL_LIVE_DEMO_READY` flips independently of
+  this fix).** That decision -- waive the freeze for this fix, or hold it
+  -- is this lane's genuine owner-only frontier; nothing else in the
+  owner-independent P1 flow remains to execute here.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`. Branch
+  `repair/dogfood-001-source-safe-genesis` off `818dd140`, PR opened for
+  owner review of the freeze-exception question above -- not self-merged,
+  and not represented as CI-green (the local equivalent of the demo-
+  isolation gate fails by the repo's own explicit, documented design).
+
+## 2026-08-31 — DOGFOOD-001 continued: owner exception granted, review findings closed
+
+- Owner explicitly granted a narrow certified-surface freeze exception for
+  DOGFOOD-001 (`src/project_atlas/ingestion.py` only, pinned by exact
+  sha256, non-transferable -- see `docs/atlas-3/ARCHITECTURE.md` SS9.1 and
+  `tests/unit/test_atlas3_demo_isolation_001.py`'s
+  `_OWNER_APPROVED_EXCEPTIONS`). Encoded per the prior entry.
+- Fixed one ordinary CI defect (F841 unused `result` in a regression test)
+  found via exact-head hosted CI (`quality (ubuntu-latest, 3.12, full)`
+  failed fast on it).
+- Fallback-path challenge (self-directed adversarial review): dropped the
+  `cli.py` changes entirely (the `_log.info(...)` disclosure already
+  inside `ingestion.py` is sufficient -- `cli.py`'s own freeze guard now
+  never fires for this PR at all, narrowing the exception's real scope to
+  `ingestion.py` alone); found and fixed a CRLF-vs-LF line-ending
+  mismatch on the appended field; generalized the byte-preservation
+  strategy to insert before a trailing YAML document-end marker instead
+  of always falling back to a full re-dump for that shape. Encoded the
+  owner-approved exception mechanism itself (pinned-sha256, 6 new tests
+  proving non-transferability/non-abuse).
+- Automated review findings on the pushed head (`chatgpt-codex-connector`,
+  `copilot-pull-request-reviewer`) closed:
+  - The CRLF finding and the "freeze guard fails" finding were both
+    reviewing the stale first commit and were already resolved by the
+    time they posted.
+  - **Genuine, fixed**: an explicit `project_uuid: null` placeholder line
+    (`data.get("project_uuid") is None` cannot distinguish that from a
+    genuinely absent key) would have been appended a *second*
+    `project_uuid:` line rather than replacing the first -- valid under
+    PyYAML's lenient last-wins duplicate-key reading, but ambiguous
+    duplicate-key YAML that stricter parsers reject. Now detects a
+    pre-existing top-level `project_uuid:` line and replaces it in place
+    via a single regex substitution, falling back to append only when no
+    such line exists. New test:
+    `test_explicit_null_placeholder_is_replaced_not_duplicated`.
+  - **Genuine, fixed**: the disclosure log line was emitted after
+    `maybe_apply_after_ingest(vault)` (AS-INT-009's retention hook), which
+    can genuinely raise `RetentionError` on a malformed retention policy
+    (verified: multiple raise sites in `event_retention.py`). `_promote`
+    has already durably committed the source-marker mutation by that
+    point, so a retention-policy failure after a real genesis would raise
+    before the disclosure log line ever printed and before the caller
+    received `identity_allocated` -- the exact "operator only discovers
+    the source-tree change by diffing afterward" failure DOGFOOD-001 set
+    out to fix, just moved one step later. Moved the disclosure block to
+    fire immediately after `_verify_identity_post_state` confirms the
+    promoted write, before the fallible retention hook runs.
+- `ingestion.py`'s content changed again (the null-placeholder fix) after
+  the exception's sha256 was first pinned -- recomputed and updated the
+  pinned `allowed_sha256` to the new final content (this is the exception
+  mechanism working as designed: any edit invalidates the old pin).
+- Independent verification (fresh clone, not implementer's worktree,
+  dispatched as a genuinely separate agent): **CONFIRMED_WITH_MINOR_NOTES**
+  against commit `91b24ab4` (before the null-placeholder fix above). All
+  13 directed challenge areas held under independent reproduction
+  (source-mutation boundary, UUIDv4 semantics, byte preservation across 4
+  independently-constructed adversarial shapes, second-ingest idempotence,
+  disclosure accuracy including confirming `marker_written` vs `allocated`
+  are never conflated, receipt/lineage/security isolation, and an actively
+  constructed attack on the exception's non-transferability that correctly
+  failed closed). 3 minor notes: PR title language stale (fixed below);
+  `identity_allocated` field name slightly under-descriptive (left as-is,
+  documented via docstring); Windows CI leg was still pending at review
+  time (resolved green since).
+- Test hygiene finding (`chatgpt-codex-connector`): the new regression
+  file lived under `tests/unit/` while marked `pytestmark =
+  pytest.mark.integration` -- every real `pytest.mark.integration` file in
+  the repo lives under `tests/integration/` (confirmed: this was the only
+  exception in `tests/unit/`), so an unfiltered `pytest tests/unit` run
+  would silently pull in a full real-CLI-pipeline test. Moved to
+  `tests/integration/test_dogfood_001_source_marker_identity_write.py`
+  (`git mv`, same content).
+- `ingestion.py`'s content changed twice more after the sha256 was first
+  pinned (the null-placeholder fix, then the disclosure-ordering fix) --
+  recomputed and updated the pinned `allowed_sha256` each time; final
+  value `e8d779a8ab2fe0b4327ae9cf8cae115f2a793eb96eb35e8b0024b6ee085168ef`.
+- Final suite rerun after all of the above:
+  `test_atlas3_demo_isolation_001.py` (23) +
+  `tests/integration/test_dogfood_001_source_marker_identity_write.py`
+  (14) + `test_source_identity.py` + `test_as_coder_alpha_057_copied_uuid.py`
+  + the 7 named integration files = 108 passed. `ruff check .` clean;
+  `mypy src` clean except the pre-existing, unrelated `connect_perf.py`
+  gap.
+- PR title/body updated to drop "BLOCKED on freeze-exception decision"
+  (the exception is granted and encoded, not pending).
