@@ -503,6 +503,41 @@ def test_h_preexisting_unrelated_branch_is_not_a_false_positive(tmp_path: Path) 
     assert result.violations == ()
 
 
+def test_h_unpopped_stash_with_untracked_files_is_not_a_false_positive(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #661 review, round 5): `git stash push -u` builds
+    its stash entry from three parents, one of which (the "untracked
+    files" parent) is a synthetic, PARENTLESS root commit whose tree
+    contains ONLY the untracked files -- nothing else from the rest of
+    the repository. The round-4 fix walked and diffed EVERY newly-
+    reachable commit individually, including this orphan parent -- diffing
+    baseline (the whole repo's tracked content) against a tree missing
+    everything else reported nearly every tracked file as "changed".
+    A task that stashes (including untracked files) and does not pop
+    before exiting -- an entirely ordinary thing to do -- must not
+    explode into thousands of spurious violations; only the real change
+    (if any) should be attributed."""
+    repo = _make_repo(tmp_path)
+    envelope = LocalTaskEnvelope(
+        work_id="H-006",
+        argv=(
+            sys.executable,
+            "-c",
+            "import subprocess; "
+            "open('scratch_notes.txt', 'w').write('wip\\n'); "
+            "subprocess.run(['git', 'stash', 'push', '-u', '-m', 'wip'], check=True)",
+        ),
+        authorized_paths=("src/",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.exit_code == 0
+    # The stash-with-untracked-files operation itself should not explode
+    # the whole repository's tracked files into spurious violations.
+    assert len(result.changed_paths) < 10
+    assert not any(path in ("README.md", "src/keep.py") for path in result.changed_paths)
+
+
 def test_h_preexisting_dirty_state_fails_closed_before_starting(
     tmp_path: Path,
 ) -> None:

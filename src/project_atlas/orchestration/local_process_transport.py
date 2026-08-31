@@ -329,9 +329,10 @@ def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     stash) and then returns the original branch and working tree to
     their pre-run state -- see ``_new_commit_changed_paths()``, called
     alongside this one in ``run_local_task()`` (paired with an existence
-    snapshot from ``_all_reachable_commits()``), which closes that class
-    of evasion by walking every commit reachable from *any* ref (not just
-    the current branch), not only the live working tree.
+    snapshot of every ref TIP from ``_all_ref_tips()``), which closes
+    that class of evasion by diffing baseline against every ref that
+    changed or newly appeared (not just the current branch), not only
+    the live working tree.
 
     ``git ls-files --others --exclude-standard`` deliberately excludes
     gitignored paths (the normal, desired behavior for "what would a
@@ -345,10 +346,22 @@ def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     catches a *new* gitignored path created anywhere, closing the same
     blind spot for the "did this task stay within its authorized scope"
     check, not only the forbidden-path check.
+
+    IV finding (PR #661 review, round 5): this function's own untracked-
+    file listing has exactly the same NTFS-junction exposure
+    ``_ignored_untracked_paths()`` was fixed for in round 4 -- ``git
+    ls-files`` transparently follows a junction regardless of
+    ``--exclude-standard``, so a junction under ``authorized_paths``'s
+    scope (tracked-adjacent, not gitignored) still leaked every file
+    inside its external target individually instead of collapsing to the
+    junction's own path. The round-4 fix was applied only to the sibling
+    function; confirmed by hosted CI failing on exactly this. Every path
+    is now collapsed through ``_collapse_reparse_point_descendants()``
+    here too.
     """
     tracked = _run_git(["diff", "--name-only", baseline_sha], cwd=repo_root)
     untracked = _run_git(["ls-files", "--others", "--exclude-standard"], cwd=repo_root)
-    return frozenset((*tracked, *untracked))
+    return _collapse_reparse_point_descendants(frozenset((*tracked, *untracked)), repo_root)
 
 
 def _ignored_untracked_paths(repo_root: Path) -> frozenset[str]:
@@ -451,17 +464,20 @@ def _collapse_reparse_point_descendants(paths: frozenset[str], repo_root: Path) 
     return frozenset(collapsed)
 
 
-def _all_reachable_commits(repo_root: Path) -> frozenset[str]:
-    """Every commit SHA reachable from any ref right now -- any branch,
-    any tag, and ``refs/stash`` (``--all`` includes it, not only regular
-    branches/tags). A pure existence snapshot, taken before and after the
-    run and compared by set difference in ``run_local_task`` -- see
-    ``run_local_task``'s own comment for why a one-shot ``--not
-    <baseline_sha>`` query (this function's PR #661 round-3 predecessor)
-    was itself a false-positive bug, not just insufficiently strict."""
+def _all_ref_tips(repo_root: Path) -> frozenset[str]:
+    """Every ref's current tip commit SHA right now -- every branch,
+    every tag, and ``refs/stash`` if it exists (``git for-each-ref`` with
+    no pattern lists everything under ``refs/``, ``refs/stash`` included).
+    A pure existence snapshot, taken before and after the run and
+    compared by set difference in ``run_local_task``: only a ref whose
+    tip is genuinely new (or changed) is passed on to
+    ``_new_commit_changed_paths()``, which then walks *that ref's own*
+    bounded history segment back to baseline -- never every ref's full
+    reachable history (``--all``), which is what caused the round-4
+    false-positive bug this pairing exists to avoid."""
     try:
         result = subprocess.run(
-            ["git", "rev-list", "--all"],
+            ["git", "for-each-ref", "--format=%(objectname)"],
             cwd=repo_root,
             check=True,
             capture_output=True,
@@ -473,11 +489,27 @@ def _all_reachable_commits(repo_root: Path) -> frozenset[str]:
     return frozenset(line.strip() for line in result.stdout.splitlines() if line.strip())
 
 
+def _is_root_commit(repo_root: Path, commit_sha: str) -> bool:
+    """True if ``commit_sha`` has no parent of its own -- e.g. the
+    synthetic "untracked files" commit ``git stash push -u`` creates."""
+    result = subprocess.run(
+        ["git", "rev-list", "--parents", "-n", "1", commit_sha],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    # Output is "<sha> [parent1] [parent2] ..." on one line -- exactly
+    # one token (the commit itself) means no parents.
+    return len(result.stdout.split()) <= 1
+
+
 def _new_commit_changed_paths(
-    repo_root: Path, *, baseline_sha: str, new_commits: frozenset[str]
+    repo_root: Path, *, baseline_sha: str, new_tips: frozenset[str]
 ) -> frozenset[str]:
-    """Every path changed by any of ``new_commits`` (each diffed against
-    the fixed ``baseline_sha``).
+    """Every path changed relative to the fixed ``baseline_sha``, as seen
+    from any of ``new_tips``.
 
     IV finding (PR #661 review, round 3): ``_git_changed_paths()`` alone
     only sees the current working tree, so a launched process that
@@ -499,12 +531,31 @@ def _new_commit_changed_paths(
     ordinary thing for almost any real, multi-branch clone to have), not
     only commits newly created *during* the run. Demonstrated to produce
     thousands of spurious violations against a completely inert task run
-    against this repository's own real clone. Fixed: the caller now takes
-    an existence-only before/after snapshot via ``_all_reachable_commits()``
-    (mirrors ``_ignored_untracked_paths()``'s own pattern) and passes only
-    the genuinely NEW commit SHAs in here -- this function itself no
-    longer decides "new" at all, only "what did these specific commits
-    change".
+    against this repository's own real clone. Fixed (round 4) by taking
+    an existence-only before/after snapshot of ref TIPS (``_all_ref_tips()``)
+    instead, and walking only THIS ref's own new history segment
+    (``git rev-list <tip> --not <baseline_sha>`` -- bounded to this one
+    ref, never ``--all``'s repo-wide walk) rather than every commit
+    reachable from anywhere.
+
+    IV finding (PR #661 review, round 5 -- the round-4 fix was itself
+    still incomplete in the opposite direction): an early round-5 attempt
+    diffed only each new tip directly against baseline (one diff per
+    ref, no segment walk at all) reasoning that a tree diff between two
+    commits already reflects the tip's full accumulated state. That
+    reasoning is wrong for exactly the shape ``git stash push -u``
+    produces: the stash entry's own tip tree reflects only *tracked*-file
+    modifications -- the untracked files live solely on a third,
+    PARENTLESS parent commit, never merged into the tip's own tree at
+    all. Diffing tip-vs-baseline directly therefore silently missed the
+    untracked-file content entirely (the opposite failure from round 4:
+    under-detection instead of a false-positive explosion). Root commits
+    are now handled specially: for each commit in the (bounded, per-ref)
+    history segment between baseline and a new tip, a ROOT commit (no
+    parent -- ``_is_root_commit()``) has every file in its own tree
+    listed directly (``git ls-tree``, never diffed against baseline's
+    unrelated full tree, which is what caused round 4's explosion); a
+    normal, non-root commit is diffed against baseline as before.
 
     Does NOT catch a commit made unreachable from every ref before the
     process exits (``git reset --hard <baseline>`` after committing, or
@@ -515,8 +566,28 @@ def _new_commit_changed_paths(
     disclosed residual limitation.
     """
     changed: set[str] = set()
-    for commit_sha in new_commits:
-        changed.update(_run_git(["diff", "--name-only", baseline_sha, commit_sha], cwd=repo_root))
+    for tip_sha in new_tips:
+        try:
+            result = subprocess.run(
+                ["git", "rev-list", tip_sha, "--not", baseline_sha],
+                cwd=repo_root,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except subprocess.CalledProcessError:
+            continue
+        segment = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        for commit_sha in segment:
+            if _is_root_commit(repo_root, commit_sha):
+                changed.update(
+                    _run_git(["ls-tree", "-r", "--name-only", commit_sha], cwd=repo_root)
+                )
+            else:
+                changed.update(
+                    _run_git(["diff", "--name-only", baseline_sha, commit_sha], cwd=repo_root)
+                )
     return frozenset(changed)
 
 
@@ -807,14 +878,12 @@ def run_local_task(
     # _ignored_untracked_paths's docstring for the authorized_paths-side
     # gitignored-file bypass this closes).
     ignored_before = _ignored_untracked_paths(resolved_root)
-    # Existence snapshot of every ref-reachable commit (see
-    # _new_commit_changed_paths's docstring, round-4 correctness fix: a
-    # one-shot "--not baseline_sha" query previously flagged every
-    # pre-existing, unrelated commit on any other branch/tag/remote-
-    # tracking ref as if it were new -- an existence-only before/after
-    # snapshot, mirroring _ignored_untracked_paths's own pattern, is the
-    # only way to correctly identify commits created DURING this run).
-    commits_before = _all_reachable_commits(resolved_root)
+    # Existence snapshot of every ref TIP (see _new_commit_changed_paths's
+    # docstring: round-4 walked every reachable commit and diffed each
+    # individually, which broke on `git stash -u`'s synthetic orphan
+    # parent; round-5 diffs only ref tips, which is both correct and
+    # simpler).
+    tips_before = _all_ref_tips(resolved_root)
 
     request = ProcessRunRequest(
         argv=envelope.argv,
@@ -827,12 +896,10 @@ def run_local_task(
     outcome: ProcessRunOutcome = active_runner.run(request)
 
     new_ignored_paths = _ignored_untracked_paths(resolved_root) - ignored_before
-    new_commits = _all_reachable_commits(resolved_root) - commits_before
+    new_tips = _all_ref_tips(resolved_root) - tips_before
     new_paths = (
         _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
-        | _new_commit_changed_paths(
-            resolved_root, baseline_sha=baseline_sha, new_commits=new_commits
-        )
+        | _new_commit_changed_paths(resolved_root, baseline_sha=baseline_sha, new_tips=new_tips)
         | new_ignored_paths
     )
     forbidden_after = _forbidden_path_content_snapshot(resolved_root, envelope.forbidden_paths)
