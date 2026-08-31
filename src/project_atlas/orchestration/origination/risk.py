@@ -133,6 +133,22 @@ def classify(
         # No success criteria at all means nothing bounds the
         # implementation -- unbounded scope is itself a disqualifier.
         disqualifiers.append(DisqualifyingAttribute.OUT_OF_SPECIFICATION_COVERAGE)
+    if not proposed_scope:
+        # PR-A review finding (chatgpt-codex-connector, P1): an empty
+        # proposed_scope previously classified O1 by construction -- the
+        # per-path disqualifier loop above has nothing to iterate, so a
+        # proposal with zero declared mutation paths (which happens for
+        # every origination item with no corroborating evidence at all,
+        # e.g. a bare markdown-task-list checkbox) sailed through as
+        # "clean". That is backwards: a mutation surface that declares NO
+        # paths is not verified-safe, it is *unverifiable* -- there is
+        # nothing here to check the disqualifying-fragment list against,
+        # and materialize_work_node() would register a WorkNode with an
+        # empty authorized surface. Mirrors the "no success criteria ->
+        # unbounded -> disqualifier" rule immediately above: an
+        # undeclared scope is unbounded too, and must route to
+        # OWNER_HELD rather than being treated as trivially clean.
+        disqualifiers.append(DisqualifyingAttribute.OUT_OF_SPECIFICATION_COVERAGE)
 
     deduped = tuple(dict.fromkeys(disqualifiers))
     if deduped:

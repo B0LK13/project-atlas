@@ -49,6 +49,10 @@ from project_atlas.orchestration.origination.projection import (
 )
 from project_atlas.orchestration.origination.proposal import RiskClass
 from project_atlas.orchestration.origination.risk import classify as classify_risk
+from project_atlas.orchestration.origination.sources import (
+    DuplicateItemIdError,
+    OriginationSourceConfigError,
+)
 
 EXIT_OK = 0
 EXIT_ERROR = 1
@@ -144,6 +148,23 @@ def run_origination_scan(
     except OriginationProjectionError as exc:
         code = getattr(exc, "code", "ORIGINATION_PROJECTION_FAILED")
         return _fail_closed(str(exc), blocker=code), EXIT_ERROR
+    except OriginationSourceConfigError as exc:
+        # PR-A review finding (chatgpt-codex-connector, P2): a project's
+        # own explicit origination_sources declaration can be malformed
+        # (bad shape, unsupported format/path combination) -- that must
+        # come back as this scan's own documented fail-closed payload,
+        # not an escaping traceback, exactly like every other
+        # configuration/trust failure this function already handles.
+        return _fail_closed(str(exc), blocker="ORIGINATION_SOURCE_CONFIG_INVALID"), EXIT_ERROR
+    except DuplicateItemIdError as exc:
+        # Same contract: the same stable item_id declared authoritative by
+        # two different sources is a real configuration ambiguity that
+        # must be visible in the scan's own payload, not an uncaught
+        # exception.
+        return (
+            _fail_closed(str(exc), blocker="ORIGINATION_DUPLICATE_ITEM_ID"),
+            EXIT_ERROR,
+        )
     except ValidationError as exc:
         # Defense-in-depth: the precheck above already rejects the one
         # known way a bad project_id reaches this point, but this is the

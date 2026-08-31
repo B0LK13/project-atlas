@@ -19,6 +19,7 @@ import pytest
 
 from project_atlas.orchestration.origination.adapter import EligibleRoadmapItem
 from project_atlas.orchestration.origination.pipeline import originate_all, originate_new_only
+from project_atlas.orchestration.origination.proposal import RiskClass
 from project_atlas.orchestration.origination.sources import (
     DEFAULT_SOURCES,
     DuplicateItemIdError,
@@ -95,6 +96,46 @@ def test_traversal_path_rejected(tmp_path: Path) -> None:
     _write_marker(
         tmp_path,
         "origination_sources:\n  - path: ../outside.md\n    format: markdown-task-list\n",
+    )
+    with pytest.raises(OriginationSourceConfigError):
+        load_origination_sources(tmp_path)
+
+
+def test_empty_marker_file_falls_back_to_default(tmp_path: Path) -> None:
+    """A marker file that exists but is entirely empty (parses to
+    ``None``) is genuinely "no configuration", not malformed."""
+    _write(tmp_path, ".atlas-project.yaml", "")
+    assert load_origination_sources(tmp_path) == DEFAULT_SOURCES
+
+
+def test_marker_parses_to_non_mapping_fails_closed(tmp_path: Path) -> None:
+    """PR-A review finding (chatgpt-codex-connector, P2): a marker that
+    parses to a scalar/list (templating error, truncated file) must fail
+    closed rather than silently resolve to DEFAULT_SOURCES."""
+    _write(tmp_path, ".atlas-project.yaml", "- just\n- a\n- list\n")
+    with pytest.raises(OriginationSourceConfigError):
+        load_origination_sources(tmp_path)
+
+
+def test_explicit_null_origination_sources_fails_closed(tmp_path: Path) -> None:
+    """PR-A review finding (chatgpt-codex-connector, P2): a *present but
+    null* origination_sources key is a declaration that says nothing
+    meaningful -- it must not be treated the same as the key being
+    genuinely absent."""
+    _write_marker(tmp_path, "origination_sources:\n")
+    with pytest.raises(OriginationSourceConfigError):
+        load_origination_sources(tmp_path)
+
+
+def test_duplicate_source_declaration_fails_closed(tmp_path: Path) -> None:
+    """PR-A review finding (chatgpt-codex-connector, P2): the same
+    (path, format) pair declared twice must be rejected, not silently
+    scanned twice (which would inflate eligible_count)."""
+    _write_marker(
+        tmp_path,
+        "origination_sources:\n"
+        "  - path: docs/backlog.md\n    format: markdown-task-list\n"
+        "  - path: docs/backlog.md\n    format: markdown-task-list\n",
     )
     with pytest.raises(OriginationSourceConfigError):
         load_origination_sources(tmp_path)
@@ -242,6 +283,87 @@ def test_traversal_source_path_yields_empty_tuple(tmp_path: Path) -> None:
     assert eligible_task_list_items(tmp_path, "../outside-secret.md") == ()
 
 
+def test_continuation_lines_join_title_and_are_scanned_for_blockers(tmp_path: Path) -> None:
+    """PR-A review finding (chatgpt-codex-connector, P1): a task's blocker
+    language two lines below its checkbox (this repository's own
+    docs/backlog.md does exactly this for DOGFOOD-001) must still be
+    detected -- not just text on the checkbox's own physical line."""
+    _write(
+        tmp_path,
+        "docs/backlog.md",
+        textwrap.dedent(
+            """\
+            - [ ] GATE-002 Minimal-diff marker append + CLI disclosure of
+                  source-tree identity writes, but blocked on an owner
+                  decision before it can be materialized without a gate.
+            """
+        ),
+    )
+    items = eligible_task_list_items(tmp_path, "docs/backlog.md")
+    assert len(items) == 1
+    item = items[0]
+    assert "identity writes" in item.title
+    assert item.blockers  # continuation-line blocker language was not dropped
+
+
+def test_continuation_stops_at_blank_line(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "docs/backlog.md",
+        "- [ ] AAA-001 First line only\n\nUnrelated paragraph, not a continuation.\n",
+    )
+    items = eligible_task_list_items(tmp_path, "docs/backlog.md")
+    assert items[0].title == "First line only"
+
+
+def test_continuation_stops_at_next_checkbox(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "docs/backlog.md",
+        "- [ ] AAA-001 First item\n- [ ] BBB-001 Second item, not a continuation of AAA-001\n",
+    )
+    items = {i.item_id: i for i in eligible_task_list_items(tmp_path, "docs/backlog.md")}
+    assert items["AAA-001"].title == "First item"
+    assert items["BBB-001"].title == "Second item, not a continuation of AAA-001"
+
+
+def test_continuation_stops_at_heading(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "docs/backlog.md",
+        "- [ ] AAA-001 First item\n## Next section\n- [ ] BBB-001 Second item\n",
+    )
+    items = {i.item_id: i for i in eligible_task_list_items(tmp_path, "docs/backlog.md")}
+    assert items["AAA-001"].title == "First item"
+    assert items["BBB-001"].section_context == "Next section"
+
+
+def test_continuation_does_not_swallow_nested_checkbox(tmp_path: Path) -> None:
+    """An indented, nested checkbox line must still be recognized as its
+    own item (or at least never silently absorbed as plain continuation
+    prose of its parent), even though it is indented like ordinary
+    continuation text."""
+    _write(
+        tmp_path,
+        "docs/backlog.md",
+        "- [ ] AAA-001 Parent item\n  - [ ] BBB-001 Nested child, not prose\n",
+    )
+    items = eligible_task_list_items(tmp_path, "docs/backlog.md")
+    parent = next(i for i in items if i.item_id == "AAA-001")
+    assert "BBB-001" not in parent.title
+    assert "Nested child" not in parent.title
+
+
+def test_unindented_line_after_checkbox_is_not_a_continuation(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "docs/backlog.md",
+        "- [ ] AAA-001 First item\nThis line starts at column 0, not a continuation.\n",
+    )
+    items = eligible_task_list_items(tmp_path, "docs/backlog.md")
+    assert items[0].title == "First item"
+
+
 # ---------------------------------------------------------------------------
 # eligible_work_items(): cross-source aggregation and identity safety
 # ---------------------------------------------------------------------------
@@ -330,6 +452,29 @@ def test_originate_all_finds_task_list_candidate_and_never_originates_checked(
     assert "AAA-000" not in " ".join(ids)  # CHECKED_ITEMS_ORIGINATED = 0
     assert len(outcomes) == 1
     assert outcomes[0].proposal.authoritative_source.location == "docs/backlog.md"
+
+
+def test_evidence_free_task_list_item_is_owner_held_not_leasable_o1(tmp_path: Path) -> None:
+    """PR-A review finding (chatgpt-codex-connector, P1): a markdown-task-
+    list item never carries corroborating evidence (evidence=() always --
+    no evidence-citation convention exists in bare checkbox syntax), so
+    its proposed_scope is always empty. Before the risk.classify() fix,
+    an empty scope had nothing for the disqualifier scan to check and
+    classified O1 with owner_gate=None -- exactly the shape a live
+    governor could lease despite policy.execution_ready being (correctly)
+    False. An ordinary, blocker-free item must now materialize
+    OWNER_HELD, matching the policy layer's own INSUFFICIENT_ACCEPTANCE_
+    CONTRACT signal instead of contradicting it."""
+    _write(tmp_path, "docs/backlog.md", "- [ ] AAA-001 Ordinary unblocked task\n")
+    _write_marker(
+        tmp_path,
+        "origination_sources:\n  - path: docs/backlog.md\n    format: markdown-task-list\n",
+    )
+    outcomes = originate_all(tmp_path, "fixture-proj")
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome.proposal.risk_class == RiskClass.OWNER_HELD
+    assert outcome.policy.execution_ready is False
 
 
 def test_successor_dedup_and_stale_item_handling(tmp_path: Path) -> None:

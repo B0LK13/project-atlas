@@ -33,9 +33,11 @@ Generic by construction (D-PHASE2A-RETRY, PARITY-001):
   which every item originated from this adapter structurally lacks unless
   a future revision adds an explicit evidence-citation convention to the
   task-list format itself.
-- Blocker/owner-gate language in an item's own title text is preserved as
-  a declared blocker (D-PHASE2A-RETRY section 5: "origination proposes
-  work, governance decides readiness") via a conservative, explicitly
+- Blocker/owner-gate language in an item's own title text -- including any
+  indented continuation lines immediately beneath its checkbox marker, not
+  just the checkbox's own physical line -- is preserved as a declared
+  blocker (D-PHASE2A-RETRY section 5: "origination proposes work,
+  governance decides readiness") via a conservative, explicitly
   best-effort keyword scan -- never used to silently drop an item, and
   never treated as proof an item IS owner-independent when no such
   language is present. A false positive here (a blocker recorded for
@@ -178,27 +180,69 @@ def eligible_task_list_items(
     section: str | None = None
     seen_id_counts: dict[str, int] = {}
     parsed: list[tuple[str, str, bool, str | None]] = []  # id, title, checked, section
-    for line in text.splitlines():
+    lines = text.splitlines()
+    line_count = len(lines)
+    index = 0
+    while index < line_count:
+        line = lines[index]
         heading_match = _HEADING_RE.match(line)
         if heading_match is not None:
             section = heading_match.group(2)
+            index += 1
             continue
         checkbox_match = _CHECKBOX_LINE_RE.match(line)
         if checkbox_match is None:
+            index += 1
             continue
         checked = checkbox_match.group(1).lower() == "x"
-        rest = checkbox_match.group(2).strip()
-        if not rest:
+        first_line_rest = checkbox_match.group(2).strip()
+        item_section = section
+        index += 1
+
+        # PR-A review finding (chatgpt-codex-connector, P1): a task-list
+        # item's title/blocker text can continue onto indented lines
+        # below the checkbox marker (this repository's own docs/backlog.md
+        # does exactly this -- e.g. DOGFOOD-001 declares "blocked on an
+        # owner decision" two lines below its checkbox). Reading only the
+        # checkbox's own physical line silently dropped that text from
+        # both identity and the blocker scan. Accumulate every
+        # immediately-following, non-blank, indented line as part of THIS
+        # item's text, stopping at whichever comes first: a blank line, a
+        # heading, a new checkbox line (leading whitespace and all -- a
+        # nested/indented sub-checklist item must never be swallowed as
+        # plain continuation prose), or an unindented line (which belongs
+        # to the next block, not this item).
+        continuation_parts: list[str] = []
+        while index < line_count:
+            continuation_line = lines[index]
+            if not continuation_line.strip():
+                break
+            if _HEADING_RE.match(continuation_line) is not None:
+                break
+            if _CHECKBOX_LINE_RE.match(continuation_line.lstrip()) is not None:
+                break
+            if continuation_line[0] not in (" ", "\t"):
+                break
+            continuation_parts.append(continuation_line.strip())
+            index += 1
+
+        if not first_line_rest:
+            # A checkbox line with no text at all is not a valid item;
+            # any indented lines just consumed above are not attached to
+            # anything and are simply not originated -- matches the
+            # pre-existing "skip, not an error" contract for malformed
+            # lines.
             continue
-        first_token, _, remainder = rest.partition(" ")
+        first_token, _, first_line_remainder = first_line_rest.partition(" ")
         if not _TASK_ID_RE.fullmatch(first_token):
             # No stable ID at the front of this line -- not a task-list
             # item this adapter can originate, not an error.
             continue
         item_id = first_token
-        full_text = remainder.strip() or item_id
+        remainder_parts = [first_line_remainder.strip(), *continuation_parts]
+        full_text = " ".join(part for part in remainder_parts if part) or item_id
         seen_id_counts[item_id] = seen_id_counts.get(item_id, 0) + 1
-        parsed.append((item_id, full_text, checked, section))
+        parsed.append((item_id, full_text, checked, item_section))
 
     items: list[EligibleRoadmapItem] = []
     for item_id, full_text, checked, item_section in parsed:

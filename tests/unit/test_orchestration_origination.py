@@ -616,6 +616,20 @@ def test_risk_classifier_o1_for_clean_scope() -> None:
     assert result.disqualifying_attributes == ()
 
 
+def test_risk_classifier_owner_held_for_empty_proposed_scope() -> None:
+    """PR-A review finding (chatgpt-codex-connector, P1): an empty
+    proposed_scope must not be treated as trivially clean -- there is
+    nothing for the per-path disqualifier scan to check, so it is
+    unverifiable, not verified-safe. Mirrors the existing "no success
+    criteria -> unbounded -> disqualifier" rule immediately below."""
+    result = risk.classify(proposed_scope=(), success_criteria=("do the thing",))
+    assert result.risk_class == RiskClass.OWNER_HELD
+    assert (
+        risk.DisqualifyingAttribute.OUT_OF_SPECIFICATION_COVERAGE
+        in result.disqualifying_attributes
+    )
+
+
 @pytest.mark.parametrize(
     "unsafe_path",
     [".hidden.py", "_private/mod.py", "src/foo bar.py", "tests/tëst.py"],

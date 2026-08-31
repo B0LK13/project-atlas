@@ -244,6 +244,63 @@ def test_scan_fails_closed_on_unsafe_project_id(tmp_path: Path) -> None:
     assert not (tmp_path / "origination-store").exists()
 
 
+def test_scan_fails_closed_on_malformed_origination_source_config(tmp_path: Path) -> None:
+    """PR-A review finding (chatgpt-codex-connector, P2): a project's own
+    malformed ``origination_sources`` declaration used to escape
+    ``run_origination_scan()`` as an uncaught ``OriginationSourceConfigError``
+    -- breaking the function's documented "never raises" contract. Must
+    come back as a clean fail-closed payload instead."""
+    repo = _make_repo(tmp_path)
+    (repo / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: fixture-proj\norigination_sources: not-a-list\n",
+        encoding="utf-8",
+    )
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id="fixture-proj",
+        origination_store=tmp_path / "origination-store",
+        explicit_trusted=_anchor(
+            _run_git(repo, "rev-parse", "origin/main"),
+            _run_git(repo, "rev-parse", "origin/main^{tree}"),
+        ),
+    )
+    assert exit_code == EXIT_ERROR
+    assert payload["blocker"] == "ORIGINATION_SOURCE_CONFIG_INVALID"
+    assert payload["merge_authorized"] is False
+    assert payload["execution_authorized"] is False
+
+
+def test_scan_fails_closed_on_cross_source_duplicate_item_id(tmp_path: Path) -> None:
+    """PR-A review finding (chatgpt-codex-connector, P2): the same stable
+    item_id declared authoritative by two different origination sources
+    used to escape as an uncaught ``DuplicateItemIdError``. Must come
+    back as a clean fail-closed payload instead."""
+    repo = _make_repo(tmp_path)
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "a.md").write_text("- [ ] AAA-001 From a\n", encoding="utf-8")
+    (repo / "docs" / "b.md").write_text("- [ ] AAA-001 From b\n", encoding="utf-8")
+    (repo / ".atlas-project.yaml").write_text(
+        "schema_version: 1\nproject:\n  id: fixture-proj\n"
+        "origination_sources:\n"
+        "  - path: docs/a.md\n    format: markdown-task-list\n"
+        "  - path: docs/b.md\n    format: markdown-task-list\n",
+        encoding="utf-8",
+    )
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id="fixture-proj",
+        origination_store=tmp_path / "origination-store",
+        explicit_trusted=_anchor(
+            _run_git(repo, "rev-parse", "origin/main"),
+            _run_git(repo, "rev-parse", "origin/main^{tree}"),
+        ),
+    )
+    assert exit_code == EXIT_ERROR
+    assert payload["blocker"] == "ORIGINATION_DUPLICATE_ITEM_ID"
+    assert payload["merge_authorized"] is False
+    assert payload["execution_authorized"] is False
+
+
 def test_scan_fails_closed_on_project_id_that_would_overflow_surface_id(
     tmp_path: Path,
 ) -> None:

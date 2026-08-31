@@ -116,27 +116,66 @@ def load_origination_sources(project_root: Path) -> tuple[OriginationSourceConfi
         raw = yaml.safe_load(marker.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise OriginationSourceConfigError(f"unreadable project marker: {marker}") from exc
+    if raw is None:
+        # An entirely empty marker file. Genuinely no configuration at
+        # all -- indistinguishable from "no marker", the honest default
+        # case.
+        return DEFAULT_SOURCES
     if not isinstance(raw, dict):
+        # PR-A review finding (chatgpt-codex-connector, P2): a marker that
+        # parses to a scalar or a list is not "no configuration" -- it is
+        # a marker that failed to parse as the mapping this project's own
+        # `.atlas-project.yaml`/`.atlas/project.yaml` contract requires
+        # (a templating error, a merge conflict marker left in place, an
+        # accidentally-truncated file). Silently falling back to
+        # DEFAULT_SOURCES here could make docs/ROADMAP.md authoritative
+        # again even though a project actually intended to declare
+        # something else -- fail closed instead.
+        raise OriginationSourceConfigError(
+            f"project marker must parse to a mapping, got {type(raw).__name__}: {marker}"
+        )
+    if "origination_sources" not in raw:
         return DEFAULT_SOURCES
-    declared = raw.get("origination_sources")
-    if declared is None:
-        return DEFAULT_SOURCES
+    declared = raw["origination_sources"]
     if not isinstance(declared, list) or not declared:
+        # Catches both a genuinely malformed shape (a mapping/scalar where
+        # a list was expected) and the explicit `origination_sources:`
+        # (null) case the same review finding flagged: a present-but-empty
+        # key is a declaration that failed to say anything meaningful,
+        # not an absent one -- it must not silently resolve to the
+        # unrelated DEFAULT_SOURCES behavior.
         raise OriginationSourceConfigError(
             f"origination_sources must be a non-empty list in {marker}"
         )
     sources: list[OriginationSourceConfig] = []
+    seen_declarations: set[tuple[str, str]] = set()
     for index, entry in enumerate(declared):
         if not isinstance(entry, dict):
             raise OriginationSourceConfigError(
                 f"origination_sources[{index}] must be a mapping in {marker}"
             )
         try:
-            sources.append(OriginationSourceConfig.model_validate(entry))
+            source = OriginationSourceConfig.model_validate(entry)
         except Exception as exc:  # pydantic ValidationError, kept generic at this boundary
             raise OriginationSourceConfigError(
                 f"origination_sources[{index}] is invalid in {marker}: {exc}"
             ) from exc
+        # PR-A review finding (chatgpt-codex-connector, P2): the same
+        # (path, format) pair declared twice would scan the same file
+        # twice, inflating eligible_count and redundantly re-attempting
+        # proposal/materialization for identical items in a single scan.
+        # SOURCE_AUTHORITY = EXPLICIT means an ambiguous/redundant
+        # declaration should be rejected, not silently accepted or
+        # silently de-duplicated (silent de-duplication would hide a real
+        # authoring mistake from the project maintaining this config).
+        declaration_key = (source.path, source.format.value)
+        if declaration_key in seen_declarations:
+            raise OriginationSourceConfigError(
+                f"origination_sources[{index}] duplicates an earlier declaration "
+                f"of {source.path!r} ({source.format.value}) in {marker}"
+            )
+        seen_declarations.add(declaration_key)
+        sources.append(source)
     return tuple(sources)
 
 
