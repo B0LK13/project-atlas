@@ -148,6 +148,30 @@ def test_c_identical_envelopes_produce_identical_resolved_requests(tmp_path: Pat
     assert dict(fake1.received.env) == dict(fake2.received.env)
 
 
+@pytest.mark.parametrize(
+    "raw_scope_path",
+    ["./src/", "src\\", "src/"],
+)
+def test_c_scope_path_variants_are_normalized_not_silently_ignored(
+    raw_scope_path: str, tmp_path: Path
+) -> None:
+    """IV finding (PR #661 review, Copilot): the original validator
+    checked safety but discarded the normalized form, storing the raw
+    ``./src/``/``src\\`` spelling instead -- which would never match the
+    POSIX-normalized git paths enforcement compares it against, silently
+    disabling forbidden-path/authorized-path enforcement for a
+    reasonable-looking but differently-spelled entry."""
+    repo = _make_repo(tmp_path)
+    envelope = LocalTaskEnvelope(
+        work_id="C-004",
+        argv=(sys.executable, "-c", "open('src/new_file.py', 'w').write('ok\\n')"),
+        authorized_paths=(raw_scope_path,),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is True
+    assert "src/new_file.py" in result.changed_paths
+
+
 # ---------------------------------------------------------------------------
 # D. MINIMUM_NECESSARY_ENV_ALLOWLIST
 # ---------------------------------------------------------------------------
@@ -380,14 +404,18 @@ def test_i_self_commit_by_the_launched_process_does_not_evade_detection(
     assert reasons.get(".github_workflow_tamper.txt") == "FORBIDDEN_PATH"
 
 
-def test_h_preexisting_dirty_state_before_the_task_is_not_misattributed(
+def test_h_preexisting_dirty_state_fails_closed_before_starting(
     tmp_path: Path,
 ) -> None:
-    """A file left uncommitted BEFORE run_local_task() is ever called
-    (unrelated pre-existing dirt, nothing to do with this task) must
-    never be reported as a violation caused by this task -- both the
-    "before" and "after" measurements diff against the same fixed
-    baseline SHA, so pre-existing dirt cancels out via set difference."""
+    """IV finding (PR #661 review, Copilot + chatgpt-codex-connector P1):
+    a "before minus after" set-difference approach fails OPEN against a
+    worktree that is already dirty -- a path present (dirty) in both
+    snapshots is filtered out by the subtraction even if its content
+    changed further during the run. The fix is to refuse to run at all
+    against an ambiguous starting point, not to try to attribute changes
+    within it. A file left uncommitted BEFORE run_local_task() is ever
+    called must cause a clean, fail-closed refusal -- never a silent
+    "nothing changed" verdict, and never an attempt to run anyway."""
     repo = _make_repo(tmp_path)
     (repo / "pre_existing_dirt.txt").write_text("already here\n", encoding="utf-8")
     envelope = LocalTaskEnvelope(
@@ -395,9 +423,78 @@ def test_h_preexisting_dirty_state_before_the_task_is_not_misattributed(
         argv=(sys.executable, "-c", "open('src/compliant.py', 'w').write('ok\\n')"),
         authorized_paths=("src/",),
     )
+    fake = _FakeProcessRunner(_ok_outcome())
+    with pytest.raises(LocalExecutionError) as exc_info:
+        run_local_task(envelope, ENABLED, project_root=repo, runner=fake)
+    assert exc_info.value.code == "WORKTREE_NOT_CLEAN"
+    assert fake.received is None  # never even attempted
+
+
+def test_h_clean_worktree_task_is_still_clean_after_a_compliant_run(
+    tmp_path: Path,
+) -> None:
+    repo = _make_repo(tmp_path)
+    envelope = LocalTaskEnvelope(
+        work_id="H-004",
+        argv=(sys.executable, "-c", "open('src/compliant.py', 'w').write('ok\\n')"),
+        authorized_paths=("src/",),
+    )
     result = run_local_task(envelope, ENABLED, project_root=repo)
     assert result.authority_clean is True
-    assert "pre_existing_dirt.txt" not in result.changed_paths
+    assert "src/compliant.py" in result.changed_paths
+
+
+def test_i_gitignored_forbidden_file_still_detected(tmp_path: Path) -> None:
+    """IV finding (PR #661 review, chatgpt-codex-connector P1):
+    `git ls-files --others --exclude-standard` deliberately omits
+    gitignored paths, so a task that creates/modifies a gitignored,
+    credential-shaped file (e.g. .env) inside a declared forbidden path
+    was invisible to the git-based scan alone. The filesystem-direct
+    content snapshot must catch it regardless."""
+    repo = _make_repo(tmp_path)
+    (repo / ".gitignore").write_text(".env\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "add gitignore"],
+        cwd=repo,
+        check=True,
+    )
+    envelope = LocalTaskEnvelope(
+        work_id="I-004",
+        argv=(sys.executable, "-c", "open('.env', 'w').write('SECRET=leaked\\n')"),
+        forbidden_paths=(".env",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is False
+    reasons = {v.path: v.reason for v in result.violations}
+    assert reasons.get(".env") == "FORBIDDEN_PATH"
+    # And confirm it really was invisible to the plain git scan, proving
+    # the filesystem-direct check is doing real, necessary work here.
+    assert ".env" not in result.changed_paths
+
+
+def test_i_gitignored_forbidden_directory_contents_still_detected(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path)
+    (repo / ".gitignore").write_text("secrets/\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "add gitignore"],
+        cwd=repo,
+        check=True,
+    )
+    envelope = LocalTaskEnvelope(
+        work_id="I-005",
+        argv=(
+            sys.executable,
+            "-c",
+            "import os; os.makedirs('secrets', exist_ok=True); "
+            "open('secrets/token.txt', 'w').write('leaked\\n')",
+        ),
+        forbidden_paths=("secrets/",),
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.authority_clean is False
+    assert any(v.path == "secrets/token.txt" for v in result.violations)
 
 
 def test_i_out_of_scope_but_not_forbidden_path_is_still_flagged(tmp_path: Path) -> None:

@@ -189,10 +189,22 @@ class LocalTaskEnvelope(BaseModel):
     @field_validator("authorized_paths", "forbidden_paths")
     @classmethod
     def _validate_scope_paths(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Validate AND normalize -- IV finding (PR #661 review): the
+        original validator called ``_safe_relative_path()`` only to
+        check safety and then discarded its normalized return value,
+        storing the caller's raw, un-normalized entry instead. A
+        directory-prefix entry spelled ``./src/`` or ``src\\`` (Windows
+        backslash) passed validation but would never equal the POSIX-
+        normalized, ``./``-stripped git paths ``_matches_scope()``
+        compares it against -- silently disabling enforcement for a
+        mis-specified but otherwise reasonable-looking pattern."""
+        normalized: list[str] = []
         for entry in value:
-            trimmed = entry[:-1] if entry.endswith("/") else entry
-            _safe_relative_path(trimmed or ".", field_name="scope path")
-        return value
+            is_dir_prefix = entry.endswith("/") or entry.endswith("\\")
+            trimmed = entry[:-1] if is_dir_prefix else entry
+            safe = _safe_relative_path(trimmed or ".", field_name="scope path")
+            normalized.append(f"{safe}/" if is_dir_prefix else safe)
+        return tuple(normalized)
 
     @field_validator("env_overrides")
     @classmethod
@@ -261,18 +273,49 @@ def _current_head_sha(repo_root: Path) -> str:
     return result[0]
 
 
+def _require_clean_worktree(repo_root: Path) -> None:
+    """Fail closed unless the repository has no uncommitted changes right
+    before the task starts.
+
+    IV finding (PR #661 review, ``chatgpt-codex-connector`` P1 + Copilot):
+    the original "before minus after" set-difference approach fails open
+    against a worktree that is already dirty: a path present (dirty) in
+    both the "before" and "after" snapshots is filtered out by the
+    subtraction even if its actual *content* changed during the run --
+    "modify an already-modified forbidden file further" or "stage and
+    commit an already-dirty change" both leave the path's *membership* in
+    the dirty-set unchanged while its content moves. Requiring a clean
+    starting point removes the ambiguity entirely: with nothing dirty to
+    begin with, any post-run difference from the fixed baseline is
+    unambiguously attributable to the task, with no subtraction needed at
+    all (see ``run_local_task``).
+    """
+    status = _run_git(["status", "--porcelain"], cwd=repo_root)
+    if status:
+        raise LocalExecutionError(
+            "repository has uncommitted changes before the task started -- "
+            "refusing to run without a clean, unambiguous baseline to "
+            f"measure authority against (dirty paths: {status[:10]!r})",
+            code="WORKTREE_NOT_CLEAN",
+        )
+
+
 def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     """Every path with a real difference from the FIXED ``baseline_sha``
     -- tracked modifications/deletions/renames plus new untracked files
-    -- repo-relative, POSIX-normalized. This is the *only* source of
-    truth this module consults for "what changed"; it never reads what
-    the launched process itself reported.
+    -- repo-relative, POSIX-normalized. This is the *only* git-based
+    source of truth this module consults for "what changed"; it never
+    reads what the launched process itself reported. Called exactly once,
+    after the run, against a worktree ``_require_clean_worktree()``
+    already verified was clean beforehand -- no "before" snapshot or
+    subtraction is needed (see that function's docstring for why a
+    before/after set-difference approach was itself the bypass).
 
     IV finding (PR #661 review, self-commit bypass): diffing against the
     live ``HEAD`` ref instead of a fixed baseline SHA meant a launched
     process that ran ``git commit`` on its own changes -- an entirely
     ordinary thing for a coding-agent-style task to do -- made ``HEAD``
-    itself advance along with the change, so the "after" measurement's
+    itself advance along with the change, so the measurement's own
     baseline moved too and the committed change never appeared as a
     delta. ``git diff <fixed-sha>`` (no second ref) compares that
     unmoving commit's tree against the *current working tree*, regardless
@@ -283,12 +326,53 @@ def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     its tracks from this working-tree-vs-baseline comparison, same as it
     could erase them from a live-``HEAD`` comparison or from disk
     directly -- that residual gap is a git-history-forensics problem, not
-    something a single before/after working-tree diff can close, and is
+    something a single working-tree-vs-baseline diff can close, and is
     out of scope for this module's stated design.)
+
+    ``git ls-files --others --exclude-standard`` deliberately excludes
+    gitignored paths (the normal, desired behavior for "what would a
+    human `git status` show"), which is why this alone is not sufficient
+    for ``forbidden_paths`` enforcement -- see
+    ``_forbidden_path_content_snapshot()``, which checks declared
+    forbidden paths directly against the filesystem, independent of git
+    tracking/ignore status entirely.
     """
     tracked = _run_git(["diff", "--name-only", baseline_sha], cwd=repo_root)
     untracked = _run_git(["ls-files", "--others", "--exclude-standard"], cwd=repo_root)
     return frozenset((*tracked, *untracked))
+
+
+def _forbidden_path_content_snapshot(
+    repo_root: Path, forbidden_paths: tuple[str, ...]
+) -> dict[str, str]:
+    """Content digest of every file reachable under each declared
+    ``forbidden_paths`` entry, read directly from the filesystem --
+    entirely independent of git's tracking or ``.gitignore`` status.
+
+    IV finding (PR #661 review, ``chatgpt-codex-connector`` P1): ``git
+    ls-files --others --exclude-standard`` deliberately omits gitignored
+    paths, so a task that creates or modifies a gitignored, credential-
+    shaped file (e.g. ``.env``) inside a declared forbidden path was
+    invisible to the git-based scan and returned a clean authority
+    verdict. Checking the declared forbidden paths directly against the
+    filesystem closes this regardless of whether git would ever track or
+    ignore them.
+    """
+    snapshot: dict[str, str] = {}
+    for entry in forbidden_paths:
+        is_dir_prefix = entry.endswith("/")
+        base = (repo_root / entry.rstrip("/")).resolve()
+        if not base.is_relative_to(repo_root):
+            continue  # scope-path validator already rejects traversal; defensive only
+        if is_dir_prefix:
+            if base.is_dir():
+                for file_path in sorted(base.rglob("*")):
+                    if file_path.is_file():
+                        rel = file_path.relative_to(repo_root).as_posix()
+                        snapshot[rel] = digest_bytes(file_path.read_bytes())
+        elif base.is_file():
+            snapshot[entry] = digest_bytes(base.read_bytes())
+    return snapshot
 
 
 def _matches_scope(path: str, patterns: tuple[str, ...]) -> bool:
@@ -307,15 +391,24 @@ def _enforce_authority(
     *,
     authorized_paths: tuple[str, ...],
     forbidden_paths: tuple[str, ...],
+    forbidden_before: dict[str, str],
+    forbidden_after: dict[str, str],
 ) -> tuple[AuthorityViolation, ...]:
-    violations: list[AuthorityViolation] = []
+    violations: dict[str, AuthorityViolation] = {}
     for path in sorted(changed_paths):
         if _matches_scope(path, forbidden_paths):
-            violations.append(AuthorityViolation(path=path, reason="FORBIDDEN_PATH"))
+            violations[path] = AuthorityViolation(path=path, reason="FORBIDDEN_PATH")
             continue
         if authorized_paths and not _matches_scope(path, authorized_paths):
-            violations.append(AuthorityViolation(path=path, reason="OUTSIDE_AUTHORIZED_SCOPE"))
-    return tuple(violations)
+            violations[path] = AuthorityViolation(path=path, reason="OUTSIDE_AUTHORIZED_SCOPE")
+    # Filesystem-direct forbidden-path check (independent of git tracking/
+    # ignore status -- see _forbidden_path_content_snapshot's docstring):
+    # any path added, removed, or content-changed under a declared
+    # forbidden_paths entry, whether or not git would ever see it.
+    for path in sorted(set(forbidden_before) | set(forbidden_after)):
+        if forbidden_before.get(path) != forbidden_after.get(path):
+            violations[path] = AuthorityViolation(path=path, reason="FORBIDDEN_PATH")
+    return tuple(violations[path] for path in sorted(violations))
 
 
 def _build_env(
@@ -332,11 +425,33 @@ def _build_env(
     inspects a name for "looks like a secret"; the allowlist is the only
     authority. An ambient ``ANTHROPIC_API_KEY``/``OPENAI_API_KEY``/
     ``CURSOR_API_KEY`` (or any other credential-shaped variable) is never
-    forwarded unless a project's own config explicitly names it."""
+    forwarded unless a project's own config explicitly names it.
+
+    IV finding (PR #661 review, Copilot): on Windows, environment
+    variable names are conventionally case-insensitive (``os.environ``
+    itself performs case-insensitive lookups there), but the actual
+    casing an ambient variable is *reported* under when iterating
+    ``os.environ.items()`` is not guaranteed to match the allowlist's own
+    casing (a real, commonly-seen example: ``Path`` rather than ``PATH``)
+    -- an exact-string ``in allowed`` membership check could silently
+    drop an intended allowlist entry and break the child process's basic
+    ability to start. Matching is case-folded on ``nt`` (mirrors
+    ``agent_transport.resolve_windows_comspec()``'s own ``SystemRoot``/
+    ``SYSTEMROOT`` dual-casing check, generalized to every allowlisted
+    name); POSIX platforms keep exact-case matching, since environment
+    variable names are genuinely case-sensitive there and folding case
+    could incorrectly conflate two distinct real variables."""
+    if os.name == "nt":
+        allowed_folded = {name.casefold() for name in allowlist}
+        env: dict[str, str] = {
+            name: value for name, value in os.environ.items() if name.casefold() in allowed_folded
+        }
+        for name, value in overrides:
+            if name.casefold() in allowed_folded:
+                env[name] = value
+        return env
     allowed = set(allowlist)
-    env: dict[str, str] = {
-        name: value for name, value in os.environ.items() if name in allowed
-    }
+    env = {name: value for name, value in os.environ.items() if name in allowed}
     for name, value in overrides:
         if name in allowed:
             env[name] = value
@@ -366,17 +481,22 @@ def run_local_task(
 
     Fail-closed: refuses to run at all (``LocalExecutionDisabledError``)
     unless ``config.enabled`` is ``True`` -- never a silent no-op success,
-    never an implicit default-on. A malformed/missing/non-executable
+    never an implicit default-on. Also refuses to run
+    (``LocalExecutionError`` / ``WORKTREE_NOT_CLEAN``) if the repository
+    already has uncommitted changes before the task starts -- see
+    ``_require_clean_worktree()`` for why an ambiguous starting point is
+    never silently tolerated. A malformed/missing/non-executable
     ``argv[0]`` fails the same way any other transport failure does
     (``TransportError`` from ``SubprocessProcessRunner``, propagated
     unchanged -- never swallowed into a false "nothing happened").
 
     Authority enforcement is independent of the process's own report:
     ``changed_paths``/``violations``/``authority_clean`` are derived
-    entirely from git state measured before and after the run, regardless
-    of ``exit_code`` or anything on stdout/stderr. A process that exits 0
-    and claims success while having touched a forbidden path is still
-    flagged.
+    entirely from real filesystem/git state measured before and after the
+    run, regardless of ``exit_code`` or anything on stdout/stderr. A
+    process that exits 0 and claims success while having touched a
+    forbidden path -- including a gitignored one, and including one it
+    then committed or re-dirtied on top of -- is still flagged.
     """
     if not config.enabled:
         raise LocalExecutionDisabledError(
@@ -388,14 +508,19 @@ def run_local_task(
     resolved_cwd = _resolve_cwd(resolved_root, envelope.cwd)
     env = _build_env(allowlist=config.env_allowlist, overrides=envelope.env_overrides)
 
+    _require_clean_worktree(resolved_root)
     # A FIXED commit SHA, captured once before the run and never
-    # re-resolved afterward. Both the "before" and "after" measurements
-    # below diff against this same unmoving baseline -- if the launched
-    # process itself advances HEAD (e.g. by running `git commit`), the
-    # comparison point does not move with it (see _git_changed_paths's
-    # own docstring for the bypass this specifically closes).
+    # re-resolved afterward -- the git-based measurement below diffs
+    # against this same unmoving baseline even if the launched process
+    # itself advances HEAD (e.g. by running `git commit`); see
+    # _git_changed_paths's own docstring for the bypass this closes.
     baseline_sha = _current_head_sha(resolved_root)
-    before = _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
+    # Filesystem-direct snapshot of declared forbidden paths, independent
+    # of git tracking/ignore status entirely -- see
+    # _forbidden_path_content_snapshot's docstring for the gitignored-file
+    # bypass this closes.
+    forbidden_before = _forbidden_path_content_snapshot(resolved_root, envelope.forbidden_paths)
+
     request = ProcessRunRequest(
         argv=envelope.argv,
         cwd=resolved_cwd,
@@ -405,13 +530,15 @@ def run_local_task(
     )
     active_runner: ProcessRunner = runner if runner is not None else SubprocessProcessRunner()
     outcome: ProcessRunOutcome = active_runner.run(request)
-    after = _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
 
-    new_paths = after - before
+    new_paths = _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
+    forbidden_after = _forbidden_path_content_snapshot(resolved_root, envelope.forbidden_paths)
     violations = _enforce_authority(
         new_paths,
         authorized_paths=envelope.authorized_paths,
         forbidden_paths=envelope.forbidden_paths,
+        forbidden_before=forbidden_before,
+        forbidden_after=forbidden_after,
     )
     return LocalExecutionResult(
         work_id=envelope.work_id,
