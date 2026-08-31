@@ -10030,3 +10030,20 @@ any real Cursor/OpenAI/Anthropic credential or endpoint. Does not wire
 into the governed autonomy DAG's lease/dispatch machinery (future PR, see
 above). Does not perform, request, or imply any network access or
 external spend.
+
+**Independent verification finding (real, fixed):** the adversarial IV
+pass, going beyond the assigned checklist, found that `_git_changed_paths()`
+diffed against the live `HEAD` ref -- a launched process that ran an
+ordinary `git commit` on its own change advanced `HEAD` along with it, so
+the committed change never appeared as a delta, silently defeating every
+`forbidden_paths`/`authorized_paths` guarantee this module exists for.
+Fixed: `run_local_task()` now captures a fixed commit SHA once before the
+run and diffs both before/after measurements against that same unmoving
+baseline. Documented residual limitation: a process that commits and then
+`git reset --hard`s its own commit away before exiting can still erase
+its tracks from a working-tree-vs-baseline comparison -- a git-history-
+forensics problem out of scope for a single before/after diff. Also
+fixed a related input-validation gap the same pass found: a Windows
+drive-letter/UNC absolute `cwd` was not rejected at envelope construction
+(only later, at run time, with no actual launch bypass). 36/36 tests pass
+(was 30); freeze guard 23/23; ruff/mypy clean.
