@@ -65,6 +65,7 @@ from project_atlas.atlas3.transport import prove_transport_is_not_authority
 from project_atlas.atlas3.truth_graph import compile_truth_graph
 from project_atlas.atlas3.twin_health import compile_twin_health
 from project_atlas.validation import validate as _run_validate
+from project_atlas.validation import validation_exit_code as _validation_exit_code
 
 ATLAS3_COMMANDS = frozenset(
     {
@@ -579,7 +580,11 @@ def dispatch_atlas3(args: argparse.Namespace) -> int | None:
         if command == "validate-report":
             result = _run_validate(args.vault)
             print(json.dumps(result, indent=2, sort_keys=True))
-            return 0 if result["ok"] else 1
+            # Canonical AS-H-010 severity->exit mapping -- the same function
+            # `atlas validate` itself uses -- not a re-derived `result["ok"]`
+            # check, so the two commands can never diverge on exit code even
+            # if validate()'s finding/error invariants ever change.
+            return _validation_exit_code(result)
         if command == "capabilities":
             return _dump(list_capabilities(), as_json=True)
         if command == "compatibility":

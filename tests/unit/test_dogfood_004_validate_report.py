@@ -112,6 +112,51 @@ def test_broken_link_exit_code_matches_validate(
     assert "markdown_files" in payload
 
 
+def test_validate_report_exit_code_uses_canonical_severity_mapping(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`validate-report` must derive its exit code the same way `atlas
+    validate` does -- via `validation_exit_code()`'s AS-H-010 severity
+    matrix -- not by re-deriving it from `result["ok"]` directly. In the
+    real `validate()` output these currently always agree (every
+    Severity.ERROR finding is paired with an `errors` entry), so this test
+    forces the divergent case: an ERROR-severity finding with an empty
+    legacy `errors` list and `ok: True`. `validation_exit_code()` must
+    still report failure, and `validate-report` must exit non-zero."""
+    source = _fixture(tmp_path)
+    vault = tmp_path / "vault"
+    _build_vault(source, vault, tmp_path)
+
+    from project_atlas.domain import Severity
+
+    def _fake_validate(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return {
+            "ok": True,
+            "errors": [],
+            "findings": [
+                {
+                    "finding_id": "err.1",
+                    "rule_id": "synthetic-error",
+                    "severity": Severity.ERROR.value,
+                    "gate": "structural",
+                    "message": "synthetic error finding not mirrored in errors[]",
+                    "path": None,
+                    "concept_id": None,
+                }
+            ],
+            "markdown_files": 1,
+        }
+
+    monkeypatch.setattr("project_atlas.atlas3.cli._run_validate", _fake_validate)
+
+    capsys.readouterr()
+    code = main(["validate-report", "--vault", str(vault)])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["ok"] is True  # the raw (synthetic) result really does say ok=True
+    assert code == EXIT_ERROR  # but the canonical severity mapping still fails closed
+
+
 def test_validate_report_does_not_change_existing_validate_output(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
