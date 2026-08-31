@@ -9754,3 +9754,95 @@ recovery independently re-verified PASS and merged via PR #638.)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`. Do not merge #654.
 - Exact-object IV/ADV on the new HEAD/TREE remains required before any
   owner merge consideration.
+
+## 2026-08-31 — DOGFOOD-001: source-safe genesis identity write
+
+- Context: the first authentic Atlas dogfood run (real CLI against real
+  `B0LK13/project-atlas` content, pinned to `e1bcca47` / tree `2e89b36c`,
+  before `#654` merged) reproduced -- 3x independently, plus a fresh
+  isolated red/green repro on this branch (base `818dd140` / tree
+  `0eaf751b`) -- an unintended P1 source-safety defect: a project's first
+  `atlas ingest` allocates durable project identity (AS-ID-001 genesis,
+  intended) by rewriting `.atlas-project.yaml`'s *entire* body through
+  `yaml.safe_dump` -- reflowing block lists to flow style, dropping blank
+  lines, normalizing quote style -- with no CLI-visible signal that a
+  *source*-tree file (not `--vault` state) had been touched.
+- Contract determination (read `source_identity.py`, `ingestion.py`,
+  `docs/AS-ID-001-*`, and the existing fixed-UUID comment in
+  `tests/integration/test_as_mvp_001_release_closure.py`): the marker is
+  intended, tracked, human-authored project configuration; `project_uuid`
+  living there and genesis mutating it on first ingest are both
+  deliberate AS-ID-001 architecture, not the defect. The defect is (a) the
+  full-document reserialization clobbering unrelated formatting, and (b)
+  no disclosure of the source-tree write to the operator.
+  `DOGFOOD_DEFECT_001 = INTENDED_MUTATION_WITH_MISSING_CONSENT_BOUNDARY`.
+- Fix (`ingestion.py`): new `_append_marker_project_uuid()` appends
+  `project_uuid: <uuid>` as a single new line onto the marker's original
+  bytes -- verified by re-parsing the result and comparing it to the
+  expected merged mapping -- instead of `yaml.safe_dump`ing the whole
+  document. Falls back to the previous whole-document dump only when a
+  bare append would be unsafe (flow-style single-line documents, an
+  explicit `...` end marker), so genesis still always succeeds. Threaded a
+  new `marker_written` signal through `_prepare_project_identity()`,
+  distinct from the pre-existing `allocated` (receipt-created-this-vault)
+  signal, since attaching an already-uuid'd marker to a *second* vault
+  allocates a receipt without touching the marker and must not be reported
+  as one. `ingest()`'s result gains `identity_allocated`; the CLI prints
+  `identity allocated for: <project> (source project marker updated with
+  project_uuid; see --source)` only when the marker was actually written.
+  `ingest --help` and the CLAUDE.md `ingestion.py` bullet now document the
+  behavior.
+- Regression: `tests/unit/test_dogfood_001_source_marker_identity_write.py`
+  (5 tests) -- byte-for-byte preservation of unrelated marker content, the
+  CLI disclosure line, no re-mutation / no false disclosure on a second
+  vault's ingest of an already-stamped marker, the document-end-marker
+  fallback path, and the allocation receipt still recording the uuid once.
+- Real CLI red/green proof (not mocked): fresh temp git repo, real
+  `.atlas-project.yaml` with block lists / blank lines / quoted strings, no
+  `project_uuid`. Pre-fix `atlas ingest` (dogfood venv):
+  `git diff` = full-document rewrite + appended field. Post-fix (this
+  branch): `git diff` = exactly one appended line, byte-identical
+  otherwise; a second vault's `ingest` against the now-stamped marker
+  produced no further `git diff` and no `identity allocated for:` line.
+- Suites: `tests/unit/test_dogfood_001_source_marker_identity_write.py`,
+  `test_source_identity.py`, `test_as_coder_alpha_057_copied_uuid.py` (30
+  passed); `tests/integration/test_ingestion_security.py`,
+  `test_agent_event_ingestion.py`, `test_codex_sec_001_002_provenance.py`,
+  `test_as_mvp_001_release_closure.py`, `test_core_vertical_slice.py`,
+  `test_as_demo_2_2_recovery_id_bootstrap.py`, `test_concurrency.py` (44
+  passed). `ruff check` / `mypy` clean on `ingestion.py` + `cli.py`.
+- `DOGFOOD_DEFECT_002` (random UUIDv4 differs per from-scratch genesis)
+  reclassified `EXPECTED_BY_DESIGN` on the same contract evidence above
+  (the release-closure test's own docstring: "AS-ID-001's 'genesis'
+  design"); no code change made or warranted.
+- **BLOCKING DISCOVERY — full `tests/unit` run surfaces the real gate**:
+  `tests/unit/test_atlas3_demo_isolation_001.py` (`test_certified_surfaces_unmodified`,
+  `test_cli_mutation_is_additive_only`) fails on this branch. Its own
+  contract (`docs/atlas-3/ARCHITECTURE.md` §9, "Isolation from certified
+  demo surfaces") freezes `ingestion.py` (on its `DENY` list) and locks
+  `cli.py`'s *existing* command behavior (only additive
+  `register_atlas3_parsers`/`dispatch_atlas3` registration is allowed)
+  "while `FULL_LIVE_DEMO_READY = NO`" -- which is the current state per
+  this file's own product-maturity truth block. This fix necessarily edits
+  `ingestion.py` (the file the defect lives in) and changes `ingest`'s
+  existing stdout/help text (the disclosure requirement DEFECT-001 itself
+  calls for) -- both are exactly what the freeze prohibits, regardless of
+  correctness. This is not a test bug: the guard is doing precisely what
+  `docs/atlas-3/ARCHITECTURE.md` §9 says it should. Confirmed the failure
+  is specific to this diff, not environmental, by rerunning against a
+  temporary local `origin` remote (removed afterward; this checkout's
+  canonical remote is `gh-origin`) -- `test_certified_surfaces_unmodified`
+  flags exactly `src/project_atlas/ingestion.py`; `test_cli_mutation_is_additive_only`
+  flags the non-additive `ingest` output/help change.
+  **`DOGFOOD_DEFECT_001` is therefore correctly designed, implemented, and
+  regression-tested, but NOT mergeable without an explicit owner decision
+  to grant a narrowly-scoped exception to the certified-surface freeze (or
+  to defer this fix until `FULL_LIVE_DEMO_READY` flips independently of
+  this fix).** That decision -- waive the freeze for this fix, or hold it
+  -- is this lane's genuine owner-only frontier; nothing else in the
+  owner-independent P1 flow remains to execute here.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`. Branch
+  `repair/dogfood-001-source-safe-genesis` off `818dd140`, PR opened for
+  owner review of the freeze-exception question above -- not self-merged,
+  and not represented as CI-green (the local equivalent of the demo-
+  isolation gate fails by the repo's own explicit, documented design).

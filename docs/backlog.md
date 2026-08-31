@@ -223,6 +223,27 @@ integration targets._
 - [x] ID-007 Add replay, rollback, concurrency, and schema validation tests
 - [x] ID-008 Governor review and independent certification
 
+### DOGFOOD-001 — Source-safe genesis marker write (hardening follow-up)
+
+_Found by the first authentic Atlas dogfood run against real
+`B0LK13/project-atlas` content: ID-001 genesis (intended) rewrote the
+entire `.atlas-project.yaml` marker via `yaml.safe_dump` instead of
+appending the one new field, clobbering unrelated human-authored
+formatting with no CLI-visible disclosure. Not a defect in the genesis
+design itself (random UUIDv4 allocated once, persisted in source
+config -- confirmed intended); the defect was the write mechanism and
+its silence. See `WORKLOG.md` 2026-08-31 entry and
+`tests/unit/test_dogfood_001_source_marker_identity_write.py`._
+
+- [ ] DOGFOOD-001 Minimal-diff marker append + CLI disclosure of
+      source-tree identity writes -- implemented, tested, red/green
+      proven on `repair/dogfood-001-source-safe-genesis`, but **blocked
+      on an owner decision**: the fix edits `ingestion.py`, which
+      `tests/unit/test_atlas3_demo_isolation_001.py` freezes per
+      `docs/atlas-3/ARCHITECTURE.md` §9 while `FULL_LIVE_DEMO_READY = NO`.
+      Not mergeable without an explicit, narrowly-scoped freeze exception
+      (or deferral until that flag flips on its own).
+
 ## AS-CORE-003 — Claim Identity v2 remediation
 
 _Status: **MERGED** via the PR #5 platform merge commit `6d874751d3ed9cb05433a8d50ab372a997418d84` (candidate V2-006). Phantom-work correction 2026-08-28: this section still read "Remote CI verification and Project Owner merge authorization remain pending" and CORE3-026 was unchecked, despite the merge commit being a genuine ancestor of current `main` (confirmed via `git merge-base --is-ancestor`) and the code being live -- `claim_identity.py` exists and is imported by both `knowledge_compiler.py` and `evidence_compiler.py`, not stub text. A separate post-merge closure record (docs commit `f7837377`, "AS-CORE-003 post-merge closure record") correctly reconciled this checkbox once already, but that commit is not itself an ancestor of current `main` (confirmed via the same check) -- its `docs/evidence/AS-CORE-003-post-merge-receipt.yaml` does not exist on this branch -- so this correction is re-applied directly here rather than assumed from that lost commit. V2-003 was preserved and rejected by independent review. V2-004 was superseded before review because its immutable tag annotation recorded an invalid tree string. V2-005 passed a fresh isolated review with three non-blocking findings but failed ubuntu CI on platform-dependent `media_type` detection and K-004 fixture newline translation. V2-006 fixed both determinism defects additively, passed an isolated review addendum, and was green on Windows and Linux gates. Non-blocking V2-005 findings are routed to the parser roadmap as follow-ups._

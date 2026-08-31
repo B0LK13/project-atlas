@@ -50,6 +50,7 @@ from project_atlas.lineage import (
     build_project_registry,
     migrate_v1_records_with_receipts,
 )
+from project_atlas.logging import get_logger
 from project_atlas.quarantine import scan_text as scan_injection
 from project_atlas.schema import validate_record
 from project_atlas.secrets import redact_text, scan_text
@@ -62,6 +63,8 @@ from project_atlas.source_identity import (
     production_project_uuid,
     validate_project_uuid,
 )
+
+_log = get_logger("ingestion")
 
 CLASS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("architecture", ("architecture", "design")),
@@ -939,6 +942,38 @@ def _project_context(root: Path, relative_path: str, project: str) -> dict[str, 
     return context
 
 
+def _append_marker_project_uuid(
+    original: bytes, data: dict[str, Any], project_uuid: str
+) -> bytes:
+    """Stamp ``project_uuid`` onto a project marker with a minimal byte diff.
+
+    DOGFOOD-001: the marker is human-authored, tracked source configuration,
+    not vault-owned state. A naive ``yaml.safe_dump(data)`` round-trip
+    reserializes the *entire* document -- rewriting list style, dropping
+    blank lines, and normalizing quote style -- even though genesis only
+    ever adds one new top-level scalar key. Preserve every existing byte and
+    append the new field as its own line instead. The result is re-parsed
+    and compared against the expected merged mapping before being accepted;
+    if anything about the source marker's shape makes a bare append unsafe
+    (for example a multi-document stream or an explicit ``...`` end
+    marker), fall back to the previous whole-document re-dump so genesis
+    never fails, it only loses formatting fidelity in that rare case.
+    """
+    text = original.decode("utf-8")
+    prefix = text if text.endswith("\n") or not text else text + "\n"
+    appended = f"{prefix}project_uuid: {project_uuid}\n"
+    try:
+        reparsed = yaml.safe_load(appended)
+    except yaml.YAMLError:
+        reparsed = None
+    expected = {**data, "project_uuid": project_uuid}
+    if isinstance(reparsed, dict) and reparsed == expected:
+        return appended.encode("utf-8")
+    # Fallback: unsafe to append (e.g. a document-end marker or a flow-style
+    # document already closed on one line). Preserve correctness over format.
+    return yaml.safe_dump(expected, sort_keys=False, allow_unicode=True).encode("utf-8")
+
+
 def _prepare_project_identity(
     root: Path,
     vault: Path,
@@ -946,8 +981,17 @@ def _prepare_project_identity(
     relative_path: str,
     uuid_provider: ProjectUuidProvider,
     write_plan: dict[Path, bytes],
-) -> tuple[str, Path, bytes, bool]:
-    """Prepare an immutable project UUID marker mutation inside the plan."""
+) -> tuple[str, Path, bytes, bool, bool]:
+    """Prepare an immutable project UUID marker mutation inside the plan.
+
+    Returns ``(project_uuid, marker, original_bytes, receipt_allocated,
+    marker_written)``. ``receipt_allocated`` is true whenever *this vault*
+    gains a new allocation receipt (existing semantics, used by
+    ``_verify_identity_post_state``); ``marker_written`` is true only when
+    the *source-tree marker itself* is mutated (DOGFOOD-001) -- distinct,
+    because attaching an already-uuid'd marker to a second vault allocates a
+    receipt without touching the marker.
+    """
     marker = _find_project_marker(root, relative_path, project)
     original = marker.read_bytes()
     try:
@@ -958,6 +1002,7 @@ def _prepare_project_identity(
         raise ValueError(f"project marker must be an object: {marker}")
     raw_uuid = data.get("project_uuid")
     allocated = raw_uuid is None
+    marker_written = allocated
     receipt = vault / "receipts" / "source-lineage" / f"project-{project}-allocation.json"
 
     def _plan_allocation_receipt(project_uuid: str) -> None:
@@ -979,9 +1024,7 @@ def _prepare_project_identity(
 
     if allocated:
         project_uuid = validate_project_uuid(uuid_provider())
-        data["project_uuid"] = project_uuid
-        updated = yaml.safe_dump(data, sort_keys=False, allow_unicode=True).encode("utf-8")
-        write_plan[marker] = updated
+        write_plan[marker] = _append_marker_project_uuid(original, data, project_uuid)
         _plan_allocation_receipt(project_uuid)
     else:
         project_uuid = validate_project_uuid(str(raw_uuid))
@@ -990,7 +1033,7 @@ def _prepare_project_identity(
         if not receipt.is_file() and receipt not in write_plan:
             _plan_allocation_receipt(project_uuid)
             allocated = True
-    return project_uuid, marker, original, allocated
+    return project_uuid, marker, original, allocated, marker_written
 
 
 def _assert_state_compare_and_swap(preconditions: dict[Path, bytes | None]) -> None:
@@ -1639,12 +1682,15 @@ def _ingest(
     marker_preconditions: dict[Path, bytes | None] = {}
     identity_markers: dict[str, Path] = {}
     allocated_projects: set[str] = set()
+    marker_written_projects: set[str] = set()
     for project, entries in sorted(projects.items()):
         if not entries or project == "unknown-project":
             continue
         try:
-            project_uuid, marker, original_marker, _allocated = _prepare_project_identity(
-                root, vault, project, str(entries[0]["path"]), uuid_provider, write_plan
+            project_uuid, marker, original_marker, _allocated, _marker_written = (
+                _prepare_project_identity(
+                    root, vault, project, str(entries[0]["path"]), uuid_provider, write_plan
+                )
             )
         except ValueError as exc:
             # Preserve ingestion of legacy hand-authored manifests that predate
@@ -1658,6 +1704,8 @@ def _ingest(
         identity_markers[project] = marker
         if _allocated:
             allocated_projects.add(project)
+        if _marker_written:
+            marker_written_projects.add(project)
     planned_receipts: dict[str, str] = {}
     incoming_source_ids: dict[str, set[str]] = {}
     for project, project_uuid in project_identity.items():
@@ -2171,6 +2219,25 @@ def _ingest(
     )
     # AS-INT-009: thin post-ingest hook — apply only when policy file exists.
     maybe_apply_after_ingest(vault)
+    # DOGFOOD-001: genesis identity allocation writes into the *source* project
+    # marker (tracked configuration), not just vault state. That is intended
+    # (AS-ID-001), but the caller must not learn about it only by diffing
+    # their checkout afterwards -- log it and surface it in the result.
+    # `marker_written_projects` is deliberately narrower than
+    # `allocated_projects`: attaching an already-uuid'd marker to a second
+    # vault allocates a fresh receipt without touching the marker, and must
+    # not be reported as a source mutation.
+    for project in sorted(marker_written_projects):
+        _log.info(
+            "allocated durable project identity; source project marker updated",
+            extra={
+                "context": {
+                    "project": project,
+                    "project_uuid": project_identity[project],
+                    "marker": str(identity_markers[project]),
+                }
+            },
+        )
     return {
         "ok": True,
         "projects": len(projects),
@@ -2179,6 +2246,7 @@ def _ingest(
         "events_quarantined": len(quarantined_events),
         "security_findings": len(security_findings),
         "inventory_sha256": manifest.get("inventory_sha256"),
+        "identity_allocated": sorted(marker_written_projects),
     }
 
 

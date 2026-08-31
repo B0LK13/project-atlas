@@ -111,7 +111,14 @@ asserting `index.md` and `00-system/vault-charter.md` exist).
 - `ingestion.py` — `atlas ingest`: manifest validation, deterministic
   document classification, protected-region preservation, agent-event
   quarantine, and atomic canonical writes via a single `_promote(write_plan)`
-  boundary.
+  boundary. A project's first ingest also allocates durable project identity
+  (AS-ID-001 genesis: a fresh, random UUIDv4, once) into its `--source`
+  project marker (`.atlas-project.yaml` / `.atlas/project.yaml`) when that
+  marker has no `project_uuid` yet -- the one write this command makes
+  outside `--vault`. `_append_marker_project_uuid` appends the field as a
+  single new line rather than re-serializing the whole marker, so unrelated
+  human-authored formatting (list style, blank lines, quoting) is preserved;
+  the CLI reports the allocation on stdout (`identity allocated for: ...`).
 - `indexes.py` — `atlas build-indexes` (FR-010): deterministic lexical
   indexes under `generated/indexes/`, rejects obsolete `indexes/` directory.
 - `validation.py` — `atlas validate` (FR-012): link resolution, OKF
