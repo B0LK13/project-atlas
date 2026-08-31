@@ -24,6 +24,7 @@ def test_help_lists_atlas3_and_keeps_core() -> None:
         "proof",
         "memory",
         "ledger",
+        "validate-report",
         "capabilities",
         "compatibility",
         "inventory",

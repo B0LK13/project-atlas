@@ -9754,3 +9754,62 @@ recovery independently re-verified PASS and merged via PR #638.)
 - `MERGE_AUTHORIZATION = NOT_GRANTED`. Do not merge #654.
 - Exact-object IV/ADV on the new HEAD/TREE remains required before any
   owner merge consideration.
+
+## 2026-08-31 — DOGFOOD-004: additive `atlas validate-report`
+
+- Context: the first authentic Atlas dogfood run observed `atlas validate`
+  print only a single `broken link: ...` line on failure and exit,
+  originally suspected as fail-fast validation. Reading
+  `validation.py::validate()` disproves that: it already runs every
+  sub-validator (knowledge state, portfolio, graph acceptance/resolution,
+  freshness, orphans, links) unconditionally and returns the *complete*
+  `errors`/`findings` lists before the caller ever sees pass/fail -- not
+  fail-fast at the library level. The real gap is `cli.py`'s existing
+  `validate` command: on `exit_code != EXIT_OK` it logs the blocking
+  errors and returns immediately, never reaching the loop below that
+  prints warning/info findings -- so any co-occurring non-blocking
+  finding the library already computed is silently dropped from the
+  operator's view the moment one error exists.
+- `ingestion.py`/`cli.py`'s *existing* command bodies are frozen while
+  `FULL_LIVE_DEMO_READY = NO` (`docs/atlas-3/ARCHITECTURE.md` SS9,
+  `tests/unit/test_atlas3_demo_isolation_001.py`; hit directly while
+  attempting `DOGFOOD-001`, see that entry above/on
+  `repair/dogfood-001-source-safe-genesis`). `validation.py` and `cli.py`'s
+  *existing* `validate` command are therefore both off-limits to edit.
+  Fix here is a brand-new, purely additive `atlas validate-report`
+  command, registered entirely inside `atlas3/cli.py` -- an explicitly
+  unfrozen namespace ("Additive Atlas 3 CLI parsers and dispatch. Existing
+  commands stay unchanged.") -- via the already-generic
+  `register_atlas3_parsers`/`dispatch_atlas3` hooks `cli.py` already calls
+  unconditionally for every command. `cli.py` itself is untouched by this
+  change (confirmed: `git diff` touches only `atlas3/cli.py` and tests).
+  `atlas validate-report --vault <dir>` prints the same underlying
+  `validate()` result unfiltered (every error + every warning/info
+  finding) and exits 1 on any error, matching `atlas validate`'s own exit
+  code semantics (`AGGREGATE_REPORTING != IGNORE_ERRORS`).
+- Verified against real, non-DENY-listed contract: `git diff` on this
+  branch touches only `src/project_atlas/atlas3/cli.py` and two test
+  files; `tests/unit/test_atlas3_demo_isolation_001.py` passes clean
+  (checked against a real resolvable `origin/main`, temporary remote
+  removed after).
+- Regression: `tests/unit/test_dogfood_004_validate_report.py` (3 tests) --
+  a clean vault reports `ok: true` matching `atlas validate`'s own
+  success; a real broken-link failure (via the discover -> ingest ->
+  build-indexes -> validate pipeline, not mocked) exits 1 on both
+  commands identically while `validate-report`'s JSON carries the full
+  `errors`/`findings`/`markdown_files` payload; `atlas validate`'s own
+  stdout/exit code is provably unchanged by this addition.
+  `test_atlas3_cli_001.py` updated to also expect `validate-report` in
+  `--help`.
+- Suites: the 3 new tests + `test_atlas3_cli_001.py` +
+  `test_atlas3_capabilities_004.py` (10 passed);
+  `tests/integration/test_core_vertical_slice.py`,
+  `test_atlas3_pulse_001.py`, `test_atlas3_start_001.py` (10 passed).
+  `ruff check .` clean repo-wide. `mypy src` clean except a pre-existing,
+  unrelated `connect_perf.py` POSIX-`resource`-stub gap confirmed present
+  on unmodified `818dd140` too (not introduced here).
+- `MERGE_AUTHORIZATION = NOT_GRANTED`. Branch
+  `atlas3/validate-report-dogfood-004` off `818dd140`, PR opened for
+  independent review -- not self-merged. Unlike `DOGFOOD-001`, this PR is
+  not blocked on a freeze-exception decision: it stays entirely inside the
+  unfrozen `atlas3/` namespace by construction.
