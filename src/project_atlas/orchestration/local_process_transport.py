@@ -247,6 +247,19 @@ class LocalExecutionResult(BaseModel):
     changed_paths: tuple[str, ...]
     violations: tuple[AuthorityViolation, ...]
     authority_clean: bool
+    #: AS-ORCH-LOCAL-DISPATCH-001 (PR-C): the same fixed pre-run commit
+    #: SHA every measurement above was diffed against (see
+    #: ``_git_changed_paths``'s docstring). Purely informational -- this
+    #: module still performs no commit, reset, or any other git mutation
+    #: itself (``merge_authorized``/``execution_authorized`` stay
+    #: ``False`` below, unchanged). Exposed so a governed INTEGRATION
+    #: layer (e.g. ``orchestration.autonomy.local_dispatch_port``) that
+    #: *is* allowed to decide "what happens to the worktree after this
+    #: verdict is known" -- discard a rejected attempt back to this exact
+    #: baseline, or commit an accepted one -- can do so without
+    #: re-deriving or re-resolving HEAD itself (which could race against
+    #: a concurrent change to what HEAD currently points at).
+    baseline_sha: str
     merge_authorized: Literal[False] = False
     execution_authorized: Literal[False] = False
 
@@ -946,6 +959,7 @@ def run_local_task(
         changed_paths=tuple(sorted(new_paths)),
         violations=violations,
         authority_clean=not violations,
+        baseline_sha=baseline_sha,
     )
 
 

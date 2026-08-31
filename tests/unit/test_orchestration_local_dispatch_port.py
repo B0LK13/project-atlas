@@ -497,13 +497,37 @@ def test_k_a_legitimate_remediation_retry_is_not_a_duplicate(tmp_path: Path) -> 
     violation) and is legitimately remediated/retried by the EXISTING,
     unmodified governor remediation cycle must be allowed to dispatch
     again -- with a distinct, never-reused dispatch_id, not blocked as a
-    duplicate."""
+    duplicate.
+
+    IV finding (PR #662 review round 1): the original version of this
+    test only asserted ``receipt_1 is not None``, which passes even when
+    attempt 1 never genuinely re-ran the task at all -- it also passes
+    for an immediate, uninformative ``WORKTREE_NOT_CLEAN`` failure
+    inherited from attempt 0's own undiscarded residue (no ``violations``
+    key on the receipt at all in that case). The script below uses a
+    marker file OUTSIDE the repo (so it survives the worktree-restore
+    step between attempts) to behave differently attempt-to-attempt:
+    attempt 0 deliberately violates scope; attempt 1, if it genuinely
+    re-executes, writes a real in-scope change instead and the node
+    reaches CERTIFIED -- which is only possible if the retry actually
+    ran the task again on a truly clean worktree, not merely recorded a
+    second receipt.
+    """
+    external_marker = tmp_path / "attempt-marker.txt"
+    script = (
+        "import pathlib\n"
+        f"marker = pathlib.Path({str(external_marker)!r})\n"
+        "if marker.exists():\n"
+        "    open('allowed/output.txt', 'w').write('retry genuinely ran\\n')\n"
+        "else:\n"
+        "    marker.write_text('1')\n"
+        "    open('elsewhere.txt', 'w').close()\n"
+    )
     repo = _make_repo(tmp_path)
     main, tree = _repo_main_tree(repo)
     node = _node("PRC-K-002", base_pin=main)
     gov = _governor(repo, node, current_main=main, current_tree=tree)
-    # out-of-scope write -> fails
-    port = _port(argv=(sys.executable, "-c", "open('elsewhere.txt', 'w').close()"))
+    port = _port(argv=(sys.executable, "-c", script))
     loop = _loop(
         repo, gov, current_main=main, current_tree=tree, dispatch=port,
         override=ExecutionHostClass.LOCAL_PROCESS,
@@ -514,7 +538,8 @@ def test_k_a_legitimate_remediation_retry_is_not_a_duplicate(tmp_path: Path) -> 
     # second attempt on the NEXT tick.
     result = loop.tick()  # lease + dispatch attempt 0 -> fails -> remediated
     assert result.phase is LoopPhase.LEASED
-    result = loop.tick()  # dispatch attempt 1 -- must NOT raise DUPLICATE_DISPATCH
+    assert not (repo / "elsewhere.txt").exists()  # rejected attempt 0's residue was discarded
+    result = loop.tick()  # dispatch attempt 1 -- must genuinely re-run, not just re-receipt
     assert result.phase is not LoopPhase.FAILED_CLOSED
     from project_atlas.orchestration.autonomy.local_dispatch_port import _read_receipt
 
@@ -522,7 +547,69 @@ def test_k_a_legitimate_remediation_retry_is_not_a_duplicate(tmp_path: Path) -> 
     receipt_0 = _read_receipt(repo, f"local-process:{lease_id}:0")
     receipt_1 = _read_receipt(repo, f"local-process:{lease_id}:1")
     assert receipt_0 is not None and receipt_0["status"] == "FAILED"
-    assert receipt_1 is not None  # a genuinely distinct second attempt was recorded
+    assert receipt_1 is not None
+    assert receipt_1["status"] == "COMPLETED"  # attempt 1 genuinely ran and passed
+    assert "violations" in receipt_1 and receipt_1["violations"] == []
+    assert (repo / "allowed" / "output.txt").is_file()  # proof the retry actually executed
+    final = next(n for n in gov.snapshot().nodes if n.package_id == "PRC-K-002")
+    assert final.state == NodeState.CERTIFIED
+
+
+def test_unrelated_lease_dispatches_after_a_prior_successful_dispatch(tmp_path: Path) -> None:
+    """IV finding (PR #662 review round 1): a fully successful, in-scope
+    dispatch that was never committed left the worktree permanently
+    dirty -- ANY subsequent dispatch in the same root, including a
+    completely different, non-overlapping node's first-ever dispatch,
+    died immediately on WORKTREE_NOT_CLEAN.
+
+    Exercised directly at the dispatch-port level (two sequential
+    ``dispatch_once()`` calls for two independent leases with disjoint
+    mutation surfaces), not through the full governed loop -- the loop's
+    own single-active-lease-per-agent bookkeeping (release/reaper, test
+    N) is a separate, pre-existing, unrelated concern; this isolates
+    exactly the worktree-cleanliness mechanism this fix touches.
+    """
+    repo = _make_repo(tmp_path)
+    (repo / "other").mkdir()
+    (repo / "other" / ".gitkeep").write_text("", encoding="utf-8")
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed other/ dir")
+    main, tree = _repo_main_tree(repo)
+
+    node_a = _node("PRC-X-001", base_pin=main, surface_paths=("allowed/",))
+    node_b = _node("PRC-X-002", base_pin=main, surface_paths=("other/",))
+    gov = _governor(repo, node_a, node_b, current_main=main, current_tree=tree)
+    script = (
+        "import json, sys\n"
+        "req = json.load(open(sys.argv[1]))\n"
+        "target = req['authorized_paths'][0].rstrip('/') + '/output.txt'\n"
+        "open(target, 'w').write(req['work_id'])\n"
+    )
+    port = _port(argv=(sys.executable, "-c", script))
+
+    lease_a = gov.lease("PRC-X-001", "governor-pilot-local", branch="b1", worktree="w1")
+    result_a = port.dispatch_once(repo)
+    assert result_a["status"] == "COMPLETED"
+    assert (repo / "allowed" / "output.txt").read_text(encoding="utf-8") == "PRC-X-001"
+    # Mirror loop.py's own COMPLETED-result handling (_complete_validated,
+    # loop.py:550-552) so node A leaves the active-parallel state set
+    # (LEASED/ACTIVE/VERIFYING/REMEDIATING) -- this test calls
+    # dispatch_once() directly, bypassing the loop, so it must drive the
+    # SAME governor transitions the loop would to reach an equivalent
+    # state before granting a second, independent lease.
+    gov.transition("PRC-X-001", NodeState.ACTIVE, "TEST_DISPATCHED")
+    gov.transition("PRC-X-001", NodeState.VERIFYING, "TEST_RESULT_VALIDATED")
+    gov.complete_verification("PRC-X-001", passed=True)
+    gov.release_lease(lease_a.lease_id)
+
+    # A completely independent SECOND lease, disjoint mutation surface,
+    # dispatched in the SAME repo root right after the first one's
+    # successful (uncommitted-by-run_local_task-itself) result -- this
+    # is exactly the scenario the IV reported as permanently broken.
+    gov.lease("PRC-X-002", "governor-pilot-local", branch="b2", worktree="w2")
+    result_b = port.dispatch_once(repo)
+    assert result_b["status"] == "COMPLETED"
+    assert (repo / "other" / "output.txt").read_text(encoding="utf-8") == "PRC-X-002"
 
 
 # ---------------------------------------------------------------------------

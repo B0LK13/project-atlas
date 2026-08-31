@@ -27,11 +27,27 @@ the fixed template decides HOW to interpret that file; this port never
 interprets task content itself, and never implies Cursor, OpenAI,
 Anthropic, network access, or API billing (mirrors
 ``local_process_transport.py``'s own non-claims).
+
+Every dispatch attempt also restores the worktree to a clean state
+before returning (IV finding, PR #662 review round 1) -- an accepted
+result is committed, a rejected one is discarded back to the exact
+pre-run baseline (see ``_commit_accepted_result`` /
+``_restore_worktree_to_baseline``). Without this, ANY outcome left the
+worktree dirty and every subsequent dispatch against the same root --
+a legitimate governed remediation retry of the same lease, or a
+completely unrelated node's first-ever dispatch -- died immediately on
+``local_process_transport.py``'s own ``WORKTREE_NOT_CLEAN``
+precondition, never genuinely running. This module still performs no
+git mutation of its own execution-authority claims: it commits/discards
+purely as worktree housekeeping between dispatches, never sets
+``merge_authorized``/``execution_authorized`` on anything, and the
+transport primitive's own enforcement is unchanged.
 """
 
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import Final
 
@@ -163,6 +179,73 @@ def _request_payload(lease: ProjectedLease, *, dispatch_id: str) -> dict[str, ob
     }
 
 
+def _run_git(args: list[str], *, cwd: Path, timeout_seconds: int = 30) -> None:
+    subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True, timeout=timeout_seconds
+    )
+
+
+def _restore_worktree_to_baseline(root: Path, *, baseline_sha: str) -> None:
+    """Discard a rejected or otherwise-failed dispatch attempt's changes
+    entirely, restoring the worktree to precisely the state
+    ``run_local_task()`` started from.
+
+    IV finding (PR #662 review round 1): without this, a dispatch that
+    left ANY change behind -- a real out-of-scope violation, or even a
+    fully successful in-scope run that nothing committed -- made
+    ``local_process_transport.py``'s own ``_require_clean_worktree()``
+    precondition permanently fail for every subsequent dispatch against
+    the same root, including a legitimate governed remediation retry of
+    the SAME lease and a completely unrelated node's first-ever dispatch.
+    ``git reset --hard`` discards tracked changes back to the fixed
+    baseline every measurement was already diffed against (the same SHA
+    ``LocalExecutionResult.baseline_sha`` names); ``git clean -fd``
+    removes newly created untracked, non-ignored paths. Gitignored paths
+    are deliberately left alone -- ``git status --porcelain`` (what
+    ``_require_clean_worktree()`` actually checks) never reports them
+    regardless, so leaving them is not a blocker, and forcibly sweeping
+    ignored paths (``-x``) would risk deleting pre-existing ignored
+    content (a `.venv`, a build cache) that happened to already sit
+    inside a now-forbidden-labeled directory.
+
+    Only ever called for a FAILED result (nonzero exit, timeout, or an
+    authority violation) -- see ``_commit_accepted_result`` for the
+    counterpart on an accepted one. A failure here (e.g. ``baseline_sha``
+    no longer resolvable) is a genuine, real dispatch-protocol failure,
+    not swallowed -- it propagates to ``dispatch_once()``'s own
+    exception handling, which records it as a FAILED receipt rather than
+    crashing the tick.
+    """
+    _run_git(["reset", "--hard", baseline_sha], cwd=root)
+    _run_git(["clean", "-fd"], cwd=root)
+
+
+def _commit_accepted_result(root: Path, *, dispatch_id: str, work_id: str) -> None:
+    """Commit an authority-clean, exit-0 dispatch result so the worktree
+    returns to clean -- the accepted-result counterpart of
+    ``_restore_worktree_to_baseline``. Without this, a genuinely
+    successful run would leave the SAME permanent
+    ``WORKTREE_NOT_CLEAN`` lockout for every future dispatch that a
+    rejected one would, since ``_require_clean_worktree()`` cannot tell
+    "good" uncommitted changes from "bad" ones -- only that changes
+    exist.
+
+    Deterministic, content-free commit message (work_id + dispatch_id
+    only, mirroring this repository's NFR-001 "no wall-clock content in
+    generated content" convention as closely as a commit -- which always
+    carries a non-deterministic author/committer date via git itself --
+    can). Requires the operator's git identity (``user.name``/
+    ``user.email``) to already be configured, exactly like any other
+    commit in this repository; a missing identity fails the underlying
+    ``git commit`` call, which propagates as an ordinary, non-crashing
+    FAILED dispatch outcome (see ``dispatch_once()``'s exception
+    handling), never a silent no-op or a claimed-but-absent commit.
+    """
+    _run_git(["add", "-A"], cwd=root)
+    message = f"AS-ORCH-LOCAL-DISPATCH-001: {work_id} ({dispatch_id})"
+    _run_git(["commit", "-m", message], cwd=root, timeout_seconds=60)
+
+
 class LocalProcessDispatchPort:
     """``loop.py.DispatchPort`` implementation backed by
     ``local_process_transport.run_local_task()``.
@@ -278,25 +361,52 @@ class LocalProcessDispatchPort:
             return {"dispatch_id": dispatch_id, "status": "FAILED", "digest": dispatch_id}
 
         passed = result.exit_code == 0 and result.authority_clean
-        _write_receipt(
-            root,
-            dispatch_id,
-            {
-                "dispatch_id": dispatch_id,
-                "lease_id": lease.lease_id,
-                "package_id": lease.package_id,
-                "status": "COMPLETED" if passed else "FAILED",
-                "exit_code": result.exit_code,
-                "timed_out": result.timed_out,
-                "authority_clean": result.authority_clean,
-                "changed_paths": list(result.changed_paths),
-                "violations": [
-                    {"path": v.path, "reason": v.reason} for v in result.violations
-                ],
-                "stdout_digest": result.stdout_digest,
-                "stderr_digest": result.stderr_digest,
-            },
-        )
+        # IV finding (PR #662 review round 1): without this step, the
+        # worktree was left exactly as run_local_task()'s child process
+        # left it -- dirty on ANY outcome, accepted or rejected -- which
+        # made local_process_transport.py's own _require_clean_worktree()
+        # precondition permanently fail every subsequent dispatch against
+        # this same root: a legitimate governed remediation retry of the
+        # SAME lease, and a completely unrelated node's first-ever
+        # dispatch, both died on WORKTREE_NOT_CLEAN. An accepted result is
+        # committed so its changes durably persist and the tree returns
+        # to clean; a rejected one is discarded back to the exact
+        # pre-run baseline so the NEXT attempt starts genuinely fresh,
+        # not layered on top of a violating or otherwise-broken attempt.
+        cleanup_error: str | None = None
+        try:
+            if passed:
+                _commit_accepted_result(root, dispatch_id=dispatch_id, work_id=lease.package_id)
+            else:
+                _restore_worktree_to_baseline(root, baseline_sha=result.baseline_sha)
+        except Exception as exc:
+            # A cleanup failure on an otherwise-accepted result must not
+            # be reported as COMPLETED -- an accepted result the
+            # governed system could not durably commit is not safe to
+            # certify. A cleanup failure on an already-rejected result
+            # changes nothing about its own FAILED status; it is
+            # recorded purely for diagnosis (the NEXT dispatch attempt
+            # will independently, safely fail closed on
+            # WORKTREE_NOT_CLEAN regardless, rather than silently
+            # running on top of undiscarded residue).
+            passed = False
+            cleanup_error = str(exc)
+        receipt: dict[str, object] = {
+            "dispatch_id": dispatch_id,
+            "lease_id": lease.lease_id,
+            "package_id": lease.package_id,
+            "status": "COMPLETED" if passed else "FAILED",
+            "exit_code": result.exit_code,
+            "timed_out": result.timed_out,
+            "authority_clean": result.authority_clean,
+            "changed_paths": list(result.changed_paths),
+            "violations": [{"path": v.path, "reason": v.reason} for v in result.violations],
+            "stdout_digest": result.stdout_digest,
+            "stderr_digest": result.stderr_digest,
+        }
+        if cleanup_error is not None:
+            receipt["worktree_cleanup_error"] = cleanup_error
+        _write_receipt(root, dispatch_id, receipt)
         return {
             "dispatch_id": dispatch_id,
             "status": "COMPLETED" if passed else "FAILED",
