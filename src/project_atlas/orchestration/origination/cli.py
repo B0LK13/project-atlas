@@ -290,7 +290,24 @@ def run_origination_scan(
             # exact TOCTOU window the surrounding comment describes. Report
             # what was actually durable, not what this call would have
             # written had it won the race.
-            durable_node = WorkNode.model_validate(materialized_record.work_node)
+            #
+            # Independent-verification note (delta round on PR #654): mirror
+            # the sibling already-known-identity branch's per-item isolation
+            # above -- a corrupt durable record must not abort every other
+            # outcome in this same scan batch, only this one work_id.
+            try:
+                durable_node = WorkNode.model_validate(materialized_record.work_node)
+            except ValidationError as exc:
+                not_materialized.append(
+                    {
+                        "work_id": proposal.work_id,
+                        "execution_ready": policy.execution_ready,
+                        "reason": policy.reason.value,
+                        "materialization_error": str(exc),
+                        "materialization_error_code": "DURABLE_RECORD_CORRUPT",
+                    }
+                )
+                continue
             already_materialized = durable_node != node
             reported_node = durable_node if already_materialized else node
             materialized.append(

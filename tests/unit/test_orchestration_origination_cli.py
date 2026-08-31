@@ -851,3 +851,66 @@ def test_scan_reports_truthful_already_materialized_on_toctou_race(
     assert entry["already_materialized"] is True
     # Reports the durable winner's identity, not the locally-rebuilt loser.
     assert entry["work_id"] == winning_node.package_id
+
+
+def test_scan_isolates_a_corrupt_durable_record_to_one_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Independent-verification finding (delta round on PR #654): the new
+    ``WorkNode.model_validate(materialized_record.work_node)`` call this
+    fix added must follow the same per-item isolation the sibling
+    already-known-identity branch above it already has (a corrupt durable
+    ``work_node`` there is reported as ``DURABLE_RECORD_CORRUPT`` for just
+    that ``work_id``, never fatal to the rest of the batch -- the module's
+    own docstring contract). An unguarded ``model_validate`` would let a
+    ``pydantic.ValidationError`` escape into the function's outer generic
+    handler, which fails the ENTIRE scan closed instead of isolating the
+    one bad record.
+    """
+    import project_atlas.orchestration.origination.cli as cli_module
+    from project_atlas.orchestration.origination.pipeline import originate_all
+    from project_atlas.orchestration.origination.projection import OriginationRecord
+
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal, policy = outcomes[0].proposal, outcomes[0].policy
+    corrupt_record = OriginationRecord(
+        origination_identity=proposal.origination_identity,
+        project_id=proposal.project_id,
+        proposal=proposal.model_dump(mode="json"),
+        policy_result=policy.model_dump(mode="json"),
+        work_node={"not": "a valid WorkNode"},
+        state="MATERIALIZED",
+    )
+
+    def _fake_persist_materialized_if_no_active_conflict(
+        _store: Path, _origination_identity: str, _node: object
+    ) -> tuple[OriginationRecord | None, OriginationRecord | None]:
+        return corrupt_record, None
+
+    monkeypatch.setattr(
+        cli_module,
+        "persist_materialized_if_no_active_conflict",
+        _fake_persist_materialized_if_no_active_conflict,
+    )
+
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+
+    # Isolated, not fatal: EXIT_OK with the one bad outcome reported under
+    # not_materialized, not an escaped exception / EXIT_ERROR for the
+    # whole scan.
+    assert exit_code == EXIT_OK
+    assert payload["materialized_count"] == 0
+    not_materialized = payload["not_materialized"]
+    assert isinstance(not_materialized, list)
+    assert len(not_materialized) == 1
+    assert not_materialized[0]["materialization_error_code"] == "DURABLE_RECORD_CORRUPT"
