@@ -9932,3 +9932,139 @@ recovery independently re-verified PASS and merged via PR #638.)
   gap.
 - PR title/body updated to drop "BLOCKED on freeze-exception decision"
   (the exception is granted and encoded, not pending).
+
+---
+
+## LOCAL_EXTERNAL_EXECUTION_PROVIDER — provider-neutral local process execution backend (PR-B)
+
+**Date:** 2026-08-31
+**Directive:** D-CODEX-ATLAS-SUPERVISED-AUTONOMY-PREREQUISITES-AND-RETRY
+**Branch:** `feat/local-process-execution-provider`
+**Base:** `main` at `9b554a1d` (PR #656's merge commit)
+
+**Why:** the first supervised-autonomy attempt found two real blockers to
+a genuine supervised-autonomy run: (1) the origination gap (see PR-A,
+`feat/origination-source-parity`, independent of this branch), and (2)
+there is no real, owner-independent, non-billing execution/dispatch
+backend -- the only existing worker transport
+(`orchestration/sdk/cli_execution_port.py`'s `CursorAgentCliExecutionPort`,
+`orchestration/agent_transport.py`'s `resolve_cursor_transport`) is
+hard-wired to the `cursor-agent`/`agent` CLI specifically. The directive's
+explicit security constraint: "Do not invoke the owner's Cursor API key
+while implementing or testing this provider. Do not spend against an
+external account." This PR never touches `cli_execution_port.py`,
+`cursor_bridge.py`, or any Cursor-specific code path at all.
+
+**What:** `src/project_atlas/orchestration/local_process_transport.py`
+(new, `AS-ORCH-LOCAL-PROC-001`) -- a provider-neutral, disabled-by-
+default, argv-vector-only local process execution backend:
+
+- `LocalProcessExecutorConfig` -- `enabled: bool = False` (refuses to run
+  anything until explicitly opted in), a `env_allowlist` (defaults to a
+  small, fixed, non-secret operational set: `PATH`, `SystemRoot`, `TEMP`,
+  `TMP`, `HOME`, `USERPROFILE`, `PYTHONIOENCODING` -- fully overridable,
+  including down to `()`), `timeout_seconds`.
+- `LocalTaskEnvelope` -- an immutable (`frozen=True`) per-task envelope:
+  `work_id`, `argv` (a trusted vector, never shell text), `cwd` (a safe
+  relative path confined to `project_root`, traversal rejected),
+  `authorized_paths`/`forbidden_paths` (explicit scope declarations,
+  never inferred), `env_overrides` (still filtered through the config's
+  own allowlist -- an envelope cannot smuggle a non-allowlisted variable
+  in on its own authority).
+- `run_local_task()` -- reuses `agent_transport.py`'s existing
+  `ProcessRunRequest`/`ProcessRunOutcome`/`ProcessRunner`/
+  `SubprocessProcessRunner` (already argv-vector-only, `shell=False`,
+  timeout-enforcing, bounded-capture) rather than re-implementing process
+  launch. Measures `git diff --name-only HEAD` + `git ls-files --others
+  --exclude-standard` before and after the run and attributes only the
+  *new* changes to the task -- **independent post-execution authority
+  enforcement**: a process that exits 0 and claims success on stdout
+  while having actually touched a forbidden path is still flagged
+  (`authority_clean=False`), because enforcement never consults the
+  process's own report, only real git state.
+- No import of any provider SDK, no network library, no reference to any
+  billed API anywhere in the module's logic (verified by a dedicated
+  AST-based test, not a naive substring scan, since the module's own
+  docstrings necessarily *name* Cursor/OpenAI/Anthropic in the course of
+  disclaiming them).
+
+**Deliberately out of scope for this PR** (kept independently reviewable,
+per the directive's own "prefer two independently reviewable PRs"
+framing): wiring this backend into `orchestration/autonomy/governor.py`'s
+lease/dispatch state machine as a selectable `ExecutionHostClass`
+alongside `IN_PROCESS`, and any CLI surface. This PR delivers the
+security-critical primitive; a follow-up would wire it into the governed
+DAG once this primitive itself is reviewed and merged.
+
+**Tests:** `tests/unit/test_orchestration_local_process_transport.py`
+(new, 30 tests) -- the directive's 12-case security-model matrix (A-L):
+A disabled-by-default refusal; B argv passed as a literal vector, never
+shell-interpreted (both a fake-runner unit test and a real-subprocess
+end-to-end test with a shell-metacharacter-laden argument); C immutable
+envelope (mutation raises, identical envelopes produce identical resolved
+requests); D minimum-necessary env allowlist (only allowlisted names
+forwarded, default allowlist is a fixed small set, empty allowlist
+forwards nothing); E no auto-forwarded secrets (5 credential-shaped env
+vars parametrized, `env_overrides` cannot smuggle a non-allowlisted name,
+an explicitly allowlisted override IS forwarded); F working-directory
+confinement (traversal rejected, in-scope cwd resolves correctly); G
+timeout enforcement (a real hanging local-interpreter fixture is killed
+and reported `timed_out=True`); H/I/J independent post-execution
+authority enforcement (compliant change is clean, a forbidden-path
+violation is caught via real git diff, an out-of-scope-but-not-forbidden
+change is flagged, self-reported stdout success does not override a real
+violation); K zero network/billing (AST-based import check, plus a
+deterministic no-network local fixture); L fail-closed on a nonexistent
+executable and on empty argv. All fixture executors are either an
+in-process fake `ProcessRunner` or `sys.executable -c "..."` (the stdlib
+interpreter itself) -- zero network access, zero billing, throughout.
+
+**Results:** `pytest tests/unit/test_orchestration_local_process_transport.py`
+-- 30/30 passed. `test_atlas3_demo_isolation_001.py` (freeze guard) --
+23/23 passed, no `DENY`-listed surface touched (diff footprint: 2 new
+files only). `ruff check .` clean. `mypy` clean on both new files.
+
+**Non-claims:** `MERGE_AUTHORIZATION` contingent on the directive's bounded
+conditions, not self-granted. Never invoked, referenced, or tested against
+any real Cursor/OpenAI/Anthropic credential or endpoint. Does not wire
+into the governed autonomy DAG's lease/dispatch machinery (future PR, see
+above). Does not perform, request, or imply any network access or
+external spend.
+
+**Independent verification finding (real, fixed):** the adversarial IV
+pass, going beyond the assigned checklist, found that `_git_changed_paths()`
+diffed against the live `HEAD` ref -- a launched process that ran an
+ordinary `git commit` on its own change advanced `HEAD` along with it, so
+the committed change never appeared as a delta, silently defeating every
+`forbidden_paths`/`authorized_paths` guarantee this module exists for.
+Fixed: `run_local_task()` now captures a fixed commit SHA once before the
+run and diffs both before/after measurements against that same unmoving
+baseline. Documented residual limitation: a process that commits and then
+`git reset --hard`s its own commit away before exiting can still erase
+its tracks from a working-tree-vs-baseline comparison -- a git-history-
+forensics problem out of scope for a single before/after diff. Also
+fixed a related input-validation gap the same pass found: a Windows
+drive-letter/UNC absolute `cwd` was not rejected at envelope construction
+(only later, at run time, with no actual launch bypass). 36/36 tests pass
+(was 30); freeze guard 23/23; ruff/mypy clean.
+
+**Second and third independent-verification rounds found the round-one
+fix still incomplete (real, fixed each time, not deferred):** (round 2)
+an already-dirty path further modified during the run was still
+invisible (membership-based diffing missed content changes) -- fixed by
+requiring a verified-clean worktree before any task starts; a gitignored
+forbidden file (e.g. `.env`) was invisible to the git-based scan -- fixed
+with a filesystem-direct content-hash snapshot of declared
+`forbidden_paths`; plus a scope-path normalization bug and a Windows
+env-var case-sensitivity bug (42/42 tests). (round 3) a task could commit
+on a throwaway branch or stash-and-leave-stashed to hide a forbidden
+change from the working-tree-only diff -- fixed by walking every commit
+reachable from any ref (`git rev-list --all --not <baseline>`, which
+includes `refs/stash`); the `authorized_paths` side of enforcement had
+the same gitignore blind spot as `forbidden_paths` did in round 2 --
+fixed with an existence-only ignored-path scan; and the round-2 content
+snapshot dereferenced symlinks with no size bound, a resource-exhaustion
+risk against this module's own post-run audit step -- fixed by
+fingerprinting symlinks by their link-target text instead of opening
+them, plus an 8MiB read cap on regular files (48/48 tests). Freeze guard
+23/23 and ruff/mypy clean throughout every round.
