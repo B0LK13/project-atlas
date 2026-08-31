@@ -91,6 +91,16 @@ class StopReason(StrEnum):
     SAFETY_BOUNDARY = "SAFETY_BOUNDARY"
     RESOURCE_BOUNDARY = "RESOURCE_BOUNDARY"
     PILOT_COMPLETE = "PILOT_COMPLETE"
+    # Durable-projection lock contention (e.g. a concurrent writer's lock
+    # wait timed out). Distinct from HARD_BLOCKER: the underlying durable
+    # state is not known to be wrong, only momentarily unavailable, so this
+    # stop is always auto-resumed on the very next tick -- unlike
+    # HARD_BLOCKER, which is never resumed by
+    # `_may_resume_from_no_eligible_work()`. Reviewer finding on PR #654
+    # (Cursor Bugbot, Medium): mapping every `ProjectionError` (including
+    # `CONCURRENT_PROJECTION`) to `HARD_BLOCKER` let a transient lock
+    # timeout permanently wedge the loop.
+    PROJECTION_CONTENTION = "PROJECTION_CONTENTION"
 
 
 class AgentCapability(StrEnum):

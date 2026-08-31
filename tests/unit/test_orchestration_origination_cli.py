@@ -16,6 +16,8 @@ import subprocess
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
     AdvancementReason,
@@ -772,3 +774,80 @@ def test_persist_materialized_if_no_active_conflict_does_not_clobber_same_identi
     assert len(projection.records) == 1
     assert projection.records[0].work_node == first_record.work_node
     assert projection.records[0].state == "MATERIALIZED"
+
+
+def test_scan_reports_truthful_already_materialized_on_toctou_race(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cursor Bugbot finding on PR #654 (Low): ``run_origination_scan()``'s
+    unlocked ``existing`` read (from ``persist_proposed()``) can still see
+    ``PROPOSED`` for an identity a concurrent scan materializes an instant
+    later. ``persist_materialized_if_no_active_conflict()`` correctly
+    refuses to clobber that durable row (proven above), but this call
+    unconditionally reported ``already_materialized: False`` using the
+    locally-rebuilt node's fields regardless of which node actually won --
+    a lie about durable truth whenever this process lost the race.
+
+    Simulates the race by monkeypatching the projection call to return an
+    already-durable record for a *different* base_pin than the one this
+    process would have built, with no conflict (same identity) -- exactly
+    ``persist_materialized_if_no_active_conflict()``'s real idempotent
+    return shape when a concurrent writer won first.
+    """
+    import project_atlas.orchestration.origination.cli as cli_module
+    from project_atlas.orchestration.origination.materialize import materialize_work_node
+    from project_atlas.orchestration.origination.pipeline import originate_all
+    from project_atlas.orchestration.origination.projection import OriginationRecord
+    from project_atlas.orchestration.origination.risk import classify as classify_risk
+
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal, policy = outcomes[0].proposal, outcomes[0].policy
+    classification = classify_risk(
+        proposed_scope=proposal.proposed_scope, success_criteria=proposal.success_criteria
+    )
+    winning_pin = "c" * 40
+    assert winning_pin != main
+    winning_node = materialize_work_node(
+        proposal, classification, base_pin=winning_pin, surface_id=f"{proposal.project_id}-won"
+    )
+    winning_record = OriginationRecord(
+        origination_identity=proposal.origination_identity,
+        project_id=proposal.project_id,
+        proposal=proposal.model_dump(mode="json"),
+        policy_result=policy.model_dump(mode="json"),
+        work_node=winning_node.model_dump(mode="json"),
+        state="MATERIALIZED",
+    )
+
+    def _fake_persist_materialized_if_no_active_conflict(
+        _store: Path, _origination_identity: str, _node: object
+    ) -> tuple[OriginationRecord | None, OriginationRecord | None]:
+        return winning_record, None
+
+    monkeypatch.setattr(
+        cli_module,
+        "persist_materialized_if_no_active_conflict",
+        _fake_persist_materialized_if_no_active_conflict,
+    )
+
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+
+    assert exit_code == EXIT_OK
+    materialized = payload["materialized"]
+    assert isinstance(materialized, list)
+    assert len(materialized) == 1
+    entry = materialized[0]
+    # Truthful: this process lost the race, nothing it built was written.
+    assert entry["already_materialized"] is True
+    # Reports the durable winner's identity, not the locally-rebuilt loser.
+    assert entry["work_id"] == winning_node.package_id

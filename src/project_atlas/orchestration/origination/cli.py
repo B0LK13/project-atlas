@@ -283,14 +283,26 @@ def run_origination_scan(
                 )
                 continue
             assert materialized_record is not None  # guaranteed by the (None, conflict) contract
+            # Cursor Bugbot finding on PR #654 (Low): persist_materialized_
+            # if_no_active_conflict() can return a pre-existing durable row
+            # unchanged (a concurrent scan for this same identity won the
+            # lock first) rather than the WorkNode just built above -- the
+            # exact TOCTOU window the surrounding comment describes. Report
+            # what was actually durable, not what this call would have
+            # written had it won the race.
+            durable_node = WorkNode.model_validate(materialized_record.work_node)
+            already_materialized = durable_node != node
+            reported_node = durable_node if already_materialized else node
             materialized.append(
                 {
-                    "work_id": node.package_id,
+                    "work_id": reported_node.package_id,
                     "execution_ready": policy.execution_ready,
                     "reason": policy.reason.value,
                     "risk_class": classification.risk_class.value,
-                    "owner_gate": node.owner_gate.value if node.owner_gate else None,
-                    "already_materialized": False,
+                    "owner_gate": reported_node.owner_gate.value
+                    if reported_node.owner_gate
+                    else None,
+                    "already_materialized": already_materialized,
                 }
             )
     except OriginationProjectionError as exc:
