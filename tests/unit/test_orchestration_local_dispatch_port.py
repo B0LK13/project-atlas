@@ -182,6 +182,16 @@ def _port(*, argv: tuple[str, ...], timeout_seconds: int = 30) -> LocalProcessDi
     )
 
 
+def _dispatch_worktree(repo: Path, dispatch_id: str) -> Path:
+    """The isolated per-attempt worktree a real dispatch checked its
+    changes out into -- every ``dispatch_once()`` receipt carries this
+    (see ``local_dispatch_port.py``'s module docstring: attempts never
+    touch ``repo``'s own working tree)."""
+    receipt = _read_receipt(repo, dispatch_id)
+    assert receipt is not None, f"no receipt for {dispatch_id!r}"
+    return repo / receipt["worktree"]
+
+
 # ---------------------------------------------------------------------------
 # A / J. READY -> lease -> local provider selected -> real process runs ->
 # result accepted for verification (CERTIFIED)
@@ -206,7 +216,12 @@ def test_a_ready_node_dispatches_to_a_real_local_process_and_certifies(tmp_path:
     # actually used.
     result = loop.run_until_stop()
     assert result.phase is LoopPhase.STOPPED
-    assert (repo / "allowed" / "output.txt").is_file()  # a REAL process really ran
+    dispatch_id = f"{_dispatch_id_for('LEASE-1')}:0"
+    worktree = _dispatch_worktree(repo, dispatch_id)
+    assert (worktree / "allowed" / "output.txt").is_file()  # a REAL process really ran
+    # Isolated per-attempt worktree (IV findings, PR #662 review rounds
+    # 1-2): the change never touches repo's own working tree at all.
+    assert not (repo / "allowed" / "output.txt").exists()
     final = next(n for n in gov.snapshot().nodes if n.package_id == "PRC-A-001")
     assert final.state == NodeState.CERTIFIED
 
@@ -501,17 +516,19 @@ def test_k_a_legitimate_remediation_retry_is_not_a_duplicate(tmp_path: Path) -> 
 
     IV finding (PR #662 review round 1): the original version of this
     test only asserted ``receipt_1 is not None``, which passes even when
-    attempt 1 never genuinely re-ran the task at all -- it also passes
-    for an immediate, uninformative ``WORKTREE_NOT_CLEAN`` failure
-    inherited from attempt 0's own undiscarded residue (no ``violations``
-    key on the receipt at all in that case). The script below uses a
-    marker file OUTSIDE the repo (so it survives the worktree-restore
-    step between attempts) to behave differently attempt-to-attempt:
-    attempt 0 deliberately violates scope; attempt 1, if it genuinely
-    re-executes, writes a real in-scope change instead and the node
-    reaches CERTIFIED -- which is only possible if the retry actually
-    ran the task again on a truly clean worktree, not merely recorded a
-    second receipt.
+    attempt 1 never genuinely re-ran the task at all -- it also passed
+    for an immediate, uninformative failure with no real re-execution.
+    Each attempt now gets its own fresh, isolated ``git worktree`` (see
+    ``local_dispatch_port.py``'s module docstring), so there is no
+    shared-root residue to inherit between attempts by construction --
+    but this test still independently PROVES a genuine re-execution
+    rather than trusting that by design alone: the script uses a marker
+    file OUTSIDE any worktree (so it is NOT reset between attempts) to
+    behave differently attempt-to-attempt -- attempt 0 deliberately
+    violates scope; attempt 1, if it genuinely re-executes, writes a
+    real in-scope change instead and the node reaches CERTIFIED -- which
+    is only possible if the retry actually ran the task again, not
+    merely recorded a second receipt.
     """
     external_marker = tmp_path / "attempt-marker.txt"
     script = (
@@ -538,10 +555,11 @@ def test_k_a_legitimate_remediation_retry_is_not_a_duplicate(tmp_path: Path) -> 
     # second attempt on the NEXT tick.
     result = loop.tick()  # lease + dispatch attempt 0 -> fails -> remediated
     assert result.phase is LoopPhase.LEASED
-    assert not (repo / "elsewhere.txt").exists()  # rejected attempt 0's residue was discarded
+    # Attempt 0's own isolated worktree carries the rejected write --
+    # repo's own working tree was never touched by it at all.
+    assert not (repo / "elsewhere.txt").exists()
     result = loop.tick()  # dispatch attempt 1 -- must genuinely re-run, not just re-receipt
     assert result.phase is not LoopPhase.FAILED_CLOSED
-    from project_atlas.orchestration.autonomy.local_dispatch_port import _read_receipt
 
     lease_id = "LEASE-1"
     receipt_0 = _read_receipt(repo, f"local-process:{lease_id}:0")
@@ -550,24 +568,29 @@ def test_k_a_legitimate_remediation_retry_is_not_a_duplicate(tmp_path: Path) -> 
     assert receipt_1 is not None
     assert receipt_1["status"] == "COMPLETED"  # attempt 1 genuinely ran and passed
     assert "violations" in receipt_1 and receipt_1["violations"] == []
-    assert (repo / "allowed" / "output.txt").is_file()  # proof the retry actually executed
+    worktree_1 = repo / receipt_1["worktree"]
+    assert (worktree_1 / "allowed" / "output.txt").is_file()  # proof the retry actually executed
     final = next(n for n in gov.snapshot().nodes if n.package_id == "PRC-K-002")
     assert final.state == NodeState.CERTIFIED
 
 
 def test_unrelated_lease_dispatches_after_a_prior_successful_dispatch(tmp_path: Path) -> None:
-    """IV finding (PR #662 review round 1): a fully successful, in-scope
-    dispatch that was never committed left the worktree permanently
-    dirty -- ANY subsequent dispatch in the same root, including a
-    completely different, non-overlapping node's first-ever dispatch,
-    died immediately on WORKTREE_NOT_CLEAN.
-
-    Exercised directly at the dispatch-port level (two sequential
-    ``dispatch_once()`` calls for two independent leases with disjoint
-    mutation surfaces), not through the full governed loop -- the loop's
-    own single-active-lease-per-agent bookkeeping (release/reaper, test
-    N) is a separate, pre-existing, unrelated concern; this isolates
-    exactly the worktree-cleanliness mechanism this fix touches.
+    """IV findings (PR #662 review rounds 1-2): earlier designs ran every
+    dispatch directly against the shared project root and tried to
+    restore/commit it clean between attempts -- round 1 found a fully
+    successful, uncommitted dispatch left that shared root permanently
+    dirty (blocking every later dispatch); round 2 found the
+    restore/commit step's own failure modes reproduced the same lockout
+    under realistic conditions. Per-attempt worktree isolation (this
+    module's current design) removes the bug class structurally: each
+    lease's dispatch runs inside its own fresh, disposable worktree, so
+    two independent leases with disjoint mutation surfaces, dispatched
+    one after another in the SAME repo, can never interfere with each
+    other's on-disk state at all -- confirmed here directly at the
+    dispatch-port level (two sequential ``dispatch_once()`` calls), not
+    through the full governed loop (the loop's own single-active-lease-
+    per-agent bookkeeping, release/reaper, is a separate, pre-existing,
+    unrelated concern -- see test N).
     """
     repo = _make_repo(tmp_path)
     (repo / "other").mkdir()
@@ -590,7 +613,9 @@ def test_unrelated_lease_dispatches_after_a_prior_successful_dispatch(tmp_path: 
     lease_a = gov.lease("PRC-X-001", "governor-pilot-local", branch="b1", worktree="w1")
     result_a = port.dispatch_once(repo)
     assert result_a["status"] == "COMPLETED"
-    assert (repo / "allowed" / "output.txt").read_text(encoding="utf-8") == "PRC-X-001"
+    worktree_a = _dispatch_worktree(repo, str(result_a["dispatch_id"]))
+    assert (worktree_a / "allowed" / "output.txt").read_text(encoding="utf-8") == "PRC-X-001"
+    assert not (repo / "allowed" / "output.txt").exists()  # never touched repo's own tree
     # Mirror loop.py's own COMPLETED-result handling (_complete_validated,
     # loop.py:550-552) so node A leaves the active-parallel state set
     # (LEASED/ACTIVE/VERIFYING/REMEDIATING) -- this test calls
@@ -604,12 +629,14 @@ def test_unrelated_lease_dispatches_after_a_prior_successful_dispatch(tmp_path: 
 
     # A completely independent SECOND lease, disjoint mutation surface,
     # dispatched in the SAME repo root right after the first one's
-    # successful (uncommitted-by-run_local_task-itself) result -- this
-    # is exactly the scenario the IV reported as permanently broken.
+    # successful dispatch -- confirms the two attempts' isolated
+    # worktrees never interfere with each other.
     gov.lease("PRC-X-002", "governor-pilot-local", branch="b2", worktree="w2")
     result_b = port.dispatch_once(repo)
     assert result_b["status"] == "COMPLETED"
-    assert (repo / "other" / "output.txt").read_text(encoding="utf-8") == "PRC-X-002"
+    worktree_b = _dispatch_worktree(repo, str(result_b["dispatch_id"]))
+    assert (worktree_b / "other" / "output.txt").read_text(encoding="utf-8") == "PRC-X-002"
+    assert not (repo / "other" / "output.txt").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -783,3 +810,189 @@ def test_lease_override_does_not_bypass_owner_gate_check(tmp_path: Path) -> None
             execution_host_class_override=ExecutionHostClass.LOCAL_PROCESS,
         )
     assert exc.value.code == "OWNER_GATE_REQUIRED"
+
+
+# ---------------------------------------------------------------------------
+# Cross-cutting: supervisor-checkout integrity (isolated worktree gives
+# git-level isolation only, never OS-level sandboxing)
+# ---------------------------------------------------------------------------
+
+
+def test_supervisor_checkout_integrity_guard_detects_escape_via_absolute_path(
+    tmp_path: Path,
+) -> None:
+    """A worktree is a git-level isolation boundary, not an OS-level
+    sandbox -- nothing stops a launched process from using an absolute
+    path to reach back into the supervisor's own checkout regardless of
+    its own cwd. The independent guard (git status + a content digest of
+    .atlas/orchestration/, snapshotted before/after) must catch this and
+    the dispatch must never be certified as COMPLETED, even though the
+    LOCAL, in-scope half of the same script succeeded."""
+    repo = _make_repo(tmp_path)
+    main, tree = _repo_main_tree(repo)
+    node = _node("PRC-GUARD-001", base_pin=main)
+    gov = _governor(repo, node, current_main=main, current_tree=tree)
+    escape_target = repo / "README.md"
+    script = (
+        "import pathlib\n"
+        f"pathlib.Path({str(escape_target)!r}).write_text('tampered', encoding='utf-8')\n"
+        "open('allowed/output.txt', 'w').write('ok')\n"
+    )
+    port = _port(argv=(sys.executable, "-c", script))
+    loop = _loop(
+        repo, gov, current_main=main, current_tree=tree, dispatch=port,
+        override=ExecutionHostClass.LOCAL_PROCESS,
+    )
+    loop.tick()
+    final = next(n for n in gov.snapshot().nodes if n.package_id == "PRC-GUARD-001")
+    assert final.state != NodeState.CERTIFIED
+    dispatch_id = f"{_dispatch_id_for('LEASE-1')}:0"
+    receipt = _read_receipt(repo, dispatch_id)
+    assert receipt is not None
+    assert receipt["status"] == "FAILED"
+    assert "supervisor_integrity_violation" in receipt
+
+
+def test_supervisor_checkout_integrity_guard_detects_governance_state_tamper(
+    tmp_path: Path,
+) -> None:
+    """Same class of escape, aimed specifically at the gitignored durable
+    governance state under .atlas/orchestration/ (lease projection, loop
+    state) -- git's own status never reports a gitignored path, so this
+    exercises the content-digest half of the guard specifically, not the
+    git-status half."""
+    from project_atlas.orchestration.autonomy.local_dispatch_port import RECEIPTS_RELATIVE
+
+    repo = _make_repo(tmp_path)
+    main, tree = _repo_main_tree(repo)
+    node = _node("PRC-GUARD-002", base_pin=main)
+    gov = _governor(repo, node, current_main=main, current_tree=tree)
+    # LEASE_RELATIVE (".atlas/orchestration/autonomy") is a DIRECTORY --
+    # target a file inside it, mirroring what a real durable-store write
+    # (lease projection, loop state) looks like on disk.
+    lease_store_dir = repo / LEASE_RELATIVE
+    assert lease_store_dir.is_relative_to(repo / RECEIPTS_RELATIVE) is False
+    lease_store_target = lease_store_dir / "tampered-governance-file.json"
+    script = (
+        "import pathlib\n"
+        f"target = pathlib.Path({str(lease_store_target)!r})\n"
+        "target.parent.mkdir(parents=True, exist_ok=True)\n"
+        "target.write_text('tampered', encoding='utf-8')\n"
+        "open('allowed/output.txt', 'w').write('ok')\n"
+    )
+    port = _port(argv=(sys.executable, "-c", script))
+    loop = _loop(
+        repo, gov, current_main=main, current_tree=tree, dispatch=port,
+        override=ExecutionHostClass.LOCAL_PROCESS,
+    )
+    loop.tick()
+    final = next(n for n in gov.snapshot().nodes if n.package_id == "PRC-GUARD-002")
+    assert final.state != NodeState.CERTIFIED
+    dispatch_id = f"{_dispatch_id_for('LEASE-1')}:0"
+    receipt = _read_receipt(repo, dispatch_id)
+    assert receipt is not None
+    assert receipt["status"] == "FAILED"
+    assert "supervisor_integrity_violation" in receipt
+
+
+def test_executor_created_commit_never_implies_merge_authority(tmp_path: Path) -> None:
+    """Explicit adversarial requirement: an executor may freely commit
+    inside its OWN isolated worktree (ordinary use of a real git
+    checkout) -- that commit is only an implementation artifact. Confirm
+    nothing in this port's own receipt or return value ever claims
+    merge/execution authority regardless, and the supervisor's own repo
+    gains no new ref/branch/commit from it."""
+    repo = _make_repo(tmp_path)
+    main, tree = _repo_main_tree(repo)
+    before_branches = set(_run_git(repo, "for-each-ref", "--format=%(refname)").splitlines())
+    node = _node("PRC-GUARD-003", base_pin=main)
+    gov = _governor(repo, node, current_main=main, current_tree=tree)
+    script = (
+        "import subprocess\n"
+        "open('allowed/output.txt', 'w').write('ok')\n"
+        "subprocess.run(['git', 'add', '-A'], check=True)\n"
+        "subprocess.run(['git', '-c', 'user.email=x@x.com', '-c', 'user.name=x', "
+        "'commit', '-q', '-m', 'executor commit'], check=True)\n"
+    )
+    port = _port(argv=(sys.executable, "-c", script))
+    loop = _loop(
+        repo, gov, current_main=main, current_tree=tree, dispatch=port,
+        override=ExecutionHostClass.LOCAL_PROCESS,
+    )
+    result = loop.run_until_stop()
+    assert result.phase is LoopPhase.STOPPED
+    assert result.merge_authorized is False
+    assert result.execution_authorized is False
+    dispatch_id = f"{_dispatch_id_for('LEASE-1')}:0"
+    receipt = _read_receipt(repo, dispatch_id)
+    assert receipt is not None
+    worktree = repo / receipt["worktree"]
+    # The executor's own commit is real, inside its own disposable
+    # worktree/branch -- never touching the supervisor's own refs.
+    assert _run_git(worktree, "log", "-1", "--format=%s") == "executor commit"
+    after_branches = set(_run_git(repo, "for-each-ref", "--format=%(refname)").splitlines())
+    new_refs = after_branches - before_branches
+    # The only new ref is this dispatch's own disposable worktree branch
+    # -- never a change to any pre-existing branch (main/master) at all.
+    assert all("atlas-local-dispatch/" in ref for ref in new_refs)
+    supervisor_head = _run_git(repo, "rev-parse", "HEAD")
+    assert supervisor_head == main  # supervisor's own HEAD never moved
+
+
+def test_abandoned_worktree_from_a_prior_crashed_attempt_does_not_block_a_fresh_one(
+    tmp_path: Path,
+) -> None:
+    """An attempt whose supervising process crashed mid-run leaves its
+    own worktree behind (durable evidence, never auto-deleted -- see
+    module docstring). Confirm a FRESH attempt for the SAME lease is
+    never blocked by that abandoned worktree's mere existence -- each
+    attempt gets its own never-reused worktree path/branch by
+    construction (keyed by its own dispatch_id)."""
+    repo = _make_repo(tmp_path)
+    main, tree = _repo_main_tree(repo)
+    node = _node("PRC-GUARD-004", base_pin=main)
+    gov = _governor(repo, node, current_main=main, current_tree=tree)
+    lease = gov.lease("PRC-GUARD-004", "governor-pilot-local", branch="b", worktree="w")
+
+    from project_atlas.orchestration.autonomy.local_dispatch_port import (
+        _create_dispatch_worktree,
+    )
+
+    abandoned_dispatch_id = f"{_dispatch_id_for(lease.lease_id)}:0"
+    # Simulate a crash: the worktree for attempt 0 was created and the
+    # RUNNING receipt written, but the process died before the child
+    # ever ran -- attempt 0's receipt stays RUNNING forever (a genuine
+    # crash, not resolved by this test; find_active_dispatch_id()/
+    # recover() are the real recovery path, exercised elsewhere).
+    _create_dispatch_worktree(repo, dispatch_id=abandoned_dispatch_id, base_pin=main)
+    from project_atlas.orchestration.autonomy.local_dispatch_port import _write_receipt
+
+    _write_receipt(
+        repo, abandoned_dispatch_id,
+        {
+            "dispatch_id": abandoned_dispatch_id,
+            "lease_id": lease.lease_id,
+            "package_id": "PRC-GUARD-004",
+            "status": "RUNNING",
+        },
+    )
+    # A genuinely overlapping second dispatch is still correctly refused
+    # (test K's own contract, unaffected by worktree isolation).
+    port = _port(argv=(sys.executable, "-c", "open('allowed/output.txt','w').close()"))
+    with pytest.raises(LocalDispatchError) as exc:
+        port.dispatch_once(repo)
+    assert exc.value.code == "DUPLICATE_DISPATCH"
+    # But once that receipt is resolved (e.g. by the real recovery path
+    # marking it FAILED after confirming the crash), a genuinely fresh
+    # attempt -- its own new dispatch_id, its own new worktree -- must
+    # proceed normally, never blocked by the abandoned worktree's mere
+    # presence on disk.
+    from project_atlas.orchestration.autonomy.local_dispatch_port import _read_receipt
+
+    resolved = dict(_read_receipt(repo, abandoned_dispatch_id) or {})
+    resolved["status"] = "FAILED"
+    resolved["error"] = "simulated crash resolution"
+    _write_receipt(repo, abandoned_dispatch_id, resolved)
+    result = port.dispatch_once(repo)
+    assert result["status"] == "COMPLETED"
+    assert result["dispatch_id"] != abandoned_dispatch_id

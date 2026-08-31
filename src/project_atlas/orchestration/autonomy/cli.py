@@ -298,6 +298,25 @@ def run_governor_loop_tick(
             lease_projection_store=lease_store,
         )
         store = loop_store or (root / STATE_DIR_RELATIVE)
+        # AS-ORCH-LOCAL-DISPATCH-001 (PR-C review finding, chatgpt-codex-
+        # connector): the dispatch port (and its execution_host_class
+        # override) must exist BEFORE rehydrate_governor() runs, not
+        # after -- rehydrate_governor() is the one place that can
+        # reconstruct a node/lease for the DISPATCHING/AWAITING_RESULT
+        # phases a real crash mid-dispatch leaves on disk (see its own
+        # docstring), and doing so requires re-applying this SAME
+        # override to the reconstructed node. Constructing the port only
+        # afterward made that reconstruction -- and therefore this
+        # port's own recover()/find_active_dispatch_id() -- permanently
+        # unreachable through this real production entrypoint.
+        dispatch_port: LocalProcessDispatchPort | None = None
+        host_class_override: ExecutionHostClass | None = None
+        if local_execution_config is not None and local_execution_argv_template is not None:
+            dispatch_port = LocalProcessDispatchPort(
+                config=local_execution_config,
+                argv_template=local_execution_argv_template,
+            )
+            host_class_override = ExecutionHostClass.LOCAL_PROCESS
         # ORCH001E-011: a fresh AutonomousGovernor starts with an empty node
         # list on every CLI invocation, while `store` may already hold
         # LoopState from a prior process (LEASED, mid-execution, ...). This
@@ -313,15 +332,8 @@ def run_governor_loop_tick(
             loop_store=store,
             lease_projection_store=lease_store,
             origination_projection_store=origin_store,
+            execution_host_class_override=host_class_override,
         )
-        dispatch_port: LocalProcessDispatchPort | None = None
-        host_class_override: ExecutionHostClass | None = None
-        if local_execution_config is not None and local_execution_argv_template is not None:
-            dispatch_port = LocalProcessDispatchPort(
-                config=local_execution_config,
-                argv_template=local_execution_argv_template,
-            )
-            host_class_override = ExecutionHostClass.LOCAL_PROCESS
         loop = AutonomousLoop(
             governor=governor,
             trusted=trusted,

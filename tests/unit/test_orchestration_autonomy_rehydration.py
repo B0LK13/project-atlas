@@ -534,12 +534,10 @@ def test_rehydrate_governor_no_prior_state_originates_cleanly(tmp_path: Path) ->
     assert governor.snapshot().nodes == ()
 
 
-@pytest.mark.parametrize(
-    "phase", [LoopPhase.DISPATCHING, LoopPhase.AWAITING_RESULT, LoopPhase.VALIDATING]
-)
-def test_rehydrate_governor_fails_closed_for_in_flight_execution_phases(
-    tmp_path: Path, phase: LoopPhase
-) -> None:
+def test_rehydrate_governor_fails_closed_for_validating_phase(tmp_path: Path) -> None:
+    """VALIDATING always fails closed -- a not-yet-finalized verification
+    outcome with no DispatchPort seam to ask (verification is
+    governor-internal, not a dispatch)."""
     repo = _make_repo(tmp_path)
     main = _run_git(repo, "rev-parse", "origin/main")
     tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
@@ -556,7 +554,7 @@ def test_rehydrate_governor_fails_closed_for_in_flight_execution_phases(
 
     state = initial_loop_state(trusted).model_copy(
         update={
-            "phase": phase,
+            "phase": LoopPhase.VALIDATING,
             "active_package_id": PILOT_PACKAGE_ID,
             "active_lease_id": lease.lease_id,
             "active_dispatch_id": "in-process:" + lease.lease_id,
@@ -582,6 +580,131 @@ def test_rehydrate_governor_fails_closed_for_in_flight_execution_phases(
     assert excinfo.value.code == "EXECUTION_STATE_NOT_REHYDRATABLE"
     # Fails closed before touching the governor at all.
     assert fresh.snapshot().nodes == ()
+
+
+@pytest.mark.parametrize("phase", [LoopPhase.DISPATCHING, LoopPhase.AWAITING_RESULT])
+def test_rehydrate_governor_reconstructs_dispatch_recoverable_phases(
+    tmp_path: Path, phase: LoopPhase
+) -> None:
+    """AS-ORCH-LOCAL-DISPATCH-001 (PR-C review finding, chatgpt-codex-
+    connector): DISPATCHING/AWAITING_RESULT now reconstruct the node/
+    lease from the SAME durable evidence the LEASED case already trusts
+    (see rehydrate_governor()'s own docstring), so the caller can reach
+    AutonomousLoop.recover() -- the actual crash-recovery logic, which
+    asks the DispatchPort itself what happened -- instead of failing
+    closed before AutonomousLoop is even constructed. Without this, a
+    DispatchPort's own recover()/find_active_dispatch_id() machinery was
+    unreachable through the real run_governor_loop_tick() entrypoint.
+
+    Also confirms execution_host_class_override is re-applied to the
+    reconstructed node -- the override lives only in-memory on a live
+    process's WorkNode and does not otherwise survive a restart.
+    """
+    from project_atlas.orchestration.autonomy.models import ExecutionHostClass
+
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+
+    trusted, inventory, lease = _lease_and_persist(repo, trust_store, lease_store)
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    active_dispatch_id = (
+        f"local-process:{lease.lease_id}:0" if phase == LoopPhase.AWAITING_RESULT else None
+    )
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": phase,
+            "active_package_id": PILOT_PACKAGE_ID,
+            "active_lease_id": lease.lease_id,
+            "active_dispatch_id": active_dispatch_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    fresh = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    assert fresh.snapshot().nodes == ()
+
+    rehydrate_governor(
+        fresh,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=loop_store,
+        lease_projection_store=lease_store,
+        execution_host_class_override=ExecutionHostClass.LOCAL_PROCESS,
+    )
+
+    snapshot = fresh.snapshot()
+    node = next(item for item in snapshot.nodes if item.package_id == PILOT_PACKAGE_ID)
+    assert node.state == NodeState.LEASED
+    assert node.execution_host_class == ExecutionHostClass.LOCAL_PROCESS
+    restored = next(item for item in snapshot.leases if item.lease_id == lease.lease_id)
+    assert restored.base_pin == lease.base_pin
+
+
+def test_rehydrate_governor_still_fails_closed_when_dispatch_phase_unreconstructable(
+    tmp_path: Path,
+) -> None:
+    """The DISPATCHING/AWAITING_RESULT reconstruction attempt is strictly
+    additive -- when the package_id is not the pilot and no origination
+    projection store is configured, there is still nothing trustworthy
+    to rebuild the node from, and this still fails closed exactly as
+    before, never a new bypass."""
+    repo = _make_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+
+    trusted = load_runtime_anchor(store=trust_store)
+    inventory = collect_live_inventory(repo)
+
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.DISPATCHING,
+            "active_package_id": "AS-SOME-OTHER-PACKAGE-001",
+            "active_lease_id": "LEASE-1",
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    with pytest.raises(RehydrationError) as excinfo:
+        rehydrate_governor(
+            governor,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=loop_store,
+            lease_projection_store=lease_store,
+        )
+    assert excinfo.value.code == "EXECUTION_STATE_NOT_REHYDRATABLE"
 
 
 def test_rehydrate_governor_fails_closed_for_unknown_package_id(tmp_path: Path) -> None:

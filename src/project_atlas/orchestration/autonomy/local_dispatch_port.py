@@ -22,31 +22,55 @@ disabled-by-default gate) AND an explicit, non-empty, fixed ``argv_template``
 supplied by the operator at construction time -- never derived from the
 WorkNode/proposal/lease content itself (a governed node choosing its own
 executable would be a code-injection vector). The actual argv a task runs
-is always ``(*argv_template, <path to a governed request JSON file>)`` --
-the fixed template decides HOW to interpret that file; this port never
-interprets task content itself, and never implies Cursor, OpenAI,
-Anthropic, network access, or API billing (mirrors
+is always ``(*argv_template, <absolute path to a governed request JSON
+file>)`` -- the fixed template decides HOW to interpret that file; this
+port never interprets task content itself, and never implies Cursor,
+OpenAI, Anthropic, network access, or API billing (mirrors
 ``local_process_transport.py``'s own non-claims).
 
-Every dispatch attempt also restores the worktree to a clean state
-before returning (IV finding, PR #662 review round 1) -- an accepted
-result is committed, a rejected one is discarded back to the exact
-pre-run baseline (see ``_commit_accepted_result`` /
-``_restore_worktree_to_baseline``). Without this, ANY outcome left the
-worktree dirty and every subsequent dispatch against the same root --
-a legitimate governed remediation retry of the same lease, or a
-completely unrelated node's first-ever dispatch -- died immediately on
-``local_process_transport.py``'s own ``WORKTREE_NOT_CLEAN``
-precondition, never genuinely running. This module still performs no
-git mutation of its own execution-authority claims: it commits/discards
-purely as worktree housekeeping between dispatches, never sets
-``merge_authorized``/``execution_authorized`` on anything, and the
-transport primitive's own enforcement is unchanged.
+ISOLATED PER-ATTEMPT WORKTREE (IV findings, PR #662 review rounds 1-2):
+every dispatch attempt runs inside a fresh ``git worktree`` checked out
+from the lease's own ``base_pin`` -- never inside the project root's own
+working tree, and never reused across attempts. This is the "lease
+worktree" pipeline stage the directive's own design names explicitly.
+Two independent adversarial IV rounds both rejected an earlier version
+of this module that instead ran every attempt directly against the
+shared project root and tried to restore/commit it clean between
+attempts (``git reset --hard``/``git commit`` against ``root`` itself):
+round 1 found that left the shared root permanently dirty after ANY
+outcome (blocking every later dispatch, including a legitimate
+remediation retry of the very same lease); round 2 found the
+restore/commit step's own failure path (a missing git identity, an
+embedded ``.git`` inside the changed tree, a task that self-commits)
+reproduced the exact same lockout under realistic conditions its own
+tests never exercised, AND that auto-committing onto whatever branch
+``root`` happened to have checked out bypasses this codebase's own
+established ``RESULT_ADAPTER_CAN_AUTHORIZE_MERGE = NO`` contract
+(``dispatcher.py``'s ``AS-ORCH-001D-RESULT-BINDING-001``) with no
+review/binding gate in between. Per-attempt worktree isolation removes
+the entire bug class rather than patching around it again: each
+attempt's worktree starts life freshly checked out (so
+``local_process_transport.py``'s own ``_require_clean_worktree()``
+precondition trivially holds every time, for every attempt, regardless
+of what any other attempt or any other lease did), an attempt's
+in-scope changes are left as real, inspectable, UNCOMMITTED working-tree
+state on its own disposable branch (never committed onto ``root``'s
+checked-out branch, never merged, never claiming merge/execution
+authority -- a later, separate result-binding step is what would ever
+promote them), and the project root's own working tree is never touched
+by a dispatch at all. Worktrees are durable evidence, kept (not deleted)
+after an attempt finishes -- like every other durable record this
+package keeps (receipts, lease projection rows) -- so accumulation over
+a long-running governed session is an explicit, disclosed, deferred
+cleanup concern for a future reaper (mirroring this package's own
+existing release/reaper precedent for leases), not a correctness gap.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Final
@@ -72,7 +96,13 @@ PACKAGE_ID: Final[str] = "AS-ORCH-LOCAL-DISPATCH-001"
 #: convention every other durable store in this package already uses.
 RECEIPTS_RELATIVE: Final[Path] = Path(".atlas") / "orchestration" / "autonomy" / "local_dispatch"
 
+#: Where per-attempt isolated worktrees are checked out, relative to the
+#: project root -- a sibling of the receipts store, same convention.
+WORKTREES_RELATIVE: Final[Path] = RECEIPTS_RELATIVE / "worktrees"
+
 _DISPATCH_ID_PREFIX: Final[str] = "local-process:"
+_BRANCH_PREFIX: Final[str] = "atlas-local-dispatch/"
+_SAFE_TOKEN_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 class LocalDispatchError(ValueError):
@@ -93,12 +123,17 @@ def _dispatch_id_for(lease_id: str) -> str:
     return f"{_DISPATCH_ID_PREFIX}{lease_id}"
 
 
-def _receipt_filename(dispatch_id: str) -> str:
+def _safe_token(dispatch_id: str) -> str:
     # dispatch_id contains ':' (from _dispatch_id_for's prefix), which is
-    # not a safe filename character on Windows -- substitute for the
-    # FILENAME only; the logical dispatch_id string used in every
-    # comparison/return value is never altered.
-    return dispatch_id.replace(":", "_").replace("/", "_") + ".json"
+    # not a safe filename character on Windows and not a safe git branch
+    # component either -- substitute for filenames/branch names ONLY; the
+    # logical dispatch_id string used in every comparison/return value is
+    # never altered.
+    return _SAFE_TOKEN_RE.sub("_", dispatch_id)
+
+
+def _receipt_filename(dispatch_id: str) -> str:
+    return _safe_token(dispatch_id) + ".json"
 
 
 def _receipts_dir(root: Path) -> Path:
@@ -107,6 +142,18 @@ def _receipts_dir(root: Path) -> Path:
     if not target.is_relative_to(resolved_root):
         raise LocalDispatchError("receipt store path escapes project root", code="PATH_UNSAFE")
     return target
+
+
+def _worktree_path(root: Path, dispatch_id: str) -> Path:
+    resolved_root = root.expanduser().resolve()
+    target = (resolved_root / WORKTREES_RELATIVE / _safe_token(dispatch_id)).resolve()
+    if not target.is_relative_to(resolved_root):
+        raise LocalDispatchError("dispatch worktree path escapes project root", code="PATH_UNSAFE")
+    return target
+
+
+def _dispatch_branch_name(dispatch_id: str) -> str:
+    return f"{_BRANCH_PREFIX}{_safe_token(dispatch_id)}"
 
 
 def _write_json_atomic(target: Path, payload: dict[str, object]) -> None:
@@ -185,65 +232,107 @@ def _run_git(args: list[str], *, cwd: Path, timeout_seconds: int = 30) -> None:
     )
 
 
-def _restore_worktree_to_baseline(root: Path, *, baseline_sha: str) -> None:
-    """Discard a rejected or otherwise-failed dispatch attempt's changes
-    entirely, restoring the worktree to precisely the state
-    ``run_local_task()`` started from.
+def _supervisor_git_status(root: Path) -> str:
+    """The supervisor checkout's own tracked-file status -- must read
+    IDENTICAL before and after every dispatch attempt. An isolated
+    per-attempt worktree (see module docstring) gives GIT-level
+    isolation (its own branch/index), never OS-level sandboxing:
+    nothing stops a launched process from using an absolute or
+    ``../``-traversal path to reach back into ``root``'s own checkout
+    regardless of its own cwd. This is the supervisor-side half of that
+    check (tracked files); see ``_protected_state_digest`` for the
+    other half (the gitignored durable governance state)."""
+    result = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=root, check=True, capture_output=True, text=True,
+        timeout=30,
+    )
+    return result.stdout
 
-    IV finding (PR #662 review round 1): without this, a dispatch that
-    left ANY change behind -- a real out-of-scope violation, or even a
-    fully successful in-scope run that nothing committed -- made
-    ``local_process_transport.py``'s own ``_require_clean_worktree()``
-    precondition permanently fail for every subsequent dispatch against
-    the same root, including a legitimate governed remediation retry of
-    the SAME lease and a completely unrelated node's first-ever dispatch.
-    ``git reset --hard`` discards tracked changes back to the fixed
-    baseline every measurement was already diffed against (the same SHA
-    ``LocalExecutionResult.baseline_sha`` names); ``git clean -fd``
-    removes newly created untracked, non-ignored paths. Gitignored paths
-    are deliberately left alone -- ``git status --porcelain`` (what
-    ``_require_clean_worktree()`` actually checks) never reports them
-    regardless, so leaving them is not a blocker, and forcibly sweeping
-    ignored paths (``-x``) would risk deleting pre-existing ignored
-    content (a `.venv`, a build cache) that happened to already sit
-    inside a now-forbidden-labeled directory.
 
-    Only ever called for a FAILED result (nonzero exit, timeout, or an
-    authority violation) -- see ``_commit_accepted_result`` for the
-    counterpart on an accepted one. A failure here (e.g. ``baseline_sha``
-    no longer resolvable) is a genuine, real dispatch-protocol failure,
-    not swallowed -- it propagates to ``dispatch_once()``'s own
-    exception handling, which records it as a FAILED receipt rather than
-    crashing the tick.
+def _protected_state_digest(root: Path, *, receipts_dir: Path) -> str:
+    """Content digest of every file under ``.atlas/orchestration/`` --
+    the durable governance state (lease projection, loop state,
+    origination projection, every dispatch's own receipts) a dispatch
+    attempt must never be able to touch -- EXCLUDING this port's own
+    receipts store (``receipts_dir``), which ``dispatch_once()`` itself
+    legitimately writes to before and after every attempt (compared
+    exactly by identity there, not blindly content-hashed here).
+    ``.atlas/orchestration/`` is gitignored, so ``_supervisor_git_status``
+    alone never sees a mutation here -- this is what closes that blind
+    spot for the SAME class of attack (an escape via an absolute/
+    traversal path from inside the isolated worktree, or from a
+    completely unrelated concurrent process).
+
+    Scope note: ``WORKTREES_RELATIVE`` lives inside ``RECEIPTS_RELATIVE``,
+    so excluding ``receipts_dir`` also excludes every dispatch's own
+    worktree content -- deliberately: this guard's job is confirming the
+    supervisor's LIVE governance state (lease projection, loop state,
+    origination projection) survives one dispatch attempt uncorrupted,
+    not policing the historical contents of a DIFFERENT, already-
+    completed attempt's own disposable worktree.
     """
-    _run_git(["reset", "--hard", baseline_sha], cwd=root)
-    _run_git(["clean", "-fd"], cwd=root)
+    orchestration_dir = (root / ".atlas" / "orchestration").resolve()
+    if not orchestration_dir.is_dir():
+        return hashlib.sha256(b"").hexdigest()
+    resolved_receipts_dir = receipts_dir.resolve()
+    hasher = hashlib.sha256()
+    for path in sorted(orchestration_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.resolve().is_relative_to(resolved_receipts_dir):
+            continue
+        hasher.update(path.relative_to(orchestration_dir).as_posix().encode("utf-8"))
+        hasher.update(path.read_bytes())
+    return hasher.hexdigest()
 
 
-def _commit_accepted_result(root: Path, *, dispatch_id: str, work_id: str) -> None:
-    """Commit an authority-clean, exit-0 dispatch result so the worktree
-    returns to clean -- the accepted-result counterpart of
-    ``_restore_worktree_to_baseline``. Without this, a genuinely
-    successful run would leave the SAME permanent
-    ``WORKTREE_NOT_CLEAN`` lockout for every future dispatch that a
-    rejected one would, since ``_require_clean_worktree()`` cannot tell
-    "good" uncommitted changes from "bad" ones -- only that changes
-    exist.
+def _supervisor_integrity_violation(
+    root: Path, *, receipts_dir: Path, status_before: str, state_before: str
+) -> str | None:
+    """Re-snapshot ``root`` and compare against the "before" snapshot a
+    caller captured earlier -- returns a short, human-readable violation
+    description if anything outside this dispatch's own receipt-writing
+    changed, ``None`` if the supervisor checkout is confirmed
+    byte-for-byte unchanged. See ``_supervisor_git_status``/
+    ``_protected_state_digest`` docstrings for what each half covers."""
+    status_after = _supervisor_git_status(root)
+    state_after = _protected_state_digest(root, receipts_dir=receipts_dir)
+    if status_before == status_after and state_before == state_after:
+        return None
+    parts = []
+    if status_before != status_after:
+        parts.append("tracked-file status changed")
+    if state_before != state_after:
+        parts.append("governance state under .atlas/orchestration/ changed")
+    return "supervisor checkout was not byte-clean throughout the attempt: " + ", ".join(parts)
 
-    Deterministic, content-free commit message (work_id + dispatch_id
-    only, mirroring this repository's NFR-001 "no wall-clock content in
-    generated content" convention as closely as a commit -- which always
-    carries a non-deterministic author/committer date via git itself --
-    can). Requires the operator's git identity (``user.name``/
-    ``user.email``) to already be configured, exactly like any other
-    commit in this repository; a missing identity fails the underlying
-    ``git commit`` call, which propagates as an ordinary, non-crashing
-    FAILED dispatch outcome (see ``dispatch_once()``'s exception
-    handling), never a silent no-op or a claimed-but-absent commit.
+
+def _create_dispatch_worktree(root: Path, *, dispatch_id: str, base_pin: str) -> Path:
+    """Check out a fresh, disposable ``git worktree`` for exactly one
+    dispatch attempt, on its own never-reused branch, starting at the
+    lease's own ``base_pin`` -- never at whatever ``root`` currently has
+    checked out. Never reused across attempts: a fresh dispatch_id (this
+    port's own attempt-indexing, unchanged) always means a fresh branch
+    name and a fresh worktree path, so there is no stale state from a
+    prior attempt to reset or clean -- the checkout itself already start
+    from ``local_process_transport.py``'s own required clean baseline.
+
+    Raises (via the underlying ``git`` command's non-zero exit,
+    surfaced as ``subprocess.CalledProcessError``) if the branch or path
+    somehow already exists, or ``base_pin`` does not resolve -- both
+    genuine, real failures this function never swallows; the caller
+    treats this the same as any other dispatch-attempt failure.
     """
-    _run_git(["add", "-A"], cwd=root)
-    message = f"AS-ORCH-LOCAL-DISPATCH-001: {work_id} ({dispatch_id})"
-    _run_git(["commit", "-m", message], cwd=root, timeout_seconds=60)
+    resolved_root = root.expanduser().resolve()
+    path = _worktree_path(resolved_root, dispatch_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    branch = _dispatch_branch_name(dispatch_id)
+    _run_git(
+        ["worktree", "add", "-b", branch, str(path), base_pin],
+        cwd=resolved_root,
+        timeout_seconds=60,
+    )
+    return path
 
 
 class LocalProcessDispatchPort:
@@ -283,7 +372,8 @@ class LocalProcessDispatchPort:
         self._argv_template = argv_template
 
     def dispatch_once(self, root: Path) -> dict[str, object]:
-        lease = _single_active_lease(root)
+        resolved_root = root.expanduser().resolve()
+        lease = _single_active_lease(resolved_root)
         # Attempt-indexed dispatch_id, not one fixed id per lease: the
         # existing governed remediation cycle (governor.py's
         # complete_verification()/remediate_and_resume(), unchanged by
@@ -299,7 +389,7 @@ class LocalProcessDispatchPort:
         attempt = 0
         while True:
             dispatch_id = f"{_dispatch_id_for(lease.lease_id)}:{attempt}"
-            existing = _read_receipt(root, dispatch_id)
+            existing = _read_receipt(resolved_root, dispatch_id)
             if existing is None:
                 break
             if existing.get("status") == "RUNNING":
@@ -316,7 +406,7 @@ class LocalProcessDispatchPort:
         # existing, never on inferring anything from the child's own
         # aliveness.
         _write_receipt(
-            root,
+            resolved_root,
             dispatch_id,
             {
                 "dispatch_id": dispatch_id,
@@ -325,18 +415,40 @@ class LocalProcessDispatchPort:
                 "status": "RUNNING",
             },
         )
-        request_path = _receipts_dir(root) / f"{dispatch_id.replace(':', '_')}-request.json"
+        request_path = _receipts_dir(resolved_root) / f"{_safe_token(dispatch_id)}-request.json"
         _write_json_atomic(request_path, _request_payload(lease, dispatch_id=dispatch_id))
-        relative_request_path = request_path.relative_to(root.expanduser().resolve()).as_posix()
 
-        envelope = LocalTaskEnvelope(
-            work_id=lease.package_id,
-            argv=(*self._argv_template, relative_request_path),
-            authorized_paths=lease.authorized_paths,
-            forbidden_paths=lease.forbidden_paths,
-        )
+        # Supervisor-checkout integrity guard (explicit adversarial
+        # requirement, PR #662): captured AFTER this dispatch's own
+        # legitimate writes above (both live under `_receipts_dir`,
+        # already excluded from `_protected_state_digest`) and compared
+        # again once the attempt finishes, BEFORE this dispatch's own
+        # final receipt write. Isolated-worktree containment is a git-
+        # level property only; this is the independent, filesystem-level
+        # check that `resolved_root` itself -- tracked files AND the
+        # gitignored durable governance state alike -- stayed byte-for-
+        # byte identical throughout, regardless of what the attempt did
+        # inside its own worktree or attempted via an absolute/traversal
+        # path.
+        receipts_dir = _receipts_dir(resolved_root)
+        guard_status_before = _supervisor_git_status(resolved_root)
+        guard_state_before = _protected_state_digest(resolved_root, receipts_dir=receipts_dir)
+
         try:
-            result = run_local_task(envelope, self._config, project_root=root)
+            worktree_path = _create_dispatch_worktree(
+                resolved_root, dispatch_id=dispatch_id, base_pin=lease.base_pin
+            )
+            envelope = LocalTaskEnvelope(
+                work_id=lease.package_id,
+                # An ABSOLUTE path -- the child process's cwd is the
+                # isolated worktree, a different directory than
+                # `resolved_root`, so a root-relative path (this port's
+                # pre-isolation design) would not resolve there.
+                argv=(*self._argv_template, str(request_path)),
+                authorized_paths=lease.authorized_paths,
+                forbidden_paths=lease.forbidden_paths,
+            )
+            result = run_local_task(envelope, self._config, project_root=worktree_path)
         except Exception as exc:
             # dispatch_once() must never let an ordinary task-execution
             # failure escape as an uncaught exception -- loop.py's
@@ -345,52 +457,43 @@ class LocalProcessDispatchPort:
             # rather than cleanly finalize the node as failed. Genuine
             # protocol violations (no active lease, duplicate dispatch)
             # are raised ABOVE this point, before any process starts;
-            # everything past that point is treated as this dispatch's
-            # own, cleanly-reported outcome.
-            _write_receipt(
-                root,
-                dispatch_id,
-                {
-                    "dispatch_id": dispatch_id,
-                    "lease_id": lease.lease_id,
-                    "package_id": lease.package_id,
-                    "status": "FAILED",
-                    "error": str(exc),
-                },
+            # everything past that point -- including a failure to even
+            # create the isolated worktree -- is treated as this
+            # dispatch's own, cleanly-reported outcome. The guard is
+            # still checked here: a crash partway through must not give
+            # a launched process a free pass on the same integrity
+            # requirement a clean completion is held to.
+            failure_payload: dict[str, object] = {
+                "dispatch_id": dispatch_id,
+                "lease_id": lease.lease_id,
+                "package_id": lease.package_id,
+                "status": "FAILED",
+                "error": str(exc),
+            }
+            guard_violation = _supervisor_integrity_violation(
+                resolved_root,
+                receipts_dir=receipts_dir,
+                status_before=guard_status_before,
+                state_before=guard_state_before,
             )
+            if guard_violation is not None:
+                failure_payload["supervisor_integrity_violation"] = guard_violation
+            _write_receipt(resolved_root, dispatch_id, failure_payload)
             return {"dispatch_id": dispatch_id, "status": "FAILED", "digest": dispatch_id}
 
         passed = result.exit_code == 0 and result.authority_clean
-        # IV finding (PR #662 review round 1): without this step, the
-        # worktree was left exactly as run_local_task()'s child process
-        # left it -- dirty on ANY outcome, accepted or rejected -- which
-        # made local_process_transport.py's own _require_clean_worktree()
-        # precondition permanently fail every subsequent dispatch against
-        # this same root: a legitimate governed remediation retry of the
-        # SAME lease, and a completely unrelated node's first-ever
-        # dispatch, both died on WORKTREE_NOT_CLEAN. An accepted result is
-        # committed so its changes durably persist and the tree returns
-        # to clean; a rejected one is discarded back to the exact
-        # pre-run baseline so the NEXT attempt starts genuinely fresh,
-        # not layered on top of a violating or otherwise-broken attempt.
-        cleanup_error: str | None = None
-        try:
-            if passed:
-                _commit_accepted_result(root, dispatch_id=dispatch_id, work_id=lease.package_id)
-            else:
-                _restore_worktree_to_baseline(root, baseline_sha=result.baseline_sha)
-        except Exception as exc:
-            # A cleanup failure on an otherwise-accepted result must not
-            # be reported as COMPLETED -- an accepted result the
-            # governed system could not durably commit is not safe to
-            # certify. A cleanup failure on an already-rejected result
-            # changes nothing about its own FAILED status; it is
-            # recorded purely for diagnosis (the NEXT dispatch attempt
-            # will independently, safely fail closed on
-            # WORKTREE_NOT_CLEAN regardless, rather than silently
-            # running on top of undiscarded residue).
-            passed = False
-            cleanup_error = str(exc)
+        # No commit/restore step against `resolved_root` needed here (IV
+        # findings, PR #662 review rounds 1-2, see module docstring) --
+        # the attempt ran entirely inside its own isolated worktree,
+        # which is left exactly as the attempt produced it (an accepted
+        # result's in-scope changes stay real, inspectable, UNCOMMITTED
+        # working-tree state on the attempt's own disposable branch,
+        # never touching `resolved_root`'s own working tree at all) --
+        # so `resolved_root` itself is never dirtied by any dispatch,
+        # and no subsequent dispatch (a legitimate remediation retry of
+        # this SAME lease, or a completely unrelated lease) can ever be
+        # blocked by a prior attempt's leftover state.
+        worktree_relative = worktree_path.relative_to(resolved_root).as_posix()
         receipt: dict[str, object] = {
             "dispatch_id": dispatch_id,
             "lease_id": lease.lease_id,
@@ -403,10 +506,22 @@ class LocalProcessDispatchPort:
             "violations": [{"path": v.path, "reason": v.reason} for v in result.violations],
             "stdout_digest": result.stdout_digest,
             "stderr_digest": result.stderr_digest,
+            "worktree": worktree_relative,
         }
-        if cleanup_error is not None:
-            receipt["worktree_cleanup_error"] = cleanup_error
-        _write_receipt(root, dispatch_id, receipt)
+        guard_violation = _supervisor_integrity_violation(
+            resolved_root,
+            receipts_dir=receipts_dir,
+            status_before=guard_status_before,
+            state_before=guard_state_before,
+        )
+        if guard_violation is not None:
+            # An accepted result the supervisor's own checkout integrity
+            # cannot vouch for is not safe to certify, regardless of
+            # what the isolated worktree itself reported.
+            passed = False
+            receipt["status"] = "FAILED"
+            receipt["supervisor_integrity_violation"] = guard_violation
+        _write_receipt(resolved_root, dispatch_id, receipt)
         return {
             "dispatch_id": dispatch_id,
             "status": "COMPLETED" if passed else "FAILED",
@@ -449,6 +564,7 @@ class LocalProcessDispatchPort:
 __all__ = [
     "PACKAGE_ID",
     "RECEIPTS_RELATIVE",
+    "WORKTREES_RELATIVE",
     "LocalDispatchError",
     "LocalProcessDispatchPort",
 ]
