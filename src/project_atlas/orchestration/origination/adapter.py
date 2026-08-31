@@ -93,6 +93,19 @@ class EligibleRoadmapItem:
     roadmap_digest: str
     source_path: str = "docs/ROADMAP.md"
     section_context: str | None = None
+    #: AS-ORIGIN-ACCEPTANCE-001 (PR-D): explicit, human-authored overrides
+    #: from an ``acceptance_contracts.py``-loaded sidecar contract, merged
+    #: in by ``sources.py::eligible_work_items()`` -- ``None`` (the
+    #: default) for every item with no matching contract, identical to
+    #: this dataclass's behavior before PR-D existed. When present,
+    #: ``pipeline.py::_build_outcome()`` uses these INSTEAD OF its own
+    #: derived proposed_scope/success_criteria, never in addition to a
+    #: derived value and never silently ignored. Never populated by an
+    #: adapter itself -- only ``apply_acceptance_contracts()`` sets these,
+    #: from real, reviewable repository metadata, never inferred from
+    #: prose or a filename.
+    contract_proposed_scope: tuple[str, ...] | None = None
+    contract_success_criteria: tuple[str, ...] | None = None
 
 
 def _safe_project_file(project_root: Path, ref: str) -> tuple[str, Path] | None:

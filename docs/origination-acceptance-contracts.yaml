@@ -1,0 +1,32 @@
+# AS-ORIGIN-ACCEPTANCE-001: explicit backlog acceptance contracts.
+#
+# One entry per (source_path, item_id) pair from an explicitly declared
+# origination source (see .atlas-project.yaml's own
+# `origination_sources:` key). A task-list checkbox in docs/backlog.md
+# carries no evidence/scope/criteria of its own -- by design, nothing is
+# ever inferred from its title. A contract here is the explicit,
+# reviewable alternative: real evidence a human authored and committed,
+# never guessed.
+#
+# See src/project_atlas/orchestration/origination/acceptance_contracts.py
+# for the schema and validation this file is checked against.
+
+schema_version: 1
+
+contracts:
+  - item_id: INT-013
+    source_path: docs/backlog.md
+    # A real, currently-skipped integration test defining exactly what
+    # "the bounded multi-project integration pilot" means and proving
+    # it is genuinely runnable today (it was run unskipped during
+    # authorship and passed) -- not yet certified, which is why it
+    # stays skipped and INT-013 stays unchecked.
+    evidence:
+      - tests/integration/test_int_013_bounded_multi_project_pilot.py
+    proposed_scope:
+      - tests/integration/test_int_013_bounded_multi_project_pilot.py
+      - WORKLOG.md
+    success_criteria:
+      - "tests/integration/test_int_013_bounded_multi_project_pilot.py runs unskipped and passes, exercising two real, independent projects (harbor-api, harbor-ops) through the full production pipeline (init/discover/ingest/build-indexes/build-portfolio) plus AS-XPROJ-001/002/003 in one pilot run"
+      - "NO_AUTHORITY_MERGE: neither project's own vault content is modified by any xproj operation"
+      - "BOUNDED_SCOPE: every xproj-derived output stays under its documented derived-only location"
