@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 from pathlib import Path
 
@@ -9,12 +10,14 @@ import pytest
 
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor
 from project_atlas.orchestration.autonomy.lease_projection import (
+    LOCK_NAME,
     PACKAGE_ID,
     PROJECTION_NAME,
     ProjectionError,
     load_projection,
     project_grant,
     project_release,
+    reap_orphaned_lease_releases,
     visible_active_lease,
 )
 from project_atlas.orchestration.autonomy.leases import grant_lease, release_lease
@@ -33,6 +36,7 @@ from project_atlas.orchestration.autonomy.models import (
     WorkNode,
 )
 from project_atlas.orchestration.autonomy.trust import seal_anchor
+from project_atlas.source_identity import ProjectIdentityLock
 
 PIN = EXPECTED_BASE_MAIN
 OTHER_PIN = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -405,3 +409,176 @@ def test_symlink_projection_file_fail_closed(tmp_path: Path) -> None:
     with pytest.raises(ProjectionError, match="symlink") as exc:
         load_projection(tmp_path)
     assert exc.value.code == "PATH_UNSAFE"
+
+
+# --------------------------------------------------------------------------- #
+# AUTONOMY_PROJECTION_ERROR_RECOVERY_BOUNDARY (post-#654 follow-up):
+# reap_orphaned_lease_releases().
+# --------------------------------------------------------------------------- #
+def test_reap_releases_a_proven_complete_active_lease(tmp_path: Path) -> None:
+    """Matrix A: normal release. ``completed_lease_ids`` durably proves
+    this lease's governed work already finished; the row is still ACTIVE
+    only because the original release write never happened (crash/
+    contention). Reaping it is the exact recovery this function exists
+    for.
+    """
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+
+    reaped = reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+
+    assert reaped == ("LEASE-1",)
+    row = load_projection(tmp_path).leases[0]
+    assert row.status == "RELEASED"
+
+
+def test_reap_survives_real_lock_contention_then_retries_to_completion(
+    tmp_path: Path,
+) -> None:
+    """Matrix B + C: a genuine held OS lock (not a monkeypatch) during the
+    reap attempt must not corrupt anything, raise, or silently "succeed"
+    -- the row must stay durably ACTIVE, exactly the proof needed for a
+    later retry to still find it. Once the lock clears, the very same
+    call (same durable evidence, no new state needed) completes it.
+    """
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+
+    lock_path = (tmp_path.expanduser().resolve() / LOCK_NAME).resolve()
+    holder_ready = threading.Event()
+    release_holder = threading.Event()
+
+    def _hold_lock() -> None:
+        with ProjectIdentityLock(lock_path, wait_seconds=2.0, stale_seconds=30.0):
+            holder_ready.set()
+            # Codex/Copilot review finding on PR #658: a short timeout
+            # here could let the lock clear before the contended call
+            # below ever attempts its own acquisition on a slow/loaded
+            # runner, silently turning off the contention this test
+            # exists to prove. Wait indefinitely -- the `finally` block
+            # below always calls release_holder.set(), and this is a
+            # daemon thread, so it can never hang test teardown.
+            release_holder.wait()
+
+    holder = threading.Thread(target=_hold_lock, daemon=True)
+    holder.start()
+    try:
+        assert holder_ready.wait(timeout=5.0), "background lock holder never acquired the lock"
+        during_contention = reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+    finally:
+        release_holder.set()
+        holder.join(timeout=5.0)
+
+    # B: contention swallowed, nothing reaped, row untouched -- no silent
+    # success, no exception, no lost proof.
+    assert during_contention == ()
+    assert load_projection(tmp_path).leases[0].status == "ACTIVE"
+
+    # C: lock is clear now; the exact same durable evidence recovers it.
+    after_contention = reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+    assert after_contention == ("LEASE-1",)
+    assert load_projection(tmp_path).leases[0].status == "RELEASED"
+
+
+def test_reap_is_idempotent_on_an_already_released_lease(tmp_path: Path) -> None:
+    """Matrix E: repeated reaper. Safe to call on every rehydration, not
+    just once -- an already-RELEASED row is left untouched, including its
+    ``released_sequence``.
+    """
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+    project_release(tmp_path, release_lease(lease), live_main=PIN)
+    released_sequence_before = load_projection(tmp_path).leases[0].released_sequence
+
+    reaped = reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+
+    assert reaped == ()
+    row = load_projection(tmp_path).leases[0]
+    assert row.status == "RELEASED"
+    assert row.released_sequence == released_sequence_before
+
+
+def test_reap_never_touches_a_different_active_lease(tmp_path: Path) -> None:
+    """Matrix F + G + I + L: proves exact-``lease_id`` matching, not
+    package-level matching. LEASE-1 (completed, proven via
+    ``completed_lease_ids``) and LEASE-2 (a genuinely new, still-ACTIVE
+    lease for a REVISED work item under the SAME package_id -- the exact
+    D-PHASE2A-2 "same package_id, new revision" scenario) coexist. Only
+    LEASE-1's id is in the durable proof; LEASE-2 must never be looked
+    up, reconstructed, or released, no matter how similar its identity.
+    """
+    completed = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, completed, live_main=PIN)
+    project_release(tmp_path, release_lease(completed), live_main=PIN)
+
+    still_active = _lease(lease_id="LEASE-2", agent_id="worker-b", package_id="PKG-A", sequence=2)
+    project_grant(tmp_path, still_active, live_main=PIN)
+
+    reaped = reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+
+    assert reaped == ()  # LEASE-1 was already RELEASED -- nothing new to do
+    rows = {row.lease_id: row for row in load_projection(tmp_path).leases}
+    assert rows["LEASE-1"].status == "RELEASED"
+    assert rows["LEASE-2"].status == "ACTIVE"  # untouched, never even considered
+
+
+def test_reap_uses_the_leases_own_base_pin_not_live_main(tmp_path: Path) -> None:
+    """Design proof: the reaper must reconstruct with ``live_main=row.
+    base_pin`` (this lease's OWN recorded pin), never the caller's
+    current live main -- otherwise ``project_release()``'s own
+    ``reject_stale_base`` (still enforced and unmodified; see
+    ``test_stale_lease_rejected`` above) would wrongly refuse to release
+    old, already-completed work purely because main has since advanced.
+    Simulated here by granting under ``PIN`` and never even passing
+    ``OTHER_PIN`` anywhere in this call -- if the implementation ever
+    regressed to using a caller-supplied "current main" instead, this is
+    the scenario (main has moved on) that would start failing.
+    """
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+    assert PIN != OTHER_PIN  # sanity: main really would look "moved" by now
+
+    reaped = reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+
+    assert reaped == ("LEASE-1",)
+    assert load_projection(tmp_path).leases[0].status == "RELEASED"
+
+
+def test_reap_fails_closed_on_corrupt_projection_file(tmp_path: Path) -> None:
+    """Matrix J: a corrupt store must never be interpreted as empty/no-
+    work-to-do -- it must propagate loudly, matching this module's
+    existing STATE_CORRUPT policy everywhere else.
+    """
+    (tmp_path / PROJECTION_NAME).write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(ProjectionError) as exc:
+        reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+    assert exc.value.code == "STATE_CORRUPT"
+
+
+def test_reap_fails_closed_on_a_corrupt_individual_row(tmp_path: Path) -> None:
+    """Matrix J (row-level variant): the projection file itself is valid
+    JSON/schema (so ``load_projection()`` succeeds), but the specific
+    completed lease's row cannot reconstruct into a valid ``AgentLease``
+    (an unrecognized capability value). Must fail closed with
+    STATE_CORRUPT, not silently skip the row as if it were merely absent.
+    """
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+    raw = json.loads((tmp_path / PROJECTION_NAME).read_text(encoding="utf-8"))
+    raw["leases"][0]["capabilities"] = ["NOT_A_REAL_CAPABILITY"]
+    (tmp_path / PROJECTION_NAME).write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(ProjectionError) as exc:
+        reap_orphaned_lease_releases(tmp_path, ("LEASE-1",))
+    assert exc.value.code == "STATE_CORRUPT"
+
+
+def test_reap_no_ops_safely_with_nothing_to_do(tmp_path: Path) -> None:
+    """Defensive coverage: empty completed_lease_ids, and a completed id
+    with no matching durable row at all (e.g. the durable lease
+    projection was never configured for the process that completed it),
+    are both benign no-ops -- never an error.
+    """
+    assert reap_orphaned_lease_releases(tmp_path, ()) == ()
+    assert reap_orphaned_lease_releases(tmp_path, ("LEASE-NEVER-GRANTED",)) == ()

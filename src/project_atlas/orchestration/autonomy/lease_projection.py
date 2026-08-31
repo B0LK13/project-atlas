@@ -18,9 +18,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Final, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from project_atlas.orchestration.autonomy.models import AgentLease, NodeState
+from project_atlas.orchestration.autonomy.models import AgentCapability, AgentLease, NodeState
 from project_atlas.source_identity import IdentityLockError, ProjectIdentityLock
 
 PACKAGE_ID: Final[Literal["AS-ORCH-DURABLE-LEASE-PROJECTION-001"]] = (
@@ -325,6 +325,132 @@ def project_release(store: Path, lease: AgentLease, *, live_main: str) -> LeaseP
         return LeaseProjection(leases=tuple(rows))
 
     return _mutate_projection(store, _apply)
+
+
+def reap_orphaned_lease_releases(
+    store: Path, completed_lease_ids: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Retry ``project_release()`` for every durably-proven-complete lease
+    whose projection row is still ``ACTIVE`` (AUTONOMY_PROJECTION_ERROR_
+    RECOVERY_BOUNDARY, post-#654 follow-up).
+
+    ``completed_lease_ids`` (``AutonomousLoop.LoopState``) is durable,
+    load-bearing proof that a lease's governed work already reached a
+    terminal outcome: it is written atomically with the SAME ``phase=
+    IDLE`` save that clears ``active_lease_id`` (``_finalize_validated()``
+    , loop.py) -- strictly before anything ever attempts to release the
+    durable projection row. If that release write is lost to lock
+    contention or a crash between those two points, nothing previously
+    revisited it: a fresh process's rehydration only restores a lease
+    when ``LoopState.phase == LEASED`` (still in progress), and this one
+    is already ``IDLE``. The row then stayed ``ACTIVE`` forever,
+    permanently excluding its ``package_id`` from rediscovery (see
+    ``rehydration._originate()``'s ``known.update(active_ids)``).
+
+    Matching identity, not elapsed time, is the only recovery evidence
+    used -- no expiry/TTL semantics are invented. A row is touched only
+    when its OWN ``lease_id`` appears in ``completed_lease_ids``,
+    reconstructed entirely from that row's own fields (never a live or
+    independently-supplied lease object), and released against its OWN
+    recorded ``base_pin`` -- never the current live main, since
+    finalizing historical bookkeeping for provably-finished work must not
+    depend on whether main has since moved (``project_release()``'s own
+    ``reject_stale_base`` would otherwise wrongly refuse to release old,
+    completed work once main advances). This can never touch a
+    different, still-legitimately-``ACTIVE`` lease for the same or any
+    other package: that lease's id is not (yet) in
+    ``completed_lease_ids`` by construction, so it is never looked up,
+    never reconstructed, and never passed to ``project_release()``.
+
+    Idempotent: a row already ``RELEASED`` is left untouched -- safe to
+    call on every rehydration, not just once. Transient
+    ``CONCURRENT_PROJECTION`` on one row is swallowed and that id is
+    simply left for a later invocation to retry -- the same durable proof
+    makes that safe, no additional recovery-intent record needs to be
+    written. Any other ``ProjectionError`` (``STATE_CORRUPT``, or a
+    reconstruction failure) is NOT swallowed: it propagates, matching the
+    "fail closed on corruption, never guess" policy this module already
+    applies to the LEASED-restore path (``rehydration._restore_leased_
+    node()``). A row's own reject_foreign_worker/reject_foreign_package
+    checks stay in force as a defense-in-depth self-consistency
+    assertion even though this call site always reconstructs from that
+    same row -- they still fire if reconstruction and the row somehow
+    disagree by the time the write lock is held.
+
+    Returns the lease_ids actually transitioned ACTIVE -> RELEASED by
+    this call (empty if nothing needed reaping).
+    """
+    if not completed_lease_ids:
+        return ()
+    projection = load_projection(store)  # STATE_CORRUPT propagates, by design
+    by_id: dict[str, ProjectedLease] = {}
+    for existing_row in projection.leases:
+        if existing_row.lease_id in by_id:
+            # Codex/Copilot review finding on PR #658: a plain dict
+            # comprehension would silently keep only the LAST duplicate
+            # and drop the rest -- for a fail-closed-on-corruption
+            # function, picking an arbitrary row instead of detecting
+            # the corruption is exactly the wrong default.
+            raise ProjectionError(
+                f"duplicate lease_id {existing_row.lease_id!r} in projection",
+                code="STATE_CORRUPT",
+            )
+        by_id[existing_row.lease_id] = existing_row
+    reaped: list[str] = []
+    for lease_id in completed_lease_ids:
+        row = by_id.get(lease_id)
+        if row is None or row.status == "RELEASED":
+            continue
+        try:
+            capabilities = tuple(AgentCapability(value) for value in row.capabilities)
+        except ValueError as exc:
+            raise ProjectionError(
+                f"completed lease {lease_id!r} has an unrecognized capability "
+                f"value: {exc}",
+                code="STATE_CORRUPT",
+            ) from exc
+        try:
+            lease = AgentLease(
+                lease_id=row.lease_id,
+                agent_id=row.agent_id,
+                package_id=row.package_id,
+                branch=row.branch,
+                worktree=row.worktree,
+                base_pin=row.base_pin,
+                authorized_paths=row.authorized_paths,
+                forbidden_paths=row.forbidden_paths,
+                capabilities=capabilities,
+                start_state=row.start_state,
+                # The only two AgentLease fields the durable projection
+                # does not carry -- see leases.py:grant_lease, the sole
+                # place an AgentLease is ever minted, and rehydration.py's
+                # identical reconstruction for the LEASED-restore path.
+                expected_output="EVIDENCE_BUNDLE",
+                expiry_or_terminal_condition="UNTIL_NODE_TERMINAL",
+                # Codex/Copilot review finding on PR #658: this object is
+                # only ever used as a release() payload, never tracked as
+                # a live lease anywhere -- active=False (matching
+                # leases.release_lease()'s own output shape) says so
+                # honestly, reducing the chance a future caller
+                # misreads it as still-active. project_release() itself
+                # never reads this field either way.
+                active=False,
+                sequence=row.created_sequence,
+            )
+        except ValidationError as exc:
+            raise ProjectionError(
+                f"completed lease {lease_id!r} does not reconstruct into a "
+                f"valid AgentLease: {exc}",
+                code="STATE_CORRUPT",
+            ) from exc
+        try:
+            project_release(store, lease, live_main=row.base_pin)
+        except ProjectionError as exc:
+            if exc.code == "CONCURRENT_PROJECTION":
+                continue  # retry on a later invocation; nothing is lost
+            raise
+        reaped.append(lease_id)
+    return tuple(reaped)
 
 
 def visible_active_lease(
