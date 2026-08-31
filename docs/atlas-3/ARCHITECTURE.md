@@ -187,6 +187,30 @@ Do not mutate while `FULL_LIVE_DEMO_READY = NO`:
 - `compat_anchor.py`, `conflict_projections.py`, `reality_gap.py`
 - Golden fixture `tests/fixtures/demo/estate/harbor-api`
 
+### 9.1 Owner-approved narrow exceptions
+
+The freeze is enforced by `tests/unit/test_atlas3_demo_isolation_001.py`
+(`DENY` + `test_certified_surfaces_unmodified`). It does not grant itself
+exceptions; an owner-approved exception is a narrow, explicit, reviewable
+carve-out encoded directly in that test's `_OWNER_APPROVED_EXCEPTIONS`
+registry, pinned to the *exact*, reviewed content of the changed file by
+sha256 -- not to the path in general. Any further edit to an excepted file
+changes its hash and the guard fails closed again; an exception never
+transfers to a later PR, a different file, or a different diff shape.
+This does not change `FULL_LIVE_DEMO_READY`, does not remove the path from
+`DENY`, and does not weaken the guard for anything outside the pinned hash.
+
+Granted exceptions:
+
+- `DOGFOOD-001` (owner-approved 2026-08-31): `src/project_atlas/ingestion.py`
+  only, for the authentic-first-run source-safety repair (PR #656) --
+  preserving unrelated `.atlas-project.yaml` bytes/formatting on canonical
+  `project_uuid` genesis and disclosing that source-tree write to the
+  operator, without changing AS-ID-001 UUIDv4 genesis semantics. Does not
+  cover `cli.py` (untouched by that PR) or any other `DENY` path. See
+  `WORKLOG.md` 2026-08-31 for the authentic reproduction, contract
+  determination, and before/after evidence.
+
 Additive CLI registration in `cli.py` is allowed if existing command behavior
 is unchanged.
 
