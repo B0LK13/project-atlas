@@ -538,6 +538,50 @@ def test_h_unpopped_stash_with_untracked_files_is_not_a_false_positive(
     assert not any(path in ("README.md", "src/keep.py") for path in result.changed_paths)
 
 
+def test_i_two_unpopped_stashes_do_not_evade_forbidden_path_detection(
+    tmp_path: Path,
+) -> None:
+    """IV finding (PR #661 review, round 6): a REAL, CLEAN bypass, not a
+    false positive. `refs/stash` is a single, mutable ref -- pushing a
+    second stash without popping the first moves `refs/stash` to point
+    only at the second one. A ref-tip-only before/after snapshot never
+    sees the first stash's commit as "new" (it's not the ref's current
+    value at snapshot time), even though it was never deleted -- `git
+    stash list`/the reflog still show it, `git fsck` finds it healthy.
+    Demonstrated to produce a complete, silent pass (`authority_clean=
+    True`, zero violations) for a task that genuinely wrote a declared
+    forbidden_paths file and stashed it, twice, without popping either
+    time. Must now be caught via reflog-inclusive commit tracking."""
+    repo = _make_repo(tmp_path)
+    envelope = LocalTaskEnvelope(
+        work_id="I-013",
+        argv=(
+            sys.executable,
+            "-c",
+            "import subprocess; "
+            "open('forbidden/secret_a.txt', 'w').write('bad\\n'); "
+            "subprocess.run(['git', 'add', '-A'], check=True); "
+            "subprocess.run(['git', 'stash', 'push', '-u', '-m', 'first'], check=True); "
+            "open('other.txt', 'w').write('unrelated\\n'); "
+            "subprocess.run(['git', 'stash', 'push', '-u', '-m', 'second'], check=True)",
+        ),
+        forbidden_paths=("forbidden/",),
+    )
+    (repo / "forbidden").mkdir()
+    (repo / "forbidden" / ".gitkeep").write_text("", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "seed forbidden dir"],
+        cwd=repo,
+        check=True,
+    )
+    result = run_local_task(envelope, ENABLED, project_root=repo)
+    assert result.exit_code == 0
+    assert result.authority_clean is False
+    reasons = {v.path: v.reason for v in result.violations}
+    assert reasons.get("forbidden/secret_a.txt") == "FORBIDDEN_PATH"
+
+
 def test_h_preexisting_dirty_state_fails_closed_before_starting(
     tmp_path: Path,
 ) -> None:

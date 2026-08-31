@@ -329,9 +329,11 @@ def _git_changed_paths(repo_root: Path, *, baseline_sha: str) -> frozenset[str]:
     stash) and then returns the original branch and working tree to
     their pre-run state -- see ``_new_commit_changed_paths()``, called
     alongside this one in ``run_local_task()`` (paired with an existence
-    snapshot of every ref TIP from ``_all_ref_tips()``), which closes
-    that class of evasion by diffing baseline against every ref that
-    changed or newly appeared (not just the current branch), not only
+    snapshot from ``_all_relevant_commits()``, which includes every ref's
+    reflog history too, not only its current value -- see that
+    function's docstring for why), which closes that class of evasion by
+    diffing baseline against every commit that is new anywhere in the
+    repository's history, not only
     the live working tree.
 
     ``git ls-files --others --exclude-standard`` deliberately excludes
@@ -464,20 +466,48 @@ def _collapse_reparse_point_descendants(paths: frozenset[str], repo_root: Path) 
     return frozenset(collapsed)
 
 
-def _all_ref_tips(repo_root: Path) -> frozenset[str]:
-    """Every ref's current tip commit SHA right now -- every branch,
-    every tag, and ``refs/stash`` if it exists (``git for-each-ref`` with
-    no pattern lists everything under ``refs/``, ``refs/stash`` included).
-    A pure existence snapshot, taken before and after the run and
-    compared by set difference in ``run_local_task``: only a ref whose
-    tip is genuinely new (or changed) is passed on to
-    ``_new_commit_changed_paths()``, which then walks *that ref's own*
-    bounded history segment back to baseline -- never every ref's full
-    reachable history (``--all``), which is what caused the round-4
-    false-positive bug this pairing exists to avoid."""
+def _all_relevant_commits(repo_root: Path) -> frozenset[str]:
+    """Every commit reachable from any ref's CURRENT value, or from any
+    entry in any ref's reflog -- not only current ref tips.
+
+    IV finding (PR #661 review, round 6 -- a real, clean bypass, not a
+    narrow edge case): the round-4/5 ``_all_ref_tips()`` predecessor of
+    this function snapshotted only each ref's *current* value. If a task
+    updates the *same* ref twice during one run without an intervening
+    snapshot (the natural example: ``git stash push -u`` executed twice
+    without popping in between -- entirely ordinary, no delete/reset
+    involved at all), ``refs/stash`` only ever points at the *second*
+    stash by the time the post-run snapshot runs; the first stash's
+    commit is never deleted (``git stash list``/the reflog still show
+    it, ``git fsck`` finds it healthy) but is unreachable from any
+    *current* ref value, so a tip-only snapshot never saw it as "new" at
+    all. Demonstrated to produce a clean, silent bypass: a task that
+    wrote a declared ``forbidden_paths`` file, stashed it, then made an
+    unrelated second stash, exited with ``authority_clean=True`` and zero
+    violations despite the forbidden file having genuinely existed on
+    disk during the run.
+
+    ``git rev-list --all --reflog`` closes this generally (not just for
+    stash specifically -- the same gap would apply to any ref a task
+    updates more than once, e.g. ``git commit --amend`` twice, or
+    force-moving a branch/tag): ``--reflog`` pretends every commit any
+    ref's reflog has ever mentioned is also given as a start point,
+    alongside ``--all``'s current ref values. A pure existence snapshot,
+    taken before and after the run and compared by set difference in
+    ``run_local_task`` -- exactly the same shape as this module's other
+    existence-only before/after patterns (``_ignored_untracked_paths()``),
+    and for the same reason: the snapshot LISTING can be as large as the
+    repository's own history, but the DELTA (what changed between two
+    snapshots of the same listing) is correctly small/empty for an inert
+    task regardless of how much pre-existing history exists -- this is
+    what actually fixes round-4's original false-positive concern (a
+    one-shot ``--not baseline_sha`` query, which this function does NOT
+    use), not merely restricting a listing to ``--all`` vs a narrower
+    scope.
+    """
     try:
         result = subprocess.run(
-            ["git", "for-each-ref", "--format=%(objectname)"],
+            ["git", "rev-list", "--all", "--reflog"],
             cwd=repo_root,
             check=True,
             capture_output=True,
@@ -506,10 +536,21 @@ def _is_root_commit(repo_root: Path, commit_sha: str) -> bool:
 
 
 def _new_commit_changed_paths(
-    repo_root: Path, *, baseline_sha: str, new_tips: frozenset[str]
+    repo_root: Path, *, baseline_sha: str, new_commits: frozenset[str]
 ) -> frozenset[str]:
     """Every path changed relative to the fixed ``baseline_sha``, as seen
-    from any of ``new_tips``.
+    from any of ``new_commits`` (each individually diffed against
+    baseline, or -- for a ROOT commit with no parent of its own -- listed
+    directly via ``git ls-tree``; see below for why).
+
+    ``new_commits`` is expected to be a before/after existence-snapshot
+    DELTA over ``_all_relevant_commits()`` (computed in
+    ``run_local_task()``) -- already exactly "the commits that are new
+    since this run started", so this function does no further filtering
+    of its own and never needs a bound like ``--not baseline_sha`` (the
+    round-3/4 predecessor's mistake) or a per-ref segment walk (an
+    earlier round-6 draft's now-unnecessary intermediate step, since the
+    before/after delta already IS the correct new-commit set directly).
 
     IV finding (PR #661 review, round 3): ``_git_changed_paths()`` alone
     only sees the current working tree, so a launched process that
@@ -521,73 +562,55 @@ def _new_commit_changed_paths(
     real, ref-reachable commit object (visible to a human via ``git
     branch -a`` or ``git stash list``).
 
-    IV finding (PR #661 review, round 4 -- this function's own
-    correctness bug, not a security bypass but the opposite): the
-    round-3 predecessor of this function queried ``git rev-list --all
-    --not <baseline_sha>`` in a single post-run call. That lists every
-    commit reachable from any ref that is simply not an ANCESTOR of
-    baseline -- which includes every commit that already existed on any
-    other branch/tag/remote-tracking ref *before the task ever ran* (an
-    ordinary thing for almost any real, multi-branch clone to have), not
-    only commits newly created *during* the run. Demonstrated to produce
-    thousands of spurious violations against a completely inert task run
-    against this repository's own real clone. Fixed (round 4) by taking
-    an existence-only before/after snapshot of ref TIPS (``_all_ref_tips()``)
-    instead, and walking only THIS ref's own new history segment
-    (``git rev-list <tip> --not <baseline_sha>`` -- bounded to this one
-    ref, never ``--all``'s repo-wide walk) rather than every commit
-    reachable from anywhere.
+    IV finding (PR #661 review, round 4): a one-shot ``git rev-list --all
+    --not <baseline_sha>`` post-run query (no before/after snapshot at
+    all) lists every commit reachable from any ref that is simply not an
+    ancestor of baseline -- including every commit that already existed
+    on any other branch/tag/remote-tracking ref *before the task ever
+    ran*. Demonstrated to produce thousands of spurious violations
+    against a completely inert task. Fixed by taking an existence-only
+    before/after snapshot instead (now ``_all_relevant_commits()``) and
+    diffing only the genuinely new delta.
 
-    IV finding (PR #661 review, round 5 -- the round-4 fix was itself
-    still incomplete in the opposite direction): an early round-5 attempt
-    diffed only each new tip directly against baseline (one diff per
-    ref, no segment walk at all) reasoning that a tree diff between two
-    commits already reflects the tip's full accumulated state. That
-    reasoning is wrong for exactly the shape ``git stash push -u``
-    produces: the stash entry's own tip tree reflects only *tracked*-file
-    modifications -- the untracked files live solely on a third,
-    PARENTLESS parent commit, never merged into the tip's own tree at
-    all. Diffing tip-vs-baseline directly therefore silently missed the
-    untracked-file content entirely (the opposite failure from round 4:
-    under-detection instead of a false-positive explosion). Root commits
-    are now handled specially: for each commit in the (bounded, per-ref)
-    history segment between baseline and a new tip, a ROOT commit (no
-    parent -- ``_is_root_commit()``) has every file in its own tree
-    listed directly (``git ls-tree``, never diffed against baseline's
-    unrelated full tree, which is what caused round 4's explosion); a
-    normal, non-root commit is diffed against baseline as before.
+    IV finding (PR #661 review, round 5): ``git stash push -u``'s stash
+    entry tree reflects only *tracked*-file modifications -- the
+    untracked files live solely on a third, PARENTLESS parent commit,
+    never merged into the stash entry's own tree at all. Diffing a
+    commit directly against baseline therefore silently misses that
+    parent's content. Fixed: a ROOT commit (no parent -- see
+    ``_is_root_commit()``) has every file in its own tree listed
+    directly (``git ls-tree``, never diffed against baseline's unrelated
+    full tree, which is what caused round 4's explosion when applied to
+    the WRONG set of commits) instead of being diffed against baseline.
 
-    Does NOT catch a commit made unreachable from every ref before the
-    process exits (``git reset --hard <baseline>`` after committing, or
-    an explicit ``git branch -D``/``git stash drop``) -- a ref-less,
-    orphaned commit object requires reflog/dangling-object forensics to
-    find, which is a materially harder, more deliberate evasion than an
-    ordinary ``checkout -b``/``stash push`` and remains this module's one
-    disclosed residual limitation.
+    IV finding (PR #661 review, round 6): an intermediate round-6 design
+    snapshotted only each ref's CURRENT tip (``_all_ref_tips()``, since
+    superseded by ``_all_relevant_commits()``), which misses a ref's
+    *superseded* historical values -- e.g. a first, unpopped stash that a
+    second ``git stash push`` later overwrote ``refs/stash`` away from.
+    That first stash's commit was never deleted (still findable via the
+    reflog) but was unreachable from any *current* ref value, so it was
+    silently never audited at all -- a real, clean bypass, not a false
+    positive. ``_all_relevant_commits()`` includes reflog-only-reachable
+    commits (``--reflog``), closing this.
+
+    Does NOT catch a commit made unreachable from every ref AND every
+    reflog before the process exits (``git reset --hard <baseline>``
+    after committing, an explicit ``git branch -D``, or ``git stash
+    drop``/``git reflog expire``) -- a commit with no reflog entry
+    anywhere requires dangling-object forensics (``git fsck
+    --unreachable``) to find, which is a materially harder, more
+    deliberate evasion than any ordinary git operation and remains this
+    module's one disclosed residual limitation.
     """
     changed: set[str] = set()
-    for tip_sha in new_tips:
-        try:
-            result = subprocess.run(
-                ["git", "rev-list", tip_sha, "--not", baseline_sha],
-                cwd=repo_root,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=30,
+    for commit_sha in new_commits:
+        if _is_root_commit(repo_root, commit_sha):
+            changed.update(_run_git(["ls-tree", "-r", "--name-only", commit_sha], cwd=repo_root))
+        else:
+            changed.update(
+                _run_git(["diff", "--name-only", baseline_sha, commit_sha], cwd=repo_root)
             )
-        except subprocess.CalledProcessError:
-            continue
-        segment = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        for commit_sha in segment:
-            if _is_root_commit(repo_root, commit_sha):
-                changed.update(
-                    _run_git(["ls-tree", "-r", "--name-only", commit_sha], cwd=repo_root)
-                )
-            else:
-                changed.update(
-                    _run_git(["diff", "--name-only", baseline_sha, commit_sha], cwd=repo_root)
-                )
     return frozenset(changed)
 
 
@@ -878,12 +901,13 @@ def run_local_task(
     # _ignored_untracked_paths's docstring for the authorized_paths-side
     # gitignored-file bypass this closes).
     ignored_before = _ignored_untracked_paths(resolved_root)
-    # Existence snapshot of every ref TIP (see _new_commit_changed_paths's
-    # docstring: round-4 walked every reachable commit and diffed each
-    # individually, which broke on `git stash -u`'s synthetic orphan
-    # parent; round-5 diffs only ref tips, which is both correct and
-    # simpler).
-    tips_before = _all_ref_tips(resolved_root)
+    # Existence snapshot of every commit reachable from any ref OR any
+    # ref's reflog history (see _all_relevant_commits's docstring: a
+    # ref-tip-only snapshot misses a ref's superseded historical values,
+    # e.g. a first, unpopped `git stash push` a second one later
+    # overwrote refs/stash away from -- a real, clean bypass round 6
+    # found, not merely a false positive).
+    commits_before = _all_relevant_commits(resolved_root)
 
     request = ProcessRunRequest(
         argv=envelope.argv,
@@ -896,10 +920,12 @@ def run_local_task(
     outcome: ProcessRunOutcome = active_runner.run(request)
 
     new_ignored_paths = _ignored_untracked_paths(resolved_root) - ignored_before
-    new_tips = _all_ref_tips(resolved_root) - tips_before
+    new_commits = _all_relevant_commits(resolved_root) - commits_before
     new_paths = (
         _git_changed_paths(resolved_root, baseline_sha=baseline_sha)
-        | _new_commit_changed_paths(resolved_root, baseline_sha=baseline_sha, new_tips=new_tips)
+        | _new_commit_changed_paths(
+            resolved_root, baseline_sha=baseline_sha, new_commits=new_commits
+        )
         | new_ignored_paths
     )
     forbidden_after = _forbidden_path_content_snapshot(resolved_root, envelope.forbidden_paths)
