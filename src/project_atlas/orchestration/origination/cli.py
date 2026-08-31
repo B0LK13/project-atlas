@@ -32,7 +32,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from project_atlas.orchestration.autonomy.discovery import collect_live_inventory
-from project_atlas.orchestration.autonomy.models import TrustedAnchorRecord
+from project_atlas.orchestration.autonomy.models import TrustedAnchorRecord, WorkNode
 from project_atlas.orchestration.autonomy.trust import TrustError, load_runtime_anchor
 from project_atlas.orchestration.origination.materialize import (
     MaterializationError,
@@ -44,9 +44,10 @@ from project_atlas.orchestration.origination.projection import (
 )
 from project_atlas.orchestration.origination.projection import (
     OriginationProjectionError,
-    persist_materialized,
+    persist_materialized_if_no_active_conflict,
     persist_proposed,
 )
+from project_atlas.orchestration.origination.proposal import RiskClass
 from project_atlas.orchestration.origination.risk import classify as classify_risk
 
 EXIT_OK = 0
@@ -155,7 +156,70 @@ def run_origination_scan(
     try:
         for outcome in outcomes:
             proposal, policy = outcome.proposal, outcome.policy
-            persist_proposed(store, proposal, policy)
+            # persist_proposed() is already locked and returns the
+            # existing row unchanged when this identity is known --
+            # including a MATERIALIZED / OWNER_HELD_ROUTED row written
+            # by a concurrent scan. An unlocked find_by_identity()
+            # taken BEFORE that call can still see None / PROPOSED
+            # after the first write completed, which would miss the
+            # skip below.
+            existing = persist_proposed(store, proposal, policy)
+            # D-PHASE2A-2 finding: `originate_new_only()` only excludes
+            # TERMINAL identities, so a non-terminal MATERIALIZED (or
+            # OWNER_HELD_ROUTED) record for THIS SAME evidence is a
+            # legitimate, expected outcome of running a scan more than
+            # once while a governed loop is actively working the node --
+            # not a stale/erroneous one. Unconditionally re-materializing
+            # here previously rebuilt a FRESH WorkNode (state=DISCOVERED,
+            # a possibly-different base_pin if main moved since) and
+            # overwrote the durable projection's `work_node` field with
+            # it, which would silently clobber real in-progress governed
+            # state a rehydrating process depends on (`find_materialized_
+            # work_node()` in projection.py -- the exact function
+            # `rehydration.py` uses to reconstruct a LEASED node after a
+            # crash). An already-materialized, non-terminal identity is
+            # therefore now reported AS-IS from the existing durable
+            # record -- never rebuilt -- so a repeated scan is safe to
+            # run at any time, including while that same node is actively
+            # leased.
+            if (
+                existing is not None
+                and existing.work_node is not None
+                and existing.state in {"MATERIALIZED", "OWNER_HELD_ROUTED"}
+            ):
+                try:
+                    node = WorkNode.model_validate(existing.work_node)
+                except ValidationError as exc:
+                    not_materialized.append(
+                        {
+                            "work_id": proposal.work_id,
+                            "execution_ready": policy.execution_ready,
+                            "reason": policy.reason.value,
+                            "materialization_error": str(exc),
+                            "materialization_error_code": "DURABLE_RECORD_CORRUPT",
+                        }
+                    )
+                    continue
+                materialized.append(
+                    {
+                        "work_id": node.package_id,
+                        "execution_ready": policy.execution_ready,
+                        "reason": policy.reason.value,
+                        # WorkNode itself has no risk_class field (that is a
+                        # proposal/classification-level concept); derived
+                        # from owner_gate presence, which owner_gate_for()
+                        # (materialize.py) sets if and only if risk_class
+                        # was OWNER_HELD -- a reliable inverse, not a guess.
+                        "risk_class": (
+                            RiskClass.OWNER_HELD.value
+                            if node.owner_gate is not None
+                            else RiskClass.O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION.value
+                        ),
+                        "owner_gate": node.owner_gate.value if node.owner_gate else None,
+                        "already_materialized": True,
+                    }
+                )
+                continue
             classification = classify_risk(
                 proposed_scope=proposal.proposed_scope,
                 success_criteria=proposal.success_criteria,
@@ -178,14 +242,84 @@ def run_origination_scan(
                     }
                 )
                 continue
-            persist_materialized(store, proposal.origination_identity, node)
+            # D-PHASE2A-2 independent-IV finding, round 2 (+ delta-IV
+            # follow-up): `origination_identity` includes the item's
+            # content digest (identity.py), but `proposal.work_id` (->
+            # WorkNode.package_id) does not -- it is stable across a
+            # content revision to the same roadmap item (`work_id_for()`
+            # hashes only project_id+item_id). A revision to an item
+            # while the PRIOR non-TERMINAL record for that same item is
+            # still in flight therefore reaches this point as a
+            # genuinely NEW origination_identity (the `existing is not
+            # None` branch above does not catch it) that would otherwise
+            # materialize a SECOND live record sharing the first one's
+            # package_id -- exactly the ambiguity
+            # `sync_terminal_governed_states()` cannot safely resolve.
+            # `persist_materialized_if_no_active_conflict()` performs
+            # this check and the write inside ONE lock, closing the
+            # TOCTOU window a separate check-then-write pair would leave
+            # open (delta-IV finding: two concurrent scans could both
+            # pass a standalone pre-check before either wrote).
+            materialized_record, conflict = persist_materialized_if_no_active_conflict(
+                store, proposal.origination_identity, node
+            )
+            if conflict is not None:
+                not_materialized.append(
+                    {
+                        "work_id": proposal.work_id,
+                        "execution_ready": policy.execution_ready,
+                        "reason": policy.reason.value,
+                        "materialization_error": (
+                            "a different non-terminal origination record "
+                            f"(origination_identity={conflict.origination_identity!r}) "
+                            "already holds this package_id -- this looks like a "
+                            "content revision to the same roadmap item while prior "
+                            "governed work for it is still in flight; not "
+                            "materialized as a second live node for the same "
+                            "package_id"
+                        ),
+                        "materialization_error_code": "PACKAGE_ID_ALREADY_ACTIVE",
+                    }
+                )
+                continue
+            assert materialized_record is not None  # guaranteed by the (None, conflict) contract
+            # Cursor Bugbot finding on PR #654 (Low): persist_materialized_
+            # if_no_active_conflict() can return a pre-existing durable row
+            # unchanged (a concurrent scan for this same identity won the
+            # lock first) rather than the WorkNode just built above -- the
+            # exact TOCTOU window the surrounding comment describes. Report
+            # what was actually durable, not what this call would have
+            # written had it won the race.
+            #
+            # Independent-verification note (delta round on PR #654): mirror
+            # the sibling already-known-identity branch's per-item isolation
+            # above -- a corrupt durable record must not abort every other
+            # outcome in this same scan batch, only this one work_id.
+            try:
+                durable_node = WorkNode.model_validate(materialized_record.work_node)
+            except ValidationError as exc:
+                not_materialized.append(
+                    {
+                        "work_id": proposal.work_id,
+                        "execution_ready": policy.execution_ready,
+                        "reason": policy.reason.value,
+                        "materialization_error": str(exc),
+                        "materialization_error_code": "DURABLE_RECORD_CORRUPT",
+                    }
+                )
+                continue
+            already_materialized = durable_node != node
+            reported_node = durable_node if already_materialized else node
             materialized.append(
                 {
-                    "work_id": node.package_id,
+                    "work_id": reported_node.package_id,
                     "execution_ready": policy.execution_ready,
                     "reason": policy.reason.value,
                     "risk_class": classification.risk_class.value,
-                    "owner_gate": node.owner_gate.value if node.owner_gate else None,
+                    "owner_gate": reported_node.owner_gate.value
+                    if reported_node.owner_gate
+                    else None,
+                    "already_materialized": already_materialized,
                 }
             )
     except OriginationProjectionError as exc:

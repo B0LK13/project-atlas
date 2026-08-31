@@ -416,6 +416,84 @@ def test_hard_blocker_stop(tmp_path: Path) -> None:
     assert result.stop_reason is StopReason.HARD_BLOCKER
 
 
+def test_no_eligible_work_resume_does_not_ignore_hard_blockers(tmp_path: Path) -> None:
+    """Cursor Bugbot finding on PR #654 (Medium): ``_may_resume_from_no_
+    eligible_work()`` used to call ``select_next()`` without
+    ``hard_blockers=``, unlike ``_select_and_lease()``. Once ANY durable
+    hard blocker is recorded on the governor (here: a separate node's
+    remediation-exhausted verification failure -- ``select_next()``
+    treats ``hard_blockers`` as a global kill switch, not per-package), a
+    second, genuinely READY node looked "resumable" to the stale check,
+    flipping STOPPED -> IDLE, and the very same tick's
+    ``_select_and_lease()`` would immediately re-stop at HARD_BLOCKER -- a
+    stop this method never resumes from, permanently wedging the loop
+    even after the blocker is later addressed. The fix reuses the exact
+    same ``hard_blockers``-aware eligibility check as the real lease path,
+    so the loop correctly stays at the recoverable NO_ELIGIBLE_WORK stop
+    instead of self-inflicting a permanent one.
+    """
+    blocked_id = "AS-ORCH-RESUME-BLOCKED"
+    resumable_id = "AS-ORCH-RESUME-READY"
+    blocked_node = _node(blocked_id).model_copy(update={"retry_policy": RetryPolicy(cycles_used=3)})
+    gov = _governor(blocked_node, _node(resumable_id, surface="loop-surface-2"))
+    loop = _loop(tmp_path, gov)
+    lease = gov.lease(blocked_id, loop._first_agent(), branch=loop._branch, worktree=loop._worktree)
+    gov.execute_leased(lease.lease_id)
+    gov.transition(blocked_id, NodeState.VERIFYING, "test-exhaust-remediation")
+    gov.complete_verification(blocked_id, passed=False)
+    assert gov.snapshot().hard_blockers  # sanity: a durable hard blocker now exists
+    resumable_node = next(n for n in gov.snapshot().nodes if n.package_id == resumable_id)
+    assert resumable_node.state is NodeState.READY  # sanity: genuinely still selectable
+
+    loop._save(phase=LoopPhase.STOPPED, stop_reason=StopReason.NO_ELIGIBLE_WORK)
+    result = loop.tick()
+
+    # Must NOT have resumed into an immediate re-block: still the original,
+    # recoverable stop -- not a fresh, permanent HARD_BLOCKER.
+    assert result.phase is LoopPhase.STOPPED
+    assert result.stop_reason is StopReason.NO_ELIGIBLE_WORK
+
+
+def test_lease_projection_lock_contention_is_resumable_not_permanent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cursor Bugbot finding on PR #654 (Medium): every ``ProjectionError``
+    raised by ``governor.lease()`` -- including transient
+    ``CONCURRENT_PROJECTION`` lock-wait timeouts -- was mapped to the same
+    permanent ``HARD_BLOCKER`` as real corruption (``LEASE_REPLAY`` /
+    ``STALE_LEASE`` / ``STATE_CORRUPT``). A brief lock held by a sibling
+    process should not wedge the loop forever. Fail closed the first tick,
+    then auto-resume and succeed once the lock clears.
+    """
+    from project_atlas.orchestration.autonomy.lease_projection import ProjectionError
+
+    gov = _governor(_node("AS-ORCH-CONTEND-001"))
+    loop = _loop(tmp_path, gov)
+    real_lease = AutonomousGovernor.lease
+    calls = {"n": 0}
+
+    def _flaky_lease(self: AutonomousGovernor, *args: object, **kwargs: object) -> object:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise ProjectionError("projection lock is held", code="CONCURRENT_PROJECTION")
+        return real_lease(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(AutonomousGovernor, "lease", _flaky_lease)
+
+    first = loop.tick()
+    assert first.phase is LoopPhase.STOPPED
+    assert first.stop_reason is StopReason.PROJECTION_CONTENTION
+
+    # Auto-resumes on the very next tick (no new work needed -- the same
+    # node is still there) and makes real forward progress: with only one
+    # in-process node and no dependents, reaching NO_ELIGIBLE_WORK proves
+    # the retried lease actually succeeded and the node was dispatched.
+    final = loop.run_until_stop()
+    assert final.phase is LoopPhase.STOPPED
+    assert final.stop_reason is StopReason.NO_ELIGIBLE_WORK
+    assert calls["n"] >= 2
+
+
 def test_loop_fails_closed_on_governor_dependency_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

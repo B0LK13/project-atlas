@@ -135,7 +135,13 @@ def rehydrate_governor(
         if exc.code == "STATE_MISSING":
             # No process has ever ticked this root. Nothing to rehydrate;
             # AutonomousLoop's own constructor will create fresh IDLE state.
-            _originate(governor, inventory=inventory, trusted=trusted)
+            _originate(
+                governor,
+                inventory=inventory,
+                trusted=trusted,
+                origination_projection_store=origination_projection_store,
+                lease_projection_store=lease_projection_store,
+            )
             return
         # STATE_CORRUPT / TARGET_MOVED / etc: genuinely fail closed. The
         # caller's own except clause for LoopError already handles this the
@@ -150,7 +156,13 @@ def rehydrate_governor(
             code="EXECUTION_STATE_NOT_REHYDRATABLE",
         )
 
-    origin_node, report = _originate(governor, inventory=inventory, trusted=trusted)
+    newly_discovered, report = _originate(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        origination_projection_store=origination_projection_store,
+        lease_projection_store=lease_projection_store,
+    )
 
     if loop_state.phase in _NO_ACTIVE_LEASE_PHASES:
         return
@@ -173,7 +185,7 @@ def rehydrate_governor(
         inventory=inventory,
         package_id=package_id,
         lease_id=lease_id,
-        origin_node_package_id=origin_node.package_id if origin_node is not None else None,
+        already_discovered_package_ids=newly_discovered,
         candidate_owner_gates={c.package_id: c.owner_gate for c in report.candidates},
         lease_projection_store=lease_projection_store,
         origination_projection_store=origination_projection_store,
@@ -185,11 +197,14 @@ def _originate(
     *,
     inventory: LiveInventory,
     trusted: TrustedAnchorRecord,
-) -> tuple[WorkNode | None, DiscoveryReport]:
+    origination_projection_store: Path | None = None,
+    lease_projection_store: Path | None = None,
+) -> tuple[frozenset[str], DiscoveryReport]:
     """Run the existing, already-deterministic discovery pass. Fixes
     "originate new work on a fresh process" for the IDLE case, and is a
-    harmless no-op read whenever nothing is currently eligible. Returns the
-    node it added (if any) and the full report, so callers needing evidence
+    harmless no-op read whenever nothing is currently eligible. Returns
+    every package_id this pass newly added to ``governor`` (empty if
+    none) and the full discovery report, so callers needing evidence
     about a specific package_id (e.g. its owner_gate) don't have to call
     ``discover()`` a second time.
 
@@ -201,12 +216,106 @@ def _originate(
     (see below in this same module); rehydration's own origination pass
     must run the identical transition, or a freshly-originated node sits
     in ``DISCOVERED`` forever and the very next tick reports
-    ``NO_ELIGIBLE_WORK`` despite discovery having just found real work."""
+    ``NO_ELIGIBLE_WORK`` despite discovery having just found real work.
+
+    D-PHASE2A-2: when ``origination_projection_store`` is provided, this
+    same "originate new work on a fresh process" pass ALSO discovers
+    every ``MATERIALIZED`` (non-``TERMINAL``) origination-derived
+    ``WorkNode`` not already known to ``governor``
+    (``origination.projection.list_materialized_work_nodes()``) and adds
+    + marks-ready each one, exactly like the pilot path already does --
+    this is what makes ``run_origination_scan()``'s durable output
+    actually reach the live governed DAG, closing D-PHASE2A-1's own
+    explicitly-deferred gap. A node is marked READY regardless of
+    whether it carries an ``owner_gate``: READY means dependency-ready,
+    not owner-authorized (see ``continuation.select_next()``'s own
+    docstring/ORCHAUT-010) -- ``_select_and_lease()`` and ``lease()``
+    both independently, defense-in-depth fail closed on an owner-gated
+    node before any autonomous execution, so marking it READY here does
+    not grant anything; it only makes the node visible for the owner's
+    own eventual lease with ``owner_grant=True``.
+
+    A candidate whose ``add_node``/``mark_ready`` call fails (a
+    package_id collision this pass's own dedup did not catch, or any
+    other governed-DAG rejection) is simply skipped for THIS pass, not
+    fatal to the others or to the pilot discovery above -- matching
+    ``run_origination_scan()``'s own per-outcome isolation. The durable
+    origination record is untouched either way; a later pass can pick
+    it up once whatever blocked it resolves.
+
+    ``lease_projection_store``, if provided, is load-bearing -- not
+    best-effort. A corrupt store is not "no history": swallowing
+    ``ProjectionError`` here used to re-add already-leased nodes and
+    then crash inside ``governor.lease()`` -> ``project_grant()``. Fail
+    closed the same way the LEASED-recovery path already does.
+
+    Replay protection must not erase a completed node from the DAG.
+    ``select_next()`` and ``lease()`` both treat a missing dependency as
+    unsatisfied, so omitting a RELEASED package as a CERTIFIED witness
+    stranded every later dependent. An ACTIVE row stays excluded so the
+    LEASED restore path can rebuild it READY. A later content revision
+    that materializes under the same ``package_id`` with a new
+    ``base_pin`` (prior origination record already ``TERMINAL``) is not
+    the leased revision and must still be ``add_node``/``mark_ready``'d.
+
+    A materialized node whose ``base_pin`` is stale against live main is
+    not marked READY -- leasing it would raise uncaught ``STALE_LEASE``.
+    It is left durable for a later deliberate refresh; the rest of the
+    discovery pass continues.
+    """
     report = discover(inventory, trusted=trusted)
     node = governor.ingest_discovery(report)
+    added: set[str] = set()
     if node is not None:
         governor.mark_ready(node.package_id)
-    return node, report
+        added.add(node.package_id)
+
+    active_ids: set[str] = set()
+    released_revisions: set[tuple[str, str]] = set()
+    if lease_projection_store is not None:
+        try:
+            ever_leased_projection = load_projection(lease_projection_store)
+        except ProjectionError as exc:
+            raise RehydrationError(str(exc), code=exc.code) from exc
+        durable_sequence = 0
+        for row in ever_leased_projection.leases:
+            durable_sequence = max(durable_sequence, row.created_sequence)
+            if row.released_sequence is not None:
+                durable_sequence = max(durable_sequence, row.released_sequence)
+        governor.adopt_durable_sequence(durable_sequence)
+        active_ids = {row.package_id for row in active_rows(ever_leased_projection)}
+        released_revisions = {
+            (row.package_id, row.base_pin)
+            for row in ever_leased_projection.leases
+            if row.status == "RELEASED" and row.package_id not in active_ids
+        }
+
+    if origination_projection_store is not None:
+        from project_atlas.orchestration.origination.projection import (
+            list_materialized_work_nodes,
+        )
+
+        known = {item.package_id for item in governor.snapshot().nodes}
+        known.update(active_ids)
+        for candidate in list_materialized_work_nodes(origination_projection_store):
+            if candidate.package_id in known:
+                continue
+            try:
+                if (candidate.package_id, candidate.base_pin) in released_revisions:
+                    governor.add_node(
+                        candidate.model_copy(update={"state": NodeState.CERTIFIED})
+                    )
+                    known.add(candidate.package_id)
+                    continue
+                if candidate.base_pin != inventory.current_main:
+                    continue
+                governor.add_node(candidate)
+                governor.mark_ready(candidate.package_id)
+            except (GovernorError, IllegalTransitionError):
+                continue
+            known.add(candidate.package_id)
+            added.add(candidate.package_id)
+    return frozenset(added), report
 
 
 def _restore_leased_node(
@@ -215,7 +324,7 @@ def _restore_leased_node(
     inventory: LiveInventory,
     package_id: str,
     lease_id: str,
-    origin_node_package_id: str | None,
+    already_discovered_package_ids: frozenset[str],
     candidate_owner_gates: dict[str, OwnerGateKind | None],
     lease_projection_store: Path,
     origination_projection_store: Path | None = None,
@@ -321,11 +430,13 @@ def _restore_leased_node(
         ) from exc
 
     try:
-        if origin_node_package_id != package_id:
-            # discover()/ingest_discovery() did not (re)add this node --
-            # build it fresh via the same deterministic factory `lease()`
-            # itself would have used, then walk it through the real
-            # transition machinery (DISCOVERED -> READY) rather than
+        if package_id not in already_discovered_package_ids:
+            # Neither discover()/ingest_discovery() (pilot) nor the
+            # origination discovery pass (D-PHASE2A-2) (re)added this
+            # node during THIS process's `_originate()` call -- build it
+            # fresh via the same deterministic factory/durable record
+            # `lease()` itself would have used, then walk it through the
+            # real transition machinery (DISCOVERED -> READY) rather than
             # fabricating a node that starts life already in a state no
             # real code path produces.
             if origination_node is not None:

@@ -54,7 +54,8 @@
             "NO_ELIGIBLE_WORK",
             "SAFETY_BOUNDARY",
             "RESOURCE_BOUNDARY",
-            "PILOT_COMPLETE"
+            "PILOT_COMPLETE",
+            "PROJECTION_CONTENTION"
           ]
         }
       ]

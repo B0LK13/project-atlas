@@ -65,6 +65,7 @@
         "SAFETY_BOUNDARY",
         "RESOURCE_BOUNDARY",
         "PILOT_COMPLETE",
+        "PROJECTION_CONTENTION",
         null
       ]
     },

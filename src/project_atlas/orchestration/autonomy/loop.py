@@ -28,6 +28,7 @@ from project_atlas.orchestration.autonomy.continuation import select_next
 from project_atlas.orchestration.autonomy.dag import IllegalTransitionError
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.governor import AutonomousGovernor, GovernorError
+from project_atlas.orchestration.autonomy.lease_projection import ProjectionError
 from project_atlas.orchestration.autonomy.leases import expand_lease
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
@@ -333,6 +334,31 @@ class AutonomousLoop:
         for gate in OwnerGateKind:
             require_owner(gate, owner_grant=False)
 
+    def _may_resume_from_no_eligible_work(self) -> bool:
+        """True only when the prior stop was "nothing to do" and the
+        freshly-rehydrated governor now has a selectable READY node.
+        Does not resume OWNER_GATE / SAFETY / RESOURCE / HARD_BLOCKER.
+
+        Cursor Bugbot finding on PR #654 (Medium): this used to call
+        ``select_next()`` without ``hard_blockers`` and without checking
+        ``target_moved``, unlike ``_select_and_lease()``. A candidate that
+        looked selectable here (mismatched eligibility) could immediately
+        re-hit ``HARD_BLOCKER`` in the very same tick once
+        ``_select_and_lease()`` applied its full check -- and because
+        HARD_BLOCKER is never auto-resumed by this method, that turned a
+        recoverable NO_ELIGIBLE_WORK stop into a permanent one, even after
+        the blocking condition (e.g. a moved target) was later resealed.
+        Reuse the exact same eligibility computation as the real lease
+        path so a "yes" here always survives the subsequent attempt.
+        """
+        if self._state.stop_reason is not StopReason.NO_ELIGIBLE_WORK:
+            return False
+        snapshot = self._governor.snapshot()
+        if snapshot.target_moved:
+            return False
+        decision = select_next(snapshot.nodes, hard_blockers=snapshot.hard_blockers)
+        return decision.next_package_id is not None
+
     def tick(self) -> LoopTickResult:
         """One fail-closed continuation step. At most one 001D dispatch."""
         verify_loop_state(self._state)
@@ -341,8 +367,23 @@ class AutonomousLoop:
             self._enqueue_resource_yield()
             return result
         self._save(ticks_in_invocation=self._state.ticks_in_invocation + 1)
-        if self._state.phase in {LoopPhase.STOPPED, LoopPhase.FAILED_CLOSED}:
+        if self._state.phase == LoopPhase.FAILED_CLOSED:
             return self._result()
+        if self._state.phase == LoopPhase.STOPPED:
+            if self._state.stop_reason is StopReason.PROJECTION_CONTENTION:
+                # Lock contention, not corruption -- always worth one more
+                # attempt; the lock holder from the prior tick is expected
+                # to have released it by now.
+                self._save(phase=LoopPhase.IDLE, stop_reason=None)
+            elif not self._may_resume_from_no_eligible_work():
+                return self._result()
+            else:
+                # Codex P1 on PR #654: a later origination scan can add a
+                # valid READY node after this process previously persisted
+                # STOPPED/NO_ELIGIBLE_WORK. There is no separate resume
+                # command -- only this tick. SAFETY/OWNER/RESOURCE stops
+                # stay terminal.
+                self._save(phase=LoopPhase.IDLE, stop_reason=None)
         if self._state.phase in {LoopPhase.DISPATCHING, LoopPhase.AWAITING_RESULT}:
             return self.recover()
         if self._state.phase == LoopPhase.LEASED:
@@ -590,6 +631,19 @@ class AutonomousLoop:
                 branch=self._branch,
                 worktree=self._worktree,
             )
+        except ProjectionError as exc:
+            if exc.code == "CONCURRENT_PROJECTION":
+                # Cursor Bugbot finding on PR #654 (Medium): a lock-wait
+                # timeout is contention, not corruption. Mapping it to the
+                # same HARD_BLOCKER as LEASE_REPLAY/STALE_LEASE/STATE_CORRUPT
+                # permanently froze the loop on what is normally a
+                # self-clearing condition (the other writer releases the
+                # lock). Fail closed but resumably.
+                return self._stop(StopReason.PROJECTION_CONTENTION)
+            # Durable lease-projection failures (LEASE_REPLAY / STALE_LEASE
+            # / STATE_CORRUPT) used to crash the tick uncaught. Fail closed
+            # the same way the overlapping GovernorError codes already do.
+            return self._stop(StopReason.HARD_BLOCKER)
         except GovernorError as exc:
             # DEPENDENCIES_NOT_SATISFIED (D-PHASE2A-1a): select_next() has
             # its own, independent dependency-readiness check (deps_ok,

@@ -9718,3 +9718,39 @@ recovery independently re-verified PASS and merged via PR #638.)
   resolved (both merged/closed above) while leaving `D-PHASE2A-2` itself
   unchecked -- its own wiring work has not begun; only its blockers
   cleared.
+
+## Night cycle 2026-08-30 — D-PHASE2A-2 PR #654 review-finding consumption
+
+- Date: 2026-08-30
+- Live main at cycle start: `e1bcca47` / tree `2e89b36c` (post-#652).
+- Historical P1-A (memory cross-project) / P1-B (ledger read integrity):
+  **SATISFIED** on current main — `tests/unit/test_atlas3_memory_project_isolation_001.py`
+  and `tests/unit/test_atlas3_ledger_integrity_001.py` pass; do not reopen
+  unless freshly reproduced on a moved HEAD/TREE.
+- Canonical carrier: PR #654 `feat/d-phase2a-2-origination-governor-wiring`
+  (prior tip `6bfa81e7` / tree `f691defc`). Independent review threads
+  on that object were reproduced against the live code, not assumed from
+  stale packets.
+- **VALID remediations consumed on the same carrier** (no duplicate PR):
+  1. Completed dependencies vanished across ticks — RELEASED lease rows
+     are now rehydrated as CERTIFIED witnesses; ACTIVE rows stay excluded
+     from READY replay.
+  2. Corrupt `leases.json` no longer treated as empty history — fail-closed
+     `RehydrationError` / structured CLI payload (`STATE_CORRUPT`).
+  3. Revised work after a TERMINAL prior revision now reaches the governor
+     (lease history keyed by `package_id` + `base_pin`, not package_id alone).
+  4. STOPPED + `NO_ELIGIBLE_WORK` resumes when a later origination scan
+     adds a selectable READY node; OWNER/SAFETY/RESOURCE stops stay terminal.
+  5. Stale materialized `base_pin` is not marked READY (avoids uncaught
+     `STALE_LEASE`).
+  6. Fresh-governor `_sequence = 0` adopted from durable lease sequences
+     so `LEASE-1` is not reminted (`LEASE_REPLAY`).
+  7. Same-identity `persist_materialized_if_no_active_conflict()` no longer
+     clobbers an already-MATERIALIZED `work_node`.
+- Focused + affected suite: 164 passed (`d_phase2a_2` bridge, origination
+  CLI/pipeline, autonomy loop/rehydration, Atlas 3 P1 isolation/ledger).
+  `ruff` clean on touched files; `mypy` clean on autonomy + origination
+  packages.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`. Do not merge #654.
+- Exact-object IV/ADV on the new HEAD/TREE remains required before any
+  owner merge consideration.
