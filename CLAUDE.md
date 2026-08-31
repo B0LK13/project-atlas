@@ -115,10 +115,14 @@ asserting `index.md` and `00-system/vault-charter.md` exist).
   (AS-ID-001 genesis: a fresh, random UUIDv4, once) into its `--source`
   project marker (`.atlas-project.yaml` / `.atlas/project.yaml`) when that
   marker has no `project_uuid` yet -- the one write this command makes
-  outside `--vault`. `_append_marker_project_uuid` appends the field as a
-  single new line rather than re-serializing the whole marker, so unrelated
-  human-authored formatting (list style, blank lines, quoting) is preserved;
-  the CLI reports the allocation on stdout (`identity allocated for: ...`).
+  outside `--vault`. `_append_marker_project_uuid` appends (or, for a
+  trailing YAML document-end marker, inserts; or replaces an existing
+  `project_uuid: null` placeholder line) the field rather than
+  re-serializing the whole marker, so unrelated human-authored formatting
+  (list style, blank lines, quoting, line endings) is preserved; the
+  allocation is disclosed via a structured log line and the `ingest()`
+  result's `identity_allocated` field (not printed by the CLI itself --
+  `cli.py` is outside DOGFOOD-001's certified-surface exception scope).
 - `indexes.py` — `atlas build-indexes` (FR-010): deterministic lexical
   indexes under `generated/indexes/`, rejects obsolete `indexes/` directory.
 - `validation.py` — `atlas validate` (FR-012): link resolution, OKF
