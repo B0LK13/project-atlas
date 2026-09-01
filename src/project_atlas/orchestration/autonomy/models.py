@@ -23,6 +23,13 @@ DIRECTIVE_ID: Final[Literal["D-AUTONOMY-TRANSITION-001"]] = "D-AUTONOMY-TRANSITI
 PIN_RETARGET_PACKAGE_ID: Final[str] = "AS-ORCH-AUTONOMY-001-PIN-RETARGET"
 PIN_RETARGET_DIRECTIVE_ID: Final[str] = "D-AUTONOMY-PIN-RETARGET-003"
 MAX_AUTONOMOUS_REMEDIATION_CYCLES: Final[int] = 3
+# Single source of truth for the checkpoint-recovery first-parent walk
+# bound, shared with trust.py's `_walk_first_parent_chain()` (imported
+# from here, never redefined there) so the schema's accepted range and
+# the runtime walk's actual bound can never drift apart (IV finding,
+# PR #664: a schema max exceeding the runtime bound let some schema-
+# valid proofs be impossible to ever validate on a long-lived repo).
+MAX_FIRST_PARENT_CHECKPOINT_HOPS: Final[int] = 100_000
 # Historical genesis only. Not runtime authority after pin-retarget.
 BOOTSTRAP_MAIN: Final[str] = "23ebc0293a8988bc4f144cad6b478c6bff4d32d0"
 BOOTSTRAP_TREE: Final[str] = "d7f5059d99e879502570245358e5a1612c52e739"
@@ -153,6 +160,17 @@ class AdvancementReason(StrEnum):
     """Why a trusted runtime anchor advanced. Not an authority grant."""
 
     VERIFIED_OWNER_AUTHORIZED_MERGE = "VERIFIED_OWNER_AUTHORIZED_MERGE"
+    # Distinct from VERIFIED_OWNER_AUTHORIZED_MERGE: that reason means the
+    # new merge's first parent IS the previously-trusted anchor (ordinary
+    # single-hop advancement, every intervening commit individually
+    # certified by construction). This reason means the previously-trusted
+    # anchor is many merges behind the target on the target's own
+    # FIRST-PARENT lineage -- an explicit, owner-authorized, one-time
+    # recovery from a stale runtime anchor that re-certifies the exact
+    # current snapshot, proves (never assumes) the old anchor's ancestry,
+    # and truthfully does NOT claim every skipped intervening merge was
+    # individually certified. See trust.py's checkpoint-recovery functions.
+    VERIFIED_OWNER_AUTHORIZED_CHECKPOINT = "VERIFIED_OWNER_AUTHORIZED_CHECKPOINT"
 
 
 class TrustState(StrEnum):
@@ -539,6 +557,104 @@ class AdvancementProof(BaseModel):
         if not _REL_PATH_RE.fullmatch(value):
             raise ValueError("reference must be a safe relative identifier")
         return value
+
+
+class TrustCheckpointProof(BaseModel):
+    """Owner-supplied ONE-TIME stale-runtime-anchor recovery artifact.
+
+    Distinct from ``AdvancementProof``: that proof claims the new merge's
+    first parent IS the previously-trusted anchor (ordinary single-hop
+    advancement -- every intervening commit individually certified by
+    construction of the chain itself). This proof instead claims the
+    previously-trusted anchor is many merges behind ``target_main`` on
+    ``target_main``'s own FIRST-PARENT lineage, and that the OWNER has
+    explicitly re-certified the exact current snapshot -- it never claims
+    every skipped intervening merge was individually certified. Governor
+    verifies every field against live git topology; never invents or
+    infers owner authority. Not reachable from governor observation alone
+    (see ``trust.py``'s checkpoint-recovery functions and the explicit
+    ``trust-checkpoint`` CLI surface) -- always requires this explicit,
+    separately-authored proof object.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    repository_identity: str = Field(min_length=1, max_length=256)
+    owner_authorization: Literal["OWNER_AUTHORIZED"]
+    checkpoint_reason: Literal["STALE_RUNTIME_ANCHOR_RECOVERY"]
+    expected_previous_main: str = Field(min_length=40, max_length=40)
+    expected_previous_tree: str = Field(min_length=40, max_length=40)
+    target_main: str = Field(min_length=40, max_length=40)
+    target_tree: str = Field(min_length=40, max_length=40)
+    target_merge_parent_1: str = Field(min_length=40, max_length=40)
+    target_merge_parent_2: str = Field(min_length=40, max_length=40)
+    certified_candidate_head: str = Field(min_length=40, max_length=40)
+    certified_candidate_tree: str = Field(min_length=40, max_length=40)
+    # ge=2, not 1: a hop_count of exactly 1 means `target_main`'s first
+    # parent IS `current.trusted_main` directly -- precisely the case
+    # ordinary single-hop `advance_trusted_anchor()` already handles,
+    # strictly, with no staleness gap to recover from. Schema-rejecting
+    # hop_count==1 here structurally forbids using this ONE-TIME recovery
+    # capability as a substitute for routine advancement on every merge
+    # (IV finding, PR #664). le matches MAX_FIRST_PARENT_CHECKPOINT_HOPS,
+    # the same bound trust.py's `_walk_first_parent_chain()` enforces at
+    # runtime -- kept as one shared constant so they cannot drift apart.
+    first_parent_hop_count: int = Field(ge=2, le=MAX_FIRST_PARENT_CHECKPOINT_HOPS)
+    first_parent_chain_digest: str = Field(min_length=64, max_length=64)
+    post_merge_seal: Literal["PASS", "FAIL"]
+    post_merge_ci: Literal["PASS", "FAIL"]
+    independent_verification: Literal["PASS", "FAIL"]
+    evidence_reference: str = Field(min_length=1, max_length=256)
+    evidence_digest: str = Field(min_length=64, max_length=64)
+    source_package: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_directive: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_pr: int = Field(ge=1, le=1_000_000)
+    # Required, never optional (IV finding, PR #664): verification always
+    # treats a missing payload as an automatic integrity failure anyway
+    # (`verify_checkpoint_evidence_integrity`), so making it required here
+    # lets a proof missing it fail fast and clearly at schema validation
+    # (PROOF_INVALID) instead of surfacing later as a less specific
+    # CHECKPOINT_DENIED.
+    evidence_payload: dict[str, object]
+
+    @field_validator(
+        "expected_previous_main",
+        "expected_previous_tree",
+        "target_main",
+        "target_tree",
+        "target_merge_parent_1",
+        "target_merge_parent_2",
+        "certified_candidate_head",
+        "certified_candidate_tree",
+    )
+    @classmethod
+    def _pin(cls, value: str) -> str:
+        if not _PIN_RE.fullmatch(value):
+            raise ValueError("proof pins must be 40-char lowercase git SHAs")
+        return value
+
+    @field_validator("first_parent_chain_digest", "evidence_digest")
+    @classmethod
+    def _digest(cls, value: str) -> str:
+        if not re.fullmatch(HASH_PATTERN, value):
+            raise ValueError("digest must be a SHA-256 hex digest")
+        return value
+
+    @field_validator("repository_identity", "evidence_reference")
+    @classmethod
+    def _safe_ref(cls, value: str) -> str:
+        if ".." in value.split("/") or "\\" in value or value.startswith("/") or ":" in value:
+            raise ValueError("reference must be a safe relative identifier")
+        if not _REL_PATH_RE.fullmatch(value):
+            raise ValueError("reference must be a safe relative identifier")
+        return value
+
+    @model_validator(mode="after")
+    def _candidate_is_second_parent(self) -> TrustCheckpointProof:
+        if self.target_merge_parent_2 != self.certified_candidate_head:
+            raise ValueError("certified_candidate_head must equal target_merge_parent_2")
+        return self
 
 
 class GovernorState(BaseModel):

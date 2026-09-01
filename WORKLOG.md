@@ -10311,3 +10311,179 @@ materialized_count=7, not_materialized_count=12`, sole
 `execution_ready=true, owner_gate=null` item still `INT-013`
 (`ORIG-0f50e42156effafe`) -- unchanged, confirmed twice independently
 (once directly, once inside the IV agent's own run).
+
+## TRUST_ANCHOR_STALENESS_RECOVERY_GAP -- owner-authorized checkpoint recovery mechanism
+
+With PR-A/B/C/D all merged, the directive's own final prerequisite was
+one-time trust-anchor advancement to the new main. Investigating
+`orchestration/autonomy/trust.py`'s real `advance_trusted_anchor()`
+before touching anything surfaced a genuine, structural gap: it is a
+strict single-hop mechanism (the new merge's first parent must EXACTLY
+equal the currently-trusted anchor, re-verified live against git on
+both sides of the check). No runtime trust store exists anywhere in
+this repository -- every real code path falls back to the SHIPPED
+anchor, still pinned at PR #398's merge commit (`62f8d59f...`,
+`sequence=1`) from long before this session. Main has advanced through
+dozens of merges since. A single `AdvancementProof` from that anchor
+straight to current main cannot pass the mechanism's own real checks --
+not a permissions problem, the proof would not correspond to an actual
+git parent relationship. `is_descendant()`/`TrustState.TARGET_MOVED`
+already existed precisely to make clear that mere descendant status is
+never itself sufficient authority (`GOVERNOR_CAN_ADVANCE_ANCHOR_FROM_
+OBSERVED_MAIN_ONLY = NO`, verbatim in the module's own docstring).
+
+Reconstructing a full historical chain of individually-certified
+advancement proofs back to PR #398 was rejected (owner decision) --
+that evidence does not exist for merges from months/years ago, and
+fabricating "PASS" for them would be exactly the manufactured-success
+this whole directive line has explicitly forbidden throughout. Instead,
+owner-authorized this narrow, explicit, auditable recovery capability:
+
+- **`TrustCheckpointProof`** (`models.py`) -- a distinct proof type from
+  `AdvancementProof`, never overloading its meaning. Requires
+  `checkpoint_reason="STALE_RUNTIME_ANCHOR_RECOVERY"`,
+  `first_parent_hop_count`, `first_parent_chain_digest`, and the usual
+  owner-authorization/CI/seal/IV/evidence-integrity fields.
+- **`AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT`** -- a
+  distinct, truthful reason. The persisted record's `predecessor_main`
+  honestly records the OLD stale anchor while `merge_parent_1`/`_2`
+  remain the target's ACTUAL git parents (never forged to look like an
+  ordinary single-hop record) -- a reader can always tell checkpoint
+  recovery apart from ordinary advancement.
+- **`_walk_first_parent_chain()`** -- deliberately never uses `git
+  merge-base --is-ancestor` (which succeeds through ANY path, including
+  a merged side branch). Walks ONLY `parents_of(sha)[0]` from the
+  target, bounded, and only succeeds if the OLD anchor is found exactly
+  that way -- proven by an exact hop-count + SHA-256 chain-digest match
+  against live topology, not merely asserted by the proof.
+  `evaluate_checkpoint_recovery()`/`advance_via_checkpoint_recovery()`
+  preserve the existing OBSERVE -> VERIFY -> REOBSERVE -> COMPARE ->
+  ATOMIC_ADVANCE race-safe pattern (reusing the existing
+  `compare_and_advance()` CAS/history/lock machinery unchanged) and
+  ALWAYS persist to an explicit runtime store -- never silently mutate
+  shipped package data.
+- **CLI**: `python -m project_atlas.orchestration.autonomy.cli
+  trust-checkpoint --trust-store <path> --proof <path>
+  [--bootstrap-from-shipped]` (`--trust-store`/`--proof` both required,
+  never implicit). `--bootstrap-from-shipped` initializes the store
+  from the verified shipped anchor via the existing `initialize_store()`
+  contract the FIRST time only (refuses to overwrite a differing
+  record). NOT wired into `atlas orchestrator ...` (top-level
+  `src/project_atlas/cli.py`) -- that file's own Golden-Demo isolation
+  guard (`test_cli_mutation_is_additive_only`) requires any diff there
+  to land within the `register_atlas3_parsers`/`dispatch_atlas3`
+  extension points, which this trust/security-governance change has no
+  legitimate reason to route through. Hit this for real in CI (initial
+  push DID wire it into `cli.py` directly, following every other
+  `orch_*` subcommand's existing pattern -- CI correctly caught it: the
+  guard fired with `1 failed, 4990 passed`, a genuine, real failure, not
+  a flake). A prior, unrelated change (DOGFOOD-001) hit the identical
+  wall and dropped its own `cli.py` edit rather than force an unrelated
+  exception through the guard; this follows the same precedent instead
+  of trying to get past it. `run_trust_checkpoint()` itself
+  (`orchestration/autonomy/cli.py`, NOT frozen) is unchanged by this
+  fix -- only where the argparse wiring lives moved.
+- Ordinary single-hop `advance_trusted_anchor()` is completely
+  untouched -- not weakened, not shared code paths beyond
+  `compare_and_advance()`'s already-generic persistence layer.
+  `test_orchestration_autonomy_pin_retarget.py` (unmodified) re-run
+  clean, confirming this.
+- Checkpoint recovery is reachable ONLY through this explicit CLI
+  surface with an explicit `--proof` file -- confirmed by a structural
+  test asserting neither `governor.py` nor `loop.py` even imports the
+  new functions.
+
+New test file `test_orchestration_autonomy_trust_checkpoint.py`: full
+A-T adversarial matrix (26 tests) -- no-owner-authorization, repo
+mismatch, target/tree mismatch, old-anchor-not-ancestor-at-all,
+**old-anchor-only-reachable-via-a-side-branch** (the load-bearing case:
+`git merge-base --is-ancestor` would say YES, the mechanism correctly
+says NO), hop-count/chain-digest tampering, target-moves-mid-
+verification, CI/seal/IV != PASS, evidence-digest tampering,
+stale/concurrent writer, rollback/same-anchor targets, corrupt store,
+nonexistent git objects, schema-level candidate/parent-2 mismatch,
+normal-advancement-untouched, no-automatic-invocation,
+descendant-alone-never-authority, and per-field check-granularity.
+ruff/mypy clean. Also independently smoke-tested the REAL CLI end-to-
+end against a throwaway git repo with genuine multi-hop merge topology
+(not just fixtures) -- positive path advances correctly (sequence 1 ->
+2, correct trusted_main/tree/reason), and a replay of the same proof
+correctly fails closed (`PREDECESSOR_MISMATCH`) once the anchor has
+moved.
+
+**Non-claims:** does not retroactively certify any individual
+historical merge between PR #398 and current main -- the checkpoint
+proof's own evidence explicitly re-certifies only the CURRENT target
+snapshot, and the persisted record's `advancement_reason` and
+`predecessor_main`/`merge_parent_1` mismatch permanently disclose that
+this was a checkpoint, not an unbroken chain of individually-verified
+merges. This is a ONE-TIME, target-bound, non-transferable capability
+for THIS specific recovery -- future routine advancement returns to
+ordinary single-hop `advance_trusted_anchor()` for each owner-
+authorized merge. A non-blocking follow-up (`TRUST_ANCHOR_
+OPERATIONALIZATION`) is warranted: ensure every future qualifying merge
+to main actually exercises real trust advancement, so a shipped
+bootstrap anchor is never again left dormant this long.
+
+## PR #664 review rounds 3-4 -- 6 GitHub-bot findings + a real one-time-use gap, both closed
+
+The PR's own automated GitHub reviewers (chatgpt-codex-connector,
+copilot-pull-request-reviewer) found 6 real issues once opened with
+actual content -- 2 marked P1 and genuinely serious: (1) `evidence_
+digest` was self-referential, only bound to the free-form `evidence_
+payload`, never to WHICH target/ancestry/authorization it was meant to
+certify -- evidence for one target could be relabeled onto a proof for
+a different target. (2) nothing enforced the mechanism's own stated
+"one-time" premise -- an operator could repeat checkpoint recovery for
+every subsequent merge, permanently bypassing `advance_trusted_
+anchor()`. Both fixed for real (commit `0c7cac1c`): `_checkpoint_
+evidence_binding()` now hashes every security-relevant proof field
+together (not just the payload); `first_parent_hop_count` now requires
+`>=2` (schema-forbids the single-hop case); new `_checkpoint_already_
+used()` scans the store for a prior checkpoint record and refuses a
+second one. Plus 4 smaller fixes: shared hop-count bound constant
+(schema max previously exceeded the runtime walk bound), exactly-2-
+parents check (rejecting octopus merges), required `evidence_payload`
+(was Optional), and `run_trust_checkpoint()` now catches `OSError` from
+store I/O (was only `TrustError`). All 6 threads replied with evidence
+and resolved.
+
+A follow-up independent IV round against that fix then found ONE MORE
+real gap in fix (2): `_checkpoint_already_used()` scanned whichever
+history files happened to exist, never checking for GAPS -- deleting
+exactly the one history file holding a superseded checkpoint record
+(after a later ordinary `advance_trusted_anchor()` moved it there,
+which is the exact recommended long-term flow) silently reset the
+gate. Fixed (commit `c241b4e4`): the function now walks the EXPECTED
+sequence range `1..current.sequence-1` explicitly; any missing number
+is treated as a fail-closed deny, same as a corrupt one. A regression
+test reproduces the exact attack end-to-end.
+
+A FOURTH IV round on that fix (CONFIRMED_WITH_MINOR_NOTES) found the
+gap-fix's own docstring understated its one residual, disclosed
+limitation: the expected sequence range is bounded by `current.json`'s
+self-reported `sequence`, and `_load_store_current()` only verifies
+that record's *internal* self-consistency -- a single edit to
+`current.json` alone (recompute its own now-consistent digest, leave
+`history/` untouched) shrinks the range and bypasses the gate, cheaper
+than the "wholesale fresh-store forgery" the docstring originally
+described. Not a new privilege tier (same filesystem-write-access
+precondition every other disclosed limitation in this module already
+assumes), but worth stating precisely rather than only gesturing at
+the harder case -- docstring corrected to say so explicitly (no
+functional code change needed for this round).
+
+**Operational note surfaced but not actioned** (IV round 4, not a
+security defect): `_checkpoint_already_used()`'s "any missing sequence
+number denies" behavior means ANY future unrelated history-file
+pruning/archival (e.g. a hypothetical future disk-space maintenance
+task) would permanently and silently disable checkpoint recovery for
+that store, with a generic `CHECKPOINT_ALREADY_USED` error giving no
+hint the real cause is an unrelated missing file. No such pruning
+mechanism exists in this repository today, so not fixed speculatively
+-- flagged here so it isn't forgotten if one is ever added.
+
+Test count across the two fix commits: 26 (original) to 31 (round 3,
++5) to 32 (round 4, +1), all passing; ruff/mypy clean each round;
+broader regression (pin_retarget + autonomy + autonomy_loop) and the
+freeze guard re-run clean each round.

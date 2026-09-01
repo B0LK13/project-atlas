@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from pathlib import Path
 from typing import TextIO
+
+from pydantic import ValidationError
 
 from project_atlas.orchestration.autonomy.discovery import (
     DiscoveryError,
@@ -34,13 +38,19 @@ from project_atlas.orchestration.autonomy.models import (
     ExecutionHostClass,
     LiveInventory,
     NodeState,
+    TrustCheckpointProof,
     TrustedAnchorRecord,
 )
 from project_atlas.orchestration.autonomy.rehydration import RehydrationError, rehydrate_governor
 from project_atlas.orchestration.autonomy.trust import (
+    LiveGitObserver,
     TrustError,
+    advance_via_checkpoint_recovery,
+    initialize_store,
     load_runtime_anchor,
+    load_shipped_initial_anchor,
     normalize_repository_identity,
+    observe_repository_identity,
 )
 from project_atlas.orchestration.local_process_transport import LocalProcessExecutorConfig
 from project_atlas.orchestration.origination.projection import (
@@ -389,3 +399,180 @@ def run_governor_loop_tick(
 def observed_repository_identity(remote_url: str) -> str:
     """CLI helper for evidence capture. Not an authority grant."""
     return normalize_repository_identity(remote_url)
+
+
+def run_trust_checkpoint(
+    *,
+    root: Path,
+    trust_store: Path,
+    proof_path: Path,
+    bootstrap_from_shipped: bool = False,
+) -> tuple[dict[str, object], int]:
+    """AS-ORCH-AUTONOMY-001 stale-runtime-anchor CHECKPOINT RECOVERY.
+
+    Deliberate, explicit operator surface -- ``--trust-store`` and
+    ``--proof`` are both REQUIRED (no implicit target from currently
+    observed main). Never invoked automatically by the governor or by
+    normal loop-tick observation; a genuine, separately-authored,
+    owner-signed ``TrustCheckpointProof`` is always required. See
+    ``trust.py``'s ``advance_via_checkpoint_recovery()`` for the full
+    verification contract, and its module docstring for why this is a
+    distinct capability from ordinary single-hop
+    ``advance_trusted_anchor()`` advancement (which this command never
+    touches, weakens, or bypasses).
+
+    ``bootstrap_from_shipped``: only relevant the FIRST time a runtime
+    store is used at ``trust_store`` -- initializes it from the verified
+    shipped anchor via the existing ``initialize_store()`` contract
+    (refuses to overwrite a differing existing record; a no-op if the
+    store already holds the identical record). Does not itself advance
+    anything; the checkpoint proof is still separately verified and
+    applied after.
+    """
+    try:
+        if bootstrap_from_shipped:
+            initialize_store(trust_store, load_shipped_initial_anchor())
+        current = load_runtime_anchor(store=trust_store)
+        try:
+            raw = json.loads(proof_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise TrustError(
+                f"checkpoint proof file could not be read: {exc.__class__.__name__}",
+                code="PROOF_UNREADABLE",
+            ) from exc
+        if not isinstance(raw, dict):
+            raise TrustError("checkpoint proof must be a JSON object", code="PROOF_INVALID")
+        try:
+            proof = TrustCheckpointProof.model_validate(raw)
+        except ValidationError as exc:
+            raise TrustError(
+                f"checkpoint proof is schema-invalid: {exc}", code="PROOF_INVALID"
+            ) from exc
+        repository_identity = observe_repository_identity(root)
+        new_record = advance_via_checkpoint_recovery(
+            current,
+            proof,
+            LiveGitObserver(root),
+            store=trust_store,
+            expected_repository_identity=repository_identity,
+        )
+    except (TrustError, OSError) as exc:
+        # OSError (IV finding, PR #664): store I/O -- e.g. a permission-
+        # denied writing to --trust-store -- previously escaped uncaught
+        # here instead of producing the same clean, fail-closed JSON
+        # report every other genuine problem in this command already
+        # gets.
+        code = getattr(exc, "code", None) or (
+            "CHECKPOINT_STORE_IO_ERROR" if isinstance(exc, OSError) else "CHECKPOINT_DENIED"
+        )
+        return {
+            "schema_version": 1,
+            "package_id": AUTONOMY_PACKAGE_ID,
+            "case": "TRUST-CHECKPOINT",
+            "checkpoint_advanced": False,
+            "blocker": code,
+            "detail": str(exc),
+            "merge_authorized": False,
+            "execution_authorized": False,
+        }, EXIT_ERROR
+    return {
+        "schema_version": 1,
+        "package_id": AUTONOMY_PACKAGE_ID,
+        "case": "TRUST-CHECKPOINT",
+        "checkpoint_advanced": True,
+        "previous_anchor": {
+            "trusted_main": current.trusted_main,
+            "trusted_tree": current.trusted_tree,
+            "sequence": current.sequence,
+        },
+        "new_anchor": {
+            "trusted_main": new_record.trusted_main,
+            "trusted_tree": new_record.trusted_tree,
+            "sequence": new_record.sequence,
+            "advancement_reason": new_record.advancement_reason.value,
+        },
+        "first_parent_hop_count": proof.first_parent_hop_count,
+        "first_parent_chain_digest": proof.first_parent_chain_digest,
+        "evidence_reference": proof.evidence_reference,
+        "independent_verification": proof.independent_verification,
+        "merge_authorized": False,
+        "execution_authorized": False,
+    }, EXIT_OK
+
+
+def _build_standalone_parser() -> argparse.ArgumentParser:
+    """Standalone parser for ``trust-checkpoint``.
+
+    ``src/project_atlas/cli.py`` (the ``atlas`` top-level entry point,
+    where every OTHER orchestrator subcommand -- ``governor-status``,
+    ``governor-pilot``, etc. -- is wired) is currently frozen: its own
+    Golden-Demo isolation guard (``tests/unit/
+    test_atlas3_demo_isolation_001.py::test_cli_mutation_is_additive_only``)
+    requires any diff touching that file to land within the
+    ``register_atlas3_parsers``/``dispatch_atlas3`` extension points,
+    which this trust/security-governance change has no legitimate reason
+    to route through. A prior, unrelated change (DOGFOOD-001, see
+    WORKLOG.md) hit the same wall and dropped its own ``cli.py`` edit
+    rather than force an unrelated exception through that guard; this
+    follows the same precedent. This standalone entrypoint is the
+    deliberate, real operator surface until ``cli.py``'s freeze lifts:
+    ``python -m project_atlas.orchestration.autonomy.cli trust-checkpoint
+    --trust-store <path> --proof <path> [--root <path>]
+    [--bootstrap-from-shipped]``. Not a hidden helper -- ``--trust-store``
+    and ``--proof`` are both required, machine-readable JSON is printed
+    to stdout, and the exit code follows this module's own EXIT_OK/
+    EXIT_ERROR convention exactly like every other command here.
+    """
+    parser = argparse.ArgumentParser(prog="python -m project_atlas.orchestration.autonomy.cli")
+    sub = parser.add_subparsers(dest="command", required=True)
+    checkpoint = sub.add_parser(
+        "trust-checkpoint",
+        help=(
+            "ONE-TIME owner-authorized stale-runtime-anchor recovery via an "
+            "explicit TrustCheckpointProof. Never invoked automatically. "
+            "Does not merge."
+        ),
+    )
+    checkpoint.add_argument(
+        "--root", type=Path, default=None, help="Repository root (default: cwd)."
+    )
+    checkpoint.add_argument(
+        "--trust-store",
+        type=Path,
+        required=True,
+        help="Durable runtime trusted-anchor store (required -- never implicit).",
+    )
+    checkpoint.add_argument(
+        "--proof",
+        type=Path,
+        required=True,
+        help="Path to a TrustCheckpointProof JSON file (required -- never implicit).",
+    )
+    checkpoint.add_argument(
+        "--bootstrap-from-shipped",
+        action="store_true",
+        help=(
+            "First-time only: initialize --trust-store from the verified "
+            "shipped anchor if it has no current record yet."
+        ),
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Standalone entrypoint. See ``_build_standalone_parser()``."""
+    args = _build_standalone_parser().parse_args(argv)
+    if args.command == "trust-checkpoint":
+        report, exit_code = run_trust_checkpoint(
+            root=Path(args.root or Path.cwd()),
+            trust_store=args.trust_store,
+            proof_path=args.proof,
+            bootstrap_from_shipped=bool(args.bootstrap_from_shipped),
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return exit_code
+    return 2  # argparse usage error convention, matches the top-level atlas CLI
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
