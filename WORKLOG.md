@@ -10667,3 +10667,48 @@ that needs real ancestry, must still raise).
 
 ruff/mypy clean. Full targeted suite + broader regression + freeze
 guard all re-run clean.
+
+### PR #666 merged; real bounded trust catch-up executed
+
+`feat/trust-bounded-catchup` merged as `dc60f4c42b3f48a8a246ef9474f199caa1e0546c`
+(parent 1 `57e6512863f519724fa08efa16861f349a43d6fb`, parent 2 `80054ff0a96c812c3719e889c9ef5546efebdf68`,
+tree `1bbfbd044c33507e09b25ed2dced30cfdfa28d0f`), after 2 rounds of independent
+adversarial IV (round 1: `CONFIRMED_WITH_FIXES_NEEDED`, 4 minor items fixed;
+round 2: `CONFIRMED`) plus 3 real findings from GitHub's automated reviewers
+(Copilot x2, Codex P1 -- a provenance-binding gap) all fixed and threads
+resolved, all 4 hosted CI lanes green, 0 unresolved threads, `mergeStateStatus
+= CLEAN`. Post-merge local freeze-guard re-run clean against the merge commit;
+hosted post-merge CI on `main` green.
+
+Real `TrustCatchupProof` then constructed and executed via
+`advance_via_bounded_catchup()` (fresh `supervised-run-004` worktree/trust-
+store copy, `supervised-run-002`'s original left untouched) for the actual
+3-hop chain:
+
+```
+cc4fbbd0 (sequence 2, prior checkpoint recovery)
+  -> 39a84311  (#665, hop authorization_basis=OWNER_AUTHORIZED_AT_MERGE)
+  -> 57e65128  (#653, hop authorization_basis=OWNER_RATIFIED_EXISTING_MERGE)
+  -> dc60f4c4  (#666, hop authorization_basis=OWNER_AUTHORIZED_AT_MERGE)
+```
+
+Result: `trusted_main = dc60f4c4...`, `sequence = 3`, `advancement_reason =
+VERIFIED_OWNER_AUTHORIZED_CATCHUP`. Fresh cross-process reload confirms:
+`TRUSTED_RUNTIME_MAIN == CURRENT_MAIN`, `TARGET_MOVED = False`, `TRUST_STATE
+= TRUSTED`, and -- critically -- `_checkpoint_already_used()` still reports
+`True` (the one-time checkpoint-recovery gate remains exactly as tripped as
+it was before this catch-up; nothing about executing bounded catch-up
+touches it).
+
+`MAIN_INTEGRATION_FREEZE = RELEASED`. Second independent IV round on PR #667
+(the sibling checkpoint-evidence-binding provenance fix) completed:
+`CONFIRMED`, and additionally surfaced a real, previously-undisclosed
+follow-up: the ordinary `AdvancementProof`/`advance_trusted_anchor()` path's
+own `verify_evidence_integrity()` has the identical unbound-evidence-digest
+gap (never binds `merge_commit`/`merge_tree`/`repository_identity`/
+`authorized_candidate_head`/`_tree`/`source_package`/`source_directive`/
+`source_pr`/`evidence_reference`), untouched by either #666 or #667. The
+topological fields this gap concerns (which commit becomes trusted) remain
+independently protected by `evaluate_advancement()`'s live-git checks
+regardless; the exposure is limited to provenance/attribution spoofing, not
+trust-target forgery. Tracked as a required follow-up PR, same shape as #667.
