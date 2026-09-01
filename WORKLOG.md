@@ -10487,3 +10487,183 @@ Test count across the two fix commits: 26 (original) to 31 (round 3,
 +5) to 32 (round 4, +1), all passing; ruff/mypy clean each round;
 broader regression (pin_retarget + autonomy + autonomy_loop) and the
 freeze guard re-run clean each round.
+
+## STALE_SUCCESSOR_BRANCH_CLASSIFICATION -- real blocker hit on the first supervised-autonomy retry
+
+With PR #664 merged and the trust anchor genuinely advanced (checkpoint
+recovery to `cc4fbbd0...`, verified TRUSTED, cross-process reuse
+confirmed), the actual FIRST_SUPERVISED_AUTONOMOUS_ATLAS_RUN retry hit
+a real `HARD_BLOCKER` / `SUCCESSOR_ALREADY_STARTED` on its very first
+tick, before any node could even be considered. Root-caused: a
+historical successor branch, `feat/as-orch-001e-autonomous-loop`
+(merged via PR #401, merge commit
+`806218ae29792db63416a654e6a8390268764a1`, 2026-08-19), was simply
+never deleted from `gh-origin`/`source-readonly` after merging.
+`collect_live_inventory()`'s successor-activity detection
+(`active_successor_packages`, `r2_created`, `r7_created`,
+`as_orch_001e_started`) was pure branch-NAME-presence matching (`git
+branch -a` + regex) -- it never checked whether a matching branch's
+content was already integrated into main. `BRANCH_REF_EXISTS !=
+ACTIVE_SUCCESSOR`.
+
+Fixed in `discovery.py`: successor-activity is now TOPOLOGY-based.
+`_for_each_ref()` enumerates `refs/heads`+`refs/remotes` via robust
+`git for-each-ref` plumbing (never fragile `git branch -a` line
+parsing; excludes symbolic remote HEAD refs). For each ref whose name
+matches the existing `_SUCCESSOR_PATTERNS`, `_is_merged_into()` checks
+`git merge-base --is-ancestor <tip> origin/main` -- only a genuinely
+UNMERGED tip counts as active. Any git failure other than the two real
+ancestry outcomes (0/1) fails closed (`DiscoveryError`), never silently
+treated as either "merged" or "unmerged". All four downstream fields
+(`active_successor_packages`/`r2_created`/`r7_created`/
+`as_orch_001e_started`) are derived from the SAME filtered set of
+genuinely-unmerged matching refs, so fixing one could not leave another
+reintroducing the identical false positive through a different name.
+Deliberately conservative: any-path ancestry (not first-parent-only --
+unlike the trust-checkpoint mechanism, this is "was this content ever
+integrated at all", not "is it on the trunk"), so a squash/rebase-
+equivalent branch whose exact tip commit was never itself committed to
+main stays conservatively active rather than being incorrectly waved
+through.
+
+**Real regression, independently confirmed against this repository's
+own live state** (not just the hermetic test fixtures below):
+`collect_live_inventory()` re-run against the actual current main
+(`cc4fbbd0...`), with `feat/as-orch-001e-autonomous-loop` still
+present on the remote (deliberately NOT deleted -- proves the product
+fix, not an environment cleanup): `active_successor_packages = ()`,
+`as_orch_001e_started = "NO"`. The exact false positive that blocked
+the real supervised run is gone, without touching the remote at all
+(`DESTRUCTIVE_ACTIONS` stayed `0` throughout this fix).
+
+New test file `test_orchestration_autonomy_discovery_successor_topology.py`
+(10 tests, fully hermetic self-built temp git repos -- real `git`
+subprocess calls, real commits, `git update-ref refs/remotes/origin/
+main` to simulate a fetched remote-tracking ref without network
+access, same technique the trust-checkpoint work already established):
+merged remote successor branch not active, branch tip exactly equals
+main not active, merged LOCAL branch not active, genuinely-unmerged
+branch IS active and blocks via `discover()`, mixed merged+unmerged
+refs still correctly blocks on the unmerged one, non-matching branch
+name irrelevant even if unmerged, multiple remotes at the same merged
+tip no false blocker, topology-query failure fails closed, symbolic
+remote HEAD ref excluded (and doesn't suppress a real match on the
+same remote), `TARGET_MOVED` precedence unchanged. The exact
+real-repository branch (`feat/as-orch-001e-autonomous-loop` specifically)
+is intentionally NOT hardcoded into the automated suite -- a portable
+CI checkout's remote-fetch scope can't be relied on to reproduce that
+exact historical branch identically, so baking it in would make the
+suite environment-fragile; the real-repo regression above was verified
+manually instead and is recorded here as evidence.
+
+ruff/mypy clean. Broader regression (autonomy + rehydration +
+d_phase2a_2 governor bridge + origination_rehydration + pin_retarget +
+trust_checkpoint) and the freeze guard all re-run clean.
+
+**Non-claims:** does not delete the stale branch (deliberately, per
+owner instruction -- correctness must not depend on stale refs having
+been manually cleaned up). Does not change `TARGET_MOVED` precedence,
+the (currently entirely inert -- every listed candidate is
+`eligible=False`) legacy `discover()` candidate list, or anything
+about the origination-based discovery pass (`rehydrate_governor()`'s
+separate, newer mechanism, unaffected by and unrelated to this fix).
+A non-blocking, optional follow-up (`STALE_MERGED_BRANCH_HYGIENE`) is
+worth deriving separately if the owner ever wants the branch actually
+deleted -- not executed here under this fix's own
+`DESTRUCTIVE_ACTIONS = FALSE` scope.
+
+## PR #665 review round -- 3 more findings (2 real, 1 classified non-material)
+
+`test_only` commit `b0397626` closed a fresh IV's 2 coverage-gap notes;
+GitHub's own automated reviewers then found 3 more issues once the PR
+carried real content:
+
+1. **(copilot, non-material by owner instruction)** `_for_each_ref()`/
+   `_is_merged_into()`'s `DiscoveryError` messages don't include the
+   underlying git exit code/stderr, making real diagnosis harder even
+   though the fail-closed behavior itself is correct. Classified
+   `NON_MATERIAL_DIAGNOSTIC_IMPROVEMENT` per explicit owner
+   instruction -- no correctness/safety/authority impact demonstrated,
+   not worth churning this PR's implementation for; a low-priority
+   follow-up if ever wanted.
+
+2. **(codex P2, REAL) Shallow-clone ancestry blindness.** Git treats a
+   shallow commit as having no parents -- in a shallow checkout (this
+   repo's own hosted CI defaults to exactly this, per the freeze
+   guard's own docstring), `git merge-base --is-ancestor` can report
+   `1` (not an ancestor) for a commit that genuinely IS merged in the
+   full history, simply because the shallow boundary hides the real
+   parent edge. Left unfixed, this would silently reintroduce THIS
+   FIX's own bug -- a genuinely-merged branch misclassified as
+   active -- specifically in shallow environments. Fixed:
+   `_is_shallow_repository()` (`git rev-parse
+   --is-shallow-repository`) is checked once, only when there is at
+   least one successor-pattern-matching ref to evaluate (a shallow
+   clone with no matching refs at all has nothing ambiguous to worry
+   about), and fails closed (`DiscoveryError`) rather than guessing.
+
+3. **(codex P1, REAL) Dirty current successor branch silently
+   dropped.** If the CURRENT checkout is itself a branch matching the
+   successor patterns, with real staged/uncommitted work, but its last
+   COMMITTED tip already equals/precedes `origin/main` (e.g. just
+   branched from main, nothing committed yet), the pure ancestry check
+   would classify it as "merged" and drop it from every
+   successor-activity field -- even though real in-progress successor
+   work exists on disk. `discover()` itself never separately consults
+   `worktree_status`, so this gap could only be closed inside
+   `collect_live_inventory()` itself (ancestry can't observe
+   uncommitted content at all). Fixed: `worktree_dirty` and
+   `current_branch_ref` are now computed once, early; a ref that is
+   BOTH the current checkout AND the worktree is dirty is forced
+   active regardless of what its committed tip's ancestry says.
+
+5 new regression tests (17 total, was 12): shallow clone with a
+matching ref fails closed; shallow clone with no matching refs is
+fine; a plain non-shallow repo correctly reports not-shallow; a dirty
+current successor branch stays active even with an already-merged
+tip; the clean counterpart (no uncommitted work) correctly stays
+inactive, confirming the dirty-branch exception doesn't overreach.
+Real local-clone gotcha found while writing these: `git clone --depth`
+against a same-filesystem local source silently ignores shallow
+semantics unless `--no-local` (or a genuine `file://`/network URL) is
+used -- without it, `--is-shallow-repository` reports `false` even
+with `--depth 1` requested, which would have made the shallow-clone
+tests false-pass; caught and fixed before it could ship as a
+non-test.
+
+ruff/mypy clean. Broader regression (autonomy + rehydration +
+d_phase2a_2 + origination_rehydration + pin_retarget + trust_checkpoint)
+and the freeze guard re-run clean. Real live-repo regression
+(`feat/as-orch-001e-autonomous-loop` still present, non-shallow local
+clone, current branch not matching any successor pattern) re-confirmed
+unaffected by either new check.
+
+## PR #665 second IV round -- interaction gap between the two new checks, closed
+
+A second fresh IV round against `57e5405f` (CONFIRMED_WITH_MINOR_NOTES
+-- both new checks individually correct) found a real, previously-
+untested interaction: the shallow gate fired on `all_matching_refs`
+being non-empty, unconditionally -- it did not exclude a ref that the
+dirty-current-branch rule resolves WITHOUT ever needing an ancestry
+query at all. Reproduced exactly: a shallow CI-style checkout, on its
+own dirty in-progress successor branch, with NO other matching ref
+anywhere in the repo -- the single most realistic real-world scenario
+this whole fix targets -- got a spurious `DiscoveryError` instead of
+the correct active classification, because the shallow gate didn't
+know that specific ref would never actually need `_is_merged_into()`.
+
+Fixed: the shallow gate now only considers refs that would genuinely
+need an ancestry query (`refs_needing_ancestry`, i.e. NOT the current
+dirty branch) -- a shallow repo whose ONLY matching ref is resolved by
+the unconditional dirty-branch rule no longer raises. A different
+matching ref that DOES need ancestry still correctly fails closed on a
+shallow repo (verified by a paired test to confirm the narrowing
+doesn't overreach).
+
+2 new regression tests (19 total, was 17): the exact combined scenario
+(shallow + own dirty successor branch as the sole matching ref, must
+NOT raise); the paired negative (shallow + a DIFFERENT matching ref
+that needs real ancestry, must still raise).
+
+ruff/mypy clean. Full targeted suite + broader regression + freeze
+guard all re-run clean.

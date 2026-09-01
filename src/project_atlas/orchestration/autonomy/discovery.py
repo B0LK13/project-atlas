@@ -73,39 +73,169 @@ def _require_pin(value: str, label: str) -> str:
     return value
 
 
+def _for_each_ref(repo: Path, *patterns: str) -> list[tuple[str, str]]:
+    """``(refname, tip_commit_sha)`` pairs via robust plumbing -- never
+    fragile ``git branch -a`` display-line parsing. Excludes symbolic
+    remote HEAD refs (``refs/remotes/<remote>/HEAD``); every remaining
+    entry is a concrete branch pinned to an exact commit."""
+    result = subprocess.run(
+        ["git", "for-each-ref", "--format=%(refname)\t%(objectname)", *patterns],
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise DiscoveryError("git for-each-ref failed")
+    refs: list[tuple[str, str]] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        refname, _, tip = line.partition("\t")
+        if not refname or not tip or refname.endswith("/HEAD"):
+            continue
+        refs.append((refname, tip))
+    return refs
+
+
+def _is_shallow_repository(repo: Path) -> bool:
+    result = _run_git(repo, "rev-parse", "--is-shallow-repository")
+    return result.strip() == "true"
+
+
+def _is_merged_into(repo: Path, tip: str, current_main: str) -> bool:
+    """True only if ``tip`` is a genuine ancestor of ``current_main`` --
+    never inferred from a branch name existing. Fails closed (raises
+    ``DiscoveryError``) on any git failure other than the two ancestry
+    outcomes (`0` = is an ancestor, `1` = is not) -- an unobservable
+    topology query is never silently treated as "not merged" (which
+    would fail open, understating activity) nor as "merged" (which
+    would fail open the other way, hiding a genuinely active successor)."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", tip, current_main],
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise DiscoveryError(f"git merge-base --is-ancestor could not observe ancestry for {tip!r}")
+
+
 def collect_live_inventory(repo: Path) -> LiveInventory:
-    """Observe git facts at an exact toplevel. Does not invent pins or PR lists."""
+    """Observe git facts at an exact toplevel. Does not invent pins or PR lists.
+
+    Successor-package activity (``active_successor_packages``,
+    ``r2_created``, ``r7_created``, ``as_orch_001e_started``) is
+    TOPOLOGY-based, not name-presence-based: a ref whose name matches
+    ``_SUCCESSOR_PATTERNS`` only counts as active if its exact tip
+    commit is NOT already an ancestor of ``origin/main`` (real IV
+    finding: a historical branch merged long ago and simply never
+    deleted from the remote -- ``BRANCH_REF_EXISTS != ACTIVE_SUCCESSOR``
+    -- was being treated as an in-flight successor forever, permanently
+    hard-blocking discovery via a false positive). Every one of these
+    fields is derived from the SAME filtered set of genuinely-unmerged
+    matching refs, so fixing only one field could not leave another
+    reintroducing the same stale false positive through a different
+    name. Deliberately conservative: only an EXACT first-parent-
+    independent ancestry match (any path, via ``merge-base
+    --is-ancestor`` -- unlike the checkpoint-recovery mechanism, this
+    is about "was this content ever integrated at all", not "is it on
+    the trunk", so any-path ancestry is the right check here) counts as
+    integrated; a squash/rebase-equivalent branch whose exact tip was
+    never itself committed to main stays conservatively active.
+
+    Two further real IV findings on this exact fix, both closed here:
+
+    - Shallow-clone blindness: a shallow checkout (git documents shallow
+      commits as having no parents -- CI hosted checkouts on this repo
+      default to exactly this) can make ``git merge-base --is-ancestor``
+      report `1` (not an ancestor) for a commit that genuinely IS merged
+      in the full history, simply because the shallow boundary hides
+      the parent edge -- silently reintroducing this exact fix's own
+      bug in shallow environments. Detected via ``git rev-parse
+      --is-shallow-repository`` and fails closed (raises) rather than
+      guessing, but ONLY when there is at least one matching ref to
+      evaluate -- a shallow clone with no successor-pattern refs at all
+      has nothing ambiguous to fail closed on.
+    - A matching branch that IS the current checkout, with real dirty
+      (staged/uncommitted) work, stays active even if its last
+      COMMITTED tip happens to already be an ancestor of main (e.g. it
+      was just branched from main and no commit has landed yet) --
+      ``discover()`` itself never separately consults
+      ``worktree_status``, so this is the only place that gap can be
+      closed without ancestry-checking uncommitted content (which is
+      not possible via git objects at all).
+    """
     resolved = _require_toplevel(repo)
     current_main = _require_pin(_run_git(resolved, "rev-parse", "origin/main"), "origin/main")
     current_tree = _require_pin(
         _run_git(resolved, "rev-parse", "origin/main^{tree}"),
         "origin/main tree",
     )
-    branches = _run_git(resolved, "branch", "-a")
     current_branch = _run_git(resolved, "branch", "--show-current")
+    current_branch_ref = f"refs/heads/{current_branch}" if current_branch else None
+    status_lines = _run_git(resolved, "status", "-sb").splitlines()
+    worktree_dirty = len(status_lines) > 1
+
+    def _is_current_dirty_branch(refname: str) -> bool:
+        return (
+            worktree_dirty and current_branch_ref is not None and refname == current_branch_ref
+        )
+
+    all_matching_refs = [
+        (refname, tip)
+        for refname, tip in _for_each_ref(resolved, "refs/heads", "refs/remotes")
+        if any(pattern.search(refname) for pattern in _SUCCESSOR_PATTERNS)
+    ]
+    # IV finding (this exact fix, 2nd IV round): the shallow gate must
+    # only fire for refs that actually NEED an ancestry query. A ref
+    # resolved unconditionally by the dirty-current-branch rule above
+    # never calls _is_merged_into() at all -- gating on `all_matching_
+    # refs` unconditionally would raise DiscoveryError even in the most
+    # realistic combined case this fix targets (an agent running from
+    # its own shallow CI checkout, on its own dirty in-progress
+    # successor branch, with no other matching ref anywhere) despite
+    # nothing ambiguous ever needing to be resolved.
+    refs_needing_ancestry = [
+        (refname, tip)
+        for refname, tip in all_matching_refs
+        if not _is_current_dirty_branch(refname)
+    ]
+    if refs_needing_ancestry and _is_shallow_repository(resolved):
+        raise DiscoveryError(
+            "repository is a shallow clone -- successor-branch ancestry cannot "
+            "be reliably observed (a shallow boundary can make a genuinely "
+            "merged branch look unmerged); fetch full history (e.g. `git "
+            "fetch --unshallow`) before running discovery"
+        )
+    unmerged_successors: list[str] = []
+    for refname, tip in all_matching_refs:
+        if _is_current_dirty_branch(refname) or not _is_merged_into(resolved, tip, current_main):
+            unmerged_successors.append(refname)
+
     r2_created: Literal["YES", "NO"] = (
-        "YES" if re.search(r"001d-r2", branches, re.IGNORECASE) else "NO"
+        "YES" if any(re.search(r"001d-r2", r, re.IGNORECASE) for r in unmerged_successors) else "NO"
     )
     r7_created: Literal["YES", "NO"] = (
-        "YES" if re.search(r"001d-r7", branches, re.IGNORECASE) else "NO"
+        "YES" if any(re.search(r"001d-r7", r, re.IGNORECASE) for r in unmerged_successors) else "NO"
     )
     started_e: Literal["YES", "NO"] = (
-        "YES" if re.search(r"as-orch-001e", branches, re.IGNORECASE) else "NO"
+        "YES"
+        if any(re.search(r"as-orch-001e", r, re.IGNORECASE) for r in unmerged_successors)
+        else "NO"
     )
-    successors: list[str] = []
-    for line in branches.splitlines():
-        name = line.strip().lstrip("* ").split()[0] if line.strip() else ""
-        if any(pattern.search(name) for pattern in _SUCCESSOR_PATTERNS):
-            successors.append(name)
-    status = _run_git(resolved, "status", "-sb").splitlines()
-    worktree = "CLEAN" if len(status) <= 1 else "DIRTY_UNTRACKED_OR_MODIFIED"
+    worktree = "CLEAN" if not worktree_dirty else "DIRTY_UNTRACKED_OR_MODIFIED"
     pr396: Literal["YES", "NO"] = "YES" if current_branch == _PR396_BRANCH else "NO"
     return LiveInventory(
         current_main=current_main,
         current_tree=current_tree,
         worktree_status=worktree,
         open_relevant_prs=(),
-        active_successor_packages=tuple(successors),
+        active_successor_packages=tuple(unmerged_successors),
         r2_created=r2_created,
         r7_created=r7_created,
         authentic_r6_resumed="NO",
