@@ -32,6 +32,7 @@ from project_atlas.orchestration.autonomy.lease_projection import ProjectionErro
 from project_atlas.orchestration.autonomy.leases import expand_lease
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
+    ExecutionHostClass,
     NodeState,
     OwnerGateKind,
     StopReason,
@@ -262,7 +263,20 @@ class AutonomousLoop:
         branch: str = "feat/as-orch-001e-autonomous-loop",
         worktree: str = "loop-worktree",
         expected_repository_identity: str = CANONICAL_REPOSITORY_IDENTITY,
+        execution_host_class_override: ExecutionHostClass | None = None,
     ) -> None:
+        """``execution_host_class_override`` (AS-ORCH-LOCAL-DISPATCH-001,
+        PR-C): ``None`` by default -- every existing caller (in
+        particular the real CLI entrypoint, ``run_governor_loop_tick()``,
+        which never passes this) is completely unaffected; a node this
+        loop leases keeps whatever ``execution_host_class`` origination
+        materialized it with (``IN_PROCESS`` today, always). Only an
+        explicit, opt-in caller that ALSO supplies a real ``dispatch=``
+        port can set this to route newly-leased work through that port
+        instead -- see ``governor.lease()``'s own docstring for why this
+        can only ever narrow HOW an already-authorized lease executes,
+        never WHETHER it is authorized at all.
+        """
         if trusted.repository_identity != expected_repository_identity:
             raise LoopError("cross-project loop reuse is forbidden", code="CROSS_PROJECT")
         self._governor = governor
@@ -272,6 +286,7 @@ class AutonomousLoop:
         self._dispatch = dispatch
         self._branch = branch
         self._worktree = worktree
+        self._execution_host_class_override = execution_host_class_override
         snapshot = governor.snapshot()
         if evaluate_target_moved(
             snapshot.current_main, snapshot.current_tree, trusted
@@ -630,6 +645,7 @@ class AutonomousLoop:
                 self._first_agent(),
                 branch=self._branch,
                 worktree=self._worktree,
+                execution_host_class_override=self._execution_host_class_override,
             )
         except ProjectionError as exc:
             if exc.code == "CONCURRENT_PROJECTION":

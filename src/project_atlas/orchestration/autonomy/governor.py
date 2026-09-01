@@ -362,6 +362,7 @@ class AutonomousGovernor:
         branch: str,
         worktree: str,
         owner_grant: bool = False,
+        execution_host_class_override: ExecutionHostClass | None = None,
     ) -> AgentLease:
         if self._target_moved:
             raise GovernorError("refusing lease on moved target", code="TARGET_MOVED")
@@ -425,6 +426,31 @@ class AutonomousGovernor:
                 live_main=self._current_main,
             )
         self._leases.append(lease)
+        if execution_host_class_override is not None:
+            # AS-ORCH-LOCAL-DISPATCH-001 (PR-C): an explicit, caller-
+            # supplied execution-backend SELECTION -- applied only after
+            # every authority check above (READY state, dependencies,
+            # owner gate, surface overlap) AND the lease itself has
+            # already been durably granted, so this can never widen what
+            # a node is authorized to do, only choose HOW an
+            # already-authorized, already-granted lease runs.
+            # materialize.py always sets IN_PROCESS; this is the one
+            # deliberate, explicit place that value can be overridden --
+            # never silently, never as a default (this parameter has no
+            # default other than None = unchanged, current behavior).
+            #
+            # Review finding (copilot-pull-request-reviewer, PR #662):
+            # applying this BEFORE grant_lease()/project_grant() left a
+            # node stuck with an overridden execution_host_class but no
+            # actual lease if either of those later steps failed (e.g. an
+            # unknown agent, or a projection-store write error) --
+            # grant_lease() itself never reads node.execution_host_class
+            # (only mutation_surface/state/capabilities), so applying the
+            # override here, after both have already durably succeeded,
+            # changes nothing about what the override can affect while
+            # closing that partial-mutation window.
+            node = node.model_copy(update={"execution_host_class": execution_host_class_override})
+            self._replace(node)
         self.transition(package_id, NodeState.LEASED, f"LEASED_TO_{agent_id}")
         return lease
 

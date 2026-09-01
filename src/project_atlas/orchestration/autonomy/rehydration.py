@@ -40,13 +40,32 @@ Scope, deliberately narrow:
   with ``NODE_NOT_REHYDRATABLE`` rather than fabricate a ``WorkNode`` whose
   mutation surface, acceptance criteria, and IV requirements were never
   durably recorded anywhere.
-- DISPATCHING / AWAITING_RESULT / VALIDATING: execution may already be
-  in-flight (an external 001D dispatch, or a not-yet-finalized verification
-  outcome) with no durable record of exactly how far it got. Guessing here
-  risks re-running, under-running, or double-counting a real side effect.
-  This module fails closed immediately with
-  ``EXECUTION_STATE_NOT_REHYDRATABLE`` rather than reconstruct a node whose
-  state might not match reality.
+- DISPATCHING / AWAITING_RESULT: the same LEASED-phase node/lease
+  reconstruction (``_restore_leased_node``) is attempted first, using
+  the SAME durable evidence (lease projection row + origination
+  projection record) the LEASED case already trusts -- this is not new
+  trust, only reusing it for two more phases. If that reconstruction
+  succeeds, this function returns normally instead of failing closed;
+  the caller is then expected to construct ``AutonomousLoop`` (passing
+  the SAME ``dispatch``/``execution_host_class_override`` it used
+  before restarting) and call its own ``recover()``, which is the
+  actual crash-recovery logic -- it asks the ``DispatchPort`` itself
+  what really happened (``recover()``/``find_active_dispatch_id()``),
+  never guesses. Review finding (chatgpt-codex-connector, PR #662):
+  without this, a dispatch port's own recovery machinery was
+  unreachable through the real ``run_governor_loop_tick()`` entry
+  point -- this function raised before ``AutonomousLoop`` was even
+  constructed. If reconstruction is not possible (not an
+  origination-derived package, no durable lease row, a stale/corrupt
+  record) this still fails closed with
+  ``EXECUTION_STATE_NOT_REHYDRATABLE``, unchanged from before -- this
+  is strictly additive, never a new way to bypass the fail-closed
+  default.
+- VALIDATING: a not-yet-finalized verification outcome, no durable
+  record of exactly how far it got, and no ``DispatchPort`` seam to ask
+  either (verification is a governor-internal step, not a dispatch).
+  Guessing here risks double-counting a real side effect. Still fails
+  closed immediately with ``EXECUTION_STATE_NOT_REHYDRATABLE``.
 """
 
 from __future__ import annotations
@@ -72,6 +91,7 @@ from project_atlas.orchestration.autonomy.models import (
     AgentLease,
     AgentRecord,
     DiscoveryReport,
+    ExecutionHostClass,
     LiveInventory,
     NodeState,
     OwnerGateKind,
@@ -79,11 +99,19 @@ from project_atlas.orchestration.autonomy.models import (
     WorkNode,
 )
 
-#: Loop phases where execution may already be in flight with no durable
-#: record of exactly how far it got. Reconstructing a node here would mean
-#: guessing at reality rather than reading it from evidence -- forbidden.
-_EXECUTION_IN_FLIGHT_PHASES: frozenset[LoopPhase] = frozenset(
-    {LoopPhase.DISPATCHING, LoopPhase.AWAITING_RESULT, LoopPhase.VALIDATING}
+#: Loop phase with a not-yet-finalized verification outcome, no durable
+#: record of exactly how far it got, and no DispatchPort seam to ask --
+#: reconstructing a node here would mean guessing at reality rather than
+#: reading it from evidence. Always fails closed.
+_VERIFICATION_IN_FLIGHT_PHASES: frozenset[LoopPhase] = frozenset({LoopPhase.VALIDATING})
+
+#: Loop phases where a real DispatchPort seam exists to ask "what actually
+#: happened" (AutonomousLoop.recover()) -- node/lease reconstruction is
+#: attempted here via the SAME durable evidence the LEASED case already
+#: trusts, so the caller can reach that seam instead of failing closed
+#: before ever constructing AutonomousLoop.
+_DISPATCH_RECOVERABLE_PHASES: frozenset[LoopPhase] = frozenset(
+    {LoopPhase.DISPATCHING, LoopPhase.AWAITING_RESULT}
 )
 
 #: Loop phases with nothing in flight for the governor to rehydrate.
@@ -111,6 +139,7 @@ def rehydrate_governor(
     loop_store: Path,
     lease_projection_store: Path,
     origination_projection_store: Path | None = None,
+    execution_host_class_override: ExecutionHostClass | None = None,
 ) -> None:
     """Bring a freshly-constructed ``governor`` up to date with durable
     state a prior process persisted, or fail closed.
@@ -129,6 +158,21 @@ def rehydrate_governor(
     origination projection (``orchestration.origination.projection``)
     before falling back to the pre-existing ``NODE_NOT_REHYDRATABLE``
     fail-closed outcome.
+
+    ``execution_host_class_override`` (AS-ORCH-LOCAL-DISPATCH-001, PR-C):
+    ``None`` by default -- every existing caller is unaffected. A
+    granted lease's ``execution_host_class`` override
+    (``governor.lease()``'s own same-named parameter) lives only on the
+    in-memory ``WorkNode``, never in the durable lease projection or the
+    origination-materialized record -- it does not survive a process
+    restart on its own. The caller of ``run_governor_loop_tick()``
+    already re-supplies the SAME runtime configuration (a fixed,
+    operator-set ``local_execution_config``/``argv_template``) on every
+    invocation, restart included, so re-applying it here to a
+    reconstructed node is not a new grant -- it restores exactly the
+    same in-memory fact a live, uninterrupted process would still have
+    had. Applied identically for LEASED/DISPATCHING/AWAITING_RESULT
+    reconstruction (see ``_restore_leased_node``).
     """
     try:
         loop_state = load_loop_state(loop_store)
@@ -149,11 +193,13 @@ def rehydrate_governor(
         # same way AutonomousLoop's constructor would have.
         raise
 
-    if loop_state.phase in _EXECUTION_IN_FLIGHT_PHASES:
+    if loop_state.phase in _VERIFICATION_IN_FLIGHT_PHASES:
         raise RehydrationError(
             f"cannot safely rehydrate governor state for in-flight phase "
             f"{loop_state.phase.value}: no durable record of exactly how far "
-            f"execution progressed before the prior process exited",
+            f"execution progressed before the prior process exited, and no "
+            f"DispatchPort seam to ask (verification is governor-internal, "
+            f"not a dispatch)",
             code="EXECUTION_STATE_NOT_REHYDRATABLE",
         )
 
@@ -186,7 +232,9 @@ def rehydrate_governor(
     if loop_state.phase in _NO_ACTIVE_LEASE_PHASES:
         return
 
-    if loop_state.phase != LoopPhase.LEASED:  # pragma: no cover - defensive
+    if loop_state.phase not in ({LoopPhase.LEASED} | _DISPATCH_RECOVERABLE_PHASES):
+        # pragma: no cover - defensive; every LoopPhase value is handled by
+        # one of the branches above or this one.
         raise RehydrationError(
             f"unrecognized loop phase {loop_state.phase.value!r} during rehydration",
             code="STATE_INCONSISTENT",
@@ -196,19 +244,38 @@ def rehydrate_governor(
     lease_id = loop_state.active_lease_id
     if package_id is None or lease_id is None:
         raise RehydrationError(
-            "LEASED phase is missing active_package_id or active_lease_id",
+            f"{loop_state.phase.value} phase is missing active_package_id or "
+            f"active_lease_id",
             code="STATE_INCONSISTENT",
         )
-    _restore_leased_node(
-        governor,
-        inventory=inventory,
-        package_id=package_id,
-        lease_id=lease_id,
-        already_discovered_package_ids=newly_discovered,
-        candidate_owner_gates={c.package_id: c.owner_gate for c in report.candidates},
-        lease_projection_store=lease_projection_store,
-        origination_projection_store=origination_projection_store,
-    )
+    try:
+        _restore_leased_node(
+            governor,
+            inventory=inventory,
+            package_id=package_id,
+            lease_id=lease_id,
+            already_discovered_package_ids=newly_discovered,
+            candidate_owner_gates={c.package_id: c.owner_gate for c in report.candidates},
+            lease_projection_store=lease_projection_store,
+            origination_projection_store=origination_projection_store,
+            execution_host_class_override=execution_host_class_override,
+        )
+    except RehydrationError:
+        if loop_state.phase is LoopPhase.LEASED:
+            # Unchanged, pre-existing behavior: the LEASED case's own
+            # specific error code (NODE_NOT_REHYDRATABLE, STALE_LEASE,
+            # LEASE_NOT_PROJECTED, ...) propagates as-is.
+            raise
+        # DISPATCHING / AWAITING_RESULT: reconstruction was not possible
+        # (not an origination-derived/pilot package, no durable lease
+        # row, a stale/corrupt record, ...) -- fail closed exactly as
+        # this phase always has, never a new bypass.
+        raise RehydrationError(
+            f"cannot safely rehydrate governor state for in-flight phase "
+            f"{loop_state.phase.value}: node/lease reconstruction was not "
+            f"possible from durable evidence",
+            code="EXECUTION_STATE_NOT_REHYDRATABLE",
+        ) from None
 
 
 def _originate(
@@ -347,6 +414,7 @@ def _restore_leased_node(
     candidate_owner_gates: dict[str, OwnerGateKind | None],
     lease_projection_store: Path,
     origination_projection_store: Path | None = None,
+    execution_host_class_override: ExecutionHostClass | None = None,
 ) -> None:
     origination_node: WorkNode | None = None
     if package_id != PILOT_PACKAGE_ID:
@@ -499,6 +567,27 @@ def _restore_leased_node(
         )
 
         governor.restore_lease(lease)
+        if execution_host_class_override is not None:
+            # AS-ORCH-LOCAL-DISPATCH-001 (PR-C): mirrors governor.lease()'s
+            # own override-after-grant ordering (see that method's own
+            # comment) -- applied only after the lease is fully restored
+            # and durably confirmed, so this can never widen what the
+            # restored node is authorized to do, only re-establish the
+            # SAME in-memory fact (which node executes where) a live,
+            # uninterrupted process would still have had. See
+            # rehydrate_governor()'s own docstring for why re-supplying
+            # this on every restart is not a new grant. Re-fetched fresh
+            # from the governor (not the earlier `rebuilt_node` capture)
+            # since `restore_lease()` itself just transitioned the
+            # node's state (e.g. READY -> LEASED) -- overwriting with the
+            # pre-transition snapshot would silently revert that.
+            current = next(
+                item for item in governor.snapshot().nodes if item.package_id == package_id
+            )
+            overridden = current.model_copy(
+                update={"execution_host_class": execution_host_class_override}
+            )
+            governor._replace(overridden)
     except (GovernorError, IllegalTransitionError) as exc:
         # A prior process's real governor would have gone through these
         # exact same transitions successfully to reach LEASED in the first
