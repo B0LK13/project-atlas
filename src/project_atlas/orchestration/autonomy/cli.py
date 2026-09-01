@@ -456,8 +456,15 @@ def run_trust_checkpoint(
             store=trust_store,
             expected_repository_identity=repository_identity,
         )
-    except TrustError as exc:
-        code = getattr(exc, "code", "CHECKPOINT_DENIED")
+    except (TrustError, OSError) as exc:
+        # OSError (IV finding, PR #664): store I/O -- e.g. a permission-
+        # denied writing to --trust-store -- previously escaped uncaught
+        # here instead of producing the same clean, fail-closed JSON
+        # report every other genuine problem in this command already
+        # gets.
+        code = getattr(exc, "code", None) or (
+            "CHECKPOINT_STORE_IO_ERROR" if isinstance(exc, OSError) else "CHECKPOINT_DENIED"
+        )
         return {
             "schema_version": 1,
             "package_id": AUTONOMY_PACKAGE_ID,

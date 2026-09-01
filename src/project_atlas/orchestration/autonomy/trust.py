@@ -18,7 +18,7 @@ import subprocess
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Final, Protocol
+from typing import Protocol
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.models import (
@@ -31,6 +31,7 @@ from project_atlas.orchestration.autonomy.models import (
     INITIAL_RETARGET_SOURCE_DIRECTIVE,
     INITIAL_RETARGET_SOURCE_PR,
     INITIAL_RETARGET_TREE,
+    MAX_FIRST_PARENT_CHECKPOINT_HOPS,
     PIN_RETARGET_PACKAGE_ID,
     AdvancementProof,
     AdvancementReason,
@@ -427,9 +428,6 @@ def advance_trusted_anchor(
     return compare_and_advance(store, current, new_record)
 
 
-_MAX_FIRST_PARENT_WALK: Final[int] = 100_000
-
-
 def _walk_first_parent_chain(
     topology: GitTopology, target: str, ancestor: str
 ) -> tuple[int, str] | None:
@@ -455,7 +453,7 @@ def _walk_first_parent_chain(
         return None
     chain = [target]
     current = target
-    for _ in range(_MAX_FIRST_PARENT_WALK):
+    for _ in range(MAX_FIRST_PARENT_CHECKPOINT_HOPS):
         parents = topology.parents_of(current)
         if not parents:
             return None
@@ -509,10 +507,43 @@ class CheckpointChecks:
         )
 
 
+def _checkpoint_evidence_binding(proof: TrustCheckpointProof) -> dict[str, object]:
+    """The exact structure ``evidence_digest`` must hash over.
+
+    BINDS the evidence to this specific checkpoint's own security-
+    relevant claims (IV finding, PR #664: hashing ``evidence_payload``
+    alone left ``evidence_digest`` self-referential -- a legitimately-
+    authorized evidence payload/digest pair for one target could be
+    lifted, unchanged, onto an entirely different topology-valid proof
+    for a DIFFERENT target/ancestry/authorization and still pass, since
+    nothing tied the evidence to WHICH checkpoint it was meant to
+    certify). Every field a reader would need to know "what did the
+    owner actually authorize" is included, so a digest computed for one
+    proof can never validate a different one.
+    """
+    return {
+        "evidence_payload": proof.evidence_payload,
+        "repository_identity": proof.repository_identity,
+        "owner_authorization": proof.owner_authorization,
+        "checkpoint_reason": proof.checkpoint_reason,
+        "expected_previous_main": proof.expected_previous_main,
+        "expected_previous_tree": proof.expected_previous_tree,
+        "target_main": proof.target_main,
+        "target_tree": proof.target_tree,
+        "target_merge_parent_1": proof.target_merge_parent_1,
+        "target_merge_parent_2": proof.target_merge_parent_2,
+        "certified_candidate_head": proof.certified_candidate_head,
+        "certified_candidate_tree": proof.certified_candidate_tree,
+        "first_parent_hop_count": proof.first_parent_hop_count,
+        "first_parent_chain_digest": proof.first_parent_chain_digest,
+        "post_merge_seal": proof.post_merge_seal,
+        "post_merge_ci": proof.post_merge_ci,
+        "independent_verification": proof.independent_verification,
+    }
+
+
 def verify_checkpoint_evidence_integrity(proof: TrustCheckpointProof) -> bool:
-    if proof.evidence_payload is None:
-        return False
-    return hash_payload(proof.evidence_payload) == proof.evidence_digest
+    return hash_payload(_checkpoint_evidence_binding(proof)) == proof.evidence_digest
 
 
 def evaluate_checkpoint_recovery(
@@ -530,8 +561,13 @@ def evaluate_checkpoint_recovery(
     target_exists = topology.commit_exists(proof.target_main)
     target_tree = topology.tree_of(proof.target_main) if target_exists else ""
     parents = topology.parents_of(proof.target_main) if target_exists else ()
-    parent_1_ok = len(parents) >= 2 and parents[0] == proof.target_merge_parent_1
-    parent_2_ok = len(parents) >= 2 and parents[1] == proof.target_merge_parent_2
+    # Exactly 2, not >= 2 (IV finding, PR #664): an octopus merge (3+
+    # parents) satisfying only the first two would let a proof describe
+    # an incomplete parent set while still being accepted as though it
+    # fully described the target commit -- contradicting this record's
+    # own "ACTUAL git parents" truthfulness claim.
+    parent_1_ok = len(parents) == 2 and parents[0] == proof.target_merge_parent_1
+    parent_2_ok = len(parents) == 2 and parents[1] == proof.target_merge_parent_2
     candidate_exists = topology.commit_exists(proof.certified_candidate_head)
     candidate_tree = topology.tree_of(proof.certified_candidate_head) if candidate_exists else ""
     walk = (
@@ -611,6 +647,49 @@ def _record_from_verified_checkpoint(
     return seal_anchor(unsigned)
 
 
+def _checkpoint_already_used(store: Path) -> bool:
+    """True if a checkpoint recovery has EVER been applied through this
+    store -- current record OR anywhere in its retained history.
+
+    Checkpoint recovery is a ONE-TIME capability per store (IV finding,
+    PR #664: without this, nothing stopped an operator from repeating
+    checkpoint recovery for every subsequent merge -- including ordinary
+    ones -- permanently bypassing ``advance_trusted_anchor()`` instead of
+    using it as intended, defeating the whole "recovery, not a routine
+    path" premise). ``compare_and_advance()`` never deletes history (it
+    refuses to rewrite an existing history entry), so a durable, honest
+    answer only requires reading what is already there -- no separate
+    flag to keep in sync. Fails closed (returns ``True``, i.e. "assume
+    already used, deny") on anything that prevents a confident "never
+    used" answer: a corrupt current record, or a history entry that
+    cannot be read as a JSON object -- never silently treats "I could
+    not tell" as "safe to proceed."
+    """
+    root = _require_store_root(store)
+    current_path = _store_path(root, CURRENT_RECORD_NAME)
+    if current_path.is_file():
+        try:
+            current = _load_store_current(root)
+        except TrustError:
+            return True
+        if current.advancement_reason == AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT:
+            return True
+    history_dir = _store_path(root, HISTORY_DIR_NAME)
+    if not history_dir.is_dir():
+        return False
+    for entry in sorted(history_dir.glob("*.json")):
+        try:
+            payload = json.loads(entry.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            return True
+        if not isinstance(payload, dict):
+            return True
+        checkpoint_reason = AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT.value
+        if payload.get("advancement_reason") == checkpoint_reason:
+            return True
+    return False
+
+
 def advance_via_checkpoint_recovery(
     current: TrustedAnchorRecord,
     proof: TrustCheckpointProof,
@@ -650,6 +729,14 @@ def advance_via_checkpoint_recovery(
         )
     if proof.expected_previous_main != current.trusted_main:
         raise TrustError("stale or concurrent predecessor", code="PREDECESSOR_MISMATCH")
+    if _checkpoint_already_used(store):
+        raise TrustError(
+            "a checkpoint recovery has already been applied through this "
+            "trust store -- checkpoint recovery is a one-time capability; "
+            "use ordinary single-hop advance_trusted_anchor() for all "
+            "further advancement",
+            code="CHECKPOINT_ALREADY_USED",
+        )
 
     observed_main, observed_tree = topology.observe_main()
     require_full_pin(observed_main, "observed_main")

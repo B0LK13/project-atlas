@@ -23,6 +23,13 @@ DIRECTIVE_ID: Final[Literal["D-AUTONOMY-TRANSITION-001"]] = "D-AUTONOMY-TRANSITI
 PIN_RETARGET_PACKAGE_ID: Final[str] = "AS-ORCH-AUTONOMY-001-PIN-RETARGET"
 PIN_RETARGET_DIRECTIVE_ID: Final[str] = "D-AUTONOMY-PIN-RETARGET-003"
 MAX_AUTONOMOUS_REMEDIATION_CYCLES: Final[int] = 3
+# Single source of truth for the checkpoint-recovery first-parent walk
+# bound, shared with trust.py's `_walk_first_parent_chain()` (imported
+# from here, never redefined there) so the schema's accepted range and
+# the runtime walk's actual bound can never drift apart (IV finding,
+# PR #664: a schema max exceeding the runtime bound let some schema-
+# valid proofs be impossible to ever validate on a long-lived repo).
+MAX_FIRST_PARENT_CHECKPOINT_HOPS: Final[int] = 100_000
 # Historical genesis only. Not runtime authority after pin-retarget.
 BOOTSTRAP_MAIN: Final[str] = "23ebc0293a8988bc4f144cad6b478c6bff4d32d0"
 BOOTSTRAP_TREE: Final[str] = "d7f5059d99e879502570245358e5a1612c52e739"
@@ -584,7 +591,16 @@ class TrustCheckpointProof(BaseModel):
     target_merge_parent_2: str = Field(min_length=40, max_length=40)
     certified_candidate_head: str = Field(min_length=40, max_length=40)
     certified_candidate_tree: str = Field(min_length=40, max_length=40)
-    first_parent_hop_count: int = Field(ge=1, le=1_000_000)
+    # ge=2, not 1: a hop_count of exactly 1 means `target_main`'s first
+    # parent IS `current.trusted_main` directly -- precisely the case
+    # ordinary single-hop `advance_trusted_anchor()` already handles,
+    # strictly, with no staleness gap to recover from. Schema-rejecting
+    # hop_count==1 here structurally forbids using this ONE-TIME recovery
+    # capability as a substitute for routine advancement on every merge
+    # (IV finding, PR #664). le matches MAX_FIRST_PARENT_CHECKPOINT_HOPS,
+    # the same bound trust.py's `_walk_first_parent_chain()` enforces at
+    # runtime -- kept as one shared constant so they cannot drift apart.
+    first_parent_hop_count: int = Field(ge=2, le=MAX_FIRST_PARENT_CHECKPOINT_HOPS)
     first_parent_chain_digest: str = Field(min_length=64, max_length=64)
     post_merge_seal: Literal["PASS", "FAIL"]
     post_merge_ci: Literal["PASS", "FAIL"]
@@ -594,7 +610,13 @@ class TrustCheckpointProof(BaseModel):
     source_package: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
     source_directive: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
     source_pr: int = Field(ge=1, le=1_000_000)
-    evidence_payload: dict[str, object] | None = None
+    # Required, never optional (IV finding, PR #664): verification always
+    # treats a missing payload as an automatic integrity failure anyway
+    # (`verify_checkpoint_evidence_integrity`), so making it required here
+    # lets a proof missing it fail fast and clearly at schema validation
+    # (PROOF_INVALID) instead of surfacing later as a less specific
+    # CHECKPOINT_DENIED.
+    evidence_payload: dict[str, object]
 
     @field_validator(
         "expected_previous_main",

@@ -30,12 +30,14 @@ from project_atlas.orchestration.autonomy.trust import (
     CheckpointChecks,
     FixtureGitObserver,
     TrustError,
+    _checkpoint_evidence_binding,
     advance_via_checkpoint_recovery,
     classify_observation,
     evaluate_checkpoint_recovery,
     evaluate_target_moved,
     initialize_store,
     seal_anchor,
+    verify_checkpoint_evidence_integrity,
 )
 
 OLD_MAIN = "a" * 40
@@ -125,7 +127,13 @@ def _proof(
     digest: str | None = None,
 ) -> TrustCheckpointProof:
     evidence = payload if payload is not None else _payload()
-    return TrustCheckpointProof(
+    # evidence_digest must bind to the whole proof (not just the free-
+    # form payload) -- construct with a placeholder first, then compute
+    # the real digest via the same binding trust.py's own
+    # verify_checkpoint_evidence_integrity() uses, unless the caller
+    # passed an explicit (possibly deliberately wrong, for a denial
+    # test) `digest`.
+    draft = TrustCheckpointProof(
         repository_identity=identity,
         owner_authorization=owner,  # type: ignore[arg-type]
         checkpoint_reason=reason,  # type: ignore[arg-type]
@@ -143,12 +151,16 @@ def _proof(
         post_merge_ci=ci,  # type: ignore[arg-type]
         independent_verification=iv,  # type: ignore[arg-type]
         evidence_reference="tests/fixtures/checkpoint-proof.json",
-        evidence_digest=digest or hash_payload(evidence),
+        evidence_digest=digest or "0" * 64,
         source_package="AS-ORCH-AUTONOMY-001-PIN-RETARGET",
         source_directive="D-AUTONOMY-PIN-RETARGET-003",
         source_pr=2,
         evidence_payload=evidence,
     )
+    if digest is not None:
+        return draft
+    bound_digest = hash_payload(_checkpoint_evidence_binding(draft))
+    return draft.model_copy(update={"evidence_digest": bound_digest})
 
 
 def _topology(
@@ -366,10 +378,18 @@ def test_n_stale_or_concurrent_writer_denied(tmp_path: Path) -> None:
     initialize_store(store, current)
     advance_via_checkpoint_recovery(current, proof, _topology(), store=store)
     # A second attempt using the SAME (now-stale) `current` snapshot must
-    # be rejected -- the store has already moved on.
+    # be rejected -- the store has already moved on. In practice this now
+    # fires as CHECKPOINT_ALREADY_USED (item's own one-time-use gate,
+    # checked earliest) rather than reaching the deeper CAS check -- but
+    # either denial reason is acceptable defense-in-depth for this
+    # scenario; what matters is that SOME denial happens.
     with pytest.raises(TrustError) as exc:
         advance_via_checkpoint_recovery(current, _proof(current), _topology(), store=store)
-    assert exc.value.code in {"PREDECESSOR_MISMATCH", "ANCHOR_CAS_MISMATCH"}
+    assert exc.value.code in {
+        "PREDECESSOR_MISMATCH",
+        "ANCHOR_CAS_MISMATCH",
+        "CHECKPOINT_ALREADY_USED",
+    }
 
 
 def test_o_rollback_target_denied(tmp_path: Path) -> None:
@@ -387,7 +407,11 @@ def test_o_rollback_target_denied(tmp_path: Path) -> None:
 
 def test_o_rollback_via_denial_path(tmp_path: Path) -> None:
     current = _current_anchor(main=TARGET_MAIN, tree=TARGET_TREE)
-    proof = _proof(current, target_main=TARGET_MAIN, hop_count=1, chain_digest="ee" * 32)
+    # hop_count=2 (the schema minimum): target_main == current.trusted_main
+    # still makes the walk fail immediately (target == ancestor), regardless
+    # of what hop_count/chain_digest claim -- the ancestry check, not the
+    # hop-count/digest checks, is what denies this.
+    proof = _proof(current, target_main=TARGET_MAIN, hop_count=2, chain_digest="ee" * 32)
     topology = _topology(observed_main=TARGET_MAIN, observed_tree=TARGET_TREE)
     with pytest.raises(TrustError) as exc:
         advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
@@ -396,7 +420,7 @@ def test_o_rollback_via_denial_path(tmp_path: Path) -> None:
 
 def test_p_checkpoint_to_same_anchor_denied(tmp_path: Path) -> None:
     current = _current_anchor()
-    proof = _proof(current, target_main=OLD_MAIN, target_tree=OLD_TREE, hop_count=1)
+    proof = _proof(current, target_main=OLD_MAIN, target_tree=OLD_TREE, hop_count=2)
     topology = _topology(observed_main=OLD_MAIN, observed_tree=OLD_TREE)
     with pytest.raises(TrustError) as exc:
         advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
@@ -493,3 +517,110 @@ def test_checkpoint_checks_reports_each_failure_independently() -> None:
     assert checks.owner_authorization_proven is True
     assert checks.first_parent_ancestry is True
     assert checks.all_required is False
+
+
+# ---------------------------------------------------------------------------
+# Fresh-IV-round remediation (PR #664 review): evidence-target binding,
+# genuine one-time-use enforcement, hop_count>=2, exactly-2-parents, and
+# OSError fail-closed in the CLI layer.
+# ---------------------------------------------------------------------------
+
+
+def test_evidence_digest_bound_to_target_not_reusable_across_targets() -> None:
+    """Review finding: evidence_digest must be a binding commitment over
+    the WHOLE proof, not just the free-form evidence_payload -- otherwise
+    a legitimately-authorized evidence payload/digest pair for one target
+    could be lifted, unchanged, onto a proof for a completely different
+    target/ancestry/authorization and still pass integrity, making the
+    resulting owner-authorization claim untraceable to evidence for that
+    specific target."""
+    current = _current_anchor()
+    proof_a = _proof(current, target_main=TARGET_MAIN)
+    assert verify_checkpoint_evidence_integrity(proof_a) is True  # sanity: legit proof validates
+
+    # Lift proof_a's evidence_payload/evidence_digest verbatim onto a
+    # proof for a DIFFERENT target -- must now fail.
+    proof_b = _proof(
+        current,
+        target_main=OTHER_MAIN,
+        payload=proof_a.evidence_payload,
+        digest=proof_a.evidence_digest,
+    )
+    assert verify_checkpoint_evidence_integrity(proof_b) is False
+
+
+def test_checkpoint_recovery_is_genuinely_one_time_ever(tmp_path: Path) -> None:
+    """A SECOND checkpoint recovery must be refused even against the
+    store's genuinely CURRENT (non-stale) state -- checkpoint recovery is
+    a one-time capability, never a repeatable substitute for ordinary
+    single-hop advance_trusted_anchor() on every subsequent merge."""
+    current = _current_anchor()
+    store = tmp_path / "store"
+    initialize_store(store, current)
+    first_proof = _proof(current)
+    advanced = advance_via_checkpoint_recovery(current, first_proof, _topology(), store=store)
+    assert advanced.advancement_reason == AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT
+
+    # A second, well-formed-looking checkpoint FROM THE NEW (correct,
+    # non-stale) anchor must still be denied -- fires before topology is
+    # even consulted, so the second proof's target need not be real.
+    second_proof = _proof(advanced, target_main=OTHER_MAIN, hop_count=2, chain_digest="cc" * 32)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(advanced, second_proof, _topology(), store=store)
+    assert exc.value.code == "CHECKPOINT_ALREADY_USED"
+
+
+def test_hop_count_of_one_is_schema_rejected() -> None:
+    """A checkpoint proof claiming exactly 1 hop -- i.e. current.
+    trusted_main IS target_main's direct first parent -- is exactly the
+    case ordinary single-hop advance_trusted_anchor() already handles
+    strictly; the schema itself forbids using checkpoint recovery as a
+    substitute for that."""
+    current = _current_anchor()
+    with pytest.raises(ValidationError):
+        _proof(current, hop_count=1)
+
+
+def test_octopus_merge_target_rejected(tmp_path: Path) -> None:
+    """A checkpoint target with 3+ parents (an octopus merge) must be
+    rejected even if the first two happen to match the proof -- the
+    proof would otherwise describe an incomplete parent set while being
+    accepted as though it fully described the target."""
+    objects: dict[str, tuple[str, tuple[str, ...]]] = {
+        OLD_MAIN: (OLD_TREE, ()),
+        MID_1: (OLD_TREE, (OLD_MAIN,)),
+        MID_2: (OLD_TREE, (MID_1,)),
+        CANDIDATE_HEAD: (CANDIDATE_TREE, ()),
+        SIDE_BRANCH: (OLD_TREE, (OLD_MAIN,)),
+        TARGET_MAIN: (TARGET_TREE, (MID_2, CANDIDATE_HEAD, SIDE_BRANCH)),
+    }
+    topology = FixtureGitObserver(
+        observed_main=TARGET_MAIN, observed_tree=TARGET_TREE, objects=objects
+    )
+    current = _current_anchor()
+    proof = _proof(current)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_run_trust_checkpoint_catches_store_io_error(tmp_path: Path) -> None:
+    """An OSError from store I/O (e.g. an obstructed trust-store path)
+    must produce the same clean, fail-closed JSON report as every other
+    genuine problem here -- never an unhandled exception escaping the
+    CLI entrypoint."""
+    from project_atlas.orchestration.autonomy.cli import EXIT_ERROR, run_trust_checkpoint
+
+    obstruction = tmp_path / "not_a_directory"
+    obstruction.write_text("i am a file", encoding="utf-8")
+    trust_store = obstruction / "trust"  # parent is a file -- mkdir must fail
+
+    report, exit_code = run_trust_checkpoint(
+        root=tmp_path,
+        trust_store=trust_store,
+        proof_path=tmp_path / "does-not-matter.json",
+        bootstrap_from_shipped=True,
+    )
+    assert exit_code == EXIT_ERROR
+    assert report["checkpoint_advanced"] is False
+    assert report["blocker"] == "CHECKPOINT_STORE_IO_ERROR"
