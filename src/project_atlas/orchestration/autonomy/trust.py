@@ -520,6 +520,25 @@ def _checkpoint_evidence_binding(proof: TrustCheckpointProof) -> dict[str, objec
     certify). Every field a reader would need to know "what did the
     owner actually authorize" is included, so a digest computed for one
     proof can never validate a different one.
+
+    ``source_package``/``source_directive``/``source_pr``/
+    ``evidence_reference`` added (follow-up finding: PR #666's sibling
+    bounded-catchup mechanism was independently reviewed and found to have
+    the identical gap in ITS OWN evidence binding -- these four fields are
+    persisted verbatim into the sealed ``TrustedAnchorRecord`` by
+    ``_record_from_verified_proof``-equivalent construction
+    (``advance_via_checkpoint_recovery`` -> the record built from this
+    proof), so a checkpoint's provenance -- WHICH work item/directive/
+    evidence document actually authorized it -- must be exactly as
+    tamper-evident as its topology/authorization fields already were).
+    Safe to change without invalidating this repository's real, already-
+    persisted checkpoint record: ``TrustedAnchorRecord.record_digest`` is a
+    wholly separate hash over the RECORD's own fields
+    (``verify_anchor_integrity`` / ``seal_anchor``), never over this
+    binding; this function is only ever consulted while VERIFYING an
+    incoming ``TrustCheckpointProof``, which the one-time
+    ``_checkpoint_already_used`` gate makes structurally unreachable again
+    for this store regardless.
     """
     return {
         "evidence_payload": proof.evidence_payload,
@@ -539,6 +558,10 @@ def _checkpoint_evidence_binding(proof: TrustCheckpointProof) -> dict[str, objec
         "post_merge_seal": proof.post_merge_seal,
         "post_merge_ci": proof.post_merge_ci,
         "independent_verification": proof.independent_verification,
+        "source_package": proof.source_package,
+        "source_directive": proof.source_directive,
+        "source_pr": proof.source_pr,
+        "evidence_reference": proof.evidence_reference,
     }
 
 
