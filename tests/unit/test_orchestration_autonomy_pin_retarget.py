@@ -34,6 +34,7 @@ from project_atlas.orchestration.autonomy.trust import (
     build_initial_retarget_record,
     classify_observation,
     compare_and_advance,
+    evaluate_advancement,
     evaluate_target_moved,
     initialize_store,
     load_runtime_anchor,
@@ -490,6 +491,56 @@ def test_positive_c_disposable_future_valid_advancement(tmp_path: Path) -> None:
     reloaded = load_runtime_anchor(store=tmp_path)
     assert reloaded.record_digest == advanced.record_digest
     assert (tmp_path / "history" / "00000001.json").is_file()
+
+
+def test_octopus_merge_denied(tmp_path: Path) -> None:
+    """IV finding on the merge-tree-equality-relax PR: removing the old
+    `merge_tree == authorized_candidate_tree` equality had, as an
+    accidental side effect, been the only thing standing between an
+    octopus merge (3+ parents) and a real content-injection path -- a
+    third, uncredited parent could smuggle its own content into the newly
+    `trusted_tree` while `parent_1_ok`/`parent_2_ok` only ever inspected
+    `parents[0]`/`parents[1]`. `evaluate_advancement()` now requires
+    exactly 2 parents, mirroring the same protection checkpoint recovery
+    and bounded catch-up already had (PR #664 IV finding). Reproduces the
+    exact attack shape: a 3-parent commit `(trusted_main, candidate_head,
+    third_parent)` whose tree is unrelated to `candidate_head`'s own
+    tree -- must be denied."""
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    smuggled_tree = "7" * 40  # unrelated to both OLD_TREE and NEW_TREE
+    third_parent = "8" * 40
+    topology = FixtureGitObserver(
+        observed_main=NEW_MERGE,
+        observed_tree=smuggled_tree,
+        objects={
+            OLD_MAIN: (OLD_TREE, ()),
+            NEW_HEAD: (NEW_TREE, ()),
+            third_parent: (smuggled_tree, ()),
+            # Octopus: 3 parents, not 2. A third, uncredited parent's
+            # content ends up in the merge tree.
+            NEW_MERGE: (smuggled_tree, (OLD_MAIN, NEW_HEAD, third_parent)),
+        },
+    )
+    proof = _proof(current, merge_tree=smuggled_tree)
+    # Sanity check first (caught a real bug in an earlier draft of this
+    # test): confirm every OTHER check independently passes, so a denial
+    # can only be attributed to the parent-count guard this test exists
+    # to prove -- not a coincidental failure elsewhere (e.g. an
+    # uninitialized store).
+    checks = evaluate_advancement(
+        current, proof, topology, observed_main=NEW_MERGE, observed_tree=smuggled_tree
+    )
+    assert checks.merge_parent_1_match is False or checks.merge_parent_2_match is False
+    assert checks.owner_authorization_proven
+    assert checks.expected_previous_main_match
+    assert checks.authorized_candidate_head_match
+    assert checks.authorized_candidate_tree_match
+    assert checks.merge_tree_match
+    assert checks.evidence_integrity
+    initialize_store(tmp_path, current)
+    with pytest.raises(TrustError) as exc:
+        advance_trusted_anchor(current, proof, topology, store=tmp_path)
+    assert exc.value.code == "ADVANCEMENT_DENIED"
 
 
 def test_positive_d_genuine_three_way_merge_advances(tmp_path: Path) -> None:

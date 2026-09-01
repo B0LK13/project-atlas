@@ -10872,9 +10872,29 @@ honestly distinct from the certified candidate's own tree.
 Full `orchestration_autonomy`-scoped suite (265 tests) + freeze guard
 pass unchanged; ruff/mypy clean.
 
-Disclosed, NOT fixed here (separate follow-up, same shape as the
-provenance-binding fixes): `evaluate_advancement()`'s `parent_1_ok`/
-`parent_2_ok` use `len(parents) >= 2`, not `== 2` -- unlike the checkpoint
-and catch-up paths, which reject octopus merges (3+ parents) on exactly
-this same principle (PR #664 IV finding). Ordinary advancement does not
-yet have the equivalent protection.
+### IV round found the octopus-merge gap was inert, not absent -- and this PR activates it
+
+Independent adversarial IV on this same PR found that `evaluate_
+advancement()`'s `parent_1_ok`/`parent_2_ok` used `len(parents) >= 2`,
+not `== 2` -- initially disclosed above as a pre-existing, out-of-scope
+gap (unlike checkpoint recovery and bounded catch-up, which already
+reject octopus merges on this principle, PR #664 IV finding). The IV
+agent proved this was the WRONG call: under the OLD code, the removed
+`merge_tree == authorized_candidate_tree` equality had, as an accidental
+side effect, been the only thing preventing a third, uncredited parent
+in an octopus merge from smuggling its own content into `trusted_tree`
+(a real, empirically-demonstrated content-injection path, reproduced with
+a real disposable git repo and `git commit-tree`). This PR is what turns
+that gap from inert into exploitable, so it must not ship without closing
+it in the same PR.
+
+Fixed here: `parent_1_ok`/`parent_2_ok` now require `len(parents) == 2`,
+mirroring the identical protection already in `evaluate_checkpoint_
+recovery()`/`_evaluate_catchup_chain()`. New regression test
+(`test_octopus_merge_denied`) reproduces the exact attack shape (a
+3-parent commit whose tree is unrelated to the candidate head's own
+tree) and was verified BOTH ways: fails correctly against the vulnerable
+`>= 2` code (confirming the test is real, not vacuous -- an earlier draft
+of this test passed for the wrong reason, an uninitialized store, before
+that was caught and fixed) and passes against the `== 2` fix. Full suite
+(269 tests) + freeze guard re-run clean; ruff/mypy clean.
