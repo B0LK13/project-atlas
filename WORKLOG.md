@@ -10270,3 +10270,44 @@ any item beyond what its own real, attached evidence supports. Does not
 self-certify INT-013 or check its backlog box -- that remains a
 deliberate, separate act. `MERGE_AUTHORIZATION` contingent on the
 directive's bounded conditions, not self-granted.
+
+## PR #663 fresh independent IV round 2 (against head 6d170349) -- CONFIRMED_WITH_MINOR_NOTES
+
+A second, fully independent adversarial IV agent (never the implementer)
+re-verified round 1's six fixes (8.1-8.6) against the pushed head with
+its own constructed adversarial tests, not just re-running this PR's
+existing suite -- see the agent's full report in-session for the
+per-item evidence. Verdict: `CONFIRMED_WITH_MINOR_NOTES`, zero
+blocking finding. Two items closed this session as a result:
+
+1. **Cosmetic:** `AcceptanceContractConfigError`'s docstring still
+   listed "a dependency cycle" among the errors it covers -- stale
+   since 8.3/8.4 removed `dependencies`/`forbidden_paths` (and their
+   cycle detection) entirely rather than half-wiring them. Docstring
+   corrected to describe what the class actually covers now.
+2. **Disclosed, deferred, NOT fixed this PR:** the IV constructed a
+   real repro proving acceptance-contract REVOCATION does not retract
+   an already-materialized identity's frozen `WorkNode.owner_gate`/
+   `mutation_surface` fields -- only the current scan's own
+   informational `execution_ready`/`reason` reflects the revocation;
+   the durable record is untouched. This is the SAME "report AS-IS,
+   never rebuild" mechanism `cli.py` already documents for crash-safety
+   (D-PHASE2A-2 finding, pre-existing, not introduced by this PR) --
+   the IV showed the identical mechanism has a second, unintended
+   consequence for revocation. Confirmed live in this repo's own
+   durable store (`D-PHASE2A-2`'s stale pre-8.6-keyword materialized
+   record). **Not live-exploitable today** -- origination is not wired
+   to the governed lease/dispatch loop, so nothing here can turn a
+   stale record into an actual dispatch -- but genuinely unsafe once
+   that wiring lands. Documented in-place with a comment at the exact
+   `cli.py` AS-IS-reporting site (search "Disclosed gap (fresh IV
+   round, PR #663" if resuming) so whoever wires origination to
+   governed dispatch cannot miss it. Tracking this as a required
+   prerequisite for that future wiring work, not for this PR.
+
+Independently reproduced real `atlas originate --root . --project-id
+project-atlas` fresh this session: `eligible_count=19,
+materialized_count=7, not_materialized_count=12`, sole
+`execution_ready=true, owner_gate=null` item still `INT-013`
+(`ORIG-0f50e42156effafe`) -- unchanged, confirmed twice independently
+(once directly, once inside the IV agent's own run).

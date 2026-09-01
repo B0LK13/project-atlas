@@ -97,8 +97,11 @@ class AcceptanceContractConfigError(ValueError):
     the caller must see the error. Covers, by construction or by an
     explicit check: unknown item_id, duplicate contract, path traversal,
     empty scope, missing acceptance evidence, missing success criteria,
-    an evidence/scope path outside the project root, a dependency cycle,
-    and a contract that refers to a completed or nonexistent task.
+    an evidence/scope path outside the project root, evidence exceeding
+    downstream provenance capacity, and a contract that refers to a
+    completed or nonexistent task. (`dependencies`/`forbidden_paths` --
+    and any cycle-detection over them -- were removed entirely rather
+    than half-wired; see the fields' own history for why.)
     """
 
 

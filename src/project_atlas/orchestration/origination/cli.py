@@ -216,6 +216,21 @@ def run_origination_scan(
             # record -- never rebuilt -- so a repeated scan is safe to
             # run at any time, including while that same node is actively
             # leased.
+            #
+            # Disclosed gap (fresh IV round, PR #663, acceptance-contracts
+            # work): this same AS-IS behavior means a REVOKED/altered
+            # acceptance contract does not retract an already-materialized
+            # identity's frozen WorkNode fields (owner_gate, mutation_
+            # surface) either -- only this scan's own informational
+            # `execution_ready`/`reason` for the CURRENT run reflects the
+            # revocation; the durable WorkNode itself is untouched, same
+            # as the crash-safety case above. Not live-exploitable today
+            # (origination is not wired to the governed lease/dispatch
+            # loop -- nothing here can turn a stale record into an actual
+            # dispatch), but must be closed -- e.g. an explicit retraction
+            # path keyed on acceptance-contract identity/revision -- before
+            # that wiring lands, or a revoked contract's prior authority
+            # could silently keep governing a real lease.
             if (
                 existing is not None
                 and existing.work_node is not None
