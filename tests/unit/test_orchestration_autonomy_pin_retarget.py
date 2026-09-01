@@ -492,6 +492,74 @@ def test_positive_c_disposable_future_valid_advancement(tmp_path: Path) -> None:
     assert (tmp_path / "history" / "00000001.json").is_file()
 
 
+def test_positive_d_genuine_three_way_merge_advances(tmp_path: Path) -> None:
+    """Real incident, PR #669: a genuine, honest GitHub 3-way merge commit
+    -- the PR branch predated other merges since landed on main, so the
+    resulting merge tree matches NEITHER parent's own tree (real divergent
+    content combined) -- was structurally denied before this fix, purely
+    because `merge_tree` didn't happen to equal `authorized_candidate_tree`.
+    Both trees remain independently verified against live topology
+    (`merge_tree` against the real tree of `merge_commit`,
+    `authorized_candidate_tree` against the real tree of
+    `authorized_candidate_head`) -- this proves that alone is now
+    sufficient; the two are no longer required to also equal each other."""
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    resolved_merge_tree = "5" * 40  # deliberately != OLD_TREE and != NEW_TREE
+    topology = FixtureGitObserver(
+        observed_main=NEW_MERGE,
+        observed_tree=resolved_merge_tree,
+        objects={
+            OLD_MAIN: (OLD_TREE, ()),
+            NEW_HEAD: (NEW_TREE, ()),
+            # The real merge tree genuinely differs from both parents'
+            # own trees -- an honest recursive 3-way merge, not a
+            # fast-forward-content one.
+            NEW_MERGE: (resolved_merge_tree, (OLD_MAIN, NEW_HEAD)),
+        },
+    )
+    proof = _proof(current, merge_tree=resolved_merge_tree)
+    initialize_store(tmp_path, current)
+    advanced = advance_trusted_anchor(current, proof, topology, store=tmp_path)
+    assert advanced.trusted_main == NEW_MERGE
+    assert advanced.trusted_tree == resolved_merge_tree
+    assert advanced.certified_head == NEW_HEAD
+    assert advanced.certified_tree == NEW_TREE
+    # Truthfully distinct: the new trusted tree is NOT the certified
+    # candidate's own tree -- exactly the shape this fix exists to allow.
+    assert advanced.trusted_tree != advanced.certified_tree
+
+
+def test_merge_tree_still_must_be_the_real_tree_of_merge_commit() -> None:
+    """Regression: removing the candidate-tree equality must not weaken
+    the independent truthfulness check that remains -- a proof claiming a
+    merge_tree that ISN'T the real tree of merge_commit must still be
+    denied, exactly as before."""
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    proof = _proof(current, merge_tree=OTHER_TREE)  # real tree is NEW_TREE, not OTHER_TREE
+    with pytest.raises(TrustError):
+        advance_trusted_anchor(current, proof, _future_topology())
+
+
+def test_authorized_candidate_tree_still_must_be_the_real_tree_of_candidate_head() -> None:
+    """Regression: the OTHER independent truthfulness check (candidate's
+    own tree) also remains fully enforced."""
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    proof = _proof(current, head_tree=OTHER_TREE)  # NEW_HEAD's real tree is NEW_TREE
+    with pytest.raises(TrustError):
+        advance_trusted_anchor(current, proof, _future_topology())
+
+
+def test_observed_main_still_must_be_exact_merge_commit() -> None:
+    """Regression: the relaxation does not weaken the live-main-exact-
+    target requirement -- a proof for a commit that isn't the observed
+    live tip is still denied, independent of tree equality."""
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    proof = _proof(current)
+    topology = _future_topology(observed_main=OTHER_MAIN, observed_tree=NEW_TREE)
+    with pytest.raises(TrustError):
+        advance_trusted_anchor(current, proof, topology)
+
+
 def test_shipped_record_is_evidence_based_not_live_main() -> None:
     shipped = load_shipped_initial_anchor()
     built = build_initial_retarget_record()

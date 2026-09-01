@@ -372,10 +372,29 @@ def evaluate_advancement(
         merge_parent_2_match=(
             parent_2_ok and proof.merge_parent_2 == proof.authorized_candidate_head
         ),
+        # Deliberately does NOT require `proof.merge_tree ==
+        # proof.authorized_candidate_tree` (removed; real incident, PR
+        # #669: a genuine, honest GitHub 3-way merge commit -- the PR's
+        # own branch predated other merges since landed on main, so its
+        # tree necessarily differs from both the resulting merge tree and
+        # its own branch tree once combined -- was structurally denied by
+        # this equality even though every fact it would have added is
+        # ALREADY independently verified below: `merge_tree` is checked
+        # against the REAL tree of `merge_commit`
+        # (`topology.tree_of(...)`, not the proof's own claim about
+        # itself), and `authorized_candidate_tree_match` separately
+        # checks `authorized_candidate_tree` against the REAL tree of
+        # `authorized_candidate_head`. Forcing those two independently-
+        # true facts to also equal EACH OTHER only holds for the special
+        # case of a fast-forward-content merge (no divergent content on
+        # either side to combine) -- it added no verification beyond what
+        # the two checks below already provide, and silently rejected
+        # every equally-legitimate ordinary 3-way merge, which is a
+        # completely normal occurrence whenever two PRs land on main
+        # without both being freshly rebased against each other first.
         merge_tree_match=(
             bool(merge_tree)
             and merge_tree == proof.merge_tree
-            and proof.merge_tree == proof.authorized_candidate_tree
             and observed_tree == proof.merge_tree
             and observed_main == proof.merge_commit
         ),
