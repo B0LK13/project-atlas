@@ -27,8 +27,17 @@ def test_watchdog_waits_for_lock_holder_no_second_spawn(tmp_path: Path) -> None:
     package_src = Path(__file__).resolve().parents[2] / "src"
     root = tmp_path / "runtime"
     (root / ".atlas" / "orchestration" / "sdk-runtime").mkdir(parents=True)
-    detach_resident_driver(root=root, package_src=package_src)
-    holder = 0
+    # Captured directly from the spawn call, not derived from polling --
+    # reviewer finding (Codex + Copilot, both independently): deriving the
+    # cleanup PID only from `read_primary_lock_pid(root)` after the poll
+    # loop meant a slow-starting (not dead) driver that exceeds the poll
+    # budget left `holder` at 0 and skipped cleanup in `finally`, even
+    # though the process was still running -- reproducing the exact leak
+    # this fix exists to close, just on the timeout path instead of the
+    # happy path. `detach_resident_driver()` already returns the real PID
+    # at spawn time, before any polling, so there is no window at all
+    # where a genuinely-running process has no captured PID to clean up.
+    spawned_pid = detach_resident_driver(root=root, package_src=package_src)
     try:
         # Poll budget: 80 * 0.25s = 20s. The resident driver's startup
         # cost is subprocess spawn + a full project_atlas package
@@ -44,6 +53,7 @@ def test_watchdog_waits_for_lock_holder_no_second_spawn(tmp_path: Path) -> None:
             time.sleep(0.25)
         holder = read_primary_lock_pid(root)
         assert holder > 0
+        assert holder == spawned_pid
         result = ensure_resident_alive(root=root, package_src=package_src)
         assert result["action"] == "noop"
         status = load_status(root)
@@ -60,14 +70,14 @@ def test_watchdog_waits_for_lock_holder_no_second_spawn(tmp_path: Path) -> None:
         # (nothing about this repo), which fails and pops a visible
         # console window per attempt -- a real, user-facing leak, not
         # just a lingering background process. Best-effort, PID-scoped
-        # (never broader): only ever targets the exact PID this test
-        # itself observed as the lock holder, and swallows every
-        # failure mode (already exited, permission denied, PID reused
-        # by an unrelated process on a platform without PID-generation
+        # (never broader): always targets the exact PID this test spawned
+        # -- unconditionally, regardless of which assertion above failed
+        # or whether the poll loop ever observed it -- and swallows every
+        # failure mode (already exited, permission denied, PID reused by
+        # an unrelated process on a platform without PID-generation
         # protection) since this is cleanup, not an assertion.
-        if holder > 0:
-            with contextlib.suppress(OSError, ProcessLookupError):
-                os.kill(holder, signal.SIGTERM)
+        with contextlib.suppress(OSError, ProcessLookupError):
+            os.kill(spawned_pid, signal.SIGTERM)
 
 
 def test_observer_timeout_pending_is_not_ci_fail() -> None:
