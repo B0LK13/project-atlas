@@ -555,6 +555,31 @@ def test_evidence_digest_bound_to_target_not_reusable_across_targets() -> None:
     assert verify_checkpoint_evidence_integrity(proof_b) is False
 
 
+def test_provenance_swap_invalidates_evidence_digest() -> None:
+    """Same class of gap independently found and fixed for ordinary
+    advancement (PR #668) and bounded catch-up (PR #666): source_package/
+    source_directive/source_pr/evidence_reference -- persisted verbatim
+    into the sealed TrustedAnchorRecord -- must be bound into
+    evidence_digest, so swapping which work item/directive/evidence
+    document a checkpoint claims to be authorized by (while leaving every
+    topology/authorization field untouched) invalidates the digest."""
+    current = _current_anchor()
+    legit = _proof(current)
+    assert verify_checkpoint_evidence_integrity(legit) is True  # sanity
+
+    swapped_pr = legit.model_copy(update={"source_pr": 999})
+    assert verify_checkpoint_evidence_integrity(swapped_pr) is False
+
+    swapped_package = legit.model_copy(update={"source_package": "AS-SOMETHING-ELSE-001"})
+    assert verify_checkpoint_evidence_integrity(swapped_package) is False
+
+    swapped_directive = legit.model_copy(update={"source_directive": "D-SOMETHING-ELSE-001"})
+    assert verify_checkpoint_evidence_integrity(swapped_directive) is False
+
+    swapped_reference = legit.model_copy(update={"evidence_reference": "tests/fixtures/other.json"})
+    assert verify_checkpoint_evidence_integrity(swapped_reference) is False
+
+
 def test_checkpoint_recovery_is_genuinely_one_time_ever(tmp_path: Path) -> None:
     """A SECOND checkpoint recovery must be refused even against the
     store's genuinely CURRENT (non-stale) state -- checkpoint recovery is
