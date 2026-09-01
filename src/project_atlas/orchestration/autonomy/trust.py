@@ -574,16 +574,16 @@ def _checkpoint_evidence_binding(proof: TrustCheckpointProof) -> dict[str, objec
     ``evidence_reference`` added (same class of gap independently found
     and fixed for ordinary advancement in PR #668, and for bounded
     catch-up in PR #666 -- these four fields are persisted verbatim into
-    the sealed ``TrustedAnchorRecord`` by ``_record_from_verified_
-    checkpoint()``, so a checkpoint's provenance -- WHICH work item/
-    directive/evidence document actually authorized it -- must be
-    exactly as tamper-evident as its topology/authorization fields
-    already were). Safe to change without invalidating this
-    repository's real, already-persisted checkpoint record:
-    ``TrustedAnchorRecord.record_digest`` is a wholly separate hash over
-    the RECORD's own fields (``verify_anchor_integrity`` / ``seal_
-    anchor``), never over this binding; this function is only ever
-    consulted while VERIFYING an incoming ``TrustCheckpointProof``,
+    the sealed ``TrustedAnchorRecord`` by
+    ``_record_from_verified_checkpoint()``, so a checkpoint's provenance
+    -- WHICH work item/directive/evidence document actually authorized
+    it -- must be exactly as tamper-evident as its topology/
+    authorization fields already were). Safe to change without
+    invalidating this repository's real, already-persisted checkpoint
+    record: ``TrustedAnchorRecord.record_digest`` is a wholly separate
+    hash over the RECORD's own fields (``verify_anchor_integrity``/
+    ``seal_anchor``), never over this binding; this function is only
+    ever consulted while VERIFYING an incoming ``TrustCheckpointProof``,
     which the one-time ``_checkpoint_already_used`` gate makes
     structurally unreachable again for this store regardless.
     """
