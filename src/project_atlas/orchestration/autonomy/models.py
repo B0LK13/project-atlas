@@ -30,6 +30,22 @@ MAX_AUTONOMOUS_REMEDIATION_CYCLES: Final[int] = 3
 # PR #664: a schema max exceeding the runtime bound let some schema-
 # valid proofs be impossible to ever validate on a long-lived repo).
 MAX_FIRST_PARENT_CHECKPOINT_HOPS: Final[int] = 100_000
+# Bound for the DISTINCT bounded-catchup mechanism (trust.py's
+# `advance_via_bounded_catchup()`), never the checkpoint-recovery bound
+# above. Deliberately small and unrelated in magnitude to
+# MAX_FIRST_PARENT_CHECKPOINT_HOPS: checkpoint recovery recertifies a
+# stale snapshot without individually evidencing every skipped merge, so
+# it can span an arbitrarily long historical gap; bounded catchup instead
+# requires a full, individually-evidenced CatchupHopProof for EVERY
+# intervening merge, so an unbounded (or even moderately large) hop count
+# would mean accepting an unbounded number of individually-forgeable
+# proof objects in one call. A small bound keeps that surface reviewable
+# and keeps catchup from ever being usable as a substitute for either
+# ordinary single-hop advancement (hop_count == 1 is schema-rejected,
+# same rationale as TrustCheckpointProof's hop_count >= 2) or checkpoint
+# recovery (a large gap is exactly checkpoint recovery's use case, not
+# this one's).
+MAX_CATCHUP_HOPS: Final[int] = 4
 # Historical genesis only. Not runtime authority after pin-retarget.
 BOOTSTRAP_MAIN: Final[str] = "23ebc0293a8988bc4f144cad6b478c6bff4d32d0"
 BOOTSTRAP_TREE: Final[str] = "d7f5059d99e879502570245358e5a1612c52e739"
@@ -171,6 +187,21 @@ class AdvancementReason(StrEnum):
     # and truthfully does NOT claim every skipped intervening merge was
     # individually certified. See trust.py's checkpoint-recovery functions.
     VERIFIED_OWNER_AUTHORIZED_CHECKPOINT = "VERIFIED_OWNER_AUTHORIZED_CHECKPOINT"
+    # Distinct from BOTH reasons above. Ordinary advancement individually
+    # certifies exactly one merge; checkpoint recovery recertifies a stale
+    # snapshot's ancestry without evidencing intervening merges
+    # individually. This reason instead claims a SHORT, BOUNDED sequence
+    # of two or more ordinary first-parent merges each got its own
+    # individual per-hop evidence (source PR, IV, CI, seal, explicit
+    # authorization basis) -- proving every hop, never merely that the old
+    # anchor is *some* ancestor of the new target. Exists for the case
+    # where the runtime anchor fell behind live main by more than one hop
+    # (e.g. two ordinary merges landed before trust was advanced between
+    # them) but the gap is small enough, and every hop well-evidenced
+    # enough, that treating it as a genuine one-time historical-staleness
+    # recovery (VERIFIED_OWNER_AUTHORIZED_CHECKPOINT) would be the wrong
+    # tool -- see trust.py's `advance_via_bounded_catchup()`.
+    VERIFIED_OWNER_AUTHORIZED_CATCHUP = "VERIFIED_OWNER_AUTHORIZED_CATCHUP"
 
 
 class TrustState(StrEnum):
@@ -654,6 +685,167 @@ class TrustCheckpointProof(BaseModel):
     def _candidate_is_second_parent(self) -> TrustCheckpointProof:
         if self.target_merge_parent_2 != self.certified_candidate_head:
             raise ValueError("certified_candidate_head must equal target_merge_parent_2")
+        return self
+
+
+class CatchupHopProof(BaseModel):
+    """One individually-evidenced ordinary merge inside a ``TrustCatchupProof``
+    chain. Distinct from ``AdvancementProof``: a hop is never itself applied
+    to the trust store (only the whole chain is, atomically, via
+    ``advance_via_bounded_catchup()``), so it carries evidence rather than
+    being independently verifiable end-to-end -- ``trust.py`` still checks
+    every field against live git topology and requires each hop's own
+    ``independent_verification``/``post_merge_ci``/``post_merge_seal`` to be
+    ``"PASS"``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    merge_commit: str = Field(min_length=40, max_length=40)
+    merge_tree: str = Field(min_length=40, max_length=40)
+    merge_parent_1: str = Field(min_length=40, max_length=40)
+    merge_parent_2: str = Field(min_length=40, max_length=40)
+    certified_candidate_head: str = Field(min_length=40, max_length=40)
+    certified_candidate_tree: str = Field(min_length=40, max_length=40)
+    source_pr: int = Field(ge=1, le=1_000_000)
+    source_package: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_directive: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    # Honest distinction (owner directive D-ATLAS-BOUNDED-TRUST-CATCHUP-
+    # RECOVERY §7): a hop this proof describes was either explicitly
+    # authorized by the owner *before* it merged (the routine case), or
+    # merged without that prior authorization and was *ratified* by the
+    # owner only afterward, as part of this very catchup. Both are valid
+    # per-hop authorization bases, but a reader must always be able to
+    # tell which one applied to a given hop -- collapsing them into one
+    # value would erase exactly the incident evidence this mechanism
+    # exists to preserve.
+    authorization_basis: Literal["OWNER_AUTHORIZED_AT_MERGE", "OWNER_RATIFIED_EXISTING_MERGE"]
+    independent_verification: Literal["PASS", "FAIL"]
+    post_merge_ci: Literal["PASS", "FAIL"]
+    post_merge_seal: Literal["PASS", "FAIL"]
+    evidence_reference: str = Field(min_length=1, max_length=256)
+    evidence_digest: str = Field(min_length=64, max_length=64)
+    evidence_payload: dict[str, object]
+
+    @field_validator(
+        "merge_commit",
+        "merge_tree",
+        "merge_parent_1",
+        "merge_parent_2",
+        "certified_candidate_head",
+        "certified_candidate_tree",
+    )
+    @classmethod
+    def _pin(cls, value: str) -> str:
+        if not _PIN_RE.fullmatch(value):
+            raise ValueError("hop pins must be 40-char lowercase git SHAs")
+        return value
+
+    @field_validator("evidence_digest")
+    @classmethod
+    def _digest(cls, value: str) -> str:
+        if not re.fullmatch(HASH_PATTERN, value):
+            raise ValueError("evidence_digest must be a SHA-256 hex digest")
+        return value
+
+    @field_validator("evidence_reference")
+    @classmethod
+    def _safe_ref(cls, value: str) -> str:
+        if ".." in value.split("/") or "\\" in value or value.startswith("/") or ":" in value:
+            raise ValueError("reference must be a safe relative identifier")
+        if not _REL_PATH_RE.fullmatch(value):
+            raise ValueError("reference must be a safe relative identifier")
+        return value
+
+    @model_validator(mode="after")
+    def _candidate_is_second_parent(self) -> CatchupHopProof:
+        if self.merge_parent_2 != self.certified_candidate_head:
+            raise ValueError("certified_candidate_head must equal merge_parent_2")
+        return self
+
+
+class TrustCatchupProof(BaseModel):
+    """Owner-supplied BOUNDED, per-hop-evidenced catch-up artifact.
+
+    Distinct from ``AdvancementProof`` (exactly one ordinary hop) and from
+    ``TrustCheckpointProof`` (a ONE-TIME, unbounded-span recertification of
+    a stale snapshot that does NOT individually evidence intervening
+    merges). This proof instead claims a short, bounded (``1 <
+    hop_count <= MAX_CATCHUP_HOPS``) sequence of ordinary first-parent
+    merges, each individually evidenced by its own ``CatchupHopProof``, and
+    that the WHOLE chain -- reconstructed purely from those hops -- also
+    matches the exact independent first-parent walk live git topology
+    produces between ``expected_previous_main`` and ``target_main`` (see
+    ``trust.py``'s ``_verify_catchup_chain()``, which reuses the same
+    ``_walk_first_parent_chain()`` checkpoint recovery already uses, so the
+    two can never silently disagree about what "first-parent chain" means).
+    Never reachable from governor observation alone; always requires this
+    explicit, separately-authored proof object. Does not touch, weaken, or
+    substitute for ``advance_trusted_anchor()`` or the one-time
+    ``advance_via_checkpoint_recovery()`` gate.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    repository_identity: str = Field(min_length=1, max_length=256)
+    owner_authorization: Literal["OWNER_AUTHORIZED"]
+    catchup_reason: Literal["BOUNDED_VERIFIED_TRUST_CATCHUP"]
+    expected_previous_main: str = Field(min_length=40, max_length=40)
+    expected_previous_tree: str = Field(min_length=40, max_length=40)
+    target_main: str = Field(min_length=40, max_length=40)
+    target_tree: str = Field(min_length=40, max_length=40)
+    hops: tuple[CatchupHopProof, ...] = Field(min_length=1, max_length=MAX_CATCHUP_HOPS)
+    # hop_count == 1 is schema-rejected, same rationale as
+    # TrustCheckpointProof.first_parent_hop_count >= 2 and IvRequirements
+    # elsewhere in this module: a single ordinary hop is exactly what
+    # `advance_trusted_anchor()` already handles, strictly. Accepting it
+    # here too would make bounded catchup a routine substitute for it,
+    # contradicting owner directive D-ATLAS-BOUNDED-TRUST-CATCHUP-
+    # RECOVERY §6/§20 ("do not turn catch-up itself into the routine
+    # solution").
+    hop_count: int = Field(ge=2, le=MAX_CATCHUP_HOPS)
+    first_parent_chain_digest: str = Field(min_length=64, max_length=64)
+    evidence_reference: str = Field(min_length=1, max_length=256)
+    evidence_digest: str = Field(min_length=64, max_length=64)
+    source_package: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_directive: str = Field(min_length=1, max_length=128, pattern=ID_PATTERN)
+    source_pr: int = Field(ge=1, le=1_000_000)
+    evidence_payload: dict[str, object]
+
+    @field_validator(
+        "expected_previous_main",
+        "expected_previous_tree",
+        "target_main",
+        "target_tree",
+    )
+    @classmethod
+    def _pin(cls, value: str) -> str:
+        if not _PIN_RE.fullmatch(value):
+            raise ValueError("proof pins must be 40-char lowercase git SHAs")
+        return value
+
+    @field_validator("first_parent_chain_digest", "evidence_digest")
+    @classmethod
+    def _digest(cls, value: str) -> str:
+        if not re.fullmatch(HASH_PATTERN, value):
+            raise ValueError("digest must be a SHA-256 hex digest")
+        return value
+
+    @field_validator("repository_identity", "evidence_reference")
+    @classmethod
+    def _safe_ref(cls, value: str) -> str:
+        if ".." in value.split("/") or "\\" in value or value.startswith("/") or ":" in value:
+            raise ValueError("reference must be a safe relative identifier")
+        if not _REL_PATH_RE.fullmatch(value):
+            raise ValueError("reference must be a safe relative identifier")
+        return value
+
+    @model_validator(mode="after")
+    def _hop_count_matches_hops(self) -> TrustCatchupProof:
+        if len(self.hops) != self.hop_count:
+            raise ValueError("hop_count must equal len(hops)")
         return self
 
 

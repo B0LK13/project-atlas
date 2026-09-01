@@ -35,6 +35,8 @@ from project_atlas.orchestration.autonomy.models import (
     PIN_RETARGET_PACKAGE_ID,
     AdvancementProof,
     AdvancementReason,
+    CatchupHopProof,
+    TrustCatchupProof,
     TrustCheckpointProof,
     TrustedAnchorRecord,
     TrustState,
@@ -803,6 +805,325 @@ def advance_via_checkpoint_recovery(
         )
 
     new_record = _record_from_verified_checkpoint(current, proof)
+    if new_record.predecessor_main != current.trusted_main:
+        raise TrustError("history monotonicity violated", code="PREDECESSOR_MISMATCH")
+    return compare_and_advance(store, current, new_record)
+
+
+@dataclass(frozen=True)
+class CatchupChecks:
+    """Checklist for a ``TrustCatchupProof``. All fields must be True before
+    a bounded catch-up may proceed."""
+
+    owner_authorization_proven: bool
+    catchup_reason_valid: bool
+    repository_identity_match: bool
+    expected_previous_match: bool
+    target_matches_observed: bool
+    hop_chain_contiguous: bool
+    hop_chain_matches_first_parent_walk: bool
+    each_hop_authorization_valid: bool
+    each_hop_status_pass: bool
+    each_hop_evidence_integrity: bool
+    evidence_integrity: bool
+
+    @property
+    def all_required(self) -> bool:
+        return all(
+            (
+                self.owner_authorization_proven,
+                self.catchup_reason_valid,
+                self.repository_identity_match,
+                self.expected_previous_match,
+                self.target_matches_observed,
+                self.hop_chain_contiguous,
+                self.hop_chain_matches_first_parent_walk,
+                self.each_hop_authorization_valid,
+                self.each_hop_status_pass,
+                self.each_hop_evidence_integrity,
+                self.evidence_integrity,
+            )
+        )
+
+
+def _catchup_hop_binding(hop: CatchupHopProof) -> dict[str, object]:
+    """The exact structure a hop's ``evidence_digest`` must hash over --
+    same evidence-target-binding rationale as ``_checkpoint_evidence_
+    binding()`` (PR #664 IV finding): every security-relevant field of THIS
+    hop, so a legitimately-authorized hop's evidence can never be lifted
+    onto a different hop."""
+    return {
+        "evidence_payload": hop.evidence_payload,
+        "merge_commit": hop.merge_commit,
+        "merge_tree": hop.merge_tree,
+        "merge_parent_1": hop.merge_parent_1,
+        "merge_parent_2": hop.merge_parent_2,
+        "certified_candidate_head": hop.certified_candidate_head,
+        "certified_candidate_tree": hop.certified_candidate_tree,
+        "source_pr": hop.source_pr,
+        "authorization_basis": hop.authorization_basis,
+        "independent_verification": hop.independent_verification,
+        "post_merge_ci": hop.post_merge_ci,
+        "post_merge_seal": hop.post_merge_seal,
+    }
+
+
+def verify_catchup_hop_evidence_integrity(hop: CatchupHopProof) -> bool:
+    return hash_payload(_catchup_hop_binding(hop)) == hop.evidence_digest
+
+
+def _catchup_evidence_binding(proof: TrustCatchupProof) -> dict[str, object]:
+    """The exact structure the overall ``evidence_digest`` must hash over.
+    Includes every hop's own digest (not the hops' full content, which is
+    already independently bound by ``_catchup_hop_binding``) so the whole
+    chain -- not just its endpoints -- is what the overall digest commits
+    to; substituting a different hop, or a different ORDER of hops, changes
+    this binding even if every individual hop's own digest still verifies.
+    """
+    return {
+        "evidence_payload": proof.evidence_payload,
+        "repository_identity": proof.repository_identity,
+        "owner_authorization": proof.owner_authorization,
+        "catchup_reason": proof.catchup_reason,
+        "expected_previous_main": proof.expected_previous_main,
+        "expected_previous_tree": proof.expected_previous_tree,
+        "target_main": proof.target_main,
+        "target_tree": proof.target_tree,
+        "hop_count": proof.hop_count,
+        "first_parent_chain_digest": proof.first_parent_chain_digest,
+        "hop_evidence_digests": [hop.evidence_digest for hop in proof.hops],
+    }
+
+
+def verify_catchup_evidence_integrity(proof: TrustCatchupProof) -> bool:
+    return hash_payload(_catchup_evidence_binding(proof)) == proof.evidence_digest
+
+
+def _evaluate_catchup_chain(
+    topology: GitTopology,
+    current: TrustedAnchorRecord,
+    proof: TrustCatchupProof,
+) -> tuple[bool, bool]:
+    """Walk ``proof.hops`` in order, checking EACH hop against live git
+    topology (never trusting the proof's own claims about itself), then
+    cross-validate the reconstructed chain against an INDEPENDENT
+    first-parent walk of the real topology (``_walk_first_parent_chain()``,
+    the same function checkpoint recovery uses) so a hop list that doesn't
+    correspond to genuine trunk history can never pass merely by being
+    internally self-consistent.
+
+    Returns ``(hops_contiguous_and_match_git, matches_independent_walk)``.
+    """
+    previous = current.trusted_main
+    for hop in proof.hops:
+        if hop.merge_parent_1 != previous:
+            return False, False
+        if not topology.commit_exists(hop.merge_commit):
+            return False, False
+        parents = topology.parents_of(hop.merge_commit)
+        # Exactly 2, not >= 2 -- same octopus-merge rationale as checkpoint
+        # recovery (PR #664 IV finding): a proof describing only the first
+        # two of three-or-more real parents must never be accepted as if it
+        # fully described the merge.
+        parents_ok = (
+            len(parents) == 2
+            and parents[0] == hop.merge_parent_1
+            and parents[1] == hop.merge_parent_2
+        )
+        if not parents_ok:
+            return False, False
+        if topology.tree_of(hop.merge_commit) != hop.merge_tree:
+            return False, False
+        if not topology.commit_exists(hop.certified_candidate_head):
+            return False, False
+        if topology.tree_of(hop.certified_candidate_head) != hop.certified_candidate_tree:
+            return False, False
+        previous = hop.merge_commit
+    if previous != proof.target_main:
+        return False, False
+    walk = _walk_first_parent_chain(topology, proof.target_main, current.trusted_main)
+    walk_matches = (
+        walk is not None
+        and walk[0] == proof.hop_count
+        and walk[1] == proof.first_parent_chain_digest
+    )
+    return True, walk_matches
+
+
+def evaluate_catchup_recovery(
+    current: TrustedAnchorRecord,
+    proof: TrustCatchupProof,
+    topology: GitTopology,
+    *,
+    observed_main: str,
+    observed_tree: str,
+) -> CatchupChecks:
+    """Evaluate a ``TrustCatchupProof`` against live git topology and each
+    hop's own evidence. Does not invent owner authorization, does not
+    accept ANY-path ancestry, and does not mutate state."""
+    hop_chain_contiguous, hop_chain_matches_walk = _evaluate_catchup_chain(topology, current, proof)
+    each_hop_status_pass = all(
+        hop.independent_verification == "PASS"
+        and hop.post_merge_ci == "PASS"
+        and hop.post_merge_seal == "PASS"
+        for hop in proof.hops
+    )
+    each_hop_evidence_integrity = all(
+        verify_catchup_hop_evidence_integrity(hop) for hop in proof.hops
+    )
+    # authorization_basis is already schema-constrained to the two allowed
+    # literals; re-affirmed explicitly here (rather than assumed from
+    # schema validation alone) so this checklist stays a complete, self-
+    # contained audit trail of what was actually checked.
+    each_hop_authorization_valid = all(
+        hop.authorization_basis in ("OWNER_AUTHORIZED_AT_MERGE", "OWNER_RATIFIED_EXISTING_MERGE")
+        for hop in proof.hops
+    )
+    return CatchupChecks(
+        owner_authorization_proven=proof.owner_authorization == "OWNER_AUTHORIZED",
+        catchup_reason_valid=proof.catchup_reason == "BOUNDED_VERIFIED_TRUST_CATCHUP",
+        repository_identity_match=proof.repository_identity == current.repository_identity,
+        expected_previous_match=(
+            proof.expected_previous_main == current.trusted_main
+            and proof.expected_previous_tree == current.trusted_tree
+        ),
+        target_matches_observed=(
+            observed_main == proof.target_main and observed_tree == proof.target_tree
+        ),
+        hop_chain_contiguous=hop_chain_contiguous,
+        hop_chain_matches_first_parent_walk=hop_chain_matches_walk,
+        each_hop_authorization_valid=each_hop_authorization_valid,
+        each_hop_status_pass=each_hop_status_pass,
+        each_hop_evidence_integrity=each_hop_evidence_integrity,
+        evidence_integrity=verify_catchup_evidence_integrity(proof),
+    )
+
+
+def _record_from_verified_catchup(
+    current: TrustedAnchorRecord,
+    proof: TrustCatchupProof,
+) -> TrustedAnchorRecord:
+    # predecessor_main/tree honestly record the anchor BEFORE this bounded
+    # catch-up, while merge_parent_1/2 are the ACTUAL git parents of the
+    # final hop's merge commit (== target_main) observed on live topology --
+    # never forged to look like ordinary single-hop advancement. A reader
+    # can always tell a catch-up apart from ordinary advancement or
+    # checkpoint recovery by advancement_reason.
+    last_hop = proof.hops[-1]
+    unsigned = TrustedAnchorRecord(
+        repository_identity=proof.repository_identity,
+        trusted_main=proof.target_main,
+        trusted_tree=proof.target_tree,
+        predecessor_main=current.trusted_main,
+        predecessor_tree=current.trusted_tree,
+        advancement_reason=AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CATCHUP,
+        source_package=proof.source_package,
+        source_directive=proof.source_directive,
+        source_pr=proof.source_pr,
+        merge_commit=proof.target_main,
+        merge_parent_1=last_hop.merge_parent_1,
+        merge_parent_2=last_hop.merge_parent_2,
+        merge_tree=proof.target_tree,
+        certified_head=last_hop.certified_candidate_head,
+        certified_tree=last_hop.certified_candidate_tree,
+        certification_status="CERTIFIED",
+        independent_verification_status="PASS",
+        post_merge_seal="PASS",
+        post_merge_ci="PASS",
+        evidence_reference=proof.evidence_reference,
+        evidence_digest=proof.evidence_digest,
+        sequence=current.sequence + 1,
+        record_digest=PLACEHOLDER_DIGEST,
+    )
+    return seal_anchor(unsigned)
+
+
+def advance_via_bounded_catchup(
+    current: TrustedAnchorRecord,
+    proof: TrustCatchupProof,
+    topology: GitTopology,
+    *,
+    store: Path,
+    expected_repository_identity: str | None = None,
+) -> TrustedAnchorRecord:
+    """OBSERVE -> VERIFY -> REOBSERVE -> COMPARE -> ATOMIC_ADVANCE, the
+    bounded per-hop-evidenced catch-up variant.
+
+    Distinct from BOTH ``advance_trusted_anchor()`` (exactly one ordinary
+    hop) and ``advance_via_checkpoint_recovery()`` (a ONE-TIME, unbounded-
+    span recertification that does not individually evidence intervening
+    merges). This function requires a short, bounded chain of individually-
+    evidenced ``CatchupHopProof`` entries whose reconstructed first-parent
+    chain independently matches live topology (see
+    ``_evaluate_catchup_chain()``). Deliberately NOT gated by
+    ``_checkpoint_already_used()`` -- that gate protects checkpoint
+    recovery's one-time property exclusively, and this function neither
+    reads nor writes it, so using bounded catch-up any number of times
+    across a store's lifetime can never reset or bypass checkpoint
+    recovery's own one-time enforcement (owner directive D-ATLAS-BOUNDED-
+    TRUST-CATCHUP-RECOVERY §1/§9/§14/§15 -- see the regression tests
+    proving this alongside the catch-up test matrix). ALWAYS persists to an
+    explicit runtime ``store`` -- never silently mutates shipped package
+    data.
+    """
+    if expected_repository_identity is not None:
+        if proof.repository_identity != expected_repository_identity:
+            raise TrustError("proof repository identity mismatch", code="REPO_IDENTITY_MISMATCH")
+        if current.repository_identity != expected_repository_identity:
+            raise TrustError(
+                "current repository identity mismatch", code="REPO_IDENTITY_MISMATCH"
+            )
+    if proof.repository_identity != current.repository_identity:
+        raise TrustError(
+            "cross-repository anchor reuse is forbidden",
+            code="REPO_IDENTITY_MISMATCH",
+        )
+    if proof.expected_previous_main != current.trusted_main:
+        raise TrustError("stale or concurrent predecessor", code="PREDECESSOR_MISMATCH")
+
+    observed_main, observed_tree = topology.observe_main()
+    require_full_pin(observed_main, "observed_main")
+    require_full_pin(observed_tree, "observed_tree")
+    if not topology.commit_exists(proof.target_main):
+        raise TrustError(
+            "proof references a nonexistent catch-up target commit",
+            code="GIT_OBJECT_MISSING",
+        )
+    for hop in proof.hops:
+        if not topology.commit_exists(hop.merge_commit):
+            raise TrustError(
+                "proof references a nonexistent hop merge commit",
+                code="GIT_OBJECT_MISSING",
+            )
+        if not topology.commit_exists(hop.certified_candidate_head):
+            raise TrustError(
+                "proof references a nonexistent hop certified candidate head",
+                code="GIT_OBJECT_MISSING",
+            )
+
+    checks = evaluate_catchup_recovery(
+        current,
+        proof,
+        topology,
+        observed_main=observed_main,
+        observed_tree=observed_tree,
+    )
+    if not checks.all_required:
+        raise TrustError("verified catch-up proof is incomplete", code="CATCHUP_DENIED")
+
+    re_main, re_tree = topology.observe_main()
+    if (re_main, re_tree) != (observed_main, observed_tree):
+        raise TrustError(
+            "live state changed during verification",
+            code="TARGET_MOVED_DURING_VERIFICATION",
+        )
+    if re_main != proof.target_main or re_tree != proof.target_tree:
+        raise TrustError(
+            "re-observed main does not match authorized catch-up target",
+            code="CATCHUP_DENIED",
+        )
+
+    new_record = _record_from_verified_catchup(current, proof)
     if new_record.predecessor_main != current.trusted_main:
         raise TrustError("history monotonicity violated", code="PREDECESSOR_MISMATCH")
     return compare_and_advance(store, current, new_record)
