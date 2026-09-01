@@ -22,6 +22,7 @@ from project_atlas.orchestration.autonomy import loop as loop_module
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.models import (
     CANONICAL_REPOSITORY_IDENTITY,
+    AdvancementProof,
     AdvancementReason,
     TrustCheckpointProof,
     TrustedAnchorRecord,
@@ -31,6 +32,7 @@ from project_atlas.orchestration.autonomy.trust import (
     FixtureGitObserver,
     TrustError,
     _checkpoint_evidence_binding,
+    advance_trusted_anchor,
     advance_via_checkpoint_recovery,
     classify_observation,
     evaluate_checkpoint_recovery,
@@ -53,6 +55,9 @@ SIDE_ROOT = "8" * 39 + "a"
 OTHER_MAIN = "9" * 39 + "a"
 UNRELATED_ROOT = "0" * 39 + "a"
 MISSING = "c" * 40
+NEXT_CANDIDATE = "d" * 39 + "a"
+NEXT_CANDIDATE_TREE = "e" * 39 + "a"
+NEXT_MAIN = "f" * 39 + "a"
 
 
 def _chain_digest(chain: list[str]) -> str:
@@ -567,6 +572,86 @@ def test_checkpoint_recovery_is_genuinely_one_time_ever(tmp_path: Path) -> None:
     second_proof = _proof(advanced, target_main=OTHER_MAIN, hop_count=2, chain_digest="cc" * 32)
     with pytest.raises(TrustError) as exc:
         advance_via_checkpoint_recovery(advanced, second_proof, _topology(), store=store)
+    assert exc.value.code == "CHECKPOINT_ALREADY_USED"
+
+
+def test_checkpoint_already_used_gate_survives_deleted_history_entry(tmp_path: Path) -> None:
+    """A second, independent IV round's real finding: deleting exactly
+    ONE retained history file (specifically the one holding the
+    checkpoint record, after it has been superseded by a later ORDINARY
+    advance_trusted_anchor() call -- the expected long-term operational
+    flow the checkpoint fix itself recommends) must not silently reset
+    the one-time-use gate. Reproduces the attack end-to-end through the
+    real advance_via_checkpoint_recovery()/advance_trusted_anchor() calls
+    (not just the internal helper in isolation)."""
+    current = _current_anchor()
+    store = tmp_path / "store"
+    initialize_store(store, current)
+
+    # Checkpoint #1: OLD_MAIN -> TARGET_MAIN (sequence 1 -> 2).
+    checkpointed = advance_via_checkpoint_recovery(
+        current, _proof(current), _topology(), store=store
+    )
+    assert checkpointed.sequence == 2
+    assert checkpointed.advancement_reason == AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT
+
+    # Ordinary single-hop advance: TARGET_MAIN -> NEXT_MAIN (sequence
+    # 2 -> 3) -- moves the checkpoint record out of current.json and
+    # into history/00000002.json.
+    extended_objects: dict[str, tuple[str, tuple[str, ...]]] = {
+        OLD_MAIN: (OLD_TREE, ()),
+        MID_1: (OLD_TREE, (OLD_MAIN,)),
+        MID_2: (OLD_TREE, (MID_1,)),
+        CANDIDATE_HEAD: (CANDIDATE_TREE, ()),
+        TARGET_MAIN: (TARGET_TREE, (MID_2, CANDIDATE_HEAD)),
+        NEXT_CANDIDATE: (NEXT_CANDIDATE_TREE, ()),
+        NEXT_MAIN: (NEXT_CANDIDATE_TREE, (TARGET_MAIN, NEXT_CANDIDATE)),
+    }
+    normal_topology = FixtureGitObserver(
+        observed_main=NEXT_MAIN, observed_tree=NEXT_CANDIDATE_TREE, objects=extended_objects
+    )
+    normal_evidence = {"kind": "normal-advance"}
+    normal_proof = AdvancementProof(
+        repository_identity=CANONICAL_REPOSITORY_IDENTITY,
+        owner_authorization="OWNER_AUTHORIZED",
+        expected_previous_main=checkpointed.trusted_main,
+        expected_previous_tree=checkpointed.trusted_tree,
+        authorized_candidate_head=NEXT_CANDIDATE,
+        authorized_candidate_tree=NEXT_CANDIDATE_TREE,
+        merge_commit=NEXT_MAIN,
+        merge_parent_1=TARGET_MAIN,
+        merge_parent_2=NEXT_CANDIDATE,
+        merge_tree=NEXT_CANDIDATE_TREE,
+        post_merge_seal="PASS",
+        post_merge_ci="PASS",
+        evidence_reference="tests/fixtures/checkpoint-next-proof.json",
+        evidence_digest=hash_payload(normal_evidence),
+        source_package="AS-ORCH-AUTONOMY-001-PIN-RETARGET",
+        source_directive="D-AUTONOMY-PIN-RETARGET-003",
+        source_pr=3,
+        evidence_payload=normal_evidence,
+    )
+    advanced_normally = advance_trusted_anchor(
+        checkpointed, normal_proof, normal_topology, store=store
+    )
+    assert advanced_normally.sequence == 3
+    assert advanced_normally.advancement_reason == AdvancementReason.VERIFIED_OWNER_AUTHORIZED_MERGE
+
+    # Delete ONLY the history entry that held the checkpoint record --
+    # current.json and the other history entry are left untouched and
+    # self-consistent.
+    checkpoint_history_file = store / "history" / "00000002.json"
+    assert checkpoint_history_file.is_file()
+    checkpoint_history_file.unlink()
+
+    # A THIRD attempt -- another checkpoint -- must now be denied, even
+    # though nothing currently in the store LOOKS like it ever held a
+    # checkpoint: the gap itself is what must be caught.
+    third_proof = _proof(
+        advanced_normally, target_main=OTHER_MAIN, hop_count=2, chain_digest="dd" * 32
+    )
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(advanced_normally, third_proof, _topology(), store=store)
     assert exc.value.code == "CHECKPOINT_ALREADY_USED"
 
 

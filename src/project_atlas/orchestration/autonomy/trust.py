@@ -656,35 +656,50 @@ def _checkpoint_already_used(store: Path) -> bool:
     checkpoint recovery for every subsequent merge -- including ordinary
     ones -- permanently bypassing ``advance_trusted_anchor()`` instead of
     using it as intended, defeating the whole "recovery, not a routine
-    path" premise). ``compare_and_advance()`` never deletes history (it
-    refuses to rewrite an existing history entry), so a durable, honest
-    answer only requires reading what is already there -- no separate
-    flag to keep in sync. Fails closed (returns ``True``, i.e. "assume
-    already used, deny") on anything that prevents a confident "never
-    used" answer: a corrupt current record, or a history entry that
-    cannot be read as a JSON object -- never silently treats "I could
-    not tell" as "safe to proceed."
+    path" premise).
+
+    ``compare_and_advance()`` never REWRITES an existing history entry,
+    but a second, independent IV round found that reading only "what is
+    already there" is not itself durable: nothing stops a history entry
+    from being *deleted* out from under this check (a bare filesystem
+    delete of exactly one file, no digest/schema knowledge required) --
+    silently resetting the gate while leaving every other file
+    self-consistent. Closed by requiring the retained history to be
+    GAP-FREE, not merely internally consistent: every sequence number
+    from 1 up to (current record's own ``sequence`` minus 1) must exist
+    and be readable, not just whichever files happen to still be
+    present. A missing sequence number -- whether it once held a
+    checkpoint record or not -- is treated exactly like a corrupt one:
+    fails closed (denies) rather than silently proceeding as if that
+    slice of history had simply never happened. (This still cannot
+    detect wholesale forgery of an entirely fresh, internally-consistent
+    store from scratch -- this store's ``record_digest`` is a bare
+    self-consistency hash, not a cryptographic signature, so anyone with
+    filesystem write access to the store already has that capability
+    regardless of this check. What this closes is the much
+    lower-effort, look-legitimate deletion of a single retained file.)
     """
     root = _require_store_root(store)
     current_path = _store_path(root, CURRENT_RECORD_NAME)
-    if current_path.is_file():
-        try:
-            current = _load_store_current(root)
-        except TrustError:
-            return True
-        if current.advancement_reason == AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT:
-            return True
-    history_dir = _store_path(root, HISTORY_DIR_NAME)
-    if not history_dir.is_dir():
+    if not current_path.is_file():
         return False
-    for entry in sorted(history_dir.glob("*.json")):
+    try:
+        current = _load_store_current(root)
+    except TrustError:
+        return True
+    if current.advancement_reason == AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT:
+        return True
+    checkpoint_reason = AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT.value
+    for sequence in range(1, current.sequence):
+        entry = _store_path(root, f"{HISTORY_DIR_NAME}/{sequence:08d}.json")
+        if not entry.is_file():
+            return True
         try:
             payload = json.loads(entry.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
             return True
         if not isinstance(payload, dict):
             return True
-        checkpoint_reason = AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT.value
         if payload.get("advancement_reason") == checkpoint_reason:
             return True
     return False
