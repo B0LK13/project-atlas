@@ -37,6 +37,7 @@ from project_atlas.orchestration.autonomy.trust import (
     CatchupChecks,
     FixtureGitObserver,
     TrustError,
+    _advancement_evidence_binding,
     _catchup_evidence_binding,
     _catchup_hop_binding,
     _checkpoint_already_used,
@@ -887,7 +888,7 @@ def test_normal_single_hop_advancement_unchanged(tmp_path: Path) -> None:
             HOP1_MERGE: (HOP1_CANDIDATE_TREE, (OLD_MAIN, HOP1_CANDIDATE)),
         },
     )
-    ordinary_proof = AdvancementProof(
+    draft_proof = AdvancementProof(
         schema_version=1,
         repository_identity=CANONICAL_REPOSITORY_IDENTITY,
         owner_authorization="OWNER_AUTHORIZED",
@@ -902,11 +903,14 @@ def test_normal_single_hop_advancement_unchanged(tmp_path: Path) -> None:
         post_merge_seal="PASS",
         post_merge_ci="PASS",
         evidence_reference="tests/fixtures/ordinary.json",
-        evidence_digest=hash_payload({"kind": "ORDINARY"}),
+        evidence_digest="0" * 64,
         source_package="AS-ORCH-AUTONOMY-001-DISCOVERY-TOPOLOGY",
         source_directive="D-ATLAS-BOUNDED-TRUST-CATCHUP-RECOVERY",
         source_pr=665,
         evidence_payload={"kind": "ORDINARY"},
+    )
+    ordinary_proof = draft_proof.model_copy(
+        update={"evidence_digest": hash_payload(_advancement_evidence_binding(draft_proof))}
     )
     new_record = advance_trusted_anchor(current, ordinary_proof, ff_topology, store=store)
     assert new_record.trusted_main == HOP1_MERGE

@@ -31,6 +31,7 @@ from project_atlas.orchestration.autonomy.trust import (
     CheckpointChecks,
     FixtureGitObserver,
     TrustError,
+    _advancement_evidence_binding,
     _checkpoint_evidence_binding,
     advance_trusted_anchor,
     advance_via_checkpoint_recovery,
@@ -611,7 +612,7 @@ def test_checkpoint_already_used_gate_survives_deleted_history_entry(tmp_path: P
         observed_main=NEXT_MAIN, observed_tree=NEXT_CANDIDATE_TREE, objects=extended_objects
     )
     normal_evidence = {"kind": "normal-advance"}
-    normal_proof = AdvancementProof(
+    draft_normal_proof = AdvancementProof(
         repository_identity=CANONICAL_REPOSITORY_IDENTITY,
         owner_authorization="OWNER_AUTHORIZED",
         expected_previous_main=checkpointed.trusted_main,
@@ -625,11 +626,14 @@ def test_checkpoint_already_used_gate_survives_deleted_history_entry(tmp_path: P
         post_merge_seal="PASS",
         post_merge_ci="PASS",
         evidence_reference="tests/fixtures/checkpoint-next-proof.json",
-        evidence_digest=hash_payload(normal_evidence),
+        evidence_digest="0" * 64,
         source_package="AS-ORCH-AUTONOMY-001-PIN-RETARGET",
         source_directive="D-AUTONOMY-PIN-RETARGET-003",
         source_pr=3,
         evidence_payload=normal_evidence,
+    )
+    normal_proof = draft_normal_proof.model_copy(
+        update={"evidence_digest": hash_payload(_advancement_evidence_binding(draft_normal_proof))}
     )
     advanced_normally = advance_trusted_anchor(
         checkpointed, normal_proof, normal_topology, store=store
