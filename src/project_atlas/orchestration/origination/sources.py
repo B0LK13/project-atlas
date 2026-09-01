@@ -31,6 +31,10 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from project_atlas.orchestration.origination.acceptance_contracts import (
+    apply_acceptance_contracts,
+    load_acceptance_contracts,
+)
 from project_atlas.orchestration.origination.adapter import (
     EligibleRoadmapItem,
     eligible_roadmap_items,
@@ -219,10 +223,21 @@ def eligible_work_items(project_root: Path) -> tuple[EligibleRoadmapItem, ...]:
     Never raises for the sourcing itself being empty or absent -- an
     empty tuple is the correct, honest ``NO_ELIGIBLE_WORK`` outcome.
     Raises :class:`OriginationSourceConfigError` for a malformed explicit
-    declaration and :class:`DuplicateItemIdError` for the same item_id
-    declared by two different sources -- both are real configuration
-    problems that must be visible, not silently resolved one way or the
-    other.
+    declaration, :class:`DuplicateItemIdError` for the same item_id
+    declared by two different sources, and :class:`~project_atlas.
+    orchestration.origination.acceptance_contracts.
+    AcceptanceContractConfigError` for a malformed, ambiguous, or
+    unmatched acceptance-contract declaration -- all are real
+    configuration problems that must be visible, not silently resolved
+    one way or the other.
+
+    AS-ORIGIN-ACCEPTANCE-001 (PR-D): after collecting every eligible
+    item across every declared source (unchanged from before this
+    field existed), any explicitly declared acceptance contracts
+    (``acceptance_contracts.py``) are merged in as the last step, before
+    returning -- widening what evidence/scope/criteria an item carries,
+    never changing which items are eligible or what their blockers/
+    dependencies are.
     """
     sources = load_origination_sources(project_root)
     items: list[EligibleRoadmapItem] = []
@@ -237,7 +252,10 @@ def eligible_work_items(project_root: Path) -> tuple[EligibleRoadmapItem, ...]:
                 )
             seen[item.item_id] = item.source_path
             items.append(item)
-    return tuple(items)
+    contracts = load_acceptance_contracts(project_root)
+    if not contracts:
+        return tuple(items)
+    return apply_acceptance_contracts(tuple(items), contracts)
 
 
 __all__ = [

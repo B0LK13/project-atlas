@@ -50,3 +50,11 @@ authority:
 origination_sources:
   - path: docs/backlog.md
     format: markdown-task-list
+
+# AS-ORIGIN-ACCEPTANCE-001 (PR-D): explicit, reviewable acceptance
+# contracts for specific docs/backlog.md items -- real evidence/scope/
+# criteria a human authored and committed, never inferred from a
+# checkbox title. Without a contract here, a task-list item's
+# execution_ready stays exactly what it already is (see
+# src/project_atlas/orchestration/origination/acceptance_contracts.py).
+origination_acceptance_contracts: docs/origination-acceptance-contracts.yaml

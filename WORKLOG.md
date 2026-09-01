@@ -10162,3 +10162,152 @@ risk against this module's own post-run audit step -- fixed by
 fingerprinting symlinks by their link-target text instead of opening
 them, plus an 8MiB read cap on regular files (48/48 tests). Freeze guard
 23/23 and ruff/mypy clean throughout every round.
+
+## 2026-08-31 — AS-ORIGIN-ACCEPTANCE-001: authoritative backlog acceptance
+contracts (PR-D)
+
+**Package:** `AS-ORIGIN-ACCEPTANCE-001`. **Directive:**
+`D-CODEX-ATLAS-AUTONOMY-PREREQUISITES-CONTINUATION-R2`, sections 9-13.
+
+**Problem:** PR-A's own `markdown-task-list` origination format correctly
+exposed a second real gap: a bare `docs/backlog.md` checkbox carries no
+explicit acceptance evidence, proposed scope, or success criteria --
+`policy.py`'s `corroborating_signal` gate and `risk.py`'s
+`OUT_OF_SPECIFICATION_COVERAGE` disqualifier both correctly refuse
+`execution_ready` for every such item. The directive is explicit that the
+fix is NOT to weaken either gate -- it is to provide an explicit,
+reviewable acceptance-contract mechanism.
+
+**Design:** `orchestration/origination/acceptance_contracts.py` (new).
+Mirrors `sources.py`'s own `origination_sources:` pattern exactly: an
+explicit `.atlas-project.yaml` key (`origination_acceptance_contracts:`)
+points at a sidecar YAML file declaring one `AcceptanceContract` per
+`(source_path, item_id)` compound key (never a bare `item_id` alone, to
+avoid cross-source collision) -- required, non-empty `evidence` /
+`proposed_scope` / `success_criteria`, optional `dependencies` /
+`forbidden_paths`. Fails closed on: unknown item_id, duplicate contract,
+path traversal, empty scope, missing evidence, missing success criteria,
+an evidence path outside the project root, a dependency cycle, and a
+contract for a completed/nonexistent task (a completed item is never in
+the eligible-items list in the first place). `apply_acceptance_contracts()`
+merges a matching contract's fields onto its `EligibleRoadmapItem` at the
+`sources.py::eligible_work_items()` merge point -- strictly after adapter
+parsing, strictly before `pipeline.py::_build_outcome()` -- which is left
+completely unmodified except for two small conditional overrides
+(`item.contract_proposed_scope or <existing derivation>`,
+`item.contract_success_criteria or <existing derivation>`; both `None`
+for the overwhelming majority of items with no contract, identical
+behavior to before this package existed). `EligibleRoadmapItem` gains two
+new optional fields (`contract_proposed_scope`, `contract_success_criteria`,
+default `None`) to carry these overrides. A contract can never touch
+`blockers`/`depends_on` -- this module has no code path that writes
+either, so an item a project has already declared blocked stays blocked
+regardless of any contract attached to it (owner-gate preservation,
+tested explicitly).
+
+**Real repository proof (not a demo-only task):** scanned the actual,
+current `docs/backlog.md` for a genuine unchecked, owner-independent
+candidate. Every other unchecked item explicitly declares an owner/merge
+gate, external spend, or `MERGE_AUTHORIZATION = NOT_GRANTED` in its own
+title text (`DOGFOOD-001` -- blocked on an owner freeze-exception
+decision; `ORCH001E-009`/`ORCHAUT-013`/`ORCHAUT-020`/`ORCHLEASE-007` --
+owner merge gates; `D-PHASE2A-2` -- `MERGE_AUTHORIZATION NOT_GRANTED`;
+`MDA-R1-005/006/007` -- billed OpenRouter / owner merge gate;
+`ORCH001D-012` -- blocked on the owner's Cursor account limit; the AT3
+history-sync items -- `NOT_IMPLEMENTED`/`EXTERNAL_BLOCKED`). Only
+`INT-013` ("Run the bounded multi-project integration pilot") is
+genuinely owner-independent by its own text -- not forced, derived from
+scanning every candidate.
+
+No pre-existing skip/xfail-marked evidence file existed for INT-013
+anywhere in the repository. Rather than fabricate a fake pass or force a
+contract without real evidence, authored a genuine, substantive
+acceptance test defining INT-013's real acceptance criteria --
+`tests/integration/test_int_013_bounded_multi_project_pilot.py`: builds
+two real, independently-owned Atlas vaults (the already-committed
+`tests/fixtures/demo/estate/harbor-api` and `.../harbor-ops` fixture
+projects, reused from the golden demo suite, never new fixture
+authorship) through the full production pipeline
+(`init`/`discover`/`ingest`/`build-indexes`/`build-portfolio`), then
+exercises AS-XPROJ-001/002/003 (`register-global-entity`,
+`register-global-edge`, `detect-project-duplicates`) against a third,
+dedicated federation store, asserting `NO_AUTHORITY_MERGE` (both
+projects' own vault content digests identical before/after) and
+`BOUNDED_SCOPE` (every derived output stays under
+`state/global-entities/...`). Run un-skipped during authorship and
+passed cleanly end to end; left `pytest.mark.skip`-marked because
+INT-013 itself is honestly not yet a certified, completed milestone --
+certifying it is a deliberate, separate act this test does not claim on
+its own. Attached as a real, reviewable acceptance contract in
+`docs/origination-acceptance-contracts.yaml`, declared via
+`.atlas-project.yaml`'s new `origination_acceptance_contracts:` key.
+
+**Real `atlas originate --root . --project-id project-atlas` result**
+against actual current `main`-descended state (19 eligible items scanned):
+`INT-013` (`work_id = ORIG-0f50e42156effafe`, confirmed via
+`work_id_for("project-atlas", "INT-013")`) is the ONLY item among 7
+materialized results with `execution_ready: true, owner_gate: null,
+reason: "READY", risk_class: O1_LOW_RISK_SPECIFICATION_BOUND_IMPLEMENTATION`
+-- `MATERIALIZED=YES, execution_ready=TRUE, owner_gate=NONE`, genuinely
+achieved through real repository evidence, not forced. `DOGFOOD-001`
+(`work_id = ORIG-9f041321dd857e0a`) correctly stays `not_materialized`
+(`PROPOSAL_BLOCKED`, its declared owner blocker preserved unchanged).
+
+**Results:** `pytest tests/unit -k "origination or roadmap or tasklist or
+acceptance or result_contract or router"` -- all pass, 0 failures.
+`tests/unit/test_orchestration_acceptance_contracts.py` (new, 32 tests)
+covers the directive's full 10-item fail-closed list plus merge-behavior
+and cross-item/cross-source authority-leakage containment. Freeze guard
+(`test_atlas3_demo_isolation_001.py`) 23/23 pass. `ruff check .` clean.
+`mypy src` clean except the pre-existing, unrelated `connect_perf.py`
+gap already present on `main`. No regressions across the full
+`tests/unit` suite (verified separately in background).
+
+**Non-claims:** does not modify `pipeline.py`/`policy.py`/`risk.py`'s own
+gating logic in any way beyond the two additive override checks
+described above. Does not grant, infer, or widen execution authority for
+any item beyond what its own real, attached evidence supports. Does not
+self-certify INT-013 or check its backlog box -- that remains a
+deliberate, separate act. `MERGE_AUTHORIZATION` contingent on the
+directive's bounded conditions, not self-granted.
+
+## PR #663 fresh independent IV round 2 (against head 6d170349) -- CONFIRMED_WITH_MINOR_NOTES
+
+A second, fully independent adversarial IV agent (never the implementer)
+re-verified round 1's six fixes (8.1-8.6) against the pushed head with
+its own constructed adversarial tests, not just re-running this PR's
+existing suite -- see the agent's full report in-session for the
+per-item evidence. Verdict: `CONFIRMED_WITH_MINOR_NOTES`, zero
+blocking finding. Two items closed this session as a result:
+
+1. **Cosmetic:** `AcceptanceContractConfigError`'s docstring still
+   listed "a dependency cycle" among the errors it covers -- stale
+   since 8.3/8.4 removed `dependencies`/`forbidden_paths` (and their
+   cycle detection) entirely rather than half-wiring them. Docstring
+   corrected to describe what the class actually covers now.
+2. **Disclosed, deferred, NOT fixed this PR:** the IV constructed a
+   real repro proving acceptance-contract REVOCATION does not retract
+   an already-materialized identity's frozen `WorkNode.owner_gate`/
+   `mutation_surface` fields -- only the current scan's own
+   informational `execution_ready`/`reason` reflects the revocation;
+   the durable record is untouched. This is the SAME "report AS-IS,
+   never rebuild" mechanism `cli.py` already documents for crash-safety
+   (D-PHASE2A-2 finding, pre-existing, not introduced by this PR) --
+   the IV showed the identical mechanism has a second, unintended
+   consequence for revocation. Confirmed live in this repo's own
+   durable store (`D-PHASE2A-2`'s stale pre-8.6-keyword materialized
+   record). **Not live-exploitable today** -- origination is not wired
+   to the governed lease/dispatch loop, so nothing here can turn a
+   stale record into an actual dispatch -- but genuinely unsafe once
+   that wiring lands. Documented in-place with a comment at the exact
+   `cli.py` AS-IS-reporting site (search "Disclosed gap (fresh IV
+   round, PR #663" if resuming) so whoever wires origination to
+   governed dispatch cannot miss it. Tracking this as a required
+   prerequisite for that future wiring work, not for this PR.
+
+Independently reproduced real `atlas originate --root . --project-id
+project-atlas` fresh this session: `eligible_count=19,
+materialized_count=7, not_materialized_count=12`, sole
+`execution_ready=true, owner_gate=null` item still `INT-013`
+(`ORIG-0f50e42156effafe`) -- unchanged, confirmed twice independently
+(once directly, once inside the IV agent's own run).
