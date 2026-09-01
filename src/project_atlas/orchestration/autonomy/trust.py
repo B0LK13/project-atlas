@@ -10,6 +10,7 @@ GOVERNOR_CAN_ADVANCE_ANCHOR_FROM_OBSERVED_MAIN_ONLY = NO
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -17,7 +18,7 @@ import subprocess
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Protocol
+from typing import Final, Protocol
 
 from project_atlas.orchestration.autonomy.evidence import hash_payload
 from project_atlas.orchestration.autonomy.models import (
@@ -33,6 +34,7 @@ from project_atlas.orchestration.autonomy.models import (
     PIN_RETARGET_PACKAGE_ID,
     AdvancementProof,
     AdvancementReason,
+    TrustCheckpointProof,
     TrustedAnchorRecord,
     TrustState,
 )
@@ -422,6 +424,272 @@ def advance_trusted_anchor(
         raise TrustError("history monotonicity violated", code="PREDECESSOR_MISMATCH")
     if store is None:
         return new_record
+    return compare_and_advance(store, current, new_record)
+
+
+_MAX_FIRST_PARENT_WALK: Final[int] = 100_000
+
+
+def _walk_first_parent_chain(
+    topology: GitTopology, target: str, ancestor: str
+) -> tuple[int, str] | None:
+    """Walk ONLY first-parent edges from ``target`` looking for ``ancestor``.
+
+    Deliberately never uses ``git merge-base --is-ancestor`` (or any other
+    "reachable via SOME path" check) -- a commit merged in from a side
+    branch could make an unrelated commit reachable that way without it
+    ever having been on the trunk (first-parent) history a stale runtime
+    anchor needs to be recertified against. This function follows
+    ``topology.parents_of(sha)[0]`` repeatedly starting at ``target`` and
+    returns ``(hop_count, chain_digest)`` only if ``ancestor`` is found
+    exactly that way. Returns ``None`` if ``target == ancestor`` (a
+    checkpoint must strictly advance, never a same-commit no-op), if the
+    walk reaches a root (no parents) without finding ``ancestor``, or if
+    the bounded walk is exhausted first. ``chain_digest`` is a
+    deterministic SHA-256 over the exact ordered chain of commit SHAs
+    walked (``target`` first, ``ancestor`` last, newline-joined) so a
+    proof cannot claim a hop count or digest that doesn't correspond to
+    genuinely-observed topology.
+    """
+    if target == ancestor:
+        return None
+    chain = [target]
+    current = target
+    for _ in range(_MAX_FIRST_PARENT_WALK):
+        parents = topology.parents_of(current)
+        if not parents:
+            return None
+        current = parents[0]
+        chain.append(current)
+        if current == ancestor:
+            digest = hashlib.sha256("\n".join(chain).encode("utf-8")).hexdigest()
+            return len(chain) - 1, digest
+    return None
+
+
+@dataclass(frozen=True)
+class CheckpointChecks:
+    """Checklist for a ``TrustCheckpointProof``. All fields must be True
+    before a checkpoint recovery may proceed."""
+
+    owner_authorization_proven: bool
+    checkpoint_reason_valid: bool
+    repository_identity_match: bool
+    expected_previous_match: bool
+    target_matches_observed: bool
+    target_merge_parents_match: bool
+    certified_candidate_match: bool
+    first_parent_ancestry: bool
+    first_parent_hop_count_match: bool
+    first_parent_chain_digest_match: bool
+    post_merge_seal: bool
+    post_merge_ci: bool
+    independent_verification: bool
+    evidence_integrity: bool
+
+    @property
+    def all_required(self) -> bool:
+        return all(
+            (
+                self.owner_authorization_proven,
+                self.checkpoint_reason_valid,
+                self.repository_identity_match,
+                self.expected_previous_match,
+                self.target_matches_observed,
+                self.target_merge_parents_match,
+                self.certified_candidate_match,
+                self.first_parent_ancestry,
+                self.first_parent_hop_count_match,
+                self.first_parent_chain_digest_match,
+                self.post_merge_seal,
+                self.post_merge_ci,
+                self.independent_verification,
+                self.evidence_integrity,
+            )
+        )
+
+
+def verify_checkpoint_evidence_integrity(proof: TrustCheckpointProof) -> bool:
+    if proof.evidence_payload is None:
+        return False
+    return hash_payload(proof.evidence_payload) == proof.evidence_digest
+
+
+def evaluate_checkpoint_recovery(
+    current: TrustedAnchorRecord,
+    proof: TrustCheckpointProof,
+    topology: GitTopology,
+    *,
+    observed_main: str,
+    observed_tree: str,
+) -> CheckpointChecks:
+    """Evaluate a ``TrustCheckpointProof`` against live git topology. Does
+    not invent owner authorization, does not accept ANY-path ancestry
+    (only a genuine first-parent walk, see ``_walk_first_parent_chain``),
+    and does not mutate state."""
+    target_exists = topology.commit_exists(proof.target_main)
+    target_tree = topology.tree_of(proof.target_main) if target_exists else ""
+    parents = topology.parents_of(proof.target_main) if target_exists else ()
+    parent_1_ok = len(parents) >= 2 and parents[0] == proof.target_merge_parent_1
+    parent_2_ok = len(parents) >= 2 and parents[1] == proof.target_merge_parent_2
+    candidate_exists = topology.commit_exists(proof.certified_candidate_head)
+    candidate_tree = topology.tree_of(proof.certified_candidate_head) if candidate_exists else ""
+    walk = (
+        _walk_first_parent_chain(topology, proof.target_main, current.trusted_main)
+        if target_exists
+        else None
+    )
+    hop_count, chain_digest = walk if walk is not None else (0, "")
+    return CheckpointChecks(
+        owner_authorization_proven=proof.owner_authorization == "OWNER_AUTHORIZED",
+        checkpoint_reason_valid=proof.checkpoint_reason == "STALE_RUNTIME_ANCHOR_RECOVERY",
+        repository_identity_match=proof.repository_identity == current.repository_identity,
+        expected_previous_match=(
+            proof.expected_previous_main == current.trusted_main
+            and proof.expected_previous_tree == current.trusted_tree
+        ),
+        target_matches_observed=(
+            observed_main == proof.target_main and observed_tree == proof.target_tree
+        ),
+        target_merge_parents_match=(
+            target_exists and target_tree == proof.target_tree and parent_1_ok and parent_2_ok
+        ),
+        certified_candidate_match=(
+            candidate_exists
+            and candidate_tree == proof.certified_candidate_tree
+            and proof.certified_candidate_head == proof.target_merge_parent_2
+        ),
+        first_parent_ancestry=walk is not None,
+        first_parent_hop_count_match=(
+            walk is not None and hop_count == proof.first_parent_hop_count
+        ),
+        first_parent_chain_digest_match=(
+            walk is not None and chain_digest == proof.first_parent_chain_digest
+        ),
+        post_merge_seal=proof.post_merge_seal == "PASS",
+        post_merge_ci=proof.post_merge_ci == "PASS",
+        independent_verification=proof.independent_verification == "PASS",
+        evidence_integrity=verify_checkpoint_evidence_integrity(proof),
+    )
+
+
+def _record_from_verified_checkpoint(
+    current: TrustedAnchorRecord,
+    proof: TrustCheckpointProof,
+) -> TrustedAnchorRecord:
+    # predecessor_main/tree honestly record the OLD (stale) trusted anchor,
+    # while merge_parent_1/2 remain the ACTUAL git parents of target_main
+    # observed on live topology -- never forged to make the record LOOK
+    # like an ordinary single-hop advancement. A reader of this record can
+    # always tell a checkpoint recovery apart from ordinary advancement by
+    # advancement_reason, and by predecessor_main != merge_parent_1.
+    unsigned = TrustedAnchorRecord(
+        repository_identity=proof.repository_identity,
+        trusted_main=proof.target_main,
+        trusted_tree=proof.target_tree,
+        predecessor_main=current.trusted_main,
+        predecessor_tree=current.trusted_tree,
+        advancement_reason=AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT,
+        source_package=proof.source_package,
+        source_directive=proof.source_directive,
+        source_pr=proof.source_pr,
+        merge_commit=proof.target_main,
+        merge_parent_1=proof.target_merge_parent_1,
+        merge_parent_2=proof.target_merge_parent_2,
+        merge_tree=proof.target_tree,
+        certified_head=proof.certified_candidate_head,
+        certified_tree=proof.certified_candidate_tree,
+        certification_status="CERTIFIED",
+        independent_verification_status="PASS",
+        post_merge_seal="PASS",
+        post_merge_ci="PASS",
+        evidence_reference=proof.evidence_reference,
+        evidence_digest=proof.evidence_digest,
+        sequence=current.sequence + 1,
+        record_digest=PLACEHOLDER_DIGEST,
+    )
+    return seal_anchor(unsigned)
+
+
+def advance_via_checkpoint_recovery(
+    current: TrustedAnchorRecord,
+    proof: TrustCheckpointProof,
+    topology: GitTopology,
+    *,
+    store: Path,
+    expected_repository_identity: str | None = None,
+) -> TrustedAnchorRecord:
+    """OBSERVE -> VERIFY -> REOBSERVE -> COMPARE -> ATOMIC_ADVANCE, the
+    stale-runtime-anchor checkpoint-recovery variant.
+
+    Distinct from ``advance_trusted_anchor()``: that function requires
+    ``proof.merge_parent_1 == current.trusted_main`` (ordinary single-hop
+    advancement). This function instead requires ``current.trusted_main``
+    be reachable by walking ONLY first-parent edges from
+    ``proof.target_main`` (see ``_walk_first_parent_chain``), with an
+    exact hop-count and chain-digest match against what the proof claims
+    -- auditable, non-fabricated lineage, without pretending every
+    intervening merge was individually certified. Never invoked from
+    governor observation alone; always requires this explicit,
+    separately-authored ``TrustCheckpointProof``. ALWAYS persists to an
+    explicit runtime ``store`` -- never silently mutates shipped package
+    data; callers must ``initialize_store()`` first if no runtime store
+    exists yet (this function does not create one implicitly).
+    """
+    if expected_repository_identity is not None:
+        if proof.repository_identity != expected_repository_identity:
+            raise TrustError("proof repository identity mismatch", code="REPO_IDENTITY_MISMATCH")
+        if current.repository_identity != expected_repository_identity:
+            raise TrustError(
+                "current repository identity mismatch", code="REPO_IDENTITY_MISMATCH"
+            )
+    if proof.repository_identity != current.repository_identity:
+        raise TrustError(
+            "cross-repository anchor reuse is forbidden",
+            code="REPO_IDENTITY_MISMATCH",
+        )
+    if proof.expected_previous_main != current.trusted_main:
+        raise TrustError("stale or concurrent predecessor", code="PREDECESSOR_MISMATCH")
+
+    observed_main, observed_tree = topology.observe_main()
+    require_full_pin(observed_main, "observed_main")
+    require_full_pin(observed_tree, "observed_tree")
+    if not topology.commit_exists(proof.target_main):
+        raise TrustError(
+            "proof references a nonexistent checkpoint target commit",
+            code="GIT_OBJECT_MISSING",
+        )
+    if not topology.commit_exists(proof.certified_candidate_head):
+        raise TrustError(
+            "proof references a nonexistent certified candidate head",
+            code="GIT_OBJECT_MISSING",
+        )
+
+    checks = evaluate_checkpoint_recovery(
+        current,
+        proof,
+        topology,
+        observed_main=observed_main,
+        observed_tree=observed_tree,
+    )
+    if not checks.all_required:
+        raise TrustError("verified checkpoint proof is incomplete", code="CHECKPOINT_DENIED")
+
+    re_main, re_tree = topology.observe_main()
+    if (re_main, re_tree) != (observed_main, observed_tree):
+        raise TrustError(
+            "live state changed during verification",
+            code="TARGET_MOVED_DURING_VERIFICATION",
+        )
+    if re_main != proof.target_main or re_tree != proof.target_tree:
+        raise TrustError(
+            "re-observed main does not match authorized checkpoint target",
+            code="CHECKPOINT_DENIED",
+        )
+
+    new_record = _record_from_verified_checkpoint(current, proof)
+    if new_record.predecessor_main != current.trusted_main:
+        raise TrustError("history monotonicity violated", code="PREDECESSOR_MISMATCH")
     return compare_and_advance(store, current, new_record)
 
 

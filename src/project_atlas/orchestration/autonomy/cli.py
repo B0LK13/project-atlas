@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import TextIO
 
+from pydantic import ValidationError
+
 from project_atlas.orchestration.autonomy.discovery import (
     DiscoveryError,
     collect_live_inventory,
@@ -34,13 +36,19 @@ from project_atlas.orchestration.autonomy.models import (
     ExecutionHostClass,
     LiveInventory,
     NodeState,
+    TrustCheckpointProof,
     TrustedAnchorRecord,
 )
 from project_atlas.orchestration.autonomy.rehydration import RehydrationError, rehydrate_governor
 from project_atlas.orchestration.autonomy.trust import (
+    LiveGitObserver,
     TrustError,
+    advance_via_checkpoint_recovery,
+    initialize_store,
     load_runtime_anchor,
+    load_shipped_initial_anchor,
     normalize_repository_identity,
+    observe_repository_identity,
 )
 from project_atlas.orchestration.local_process_transport import LocalProcessExecutorConfig
 from project_atlas.orchestration.origination.projection import (
@@ -389,3 +397,95 @@ def run_governor_loop_tick(
 def observed_repository_identity(remote_url: str) -> str:
     """CLI helper for evidence capture. Not an authority grant."""
     return normalize_repository_identity(remote_url)
+
+
+def run_trust_checkpoint(
+    *,
+    root: Path,
+    trust_store: Path,
+    proof_path: Path,
+    bootstrap_from_shipped: bool = False,
+) -> tuple[dict[str, object], int]:
+    """AS-ORCH-AUTONOMY-001 stale-runtime-anchor CHECKPOINT RECOVERY.
+
+    Deliberate, explicit operator surface -- ``--trust-store`` and
+    ``--proof`` are both REQUIRED (no implicit target from currently
+    observed main). Never invoked automatically by the governor or by
+    normal loop-tick observation; a genuine, separately-authored,
+    owner-signed ``TrustCheckpointProof`` is always required. See
+    ``trust.py``'s ``advance_via_checkpoint_recovery()`` for the full
+    verification contract, and its module docstring for why this is a
+    distinct capability from ordinary single-hop
+    ``advance_trusted_anchor()`` advancement (which this command never
+    touches, weakens, or bypasses).
+
+    ``bootstrap_from_shipped``: only relevant the FIRST time a runtime
+    store is used at ``trust_store`` -- initializes it from the verified
+    shipped anchor via the existing ``initialize_store()`` contract
+    (refuses to overwrite a differing existing record; a no-op if the
+    store already holds the identical record). Does not itself advance
+    anything; the checkpoint proof is still separately verified and
+    applied after.
+    """
+    try:
+        if bootstrap_from_shipped:
+            initialize_store(trust_store, load_shipped_initial_anchor())
+        current = load_runtime_anchor(store=trust_store)
+        try:
+            raw = json.loads(proof_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise TrustError(
+                f"checkpoint proof file could not be read: {exc.__class__.__name__}",
+                code="PROOF_UNREADABLE",
+            ) from exc
+        if not isinstance(raw, dict):
+            raise TrustError("checkpoint proof must be a JSON object", code="PROOF_INVALID")
+        try:
+            proof = TrustCheckpointProof.model_validate(raw)
+        except ValidationError as exc:
+            raise TrustError(
+                f"checkpoint proof is schema-invalid: {exc}", code="PROOF_INVALID"
+            ) from exc
+        repository_identity = observe_repository_identity(root)
+        new_record = advance_via_checkpoint_recovery(
+            current,
+            proof,
+            LiveGitObserver(root),
+            store=trust_store,
+            expected_repository_identity=repository_identity,
+        )
+    except TrustError as exc:
+        code = getattr(exc, "code", "CHECKPOINT_DENIED")
+        return {
+            "schema_version": 1,
+            "package_id": AUTONOMY_PACKAGE_ID,
+            "case": "TRUST-CHECKPOINT",
+            "checkpoint_advanced": False,
+            "blocker": code,
+            "detail": str(exc),
+            "merge_authorized": False,
+            "execution_authorized": False,
+        }, EXIT_ERROR
+    return {
+        "schema_version": 1,
+        "package_id": AUTONOMY_PACKAGE_ID,
+        "case": "TRUST-CHECKPOINT",
+        "checkpoint_advanced": True,
+        "previous_anchor": {
+            "trusted_main": current.trusted_main,
+            "trusted_tree": current.trusted_tree,
+            "sequence": current.sequence,
+        },
+        "new_anchor": {
+            "trusted_main": new_record.trusted_main,
+            "trusted_tree": new_record.trusted_tree,
+            "sequence": new_record.sequence,
+            "advancement_reason": new_record.advancement_reason.value,
+        },
+        "first_parent_hop_count": proof.first_parent_hop_count,
+        "first_parent_chain_digest": proof.first_parent_chain_digest,
+        "evidence_reference": proof.evidence_reference,
+        "independent_verification": proof.independent_verification,
+        "merge_authorized": False,
+        "execution_authorized": False,
+    }, EXIT_OK

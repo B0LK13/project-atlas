@@ -1,0 +1,495 @@
+"""AS-ORCH-AUTONOMY-001 stale-runtime-anchor CHECKPOINT RECOVERY.
+
+Security/control-plane test matrix (A-T per the owner's directive) for
+``TrustCheckpointProof`` / ``advance_via_checkpoint_recovery()`` --
+distinct from, and never a substitute for, ordinary single-hop
+``advance_trusted_anchor()`` (that mechanism's own matrix lives in
+``test_orchestration_autonomy_pin_retarget.py`` and is untouched by this
+PR; a few tests here re-confirm it stays byte-for-byte strict, item R).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import inspect
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from project_atlas.orchestration.autonomy import governor as governor_module
+from project_atlas.orchestration.autonomy import loop as loop_module
+from project_atlas.orchestration.autonomy.evidence import hash_payload
+from project_atlas.orchestration.autonomy.models import (
+    CANONICAL_REPOSITORY_IDENTITY,
+    AdvancementReason,
+    TrustCheckpointProof,
+    TrustedAnchorRecord,
+)
+from project_atlas.orchestration.autonomy.trust import (
+    CheckpointChecks,
+    FixtureGitObserver,
+    TrustError,
+    advance_via_checkpoint_recovery,
+    classify_observation,
+    evaluate_checkpoint_recovery,
+    evaluate_target_moved,
+    initialize_store,
+    seal_anchor,
+)
+
+OLD_MAIN = "a" * 40
+OLD_TREE = "b" * 40
+MID_1 = "1" * 39 + "a"
+MID_2 = "2" * 39 + "a"
+CANDIDATE_HEAD = "3" * 39 + "a"
+CANDIDATE_TREE = "4" * 39 + "a"
+TARGET_MAIN = "5" * 39 + "a"
+TARGET_TREE = "6" * 39 + "a"
+SIDE_BRANCH = "7" * 39 + "a"
+SIDE_ROOT = "8" * 39 + "a"
+OTHER_MAIN = "9" * 39 + "a"
+UNRELATED_ROOT = "0" * 39 + "a"
+MISSING = "c" * 40
+
+
+def _chain_digest(chain: list[str]) -> str:
+    """Independent re-implementation of the expected digest formula (not
+    calling any code under test) so the assertion is meaningful."""
+    return hashlib.sha256("\n".join(chain).encode("utf-8")).hexdigest()
+
+
+CHAIN = [TARGET_MAIN, MID_2, MID_1, OLD_MAIN]
+HOP_COUNT = len(CHAIN) - 1
+CHAIN_DIGEST = _chain_digest(CHAIN)
+
+
+def _current_anchor(
+    *,
+    main: str = OLD_MAIN,
+    tree: str = OLD_TREE,
+    sequence: int = 1,
+    identity: str = CANONICAL_REPOSITORY_IDENTITY,
+) -> TrustedAnchorRecord:
+    return seal_anchor(
+        TrustedAnchorRecord(
+            repository_identity=identity,
+            trusted_main=main,
+            trusted_tree=tree,
+            predecessor_main=UNRELATED_ROOT,
+            predecessor_tree=OLD_TREE,
+            advancement_reason=AdvancementReason.VERIFIED_OWNER_AUTHORIZED_MERGE,
+            source_package="AS-ORCH-AUTONOMY-001-PIN-RETARGET",
+            source_directive="D-AUTONOMY-PIN-RETARGET-003",
+            source_pr=1,
+            merge_commit=main,
+            merge_parent_1=UNRELATED_ROOT,
+            merge_parent_2=main,
+            merge_tree=tree,
+            certified_head=main,
+            certified_tree=tree,
+            certification_status="CERTIFIED",
+            independent_verification_status="PASS",
+            post_merge_seal="PASS",
+            post_merge_ci="PASS",
+            evidence_reference="tests/fixtures/checkpoint-old-anchor.json",
+            evidence_digest="ab" * 32,
+            sequence=sequence,
+            record_digest="00" * 32,
+        )
+    )
+
+
+def _payload() -> dict[str, object]:
+    return {"kind": "OWNER_CHECKPOINT_RECERTIFICATION", "target": TARGET_MAIN}
+
+
+def _proof(
+    current: TrustedAnchorRecord,
+    *,
+    target_main: str = TARGET_MAIN,
+    target_tree: str = TARGET_TREE,
+    parent_1: str = MID_2,
+    parent_2: str = CANDIDATE_HEAD,
+    candidate_head: str = CANDIDATE_HEAD,
+    candidate_tree: str = CANDIDATE_TREE,
+    hop_count: int = HOP_COUNT,
+    chain_digest: str = CHAIN_DIGEST,
+    seal: str = "PASS",
+    ci: str = "PASS",
+    iv: str = "PASS",
+    owner: str = "OWNER_AUTHORIZED",
+    reason: str = "STALE_RUNTIME_ANCHOR_RECOVERY",
+    identity: str = CANONICAL_REPOSITORY_IDENTITY,
+    payload: dict[str, object] | None = None,
+    digest: str | None = None,
+) -> TrustCheckpointProof:
+    evidence = payload if payload is not None else _payload()
+    return TrustCheckpointProof(
+        repository_identity=identity,
+        owner_authorization=owner,  # type: ignore[arg-type]
+        checkpoint_reason=reason,  # type: ignore[arg-type]
+        expected_previous_main=current.trusted_main,
+        expected_previous_tree=current.trusted_tree,
+        target_main=target_main,
+        target_tree=target_tree,
+        target_merge_parent_1=parent_1,
+        target_merge_parent_2=parent_2,
+        certified_candidate_head=candidate_head,
+        certified_candidate_tree=candidate_tree,
+        first_parent_hop_count=hop_count,
+        first_parent_chain_digest=chain_digest,
+        post_merge_seal=seal,  # type: ignore[arg-type]
+        post_merge_ci=ci,  # type: ignore[arg-type]
+        independent_verification=iv,  # type: ignore[arg-type]
+        evidence_reference="tests/fixtures/checkpoint-proof.json",
+        evidence_digest=digest or hash_payload(evidence),
+        source_package="AS-ORCH-AUTONOMY-001-PIN-RETARGET",
+        source_directive="D-AUTONOMY-PIN-RETARGET-003",
+        source_pr=2,
+        evidence_payload=evidence,
+    )
+
+
+def _topology(
+    *,
+    observed_main: str = TARGET_MAIN,
+    observed_tree: str = TARGET_TREE,
+    observe_sequence: tuple[tuple[str, str], ...] | None = None,
+    with_side_branch_trap: bool = False,
+) -> FixtureGitObserver:
+    objects: dict[str, tuple[str, tuple[str, ...]]] = {
+        OLD_MAIN: (OLD_TREE, ()),
+        MID_1: (OLD_TREE, (OLD_MAIN,)),
+        MID_2: (OLD_TREE, (MID_1,)),
+        CANDIDATE_HEAD: (CANDIDATE_TREE, ()),
+        TARGET_MAIN: (TARGET_TREE, (MID_2, CANDIDATE_HEAD)),
+    }
+    if with_side_branch_trap:
+        # OLD_MAIN is reachable from TARGET_MAIN via SOME path (through
+        # the side branch merged in as parent[1] of MID_2), but NOT via a
+        # pure first-parent walk -- MID_2's own first parent is SIDE_ROOT,
+        # a dead end that never reaches OLD_MAIN. `git merge-base
+        # --is-ancestor` would say YES; a genuine first-parent walk must
+        # say NO.
+        objects[SIDE_ROOT] = (OLD_TREE, ())
+        objects[SIDE_BRANCH] = (OLD_TREE, (OLD_MAIN,))
+        objects[MID_2] = (OLD_TREE, (SIDE_ROOT, SIDE_BRANCH))
+    return FixtureGitObserver(
+        observed_main=observed_main,
+        observed_tree=observed_tree,
+        objects=objects,
+        observe_sequence=observe_sequence,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Positive path
+# ---------------------------------------------------------------------------
+
+
+def test_positive_checkpoint_recovery_advances_and_preserves_history(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current)
+    topology = _topology()
+    store = tmp_path / "store"
+    initialize_store(store, current)
+    new_record = advance_via_checkpoint_recovery(current, proof, topology, store=store)
+    assert new_record.trusted_main == TARGET_MAIN
+    assert new_record.trusted_tree == TARGET_TREE
+    assert new_record.predecessor_main == OLD_MAIN
+    assert new_record.predecessor_tree == OLD_TREE
+    assert new_record.sequence == current.sequence + 1
+    assert new_record.advancement_reason == AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT
+    # Truthfulness (owner intent §4): merge_parent_1/2 are the ACTUAL git
+    # parents of target_main, never forged to look like an ordinary
+    # single-hop record (predecessor_main != merge_parent_1 here, by
+    # design -- that is exactly how a reader tells checkpoint recovery
+    # apart from ordinary advancement even without reading the reason).
+    assert new_record.merge_parent_1 == MID_2
+    assert new_record.merge_parent_2 == CANDIDATE_HEAD
+    assert new_record.merge_parent_1 != new_record.predecessor_main
+    # History preserved: old anchor retained at sequence 1.
+    history = (tmp_path / "store" / "history" / f"{current.sequence:08d}.json").read_text(
+        encoding="utf-8"
+    )
+    assert current.trusted_main in history
+    current_on_disk = (tmp_path / "store" / "current.json").read_text(encoding="utf-8")
+    assert TARGET_MAIN in current_on_disk
+
+
+def test_cross_process_trust_reuse(tmp_path: Path) -> None:
+    """The checkpoint record, once persisted, must reload identically in
+    a fresh process/load (§17's CROSS_PROCESS_TRUST_REUSE)."""
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+
+    current = _current_anchor()
+    proof = _proof(current)
+    store = tmp_path / "store"
+    initialize_store(store, current)
+    new_record = advance_via_checkpoint_recovery(current, proof, _topology(), store=store)
+    reloaded = load_runtime_anchor(store=store)
+    assert reloaded.model_dump(mode="json") == new_record.model_dump(mode="json")
+    trust_state = classify_observation(TARGET_MAIN, TARGET_TREE, reloaded)
+    assert trust_state.value == "TRUSTED"
+    assert evaluate_target_moved(TARGET_MAIN, TARGET_TREE, reloaded) is False
+
+
+# ---------------------------------------------------------------------------
+# A-Q: adversarial denial matrix
+# ---------------------------------------------------------------------------
+
+
+def test_a_no_owner_authorized_denied() -> None:
+    current = _current_anchor()
+    with pytest.raises(ValidationError):
+        _proof(current, owner="NOT_AUTHORIZED")
+
+
+def test_b_repository_mismatch_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, identity="github.com/someone-else/other-repo")
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "REPO_IDENTITY_MISMATCH"
+
+
+def test_c_target_not_observed_main_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current)
+    topology = _topology(observed_main=OTHER_MAIN, observed_tree=TARGET_TREE)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_d_target_tree_mismatch_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current)
+    topology = _topology(observed_tree=OTHER_MAIN)  # wrong tree, still 40 chars
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_e_old_anchor_not_ancestor_at_all_denied(tmp_path: Path) -> None:
+    current = _current_anchor(main=OTHER_MAIN, tree=TARGET_TREE)
+    proof = _proof(current)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_f_old_anchor_only_reachable_via_non_first_parent_denied(tmp_path: Path) -> None:
+    """The load-bearing test (owner directive §5): merge-base would say
+    YES here, but the mechanism must say NO -- OLD_MAIN is only reachable
+    through the side branch, never through a pure first-parent walk."""
+    current = _current_anchor()
+    proof = _proof(current)
+    topology = _topology(with_side_branch_trap=True)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+    # Sanity: confirm the trap is real -- merge-base WOULD say ancestor.
+    assert topology.is_descendant(TARGET_MAIN, OLD_MAIN) is True
+
+
+def test_g_first_parent_hop_count_mismatch_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, hop_count=HOP_COUNT + 1)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_h_first_parent_chain_digest_mismatch_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, chain_digest="ff" * 32)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_i_target_moves_during_verification_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current)
+    # First observe() call sees TARGET_MAIN (matches proof); the
+    # REOBSERVE call sees something else -- must fail closed, not silently
+    # proceed on the first (now-stale) observation.
+    topology = _topology(
+        observe_sequence=(
+            (TARGET_MAIN, TARGET_TREE),
+            (OTHER_MAIN, TARGET_TREE),
+        )
+    )
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
+    assert exc.value.code == "TARGET_MOVED_DURING_VERIFICATION"
+
+
+def test_j_post_merge_ci_not_pass_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, ci="FAIL")
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_k_post_merge_seal_not_pass_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, seal="FAIL")
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_l_independent_verification_not_pass_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, iv="FAIL")
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_m_evidence_digest_mismatch_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, digest="ff" * 32)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_n_stale_or_concurrent_writer_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current)
+    store = tmp_path / "store"
+    initialize_store(store, current)
+    advance_via_checkpoint_recovery(current, proof, _topology(), store=store)
+    # A second attempt using the SAME (now-stale) `current` snapshot must
+    # be rejected -- the store has already moved on.
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, _proof(current), _topology(), store=store)
+    assert exc.value.code in {"PREDECESSOR_MISMATCH", "ANCHOR_CAS_MISMATCH"}
+
+
+def test_o_rollback_target_denied(tmp_path: Path) -> None:
+    """A checkpoint whose target is not strictly ahead (e.g. equal to the
+    current anchor) must be denied -- covered structurally by the
+    first-parent-ancestry requirement (hop_count must be >= 1, walking
+    parent links only ever goes toward older commits)."""
+    current = _current_anchor(main=TARGET_MAIN, tree=TARGET_TREE)
+    with pytest.raises(ValueError):
+        # target_main == expected_previous_main == current.trusted_main:
+        # the proof model itself doesn't forbid this shape, but the walk
+        # must reject it (hop_count 0 is not representable >= 1 anyway).
+        _proof(current, target_main=TARGET_MAIN, hop_count=0)
+
+
+def test_o_rollback_via_denial_path(tmp_path: Path) -> None:
+    current = _current_anchor(main=TARGET_MAIN, tree=TARGET_TREE)
+    proof = _proof(current, target_main=TARGET_MAIN, hop_count=1, chain_digest="ee" * 32)
+    topology = _topology(observed_main=TARGET_MAIN, observed_tree=TARGET_TREE)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_p_checkpoint_to_same_anchor_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, target_main=OLD_MAIN, target_tree=OLD_TREE, hop_count=1)
+    topology = _topology(observed_main=OLD_MAIN, observed_tree=OLD_TREE)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, topology, store=tmp_path / "store")
+    assert exc.value.code == "CHECKPOINT_DENIED"
+
+
+def test_q_corrupt_runtime_store_denied(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+
+    store = tmp_path / "store"
+    store.mkdir()
+    (store / "current.json").write_text("{not-json", encoding="utf-8")
+    with pytest.raises(TrustError) as exc:
+        load_runtime_anchor(store=store)
+    assert exc.value.code == "TRUST_UNVERIFIABLE"
+
+
+def test_target_and_candidate_head_nonexistent_git_objects_denied(tmp_path: Path) -> None:
+    current = _current_anchor()
+    proof = _proof(current, target_main=MISSING)
+    with pytest.raises(TrustError) as exc:
+        advance_via_checkpoint_recovery(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "GIT_OBJECT_MISSING"
+
+
+def test_candidate_head_not_second_parent_rejected_by_schema() -> None:
+    current = _current_anchor()
+    with pytest.raises(ValidationError):
+        _proof(current, candidate_head=OTHER_MAIN)
+
+
+# ---------------------------------------------------------------------------
+# R-T: preserve normal advancement, no automatic invocation, descendant
+# alone is never authority
+# ---------------------------------------------------------------------------
+
+
+def test_r_evaluate_checkpoint_recovery_is_a_distinct_function_from_advancement() -> None:
+    """Sanity that the two mechanisms are genuinely separate call paths
+    (not one silently delegating to / weakening the other)."""
+    from project_atlas.orchestration.autonomy import trust as trust_module
+
+    assert trust_module.advance_trusted_anchor is not trust_module.advance_via_checkpoint_recovery
+    assert trust_module.evaluate_advancement is not trust_module.evaluate_checkpoint_recovery
+    # The ordinary AdvancementChecks dataclass is untouched -- still no
+    # first-parent-chain fields, still requires exact merge_parent_1 match
+    # (that behavior is re-exercised in test_orchestration_autonomy_pin_
+    # retarget.py, unmodified by this PR).
+    assert "first_parent_hop_count_match" not in {
+        f for f in trust_module.AdvancementChecks.__dataclass_fields__
+    }
+
+
+def test_s_checkpoint_recovery_not_reachable_from_governor_or_loop() -> None:
+    """Structural guarantee (owner directive §11/§S): nothing in the
+    governor's or loop's own observation/tick machinery imports or calls
+    the checkpoint-recovery mechanism -- it is only reachable through the
+    explicit CLI surface with an explicit --proof file."""
+    for module in (governor_module, loop_module):
+        source = inspect.getsource(module)
+        assert "advance_via_checkpoint_recovery" not in source
+        assert "TrustCheckpointProof" not in source
+
+
+def test_t_observed_descendant_alone_never_becomes_authority() -> None:
+    """Re-confirms existing, unmodified behavior: a live main that is a
+    genuine (first-parent) descendant of the trusted anchor is STILL
+    classified TARGET_MOVED, never TRUSTED, with no proof supplied --
+    descendant status alone is never sufficient authority, checkpoint or
+    otherwise."""
+    current = _current_anchor()
+    state = classify_observation(TARGET_MAIN, TARGET_TREE, current, descendant_of_trusted=True)
+    assert state.value == "TARGET_MOVED"
+    assert evaluate_target_moved(TARGET_MAIN, TARGET_TREE, current) is True
+
+
+# ---------------------------------------------------------------------------
+# CheckpointChecks itself: confirm partial-failure granularity (useful for
+# CLI error reporting, and proves no single check silently masks another).
+# ---------------------------------------------------------------------------
+
+
+def test_checkpoint_checks_reports_each_failure_independently() -> None:
+    current = _current_anchor()
+    proof = _proof(current, ci="FAIL", seal="FAIL")
+    topology = _topology()
+    observed_main, observed_tree = topology.observe_main()
+    checks = evaluate_checkpoint_recovery(
+        current, proof, topology, observed_main=observed_main, observed_tree=observed_tree
+    )
+    assert isinstance(checks, CheckpointChecks)
+    assert checks.post_merge_ci is False
+    assert checks.post_merge_seal is False
+    assert checks.owner_authorization_proven is True
+    assert checks.first_parent_ancestry is True
+    assert checks.all_required is False

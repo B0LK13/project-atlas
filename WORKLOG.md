@@ -10311,3 +10311,101 @@ materialized_count=7, not_materialized_count=12`, sole
 `execution_ready=true, owner_gate=null` item still `INT-013`
 (`ORIG-0f50e42156effafe`) -- unchanged, confirmed twice independently
 (once directly, once inside the IV agent's own run).
+
+## TRUST_ANCHOR_STALENESS_RECOVERY_GAP -- owner-authorized checkpoint recovery mechanism
+
+With PR-A/B/C/D all merged, the directive's own final prerequisite was
+one-time trust-anchor advancement to the new main. Investigating
+`orchestration/autonomy/trust.py`'s real `advance_trusted_anchor()`
+before touching anything surfaced a genuine, structural gap: it is a
+strict single-hop mechanism (the new merge's first parent must EXACTLY
+equal the currently-trusted anchor, re-verified live against git on
+both sides of the check). No runtime trust store exists anywhere in
+this repository -- every real code path falls back to the SHIPPED
+anchor, still pinned at PR #398's merge commit (`62f8d59f...`,
+`sequence=1`) from long before this session. Main has advanced through
+dozens of merges since. A single `AdvancementProof` from that anchor
+straight to current main cannot pass the mechanism's own real checks --
+not a permissions problem, the proof would not correspond to an actual
+git parent relationship. `is_descendant()`/`TrustState.TARGET_MOVED`
+already existed precisely to make clear that mere descendant status is
+never itself sufficient authority (`GOVERNOR_CAN_ADVANCE_ANCHOR_FROM_
+OBSERVED_MAIN_ONLY = NO`, verbatim in the module's own docstring).
+
+Reconstructing a full historical chain of individually-certified
+advancement proofs back to PR #398 was rejected (owner decision) --
+that evidence does not exist for merges from months/years ago, and
+fabricating "PASS" for them would be exactly the manufactured-success
+this whole directive line has explicitly forbidden throughout. Instead,
+owner-authorized this narrow, explicit, auditable recovery capability:
+
+- **`TrustCheckpointProof`** (`models.py`) -- a distinct proof type from
+  `AdvancementProof`, never overloading its meaning. Requires
+  `checkpoint_reason="STALE_RUNTIME_ANCHOR_RECOVERY"`,
+  `first_parent_hop_count`, `first_parent_chain_digest`, and the usual
+  owner-authorization/CI/seal/IV/evidence-integrity fields.
+- **`AdvancementReason.VERIFIED_OWNER_AUTHORIZED_CHECKPOINT`** -- a
+  distinct, truthful reason. The persisted record's `predecessor_main`
+  honestly records the OLD stale anchor while `merge_parent_1`/`_2`
+  remain the target's ACTUAL git parents (never forged to look like an
+  ordinary single-hop record) -- a reader can always tell checkpoint
+  recovery apart from ordinary advancement.
+- **`_walk_first_parent_chain()`** -- deliberately never uses `git
+  merge-base --is-ancestor` (which succeeds through ANY path, including
+  a merged side branch). Walks ONLY `parents_of(sha)[0]` from the
+  target, bounded, and only succeeds if the OLD anchor is found exactly
+  that way -- proven by an exact hop-count + SHA-256 chain-digest match
+  against live topology, not merely asserted by the proof.
+  `evaluate_checkpoint_recovery()`/`advance_via_checkpoint_recovery()`
+  preserve the existing OBSERVE -> VERIFY -> REOBSERVE -> COMPARE ->
+  ATOMIC_ADVANCE race-safe pattern (reusing the existing
+  `compare_and_advance()` CAS/history/lock machinery unchanged) and
+  ALWAYS persist to an explicit runtime store -- never silently mutate
+  shipped package data.
+- **CLI**: `atlas orchestrator trust-checkpoint --trust-store <path>
+  --proof <path> [--bootstrap-from-shipped]` (`--trust-store`/`--proof`
+  both required, never implicit). `--bootstrap-from-shipped`
+  initializes the store from the verified shipped anchor via the
+  existing `initialize_store()` contract the FIRST time only (refuses
+  to overwrite a differing record).
+- Ordinary single-hop `advance_trusted_anchor()` is completely
+  untouched -- not weakened, not shared code paths beyond
+  `compare_and_advance()`'s already-generic persistence layer.
+  `test_orchestration_autonomy_pin_retarget.py` (unmodified) re-run
+  clean, confirming this.
+- Checkpoint recovery is reachable ONLY through this explicit CLI
+  surface with an explicit `--proof` file -- confirmed by a structural
+  test asserting neither `governor.py` nor `loop.py` even imports the
+  new functions.
+
+New test file `test_orchestration_autonomy_trust_checkpoint.py`: full
+A-T adversarial matrix (26 tests) -- no-owner-authorization, repo
+mismatch, target/tree mismatch, old-anchor-not-ancestor-at-all,
+**old-anchor-only-reachable-via-a-side-branch** (the load-bearing case:
+`git merge-base --is-ancestor` would say YES, the mechanism correctly
+says NO), hop-count/chain-digest tampering, target-moves-mid-
+verification, CI/seal/IV != PASS, evidence-digest tampering,
+stale/concurrent writer, rollback/same-anchor targets, corrupt store,
+nonexistent git objects, schema-level candidate/parent-2 mismatch,
+normal-advancement-untouched, no-automatic-invocation,
+descendant-alone-never-authority, and per-field check-granularity.
+ruff/mypy clean. Also independently smoke-tested the REAL CLI end-to-
+end against a throwaway git repo with genuine multi-hop merge topology
+(not just fixtures) -- positive path advances correctly (sequence 1 ->
+2, correct trusted_main/tree/reason), and a replay of the same proof
+correctly fails closed (`PREDECESSOR_MISMATCH`) once the anchor has
+moved.
+
+**Non-claims:** does not retroactively certify any individual
+historical merge between PR #398 and current main -- the checkpoint
+proof's own evidence explicitly re-certifies only the CURRENT target
+snapshot, and the persisted record's `advancement_reason` and
+`predecessor_main`/`merge_parent_1` mismatch permanently disclose that
+this was a checkpoint, not an unbroken chain of individually-verified
+merges. This is a ONE-TIME, target-bound, non-transferable capability
+for THIS specific recovery -- future routine advancement returns to
+ordinary single-hop `advance_trusted_anchor()` for each owner-
+authorized merge. A non-blocking follow-up (`TRUST_ANCHOR_
+OPERATIONALIZATION`) is warranted: ensure every future qualifying merge
+to main actually exercises real trust advancement, so a shipped
+bootstrap anchor is never again left dormant this long.
