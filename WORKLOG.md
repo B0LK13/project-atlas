@@ -10761,3 +10761,24 @@ digest binding specifically (that property is isolated on its own by
 for this mechanism yet) confirmed deliberate on the PR thread: the
 real incident's catch-up will run via a direct script, same pattern as
 the post-#665 trust-advance script, not governor auto-invocation.
+
+### PR #666 automated review round -- 3 real findings, all fixed
+
+GitHub's automated reviewers (Copilot, Codex) found three genuine issues
+on `5f2197ca`, all fixed in `acf256be`: a stale docstring reference
+(`_verify_catchup_chain` -> the real `_evaluate_catchup_chain`); a
+missing runtime re-check of `certified_candidate_head ==
+merge_parent_2` inside `_evaluate_catchup_chain` (previously enforced
+only by `CatchupHopProof`'s own schema validator, which
+`model_copy(update=...)` bypasses -- now redundantly checked at
+runtime too, matching `evaluate_advancement()`/`evaluate_checkpoint_
+recovery()`'s existing pattern for the identical relationship); and a
+P1-marked provenance-binding gap (`source_package`/`source_directive`/
+`source_pr`/`evidence_reference` were not bound into either digest,
+even though they're persisted verbatim into the sealed trust record --
+now included in both `_catchup_hop_binding()` and
+`_catchup_evidence_binding()`). 4 new regression tests (49 total).
+Same class of gap confirmed to also exist in the already-merged
+checkpoint-recovery evidence binding from PR #664 -- out of scope for
+this PR, tracked as a separate follow-up. Full regression + freeze
+guard clean; ruff/mypy clean.
