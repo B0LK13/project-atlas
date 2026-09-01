@@ -73,30 +73,103 @@ def _require_pin(value: str, label: str) -> str:
     return value
 
 
+def _for_each_ref(repo: Path, *patterns: str) -> list[tuple[str, str]]:
+    """``(refname, tip_commit_sha)`` pairs via robust plumbing -- never
+    fragile ``git branch -a`` display-line parsing. Excludes symbolic
+    remote HEAD refs (``refs/remotes/<remote>/HEAD``); every remaining
+    entry is a concrete branch pinned to an exact commit."""
+    result = subprocess.run(
+        ["git", "for-each-ref", "--format=%(refname)\t%(objectname)", *patterns],
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise DiscoveryError("git for-each-ref failed")
+    refs: list[tuple[str, str]] = []
+    for line in result.stdout.splitlines():
+        if not line.strip():
+            continue
+        refname, _, tip = line.partition("\t")
+        if not refname or not tip or refname.endswith("/HEAD"):
+            continue
+        refs.append((refname, tip))
+    return refs
+
+
+def _is_merged_into(repo: Path, tip: str, current_main: str) -> bool:
+    """True only if ``tip`` is a genuine ancestor of ``current_main`` --
+    never inferred from a branch name existing. Fails closed (raises
+    ``DiscoveryError``) on any git failure other than the two ancestry
+    outcomes (`0` = is an ancestor, `1` = is not) -- an unobservable
+    topology query is never silently treated as "not merged" (which
+    would fail open, understating activity) nor as "merged" (which
+    would fail open the other way, hiding a genuinely active successor)."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", tip, current_main],
+        cwd=repo,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise DiscoveryError(f"git merge-base --is-ancestor could not observe ancestry for {tip!r}")
+
+
 def collect_live_inventory(repo: Path) -> LiveInventory:
-    """Observe git facts at an exact toplevel. Does not invent pins or PR lists."""
+    """Observe git facts at an exact toplevel. Does not invent pins or PR lists.
+
+    Successor-package activity (``active_successor_packages``,
+    ``r2_created``, ``r7_created``, ``as_orch_001e_started``) is
+    TOPOLOGY-based, not name-presence-based: a ref whose name matches
+    ``_SUCCESSOR_PATTERNS`` only counts as active if its exact tip
+    commit is NOT already an ancestor of ``origin/main`` (real IV
+    finding: a historical branch merged long ago and simply never
+    deleted from the remote -- ``BRANCH_REF_EXISTS != ACTIVE_SUCCESSOR``
+    -- was being treated as an in-flight successor forever, permanently
+    hard-blocking discovery via a false positive). Every one of these
+    fields is derived from the SAME filtered set of genuinely-unmerged
+    matching refs, so fixing only one field could not leave another
+    reintroducing the same stale false positive through a different
+    name. Deliberately conservative: only an EXACT first-parent-
+    independent ancestry match (any path, via ``merge-base
+    --is-ancestor`` -- unlike the checkpoint-recovery mechanism, this
+    is about "was this content ever integrated at all", not "is it on
+    the trunk", so any-path ancestry is the right check here) counts as
+    integrated; a squash/rebase-equivalent branch whose exact tip was
+    never itself committed to main stays conservatively active.
+    """
     resolved = _require_toplevel(repo)
     current_main = _require_pin(_run_git(resolved, "rev-parse", "origin/main"), "origin/main")
     current_tree = _require_pin(
         _run_git(resolved, "rev-parse", "origin/main^{tree}"),
         "origin/main tree",
     )
-    branches = _run_git(resolved, "branch", "-a")
     current_branch = _run_git(resolved, "branch", "--show-current")
+
+    matching_refs = _for_each_ref(resolved, "refs/heads", "refs/remotes")
+    unmerged_successors: list[str] = []
+    for refname, tip in matching_refs:
+        if not any(pattern.search(refname) for pattern in _SUCCESSOR_PATTERNS):
+            continue
+        if not _is_merged_into(resolved, tip, current_main):
+            unmerged_successors.append(refname)
+
     r2_created: Literal["YES", "NO"] = (
-        "YES" if re.search(r"001d-r2", branches, re.IGNORECASE) else "NO"
+        "YES" if any(re.search(r"001d-r2", r, re.IGNORECASE) for r in unmerged_successors) else "NO"
     )
     r7_created: Literal["YES", "NO"] = (
-        "YES" if re.search(r"001d-r7", branches, re.IGNORECASE) else "NO"
+        "YES" if any(re.search(r"001d-r7", r, re.IGNORECASE) for r in unmerged_successors) else "NO"
     )
     started_e: Literal["YES", "NO"] = (
-        "YES" if re.search(r"as-orch-001e", branches, re.IGNORECASE) else "NO"
+        "YES"
+        if any(re.search(r"as-orch-001e", r, re.IGNORECASE) for r in unmerged_successors)
+        else "NO"
     )
-    successors: list[str] = []
-    for line in branches.splitlines():
-        name = line.strip().lstrip("* ").split()[0] if line.strip() else ""
-        if any(pattern.search(name) for pattern in _SUCCESSOR_PATTERNS):
-            successors.append(name)
     status = _run_git(resolved, "status", "-sb").splitlines()
     worktree = "CLEAN" if len(status) <= 1 else "DIRTY_UNTRACKED_OR_MODIFIED"
     pr396: Literal["YES", "NO"] = "YES" if current_branch == _PR396_BRANCH else "NO"
@@ -105,7 +178,7 @@ def collect_live_inventory(repo: Path) -> LiveInventory:
         current_tree=current_tree,
         worktree_status=worktree,
         open_relevant_prs=(),
-        active_successor_packages=tuple(successors),
+        active_successor_packages=tuple(unmerged_successors),
         r2_created=r2_created,
         r7_created=r7_created,
         authentic_r6_resumed="NO",

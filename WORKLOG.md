@@ -10487,3 +10487,87 @@ Test count across the two fix commits: 26 (original) to 31 (round 3,
 +5) to 32 (round 4, +1), all passing; ruff/mypy clean each round;
 broader regression (pin_retarget + autonomy + autonomy_loop) and the
 freeze guard re-run clean each round.
+
+## STALE_SUCCESSOR_BRANCH_CLASSIFICATION -- real blocker hit on the first supervised-autonomy retry
+
+With PR #664 merged and the trust anchor genuinely advanced (checkpoint
+recovery to `cc4fbbd0...`, verified TRUSTED, cross-process reuse
+confirmed), the actual FIRST_SUPERVISED_AUTONOMOUS_ATLAS_RUN retry hit
+a real `HARD_BLOCKER` / `SUCCESSOR_ALREADY_STARTED` on its very first
+tick, before any node could even be considered. Root-caused: a
+historical successor branch, `feat/as-orch-001e-autonomous-loop`
+(merged via PR #401, merge commit
+`806218ae29792db63416a654e6a8390268764a1`, 2026-08-19), was simply
+never deleted from `gh-origin`/`source-readonly` after merging.
+`collect_live_inventory()`'s successor-activity detection
+(`active_successor_packages`, `r2_created`, `r7_created`,
+`as_orch_001e_started`) was pure branch-NAME-presence matching (`git
+branch -a` + regex) -- it never checked whether a matching branch's
+content was already integrated into main. `BRANCH_REF_EXISTS !=
+ACTIVE_SUCCESSOR`.
+
+Fixed in `discovery.py`: successor-activity is now TOPOLOGY-based.
+`_for_each_ref()` enumerates `refs/heads`+`refs/remotes` via robust
+`git for-each-ref` plumbing (never fragile `git branch -a` line
+parsing; excludes symbolic remote HEAD refs). For each ref whose name
+matches the existing `_SUCCESSOR_PATTERNS`, `_is_merged_into()` checks
+`git merge-base --is-ancestor <tip> origin/main` -- only a genuinely
+UNMERGED tip counts as active. Any git failure other than the two real
+ancestry outcomes (0/1) fails closed (`DiscoveryError`), never silently
+treated as either "merged" or "unmerged". All four downstream fields
+(`active_successor_packages`/`r2_created`/`r7_created`/
+`as_orch_001e_started`) are derived from the SAME filtered set of
+genuinely-unmerged matching refs, so fixing one could not leave another
+reintroducing the identical false positive through a different name.
+Deliberately conservative: any-path ancestry (not first-parent-only --
+unlike the trust-checkpoint mechanism, this is "was this content ever
+integrated at all", not "is it on the trunk"), so a squash/rebase-
+equivalent branch whose exact tip commit was never itself committed to
+main stays conservatively active rather than being incorrectly waved
+through.
+
+**Real regression, independently confirmed against this repository's
+own live state** (not just the hermetic test fixtures below):
+`collect_live_inventory()` re-run against the actual current main
+(`cc4fbbd0...`), with `feat/as-orch-001e-autonomous-loop` still
+present on the remote (deliberately NOT deleted -- proves the product
+fix, not an environment cleanup): `active_successor_packages = ()`,
+`as_orch_001e_started = "NO"`. The exact false positive that blocked
+the real supervised run is gone, without touching the remote at all
+(`DESTRUCTIVE_ACTIONS` stayed `0` throughout this fix).
+
+New test file `test_orchestration_autonomy_discovery_successor_topology.py`
+(10 tests, fully hermetic self-built temp git repos -- real `git`
+subprocess calls, real commits, `git update-ref refs/remotes/origin/
+main` to simulate a fetched remote-tracking ref without network
+access, same technique the trust-checkpoint work already established):
+merged remote successor branch not active, branch tip exactly equals
+main not active, merged LOCAL branch not active, genuinely-unmerged
+branch IS active and blocks via `discover()`, mixed merged+unmerged
+refs still correctly blocks on the unmerged one, non-matching branch
+name irrelevant even if unmerged, multiple remotes at the same merged
+tip no false blocker, topology-query failure fails closed, symbolic
+remote HEAD ref excluded (and doesn't suppress a real match on the
+same remote), `TARGET_MOVED` precedence unchanged. The exact
+real-repository branch (`feat/as-orch-001e-autonomous-loop` specifically)
+is intentionally NOT hardcoded into the automated suite -- a portable
+CI checkout's remote-fetch scope can't be relied on to reproduce that
+exact historical branch identically, so baking it in would make the
+suite environment-fragile; the real-repo regression above was verified
+manually instead and is recorded here as evidence.
+
+ruff/mypy clean. Broader regression (autonomy + rehydration +
+d_phase2a_2 governor bridge + origination_rehydration + pin_retarget +
+trust_checkpoint) and the freeze guard all re-run clean.
+
+**Non-claims:** does not delete the stale branch (deliberately, per
+owner instruction -- correctness must not depend on stale refs having
+been manually cleaned up). Does not change `TARGET_MOVED` precedence,
+the (currently entirely inert -- every listed candidate is
+`eligible=False`) legacy `discover()` candidate list, or anything
+about the origination-based discovery pass (`rehydrate_governor()`'s
+separate, newer mechanism, unaffected by and unrelated to this fix).
+A non-blocking, optional follow-up (`STALE_MERGED_BRANCH_HYGIENE`) is
+worth deriving separately if the owner ever wants the branch actually
+deleted -- not executed here under this fix's own
+`DESTRUCTIVE_ACTIONS = FALSE` scope.
