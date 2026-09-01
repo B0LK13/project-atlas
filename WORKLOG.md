@@ -10822,3 +10822,79 @@ Reconstructed the identical semantic delta fresh on top of `8c710fdc`
 rather than resolving the stale branch's conflicts, per owner directive
 preference. Original PR #667 to be closed in favor of this fresh carrier
 once the new PR opens.
+
+### Real incident: ordinary advancement couldn't handle a genuine 3-way merge (PR #669)
+
+PR #669's branch predated #666/#668/#670 and was never rebased before
+merging (deliberately, per the owner directive's sequencing -- it was
+processed after #670 per priority, not before). The resulting merge
+commit (`6bc3c52a`) is a genuine, honest GitHub 3-way merge: its tree
+(`379aa876`) matches neither parent's own tree, since real content from
+both sides had to be combined. Empirically confirmed `advance_trusted_
+anchor()` denied it (`ADVANCEMENT_DENIED`), and that neither of the other
+two mechanisms fit either: checkpoint recovery is one-time and already
+spent; bounded catch-up requires >=2 real hops (this was only 1) --
+`TrustCatchupProof.hop_count`'s own `ge=2` schema constraint exists
+specifically to prevent it substituting for ordinary advancement on a
+single hop.
+
+Root cause: `evaluate_advancement()`'s `merge_tree_match` required
+`proof.merge_tree == proof.authorized_candidate_tree` -- true only for a
+fast-forward-content merge -- even though both trees were ALREADY
+independently verified against live git topology on their own
+(`merge_tree` against the real tree of `merge_commit`, `authorized_
+candidate_tree` against the real tree of `authorized_candidate_head`).
+That extra equality added no real verification beyond the two independent
+checks; it just silently excluded any merge where two PRs land on main
+without both being freshly rebased against each other -- a completely
+normal, expected occurrence, not an edge case.
+
+Presented to the owner as a genuine architecture-relevant decision (not
+routine) given this touches the most-used, most-central trust mechanism;
+explicitly authorized to fix properly rather than leave trust lagging.
+
+Fix (`fix/advancement-merge-tree-equality-relax`): removed the
+`proof.merge_tree == proof.authorized_candidate_tree` sub-condition from
+`merge_tree_match`, keeping both independent live-topology truthfulness
+checks fully intact. 4 new tests: a genuine 3-way-merge positive case
+(synthetic fixture, tree deliberately differs from both parents); two
+regression tests proving the two remaining independent checks (`merge_
+tree` really is `merge_commit`'s tree; `authorized_candidate_tree` really
+is `authorized_candidate_head`'s tree) still deny tampering exactly as
+before; one proving the live-main-exact-target requirement is untouched.
+Additionally verified end-to-end against the REAL PR #669 incident data
+(real commit SHAs, a throwaway copy of the real trust store, real
+`LiveGitObserver` against this actual repository) -- confirmed the
+identical proof that was empirically denied pre-fix now succeeds
+post-fix, producing `trusted_main = 6bc3c52a` with a trusted_tree
+honestly distinct from the certified candidate's own tree.
+
+Full `orchestration_autonomy`-scoped suite (265 tests) + freeze guard
+pass unchanged; ruff/mypy clean.
+
+### IV round found the octopus-merge gap was inert, not absent -- and this PR activates it
+
+Independent adversarial IV on this same PR found that `evaluate_
+advancement()`'s `parent_1_ok`/`parent_2_ok` used `len(parents) >= 2`,
+not `== 2` -- initially disclosed above as a pre-existing, out-of-scope
+gap (unlike checkpoint recovery and bounded catch-up, which already
+reject octopus merges on this principle, PR #664 IV finding). The IV
+agent proved this was the WRONG call: under the OLD code, the removed
+`merge_tree == authorized_candidate_tree` equality had, as an accidental
+side effect, been the only thing preventing a third, uncredited parent
+in an octopus merge from smuggling its own content into `trusted_tree`
+(a real, empirically-demonstrated content-injection path, reproduced with
+a real disposable git repo and `git commit-tree`). This PR is what turns
+that gap from inert into exploitable, so it must not ship without closing
+it in the same PR.
+
+Fixed here: `parent_1_ok`/`parent_2_ok` now require `len(parents) == 2`,
+mirroring the identical protection already in `evaluate_checkpoint_
+recovery()`/`_evaluate_catchup_chain()`. New regression test
+(`test_octopus_merge_denied`) reproduces the exact attack shape (a
+3-parent commit whose tree is unrelated to the candidate head's own
+tree) and was verified BOTH ways: fails correctly against the vulnerable
+`>= 2` code (confirming the test is real, not vacuous -- an earlier draft
+of this test passed for the wrong reason, an uninitialized store, before
+that was caught and fixed) and passes against the `== 2` fix. Full suite
+(269 tests) + freeze guard re-run clean; ruff/mypy clean.
