@@ -9,6 +9,7 @@ its one narrow, explicit, non-generic exception (``TrustRepairCarrier``).
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -285,3 +286,136 @@ def test_target_tree_mismatch_alone_still_denied(tmp_path: Path) -> None:
     topology = _topology(observed_main=CURRENT_MAIN, observed_tree=NEXT_TREE)
     with pytest.raises(MergeGuardError):
         require_trust_current_for_merge(store=tmp_path, topology=topology)
+
+
+# ---------------------------------------------------------------------------
+# Real operator surface: `trust-check-before-merge` (reviewer finding,
+# Codex, PR #672 -- "the new precondition is never invoked by production
+# code"). Exercised against a REAL disposable git repo, not FixtureGitObserver,
+# so this proves the actual CLI wiring end-to-end.
+# ---------------------------------------------------------------------------
+
+
+def _git(repo: Path, *args: str) -> str:
+    result = subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+    return result.stdout.strip()
+
+
+def _make_real_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "--initial-branch=main")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    _git(repo, "remote", "add", "origin", "https://github.com/b0lk13/project-atlas.git")
+    (repo / "f.txt").write_text("root\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "root")
+    return repo
+
+
+def test_cli_reports_merge_permitted_when_trust_current(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.cli import EXIT_OK, run_trust_check_before_merge
+
+    repo = _make_real_repo(tmp_path)
+    head = _git(repo, "rev-parse", "HEAD")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    store = tmp_path / "store"
+    initialize_store(store, _anchor(main=head, tree=tree))
+    report, exit_code = run_trust_check_before_merge(root=repo, trust_store=store)
+    assert exit_code == EXIT_OK
+    assert report["merge_permitted"] is True
+    assert report["trusted_main"] == head
+    assert report["repair_carrier_used"] is False
+    assert report["merge_authorized"] is False
+
+
+def test_cli_denies_when_trust_stale(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.cli import EXIT_ERROR, run_trust_check_before_merge
+
+    repo = _make_real_repo(tmp_path)
+    old_head = _git(repo, "rev-parse", "HEAD")
+    old_tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    (repo / "f.txt").write_text("next\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "next")
+    new_head = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "update-ref", "refs/remotes/origin/main", new_head)
+    store = tmp_path / "store"
+    initialize_store(store, _anchor(main=old_head, tree=old_tree))
+    report, exit_code = run_trust_check_before_merge(root=repo, trust_store=store)
+    assert exit_code == EXIT_ERROR
+    assert report["merge_permitted"] is False
+    assert report["blocker"] == "TRUST_NOT_CURRENT_FOR_MERGE"
+
+
+def test_cli_allows_with_explicit_repair_carrier(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.cli import EXIT_OK, run_trust_check_before_merge
+
+    repo = _make_real_repo(tmp_path)
+    old_head = _git(repo, "rev-parse", "HEAD")
+    old_tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    (repo / "f.txt").write_text("next\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "next")
+    new_head = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "update-ref", "refs/remotes/origin/main", new_head)
+    store = tmp_path / "store"
+    initialize_store(store, _anchor(main=old_head, tree=old_tree))
+    report, exit_code = run_trust_check_before_merge(
+        root=repo, trust_store=store, repair_source_pr=671, repair_reason="test repair"
+    )
+    assert exit_code == EXIT_OK
+    assert report["merge_permitted"] is True
+    assert report["repair_carrier_used"] is True
+    # Still the stale anchor -- the CLI never mutates trust state.
+    assert report["trusted_main"] == old_head
+
+
+def test_cli_rejects_repair_pr_without_reason(tmp_path: Path) -> None:
+    """--repair-pr and --repair-reason are required together -- caught
+    before any git/store I/O is even attempted."""
+    from project_atlas.orchestration.autonomy.cli import EXIT_ERROR, run_trust_check_before_merge
+
+    report, exit_code = run_trust_check_before_merge(
+        root=tmp_path, trust_store=tmp_path / "store", repair_source_pr=671, repair_reason=None
+    )
+    assert exit_code == EXIT_ERROR
+    assert report["blocker"] == "INTERLOCK_MISUSE"
+
+
+def test_cli_rejects_repair_reason_without_pr(tmp_path: Path) -> None:
+    from project_atlas.orchestration.autonomy.cli import EXIT_ERROR, run_trust_check_before_merge
+
+    report, exit_code = run_trust_check_before_merge(
+        root=tmp_path,
+        trust_store=tmp_path / "store",
+        repair_source_pr=None,
+        repair_reason="only reason, no pr",
+    )
+    assert exit_code == EXIT_ERROR
+    assert report["blocker"] == "INTERLOCK_MISUSE"
+
+
+def test_cli_parser_wires_trust_check_before_merge(tmp_path: Path) -> None:
+    """Argv-level wiring: `main()` dispatches to `run_trust_check_before_merge`
+    with the right arguments, exactly like `trust-checkpoint` already does."""
+    from project_atlas.orchestration.autonomy.cli import main
+
+    repo = _make_real_repo(tmp_path)
+    head = _git(repo, "rev-parse", "HEAD")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    store = tmp_path / "store"
+    initialize_store(store, _anchor(main=head, tree=tree))
+    exit_code = main(
+        [
+            "trust-check-before-merge",
+            "--root",
+            str(repo),
+            "--trust-store",
+            str(store),
+        ]
+    )
+    assert exit_code == 0

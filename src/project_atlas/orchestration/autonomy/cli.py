@@ -45,12 +45,14 @@ from project_atlas.orchestration.autonomy.rehydration import RehydrationError, r
 from project_atlas.orchestration.autonomy.trust import (
     LiveGitObserver,
     TrustError,
+    TrustRepairCarrier,
     advance_via_checkpoint_recovery,
     initialize_store,
     load_runtime_anchor,
     load_shipped_initial_anchor,
     normalize_repository_identity,
     observe_repository_identity,
+    require_trust_current_for_merge,
 )
 from project_atlas.orchestration.local_process_transport import LocalProcessExecutorConfig
 from project_atlas.orchestration.origination.projection import (
@@ -500,6 +502,78 @@ def run_trust_checkpoint(
     }, EXIT_OK
 
 
+def run_trust_check_before_merge(
+    *,
+    root: Path,
+    trust_store: Path,
+    repair_source_pr: int | None = None,
+    repair_reason: str | None = None,
+) -> tuple[dict[str, object], int]:
+    """M2: trust/main integration interlock, real operator surface.
+
+    Reviewer finding (Codex, PR #672 -- "the new precondition is never
+    invoked by production code"): ``trust.py``'s
+    ``require_trust_current_for_merge()`` existed only as a library
+    function with no real call site. This command IS the call site --
+    the actual thing to run before ``gh pr merge`` (or equivalent), same
+    standalone-entrypoint precedent as ``trust-checkpoint`` (``src/
+    project_atlas/cli.py`` stays frozen; see
+    ``_build_standalone_parser()``'s own docstring for why).
+
+    ``--repair-pr``/``--repair-reason``: both required together (never
+    one alone) to construct the one narrow, explicit
+    ``TrustRepairCarrier`` exception -- a PR whose entire purpose is
+    restoring trust synchronization itself. Omit both for the routine
+    case (trust must already be current). This command never mutates
+    trust state either way -- it only reports whether the precondition
+    holds.
+    """
+    carrier: TrustRepairCarrier | None = None
+    try:
+        if repair_source_pr is not None or repair_reason is not None:
+            if repair_source_pr is None or repair_reason is None:
+                raise TrustError(
+                    "--repair-pr and --repair-reason must both be supplied together",
+                    code="INTERLOCK_MISUSE",
+                )
+            carrier = TrustRepairCarrier(source_pr=repair_source_pr, reason=repair_reason)
+        repository_identity = observe_repository_identity(root)
+        anchor = require_trust_current_for_merge(
+            store=trust_store,
+            topology=LiveGitObserver(root),
+            expected_repository_identity=repository_identity,
+            trust_repair_carrier=carrier,
+        )
+    except (TrustError, OSError) as exc:
+        code = getattr(exc, "code", None) or (
+            "TRUST_CHECK_STORE_IO_ERROR"
+            if isinstance(exc, OSError)
+            else "TRUST_NOT_CURRENT_FOR_MERGE"
+        )
+        return {
+            "schema_version": 1,
+            "package_id": AUTONOMY_PACKAGE_ID,
+            "case": "TRUST-CHECK-BEFORE-MERGE",
+            "merge_permitted": False,
+            "blocker": code,
+            "detail": str(exc),
+            "merge_authorized": False,
+            "execution_authorized": False,
+        }, EXIT_ERROR
+    return {
+        "schema_version": 1,
+        "package_id": AUTONOMY_PACKAGE_ID,
+        "case": "TRUST-CHECK-BEFORE-MERGE",
+        "merge_permitted": True,
+        "trusted_main": anchor.trusted_main,
+        "trusted_tree": anchor.trusted_tree,
+        "sequence": anchor.sequence,
+        "repair_carrier_used": carrier is not None,
+        "merge_authorized": False,
+        "execution_authorized": False,
+    }, EXIT_OK
+
+
 def _build_standalone_parser() -> argparse.ArgumentParser:
     """Standalone parser for ``trust-checkpoint``.
 
@@ -556,6 +630,38 @@ def _build_standalone_parser() -> argparse.ArgumentParser:
             "shipped anchor if it has no current record yet."
         ),
     )
+    check_before_merge = sub.add_parser(
+        "trust-check-before-merge",
+        help=(
+            "M2 trust/main integration interlock: fail closed unless the "
+            "trust store's anchor matches live main, or an explicit "
+            "--repair-pr/--repair-reason justification is supplied. Never "
+            "invoked automatically. Does not merge; does not mutate trust."
+        ),
+    )
+    check_before_merge.add_argument(
+        "--root", type=Path, default=None, help="Repository root (default: cwd)."
+    )
+    check_before_merge.add_argument(
+        "--trust-store",
+        type=Path,
+        required=True,
+        help="Durable runtime trusted-anchor store (required -- never implicit).",
+    )
+    check_before_merge.add_argument(
+        "--repair-pr",
+        type=int,
+        default=None,
+        help="Source PR number for the one narrow TrustRepairCarrier exception "
+        "(requires --repair-reason too).",
+    )
+    check_before_merge.add_argument(
+        "--repair-reason",
+        type=str,
+        default=None,
+        help="Non-empty reason for the TrustRepairCarrier exception "
+        "(requires --repair-pr too).",
+    )
     return parser
 
 
@@ -568,6 +674,15 @@ def main(argv: list[str] | None = None) -> int:
             trust_store=args.trust_store,
             proof_path=args.proof,
             bootstrap_from_shipped=bool(args.bootstrap_from_shipped),
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return exit_code
+    if args.command == "trust-check-before-merge":
+        report, exit_code = run_trust_check_before_merge(
+            root=Path(args.root or Path.cwd()),
+            trust_store=args.trust_store,
+            repair_source_pr=args.repair_pr,
+            repair_reason=args.repair_reason,
         )
         print(json.dumps(report, indent=2, sort_keys=True))
         return exit_code

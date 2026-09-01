@@ -1287,6 +1287,29 @@ class TrustRepairCarrier:
     It does not itself verify that the named PR is real, that it is
     genuinely a repair carrier, or that the reason is accurate -- callers
     remain responsible for supplying this only when actually true.
+
+    Reviewer finding (Codex, PR #672): this is a deliberate design
+    choice, not an oversight -- consistent with every other proof type
+    in this file. ``AdvancementProof.owner_authorization``,
+    ``TrustCheckpointProof.owner_authorization``, and
+    ``TrustCatchupProof.owner_authorization`` are ALL bare self-asserted
+    ``Literal["OWNER_AUTHORIZED"]`` claims with zero cryptographic
+    verification -- this module's own header states
+    ``GOVERNOR_CAN_INVENT_OWNER_AUTHORITY = NO``, meaning the CODE never
+    invents authority, not that every self-asserted claim is
+    independently re-verified by the code itself. The real verification
+    that a given PR genuinely IS a trust-repair carrier happens the same
+    way every other merge in this system is verified -- independent
+    adversarial IV, hosted CI, and human review of that PR's actual
+    diff -- BEFORE anyone constructs a ``TrustRepairCarrier`` for it, not
+    inside this class. Unlike the other proof types, this one has no
+    live-git-topology fact to bind to (this precondition check has no
+    visibility into what commit is about to be merged), so there is no
+    analogous cross-check available to add here without changing this
+    function's contract to also accept and verify a candidate commit --
+    a materially different, larger scope than the narrow precondition
+    this class exists for today.
+
     Passing this to ``require_trust_current_for_merge()`` does not grant
     any trust-state mutation and does not widen who may call it or when
     -- it only lets that ONE precondition check pass for a caller that
@@ -1310,7 +1333,7 @@ def require_trust_current_for_merge(
     *,
     store: Path,
     topology: GitTopology,
-    expected_repository_identity: str | None = None,
+    expected_repository_identity: str | None = CANONICAL_REPOSITORY_IDENTITY,
     trust_repair_carrier: TrustRepairCarrier | None = None,
 ) -> TrustedAnchorRecord:
     """M2: fail-closed precondition for any main integration.
@@ -1318,6 +1341,15 @@ def require_trust_current_for_merge(
     ``trusted_runtime_main`` must equal live main (observed fresh here,
     never cached), or an explicit, narrow ``TrustRepairCarrier``
     justification must be supplied.
+
+    ``expected_repository_identity`` defaults to ``CANONICAL_REPOSITORY_
+    IDENTITY`` (reviewer finding, Copilot, PR #672: defaulting to
+    ``None`` -- as every other ``store=``-taking function in this module
+    does -- meant repository-identity mismatch silently went unchecked
+    unless every caller remembered to pass it explicitly, contradicting
+    the fail-closed behavior this function exists to provide; a caller
+    genuinely working against a different repository's store may still
+    pass ``None`` explicitly to opt out).
 
     Real incidents this formalizes (PR #653: a merge landed while the
     persisted trust anchor was already stale, with nothing machine-
@@ -1344,9 +1376,16 @@ def require_trust_current_for_merge(
     if not evaluate_target_moved(observed_main, observed_tree, anchor):
         return anchor
     if trust_repair_carrier is None:
+        # Reviewer finding (Copilot, PR #672): this guard also fires on a
+        # tree-only mismatch (same commit SHA claimed, different tree --
+        # see test_target_tree_mismatch_alone_still_denied), so the
+        # message includes both trusted/observed trees, not just the
+        # main SHAs, to avoid misleading an operator into thinking only
+        # HEAD moved.
         raise MergeGuardError(
-            f"trust is not current for merge: trusted_main={anchor.trusted_main}, "
-            f"live_main={observed_main}. No unrelated main integration may proceed "
+            f"trust is not current for merge: trusted_main={anchor.trusted_main} "
+            f"(tree {anchor.trusted_tree}), live_main={observed_main} "
+            f"(tree {observed_tree}). No unrelated main integration may proceed "
             "until trust is synchronized (post-merge seal + trust advance/catch-up)."
         )
     # Runtime type check, not just the type hint (IV finding, PR #672):
