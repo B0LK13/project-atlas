@@ -51,7 +51,14 @@ def _git(repo: Path, *args: str) -> str:
 def _make_repo(tmp_path: Path, *, name: str = "repo") -> Path:
     repo = tmp_path / name
     repo.mkdir()
-    _git(repo, "init", "-q")
+    # --initial-branch=main (git >= 2.28, universal on any supported
+    # runner): the hosted CI failure this fixes exactly demonstrates why
+    # this can't be left to ambient config -- `git init`'s default
+    # branch name depends on the runner's `init.defaultBranch` (or
+    # git's own compiled-in fallback, "master" on older/some
+    # distributions), never something these tests should depend on.
+    # Every test in this file assumes a branch literally named "main".
+    _git(repo, "init", "-q", "--initial-branch=main")
     _git(repo, "config", "user.email", "test@example.com")
     _git(repo, "config", "user.name", "Test")
     (repo / "f.txt").write_text("root\n", encoding="utf-8")
