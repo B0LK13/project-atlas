@@ -139,7 +139,6 @@ def test_retired_holdout_case_files_are_public_regression() -> None:
         payload = retired[old_id]
         assert payload["visibility"] == "public"
         assert payload["case_class"] == "regression"
-        assert payload["visibility"] != "holdout"
 
 
 # "No historical commit ever added an expected answer for EV-HOLD-1xx" is
