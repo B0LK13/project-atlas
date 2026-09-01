@@ -183,27 +183,48 @@ def _write_json_atomic(target: Path, payload: dict[str, object]) -> None:
     points at) and then create a FRESH regular file with
     O_CREAT|O_EXCL(|O_NOFOLLOW where available), so a symlink planted in
     the narrow window between the unlink and the open is refused rather
-    than silently followed. The final ``tmp.replace(target)`` never
+    than silently followed (O_EXCL alone fails closed with EEXIST if that
+    race is lost, even on platforms -- Windows included -- where
+    O_NOFOLLOW is unavailable/0). The final ``tmp.replace(target)`` never
     follows a symlink at ``target`` either -- rename() replaces the
     directory entry itself, not whatever it points at, so even a
     symlinked ``target`` is safely replaced with a fresh regular file
     rather than having its link target's content clobbered.
+
+    Any OTHER ``OSError`` along this path -- the predictable tmp path
+    obstructed by a directory or a permission-locked file, a disk-full
+    write, anything else that isn't the two cases handled above -- is
+    converted to ``LocalDispatchError(code="RECEIPT_WRITE_BLOCKED")``
+    rather than left to escape as a raw, unwrapped exception (IV finding,
+    PR #662 fresh IV round 3: a raw OSError here is not in
+    ``run_governor_loop_tick()``'s catch tuple, so it would crash the
+    real CLI entrypoint ungracefully instead of the clean fail-closed
+    JSON response every other genuine protocol violation in this module
+    already gets).
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=True) + "\n"
     tmp = target.with_name(f".{target.name}.tmp")
-    with suppress(FileNotFoundError):
-        tmp.unlink()
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(tmp, flags, 0o600)
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(encoded)
-    except BaseException:
         with suppress(FileNotFoundError):
             tmp.unlink()
-        raise
-    tmp.replace(target)
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(tmp, flags, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(encoded)
+        except BaseException:
+            with suppress(FileNotFoundError):
+                tmp.unlink()
+            raise
+        tmp.replace(target)
+    except OSError as exc:
+        raise LocalDispatchError(
+            f"atomic write to {target} could not proceed ({exc.__class__.__name__}) -- "
+            "failing closed rather than letting an unhandled OSError escape this "
+            "module's fail-closed boundary",
+            code="RECEIPT_WRITE_BLOCKED",
+        ) from exc
 
 
 def _read_receipt(root: Path, dispatch_id: str) -> dict[str, object] | None:

@@ -1037,6 +1037,29 @@ def test_write_json_atomic_refuses_to_follow_a_planted_symlink(tmp_path: Path) -
     assert json.loads(target.read_text(encoding="utf-8")) == {"hello": "world"}
 
 
+def test_write_json_atomic_fails_closed_not_raw_oserror_on_tmp_path_obstruction(
+    tmp_path: Path,
+) -> None:
+    """Fresh IV round 3's new finding: an OSError along the atomic-write
+    path OTHER than the two handled cases (missing tmp file to unlink,
+    symlink refused via O_EXCL) -- e.g. the predictable tmp path
+    obstructed by a directory -- must not escape as a raw, unwrapped
+    OSError (which `run_governor_loop_tick()`'s catch tuple does not
+    include, so it would crash the real CLI entrypoint ungracefully).
+    It must be converted to `LocalDispatchError(code=
+    "RECEIPT_WRITE_BLOCKED")`, matching every other genuine protocol
+    violation this module already fails closed on."""
+    from project_atlas.orchestration.autonomy.local_dispatch_port import _write_json_atomic
+
+    target = tmp_path / "receipt.json"
+    tmp_sibling = tmp_path / ".receipt.json.tmp"
+    tmp_sibling.mkdir()  # obstruct the predictable tmp path with a directory
+
+    with pytest.raises(LocalDispatchError) as exc:
+        _write_json_atomic(target, {"hello": "world"})
+    assert exc.value.code == "RECEIPT_WRITE_BLOCKED"
+
+
 def test_read_receipt_fails_closed_on_corrupt_receipt(tmp_path: Path) -> None:
     """`_read_receipt` must distinguish "no receipt was ever written"
     (returns None -- the only case callers may treat as an open attempt
