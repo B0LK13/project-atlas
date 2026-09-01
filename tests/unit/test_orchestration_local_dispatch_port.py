@@ -9,6 +9,7 @@ the REAL governed lease/dispatch machinery (``AutonomousGovernor`` +
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -996,3 +997,163 @@ def test_abandoned_worktree_from_a_prior_crashed_attempt_does_not_block_a_fresh_
     result = port.dispatch_once(repo)
     assert result["status"] == "COMPLETED"
     assert result["dispatch_id"] != abandoned_dispatch_id
+
+
+# ---------------------------------------------------------------------------
+# Fresh-IV-round remediation (PR #662, second independent adversarial round
+# against the isolated-worktree head): a reproduced arbitrary-file-write via
+# a symlink planted at `_write_json_atomic`'s predictable tmp path, a
+# corrupt/tampered receipt silently conflated with "no dispatch happened",
+# and the receipts store itself being excluded from the supervisor-integrity
+# guard's content digest.
+# ---------------------------------------------------------------------------
+
+
+def test_write_json_atomic_refuses_to_follow_a_planted_symlink(tmp_path: Path) -> None:
+    """Reproduces the exact PoC from the fresh IV round: pre-plant a
+    symlink at the predictable `.{name}.tmp` sibling path a legitimate
+    caller (a receipt/request write) is about to use, pointing at an
+    unrelated "victim" file outside the receipts store entirely. Before
+    the fix, `_write_json_atomic` followed the symlink and clobbered the
+    victim's content; the intended target was left a dangling symlink to
+    the victim. After the fix, the symlink is removed (never followed)
+    and the write lands on a fresh regular file at the real target."""
+    from project_atlas.orchestration.autonomy.local_dispatch_port import _write_json_atomic
+
+    victim = tmp_path / "victim.txt"
+    victim.write_text("original victim content\n", encoding="utf-8")
+    target = tmp_path / "receipt.json"
+    tmp_sibling = tmp_path / ".receipt.json.tmp"
+    tmp_sibling.symlink_to(victim)
+
+    _write_json_atomic(target, {"hello": "world"})
+
+    # The victim file must be untouched -- the write must never have
+    # followed the planted symlink.
+    assert victim.read_text(encoding="utf-8") == "original victim content\n"
+    # The real target must be a genuine regular file with the intended
+    # content, not a dangling symlink to the victim.
+    assert not target.is_symlink()
+    assert json.loads(target.read_text(encoding="utf-8")) == {"hello": "world"}
+
+
+def test_read_receipt_fails_closed_on_corrupt_receipt(tmp_path: Path) -> None:
+    """`_read_receipt` must distinguish "no receipt was ever written"
+    (returns None -- the only case callers may treat as an open attempt
+    slot) from "a receipt file exists but is corrupt/unreadable/malformed"
+    (must raise LocalDispatchError, never silently return None). Before
+    the fix these two cases were conflated, which would let
+    `dispatch_once()` silently reuse/overwrite a corrupted attempt's slot
+    and let `recover()`/`find_active_dispatch_id()` silently lose track
+    of a real attempt."""
+    from project_atlas.orchestration.autonomy.local_dispatch_port import (
+        _receipt_filename,
+        _receipts_dir,
+    )
+
+    repo = _make_repo(tmp_path)
+
+    # Genuinely missing -- must return None.
+    assert _read_receipt(repo, "local-process:LEASE-X:0") is None
+
+    # Malformed JSON -- must fail closed.
+    malformed_id = "local-process:LEASE-X:1"
+    path = _receipts_dir(repo) / _receipt_filename(malformed_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not valid json", encoding="utf-8")
+    with pytest.raises(LocalDispatchError) as exc:
+        _read_receipt(repo, malformed_id)
+    assert exc.value.code == "CORRUPT_RECEIPT"
+
+    # Valid JSON but not an object -- must fail closed.
+    non_object_id = "local-process:LEASE-X:2"
+    path = _receipts_dir(repo) / _receipt_filename(non_object_id)
+    path.write_text("[1, 2, 3]", encoding="utf-8")
+    with pytest.raises(LocalDispatchError) as exc:
+        _read_receipt(repo, non_object_id)
+    assert exc.value.code == "CORRUPT_RECEIPT"
+
+
+def test_dispatch_once_fails_closed_rather_than_reusing_a_corrupt_attempt_slot(
+    tmp_path: Path,
+) -> None:
+    """End-to-end: a corrupt receipt sitting at attempt 0 for the active
+    lease must stop `dispatch_once()` from silently treating that slot as
+    free and dispatching a fresh attempt over it -- it must raise
+    LocalDispatchError instead, matching this module's own
+    `LocalDispatchError` = "could not proceed at all" contract."""
+    from project_atlas.orchestration.autonomy.local_dispatch_port import (
+        _dispatch_id_for,
+        _receipt_filename,
+        _receipts_dir,
+    )
+
+    repo = _make_repo(tmp_path)
+    main, tree = _repo_main_tree(repo)
+    node = _node("PRC-GUARD-005", base_pin=main)
+    gov = _governor(repo, node, current_main=main, current_tree=tree)
+    lease = gov.lease("PRC-GUARD-005", "governor-pilot-local", branch="b", worktree="w")
+
+    dispatch_id_0 = f"{_dispatch_id_for(lease.lease_id)}:0"
+    path = _receipts_dir(repo) / _receipt_filename(dispatch_id_0)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{not valid json", encoding="utf-8")
+
+    port = _port(argv=(sys.executable, "-c", "open('allowed/output.txt','w').close()"))
+    with pytest.raises(LocalDispatchError) as exc:
+        port.dispatch_once(repo)
+    assert exc.value.code == "CORRUPT_RECEIPT"
+
+
+def test_supervisor_integrity_guard_detects_tampering_with_another_receipt(
+    tmp_path: Path,
+) -> None:
+    """The fresh IV round's third finding: the guard's content digest used
+    to exclude the ENTIRE receipts store (which nests every dispatch's own
+    isolated worktree), so a dispatched task tampering with a DIFFERENT
+    receipt file -- not its own, still legitimately being written outside
+    the guarded window -- went completely undetected. After the fix, only
+    the worktrees subtree is excluded; the receipt/request JSON files
+    themselves are covered by the digest."""
+    from project_atlas.orchestration.autonomy.local_dispatch_port import (
+        RECEIPTS_RELATIVE,
+        _write_receipt,
+    )
+
+    repo = _make_repo(tmp_path)
+    main, tree = _repo_main_tree(repo)
+    # A pre-existing, already-resolved receipt for an unrelated lease --
+    # the kind of durable record this guard must protect even though it
+    # legitimately differs from the receipt this dispatch itself writes.
+    _write_receipt(
+        repo, "local-process:LEASE-OTHER:0",
+        {
+            "dispatch_id": "local-process:LEASE-OTHER:0",
+            "lease_id": "LEASE-OTHER",
+            "package_id": "PRC-OTHER",
+            "status": "COMPLETED",
+        },
+    )
+    node = _node("PRC-GUARD-006", base_pin=main)
+    gov = _governor(repo, node, current_main=main, current_tree=tree)
+    other_receipt = repo / RECEIPTS_RELATIVE / "local-process_LEASE-OTHER_0.json"
+    assert other_receipt.is_file()
+    script = (
+        "import pathlib\n"
+        f"target = pathlib.Path({str(other_receipt)!r})\n"
+        "target.write_text('{\"tampered\": true}', encoding='utf-8')\n"
+        "open('allowed/output.txt', 'w').write('ok')\n"
+    )
+    port = _port(argv=(sys.executable, "-c", script))
+    loop = _loop(
+        repo, gov, current_main=main, current_tree=tree, dispatch=port,
+        override=ExecutionHostClass.LOCAL_PROCESS,
+    )
+    loop.tick()
+    final = next(n for n in gov.snapshot().nodes if n.package_id == "PRC-GUARD-006")
+    assert final.state != NodeState.CERTIFIED
+    dispatch_id = f"{_dispatch_id_for('LEASE-1')}:0"
+    receipt = _read_receipt(repo, dispatch_id)
+    assert receipt is not None
+    assert receipt["status"] == "FAILED"
+    assert "supervisor_integrity_violation" in receipt

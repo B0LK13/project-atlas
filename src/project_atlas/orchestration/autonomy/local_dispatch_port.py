@@ -70,8 +70,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import subprocess
+from contextlib import suppress
 from pathlib import Path
 from typing import Final
 
@@ -144,6 +146,16 @@ def _receipts_dir(root: Path) -> Path:
     return target
 
 
+def _worktrees_dir(root: Path) -> Path:
+    resolved_root = root.expanduser().resolve()
+    target = (resolved_root / WORKTREES_RELATIVE).resolve()
+    if not target.is_relative_to(resolved_root):
+        raise LocalDispatchError(
+            "dispatch worktrees store path escapes project root", code="PATH_UNSAFE"
+        )
+    return target
+
+
 def _worktree_path(root: Path, dispatch_id: str) -> Path:
     resolved_root = root.expanduser().resolve()
     target = (resolved_root / WORKTREES_RELATIVE / _safe_token(dispatch_id)).resolve()
@@ -157,23 +169,82 @@ def _dispatch_branch_name(dispatch_id: str) -> str:
 
 
 def _write_json_atomic(target: Path, payload: dict[str, object]) -> None:
+    """Write ``payload`` to ``target`` atomically, WITHOUT ever following a
+    symlink planted at the predictable ``.{name}.tmp`` sibling path (IV
+    finding, PR #662: a locally-dispatched task can compute both its own
+    ``dispatch_id`` and ``root`` from the request JSON it is handed, plant a
+    symlink at the exact tmp path this function will use next, exit
+    cleanly, and have the SUPERVISOR's own subsequent receipt write follow
+    that symlink -- an arbitrary-file-write primitive reachable entirely
+    outside the worktree-diff scope check and the supervisor-integrity
+    guard). Always unlink whatever currently occupies the tmp path (a
+    stale leftover from a prior crashed write, or a planted symlink --
+    unlinking a symlink only removes the link, never touches whatever it
+    points at) and then create a FRESH regular file with
+    O_CREAT|O_EXCL(|O_NOFOLLOW where available), so a symlink planted in
+    the narrow window between the unlink and the open is refused rather
+    than silently followed. The final ``tmp.replace(target)`` never
+    follows a symlink at ``target`` either -- rename() replaces the
+    directory entry itself, not whatever it points at, so even a
+    symlinked ``target`` is safely replaced with a fresh regular file
+    rather than having its link target's content clobbered.
+    """
     target.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=True) + "\n"
     tmp = target.with_name(f".{target.name}.tmp")
-    tmp.write_text(encoded, encoding="utf-8")
+    with suppress(FileNotFoundError):
+        tmp.unlink()
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(tmp, flags, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(encoded)
+    except BaseException:
+        with suppress(FileNotFoundError):
+            tmp.unlink()
+        raise
     tmp.replace(target)
 
 
 def _read_receipt(root: Path, dispatch_id: str) -> dict[str, object] | None:
+    """``None`` means "no receipt was ever written for this dispatch_id" --
+    the ONLY case callers may treat as "this attempt slot is free"/"nothing
+    is known yet". Anything else that stops this from returning a real
+    decoded receipt (unreadable file, invalid JSON, a non-object JSON
+    value) is a genuine integrity problem -- fail closed with
+    ``LocalDispatchError`` rather than silently conflating "corrupt/
+    tampered receipt" with "no dispatch ever happened" (IV finding, PR
+    #662: the prior version returned ``None`` for both, which would let
+    ``dispatch_once()`` silently reuse/overwrite an attempt slot whose
+    receipt was corrupted or maliciously planted, and would let
+    ``recover()``/``find_active_dispatch_id()`` silently lose track of a
+    real in-flight or completed attempt)."""
     path = _receipts_dir(root) / _receipt_filename(dispatch_id)
-    if not path.is_file():
-        return None
     try:
-        decoded: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return None
+    except OSError as exc:
+        raise LocalDispatchError(
+            f"dispatch receipt for {dispatch_id!r} exists but could not be read "
+            f"({exc.__class__.__name__}) -- refusing to treat a corrupt/inaccessible "
+            "receipt as though no dispatch ever happened for this attempt",
+            code="CORRUPT_RECEIPT",
+        ) from exc
+    try:
+        decoded: object = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise LocalDispatchError(
+            f"dispatch receipt for {dispatch_id!r} is not valid JSON -- failing "
+            "closed rather than treating it as though this attempt never happened",
+            code="CORRUPT_RECEIPT",
+        ) from exc
     if not isinstance(decoded, dict):
-        return None
+        raise LocalDispatchError(
+            f"dispatch receipt for {dispatch_id!r} did not decode to a JSON object "
+            "-- failing closed rather than treating it as though this attempt never happened",
+            code="CORRUPT_RECEIPT",
+        )
     return decoded
 
 
@@ -249,37 +320,40 @@ def _supervisor_git_status(root: Path) -> str:
     return result.stdout
 
 
-def _protected_state_digest(root: Path, *, receipts_dir: Path) -> str:
+def _protected_state_digest(root: Path, *, worktrees_dir: Path) -> str:
     """Content digest of every file under ``.atlas/orchestration/`` --
     the durable governance state (lease projection, loop state,
-    origination projection, every dispatch's own receipts) a dispatch
-    attempt must never be able to touch -- EXCLUDING this port's own
-    receipts store (``receipts_dir``), which ``dispatch_once()`` itself
-    legitimately writes to before and after every attempt (compared
-    exactly by identity there, not blindly content-hashed here).
-    ``.atlas/orchestration/`` is gitignored, so ``_supervisor_git_status``
-    alone never sees a mutation here -- this is what closes that blind
-    spot for the SAME class of attack (an escape via an absolute/
-    traversal path from inside the isolated worktree, or from a
-    completely unrelated concurrent process).
+    origination projection, and -- as of the receipts-blind-spot fix
+    below -- every dispatch's own receipts too) a dispatch attempt must
+    never be able to touch -- EXCLUDING only this port's own per-attempt
+    WORKTREE checkouts (``worktrees_dir``), whose content changing during
+    a live attempt is expected and legitimate. ``.atlas/orchestration/``
+    is gitignored, so ``_supervisor_git_status`` alone never sees a
+    mutation here -- this is what closes that blind spot for the SAME
+    class of attack (an escape via an absolute/traversal path from inside
+    the isolated worktree, or from a completely unrelated concurrent
+    process).
 
-    Scope note: ``WORKTREES_RELATIVE`` lives inside ``RECEIPTS_RELATIVE``,
-    so excluding ``receipts_dir`` also excludes every dispatch's own
-    worktree content -- deliberately: this guard's job is confirming the
-    supervisor's LIVE governance state (lease projection, loop state,
-    origination projection) survives one dispatch attempt uncorrupted,
-    not policing the historical contents of a DIFFERENT, already-
-    completed attempt's own disposable worktree.
+    Receipts ARE now covered (IV finding, PR #662 fresh IV round: the
+    prior version excluded the ENTIRE receipts store -- which nests
+    ``WORKTREES_RELATIVE`` inside ``RECEIPTS_RELATIVE`` -- so a dispatched
+    task tampering with a receipt file, its own or another lease's, went
+    completely undetected by this guard). This is safe to do unguarded:
+    every call site in this module snapshots "before" AFTER this
+    dispatch's own RUNNING receipt and request-JSON writes, and checks
+    "after" BEFORE this dispatch's own final receipt write (see
+    ``dispatch_once()``), so this dispatch's own legitimate receipt
+    writes never fall inside the guarded window at all.
     """
     orchestration_dir = (root / ".atlas" / "orchestration").resolve()
     if not orchestration_dir.is_dir():
         return hashlib.sha256(b"").hexdigest()
-    resolved_receipts_dir = receipts_dir.resolve()
+    resolved_worktrees_dir = worktrees_dir.resolve()
     hasher = hashlib.sha256()
     for path in sorted(orchestration_dir.rglob("*")):
         if not path.is_file():
             continue
-        if path.resolve().is_relative_to(resolved_receipts_dir):
+        if path.resolve().is_relative_to(resolved_worktrees_dir):
             continue
         hasher.update(path.relative_to(orchestration_dir).as_posix().encode("utf-8"))
         hasher.update(path.read_bytes())
@@ -287,16 +361,16 @@ def _protected_state_digest(root: Path, *, receipts_dir: Path) -> str:
 
 
 def _supervisor_integrity_violation(
-    root: Path, *, receipts_dir: Path, status_before: str, state_before: str
+    root: Path, *, worktrees_dir: Path, status_before: str, state_before: str
 ) -> str | None:
     """Re-snapshot ``root`` and compare against the "before" snapshot a
     caller captured earlier -- returns a short, human-readable violation
-    description if anything outside this dispatch's own receipt-writing
+    description if anything outside this dispatch's own worktree
     changed, ``None`` if the supervisor checkout is confirmed
     byte-for-byte unchanged. See ``_supervisor_git_status``/
     ``_protected_state_digest`` docstrings for what each half covers."""
     status_after = _supervisor_git_status(root)
-    state_after = _protected_state_digest(root, receipts_dir=receipts_dir)
+    state_after = _protected_state_digest(root, worktrees_dir=worktrees_dir)
     if status_before == status_after and state_before == state_after:
         return None
     parts = []
@@ -420,19 +494,23 @@ class LocalProcessDispatchPort:
 
         # Supervisor-checkout integrity guard (explicit adversarial
         # requirement, PR #662): captured AFTER this dispatch's own
-        # legitimate writes above (both live under `_receipts_dir`,
-        # already excluded from `_protected_state_digest`) and compared
-        # again once the attempt finishes, BEFORE this dispatch's own
-        # final receipt write. Isolated-worktree containment is a git-
-        # level property only; this is the independent, filesystem-level
-        # check that `resolved_root` itself -- tracked files AND the
-        # gitignored durable governance state alike -- stayed byte-for-
-        # byte identical throughout, regardless of what the attempt did
+        # legitimate RUNNING-receipt and request-JSON writes above and
+        # compared again once the attempt finishes, BEFORE this
+        # dispatch's own final receipt write -- so those legitimate
+        # writes never fall inside the guarded window, while every OTHER
+        # receipt (this dispatch's prior attempts, other leases') and
+        # every other governance file IS protected (only this dispatch's
+        # own isolated worktree, under `worktrees_dir`, is excluded).
+        # Isolated-worktree containment is a git-level property only;
+        # this is the independent, filesystem-level check that
+        # `resolved_root` itself -- tracked files AND the gitignored
+        # durable governance state alike -- stayed byte-for-byte
+        # identical throughout, regardless of what the attempt did
         # inside its own worktree or attempted via an absolute/traversal
         # path.
-        receipts_dir = _receipts_dir(resolved_root)
+        worktrees_dir = _worktrees_dir(resolved_root)
         guard_status_before = _supervisor_git_status(resolved_root)
-        guard_state_before = _protected_state_digest(resolved_root, receipts_dir=receipts_dir)
+        guard_state_before = _protected_state_digest(resolved_root, worktrees_dir=worktrees_dir)
 
         try:
             worktree_path = _create_dispatch_worktree(
@@ -472,7 +550,7 @@ class LocalProcessDispatchPort:
             }
             guard_violation = _supervisor_integrity_violation(
                 resolved_root,
-                receipts_dir=receipts_dir,
+                worktrees_dir=worktrees_dir,
                 status_before=guard_status_before,
                 state_before=guard_state_before,
             )
@@ -510,7 +588,7 @@ class LocalProcessDispatchPort:
         }
         guard_violation = _supervisor_integrity_violation(
             resolved_root,
-            receipts_dir=receipts_dir,
+            worktrees_dir=worktrees_dir,
             status_before=guard_status_before,
             state_before=guard_state_before,
         )
