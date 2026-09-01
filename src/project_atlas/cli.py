@@ -2907,53 +2907,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional loop state store (default: <root>/.atlas/orchestration/loop).",
     )
-    orch_trust_checkpoint = orch_sub.add_parser(
-        "trust-checkpoint",
-        help=(
-            "ONE-TIME owner-authorized stale-runtime-anchor recovery via an "
-            "explicit TrustCheckpointProof. Distinct from, and never a "
-            "substitute for, ordinary single-hop trust advancement. Never "
-            "invoked automatically by the governor. Does not merge."
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  atlas orchestrator trust-checkpoint --root . "
-            "--trust-store .atlas/orchestration/autonomy/trust "
-            "--proof checkpoint-proof.json\n"
-            "  atlas orchestrator trust-checkpoint --root . "
-            "--trust-store .atlas/orchestration/autonomy/trust "
-            "--proof checkpoint-proof.json --bootstrap-from-shipped\n"
-        ),
-    )
-    orch_trust_checkpoint.add_argument(
-        "--root",
-        type=Path,
-        default=None,
-        help="Repository root (default: cwd).",
-    )
-    orch_trust_checkpoint.add_argument(
-        "--trust-store",
-        type=Path,
-        required=True,
-        help="Durable runtime trusted-anchor store (required -- never implicit).",
-    )
-    orch_trust_checkpoint.add_argument(
-        "--proof",
-        type=Path,
-        required=True,
-        help="Path to a TrustCheckpointProof JSON file (required -- never implicit).",
-    )
-    orch_trust_checkpoint.add_argument(
-        "--bootstrap-from-shipped",
-        action="store_true",
-        help=(
-            "First-time only: initialize --trust-store from the verified "
-            "shipped anchor if it has no current record yet. Refuses to "
-            "overwrite a differing existing record; a no-op if the store "
-            "already holds the identical record."
-        ),
-    )
     orch_gov_service = orch_sub.add_parser(
         "governor-service-run",
         help=(
@@ -5738,17 +5691,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 root=Path(getattr(args, "root", None) or Path.cwd()),
                 trust_store=getattr(args, "trust_store", None),
                 loop_store=getattr(args, "loop_store", None),
-            )
-            print(json.dumps(report, indent=2, sort_keys=True))
-            return exit_code
-        if args.orchestrator_command == "trust-checkpoint":
-            from project_atlas.orchestration.autonomy.cli import run_trust_checkpoint
-
-            report, exit_code = run_trust_checkpoint(
-                root=Path(getattr(args, "root", None) or Path.cwd()),
-                trust_store=args.trust_store,
-                proof_path=args.proof,
-                bootstrap_from_shipped=bool(getattr(args, "bootstrap_from_shipped", False)),
             )
             print(json.dumps(report, indent=2, sort_keys=True))
             return exit_code

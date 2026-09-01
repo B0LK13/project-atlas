@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 from pathlib import Path
 from typing import TextIO
 
@@ -489,3 +491,81 @@ def run_trust_checkpoint(
         "merge_authorized": False,
         "execution_authorized": False,
     }, EXIT_OK
+
+
+def _build_standalone_parser() -> argparse.ArgumentParser:
+    """Standalone parser for ``trust-checkpoint``.
+
+    ``src/project_atlas/cli.py`` (the ``atlas`` top-level entry point,
+    where every OTHER orchestrator subcommand -- ``governor-status``,
+    ``governor-pilot``, etc. -- is wired) is currently frozen: its own
+    Golden-Demo isolation guard (``tests/unit/
+    test_atlas3_demo_isolation_001.py::test_cli_mutation_is_additive_only``)
+    requires any diff touching that file to land within the
+    ``register_atlas3_parsers``/``dispatch_atlas3`` extension points,
+    which this trust/security-governance change has no legitimate reason
+    to route through. A prior, unrelated change (DOGFOOD-001, see
+    WORKLOG.md) hit the same wall and dropped its own ``cli.py`` edit
+    rather than force an unrelated exception through that guard; this
+    follows the same precedent. This standalone entrypoint is the
+    deliberate, real operator surface until ``cli.py``'s freeze lifts:
+    ``python -m project_atlas.orchestration.autonomy.cli trust-checkpoint
+    --trust-store <path> --proof <path> [--root <path>]
+    [--bootstrap-from-shipped]``. Not a hidden helper -- ``--trust-store``
+    and ``--proof`` are both required, machine-readable JSON is printed
+    to stdout, and the exit code follows this module's own EXIT_OK/
+    EXIT_ERROR convention exactly like every other command here.
+    """
+    parser = argparse.ArgumentParser(prog="python -m project_atlas.orchestration.autonomy.cli")
+    sub = parser.add_subparsers(dest="command", required=True)
+    checkpoint = sub.add_parser(
+        "trust-checkpoint",
+        help=(
+            "ONE-TIME owner-authorized stale-runtime-anchor recovery via an "
+            "explicit TrustCheckpointProof. Never invoked automatically. "
+            "Does not merge."
+        ),
+    )
+    checkpoint.add_argument(
+        "--root", type=Path, default=None, help="Repository root (default: cwd)."
+    )
+    checkpoint.add_argument(
+        "--trust-store",
+        type=Path,
+        required=True,
+        help="Durable runtime trusted-anchor store (required -- never implicit).",
+    )
+    checkpoint.add_argument(
+        "--proof",
+        type=Path,
+        required=True,
+        help="Path to a TrustCheckpointProof JSON file (required -- never implicit).",
+    )
+    checkpoint.add_argument(
+        "--bootstrap-from-shipped",
+        action="store_true",
+        help=(
+            "First-time only: initialize --trust-store from the verified "
+            "shipped anchor if it has no current record yet."
+        ),
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Standalone entrypoint. See ``_build_standalone_parser()``."""
+    args = _build_standalone_parser().parse_args(argv)
+    if args.command == "trust-checkpoint":
+        report, exit_code = run_trust_checkpoint(
+            root=Path(args.root or Path.cwd()),
+            trust_store=args.trust_store,
+            proof_path=args.proof,
+            bootstrap_from_shipped=bool(args.bootstrap_from_shipped),
+        )
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return exit_code
+    return 2  # argparse usage error convention, matches the top-level atlas CLI
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

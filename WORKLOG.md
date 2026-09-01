@@ -10362,12 +10362,27 @@ owner-authorized this narrow, explicit, auditable recovery capability:
   `compare_and_advance()` CAS/history/lock machinery unchanged) and
   ALWAYS persist to an explicit runtime store -- never silently mutate
   shipped package data.
-- **CLI**: `atlas orchestrator trust-checkpoint --trust-store <path>
-  --proof <path> [--bootstrap-from-shipped]` (`--trust-store`/`--proof`
-  both required, never implicit). `--bootstrap-from-shipped`
-  initializes the store from the verified shipped anchor via the
-  existing `initialize_store()` contract the FIRST time only (refuses
-  to overwrite a differing record).
+- **CLI**: `python -m project_atlas.orchestration.autonomy.cli
+  trust-checkpoint --trust-store <path> --proof <path>
+  [--bootstrap-from-shipped]` (`--trust-store`/`--proof` both required,
+  never implicit). `--bootstrap-from-shipped` initializes the store
+  from the verified shipped anchor via the existing `initialize_store()`
+  contract the FIRST time only (refuses to overwrite a differing
+  record). NOT wired into `atlas orchestrator ...` (top-level
+  `src/project_atlas/cli.py`) -- that file's own Golden-Demo isolation
+  guard (`test_cli_mutation_is_additive_only`) requires any diff there
+  to land within the `register_atlas3_parsers`/`dispatch_atlas3`
+  extension points, which this trust/security-governance change has no
+  legitimate reason to route through. Hit this for real in CI (initial
+  push DID wire it into `cli.py` directly, following every other
+  `orch_*` subcommand's existing pattern -- CI correctly caught it: the
+  guard fired with `1 failed, 4990 passed`, a genuine, real failure, not
+  a flake). A prior, unrelated change (DOGFOOD-001) hit the identical
+  wall and dropped its own `cli.py` edit rather than force an unrelated
+  exception through the guard; this follows the same precedent instead
+  of trying to get past it. `run_trust_checkpoint()` itself
+  (`orchestration/autonomy/cli.py`, NOT frozen) is unchanged by this
+  fix -- only where the argparse wiring lives moved.
 - Ordinary single-hop `advance_trusted_anchor()` is completely
   untouched -- not weakened, not shared code paths beyond
   `compare_and_advance()`'s already-generic persistence layer.
