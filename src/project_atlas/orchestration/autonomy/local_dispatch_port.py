@@ -202,10 +202,19 @@ def _write_json_atomic(target: Path, payload: dict[str, object]) -> None:
     JSON response every other genuine protocol violation in this module
     already gets).
     """
-    target.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=True) + "\n"
     tmp = target.with_name(f".{target.name}.tmp")
     try:
+        # IV finding, PR #662 fresh IV round 4: this mkdir() previously sat
+        # OUTSIDE the try/except OSError block below, so an obstructed
+        # ancestor path (e.g. a plain file where a directory component of
+        # `target.parent` is expected) raised a raw, unwrapped OSError --
+        # reachable on dispatch_once()'s very first durable write, before
+        # its own try/except Exception block even begins, with nothing
+        # upstream (loop.py's _dispatch_leased() explicitly does not wrap
+        # this call) to catch it either. Moved inside so it is covered by
+        # the same fail-closed conversion as every other OSError here.
+        target.parent.mkdir(parents=True, exist_ok=True)
         with suppress(FileNotFoundError):
             tmp.unlink()
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)

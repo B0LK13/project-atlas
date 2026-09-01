@@ -1060,6 +1060,29 @@ def test_write_json_atomic_fails_closed_not_raw_oserror_on_tmp_path_obstruction(
     assert exc.value.code == "RECEIPT_WRITE_BLOCKED"
 
 
+def test_write_json_atomic_fails_closed_on_obstructed_ancestor_directory(
+    tmp_path: Path,
+) -> None:
+    """Fresh IV round 4's finding: the original round-3 fix wrapped the
+    unlink/open/write/replace sequence in `except OSError`, but
+    `target.parent.mkdir(parents=True, exist_ok=True)` -- the FIRST
+    filesystem operation in the function -- sat OUTSIDE that block.
+    Obstructing an ancestor of `target.parent` with a plain FILE (so
+    `mkdir()` itself raises) reproduced a raw, unwrapped `FileExistsError`
+    escaping uncaught -- on `dispatch_once()`'s very first durable write,
+    before its own try/except even begins. `mkdir()` must be inside the
+    same fail-closed boundary as everything else in this function."""
+    from project_atlas.orchestration.autonomy.local_dispatch_port import _write_json_atomic
+
+    obstruction = tmp_path / "notadir"
+    obstruction.write_text("i am a file, not a directory", encoding="utf-8")
+    target = obstruction / "nested" / "receipt.json"
+
+    with pytest.raises(LocalDispatchError) as exc:
+        _write_json_atomic(target, {"hello": "world"})
+    assert exc.value.code == "RECEIPT_WRITE_BLOCKED"
+
+
 def test_read_receipt_fails_closed_on_corrupt_receipt(tmp_path: Path) -> None:
     """`_read_receipt` must distinguish "no receipt was ever written"
     (returns None -- the only case callers may treat as an open attempt
