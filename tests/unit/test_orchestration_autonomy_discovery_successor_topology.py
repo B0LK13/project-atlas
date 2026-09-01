@@ -33,6 +33,7 @@ import pytest
 from project_atlas.orchestration.autonomy.discovery import (
     DiscoveryError,
     _is_merged_into,
+    _is_shallow_repository,
     collect_live_inventory,
     discover,
 )
@@ -367,3 +368,101 @@ def test_dangling_ref_object_fails_closed_through_full_pipeline(tmp_path: Path) 
 
     with pytest.raises(DiscoveryError):
         collect_live_inventory(repo)
+
+
+# ---------------------------------------------------------------------------
+# Second review round on this PR (chatgpt-codex-connector P2 + P1): shallow-
+# clone ancestry blindness, and a dirty CURRENT successor branch being
+# silently ignored because its last committed tip is already an ancestor.
+# ---------------------------------------------------------------------------
+
+
+def test_shallow_clone_with_matching_ref_fails_closed(tmp_path: Path) -> None:
+    """A shallow clone can make `git merge-base --is-ancestor` report `1`
+    (not an ancestor) for a commit that genuinely IS merged in the full
+    history -- git treats a shallow commit's parents as nonexistent, so
+    the shallow boundary can hide the real merge edge. This would
+    silently reintroduce this very fix's own bug in any shallow
+    checkout. Must fail closed instead of guessing."""
+    source = _make_repo(tmp_path, name="source")
+    root = _git(source, "rev-parse", "HEAD")
+    main_tip = _commit(source, "second")
+    _git(source, "checkout", "-q", "-b", "feat/as-orch-001e-old", root)
+    _git(source, "checkout", "-q", "main")
+
+    clone = tmp_path / "shallow-clone"
+    _git(
+        tmp_path,
+        "clone",
+        "-q",
+        "--depth",
+        "1",
+        "--no-single-branch",
+        "--no-local",
+        str(source),
+        str(clone),
+    )
+    assert _is_shallow_repository(clone) is True
+    _set_origin_main(clone, main_tip)
+    _set_remote_branch(clone, "refs/remotes/origin/feat/as-orch-001e-old", root)
+
+    with pytest.raises(DiscoveryError, match="shallow"):
+        collect_live_inventory(clone)
+
+
+def test_shallow_clone_with_no_matching_refs_is_fine(tmp_path: Path) -> None:
+    """A shallow clone with no successor-pattern refs at all has nothing
+    ambiguous to fail closed on -- must not spuriously error."""
+    source = _make_repo(tmp_path, name="source2")
+    main_tip = _git(source, "rev-parse", "HEAD")
+    clone = tmp_path / "shallow-clone2"
+    _git(tmp_path, "clone", "-q", "--depth", "1", "--no-local", str(source), str(clone))
+    assert _is_shallow_repository(clone) is True
+    _set_origin_main(clone, main_tip)
+
+    inventory = collect_live_inventory(clone)
+    assert inventory.active_successor_packages == ()
+
+
+def test_non_shallow_repo_is_not_shallow(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path)
+    assert _is_shallow_repository(repo) is False
+
+
+def test_dirty_current_successor_branch_stays_active_even_if_tip_is_merged(
+    tmp_path: Path,
+) -> None:
+    """A matching branch that IS the current checkout, with real
+    uncommitted work, must stay active even though its last COMMITTED
+    tip is already an ancestor of main (e.g. just branched from main,
+    nothing committed yet) -- discover() never separately consults
+    worktree_status, so ancestry alone would otherwise silently drop
+    genuinely in-progress successor work."""
+    repo = _make_repo(tmp_path)
+    main_tip = _git(repo, "rev-parse", "HEAD")
+    _set_origin_main(repo, main_tip)
+    # Branch from main with NO new commit -- its tip trivially equals
+    # (is an ancestor of) main.
+    _git(repo, "checkout", "-q", "-b", "feat/as-orch-001e-just-started")
+    # Real, uncommitted work sitting on disk.
+    (repo / "f.txt").write_text("uncommitted in-progress work\n", encoding="utf-8")
+
+    inventory = collect_live_inventory(repo)
+    assert inventory.worktree_status == "DIRTY_UNTRACKED_OR_MODIFIED"
+    assert "refs/heads/feat/as-orch-001e-just-started" in inventory.active_successor_packages
+    assert inventory.as_orch_001e_started == "YES"
+
+
+def test_clean_current_successor_branch_with_merged_tip_is_not_active(tmp_path: Path) -> None:
+    """The counterpart to the dirty case above: a matching branch that
+    IS the current checkout but has NO uncommitted work, and whose tip
+    is already merged, correctly stays inactive -- confirms the dirty-
+    branch exception doesn't overreach into the clean case."""
+    repo = _make_repo(tmp_path)
+    main_tip = _git(repo, "rev-parse", "HEAD")
+    _set_origin_main(repo, main_tip)
+    _git(repo, "checkout", "-q", "-b", "feat/as-orch-001e-just-started-clean")
+
+    inventory = collect_live_inventory(repo)
+    assert inventory.worktree_status == "CLEAN"
+    assert inventory.active_successor_packages == ()

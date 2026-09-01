@@ -10571,3 +10571,69 @@ A non-blocking, optional follow-up (`STALE_MERGED_BRANCH_HYGIENE`) is
 worth deriving separately if the owner ever wants the branch actually
 deleted -- not executed here under this fix's own
 `DESTRUCTIVE_ACTIONS = FALSE` scope.
+
+## PR #665 review round -- 3 more findings (2 real, 1 classified non-material)
+
+`test_only` commit `b0397626` closed a fresh IV's 2 coverage-gap notes;
+GitHub's own automated reviewers then found 3 more issues once the PR
+carried real content:
+
+1. **(copilot, non-material by owner instruction)** `_for_each_ref()`/
+   `_is_merged_into()`'s `DiscoveryError` messages don't include the
+   underlying git exit code/stderr, making real diagnosis harder even
+   though the fail-closed behavior itself is correct. Classified
+   `NON_MATERIAL_DIAGNOSTIC_IMPROVEMENT` per explicit owner
+   instruction -- no correctness/safety/authority impact demonstrated,
+   not worth churning this PR's implementation for; a low-priority
+   follow-up if ever wanted.
+
+2. **(codex P2, REAL) Shallow-clone ancestry blindness.** Git treats a
+   shallow commit as having no parents -- in a shallow checkout (this
+   repo's own hosted CI defaults to exactly this, per the freeze
+   guard's own docstring), `git merge-base --is-ancestor` can report
+   `1` (not an ancestor) for a commit that genuinely IS merged in the
+   full history, simply because the shallow boundary hides the real
+   parent edge. Left unfixed, this would silently reintroduce THIS
+   FIX's own bug -- a genuinely-merged branch misclassified as
+   active -- specifically in shallow environments. Fixed:
+   `_is_shallow_repository()` (`git rev-parse
+   --is-shallow-repository`) is checked once, only when there is at
+   least one successor-pattern-matching ref to evaluate (a shallow
+   clone with no matching refs at all has nothing ambiguous to worry
+   about), and fails closed (`DiscoveryError`) rather than guessing.
+
+3. **(codex P1, REAL) Dirty current successor branch silently
+   dropped.** If the CURRENT checkout is itself a branch matching the
+   successor patterns, with real staged/uncommitted work, but its last
+   COMMITTED tip already equals/precedes `origin/main` (e.g. just
+   branched from main, nothing committed yet), the pure ancestry check
+   would classify it as "merged" and drop it from every
+   successor-activity field -- even though real in-progress successor
+   work exists on disk. `discover()` itself never separately consults
+   `worktree_status`, so this gap could only be closed inside
+   `collect_live_inventory()` itself (ancestry can't observe
+   uncommitted content at all). Fixed: `worktree_dirty` and
+   `current_branch_ref` are now computed once, early; a ref that is
+   BOTH the current checkout AND the worktree is dirty is forced
+   active regardless of what its committed tip's ancestry says.
+
+5 new regression tests (17 total, was 12): shallow clone with a
+matching ref fails closed; shallow clone with no matching refs is
+fine; a plain non-shallow repo correctly reports not-shallow; a dirty
+current successor branch stays active even with an already-merged
+tip; the clean counterpart (no uncommitted work) correctly stays
+inactive, confirming the dirty-branch exception doesn't overreach.
+Real local-clone gotcha found while writing these: `git clone --depth`
+against a same-filesystem local source silently ignores shallow
+semantics unless `--no-local` (or a genuine `file://`/network URL) is
+used -- without it, `--is-shallow-repository` reports `false` even
+with `--depth 1` requested, which would have made the shallow-clone
+tests false-pass; caught and fixed before it could ship as a
+non-test.
+
+ruff/mypy clean. Broader regression (autonomy + rehydration +
+d_phase2a_2 + origination_rehydration + pin_retarget + trust_checkpoint)
+and the freeze guard re-run clean. Real live-repo regression
+(`feat/as-orch-001e-autonomous-loop` still present, non-shallow local
+clone, current branch not matching any successor pattern) re-confirmed
+unaffected by either new check.
