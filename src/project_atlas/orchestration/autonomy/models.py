@@ -796,7 +796,12 @@ class TrustCatchupProof(BaseModel):
     expected_previous_tree: str = Field(min_length=40, max_length=40)
     target_main: str = Field(min_length=40, max_length=40)
     target_tree: str = Field(min_length=40, max_length=40)
-    hops: tuple[CatchupHopProof, ...] = Field(min_length=1, max_length=MAX_CATCHUP_HOPS)
+    # min_length=2, not 1: matches the effective floor `hop_count`'s own
+    # `ge=2` (below) already enforces via `_hop_count_matches_hops` --
+    # kept in sync so this field's own declared bounds are never
+    # misleadingly looser than what construction actually allows (IV
+    # finding: independent review of this PR).
+    hops: tuple[CatchupHopProof, ...] = Field(min_length=2, max_length=MAX_CATCHUP_HOPS)
     # hop_count == 1 is schema-rejected, same rationale as
     # TrustCheckpointProof.first_parent_hop_count >= 2 and IvRequirements
     # elsewhere in this module: a single ordinary hop is exactly what

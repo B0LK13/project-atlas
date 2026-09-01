@@ -304,6 +304,78 @@ def test_cross_process_trust_reuse(tmp_path: Path) -> None:
     assert reloaded.model_dump(mode="json") == new_record.model_dump(mode="json")
 
 
+def test_positive_hop_count_4_upper_boundary_succeeds(tmp_path: Path) -> None:
+    """A real, full MAX_CATCHUP_HOPS (4) chain must succeed end-to-end
+    through ``advance_via_bounded_catchup()`` -- the PR's original suite
+    only exercised the 5-hop schema-rejection boundary and 2-hop positive
+    paths, leaving the upper accepted boundary itself unproven (IV
+    finding: independent review of this PR)."""
+    current = _current_anchor()
+    hop3 = _hop(
+        merge_commit=NEXT_MAIN,
+        merge_tree=NEXT_TREE,
+        merge_parent_1=TARGET_MAIN,
+        merge_parent_2=NEXT_CANDIDATE,
+        candidate_head=NEXT_CANDIDATE,
+        candidate_tree=NEXT_CANDIDATE_TREE,
+        source_pr=700,
+    )
+    fourth_main = "9" * 39 + "b"
+    fourth_tree = "9" * 39 + "c"
+    fourth_candidate = "9" * 39 + "d"
+    fourth_candidate_tree = "9" * 39 + "e"
+    hop4 = _hop(
+        merge_commit=fourth_main,
+        merge_tree=fourth_tree,
+        merge_parent_1=NEXT_MAIN,
+        merge_parent_2=fourth_candidate,
+        candidate_head=fourth_candidate,
+        candidate_tree=fourth_candidate_tree,
+        source_pr=701,
+    )
+    chain = [fourth_main, NEXT_MAIN, TARGET_MAIN, HOP1_MERGE, OLD_MAIN]
+    topology = FixtureGitObserver(
+        observed_main=fourth_main,
+        observed_tree=fourth_tree,
+        objects={
+            OLD_MAIN: (OLD_TREE, ()),
+            HOP1_CANDIDATE: (HOP1_CANDIDATE_TREE, ()),
+            HOP1_MERGE: (HOP1_TREE, (OLD_MAIN, HOP1_CANDIDATE)),
+            HOP2_CANDIDATE: (HOP2_CANDIDATE_TREE, ()),
+            TARGET_MAIN: (TARGET_TREE, (HOP1_MERGE, HOP2_CANDIDATE)),
+            NEXT_CANDIDATE: (NEXT_CANDIDATE_TREE, ()),
+            NEXT_MAIN: (NEXT_TREE, (TARGET_MAIN, NEXT_CANDIDATE)),
+            fourth_candidate: (fourth_candidate_tree, ()),
+            fourth_main: (fourth_tree, (NEXT_MAIN, fourth_candidate)),
+        },
+    )
+    proof = _proof(
+        current,
+        hops=(_hop1(), _hop2(), hop3, hop4),
+        hop_count=4,
+        target_main=fourth_main,
+        target_tree=fourth_tree,
+        chain_digest=_chain_digest(chain),
+    )
+    store = tmp_path / "store"
+    initialize_store(store, current)
+    new_record = advance_via_bounded_catchup(current, proof, topology, store=store)
+    assert new_record.trusted_main == fourth_main
+    assert new_record.sequence == current.sequence + 1
+
+
+def test_wrong_hop_merge_tree_denied(tmp_path: Path) -> None:
+    """A hop's own ``merge_tree`` lying about what live topology actually
+    reports for its ``merge_commit`` must be denied -- the PR's original
+    suite only exercised the analogous lie on ``certified_candidate_tree``
+    (IV finding: independent review of this PR)."""
+    current = _current_anchor()
+    proof = _proof(current, hops=(_hop1(merge_tree=WRONG_TREE), _hop2()))
+    with pytest.raises(TrustError) as exc:
+        advance_via_bounded_catchup(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CATCHUP_DENIED"
+
+
 def test_evaluate_catchup_recovery_all_required_true_on_positive_path() -> None:
     current = _current_anchor()
     proof = _proof(current)
@@ -564,10 +636,19 @@ def test_y_tampered_hop_evidence_digest_denied(tmp_path: Path) -> None:
     assert exc.value.code == "CATCHUP_DENIED"
 
 
-def test_z_evidence_digest_not_reusable_across_different_target_denied(tmp_path: Path) -> None:
-    """A legitimately-authorized evidence payload/digest for one target
-    cannot be lifted onto a proof for a DIFFERENT target and still pass
-    (same evidence-target-binding rationale as PR #664's checkpoint fix)."""
+def test_z_proof_not_reusable_against_a_different_target_denied(tmp_path: Path) -> None:
+    """Defense in depth: a legitimately-authorized proof for one target
+    cannot simply have its ``target_main``/``target_tree`` swapped for a
+    different one and still pass. In THIS scenario the independent hop-
+    chain-to-target structural check (the hops still terminate at the OLD
+    target) is what denies it, not evidence-digest binding specifically --
+    ``test_x_tampered_overall_evidence_digest_denied`` is the test that
+    isolates evidence-digest binding on its own (same target, same
+    topology-valid chain, only the digest wrong). Both properties hold;
+    each test proves a different one of them (IV finding: independent
+    review of this PR sharpened this docstring after confirming the
+    original "evidence-digest reuse" framing wasn't what was actually
+    deciding this particular case)."""
     current = _current_anchor()
     legit = _proof(current)
     forged = legit.model_copy(update={"target_main": NEXT_MAIN, "target_tree": NEXT_TREE})
