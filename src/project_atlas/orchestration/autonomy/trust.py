@@ -1274,13 +1274,23 @@ class TrustRepairCarrier:
     the merge/trust-sync interlock: a PR whose entire purpose is
     restoring trust synchronization itself (an ordinary-advancement
     repair, checkpoint, or bounded catch-up carrier) cannot itself wait
-    for trust to already be current -- that would be circular. Never a
-    generic bypass: both fields are required and validated non-empty, so
-    a caller can never "just pass True" without recording WHICH PR and
-    WHY. Passing this to ``require_trust_current_for_merge()`` does not
-    grant any trust-state mutation and does not widen who may call it or
-    when -- it only lets that ONE precondition check pass for a caller
-    that already independently satisfies every other merge gate."""
+    for trust to already be current -- that would be circular.
+
+    ``source_pr``/``reason`` are an AUDIT TRAIL, not a cryptographic
+    authorization -- this class proves only that a caller took the
+    deliberate extra step of constructing a real ``TrustRepairCarrier``
+    instance (enforced by an exact ``type() is`` check in
+    ``require_trust_current_for_merge()``, not merely a type hint a
+    loosely-typed caller -- deserialized JSON, a CLI arg, an ``Any``-typed
+    kwargs passthrough -- could satisfy with a plain dict or a bare
+    ``True``; IV finding, PR #672) and gave it a non-empty reason string.
+    It does not itself verify that the named PR is real, that it is
+    genuinely a repair carrier, or that the reason is accurate -- callers
+    remain responsible for supplying this only when actually true.
+    Passing this to ``require_trust_current_for_merge()`` does not grant
+    any trust-state mutation and does not widen who may call it or when
+    -- it only lets that ONE precondition check pass for a caller that
+    already independently satisfies every other merge gate."""
 
     source_pr: int
     reason: str
@@ -1338,6 +1348,23 @@ def require_trust_current_for_merge(
             f"trust is not current for merge: trusted_main={anchor.trusted_main}, "
             f"live_main={observed_main}. No unrelated main integration may proceed "
             "until trust is synchronized (post-merge seal + trust advance/catch-up)."
+        )
+    # Runtime type check, not just the type hint (IV finding, PR #672):
+    # mypy alone is not load-bearing here -- a carrier built from
+    # loosely-typed input (deserialized JSON, a CLI arg, an `Any`-typed
+    # kwargs passthrough) type-checks cleanly against `Any` and would
+    # otherwise let a plain dict, a bare `True`, or any other truthy
+    # value silently satisfy this "is not None" check, defeating the
+    # entire interlock at exactly the moment it matters. `type(x) is not
+    # TrustRepairCarrier` (exact type, not `isinstance`) also closes a
+    # subclass that overrides `__post_init__` to skip the source_pr/
+    # reason validation -- `TrustRepairCarrier` is frozen and not meant
+    # to be subclassed for this purpose.
+    if type(trust_repair_carrier) is not TrustRepairCarrier:
+        raise TrustError(
+            "trust_repair_carrier must be a genuine TrustRepairCarrier instance, "
+            f"not {type(trust_repair_carrier).__name__}",
+            code="INTERLOCK_MISUSE",
         )
     return anchor
 

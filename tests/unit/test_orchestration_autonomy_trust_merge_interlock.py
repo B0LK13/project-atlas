@@ -211,6 +211,71 @@ def test_carrier_present_does_not_bypass_corrupt_store(tmp_path: Path) -> None:
     assert exc.value.code == "TRUST_UNVERIFIABLE"
 
 
+def test_dict_masquerading_as_carrier_denied(tmp_path: Path) -> None:
+    """IV finding, PR #672: the only pre-fix gate was `is None`, so a
+    plain dict with plausible-looking keys silently satisfied it --
+    mypy's type hint alone is not load-bearing against a loosely-typed
+    caller (deserialized JSON, a CLI arg, an `Any`-typed kwargs
+    passthrough). A real, exact-type TrustRepairCarrier is now required."""
+    current = _anchor()
+    initialize_store(tmp_path, current)
+    topology = _topology(observed_main=NEXT_MAIN, observed_tree=NEXT_TREE)
+    fake_carrier = {"source_pr": 671, "reason": "looks legitimate"}
+    with pytest.raises(TrustError) as exc:
+        require_trust_current_for_merge(
+            store=tmp_path, topology=topology, trust_repair_carrier=fake_carrier  # type: ignore[arg-type]
+        )
+    assert exc.value.code == "INTERLOCK_MISUSE"
+
+
+def test_bare_true_masquerading_as_carrier_denied(tmp_path: Path) -> None:
+    """The exact bypass the class's own docstring claims is impossible --
+    now genuinely impossible, not just discouraged by a type hint."""
+    current = _anchor()
+    initialize_store(tmp_path, current)
+    topology = _topology(observed_main=NEXT_MAIN, observed_tree=NEXT_TREE)
+    with pytest.raises(TrustError) as exc:
+        require_trust_current_for_merge(
+            store=tmp_path, topology=topology, trust_repair_carrier=True  # type: ignore[arg-type]
+        )
+    assert exc.value.code == "INTERLOCK_MISUSE"
+
+
+def test_bare_string_masquerading_as_carrier_denied(tmp_path: Path) -> None:
+    current = _anchor()
+    initialize_store(tmp_path, current)
+    topology = _topology(observed_main=NEXT_MAIN, observed_tree=NEXT_TREE)
+    with pytest.raises(TrustError) as exc:
+        require_trust_current_for_merge(
+            store=tmp_path,
+            topology=topology,
+            trust_repair_carrier="PR #671 repair",  # type: ignore[arg-type]
+        )
+    assert exc.value.code == "INTERLOCK_MISUSE"
+
+
+def test_subclass_overriding_validation_denied(tmp_path: Path) -> None:
+    """A subclass that overrides `__post_init__` to skip the source_pr/
+    reason validation would still pass a bare `isinstance` check --
+    exact-type comparison (`type(x) is not TrustRepairCarrier`) closes
+    this, since `TrustRepairCarrier` is frozen and not meant to be
+    subclassed for this purpose."""
+
+    class ForgedCarrier(TrustRepairCarrier):
+        def __post_init__(self) -> None:  # skips all validation
+            pass
+
+    current = _anchor()
+    initialize_store(tmp_path, current)
+    topology = _topology(observed_main=NEXT_MAIN, observed_tree=NEXT_TREE)
+    forged = ForgedCarrier(source_pr=-999, reason="")
+    with pytest.raises(TrustError) as exc:
+        require_trust_current_for_merge(
+            store=tmp_path, topology=topology, trust_repair_carrier=forged
+        )
+    assert exc.value.code == "INTERLOCK_MISUSE"
+
+
 def test_target_tree_mismatch_alone_still_denied(tmp_path: Path) -> None:
     """Staleness is (main, tree) together -- a tree-only mismatch (same
     commit SHA claimed, different tree observed) must still deny, exactly
