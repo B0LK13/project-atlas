@@ -181,12 +181,31 @@ def collect_live_inventory(repo: Path) -> LiveInventory:
     status_lines = _run_git(resolved, "status", "-sb").splitlines()
     worktree_dirty = len(status_lines) > 1
 
+    def _is_current_dirty_branch(refname: str) -> bool:
+        return (
+            worktree_dirty and current_branch_ref is not None and refname == current_branch_ref
+        )
+
     all_matching_refs = [
         (refname, tip)
         for refname, tip in _for_each_ref(resolved, "refs/heads", "refs/remotes")
         if any(pattern.search(refname) for pattern in _SUCCESSOR_PATTERNS)
     ]
-    if all_matching_refs and _is_shallow_repository(resolved):
+    # IV finding (this exact fix, 2nd IV round): the shallow gate must
+    # only fire for refs that actually NEED an ancestry query. A ref
+    # resolved unconditionally by the dirty-current-branch rule above
+    # never calls _is_merged_into() at all -- gating on `all_matching_
+    # refs` unconditionally would raise DiscoveryError even in the most
+    # realistic combined case this fix targets (an agent running from
+    # its own shallow CI checkout, on its own dirty in-progress
+    # successor branch, with no other matching ref anywhere) despite
+    # nothing ambiguous ever needing to be resolved.
+    refs_needing_ancestry = [
+        (refname, tip)
+        for refname, tip in all_matching_refs
+        if not _is_current_dirty_branch(refname)
+    ]
+    if refs_needing_ancestry and _is_shallow_repository(resolved):
         raise DiscoveryError(
             "repository is a shallow clone -- successor-branch ancestry cannot "
             "be reliably observed (a shallow boundary can make a genuinely "
@@ -195,10 +214,7 @@ def collect_live_inventory(repo: Path) -> LiveInventory:
         )
     unmerged_successors: list[str] = []
     for refname, tip in all_matching_refs:
-        is_current_dirty_branch = (
-            worktree_dirty and current_branch_ref is not None and refname == current_branch_ref
-        )
-        if is_current_dirty_branch or not _is_merged_into(resolved, tip, current_main):
+        if _is_current_dirty_branch(refname) or not _is_merged_into(resolved, tip, current_main):
             unmerged_successors.append(refname)
 
     r2_created: Literal["YES", "NO"] = (

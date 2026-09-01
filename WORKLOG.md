@@ -10637,3 +10637,33 @@ and the freeze guard re-run clean. Real live-repo regression
 (`feat/as-orch-001e-autonomous-loop` still present, non-shallow local
 clone, current branch not matching any successor pattern) re-confirmed
 unaffected by either new check.
+
+## PR #665 second IV round -- interaction gap between the two new checks, closed
+
+A second fresh IV round against `57e5405f` (CONFIRMED_WITH_MINOR_NOTES
+-- both new checks individually correct) found a real, previously-
+untested interaction: the shallow gate fired on `all_matching_refs`
+being non-empty, unconditionally -- it did not exclude a ref that the
+dirty-current-branch rule resolves WITHOUT ever needing an ancestry
+query at all. Reproduced exactly: a shallow CI-style checkout, on its
+own dirty in-progress successor branch, with NO other matching ref
+anywhere in the repo -- the single most realistic real-world scenario
+this whole fix targets -- got a spurious `DiscoveryError` instead of
+the correct active classification, because the shallow gate didn't
+know that specific ref would never actually need `_is_merged_into()`.
+
+Fixed: the shallow gate now only considers refs that would genuinely
+need an ancestry query (`refs_needing_ancestry`, i.e. NOT the current
+dirty branch) -- a shallow repo whose ONLY matching ref is resolved by
+the unconditional dirty-branch rule no longer raises. A different
+matching ref that DOES need ancestry still correctly fails closed on a
+shallow repo (verified by a paired test to confirm the narrowing
+doesn't overreach).
+
+2 new regression tests (19 total, was 17): the exact combined scenario
+(shallow + own dirty successor branch as the sole matching ref, must
+NOT raise); the paired negative (shallow + a DIFFERENT matching ref
+that needs real ancestry, must still raise).
+
+ruff/mypy clean. Full targeted suite + broader regression + freeze
+guard all re-run clean.

@@ -429,6 +429,74 @@ def test_non_shallow_repo_is_not_shallow(tmp_path: Path) -> None:
     assert _is_shallow_repository(repo) is False
 
 
+def test_shallow_repo_on_own_dirty_successor_branch_does_not_false_block(
+    tmp_path: Path,
+) -> None:
+    """Second IV round's real finding: the shallow gate must only fire
+    for refs that actually NEED an ancestry query. The single most
+    realistic real-world case this whole fix targets -- an agent
+    running discovery from its OWN shallow CI-style checkout, on its
+    OWN dirty in-progress successor branch, with no OTHER matching ref
+    anywhere in the repo -- was being spuriously denied by the shallow
+    check even though the dirty-current-branch rule resolves that ref
+    unconditionally and never calls _is_merged_into() for it at all."""
+    source = _make_repo(tmp_path, name="source3")
+    main_tip = _git(source, "rev-parse", "HEAD")
+
+    clone = tmp_path / "shallow-clone3"
+    _git(tmp_path, "clone", "-q", "--depth", "1", "--no-local", str(source), str(clone))
+    assert _is_shallow_repository(clone) is True
+    _set_origin_main(clone, main_tip)
+    # The clone's own checked-out branch (main, by default after clone)
+    # is not itself a match; create and check out a NEW matching branch
+    # with real uncommitted work, the only matching ref in the repo.
+    _git(clone, "checkout", "-q", "-b", "feat/as-orch-001e-my-in-progress-work")
+    (clone / "f.txt").write_text("real uncommitted successor work\n", encoding="utf-8")
+
+    # Must NOT raise -- no ancestry query is ever needed for this ref.
+    inventory = collect_live_inventory(clone)
+    assert (
+        "refs/heads/feat/as-orch-001e-my-in-progress-work"
+        in inventory.active_successor_packages
+    )
+    assert inventory.as_orch_001e_started == "YES"
+
+
+def test_shallow_repo_still_fails_closed_when_a_different_ref_needs_ancestry(
+    tmp_path: Path,
+) -> None:
+    """The narrowing in the prior test must not overreach: if a
+    DIFFERENT matching ref (not the current dirty branch) exists and
+    genuinely needs an ancestry query, the shallow gate must still
+    fire."""
+    source = _make_repo(tmp_path, name="source4")
+    root = _git(source, "rev-parse", "HEAD")
+    main_tip = _commit(source, "second")
+    _git(source, "checkout", "-q", "-b", "feat/as-orch-001e-old", root)
+    _git(source, "checkout", "-q", "main")
+
+    clone = tmp_path / "shallow-clone4"
+    _git(
+        tmp_path,
+        "clone",
+        "-q",
+        "--depth",
+        "1",
+        "--no-single-branch",
+        "--no-local",
+        str(source),
+        str(clone),
+    )
+    assert _is_shallow_repository(clone) is True
+    _set_origin_main(clone, main_tip)
+    _set_remote_branch(clone, "refs/remotes/origin/feat/as-orch-001e-old", root)
+    # Current checkout is a DIFFERENT, non-matching, clean branch.
+    _git(clone, "checkout", "-q", "-b", "chore/unrelated")
+
+    with pytest.raises(DiscoveryError, match="shallow"):
+        collect_live_inventory(clone)
+
+
 def test_dirty_current_successor_branch_stays_active_even_if_tip_is_merged(
     tmp_path: Path,
 ) -> None:
