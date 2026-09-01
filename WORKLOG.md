@@ -10782,3 +10782,43 @@ Same class of gap confirmed to also exist in the already-merged
 checkpoint-recovery evidence binding from PR #664 -- out of scope for
 this PR, tracked as a separate follow-up. Full regression + freeze
 guard clean; ruff/mypy clean.
+
+### PR #668 merged; real ordinary trust advance executed (first use of the hardened path)
+
+`fix/ordinary-advancement-evidence-binding` merged as
+`8c710fdcce9bd30bb9d6b012364c4bddb1ecf8ee` (parent 1
+`dc60f4c42b3f48a8a246ef9474f199caa1e0546c` -- exactly the then-current
+trusted anchor, a textbook single-hop case; parent 2
+`2c84e029f8a3d66b1f7588ff696705de12da04e0`), after independent adversarial
+IV (`CONFIRMED` -- field-by-field completeness verified against every
+persisted field, all 16 swappable fields proven to invalidate the digest
+when tampered, and a live end-to-end trust-target-forgery attempt
+confirmed denied by independent topology checks regardless of the
+evidence digest). All 4 hosted CI lanes green, 0 unresolved threads,
+`mergeStateStatus = CLEAN`. Post-merge local freeze-guard clean; hosted
+post-merge CI on `main` green (all 4 lanes).
+
+Real ordinary `advance_trusted_anchor()` then executed for the first time
+against the newly-hardened evidence binding it itself now depends on
+(fresh `supervised-run-005` worktree/trust-store copy;
+`supervised-run-002`/`-003`/`-004` left untouched as historical evidence).
+Result: `trusted_main = 8c710fdc...`, `sequence = 4`,
+`advancement_reason = VERIFIED_OWNER_AUTHORIZED_MERGE`,
+`predecessor_main == merge_parent_1` (the honest single-hop shape,
+distinct from the catch-up/checkpoint records' deliberately different
+shape). Fresh cross-process reload confirms `TRUSTED_RUNTIME_MAIN ==
+CURRENT_MAIN`, `TARGET_MOVED = False`, `TRUST_STATE = TRUSTED`, and
+`_checkpoint_already_used()` still reports `True`.
+
+### PR #667 reconstructed onto current main (fresh carrier)
+
+The original `fix/checkpoint-evidence-binding-provenance` (base
+`57e6512863f519724fa08efa16861f349a43d6fb`, predating #666) became
+`CONFLICTING` once #666 and #668 landed on the same module. Verified the
+gap it targets (`_checkpoint_evidence_binding()` still omitting
+`source_package`/`source_directive`/`source_pr`/`evidence_reference`) is
+still real and unfixed on current main -- not `SEMANTIC_DELTA_ZERO`.
+Reconstructed the identical semantic delta fresh on top of `8c710fdc`
+rather than resolving the stale branch's conflicts, per owner directive
+preference. Original PR #667 to be closed in favor of this fresh carrier
+once the new PR opens.
