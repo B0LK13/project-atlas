@@ -1257,6 +1257,157 @@ def advance_via_bounded_catchup(
     return compare_and_advance(store, current, new_record)
 
 
+class MergeGuardError(TrustError):
+    """Fail-closed: raised when an unrelated main integration is attempted
+    while ``trusted_runtime_main != live main``. A distinct code from
+    generic ``TrustError`` so callers can tell "trust is unverifiable"
+    apart from "trust is verifiable but stale" -- the M2 trust/main
+    interlock this session's real incidents (PR #653, PR #669) prove is
+    required."""
+
+    code = "TRUST_NOT_CURRENT_FOR_MERGE"
+
+
+@dataclass(frozen=True)
+class TrustRepairCarrier:
+    """Explicit, narrow justification for the ONE documented exception to
+    the merge/trust-sync interlock: a PR whose entire purpose is
+    restoring trust synchronization itself (an ordinary-advancement
+    repair, checkpoint, or bounded catch-up carrier) cannot itself wait
+    for trust to already be current -- that would be circular.
+
+    ``source_pr``/``reason`` are an AUDIT TRAIL, not a cryptographic
+    authorization -- this class proves only that a caller took the
+    deliberate extra step of constructing a real ``TrustRepairCarrier``
+    instance (enforced by an exact ``type() is`` check in
+    ``require_trust_current_for_merge()``, not merely a type hint a
+    loosely-typed caller -- deserialized JSON, a CLI arg, an ``Any``-typed
+    kwargs passthrough -- could satisfy with a plain dict or a bare
+    ``True``; IV finding, PR #672) and gave it a non-empty reason string.
+    It does not itself verify that the named PR is real, that it is
+    genuinely a repair carrier, or that the reason is accurate -- callers
+    remain responsible for supplying this only when actually true.
+
+    Reviewer finding (Codex, PR #672): this is a deliberate design
+    choice, not an oversight -- consistent with every other proof type
+    in this file. ``AdvancementProof.owner_authorization``,
+    ``TrustCheckpointProof.owner_authorization``, and
+    ``TrustCatchupProof.owner_authorization`` are ALL bare self-asserted
+    ``Literal["OWNER_AUTHORIZED"]`` claims with zero cryptographic
+    verification -- this module's own header states
+    ``GOVERNOR_CAN_INVENT_OWNER_AUTHORITY = NO``, meaning the CODE never
+    invents authority, not that every self-asserted claim is
+    independently re-verified by the code itself. The real verification
+    that a given PR genuinely IS a trust-repair carrier happens the same
+    way every other merge in this system is verified -- independent
+    adversarial IV, hosted CI, and human review of that PR's actual
+    diff -- BEFORE anyone constructs a ``TrustRepairCarrier`` for it, not
+    inside this class. Unlike the other proof types, this one has no
+    live-git-topology fact to bind to (this precondition check has no
+    visibility into what commit is about to be merged), so there is no
+    analogous cross-check available to add here without changing this
+    function's contract to also accept and verify a candidate commit --
+    a materially different, larger scope than the narrow precondition
+    this class exists for today.
+
+    Passing this to ``require_trust_current_for_merge()`` does not grant
+    any trust-state mutation and does not widen who may call it or when
+    -- it only lets that ONE precondition check pass for a caller that
+    already independently satisfies every other merge gate."""
+
+    source_pr: int
+    reason: str
+
+    def __post_init__(self) -> None:
+        if self.source_pr < 1:
+            raise TrustError(
+                "trust repair carrier source_pr must be positive", code="INTERLOCK_MISUSE"
+            )
+        if not self.reason.strip():
+            raise TrustError(
+                "trust repair carrier reason must be non-empty", code="INTERLOCK_MISUSE"
+            )
+
+
+def require_trust_current_for_merge(
+    *,
+    store: Path,
+    topology: GitTopology,
+    expected_repository_identity: str | None = CANONICAL_REPOSITORY_IDENTITY,
+    trust_repair_carrier: TrustRepairCarrier | None = None,
+) -> TrustedAnchorRecord:
+    """M2: fail-closed precondition for any main integration.
+
+    ``trusted_runtime_main`` must equal live main (observed fresh here,
+    never cached), or an explicit, narrow ``TrustRepairCarrier``
+    justification must be supplied.
+
+    ``expected_repository_identity`` defaults to ``CANONICAL_REPOSITORY_
+    IDENTITY`` (reviewer finding, Copilot, PR #672: defaulting to
+    ``None`` -- as every other ``store=``-taking function in this module
+    does -- meant repository-identity mismatch silently went unchecked
+    unless every caller remembered to pass it explicitly, contradicting
+    the fail-closed behavior this function exists to provide; a caller
+    genuinely working against a different repository's store may still
+    pass ``None`` explicitly to opt out).
+
+    Real incidents this formalizes (PR #653: a merge landed while the
+    persisted trust anchor was already stale, with nothing machine-
+    enforced to stop it or the next one from compounding the gap. PR
+    #669: a genuine 3-way merge the ordinary advancement path of the time
+    could not represent, leaving trust a further hop behind until
+    repaired). This function does not, by itself, change WHO can call it
+    or WHEN -- the governor already structurally forbids autonomous
+    ``MERGED`` transitions regardless of any grant
+    (``AutonomousGovernor.request_merge()``, owner gate A), and
+    ``AutonomousLoop`` already fails closed on ``TARGET_MOVED`` for
+    origination/lease/dispatch (``loop.py``). This exists so the owner-
+    driven integration process itself has one real, reusable,
+    adversarially-tested function to call before every merge, instead of
+    an ad hoc manual check repeated by hand each time.
+
+    Returns the loaded, verified anchor on success (current callers may
+    want to log it) -- never mutates trust state either way.
+    """
+    anchor = load_runtime_anchor(
+        store=store, expected_repository_identity=expected_repository_identity
+    )
+    observed_main, observed_tree = topology.observe_main()
+    if not evaluate_target_moved(observed_main, observed_tree, anchor):
+        return anchor
+    if trust_repair_carrier is None:
+        # Reviewer finding (Copilot, PR #672): this guard also fires on a
+        # tree-only mismatch (same commit SHA claimed, different tree --
+        # see test_target_tree_mismatch_alone_still_denied), so the
+        # message includes both trusted/observed trees, not just the
+        # main SHAs, to avoid misleading an operator into thinking only
+        # HEAD moved.
+        raise MergeGuardError(
+            f"trust is not current for merge: trusted_main={anchor.trusted_main} "
+            f"(tree {anchor.trusted_tree}), live_main={observed_main} "
+            f"(tree {observed_tree}). No unrelated main integration may proceed "
+            "until trust is synchronized (post-merge seal + trust advance/catch-up)."
+        )
+    # Runtime type check, not just the type hint (IV finding, PR #672):
+    # mypy alone is not load-bearing here -- a carrier built from
+    # loosely-typed input (deserialized JSON, a CLI arg, an `Any`-typed
+    # kwargs passthrough) type-checks cleanly against `Any` and would
+    # otherwise let a plain dict, a bare `True`, or any other truthy
+    # value silently satisfy this "is not None" check, defeating the
+    # entire interlock at exactly the moment it matters. `type(x) is not
+    # TrustRepairCarrier` (exact type, not `isinstance`) also closes a
+    # subclass that overrides `__post_init__` to skip the source_pr/
+    # reason validation -- `TrustRepairCarrier` is frozen and not meant
+    # to be subclassed for this purpose.
+    if type(trust_repair_carrier) is not TrustRepairCarrier:
+        raise TrustError(
+            "trust_repair_carrier must be a genuine TrustRepairCarrier instance, "
+            f"not {type(trust_repair_carrier).__name__}",
+            code="INTERLOCK_MISUSE",
+        )
+    return anchor
+
+
 def _inside(root: Path, target: Path) -> bool:
     try:
         target.relative_to(root)
