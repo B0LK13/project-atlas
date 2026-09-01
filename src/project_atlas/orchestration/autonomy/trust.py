@@ -1257,6 +1257,91 @@ def advance_via_bounded_catchup(
     return compare_and_advance(store, current, new_record)
 
 
+class MergeGuardError(TrustError):
+    """Fail-closed: raised when an unrelated main integration is attempted
+    while ``trusted_runtime_main != live main``. A distinct code from
+    generic ``TrustError`` so callers can tell "trust is unverifiable"
+    apart from "trust is verifiable but stale" -- the M2 trust/main
+    interlock this session's real incidents (PR #653, PR #669) prove is
+    required."""
+
+    code = "TRUST_NOT_CURRENT_FOR_MERGE"
+
+
+@dataclass(frozen=True)
+class TrustRepairCarrier:
+    """Explicit, narrow justification for the ONE documented exception to
+    the merge/trust-sync interlock: a PR whose entire purpose is
+    restoring trust synchronization itself (an ordinary-advancement
+    repair, checkpoint, or bounded catch-up carrier) cannot itself wait
+    for trust to already be current -- that would be circular. Never a
+    generic bypass: both fields are required and validated non-empty, so
+    a caller can never "just pass True" without recording WHICH PR and
+    WHY. Passing this to ``require_trust_current_for_merge()`` does not
+    grant any trust-state mutation and does not widen who may call it or
+    when -- it only lets that ONE precondition check pass for a caller
+    that already independently satisfies every other merge gate."""
+
+    source_pr: int
+    reason: str
+
+    def __post_init__(self) -> None:
+        if self.source_pr < 1:
+            raise TrustError(
+                "trust repair carrier source_pr must be positive", code="INTERLOCK_MISUSE"
+            )
+        if not self.reason.strip():
+            raise TrustError(
+                "trust repair carrier reason must be non-empty", code="INTERLOCK_MISUSE"
+            )
+
+
+def require_trust_current_for_merge(
+    *,
+    store: Path,
+    topology: GitTopology,
+    expected_repository_identity: str | None = None,
+    trust_repair_carrier: TrustRepairCarrier | None = None,
+) -> TrustedAnchorRecord:
+    """M2: fail-closed precondition for any main integration.
+
+    ``trusted_runtime_main`` must equal live main (observed fresh here,
+    never cached), or an explicit, narrow ``TrustRepairCarrier``
+    justification must be supplied.
+
+    Real incidents this formalizes (PR #653: a merge landed while the
+    persisted trust anchor was already stale, with nothing machine-
+    enforced to stop it or the next one from compounding the gap. PR
+    #669: a genuine 3-way merge the ordinary advancement path of the time
+    could not represent, leaving trust a further hop behind until
+    repaired). This function does not, by itself, change WHO can call it
+    or WHEN -- the governor already structurally forbids autonomous
+    ``MERGED`` transitions regardless of any grant
+    (``AutonomousGovernor.request_merge()``, owner gate A), and
+    ``AutonomousLoop`` already fails closed on ``TARGET_MOVED`` for
+    origination/lease/dispatch (``loop.py``). This exists so the owner-
+    driven integration process itself has one real, reusable,
+    adversarially-tested function to call before every merge, instead of
+    an ad hoc manual check repeated by hand each time.
+
+    Returns the loaded, verified anchor on success (current callers may
+    want to log it) -- never mutates trust state either way.
+    """
+    anchor = load_runtime_anchor(
+        store=store, expected_repository_identity=expected_repository_identity
+    )
+    observed_main, observed_tree = topology.observe_main()
+    if not evaluate_target_moved(observed_main, observed_tree, anchor):
+        return anchor
+    if trust_repair_carrier is None:
+        raise MergeGuardError(
+            f"trust is not current for merge: trusted_main={anchor.trusted_main}, "
+            f"live_main={observed_main}. No unrelated main integration may proceed "
+            "until trust is synchronized (post-merge seal + trust advance/catch-up)."
+        )
+    return anchor
+
+
 def _inside(root: Path, target: Path) -> bool:
     try:
         target.relative_to(root)
