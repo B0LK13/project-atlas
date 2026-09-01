@@ -419,3 +419,62 @@ def test_cli_parser_wires_trust_check_before_merge(tmp_path: Path) -> None:
         ]
     )
     assert exit_code == 0
+
+
+def test_cli_corrupt_store_fails_closed(tmp_path: Path) -> None:
+    """Acceptance condition F: a corrupt store must fail closed through
+    the real CLI path, same as through the library function directly."""
+    from project_atlas.orchestration.autonomy.cli import EXIT_ERROR, run_trust_check_before_merge
+
+    repo = _make_real_repo(tmp_path)
+    store = tmp_path / "store"
+    head = _git(repo, "rev-parse", "HEAD")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    initialize_store(store, _anchor(main=head, tree=tree))
+    (store / "current.json").write_text("{not-json", encoding="utf-8")
+    report, exit_code = run_trust_check_before_merge(root=repo, trust_store=store)
+    assert exit_code == EXIT_ERROR
+    assert report["merge_permitted"] is False
+    assert report["blocker"] == "TRUST_UNVERIFIABLE"
+
+
+def test_cli_identity_mismatch_fails_closed_even_with_carrier(tmp_path: Path) -> None:
+    """Acceptance condition G: the CLI observes the REAL repository
+    identity via LiveGitObserver (git remote get-url origin) -- a store
+    from a different repository must fail closed through the real
+    command path, even with an explicit repair carrier."""
+    from project_atlas.orchestration.autonomy.cli import EXIT_ERROR, run_trust_check_before_merge
+
+    repo = _make_real_repo(tmp_path)
+    head = _git(repo, "rev-parse", "HEAD")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    store = tmp_path / "store"
+    initialize_store(
+        store, _anchor(main=head, tree=tree, identity="github.com/someone-else/other-repo")
+    )
+    report, exit_code = run_trust_check_before_merge(
+        root=repo, trust_store=store, repair_source_pr=671, repair_reason="attempted bypass"
+    )
+    assert exit_code == EXIT_ERROR
+    assert report["merge_permitted"] is False
+    assert report["blocker"] == "REPO_IDENTITY_MISMATCH"
+
+
+def test_cli_tree_only_mismatch_denied(tmp_path: Path) -> None:
+    """Acceptance condition H: same commit SHA claimed as trusted, but a
+    different live tree -- must be denied through the real CLI path."""
+    from project_atlas.orchestration.autonomy.cli import EXIT_ERROR, run_trust_check_before_merge
+
+    repo = _make_real_repo(tmp_path)
+    head = _git(repo, "rev-parse", "HEAD")
+    real_tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+    store = tmp_path / "store"
+    # Trust claims the same commit but a DIFFERENT (wrong) tree.
+    initialize_store(store, _anchor(main=head, tree=NEXT_TREE))
+    report, exit_code = run_trust_check_before_merge(root=repo, trust_store=store)
+    assert exit_code == EXIT_ERROR
+    assert report["merge_permitted"] is False
+    assert report["blocker"] == "TRUST_NOT_CURRENT_FOR_MERGE"
+    assert real_tree != NEXT_TREE  # sanity: the fixture genuinely differs
