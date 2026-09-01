@@ -10424,3 +10424,66 @@ authorized merge. A non-blocking follow-up (`TRUST_ANCHOR_
 OPERATIONALIZATION`) is warranted: ensure every future qualifying merge
 to main actually exercises real trust advancement, so a shipped
 bootstrap anchor is never again left dormant this long.
+
+## PR #664 review rounds 3-4 -- 6 GitHub-bot findings + a real one-time-use gap, both closed
+
+The PR's own automated GitHub reviewers (chatgpt-codex-connector,
+copilot-pull-request-reviewer) found 6 real issues once opened with
+actual content -- 2 marked P1 and genuinely serious: (1) `evidence_
+digest` was self-referential, only bound to the free-form `evidence_
+payload`, never to WHICH target/ancestry/authorization it was meant to
+certify -- evidence for one target could be relabeled onto a proof for
+a different target. (2) nothing enforced the mechanism's own stated
+"one-time" premise -- an operator could repeat checkpoint recovery for
+every subsequent merge, permanently bypassing `advance_trusted_
+anchor()`. Both fixed for real (commit `0c7cac1c`): `_checkpoint_
+evidence_binding()` now hashes every security-relevant proof field
+together (not just the payload); `first_parent_hop_count` now requires
+`>=2` (schema-forbids the single-hop case); new `_checkpoint_already_
+used()` scans the store for a prior checkpoint record and refuses a
+second one. Plus 4 smaller fixes: shared hop-count bound constant
+(schema max previously exceeded the runtime walk bound), exactly-2-
+parents check (rejecting octopus merges), required `evidence_payload`
+(was Optional), and `run_trust_checkpoint()` now catches `OSError` from
+store I/O (was only `TrustError`). All 6 threads replied with evidence
+and resolved.
+
+A follow-up independent IV round against that fix then found ONE MORE
+real gap in fix (2): `_checkpoint_already_used()` scanned whichever
+history files happened to exist, never checking for GAPS -- deleting
+exactly the one history file holding a superseded checkpoint record
+(after a later ordinary `advance_trusted_anchor()` moved it there,
+which is the exact recommended long-term flow) silently reset the
+gate. Fixed (commit `c241b4e4`): the function now walks the EXPECTED
+sequence range `1..current.sequence-1` explicitly; any missing number
+is treated as a fail-closed deny, same as a corrupt one. A regression
+test reproduces the exact attack end-to-end.
+
+A FOURTH IV round on that fix (CONFIRMED_WITH_MINOR_NOTES) found the
+gap-fix's own docstring understated its one residual, disclosed
+limitation: the expected sequence range is bounded by `current.json`'s
+self-reported `sequence`, and `_load_store_current()` only verifies
+that record's *internal* self-consistency -- a single edit to
+`current.json` alone (recompute its own now-consistent digest, leave
+`history/` untouched) shrinks the range and bypasses the gate, cheaper
+than the "wholesale fresh-store forgery" the docstring originally
+described. Not a new privilege tier (same filesystem-write-access
+precondition every other disclosed limitation in this module already
+assumes), but worth stating precisely rather than only gesturing at
+the harder case -- docstring corrected to say so explicitly (no
+functional code change needed for this round).
+
+**Operational note surfaced but not actioned** (IV round 4, not a
+security defect): `_checkpoint_already_used()`'s "any missing sequence
+number denies" behavior means ANY future unrelated history-file
+pruning/archival (e.g. a hypothetical future disk-space maintenance
+task) would permanently and silently disable checkpoint recovery for
+that store, with a generic `CHECKPOINT_ALREADY_USED` error giving no
+hint the real cause is an unrelated missing file. No such pruning
+mechanism exists in this repository today, so not fixed speculatively
+-- flagged here so it isn't forgotten if one is ever added.
+
+Test count across the two fix commits: 26 (original) to 31 (round 3,
++5) to 32 (round 4, +1), all passing; ruff/mypy clean each round;
+broader regression (pin_retarget + autonomy + autonomy_loop) and the
+freeze guard re-run clean each round.

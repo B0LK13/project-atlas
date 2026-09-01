@@ -671,13 +671,26 @@ def _checkpoint_already_used(store: Path) -> bool:
     present. A missing sequence number -- whether it once held a
     checkpoint record or not -- is treated exactly like a corrupt one:
     fails closed (denies) rather than silently proceeding as if that
-    slice of history had simply never happened. (This still cannot
-    detect wholesale forgery of an entirely fresh, internally-consistent
-    store from scratch -- this store's ``record_digest`` is a bare
-    self-consistency hash, not a cryptographic signature, so anyone with
-    filesystem write access to the store already has that capability
-    regardless of this check. What this closes is the much
-    lower-effort, look-legitimate deletion of a single retained file.)
+    slice of history had simply never happened.
+
+    Residual, DISCLOSED (not hidden) limitation, precisely stated (a
+    fourth IV round found the earlier wording here understated it): the
+    expected sequence range this scans is bounded by ``current.
+    sequence`` as SELF-REPORTED by ``current.json`` -- ``_load_store_
+    current()`` verifies that record's internal self-consistency
+    (``record_digest`` matches its own payload), never anything
+    independent of it. A single edit to ``current.json`` alone (set
+    ``sequence`` back down, recompute the now-self-consistent
+    ``record_digest`` the same way ``seal_anchor()`` does, leave
+    ``history/`` completely untouched) shrinks the range this function
+    checks and bypasses this gate -- no history tampering, no "fresh
+    store from scratch" fabrication required, just one file. This is
+    NOT a new privilege escalation: it requires exactly the same
+    filesystem-write access to the store this module's design already
+    treats as out of scope everywhere (``record_digest`` is a bare
+    self-consistency hash, never a cryptographic signature) -- but it is
+    real, and cheaper than forging a whole store, so state it precisely
+    rather than only gesturing at the broader, harder case.
     """
     root = _require_store_root(store)
     current_path = _store_path(root, CURRENT_RECORD_NAME)
