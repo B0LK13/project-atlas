@@ -277,10 +277,57 @@ def classify_observation(
     return TrustState.TRUSTED
 
 
+def _advancement_evidence_binding(proof: AdvancementProof) -> dict[str, object]:
+    """The exact structure an ordinary single-hop advancement proof's
+    ``evidence_digest`` must hash over.
+
+    Follow-up finding (same class of gap independently found and fixed for
+    checkpoint recovery, PR #664/#667, and bounded catch-up, PR #666):
+    previously ``verify_evidence_integrity()`` hashed ONLY
+    ``evidence_payload`` in isolation, leaving ``evidence_digest`` self-
+    referential -- a legitimately-authorized evidence payload/digest pair
+    could be lifted, unchanged, onto an entirely different proof (different
+    target, different candidate, different owner-claimed provenance) and
+    still pass integrity, even though ``_record_from_verified_proof()``
+    persists every one of those fields verbatim into the sealed
+    ``TrustedAnchorRecord``. The topological fields here (``merge_commit``/
+    ``merge_tree``/``merge_parent_1``/``merge_parent_2``/
+    ``authorized_candidate_head``/``_tree``) are already independently
+    re-verified against LIVE git topology by ``evaluate_advancement()``
+    regardless of this binding (so this was never a trust-TARGET forgery
+    path) -- but a swapped ``source_package``/``source_directive``/
+    ``source_pr``/``evidence_reference`` (WHICH work item/directive/
+    evidence document actually authorized this advance) was not
+    independently checked anywhere and would have gone undetected. Every
+    field a reader would need to know "what did the owner actually
+    authorize" is included here, matching the pattern the checkpoint and
+    catch-up proofs already used.
+    """
+    return {
+        "evidence_payload": proof.evidence_payload,
+        "repository_identity": proof.repository_identity,
+        "owner_authorization": proof.owner_authorization,
+        "expected_previous_main": proof.expected_previous_main,
+        "expected_previous_tree": proof.expected_previous_tree,
+        "authorized_candidate_head": proof.authorized_candidate_head,
+        "authorized_candidate_tree": proof.authorized_candidate_tree,
+        "merge_commit": proof.merge_commit,
+        "merge_parent_1": proof.merge_parent_1,
+        "merge_parent_2": proof.merge_parent_2,
+        "merge_tree": proof.merge_tree,
+        "post_merge_seal": proof.post_merge_seal,
+        "post_merge_ci": proof.post_merge_ci,
+        "source_package": proof.source_package,
+        "source_directive": proof.source_directive,
+        "source_pr": proof.source_pr,
+        "evidence_reference": proof.evidence_reference,
+    }
+
+
 def verify_evidence_integrity(proof: AdvancementProof) -> bool:
     if proof.evidence_payload is None:
         return False
-    return hash_payload(proof.evidence_payload) == proof.evidence_digest
+    return hash_payload(_advancement_evidence_binding(proof)) == proof.evidence_digest
 
 
 def evaluate_advancement(

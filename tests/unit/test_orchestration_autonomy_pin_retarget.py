@@ -29,6 +29,7 @@ from project_atlas.orchestration.autonomy.models import (
 from project_atlas.orchestration.autonomy.trust import (
     FixtureGitObserver,
     TrustError,
+    _advancement_evidence_binding,
     advance_trusted_anchor,
     build_initial_retarget_record,
     classify_observation,
@@ -41,6 +42,7 @@ from project_atlas.orchestration.autonomy.trust import (
     require_full_pin,
     seal_anchor,
     verify_anchor_integrity,
+    verify_evidence_integrity,
 )
 from project_atlas.schema import validate_record
 
@@ -130,7 +132,12 @@ def _proof(
     digest: str | None = None,
 ) -> AdvancementProof:
     evidence = payload if payload is not None else _payload()
-    return AdvancementProof(
+    # evidence_digest must bind to the whole proof (not just the free-form
+    # payload) -- construct with a placeholder first, then compute the real
+    # digest via the same binding trust.py's own verify_evidence_integrity()
+    # uses, unless the caller passed an explicit (possibly deliberately
+    # wrong, for a denial test) `digest`.
+    draft = AdvancementProof(
         repository_identity=identity,
         owner_authorization="OWNER_AUTHORIZED",
         expected_previous_main=current.trusted_main,
@@ -144,12 +151,16 @@ def _proof(
         post_merge_seal=seal,  # type: ignore[arg-type]
         post_merge_ci=ci,  # type: ignore[arg-type]
         evidence_reference="tests/fixtures/pin-retarget-proof.json",
-        evidence_digest=digest or hash_payload(evidence),
+        evidence_digest=digest or "0" * 64,
         source_package="AS-ORCH-AUTONOMY-001-PIN-RETARGET",
         source_directive="D-AUTONOMY-PIN-RETARGET-003",
         source_pr=2,
         evidence_payload=evidence,
     )
+    if digest is not None:
+        return draft
+    bound_digest = hash_payload(_advancement_evidence_binding(draft))
+    return draft.model_copy(update={"evidence_digest": bound_digest})
 
 
 def _future_topology(
@@ -278,6 +289,47 @@ def test_case_10_tampered_evidence_digest() -> None:
         advance_trusted_anchor(current, proof, _future_topology())
 
 
+def test_case_10a_source_pr_swap_denied() -> None:
+    """Follow-up finding (same class of gap independently found and fixed
+    for checkpoint recovery and bounded catch-up): a legitimately-computed
+    evidence_digest for one source_pr must not validate a proof claiming a
+    DIFFERENT source_pr while leaving every topology field untouched."""
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    legit = _proof(current)
+    assert verify_evidence_integrity(legit) is True  # sanity
+    swapped = legit.model_copy(update={"source_pr": 999})
+    assert verify_evidence_integrity(swapped) is False
+    with pytest.raises(TrustError):
+        advance_trusted_anchor(current, swapped, _future_topology())
+
+
+def test_case_10b_source_package_swap_denied() -> None:
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    legit = _proof(current)
+    swapped = legit.model_copy(update={"source_package": "AS-SOMETHING-ELSE-001"})
+    assert verify_evidence_integrity(swapped) is False
+    with pytest.raises(TrustError):
+        advance_trusted_anchor(current, swapped, _future_topology())
+
+
+def test_case_10c_source_directive_swap_denied() -> None:
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    legit = _proof(current)
+    swapped = legit.model_copy(update={"source_directive": "D-SOMETHING-ELSE-001"})
+    assert verify_evidence_integrity(swapped) is False
+    with pytest.raises(TrustError):
+        advance_trusted_anchor(current, swapped, _future_topology())
+
+
+def test_case_10d_evidence_reference_swap_denied() -> None:
+    current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
+    legit = _proof(current)
+    swapped = legit.model_copy(update={"evidence_reference": "tests/fixtures/other.json"})
+    assert verify_evidence_integrity(swapped) is False
+    with pytest.raises(TrustError):
+        advance_trusted_anchor(current, swapped, _future_topology())
+
+
 def test_case_11_stale_advancement_record(tmp_path: Path) -> None:
     current = _anchor(main=OLD_MAIN, tree=OLD_TREE, predecessor_main=MISSING)
     initialize_store(tmp_path, current)
@@ -362,7 +414,7 @@ def test_positive_a_pr398_transition() -> None:
         certified_tree=INITIAL_RETARGET_TREE,
     )
     payload = {"kind": "OWNER_MERGE_GATE_002", "pr": 398}
-    proof = AdvancementProof(
+    draft = AdvancementProof(
         repository_identity=CANONICAL_REPOSITORY_IDENTITY,
         owner_authorization="OWNER_AUTHORIZED",
         expected_previous_main=BOOTSTRAP_MAIN,
@@ -376,11 +428,14 @@ def test_positive_a_pr398_transition() -> None:
         post_merge_seal="PASS",
         post_merge_ci="PASS",
         evidence_reference="as-orch-autonomy-001-merge-002/FINAL_REPORT.md",
-        evidence_digest=hash_payload(payload),
+        evidence_digest="0" * 64,
         source_package="AS-ORCH-AUTONOMY-001",
         source_directive="D-AUTONOMY-OWNER-MERGE-GATE-002",
         source_pr=398,
         evidence_payload=payload,
+    )
+    proof = draft.model_copy(
+        update={"evidence_digest": hash_payload(_advancement_evidence_binding(draft))}
     )
     topology = FixtureGitObserver(
         observed_main=INITIAL_RETARGET_MAIN,
