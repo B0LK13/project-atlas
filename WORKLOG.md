@@ -10737,3 +10737,27 @@ catch-up executes against the actual incident chain (`cc4fbbd0 ->
 itself touch the persisted trust store.
 
 Source: `D-ATLAS-BOUNDED-TRUST-CATCHUP-RECOVERY` (owner directive).
+
+### PR #666 IV round 1 -- confirmed, minor coverage gaps closed
+
+Fresh independent adversarial IV (isolated worktree, never self-
+certified) against `5f2197ca`: `CONFIRMED_WITH_FIXES_NEEDED`, all four
+findings minor/coverage-only. No exploit found against
+`advance_via_bounded_catchup()`; no interference with
+`advance_trusted_anchor()` or the checkpoint one-time gate, confirmed
+by independent re-derivation rather than re-running the PR's own
+tests. Fixed in `a6408a1b`: `TrustCatchupProof.hops`' misleading
+`min_length=1` tightened to `2` (matching the effective floor
+`hop_count`'s `ge=2` already enforced); added a real end-to-end
+positive test at the `hop_count == MAX_CATCHUP_HOPS` (4) upper
+boundary (previously only the 5-hop schema-rejection boundary and
+2-hop positive paths were exercised); added a denial test for a hop's
+own `merge_tree` lying about live topology (previously only the
+analogous `certified_candidate_tree` lie was tested); sharpened
+`test_z`'s docstring -- the scenario it exercises is actually denied
+by the independent hop-chain-to-target structural check, not evidence-
+digest binding specifically (that property is isolated on its own by
+`test_x`). Informational-only finding (no CLI/governor wiring exists
+for this mechanism yet) confirmed deliberate on the PR thread: the
+real incident's catch-up will run via a direct script, same pattern as
+the post-#665 trust-advance script, not governor auto-invocation.
