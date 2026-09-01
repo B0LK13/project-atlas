@@ -851,7 +851,14 @@ def _catchup_hop_binding(hop: CatchupHopProof) -> dict[str, object]:
     same evidence-target-binding rationale as ``_checkpoint_evidence_
     binding()`` (PR #664 IV finding): every security-relevant field of THIS
     hop, so a legitimately-authorized hop's evidence can never be lifted
-    onto a different hop."""
+    onto a different hop. Includes ``source_package``/``source_directive``/
+    ``evidence_reference`` (reviewer finding, PR #666: without these, a
+    hop's provenance -- WHICH work item/directive/evidence document
+    authorized it -- could be substituted post hoc without invalidating
+    this digest, even though the topology/authorization fields stayed
+    intact; `_record_from_verified_catchup()` persists these straight into
+    the sealed `TrustedAnchorRecord`, so they must be exactly as tamper-
+    evident as everything else)."""
     return {
         "evidence_payload": hop.evidence_payload,
         "merge_commit": hop.merge_commit,
@@ -861,6 +868,9 @@ def _catchup_hop_binding(hop: CatchupHopProof) -> dict[str, object]:
         "certified_candidate_head": hop.certified_candidate_head,
         "certified_candidate_tree": hop.certified_candidate_tree,
         "source_pr": hop.source_pr,
+        "source_package": hop.source_package,
+        "source_directive": hop.source_directive,
+        "evidence_reference": hop.evidence_reference,
         "authorization_basis": hop.authorization_basis,
         "independent_verification": hop.independent_verification,
         "post_merge_ci": hop.post_merge_ci,
@@ -879,6 +889,13 @@ def _catchup_evidence_binding(proof: TrustCatchupProof) -> dict[str, object]:
     chain -- not just its endpoints -- is what the overall digest commits
     to; substituting a different hop, or a different ORDER of hops, changes
     this binding even if every individual hop's own digest still verifies.
+    Includes ``source_package``/``source_directive``/``source_pr``/
+    ``evidence_reference`` for the same provenance-binding reason as
+    ``_catchup_hop_binding`` (reviewer finding, PR #666) -- these are
+    persisted verbatim into the sealed ``TrustedAnchorRecord`` by
+    ``_record_from_verified_catchup()``, so a swap of "which PR/directive
+    authorized this" must invalidate the digest exactly like a swap of the
+    topology fields already does.
     """
     return {
         "evidence_payload": proof.evidence_payload,
@@ -892,6 +909,10 @@ def _catchup_evidence_binding(proof: TrustCatchupProof) -> dict[str, object]:
         "hop_count": proof.hop_count,
         "first_parent_chain_digest": proof.first_parent_chain_digest,
         "hop_evidence_digests": [hop.evidence_digest for hop in proof.hops],
+        "source_package": proof.source_package,
+        "source_directive": proof.source_directive,
+        "source_pr": proof.source_pr,
+        "evidence_reference": proof.evidence_reference,
     }
 
 
@@ -933,6 +954,16 @@ def _evaluate_catchup_chain(
         if not parents_ok:
             return False, False
         if topology.tree_of(hop.merge_commit) != hop.merge_tree:
+            return False, False
+        # Redundant with CatchupHopProof's own `_candidate_is_second_parent`
+        # model_validator -- checked again here anyway, same defense-in-
+        # depth pattern `evaluate_advancement`/`evaluate_checkpoint_
+        # recovery` already use for the identical relationship. A schema
+        # validator alone is not load-bearing against every construction
+        # path (e.g. `model_copy(update=...)` does not re-run validators),
+        # so the runtime check that actually decides whether to trust this
+        # hop must never rely on it exclusively (reviewer finding, PR #666).
+        if hop.certified_candidate_head != hop.merge_parent_2:
             return False, False
         if not topology.commit_exists(hop.certified_candidate_head):
             return False, False

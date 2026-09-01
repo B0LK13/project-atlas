@@ -777,7 +777,7 @@ class TrustCatchupProof(BaseModel):
     that the WHOLE chain -- reconstructed purely from those hops -- also
     matches the exact independent first-parent walk live git topology
     produces between ``expected_previous_main`` and ``target_main`` (see
-    ``trust.py``'s ``_verify_catchup_chain()``, which reuses the same
+    ``trust.py``'s ``_evaluate_catchup_chain()``, which reuses the same
     ``_walk_first_parent_chain()`` checkpoint recovery already uses, so the
     two can never silently disagree about what "first-parent chain" means).
     Never reachable from governor observation alone; always requires this

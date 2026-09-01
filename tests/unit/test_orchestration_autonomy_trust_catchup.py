@@ -658,6 +658,64 @@ def test_z_proof_not_reusable_against_a_different_target_denied(tmp_path: Path) 
     assert exc.value.code == "CATCHUP_DENIED"
 
 
+def test_hop_certified_candidate_bypassing_schema_validator_denied(tmp_path: Path) -> None:
+    """``CatchupHopProof``'s own model_validator makes ``certified_candidate_
+    head != merge_parent_2`` unconstructible through normal construction --
+    but ``model_copy(update=...)`` does NOT re-run validators, so a hop
+    built that way could slip an inconsistent value past the schema layer.
+    ``_evaluate_catchup_chain`` must catch it anyway at runtime (reviewer
+    finding, PR #666: relying on the schema validator alone is not
+    load-bearing against every construction path)."""
+    # Constructing TrustCatchupProof(hops=(bypassed_hop, ...)) normally
+    # would actually re-validate the nested CatchupHopProof and reject it
+    # right there -- Pydantic v2 revalidates nested BaseModel instances
+    # embedded in a new model by default. The realistic bypass is
+    # model_copy(update=...) on the OUTER proof itself (also skips all
+    # validation, at every level, for the replaced field), so that's what
+    # this test exercises to reach `_evaluate_catchup_chain` with a
+    # genuinely inconsistent hop in hand.
+    current = _current_anchor()
+    legit = _proof(current)
+    # OLD_MAIN (not OTHER_MAIN) so the pre-check `commit_exists` in
+    # advance_via_bounded_catchup passes and this genuinely exercises the
+    # `_evaluate_catchup_chain` runtime check, not an earlier existence gate.
+    bypassed_hop1 = legit.hops[0].model_copy(update={"certified_candidate_head": OLD_MAIN})
+    assert bypassed_hop1.certified_candidate_head != bypassed_hop1.merge_parent_2
+    proof = legit.model_copy(update={"hops": (bypassed_hop1, legit.hops[1])})
+    with pytest.raises(TrustError) as exc:
+        advance_via_bounded_catchup(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CATCHUP_DENIED"
+
+
+def test_hop_provenance_swap_invalidates_hop_digest(tmp_path: Path) -> None:
+    """A hop's ``source_pr``/``source_package``/``source_directive``/
+    ``evidence_reference`` -- persisted verbatim into the sealed trust
+    record -- must be bound into its evidence_digest, so swapping which
+    PR/directive/evidence a hop claims to be authorized by (while leaving
+    every topology field untouched) invalidates the digest (P1 reviewer
+    finding, PR #666)."""
+    current = _current_anchor()
+    legit_hop1 = _hop1()
+    swapped = legit_hop1.model_copy(update={"source_pr": 999})
+    assert verify_catchup_hop_evidence_integrity(swapped) is False
+    proof = _proof(current, hops=(swapped, _hop2()))
+    with pytest.raises(TrustError) as exc:
+        advance_via_bounded_catchup(current, proof, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CATCHUP_DENIED"
+
+
+def test_proof_provenance_swap_invalidates_overall_digest(tmp_path: Path) -> None:
+    """Same provenance-binding property at the whole-proof level (P1
+    reviewer finding, PR #666)."""
+    current = _current_anchor()
+    legit = _proof(current)
+    swapped = legit.model_copy(update={"source_directive": "D-SOMETHING-ELSE"})
+    assert verify_catchup_evidence_integrity(swapped) is False
+    with pytest.raises(TrustError) as exc:
+        advance_via_bounded_catchup(current, swapped, _topology(), store=tmp_path / "store")
+    assert exc.value.code == "CATCHUP_DENIED"
+
+
 def test_aa_hop_iv_fail_denied(tmp_path: Path) -> None:
     current = _current_anchor()
     proof = _proof(current, hops=(_hop1(iv="FAIL"), _hop2()))
