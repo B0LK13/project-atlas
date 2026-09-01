@@ -38,3 +38,15 @@ authority:
     - "docs/product/CODER-ALPHA-NORTH-STAR.md"
   derived:
     - "generated/**"
+
+# D-PHASE2A-RETRY (ORIGINATION_SOURCE_PARITY): explicit declaration of
+# this project's own authoritative origination source(s) for
+# `atlas originate` (AS-ORIGIN-001). docs/ROADMAP.md remains supported
+# unconditionally (unchanged, pre-existing default); this project does
+# not maintain one, so it is not declared here. docs/backlog.md is this
+# project's actual, real executable planning source (Markdown task-list
+# checkboxes) -- declaring it here is what makes it authoritative;
+# nothing scans it otherwise.
+origination_sources:
+  - path: docs/backlog.md
+    format: markdown-task-list

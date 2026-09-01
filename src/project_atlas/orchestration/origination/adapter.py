@@ -67,10 +67,18 @@ def _roadmap_items(record: dict[str, Any]) -> list[dict[str, Any]]:
 
 @dataclass(frozen=True)
 class EligibleRoadmapItem:
-    """A single roadmap-record item whose normalized status/lifecycle make
-    it eligible authoritative intent. Structured for proposal construction
-    -- ``SourceFact.excerpt`` deliberately stays a bounded string, so this
-    is where the fuller id/title/evidence/depends_on detail lives instead.
+    """A single origination-source item whose normalized status/lifecycle
+    make it eligible authoritative intent. Structured for proposal
+    construction -- ``SourceFact.excerpt`` deliberately stays a bounded
+    string, so this is where the fuller id/title/evidence/depends_on
+    detail lives instead.
+
+    Despite the name (kept for backward compatibility -- this type
+    predates ``sources.py``'s multi-format generalization), an instance
+    may originate from any declared origination source format, not only
+    the structured ``docs/ROADMAP.md`` fenced record; ``source_path``
+    identifies which one, and defaults to the original, sole format's
+    fixed location for every existing caller that does not pass it.
     """
 
     item_id: str
@@ -83,6 +91,8 @@ class EligibleRoadmapItem:
     evidence: tuple[str, ...]
     roadmap_text: str
     roadmap_digest: str
+    source_path: str = "docs/ROADMAP.md"
+    section_context: str | None = None
 
 
 def _safe_project_file(project_root: Path, ref: str) -> tuple[str, Path] | None:

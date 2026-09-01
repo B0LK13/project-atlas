@@ -9933,6 +9933,100 @@ recovery independently re-verified PASS and merged via PR #638.)
 - PR title/body updated to drop "BLOCKED on freeze-exception decision"
   (the exception is granted and encoded, not pending).
 
+## 2026-08-31 — ORIGINATION_SOURCE_PARITY: generic multi-source origination
+
+- Context: the first supervised-autonomy run found `run_origination_scan()`
+  (D-PHASE2A-2/3, AS-ORIGIN-001) returns 0 candidates against this
+  project's own real evidence -- its only input,
+  `adapter.eligible_roadmap_items()`, reads exactly one hard-coded
+  location (`docs/ROADMAP.md`) in one structured fenced-record format,
+  which this project does not maintain. The project's actual executable
+  planning source is `docs/backlog.md` (Markdown task-list checkboxes).
+- Did not create a synthetic `docs/ROADMAP.md`. Generalized origination
+  to a config-driven, explicit-authority multi-source model instead:
+  - `orchestration/origination/sources.py` (new): `OriginationSourceConfig`
+    (`path` + `format`), `load_origination_sources()` reads an explicit
+    `origination_sources:` block from `.atlas-project.yaml` -- absent
+    entirely, falls back unchanged to the original single default
+    (`docs/ROADMAP.md`, `structured-roadmap`), so every existing caller
+    and test is unaffected. `eligible_work_items()` dispatches per
+    declared source and fails closed
+    (`DuplicateItemIdError`) on the same stable item_id declared by two
+    different sources.
+  - `orchestration/origination/tasklist_adapter.py` (new): generic
+    Markdown task-list parser (`- [ ] ID Title` / `- [x] ID Title`).
+    Stable-ID pattern (`_TASK_ID_RE`) matches this repo's own observed
+    convention (`A-001`, `INT-013`, `D-PHASE2A-2`, ...) generically, never
+    a hard-coded project ID. Checked items never originated. No
+    `depends_on` inferred from line order (section 7: only an explicit
+    future metadata convention could populate this -- always `()` here).
+    No `evidence` guessed (bare checkboxes cite none). Blocker/owner-gate
+    language in an item's own title is preserved as a declared blocker
+    via a conservative, explicitly best-effort keyword scan (never used
+    to drop an item -- a false positive is safe/more conservative; a
+    false negative is still independently caught by the existing policy
+    gate's structural corroborating-evidence requirement, which every
+    task-list-sourced item lacks). Item identity digests the full,
+    untruncated line text even though the *display* title is bounded to
+    `OriginationProposal.title`'s 256-char limit (found live: one real
+    backlog.md entry's trailing prose exceeds it -- `run_origination_scan`
+    was aborting the *entire* scan on that single item via its `except
+    ValidationError` backstop before this fix, not just skipping it).
+  - `adapter.EligibleRoadmapItem` gained `source_path` (default
+    `"docs/ROADMAP.md"`, preserving every existing construction site) and
+    `section_context`. `pipeline.originate_all()` now calls
+    `sources.eligible_work_items()` instead of
+    `adapter.eligible_roadmap_items()` directly, and `_build_outcome()`
+    uses `item.source_path` instead of a hard-coded literal.
+- `.atlas-project.yaml` updated to declare this project's own real
+  source: `origination_sources: [{path: docs/backlog.md, format:
+  markdown-task-list}]`. `docs/ROADMAP.md` support remains unconditional
+  and untouched.
+- CLI exposure: `atlas originate --root <dir> --project-id <id>
+  [--store DIR] [--trust-store DIR]`, calling the existing canonical
+  `run_origination_scan()` unchanged -- no duplicate orchestration
+  engine. Registered entirely inside `atlas3/cli.py`'s pre-existing
+  `register_atlas3_parsers`/`dispatch_atlas3` hooks (the unfrozen
+  extension point `atlas validate-report`, PR #657, already established),
+  not the top-level `src/project_atlas/cli.py` `orchestrator` subparser
+  tree, whose own freeze guard
+  (`test_cli_mutation_is_additive_only`) requires any touch to that file
+  to itself look like the historical atlas3-registration bootstrap --
+  `src/project_atlas/cli.py` is therefore untouched by this change.
+- **Proven on real Project Atlas evidence** (real CLI, this repo's own
+  `docs/backlog.md`, 430 real checkbox lines): `atlas originate --root .
+  --project-id project-atlas` -> `eligible_count: 19`,
+  `materialized_count: 8`, `not_materialized_count: 11` (all 11:
+  `PROPOSAL_BLOCKED`, correctly refused materialization for items whose
+  title carries blocker/owner-gate language -- e.g. "Owner merge gate
+  (not this package)"). `INT-013 "Run the bounded multi-project
+  integration pilot"` is among the 8 materialized WorkNodes, `owner_gate:
+  None`, `risk_class: O1_LOW_RISK_...`, `execution_ready: False`
+  (`INSUFFICIENT_ACCEPTANCE_CONTRACT` -- honest: no evidence citation is
+  derivable from a bare checkbox line; the existing policy gate already
+  refuses execution authority without one, unchanged).
+- Tests: `tests/unit/test_orchestration_origination_sources.py` (new, 26
+  tests) -- explicit-authority config loading (present/absent/malformed/
+  traversal), generic task-list parsing (checked-item exclusion,
+  malformed-ID skip, duplicate-ID blocker, section context, title
+  truncation with full-fidelity identity, sibling-edit identity
+  stability), cross-source duplicate-ID fail-closed, backward-compatible
+  ROADMAP.md-only behavior unchanged, full-pipeline
+  `originate_all()`/`originate_new_only()` integration (checked items
+  never originated, successor dedup / stale-item handling via a real
+  TERMINAL projection record, cross-process identity stability). Full
+  pre-existing origination suite (`test_orchestration_origination.py`,
+  `test_orchestration_origination_cli.py`,
+  `test_orchestration_origination_rehydration.py`,
+  `test_orchestration_d_phase2a_2_governor_bridge.py`): no regressions.
+  `ruff check .` clean; `mypy src` clean except the pre-existing,
+  unrelated `connect_perf.py` gap. Freeze guard
+  (`test_atlas3_demo_isolation_001.py`): passes -- neither
+  `src/project_atlas/cli.py` nor any `DENY`-listed surface is touched.
+- `MERGE_AUTHORIZATION = NOT_GRANTED`. Branch
+  `feat/origination-source-parity`, PR opened for independent review --
+  not self-merged.
+
 ---
 
 ## LOCAL_EXTERNAL_EXECUTION_PROVIDER — provider-neutral local process execution backend (PR-B)
