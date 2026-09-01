@@ -309,3 +309,61 @@ def test_k_existing_target_moved_precedence_unchanged(tmp_path: Path) -> None:
     report = discover(inventory, trusted=_anchor_at(other, "8" * 40))
     assert report.case == "A-B"
     assert report.blocker == "TARGET_MOVED"
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap closed (fresh IV round on this PR, not a functional defect --
+# both behaviors were independently verified by the IV agent but not yet
+# exercised by this file's own tests).
+# ---------------------------------------------------------------------------
+
+
+def test_squash_merged_branch_stays_conservatively_active(tmp_path: Path) -> None:
+    """The docstring's claim: a squash-merged branch (content landed on
+    main via a NEW commit, the original branch's own tip commit never
+    itself becomes an ancestor of main) is NOT recognized as merged --
+    it stays conservatively active. This is the correct, safe failure
+    direction (a real successor branch's tip could similarly differ
+    from what actually reached main), not a functional gap in THIS fix
+    -- confirmed the real PR #401 this fix targets was a genuine 2-
+    parent merge commit, not a squash, so this residual case does not
+    affect the real-world regression this PR closes; it's disclosed in
+    the module docstring for future maintainers instead."""
+    repo = _make_repo(tmp_path)
+    root = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "-b", "as-orch-001d-r2-squash-work")
+    branch_tip = _commit(repo, "real work, never lands on main by this exact SHA")
+    _git(repo, "checkout", "-q", "-B", "main-detached", root)
+    # Squash-merge: main gets a NEW commit with the branch's content,
+    # never the branch's own tip commit object.
+    _git(repo, "merge", "--squash", "as-orch-001d-r2-squash-work")
+    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "squash merge")
+    main_tip = _git(repo, "rev-parse", "HEAD")
+    _set_origin_main(repo, main_tip)
+    _set_remote_branch(repo, "refs/remotes/origin/as-orch-001d-r2-squash-work", branch_tip)
+
+    assert _is_merged_into(repo, branch_tip, main_tip) is False
+    inventory = collect_live_inventory(repo)
+    assert "refs/remotes/origin/as-orch-001d-r2-squash-work" in inventory.active_successor_packages
+    assert inventory.r2_created == "YES"
+
+
+def test_dangling_ref_object_fails_closed_through_full_pipeline(tmp_path: Path) -> None:
+    """The fail-closed path exercised through the REAL collect_live_
+    inventory() pipeline (not just _is_merged_into() in isolation): a
+    ref enumerated by `git for-each-ref` whose object is not actually a
+    valid/reachable commit (a corrupt or dangling ref) must raise
+    DiscoveryError, never be silently treated as merged or unmerged."""
+    repo = _make_repo(tmp_path)
+    main_tip = _git(repo, "rev-parse", "HEAD")
+    _set_origin_main(repo, main_tip)
+    # A loose ref file written directly, bypassing git update-ref's own
+    # object-existence validation -- for-each-ref still enumerates it
+    # (the ref file exists), but no such commit object exists in the repo.
+    dangling_sha = "d" * 40
+    ref_path = repo / ".git" / "refs" / "heads" / "as-orch-001e-dangling"
+    ref_path.parent.mkdir(parents=True, exist_ok=True)
+    ref_path.write_text(dangling_sha + "\n", encoding="utf-8")
+
+    with pytest.raises(DiscoveryError):
+        collect_live_inventory(repo)
