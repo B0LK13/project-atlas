@@ -58,7 +58,7 @@ from project_atlas.orchestration.autonomy.models import (
     TrustedAnchorRecord,
     WorkNode,
 )
-from project_atlas.orchestration.autonomy.rehydration import rehydrate_governor
+from project_atlas.orchestration.autonomy.rehydration import RehydrationError, rehydrate_governor
 from project_atlas.orchestration.autonomy.trust import (
     initialize_store,
     load_runtime_anchor,
@@ -424,6 +424,75 @@ def test_sync_skips_ambiguous_package_id_with_multiple_active_records(tmp_path: 
     assert len(records_after_reverse) == 2
 
 
+def test_sync_does_not_close_a_revision_that_superseded_the_actually_closed_one(
+    tmp_path: Path,
+) -> None:
+    """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 independent-IV finding
+    (chatgpt-codex-connector, PR #677, P1): if revision A is governed
+    in-flight, a scan supersedes it with revision B (which materializes
+    and becomes the SOLE active row for the package_id), and A's own
+    governed node THEN reaches CLOSED (a real, legitimate close of the
+    OLD, already-superseded work), the naive "exactly one active row for
+    this package_id" check must NOT mark B TERMINAL -- B was never
+    executed at all. `WorkNode` carries no `origination_identity`, so
+    the closed node (built to look exactly like A) cannot be
+    distinguished from B by package_id alone; the fix is conservative:
+    any package_id that has EVER had more than one revision (active or
+    SUPERSEDED) is never auto-synced.
+    """
+    origination_store = tmp_path / "origination-store"
+    origination_store.mkdir()
+    main = "a" * 40
+    revision_a = _minimal_work_node(
+        "ORIG-swapped", base_pin=main, surface_id="revision-a-surface", paths=("src/a/",)
+    )
+    revision_b = _minimal_work_node(
+        "ORIG-swapped", base_pin=main, surface_id="revision-b-surface", paths=("src/b/",)
+    )
+    (origination_store / "origination.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "package": "AS-ORCH-ORIGINATION-PROJECTION-001",
+                "records": [
+                    OriginationRecord(
+                        origination_identity="a" * 64,
+                        project_id="demo",
+                        proposal={"work_id": "ORIG-swapped"},
+                        policy_result={},
+                        work_node=revision_a.model_dump(mode="json"),
+                        state="SUPERSEDED",
+                    ).model_dump(mode="json"),
+                    OriginationRecord(
+                        origination_identity="b" * 64,
+                        project_id="demo",
+                        proposal={"work_id": "ORIG-swapped"},
+                        policy_result={},
+                        work_node=revision_b.model_dump(mode="json"),
+                        state="MATERIALIZED",
+                    ).model_dump(mode="json"),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # A's OWN governed node reaches CLOSED -- structurally identical to
+    # revision_a (same package_id/base_pin/surface), exactly what a real
+    # in-flight governor would report for the work it was actually
+    # tracking.
+    closed_a = revision_a.model_copy(update={"state": NodeState.CLOSED})
+    synced = sync_terminal_governed_states(origination_store, [closed_a])
+    assert synced == ()  # nothing synced -- the ambiguity is refused, not guessed
+
+    records_after = load_projection(origination_store).records
+    states = {r.origination_identity: r.state for r in records_after}
+    assert states["a" * 64] == "SUPERSEDED"  # unchanged
+    # The critical assertion: B must NOT be silently marked TERMINAL for
+    # A's closure -- B was never executed.
+    assert states["b" * 64] == "MATERIALIZED"
+
+
 def test_sync_ignores_nodes_that_do_not_match_any_origination_record(tmp_path: Path) -> None:
     """A CLOSED governor node whose package_id has no origination record
     at all (e.g. the hardcoded pilot node) must not raise or otherwise
@@ -537,16 +606,31 @@ def test_corrupt_materialized_work_node_is_skipped_not_fatal(tmp_path: Path) -> 
     assert {n.package_id for n in nodes} == {"ORIG-good"}
 
 
-def test_duplicate_package_id_across_two_origination_records_is_skipped_not_fatal(
+def test_duplicate_package_id_across_two_origination_records_fails_closed(
     tmp_path: Path,
 ) -> None:
-    """Two DIFFERENT origination_identity records that somehow durably
-    resolved to the SAME work_node.package_id (a data-integrity edge
-    case: a corrupted/hand-edited store, or a future bug elsewhere) must
-    not crash the whole discovery pass. add_node()'s own DUPLICATE_NODE
-    check catches the second one; the per-candidate try/except in
-    _originate() must skip it, not abort discovery for every other,
-    genuinely distinct candidate that follows.
+    """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+    D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §7) SUPERSEDES
+    this test's own prior behavior. Two DIFFERENT origination_identity
+    records that somehow durably resolved to the SAME work_node.package_id
+    (a data-integrity edge case: a corrupted/hand-edited store, a
+    pre-supersession-migration store, or a future bug elsewhere) used to
+    be silently resolved by `add_node()`'s own DUPLICATE_NODE check
+    rejecting whichever arrived second (first-seen-in-file-order wins) --
+    exactly the "pick one arbitrarily" the owner directive prohibits for
+    an ambiguous active revision (§5 Case D, §7). `list_materialized_
+    work_nodes()` now detects this itself and fails the WHOLE read closed
+    (`AMBIGUOUS_ACTIVE_REVISION`) rather than silently choosing a winner
+    by iteration order -- `rehydrate_governor()` converts this into a
+    `RehydrationError`, exactly like an unreadable lease projection
+    already fails this same pass closed above. This is a broader blast
+    radius than isolating just the ambiguous package_id (an unrelated,
+    unambiguous "ORIG-clean" candidate in the SAME store also fails to be
+    discovered this tick) -- a deliberate choice: an ambiguous/corrupt
+    origination store is a signal something already went wrong upstream
+    of this read, and surfacing that loudly (a failed tick, visible in
+    its own JSON payload) is safer than silently masking it by
+    discovering everything else as if nothing were wrong.
 
     (A mutation-surface OVERLAP between two DISCOVERED/READY candidates
     is not itself an add_node()/mark_ready() failure -- would_overlap()
@@ -554,7 +638,9 @@ def test_duplicate_package_id_across_two_origination_records_is_skipped_not_fata
     nodes coexisting in the DAG is not an error this pass needs to
     catch; only an actual attempt to lease both would be, and that is
     already covered by _select_and_lease()'s own SURFACE_OVERLAP
-    handling, tested elsewhere.)
+    handling, tested elsewhere. That case is unrelated to this one: this
+    test is about two records sharing the SAME package_id, not two
+    distinct package_ids whose mutation surfaces happen to overlap.)
     """
     repo = _make_repo(tmp_path)
     main = _run_git(repo, "rev-parse", "origin/main")
@@ -619,20 +705,26 @@ def test_duplicate_package_id_across_two_origination_records_is_skipped_not_fata
         encoding="utf-8",
     )
 
-    rehydrate_governor(
-        governor,
-        inventory=inventory,
-        trusted=trusted,
-        loop_store=tmp_path / "loop-state",
-        lease_projection_store=tmp_path / "lease-projection",
-        origination_projection_store=origination_store,
-    )
+    try:
+        rehydrate_governor(
+            governor,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=tmp_path / "loop-state",
+            lease_projection_store=tmp_path / "lease-projection",
+            origination_projection_store=origination_store,
+        )
+        raise AssertionError("expected RehydrationError")
+    except RehydrationError as exc:
+        assert exc.code == "AMBIGUOUS_ACTIVE_REVISION"
 
+    # Fails closed for the WHOLE pass -- neither "ORIG-dup" candidate was
+    # picked, and the unrelated, unambiguous "ORIG-clean" candidate was
+    # also NOT discovered this tick (broader blast radius, deliberately --
+    # see the docstring above).
     package_ids = [n.package_id for n in governor.snapshot().nodes]
-    # Exactly one "ORIG-dup" made it in (the first one encountered) --
-    # never zero, never a crash, never two.
-    assert package_ids.count("ORIG-dup") == 1
-    assert "ORIG-clean" in package_ids
+    assert "ORIG-dup" not in package_ids
+    assert "ORIG-clean" not in package_ids
 
 
 def test_second_tick_does_not_duplicate_already_discovered_node(tmp_path: Path) -> None:
@@ -1335,3 +1427,115 @@ def test_real_two_process_continuation_does_not_replay_or_crash(tmp_path: Path) 
     # and no second dispatch of already-completed work.
     assert tick_two["stop_reason"] != "FAILED_CLOSED", tick_two
     assert tick_two["dispatched"] is False, tick_two
+
+
+# --------------------------------------------------------------------------- #
+# AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+# D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION): the real
+# INT-013-shaped incident, reproduced end to end through the REAL,
+# supported scanner (run_origination_scan()) and the REAL production
+# tick entry point (run_governor_loop_tick()) -- never hand-edited state.
+# --------------------------------------------------------------------------- #
+def test_a_revision_that_becomes_blocked_is_never_leased_by_a_later_real_tick(
+    tmp_path: Path,
+) -> None:
+    """The real incident, reproduced with the real scanner and the real
+    production tick entrypoint (owner directive §9/§14): an item is
+    originated and materialized while fully eligible; source truth then
+    changes so the SAME logical item is EXTERNAL_BLOCKED; a fresh scan
+    (the supported reconciler) supersedes the stale revision; a
+    subsequent REAL `run_governor_loop_tick()` -- the actual production
+    entrypoint, never a hand-rolled governor -- must not discover, mark
+    READY, lease, or dispatch the superseded work_id. §17: the item's own
+    ``base_pin`` is left EXACTLY equal to the OLD live main throughout
+    (never advanced, never touched) -- the tick still correctly refuses
+    it, proving this is not merely base_pin going stale.
+    """
+    repo = _eligible_repo(tmp_path, item_id="int-013-like")
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    origination_store = tmp_path / "origination-store"
+    trust_store = _make_trust_store(tmp_path, main, tree)
+
+    first_scan, first_exit = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=origination_store,
+        trust_store=trust_store,
+    )
+    assert first_exit == 0
+    assert first_scan["materialized_count"] == 1
+    work_id = first_scan["materialized"][0]["work_id"]  # type: ignore[index]
+    old_identity = load_projection(origination_store).records[0].origination_identity
+
+    # Authoritative source truth changes: the SAME logical item (id
+    # unchanged -> same package_id) now declares an explicit blocker --
+    # the real INT-013 shape (EXTERNAL_BLOCKED, needs owner-provided
+    # authentic project roots). Deliberately does NOT touch git so that
+    # `origin/main` (and therefore the stale revision's own frozen
+    # `base_pin`) never moves -- the §17 requirement.
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "int-013-like",
+                "title": "int-013-like",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": [
+                    "docs/REQUIREMENTS.md",
+                    "tests/test_int_013_like.py",
+                ],
+                "blockers": [
+                    "EXTERNAL_BLOCKED: needs owner-provided authentic project roots"
+                ],
+            }
+        ],
+    )
+    # No git commit, no `origin/main` update -- base_pin stays identical.
+
+    second_scan, second_exit = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=origination_store,
+        trust_store=trust_store,
+    )
+    assert second_exit == 0
+    assert second_scan["materialized_count"] == 0
+    assert second_scan["not_materialized_count"] == 1
+    second_entry = second_scan["not_materialized"][0]  # type: ignore[index]
+    assert second_entry["materialization_error_code"] == "PROPOSAL_BLOCKED"
+    assert second_entry["execution_ready"] is False
+    assert second_entry["superseded_prior_revisions"] == [old_identity]
+
+    old_record = next(
+        r for r in load_projection(origination_store).records
+        if r.origination_identity == old_identity
+    )
+    assert old_record.state == "SUPERSEDED"
+    assert old_record.work_node is not None
+    # §17: base_pin genuinely unchanged -- this is not a "went stale"
+    # coincidence, and the tick below still refuses it.
+    assert old_record.work_node["base_pin"] == main
+
+    # The real production entrypoint: a fresh, empty governor, exactly as
+    # every real invocation constructs it.
+    payload, exit_code = run_governor_loop_tick(
+        root=repo,
+        trust_store=trust_store,
+        origination_store=origination_store,
+    )
+    assert exit_code == 0
+    assert payload["stop_reason"] != "FAILED_CLOSED"
+
+    lease_projection = load_lease_projection(repo / LEASE_PROJECTION_RELATIVE_DEFAULT)
+    leased_package_ids = {row.package_id for row in lease_projection.leases}
+    assert work_id not in leased_package_ids
+    assert payload.get("package_id") != work_id
+    assert payload["dispatched"] is False
+
+    # Defense-in-depth confirmation at the read side too: the superseded
+    # revision is genuinely excluded from what a governor could ever
+    # discover, independent of the tick's own outcome above.
+    active_nodes = list_materialized_work_nodes(origination_store)
+    assert not any(node.package_id == work_id for node in active_nodes)

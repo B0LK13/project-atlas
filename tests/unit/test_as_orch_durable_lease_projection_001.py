@@ -245,6 +245,261 @@ def test_released_lease_id_not_recyclable(tmp_path: Path) -> None:
     assert exc.value.code == "LEASE_REPLAY"
 
 
+# --------------------------------------------------------------------------- #
+# D-ATLAS-PR673-FINAL-SYMMETRIC-LEASE-TRANSITION-HARDENING: the symmetric
+# race matrix (owner review, 2026-09-02). ONLY ACTIVE may transition to a
+# terminal projection status; that predicate is checked once, in
+# _require_still_active(), inside the projection lock, against the fresh
+# `current` row -- shared by both project_release() and project_abandon()
+# so the invariant cannot drift between two independently-maintained
+# copies. Matrix:
+#   A. ACTIVE -> project_release()  -> RELEASED   (pre-existing coverage:
+#      test_release_visibility, test_governor_projects_grant_and_ack)
+#   B. ACTIVE -> project_abandon()  -> ABANDONED  (pre-existing coverage:
+#      test_releases_when_every_receipt_genuinely_failed, this file's own
+#      earlier project_abandon() tests)
+#   C. stale caller expects ACTIVE, row is really RELEASED,
+#      project_abandon() -> DENIED, LEASE_STATUS_RACE, row stays RELEASED
+#   D. stale caller expects ACTIVE, row is really ABANDONED,
+#      project_release() -> DENIED, LEASE_STATUS_RACE, row stays ABANDONED
+# Every denial below reloads the projection afterward and proves the
+# LOSER of the race performed ZERO state transition -- not just that an
+# exception was raised.
+# --------------------------------------------------------------------------- #
+
+
+def test_abandon_refuses_a_lease_that_completed_in_the_interim(tmp_path: Path) -> None:
+    """Matrix C. Reviewer finding (chatgpt-codex-connector, P2, PR #673):
+    the caller (lease_recovery.py) reads a lease's status via an UNLOCKED
+    load_projection() call, well before project_abandon()'s own locked
+    write. A real, legitimate completion (project_release(), a genuine
+    certified success) could transition the SAME lease ACTIVE ->
+    RELEASED in that window without lease_recovery.py's evidence gate
+    ever knowing. project_abandon() must re-check the row's status
+    INSIDE its own lock (against `current`, not a caller-supplied,
+    possibly-stale row) before overwriting it -- otherwise it would
+    silently stomp a real RELEASED witness back to ABANDONED, causing a
+    later rehydration to retry work that had already, legitimately
+    completed."""
+    from project_atlas.orchestration.autonomy.lease_projection import project_abandon
+
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+    before = load_projection(tmp_path)
+    # A real, legitimate completion races in first.
+    project_release(tmp_path, release_lease(lease), live_main=PIN)
+    after_release = load_projection(tmp_path)
+
+    with pytest.raises(ProjectionError) as exc:
+        project_abandon(tmp_path, lease, live_main=PIN)
+    # Distinct from lease_recovery.py's own, differently-scoped
+    # LEASE_NOT_ACTIVE (fires on an early, unlocked read before any
+    # evidence-gate work starts) -- this fires on the locked write
+    # itself detecting a genuine concurrent transition (second delta-IV
+    # finding: conflating the two under one code left a caller keying
+    # off `blocker` alone unable to distinguish the two cases).
+    assert exc.value.code == "LEASE_STATUS_RACE"
+
+    # The loser of the race performed ZERO state transition: reload and
+    # compare the FULL row, not just `status` in isolation.
+    after_denial = load_projection(tmp_path)
+    assert after_denial == after_release
+    row = next(r for r in after_denial.leases if r.lease_id == "LEASE-1")
+    assert row.status == "RELEASED"
+    assert row.released_sequence == lease.sequence
+    # No sibling row was touched, none created -- same row count as
+    # right after the real release, one more than the initial grant-only
+    # state (the grant itself, never a phantom second entry).
+    assert len(after_denial.leases) == len(before.leases) == 1
+
+
+def test_release_refuses_a_lease_already_abandoned_in_the_interim(tmp_path: Path) -> None:
+    """Matrix D. Mirror-image of the above (delta IV round 2, MEDIUM): a
+    lease this evidence-gated mechanism has already, legitimately marked
+    ABANDONED must not be silently overwritten back to RELEASED by an
+    unrelated, out-of-band completion (e.g. a still-alive in-process
+    governor object from before the owning loop's RESOURCE_BOUNDARY
+    stop, independently finishing and calling governor.release_lease()
+    on the same lease_id) -- that would fabricate exactly the CERTIFIED
+    witness this whole mechanism exists to prevent, in the reverse
+    direction."""
+    from project_atlas.orchestration.autonomy.lease_projection import project_abandon
+
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+    before = load_projection(tmp_path)
+    # A real, legitimate abandonment (evidence-gated exhausted failure)
+    # races in first.
+    project_abandon(tmp_path, lease, live_main=PIN)
+    after_abandon = load_projection(tmp_path)
+
+    with pytest.raises(ProjectionError) as exc:
+        project_release(tmp_path, release_lease(lease), live_main=PIN)
+    assert exc.value.code == "LEASE_STATUS_RACE"
+
+    # The loser of the race performed ZERO state transition -- never
+    # silently promoted to a fabricated CERTIFIED witness.
+    after_denial = load_projection(tmp_path)
+    assert after_denial == after_abandon
+    row = next(r for r in after_denial.leases if r.lease_id == "LEASE-1")
+    assert row.status == "ABANDONED"
+    assert row.released_sequence == lease.sequence
+    assert len(after_denial.leases) == len(before.leases) == 1
+
+
+def test_release_denies_a_repeat_call_on_an_already_released_row(tmp_path: Path) -> None:
+    """Deliberate strict-invariant check (owner review): under the new
+    shared guard, calling project_release() a SECOND time on a row that
+    is already RELEASED now denies (LEASE_STATUS_RACE) rather than
+    silently no-op'ing on the old, looser behavior.
+
+    This does not break governor.release_lease()'s own documented
+    idempotence ("releasing an already-released lease is a no-op, not an
+    error, so callers that don't track completion state precisely can
+    call this unconditionally", governor.py): that guarantee is achieved
+    at the GOVERNOR layer, in memory (`if not existing.active: return
+    existing`), strictly BEFORE project_release() is ever called a
+    second time for the same lease -- see
+    test_governor_release_lease_is_idempotent_without_a_second_
+    project_release_call below, which proves the governor's own repeat
+    call never reaches this function again at all. No real caller in
+    this codebase depends on project_release() itself tolerating a
+    repeat call on a non-ACTIVE row -- reap_orphaned_lease_releases()
+    has its own, separate `row.status != "ACTIVE": continue` precheck for
+    exactly this reason (Matrix B in its own test suite below)."""
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+    project_release(tmp_path, release_lease(lease), live_main=PIN)
+    after_first_release = load_projection(tmp_path)
+
+    with pytest.raises(ProjectionError) as exc:
+        project_release(tmp_path, release_lease(lease), live_main=PIN)
+    assert exc.value.code == "LEASE_STATUS_RACE"
+
+    after_denial = load_projection(tmp_path)
+    assert after_denial == after_first_release
+
+
+def test_abandon_denies_a_repeat_call_on_an_already_abandoned_row(tmp_path: Path) -> None:
+    """Sibling of the above: project_abandon() called twice in a row also
+    now denies on the second call. lease_recovery.py's own outer
+    LEASE_NOT_ACTIVE check already refuses a second real recovery
+    attempt before ever reaching project_abandon() again (see
+    test_refuses_when_lease_already_released in
+    test_orchestration_autonomy_lease_recovery.py, which covers exactly
+    this at the lease_recovery.py layer) -- this is the same
+    defense-in-depth backstop at the projection layer itself."""
+    from project_atlas.orchestration.autonomy.lease_projection import project_abandon
+
+    lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, lease, live_main=PIN)
+    project_abandon(tmp_path, lease, live_main=PIN)
+    after_first_abandon = load_projection(tmp_path)
+
+    with pytest.raises(ProjectionError) as exc:
+        project_abandon(tmp_path, lease, live_main=PIN)
+    assert exc.value.code == "LEASE_STATUS_RACE"
+
+    after_denial = load_projection(tmp_path)
+    assert after_denial == after_first_abandon
+
+
+def test_governor_release_lease_is_idempotent_without_a_second_project_release_call(
+    tmp_path: Path,
+) -> None:
+    """Proves the claim made in the repeat-call test above: governor.
+    release_lease()'s documented idempotence survives the new strict
+    project_release() guard completely unaffected, because a second call
+    on the SAME governor object never reaches project_release() again --
+    it returns early from the governor's own in-memory `active` check.
+    Section 7 (governor normal-lifecycle regression): the ordinary
+    READY -> lease -> real result -> governor release -> RELEASED
+    projection path raises nothing new and behaves identically to
+    before this hardening."""
+    gov = AutonomousGovernor(
+        current_main=PIN,
+        current_tree=EXPECTED_BASE_TREE,
+        trusted_anchor=_anchor(),
+        lease_projection_store=tmp_path,
+    )
+    gov.add_node(_node("PKG-A"))
+    lease = gov.lease("PKG-A", "governor-pilot-local", branch="b", worktree="w")
+
+    first = gov.release_lease(lease.lease_id)
+    assert first.active is False
+    assert load_projection(tmp_path).leases[0].status == "RELEASED"
+
+    # Second call: idempotent no-op, exactly as governor.release_lease()'s
+    # own docstring promises -- no ProjectionError, because it never
+    # reaches project_release() again at all.
+    second = gov.release_lease(lease.lease_id)
+    assert second.active is False
+    assert load_projection(tmp_path).leases[0].status == "RELEASED"
+
+
+def test_early_precondition_and_locked_race_error_codes_are_distinct(tmp_path: Path) -> None:
+    """Section 3/9 (error taxonomy regression): LEASE_NOT_ACTIVE (an
+    early, UNLOCKED precondition failure -- the caller should never have
+    attempted recovery at all) and LEASE_STATUS_RACE (the locked
+    mutation itself detecting a genuine concurrent transition) are
+    deliberately different codes for deliberately different situations,
+    proven side by side against the exact same underlying lease so a
+    future change cannot silently re-collapse them."""
+    from project_atlas.orchestration.autonomy.lease_projection import project_abandon
+
+    # LEASE_NOT_ACTIVE: lease_recovery.py's own early check, called
+    # against a row that has ALREADY been RELEASED for a while -- no
+    # race, just an unconditionally stale precondition.
+    stale_lease = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
+    project_grant(tmp_path, stale_lease, live_main=PIN)
+    project_release(tmp_path, release_lease(stale_lease), live_main=PIN)
+    from project_atlas.orchestration.autonomy.lease_recovery import (
+        LeaseRecoveryError,
+        release_stalled_lease_after_exhausted_dispatch,
+    )
+    from project_atlas.orchestration.autonomy.loop import (
+        LoopPhase,
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+    from project_atlas.orchestration.autonomy.models import StopReason
+
+    loop_store = tmp_path / "loop"
+    stopped = initial_loop_state(_anchor()).model_copy(
+        update={
+            "phase": LoopPhase.STOPPED,
+            "active_package_id": "PKG-A",
+            "active_lease_id": "LEASE-1",
+            "sequence": 8,
+            "ticks_in_invocation": 8,
+            "stop_reason": StopReason.RESOURCE_BOUNDARY,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(stopped))
+    with pytest.raises(LeaseRecoveryError) as early_exc:
+        release_stalled_lease_after_exhausted_dispatch(
+            tmp_path,
+            lease_id="LEASE-1",
+            loop_store=loop_store,
+            lease_projection_store=tmp_path,
+        )
+    assert early_exc.value.code == "LEASE_NOT_ACTIVE"
+
+    # LEASE_STATUS_RACE: a DIFFERENT lease, where the caller's own
+    # in-hand `lease` object still (correctly, at the time it was built)
+    # reflects ACTIVE, but the durable row raced to RELEASED by the time
+    # the locked write runs.
+    raced_lease = _lease(lease_id="LEASE-2", agent_id="worker-b", package_id="PKG-B", sequence=2)
+    project_grant(tmp_path, raced_lease, live_main=PIN)
+    project_release(tmp_path, release_lease(raced_lease), live_main=PIN)
+    with pytest.raises(ProjectionError) as race_exc:
+        project_abandon(tmp_path, raced_lease, live_main=PIN)
+    assert race_exc.value.code == "LEASE_STATUS_RACE"
+
+    assert early_exc.value.code != race_exc.value.code
+
+
 def test_replay_fail_closed(tmp_path: Path) -> None:
     first = _lease(lease_id="LEASE-1", agent_id="worker-a", package_id="PKG-A", sequence=1)
     replay = _lease(lease_id="LEASE-1", agent_id="worker-b", package_id="PKG-B", sequence=2)
