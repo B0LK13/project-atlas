@@ -492,3 +492,77 @@ def test_reconcile_revision_closes_the_toctou_race_between_two_new_revisions(
     materialized_count = sum(1 for state in states.values() if state == "MATERIALIZED")
     assert superseded_count == 1
     assert materialized_count == 1
+
+
+def test_legacy_conflict_primitive_never_reports_a_superseded_row_as_already_active(
+    tmp_path: Path,
+) -> None:
+    """Independent-IV finding (delta round on PR #677): `persist_materialized_
+    if_no_active_conflict()` predates the SUPERSEDED state and was not updated
+    to `_INACTIVE_STATES` -- its own-identity "already active" check still
+    read `row.state != "TERMINAL"`, so calling it directly for an identity
+    whose row `reconcile_revision()` had already superseded returned
+    `(row, None)` -- a "success" tuple whose own `.state` field reads
+    `"SUPERSEDED"`, exactly as if nothing were wrong. Unreachable through any
+    real production call site (`run_origination_scan()` exclusively uses
+    `reconcile_revision()` now) but a real, empirically-reproducible
+    inconsistency in this still-public, still-tested primitive. Fixed by
+    aligning this check with the same `_INACTIVE_STATES` definition every
+    other function in this module already uses.
+    """
+    from project_atlas.orchestration.origination.projection import (
+        persist_materialized_if_no_active_conflict,
+    )
+
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    store = tmp_path / "origination-store"
+
+    outcomes = originate_all(repo, "demo-project")
+    proposal_a, policy_a = outcomes[0].proposal, outcomes[0].policy
+    persist_proposed(store, proposal_a, policy_a)
+    classification = classify_risk(
+        proposed_scope=proposal_a.proposed_scope, success_criteria=proposal_a.success_criteria
+    )
+    node_a = materialize_work_node(
+        proposal_a, classification, base_pin=main, surface_id=f"{proposal_a.project_id}-a"
+    )
+    reconcile_revision(
+        store,
+        origination_identity=proposal_a.origination_identity,
+        package_id=proposal_a.work_id,
+        work_node=node_a,
+    )
+
+    # B blocks A -- A is now genuinely SUPERSEDED, nothing else active for
+    # this package_id (mirrors the exact incident shape).
+    proposal_b = proposal_a.model_copy(
+        update={"origination_identity": "9" * 64, "blockers": ("EXTERNAL_BLOCKED: needs data",)}
+    )
+    persist_proposed(store, proposal_b, policy_a)
+    reconcile_revision(
+        store,
+        origination_identity=proposal_b.origination_identity,
+        package_id=proposal_b.work_id,
+        work_node=None,
+    )
+    superseded_row = next(
+        r
+        for r in load_projection(store).records
+        if r.origination_identity == proposal_a.origination_identity
+    )
+    assert superseded_row.state == "SUPERSEDED"
+
+    # Calling the legacy primitive directly for A's own (now-superseded)
+    # identity must never report a SUPERSEDED row as an unchanged "already
+    # active" success -- with nothing else active for this package_id, it
+    # correctly re-attaches materialization instead (protected, when
+    # something ELSE *is* active, by this same function's own
+    # different-identity conflict check, proven by the TOCTOU test above).
+    record, conflict = persist_materialized_if_no_active_conflict(
+        store, proposal_a.origination_identity, node_a
+    )
+    assert conflict is None
+    assert record is not None
+    assert record.state != "SUPERSEDED"
+    assert record.state == "MATERIALIZED"

@@ -279,7 +279,7 @@ def persist_materialized_if_no_active_conflict(
                     rows.append(row)
                     continue
                 found = True
-                if row.work_node is not None and row.state != "TERMINAL":
+                if row.work_node is not None and row.state not in _INACTIVE_STATES:
                     already_active = row
                     rows.append(row)
                     continue
