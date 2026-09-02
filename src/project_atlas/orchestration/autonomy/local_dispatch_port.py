@@ -669,10 +669,60 @@ class LocalProcessDispatchPort:
         return found
 
 
+_ATTEMPT_SUFFIX_RE = re.compile(r"^(\d+)\.json$")
+
+
+def list_dispatch_receipts(root: Path, *, lease_id: str) -> tuple[dict[str, object], ...]:
+    """Every real, already-persisted receipt recorded for ``lease_id``, in
+    attempt order. Read-only -- the exact same underlying receipt files
+    ``recover()``/``find_active_dispatch_id()`` already trust, via the
+    same ``_read_receipt()`` (so a corrupt/tampered receipt fails closed
+    here too, never silently treated as "no attempt"). Returns an empty
+    tuple only when NO attempt was ever recorded for this lease; never
+    guesses or fabricates a receipt.
+
+    Independent-verification finding (AS-ORCH-LEASE-RECOVERY-001 IV round
+    2): the original version scanned attempts ``0, 1, 2, ...`` and
+    stopped at the first missing index. If an intermediate receipt file
+    were ever lost (deleted, a future reaper, disk corruption), a LATER
+    attempt's receipt -- including a genuine, authority-clean COMPLETED
+    success -- would be silently invisible to this function, and
+    therefore to ``lease_recovery``'s evidence gate. This lists the real
+    directory instead of assuming contiguity, so a gap can never hide a
+    later receipt; every attempt actually present on disk is read and
+    returned, sorted by attempt number.
+
+    AS-ORCH-LEASE-RECOVERY-001: this is the evidence source
+    ``lease_recovery.release_stalled_lease_after_exhausted_dispatch()``
+    reads before it will release a lease its owning loop got permanently
+    stuck on -- see that module's docstring for the incident that makes
+    real, on-disk receipts (not a caller's assertion) the only acceptable
+    evidence.
+    """
+    prefix = _safe_token(_dispatch_id_for(lease_id)) + "_"
+    receipts_dir = _receipts_dir(root)
+    attempts: dict[int, str] = {}
+    if receipts_dir.is_dir():
+        for entry in receipts_dir.iterdir():
+            if not entry.is_file() or not entry.name.startswith(prefix):
+                continue
+            match = _ATTEMPT_SUFFIX_RE.match(entry.name[len(prefix) :])
+            if match is None:
+                continue  # not an attempt receipt (e.g. the sibling "-request.json")
+            attempts[int(match.group(1))] = f"{_dispatch_id_for(lease_id)}:{match.group(1)}"
+    receipts: list[dict[str, object]] = []
+    for attempt in sorted(attempts):
+        receipt = _read_receipt(root, attempts[attempt])
+        if receipt is not None:
+            receipts.append(receipt)
+    return tuple(receipts)
+
+
 __all__ = [
     "PACKAGE_ID",
     "RECEIPTS_RELATIVE",
     "WORKTREES_RELATIVE",
     "LocalDispatchError",
     "LocalProcessDispatchPort",
+    "list_dispatch_receipts",
 ]
