@@ -1177,6 +1177,7 @@ def test_scan_reports_truthful_already_materialized_on_toctou_race(
         package_id: str,
         work_node: object,
         state: str = "MATERIALIZED",
+        still_current: object = None,
     ) -> ReconciliationOutcome:
         return ReconciliationOutcome(
             superseded=(), materialized=winning_record, already_current=True
@@ -1246,6 +1247,7 @@ def test_scan_isolates_a_corrupt_durable_record_to_one_outcome(
         package_id: str,
         work_node: object,
         state: str = "MATERIALIZED",
+        still_current: object = None,
     ) -> ReconciliationOutcome:
         return ReconciliationOutcome(
             superseded=(), materialized=corrupt_record, already_current=False
@@ -1269,3 +1271,56 @@ def test_scan_isolates_a_corrupt_durable_record_to_one_outcome(
     assert isinstance(not_materialized, list)
     assert len(not_materialized) == 1
     assert not_materialized[0]["materialization_error_code"] == "DURABLE_RECORD_CORRUPT"
+
+
+def test_scan_reports_stale_snapshot_receipt_instead_of_reconciling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Independent-verification finding F2 on PR #677 -- the scan-side
+    receipt half of the stale-snapshot guard (the store-side denial
+    itself is proven in ``test_orchestration_origination_supersession
+    .py``): when ``reconcile_revision()``'s in-lock ``still_current``
+    check finds this scan's evidence no longer matches CURRENT source
+    truth, the scan must fail closed to a per-item no-op receipt
+    (``materialization_error_code == "STALE_SOURCE_SNAPSHOT"``) --
+    observable, isolated to that one work_id, never a whole-scan error
+    and never a durable write. Simulated the same way the sibling TOCTOU
+    tests above simulate their races: by forcing the checker's verdict,
+    since a real stalled-scan window cannot be produced by sequential
+    calls in one process."""
+    import project_atlas.orchestration.origination.cli as cli_module
+
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    monkeypatch.setattr(
+        cli_module,
+        "_source_identity_still_current",
+        lambda _root, _project_id, _identity: False,
+    )
+    payload, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+
+    # The scan itself completed -- a stale item is a per-item receipt,
+    # not a whole-scan failure.
+    assert exit_code == EXIT_OK
+    assert payload["materialized_count"] == 0
+    assert payload["not_materialized_count"] == 1
+    not_materialized = payload["not_materialized"]
+    assert isinstance(not_materialized, list)
+    entry = not_materialized[0]
+    assert entry["materialization_error_code"] == "STALE_SOURCE_SNAPSHOT"
+    assert entry["superseded_prior_revisions"] == []
+
+    # Fail closed to a no-op on the store: the proposal row is durable
+    # (that write predates -- and is independent of -- reconciliation),
+    # but nothing was materialized and nothing was superseded.
+    projection = load_projection(store)
+    assert [record.state for record in projection.records] == ["PROPOSED"]
+    assert projection.records[0].work_node is None

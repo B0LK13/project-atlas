@@ -20,7 +20,7 @@ authority once a node is added.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Final, Literal
 
@@ -393,6 +393,7 @@ def reconcile_revision(
     package_id: str,
     work_node: WorkNode | None,
     state: RecordState = "MATERIALIZED",
+    still_current: Callable[[], bool] | None = None,
 ) -> ReconciliationOutcome:
     """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
     D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION): the one
@@ -465,6 +466,25 @@ def reconcile_revision(
     ``IDENTITY_ALREADY_RESOLVED`` in that case -- the idempotent-replay
     fast path above only ever applies to a row that is CURRENTLY active.
 
+    ``still_current`` (independent-verification finding F2 on PR #677):
+    this call is otherwise last-caller-wins -- a delayed scan still
+    holding a STALE source snapshot could replay an older revision's
+    reconcile and dethrone the genuinely newer one (transient, but until
+    the next fresh scan the stale revision would be the sole durably
+    rehydratable authority). When provided, the callback is invoked
+    INSIDE this same lock, immediately before any write: it must return
+    ``True`` only if ``origination_identity`` is still derivable from
+    CURRENT source truth (the caller re-reads the authoritative source
+    to decide -- see ``run_origination_scan()``). ``False`` fails closed
+    with ``STALE_SOURCE_SNAPSHOT`` before anything is superseded or
+    materialized -- a no-op on the store; the caller reports the denial
+    as a per-item receipt. The callback must not raise (make it return
+    ``False`` on any of its own failures: unverifiable is stale). It is
+    deliberately NOT consulted on the idempotent already-current replay
+    above (nor on the permanent ``IDENTITY_ALREADY_RESOLVED`` refusal) --
+    both write nothing. ``None`` (the default) preserves the prior
+    behavior byte-for-byte for direct callers.
+
     Everything above happens inside ONE ``ProjectIdentityLock`` critical
     section -- there is no window where a crash could leave the store
     with the old revision superseded but the new one not yet reflected
@@ -523,6 +543,20 @@ def reconcile_revision(
                     "revision cannot regain execution authority, even if the "
                     "exact same evidence is proposed again",
                     code="IDENTITY_ALREADY_RESOLVED",
+                )
+
+            if still_current is not None and not still_current():
+                # IV F2 (PR #677): the caller's evidence no longer matches
+                # current source truth -- a stale snapshot must never
+                # supersede (or materialize over) the revision derived
+                # from newer truth. Nothing has been written yet; deny
+                # everything this call would have done.
+                raise OriginationProjectionError(
+                    f"origination_identity {origination_identity!r} is no "
+                    f"longer derivable from current source truth -- refusing "
+                    f"a stale-snapshot reconcile for package_id "
+                    f"{package_id!r}; superseding and materializing nothing",
+                    code="STALE_SOURCE_SNAPSHOT",
                 )
 
             others = [

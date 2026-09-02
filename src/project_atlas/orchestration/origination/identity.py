@@ -13,6 +13,22 @@ import hashlib
 from project_atlas.orchestration.origination.facts import SourceFact
 
 
+def origination_identity_from_parts(
+    project_id: str, location: str, item_id: str, item_digest: str
+) -> str:
+    """The one identity formula, spelled out over its raw parts.
+
+    Split out of ``origination_identity()`` (IV finding F2 on PR #677)
+    so a scan can cheaply re-derive "is this identity still what current
+    source truth yields for this item?" from a fresh
+    ``eligible_work_items()`` read, without constructing a full
+    ``SourceFact`` -- and without a second, drift-prone copy of the
+    payload format.
+    """
+    payload = f"{project_id}::{location}::{item_id}::{item_digest}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def origination_identity(project_id: str, authoritative_source: SourceFact) -> str:
     """Return a stable per-item, per-revision origination identity."""
     loc = authoritative_source.location
@@ -20,8 +36,7 @@ def origination_identity(project_id: str, authoritative_source: SourceFact) -> s
     item_digest = authoritative_source.subject_digest
     if item_id is None or item_digest is None:
         raise ValueError("authoritative source is missing its structured roadmap subject")
-    payload = f"{project_id}::{loc}::{item_id}::{item_digest}"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return origination_identity_from_parts(project_id, loc, item_id, item_digest)
 
 
 def work_id_for(project_id: str, item_id: str) -> str:

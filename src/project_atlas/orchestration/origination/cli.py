@@ -27,6 +27,7 @@ to real project evidence. Never leases, never dispatches, never merges.
 from __future__ import annotations
 
 import re
+from functools import partial
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -37,6 +38,7 @@ from project_atlas.orchestration.autonomy.trust import TrustError, load_runtime_
 from project_atlas.orchestration.origination.acceptance_contracts import (
     AcceptanceContractConfigError,
 )
+from project_atlas.orchestration.origination.identity import origination_identity_from_parts
 from project_atlas.orchestration.origination.materialize import (
     MaterializationError,
     materialize_work_node,
@@ -55,6 +57,7 @@ from project_atlas.orchestration.origination.risk import classify as classify_ri
 from project_atlas.orchestration.origination.sources import (
     DuplicateItemIdError,
     OriginationSourceConfigError,
+    eligible_work_items,
 )
 
 EXIT_OK = 0
@@ -87,6 +90,39 @@ def _fail_closed(detail: str, *, blocker: str) -> dict[str, object]:
         "merge_authorized": False,
         "execution_authorized": False,
     }
+
+
+def _source_identity_still_current(root: Path, project_id: str, expected_identity: str) -> bool:
+    """Re-read authoritative source truth NOW and report whether
+    ``expected_identity`` is still one of the identities it yields.
+
+    IV finding F2 on PR #677: ``reconcile_revision()`` was last-caller-
+    wins -- a scan stalled across a source edit could replay a
+    reconciliation derived from a STALE snapshot and dethrone the
+    genuinely newer revision. This checker is handed to
+    ``reconcile_revision(still_current=...)`` and runs INSIDE its
+    projection lock, immediately before any write, so only evidence that
+    matches CURRENT source truth at write time can supersede or
+    materialize. A genuine source revert back to an earlier revision's
+    exact content re-derives that revision's same identity and correctly
+    passes (owner gate (d): revert semantics are unchanged).
+
+    Never raises: an unreadable/misconfigured source at this instant is
+    UNVERIFIABLE evidence, and unverifiable fails closed to "not
+    current" -- the item is denied with a per-item receipt, never
+    reconciled on a guess.
+    """
+    try:
+        items = eligible_work_items(root)
+    except Exception:
+        return False
+    return any(
+        origination_identity_from_parts(
+            project_id, item.source_path, item.item_id, item.item_digest
+        )
+        == expected_identity
+        for item in items
+    )
 
 
 def run_origination_scan(
@@ -296,14 +332,24 @@ def run_origination_scan(
                         origination_identity=proposal.origination_identity,
                         package_id=proposal.work_id,
                         work_node=None,
+                        still_current=partial(
+                            _source_identity_still_current,
+                            root,
+                            project_id,
+                            proposal.origination_identity,
+                        ),
                     )
                 except OriginationProjectionError as reconcile_exc:
                     # IDENTITY_ALREADY_RESOLVED (owner directive §4: a
                     # TERMINAL/SUPERSEDED revision permanently cannot
                     # regain authority, even on an exact-content revert)
-                    # -- isolated to this one work_id, never fatal to the
-                    # rest of the scan, matching every other per-item
-                    # materialization failure in this loop.
+                    # and STALE_SOURCE_SNAPSHOT (IV F2, PR #677: this
+                    # scan's snapshot of the item no longer matches
+                    # current source truth; the store is untouched and a
+                    # fresh scan will reconcile the genuinely current
+                    # revision) -- both isolated to this one work_id,
+                    # never fatal to the rest of the scan, matching every
+                    # other per-item materialization failure in this loop.
                     not_materialized.append(
                         {
                             "work_id": proposal.work_id,
@@ -311,6 +357,7 @@ def run_origination_scan(
                             "reason": policy.reason.value,
                             "materialization_error": str(reconcile_exc),
                             "materialization_error_code": reconcile_exc.code,
+                            "superseded_prior_revisions": [],
                         }
                     )
                     continue
@@ -354,12 +401,19 @@ def run_origination_scan(
                     origination_identity=proposal.origination_identity,
                     package_id=proposal.work_id,
                     work_node=node,
+                    still_current=partial(
+                        _source_identity_still_current,
+                        root,
+                        project_id,
+                        proposal.origination_identity,
+                    ),
                 )
             except OriginationProjectionError as reconcile_exc:
                 # Same isolation as the blocked-path branch above --
-                # IDENTITY_ALREADY_RESOLVED (or, defensively,
-                # AMBIGUOUS_ACTIVE_REVISION/PACKAGE_ID_MISMATCH) must not
-                # abort the rest of this scan batch.
+                # IDENTITY_ALREADY_RESOLVED, STALE_SOURCE_SNAPSHOT (IV F2)
+                # or, defensively, AMBIGUOUS_ACTIVE_REVISION/
+                # PACKAGE_ID_MISMATCH must not abort the rest of this scan
+                # batch.
                 not_materialized.append(
                     {
                         "work_id": proposal.work_id,
@@ -367,6 +421,7 @@ def run_origination_scan(
                         "reason": policy.reason.value,
                         "materialization_error": str(reconcile_exc),
                         "materialization_error_code": reconcile_exc.code,
+                        "superseded_prior_revisions": [],
                     }
                 )
                 continue
