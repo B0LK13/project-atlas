@@ -34,10 +34,29 @@ attempt for that exact lease genuinely failed, and the loop's own durable
 state corroborates that this exact lease is what it is stuck on, via a
 ``RESOURCE_BOUNDARY`` stop specifically -- never ``OWNER_GATE``/
 ``SAFETY_BOUNDARY``/``HARD_BLOCKER``, which stay exactly as terminal as the
-loop itself already makes them. A single receipt showing a genuine,
-authority-clean ``COMPLETED`` outcome refuses the release outright: this
-mechanism recovers from real, exhausted failure, never discards a real
-success.
+loop itself already makes them.
+
+Owner review round 2 (2026-09-02): "genuinely failed" must be POSITIVELY
+proven, not merely "not proven to have succeeded". The original check
+(refuse only if a receipt showed ``status == "COMPLETED" and
+authority_clean is True``) silently accepted a missing ``status``, a
+``RUNNING`` receipt (real and well-formed, but genuinely unresolved --
+not failed), an unrecognized status string, or a tampered non-bool
+``authority_clean`` as if any of those were proof of failure. Every
+receipt this module consults is now validated against the real
+production schema (``local_dispatch_port.LocalDispatchReceipt``) and
+bound to its own durable slot, lease, and package identity BEFORE this
+module ever inspects its ``status`` -- see that model's and
+``list_dispatch_receipts()``'s own docstrings. The acceptance check
+itself is now a positive one: every receipt's ``status`` must equal
+``FAILED`` exactly (the one real production value that is proof of a
+terminal, exhausted failure -- ``dispatch_once()`` never writes
+``COMPLETED`` unless the exit was clean and authority-clean, so treating
+``COMPLETED`` as an unconditional success signal loses no real meaning).
+Anything else -- missing, ``RUNNING``, ``COMPLETED``, or malformed --
+refuses the release: this mechanism recovers from real, exhausted
+failure, never discards real in-flight or successful work, and never
+manufactures failure evidence out of its own absence.
 
 Even a fully evidence-gated release is not enough on its own: writing
 ``status: "RELEASED"`` would still trip gap (2), since ``_originate()``
@@ -62,7 +81,10 @@ from project_atlas.orchestration.autonomy.lease_projection import (
     load_projection,
     project_abandon,
 )
-from project_atlas.orchestration.autonomy.local_dispatch_port import list_dispatch_receipts
+from project_atlas.orchestration.autonomy.local_dispatch_port import (
+    LocalDispatchReceiptStatus,
+    list_dispatch_receipts,
+)
 from project_atlas.orchestration.autonomy.loop import LoopPhase, load_loop_state
 from project_atlas.orchestration.autonomy.models import AgentCapability, AgentLease, StopReason
 
@@ -138,7 +160,15 @@ def release_stalled_lease_after_exhausted_dispatch(
             code="LEASE_NOT_ACTIVE",
         )
 
-    receipts = list_dispatch_receipts(resolved_root, lease_id=lease_id)
+    # list_dispatch_receipts() itself now fails closed (LocalDispatchError)
+    # on a malformed receipt, a receipt whose own dispatch_id disagrees
+    # with the durable slot it was read from, or a receipt naming a
+    # different lease -- see its own docstring and LocalDispatchReceipt's.
+    # package_id is bound here too, since only this caller has the
+    # governing lease projection row to check it against.
+    receipts = list_dispatch_receipts(
+        resolved_root, lease_id=lease_id, expected_package_id=row.package_id
+    )
     if not receipts:
         raise LeaseRecoveryError(
             f"no dispatch receipt was ever recorded for {lease_id!r} -- "
@@ -148,23 +178,35 @@ def release_stalled_lease_after_exhausted_dispatch(
         )
     consulted_dispatch_ids: list[str] = []
     for receipt in receipts:
-        dispatch_id = str(receipt.get("dispatch_id", "<unknown>"))
-        consulted_dispatch_ids.append(dispatch_id)
-        if str(receipt.get("lease_id")) != lease_id:
+        consulted_dispatch_ids.append(receipt.dispatch_id)
+        # Owner review round 2 (2026-09-02): POSITIVE proof of a real,
+        # terminal, exhausted failure -- not merely the absence of a
+        # positive success signal. The prior check
+        # (`status == "COMPLETED" and authority_clean is True`) treated
+        # "not proven to have succeeded" as "proven to have failed": a
+        # missing status, RUNNING (real, well-formed, but genuinely
+        # unresolved -- see LocalDispatchReceiptStatus's own docstring),
+        # an unrecognized status string, or a tampered non-bool
+        # authority_clean would all silently pass through as acceptable
+        # failure evidence. `status == FAILED` exactly is the ONLY real
+        # production shape that is positive proof of a terminal failure
+        # (dispatch_once() never writes COMPLETED unless the exit was
+        # clean AND authority-clean); every other value -- including
+        # RUNNING and COMPLETED -- refuses the release. Schema/identity
+        # malformation is already excluded upstream by
+        # list_dispatch_receipts() itself, so every `receipt` reaching
+        # this loop is a real, well-formed, self-consistent
+        # LocalDispatchReceipt; this is a pure status-value decision.
+        if receipt.status is not LocalDispatchReceiptStatus.FAILED:
             raise LeaseRecoveryError(
-                f"receipt {dispatch_id!r} is not self-consistent: it "
-                f"belongs to lease {receipt.get('lease_id')!r}, not "
-                f"{lease_id!r}",
-                code="RECEIPT_LEASE_MISMATCH",
-            )
-        if receipt.get("status") == "COMPLETED" and receipt.get("authority_clean") is True:
-            raise LeaseRecoveryError(
-                f"receipt {dispatch_id!r} shows a genuine, authority-clean "
-                "COMPLETED outcome -- this lease did not exhaust every "
-                "attempt in failure; releasing it here would discard a "
-                "real result instead of recovering from a real one, and is "
-                "refused",
-                code="HIDDEN_SUCCESSFUL_COMPLETION",
+                f"receipt {receipt.dispatch_id!r} has status "
+                f"{receipt.status.value!r}, not FAILED -- that is not "
+                "positive proof this attempt genuinely, terminally failed "
+                "(RUNNING means still-unresolved, not failed; COMPLETED "
+                "means it succeeded); releasing it here would either "
+                "discard real in-flight/successful work or release on "
+                "evidence that proves nothing, and is refused",
+                code="NOT_POSITIVELY_PROVEN_FAILED",
             )
 
     try:

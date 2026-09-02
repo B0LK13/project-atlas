@@ -321,6 +321,53 @@ def project_grant(store: Path, lease: AgentLease, *, live_main: str) -> LeasePro
     return _mutate_projection(store, _apply)
 
 
+def _require_still_active(row: ProjectedLease, *, lease_id: str) -> None:
+    """Re-check a row's status against the FRESH, lock-time-accurate
+    ``current`` a mutator closure receives (loaded inside
+    ``_mutate_projection()``'s own lock) -- never a caller-supplied,
+    possibly-stale row read earlier and unlocked. Both ``project_release()``
+    and ``project_abandon()`` write a lease's terminal status starting
+    from an assumption, made by their own caller, that the row is still
+    ``ACTIVE``; without this re-check that assumption can go stale in the
+    real window between the caller's own unlocked read and this locked
+    write, and either function would then silently overwrite whatever the
+    row legitimately became in between.
+
+    Independent-verification finding (delta IV, AS-ORCH-LEASE-RECOVERY-001
+    owner review round 2): this was added to ``project_abandon()`` alone
+    first (a genuine completion racing in and being silently stomped back
+    to ``ABANDONED``), and a following delta IV round found the exact
+    mirror-image gap was still open in the untouched ``project_release()``
+    -- a lease this evidence-gated mechanism had already, legitimately
+    marked ``ABANDONED`` could be silently overwritten back to
+    ``RELEASED`` by an unrelated, out-of-band completion (e.g. a
+    still-alive in-process governor object from before the owning loop's
+    ``RESOURCE_BOUNDARY`` stop, independently finishing and calling
+    ``governor.release_lease()``) -- fabricating exactly the CERTIFIED
+    witness this whole mechanism exists to prevent, in the reverse
+    direction. Shared here so both callers enforce the identical
+    invariant identically, rather than two independently-maintained
+    copies of the same check drifting apart.
+
+    Uses its own, distinct error code (``LEASE_STATUS_RACE``) rather than
+    reusing ``lease_recovery.py``'s own, differently-scoped
+    ``LEASE_NOT_ACTIVE`` (that one fires on an early, UNLOCKED read,
+    before any evidence-gate work even starts; this one fires on the
+    locked write itself detecting a genuine concurrent transition) -- a
+    second delta-IV finding: conflating the two under one code string
+    left a caller keying off ``blocker`` alone unable to distinguish
+    "never was active" from "raced with a real concurrent transition".
+    """
+    if row.status != "ACTIVE":
+        raise ProjectionError(
+            f"lease {lease_id!r} is no longer ACTIVE (now {row.status!r}) -- "
+            "a concurrent transition happened between this call's own "
+            "caller-side read and this locked write; refusing to "
+            "overwrite it",
+            code="LEASE_STATUS_RACE",
+        )
+
+
 def project_release(store: Path, lease: AgentLease, *, live_main: str) -> LeaseProjection:
     def _apply(current: LeaseProjection) -> LeaseProjection:
         rows: list[ProjectedLease] = []
@@ -330,6 +377,7 @@ def project_release(store: Path, lease: AgentLease, *, live_main: str) -> LeaseP
                 rows.append(row)
                 continue
             found = True
+            _require_still_active(row, lease_id=lease.lease_id)
             reject_foreign_worker(row=row, agent_id=lease.agent_id)
             reject_foreign_package(row=row, package_id=lease.package_id)
             reject_stale_base(row=row, live_main=live_main)
@@ -366,6 +414,7 @@ def project_abandon(store: Path, lease: AgentLease, *, live_main: str) -> LeaseP
                 rows.append(row)
                 continue
             found = True
+            _require_still_active(row, lease_id=lease.lease_id)
             reject_foreign_worker(row=row, agent_id=lease.agent_id)
             reject_foreign_package(row=row, package_id=lease.package_id)
             reject_stale_base(row=row, live_main=live_main)
