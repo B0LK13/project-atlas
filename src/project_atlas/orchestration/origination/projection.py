@@ -39,7 +39,17 @@ PROJECTION_NAME: Final[str] = "origination.json"
 LOCK_NAME: Final[str] = "origination.lock"
 RELATIVE_DEFAULT: Final[Path] = Path(".atlas") / "orchestration" / "origination"
 
-RecordState = Literal["PROPOSED", "MATERIALIZED", "OWNER_HELD_ROUTED", "TERMINAL"]
+RecordState = Literal["PROPOSED", "MATERIALIZED", "OWNER_HELD_ROUTED", "TERMINAL", "SUPERSEDED"]
+
+#: States under which a record no longer holds live execution authority for
+#: its ``work_node`` (if any): ``TERMINAL`` (the governed node reached
+#: ``dag.TERMINAL_STATES`` -- an execution outcome) and ``SUPERSEDED`` (a
+#: later authoritative-source revision for the same ``work_id`` replaced it
+#: -- a source-lineage outcome, never an execution claim; see
+#: ``reconcile_revision()``). Every "is this record still active/current"
+#: check in this module is defined as ``row.state not in _INACTIVE_STATES``
+#: so a future third inactive state only needs to be added here once.
+_INACTIVE_STATES: frozenset[str] = frozenset({"TERMINAL", "SUPERSEDED"})
 
 
 class OriginationProjectionError(ValueError):
@@ -131,13 +141,14 @@ def find_materialized_work_node(store: Path, package_id: str) -> WorkNode | None
     matches = tuple(
         row
         for row in projection.records
-        if row.state != "TERMINAL"
+        if row.state not in _INACTIVE_STATES
         and row.work_node is not None
         and row.work_node.get("package_id") == package_id
     )
     if len(matches) != 1:
         # A logical item may have multiple specification revisions over
-        # time, but at most one may be active. Ambiguity is not authority.
+        # time, but at most one may be CURRENT (active, not SUPERSEDED/
+        # TERMINAL). Ambiguity is not authority.
         return None
     try:
         return WorkNode.model_validate(matches[0].work_node)
@@ -189,7 +200,7 @@ def find_active_record_by_package_id(store: Path, package_id: str) -> Originatio
         (
             row
             for row in projection.records
-            if row.state != "TERMINAL"
+            if row.state not in _INACTIVE_STATES
             and row.work_node is not None
             and row.work_node.get("package_id") == package_id
         ),
@@ -252,7 +263,7 @@ def persist_materialized_if_no_active_conflict(
                     row
                     for row in current.records
                     if row.origination_identity != origination_identity
-                    and row.state != "TERMINAL"
+                    and row.state not in _INACTIVE_STATES
                     and row.work_node is not None
                     and row.work_node.get("package_id") == package_id
                 ),
@@ -293,12 +304,180 @@ def persist_materialized_if_no_active_conflict(
     return materialized, None
 
 
+class ReconciliationOutcome(BaseModel):
+    """What ``reconcile_revision()`` actually did, one durable transition."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    #: Any OTHER active (differently-identified) record for this
+    #: `work_id`/`package_id` this call transitioned to SUPERSEDED. Empty
+    #: when no prior active revision existed.
+    superseded: tuple[OriginationRecord, ...] = Field(default_factory=tuple)
+    #: This identity's own row, if `work_node` was attached (this call's
+    #: own new materialization, OR an idempotent replay of one it already
+    #: held). ``None`` when `work_node` was not given (the new revision is
+    #: blocked / not execution-ready) -- nothing materializes, even though
+    #: a prior revision may still have been superseded.
+    materialized: OriginationRecord | None = None
+    #: True when this identity's own row already held a current, active
+    #: `work_node` before this call (idempotent replay) -- nothing was
+    #: written, including no re-supersession of any sibling.
+    already_current: bool = False
+
+
+def reconcile_revision(
+    store: Path,
+    *,
+    origination_identity: str,
+    package_id: str,
+    work_node: WorkNode | None,
+    state: RecordState = "MATERIALIZED",
+) -> ReconciliationOutcome:
+    """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+    D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION): the one
+    durable state transition a scan uses to reconcile ``origination_
+    identity`` (a specific authoritative-source revision, already
+    ``persist_proposed()``-ed) against whatever revision currently holds
+    execution authority for the same logical work (``package_id`` /
+    ``work_id`` -- identical concept, see ``identity.py``).
+
+    Required invariant this enforces: *a materialized revision is
+    rehydratable iff it is still the current authoritative eligible
+    revision for its work_id*. Concretely, in ONE atomic, locked
+    transition:
+
+    1. Any OTHER non-``TERMINAL``/non-``SUPERSEDED`` record sharing
+       ``package_id`` under a DIFFERENT ``origination_identity`` is
+       transitioned to ``SUPERSEDED`` -- never deleted, never rewritten
+       as though it had never been materialized (its ``proposal``,
+       ``policy_result``, and frozen ``work_node`` -- including its own
+       ``base_pin`` -- are preserved exactly; only ``state`` changes).
+       This happens REGARDLESS of whether ``work_node`` is given below:
+       source truth supersedes a prior revision whether or not the NEW
+       revision itself goes on to materialize (a newly-BLOCKED revision
+       must still revoke a stale unblocked one).
+    2. If ``work_node`` is given, THIS identity's own row (which must
+       already exist as a ``persist_proposed()``-ed record) is attached
+       and transitioned to ``state``. If ``work_node`` is ``None`` (the
+       new revision is blocked / not execution-ready), this identity's
+       row is left exactly as ``persist_proposed()`` left it (normally
+       ``PROPOSED``) -- nothing new materializes.
+
+    Fails closed with ``AMBIGUOUS_ACTIVE_REVISION`` (superseding and
+    materializing NOTHING) if MORE THAN ONE other active record shares
+    ``package_id`` -- corrupt or pre-migration lineage; never resolved by
+    picking one to revoke arbitrarily.
+
+    Idempotent: if this identity's own row ALREADY holds a current,
+    active ``work_node`` (a repeat scan for the same evidence, or a
+    concurrent caller that already won), nothing is written -- in
+    particular, no sibling is re-superseded a second time -- and the
+    existing row is returned with ``already_current=True``. This mirrors
+    ``persist_materialized_if_no_active_conflict()``'s own same-identity
+    idempotence, and is checked FIRST, before any supersession, so a
+    replay can never re-trigger supersession side effects.
+
+    Fails closed with ``RECORD_UNKNOWN`` if no ``persist_proposed()``-ed
+    row exists yet for ``origination_identity`` -- a revision cannot be
+    reconciled before it is itself durably recorded as proposed.
+
+    Everything above happens inside ONE ``ProjectIdentityLock`` critical
+    section -- there is no window where a crash could leave the store
+    with the old revision superseded but the new one not yet reflected
+    (or vice versa) in a way that resurrects revoked authority; worst
+    case after an interrupted call is "no revision is currently active
+    for this work_id", which the next scan self-heals exactly like any
+    other first-time materialization.
+    """
+    root = store.expanduser().resolve()
+    lock_path = (root / LOCK_NAME).resolve()
+    if not _inside(root, lock_path):
+        raise OriginationProjectionError("lock path escapes store", code="PATH_UNSAFE")
+    try:
+        with ProjectIdentityLock(lock_path, wait_seconds=2.0, stale_seconds=30.0):
+            current = load_projection(store)
+
+            own_row = next(
+                (
+                    row
+                    for row in current.records
+                    if row.origination_identity == origination_identity
+                ),
+                None,
+            )
+            if own_row is None:
+                raise OriginationProjectionError(
+                    "no proposed record to reconcile", code="RECORD_UNKNOWN"
+                )
+
+            if own_row.state not in _INACTIVE_STATES and own_row.work_node is not None:
+                # Idempotent replay -- checked BEFORE any supersession so a
+                # repeat call (same evidence, re-scanned) can never
+                # re-supersede a sibling a second time.
+                return ReconciliationOutcome(materialized=own_row, already_current=True)
+
+            others = [
+                row
+                for row in current.records
+                if row.origination_identity != origination_identity
+                and row.state not in _INACTIVE_STATES
+                and row.work_node is not None
+                and row.work_node.get("package_id") == package_id
+            ]
+            if len(others) > 1:
+                raise OriginationProjectionError(
+                    f"more than one OTHER active origination record shares "
+                    f"package_id {package_id!r} -- corrupt/ambiguous "
+                    "lineage; refusing to supersede or materialize until "
+                    "resolved",
+                    code="AMBIGUOUS_ACTIVE_REVISION",
+                )
+            incumbent_identity = others[0].origination_identity if others else None
+
+            rows: list[OriginationRecord] = []
+            superseded: list[OriginationRecord] = []
+            for row in current.records:
+                if row.origination_identity == incumbent_identity:
+                    updated_row = row.model_copy(update={"state": "SUPERSEDED"})
+                    rows.append(updated_row)
+                    superseded.append(updated_row)
+                    continue
+                if row.origination_identity == origination_identity and work_node is not None:
+                    rows.append(
+                        row.model_copy(
+                            update={"work_node": work_node.model_dump(mode="json"), "state": state}
+                        )
+                    )
+                    continue
+                rows.append(row)
+
+            updated = OriginationProjection(records=tuple(rows))
+            _write_atomic(root / PROJECTION_NAME, updated.model_dump(mode="json"))
+    except IdentityLockError as exc:
+        raise OriginationProjectionError(
+            "projection lock is held", code="CONCURRENT_PROJECTION"
+        ) from exc
+
+    materialized_row = (
+        next(r for r in rows if r.origination_identity == origination_identity)
+        if work_node is not None
+        else None
+    )
+    return ReconciliationOutcome(
+        superseded=tuple(superseded), materialized=materialized_row, already_current=False
+    )
+
+
 def list_materialized_work_nodes(store: Path) -> tuple[WorkNode, ...]:
-    """D-PHASE2A-2: every ``WorkNode`` a prior process durably materialized
-    that has NOT yet been observed to reach a terminal governed state
-    (``row.state != "TERMINAL"`` -- ``"MATERIALIZED"`` and
-    ``"OWNER_HELD_ROUTED"`` rows both count; ``"PROPOSED"`` rows have no
-    ``work_node`` yet and are correctly excluded).
+    """D-PHASE2A-2 / AS-ORIGIN-MATERIALIZED-SUPERSESSION-001: every
+    ``WorkNode`` a prior process durably materialized that is still the
+    CURRENT active revision for its ``work_id`` (``row.state not in
+    _INACTIVE_STATES`` -- ``"MATERIALIZED"`` and ``"OWNER_HELD_ROUTED"``
+    rows both count; ``"PROPOSED"`` rows have no ``work_node`` yet,
+    ``"TERMINAL"`` rows already reached a governed execution outcome, and
+    ``"SUPERSEDED"`` rows were replaced by a later authoritative-source
+    revision for the same ``work_id`` -- see ``reconcile_revision()`` --
+    all three correctly excluded).
 
     This is the "governor discovery" read side of the origination ->
     governor bridge: unlike ``find_materialized_work_node()`` (a single
@@ -309,19 +488,51 @@ def list_materialized_work_nodes(store: Path) -> tuple[WorkNode, ...]:
 
     A malformed individual row (fails ``WorkNode.model_validate``) is
     skipped, not fatal to the others -- one corrupt durable record must
-    not hide every other legitimate one from discovery. Never raises;
-    an unreadable/missing store returns an empty tuple, matching
+    not hide every other legitimate one from discovery. An unreadable/
+    missing store returns an empty tuple, matching
     ``find_materialized_work_node()``'s own fail-closed-to-empty
     posture.
+
+    AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner-directed hardening,
+    D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §7): unlike
+    every other read in this module, this function DOES raise --
+    ``OriginationProjectionError(code="AMBIGUOUS_ACTIVE_REVISION")`` --
+    if more than one active row shares a single ``package_id``. That
+    shape should be impossible once ``reconcile_revision()`` is the only
+    write path that ever attaches a second active revision to an
+    existing ``work_id`` (it supersedes the incumbent first, atomically,
+    before attaching a new one), but this is the read side's own
+    independent, defense-in-depth check: the caller here is exactly the
+    governor-rehydration bridge that would otherwise pick whichever
+    candidate happened to come first in file/record order and silently
+    grant it execution authority -- picking one arbitrarily is never
+    correct for a corrupt or pre-migration store, so this fails the
+    whole read closed rather than guess. The sole caller
+    (``rehydration.py``) converts this into its own ``RehydrationError``,
+    matching how every other load-bearing store failure on that path is
+    already handled -- this is why this function no longer documents
+    "never raises" unconditionally.
     """
     try:
         projection = load_projection(store)
     except OriginationProjectionError:
         return ()
     nodes: list[WorkNode] = []
+    seen_package_ids: set[str] = set()
     for row in projection.records:
-        if row.state == "TERMINAL" or row.work_node is None:
+        if row.state in _INACTIVE_STATES or row.work_node is None:
             continue
+        package_id = row.work_node.get("package_id")
+        if isinstance(package_id, str):
+            if package_id in seen_package_ids:
+                raise OriginationProjectionError(
+                    f"more than one active (non-TERMINAL, non-SUPERSEDED) "
+                    f"origination record shares package_id {package_id!r} -- "
+                    "corrupt or pre-supersession-migration lineage; refusing "
+                    "to pick one arbitrarily",
+                    code="AMBIGUOUS_ACTIVE_REVISION",
+                )
+            seen_package_ids.add(package_id)
         try:
             nodes.append(WorkNode.model_validate(row.work_node))
         except Exception:
@@ -512,7 +723,7 @@ def sync_terminal_governed_states(
         return ()
     active_rows_by_package_id: dict[str, list[OriginationRecord]] = {}
     for row in projection.records:
-        if row.state == "TERMINAL" or row.work_node is None:
+        if row.state in _INACTIVE_STATES or row.work_node is None:
             continue
         package_id = row.work_node.get("package_id")
         if package_id in closed_package_ids:

@@ -173,6 +173,30 @@ def rehydrate_governor(
     same in-memory fact a live, uninterrupted process would still have
     had. Applied identically for LEASED/DISPATCHING/AWAITING_RESULT
     reconstruction (see ``_restore_leased_node``).
+
+    AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+    D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §12, in-flight
+    sibling audit): ``governor`` MUST be a freshly-constructed instance
+    this function has not been called on before, and this function must
+    never be called twice on the SAME ``governor`` instance across an
+    intervening state change (e.g. a ``run_origination_scan()`` call that
+    supersedes a revision this same governor already discovered/added).
+    Architectural finding, verified empirically: as of this package, the
+    ONLY production call site in this repository is
+    ``orchestration.autonomy.cli.run_governor_loop_tick()``, which
+    constructs a brand-new ``AutonomousGovernor()`` immediately before
+    every single call (never reused across invocations, never passed in
+    from a caller) -- so a governor that already holds a since-superseded
+    origination-derived node in memory, while this function's OWN read of
+    ``list_materialized_work_nodes()`` reflects the newer, reconciled
+    truth, cannot occur through any real, currently-existing driver of
+    this system. This is a caller-discipline precondition, not something
+    this function can itself detect or enforce (it has no way to know
+    whether ``governor`` is genuinely fresh) -- a future caller that
+    violates it would be introducing a new, currently-nonexistent
+    execution path, at which point THAT caller's own review must
+    establish it is safe against a stale in-memory node, not assume this
+    function makes it safe automatically.
     """
     try:
         loop_state = load_loop_state(loop_store)
@@ -378,12 +402,29 @@ def _originate(
 
     if origination_projection_store is not None:
         from project_atlas.orchestration.origination.projection import (
+            OriginationProjectionError,
             list_materialized_work_nodes,
         )
 
         known = {item.package_id for item in governor.snapshot().nodes}
         known.update(active_ids)
-        for candidate in list_materialized_work_nodes(origination_projection_store):
+        # AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+        # D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §7):
+        # `list_materialized_work_nodes()` is this bridge's only source of
+        # "what origination-derived work is currently discoverable" -- it
+        # now fails closed (`AMBIGUOUS_ACTIVE_REVISION`) rather than
+        # silently returning two candidates sharing one `package_id`
+        # (which this loop's own `known` dedup would otherwise resolve by
+        # first-seen order -- exactly the "pick one arbitrarily" this
+        # bridge must never do). Load-bearing, not best-effort: a corrupt
+        # or ambiguous origination store must stop this rehydration pass
+        # the same way an unreadable lease projection already does above,
+        # never silently proceed with a partial/arbitrary node list.
+        try:
+            candidates = list_materialized_work_nodes(origination_projection_store)
+        except OriginationProjectionError as exc:
+            raise RehydrationError(str(exc), code=exc.code) from exc
+        for candidate in candidates:
             if candidate.package_id in known:
                 continue
             try:
