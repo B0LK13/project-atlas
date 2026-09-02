@@ -121,6 +121,40 @@ def _run_git(*args: str) -> str:
     return result.stdout.strip()
 
 
+def _ensure_commit_available(commit: str) -> None:
+    """Real-IV finding (PR #675): CI's own checkout is shallow
+    (``actions/checkout``'s default ``fetch-depth: 1``, unchanged by
+    this test module -- deliberately not widened repo-wide just for one
+    test's own need), so a real historical commit like
+    ``_PRE_675_COMMIT`` is genuinely absent from CI's local object
+    database even though it is present in every worktree used to author
+    and run this test locally. Self-heal: fetch exactly this one commit
+    (a no-op, and cheap, when it is already present -- the common local
+    case) rather than widen CI's checkout depth for every job and every
+    other test. Never raises for a fetch that fails for a reason other
+    than "commit already present" here -- the subsequent ``git show``
+    call is the real, load-bearing assertion; this is best-effort
+    self-healing for the one known shallow-checkout gap, not a new
+    fail-closed boundary of its own.
+    """
+    try:
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+        )
+        return  # already present -- the common local-worktree case
+    except subprocess.CalledProcessError:
+        pass
+    subprocess.run(
+        ["git", "fetch", "--quiet", "--depth", "1", "origin", commit],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+    )
+
+
 def _real_anchor(main: str, tree: str) -> TrustedAnchorRecord:
     return seal_anchor(
         TrustedAnchorRecord(
@@ -173,6 +207,7 @@ def test_int013_persisted_materialized_revision_supersedes_and_becomes_non_rehyd
     second, later revision the live checkout alone cannot represent
     (its own history has already moved past the "before" state).
     """
+    _ensure_commit_available(_PRE_675_COMMIT)
     old_backlog = _run_git("show", f"{_PRE_675_COMMIT}:docs/backlog.md")
     assert "- [ ] INT-013 Run the bounded multi-project integration pilot" in old_backlog
     assert (
