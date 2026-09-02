@@ -537,20 +537,24 @@ def test_second_scan_of_still_in_progress_work_does_not_clobber_durable_node(
     assert first_entry["already_materialized"] is False
 
 
-def test_content_revision_while_prior_work_in_flight_does_not_create_a_second_live_node(
+def test_content_revision_while_prior_work_is_active_supersedes_it_and_materializes_the_new_one(
     tmp_path: Path,
 ) -> None:
-    """D-PHASE2A-2 independent-IV finding (round 2): `origination_identity`
-    hashes the item's content digest (`identity.py`) and therefore changes
-    when a roadmap item's own content is revised, but `package_id`
-    (`work_id_for()`) hashes only `project_id + item_id` and stays
-    IDENTICAL across such a revision. Revising the SAME item's title
-    between two scans -- while the first scan's non-TERMINAL record for it
-    is still in flight -- must not durably create a second, distinct live
-    record sharing that package_id: `sync_terminal_governed_states()`
-    matches purely by package_id and could otherwise later mark BOTH
-    records TERMINAL once only one was ever actually governed to closure,
-    permanently and silently losing the other, never-executed proposal.
+    """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+    D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §5 Case C):
+    `origination_identity` hashes the item's content digest (`identity.py`)
+    and therefore changes when a roadmap item's own content is revised,
+    but `package_id` (`work_id_for()`) hashes only `project_id + item_id`
+    and stays IDENTICAL across such a revision. Revising the SAME item's
+    title between two scans -- while the first scan's active record for it
+    is still MATERIALIZED (not TERMINAL/SUPERSEDED) -- must SUPERSEDE the
+    prior record (never delete it -- historical evidence preserved) and
+    materialize the new, still fully-eligible revision as the package_id's
+    new current active revision. This replaces the old refuse-only
+    ``PACKAGE_ID_ALREADY_ACTIVE`` behavior (superseded, formerly this same
+    test asserted the opposite: that the old record stayed "completely
+    untouched" and nothing new materialized -- that WAS the bug this
+    package fixes).
     """
     repo = _eligible_repo(tmp_path)
     main = _run_git(repo, "rev-parse", "origin/main")
@@ -565,11 +569,13 @@ def test_content_revision_while_prior_work_in_flight_does_not_create_a_second_li
     )
     assert first["materialized_count"] == 1
     first_entry = cast("list[dict[str, object]]", first["materialized"])[0]
+    first_identity = load_projection(store).records[0].origination_identity
 
     # Revise the SAME item ("id" unchanged -> same package_id) with
     # different content ("title" changed -> different item_digest ->
     # different origination_identity), while the first scan's record for
-    # it is still MATERIALIZED (not TERMINAL).
+    # it is still MATERIALIZED (not TERMINAL/SUPERSEDED). The revision
+    # itself declares no blockers -- still fully eligible (Case C).
     _write_roadmap(
         repo,
         [
@@ -596,48 +602,61 @@ def test_content_revision_while_prior_work_in_flight_does_not_create_a_second_li
         explicit_trusted=_anchor(new_main, new_tree),
     )
     assert exit_code == EXIT_OK
-    # The revision is a genuinely new origination_identity, so it is
-    # "eligible" -- but it must be refused materialization, not silently
-    # dropped and not materialized as a second live node.
     assert second["eligible_count"] == 1
-    assert second["materialized_count"] == 0
-    assert second["not_materialized_count"] == 1
-    second_entry = cast("list[dict[str, object]]", second["not_materialized"])[0]
+    # The new revision materializes -- superseding, not refused behind,
+    # the prior one.
+    assert second["materialized_count"] == 1
+    assert second["not_materialized_count"] == 0
+    second_entry = cast("list[dict[str, object]]", second["materialized"])[0]
     assert second_entry["work_id"] == first_entry["work_id"]
-    assert second_entry["materialization_error_code"] == "PACKAGE_ID_ALREADY_ACTIVE"
+    assert second_entry["superseded_prior_revisions"] == [first_identity]
 
-    # Exactly one non-TERMINAL record for this package_id exists durably --
-    # the original one, completely untouched.
     projection = load_projection(store)
+    assert len(projection.records) == 2
+    a_record = next(r for r in projection.records if r.origination_identity == first_identity)
+    b_record = next(r for r in projection.records if r.origination_identity != first_identity)
+
+    # A (the original) is preserved as historical evidence, never deleted
+    # or rewritten as though never materialized -- only its `state`
+    # changed.
+    assert a_record.state == "SUPERSEDED"
+    assert a_record.work_node is not None
+    assert a_record.work_node["base_pin"] == main
+    assert a_record.proposal["title"] == "Feature X"
+
+    # B (the revision) is the new, sole CURRENT active revision.
+    assert b_record.state == "MATERIALIZED"
+    assert b_record.work_node is not None
+    assert b_record.work_node["base_pin"] == new_main
+    assert b_record.work_node["base_pin"] != main
+    assert b_record.proposal["title"] == "Feature X (revised)"
+
+    # Exactly one CURRENT active record for this package_id -- A is
+    # excluded (SUPERSEDED), matching list_materialized_work_nodes()'s
+    # own definition of "active".
     active_for_package = [
         row
         for row in projection.records
-        if row.state != "TERMINAL"
+        if row.state not in {"TERMINAL", "SUPERSEDED"}
         and row.work_node is not None
         and row.work_node.get("package_id") == first_entry["work_id"]
     ]
     assert len(active_for_package) == 1
-    assert active_for_package[0].work_node is not None
-    assert active_for_package[0].work_node["base_pin"] == main
-    # Two durable rows total: the original MATERIALIZED one, plus the
-    # revision's own PROPOSED-but-never-materialized one (never silently
-    # discarded -- honestly recorded, just not turned into a second live
-    # node).
-    assert len(projection.records) == 2
+    assert active_for_package[0].origination_identity != first_identity
 
 
-def test_revised_item_eventually_materializes_once_prior_revision_reaches_terminal(
+def test_content_revision_that_becomes_blocked_supersedes_the_prior_revision_without_materializing(
     tmp_path: Path,
 ) -> None:
-    """REVISED_REAL_WORK_MUST_NOT_DISAPPEAR: the guard added for the
-    package_id/origination_identity split (see the sibling test above)
-    SERIALIZES a content revision behind the prior revision's own
-    non-TERMINAL record -- it must not permanently discard it. Once the
-    prior revision (A) is marked TERMINAL (the real, governed-closure
-    outcome `sync_terminal_governed_states()` would drive), a later scan
-    for the SAME still-current revision (B) must find no conflict left
-    and materialize it normally. Proves the serialization strategy is
-    safe end-to-end, not merely "doesn't crash right now".
+    """AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+    D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §5 Case B,
+    mirroring the real INT-013 incident this package exists to fix): a
+    content revision that makes the SAME logical item newly BLOCKED must
+    still revoke the prior, now-stale MATERIALIZED revision's durable
+    rehydratability -- source truth supersedes regardless of whether the
+    new revision itself clears the materialization bar. Nothing new
+    materializes (the new revision is blocked), but the OLD revision must
+    not be left durably active/rehydratable either.
     """
     repo = _eligible_repo(tmp_path)
     main = _run_git(repo, "rev-parse", "origin/main")
@@ -653,12 +672,152 @@ def test_revised_item_eventually_materializes_once_prior_revision_reaches_termin
     assert first["materialized_count"] == 1
     first_identity = load_projection(store).records[0].origination_identity
 
+    # Revise the SAME item to declare an explicit blocker -- the real
+    # INT-013 shape: authoritative source truth changes to
+    # EXTERNAL_BLOCKED while a prior, now-stale revision is still
+    # MATERIALIZED.
     _write_roadmap(
         repo,
         [
             {
                 "id": "feature-x",
-                "title": "Feature X (revised)",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+                "blockers": ["EXTERNAL_BLOCKED: needs owner-provided authentic project roots"],
+            }
+        ],
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "declare feature-x EXTERNAL_BLOCKED")
+    new_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", new_sha)
+    new_main = _run_git(repo, "rev-parse", "origin/main")
+    new_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+
+    second, exit_code = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(new_main, new_tree),
+    )
+    assert exit_code == EXIT_OK
+    assert second["eligible_count"] == 1
+    assert second["materialized_count"] == 0
+    assert second["not_materialized_count"] == 1
+    second_entry = cast("list[dict[str, object]]", second["not_materialized"])[0]
+    assert second_entry["materialization_error_code"] == "PROPOSAL_BLOCKED"
+    assert second_entry["execution_ready"] is False
+    assert second_entry["superseded_prior_revisions"] == [first_identity]
+
+    projection = load_projection(store)
+    assert len(projection.records) == 2
+    a_record = next(r for r in projection.records if r.origination_identity == first_identity)
+    b_record = next(r for r in projection.records if r.origination_identity != first_identity)
+
+    # A: preserved as historical evidence, transitioned to SUPERSEDED --
+    # never deleted, never silently left MATERIALIZED.
+    assert a_record.state == "SUPERSEDED"
+    assert a_record.work_node is not None
+    assert a_record.work_node["base_pin"] == main
+
+    # B: honestly recorded as PROPOSED (blocked, never materialized) --
+    # not silently discarded, not fabricated as materialized either.
+    assert b_record.state == "PROPOSED"
+    assert b_record.work_node is None
+
+    # No CURRENT active record for this package_id at all now -- the
+    # item is genuinely, machine-visibly not leaseable.
+    from project_atlas.orchestration.origination.projection import list_materialized_work_nodes
+
+    active_nodes = list_materialized_work_nodes(store)
+    assert not any(node.package_id == a_record.work_node["package_id"] for node in active_nodes)
+
+    # §17 (owner directive): re-confirm this is NOT an artifact of
+    # base_pin having gone stale -- A's own base_pin is STILL exactly
+    # live main's OLD value at the time it was superseded, and critically
+    # the supersession happened without base_pin ever being consulted at
+    # all (reconcile_revision() never reads base_pin). Prove it directly:
+    # A is excluded from list_materialized_work_nodes() even though
+    # nothing here ever compared any base_pin.
+    assert a_record.work_node["base_pin"] == main  # unchanged, frozen historical fact
+
+
+def test_reverse_transition_blocker_removed_lets_a_later_revision_materialize(
+    tmp_path: Path,
+) -> None:
+    """Owner directive §10 (Reverse Transition Test): a blocked revision
+    followed by a legitimate blocker-removal must still let the newer,
+    now-eligible revision materialize -- this package's mechanism is
+    revision RECONCILIATION, not permanent tombstoning of a work_id once
+    any one of its revisions is ever blocked.
+
+    Chain: A (READY, materializes) -> B (BLOCKED, supersedes A, itself
+    never materializes) -> C (blocker legitimately removed, READY again,
+    materializes -- superseding whatever is currently active, which by
+    this point is nothing, since B never held authority).
+    """
+    repo = _eligible_repo(tmp_path)
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    store = tmp_path / "origination-store"
+
+    a_result, _ = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(main, tree),
+    )
+    assert a_result["materialized_count"] == 1
+    a_identity = load_projection(store).records[0].origination_identity
+
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+                "blockers": ["EXTERNAL_BLOCKED: needs owner data"],
+            }
+        ],
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "block feature-x")
+    b_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", b_sha)
+    b_main = _run_git(repo, "rev-parse", "origin/main")
+    b_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+
+    b_result, _ = run_origination_scan(
+        root=repo,
+        project_id="demo-project",
+        origination_store=store,
+        explicit_trusted=_anchor(b_main, b_tree),
+    )
+    assert b_result["materialized_count"] == 0
+    assert b_result["not_materialized_count"] == 1
+    b_identity = next(
+        r.origination_identity
+        for r in load_projection(store).records
+        if r.origination_identity != a_identity
+    )
+
+    # Blocker legitimately removed -- a THIRD, distinct revision (title
+    # unchanged from B's content? No -- must differ from BOTH A and B to
+    # get its own origination_identity; drop the blocker to get back to
+    # content identical to A's own original text would collide with A's
+    # identity, which is a separate, deliberately out-of-scope edge case
+    # -- use a distinct title so C is unambiguously its own revision).
+    _write_roadmap(
+        repo,
+        [
+            {
+                "id": "feature-x",
+                "title": "Feature X (unblocked)",
                 "status": "NOT_STARTED",
                 "lifecycle": "READY",
                 "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
@@ -666,58 +825,138 @@ def test_revised_item_eventually_materializes_once_prior_revision_reaches_termin
         ],
     )
     _run_git(repo, "add", "-A")
-    _run_git(repo, "commit", "-q", "-m", "revise feature-x")
-    new_sha = _run_git(repo, "rev-parse", "HEAD")
-    _run_git(repo, "update-ref", "refs/remotes/origin/main", new_sha)
-    new_main = _run_git(repo, "rev-parse", "origin/main")
-    new_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    _run_git(repo, "commit", "-q", "-m", "unblock feature-x")
+    c_sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", c_sha)
+    c_main = _run_git(repo, "rev-parse", "origin/main")
+    c_tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
 
-    # Scan #2, while A is still MATERIALIZED: B is refused, as proven by
-    # the sibling test -- reconfirmed briefly here for context.
-    second, _ = run_origination_scan(
+    c_result, exit_code = run_origination_scan(
         root=repo,
         project_id="demo-project",
         origination_store=store,
-        explicit_trusted=_anchor(new_main, new_tree),
-    )
-    assert second["materialized_count"] == 0
-    assert second["not_materialized_count"] == 1
-
-    # A's governed work completes for real: mark A TERMINAL -- exactly
-    # what sync_terminal_governed_states() does once A's own governed
-    # node reaches CLOSED.
-    from project_atlas.orchestration.origination.projection import mark_terminal
-
-    mark_terminal(store, first_identity, node_state="CLOSED")
-
-    # Scan #3, now that A is TERMINAL: B must no longer be blocked --
-    # the exact same still-current revision now materializes.
-    third, exit_code = run_origination_scan(
-        root=repo,
-        project_id="demo-project",
-        origination_store=store,
-        explicit_trusted=_anchor(new_main, new_tree),
+        explicit_trusted=_anchor(c_main, c_tree),
     )
     assert exit_code == EXIT_OK
-    assert third["materialized_count"] == 1
-    assert third["not_materialized_count"] == 0
-    third_entry = cast("list[dict[str, object]]", third["materialized"])[0]
-    # Same package_id as A (same logical item), but this is B's own
-    # materialization -- proven by the new base_pin.
-    assert third_entry["work_id"] == cast(
-        "list[dict[str, object]]", first["materialized"]
-    )[0]["work_id"]
+    assert c_result["materialized_count"] == 1
+    c_entry = cast("list[dict[str, object]]", c_result["materialized"])[0]
+    # C did not need to supersede anything -- B never held authority.
+    assert c_entry["superseded_prior_revisions"] == []
 
     projection = load_projection(store)
-    assert len(projection.records) == 2
-    a_record = next(r for r in projection.records if r.origination_identity == first_identity)
-    b_record = next(r for r in projection.records if r.origination_identity != first_identity)
-    assert a_record.state == "TERMINAL"
-    assert a_record.terminal_node_state == "CLOSED"
-    assert b_record.state == "MATERIALIZED"
-    assert b_record.work_node is not None
-    assert b_record.work_node["base_pin"] == new_main
-    assert b_record.work_node["base_pin"] != main
+    assert len(projection.records) == 3
+    a_record = next(r for r in projection.records if r.origination_identity == a_identity)
+    b_record = next(r for r in projection.records if r.origination_identity == b_identity)
+    c_record = next(
+        r
+        for r in projection.records
+        if r.origination_identity not in {a_identity, b_identity}
+    )
+
+    # A: historical, superseded when B first revoked it.
+    assert a_record.state == "SUPERSEDED"
+    # B: historical, blocked revision, retained (never materialized, never
+    # deleted) -- proves "blocked historical revision retained".
+    assert b_record.state == "PROPOSED"
+    assert b_record.work_node is None
+    # C: the sole current active revision.
+    assert c_record.state == "MATERIALIZED"
+    assert c_record.work_node is not None
+    assert c_record.work_node["base_pin"] == c_main
+
+    from project_atlas.orchestration.origination.projection import list_materialized_work_nodes
+
+    active_nodes = list_materialized_work_nodes(store)
+    assert len(active_nodes) == 1
+    assert active_nodes[0].package_id == c_entry["work_id"]
+    assert active_nodes[0].base_pin == c_main
+
+
+def test_multiple_revisions_maintain_at_most_one_current_active_revision_throughout(
+    tmp_path: Path,
+) -> None:
+    """Owner directive §11 (Multiple Edits): revision A (READY) -> B
+    (BLOCKED) -> C (READY) -> D (BLOCKED). One lineage, same work_id,
+    chronological revisions; at every point at most one current eligible
+    MATERIALIZED revision; historical revisions remain inspectable; no
+    resurrection of an earlier revision once a later one supersedes it.
+    """
+    repo = _eligible_repo(tmp_path)
+    store = tmp_path / "origination-store"
+
+    def _scan_at_current_main() -> tuple[dict[str, object], str, str]:
+        main = _run_git(repo, "rev-parse", "origin/main")
+        tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+        result, exit_code = run_origination_scan(
+            root=repo,
+            project_id="demo-project",
+            origination_store=store,
+            explicit_trusted=_anchor(main, tree),
+        )
+        assert exit_code == EXIT_OK
+        return result, main, tree
+
+    def _commit_roadmap(title: str, *, blocked: bool) -> None:
+        item: dict[str, object] = {
+            "id": "feature-x",
+            "title": title,
+            "status": "NOT_STARTED",
+            "lifecycle": "READY",
+            "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+        }
+        if blocked:
+            item["blockers"] = ["EXTERNAL_BLOCKED: needs owner data"]
+        _write_roadmap(repo, [item])
+        _run_git(repo, "add", "-A")
+        _run_git(repo, "commit", "-q", "-m", f"revise: {title}")
+        sha = _run_git(repo, "rev-parse", "HEAD")
+        _run_git(repo, "update-ref", "refs/remotes/origin/main", sha)
+
+    def _active_package_ids() -> list[str]:
+        from project_atlas.orchestration.origination.projection import (
+            list_materialized_work_nodes,
+        )
+
+        return [node.package_id for node in list_materialized_work_nodes(store)]
+
+    a_result, _, _ = _scan_at_current_main()
+    assert a_result["materialized_count"] == 1
+    a_identity = load_projection(store).records[0].origination_identity
+    assert len(_active_package_ids()) == 1
+
+    _commit_roadmap("Feature X (B, blocked)", blocked=True)
+    b_result, _, _ = _scan_at_current_main()
+    assert b_result["materialized_count"] == 0
+    assert len(_active_package_ids()) == 0  # A superseded, B never materialized
+
+    _commit_roadmap("Feature X (C, ready again)", blocked=False)
+    c_result, _, _ = _scan_at_current_main()
+    assert c_result["materialized_count"] == 1
+    assert len(_active_package_ids()) == 1
+    c_identity = next(
+        r.origination_identity
+        for r in load_projection(store).records
+        if r.state == "MATERIALIZED"
+    )
+
+    _commit_roadmap("Feature X (D, blocked again)", blocked=True)
+    d_result, _, _ = _scan_at_current_main()
+    assert d_result["materialized_count"] == 0
+    assert len(_active_package_ids()) == 0  # C superseded, D never materialized
+
+    projection = load_projection(store)
+    assert len(projection.records) == 4  # A, B, C, D -- all four preserved, none deleted
+    states_by_identity = {r.origination_identity: r.state for r in projection.records}
+    assert states_by_identity[a_identity] == "SUPERSEDED"
+    assert states_by_identity[c_identity] == "SUPERSEDED"
+    # B and D: both blocked revisions, both stayed PROPOSED -- neither
+    # ever held nor was ever granted execution authority to revoke.
+    for identity, state in states_by_identity.items():
+        if identity not in {a_identity, c_identity}:
+            assert state == "PROPOSED"
+    # No resurrection: A never becomes active again once D supersedes-
+    # by-proxy the lineage.
+    assert not any(node == a_identity for node in _active_package_ids())
 
 
 def test_persist_materialized_if_no_active_conflict_closes_the_toctou_race(
@@ -882,25 +1121,29 @@ def test_persist_materialized_if_no_active_conflict_does_not_clobber_same_identi
 def test_scan_reports_truthful_already_materialized_on_toctou_race(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Cursor Bugbot finding on PR #654 (Low): ``run_origination_scan()``'s
-    unlocked ``existing`` read (from ``persist_proposed()``) can still see
+    """Cursor Bugbot finding on PR #654 (Low), still applicable to
+    ``reconcile_revision()``: ``run_origination_scan()``'s unlocked
+    ``existing`` read (from ``persist_proposed()``) can still see
     ``PROPOSED`` for an identity a concurrent scan materializes an instant
-    later. ``persist_materialized_if_no_active_conflict()`` correctly
-    refuses to clobber that durable row (proven above), but this call
-    unconditionally reported ``already_materialized: False`` using the
+    later. ``reconcile_revision()`` correctly reports that identity's own
+    idempotent replay (proven directly against the primitive elsewhere),
+    but this call must report the truth about what actually won, not the
     locally-rebuilt node's fields regardless of which node actually won --
     a lie about durable truth whenever this process lost the race.
 
-    Simulates the race by monkeypatching the projection call to return an
-    already-durable record for a *different* base_pin than the one this
-    process would have built, with no conflict (same identity) -- exactly
-    ``persist_materialized_if_no_active_conflict()``'s real idempotent
+    Simulates the race by monkeypatching the reconciliation call to return
+    an already-durable record for a *different* base_pin than the one this
+    process would have built, with ``already_current=True`` and no
+    supersession -- exactly ``reconcile_revision()``'s real idempotent
     return shape when a concurrent writer won first.
     """
     import project_atlas.orchestration.origination.cli as cli_module
     from project_atlas.orchestration.origination.materialize import materialize_work_node
     from project_atlas.orchestration.origination.pipeline import originate_all
-    from project_atlas.orchestration.origination.projection import OriginationRecord
+    from project_atlas.orchestration.origination.projection import (
+        OriginationRecord,
+        ReconciliationOutcome,
+    )
     from project_atlas.orchestration.origination.risk import classify as classify_risk
 
     repo = _eligible_repo(tmp_path)
@@ -927,16 +1170,19 @@ def test_scan_reports_truthful_already_materialized_on_toctou_race(
         state="MATERIALIZED",
     )
 
-    def _fake_persist_materialized_if_no_active_conflict(
-        _store: Path, _origination_identity: str, _node: object
-    ) -> tuple[OriginationRecord | None, OriginationRecord | None]:
-        return winning_record, None
+    def _fake_reconcile_revision(
+        _store: Path,
+        *,
+        origination_identity: str,
+        package_id: str,
+        work_node: object,
+        state: str = "MATERIALIZED",
+    ) -> ReconciliationOutcome:
+        return ReconciliationOutcome(
+            superseded=(), materialized=winning_record, already_current=True
+        )
 
-    monkeypatch.setattr(
-        cli_module,
-        "persist_materialized_if_no_active_conflict",
-        _fake_persist_materialized_if_no_active_conflict,
-    )
+    monkeypatch.setattr(cli_module, "reconcile_revision", _fake_reconcile_revision)
 
     payload, exit_code = run_origination_scan(
         root=repo,
@@ -972,7 +1218,10 @@ def test_scan_isolates_a_corrupt_durable_record_to_one_outcome(
     """
     import project_atlas.orchestration.origination.cli as cli_module
     from project_atlas.orchestration.origination.pipeline import originate_all
-    from project_atlas.orchestration.origination.projection import OriginationRecord
+    from project_atlas.orchestration.origination.projection import (
+        OriginationRecord,
+        ReconciliationOutcome,
+    )
 
     repo = _eligible_repo(tmp_path)
     main = _run_git(repo, "rev-parse", "origin/main")
@@ -990,16 +1239,19 @@ def test_scan_isolates_a_corrupt_durable_record_to_one_outcome(
         state="MATERIALIZED",
     )
 
-    def _fake_persist_materialized_if_no_active_conflict(
-        _store: Path, _origination_identity: str, _node: object
-    ) -> tuple[OriginationRecord | None, OriginationRecord | None]:
-        return corrupt_record, None
+    def _fake_reconcile_revision(
+        _store: Path,
+        *,
+        origination_identity: str,
+        package_id: str,
+        work_node: object,
+        state: str = "MATERIALIZED",
+    ) -> ReconciliationOutcome:
+        return ReconciliationOutcome(
+            superseded=(), materialized=corrupt_record, already_current=False
+        )
 
-    monkeypatch.setattr(
-        cli_module,
-        "persist_materialized_if_no_active_conflict",
-        _fake_persist_materialized_if_no_active_conflict,
-    )
+    monkeypatch.setattr(cli_module, "reconcile_revision", _fake_reconcile_revision)
 
     payload, exit_code = run_origination_scan(
         root=repo,

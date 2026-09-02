@@ -1544,3 +1544,576 @@ def test_rehydrate_governor_fails_closed_on_unreconstructable_lease_row(tmp_path
     # uncaught. Reaching here (a RehydrationError, not a ValidationError)
     # already disproves it; assert the specific structured code too.
     assert excinfo.value.code == "STATE_CORRUPT"
+
+
+# --------------------------------------------------------------------------- #
+# AS-ORIGIN-MATERIALIZED-SUPERSESSION-001 (owner directive
+# D-ATLAS-ORIGINATION-MATERIALIZED-REVISION-SUPERSESSION §12, in-flight
+# sibling audit): rehydrate_governor()'s own docstring now documents a
+# caller-discipline precondition -- never call it twice on the SAME
+# governor instance across an intervening state change. This test is the
+# empirical "document and test why": it deliberately VIOLATES that
+# precondition to prove the precondition is load-bearing, not a
+# formality -- reusing a governor instance across a supersession genuinely
+# does NOT retroactively revoke a node already discovered into it. This is
+# NOT a supported call pattern (the real production entrypoint,
+# run_governor_loop_tick(), never does this -- see the docstring for the
+# grep evidence), and this test must never be read as proof the mechanism
+# is safe under reuse; it is proof of the opposite, which is exactly why
+# the precondition exists and why no code in this repository violates it.
+# --------------------------------------------------------------------------- #
+def test_reusing_a_governor_instance_across_supersession_does_not_revoke_it_misuse_only(
+    tmp_path: Path,
+) -> None:
+    from project_atlas.orchestration.origination.cli import run_origination_scan
+    from project_atlas.orchestration.origination.projection import (
+        RELATIVE_DEFAULT as ORIGIN_RELATIVE_DEFAULT,
+    )
+
+    repo = _make_repo(tmp_path)
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "REQUIREMENTS.md").write_text("# Requirements\nFR-1: do the thing.\n")
+    test_path = repo / "tests" / "test_feature_x.py"
+    test_path.parent.mkdir(parents=True, exist_ok=True)
+    test_path.write_text(
+        'import pytest\n\npytestmark = pytest.mark.skip(reason="not yet implemented")\n\n'
+        "def test_placeholder():\n    assert True\n"
+    )
+    roadmap = {
+        "roadmap_items": [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ]
+    }
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "seed roadmap")
+    sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", sha)
+
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+
+    origination_store = repo / ORIGIN_RELATIVE_DEFAULT
+    scan_payload, scan_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert scan_exit == 0
+    assert scan_payload["materialized_count"] == 1
+    work_id = scan_payload["materialized"][0]["work_id"]  # type: ignore[index]
+
+    trusted = load_runtime_anchor(store=trust_store)
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+    )
+    # First (legitimate) rehydrate call on a fresh governor -- discovers
+    # and marks READY the still-current revision.
+    rehydrate_governor(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=tmp_path / "loop",
+        lease_projection_store=tmp_path / "leases",
+        origination_projection_store=origination_store,
+    )
+    assert any(n.package_id == work_id for n in governor.snapshot().nodes)
+
+    # Authoritative source truth changes: the SAME item is now blocked.
+    roadmap["roadmap_items"][0]["blockers"] = ["EXTERNAL_BLOCKED: needs owner data"]
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    second_scan, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+    assert second_scan["materialized_count"] == 0
+    # Independently confirmed via the real read side: no longer active.
+    from project_atlas.orchestration.origination.projection import (
+        list_materialized_work_nodes,
+    )
+
+    assert not any(n.package_id == work_id for n in list_materialized_work_nodes(origination_store))
+
+    # MISUSE: reusing the SAME already-populated governor instance for a
+    # second rehydrate_governor() call, violating the documented
+    # precondition. This is the exact scenario no real caller in this
+    # repository ever performs (single call site, always a fresh
+    # instance -- see rehydrate_governor()'s own docstring).
+    rehydrate_governor(
+        governor,
+        inventory=inventory,
+        trusted=trusted,
+        loop_store=tmp_path / "loop",
+        lease_projection_store=tmp_path / "leases",
+        origination_projection_store=origination_store,
+    )
+    # PROOF OF WHY THE PRECONDITION MATTERS: the stale node is still
+    # sitting in this reused governor's own live node list -- reuse does
+    # NOT retroactively revoke it. This is the documented, empirically-
+    # verified reason a caller must never do this; it is not evidence the
+    # mechanism is unsafe in real production use (which always
+    # constructs a fresh governor).
+    assert any(n.package_id == work_id for n in governor.snapshot().nodes)
+
+
+def test_crash_recovery_of_a_leased_node_denies_promotion_once_its_revision_is_superseded(
+    tmp_path: Path,
+) -> None:
+    """Owner directive §13 (already-active execution): if an obsolete
+    revision is ALREADY leased when a new authoritative-source revision
+    supersedes it, this package does NOT invent destructive cancellation
+    (nothing here kills a real in-flight process, and the lease
+    projection row itself is left completely untouched -- historical
+    evidence preserved). What it DOES guarantee is the owner's minimum
+    required behavior: no redispatch, no promotion to certified/merge
+    authority without re-validating current eligibility. Concretely: a
+    crash-recovery attempt (fresh governor + rehydrate_governor(), the
+    real mechanism ``AutonomousLoop`` uses to resume a LEASED node after
+    a process restart) for a package_id whose origination revision has
+    since been superseded must fail closed
+    (``NODE_NOT_REHYDRATABLE``) rather than reconstruct the node and let
+    the loop continue toward CERTIFIED -- exactly because
+    ``find_materialized_work_node()`` (the function ``_restore_leased_
+    node()`` depends on) now only ever returns the CURRENT active
+    revision for a package_id, never a superseded one.
+    """
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+    from project_atlas.orchestration.origination.cli import run_origination_scan
+    from project_atlas.orchestration.origination.projection import (
+        RELATIVE_DEFAULT as ORIGIN_RELATIVE_DEFAULT,
+    )
+    from project_atlas.orchestration.origination.projection import (
+        list_materialized_work_nodes,
+    )
+    from project_atlas.orchestration.origination.projection import (
+        load_projection as load_origin_projection,
+    )
+
+    repo = _make_repo(tmp_path)
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "REQUIREMENTS.md").write_text("# Requirements\nFR-1: do the thing.\n")
+    test_path = repo / "tests" / "test_feature_x.py"
+    test_path.parent.mkdir(parents=True, exist_ok=True)
+    test_path.write_text(
+        'import pytest\n\npytestmark = pytest.mark.skip(reason="not yet implemented")\n\n'
+        "def test_placeholder():\n    assert True\n"
+    )
+    roadmap = {
+        "roadmap_items": [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ]
+    }
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "seed roadmap")
+    sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", sha)
+
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+    origination_store = repo / ORIGIN_RELATIVE_DEFAULT
+
+    scan_payload, scan_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert scan_exit == 0
+    assert scan_payload["materialized_count"] == 1
+    work_id = scan_payload["materialized"][0]["work_id"]  # type: ignore[index]
+
+    trusted = load_runtime_anchor(store=trust_store)
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    node = next(
+        n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
+    )
+    governor.add_node(node)
+    governor.mark_ready(node.package_id)
+    lease = governor.lease(node.package_id, "governor-pilot-local", branch="feat/x", worktree="wt")
+
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.LEASED,
+            "active_package_id": work_id,
+            "active_lease_id": lease.lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    # Authoritative source truth changes WHILE the lease above is still
+    # durably active: the same item is now blocked.
+    roadmap["roadmap_items"][0]["blockers"] = ["EXTERNAL_BLOCKED: needs owner data"]
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    second_scan, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+    assert second_scan["materialized_count"] == 0
+
+    # The durable lease row itself is untouched -- reconcile_revision()
+    # never touches the lease projection, only the origination
+    # projection. Historical evidence preserved, exactly as required.
+    origin_projection = load_origin_projection(origination_store)
+    superseded_record = next(
+        r
+        for r in origin_projection.records
+        if r.work_node is not None
+        and r.work_node.get("package_id") == work_id
+        and r.state == "SUPERSEDED"
+    )
+    assert superseded_record.work_node is not None
+
+    # Simulated crash: a fresh governor recovering LEASED state.
+    fresh = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    with pytest.raises(RehydrationError) as excinfo:
+        rehydrate_governor(
+            fresh,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=loop_store,
+            lease_projection_store=lease_store,
+            origination_projection_store=origination_store,
+        )
+    # Deny promotion/authority: no reconstructed node, so the loop can
+    # never continue this lease toward CERTIFIED/merge authority.
+    assert excinfo.value.code == "NODE_NOT_REHYDRATABLE"
+    assert fresh.snapshot().nodes == ()
+
+
+def test_crash_recovery_refuses_to_resume_a_leased_revision_that_was_swapped_for_another(
+    tmp_path: Path,
+) -> None:
+    """Independent-IV finding (chatgpt-codex-connector, PR #677, P1 --
+    "Bind lease recovery to the leased revision"): the sibling test above
+    covers the superseding revision being BLOCKED (nothing to find at
+    all). This is the more dangerous case: revision A is leased, then a
+    NEW, DIFFERENT, itself-eligible revision B supersedes A and
+    MATERIALIZES in its place. ``find_materialized_work_node(package_id)``
+    now honestly returns B (the current active revision) -- but a crash
+    recovery for A's durably-projected lease must not resume against B's
+    completely different specification (mutation surface, owner_gate,
+    IV requirements) without re-validating it: ``_validate_lease_row_
+    against_node()`` only checks capability/scope/state, never that the
+    node underneath is still the SAME revision. The fix
+    (``has_ever_had_multiple_revisions()``) refuses recovery outright
+    once a package_id has ever had more than one revision -- it cannot
+    tell A and B apart (``WorkNode`` carries no ``origination_identity``),
+    so it does not try.
+    """
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+    from project_atlas.orchestration.origination.cli import run_origination_scan
+    from project_atlas.orchestration.origination.projection import (
+        RELATIVE_DEFAULT as ORIGIN_RELATIVE_DEFAULT,
+    )
+    from project_atlas.orchestration.origination.projection import (
+        list_materialized_work_nodes,
+    )
+
+    repo = _make_repo(tmp_path)
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "REQUIREMENTS.md").write_text("# Requirements\nFR-1: do the thing.\n")
+    test_path = repo / "tests" / "test_feature_x.py"
+    test_path.parent.mkdir(parents=True, exist_ok=True)
+    test_path.write_text(
+        'import pytest\n\npytestmark = pytest.mark.skip(reason="not yet implemented")\n\n'
+        "def test_placeholder():\n    assert True\n"
+    )
+    roadmap = {
+        "roadmap_items": [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ]
+    }
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "seed roadmap")
+    sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", sha)
+
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+    origination_store = repo / ORIGIN_RELATIVE_DEFAULT
+
+    scan_payload, scan_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert scan_exit == 0
+    assert scan_payload["materialized_count"] == 1
+    work_id = scan_payload["materialized"][0]["work_id"]  # type: ignore[index]
+
+    trusted = load_runtime_anchor(store=trust_store)
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    node_a = next(
+        n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
+    )
+    governor.add_node(node_a)
+    governor.mark_ready(node_a.package_id)
+    lease = governor.lease(
+        node_a.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.LEASED,
+            "active_package_id": work_id,
+            "active_lease_id": lease.lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    # Authoritative source truth changes WHILE the lease above is still
+    # durably active -- but the revision, unlike the sibling test, is a
+    # genuinely DIFFERENT, itself-eligible revision (not blocked): it
+    # supersedes A and MATERIALIZES in its place. Same base_pin, on
+    # purpose -- proves this is not merely a base_pin staleness check.
+    roadmap["roadmap_items"][0]["title"] = "Feature X (revised)"
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    second_scan, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+    assert second_scan["materialized_count"] == 1
+    second_entry = second_scan["materialized"][0]  # type: ignore[index]
+    assert second_entry["work_id"] == work_id  # same package_id/work_id -- a real revision swap
+    assert second_entry["superseded_prior_revisions"] != []
+
+    # Confirm the dangerous precondition is real: the current active
+    # WorkNode for this package_id genuinely is now B, not A.
+    active_now = next(
+        n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
+    )
+    assert active_now.objective != node_a.objective  # a genuinely different revision's content
+
+    # Simulated crash: a fresh governor recovering LEASED state for A's
+    # lease. Must refuse -- never resume against the swapped revision B.
+    fresh = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    with pytest.raises(RehydrationError) as excinfo:
+        rehydrate_governor(
+            fresh,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=loop_store,
+            lease_projection_store=lease_store,
+            origination_projection_store=origination_store,
+        )
+    assert excinfo.value.code == "REVISION_IDENTITY_UNVERIFIABLE"
+    assert fresh.snapshot().nodes == ()
+
+    # The durable lease row for A is left completely untouched.
+    from project_atlas.orchestration.autonomy.lease_projection import (
+        load_projection as load_lease_projection,
+    )
+
+    lease_row = next(
+        row
+        for row in load_lease_projection(lease_store).leases
+        if row.lease_id == lease.lease_id
+    )
+    assert lease_row.status == "ACTIVE"
+    assert lease_row.package_id == work_id
+
+
+def test_dispatching_phase_recovery_also_refuses_a_swapped_revision(tmp_path: Path) -> None:
+    """Owner directive D-ATLAS-PR677-REVISION-IDENTITY-BINDING-FINALIZATION
+    §6/§7 (race matrix cell D -- "A verifying/closing, B blocked -> stale
+    close denied", made independently load-bearing for the governed-node
+    -closing attack rather than only the LEASED-phase lease-continuation
+    attack tested above): ``_restore_leased_node()`` is the SAME shared
+    reconstruction path for LEASED, DISPATCHING, and AWAITING_RESULT
+    (see ``rehydrate_governor()``'s own docstring) -- this proves the
+    ``has_ever_had_multiple_revisions()`` guard added for the LEASED case
+    protects DISPATCHING (and, by the same code path, AWAITING_RESULT)
+    identically, empirically, not merely "the same function so it must
+    work". ``VALIDATING`` needs no equivalent test: it already
+    unconditionally fails closed regardless of supersession (see
+    ``test_rehydrate_governor_fails_closed_for_validating_phase`` above),
+    a strictly stronger guarantee than this package requires.
+    """
+    from project_atlas.orchestration.autonomy.loop import (
+        initial_loop_state,
+        persist_loop_state,
+        seal_loop_state,
+    )
+    from project_atlas.orchestration.autonomy.trust import load_runtime_anchor
+    from project_atlas.orchestration.origination.cli import run_origination_scan
+    from project_atlas.orchestration.origination.projection import (
+        RELATIVE_DEFAULT as ORIGIN_RELATIVE_DEFAULT,
+    )
+    from project_atlas.orchestration.origination.projection import (
+        list_materialized_work_nodes,
+    )
+
+    repo = _make_repo(tmp_path)
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "REQUIREMENTS.md").write_text("# Requirements\nFR-1: do the thing.\n")
+    test_path = repo / "tests" / "test_feature_x.py"
+    test_path.parent.mkdir(parents=True, exist_ok=True)
+    test_path.write_text(
+        'import pytest\n\npytestmark = pytest.mark.skip(reason="not yet implemented")\n\n'
+        "def test_placeholder():\n    assert True\n"
+    )
+    roadmap = {
+        "roadmap_items": [
+            {
+                "id": "feature-x",
+                "title": "Feature X",
+                "status": "NOT_STARTED",
+                "lifecycle": "READY",
+                "evidence": ["docs/REQUIREMENTS.md", "tests/test_feature_x.py"],
+            }
+        ]
+    }
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    _run_git(repo, "add", "-A")
+    _run_git(repo, "commit", "-q", "-m", "seed roadmap")
+    sha = _run_git(repo, "rev-parse", "HEAD")
+    _run_git(repo, "update-ref", "refs/remotes/origin/main", sha)
+
+    main = _run_git(repo, "rev-parse", "origin/main")
+    tree = _run_git(repo, "rev-parse", "origin/main^{tree}")
+    trust_store = _make_trust_store(tmp_path, main, tree)
+    lease_store = tmp_path / "leases"
+    loop_store = tmp_path / "loop"
+    origination_store = repo / ORIGIN_RELATIVE_DEFAULT
+
+    scan_payload, scan_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert scan_exit == 0
+    assert scan_payload["materialized_count"] == 1
+    work_id = scan_payload["materialized"][0]["work_id"]  # type: ignore[index]
+
+    trusted = load_runtime_anchor(store=trust_store)
+    inventory = collect_live_inventory(repo)
+    governor = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    node_a = next(
+        n for n in list_materialized_work_nodes(origination_store) if n.package_id == work_id
+    )
+    governor.add_node(node_a)
+    governor.mark_ready(node_a.package_id)
+    lease = governor.lease(
+        node_a.package_id, "governor-pilot-local", branch="feat/x", worktree="wt"
+    )
+
+    # DISPATCHING, not LEASED -- the governed-closing-path race, not the
+    # lease-continuation race.
+    state = initial_loop_state(trusted).model_copy(
+        update={
+            "phase": LoopPhase.DISPATCHING,
+            "active_package_id": work_id,
+            "active_lease_id": lease.lease_id,
+            "sequence": 1,
+        }
+    )
+    persist_loop_state(loop_store, seal_loop_state(state))
+
+    # B supersedes A and materializes -- the more dangerous swap case,
+    # same base_pin, exactly as the LEASED-phase sibling test.
+    roadmap["roadmap_items"][0]["title"] = "Feature X (revised)"
+    (repo / "docs" / "ROADMAP.md").write_text(
+        "## Roadmap record\n```json\n" + json.dumps(roadmap, indent=2) + "\n```\n"
+    )
+    second_scan, second_exit = run_origination_scan(
+        root=repo, project_id="demo-project", trust_store=trust_store
+    )
+    assert second_exit == 0
+    assert second_scan["materialized_count"] == 1
+
+    fresh = AutonomousGovernor(
+        current_main=inventory.current_main,
+        current_tree=inventory.current_tree,
+        trusted_anchor=trusted,
+        lease_projection_store=lease_store,
+    )
+    with pytest.raises(RehydrationError) as excinfo:
+        rehydrate_governor(
+            fresh,
+            inventory=inventory,
+            trusted=trusted,
+            loop_store=loop_store,
+            lease_projection_store=lease_store,
+            origination_projection_store=origination_store,
+        )
+    # DISPATCHING/AWAITING_RESULT wrap any _restore_leased_node() failure
+    # into this generic code (pre-existing behavior, unchanged by this
+    # package) -- still an unconditional refusal, just less specific
+    # than the LEASED case's own REVISION_IDENTITY_UNVERIFIABLE.
+    assert excinfo.value.code == "EXECUTION_STATE_NOT_REHYDRATABLE"
+    assert fresh.snapshot().nodes == ()
