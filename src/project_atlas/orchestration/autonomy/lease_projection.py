@@ -55,8 +55,26 @@ class ProjectedLease(BaseModel):
     forbidden_paths: tuple[str, ...] = Field(default_factory=tuple, max_length=32)
     capabilities: tuple[str, ...] = Field(default_factory=tuple, max_length=8)
     start_state: NodeState
-    status: Literal["ACTIVE", "RELEASED"]
+    # ABANDONED (AS-ORCH-LEASE-RECOVERY-001): a lease released after real,
+    # evidence-gated EXHAUSTED FAILURE (see lease_recovery.py), never a
+    # success. Deliberately distinct from RELEASED, which every other
+    # caller (governor.release_lease(), reap_orphaned_lease_releases())
+    # only ever writes AFTER a real completion --
+    # rehydration._originate()'s CERTIFIED-witness inference reads
+    # RELEASED as proof of that completion, and has no other way to tell
+    # the two apart. Conflating them would let an evidence-gated failure
+    # release be silently reconstructed as a certified success on the
+    # very next rehydration -- exactly the fabrication this whole
+    # mechanism exists to prevent. An ABANDONED row is excluded from
+    # BOTH active_rows() and the CERTIFIED-witness set, so the node it
+    # names simply falls through to _originate()'s ordinary add_node()+
+    # mark_ready() path on its next materialization -- a genuine fresh
+    # attempt, never a fabricated one.
+    status: Literal["ACTIVE", "RELEASED", "ABANDONED"]
     created_sequence: int = Field(ge=1, le=1_000_000)
+    # Shared by RELEASED and ABANDONED alike: "the sequence at which this
+    # row left ACTIVE" -- not a claim about which of the two it was; read
+    # `status` for that.
     released_sequence: int | None = Field(default=None, ge=1, le=1_000_000)
     projection_is_authority: Literal[False] = False
 
@@ -303,6 +321,53 @@ def project_grant(store: Path, lease: AgentLease, *, live_main: str) -> LeasePro
     return _mutate_projection(store, _apply)
 
 
+def _require_still_active(row: ProjectedLease, *, lease_id: str) -> None:
+    """Re-check a row's status against the FRESH, lock-time-accurate
+    ``current`` a mutator closure receives (loaded inside
+    ``_mutate_projection()``'s own lock) -- never a caller-supplied,
+    possibly-stale row read earlier and unlocked. Both ``project_release()``
+    and ``project_abandon()`` write a lease's terminal status starting
+    from an assumption, made by their own caller, that the row is still
+    ``ACTIVE``; without this re-check that assumption can go stale in the
+    real window between the caller's own unlocked read and this locked
+    write, and either function would then silently overwrite whatever the
+    row legitimately became in between.
+
+    Independent-verification finding (delta IV, AS-ORCH-LEASE-RECOVERY-001
+    owner review round 2): this was added to ``project_abandon()`` alone
+    first (a genuine completion racing in and being silently stomped back
+    to ``ABANDONED``), and a following delta IV round found the exact
+    mirror-image gap was still open in the untouched ``project_release()``
+    -- a lease this evidence-gated mechanism had already, legitimately
+    marked ``ABANDONED`` could be silently overwritten back to
+    ``RELEASED`` by an unrelated, out-of-band completion (e.g. a
+    still-alive in-process governor object from before the owning loop's
+    ``RESOURCE_BOUNDARY`` stop, independently finishing and calling
+    ``governor.release_lease()``) -- fabricating exactly the CERTIFIED
+    witness this whole mechanism exists to prevent, in the reverse
+    direction. Shared here so both callers enforce the identical
+    invariant identically, rather than two independently-maintained
+    copies of the same check drifting apart.
+
+    Uses its own, distinct error code (``LEASE_STATUS_RACE``) rather than
+    reusing ``lease_recovery.py``'s own, differently-scoped
+    ``LEASE_NOT_ACTIVE`` (that one fires on an early, UNLOCKED read,
+    before any evidence-gate work even starts; this one fires on the
+    locked write itself detecting a genuine concurrent transition) -- a
+    second delta-IV finding: conflating the two under one code string
+    left a caller keying off ``blocker`` alone unable to distinguish
+    "never was active" from "raced with a real concurrent transition".
+    """
+    if row.status != "ACTIVE":
+        raise ProjectionError(
+            f"lease {lease_id!r} is no longer ACTIVE (now {row.status!r}) -- "
+            "a concurrent transition happened between this call's own "
+            "caller-side read and this locked write; refusing to "
+            "overwrite it",
+            code="LEASE_STATUS_RACE",
+        )
+
+
 def project_release(store: Path, lease: AgentLease, *, live_main: str) -> LeaseProjection:
     def _apply(current: LeaseProjection) -> LeaseProjection:
         rows: list[ProjectedLease] = []
@@ -312,12 +377,50 @@ def project_release(store: Path, lease: AgentLease, *, live_main: str) -> LeaseP
                 rows.append(row)
                 continue
             found = True
+            _require_still_active(row, lease_id=lease.lease_id)
             reject_foreign_worker(row=row, agent_id=lease.agent_id)
             reject_foreign_package(row=row, package_id=lease.package_id)
             reject_stale_base(row=row, live_main=live_main)
             rows.append(
                 row.model_copy(
                     update={"status": "RELEASED", "released_sequence": lease.sequence}
+                )
+            )
+        if not found:
+            raise ProjectionError("lease not in projection", code="LEASE_UNKNOWN")
+        return LeaseProjection(leases=tuple(rows))
+
+    return _mutate_projection(store, _apply)
+
+
+def project_abandon(store: Path, lease: AgentLease, *, live_main: str) -> LeaseProjection:
+    """Sibling of ``project_release()`` for AS-ORCH-LEASE-RECOVERY-001's
+    evidence-gated failure path (``lease_recovery.py``) ONLY -- every
+    other caller in this codebase releases a lease after a real success
+    and must keep calling ``project_release()``, never this. See
+    ``ProjectedLease.status``'s own docstring for why the two are not
+    interchangeable: ``_originate()``'s CERTIFIED-witness inference reads
+    ``RELEASED`` as proof of completion, and writing that status here
+    would fabricate exactly the certified result this function exists to
+    avoid. Same reject_foreign_worker/reject_foreign_package/
+    reject_stale_base defense-in-depth as ``project_release()``.
+    """
+
+    def _apply(current: LeaseProjection) -> LeaseProjection:
+        rows: list[ProjectedLease] = []
+        found = False
+        for row in current.leases:
+            if row.lease_id != lease.lease_id:
+                rows.append(row)
+                continue
+            found = True
+            _require_still_active(row, lease_id=lease.lease_id)
+            reject_foreign_worker(row=row, agent_id=lease.agent_id)
+            reject_foreign_package(row=row, package_id=lease.package_id)
+            reject_stale_base(row=row, live_main=live_main)
+            rows.append(
+                row.model_copy(
+                    update={"status": "ABANDONED", "released_sequence": lease.sequence}
                 )
             )
         if not found:
@@ -399,7 +502,18 @@ def reap_orphaned_lease_releases(
     reaped: list[str] = []
     for lease_id in completed_lease_ids:
         row = by_id.get(lease_id)
-        if row is None or row.status == "RELEASED":
+        # Independent-verification finding (AS-ORCH-LEASE-RECOVERY-001 IV
+        # round 2): this used to check only `!= "RELEASED"`, silently
+        # treating any OTHER non-ACTIVE status the same as ACTIVE and
+        # reconstructing+writing it. Proven repro: a row already
+        # ABANDONED (lease_recovery.py's evidence-gated failure path)
+        # would be flipped ABANDONED -> RELEASED here -- exactly the
+        # CERTIFIED-witness fabrication AS-ORCH-LEASE-RECOVERY-001 exists
+        # to prevent, reachable through this sibling function instead.
+        # `!= "ACTIVE"` is exhaustive against every current AND future
+        # non-active status by construction, not just the ones known
+        # when this line was last edited.
+        if row is None or row.status != "ACTIVE":
             continue
         try:
             capabilities = tuple(AgentCapability(value) for value in row.capabilities)

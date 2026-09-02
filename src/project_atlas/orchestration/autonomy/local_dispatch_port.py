@@ -74,8 +74,11 @@ import os
 import re
 import subprocess
 from contextlib import suppress
+from enum import StrEnum
 from pathlib import Path
 from typing import Final
+
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError
 
 from project_atlas.orchestration.autonomy.lease_projection import (
     RELATIVE_DEFAULT as LEASE_PROJECTION_RELATIVE_DEFAULT,
@@ -105,6 +108,19 @@ WORKTREES_RELATIVE: Final[Path] = RECEIPTS_RELATIVE / "worktrees"
 _DISPATCH_ID_PREFIX: Final[str] = "local-process:"
 _BRANCH_PREFIX: Final[str] = "atlas-local-dispatch/"
 _SAFE_TOKEN_RE = re.compile(r"[^A-Za-z0-9._-]+")
+#: `_safe_token()` collapses everything outside [A-Za-z0-9._-] to a
+#: single "_" -- distinct lease_ids could in principle collapse to the
+#: same receipt filename. This module does not itself enforce a
+#: narrower charset: it relies on `lease_id` already being constrained
+#: upstream by `models.AgentLease`/`lease_projection.ProjectedLease`'s
+#: own `ID_PATTERN` (`^[A-Za-z0-9][A-Za-z0-9._-]*$`, a strict subset of
+#: what `_safe_token` leaves untouched) and, in production, always being
+#: auto-generated (`LEASE-{sequence}`), never attacker-supplied.
+#: Independent-verification note (AS-ORCH-LEASE-RECOVERY-001 owner
+#: review round 2 delta IV): if that upstream pattern is ever loosened,
+#: this collapsing becomes a real filename-collision surface again --
+#: flagged here as the enforced precondition, not re-validated in this
+#: module.
 
 
 class LocalDispatchError(ValueError):
@@ -119,6 +135,80 @@ class LocalDispatchError(ValueError):
         super().__init__(message)
         if code is not None:
             self.code = code
+
+
+class LocalDispatchReceiptStatus(StrEnum):
+    """The exact three values ``dispatch_once()`` ever writes to a real
+    receipt's ``status`` field (see its own body) -- nothing else is a
+    legitimate value, and this is the single source of truth every reader
+    validates against, not a value any reader invents independently.
+
+    ``RUNNING`` is written before the child process starts and can be the
+    FINAL on-disk state if the whole process crashed mid-attempt -- it is
+    real, well-formed, and genuinely unresolved, never terminal-failure
+    evidence. ``FAILED`` is the only status a receipt can carry that is
+    real, positive proof of a terminal, exhausted failure (an exception
+    before/without a result, a non-clean exit, a non-authority-clean
+    result, or the supervisor-integrity guard overriding an otherwise-
+    passing result back to FAILED). ``COMPLETED`` is written if and only
+    if ``exit_code == 0 and authority_clean`` -- production never writes
+    ``COMPLETED`` with a false/absent ``authority_clean``, so no MEANING
+    is lost by treating ``COMPLETED`` as unconditionally a real success
+    signal.
+    """
+
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class LocalDispatchReceipt(BaseModel):
+    """Schema for a real, on-disk local-process dispatch receipt.
+
+    AS-ORCH-LEASE-RECOVERY-001 owner review round 2 (2026-09-02): the
+    evidence gate that consumes these receipts used to accept anything
+    that did NOT positively look like a hidden success (``status ==
+    "COMPLETED" and authority_clean is True``) -- a missing ``status``
+    field, ``status == "RUNNING"``, an unrecognized status string, or a
+    tampered non-bool ``authority_clean`` all silently passed through as
+    "not a hidden success", which is not the same claim as "positive
+    proof of a real, terminal failure". This model is the fix: every
+    receipt ``list_dispatch_receipts()`` returns has ALREADY been
+    validated against this exact, real production shape -- a receipt
+    that doesn't parse is a malformed/tampered receipt and fails closed
+    at the source (``LocalDispatchError``, code ``MALFORMED_RECEIPT``),
+    never silently treated as evidence of anything.
+
+    Strict typing (``StrictBool``/``StrictInt``) so a value like the
+    string ``"true"`` or the int ``1`` where a real bool is required
+    fails validation instead of pydantic's default coercion silently
+    accepting it -- a receipt that is not byte-for-byte what
+    ``dispatch_once()`` itself would have written is corruption, not a
+    liberally-typed input to be normalized.
+
+    ``authority_clean``/``exit_code``/``timed_out``/``error`` are all
+    optional: the real exception-path receipt (``dispatch_once()``,
+    before a ``LocalExecutionResult`` ever exists) legitimately carries
+    only ``dispatch_id``/``lease_id``/``package_id``/``status``/``error``
+    -- requiring the others would make that real, valid shape
+    unparseable. Extra fields (``changed_paths``, ``violations``,
+    ``stdout_digest``, ``stderr_digest``, ``worktree``,
+    ``supervisor_integrity_violation``, ...) are real but not needed by
+    the evidence gate, so they are ignored rather than modeled here --
+    this is deliberately a validation schema for the recovery evidence
+    gate's own needs, not a competing full receipt contract.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    dispatch_id: str = Field(min_length=1)
+    lease_id: str = Field(min_length=1)
+    package_id: str = Field(min_length=1)
+    status: LocalDispatchReceiptStatus
+    authority_clean: StrictBool | None = None
+    exit_code: StrictInt | None = None
+    timed_out: StrictBool | None = None
+    error: str | None = None
 
 
 def _dispatch_id_for(lease_id: str) -> str:
@@ -669,10 +759,176 @@ class LocalProcessDispatchPort:
         return found
 
 
+_ATTEMPT_SUFFIX_RE = re.compile(r"^(\d+)\.json$")
+
+
+def list_dispatch_receipts(
+    root: Path,
+    *,
+    lease_id: str,
+    expected_package_id: str | None = None,
+) -> tuple[LocalDispatchReceipt, ...]:
+    """Every real, already-persisted receipt recorded for ``lease_id``, in
+    attempt order, each validated against ``LocalDispatchReceipt`` --
+    the real production schema -- AND bound to the durable slot it was
+    read from. Read-only -- the exact same underlying receipt files
+    ``recover()``/``find_active_dispatch_id()`` already trust, via the
+    same ``_read_receipt()`` (so a corrupt/tampered receipt fails closed
+    here too, never silently treated as "no attempt"). Returns an empty
+    tuple only when NO attempt was ever recorded for this lease; never
+    guesses or fabricates a receipt.
+
+    Independent-verification finding (AS-ORCH-LEASE-RECOVERY-001 IV round
+    2): the original version scanned attempts ``0, 1, 2, ...`` and
+    stopped at the first missing index. If an intermediate receipt file
+    were ever lost (deleted, a future reaper, disk corruption), a LATER
+    attempt's receipt -- including a genuine, authority-clean COMPLETED
+    success -- would be silently invisible to this function, and
+    therefore to ``lease_recovery``'s evidence gate. This lists the real
+    directory instead of assuming contiguity, so a gap can never hide a
+    later receipt; every attempt actually present on disk is read and
+    returned, sorted by attempt number.
+
+    Owner review round 2 (2026-09-02): a syntactically-valid-JSON receipt
+    is not the same claim as a real, well-formed, self-consistent
+    receipt. Every entry returned here has been positively validated
+    (fails closed with ``LocalDispatchError`` otherwise, never silently
+    dropped or silently accepted) against three independent properties:
+    real schema (``LocalDispatchReceipt`` -- required fields present,
+    ``status`` one of the three real values, strictly-typed
+    ``authority_clean``), slot identity (the receipt's own
+    ``dispatch_id`` field must equal the dispatch_id implied by the
+    durable slot/filename it was actually read from -- a receipt cannot
+    claim to be a different attempt than the one it was found at), and
+    lease identity (the receipt's own ``lease_id`` must equal the
+    ``lease_id`` this call was made for). ``expected_package_id``, when
+    supplied, additionally binds the receipt's ``package_id`` to the
+    caller's own independently-sourced expectation (e.g. the governing
+    lease projection row) -- optional because not every caller has that
+    context, never skipped when a caller does.
+
+    AS-ORCH-LEASE-RECOVERY-001: this is the evidence source
+    ``lease_recovery.release_stalled_lease_after_exhausted_dispatch()``
+    reads before it will release a lease its owning loop got permanently
+    stuck on -- see that module's docstring for the incident that makes
+    real, on-disk receipts (not a caller's assertion) the only acceptable
+    evidence.
+    """
+    prefix = _safe_token(_dispatch_id_for(lease_id)) + "_"
+    receipts_dir = _receipts_dir(root)
+    attempts: dict[int, str] = {}
+    # Reviewer finding (GitHub Copilot, PR #673) plus a follow-up finding
+    # from delta IV round 2 (HIGH) on the first fix attempt:
+    #
+    # `int("05") == int("5")`, so a non-canonical (e.g. zero-padded)
+    # filename can name the same attempt as a canonical one, or an
+    # attempt number no other file claims. The first fix only checked
+    # for the former (two filenames colliding on one integer) by
+    # assigning into a dict keyed by that integer -- a lone non-canonical
+    # file naming an UNCLAIMED attempt never collided with anything, so
+    # it was recorded as "present" during this scan, then silently
+    # vanished at READ time below: `_read_receipt()` reconstructs and
+    # looks up only the CANONICAL filename for `attempt_number`, gets
+    # `FileNotFoundError`, and a bare `continue` dropped it with no
+    # error. Reproduced end to end through the real CLI: a genuine
+    # COMPLETED/authority_clean=true receipt stored only under a
+    # non-canonical name was invisible to the evidence gate, and the
+    # lease was abandoned anyway -- exactly the hidden-success
+    # fabrication this whole mechanism exists to prevent.
+    #
+    # Requiring the discovered suffix text to equal `str(attempt_number)`
+    # exactly (i.e. refusing any non-canonical filename outright, fail
+    # closed, at THIS scan step) closes both the collision shape and the
+    # unclaimed-attempt shape at once, and makes read-time loss
+    # structurally unreachable rather than just less likely: every entry
+    # that reaches `attempts` below has, by construction, the one
+    # filename `_read_receipt()` will look up. Sorted iteration also
+    # makes which file is reported first deterministic, matching
+    # `iterdir()`'s own non-guaranteed order otherwise being a second,
+    # independent source of nondeterminism this fix removes as a
+    # byproduct.
+    entries: list[Path] = []
+    if receipts_dir.is_dir():
+        entries = sorted(receipts_dir.iterdir(), key=lambda item: item.name)
+    for entry in entries:
+        if not entry.is_file() or not entry.name.startswith(prefix):
+            continue
+        match = _ATTEMPT_SUFFIX_RE.match(entry.name[len(prefix) :])
+        if match is None:
+            continue  # not an attempt receipt (e.g. the sibling "-request.json")
+        suffix_text = match.group(1)
+        attempt_number = int(suffix_text)
+        if suffix_text != str(attempt_number):
+            raise LocalDispatchError(
+                f"lease {lease_id!r} has a receipt filename "
+                f"({entry.name!r}) whose attempt suffix ({suffix_text!r}) "
+                f"is not the canonical form of attempt {attempt_number} -- "
+                "a non-canonical (e.g. zero-padded) attempt filename is "
+                "refused rather than silently excluded",
+                code="NONCANONICAL_ATTEMPT_FILENAME",
+            )
+        # Unreachable in practice once the check above holds (the
+        # canonical decimal string is unique per integer, so two
+        # DIFFERENT canonical filenames can never share an
+        # `attempt_number`) -- kept as a defense-in-depth backstop, not
+        # dead code removed on a purely theoretical argument: if the
+        # canonical-form rule above is ever loosened or refactored, this
+        # still fails closed instead of silently reintroducing the
+        # original collision shape.
+        if attempt_number in attempts:
+            raise LocalDispatchError(
+                f"lease {lease_id!r} has two different receipt filenames "
+                f"that both name attempt {attempt_number} -- a duplicate "
+                "attempt filename is refused rather than silently keeping "
+                "one and discarding the other's evidence",
+                code="DUPLICATE_ATTEMPT_FILENAME",
+            )
+        attempts[attempt_number] = f"{_dispatch_id_for(lease_id)}:{attempt_number}"
+    receipts: list[LocalDispatchReceipt] = []
+    for attempt in sorted(attempts):
+        expected_dispatch_id = attempts[attempt]
+        raw = _read_receipt(root, expected_dispatch_id)
+        if raw is None:
+            continue
+        try:
+            parsed = LocalDispatchReceipt.model_validate(raw)
+        except ValidationError as exc:
+            raise LocalDispatchError(
+                f"dispatch receipt at slot {expected_dispatch_id!r} does not "
+                "match the real receipt schema -- refusing to treat a "
+                f"malformed/incomplete receipt as evidence of anything: {exc}",
+                code="MALFORMED_RECEIPT",
+            ) from exc
+        if parsed.dispatch_id != expected_dispatch_id:
+            raise LocalDispatchError(
+                f"receipt at slot {expected_dispatch_id!r} internally claims "
+                f"dispatch_id {parsed.dispatch_id!r} -- its own identity "
+                "disagrees with the durable slot it was actually read from",
+                code="RECEIPT_SLOT_IDENTITY_MISMATCH",
+            )
+        if parsed.lease_id != lease_id:
+            raise LocalDispatchError(
+                f"receipt {expected_dispatch_id!r} belongs to lease "
+                f"{parsed.lease_id!r}, not the requested {lease_id!r}",
+                code="RECEIPT_LEASE_MISMATCH",
+            )
+        if expected_package_id is not None and parsed.package_id != expected_package_id:
+            raise LocalDispatchError(
+                f"receipt {expected_dispatch_id!r} belongs to package "
+                f"{parsed.package_id!r}, not the expected {expected_package_id!r}",
+                code="RECEIPT_PACKAGE_MISMATCH",
+            )
+        receipts.append(parsed)
+    return tuple(receipts)
+
+
 __all__ = [
     "PACKAGE_ID",
     "RECEIPTS_RELATIVE",
     "WORKTREES_RELATIVE",
     "LocalDispatchError",
+    "LocalDispatchReceipt",
+    "LocalDispatchReceiptStatus",
     "LocalProcessDispatchPort",
+    "list_dispatch_receipts",
 ]
