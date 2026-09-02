@@ -195,8 +195,10 @@ integration targets._
   `docs/product/CODER-ALPHA-NORTH-STAR.md` and
   `docs/AS-PILOT-FIXTURE-ONLY-WAIVER.md`. A fixture-backed bounded
   technical-acceptance pilot has run and passed
-  (`tests/integration/test_int_013_bounded_multi_project_pilot.py`,
-  kept as an ongoing regression) but does not itself clear this blocker.)
+  (`tests/integration/test_int_013_bounded_multi_project_pilot.py`, run
+  unskipped and passing during authorship, currently kept `pytest.mark.skip`
+  pending deliberate certification) but does not itself clear this
+  blocker.)
 
 ## AS-CORE-002 — Semantic domain model and source lifecycle hardening
 
